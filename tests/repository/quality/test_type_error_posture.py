@@ -221,6 +221,7 @@ class TypeErrorPostureTests(unittest.TestCase):
             with self.subTest(condition=condition):
                 source = f"if {condition}:\n    raise ValueError('invalid value')\n"
                 findings = _findings(path=Path("example.py"), source=source)
+
                 self.assertEqual(1, len(findings))
                 self.assertEqual(1, findings[0].line)
 
@@ -247,6 +248,7 @@ class TypeErrorPostureTests(unittest.TestCase):
             with self.subTest(condition=condition):
                 source = f"if {condition}:\n    raise TypeError('invalid value')\n"
                 findings = _findings(path=Path("example.py"), source=source)
+
                 self.assertEqual(1, len(findings))
                 self.assertEqual("TypeError", findings[0].exception)
                 self.assertIn("combines type and value rejection with TypeError", findings[0].diagnostic())
@@ -267,6 +269,7 @@ class TypeErrorPostureTests(unittest.TestCase):
         ):
             with self.subTest(condition=condition):
                 source = f"if {condition}:\n    raise TypeError('invalid type')\n"
+
                 self.assertEqual([], _findings(path=Path("example.py"), source=source))
 
     def test_semantic_predicates_and_type_metadata_are_not_type_guards(self) -> None:
@@ -292,6 +295,7 @@ class TypeErrorPostureTests(unittest.TestCase):
         for condition in conditions:
             with self.subTest(condition=condition):
                 source = f"if {condition}:\n    raise ValueError('invalid value')\n"
+
                 self.assertEqual([], _findings(path=Path("example.py"), source=source))
 
     def test_only_the_guard_owning_a_direct_value_error_is_flagged(self) -> None:
@@ -303,6 +307,7 @@ class TypeErrorPostureTests(unittest.TestCase):
         ):
             with self.subTest(rejection=rejection):
                 source = f"if type(value) is not str:\n    {rejection}\n"
+
                 self.assertEqual(1, len(_findings(path=Path("example.py"), source=source)))
 
         for rejection in (
@@ -315,6 +320,7 @@ class TypeErrorPostureTests(unittest.TestCase):
         ):
             with self.subTest(rejection=rejection):
                 source = f"if type(value) is not str:\n    {rejection}\n"
+
                 self.assertEqual([], _findings(path=Path("example.py"), source=source))
 
     def test_diagnostic_names_the_guard_and_required_exception_order(self) -> None:

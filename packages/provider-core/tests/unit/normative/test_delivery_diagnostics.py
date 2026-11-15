@@ -20,6 +20,7 @@ class DeliveryDiagnosticsTests(unittest.TestCase):
             with self.subTest(code=code):
                 failure = SystemExit(code)
                 report = json.loads(json.dumps(failure_evidence(failure, secrets=())))
+
                 self.assertEqual(report["system_exit_code"], code)
                 self.assertIs(type(report["system_exit_code"]), type(code))
                 self.assertNotIn("system_exit_code_omitted", report)
@@ -41,6 +42,7 @@ class DeliveryDiagnosticsTests(unittest.TestCase):
             failure = SystemExit(code)
             rendered = json.dumps(failure_evidence(failure, secrets=()))
             report = json.loads(rendered)
+
             self.assertTrue(report["system_exit_code_omitted"])
             self.assertNotIn("system_exit_code", report)
             self.assertNotIn("PRIVATE", rendered)
@@ -53,6 +55,7 @@ class DeliveryDiagnosticsTests(unittest.TestCase):
                 raise AssertionError("Subclass code must not be inspected")
 
         report = failure_evidence(PrivateExit(7), secrets=())
+
         self.assertEqual(report["exception_type"], "PrivateExit")
         self.assertNotIn("system_exit_code", report)
 
@@ -65,6 +68,7 @@ class DeliveryDiagnosticsTests(unittest.TestCase):
 
         report = failure_evidence(failure, secrets=())
         rendered = json.dumps(report)
+
         self.assertIn('"sqlite_errorcode": 1', rendered)
         self.assertIn('"sqlite_errorname": "SQLITE_ERROR"', rendered)
         self.assertNotIn("PRIVATE_SQL_TABLE", rendered)
@@ -83,6 +87,7 @@ class DeliveryDiagnosticsTests(unittest.TestCase):
         self.assertEqual(report["sqlite_errorcode"], sqlite3.SQLITE_CONSTRAINT_UNIQUE)
         self.assertEqual(report["sqlite_errorname"], "SQLITE_CONSTRAINT_UNIQUE")
         unreported = failure_evidence(sqlite3.OperationalError("PRIVATE_SQL_TEXT"), secrets=())
+
         self.assertNotIn("sqlite_errorcode", unreported)
         self.assertNotIn("sqlite_errorname", unreported)
         self.assertNotIn("PRIVATE_SQL_TEXT", json.dumps(unreported))
@@ -101,6 +106,7 @@ class DeliveryDiagnosticsTests(unittest.TestCase):
         failure = DeliveryWorkerFailed(cause=api, api_failure=api, cleanup_failures=(cleanup,), api_receipt_received=False)
         report = failure_evidence(failure, secrets=())
         rendered = json.dumps(report)
+
         self.assertIn('"status": 429', rendered)
         self.assertIn("request:delivery", rendered)
         self.assertIn('"errno": 5', rendered)
@@ -111,6 +117,7 @@ class DeliveryDiagnosticsTests(unittest.TestCase):
         unknown = ValueError("PRIVATE_BODY token=sk-PRIVATE_VALUE")
         failure = ApiFailure("publish Attempt failure", 'secret="escaped\\\"PRIVATE_SECRET"; header Bearer PRIVATE_AUTH', cause=unknown)
         rendered = json.dumps(failure_evidence(failure, secrets=("PRIVATE_SECRET",)))
+
         self.assertNotIn("PRIVATE", rendered)
         self.assertIn("ValueError", rendered)
 

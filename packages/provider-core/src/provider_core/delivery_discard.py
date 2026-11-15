@@ -26,12 +26,14 @@ from provider_core.attempt_request import require_provider_ref
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     configuration = parser.add_mutually_exclusive_group(required=True)
+
     configuration.add_argument("--config", type=Path)
     configuration.add_argument("--shared-config", type=Path)
     parser.add_argument("--state-directory", type=Path)
     parser.add_argument("--api-origin", required=True)
     parser.add_argument("--provider-ref", required=True)
     action = parser.add_mutually_exclusive_group(required=True)
+
     action.add_argument("--list-held", action="store_true")
     action.add_argument("--execution-attempt-ref")
     parser.add_argument("--body-sha256")

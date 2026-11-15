@@ -71,6 +71,7 @@ class ConditionRecoveryTests(unittest.IsolatedAsyncioTestCase):
         )
 
         terminal = await asyncio.wait_for(executor.run(acknowledged), 3)
+
         self.assertIs(terminal.selection.operation, TerminalOperation.COMPLETE)
         self.assertEqual(len(notices), 2)
 
@@ -84,6 +85,7 @@ class ConditionRecoveryTests(unittest.IsolatedAsyncioTestCase):
 
         self.assertTrue(transport.read_after_failure.is_set())
         requests = transport.condition_requests
+
         self.assertEqual(len(requests), 3)
         self.assertEqual({request.content for request in requests}, {transport.condition_body})
         self.assertEqual(len({request.headers["signature-input"] for request in requests}), 3)

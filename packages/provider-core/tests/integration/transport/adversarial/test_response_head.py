@@ -20,6 +20,7 @@ class ReceivedHeadTests(unittest.IsolatedAsyncioTestCase):
                             await transport.exchange(httpx.Request("GET", peer.origin + "/input"), maximum_bytes=100)
 
                         head = caught.exception.response_head
+
                         self.assertEqual((head.status, head.headers), (200, ((b"Content-Length", b"100"),)))
                         self.assertIsNotNone(caught.exception.primary)
                         self.assertEqual(len(peer.requests), 1)

@@ -16,6 +16,7 @@ class GeneratedShutdownTests(unittest.TestCase):
         async def probe():
             async with ShutdownPeer([fixed_response(body)], tunnel=tunnel, fragment_size=fragment_size) as peer:
                 response = await peer.transport.exchange(httpx.Request("GET", peer.origin), maximum_bytes=256)
+
                 self.assertEqual(body, response.body)
                 self.assertTrue(peer.transport.retirement_confirmed)
                 self.assertGreater(peer.raw_close_successes, 0)
@@ -33,6 +34,7 @@ class GeneratedShutdownTests(unittest.TestCase):
         async def probe():
             async with ShutdownPeer([wire], tunnel=tunnel, fragment_size=fragment_size) as peer:
                 response = await peer.transport.exchange(httpx.Request("GET", peer.origin), maximum_bytes=256)
+
                 self.assertEqual(body, response.body)
                 self.assertTrue(peer.transport.retirement_confirmed)
                 self.assertGreater(peer.raw_close_successes, 0)

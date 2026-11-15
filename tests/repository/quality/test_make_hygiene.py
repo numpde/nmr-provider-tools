@@ -217,6 +217,7 @@ class RepositoryHygieneTest(unittest.TestCase):
 
         with tempfile.TemporaryDirectory() as directory:
             path = Path(directory) / "Makefile"
+
             path.write_text(makefile)
 
             result = subprocess.run(
@@ -246,6 +247,7 @@ class RepositoryHygieneTest(unittest.TestCase):
 
     def test_duplicate_detection_retains_names_repeated_across_multi_target_rules(self):
         makefile = "first/one second/two:\nsecond/two third/three:\n"
+
         self.assertEqual(["first/one", "second/two", "second/two", "third/three"], self.make_target_list(makefile))
 
         with patch(f"{__name__}.read_text", return_value=makefile), self.assertRaises(AssertionError):
@@ -280,6 +282,7 @@ class RepositoryHygieneTest(unittest.TestCase):
 
     def test_empty_aggregate_recipe_stops_before_subsequent_phony(self):
         makefile = "tests: tests/repository\n\n.PHONY: later\nlater:\n\t@echo ready\n"
+
         self.assertEqual("", self.make_target_recipe(makefile, "tests").strip())
         self.assertEqual("\t@echo ready", self.make_target_recipe(makefile, "later"))
 

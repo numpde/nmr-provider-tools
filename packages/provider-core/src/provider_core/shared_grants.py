@@ -88,8 +88,10 @@ def shared_grants(path):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
+
     parser.add_argument("--config", type=Path, required=True)
     options = parser.parse_args()
+
     print(json.dumps(shared_grants(options.config).compose(), sort_keys=True))
 
 

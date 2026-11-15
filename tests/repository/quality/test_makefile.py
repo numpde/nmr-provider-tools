@@ -142,6 +142,7 @@ class MakeHelpTests(unittest.TestCase):
         makefile = (REPOSITORY_ROOT / "Makefile").read_text(encoding="utf-8")
         help_recipe = make_target_body(makefile, "help")
         literal_targets = set(re.findall(r"\bmake ([a-z0-9][a-z0-9/-]*)(?=\s|')", help_recipe))
+
         self.assertTrue(literal_targets)
 
         for target in sorted(literal_targets):
@@ -158,6 +159,7 @@ class MakeRecipeOwnershipTests(unittest.TestCase):
 
     def test_recipe_macros_ignore_makeflags_assignments(self) -> None:
         makefile = (REPOSITORY_ROOT / "Makefile").read_text(encoding="utf-8")
+
         self.assertNotRegex(makefile, r"(?m)^define ")
 
         for assignment in (

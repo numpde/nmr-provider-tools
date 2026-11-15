@@ -21,6 +21,7 @@ from tools import provider_core_acquire, wheelhouse
 class WheelhouseTests(unittest.TestCase):
     def setUp(self):
         temporary = tempfile.TemporaryDirectory()
+
         self.addCleanup(temporary.cleanup)
         self.root = Path(temporary.name)
         self.pool = self.root / "shared pool"
@@ -47,6 +48,7 @@ class WheelhouseTests(unittest.TestCase):
 
         with zipfile.ZipFile(path, "w") as archive:
             prefix = f"{distribution}-{version}.dist-info"
+
             archive.writestr(f"{prefix}/METADATA", f"Metadata-Version: 2.1\nName: {name}\nVersion: {version}\n")
             archive.writestr(f"{prefix}/WHEEL", "Wheel-Version: 1.0\nRoot-Is-Purelib: true\nTag: py3-none-any\n")
             archive.writestr(f"{prefix}/RECORD", "")
@@ -64,6 +66,7 @@ class WheelhouseTests(unittest.TestCase):
 
     def test_provider_core_cache_check_reuses_admitted_local_version(self):
         wheel = self.make_wheel("pool-local", "1.0+cpu")
+
         shutil.copyfile(wheel, self.pool / wheel.name)
         self.lock.write_text(f"pool-local==1.0 \\\n    --hash=sha256:{wheelhouse.digest(wheel)}\n")
         self.assertEqual("complete", provider_core_acquire.cache_state(self.pool, [self.lock]))
@@ -77,6 +80,7 @@ class WheelhouseTests(unittest.TestCase):
             provider_core_acquire.cache_state(self.pool, [self.lock])
 
         alternate = self.make_wheel("pool-local", "1.0+z")
+
         shutil.copyfile(alternate, self.pool / alternate.name)
 
         self.lock.write_text(f"pool-local==1.0 \\\n    --hash=sha256:{wheelhouse.digest(wheel)} \\\n"
@@ -115,6 +119,7 @@ class WheelhouseTests(unittest.TestCase):
 
         server = ThreadingHTTPServer(("127.0.0.1", 0), Handler)
         thread = Thread(target=server.serve_forever)
+
         thread.start()
 
         try:
@@ -124,6 +129,7 @@ class WheelhouseTests(unittest.TestCase):
 
             with patch.object(provider_core_acquire, "require_download_proxy"):
                 path = provider_core_acquire.acquire_tool(self.pool, pin)
+
                 provider_core_acquire.acquire_tool(self.pool, pin)
 
             self.assertEqual(content, path.read_bytes())
@@ -137,6 +143,7 @@ class WheelhouseTests(unittest.TestCase):
     def test_cached_tool_is_reusable_during_shared_pool_access(self):
         content = b"synthetic tool release"
         pin = {"name": "synthetic-tool.pyz", "sha256": hashlib.sha256(content).hexdigest()}
+
         (self.pool / pin["name"]).write_bytes(content)
         finished = Event()
         errors = []
@@ -151,6 +158,7 @@ class WheelhouseTests(unittest.TestCase):
 
         with wheelhouse.pool_lock(self.pool, exclusive=False):
             thread = Thread(target=acquire)
+
             thread.start()
             completed_while_shared = finished.wait(2)
 
@@ -160,8 +168,10 @@ class WheelhouseTests(unittest.TestCase):
 
     def test_report_requires_the_actual_candidate_wheel(self):
         candidate_dir = self.root / "release"
+
         candidate_dir.mkdir()
         candidate = candidate_dir / self.cached.name
+
         shutil.copyfile(self.cached, candidate)
         report = self.root / "report.json"
 
@@ -178,4 +188,5 @@ class WheelhouseTests(unittest.TestCase):
 
         write_report(candidate)
         selected = wheelhouse.wheel_inputs_from_report(self.lock, self.pool, report, (candidate_dir,), {candidate.name: candidate})
+
         self.assertIn(candidate.name, selected["files"])

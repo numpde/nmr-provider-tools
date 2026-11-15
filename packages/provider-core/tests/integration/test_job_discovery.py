@@ -42,9 +42,11 @@ class JobDiscoveryIntegrationTests(unittest.IsolatedAsyncioTestCase):
                 )
 
                 page = await client.jobs(analysis_kind_ref="nmr_predict", has_provider_execution_attempt=False, limit=2, cursor=None)
+
                 self.assertEqual([item.input.job_ref for item in page.jobs], [item["job_ref"] for item in order])
                 selected = next(item for item in page.jobs if item.input.job_ref == "job:second")
                 verified = await client.job_input(selected.input, analysis_kind_ref=selected.analysis_kind_ref)
+
                 self.assertEqual(verified.specification_bytes, payload)
                 self.assertEqual(verified.identity, selected.input)
                 self.assertTrue(peer.requests[1].startswith(b"GET /provider/v1/jobs/job:second/input?"))
@@ -59,6 +61,7 @@ class JobDiscoveryIntegrationTests(unittest.IsolatedAsyncioTestCase):
             page = await client.jobs(analysis_kind_ref="nmr_predict", has_provider_execution_attempt=False, limit=1, cursor=None)
             (selected,) = page.jobs
             verified = await client.job_input(selected.input, analysis_kind_ref=selected.analysis_kind_ref)
+
             self.assertEqual(verified.identity, selected.input)
             self.assertEqual(verified.specification_bytes, b"private instructions")
             self.assertEqual(len(peer.requests), 2)

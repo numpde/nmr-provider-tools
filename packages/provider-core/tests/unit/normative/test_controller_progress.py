@@ -22,6 +22,7 @@ class ControllerPhaseProgressTests(unittest.IsolatedAsyncioTestCase):
         (session, notice) = (Session(store), Mock())
         replies = list(lifecycle_replies())
         replies[3] = reply(b"PRIVATE progress response", status=503)
+
         replies.insert(4, reply(observation()))
         transport = Transport(*replies)
 
@@ -43,6 +44,7 @@ class ControllerPhaseProgressTests(unittest.IsolatedAsyncioTestCase):
         self.assertIs(type(confirmed), DeliveryAcceptedCheckpoint)
         notice.assert_called_once()
         (attempt, phase, failure) = notice.call_args.args
+
         self.assertEqual(attempt.start, record())
         self.assertEqual((phase, failure.status), ("preparing", 503))
         self.assertEqual([event[0] for event in session.events], ["prepare", "execute", "retire"])

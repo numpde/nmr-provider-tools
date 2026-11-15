@@ -53,6 +53,7 @@ class ControllerFailureTests(unittest.IsolatedAsyncioTestCase):
             claims.claim_live(record(), lifecycle_owner=LiveAttemptProbe())
 
         retained = await executor.retain_suppressed_disposition()
+
         self.assertIsInstance(retained, SuppressedCheckpoint)
         self.assertIsNone(await controller.settle())
         self.assertEqual(store.records, ())
@@ -60,6 +61,7 @@ class ControllerFailureTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual([event[0] for event in session.events], ["prepare", "execute", "retire"])
         self.assertEqual(len(transport.calls), 8)
         released = claims.claim_live(record(), lifecycle_owner=LiveAttemptProbe())
+
         released.release(owner=released.lifecycle_owner)
 
     async def test_non_none_retirement_never_confirms_terminal_replay_or_failed_start_cleanup(self):
@@ -146,6 +148,7 @@ class ControllerFailureTests(unittest.IsolatedAsyncioTestCase):
         self.assertIsInstance(caught.exception.cause, ExecutionFailed)
         self.assertIs(caught.exception.cause.cause, failure)
         (selected,) = store.records
+
         self.assertIs(type(selected), TerminalSelectedCheckpoint)
 
         with self.assertRaises(ControllerFailed):
@@ -183,6 +186,7 @@ class ControllerFailureTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(transport.calls, [])
         self.assertEqual(store.records, ())
         untouched = claims.claim_live(record(), lifecycle_owner=LiveAttemptProbe())
+
         untouched.release(owner=untouched.lifecycle_owner)
 
     async def test_failed_start_retires_session_and_keeps_claim_until_explicit_settlement(self):
@@ -204,6 +208,7 @@ class ControllerFailureTests(unittest.IsolatedAsyncioTestCase):
                                        task_settle_seconds=0.1)
 
         deferred = await controller.run(record())
+
         self.assertTrue(deferred.may_have_committed)
         self.assertEqual(record(), deferred.pending)
         self.assertIsInstance(controller.operation.last_failure, StartFailed)
@@ -242,6 +247,7 @@ class ControllerFailureTests(unittest.IsolatedAsyncioTestCase):
             await controller.run(record())
 
         primary = failure.exception.cause
+
         self.assertIs(primary, cleanup_failure)
         self.assertIsInstance(controller.operation.last_failure, StartFailed)
         self.assertIn(cleanup_failure, failure.exception.cleanup_failures)
@@ -255,6 +261,7 @@ class ControllerFailureTests(unittest.IsolatedAsyncioTestCase):
             claims.claim_live(record(), lifecycle_owner=LiveAttemptProbe())
 
         session.retirement_failure = None
+
         self.assertIsNone(await controller.settle())
         self.assertTrue(claims.owns_job(scope(), record().input.job_ref))
         self.assertTrue(controller.shutdown_ready)

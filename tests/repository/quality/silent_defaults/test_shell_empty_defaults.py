@@ -70,6 +70,7 @@ class ShellEmptyDefaultsTest(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             config = root / "config"
+
             config.mkdir()
 
             for name in ("private.env", "private.env.example"):

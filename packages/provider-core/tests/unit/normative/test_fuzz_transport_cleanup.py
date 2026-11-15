@@ -92,6 +92,7 @@ class CleanupFaultSequenceTests(unittest.IsolatedAsyncioTestCase):
             owner = object()
             request = httpx.Request("GET", "https://synthetic.example/held")
             actions = ["retire", "replacement", "wrong-owner"] * random.Random(seed).randint(1, 3)
+
             random.Random(seed).shuffle(actions)
 
             with self.subTest(seed=seed, trace=tuple(actions)), patch(
@@ -113,8 +114,10 @@ class CleanupFaultSequenceTests(unittest.IsolatedAsyncioTestCase):
                         await asyncio.wait_for(task, 1)
 
                     failure = transport.last_failure
+
                     self.assertIsNotNone(failure)
                     original = transport._active
+
                     self.assertIsNotNone(original)
 
                     for action in actions:

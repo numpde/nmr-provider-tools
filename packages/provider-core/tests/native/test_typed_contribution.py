@@ -58,6 +58,7 @@ class TypedContributionTests(unittest.TestCase):
 
         science.load_model(model)
         analysis = science.create_analysis(model)
+
         science.initialize_analysis(analysis)
 
         prepared = science.prepare(
@@ -79,8 +80,10 @@ class TypedContributionTests(unittest.TestCase):
         binding = _weighted_binding()
         (prepare_call, calculate_call) = (binding.prepare, binding.calculate)
         model = binding.instance.construct()
+
         binding.instance.initialize(model)
         analysis = binding.analysis.construct(model)
+
         binding.analysis.initialize(analysis)
         control = _Control()
 
@@ -219,8 +222,10 @@ class TypedContributionTests(unittest.TestCase):
 
         prepare_call = binding.prepare
         model = binding.instance.construct()
+
         binding.instance.initialize(model)
         analysis = binding.analysis.construct(model)
+
         binding.analysis.initialize(analysis)
         preparation_input = prepare_call.decode_input(b'{"values":[]}')
 
@@ -328,6 +333,7 @@ class TypedContributionTests(unittest.TestCase):
 
         adapted = replace(call, scientific_call=arbitrary_name)
         returned = adapted.invoke(None, None, science.SumInput(values=(2, 3)), {}, _Control())
+
         self.assertEqual(science.SumResult(total=5, count=2), returned.value)
 
     def test_binding_requires_one_typed_context_parameter(self):

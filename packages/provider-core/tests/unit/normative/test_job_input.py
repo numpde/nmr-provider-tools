@@ -12,6 +12,7 @@ class JobInputTests(unittest.TestCase):
         for payload in (b"x", b" \r\nprivate\x00instructions\t", "Café Cafe\u0301".encode(), b"x" * 65536):
             with self.subTest(length=len(payload)):
                 verified = verify_job_input(response(payload), feed=facts(payload))
+
                 self.assertEqual(verified.specification_bytes, payload)
                 self.assertEqual(verified.job_ref, "job:example")
                 self.assertEqual(verified.specification_text, payload.decode())

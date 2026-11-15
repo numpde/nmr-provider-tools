@@ -64,8 +64,10 @@ class DeliveryExecutionTests(unittest.IsolatedAsyncioTestCase):
         (store, acknowledged, claim) = await live_attempt()
         (session, delivery) = (CheckpointSession(store), RecordingDelivery())
         executor = executor_at(store, acknowledged, claim, session, delivery)
+
         self.assertFalse(executor.delivery_accepted)
         accepted = await executor.run(acknowledged)
+
         self.assertTrue(executor.delivery_accepted)
         self.assertIs(type(accepted), DeliveryAcceptedCheckpoint)
         self.assertIs(type(session.events[1][1]), EnteredCheckpoint)
@@ -126,6 +128,7 @@ class DeliveryExecutionTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(len(delivery.items), 1)
         self.assertFalse(executor.retirement_confirmed)
         session.retirement_failure = None
+
         self.assertIs(type(await executor.settle()), DeliveryAcceptedCheckpoint)
         self.assertEqual(len(delivery.items), 1)
         self.assertEqual([event[0] for event in session.events].count("execute"), 1)
@@ -150,6 +153,7 @@ class DeliveryExecutionTests(unittest.IsolatedAsyncioTestCase):
 
             self.assertGreater(len(delivery.attempted), 0)
             report = json.dumps(failure_evidence(failed.exception, secrets=()))
+
             self.assertIn('"errno": 5', report)
             self.assertNotIn("PRIVATE_NATIVE", report)
             self.assertGreater(executor._on_delivery_retry.call_count, 0)
@@ -160,6 +164,7 @@ class DeliveryExecutionTests(unittest.IsolatedAsyncioTestCase):
             delivery.release.set()
             await asyncio.wait_for(asyncio.shield(executor._handoff_wait), 1)
             session.retirement_failure = None
+
             self.assertIs(type(await executor.settle()), DeliveryAcceptedCheckpoint)
             self.assertIsNone(executor._outcome)
             self.assertEqual(len(delivery.items), 1)
@@ -229,6 +234,7 @@ class DeliveryExecutionTests(unittest.IsolatedAsyncioTestCase):
                 await task
 
             count = len(delivery.attempted)
+
             delivery.release.set()
 
             with self.assertRaises(ExecutionFailed):

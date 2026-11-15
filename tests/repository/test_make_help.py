@@ -27,6 +27,7 @@ class MakeHelpTests(unittest.TestCase):
 
         self.assertEqual(0, result.returncode, msg=result.stderr)
         documented = set(re.findall(r"\bmake ([A-Za-z][A-Za-z0-9/._-]+)", result.stdout))
+
         self.assertEqual(declared, documented)
         self.assertNotIn("Select a local Docker context", result.stderr)
 

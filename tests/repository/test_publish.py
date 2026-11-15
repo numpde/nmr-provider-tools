@@ -22,11 +22,13 @@ from pathlib import Path
 class PublicationTests(unittest.TestCase):
     def setUp(self):
         temporary = tempfile.TemporaryDirectory()
+
         self.addCleanup(temporary.cleanup)
         self.root = Path(temporary.name)
 
         for name in ("host/tools/publish.sh", "host/tools/inference_native.sh", "host/tools/wheelhouse_path.sh"):
             target = self.root / name
+
             target.parent.mkdir(parents=True, exist_ok=True)
             shutil.copyfile(name, target)
 
@@ -49,6 +51,7 @@ class PublicationTests(unittest.TestCase):
 
         self.inputs.mkdir(mode=0o700)
         artifacts = self.inputs / "artifacts"
+
         artifacts.mkdir()
 
         contents = {
@@ -105,6 +108,7 @@ class PublicationTests(unittest.TestCase):
         (self.root / "prepared").mkdir(mode=0o700)
         (self.root / "pool").mkdir()
         result = self.run_publisher("publish", "prepare")
+
         self.assertEqual(0, result.returncode, msg=result.stderr)
         self.assertEqual(self.note.read_bytes(), (self.root / "prepared/release-notes.md").read_bytes())
         self.assertEqual(8, len(list((self.root / "prepared/artifacts").iterdir())))
@@ -127,10 +131,13 @@ class PublicationTests(unittest.TestCase):
 
     def test_prepare_refuses_nonempty_destination_without_erasing_evidence(self):
         destination = self.root / "prepared"
+
         destination.mkdir(mode=0o700)
         previous = destination / "release-build.log"
+
         previous.write_text("existing evidence must stay intact")
         result = self.run_publisher("publish", "prepare")
+
         self.assertEqual(2, result.returncode, msg=result.stderr)
         self.assertIn("OUTPUT", result.stderr)
         self.assertIn("empty", result.stderr)
@@ -154,6 +161,7 @@ class PublicationTests(unittest.TestCase):
 
     def test_release_rejects_artifacts_child_before_publication(self):
         selected = self.inputs / "artifacts"
+
         selected.chmod(0o700)
 
         result = self.run_publisher("publish",
@@ -171,13 +179,16 @@ class PublicationTests(unittest.TestCase):
         (self.root / "prepared").mkdir(mode=0o700)
         (self.root / "pool").mkdir()
         result = self.run_publisher("failed-qualification", "prepare")
+
         self.assertEqual(1, result.returncode, msg=result.stderr)
         destination = self.root / "prepared"
+
         self.assertEqual(8, len(list((destination / "artifacts").iterdir())))
         self.assertIn("test_blocked", result.stderr)
         self.assertIn("AssertionError: Original Job was not published", result.stderr)
         self.assertIn("release-test.log", result.stderr)
         summary = destination / "release-failures.txt"
+
         self.assertTrue(summary.is_file(), msg=result.stderr)
         self.assertIn("=== END PROVIDER-CORE FAILURE SUMMARY ===", summary.read_text())
         self.assertNotIn("gh ", self.trace.read_text())
@@ -186,6 +197,7 @@ class PublicationTests(unittest.TestCase):
         (self.root / "prepared").mkdir(mode=0o700)
         (self.root / "pool").mkdir()
         result = self.run_publisher("failed-build", "prepare")
+
         self.assertEqual(1, result.returncode, msg=result.stderr)
         self.assertIn("release-build.log", result.stderr)
         self.assertIn("release build failed in the synthetic package fixture", result.stderr)
@@ -197,8 +209,10 @@ class PublicationTests(unittest.TestCase):
             with self.subTest(scenario=scenario):
                 self.trace.unlink(missing_ok=True)
                 result = self.run_publisher(scenario, "release")
+
                 self.assertEqual(2, result.returncode, msg=result.stderr)
                 calls = self.trace.read_text()
+
                 self.assertRegex(result.stderr, "Git URL rewrite|Git URL routing")
                 self.assertNotIn("gh ", calls)
                 self.assertNotIn("git push", calls)
@@ -209,8 +223,10 @@ class PublicationTests(unittest.TestCase):
             with self.subTest(scenario=scenario):
                 self.trace.unlink(missing_ok=True)
                 result = self.run_publisher(scenario, "release")
+
                 self.assertEqual(2, result.returncode, msg=result.stderr)
                 calls = self.trace.read_text()
+
                 self.assertIn("gh api --hostname github.com --include", calls)
                 self.assertNotIn("refs/tags/v0.2.0:refs/tags/v0.2.0", calls)
                 self.assertNotIn("gh release create", calls)
@@ -221,14 +237,17 @@ class PublicationTests(unittest.TestCase):
                 (self.inputs / "release-test.log").write_text(receipts)
                 self.trace.unlink(missing_ok=True)
                 result = self.run_publisher("publish", "release")
+
                 self.assertEqual(2, result.returncode, msg=result.stderr)
                 self.assertRegex(result.stderr, "artifact receipt|artifact name|all eight artifact hashes")
                 self.assertNotIn("gh ", self.trace.read_text())
 
     def test_downloaded_artifact_change_leaves_the_release_draft(self):
         result = self.run_publisher("corrupt", "release")
+
         self.assertEqual(2, result.returncode, msg=result.stderr)
         calls = self.trace.read_text()
+
         self.assertIn("gh release download", calls)
         self.assertNotIn("gh release edit", calls)
         self.assertEqual([], list(self.root.glob("nmr-provider-publication.*")))
@@ -236,8 +255,10 @@ class PublicationTests(unittest.TestCase):
 
     def test_only_byte_verified_assets_are_made_public(self):
         result = self.run_publisher("publish", "release")
+
         self.assertEqual(0, result.returncode, msg=result.stderr)
         calls = self.trace.read_text()
+
         self.assertLess(calls.index("gh release download"), calls.index("gh release edit"))
         self.assertEqual(10, len(list(Path(str(self.trace) + ".uploads").iterdir())))
         self.assertIn("--draft=false", calls)
@@ -262,8 +283,10 @@ class PublicationTests(unittest.TestCase):
 """)
 
         result = self.run_publisher("publish", "release")
+
         self.assertEqual(1, result.returncode, msg=result.stderr)
         calls = self.trace.read_text()
+
         self.assertIn("gh api --hostname github.com --include", calls)
         self.assertNotIn("continued after unknown retirement", calls)
         self.assertNotIn("gh release create", calls)
@@ -272,8 +295,10 @@ class PublicationTests(unittest.TestCase):
 
     def test_failed_git_status_cannot_be_treated_as_clean_source(self):
         result = self.run_publisher("status-error", "release")
+
         self.assertEqual(2, result.returncode, msg=result.stderr)
         self.assertIn("Cannot inspect Git checkout status", result.stderr)
         calls = self.trace.read_text()
+
         self.assertNotIn("git rev-parse", calls)
         self.assertNotIn("gh ", calls)

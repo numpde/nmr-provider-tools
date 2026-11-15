@@ -3,6 +3,9 @@
 Adjacent statements need a blank line when either spans multiple physical lines.
 Return statements also need separation from any preceding sibling statement.
 Groups of direct self-attribute assignments need separation from following work.
+Provisionally, other assignment groups also need separation from non-assignment
+statements. This weaker rule can yield to specific grouping rules when adopted.
+This syntactic grouping includes annotations and augmented assignments.
 Standalone comments and their following statement form a separated unit; trailing
 inline comments impose no additional spacing.
 The first statement in a suite needs no leading separator. Branch clauses stay
@@ -74,6 +77,7 @@ def missing_blank_lines(*, source: str) -> list[int]:
     }
 
     missing = set()
+    assignment_types = (ast.Assign, ast.AnnAssign, ast.AugAssign)
 
     for owner in ast.walk(node=tree):
         for (_, value) in ast.iter_fields(node=owner):
@@ -82,12 +86,14 @@ def missing_blank_lines(*, source: str) -> list[int]:
 
             for (previous, statement) in zip(value, value[1:]):
                 ends_attribute_group = _assigns_self_attributes(statement=previous) and not _assigns_self_attributes(statement=statement)
+                ends_assignment_group = isinstance(previous, assignment_types) and not isinstance(statement, assignment_types)
                 previous_start = _attached_start(statement=previous, comment_columns=comment_columns)
                 start = _attached_start(statement=statement, comment_columns=comment_columns)
 
                 if not (
                     isinstance(statement, ast.Return)
                     or ends_attribute_group
+                    or ends_assignment_group
                     or previous_start < _statement_start(statement=previous)
                     or start < _statement_start(statement=statement)
                     or _multiline(statement=previous)
@@ -104,39 +110,48 @@ def missing_blank_lines(*, source: str) -> list[int]:
 class StatementSpacingPostureTests(unittest.TestCase):
     def test_standalone_comment_and_statement_are_separated_as_one_unit(self):
         source = "first = 1\n# Explain the next assignment.\nsecond = 2\nthird = 3\n"
+
         self.assertEqual(first=[2, 4], second=missing_blank_lines(source=source))
         self.assertEqual(first=[], second=missing_blank_lines(source=source.replace("\n#", "\n\n#").replace("\nthird", "\n\nthird")))
 
     def test_commented_first_statement_needs_only_a_trailing_separator(self):
         source = "def run():\n    # Explain the first assignment.\n    first = 1\n    second = 2\n"
+
         self.assertEqual(first=[4], second=missing_blank_lines(source=source))
 
     def test_commented_last_statement_needs_no_trailing_blank(self):
         source = "def run():\n    # Explain the assignment.\n    first = 1\n"
+
         self.assertEqual(first=[], second=missing_blank_lines(source=source))
 
     def test_consecutive_commented_statements_share_one_separator(self):
         source = "# First assignment.\nfirst = 1\n# Second assignment.\nsecond = 2\n"
+
         self.assertEqual(first=[3], second=missing_blank_lines(source=source))
 
     def test_inline_comments_do_not_require_separators(self):
         source = "first = 1\nsecond = 2  # Explain this assignment.\nthird = 3\n"
+
         self.assertEqual(first=[], second=missing_blank_lines(source=source))
 
     def test_hash_inside_a_string_is_not_an_attached_comment(self):
         source = '\"\"\"Text\n#\"\"\"\nfirst = 1\nsecond = 2\n'
+
         self.assertEqual(first=[], second=missing_blank_lines(source=source))
 
     def test_decorator_internal_comment_stays_with_the_declaration(self):
         source = "@first\n# Explain the second decorator.\n@second\ndef run(): pass\n"
+
         self.assertEqual(first=[], second=missing_blank_lines(source=source))
 
     def test_consecutive_guards_require_a_separator(self):
         source = "if missing:\n    raise RuntimeError()\nif pending:\n    submit()\n"
+
         self.assertEqual(first=[3], second=missing_blank_lines(source=source))
 
     def test_multiline_calls_need_space_on_both_sides(self):
         source = "before()\nvalue = call(\n    argument=True,\n)\nafter()\n"
+
         self.assertEqual(first=[2, 5], second=missing_blank_lines(source=source))
 
     def test_first_statement_in_each_suite_needs_no_leading_blank(self):
@@ -152,7 +167,30 @@ class StatementSpacingPostureTests(unittest.TestCase):
                 self.assertEqual(first=[], second=missing_blank_lines(source=source))
 
     def test_simple_statements_can_stay_grouped(self):
-        source = "first = 1\nsecond = 2\nwrite()\nflush()\n"
+        source = "first = 1\nsecond = 2\n\nwrite()\nflush()\n"
+
+        self.assertEqual(first=[], second=missing_blank_lines(source=source))
+
+    def test_assignment_group_is_separated_from_following_action(self):
+        sources = [
+            "tokens = consume()\ngenerated = generate(tokens)\nvalidate(generated)\n",
+            "value: Value = calculate()\nvalidate(value)\n",
+            "value: Value\nvalidate(value)\n",
+            "count += 1\nreport(count)\n",
+        ]
+
+        for source in sources:
+            with self.subTest(source=source):
+                self.assertEqual(first=[len(source.splitlines())], second=missing_blank_lines(source=source))
+
+    def test_assignments_and_actions_each_remain_grouped(self):
+        source = "first = 1\nsecond: int = 2\nsecond += 1\n\nwrite()\nflush()\n"
+
+        self.assertEqual(first=[], second=missing_blank_lines(source=source))
+
+    def test_action_before_assignment_does_not_require_separation(self):
+        source = "prepare()\nvalue = calculate()\n"
+
         self.assertEqual(first=[], second=missing_blank_lines(source=source))
 
     def test_return_is_separated_from_preceding_work(self):
@@ -180,24 +218,29 @@ class StatementSpacingPostureTests(unittest.TestCase):
 
     def test_return_comments_stay_attached(self):
         source = "def run():\n    result = calculate()\n    # Keep the exact result.\n    return result\n"
+
         self.assertEqual(first=[3], second=missing_blank_lines(source=source))
         self.assertEqual(first=[], second=missing_blank_lines(source=source.replace("\n    #", "\n\n    #")))
 
     def test_return_text_in_strings_is_not_code(self):
         source = 'def run():\n    source = """calculate()\nreturn result\n"""\n'
+
         self.assertEqual(first=[], second=missing_blank_lines(source=source))
 
     def test_self_attribute_assignments_stay_grouped_before_following_work(self):
         source = "def run(self):\n    self.first = first\n    self.second: Value = second\n    reservation_ref, = executor.reservations\n"
+
         self.assertEqual(first=[4], second=missing_blank_lines(source=source))
         self.assertEqual(first=[], second=missing_blank_lines(source=source.replace("\n    reservation", "\n\n    reservation")))
 
     def test_self_attribute_group_can_end_the_block(self):
         source = "def run(self):\n    self.first = first\n    self.second = second\n"
+
         self.assertEqual(first=[], second=missing_blank_lines(source=source))
 
     def test_attribute_group_comments_stay_attached_to_following_work(self):
         source = "def run(self):\n    self.first = first\n    # Obtain the reservation.\n    reservation_ref, = executor.reservations\n"
+
         self.assertEqual(first=[3], second=missing_blank_lines(source=source))
 
     def test_other_assignment_groups_remain_compact(self):
@@ -214,10 +257,12 @@ class StatementSpacingPostureTests(unittest.TestCase):
 
     def test_chained_self_attribute_assignments_end_a_group(self):
         source = "def run(self):\n    self.first = self.second = value\n    local = value\n"
+
         self.assertEqual(first=[3], second=missing_blank_lines(source=source))
 
     def test_shared_semicolon_line_still_requires_a_separator(self):
         source = "value = call(\n    argument=True,\n); after()\n"
+
         self.assertEqual(first=[3], second=missing_blank_lines(source=source))
 
     def test_complete_compound_statements_are_separated_from_neighbors(self):
@@ -236,6 +281,7 @@ class StatementSpacingPostureTests(unittest.TestCase):
         for block in blocks:
             with self.subTest(block=block):
                 source = "before()\n" + block + "\nafter()\n"
+
                 self.assertEqual(first=[2, len(source.splitlines())], second=missing_blank_lines(source=source))
 
     def test_branch_and_exception_clauses_are_not_separate_statements(self):
@@ -261,6 +307,7 @@ class StatementSpacingPostureTests(unittest.TestCase):
 
     def test_comments_and_multiline_decorators_stay_attached(self):
         source = "before()\n# repo-check: keep-attached\n@decorate(\n    enabled=True,\n)\ndef run():\n    act()\n"
+
         self.assertEqual(first=[2], second=missing_blank_lines(source=source))
         self.assertEqual(first=[], second=missing_blank_lines(source=source.replace("before()\n", "before()\n\n")))
 
@@ -268,16 +315,20 @@ class StatementSpacingPostureTests(unittest.TestCase):
         for definition in ["def run(): pass", "async def run(): pass", "class Owner: pass"]:
             with self.subTest(definition=definition):
                 source = "before()\n@decorate(\n    enabled=True,\n)\n" + definition + "\nafter()\n"
+
                 self.assertEqual(first=[2, 6], second=missing_blank_lines(source=source))
 
     def test_comment_only_lines_do_not_replace_a_blank_separator(self):
         source = "if ready:\n    act()\n# Explain the next step.\nafter()\n"
+
         self.assertEqual(first=[3], second=missing_blank_lines(source=source))
 
     def test_multiline_strings_and_docstrings_remain_data(self):
         source = 'def run():\n    """Explain.\n    More context.\n    """\n    act()\n'
+
         self.assertEqual(first=[], second=missing_blank_lines(source=source))
         source = 'value = """one\nif ready:\n    act()\nif pending:\n    other()\n"""\n'
+
         self.assertEqual(first=[], second=missing_blank_lines(source=source))
 
     def test_all_authored_python_obeys_statement_spacing(self):
@@ -285,6 +336,6 @@ class StatementSpacingPostureTests(unittest.TestCase):
 
         for path in python_sources(production_only=False):
             for line in missing_blank_lines(source=path.read_text(encoding="utf-8")):
-                findings.append(f"{path.relative_to(ROOT)}:{line}: insert a blank line here; separate commented statements, returns, completed self-attribute assignment groups and multiline statements or blocks; split a shared semicolon line first")
+                findings.append(f"{path.relative_to(ROOT)}:{line}: insert a blank line here; separate commented statements, returns, completed self-attribute groups, provisional assignment-to-action boundaries and multiline statements or blocks; split a shared semicolon line first")
 
         self.assertEqual(first=[], second=findings, msg="\n".join(findings))

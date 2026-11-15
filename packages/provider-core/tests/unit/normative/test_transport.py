@@ -116,6 +116,7 @@ class TransportTests(unittest.IsolatedAsyncioTestCase):
 
         with patch("provider_core.transport.httpcore.AsyncConnectionPool", side_effect=clients) as factory:
             response = await transport.exchange(httpx.Request("GET", "https://api.example/input"), maximum_bytes=4)
+
             self.assertEqual(response.body, b"abcd")
             self.assertEqual(response.status, 200)
             self.assertTrue(clients[0].closed)

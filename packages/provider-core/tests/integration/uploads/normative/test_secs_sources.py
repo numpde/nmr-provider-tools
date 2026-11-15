@@ -29,6 +29,7 @@ class SecsSourceReceivingTests(unittest.IsolatedAsyncioTestCase):
         api.member = replace(api.member, byte_length=len(body), content_hash=digest)
         api.grant = replace(api.grant, byte_length=len(body), content_hash=digest)
         client = Client(Stream([body]), headers=store_headers(body))
+
         await owner.inspect()
 
         with private_source_directory() as (root, directory), TemporaryDirectory() as scratch:
@@ -92,6 +93,7 @@ class SecsSourceReceivingTests(unittest.IsolatedAsyncioTestCase):
 
             with TemporaryDirectory(dir=access.directory, prefix="jcamp-") as temporary:
                 path = Path(temporary) / "spectrum.jdx"
+
                 path.write_bytes(read.contents)
                 self.assertEqual(path.read_bytes(), b"authored spectrum bytes")
                 self.assertTrue(path.is_relative_to(scratch))

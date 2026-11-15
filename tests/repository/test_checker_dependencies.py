@@ -18,6 +18,7 @@ from tools import checker_dependencies as dependencies
 class CheckerDependencyTests(unittest.TestCase):
     def setUp(self):
         temporary = tempfile.TemporaryDirectory()
+
         self.addCleanup(temporary.cleanup)
         self.root = Path(temporary.name)
         self.pool = self.root / "pool"
@@ -58,6 +59,7 @@ class CheckerDependencyTests(unittest.TestCase):
         ):
             with self.subTest(changes=changes):
                 package = self.package | changes
+
                 self.manifest.write_text(json.dumps({"platform": "linux/amd64", "packages": [package]}))
 
                 with self.assertRaises(error_type):
@@ -65,6 +67,7 @@ class CheckerDependencyTests(unittest.TestCase):
 
     def test_shared_pool_ignores_unrelated_files_and_captures_only_declared_bytes(self):
         unrelated = self.pool / "another-project.whl"
+
         unrelated.write_bytes(b"unrelated")
         dependencies.capture([self.package], self.pool, self.capture)
         self.assertEqual([self.package["file"]], [path.name for path in self.capture.iterdir()])
@@ -86,6 +89,7 @@ class CheckerDependencyTests(unittest.TestCase):
 
     def test_artifact_symlinks_and_oversized_bytes_are_rejected(self):
         linked = self.pool / "linked"
+
         linked.symlink_to(self.artifact)
 
         with self.assertRaises(OSError):
@@ -98,8 +102,10 @@ class CheckerDependencyTests(unittest.TestCase):
 
     def test_publication_keeps_identical_winner_inode_and_preserves_conflict(self):
         staged = self.capture / self.package["file"]
+
         staged.write_bytes(b"make")
         inode = self.artifact.stat().st_ino
+
         dependencies.publish(self.package, staged, self.artifact)
         self.assertEqual(inode, self.artifact.stat().st_ino)
         self.artifact.write_bytes(b"late")
@@ -112,8 +118,10 @@ class CheckerDependencyTests(unittest.TestCase):
 
     def test_publication_does_not_replace_symlinks_and_links_new_files(self):
         staged = self.capture / self.package["file"]
+
         staged.write_bytes(b"make")
         destination = self.pool / "new"
+
         dependencies.publish(self.package, staged, destination)
         self.assertEqual(staged.stat().st_ino, destination.stat().st_ino)
         destination.unlink()

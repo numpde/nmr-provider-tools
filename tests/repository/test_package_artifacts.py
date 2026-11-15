@@ -34,6 +34,7 @@ from tests.repository.quality.sources import ROOT
 class PackageArtifactTests(unittest.TestCase):
     def setUp(self):
         temporary = tempfile.TemporaryDirectory()
+
         self.addCleanup(temporary.cleanup)
         self.root = Path(temporary.name)
 
@@ -46,6 +47,7 @@ class PackageArtifactTests(unittest.TestCase):
 
                 if member.isfile():
                     member.size = len(payload)
+
                     archive.addfile(member, io.BytesIO(payload))
                 else:
                     archive.addfile(member)
@@ -59,6 +61,7 @@ class PackageArtifactTests(unittest.TestCase):
                     member = tarfile.TarInfo("package/member")
                     member.type = kind
                     member.uid = 123
+
                     archive.addfile(member, io.BytesIO())
 
                 original = path.read_bytes()
@@ -87,8 +90,10 @@ class PackageArtifactTests(unittest.TestCase):
         for (index, (name, payload, kind, mode)) in enumerate(cases):
             with self.subTest(name=name):
                 scratch = self.root / f"scratch-{index}"
+
                 scratch.mkdir()
                 archive_path = scratch / "sources.tar.gz"
+
                 self._acquisition_archive(archive_path, ((name, payload, kind, mode),))
 
                 expected = {
@@ -116,6 +121,7 @@ class PackageArtifactTests(unittest.TestCase):
         for (index, (names, payloads)) in enumerate(cases):
             with self.subTest(names=names):
                 scratch = self.root / f"conflict-{index}"
+
                 scratch.mkdir()
                 archive_path = scratch / "sources.tar.gz"
 
@@ -144,6 +150,7 @@ class PackageArtifactTests(unittest.TestCase):
 
     def test_acquisition_sources_extract_verified_members(self):
         scratch = self.root / "scratch"
+
         scratch.mkdir()
         archive_path = scratch / "sources.tar.gz"
 
@@ -189,6 +196,7 @@ class PackageArtifactTests(unittest.TestCase):
 
     def test_acquisition_sources_reject_changed_bytes_before_writing(self):
         scratch = self.root / "changed"
+
         scratch.mkdir()
         archive_path = scratch / "sources.tar.gz"
         name = "acquisition_tool/owner.sh"
@@ -220,6 +228,7 @@ class PackageArtifactTests(unittest.TestCase):
 
         for name in ("linux_idmap/probe.py", "provider_core/bound_http_proxy.py"):
             path = source / name
+
             path.parent.mkdir(parents=True, exist_ok=True)
             path.write_text("QUALIFIED = True")
 
@@ -235,10 +244,12 @@ class PackageArtifactTests(unittest.TestCase):
         ]
 
         valid_imports = subprocess.run(command, capture_output=True, text=True, check=False)
+
         self.assertEqual(0, valid_imports.returncode, msg=valid_imports.stderr)
 
         (source / "linux_idmap/probe.py").unlink()
         missing_import = subprocess.run(command, capture_output=True, text=True, check=False)
+
         self.assertNotEqual(0, missing_import.returncode)
 
     def test_source_archive_refuses_traversal_links_duplicate_and_special_members_before_extraction(self):
@@ -270,6 +281,7 @@ class PackageArtifactTests(unittest.TestCase):
 
     def test_source_inventory_detects_changed_bytes_and_omitted_test_files(self):
         source = self.root / "source"
+
         (source / "src/provider_core").mkdir(parents=True)
         (source / "tests").mkdir()
 
@@ -281,6 +293,7 @@ class PackageArtifactTests(unittest.TestCase):
                      "mode": path.stat().st_mode & 0o777} for path in source.rglob("*") if path.is_file()}
 
         metadata = source / "src/provider_core.egg-info"
+
         metadata.mkdir()
 
         for name in ("PKG-INFO", "SOURCES.txt", "dependency_links.txt", "requires.txt", "top_level.txt"):
@@ -319,9 +332,11 @@ class PackageArtifactTests(unittest.TestCase):
         runtime = self.root / "runtime.lock"
         test = self.root / "tests.lock"
         target = self.root / "installed-tests.lock"
+
         runtime.write_text("core-runtime==1.0 \\\n    --hash=sha256:" + "a" * 64 + "\n")
         test.write_text("test-only==2.0 \\\n    --hash=sha256:" + "b" * 64 + "\n")
         original = runtime.read_bytes()
+
         behavioral_install_lock(runtime, test, target)
         self.assertEqual(original, runtime.read_bytes())
         self.assertIn("core-runtime==1.0", target.read_text())
@@ -334,6 +349,7 @@ class PackageArtifactTests(unittest.TestCase):
 
     def test_corrupt_release_manifest_refuses_before_rebuild_and_emits_no_qualification_receipt(self):
         artifacts = self.root / "artifacts"
+
         artifacts.mkdir()
 
         for name in artifact_names("0.2.0"):
@@ -350,6 +366,7 @@ class PackageArtifactTests(unittest.TestCase):
         source = ROOT / "examples/dummy-provider"
         staged_source = self.root / "staged"
         output = self.root / "wheels"
+
         output.mkdir()
 
         original = {
@@ -390,6 +407,7 @@ class PackageArtifactTests(unittest.TestCase):
     def test_wheel_staging_makes_read_only_source_directories_writable(self):
         source = self.root / "source"
         package = source / "src/science"
+
         package.mkdir(parents=True)
         (package / "__init__.py").write_text("value = 1\\n")
         directories = (source, source / "src", package)
@@ -414,11 +432,13 @@ class PackageArtifactTests(unittest.TestCase):
         for directory in directories:
             with self.subTest(directory=directory.relative_to(source)):
                 staged_directory = staged_source / directory.relative_to(source)
+
                 self.assertNotEqual(0, staged_directory.stat().st_mode & 0o200)
                 self.assertEqual(0o555, directory.stat().st_mode & 0o777)
 
     def test_wheel_builder_rejects_source_symlinks_and_in_tree_staging(self):
         source = self.root / "source"
+
         source.mkdir()
         (source / "pyproject.toml").write_text("[project]\\nname='fixture'\\n")
 

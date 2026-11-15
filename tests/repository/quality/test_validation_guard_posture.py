@@ -156,11 +156,13 @@ def _split_range_finding(
     for operator_type in (ast.Lt, ast.LtE):
         if isinstance(lower_rejection.ops[0], operator_type):
             lower_operator = inverse_operators[operator_type]
+
             break
 
     for operator_type in (ast.Gt, ast.GtE):
         if isinstance(upper_rejection.ops[0], operator_type):
             upper_operator = inverse_operators[operator_type]
+
             break
 
     accepted_range = f"{lower} {lower_operator} {subject} {upper_operator} {upper}"
@@ -232,6 +234,7 @@ def _mixed_ordering_finding(
     for (operator_type, rendered) in inverse_boolean_operators.items():
         if isinstance(statement.test.op, operator_type):
             conjunction = rendered
+
             break
 
     accepted = conjunction.join(
@@ -366,6 +369,7 @@ class GuardPostureTests(unittest.TestCase):
             with self.subTest(operator=operator):
                 source = f"if not math.isfinite(value) {operator} value <= 0:\n    raise ValueError('invalid value')\n"
                 findings = _findings(Path("example.py"), source)
+
                 self.assertEqual(1, len(findings))
                 self.assertEqual(expected, findings[0].candidate_guard)
 
@@ -381,6 +385,7 @@ class GuardPostureTests(unittest.TestCase):
             with self.subTest(lower=lower, upper=upper):
                 source = f"if value {lower} minimum or value {upper} maximum:\n    raise ValueError('outside bounds')\n"
                 findings = _findings(Path("example.py"), source)
+
                 self.assertEqual(1, len(findings))
                 self.assertEqual(expected, findings[0].candidate_guard)
 
@@ -391,6 +396,7 @@ class GuardPostureTests(unittest.TestCase):
         ):
             with self.subTest(condition=condition):
                 statement = ast.parse(f"if {condition}:\n    raise ValueError('outside bounds')\n").body[0]
+
                 self.assertIsNone(_split_range_finding(path=Path("example.py"), statement=statement))
 
     def test_detector_flags_direct_rejected_orderings_and_split_ranges(self) -> None:

@@ -213,6 +213,7 @@ def publish_file(path, destination, checksum):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
+
     parser.add_argument("action", choices=("check",))
     parser.add_argument("--pool", type=Path, required=True)
     parser.add_argument("--lock", type=Path, action="append", required=True)

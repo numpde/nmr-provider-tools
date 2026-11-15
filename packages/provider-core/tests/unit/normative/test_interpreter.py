@@ -74,6 +74,7 @@ class InterpreterTests(unittest.IsolatedAsyncioTestCase):
                 create.assert_not_called()
                 dispatch.assert_not_called()
                 rendered = json.dumps(failure_evidence(caught.exception, secrets=()))
+
                 self.assertIn("initial context", rendered)
                 self.assertNotIn("PRIVATE_CREDENTIAL", rendered)
                 self.assertNotIn("exhausted", rendered)
@@ -87,6 +88,7 @@ class InterpreterTests(unittest.IsolatedAsyncioTestCase):
         async def fast(messages, tools, *, not_after):
             deadlines.append(not_after)
             clock[0] += 20
+
             raise ChatFailed("invalid_response", "No complete model reply.")
 
         async def cleanup():
@@ -158,6 +160,7 @@ class InterpreterTests(unittest.IsolatedAsyncioTestCase):
         first = endpoint("unauthorized", ChatFailed("http_status", "Unauthorized.", response=SimpleNamespace(status=401, headers=())))
         second = endpoint("next", call("read", "inspect", {}), call("finish", "prepare", {}))
         result = await interpreter(first, second).run([], TOOLS, AsyncMock(side_effect=[ToolReply({"x": 1}), ToolFinished("ready")]))
+
         self.assertEqual(first.complete.await_count, 1)
         self.assertEqual(second.complete.await_args_list[0].kwargs, second.complete.await_args_list[1].kwargs)
         self.assertEqual(result.value, "ready")
@@ -187,10 +190,12 @@ class InterpreterTests(unittest.IsolatedAsyncioTestCase):
             return ToolFinished(args)
 
         result = await interpreter(bad, good).run(original, TOOLS, dispatch)
+
         self.assertEqual(bad.complete.await_count, 3)
         self.assertEqual(captures[0][:-1], original)
         self.assertEqual(len(state(captures[0])["history"]["records"]), 3)
         returned = feedback(captures[1])["value"]["records"][0]
+
         self.assertEqual(json.loads(returned["json_text"])["arguments"], {"verbosity": "invalid"})
         self.assertEqual(result.value, {"verbosity": "quiet"})
 
@@ -200,8 +205,10 @@ class InterpreterTests(unittest.IsolatedAsyncioTestCase):
                          call("done", "prepare", {"verbosity": "quiet"}))
 
         dispatch = AsyncMock(return_value=ToolFinished("ready"))
+
         await interpreter(model).run([], TOOLS, dispatch)
         reply = feedback(model.complete.await_args_list[-1].args[0])["value"]
+
         self.assertEqual(reply["schema"]["enum"], ["quiet", "full"])
         self.assertTrue(reply["required"])
         dispatch.assert_awaited_once_with("prepare", {"verbosity": "quiet"}, not_after=ANY)
@@ -209,6 +216,7 @@ class InterpreterTests(unittest.IsolatedAsyncioTestCase):
     async def test_dynamic_constraints_remain_provider_owned(self):
         model = endpoint("fixture", call("query", "describe_input_constraints", {"tool": "prepare"}), call("done", "prepare", {}))
         describe = AsyncMock(return_value={"available_sources": ["source-1"]})
+
         await interpreter(model).run([], TOOLS, AsyncMock(return_value=ToolFinished("ready")), describe_constraints=describe)
         describe.assert_awaited_once_with("prepare", None, not_after=ANY)
         self.assertEqual(feedback(model.complete.await_args_list[-1].args[0])["value"], {"available_sources": ["source-1"]})
@@ -234,8 +242,10 @@ class InterpreterTests(unittest.IsolatedAsyncioTestCase):
 
         model.complete = AsyncMock(side_effect=complete)
         dispatch = AsyncMock(side_effect=[ToolReply(observation), ToolFinished("ready")])
+
         await interpreter(model).run([], TOOLS, dispatch)
         record = feedback(captures[2])["value"]["records"][0]
+
         self.assertEqual(json.loads(record["json_text"])["value"]["spectrum"], [1, 2])
         self.assertIn("historical", record["validity"])
         self.assertEqual(dispatch.await_count, 2)
@@ -326,8 +336,10 @@ class InterpreterTests(unittest.IsolatedAsyncioTestCase):
 
         second.complete = AsyncMock(side_effect=complete)
         result = await interpreter(first, second, context=32768).run([], TOOLS, dispatch)
+
         self.assertEqual(result.correction_failures, ())
         reply = feedback(captures[1])["value"]["records"][0]
+
         self.assertFalse(reply["complete"])
         self.assertEqual(reply["next_cursor"], len(reply["json_text"]))
         self.assertLess(reply["next_cursor"], reply["bytes"])
@@ -353,11 +365,14 @@ class InterpreterTests(unittest.IsolatedAsyncioTestCase):
             return await original(messages, tools, **kwargs)
 
         second.complete = AsyncMock(side_effect=complete)
+
         await interpreter(first, second, context=3 * 1024 * 1024).run([], TOOLS, dispatch)
         catalogue = state(captures[0])["history"]
+
         self.assertEqual(catalogue["unavailable_records"], 1)
         self.assertEqual([record["ref"] for record in catalogue["records"]], ["record-2"])
         reply = feedback(captures[1])["value"]["records"]
+
         self.assertEqual(reply[0], {"ref": "record-1", "status": "unavailable"})
         self.assertTrue(reply[1]["complete"])
 
@@ -382,6 +397,7 @@ class InterpreterTests(unittest.IsolatedAsyncioTestCase):
             return await original(messages, tools, **kwargs)
 
         model.complete = AsyncMock(side_effect=complete)
+
         await interpreter(model).run([], TOOLS, AsyncMock(return_value=ToolFinished("ready")))
         self.assertEqual(state(captures[1])["budget"]["rejections_remaining"], 2)
 
@@ -400,6 +416,7 @@ class InterpreterTests(unittest.IsolatedAsyncioTestCase):
         dispatch = AsyncMock()
         owner = interpreter(first, second)
         running = asyncio.create_task(owner.run([], TOOLS, dispatch))
+
         await entered.wait()
         await owner.retire()
 
@@ -441,6 +458,7 @@ class InterpreterTests(unittest.IsolatedAsyncioTestCase):
 
         with patch("provider_core.interpreter.asyncio.sleep", side_effect=backoff):
             running = asyncio.create_task(owner.run([], TOOLS, AsyncMock()))
+
             await sleeping.wait()
             await owner.retire()
             self.assertTrue(owner.retirement_confirmed)
@@ -487,6 +505,7 @@ class InterpreterTests(unittest.IsolatedAsyncioTestCase):
         await owner.retire()
         self.assertTrue(any(cause is earlier for (_, cause) in owner.failures))
         context = scientific.__cause__
+
         self.assertIsInstance(context, ConversationFailed)
         self.assertTrue(any(cause is earlier for (_, cause) in context.endpoint_failures))
 
@@ -499,6 +518,7 @@ class InterpreterTests(unittest.IsolatedAsyncioTestCase):
 
         self.assertIn("message", owned_details(caught.exception))
         relationships = tuple(owned_relationships(caught.exception))
+
         self.assertTrue(any(isinstance(cause, ChatFailed) for (_, cause) in relationships))
 
     async def test_provider_crash_propagates_before_blocked_cleanup_with_exact_owner_retained(self):
@@ -520,6 +540,7 @@ class InterpreterTests(unittest.IsolatedAsyncioTestCase):
         self.assertIs(caught.exception, crash)
         self.assertFalse(entered.is_set())
         cleanup = asyncio.create_task(owner.retire())
+
         await entered.wait()
         self.assertFalse(cleanup.done())
         release.set()
@@ -531,8 +552,10 @@ class InterpreterTests(unittest.IsolatedAsyncioTestCase):
         model = endpoint("fixture", malformed, call("done", "prepare", {}))
         owner = interpreter(model)
         result = await owner.run([], TOOLS, AsyncMock(return_value=ToolFinished("ready")))
+
         self.assertEqual(len(result.correction_failures), 1)
         (visit, turn, failure) = result.correction_failures[0]
+
         self.assertEqual((visit, turn), (1, 1))
         self.assertIsInstance(failure, ToolRejected)
         await owner.retire()
@@ -550,11 +573,13 @@ class InterpreterTests(unittest.IsolatedAsyncioTestCase):
             return ToolFinished("prepared")
 
         result = await interpreter(first, second).run([], TOOLS, dispatch)
+
         self.assertEqual(result.value, "prepared")
         self.assertEqual(first.complete.await_count, 1)
         self.assertEqual(second.complete.await_count, 1)
         self.assertEqual(result.correction_failures, ())
         catalogue = state(second.complete.await_args.args[0])["history"]
+
         self.assertEqual(catalogue["records"][0]["kind"], "unverified_interpretation_problem")
         first.retire.assert_awaited()
 
@@ -605,9 +630,11 @@ class InterpreterTests(unittest.IsolatedAsyncioTestCase):
         model.complete = AsyncMock(side_effect=complete)
         observation = {"text": 'Quoted "spectrum" and Unicode: λ'}
         dispatch = AsyncMock(side_effect=[ToolReply(observation), ToolFinished("ready")])
+
         await interpreter(model).run([], TOOLS, dispatch)
         full = feedback(captures[2])["value"]["records"][0]
         tail = feedback(captures[3])["value"]["records"][0]
+
         self.assertEqual(tail["cursor"], 17)
         self.assertTrue(tail["complete"])
         self.assertNotIn("next_cursor", tail)
@@ -641,6 +668,7 @@ class InterpreterTests(unittest.IsolatedAsyncioTestCase):
             return ToolFinished("ready")
 
         model.complete = AsyncMock(side_effect=complete)
+
         await interpreter(model).run([], TOOLS, dispatch)
         record = feedback(captures[2])["value"]["records"][0]
 
@@ -658,6 +686,7 @@ class InterpreterTests(unittest.IsolatedAsyncioTestCase):
                 second = endpoint("second", read, call("done", "prepare", {}))
                 dispatch = AsyncMock(side_effect=[ToolReply({"text": text}), ToolFinished("ready")])
                 result = await interpreter(first, second, context=32768).run([], TOOLS, dispatch)
+
                 self.assertEqual(result.value, "ready")
                 self.assertEqual(second.complete.await_count, 2)
                 (final_messages, final_tools) = second.complete.await_args.args
@@ -700,6 +729,7 @@ class InterpreterTests(unittest.IsolatedAsyncioTestCase):
         )
 
         result = await interpreter(model).run([], tools, AsyncMock(return_value=ToolFinished("ready")))
+
         self.assertEqual(result.value, "ready")
         self.assertEqual(len(result.correction_failures), 1)
         self.assertIsInstance(result.correction_failures[0][2], ToolRejected)
@@ -717,6 +747,7 @@ class InterpreterTests(unittest.IsolatedAsyncioTestCase):
         self.assertIs(owner.accepted_result.value, prepared)
         self.assertIsInstance(owner.last_failure, ConversationRetirementFailed)
         model.retire.side_effect = None
+
         await owner.retire()
         self.assertIs(owner.accepted_result.value, prepared)
         dispatch.assert_awaited_once()
@@ -745,8 +776,10 @@ class InterpreterTests(unittest.IsolatedAsyncioTestCase):
         ])
 
         result = await interpreter(first, second, context=32768).run([], TOOLS, dispatch)
+
         self.assertEqual(result.correction_failures, ())
         records = feedback(second.complete.await_args.args[0])["value"]["records"]
+
         self.assertEqual([record["ref"] for record in records], ["record-2", "record-1"])
         self.assertFalse(records[0]["complete"])
         self.assertIn(records[1]["status"], {"returned", "deferred"})
@@ -761,6 +794,7 @@ class InterpreterTests(unittest.IsolatedAsyncioTestCase):
 
         dispatch = AsyncMock(return_value=ToolFinished("ready"))
         result = await interpreter(model).run([], TOOLS, dispatch)
+
         dispatch.assert_awaited_once_with("prepare", {"verbosity": "quiet"}, not_after=ANY)
         self.assertEqual(result.value, "ready")
         self.assertEqual(len(result.correction_failures), 1)
@@ -894,9 +928,11 @@ class InterpreterTests(unittest.IsolatedAsyncioTestCase):
                         await owner.run([], TOOLS, dispatch)
 
                     failures = caught.exception.failures
+
                     self.assertIsNone(owner.accepted_result)
                 else:
                     result = await owner.run([], TOOLS, dispatch)
+
                     self.assertIsNone(result.value)
                     self.assertIsNotNone(owner.accepted_result)
                     failures = result.failures
@@ -970,6 +1006,7 @@ class InterpreterTests(unittest.IsolatedAsyncioTestCase):
                     settled.set()
 
                 result = await running
+
                 self.assertIsNone(result.value)
                 self.assertEqual(events, ["provider settled", "model retired", "prepare"])
                 self.assertIs(result.failures[0][1].__cause__, expired)
@@ -1013,6 +1050,7 @@ class InterpreterTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(len(prepared), 1)
         self.assertFalse(hasattr(second, "grant"))
         first.retire.side_effect = None
+
         await owner.retire()
 
     async def test_retirement_during_admitted_preparation_retains_late_acceptance(self):
@@ -1036,6 +1074,7 @@ class InterpreterTests(unittest.IsolatedAsyncioTestCase):
             self.assertFalse(running.done())
             finish.set()
             result = await running
+
             self.assertIsNone(result.value)
             self.assertIsNotNone(owner.accepted_result)
             self.assertEqual(owner.accepted_result.model_visit, 1)

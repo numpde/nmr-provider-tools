@@ -33,6 +33,7 @@ class RejectedResponseShutdownTests(unittest.IsolatedAsyncioTestCase):
     async def test_transient_wrapped_raw_eof_remains_visible_after_retry(self):
         failure = anyio.BrokenResourceError("synthetic first close failed")
         failure.__cause__ = ssl.SSLEOFError(ssl.SSL_ERROR_EOF, "synthetic first close EOF")
+
         await self.assert_transient_close_failure(failure)
 
     async def test_cancelled_pending_raw_close_keeps_original_owner(self):
@@ -112,6 +113,7 @@ class RejectedResponseShutdownTests(unittest.IsolatedAsyncioTestCase):
     async def test_wrapped_raw_close_eof_still_requires_close_proof(self):
         failure = anyio.BrokenResourceError("synthetic raw close failed")
         failure.__cause__ = ssl.SSLEOFError(ssl.SSL_ERROR_EOF, "synthetic raw close EOF")
+
         await self.assert_close_failure(failure)
 
     async def test_unrelated_ssl_error_during_raw_close_is_not_ignored(self):
@@ -180,6 +182,7 @@ class RejectedResponseShutdownTests(unittest.IsolatedAsyncioTestCase):
 
     async def test_complete_http_framing_does_not_complete_truncated_gzip(self):
         encoded = gzip.compress(b"decoded")[:-4]
+
         await self.assert_rejected(fixed_response(encoded, headers=b"Content-Encoding: gzip\r\n"), decoded=True, primary=DecodedBodyRejected)
 
     async def test_peer_that_never_finishes_shutdown_remains_deadline_bounded(self):

@@ -68,6 +68,7 @@ async def live_attempt():
     probe = LiveAttemptProbe()
     claim = AttemptClaims.live().claim_live(pending, lifecycle_owner=probe)
     owner = object()
+
     claim.begin(owner)
     claim.bind_attempt(scope(), ATTEMPT_REF, owner=owner)
     claim.finish(owner)
@@ -153,12 +154,14 @@ class PausedSession(Session):
 
     async def prepare(self, acknowledged, instructions, *, report_condition):
         prepared = await super().prepare(acknowledged, instructions, report_condition=report_condition)
+
         await self._pause("prepare")
 
         return prepared
 
     async def execute(self, prepared, *, report_condition):
         outcome = await super().execute(prepared, report_condition=report_condition)
+
         await self._pause("execute")
 
         return outcome

@@ -163,6 +163,7 @@ class DeliveryWorker:
                         await self._backoff(delay, 0 if minimum is None else minimum, seconds)
 
                         delay = min(self.retry_max_seconds, delay * 2)
+
                         continue
 
                     # A verified item conflict or receipt-shape mismatch belongs

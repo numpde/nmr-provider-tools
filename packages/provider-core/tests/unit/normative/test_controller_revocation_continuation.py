@@ -45,6 +45,7 @@ class RevocationContinuationTests(unittest.IsolatedAsyncioTestCase):
                 controller = self.controller(session, stop=stop)
                 failure = await self.stopped(controller)
                 observed = await controller.settle_revocation(failure)
+
                 self.assertIs(observed, failure.cause.cause.observation)
                 self.assertIs(observed, await controller.settle_revocation(failure))
                 self.assertEqual((), controller._claims.live_owners())
@@ -54,14 +55,17 @@ class RevocationContinuationTests(unittest.IsolatedAsyncioTestCase):
 
     async def test_late_retirement_stays_owned_until_the_original_resource_closes(self):
         session = PendingPreparation()
+
         session.release.clear()
         controller = self.controller(session)
         continuation = None
 
         try:
             failure = await self.stopped(controller)
+
             self.assertTrue(controller._claims.owns_job(scope(), record().input.job_ref))
             continuation = asyncio.create_task(controller.settle_revocation(failure))
+
             await asyncio.sleep(0.08)  # Exceed the original settlement observation allowance.
             self.assertFalse(continuation.done())
             self.assertTrue(controller._claims.owns_job(scope(), record().input.job_ref))
@@ -69,6 +73,7 @@ class RevocationContinuationTests(unittest.IsolatedAsyncioTestCase):
             self.assertEqual(["prepare"], session.events)
             session.release.set()
             observed = await asyncio.wait_for(continuation, 1)
+
             self.assertIs(observed, failure.cause.cause.observation)
             self.assertEqual((), controller._claims.live_owners())
             self.assertEqual(["prepare", "retire"], session.events)
@@ -82,12 +87,14 @@ class RevocationContinuationTests(unittest.IsolatedAsyncioTestCase):
 
     async def test_cancelling_the_continuation_wait_preserves_its_original_cleanup(self):
         session = PendingPreparation()
+
         session.release.clear()
         controller = self.controller(session)
 
         try:
             failure = await self.stopped(controller)
             continuation = asyncio.create_task(controller.settle_revocation(failure))
+
             await asyncio.sleep(0)
             continuation.cancel()
 
@@ -99,6 +106,7 @@ class RevocationContinuationTests(unittest.IsolatedAsyncioTestCase):
             self.assertFalse(controller.operation._retirement_task.cancelled())
             session.release.set()
             observed = await controller.settle_revocation(failure)
+
             self.assertIs(observed, failure.cause.cause.observation)
             self.assertEqual(["prepare", "retire"], session.events)
             self.assertEqual((), controller._claims.live_owners())
@@ -111,6 +119,7 @@ class RevocationContinuationTests(unittest.IsolatedAsyncioTestCase):
         second = self.controller(PendingPreparation())
         original = await self.stopped(first)
         foreign = await self.stopped(second)
+
         self.assertIsNone(await first.settle_revocation(foreign))
         self.assertIsNone(await first.settle_revocation(ControllerFailed(original.cause, ())))
         self.assertIs(original.cause.cause.observation, await first.settle_revocation(original))
@@ -124,6 +133,7 @@ class RevocationContinuationTests(unittest.IsolatedAsyncioTestCase):
         session = FailedRetirement()
         controller = self.controller(session)
         failure = await self.stopped(controller)
+
         self.assertIsNone(await controller.settle_revocation(failure))
         self.assertEqual(["prepare", "retire"], session.events)
         self.assertTrue(controller._claims.owns_job(scope(), record().input.job_ref))
@@ -138,6 +148,7 @@ class RevocationContinuationTests(unittest.IsolatedAsyncioTestCase):
                 raise OSError("Original resource could not close")
 
         session = FailedLateRetirement()
+
         session.release.clear()
         controller = self.controller(session)
         continuation = None
@@ -145,6 +156,7 @@ class RevocationContinuationTests(unittest.IsolatedAsyncioTestCase):
         try:
             failure = await self.stopped(controller)
             continuation = asyncio.create_task(controller.settle_revocation(failure))
+
             await asyncio.sleep(0)
             session.release.set()
 

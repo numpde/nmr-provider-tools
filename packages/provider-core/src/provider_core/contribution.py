@@ -352,6 +352,7 @@ class ConfiguredIdentity:
         }
 
         encoded = json.dumps(document, sort_keys=True, ensure_ascii=True, separators=(",", ":")).encode("ascii")
+
         object.__setattr__(self, "revision", "configured-v2:sha256:" + hashlib.sha256(encoded).hexdigest())
 
 
@@ -1075,6 +1076,7 @@ class ImplementationBinding[InstanceT, AnalysisT]:
                 raise TypeError(f"Call member {member.name!r} codecs differ from its declared types")
 
             bound = replace(declaration)
+
             object.__setattr__(bound, "_owner", self)
             object.__setattr__(self, member.name, bound)
             bound_calls.append(bound)

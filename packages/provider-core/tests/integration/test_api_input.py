@@ -27,6 +27,7 @@ class ApiInputIntegrationTests(unittest.IsolatedAsyncioTestCase):
 
                     if job_ref == "job:example":
                         admitted = await api.job_input(facts(), analysis_kind_ref="nmr_prediction")
+
                         self.assertEqual(admitted.specification_bytes, b"private instructions")
                     else:
                         with self.assertRaises(ApiFailure) as caught:

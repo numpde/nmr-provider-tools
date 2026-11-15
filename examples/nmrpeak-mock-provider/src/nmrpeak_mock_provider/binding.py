@@ -63,6 +63,7 @@ class PeakContribution(sdk.Contribution):
     def generate(self, *, candidate: science.PreparedInput) -> science.Candidates:
         tokens = candidate.consume()
         generated = self.model.generate(tokens=tokens, beam_size=self.configuration.beam_size)
+
         science.validate_candidates(candidates=generated, settings=self.configuration)
 
         return science.Candidates(

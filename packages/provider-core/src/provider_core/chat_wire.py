@@ -373,6 +373,7 @@ def _read_failure(document):
                 result.remote_errno = number
 
         errors[index] = result
+
         constructing.remove(index)
 
         return result

@@ -24,6 +24,7 @@ class PausingSession(ReportingSession):
 
     async def prepare(self, acknowledged, instructions, *, report_condition):
         result = await super().prepare(acknowledged, instructions, report_condition=report_condition)
+
         await self.finish.wait()
         self.returning.set()
 
@@ -123,6 +124,7 @@ class ExecutionConditionFailureTests(unittest.IsolatedAsyncioTestCase):
                 await session.reporters["prepare"]("late_condition")
 
             report = asyncio.create_task(report_late())
+
             await asyncio.wait_for(queued.wait(), 1)
             self.assertFalse(report.done())
             session.finish.set()
@@ -151,6 +153,7 @@ class ExecutionConditionFailureTests(unittest.IsolatedAsyncioTestCase):
     async def test_retained_phase_reporters_refuse_without_api_effect(self):
         (store, acknowledged, claim) = await live_attempt()
         transport = ConditionTransport()
+
         transport.release.set()
         session = ReportingSession(store)
 
@@ -210,6 +213,7 @@ class ExecutionConditionFailureTests(unittest.IsolatedAsyncioTestCase):
             with self.subTest(phase=phase):
                 (store, acknowledged, claim) = await live_attempt()
                 transport = ConditionTransport()
+
                 transport.release.set()
                 transport.failure = ExchangeFailed("Authored private transport cause")
                 session = SwallowingSession(store)
@@ -267,6 +271,7 @@ class ExecutionConditionFailureTests(unittest.IsolatedAsyncioTestCase):
 
         (store, acknowledged, claim) = await live_attempt()
         transport = ConditionTransport()
+
         transport.release.set()
         previous = OSError("Authored private interrupted cause")
         interruption = asyncio.CancelledError()
@@ -312,6 +317,7 @@ class ExecutionConditionFailureTests(unittest.IsolatedAsyncioTestCase):
 
         (store, acknowledged, claim) = await live_attempt()
         transport = ConditionTransport()
+
         transport.release.set()
         transport.failure = ExchangeFailed("Authored private transport cause")
         later = RuntimeError("Authored later private binding cause")

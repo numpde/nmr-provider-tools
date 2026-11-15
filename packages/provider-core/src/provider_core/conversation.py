@@ -336,6 +336,7 @@ class ToolConversation:
         self._tools_sha256 = hashlib.sha256(_encode(tools)).hexdigest()
 
         index = 0
+
         self._route(self._endpoints[index])
 
         while self._turns < self._max_turns:
@@ -373,6 +374,7 @@ class ToolConversation:
                     ) from None
 
                 index += 1
+
                 self._route(self._endpoints[index])
                 continue
 
@@ -449,6 +451,7 @@ class ToolConversation:
         identity = json.loads(endpoint.identity)
 
         identity = {key: self.redact(value) if type(value) is str else value for (key, value) in identity.items()}
+
         self._routes.append({"endpoint": identity, "turns_started": 0})
 
     def _require_active(self):
@@ -513,6 +516,7 @@ class ToolConversation:
             )
 
         canonical["tool_calls"] = admitted
+
         self._seen_ids.update(identifiers)
 
         return (canonical, admitted)
@@ -557,10 +561,12 @@ class ToolConversation:
 
     def _correct_turn(self, calls, rejection):
         reason = str(rejection)
+
         self._require_no_secrets(reason)
         self.last_rejection = reason
 
         self._corrections += 1
+
         self.correction_failures.append((self._turns, rejection))
 
         if self._max_corrections is not None and self._corrections >= self._max_corrections:
@@ -608,6 +614,7 @@ class ToolConversation:
 
             if isinstance(cleanup, asyncio.CancelledError):
                 failure.interruption_cause = cleanup.__cause__
+
                 raise cleanup from failure
 
             raise failure from None
@@ -642,6 +649,7 @@ class ToolConversation:
 
             if interruption is not None:
                 failure.interruption_cause = interruption.__cause__
+
                 raise interruption from failure
 
             raise failure from None

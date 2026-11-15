@@ -122,6 +122,7 @@ class SourceInventoryUnitTests(unittest.TestCase):
                 "unowned/ignored.py",
             ):
                 path = root / name
+
                 path.parent.mkdir(parents=True, exist_ok=True)
                 path.write_text("pass\n")
 
@@ -163,6 +164,7 @@ class SourceInventoryUnitTests(unittest.TestCase):
     def test_root_visibility_reports_new_source_caches_and_hidden_links(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
+
             (root / "tools").mkdir()
             (root / "stale.txt").write_text("fixture")
             manifest = "d\ttools\0f\tnew-source.py\0d\t.pytest_cache\0l\tlinked.py\0d\t.work\0d\t.aws\0d\tsecrets\0"
@@ -196,6 +198,7 @@ class SourceInventoryUnitTests(unittest.TestCase):
     def test_discovery_is_recursive_and_inventory_delta_is_directional(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
+
             (root / "compose" / "nested").mkdir(parents=True)
             (root / "compose" / "base.yml").write_text("services: {}\n")
             (root / "compose" / "nested" / "debug.yaml").write_text("services: {}\n")
@@ -236,8 +239,10 @@ class SourceInventoryUnitTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             compose = root / "compose"
+
             compose.mkdir()
             target = root / "target.yml"
+
             target.write_text("services: {}\n")
             (compose / "linked.yml").symlink_to(target)
 
@@ -250,8 +255,10 @@ class SourceInventoryUnitTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             compose = root / "compose"
+
             compose.mkdir()
             target = root / "target"
+
             target.mkdir()
             (compose / "linked").symlink_to(target, target_is_directory=True)
 
@@ -280,6 +287,7 @@ class SourceInventoryRepositoryTests(unittest.TestCase):
     def test_host_root_inventory_is_complete_and_visible_to_source_checks(self):
         self.assertTrue(ROOT_ENTRY_MANIFEST.is_file(), msg="repository checks require a read-only host root-entry inventory")
         findings = root_entry_visibility_findings(ROOT_ENTRY_MANIFEST.read_bytes().decode("utf-8"), ROOT)
+
         self.assertEqual([], findings, msg="\n".join(findings))
 
     def test_authored_python_roots_are_complete_safe_trees(self):

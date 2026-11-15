@@ -191,6 +191,7 @@ class ExecutionObservationTests(unittest.IsolatedAsyncioTestCase):
             await executor.settle()
 
         retained = await executor.retain_suppressed_disposition()
+
         self.assertIsInstance(retained, SuppressedCheckpoint)
         self.assertIs(retained.reason, SuppressionReason.SERVER_STOP)
         self.assertFalse(hasattr(retained, "candidate"))
@@ -247,6 +248,7 @@ class ExecutionObservationTests(unittest.IsolatedAsyncioTestCase):
                 claim.release(owner=claim.lifecycle_owner)
 
             retained = await executor.retain_suppressed_disposition()
+
             self.assertIs(retained.reason, SuppressionReason.OBSERVATION_FAILED)
             self.assertIs(executor.last_failure.cause, failed.exception.api_failure)
             self.assertEqual(store.records, (retained,))
@@ -302,6 +304,7 @@ class ExecutionObservationTests(unittest.IsolatedAsyncioTestCase):
                 claim.release(owner=claim.lifecycle_owner)
 
             retained = await executor.retain_suppressed_disposition()
+
             self.assertIs(retained.reason, SuppressionReason.SERVER_STOP)
             self.assertEqual(store.records, (retained,))
             claim.release(owner=claim.lifecycle_owner)

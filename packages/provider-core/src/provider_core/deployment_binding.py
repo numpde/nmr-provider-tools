@@ -208,6 +208,7 @@ def _parse_deployment_bindings(raw):
             raise BindingDefinitionRejected("Cannot admit delivery bindings: two bindings claim the same API/provider identity.")
 
         binding = DeploymentBinding(name, project, gid, binding.socket_path, binding.api, _route(row["route"], endpoint.api_origin))
+
         names.add(name)
         identities.add(identity)
         bindings.append(binding)
@@ -271,9 +272,11 @@ def _report_definition_failure(failure):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
+
     parser.add_argument("action", choices=("paths", "describe-binding"))
     parser.add_argument("--definition", type=Path, required=True)
     selection = parser.add_mutually_exclusive_group(required=True)
+
     selection.add_argument("--binding")
     selection.add_argument("--all", action="store_true")
     args = parser.parse_args()

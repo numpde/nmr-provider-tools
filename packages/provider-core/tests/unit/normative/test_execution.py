@@ -45,6 +45,7 @@ class ExecutionTests(unittest.IsolatedAsyncioTestCase):
         )
 
         terminal = await executor.run(acknowledged)
+
         self.assertEqual([event[0] for event in session.events], ["prepare", "execute", "retire"])
         self.assertIs(type(session.events[1][1]), EnteredCheckpoint)
         self.assertEqual(store.records, (terminal,))

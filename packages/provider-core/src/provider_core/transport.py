@@ -192,6 +192,7 @@ class _FileBody:
             await self._run(_write_file_chunk, self._descriptor, memoryview(chunk)[offset : offset + 65536])
 
         self.byte_length += len(chunk)
+
         self.digest.update(chunk)
 
     async def _run(self, operation, *args):
@@ -200,6 +201,7 @@ class _FileBody:
         worker = self._executor.submit(operation, *args)
 
         waiter = asyncio.wrap_future(worker)
+
         waiter.add_done_callback(_observe_file_write)
         self._pending = (worker, waiter)
 
@@ -207,6 +209,7 @@ class _FileBody:
 
     async def settle(self):
         (worker, waiter) = self._pending
+
         await asyncio.wait({waiter})
         self._pending = None
 
@@ -466,6 +469,7 @@ class HttpTransport:
                 if type(failure) is TimeoutError and setup.expired():
                     network.observation.deadline_cancelled = True
                     outcome.network_failure = network.observation.error
+
                     raise TimeoutError("HTTP connection setup exceeded its configured deadline") from failure
                 else:
                     outcome.network_failure = failure
@@ -493,6 +497,7 @@ class HttpTransport:
                     break
                 except BaseException as failure:
                     outcome.network_failure = failure
+
                     raise
 
                 # Acquisition charges consumed work even if this chunk makes

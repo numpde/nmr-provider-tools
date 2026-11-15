@@ -16,6 +16,7 @@ from tests.fakes.uploads import UPLOAD_REF
 class UploadFileAcquisitionTests(unittest.IsolatedAsyncioTestCase):
     async def test_verified_file_handoff_preserves_exact_facts_and_releases_acquisition_owner(self):
         (owner, api, store, client) = file_sources()
+
         await owner.inspect()
 
         with (
@@ -23,10 +24,12 @@ class UploadFileAcquisitionTests(unittest.IsolatedAsyncioTestCase):
             patch("provider_core.transport.httpcore.AsyncConnectionPool", return_value=client),
         ):
             result = await owner.acquire_file(UPLOAD_REF, directory_fd=directory, retirement_seconds=0.1)
+
             self.assertIs(type(result), VerifiedUploadFile)
             self.assertEqual((result.job_ref, result.upload_ref, result.byte_length), ("job:example", UPLOAD_REF, 8))
             self.assertEqual(result.content_hash, "sha256:" + hashlib.sha256(b"geometry").hexdigest())
             path = Path(root) / result.name
+
             self.assertEqual(path.read_bytes(), b"geometry")
             self.assertEqual(stat.S_IMODE(path.stat().st_mode), 0o600)
             self.assertNotIn(result.name, repr(result))
@@ -41,6 +44,7 @@ class UploadFileAcquisitionTests(unittest.IsolatedAsyncioTestCase):
     async def test_file_and_byte_outputs_use_the_same_cumulative_session(self):
         (owner, api, _, file_client) = file_sources(total_bytes=16)
         byte_client = Client(Stream([b"geometry"]), headers=store_headers(b"geometry"))
+
         await owner.inspect()
 
         with (
@@ -48,8 +52,10 @@ class UploadFileAcquisitionTests(unittest.IsolatedAsyncioTestCase):
             patch("provider_core.transport.httpcore.AsyncConnectionPool", side_effect=[file_client, byte_client]) as clients,
         ):
             result = await owner.acquire_file(UPLOAD_REF, directory_fd=directory, retirement_seconds=0.1)
+
             await owner.inspect()
             result_bytes = await owner.acquire(UPLOAD_REF)
+
             self.assertEqual(Path(root, result.name).read_bytes(), result_bytes.data)
             self.assertEqual((owner.received_bytes, owner.requests_started), (16, 8))
             self.assertEqual(api.calls.count("grant"), 2)
@@ -57,6 +63,7 @@ class UploadFileAcquisitionTests(unittest.IsolatedAsyncioTestCase):
 
     async def test_explicit_private_mode_survives_a_restrictive_creation_umask(self):
         (owner, _, _, client) = file_sources()
+
         await owner.inspect()
 
         with (

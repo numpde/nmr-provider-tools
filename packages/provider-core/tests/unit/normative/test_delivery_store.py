@@ -19,6 +19,7 @@ class DeliveryQueueTests(unittest.TestCase):
 
     def open(self):
         queue = DeliveryQueue(self.root, limits=self.limits)
+
         self.addCleanup(queue.close)
 
         return queue
@@ -27,12 +28,15 @@ class DeliveryQueueTests(unittest.TestCase):
         item = outcome()
         queue = self.open()
         accepted = queue.enqueue(item)
+
         self.assertEqual(accepted["body_sha256"], "sha256:" + hashlib.sha256(item.body).hexdigest())
         self.assertEqual(queue.enqueue(item), accepted)
         queue.close()
         queue = self.open()
+
         self.assertEqual(queue.next_pending(item.api_origin, item.provider_ref), item)
         facts = queue.inventory(item.api_origin, item.provider_ref)
+
         self.assertEqual(len(facts), 1)
         self.assertNotIn("body", facts[0])
         self.assertEqual(facts[0]["body_bytes"], len(item.body))
@@ -40,6 +44,7 @@ class DeliveryQueueTests(unittest.TestCase):
     def test_publication_removes_the_row_and_deleted_database_payload(self):
         queue = self.open()
         item = outcome()
+
         queue.enqueue(item)
         queue.remove_published(item)
         self.assertEqual(queue.inventory(item.api_origin, item.provider_ref), [])
@@ -51,6 +56,7 @@ class DeliveryQueueTests(unittest.TestCase):
     def test_held_work_counts_toward_capacity_without_blocking_another_provider(self):
         queue = self.open()
         (first, other) = (outcome(), outcome(provider="provider:other", suffix="1"))
+
         queue.enqueue(first)
         queue.hold(first, "The API rejected this terminal outcome; inspect operator diagnostics.")
 
@@ -67,6 +73,7 @@ class DeliveryQueueTests(unittest.TestCase):
         self.limits = QueueLimits(provider_items=2, provider_bytes=len(first.body), total_items=4, total_bytes=2 * len(first.body))
 
         queue = self.open()
+
         queue.enqueue(first)
 
         with self.assertRaises(DeliveryFull):

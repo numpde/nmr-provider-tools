@@ -50,6 +50,7 @@ class ProviderCredentialBoundaryTests(unittest.TestCase):
         public = artifact["public_key_spki_der_b64"]
         alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/"
         alternate = public[:-2] + alphabet[alphabet.index(public[-2]) + 1] + "="
+
         self.assertEqual(base64.b64decode(alternate), base64.b64decode(public))
 
         with self.assertRaises(CredentialRejected):

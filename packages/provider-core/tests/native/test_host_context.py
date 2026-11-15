@@ -52,6 +52,7 @@ class HostContextTests(unittest.IsolatedAsyncioTestCase):
             self.assertEqual(first=[], second=closed)
 
         observation = await owner.retire().observe(after=None, wait_seconds=0)
+
         self.assertTrue(expr=observation.settled)
         self.assertEqual(first=[True], second=closed)
 
@@ -64,6 +65,7 @@ class HostContextTests(unittest.IsolatedAsyncioTestCase):
 
         self.assertIs(expr1=original, expr2=raised.exception)
         observation = await owner.retire().observe(after=None, wait_seconds=0)
+
         self.assertTrue(expr=observation.settled)
 
     async def test_synchronous_retirement_request_failure_keeps_body_cause(self):
@@ -95,8 +97,10 @@ class HostContextTests(unittest.IsolatedAsyncioTestCase):
                 raise original
 
         (body_failure, retirement_failure) = raised.exception.exceptions
+
         self.assertIs(expr1=original, expr2=body_failure)
         observation = await owner.retire().observe(after=None, wait_seconds=0)
+
         self.assertIs(expr1=retirement_failure, expr2=observation.failures[0].cause)
         self.assertEqual(first=(cleanup,), second=retirement_failure.exceptions)
 
@@ -129,8 +133,10 @@ class HostContextTests(unittest.IsolatedAsyncioTestCase):
                 self.assertTrue(expr=await asyncio.to_thread(entered.wait, timeout=5))
                 task.cancel("first exit interruption")
                 loop = asyncio.get_running_loop()
+
                 loop.call_soon(task.cancel, "second exit interruption")
                 cancellations_delivered = asyncio.Event()
+
                 loop.call_soon(cancellations_delivered.set)
                 await cancellations_delivered.wait()
                 self.assertFalse(expr=task.done())
@@ -144,6 +150,7 @@ class HostContextTests(unittest.IsolatedAsyncioTestCase):
             self.assertTrue(expr=all(isinstance(cause, asyncio.CancelledError) for cause in raised.exception.exceptions))
             self.assertEqual(first=[True], second=closed)
             observation = await owner.retire().observe(after=None, wait_seconds=0)
+
             self.assertTrue(expr=observation.settled)
         finally:
             release.set()

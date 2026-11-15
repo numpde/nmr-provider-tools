@@ -50,6 +50,7 @@ class GrantRenewalTests(unittest.IsolatedAsyncioTestCase):
             transport = Transport(problem(409, "operation-conflict", code))
             api = self.api(transport)
             failure = await self.failure(api)
+
             self.assertEqual(self.permitted(api, failure), code == "upload_read_not_finalized", code)
 
             if code == "upload_read_not_finalized":
@@ -63,10 +64,12 @@ class GrantRenewalTests(unittest.IsolatedAsyncioTestCase):
         transport = Transport(pending, reply(encoded(membership())))
         api = self.api(transport)
         failure = await self.failure(api)
+
         self.assertTrue(self.permitted(api, failure))
         self.assertFalse(self.permitted(api, failure, job="job:foreign"))
         self.assertFalse(self.permitted(api, failure, upload="upload:sha256:" + "c" * 64))
         foreign = self.api(Transport(pending))
+
         self.assertFalse(self.permitted(foreign, failure))
         await api.uploads("job:example")
         self.assertFalse(self.permitted(api, failure))
@@ -82,6 +85,7 @@ class GrantRenewalTests(unittest.IsolatedAsyncioTestCase):
         api = self.api(transport)
         failure = await self.failure(api)
         transport.retirement_confirmed = False
+
         self.assertFalse(self.permitted(api, failure))
         await api.retire()
         self.assertTrue(self.permitted(api, failure))
@@ -93,6 +97,7 @@ class GrantRenewalTests(unittest.IsolatedAsyncioTestCase):
             transport = Transport(response)
             api = self.api(transport)
             failure = await self.failure(api)
+
             self.assertTrue(self.permitted(api, failure))
             self.assertEqual(len(transport.calls), 1)
 
@@ -124,6 +129,7 @@ class GrantRenewalTests(unittest.IsolatedAsyncioTestCase):
             with self.subTest(case=index):
                 api = self.api(Transport(response))
                 failure = await self.failure(api)
+
                 self.assertIsNone(failure.problem_code)
                 self.assertFalse(self.permitted(api, failure))
 
@@ -132,6 +138,7 @@ class GrantRenewalTests(unittest.IsolatedAsyncioTestCase):
             with self.subTest(status=status):
                 api = self.api(Transport(reply(b"unavailable", status=status)))
                 failure = await self.failure(api)
+
                 self.assertFalse(self.permitted(api, failure))
                 self.assertTrue(failure.issuance_may_have_committed)
 
@@ -143,4 +150,5 @@ class GrantRenewalTests(unittest.IsolatedAsyncioTestCase):
             problem(404, "not-found", "resource_not_found"),
         ):
             api = self.api(Transport(response))
+
             self.assertFalse(self.permitted(api, await self.failure(api)))

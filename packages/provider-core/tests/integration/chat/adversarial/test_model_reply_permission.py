@@ -230,6 +230,7 @@ class ShieldedSession(InterpretedSession):
 
     async def retire(self):
         self.retirement_calls += 1
+
         await super().retire()
 
         if self.original is not None and not self.observed:
@@ -385,10 +386,13 @@ class ModelReplyPermissionTests(unittest.IsolatedAsyncioTestCase):
 
         async with reply_run(claims, "job:stopped") as (running, release_reply):
             (session, controller) = (running.session, running.controller)
+
             session.science.release.set()
             session.after_refusal = independent_failure
+
             await asyncio.wait_for(running.peer.received.wait(), 3)
             running.transport.stop = stop
+
             await asyncio.wait_for(running.observation.verified.wait(), 3)
 
             # The real correlated read has finished, but its original monitor
@@ -399,6 +403,7 @@ class ModelReplyPermissionTests(unittest.IsolatedAsyncioTestCase):
             release_reply.set()
             await asyncio.wait_for(session.dispatch_finished.wait(), 3)
             preparations = session.science.preparations
+
             running.observation.resume.set()
 
             with self.assertRaises(ControllerFailed) as failed:
@@ -462,8 +467,10 @@ class ModelReplyPermissionTests(unittest.IsolatedAsyncioTestCase):
         async with reply_run(claims, "job:refused", session_type=InterruptedRefusalSession) as (running, release_reply):
             (session, controller) = (running.session, running.controller)
             session.interruption_cause = independent_failure
+
             await asyncio.wait_for(running.peer.received.wait(), 3)
             running.transport.stop = {"job_state": "cancelled"}
+
             await asyncio.wait_for(running.observation.verified.wait(), 3)
             release_reply.set()
             await asyncio.wait_for(session.refused.wait(), 3)
@@ -514,6 +521,7 @@ class ModelReplyPermissionTests(unittest.IsolatedAsyncioTestCase):
             try:
                 await asyncio.wait_for(running.peer.received.wait(), 3)
                 running.transport.stop = {"job_state": "cancelled"}
+
                 await asyncio.wait_for(running.observation.verified.wait(), 3)
                 release_reply.set()
 
@@ -545,6 +553,7 @@ class ModelReplyPermissionTests(unittest.IsolatedAsyncioTestCase):
                 self.assertEqual(1, len(claims.live_owners()))
                 session.release_retirement.set()
                 observed = await asyncio.wait_for(settlement, 3)
+
                 self.assertIs(observed, running.observation.stop.observation)
                 self.assertTrue(session.cleanup_confirmed)
                 self.assertTrue(controller.work_settled)
@@ -574,10 +583,12 @@ class ModelReplyPermissionTests(unittest.IsolatedAsyncioTestCase):
 
         async with reply_run(claims, "job:admitted") as (running, release_reply):
             (science, controller) = (running.session.science, running.controller)
+
             release_reply.set()
             await asyncio.wait_for(science.entered.wait(), 3)
             original = science.pending
             running.transport.stop = {"job_state": "cancelled"}
+
             await asyncio.wait_for(running.observation.verified.wait(), 3)
             running.observation.resume.set()
 
@@ -589,6 +600,7 @@ class ModelReplyPermissionTests(unittest.IsolatedAsyncioTestCase):
             self.assertEqual(1, science.preparations)
             science.release.set()
             observed = await asyncio.wait_for(controller.settle_revocation(failed.exception), 3)
+
             self.assertIs(observed, running.observation.stop.observation)
             self.assertIs(science.pending, original)
             self.assertIs(original.result(), science.handle)
@@ -702,8 +714,10 @@ class ComposedLifecycleOwnershipTests(unittest.IsolatedAsyncioTestCase):
                 # No other controller is running while asyncio.wait is patched.
                 with patch("provider_core.execution.asyncio.wait", new=held.observation):
                     original = asyncio.create_task(held.controller.run(held.pending))
+
                     await asyncio.wait_for(stalled_peer.received.wait(), 5)
                     held.transport.stop = {"job_state": "cancelled"}
+
                     await asyncio.wait_for(held.observation.verified.wait(), 5)
                     release_reply.set()
                     await asyncio.wait_for(held.session.dispatch_finished.wait(), 5)
@@ -713,6 +727,7 @@ class ComposedLifecycleOwnershipTests(unittest.IsolatedAsyncioTestCase):
                         await asyncio.wait_for(asyncio.shield(original), 5)
 
                 failure = caught.exception
+
                 self.assertIs(failure.cause.cause, held.observation.stop)
                 await asyncio.wait_for(held.session.retiring.wait(), 5)
                 self.assertTrue(held.session.interpreter.retirement_confirmed)
@@ -737,6 +752,7 @@ class ComposedLifecycleOwnershipTests(unittest.IsolatedAsyncioTestCase):
 
                 independent = asyncio.create_task(healthy.controller.run(healthy.pending))
                 result = await asyncio.wait_for(asyncio.shield(independent), 6)
+
                 self.assertIs(type(result), DeliveryAcceptedCheckpoint)
                 self.assertTrue(healthy.controller.shutdown_ready)
 
@@ -796,6 +812,7 @@ class ComposedLifecycleOwnershipTests(unittest.IsolatedAsyncioTestCase):
 
         async with TlsPeer("success", response_body=reply_body) as peer:
             original = ReplyRun(peer, claims, "job:unknown", UnresolvedOutcomeSession)
+
             original.session.science.release.set()
             task = asyncio.create_task(original.controller.run(original.pending))
 
@@ -864,6 +881,7 @@ class PreparedPermissionInterleavingTests(unittest.IsolatedAsyncioTestCase):
                         release_reply.set()
                         await asyncio.wait_for(session.execution_entered.wait(), 3)
                         prepared = session.accepted_handle
+
                         self.assertIs(prepared, session.science.handle)
 
                         self.assertEqual((1, 1, 0),
@@ -890,6 +908,7 @@ class PreparedPermissionInterleavingTests(unittest.IsolatedAsyncioTestCase):
                             await asyncio.wait_for(asyncio.shield(running.task), 3)
 
                         controller = running.controller
+
                         self.assertIs(caught.exception.cause.cause, running.observation.stop)
 
                         # The accepted preparation has already crossed the SDK's
@@ -909,6 +928,7 @@ class PreparedPermissionInterleavingTests(unittest.IsolatedAsyncioTestCase):
                         session.release_retirement.set()
 
                         original_retirement = controller.operation._retirement_task
+
                         self.assertIsNotNone(original_retirement)
                         await asyncio.wait_for(asyncio.shield(original_retirement), 3)
                         self.assertTrue(session.retirement_completed)
@@ -941,6 +961,7 @@ class LateOriginalOwnerIsolationTests(unittest.IsolatedAsyncioTestCase):
         async with reply_run(claims, "job:old") as (old, release_old_reply):
             await asyncio.wait_for(old.peer.received.wait(), 3)
             old.transport.stop = {"job_state": "cancelled"}
+
             await asyncio.wait_for(old.observation.verified.wait(), 3)
             release_old_reply.set()
             await asyncio.wait_for(old.session.dispatch_finished.wait(), 3)
@@ -953,6 +974,7 @@ class LateOriginalOwnerIsolationTests(unittest.IsolatedAsyncioTestCase):
             original_claim = old.controller._claim
             original_executor = old.controller.operation
             observed = old.observation.stop.observation
+
             self.assertIs(await old.controller.settle_revocation(failure), observed)
             self.assertFalse(original_claim.active)
             self.assertTrue(old.controller.shutdown_ready)
@@ -975,6 +997,7 @@ class LateOriginalOwnerIsolationTests(unittest.IsolatedAsyncioTestCase):
             await asyncio.wait_for(new.session.science.entered.wait(), 3)
             current_claim = new.controller._claim
             current_science = new.session.science.pending
+
             self.assertIsNot(current_claim, original_claim)
             self.assertIs(current_claim.lifecycle_owner, new.controller)
             self.assertEqual((new.controller,), claims.live_owners())
@@ -1025,6 +1048,7 @@ class LateOriginalOwnerIsolationTests(unittest.IsolatedAsyncioTestCase):
 
             new.session.science.release.set()
             accepted = await asyncio.wait_for(asyncio.shield(new.task), 3)
+
             self.assertIs(type(accepted), DeliveryAcceptedCheckpoint)
 
             self.assertEqual((1, 1, 1),

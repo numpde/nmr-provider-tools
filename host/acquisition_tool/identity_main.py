@@ -92,6 +92,7 @@ def _project(observation, projections):
 
 def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
+
     parser.add_argument("--endpoint", required=True)
     parser.add_argument("--image", required=True)
     parser.add_argument("--host-uid", type=int)

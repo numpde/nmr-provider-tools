@@ -28,6 +28,7 @@ class ChatProcessProjectionTests(unittest.TestCase):
                 )
 
                 failure = ChatFailed("exchange_failed", "The model request failed.", cause=child)
+
                 self.assertFalse(_retryable(failure))
 
                 exchange = _Exchange(
@@ -70,6 +71,7 @@ class ChatProcessProjectionTests(unittest.TestCase):
         failure.child_failure = child
         failure.process = ChatProcessResult(1234, -int(signal.SIGKILL), (int(signal.SIGTERM), int(signal.SIGKILL)))
         relationships = dict(owned_relationships(failure))
+
         self.assertIs(deadline, relationships["transport primary"])
         self.assertIs(child, relationships["model HTTP child evidence"])
         details = owned_details(failure)
@@ -86,6 +88,7 @@ class ChatProcessProjectionTests(unittest.TestCase):
         )
 
         evidence = failure_evidence(failure, secrets=())
+
         self.assertNotIn("PRIVATE_CHILD", repr(evidence))
 
         child_evidence = next(item["failure"] for item in evidence["relationships"]
@@ -94,4 +97,5 @@ class ChatProcessProjectionTests(unittest.TestCase):
         self.assertEqual(503, child_evidence["status"])
         self.assertIsNone(child_evidence["request_id"])
         failure.process = UnreviewedProcess()
+
         self.assertEqual({"message": str(failure)}, owned_details(failure))

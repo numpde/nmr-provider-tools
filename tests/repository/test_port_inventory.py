@@ -17,6 +17,7 @@ class PortInventoryTests(unittest.TestCase):
         manifest = json.loads((ROOT / "tests/repository/port-sources.json").read_text())
         dispositions = json.loads((ROOT / "tests/repository/port-dispositions.json").read_text())
         targets = [entry["target"] for entry in manifest["files"]]
+
         self.assertEqual(len(targets), len(set(targets)), msg="Copied targets must not have duplicate source authorities.")
 
         for entry in manifest["files"]:
@@ -53,9 +54,11 @@ class PortInventoryTests(unittest.TestCase):
     def test_donor_module_classification_covers_each_copied_module_once(self):
         manifest = json.loads((ROOT / "tests/repository/port-sources.json").read_text())
         inventory = json.loads((ROOT / "tests/repository/donor-modules.json").read_text())
+
         self.assertEqual(manifest["commit"], inventory["commit"])
         modules = inventory["modules"]
         names = [entry["source"] for entry in modules]
+
         self.assertEqual(len(names), len(set(names)))
 
         self.assertEqual(
@@ -73,6 +76,7 @@ class PortInventoryTests(unittest.TestCase):
 
     def test_checker_identity_is_one_exact_immutable_image_input(self):
         path = ROOT / "host/tools/base_image.sh"
+
         self.assertFalse(path.is_symlink())
         self.assertEqual(1, len(re.findall(rb"python:3\.12\.[0-9]+-slim-bookworm@sha256:[0-9a-f]{64}", path.read_bytes())))
         self.assertFalse((ROOT / "config/checker-image.txt").exists())

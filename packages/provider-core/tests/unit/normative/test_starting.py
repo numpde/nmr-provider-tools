@@ -22,6 +22,7 @@ class StartingTests(unittest.IsolatedAsyncioTestCase):
         transport = Transport(reply(start_response()), reply(start_response(replayed=True)), reply(start_response(replayed=True)))
         starter = AttemptStarter.live(api(transport, scope().api_origin), claim, scope=scope())
         acknowledged = await starter.start(pending)
+
         self.assertEqual(pending, acknowledged.start)
         self.assertEqual(ATTEMPT_REF, acknowledged.admission.execution_attempt_ref)
         self.assertIs(LocalExecutionPhase.NOT_ENTERED, acknowledged.local_phase)
@@ -47,6 +48,7 @@ class StartingTests(unittest.IsolatedAsyncioTestCase):
 
         existing = claims.claim_live(other, lifecycle_owner=LiveAttemptProbe())
         owner = object()
+
         existing.begin(owner)
         existing.bind_attempt(scope(), ATTEMPT_REF, owner=owner)
         existing.finish(owner)
@@ -58,6 +60,7 @@ class StartingTests(unittest.IsolatedAsyncioTestCase):
             await starter.start(pending)
 
         acknowledgement = failed.exception.acknowledgement
+
         self.assertEqual(ATTEMPT_REF, acknowledgement.admission.execution_attempt_ref)
         self.assertEqual(pending, acknowledgement.start)
         self.assertTrue(existing.active)

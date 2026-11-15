@@ -23,6 +23,7 @@ class IdentityTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             package = root / "bundle/acquisition_tool"
+
             package.mkdir(parents=True)
 
             for name in ("__init__.py", "identity.py"):
@@ -37,6 +38,7 @@ class IdentityTests(unittest.TestCase):
             )
 
             poison = root / "poison/acquisition_tool"
+
             poison.mkdir(parents=True)
             (poison / "__init__.py").write_text('raise RuntimeError("Host package loaded")\n')
             entrypoint = package / "identity.py"
@@ -56,6 +58,7 @@ class IdentityTests(unittest.TestCase):
 
     def setUp(self):
         temporary = tempfile.TemporaryDirectory()
+
         self.addCleanup(temporary.cleanup)
         self.receipt = Path(temporary.name) / "retired"
 
@@ -144,6 +147,7 @@ class IdentityTests(unittest.TestCase):
         self.argv = self.mapping_arguments(("uid", "forward", "0"), ("gid", "inverse", "999"))
 
         (status, output, diagnostic) = self.run_entrypoint()
+
         self.assertEqual((2, ""), (status, output))
         self.assertIn("not mapped", diagnostic)
         self.assertEqual(b"retired\n", self.receipt.read_bytes())
@@ -153,6 +157,7 @@ class IdentityTests(unittest.TestCase):
         complete = self.mapping_arguments(("uid", "forward", "0"))
         missing_ceiling = complete.copy()
         position = missing_ceiling.index("--pids-limit")
+
         del missing_ceiling[position:position + 2]
 
         cases = (missing_ceiling,
@@ -212,9 +217,11 @@ class IdentityTests(unittest.TestCase):
     @patch.object(identity, "probe_identity")
     def test_maps_host_owner_to_container_zero_after_probe_retires(self, probe):
         probe.return_value = self.observation
+
         self.assertEqual((0, "0 0\n", ""), self.run_entrypoint())
         self.assertEqual(b"retired\n", self.receipt.read_bytes())
         request = probe.call_args.args[0]
+
         self.assertEqual((0, 0), (request.user_uid, request.user_gid))
 
     @patch.object(identity, "probe_identity")
@@ -222,6 +229,7 @@ class IdentityTests(unittest.TestCase):
         probe.return_value = self.observation
         self.argv[self.argv.index("1000")] = "1001"
         (status, output, diagnostic) = self.run_entrypoint()
+
         self.assertEqual((2, ""), (status, output))
         self.assertIn("not mapped", diagnostic)
         self.assertEqual(b"retired\n", self.receipt.read_bytes())
@@ -230,6 +238,7 @@ class IdentityTests(unittest.TestCase):
     def test_request_refusal_records_no_dispatch_without_traceback(self, probe):
         self.argv[self.argv.index("unix:///fixture/engine.sock")] = "tcp://fixture:2375"
         (status, output, diagnostic) = self.run_entrypoint()
+
         self.assertEqual((2, ""), (status, output))
         probe.assert_not_called()
         self.assertNotIn("Traceback", diagnostic)
@@ -240,6 +249,7 @@ class IdentityTests(unittest.TestCase):
         failure = ProbeFailure(Problem("engine", "fixture failure"), Retirement(ResourceState.UNRESOLVED))
         probe.side_effect = failure
         (status, output, diagnostic) = self.run_entrypoint()
+
         self.assertEqual((2, ""), (status, output))
         self.assertFalse(self.receipt.exists())
         probe.assert_called_once()
@@ -259,6 +269,7 @@ class IdentityTests(unittest.TestCase):
 
                 probe.side_effect = ProbeFailure(problem, Retirement(ResourceState.RETIRED, problems=remaining))
                 (status, output, diagnostic) = self.run_entrypoint()
+
                 self.assertEqual((2, ""), (status, output))
                 self.assertIn("fixture client unresolved", diagnostic)
                 self.assertFalse(self.receipt.exists())
@@ -270,6 +281,7 @@ class IdentityTests(unittest.TestCase):
             raise ProbeFailure(Problem("cancelled", "fixture cancelled"), Retirement(ResourceState.RETIRED))
 
         probe.side_effect = cancelled
+
         self.assertEqual((143, ""), self.run_entrypoint()[:2])
         self.assertEqual(b"retired\n", self.receipt.read_bytes())
 

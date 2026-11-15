@@ -105,6 +105,7 @@ def _is_explicit_env_default_call(node: ast.AST) -> bool:
         return False
 
     call = node
+
     assert isinstance(call, ast.Call)
 
     if isinstance(call.func, ast.Attribute) and call.func.attr == "setdefault":

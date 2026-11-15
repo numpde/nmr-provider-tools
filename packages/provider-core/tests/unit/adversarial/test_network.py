@@ -39,6 +39,7 @@ class NetworkOwnershipTests(unittest.IsolatedAsyncioTestCase):
             backend = OwnedNetworkBackend(proxy_socket="/egress/proxy.sock")
 
         stream = await backend.connect_tcp("proxy-metadata.invalid", 80, timeout=0.5)
+
         native.connect_unix_socket.assert_awaited_once_with(path="/egress/proxy.sock", timeout=0.5, socket_options=None)
 
         with patch("provider_core.network.TLSStream.wrap", new=AsyncMock(side_effect=asyncio.CancelledError)), \
@@ -52,6 +53,7 @@ class NetworkOwnershipTests(unittest.IsolatedAsyncioTestCase):
 
         self.assertFalse(raw.closed)
         raw.close_failure = None
+
         await backend.aclose()
         self.assertTrue(raw.closed)
         native.connect_tcp.assert_not_awaited()
@@ -77,5 +79,6 @@ class NetworkOwnershipTests(unittest.IsolatedAsyncioTestCase):
         self.assertIs(caught.exception, failure)
         self.assertFalse(raw.closed)
         raw.close_failure = None
+
         await backend.aclose()
         self.assertTrue(raw.closed)

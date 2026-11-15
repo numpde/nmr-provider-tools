@@ -39,6 +39,7 @@ class DockerfileEmptyDefaultsTest(unittest.TestCase):
 
     def test_docker_arg_matcher_flags_defaults(self) -> None:
         match = DOCKER_ARG_DEFAULT_RE.match("ARG OCI_NAMESPACE=example-owner/vote-mcp")
+
         self.assertIsNotNone(match)
         assert match is not None
         self.assertEqual("example-owner/vote-mcp", match.group("value"))

@@ -175,6 +175,7 @@ class ServiceProxyRefusalTests(unittest.TestCase):
 
         with tempfile.TemporaryDirectory() as directory:
             path = Path(directory) / "proxy.sock"
+
             path.write_text("prior evidence")
 
             with self.assertRaises(OSError):
@@ -189,6 +190,7 @@ class ServiceProxyRefusalTests(unittest.TestCase):
 
         def acquire(*args, **kwargs):
             channel = native_socket(*args, **kwargs)
+
             acquired.append(channel)
 
             return channel
@@ -334,6 +336,7 @@ class ServiceProxyRefusalTests(unittest.TestCase):
 
         def expire(*_args, **_kwargs):
             clock[0] = 31
+
             raise primary
 
         with (

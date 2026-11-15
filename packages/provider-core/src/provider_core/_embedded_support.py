@@ -98,6 +98,7 @@ class _Changes:
 
     def changed(self):
         self.revision += 1
+
         self.event.set()
         self.event = asyncio.Event()
 

@@ -13,6 +13,7 @@ class LiveSession:
         self.handle = PreparedAnalysis(ProtectedEvidence("fixture.prepared.v1", b"prepared"))
 
         (self.retiring, self.release) = (asyncio.Event(), asyncio.Event())
+
         self.release.set()
         self.content = b"result"
 

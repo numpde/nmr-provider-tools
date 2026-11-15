@@ -39,6 +39,7 @@ class AttemptStartIntegrationTests(unittest.IsolatedAsyncioTestCase):
 
             for request in peer.requests:
                 lines = request.split(b"\r\n")
+
                 self.assertEqual(lines[0], b"POST /provider/v1/execution-attempts/start HTTP/1.1")
 
                 headers = {
@@ -61,6 +62,7 @@ class AttemptStartIntegrationTests(unittest.IsolatedAsyncioTestCase):
                 )
 
                 signature = parse(headers[b"signature"], tltype="dictionary")["sig1"][0]
+
                 key.public_key().verify(signature, base)
                 signatures.append(signature)
 

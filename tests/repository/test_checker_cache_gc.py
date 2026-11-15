@@ -46,19 +46,23 @@ class EngineCacheGCTests(unittest.TestCase):
                     "builder": {"other": {"retained": True}}}
 
         updated = configured(original)
+
         self.assertEqual(original["data-root"], updated["data-root"])
         self.assertEqual(original["builder"]["other"], updated["builder"]["other"])
         self.assertNotIn("gc", original["builder"])
         self.assertEqual(["10GB", "32GB", "20GB"], limits(updated))
         updated["builder"]["gc"]["defaultMaxUsedSpace"] = "24GB"
+
         self.assertEqual(["10GB", "24GB", "20GB"], limits(updated))
         updated["builder"]["gc"]["enabled"] = False
+
         self.assertIsNone(limits(updated))
 
     def test_timer_identity_is_per_endpoint_and_arguments_remain_literal(self):
         one = unit_files(Path('/checkout with space%/'), "science", "unix:///tmp/science.sock", Path('/config/$literal/daemon.json'))
         other_context = unit_files(Path('/other/checkout'), "alias", "unix:///tmp/science.sock", Path('/other/daemon.json'))
         other_engine = unit_files(Path('/checkout'), "other", "unix:///tmp/other.sock", Path('/config/daemon.json'))
+
         self.assertEqual(one[0], other_context[0])
         self.assertNotEqual(one[0], other_engine[0])
         self.assertIn('ExecStart=:', one[1])
@@ -70,6 +74,7 @@ class EngineCacheGCTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             config = root / "daemon.json"
+
             config.write_text('{"data-root":"/keep"}\n')
             before = config.read_bytes()
 
@@ -85,6 +90,7 @@ class EngineCacheGCTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             config = root / "daemon.json"
+
             config.write_text("{}\n")
             failure = subprocess.CalledProcessError(1, ["systemctl", "--user", "daemon-reload"])
 
@@ -100,6 +106,7 @@ class EngineCacheGCTests(unittest.TestCase):
     def test_periodic_command_uses_native_limits_and_isolated_selected_engine(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
+
             (root / "host/tools").mkdir(parents=True)
 
             for name in ("engine_cache_gc.sh", "engine_cache_gc.py", "docker_context.sh", "docker_client.sh", "inference_native.sh"):
@@ -108,6 +115,7 @@ class EngineCacheGCTests(unittest.TestCase):
             config = root / "daemon.json"
             document = configured({})
             document["builder"]["gc"]["defaultMaxUsedSpace"] = "24GB"
+
             config.write_text(json.dumps(document))
             probe = root / "probe.json"
 
@@ -129,6 +137,7 @@ class EngineCacheGCTests(unittest.TestCase):
             self.assertEqual(0, result.returncode, msg=result.stderr)
             observed = json.loads(probe.read_text())
             argv = observed["argv"]
+
             self.assertEqual("unix:///tmp/selected-engine.sock", argv[argv.index("--host") + 1])
             self.assertEqual("default", argv[argv.index("--builder") + 1])
             self.assertEqual("10GB", argv[argv.index("--reserved-space") + 1])

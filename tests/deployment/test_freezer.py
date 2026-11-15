@@ -19,12 +19,14 @@ from tests.unit.normative.test_deployment_binding import definition
 
 specification = importlib.util.spec_from_file_location("delivery_deployment", "/opt/provider-tools/delivery_deployment.py")
 freezer = importlib.util.module_from_spec(specification)
+
 specification.loader.exec_module(freezer)
 
 
 class InstalledDeploymentTests(unittest.TestCase):
     def setUp(self):
         temporary = tempfile.TemporaryDirectory()
+
         self.addCleanup(temporary.cleanup)
         self.root = Path(temporary.name)
 
@@ -63,28 +65,34 @@ class InstalledDeploymentTests(unittest.TestCase):
         self.assertEqual([self.binding_file], [call.args[0] for call in read.call_args_list])
         self.assertEqual([self.binding_file], list(self.root.iterdir()))
         (daemon, initializer) = (plan["services"]["delivery"], plan["services"]["init"])
+
         self.assertEqual("none", daemon["network_mode"])
         self.assertEqual(["CHOWN"], initializer["cap_add"])
         self.assertEqual(2, len(initializer["volumes"]))
         self.assertNotIn("--control", initializer["command"])
         self.assertTrue(all("-control-" not in name for name in plan["volumes"]))
         proxy = next(service for (name, service) in plan["services"].items() if name.startswith("api-") and not name.startswith("api-init-"))
+
         self.assertEqual("host", proxy["network_mode"])
         self.assertEqual("INFO", proxy["command"][proxy["command"].index("--log-level") + 1])
         self.assertEqual(["/route"], [mount["target"] for mount in proxy["volumes"]])
         route_init_name = next(name for name in plan["services"] if name.startswith("api-init-"))
+
         self.assertEqual({route_init_name: {"condition": "service_completed_successfully"}}, proxy["depends_on"])
         route_initializer = plan["services"][route_init_name]
+
         self.assertEqual("0:0", route_initializer["user"])
         self.assertEqual(["CHOWN"], route_initializer["cap_add"])
         self.assertEqual(["/route"], [mount["target"] for mount in route_initializer["volumes"]])
         self.assertTrue(all(mount["type"] == "volume" for mount in initializer["volumes"]))
         inputs = [mount for mount in daemon["volumes"] if mount["type"] == "bind"]
+
         self.assertEqual({str(self.binding_file), "/synthetic/signing.json"}, {mount["source"] for mount in inputs})
         self.assertTrue(all(mount["read_only"] for mount in inputs))
         self.assertTrue(all(mount["read_only"] for mount in daemon["volumes"] if mount["target"].startswith("/routes/")))
         self.assertEqual(checksum, daemon["command"][-1])
         projected = freezer.daemon_configuration(selected)
+
         self.assertEqual("/grants/synthetic/signing.json", projected["bindings"][0]["api"]["credential_file"])
 
     def test_shared_ca_is_one_daemon_grant_across_independent_bindings(self):
@@ -94,6 +102,7 @@ class InstalledDeploymentTests(unittest.TestCase):
         raw = raw.replace(b"[bindings.route]", b'ca_file = "/synthetic/shared-ca.pem"\n[bindings.route]')
         plan = self.render(raw)
         mounts = plan["services"]["delivery"]["volumes"]
+
         self.assertEqual(1, sum(mount["source"] == "/synthetic/shared-ca.pem" for mount in mounts))
         self.assertEqual(len(mounts), len({mount["target"] for mount in mounts}))
 
@@ -139,6 +148,7 @@ class InstalledDeploymentTests(unittest.TestCase):
     def test_runtime_refuses_changed_definition_before_materializing_sdk_input(self):
         self.write_definition(self.raw)
         expected = hashlib.sha256(self.raw).hexdigest()
+
         self.write_definition(self.raw.replace(b"request_seconds = 1", b"request_seconds = 2"))
 
         with self.assertRaisesRegex(freezer.DeliveryDeploymentRejected, "changed after rendering"):
@@ -147,9 +157,11 @@ class InstalledDeploymentTests(unittest.TestCase):
     def test_cli_help_and_render_keep_safe_owned_refusal(self):
         command = [sys.executable, "-I", "-B", "/opt/provider-tools/delivery_deployment.py"]
         result = subprocess.run([*command, "--help"], capture_output=True, text=True, check=False)
+
         self.assertEqual(0, result.returncode, msg=result.stderr)
         self.write_definition(self.raw.replace(b'interface = "lo"', b'interface = 42'))
         result = subprocess.run([*command, "render", "--definition", str(self.binding_file), "--source", str(self.binding_file), "--image", self.image], capture_output=True, text=True, check=False)
+
         self.assertEqual(2, result.returncode, msg=result.stderr)
         self.assertIn("interface must be", result.stderr)
         self.assertNotIn("Traceback", result.stderr)

@@ -84,11 +84,13 @@ class ShutdownPeer:
 
         def observe(raw):
             close = raw.aclose
+
             self.raw_closers.append(close)
             self.raw_sockets.append(raw.get_extra_info("socket"))
 
             async def close_raw():
                 self.raw_close_attempts += 1
+
                 self.raw_close_started.set()
 
                 while self.hold_raw_close and not self.raw_close_release.is_set():
@@ -120,6 +122,7 @@ class ShutdownPeer:
             while not self.release.is_set():
                 try:
                     (raw, _address) = self.listener.accept()
+
                     break
                 except TimeoutError:
                     continue

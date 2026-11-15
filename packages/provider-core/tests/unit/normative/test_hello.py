@@ -33,6 +33,7 @@ class HelloTests(unittest.IsolatedAsyncioTestCase):
 
         await api.publish_hello(**announcement(display_name="Changed", analysis_offerings=()))
         ((one, maximum), (two, _)) = transport.calls
+
         self.assertEqual((one.method, one.url.raw_path, maximum), ("POST", b"/provider/v1/hello", 65536))
 
         self.assertEqual(
@@ -58,11 +59,13 @@ class HelloTests(unittest.IsolatedAsyncioTestCase):
         offerings = tuple(AnalysisOffering("kind_" + str(index), "🧪" * 1024) for index in range(64))
 
         body = hello_body(display_name="🧪" * 128, description="🧪" * 1024, analysis_offerings=offerings)
+
         self.assertLessEqual(len(body), 512 * 1024)
         self.assertIn("🧪".encode(), body)
         self.assertEqual([item["description"] for item in json.loads(body)["analysis_offerings"]], ["🧪" * 1024] * 64)
 
     def test_api_permitted_whitespace_is_preserved(self):
         body = hello_body(display_name=" \t", description="line\nnext", analysis_offerings=())
+
         self.assertEqual(json.loads(body)["display_name"], " \t")
         self.assertEqual(json.loads(body)["description"], "line\nnext")

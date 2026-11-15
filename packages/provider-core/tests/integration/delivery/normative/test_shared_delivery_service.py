@@ -59,6 +59,7 @@ class SharedDeliveryServiceTests(unittest.IsolatedAsyncioTestCase):
 
             with tempfile.TemporaryDirectory() as directory:
                 root = Path(directory)
+
                 (root / "state").mkdir(mode=0o700)
                 (root / "ipc").mkdir(mode=0o700)
                 config = root / "settings.toml"
@@ -70,12 +71,14 @@ class SharedDeliveryServiceTests(unittest.IsolatedAsyncioTestCase):
                 config.write_text(settings(60))
                 limits = QueueLimits(4, 16384, 8, 32768)
                 queue = DeliveryQueue(root / "state", limits=limits)
+
                 queue.enqueue_handoff(DeliveryHandoff(item, material))
                 queue.close()
                 policy = ServicePolicy.admit("mapped", [urlsplit(peer.origin).netloc], ["127.0.0.1=127.0.0.1"])
 
                 with ServiceProxyServer(root / "proxy.sock", "lo", policy, status_directory=root) as proxy:
                     thread = threading.Thread(target=proxy.serve_forever, kwargs={"poll_interval": 0.01})
+
                     thread.start()
                     (retry, published) = (asyncio.Event(), asyncio.Event())
 
@@ -106,9 +109,11 @@ class SharedDeliveryServiceTests(unittest.IsolatedAsyncioTestCase):
                     try:
                         await asyncio.wait_for(retry.wait(), 5)
                         replacement = root / "replacement.toml"
+
                         replacement.write_text(settings(0.01))
                         replacement.replace(config)
                         service.next_reload = 0
+
                         service._reload()
                         await asyncio.wait_for(published.wait(), 3)
                         self.assertEqual(peer.request_bodies, [item.body, item.body])
@@ -155,6 +160,7 @@ class SharedDeliveryServiceTests(unittest.IsolatedAsyncioTestCase):
 
             with tempfile.TemporaryDirectory() as directory:
                 root = Path(directory)
+
                 (root / "state").mkdir(mode=0o700)
                 (root / "ipc").mkdir(mode=0o700)
                 limits = QueueLimits(4, 16384, 8, 32768)
@@ -169,6 +175,7 @@ class SharedDeliveryServiceTests(unittest.IsolatedAsyncioTestCase):
 
                 with ServiceProxyServer(root / "proxy.sock", "lo", policy, status_directory=root) as proxy:
                     thread = threading.Thread(target=proxy.serve_forever, kwargs={"poll_interval": 0.01})
+
                     thread.start()
                     published = asyncio.Event()
                     notices = []

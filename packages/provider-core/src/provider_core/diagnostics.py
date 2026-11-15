@@ -169,6 +169,7 @@ def failure_evidence(error, *, secrets, describe_owner=describe_core_failure, ow
 
             if remaining <= 0:
                 evidence["additional_relationships_omitted"] = True
+
                 break
 
             children.append({"relationship": text(relationship, 128), "failure": describe(child)})

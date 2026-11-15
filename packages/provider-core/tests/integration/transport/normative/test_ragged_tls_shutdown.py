@@ -20,15 +20,18 @@ class CompleteResponseShutdownTests(unittest.IsolatedAsyncioTestCase):
 
                     if decoded:
                         response = await peer.transport.exchange_decoded(request, error_maximum_bytes=4096, **options)
+
                         self.assertEqual(expected, response.body)
                     elif file:
                         with tempfile.TemporaryFile() as output:
                             response = await peer.transport.exchange_file(request, output_fd=output.fileno(), **options)
+
                             output.seek(0)
                             self.assertEqual(expected, output.read())
                             self.assertEqual(len(expected), response.byte_length)
                     else:
                         response = await peer.transport.exchange(request, **options)
+
                         self.assertEqual(expected, response.body)
 
                     self.assertTrue(peer.transport.retirement_confirmed)
@@ -47,6 +50,7 @@ class CompleteResponseShutdownTests(unittest.IsolatedAsyncioTestCase):
 
     async def test_binary_entity_preserves_all_octets(self):
         body = bytes(range(256))
+
         await self.assert_complete(fixed_response(body), body)
 
     async def test_fragmented_headers_and_body(self):
@@ -91,6 +95,7 @@ class CompleteResponseShutdownTests(unittest.IsolatedAsyncioTestCase):
                 async with ShutdownPeer([fixed_response(b"first"), fixed_response(b"second")], tunnel=tunnel) as peer:
                     for expected in (b"first", b"second"):
                         response = await peer.transport.exchange(httpx.Request("GET", peer.origin), maximum_bytes=32)
+
                         self.assertEqual(expected, response.body)
                         self.assertTrue(peer.transport.retirement_confirmed)
 

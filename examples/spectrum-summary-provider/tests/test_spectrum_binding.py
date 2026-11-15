@@ -37,6 +37,7 @@ class SpectrumBindingTests(unittest.IsolatedAsyncioTestCase):
     async def test_installed_distribution_contains_its_package(self) -> None:
         distribution = metadata.distribution("spectrum-summary-provider-example")
         package = Path(resources.files("spectrum_provider")).resolve()
+
         self.assertEqual(package, Path(distribution.locate_file("spectrum_provider")).resolve())
         self.assertTrue(package.is_relative_to(Path(sys.prefix).resolve()))
 
@@ -51,6 +52,7 @@ class SpectrumBindingTests(unittest.IsolatedAsyncioTestCase):
         peak_detector = provider.peak_detector
         baseline_call_binding = baseline_corrector.call(method=BaselineCorrector.run)
         peak_detection_call_binding = peak_detector.call(method=PeakDetector.run)
+
         self.assertNotEqual(baseline_corrector.description.binding_id, peak_detector.description.binding_id)
         self.assertRegex(baseline_corrector.description.binding_revision, r"\Aconfigured-v3:sha256:[0-9a-f]{64}\Z")
         self.assertRegex(peak_detector.description.binding_revision, r"\Aconfigured-v3:sha256:[0-9a-f]{64}\Z")
@@ -86,6 +88,7 @@ class SpectrumBindingTests(unittest.IsolatedAsyncioTestCase):
                 self.assertIsNone(binding.contribution.analysis_type)
                 self.assertEqual(frozenset(), binding.description.resident_resources)
                 call = binding.call(method=binding.contribution.run)
+
                 self.assertEqual(frozenset({expected}), call.description.resources)
                 self.assertEqual((), call.description.state_inputs)
                 self.assertEqual((), call.description.state_outputs)
@@ -93,10 +96,13 @@ class SpectrumBindingTests(unittest.IsolatedAsyncioTestCase):
     async def test_provider_settings_remain_local_to_each_implementation(self) -> None:
         original = await self.provider()
         configured = self.configuration.read_text(encoding="utf-8").replace("baseline = 1.0", "baseline = 2.0")
+
         self.configuration.write_text(data=configured, encoding="utf-8")
         changed = await self.provider()
+
         self.configuration.write_text(data="# Formatting does not change settings\n" + configured, encoding="utf-8")
         reformatted = await self.provider()
+
         self.configuration.write_text(data=configured.replace("minimum_height = 2.0", "minimum_height = 4.0"), encoding="utf-8")
         changed_peak_settings = await self.provider()
 
@@ -110,6 +116,7 @@ class SpectrumBindingTests(unittest.IsolatedAsyncioTestCase):
         sample = science.Spectrum(positions=(0, 1, 2), intensities=(1, 4, 1))
         original_instance = original.baseline_corrector.contribution
         changed_instance = changed.baseline_corrector.contribution
+
         self.assertEqual((0, 3, 0), original_instance.run(spectrum=sample).intensities)
         self.assertEqual((-1, 2, -1), changed_instance.run(spectrum=sample).intensities)
 

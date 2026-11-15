@@ -12,6 +12,7 @@ class OriginalFutureTests(unittest.IsolatedAsyncioTestCase):
     async def test_completed_value_is_returned_without_repeating_work(self):
         original = Future()
         value = object()
+
         original.set_result(value)
         self.assertIs(value, await await_original(original, deadline=None))
 
@@ -22,6 +23,7 @@ class OriginalFutureTests(unittest.IsolatedAsyncioTestCase):
                         SystemExit(7)):
             with self.subTest(kind=type(failure).__name__):
                 original = Future()
+
                 failure.add_note("original thread evidence")
                 asyncio.get_running_loop().call_soon(original.set_exception, failure)
 
@@ -47,6 +49,7 @@ class OriginalFutureTests(unittest.IsolatedAsyncioTestCase):
     async def test_cancelled_waiter_leaves_original_work_joinable(self):
         original = Future()
         observer = asyncio.create_task(await_original(original, deadline=None))
+
         await asyncio.sleep(0)
         observer.cancel()
 
@@ -59,6 +62,7 @@ class OriginalFutureTests(unittest.IsolatedAsyncioTestCase):
 
     async def test_cancelled_physical_future_keeps_its_ordinary_cancellation(self):
         original = Future()
+
         self.assertTrue(original.cancel())
 
         with self.assertRaises(CancelledError):

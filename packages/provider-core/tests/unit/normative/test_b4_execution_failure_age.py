@@ -47,6 +47,7 @@ class ExecutionFailureAgeTests(unittest.IsolatedAsyncioTestCase):
                 await controller.run(selected)
 
             original = first.exception.cause
+
             self.assertIs(type(original), ExecutionFailed)
             self.assertIs(original, controller.operation.last_failure)
             self.assertIs(original.cause, original_cleanup_failure)
@@ -67,6 +68,7 @@ class ExecutionFailureAgeTests(unittest.IsolatedAsyncioTestCase):
             second_evidence = failure_evidence(original, secrets=())
         finally:
             session.retirement_failure = None
+
             await controller.settle()
 
         self.assertTrue(controller.shutdown_ready)
@@ -91,6 +93,7 @@ class ExecutionFailureAgeTests(unittest.IsolatedAsyncioTestCase):
 
         elapsed = second_at - first_at
         observed_age = second_evidence["failure_age_seconds"] - first_evidence["failure_age_seconds"]
+
         self.assertAlmostEqual(elapsed, observed_age, delta=0.01, msg=evidence)
         self.assertGreater(second_evidence["failure_age_seconds"], first_evidence["failure_age_seconds"], msg=evidence)
 

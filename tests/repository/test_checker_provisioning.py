@@ -19,6 +19,7 @@ from tests.repository.quality.sources import ROOT
 class CheckerProvisioningTests(unittest.TestCase):
     def setUp(self):
         temporary = tempfile.TemporaryDirectory()
+
         self.addCleanup(temporary.cleanup)
         self.root = Path(temporary.name)
 
@@ -64,16 +65,20 @@ class CheckerProvisioningTests(unittest.TestCase):
         for (wheelhouse, interface, diagnostic) in cases:
             with self.subTest(wheelhouse=wheelhouse, interface=interface):
                 result = self.invoke_make("checks/dependencies/download", wheelhouse=wheelhouse, interface=interface)
+
                 self.assertNotEqual(0, result.returncode)
                 self.assertIn(diagnostic, result.stderr)
 
     def test_fingerprint_binds_source_bytes_and_modes_and_refuses_missing_inputs(self):
         source = 'root=$1; source "$root/host/tools/checker_inputs.sh"; checker_fingerprint checker'
         first = self.shell(source)
+
         self.assertEqual(0, first.returncode, msg=first.stderr)
         target = self.root / "containers/checker/Dockerfile"
+
         target.write_text(target.read_text() + "# changed input\n")
         second = self.shell(source)
+
         self.assertNotEqual(first.stdout, second.stdout)
         target.chmod(0o600)
         self.assertNotEqual(second.stdout, self.shell(source).stdout)
@@ -137,6 +142,7 @@ if checker_admit_image "$fingerprint" checker; then [[ $checker_image == "$ident
 
     def test_owned_checker_uses_the_sdk_installer_release(self):
         record = json.loads((ROOT / "requirements/installer-release.json").read_text())
+
         self.assertEqual(record["name"].split("-")[1], importlib.metadata.version("pip"))
 
     def test_sdk_acquisition_prepares_the_stdlib_bootstrap_before_installer_workers(self):

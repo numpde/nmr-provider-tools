@@ -18,6 +18,7 @@ from tests.repository.quality.sources import ROOT
 class DeliveryReleaseTests(unittest.TestCase):
     def setUp(self):
         temporary = tempfile.TemporaryDirectory()
+
         self.addCleanup(temporary.cleanup)
         self.pool = Path(temporary.name)
         self.wheel = self.pool / "provider_core-1.2.3-py3-none-any.whl"
@@ -76,12 +77,15 @@ class DeliveryReleaseTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temporary:
             destination = Path(temporary)
             dockerfile = destination / "containers/delivery/Dockerfile"
+
             dockerfile.parent.mkdir(parents=True)
             dockerfile.write_text("FROM scratch AS wheel_inputs\n# selected-wheel-inputs\n")
             record = ROOT / "requirements/installer-release.json"
+
             (destination / "requirements").mkdir()
             (destination / "requirements/installer-release.json").write_bytes(record.read_bytes())
             installer = json.loads(record.read_text())
+
             self.wheel.write_bytes(self.content)
             inode = self.wheel.stat().st_ino
 
@@ -110,8 +114,10 @@ class DeliveryReleaseTests(unittest.TestCase):
     def test_install_uses_pool_directly_and_checks_captured_identities(self):
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary) / "runtime"
+
             root.mkdir()
             lock = Path(temporary) / "provider-core-install.lock"
+
             lock.write_bytes(b"lock")
 
             selected = {"lock_sha256": hashlib.sha256(b"lock").hexdigest(),

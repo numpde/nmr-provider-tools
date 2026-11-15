@@ -168,6 +168,7 @@ class RepositoryConventionTests(unittest.TestCase):
 
     def test_public_make_targets_are_hierarchical_and_test_aggregates_both_suites(self):
         targets = make_targets((ROOT / "Makefile").read_text())
+
         self.assertTrue(targets, msg="Makefile target inventory is empty")
 
         for name in targets:
@@ -183,6 +184,7 @@ class ConventionDetectionTests(unittest.TestCase):
 
     def test_sibling_guard_must_resolve_to_the_actual_owner(self):
         source = "from .container_guard import require_container\nrequire_container()\n"
+
         self.assertTrue(has_early_guard(source, package="tools"))
         self.assertFalse(has_early_guard(source))
         self.assertFalse(has_early_guard(source, package="tools.nested"))
@@ -200,6 +202,7 @@ class ConventionDetectionTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             worker = root / "packages/provider-core/src/provider_core/worker.py"
+
             worker.parent.mkdir(parents=True)
             worker.write_text(self.GUARD + "import json\n")
             self.assertEqual([str(worker.relative_to(root))], unguarded_sources(root))
@@ -213,12 +216,15 @@ class ConventionDetectionTests(unittest.TestCase):
 
             for name in portable:
                 path = root / name
+
                 path.parent.mkdir(parents=True, exist_ok=True)
                 path.write_text(self.GUARD)
 
             ordinary = root / "tools/nested/worker.py"
+
             ordinary.parent.mkdir()
             core_guard = "from provider_core.container_guard import require_container\nrequire_container()\n"
+
             ordinary.write_text(core_guard)
             self.assertEqual(set(portable) | {str(ordinary.relative_to(root))}, set(unguarded_sources(root)))
 
@@ -233,6 +239,7 @@ class ConventionDetectionTests(unittest.TestCase):
             root = Path(directory)
             host = root / "host/tasks.py"
             contained = root / "tools/tasks.py"
+
             host.parent.mkdir()
             contained.parent.mkdir()
             host.write_text("from tools.core_environment import release\n")
@@ -252,6 +259,7 @@ class ConventionDetectionTests(unittest.TestCase):
 
     def test_canonical_guard_allows_module_documentation_and_future_import(self):
         source = '"""Worker responsibility."""\nfrom __future__ import annotations\n' + self.GUARD + "import pickle\n"
+
         self.assertTrue(has_early_guard(source))
 
     def test_only_empty_or_documentation_package_markers_are_exempt(self):
@@ -274,6 +282,7 @@ class ConventionDetectionTests(unittest.TestCase):
                 "tests/repository/nested/test_new.py",
             ):
                 path = root / name
+
                 path.parent.mkdir(parents=True, exist_ok=True)
                 path.write_text("import pickle\n")
 

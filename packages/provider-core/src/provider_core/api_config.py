@@ -106,6 +106,7 @@ def https_trust(raw, *, label):
 
         try:
             trust = CapturedSSLContext(ssl.PROTOCOL_TLS_CLIENT)
+
             trust.load_verify_locations(cadata=pem)
         except (ValueError, OSError) as cause:
             raise ApiConfigurationRejected(f"Cannot configure {label} CA trust: OpenSSL could not load the PEM certificate data.", cause=cause) from None

@@ -50,6 +50,7 @@ class UploadTransferCancellationTests(unittest.IsolatedAsyncioTestCase):
                     await task
 
                 failure = transfer.last_failure
+
                 self.assertIs(caught.exception.__cause__, failure)
                 self.assertTrue(store.retirement_confirmed)
                 self.assertIsNone(failure.interruption)

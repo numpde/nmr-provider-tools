@@ -107,6 +107,7 @@ class ReleaseNotesTests(unittest.TestCase):
     def test_discovers_new_versioned_notes_and_reports_file_and_line(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
+
             (root / "notes").mkdir()
 
             (root / "notes/new_release_v9.8.7.md").write_text(
@@ -123,4 +124,5 @@ class ReleaseNotesTests(unittest.TestCase):
 
     def test_all_versioned_release_notes_have_one_line_blocks(self):
         findings = scan_release_notes(sources.ROOT)
+
         self.assertEqual([], findings, msg="\n".join(findings))

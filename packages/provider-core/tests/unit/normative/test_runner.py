@@ -28,6 +28,7 @@ class RunnerTests(unittest.TestCase):
 
     def session(self):
         session = self.runner.session(startup_seconds=2, retirement_seconds=2)
+
         self.addCleanup(session.close)
         session.connect()
 
@@ -36,11 +37,13 @@ class RunnerTests(unittest.TestCase):
     def test_two_operations_use_distinct_children_and_preserve_supervisor_and_lock(self):
         first = self.session()
         one = worker_pid(first.science)
+
         first.observe_retirement()
         self.assertEqual(first.retirement.returncode, 0)
         self.assertTrue(first.retirement.scratch_released)
         second = self.session()
         two = worker_pid(second.science)
+
         second.observe_retirement()
         self.assertNotEqual(one, two)
         self.assertEqual(first.generation, second.generation)
@@ -55,6 +58,7 @@ class RunnerTests(unittest.TestCase):
 
     def test_native_frame_failure_does_not_corrupt_control_retirement(self):
         session = self.session()
+
         worker_pid(session.science, b"F")
         self.assertEqual(session.science.recv(16), b"\x00\x00")
         session.observe_retirement()
@@ -64,6 +68,7 @@ class RunnerTests(unittest.TestCase):
     def test_owner_retirement_kills_term_ignoring_child_before_reply(self):
         session = self.session()
         pid = worker_pid(session.science, b"H")
+
         session.retire()
         self.assertEqual(session.retirement.returncode, -9)
 
@@ -75,12 +80,14 @@ class RunnerTests(unittest.TestCase):
     def test_original_exit_reason_distinguishes_crash_from_our_kill_with_same_status(self):
         unexpected = self.session()
         pid = worker_pid(unexpected.science, b"H")
+
         os.kill(pid, 9)
         unexpected.observe_retirement()
         self.assertEqual(-9, unexpected.retirement.returncode)
         self.assertEqual("exited", unexpected.retirement.reason)
 
         stopped = self.session()
+
         worker_pid(stopped.science, b"H")
         stopped.retire()
         self.assertEqual(-9, stopped.retirement.returncode)
@@ -89,6 +96,7 @@ class RunnerTests(unittest.TestCase):
     def test_exit_observed_before_interruption_keeps_its_original_worker_identity(self):
         session = self.session()
         pid = worker_pid(session.science, b"H")
+
         os.kill(pid, 9)
         session.observe_retirement()
         original = session.original_exit
@@ -102,6 +110,7 @@ class RunnerTests(unittest.TestCase):
     def test_local_interruption_before_exit_observation_cannot_become_crash_evidence(self):
         session = self.session()
         pid = worker_pid(session.science, b"H")
+
         session.mark_interruption()
         os.kill(pid, 9)
         session.observe_retirement()
@@ -110,6 +119,7 @@ class RunnerTests(unittest.TestCase):
 
     def test_child_inherits_only_scientific_socket_and_the_admitted_lease(self):
         session = self.session()
+
         worker_pid(session.science, b"D")
         raw = bytearray()
 
@@ -122,6 +132,7 @@ class RunnerTests(unittest.TestCase):
             raw.extend(part)
 
         observed = json.loads(raw)
+
         self.assertEqual(observed["sockets"], [observed["science"]])
         self.assertEqual(tuple(observed["lock"]), session.lock_identity)
         session.observe_retirement()
@@ -140,6 +151,7 @@ class OwnerSessionLifetimeTests(unittest.TestCase):
     def test_same_loaded_child_serves_repeated_requests_until_explicit_retirement(self):
         pid = worker_pid(self.session.science, b"R")
         operation = self.session.operation
+
         time.sleep(0.3)
         self.assertEqual(pid, worker_pid(self.session.science))
         self.assertEqual(operation, self.session.operation)
@@ -156,6 +168,7 @@ class OwnerSessionLifetimeTests(unittest.TestCase):
 
     def test_native_child_exit_retires_its_owner_session_without_a_stop_request(self):
         pid = worker_pid(self.session.science)
+
         self.session.observe_retirement()
         self.assertEqual(0, self.session.retirement.returncode)
         self.assertTrue(self.session.retirement.scratch_released)
@@ -166,8 +179,10 @@ class OwnerSessionLifetimeTests(unittest.TestCase):
 
     def test_control_hangup_reaps_child_before_successor_while_science_is_still_open(self):
         pid = worker_pid(self.session.science, b"H")
+
         self.session.control.close()
         successor = self.runner.session(startup_seconds=2, retirement_seconds=2)
+
         self.addCleanup(successor.close)
         successor.connect()
 
@@ -183,6 +198,7 @@ class OwnerSessionLifetimeTests(unittest.TestCase):
 
     def test_supervisor_shutdown_retires_a_term_ignoring_child_and_releases_scratch(self):
         pid = worker_pid(self.session.science, b"H")
+
         self.runner.process.terminate()
         self.session.observe_retirement()
         self.assertEqual(-9, self.session.retirement.returncode)

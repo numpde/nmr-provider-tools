@@ -73,10 +73,12 @@ class UploadAcquisitionIntegrationTests(unittest.IsolatedAsyncioTestCase):
                     if file_output:
                         with private_source_directory() as (root, directory):
                             verified = await owner.acquire_file(UPLOAD_REF, directory_fd=directory, retirement_seconds=0.3)
+
                             self.assertEqual(Path(root, verified.name).read_bytes(), body)
                             self.assertEqual(stat.S_IMODE(Path(root, verified.name).stat().st_mode), 0o600)
                     else:
                         verified = await owner.acquire(UPLOAD_REF)
+
                         self.assertEqual(verified.data, body)
 
                 self.assertEqual((verified.job_ref, verified.upload_ref, verified.byte_length), ("job:example", UPLOAD_REF, 8))
@@ -124,6 +126,7 @@ class UploadAcquisitionIntegrationTests(unittest.IsolatedAsyncioTestCase):
 
                     await owner.inspect()
                     acquisition = asyncio.create_task(owner.acquire(UPLOAD_REF))
+
                     await asyncio.wait_for(peer.received.wait(), 1)
 
                     if cancel:

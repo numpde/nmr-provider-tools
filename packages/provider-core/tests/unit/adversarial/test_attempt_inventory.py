@@ -98,6 +98,7 @@ class AttemptInventoryFailureTests(unittest.IsolatedAsyncioTestCase):
                            ("started_at", "2026-10-18T00:00:00+00:00"),
                            ("extra", "private canary")):
             document = page()
+
             document["attempts"].append({**document["attempts"][0], field: bad})
 
             with self.subTest(field=field, bad=bad), self.assertRaises(ResponseRejected) as rejected:

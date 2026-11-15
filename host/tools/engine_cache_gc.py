@@ -198,6 +198,7 @@ def install(root, context, endpoint, path):
         ).stdout.strip()
 
         unit_directory = Path(configuration_directory) / "systemd/user"
+
         unit_directory.mkdir(parents=True, exist_ok=True)
         (unit_directory / (unit_name + ".service")).write_text(service_document)
         (unit_directory / (unit_name + ".timer")).write_text(timer_document)
@@ -233,6 +234,7 @@ def main():
                 print("\n".join(values))
         elif sys.argv[1:2] == ["install"] and len(sys.argv) == 6:
             (root, context, endpoint, config) = sys.argv[2:]
+
             install(Path(root), context, endpoint, Path(config))
         else:
             raise ValueError("Use the maintained cache-GC installation target.")

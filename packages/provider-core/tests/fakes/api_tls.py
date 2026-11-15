@@ -47,4 +47,5 @@ def verify_signed_request(request, body, *, origin, key):
 
     lines.append(b'"@signature-params": ' + headers[b"signature-input"].split(b"=", 1)[1])
     signature = parse(headers[b"signature"], tltype="dictionary")["sig1"][0]
+
     key.public_key().verify(signature, b"\n".join(lines))

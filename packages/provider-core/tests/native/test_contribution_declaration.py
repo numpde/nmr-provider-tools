@@ -184,6 +184,7 @@ class ContributionDeclarationTests(unittest.TestCase):
 
         for label in ("asset name", "asset media type", "asset byte count"):
             (changed_asset,) = variants[label].assets
+
             self.assertEqual(asset.digest, changed_asset.digest)
 
     def test_unordered_metadata_has_canonical_identity_and_export_order(self):
@@ -198,6 +199,7 @@ class ContributionDeclarationTests(unittest.TestCase):
         binding = sum_binding()
         first = replace(binding.identity, assets=frozenset({asset, other_asset}))
         second = replace(binding.identity, assets=frozenset([other_asset, asset]))
+
         self.assertEqual(first=first.revision, second=second.revision)
         (call,) = binding.description.calls
 
@@ -209,6 +211,7 @@ class ContributionDeclarationTests(unittest.TestCase):
         )
 
         document = description_document(description=description)
+
         self.assertEqual(first=["alpha", "zeta"], second=[item["name"] for item in document["assets"]])
         self.assertEqual(first=["alpha", "zeta"], second=[item["name"] for item in document["calls"]])
 

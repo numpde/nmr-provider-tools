@@ -105,6 +105,7 @@ def _build_and_install_example(
     pool: Path,
 ) -> None:
     example_output = root / "release"
+
     example_output.mkdir(parents=True)
 
     build_source_wheel(
@@ -177,6 +178,7 @@ def run_suite(suite: str, patterns: tuple[str, ...]) -> None:
         scratch = Path(temporary)
         wheelhouse = Path("/wheelhouse")
         candidate_output = scratch / "release"
+
         candidate_output.mkdir()
 
         (candidate_wheel, candidate_lock, _) = build_candidate(
@@ -207,6 +209,7 @@ def run_suite(suite: str, patterns: tuple[str, ...]) -> None:
         )
 
         test_tree = scratch / "run"
+
         shutil.copytree(Path("/package/tests"), test_tree / "tests")
 
         if suite == "integration":
@@ -234,6 +237,7 @@ def run_suite(suite: str, patterns: tuple[str, ...]) -> None:
                 )
 
                 namespace = "example_" + name.replace("-", "_")
+
                 shutil.copytree(source / "tests", test_tree / "tests/integration" / namespace)
 
                 # Deployment configuration and model data stay outside wheels.

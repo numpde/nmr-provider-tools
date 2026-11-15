@@ -27,6 +27,7 @@ class AttemptProgressIntegrationTests(unittest.IsolatedAsyncioTestCase):
             )
 
             result = await api.progress_attempt(ATTEMPT_REF, phase="running", condition_code=None)
+
             self.assertEqual(result.phase, "running")
             await asyncio.wait_for(peer.closed.wait(), 1)
             self.assertEqual(len(peer.requests), 1)
@@ -66,6 +67,7 @@ class AttemptProgressIntegrationTests(unittest.IsolatedAsyncioTestCase):
             )
 
             task = asyncio.create_task(api.progress_attempt(ATTEMPT_REF, phase="preparing", condition_code=None))
+
             await asyncio.wait_for(peer.received.wait(), 1)
             task.cancel()
 

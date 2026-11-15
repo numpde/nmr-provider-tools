@@ -75,6 +75,7 @@ class UploadNetworkResetTests(unittest.IsolatedAsyncioTestCase):
         async with ResetPeer("success") as peer:
             (transfer, failure) = await self.failure(peer, lambda _:None)
             original = failure.cause.primary
+
             self.assertIs(type(original),httpcore.ReadError)
             self.assertIs(failure.cause.network_failure,original)
             self.assertIsNone(original.__cause__)
@@ -88,6 +89,7 @@ class UploadNetworkResetTests(unittest.IsolatedAsyncioTestCase):
 
         async with TlsPeer("success",response_body=BODY,response_headers=headers) as peer:
             (transfer, failure) = await self.failure(peer,account)
+
             self.assertIs(failure.cause.primary,original)
             self.assertIsNone(failure.cause.network_failure)
             self.assertFalse(transfer.can_retry_transfer(failure))

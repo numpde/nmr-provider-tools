@@ -154,6 +154,7 @@ class DummyBindingTests(unittest.IsolatedAsyncioTestCase):
         with TemporaryDirectory() as directory:
             root = Path(directory)
             resource_file = root / "provider.toml"
+
             resource_file.write_text(configured, encoding="utf-8")
 
             with patch.object(target=binding_setup, attribute="PROVIDER_CONFIG_PATH", new=root / "provider.toml"):
@@ -163,6 +164,7 @@ class DummyBindingTests(unittest.IsolatedAsyncioTestCase):
                 )
 
                 updated_bindings = (updated, self.sum_binding())
+
                 resource_file.write_text("# Same resource values\n" + configured, encoding="utf-8")
 
                 reformatted = self.weighted_binding(

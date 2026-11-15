@@ -92,6 +92,7 @@ class HelloBoundaryTests(unittest.IsolatedAsyncioTestCase):
                     await api.publish_hello(**announcement())
 
                 failure = caught.exception
+
                 self.assertIs(api.last_failure, failure)
                 self.assertIs(failure.response, response)
                 self.assertIsNotNone(failure.cause)

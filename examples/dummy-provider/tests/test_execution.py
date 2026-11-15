@@ -123,9 +123,11 @@ class DummyInstalledExecutionTests(unittest.IsolatedAsyncioTestCase):
 
             async with asyncio.timeout(10):
                 observation = await observe_completion(operation=operation)
+
                 self.assertTrue(any(item.cause is failure for item in observation.failures))
                 prepare.assert_not_called()
                 (model,) = loaded_models
+
                 self.assertIs(model, contribution.model)
                 self.assertIsNotNone(model.loaded_coefficients)
                 await observe_cleanup(control=analysis.close())
@@ -184,8 +186,10 @@ class DummyInstalledExecutionTests(unittest.IsolatedAsyncioTestCase):
         )
 
         rejection = await observe_completion(operation=rejected)
+
         self.assertIs(Outcome.REJECTED, rejection.outcome)
         original_session = analysis.science[weighted_binding.allocation.allocation].value
+
         self.assertTrue(original_session.value.is_open)
 
         preparation_operation = analysis.submit_method(
@@ -199,6 +203,7 @@ class DummyInstalledExecutionTests(unittest.IsolatedAsyncioTestCase):
         self.assertNotIsInstance(preparation_operation, NotAdmitted)
 
         preparation_observation = await self.assert_succeeded(preparation_operation)
+
         self.assertIs(original_session, analysis.science[weighted_binding.allocation.allocation].value)
         self.assertEqual(1, len(preparation_observation.states))
         self.assertEqual("normalized", preparation_observation.states[0].name)
@@ -209,12 +214,14 @@ class DummyInstalledExecutionTests(unittest.IsolatedAsyncioTestCase):
         )
 
         calculation_state = WeightedSum.candidate.bind(handle=prepared)
+
         self.assertEqual("candidate", calculation_state.name)
         self.assertIs(ResultState.AVAILABLE, preparation_observation.result_state)
         self.assertIsNotNone(preparation_observation.result)
 
         async def accept_preparation(payload: bytes) -> None:
             preparation_result = prepare_call.result_codec.decode(payload=payload)
+
             self.assertEqual(science.PreparationResult(count=3), preparation_result)
 
         preparation_consumption = ResultConsumption(
@@ -239,11 +246,13 @@ class DummyInstalledExecutionTests(unittest.IsolatedAsyncioTestCase):
         self.assertNotIsInstance(calculation_operation, NotAdmitted)
 
         calculation_observation = await self.assert_succeeded(calculation_operation)
+
         self.assertIs(ResultState.AVAILABLE, calculation_observation.result_state)
         self.assertIsNotNone(calculation_observation.result)
 
         async def accept_calculation(payload: bytes) -> None:
             calculation_result = calculate_call.result_codec.decode(payload=payload)
+
             self.assertEqual(science.PredictionResult(total=29, count=3), calculation_result)
 
         self.assertEqual(

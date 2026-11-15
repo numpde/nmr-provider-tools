@@ -21,6 +21,7 @@ from tests.fakes.uploads import UPLOAD_REF
 class UploadSnapshotTests(unittest.IsolatedAsyncioTestCase):
     async def test_actual_acquisition_receipt_becomes_a_closed_immutable_snapshot(self):
         (owner, api, _, client) = file_sources()
+
         await owner.inspect()
 
         with (
@@ -32,6 +33,7 @@ class UploadSnapshotTests(unittest.IsolatedAsyncioTestCase):
 
             with observe_source_files(directory) as calls:
                 snapshot = read_upload_file(receipt, directory_fd=directory, maximum_bytes=8)
+
                 self.assertEqual(calls.closed, calls.descriptors)
                 self.assertEqual(len(calls.descriptors), 1)
                 self.assertEqual(calls.removed, [])
@@ -62,6 +64,7 @@ class UploadSnapshotTests(unittest.IsolatedAsyncioTestCase):
             def observe(descriptor, count):
                 requested.append(count)
                 chunk = read(descriptor, count)
+
                 received.append(len(chunk))
 
                 return chunk
@@ -80,6 +83,7 @@ class UploadSnapshotTests(unittest.IsolatedAsyncioTestCase):
         with private_source_directory() as (root, directory):
             receipt = snapshot_source(root, content)
             snapshot = read_upload_file(receipt, directory_fd=directory, maximum_bytes=100)
+
             Path(root, receipt.name).write_bytes(b"changed after verification")
             self.assertEqual(json.loads(snapshot.data), {"atom_order": ["H", "C"]})
             self.assertEqual(snapshot.data, content)

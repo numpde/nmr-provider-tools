@@ -13,6 +13,7 @@ from provider_core.signing import SigningIdentity, signed_request
 class SigningTests(unittest.TestCase):
     def test_ipv6_origin_keeps_its_bracketed_authority(self):
         identity = SigningIdentity("https://[::1]:8443", "credential:test", Ed25519PrivateKey.generate())
+
         self.assertEqual(identity.origin, "https://[::1]:8443")
         self.assertEqual(identity.authority, "[::1]:8443")
 
@@ -52,6 +53,7 @@ class SigningTests(unittest.TestCase):
 
                 if body is not None:
                     digest = base64.b64encode(hashlib.sha256(body).digest()).decode()
+
                     self.assertEqual(request.headers["Content-Type"], "application/json")
                     self.assertEqual(request.headers["Content-Digest"], f"sha-256=:{digest}:")
                     components += ' "content-type" "content-digest"'
@@ -68,6 +70,7 @@ class SigningTests(unittest.TestCase):
                 self.assertEqual(request.headers["Signature-Input"], "sig1=" + parameters)
                 lines.append('"@signature-params": ' + parameters)
                 signature = parse(request.headers["Signature"].encode(), tltype="dictionary")["sig1"][0]
+
                 key.public_key().verify(signature, "\n".join(lines).encode())
 
     def test_empty_query_still_has_question_mark_in_signature_base(self):
@@ -96,4 +99,5 @@ class SigningTests(unittest.TestCase):
         )
 
         signature = parse(request.headers["Signature"].encode(), tltype="dictionary")["sig1"][0]
+
         key.public_key().verify(signature, base.encode())

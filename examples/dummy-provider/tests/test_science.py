@@ -20,6 +20,7 @@ class DummyScienceTests(unittest.TestCase):
         science.load_model(model)
 
         analysis = science.create_analysis(model)
+
         self.addCleanup(science.dispose_analysis, analysis)
         science.initialize_analysis(analysis)
 
@@ -45,6 +46,7 @@ class DummyScienceTests(unittest.TestCase):
         science.load_model(model)
 
         analysis = science.create_analysis(model)
+
         self.addCleanup(science.dispose_analysis, analysis)
         science.initialize_analysis(analysis)
 
@@ -78,6 +80,7 @@ class DummyScienceTests(unittest.TestCase):
         science.load_model(model)
 
         analysis = science.create_analysis(model)
+
         self.addCleanup(science.dispose_analysis, analysis)
         science.initialize_analysis(analysis)
 

@@ -78,6 +78,7 @@ def install_fault(stack, path):
 
             if state is not None:
                 state["cancelled"] = True
+
                 _event(path, "read_cancelled")
 
             raise
@@ -88,6 +89,7 @@ def install_fault(stack, path):
         if state is not None and state["cancelled"]:
             if not state["engaged"]:
                 state["engaged"] = True
+
                 _event(path, "cleanup_engaged")
 
             # A real HTTP implementation that cannot finish its cancellation
@@ -286,6 +288,7 @@ async def scenario(marker, report):
 
                 report_condition.require_execution()
                 self.tool_calls += 1
+
                 await self.worker.call("prepare", self.job)
                 self.handle = PreparedAnalysis(ProtectedEvidence("fixture.prepared_input.v1", self.job.encode()))
 
@@ -330,6 +333,7 @@ async def scenario(marker, report):
 
         async def retire(self):
             self.retire_calls += 1
+
             await self.interpreter.retire()
 
             if not self.interpreter.retirement_confirmed:
@@ -340,6 +344,7 @@ async def scenario(marker, report):
                 self.retired = True
 
     worker = WarmWorker()
+
     await worker.start()
     claims = AttemptClaims.live(limits=LiveAttemptLimits(maximum_attempts=1))
     stopping = asyncio.Event()
@@ -350,6 +355,7 @@ async def scenario(marker, report):
 
     def response_mode(request, body):
         path = request.split(b" ")[1].decode()
+
         paths.append(path)
 
         # silent-defaults: allow-contract -- Only the designated hung request stalls; the surrounding Jobs exercise the same healthy endpoint.
@@ -370,6 +376,7 @@ async def scenario(marker, report):
                 raise
         else:
             command = (sys.executable, "-I", "-B", str(Path(__file__).resolve()), "http-worker", str(marker))
+
             stack.enter_context(patch.object(chat_process, "_worker_command", return_value=command))
 
         async with TlsPeer("success", response_body=body, response_mode=response_mode) as peer:
@@ -416,6 +423,7 @@ async def scenario(marker, report):
 
                         if name == "hung":
                             timing["started"] = time.monotonic()
+
                             warm.set()
 
                         await controller.run(pending)
@@ -425,9 +433,11 @@ async def scenario(marker, report):
                             timing["completed"] = time.monotonic()
                 except Exception as error:
                     lane_failure = error
+
                     warm.set()
 
             task = asyncio.create_task(lane())
+
             await asyncio.wait_for(warm.wait(), 6)
 
             # silent-defaults: allow-contract -- A failure before hung-Job admission still receives a bounded verdict wait; it cannot satisfy the recovery assertions.

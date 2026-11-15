@@ -73,6 +73,7 @@ class CausalDelivery(RecordingDelivery):
             raise RuntimeError("No original terminal submission awaits a decision")
 
         self._answered += 1
+
         self._answers.put_nowait(disposition)
 
     def release_for_teardown(self):

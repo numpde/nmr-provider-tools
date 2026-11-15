@@ -21,6 +21,7 @@ class CrashingSession(LiveSession):
         self.interrupt_first = False
 
         (self.begin_crash, self.crash_ready) = (asyncio.Event(), asyncio.Event())
+
         self.begin_crash.set()
 
     def _observe_exit(self):

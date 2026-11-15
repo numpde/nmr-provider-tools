@@ -40,6 +40,7 @@ class DeliveryNotices:
         self.logger = logging.Logger("provider_core.delivery", logging.INFO)
 
         self.logger.propagate = False
+
         self.logger.addHandler(self.handler)
         (self.output_failures, self.latest_failure) = (0, None)
 
@@ -62,6 +63,7 @@ class DeliveryNotices:
 
             self.handler.last_failure = None
             log = self.logger.warning if failure is not None else self.logger.info
+
             log("%s", json.dumps(document, allow_nan=False, separators=(",", ":")))
 
             if self.handler.last_failure is not None:

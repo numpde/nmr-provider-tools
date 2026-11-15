@@ -28,11 +28,14 @@ from tests.fakes.runner import RunningSupervisor
 class ObservedCrashRecoveryTests(unittest.IsolatedAsyncioTestCase):
     def session(self):
         supervisor = RunningSupervisor()
+
         self.addCleanup(supervisor.close)
         native = supervisor.session(startup_seconds=2, retirement_seconds=2)
+
         self.addCleanup(native.close)
         native.connect()
         session = CrashingSession(native, "preparing")
+
         session.begin_crash.clear()
 
         return session
@@ -124,6 +127,7 @@ class ObservedCrashRecoveryTests(unittest.IsolatedAsyncioTestCase):
             async def exchange(self, request, *, maximum_bytes, owner=None):
                 if len(self.calls) == 3:
                     clock.now += gap
+
                     session.begin_crash.set()
                     await asyncio.wait_for(session.crash_ready.wait(), 2)
 
@@ -173,6 +177,7 @@ class ObservedCrashRecoveryTests(unittest.IsolatedAsyncioTestCase):
             self.assertIsNotNone(controller.operation.observed_crash)
             self.assertEqual(1, len(controller.delivery.items))
             exact_body = controller.delivery.items[0].body
+
             self.assertEqual("worker_crashed", json.loads(exact_body)["failure_code"])
             self.assertIs(transport.pending_owner, controller.operation)
             self.assertFalse(controller.shutdown_ready)
@@ -204,6 +209,7 @@ class ObservedCrashRecoveryTests(unittest.IsolatedAsyncioTestCase):
         recovery = ObservationRecovery(3, .5, retry, recovered)
         controller = self.controller(session, transport, recovery, poll_seconds=.01)
         accepted = await asyncio.wait_for(controller.run(record()), 4)
+
         self.assertIs(type(accepted), DeliveryAcceptedCheckpoint)
         retry.assert_not_called()
         recovered.assert_not_called()

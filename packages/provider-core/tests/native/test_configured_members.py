@@ -59,6 +59,7 @@ class ConfiguredMemberTests(unittest.TestCase):
 
     def test_sibling_rejects_a_member_even_when_metadata_are_equal(self):
         (first, sibling) = (sum_binding(), sum_binding())
+
         self.assertEqual(first.description, sibling.description)
         self.assertEqual(contribution.ref(first.run), contribution.ref(sibling.run))
 

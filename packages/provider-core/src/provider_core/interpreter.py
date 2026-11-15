@@ -869,6 +869,7 @@ class _Tools:
                 )
 
             self.information[name] = tool
+
             self.definitions.append(definition)
 
     async def dispatch(self, name: str, arguments: Document, *, not_after: float) -> ToolReply | ToolFinished:

@@ -130,6 +130,7 @@ def _needs_flag(arguments, env_enabled=False):
         if item.startswith("-"):
             if item in {"-W", "-X"}:
                 index += 2
+
                 continue
 
             if not re.fullmatch(r"-[BEISOPqsubvix]+", item):
@@ -169,6 +170,7 @@ def shell_findings(path, source):
     for (number, line) in _logical_lines(source):
         if preface and re.fullmatch(r"export PYTHONDONTWRITEBYTECODE=['\"]?1['\"]?", line):
             global_env = True
+
             continue
 
         if re.match(r"\s*(?:if\b|case\b|for\b|while\b|function\b|\w+\(\))", line):

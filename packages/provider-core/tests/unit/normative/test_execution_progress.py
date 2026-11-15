@@ -58,6 +58,7 @@ class PhaseProgressTests(unittest.IsolatedAsyncioTestCase):
         )
 
         terminal = await executor.run(acknowledged)
+
         self.assertEqual(len(notices), 1)
         self.assertEqual(transport.fresh_reads, 1)
         self.assertEqual([event[0] for event in session.events], ["prepare", "execute", "retire"])

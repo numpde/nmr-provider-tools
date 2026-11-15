@@ -10,6 +10,7 @@ from provider_core.diagnostic_text import CredentialRedactingFormatter
 @contextmanager
 def capture_proxy_logs(output):
     handler = logging.StreamHandler(output)
+
     handler.setFormatter(CredentialRedactingFormatter("%(levelname)s %(message)s"))
     logger = logging.getLogger("provider_core.proxy")
 

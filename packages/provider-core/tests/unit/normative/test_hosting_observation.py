@@ -159,6 +159,7 @@ class HostingObservationTests(unittest.IsolatedAsyncioTestCase):
             self.assertIs(pending, operation.observation)
 
             completed = replace(pending, revision=9, finished=True, outcome=Outcome.SUCCEEDED)
+
             operation.publish(completed)
             self.assertIs(completed, await observe_completion(operation))
             self.assertEqual([(None, 0), (4, 1), (None, 0)], operation.requests)
@@ -223,6 +224,7 @@ class HostingObservationTests(unittest.IsolatedAsyncioTestCase):
             self.assertIs(pending, cleanup.observation)
 
             settled = replace(pending, revision=8, settled=True)
+
             cleanup.publish(settled)
             self.assertIs(settled, await observe_cleanup(cleanup))
             self.assertEqual([(None, 0), (3, 1), (None, 0)], cleanup.requests)

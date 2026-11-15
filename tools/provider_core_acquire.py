@@ -56,6 +56,7 @@ def cache_state(pool, locks):
 
             if unavailable := set(conflicting) - found:
                 name = conflicting[next(iter(unavailable))]
+
                 raise ValueError(f"Cannot reuse {name}: cached bytes differ from the lock.")
 
             if found != set(expected):

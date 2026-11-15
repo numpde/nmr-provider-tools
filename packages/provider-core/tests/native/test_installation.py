@@ -50,6 +50,7 @@ class NativeInstallationTests(unittest.TestCase):
 
             try:
                 outcome = await conversation.run([], [], dispatch)
+
                 self.assertIsInstance(outcome, ConversationHandoff)
                 self.assertIs(outcome.reason, reason)
                 self.assertIsNone(conversation.last_failure)
@@ -77,6 +78,7 @@ class NativeInstallationTests(unittest.TestCase):
                 return ToolFinished("accepted")
 
             tools = [{"type": "function", "function": {"name": "prepare", "parameters": {"type": "object"}}}]
+
             self.assertEqual((await owner.run([], tools, dispatch)).value, "accepted")
             self.assertTrue(owner.retirement_confirmed)
 
@@ -110,14 +112,17 @@ class NativeInstallationTests(unittest.TestCase):
             msg="Native conversation imports must not acquire model HTTP/process dependencies")
 
         distribution = importlib.metadata.distribution("provider-core")
+
         self.assertTrue(distribution.requires)
         self.assertTrue(all('; extra == "api"' in requirement for requirement in distribution.requires))
         installer = json.loads(Path("/opt/provider-tools/installer/release.json").read_text())
+
         self.assertEqual(f"pip-{importlib.metadata.version('pip')}-py3-none-any.whl", installer["name"])
         self.assertEqual({"provider-core", "pip"}, {item.metadata["Name"] for item in importlib.metadata.distributions()})
 
     def test_core_distribution_excludes_provider_examples(self):
         distribution_files = importlib.metadata.distribution("provider-core").files
+
         self.assertIsNotNone(distribution_files)
 
         packaged_python = {
@@ -137,8 +142,10 @@ class NativeInstallationTests(unittest.TestCase):
 
     def test_native_runner_retires_its_real_child_and_releases_scratch(self):
         runner = RunningSupervisor(operation_seconds=None)
+
         self.addCleanup(runner.close)
         session = runner.session(startup_seconds=2, retirement_seconds=3)
+
         self.addCleanup(session.close)
         session.connect()
         self.assertGreater(worker_pid(session.science), 0)
@@ -151,12 +158,14 @@ class NativeInstallationTests(unittest.TestCase):
 
         with tempfile.TemporaryDirectory() as directory:
             path = Path(directory) / "source"
+
             path.write_bytes(data)
             descriptor = os.open(directory, os.O_RDONLY | os.O_DIRECTORY)
 
             try:
                 receipt = VerifiedUploadFile("job", "upload", len(data), "sha256:" + hashlib.sha256(data).hexdigest(), "source")
                 snapshot = read_upload_file(receipt, directory_fd=descriptor, maximum_bytes=64)
+
                 self.assertEqual(data, snapshot.data)
                 path.write_bytes(b"X" * len(data))
 

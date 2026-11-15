@@ -23,6 +23,7 @@ class WheelhouseBundleTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
             canary = root / "checker-site/checker_only_canary-1.0.dist-info"
+
             canary.mkdir(parents=True)
             (canary / "METADATA").write_text("Name: checker-only-canary\nVersion: 1.0\n")
             environment = root / "target"
@@ -39,6 +40,7 @@ class WheelhouseBundleTests(unittest.TestCase):
     def test_bundle_rebuild_is_stable_and_refuses_wrong_dependency_bytes(self):
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
+
             (root / "wheelhouse_tool").mkdir()
 
             for name in ("__init__.py", "__main__.py", "stream.py", "report.py", "identity.py", "locate.py", "network.py"):
@@ -50,8 +52,10 @@ class WheelhouseBundleTests(unittest.TestCase):
                 archive.writestr("example/__init__.py", "# dependency\n")
 
             lock = root / "tool.lock"
+
             lock.write_text(f"example==1.0 \\\n    --hash=sha256:{hashlib.sha256(wheel.read_bytes()).hexdigest()}\n")
             (first, second) = (root / "first.pyz", root / "second.pyz")
+
             build(root, first, root, lock)
             build(root, second, root, lock)
             self.assertEqual(first.read_bytes(), second.read_bytes())

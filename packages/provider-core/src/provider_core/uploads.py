@@ -238,6 +238,7 @@ class _UploadFile:
     async def _run(self, operation, function, seconds):
         worker = self._executor.submit(function)
         waiter = asyncio.wrap_future(worker)
+
         waiter.add_done_callback(_observe_file_io)
         self.pending = _FileIO(operation, worker, waiter)
 
@@ -445,6 +446,7 @@ class UploadTransfer:
                 await file.close(self._remaining_seconds())
                 self._remaining_seconds()
                 result = VerifiedUploadFile(self.job_ref, grant.upload_ref, grant.byte_length, grant.content_hash, file.name)
+
                 file.shutdown()
                 self._file = None
 
@@ -605,6 +607,7 @@ class UploadTransfer:
     async def _download(self, grant):
         response = await self._transfer(grant)
         verified = VerifiedUpload(self.job_ref, grant.upload_ref, grant.byte_length, grant.content_hash, response.body)
+
         self._remaining_seconds()
 
         return verified
@@ -637,6 +640,7 @@ class UploadTransfer:
 
     async def _transfer(self, grant, *, output_fd=None):
         request = self._download_request(grant)
+
         self._before_request()
         deadline = asyncio.timeout(self._remaining_seconds())
         self._transfer_grant = grant
@@ -688,6 +692,7 @@ class UploadTransfer:
             self._store_outcome = cause
 
             reason = str(cause.primary) if isinstance(cause.primary, UploadFailed) else str(cause)
+
             raise UploadFailed(reason, cause=cause) from None
 
 
@@ -780,6 +785,7 @@ class JobUploads:
     def _retain_grant_issuance(self, failure):
         if self._grant_issued and isinstance(failure, UploadFailed) and not failure.grant_issued:
             failure.grant_issued = True
+
             failure.add_note("Read access was issued before this failure and may have extended Upload retention.")
 
     def can_retry_transfer(self, failure):
@@ -914,6 +920,7 @@ class JobUploads:
 
             if selected is not None:
                 minimum_requests = 3
+
                 self._require_remaining_bytes(selected)
 
             available = self._limits.requests - self._requests
@@ -1051,6 +1058,7 @@ class JobUploads:
 
                 local_wait = secrets.SystemRandom().uniform(delay / 2, delay)
                 seconds = local_wait if floor is None else max(local_wait, floor)
+
                 self._require_recovery_wait(seconds, failure)
 
                 if policy.stopping.is_set():
@@ -1073,6 +1081,7 @@ class JobUploads:
                     await asyncio.wait_for(policy.stopping.wait(), timeout=seconds)
                 except TimeoutError:
                     delay = min(policy.maximum_seconds, delay * 2)
+
                     continue
 
                 raise UploadFailed("source acquisition stopped before another request", cause=self.recovery_failure)

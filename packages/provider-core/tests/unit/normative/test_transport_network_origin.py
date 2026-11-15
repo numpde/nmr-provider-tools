@@ -38,6 +38,7 @@ class TransportNetworkOriginTests(unittest.IsolatedAsyncioTestCase):
                 await client.publish_hello(**announcement())
 
             failure = caught.exception
+
             self.assertTrue(transport.retirement_confirmed)
             self.assertIs(type(failure.cause.primary), httpcore.ConnectError)
             self.assertTrue(client.can_refresh_hello(failure))
@@ -46,10 +47,12 @@ class TransportNetworkOriginTests(unittest.IsolatedAsyncioTestCase):
         refused = ConnectionRefusedError(errno.ECONNREFUSED, "private network detail")
         connect = httpcore.ConnectError("private wrapper")
         connect.__context__ = refused
+
         self.assertTrue(temporary_io_failure(connect, 8))
 
         for explicit in (PermissionError(errno.EACCES, "private permission"), ssl.SSLCertVerificationError(1, "private TLS")):
             connect.__cause__ = explicit
+
             self.assertFalse(temporary_io_failure(connect, 8))
 
         for incidental in (OSError("private local failure"),
@@ -57,10 +60,12 @@ class TransportNetworkOriginTests(unittest.IsolatedAsyncioTestCase):
                            httpcore.ReadError("private read"),
                            httpcore.WriteError("private write")):
             incidental.__context__ = refused
+
             self.assertFalse(temporary_io_failure(incidental, 8))
 
         cycle = httpcore.ConnectError("private cyclic context")
         cycle.__context__ = cycle
+
         self.assertFalse(temporary_io_failure(cycle, 8))
 
     async def test_same_native_exception_from_stream_and_account_has_distinct_origin(self):

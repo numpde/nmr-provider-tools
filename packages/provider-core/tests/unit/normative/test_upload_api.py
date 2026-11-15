@@ -21,10 +21,12 @@ class UploadApiTests(unittest.IsolatedAsyncioTestCase):
         )
 
         observed = await api.uploads("job:example")
+
         self.assertEqual(observed.job_ref, "job:example")
         self.assertEqual(observed.members[0].description, "Two conformers\n雪")
         self.assertIsNone(observed.members[0].content_hash)
         access = await api.read_grant("job:example", UPLOAD_REF)
+
         self.assertEqual((access.job_ref, access.upload_ref, access.content_hash), ("job:example", UPLOAD_REF, CONTENT_HASH))
         self.assertNotIn("private-bearer-canary", repr(access))
 
@@ -57,5 +59,6 @@ class UploadApiTests(unittest.IsolatedAsyncioTestCase):
             )
 
             observed = await api.uploads("job:example")
+
             self.assertEqual(len(observed.members), len(members))
             self.assertEqual([item.description for item in observed.members], [item["description"] for item in members])

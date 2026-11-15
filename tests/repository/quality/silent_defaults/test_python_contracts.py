@@ -24,6 +24,7 @@ class PythonContractApplicabilityTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             path = root / "tools/consumer.py"
+
             path.parent.mkdir()
             path.write_text(source)
 
@@ -43,6 +44,7 @@ class PythonContractApplicabilityTests(unittest.TestCase):
     def test_if_header_annotation_covers_one_expression_and_preserves_body_findings(self) -> None:
         header = 'if response.headers.get("Content-Encoding", "identity") != "identity":\n'
         (raw, applicable) = self.exercise_property(self.annotation + header + '    raise ValueError("encoded")\n', accepted=True)
+
         self.assertEqual(1, len(raw))
         self.assertEqual([], applicable)
 
@@ -63,6 +65,7 @@ class PythonContractApplicabilityTests(unittest.TestCase):
         for source in sources:
             with self.subTest(source=source):
                 (raw, applicable) = self.exercise_property(source, accepted=True)
+
                 self.assertEqual([], raw)
                 self.assertEqual([], applicable)
 
@@ -76,6 +79,7 @@ class PythonContractApplicabilityTests(unittest.TestCase):
         )
 
         (raw, applicable) = self.exercise_property(source, accepted=True)
+
         self.assertEqual(1, len(raw))
         self.assertIn('destination.name == "status.ready" and', raw[0])
         self.assertEqual([], applicable)
@@ -94,6 +98,7 @@ class PythonContractApplicabilityTests(unittest.TestCase):
         ):
             with self.subTest(source=source):
                 (raw, applicable) = self.exercise_property(source, accepted=True)
+
                 self.assertEqual(1, len(raw))
                 self.assertEqual([], applicable)
 
@@ -103,6 +108,7 @@ class PythonContractApplicabilityTests(unittest.TestCase):
 
             with self.subTest(source=source):
                 (raw, applicable) = self.exercise_property(source, accepted=False)
+
                 self.assertEqual(1, len(raw))
                 self.assertEqual(raw, applicable)
 
@@ -111,6 +117,7 @@ class PythonContractApplicabilityTests(unittest.TestCase):
 
             with self.subTest(source=source):
                 (raw, applicable) = self.exercise_property(source, accepted=False)
+
                 self.assertEqual(1, len(raw))
                 self.assertEqual(raw, applicable)
 
@@ -119,12 +126,14 @@ class PythonContractApplicabilityTests(unittest.TestCase):
 
             with self.subTest(source=source):
                 (raw, applicable) = self.exercise_property(source, accepted=False)
+
                 self.assertEqual(2, len(raw))
                 self.assertEqual([raw[1]], applicable)
 
     def test_composed_comparison_admission_preserves_function_default_finding(self):
         source = 'def select(value=(os.environ["K"] == "x" and destination == "ready") or count < 0):\n    pass\n'
         (raw, applicable) = self.exercise_property(source, accepted=False)
+
         self.assertEqual(2, len(raw))
         self.assertEqual(1, len(applicable))
         self.assertIn(": python function default:", applicable[0])
@@ -141,6 +150,7 @@ class PythonContractApplicabilityTests(unittest.TestCase):
         ):
             with self.subTest(source=source):
                 (raw, applicable) = self.exercise_property(source, accepted=False)
+
                 self.assertEqual(1, len(raw))
                 self.assertTrue(raw[0].endswith(": " + expected))
                 self.assertEqual(raw, applicable)
@@ -153,6 +163,7 @@ class PythonContractApplicabilityTests(unittest.TestCase):
         ):
             with self.subTest(source=source):
                 (raw, applicable) = self.exercise_property(source, accepted=True)
+
                 self.assertEqual([], raw)
                 self.assertEqual([], applicable)
 
@@ -173,6 +184,7 @@ class PythonContractApplicabilityTests(unittest.TestCase):
         ):
             with self.subTest(source=source):
                 (raw, applicable) = self.exercise_property(source, accepted=True)
+
                 self.assertEqual(1, len(raw))
                 self.assertEqual([], applicable)
 
@@ -195,6 +207,7 @@ class PythonContractApplicabilityTests(unittest.TestCase):
         ):
             with self.subTest(source=source):
                 (raw, applicable) = self.exercise_property(source, accepted=False)
+
                 self.assertEqual(1, len(raw))
                 self.assertEqual(raw, applicable)
 
@@ -212,6 +225,7 @@ class PythonContractApplicabilityTests(unittest.TestCase):
         ):
             with self.subTest(source=source):
                 (raw, applicable) = self.exercise_property(source, accepted=False)
+
                 self.assertEqual(2, len(raw))
                 self.assertEqual(1, len(applicable))
                 self.assertIn(applicable[0], raw)
@@ -227,6 +241,7 @@ class PythonContractApplicabilityTests(unittest.TestCase):
             with self.subTest(entry=entry):
                 source = "result = {\n    " + self.annotation + "    " + entry + "}\n"
                 (raw, applicable) = self.exercise_property(source, accepted=True)
+
                 self.assertEqual(count, len(raw))
                 self.assertEqual([], applicable)
 
@@ -259,6 +274,7 @@ class PythonContractApplicabilityTests(unittest.TestCase):
         for source in sources:
             with self.subTest(source=source):
                 (raw, applicable) = self.exercise_property(source, accepted=False)
+
                 self.assertEqual(2, len(raw))
                 self.assertEqual(1, len(applicable))
                 self.assertIn(applicable[0], raw)
@@ -279,6 +295,7 @@ class PythonContractApplicabilityTests(unittest.TestCase):
             with self.subTest(expression=expression):
                 source = "result = {\n    " + self.annotation + '    "value": ' + expression + ",\n}\n"
                 (raw, applicable) = self.exercise_property(source, accepted=False)
+
                 self.assertTrue(raw)
                 self.assertTrue(any("python contract annotation requires" in finding for finding in applicable))
 
@@ -306,6 +323,7 @@ class PythonContractApplicabilityTests(unittest.TestCase):
         ):
             with self.subTest(body=body):
                 (raw, applicable) = self.exercise_property("result = {\n    " + body + "}\n", accepted=False)
+
                 self.assertTrue(any("python contract annotation requires" in finding for finding in applicable))
 
                 for finding in raw:
@@ -360,6 +378,7 @@ class PythonContractApplicabilityTests(unittest.TestCase):
         ):
             with self.subTest(source=source):
                 (raw, applicable) = self.exercise_property(self.annotation + source, accepted=True)
+
                 self.assertEqual(count, len(raw))
                 self.assertEqual([], applicable)
 
@@ -394,6 +413,7 @@ class PythonContractApplicabilityTests(unittest.TestCase):
         ):
             with self.subTest(source=source):
                 (raw, applicable) = self.exercise_property(self.annotation + source, accepted=False)
+
                 self.assertTrue(raw)
 
                 for finding in raw:
@@ -401,6 +421,7 @@ class PythonContractApplicabilityTests(unittest.TestCase):
 
         pop_annotation = self.annotation.replace("allow-contract", "allow-pop-default")
         (raw, applicable) = self.exercise_property(pop_annotation + 'os.environ.pop(\n    "OPTION", None,\n)\n', accepted=True)
+
         self.assertEqual(1, len(raw))
         self.assertEqual([], applicable)
 
@@ -410,6 +431,7 @@ class PythonContractApplicabilityTests(unittest.TestCase):
         ):
             with self.subTest(source=source):
                 (raw, applicable) = self.exercise_property(pop_annotation + source, accepted=False)
+
                 self.assertTrue(raw)
 
                 for finding in raw:
@@ -426,6 +448,7 @@ class PythonContractApplicabilityTests(unittest.TestCase):
         ):
             with self.subTest(source=source):
                 (raw, applicable) = self.exercise_property(self.annotation + source, accepted=False)
+
                 self.assertTrue(any("python contract annotation requires" in finding for finding in applicable))
 
                 for finding in raw:
@@ -451,6 +474,7 @@ class PythonContractApplicabilityTests(unittest.TestCase):
         ):
             with self.subTest(source=source):
                 (raw, applicable) = self.exercise_property(source, accepted=False)
+
                 self.assertEqual(2, len(raw))
                 self.assertEqual(1, len(applicable))
                 self.assertIn(retained, applicable[0])
@@ -464,6 +488,7 @@ class PythonContractApplicabilityTests(unittest.TestCase):
         ):
             with self.subTest(source=source):
                 (raw, applicable) = self.exercise_property(self.annotation + source, accepted=True)
+
                 self.assertTrue(raw)
                 self.assertEqual([], applicable)
 
@@ -500,6 +525,7 @@ class PythonContractApplicabilityTests(unittest.TestCase):
         ):
             with self.subTest(source=source):
                 (raw, applicable) = self.exercise_property(self.annotation + source, accepted=False)
+
                 self.assertTrue(any("python contract annotation requires" in finding for finding in applicable))
 
                 for finding in raw:
@@ -531,10 +557,12 @@ class PythonContractApplicabilityTests(unittest.TestCase):
         for receiver in ("env", "environment", "process_env", "os.environ"):
             with self.subTest(receiver=receiver):
                 (raw, applicable) = self.exercise_property(annotation + receiver + '.pop("MARKER", None)\n', accepted=True)
+
                 self.assertEqual(1, len(raw))
                 self.assertEqual([], applicable)
 
         (raw, applicable) = self.exercise_property(annotation + 'environment.pop(\n    "MARKER",\n    None,\n)\n', accepted=True)
+
         self.assertEqual(1, len(raw))
         self.assertEqual([], applicable)
 
@@ -550,6 +578,7 @@ class PythonContractApplicabilityTests(unittest.TestCase):
 
         source = 'if os.environ.get("PORT", "8080"):\n' + "    " + annotation + '    environment.pop("MARKER", None)\n'
         (raw, applicable) = self.exercise_property(source, accepted=False)
+
         self.assertEqual(2, len(raw))
         self.assertEqual(1, len(applicable))
         self.assertIn('os.environ.get("PORT", "8080")', applicable[0])
@@ -583,6 +612,7 @@ class PythonContractApplicabilityTests(unittest.TestCase):
         for statement in statements:
             with self.subTest(statement=statement):
                 (raw, applicable) = self.exercise_property(annotation + statement + "\n", accepted=False)
+
                 self.assertTrue(any("python contract annotation requires" in finding for finding in applicable))
 
                 for finding in raw:
@@ -604,12 +634,14 @@ class PythonContractApplicabilityTests(unittest.TestCase):
         for source in sources:
             with self.subTest(source=source):
                 (raw, applicable) = self.exercise_property(source, accepted=False)
+
                 self.assertTrue(any("python contract annotation requires" in finding for finding in applicable))
 
                 for finding in raw:
                     self.assertIn(finding, applicable)
 
         (raw, applicable) = self.exercise_property("note = " + repr(annotation) + "\n" + call, accepted=False)
+
         self.assertEqual(1, len(raw))
         self.assertEqual(raw, applicable)
 
@@ -623,6 +655,7 @@ class PythonContractApplicabilityTests(unittest.TestCase):
             with self.subTest(declared=declared):
                 source = "try:\n    inspect()\n" + self.annotation + "except " + declared + ":\n    pass\n"
                 (raw, applicable) = self.exercise_property(source, accepted=True)
+
                 self.assertEqual(1, len(raw))
                 self.assertIn("python exception fallback:", raw[0])
                 self.assertEqual([], applicable)
@@ -658,6 +691,7 @@ class PythonContractApplicabilityTests(unittest.TestCase):
         for source in sources:
             with self.subTest(source=source):
                 (raw, applicable) = self.exercise_property(source, accepted=False)
+
                 self.assertTrue(raw)
                 self.assertTrue(any("python contract annotation requires" in finding for finding in applicable))
 
@@ -683,6 +717,7 @@ class PythonContractApplicabilityTests(unittest.TestCase):
             with self.subTest(statement=statement):
                 source = "try:\n    " + statement + "\n" + self.annotation + "except KeyError:\n    pass\n"
                 (raw, applicable) = self.exercise_property(source, accepted=False)
+
                 self.assertTrue(raw)
 
                 if statement == statements[0]:
@@ -694,6 +729,7 @@ class PythonContractApplicabilityTests(unittest.TestCase):
     def test_typed_pass_annotation_does_not_cover_neighbours_or_other_placements(self):
         source = 'try:\n    value = state.get("done", 0)\n' + self.annotation + "except OSError:\n    pass\n"
         (raw, applicable) = self.exercise_property(source, accepted=False)
+
         self.assertEqual(2, len(raw))
         self.assertEqual(1, len(applicable))
         self.assertIn('state.get("done", 0)', applicable[0])
@@ -705,6 +741,7 @@ class PythonContractApplicabilityTests(unittest.TestCase):
         ):
             source = "try:\n    inspect()\n" + self.annotation + "except OSError:\n    pass\n" + tail
             (raw, applicable) = self.exercise_property(source, accepted=False)
+
             self.assertEqual(2, len(raw))
             self.assertEqual(1, len(applicable))
             self.assertIn(retained, applicable[0])
@@ -721,6 +758,7 @@ class PythonContractApplicabilityTests(unittest.TestCase):
         for source in sources:
             with self.subTest(source=source):
                 (raw, applicable) = self.exercise_property(source, accepted=False)
+
                 self.assertEqual(1, len(raw))
                 self.assertIn(raw[0], applicable)
                 self.assertTrue(any("python contract annotation requires" in finding for finding in applicable))
@@ -747,6 +785,7 @@ class PythonContractApplicabilityTests(unittest.TestCase):
         for source in sources:
             with self.subTest(source=source):
                 (raw, applicable) = self.exercise_property(source, accepted=False)
+
                 self.assertTrue(raw)
 
                 for finding in raw:
@@ -764,6 +803,7 @@ class PythonContractApplicabilityTests(unittest.TestCase):
         for source in sources:
             with self.subTest(source=source):
                 (raw, applicable) = self.exercise_property(source, accepted=False)
+
                 self.assertTrue(raw)
 
                 for finding in raw:
@@ -778,9 +818,11 @@ class PythonContractApplicabilityTests(unittest.TestCase):
             with self.subTest(expression=expression):
                 source = "for item in " + expression + ":\n    pass\n"
                 (raw, applicable) = self.exercise_property(source, accepted=False)
+
                 self.assertEqual(count, len(raw))
                 self.assertEqual(raw, applicable)
                 (annotated_raw, applicable) = self.exercise_property(self.annotation + source, accepted=True)
+
                 self.assertEqual(count, len(annotated_raw))
                 self.assertEqual([], applicable)
 
@@ -789,9 +831,11 @@ class PythonContractApplicabilityTests(unittest.TestCase):
         source = 'for value in payload.get("results", []):\n    consume(value)\n'
 
         (raw, applicable) = self.exercise_property(source, accepted=False)
+
         self.assertEqual(1, len(raw))
         self.assertEqual(raw, applicable)
         (raw, applicable) = self.exercise_property(self.annotation + source, accepted=True)
+
         self.assertEqual(1, len(raw))
         self.assertEqual([], applicable)
 
@@ -808,6 +852,7 @@ class PythonContractApplicabilityTests(unittest.TestCase):
         ):
             with self.subTest(source=source):
                 (raw, applicable) = self.exercise_property(self.annotation + source, accepted=False)
+
                 self.assertEqual(2, len(raw))
                 self.assertEqual(1, len(applicable))
                 self.assertIn(applicable[0], raw)
@@ -826,6 +871,7 @@ class PythonContractApplicabilityTests(unittest.TestCase):
         ):
             with self.subTest(source=source):
                 (raw, applicable) = self.exercise_property(source, accepted=False)
+
                 self.assertTrue(raw)
 
                 for finding in raw:
@@ -860,6 +906,7 @@ class PythonContractApplicabilityTests(unittest.TestCase):
         for expression in ('parsed.path or "/"', 'payload.get("context", {})', 'value if value is not None else "rendered"'):
             with self.subTest(expression=expression):
                 (raw, applicable) = self.exercise_property(self.annotation + "value = " + expression + "\n", accepted=True)
+
                 self.assertEqual(1, len(raw))
                 self.assertEqual([], applicable)
 
@@ -874,6 +921,7 @@ class PythonContractApplicabilityTests(unittest.TestCase):
         for source in sources:
             with self.subTest(source=source):
                 (raw, applicable) = self.exercise_property(self.annotation + source, accepted=True)
+
                 self.assertTrue(raw)
                 self.assertEqual([], applicable)
 
@@ -904,6 +952,7 @@ class PythonContractApplicabilityTests(unittest.TestCase):
         for (source, retained) in sources:
             with self.subTest(source=source):
                 (raw, applicable) = self.exercise_property(self.annotation + source, accepted=False)
+
                 self.assertEqual(2, len(raw))
                 self.assertEqual(1, len(applicable))
                 self.assertIn(retained, applicable[0])
@@ -927,6 +976,7 @@ class PythonContractApplicabilityTests(unittest.TestCase):
             ):
                 with self.subTest(source=source):
                     (raw, applicable) = self.exercise_property(self.annotation + source, accepted=False)
+
                     self.assertTrue(raw)
 
                     for finding in raw:
@@ -944,6 +994,7 @@ class PythonContractApplicabilityTests(unittest.TestCase):
         for source in sources:
             with self.subTest(source=source):
                 (raw, applicable) = self.exercise_property(self.annotation + source, accepted=False)
+
                 self.assertTrue(raw)
 
                 for finding in raw:
@@ -952,6 +1003,7 @@ class PythonContractApplicabilityTests(unittest.TestCase):
     def test_nested_generic_expression_keeps_siblings_and_strict_findings_visible(self):
         expression = '{"CDCl3": 1, "DMSO-d6": 2}.get(solvent, 3) if solvent_present else 0'
         (raw, applicable) = self.exercise_property(self.annotation + "category = " + expression + "\n", accepted=True)
+
         self.assertEqual(2, len(raw))
         self.assertEqual([], applicable)
 
@@ -964,6 +1016,7 @@ class PythonContractApplicabilityTests(unittest.TestCase):
         ):
             with self.subTest(source=source):
                 (raw, applicable) = self.exercise_property(source, accepted=False)
+
                 self.assertTrue(raw)
 
                 for finding in raw:
@@ -983,6 +1036,7 @@ class PythonContractApplicabilityTests(unittest.TestCase):
         )
 
         strict = [finding for finding in raw if "python exception fallback:" in finding]
+
         self.assertTrue(strict)
 
         for finding in strict:
@@ -1003,6 +1057,7 @@ class PythonContractApplicabilityTests(unittest.TestCase):
         for expression in expressions:
             with self.subTest(expression=expression):
                 (raw, applicable) = self.exercise_property(self.annotation + "value = " + expression + "\n", accepted=False)
+
                 self.assertTrue(raw)
 
                 for finding in raw:
@@ -1023,6 +1078,7 @@ class PythonContractApplicabilityTests(unittest.TestCase):
         )
 
         strict = [finding for finding in raw if "python exception fallback:" in finding]
+
         self.assertTrue(strict)
 
         for finding in strict:
@@ -1037,6 +1093,7 @@ class PythonContractApplicabilityTests(unittest.TestCase):
         ):
             with self.subTest(definition=definition):
                 (raw, applicable) = self.exercise_property(self.annotation + definition, accepted=True)
+
                 self.assertTrue(raw)
                 self.assertEqual([], applicable)
 
@@ -1048,6 +1105,7 @@ class PythonContractApplicabilityTests(unittest.TestCase):
         ):
             with self.subTest(outside=outside):
                 (raw, applicable) = self.exercise_property(self.annotation + "def read(size=-1):\n" + outside, accepted=False)
+
                 self.assertEqual(2, len(raw))
                 self.assertEqual(1, len(applicable))
                 self.assertNotIn("-1", applicable[0])
@@ -1059,6 +1117,7 @@ class PythonContractApplicabilityTests(unittest.TestCase):
         ):
             with self.subTest(source=source):
                 (raw, applicable) = self.exercise_property(source, accepted=False)
+
                 self.assertEqual(2, len(raw))
                 self.assertEqual(1, len(applicable))
                 self.assertIn("registry.get", applicable[0])
@@ -1094,6 +1153,7 @@ class PythonContractApplicabilityTests(unittest.TestCase):
         ):
             with self.subTest(source=source):
                 (raw, applicable) = self.exercise_property(source, accepted=False)
+
                 self.assertTrue(applicable)
 
                 for finding in raw:
@@ -1114,6 +1174,7 @@ class PythonContractApplicabilityTests(unittest.TestCase):
         for source in sources:
             with self.subTest(source=source):
                 (raw, applicable) = self.exercise_property(source, accepted=False)
+
                 self.assertTrue(raw)
 
                 for finding in raw:
@@ -1140,6 +1201,7 @@ class PythonContractApplicabilityTests(unittest.TestCase):
             with self.subTest(header=header, footer=footer):
                 source = header + "    " + annotation + "    mounts.get(path, Path(path))\n" + footer
                 (raw, applicable) = self.exercise_property(source, accepted=retained is None)
+
                 self.assertEqual(1 if retained is None else 2, len(raw))
 
                 if retained is None:
@@ -1164,6 +1226,7 @@ class PythonContractApplicabilityTests(unittest.TestCase):
             with self.subTest(expression=expression):
                 source = "value = lambda: (\n    " + annotation + "    " + expression + "\n)\n"
                 (raw, applicable) = self.exercise_property(source, accepted=False)
+
                 self.assertTrue(applicable)
 
                 for finding in raw:
@@ -1181,6 +1244,7 @@ class PythonContractApplicabilityTests(unittest.TestCase):
         ):
             with self.subTest(source=source):
                 (raw, applicable) = self.exercise_property(source, accepted=False)
+
                 self.assertTrue(raw)
 
                 for finding in raw:
@@ -1195,14 +1259,17 @@ class PythonContractApplicabilityTests(unittest.TestCase):
             with self.subTest(invalid=invalid):
                 source = "value = lambda: (\n    " + invalid + '    payload.get("value", 17)\n)\n'
                 (raw, applicable) = self.exercise_property(source, accepted=False)
+
                 self.assertEqual(1, len(raw))
                 self.assertIn(raw[0], applicable)
                 diagnostic = next(finding for finding in applicable if "python contract annotation requires" in finding)
+
                 self.assertIn("an explanation", diagnostic)
                 self.assertNotIn("proof=", diagnostic)
 
     def test_stale_annotation_is_a_finding_even_without_a_raw_default(self):
         (raw, applicable) = self.exercise_property(self.annotation + "value = required\n", accepted=False)
+
         self.assertEqual([], raw)
         self.assertEqual(1, len(applicable))
         self.assertIn("python contract annotation requires", applicable[0])
@@ -1210,6 +1277,7 @@ class PythonContractApplicabilityTests(unittest.TestCase):
     def test_accepting_one_candidate_preserves_unannotated_neighbouring_findings(self):
         source = self.annotation + 'path = parsed.path or "/"\nstatus = state.get("completed", 0)\n'
         (raw, applicable) = self.exercise_property(source, accepted=False)
+
         self.assertEqual(2, len(raw))
         self.assertEqual([raw[1]], applicable)
 
@@ -1221,6 +1289,7 @@ class PythonContractApplicabilityTests(unittest.TestCase):
 
             with self.subTest(outcome=outcome):
                 (raw, applicable) = self.exercise_property(source, accepted=True)
+
                 self.assertEqual(1, len(raw))
                 self.assertEqual([], applicable)
 
@@ -1247,6 +1316,7 @@ class PythonContractApplicabilityTests(unittest.TestCase):
         tag = "# silent-defaults: allow-exception-outcome -- Report the process failure and exit nonzero\n"
         source = "def main():\n    try:\n        start()\n    " + tag + "    except BaseException as error:\n        report(error)\n        if interrupted(error):\n            return 130\n        return 2\n"
         (raw, applicable) = self.exercise_property(source, accepted=True)
+
         self.assertEqual(1, len(raw))
         self.assertEqual([], applicable)
         self.exercise_property(source.replace('return 130', 'return 0'), accepted=False)

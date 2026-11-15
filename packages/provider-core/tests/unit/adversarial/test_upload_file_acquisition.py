@@ -28,6 +28,7 @@ class UploadFileAcquisitionTests(unittest.IsolatedAsyncioTestCase):
         (entered, release) = (asyncio.Event(), threading.Event())
         loop = asyncio.get_running_loop()
         failure = OSError(errno.EIO, "PRIVATE_MODE_CHANGE")
+
         await owner.inspect()
 
         def held_mode_change(_descriptor, _mode):
@@ -55,6 +56,7 @@ class UploadFileAcquisitionTests(unittest.IsolatedAsyncioTestCase):
                     await task
 
                 retained = owner.last_failure
+
                 self.assertIs(caught.exception.__cause__, retained)
                 self.assertEqual(calls.closed, [])
             finally:
@@ -77,6 +79,7 @@ class UploadFileAcquisitionTests(unittest.IsolatedAsyncioTestCase):
         (owner, api, _, _) = file_sources(seconds=0.1)
         (entered, release) = (asyncio.Event(), threading.Event())
         loop = asyncio.get_running_loop()
+
         await owner.inspect()
 
         with private_source_directory() as (root, directory), observe_source_files(directory) as calls:
@@ -127,6 +130,7 @@ class UploadFileAcquisitionTests(unittest.IsolatedAsyncioTestCase):
 
         (entered, release) = (asyncio.Event(), threading.Event())
         loop = asyncio.get_running_loop()
+
         await owner.inspect()
 
         with private_source_directory() as (root, directory), observe_source_files(directory) as calls:
@@ -161,6 +165,7 @@ class UploadFileAcquisitionTests(unittest.IsolatedAsyncioTestCase):
                         await task
 
                     retained = owner.last_failure
+
                     self.assertFalse(retained.grant_issued)
                     self.assertEqual(api.calls, ["membership"])
                     self.assertTrue(store.retirement_confirmed)
@@ -197,6 +202,7 @@ class UploadFileAcquisitionTests(unittest.IsolatedAsyncioTestCase):
         (owner, api, _, _) = file_sources()
         (entered, release) = (asyncio.Event(), threading.Event())
         loop = asyncio.get_running_loop()
+
         await owner.inspect()
 
         with private_source_directory() as (root, directory), observe_source_files(directory) as calls:
@@ -222,6 +228,7 @@ class UploadFileAcquisitionTests(unittest.IsolatedAsyncioTestCase):
 
                     self.assertFalse(task.done())
                     first = owner.last_failure.cause
+
                     task.cancel("cleanup cancellation")
 
                     with self.assertRaises(asyncio.CancelledError) as caught:
@@ -257,6 +264,7 @@ class UploadFileAcquisitionTests(unittest.IsolatedAsyncioTestCase):
 
         (entered, release) = (asyncio.Event(), threading.Event())
         loop = asyncio.get_running_loop()
+
         await owner.inspect()
 
         with (
@@ -297,6 +305,7 @@ class UploadFileAcquisitionTests(unittest.IsolatedAsyncioTestCase):
                                 await asyncio.sleep(0)
 
                         original = owner.last_failure.cause
+
                         self.assertFalse(task.done())
                         task.cancel("later cleanup interruption")
 
@@ -332,6 +341,7 @@ class UploadFileAcquisitionTests(unittest.IsolatedAsyncioTestCase):
                     self.assertEqual(list(Path(root).iterdir()), [])
                 else:
                     retained = owner.last_failure
+
                     self.assertIs(retained.cleanup_failures[0].cause, late_failure)
 
                     with self.assertRaises(UploadFailed):
@@ -344,6 +354,7 @@ class UploadFileAcquisitionTests(unittest.IsolatedAsyncioTestCase):
     async def test_failed_close_does_not_close_a_reused_descriptor_number(self):
         (owner, _, _, client) = file_sources()
         close_failure = OSError(errno.EIO, "PRIVATE_CLOSE")
+
         await owner.inspect()
 
         with (
@@ -363,6 +374,7 @@ class UploadFileAcquisitionTests(unittest.IsolatedAsyncioTestCase):
                     await owner.acquire_file(UPLOAD_REF, directory_fd=directory, retirement_seconds=0.05)
 
                 retained = owner.last_failure
+
                 self.assertIs(caught.exception.cause, close_failure)
                 self.assertEqual(len(calls.closed), 1)
                 descriptor = calls.descriptors[0]
@@ -391,6 +403,7 @@ class UploadFileAcquisitionTests(unittest.IsolatedAsyncioTestCase):
         client.headers = []
         (entered, release) = (asyncio.Event(), threading.Event())
         loop = asyncio.get_running_loop()
+
         await owner.inspect()
 
         with (
@@ -413,6 +426,7 @@ class UploadFileAcquisitionTests(unittest.IsolatedAsyncioTestCase):
                 try:
                     await asyncio.wait_for(entered.wait(), 1)
                     original = owner.last_failure
+
                     self.assertIn("content-type", str(original))
                     task.cancel("cleanup removal interrupted")
 
@@ -453,6 +467,7 @@ class UploadFileAcquisitionTests(unittest.IsolatedAsyncioTestCase):
         (entered, release) = (asyncio.Event(), threading.Event())
         loop = asyncio.get_running_loop()
         write = os.write
+
         await owner.inspect()
 
         def held_write(descriptor, data):
@@ -482,6 +497,7 @@ class UploadFileAcquisitionTests(unittest.IsolatedAsyncioTestCase):
                     await task
 
                 retained = owner.last_failure
+
                 self.assertIs(caught.exception.__cause__, retained)
                 self.assertFalse(store.retirement_confirmed)
                 self.assertIs(store.pending_owner, owner)
@@ -522,6 +538,7 @@ class UploadFileAcquisitionTests(unittest.IsolatedAsyncioTestCase):
     async def _replacement_entry(self, *, symlink):
         (owner, api, _, client) = file_sources()
         client.headers = []
+
         await owner.inspect()
 
         with (
@@ -536,9 +553,11 @@ class UploadFileAcquisitionTests(unittest.IsolatedAsyncioTestCase):
                 await owner.acquire_file(UPLOAD_REF, directory_fd=directory, retirement_seconds=0.1)
 
             retained = owner.last_failure
+
             self.assertEqual(len(calls.closed), 1)
             source = Path(root, calls.names[0])
             replacement = Path(root, "replacement")
+
             replacement.write_bytes(b"replacement must survive")
 
             if symlink:
@@ -562,6 +581,7 @@ class UploadFileAcquisitionTests(unittest.IsolatedAsyncioTestCase):
 
     async def test_unknown_created_file_identity_is_not_reported_as_a_replacement(self):
         (owner, api, _, _) = file_sources()
+
         await owner.inspect()
         fstat = os.fstat
         failure = OSError(errno.EIO, "PRIVATE_IDENTITY")
@@ -579,6 +599,7 @@ class UploadFileAcquisitionTests(unittest.IsolatedAsyncioTestCase):
 
             self.assertIs(caught.exception.cause, failure)
             cleanup = owner.last_failure.cleanup_failures[0].cause
+
             self.assertIn("identity could not be confirmed", str(cleanup))
             self.assertNotIn("replacement", str(cleanup))
             self.assertEqual(api.calls, ["membership"])
@@ -593,6 +614,7 @@ class UploadFileAcquisitionTests(unittest.IsolatedAsyncioTestCase):
         failure = OSError(errno.EACCES, "PRIVATE_REMOVE")
         (entered, release) = (asyncio.Event(), threading.Event())
         loop = asyncio.get_running_loop()
+
         await owner.inspect()
 
         with (
@@ -605,6 +627,7 @@ class UploadFileAcquisitionTests(unittest.IsolatedAsyncioTestCase):
 
             retained = owner.last_failure
             concrete = retained.cleanup_failures[0]
+
             self.assertIs(concrete.cause, failure)
 
             def held_remove(name, *args, **kwargs):
@@ -644,6 +667,7 @@ class UploadFileAcquisitionTests(unittest.IsolatedAsyncioTestCase):
 
     async def test_nonprivate_destination_refuses_before_refresh_or_grant(self):
         (owner, api, _, _) = file_sources()
+
         await owner.inspect()
 
         with (
@@ -665,6 +689,7 @@ class UploadFileAcquisitionTests(unittest.IsolatedAsyncioTestCase):
         with patch("provider_core.uploads.time") as clock:
             clock.monotonic.return_value = 100
             (owner, api, _, client) = file_sources()
+
             await owner.inspect()
 
             with (
@@ -692,6 +717,7 @@ class UploadFileAcquisitionTests(unittest.IsolatedAsyncioTestCase):
         for body in (b"short", b"oversized"):
             (owner, api, _, client) = file_sources()
             client.stream.chunks = [body]
+
             await owner.inspect()
 
             with (
@@ -708,6 +734,7 @@ class UploadFileAcquisitionTests(unittest.IsolatedAsyncioTestCase):
 
     async def test_fixed_file_limit_remains_correctable_without_creating_file_or_issuing_grant(self):
         (owner, api, _, _) = file_sources(source_bytes=7)
+
         await owner.inspect()
 
         with private_source_directory() as (root, directory):
@@ -720,6 +747,7 @@ class UploadFileAcquisitionTests(unittest.IsolatedAsyncioTestCase):
     async def test_failed_file_transfer_spends_the_byte_path_budget_and_removes_unverified_file(self):
         (owner, api, _, client) = file_sources(total_bytes=8)
         client.stream.chunks = [b"tampered"]
+
         await owner.inspect()
 
         with (
@@ -744,6 +772,7 @@ class UploadFileAcquisitionTests(unittest.IsolatedAsyncioTestCase):
     async def test_same_length_corruption_never_returns_file_and_keeps_consumed_charge(self):
         (owner, _, _, client) = file_sources()
         client.stream.chunks = [b"tampered"]
+
         await owner.inspect()
 
         with (
@@ -759,6 +788,7 @@ class UploadFileAcquisitionTests(unittest.IsolatedAsyncioTestCase):
     async def test_failed_byte_transfer_cannot_regain_budget_by_switching_to_file_output(self):
         (owner, api, _, client) = file_sources(total_bytes=8)
         client.stream.chunks = [b"tampered"]
+
         await owner.inspect()
 
         with (

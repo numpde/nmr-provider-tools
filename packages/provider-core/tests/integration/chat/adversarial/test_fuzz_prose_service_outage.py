@@ -16,6 +16,7 @@ class ProseServiceOutageTests(unittest.IsolatedAsyncioTestCase):
         post_restoration = [job for job in affected if job["started_at"] >= result["restored_at"]]
         successful = [job for job in post_restoration if not job["failed"]]
         unavailable_requests = [request for request in requests if not request["available"]]
+
         self.assertGreater(result["backlog"], result["maximum_attempts"], msg=evidence)
         self.assertEqual(result["backlog"], len(affected), msg=evidence)
         self.assertEqual(len(jobs), len({job["name"] for job in jobs}), msg=evidence)
@@ -36,6 +37,7 @@ class ProseServiceOutageTests(unittest.IsolatedAsyncioTestCase):
         )
 
         first_success = min(successful, key=lambda job: job["finished_at"])
+
         self.assertGreaterEqual(first_success["finished_at"], result["restored_at"], msg=evidence)
 
         self.assertLessEqual(result["publication_times"][first_success["attempt_ref"]] - result["restored_at"],
@@ -50,6 +52,7 @@ class ProseServiceOutageTests(unittest.IsolatedAsyncioTestCase):
         release = next(event for event in result["trace"] if event["event"] == "original_jobs_api_receipt_released")
 
         healthy = next(event for event in result["trace"] if event["event"] == "healthy_report_published_during_outage")
+
         self.assertTrue(release["publisher_owns_request"], msg=evidence)
         self.assertTrue(healthy["prose_service_still_unavailable"], msg=evidence)
         self.assertLess(release["at"], healthy["at"], msg=evidence)
@@ -81,6 +84,7 @@ class ProseServiceOutageTests(unittest.IsolatedAsyncioTestCase):
         self.assertTrue(all(child["returncode"] is not None and not child["alive"] for child in result["children"]), msg=evidence)
         self.assertEqual(len(result["children"]), len({child["pid"] for child in result["children"]}), msg=evidence)
         (before, after) = (result["scientific_worker_before"], result["scientific_worker_after"])
+
         self.assertEqual(before["pid"], after["pid"], msg=evidence)
         self.assertNotEqual(result["provider_pid"], after["pid"], msg=evidence)
         self.assertEqual(1, after["model_loads"], msg=evidence)
@@ -110,6 +114,7 @@ class ProseServiceOutageTests(unittest.IsolatedAsyncioTestCase):
         for backlog in (12, 120):
             with self.subTest(backlog=backlog), tempfile.TemporaryDirectory() as directory:
                 result = await run_outage(Path(directory) / "outbox", mode="retry_after", backlog=backlog, seed=17)
+
                 self.assert_outage_recovered(result)
                 evidence = json.dumps(result, sort_keys=True)
 
@@ -137,8 +142,10 @@ class ProseServiceOutageTests(unittest.IsolatedAsyncioTestCase):
         for (mode, seed) in (("unavailable", 14), ("invalid_retry_after", 41), ("disconnect", 97), ("blocked", 23)):
             with self.subTest(mode=mode, seed=seed), tempfile.TemporaryDirectory() as directory:
                 result = await run_outage(Path(directory) / "outbox", mode=mode, backlog=12, seed=seed)
+
                 self.assert_outage_recovered(result)
 
                 if mode == "blocked":
                     diagnostics = json.dumps([job["diagnostic"] for job in result["jobs"] if job["failed"]])
+
                     self.assertIn('"exception_type": "TimeoutError"', diagnostics)

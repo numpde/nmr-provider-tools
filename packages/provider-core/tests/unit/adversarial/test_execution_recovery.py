@@ -95,6 +95,7 @@ class ObservationRecoveryFailureTests(unittest.IsolatedAsyncioTestCase):
 
                 self.calls.append((request, maximum_bytes))
                 (self.pending_owner, self.retirement_confirmed) = (owner, False)
+
                 entered.set()
 
                 try:
@@ -150,6 +151,7 @@ class ObservationRecoveryFailureTests(unittest.IsolatedAsyncioTestCase):
                 await asyncio.wait_for(task, 1)
 
             expired = failed.exception.cause
+
             self.assertIs(type(expired), ObservationGapExpired)
             self.assertTrue(expired.read_started)
 
@@ -179,6 +181,7 @@ class ObservationRecoveryFailureTests(unittest.IsolatedAsyncioTestCase):
             self.assertIn(("owned cause", expired.cause), tuple(owned_relationships(expired)))
             self.assertTrue(transport.retirement_confirmed)
             retained = await executor.retain_suppressed_disposition()
+
             self.assertIs(type(retained), SuppressedCheckpoint)
             self.assertIs(retained.reason, SuppressionReason.OBSERVATION_FAILED)
             self.assertFalse(hasattr(retained, "candidate"))
@@ -208,6 +211,7 @@ class ObservationRecoveryFailureTests(unittest.IsolatedAsyncioTestCase):
 
                 self.calls.append((request, maximum_bytes))
                 (self.pending_owner, self.retirement_confirmed) = (owner, False)
+
                 condition_sent.set()
 
                 try:
@@ -253,6 +257,7 @@ class ObservationRecoveryFailureTests(unittest.IsolatedAsyncioTestCase):
                 await asyncio.wait_for(task, 1)
 
             expired = failed.exception.cause
+
             self.assertIs(type(expired), ObservationGapExpired)
             self.assertFalse(expired.read_started)
             self.assertIsNone(expired.cause)

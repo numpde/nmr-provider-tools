@@ -47,6 +47,7 @@ def main():
 
             def hold_read(descriptor, maximum):
                 chunk = read(descriptor, maximum)
+
                 emit({"state": "reading", "byte_length": len(chunk)})
                 signal.pause()
                 raise RuntimeError("The scripted source-read hold unexpectedly resumed")

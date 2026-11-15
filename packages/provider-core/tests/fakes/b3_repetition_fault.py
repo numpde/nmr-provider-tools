@@ -98,6 +98,7 @@ async def scenario(marker, report, seed):
     claims = AttemptClaims.live(limits=LiveAttemptLimits(maximum_attempts=maximum_attempts))
     provider_stopping = asyncio.Event()
     scientific_worker = WarmWorker()
+
     await scientific_worker.start()
 
     class JobsControlTransport(Transport):
@@ -148,6 +149,7 @@ async def scenario(marker, report, seed):
 
             def capture_endpoint(*, exchange_seconds, connect_seconds):
                 endpoint = factory(exchange_seconds=exchange_seconds, connect_seconds=connect_seconds)
+
                 self.http_endpoints.append(endpoint)
 
                 return endpoint
@@ -177,6 +179,7 @@ async def scenario(marker, report, seed):
 
                 report_condition.require_execution()
                 self.scientific_prepare_calls += 1
+
                 await self.scientific_worker.call("prepare", self.job_ref)
                 self.handle = PreparedAnalysis(ProtectedEvidence("fixture.prepared_input.v1", self.job_ref.encode()))
 
@@ -237,6 +240,7 @@ async def scenario(marker, report, seed):
         async def submit(self, item):
             self.items.append(item)
             accepted = await self.inbox.storage(self.inbox.queue.enqueue, item)
+
             self.publisher.wake()
 
             return accepted
@@ -300,12 +304,14 @@ async def scenario(marker, report, seed):
 
     with ExitStack() as patches:
         command = (sys.executable, "-I", "-B", str(Path(__file__).resolve()), "http-worker", str(marker))
+
         patches.enter_context(patch("provider_core.chat_process._worker_command", return_value=command))
         patches.enter_context(patch.object(SupervisedChatTransport, "_stop", new=record_first_http_stop))
 
         async with TlsPeer("success", response_body=response_body, response_mode=prose_response_mode) as prose_peer:
             async with api_tls_peer("success", response_factory=jobs_api_response) as jobs_api_peer:
                 delivery_directory = report.parent / "delivery-state"
+
                 delivery_directory.mkdir(mode=0o700)
                 queue = DeliveryQueue(delivery_directory, limits=QueueLimits(16, 131072, 16, 131072))
 
@@ -336,6 +342,7 @@ async def scenario(marker, report, seed):
 
                 async def observe_completion_receipt(body, **settings):
                     receipt = await original_complete(body, **settings)
+
                     completion_receipts.append(receipt)
 
                     return receipt
@@ -376,6 +383,7 @@ async def scenario(marker, report, seed):
 
                     jobs.append((name, session, control_transport, controller))
                     controller_task = asyncio.create_task(controller.run(pending))
+
                     await asyncio.wait_for(asyncio.shield(controller_task), 8)
 
                     return (session, control_transport, controller)
@@ -409,6 +417,7 @@ async def scenario(marker, report, seed):
                             result["live_claims_at_acknowledgement_release"] = len(claims.live_owners())
                             result["original_api_request_owned_at_acknowledgement_release"] = delivery_transport.pending_owner is publisher
                             result["open_prose_connections_at_acknowledgement_release"] = sum(not task.done() for task in prose_peer.handlers)
+
                             release_api_receipt.set()
 
                             return

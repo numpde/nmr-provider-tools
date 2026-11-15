@@ -186,6 +186,7 @@ class UploadRecoveryCleanupTests(unittest.IsolatedAsyncioTestCase):
                         self.assertEqual(list(Path(root).iterdir()), [])
                         self.assertFalse(owner._transfer_owner.file_cleanup_pending)
                         record = owner.last_failure
+
                         self.assertIsInstance(record, UploadFailed)
 
                         if granted:
@@ -203,6 +204,7 @@ class UploadRecoveryCleanupTests(unittest.IsolatedAsyncioTestCase):
                             self.assertNotIn(interruption, record.cleanup_failures)
                         else:
                             first_group = record.cleanup_failures[0]
+
                             self.assertIs(first_group.exceptions[0], api_fatal)
                             self.assertEqual(caught.exception.exceptions, (first_group, store_fatal, record))
 
@@ -215,6 +217,7 @@ class UploadRecoveryCleanupTests(unittest.IsolatedAsyncioTestCase):
                         self.assertEqual(owner.requests_started, expected_requests)
                     finally:
                         blocked[0] = False
+
                         await api_retire()
                         await store_retire(owner=owner)
 

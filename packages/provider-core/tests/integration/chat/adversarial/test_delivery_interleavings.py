@@ -67,6 +67,7 @@ class DeliveryLifecycleInterleavings(unittest.IsolatedAsyncioTestCase):
                 await asyncio.wait_for(delivery.wait_for_offers(1), 6)
                 await asyncio.wait_for(original.session.retiring.wait(), 6)
                 (selected,) = delivery.offers
+
                 self.assertIs(type(original.controller.operation._checkpoint), TerminalSelectedCheckpoint)
 
                 self.assertEqual((1, 1),
@@ -180,10 +181,12 @@ class DeliveryLifecycleInterleavings(unittest.IsolatedAsyncioTestCase):
                     try:
                         await asyncio.wait_for(delivery.wait_for_offers(1), 6)
                         first = delivery.offers[0]
+
                         self.assertFalse(delivery.accepted.is_set())
                         delivery.answer(first_response)
                         await asyncio.wait_for(delivery.wait_for_offers(2), 6)
                         second = delivery.offers[1]
+
                         self.assertIs(first, second, "Retry replaced the immutable selected terminal")
 
                         self.assertEqual((first.key, first.body_sha256, first.body),
@@ -194,6 +197,7 @@ class DeliveryLifecycleInterleavings(unittest.IsolatedAsyncioTestCase):
                         self.assertFalse(run.controller.shutdown_ready)
                         delivery.answer("accepted")
                         result = await asyncio.wait_for(asyncio.shield(driver), 6)
+
                         self.assertIs(type(result), DeliveryAcceptedCheckpoint)
                         self.assertEqual(1, len(delivery.items))
                         self.assertIs(delivery.items[0], first)
@@ -239,6 +243,7 @@ class DeliveryLifecycleInterleavings(unittest.IsolatedAsyncioTestCase):
                     try:
                         await asyncio.wait_for(delivery.wait_for_offers(1), 6)
                         (original,) = delivery.offers
+
                         self.assertIs(type(run.controller.operation._checkpoint), TerminalSelectedCheckpoint)
                         delivery.answer(disposition)
 

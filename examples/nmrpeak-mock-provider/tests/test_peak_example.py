@@ -83,12 +83,14 @@ class PeakExampleTests(unittest.IsolatedAsyncioTestCase):
         """Change raw external deployment input; real startup still owns admission."""
         document = tomllib.loads(self.configuration.read_text(encoding="utf-8"))
         (configured,) = document["science"][variant]
+
         configured["settings"].update(changes)
         self.configuration.write_text(data=tomli_w.dumps(document), encoding="utf-8")
 
     async def test_external_deployment_settings_change_scientific_results(self):
         package = Path(str(resources.files(anchor="nmrpeak_mock_provider")))
         distribution = metadata.distribution(distribution_name="nmrpeak-mock-provider-example")
+
         self.assertEqual(first=package, second=Path(distribution.locate_file(path="nmrpeak_mock_provider")))
 
         for beam_size in (1, 2):
@@ -114,6 +116,7 @@ class PeakExampleTests(unittest.IsolatedAsyncioTestCase):
                             )
 
                             observed = await prediction_workflow.generation_submission.operation.observe(after=None, wait_seconds=0)
+
                             self.assertIs(expr1=ResultState.RELEASED, expr2=observed.result_state)
                             prediction_reports.append(prediction_report)
 
@@ -137,9 +140,11 @@ class PeakExampleTests(unittest.IsolatedAsyncioTestCase):
 
                     entries = selected[family]
                     configured["settings"]["beam_size"] = len(entries) + 1
+
                     entries.append(configured)
 
                 document["science"] = selected
+
                 self.configuration.write_text(data=tomli_w.dumps(document), encoding="utf-8")
 
                 async with self.open_provider() as provider:
@@ -164,6 +169,7 @@ class PeakExampleTests(unittest.IsolatedAsyncioTestCase):
     async def test_unknown_scientific_family_fails_during_real_startup(self):
         document = tomllib.loads(self.configuration.read_text(encoding="utf-8"))
         document["science"]["unknown"] = document["science"].pop("chf")
+
         self.configuration.write_text(data=tomli_w.dumps(document), encoding="utf-8")
 
         with self.assertRaisesRegex(expected_exception=ValueError, expected_regex="unsupported family='unknown'"):
@@ -191,6 +197,7 @@ class PeakExampleTests(unittest.IsolatedAsyncioTestCase):
                         self.fail(msg="Partial assembly must not yield a provider")
 
         (first,) = closed
+
         self.assertIsInstance(obj=first, cls=Hf)
 
     async def test_invalid_deployment_model_limits_fail_before_model_creation(self):
@@ -260,6 +267,7 @@ class PeakExampleTests(unittest.IsolatedAsyncioTestCase):
                     self.assertIsInstance(obj=raised.exception.__cause__, cls=StartDeadlineExpired)
                     self.assertIsNotNone(obj=prediction_workflow.preparation_tool.operation)
                     observed = await prediction_workflow.preparation_tool.operation.observe(after=None, wait_seconds=0)
+
                     self.assertTrue(expr=observed.finished)
                     self.assertIsNone(obj=prediction_workflow.preparation_tool.prepared_state_handle)
                 finally:
@@ -294,6 +302,7 @@ class PeakExampleTests(unittest.IsolatedAsyncioTestCase):
                 def lose_reply(*, invocation):
                     requests.append(invocation)
                     operation = submit(invocation=invocation)
+
                     operations.append(operation)
 
                     if len(requests) == 1:
@@ -321,6 +330,7 @@ class PeakExampleTests(unittest.IsolatedAsyncioTestCase):
             async with provider.open_prediction(offering=proton_formula_predictor, receive=RecordingReceiver()) as prediction_workflow:
                 await prediction_workflow.interpret(source="Formula and proton spectrum")
                 result_ref = await prediction_workflow.finish()
+
                 self.assertEqual(first=result_ref, second=await prediction_workflow.finish())
                 (reservation,) = prediction_workflow.analysis_executor.reservations
 
@@ -403,6 +413,7 @@ class PeakExampleTests(unittest.IsolatedAsyncioTestCase):
                     await prediction_workflow.interpret(source="Formula and proton spectrum")
 
             (model,) = models
+
             self.assertIs(expr1=original, expr2=raised.exception)
             self.assertEqual(first=[], second=receiver.payloads)
             self.assertIs(expr1=model, expr2=proton_formula_predictor.contribution.model)
@@ -418,6 +429,7 @@ class PeakExampleTests(unittest.IsolatedAsyncioTestCase):
 
         def create_model():
             model = Model()
+
             created.append(model)
 
             return model
@@ -427,6 +439,7 @@ class PeakExampleTests(unittest.IsolatedAsyncioTestCase):
             self.assertEqual(first=[], second=created)
 
         retirement = await provider.execution_host.retire().observe(after=None, wait_seconds=0)
+
         self.assertTrue(expr=retirement.settled)
         self.assertEqual(first=[], second=created)
 
@@ -443,6 +456,7 @@ class PeakExampleTests(unittest.IsolatedAsyncioTestCase):
                 await prediction_workflow.interpret(source="Formula and proton spectrum")
                 await asyncio.gather(prediction_workflow.deliver(), prediction_workflow.deliver())
                 result_consumer = prediction_workflow.result_consumer
+
                 await prediction_workflow.deliver()
                 self.assertIs(expr1=result_consumer, expr2=prediction_workflow.result_consumer)
                 self.assertEqual(first=2, second=len(self.factory.endpoints[0].requests))
@@ -474,6 +488,7 @@ class PeakExampleTests(unittest.IsolatedAsyncioTestCase):
                         self.assertIs(expr1=original, expr2=delivery_failure.exception)
 
                     retained = await prediction_workflow.generation_submission.operation.read_result(prediction_workflow.result_consumer.result)
+
                     self.assertEqual(first=attempts[0], second=retained)
                     self.assertFalse(expr=prediction_workflow.analysis_executor.closed)
 
@@ -546,6 +561,7 @@ class PeakExampleTests(unittest.IsolatedAsyncioTestCase):
 
         def create_model():
             model = Model()
+
             models.append(model)
 
             return model

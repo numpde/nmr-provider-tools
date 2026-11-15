@@ -47,6 +47,7 @@ class AcquisitionBundleTests(unittest.TestCase):
 
         for name in SOURCE_FILES:
             path = source / "host" / name
+
             path.parent.mkdir(parents=True, exist_ok=True)
             path.write_text("# cold source\n")
 
@@ -55,11 +56,13 @@ class AcquisitionBundleTests(unittest.TestCase):
 
         for (source_name, _issued_name) in INSTALLER_SOURCES:
             path = source / source_name
+
             path.parent.mkdir(parents=True, exist_ok=True)
             path.write_bytes((ROOT / source_name).read_bytes())
 
         installer = json.loads((source / "requirements/installer-release.json").read_text())
         payload = b"qualified installer fixture"
+
         (root / installer["name"]).write_bytes(payload)
         installer.update(size=len(payload), sha256=hashlib.sha256(payload).hexdigest())
         (source / "requirements/installer-release.json").write_text(json.dumps(installer))
@@ -99,16 +102,19 @@ class AcquisitionBundleTests(unittest.TestCase):
             (source, wheel, identity, pin) = self.fixture(root)
             (first, second) = (root / "first.tar.gz", root / "second.tar.gz")
             record = self.build(root, first, source, wheel, pin)
+
             self.assertEqual(record, self.build(root, second, source, wheel, pin))
             self.assertEqual(first.read_bytes(), second.read_bytes())
             expected = {"compose/acquisition.yml", "acquisition-manifest.json"} | set(SOURCE_FILES) | {"provider_core/" + name for name in PROXY_FILES} | {"linux_idmap/__init__.py"}
             installer = json.loads((source / "requirements/installer-release.json").read_text())
+
             expected.update(issued_name for (_source_name, issued_name) in INSTALLER_SOURCES)
             expected.add("acquisition_tool/installer/wheels/" + installer["name"])
 
             with tarfile.open(first, "r:gz") as archive:
                 self.assertEqual(expected, set(archive.getnames()))
                 manifest = json.load(archive.extractfile("acquisition-manifest.json"))
+
                 self.assertEqual("0.6.0", manifest["release_version"])
                 self.assertEqual("a" * 40, manifest["source_revision"])
                 self.assertEqual(expected - {"acquisition-manifest.json"}, set(manifest["payload_files"]))
@@ -135,6 +141,7 @@ class AcquisitionBundleTests(unittest.TestCase):
             root = Path(temporary)
             (source, wheel, identity, pin) = self.fixture(root)
             output = root / "bundle.tar.gz"
+
             (source / "host" / SOURCE_FILES[0]).unlink()
 
             with self.assertRaises(FileNotFoundError):
@@ -165,12 +172,15 @@ class AcquisitionBundleTests(unittest.TestCase):
                                   old_pin))
 
             archive_path = root / "bundle.tar.gz"
+
             self.build(root, archive_path, source, wheel, pin)
             extracted = root / "extracted"
+
             extracted.mkdir()
 
             with tarfile.open(archive_path) as archive:
                 archive.extractall(extracted, filter="data")
 
             manifest = verify(extracted)
+
             self.assertIn("linux_idmap/ordinary_new_module.py", manifest["payload_files"])

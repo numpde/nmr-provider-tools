@@ -22,8 +22,10 @@ class ControllerTests(unittest.IsolatedAsyncioTestCase):
 
     async def test_claim_exposes_only_its_current_authoritative_operation_owner(self):
         claim = AttemptClaims.live().claim_live(record(), lifecycle_owner=LiveAttemptProbe())
+
         self.assertIsNone(claim.operation_owner)
         owner = object()
+
         claim.begin(owner)
         self.assertIs(claim.operation_owner, owner)
         claim.finish(owner)
@@ -69,6 +71,7 @@ class ControllerTests(unittest.IsolatedAsyncioTestCase):
                                    task_settle_seconds=0.1)
 
         terminal = await second.run(record("second:start"))
+
         self.assertIsInstance(terminal, AcknowledgedAttempt)
         self.assertEqual(store.records, ())
         self.assertEqual(len(transport.calls), 1)
@@ -93,10 +96,12 @@ class ControllerTests(unittest.IsolatedAsyncioTestCase):
                                        task_settle_seconds=0.1)
 
         confirmed = await controller.run(record())
+
         self.assertIsInstance(confirmed, DeliveryAcceptedCheckpoint)
         self.assertEqual(store.records, ())
         self.assertEqual([event[0] for event in session.events], ["prepare", "execute", "retire"])
         released = claims.claim_live(record(), lifecycle_owner=LiveAttemptProbe())
+
         released.release(owner=released.lifecycle_owner)
         self.assertIsNone(await controller.settle())
 
@@ -126,10 +131,12 @@ class ControllerTests(unittest.IsolatedAsyncioTestCase):
                                                task_settle_seconds=0.1)
 
                 terminal = await controller.run(record())
+
                 self.assertIsInstance(terminal, AcknowledgedAttempt)
                 self.assertEqual(terminal.admission.state, state)
                 self.assertEqual(store.records, ())
                 self.assertEqual([event[0] for event in session.events], ["retire"])
                 self.assertEqual(len(transport.calls), 1)
                 released = claims.claim_live(record(), lifecycle_owner=LiveAttemptProbe())
+
                 released.release(owner=released.lifecycle_owner)

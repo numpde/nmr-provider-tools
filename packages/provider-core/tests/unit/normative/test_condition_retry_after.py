@@ -56,6 +56,7 @@ class ConditionRetryAfterTests(unittest.IsolatedAsyncioTestCase):
 
         self.assertIs(type(caught.exception.cause), ConditionRecoveryExpired)
         original = caught.exception.cause.cause
+
         self.assertIs(type(original), ApiFailure)
         self.assertEqual(original.status, 503)
         self.assertEqual(original.retry_after_seconds, 1)
@@ -87,6 +88,7 @@ class ConditionRetryAfterTests(unittest.IsolatedAsyncioTestCase):
         session = ReportingSession(store)
         executor = make_executor(store, claim, session, transport, window=2)
         terminal = await asyncio.wait_for(executor.run(acknowledged), 4)
+
         self.assertIs(terminal.selection.operation, TerminalOperation.COMPLETE)
         self.assertEqual(len(transport.condition_requests), 2)
         self.assertGreaterEqual(transport.put_times[2] - transport.put_times[1], 0.99)

@@ -102,6 +102,7 @@ class DecodedBodyTests(unittest.TestCase):
     def test_duplicate_header_fields_preserve_coding_order(self):
         body = b"answer"
         decoder = DecodedBody(((b"Content-Encoding", b"gzip"), (b"content-encoding", b"identity")), maximum_bytes=8192)
+
         self.assertEqual(decoder.feed(gzip.compress(body)), body)
         decoder.finish()
 
@@ -112,6 +113,7 @@ class DecodedBodyTests(unittest.TestCase):
             member.write(b"answer")
 
         intermediate = stream.getvalue()
+
         self.assertGreater(len(intermediate), 256)
         self.assertEqual(gzip.decompress(intermediate), b"answer")
 
@@ -123,6 +125,7 @@ class DecodedBodyTests(unittest.TestCase):
     def test_inflation_never_allocates_the_complete_oversized_entity(self):
         wire = gzip.compress(b"x" * (16 * 1024 * 1024))
         decoder = DecodedBody(((b"content-encoding", b"gzip"),), maximum_bytes=32)
+
         tracemalloc.start()
 
         try:
@@ -161,6 +164,7 @@ class DecodedBodyTests(unittest.TestCase):
                 DecodedBody((), maximum_bytes=limit)
 
         decoder = DecodedBody((), maximum_bytes=1)
+
         self.assertEqual(decoder.feed(b"x"), b"x")
         decoder.finish()
 
@@ -198,6 +202,7 @@ class DeflateTests(unittest.TestCase):
 
     def test_zlib_looking_raw_stream_is_an_explicit_profile_rejection(self):
         wire = b"\x78\x9c\x00\x63\xff" + b"x" * 156 + b"\x01\x00\x00\xff\xff"
+
         self.assertEqual(zlib.decompress(wire, -zlib.MAX_WBITS), b"x" * 156)
 
         for chunk in (1, 2, 7, len(wire)):
@@ -243,6 +248,7 @@ class DeflateTests(unittest.TestCase):
 
     def test_mixed_coding_order(self):
         body = b"answer"
+
         self.assertEqual(decoded(zlib.compress(gzip.compress(body)), coding=b"gzip,deflate", chunk=1), body)
         self.assertEqual(decoded(gzip.compress(self.raw(body)), coding=b"deflate,gzip", chunk=1), body)
 
@@ -250,6 +256,7 @@ class DeflateTests(unittest.TestCase):
         for encode in (zlib.compress, self.raw):
             wire = encode(b"x" * (16 * 1024 * 1024))
             decoder = DecodedBody(((b"content-encoding", b"deflate"),), maximum_bytes=32)
+
             tracemalloc.start()
 
             try:

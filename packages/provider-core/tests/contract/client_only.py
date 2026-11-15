@@ -38,6 +38,7 @@ class ExecutionUnavailable(importlib.abc.MetaPathFinder):
 
 async def prove_handoff():
     blocker = ExecutionUnavailable()
+
     sys.meta_path.insert(0, blocker)
 
     try:
@@ -56,6 +57,7 @@ async def prove_handoff():
 
     with tempfile.TemporaryDirectory() as temporary:
         root = Path(temporary)
+
         (root / "ipc").mkdir(mode=0o700)
         (root / "state").mkdir(mode=0o700)
         queue = store.DeliveryQueue(root / "state", limits=store.QueueLimits(1, 4096, 2, 8192))
@@ -71,12 +73,14 @@ async def prove_handoff():
         )
 
         client = client_module.DeliveryClient(endpoint, exchange_seconds=1, retirement_seconds=0.2)
+
         await inbox.start()
 
         try:
             reference = "execution_attempt:sha256:" + "a" * 64
             body = requests.fail_body(reference, "provider_interrupted", "Synthetic client-only qualification") + b"\n"
             item = store.DeliveryOutcome("https://api.example", "provider:test", "job:queue", reference, attempt.TerminalOperation.FAIL, body)
+
             assert await client.submit(item) == item.acceptance()
             assert queue.next_pending(item.api_origin, item.provider_ref) == item
             assert await client.submit(item) == item.acceptance()

@@ -204,6 +204,7 @@ async def shutdown_scenario(schedule, seed, directory, facts):
             async def dispatch(name, arguments, *, not_after):
                 report_condition.require_execution()
                 self.tool_dispatches += 1
+
                 raise AssertionError("The unanswered HTTPS request unexpectedly dispatched scientific work")
 
             tools = [{"type": "function",
@@ -216,10 +217,12 @@ async def shutdown_scenario(schedule, seed, directory, facts):
 
         async def execute(self, prepared, *, report_condition):
             self.execute_calls += 1
+
             raise AssertionError("The stopped Attempt unexpectedly executed science")
 
         async def retire(self):
             self.retire_calls += 1
+
             await self.interpreter.retire()
 
             if not self.interpreter.retirement_confirmed:
@@ -268,6 +271,7 @@ async def shutdown_scenario(schedule, seed, directory, facts):
         async def observed_wait():
             exit_observer_tasks.append(asyncio.current_task())
             returncode = await original_wait()
+
             child_exit_times.append(loop.time())
             note("operating_system_reported_child_exit", pid=child.pid, returncode=returncode)
             actual_child_exit.set()
@@ -284,6 +288,7 @@ async def shutdown_scenario(schedule, seed, directory, facts):
 
         child.wait = observed_wait
         child.send_signal = observed_signal
+
         note("operating_system_created_http_child", pid=child.pid)
         helper_created.set()
         await allow_creation_return.wait()
@@ -323,6 +328,7 @@ async def shutdown_scenario(schedule, seed, directory, facts):
         if schedule.ignore_stop_signals:
             fault_entrypoint = Path(__file__).resolve()
             command = (sys.executable, "-I", "-B", str(fault_entrypoint), "http-child", str(marker))
+
             patches.enter_context(patch.object(chat_process, "_worker_command", return_value=command))
 
         descriptors_before_launch = len(os.listdir("/proc/self/fd"))
@@ -371,6 +377,7 @@ async def shutdown_scenario(schedule, seed, directory, facts):
 
             await asyncio.wait_for(original_exchange.stop.wait(), 2)
             original_stop_time = original_exchange.stopped_at
+
             note("sdk_stopped_original_http_exchange")
 
             if exit_observation_held:
@@ -378,6 +385,7 @@ async def shutdown_scenario(schedule, seed, directory, facts):
 
             if schedule.stage in {"late_startup", "late_exit_observation", "concurrent_late_exit_observation"}:
                 allowance_elapsed = asyncio.Event()
+
                 loop.call_at(original_stop_time + cleanup_seconds + 0.05, allowance_elapsed.set)
                 await asyncio.wait_for(allowance_elapsed.wait(), 2)
                 note("original_http_cleanup_allowance_elapsed")
@@ -487,6 +495,7 @@ async def shutdown_scenario(schedule, seed, directory, facts):
             if schedule.stage in {"late_startup", "late_exit_observation", "concurrent_late_exit_observation"}:
                 probe_started = loop.time()
                 probe = asyncio.create_task(session.endpoint.retire())
+
                 await asyncio.wait({probe}, timeout=cleanup_seconds / 2)
                 facts["held"]["repeated_retirement_finished_without_new_allowance"] = probe.done()
                 facts["held"]["repeated_retirement_seconds"] = loop.time() - probe_started
@@ -501,8 +510,10 @@ async def shutdown_scenario(schedule, seed, directory, facts):
             allow_creation_return.set()
             allow_exit_observation.set()
             release_time = loop.time()
+
             note("test_released_original_os_observations")
             (result,) = await asyncio.wait_for(asyncio.gather(running, return_exceptions=True), 3)
+
             note("original_controller_run_finished", result_type=type(result).__name__)
             settlement_failures = []
             settle_deadline = loop.time() + 2
@@ -597,6 +608,7 @@ async def main(report, mode, seed):
                 schedule = ShutdownSchedule(stage, mode == "uncooperative_https", 1, 0, 0)
 
             current = {"seed": case_seed, "schedule": asdict(schedule), "trace": []}
+
             await shutdown_scenario(schedule, case_seed, report.parent, current)
             completed.append(current)
 
@@ -610,6 +622,7 @@ async def main(report, mode, seed):
                    "completed_scenarios": completed}
 
     temporary = report.with_suffix(".pending")
+
     temporary.write_text(json.dumps(verdict, sort_keys=True))
     temporary.replace(report)
     await asyncio.Event().wait()

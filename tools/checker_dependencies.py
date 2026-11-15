@@ -226,6 +226,7 @@ def install(packages, directory):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
+
     parser.add_argument("action", choices=("check", "capture", "download", "install"))
     parser.add_argument("--declaration", type=Path, required=True)
     parser.add_argument("--directory", type=Path, required=True)
@@ -237,6 +238,7 @@ def main():
 
     if args.installer is not None:
         record = installer_release(args.installer)
+
         artifacts.append(record | {"file": record["name"]})
 
     if args.action == "capture":

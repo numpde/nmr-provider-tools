@@ -25,6 +25,7 @@ class InterpreterFaultSequenceTests(unittest.IsolatedAsyncioTestCase):
 
             for visit in range(visits):
                 actions = ["inspect"] * randomizer.randrange(4) + ["reject"] * randomizer.randrange(3)
+
                 randomizer.shuffle(actions)
                 replies = []
 
@@ -82,6 +83,7 @@ class InterpreterFaultSequenceTests(unittest.IsolatedAsyncioTestCase):
 
                 models.append(model)
                 model.expected_requests = len(replies)
+
                 factories.append(create)
 
             unused = AsyncMock(side_effect=AssertionError("Accepted work must not visit another model."))
@@ -112,6 +114,7 @@ class InterpreterFaultSequenceTests(unittest.IsolatedAsyncioTestCase):
                 unused.assert_not_called()
                 self.assertEqual(sum(event[0] == "inspect" for event in events), expected_inspections)
                 accepted = events.index(("prepare", True))
+
                 self.assertTrue(all(event[0] == "retire" for event in events[accepted + 1:]))
 
                 for (visit, values) in deadlines.items():

@@ -25,6 +25,7 @@ class DeliveryIPCTests(unittest.IsolatedAsyncioTestCase):
 
         self.addCleanup(self.scratch.cleanup)
         root = Path(self.scratch.name)
+
         (root / "ipc").mkdir(mode=0o700)
         (root / "state").mkdir(mode=0o700)
         self.queue = DeliveryQueue(root / "state", limits=QueueLimits(1, 4096, 2, 8192))
@@ -52,9 +53,11 @@ class DeliveryIPCTests(unittest.IsolatedAsyncioTestCase):
     async def test_submit_and_inventory_prove_durability_without_exporting_payload(self):
         item = outcome()
         accepted = await self.client.submit(item)
+
         self.assertEqual(accepted, item.acceptance())
         self.assertEqual(self.queue.next_pending(item.api_origin, item.provider_ref), item)
         pending = await self.client.pending()
+
         self.assertEqual(pending["items"][0]["body_sha256"], item.body_sha256)
         self.assertNotIn("SCIENTIFIC_PAYLOAD_NEEDLE", json.dumps(pending))
         self.assertEqual(await self.client.status(item.execution_attempt_ref), pending["items"][0])
@@ -64,6 +67,7 @@ class DeliveryIPCTests(unittest.IsolatedAsyncioTestCase):
 
     async def test_full_queue_refuses_new_outcome_but_allows_identical_retry(self):
         item = outcome()
+
         await self.client.submit(item)
 
         with self.assertRaises(DeliveryFull):
@@ -76,6 +80,7 @@ class DeliveryIPCTests(unittest.IsolatedAsyncioTestCase):
         self.queue.limits = QueueLimits(MAX_PROVIDER_ITEMS, 8 * 1024 * 1024, MAX_PROVIDER_ITEMS, 8 * 1024 * 1024)
         self.inbox.request_seconds = 5
         client = DeliveryClient(self.endpoint, exchange_seconds=5, retirement_seconds=0.2)
+
         self.addAsyncCleanup(client.retire)
         expected = []
 
@@ -94,6 +99,7 @@ class DeliveryIPCTests(unittest.IsolatedAsyncioTestCase):
             expected.append(reference)
 
         pending = await client.pending()
+
         self.assertEqual(set(expected), {row["execution_attempt_ref"] for row in pending["items"]})
         self.assertTrue(all(row["held_reason"] == "🧪" * 512 for row in pending["items"]))
 
@@ -143,6 +149,7 @@ class DeliveryIPCTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(expected[-1].body_sha256, (await self.client.status(expected[-1].execution_attempt_ref))["body_sha256"])
         self.assertEqual(before, self.queue._db.execute("SELECT * FROM outstanding ORDER BY attempt_ref").fetchall())
         published = self.queue.next_pending(self.endpoint.api_origin, self.endpoint.provider_ref)
+
         self.assertEqual(expected[0], published)
         self.queue.remove_published(published)
         self.assertEqual(MAX_PROVIDER_ITEMS, len((await self.client.pending())["items"]))
@@ -150,6 +157,7 @@ class DeliveryIPCTests(unittest.IsolatedAsyncioTestCase):
 
     async def test_display_diagnostic_changes_do_not_block_ownership_or_capacity_reads(self):
         item = outcome()
+
         await self.client.submit(item)
 
         self.inbox.binding_status = lambda endpoint: {
@@ -159,6 +167,7 @@ class DeliveryIPCTests(unittest.IsolatedAsyncioTestCase):
         }
 
         pending = await self.client.pending()
+
         self.assertEqual(pending["items"][0]["body_sha256"], item.body_sha256)
         self.assertEqual(pending["capacity"]["provider_items"], 1)
         self.assertEqual(pending["publisher"]["diagnostics"], "display format changed")
@@ -173,6 +182,7 @@ class DeliveryIPCTests(unittest.IsolatedAsyncioTestCase):
 
             if not dropped and status == 200 and document == item.acceptance():
                 dropped = True
+
                 writer.close()
                 await writer.wait_closed()
 
@@ -193,12 +203,14 @@ class DeliveryIPCTests(unittest.IsolatedAsyncioTestCase):
     async def test_wrong_binding_explains_refusal_to_operator_without_echoing_request(self):
         endpoint = DeliveryEndpoint("https://private-canary.example", "provider:private-canary", self.endpoint.socket_path)
         client = DeliveryClient(endpoint, exchange_seconds=1, retirement_seconds=0.2)
+
         self.addAsyncCleanup(client.retire)
 
         with self.assertRaises(DeliveryRejected):
             await client.pending()
 
         (cause, facts) = self.failures.call_args.args
+
         self.assertIs(type(cause), DeliveryRequestRejected)
         self.assertIn("another API/provider", str(cause))
         self.assertEqual(owned_details(cause)["message"], str(cause))
@@ -209,6 +221,7 @@ class DeliveryIPCTests(unittest.IsolatedAsyncioTestCase):
 
     async def test_lost_status_response_does_not_claim_durable_enqueue(self):
         item = outcome()
+
         await self.client.submit(item)
 
         async def lose_status(connection, writer, status, document):
@@ -222,6 +235,7 @@ class DeliveryIPCTests(unittest.IsolatedAsyncioTestCase):
         self.assertIn("read delivery status", str(lost.exception))
         self.assertNotIn("retain", str(lost.exception).lower())
         (_, facts) = self.failures.call_args.args
+
         self.assertFalse(facts["durable_enqueue_confirmed"])
         self.assertEqual(self.queue.next_pending(item.api_origin, item.provider_ref), item)
 
@@ -238,6 +252,7 @@ class DeliveryIPCTests(unittest.IsolatedAsyncioTestCase):
             return self.queue.enqueue(item)
 
         waiter = asyncio.create_task(self.inbox.storage(blocked_enqueue))
+
         self.assertTrue(await asyncio.to_thread(started.wait, 1))
         waiter.cancel()
 
@@ -245,6 +260,7 @@ class DeliveryIPCTests(unittest.IsolatedAsyncioTestCase):
             await waiter
 
         closing = asyncio.create_task(self.inbox.close())
+
         await asyncio.sleep(0)
         self.assertFalse(closing.done())
         closing.cancel()
@@ -253,6 +269,7 @@ class DeliveryIPCTests(unittest.IsolatedAsyncioTestCase):
             await closing
 
         closing = asyncio.create_task(self.inbox.close())
+
         await asyncio.sleep(0)
         self.assertFalse(closing.done())
         release.set()
@@ -271,8 +288,10 @@ class DeliveryIPCTests(unittest.IsolatedAsyncioTestCase):
 
         writer = Mock()
         writer.wait_closed = stalled_close
+
         await asyncio.wait_for(self.inbox._client(self.endpoint, None, writer), 1)
         writer.transport.abort.assert_called_once()
         (cause, facts) = self.failures.call_args.args
+
         self.assertIsInstance(cause, TimeoutError)
         self.assertEqual(facts["event"], "delivery_ipc_close_failed")

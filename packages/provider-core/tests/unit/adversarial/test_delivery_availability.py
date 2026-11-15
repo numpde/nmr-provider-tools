@@ -30,16 +30,21 @@ class DeliveryAvailabilityTests(unittest.TestCase):
         for attribute in ("__cause__", "__context__"):
             with self.subTest(attribute=attribute):
                 primary = httpcore.ConnectError("PRIVATE_WRAPPER")
+
                 setattr(primary, attribute, FileNotFoundError(errno.ENOENT, "PRIVATE_PATH"))
                 failure = self.failure(primary)
+
                 self.assertTrue(self.client.can_retry(failure))
                 self.client.last_failure = None
+
                 self.assertFalse(self.client.can_retry(failure))
                 self.client.last_failure = failure
                 failure.cause.cleanup_failures = (OSError(errno.EIO, "PRIVATE_CLEANUP"),)
+
                 self.assertFalse(self.client.can_retry(failure))
                 failure.cause.cleanup_failures = ()
                 failure.cause.interruption = asyncio.CancelledError()
+
                 self.assertFalse(self.client.can_retry(failure))
 
     def test_explicit_tls_or_permission_cause_is_not_overridden_by_missing_file_context(self):
@@ -48,8 +53,10 @@ class DeliveryAvailabilityTests(unittest.TestCase):
                 primary = httpcore.ConnectError("PRIVATE_WRAPPER")
                 primary.__cause__ = cause
                 primary.__context__ = FileNotFoundError(errno.ENOENT, "PRIVATE_PATH")
+
                 self.assertFalse(self.client.can_retry(self.failure(primary)))
 
         unrelated = RuntimeError("PRIVATE_UNREVIEWED_WRAPPER")
         unrelated.__context__ = FileNotFoundError(errno.ENOENT, "PRIVATE_PATH")
+
         self.assertFalse(self.client.can_retry(self.failure(unrelated)))

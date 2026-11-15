@@ -42,6 +42,7 @@ class ProviderHttpShutdownTests(unittest.TestCase):
                 while time.monotonic() < deadline:
                     if report_path.exists():
                         report = json.loads(report_path.read_text())
+
                         break
 
                     if process.poll() is not None:
@@ -161,29 +162,35 @@ class ProviderHttpShutdownTests(unittest.TestCase):
 
     def test_active_attempt_stop_during_http_child_startup_retires_that_child(self):
         (facts,) = self.run_schedules("startup", 0)
+
         self.assert_unconfirmed_child_remains_owned(facts)
         self.assert_original_http_child_retired(facts)
 
     def test_active_attempt_stop_during_blocked_https_closes_child_and_connection(self):
         (facts,) = self.run_schedules("https_wait", 0)
+
         self.assert_original_http_child_retired(facts)
 
     def test_active_attempt_stop_kills_http_child_that_ignores_stop_signals(self):
         (facts,) = self.run_schedules("uncooperative_https", 0)
+
         self.assert_original_http_child_retired(facts)
 
     def test_late_http_child_startup_keeps_claim_while_exit_is_unconfirmed(self):
         (facts,) = self.run_schedules("late_startup", 0)
+
         self.assert_unconfirmed_child_remains_owned(facts)
         self.assert_original_http_child_retired(facts)
 
     def test_delayed_exit_observation_keeps_slot_and_does_not_renew_cleanup_deadline(self):
         (facts,) = self.run_schedules("late_exit_observation", 0)
+
         self.assert_unconfirmed_child_remains_owned(facts)
         self.assert_original_http_child_retired(facts)
 
     def test_seeded_shutdown_schedules_preserve_original_child_and_cleanup(self):
         scenarios = self.run_schedules("seeded", 24)
+
         self.assertEqual(24, len(scenarios))
 
         for facts in scenarios:
@@ -213,6 +220,7 @@ class ProviderHttpShutdownTests(unittest.TestCase):
         self.assertEqual(1, held["claim_count"])
 
         independent = facts["independent"]
+
         self.assertEqual("DeliveryAcceptedCheckpoint", independent["result_type"])
 
         self.assertEqual((1, 1, 1, 1, 1),

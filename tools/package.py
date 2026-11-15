@@ -111,6 +111,7 @@ def qualify_wheelhouse_bundle(bundle, scratch):
         raise ValueError("Cannot qualify wheelhouse bundle: projected artifact differs from the selected lock.")
 
     dockerfile = scratch / "Dockerfile"
+
     dockerfile.write_text("FROM scratch\n")
     manifest = scratch / "stream-manifest.json"
     report = scratch / "pip-report.json"
@@ -277,10 +278,12 @@ def qualify_acquisition_bundle(bundle, scratch, expected_source_files):
             )
 
     destination = scratch / "acquisition-source"
+
     destination.mkdir()
 
     for (name, member_bytes) in verified_sources.items():
         extracted_file = destination / name
+
         extracted_file.parent.mkdir(parents=True, exist_ok=True)
 
         with extracted_file.open("xb") as output:
@@ -500,6 +503,7 @@ def qualify_installed(wheel, lock, source, pool, root, suites):
         )
 
     test_root = root / "run"
+
     shutil.copytree(source / "tests", test_root / "tests")
 
     for suite in suites:
@@ -660,6 +664,7 @@ def check(artifacts, revision):
             )
 
         rebuild_output = scratch / "rebuilt"
+
         rebuild_output.mkdir()
 
         (rebuilt_wheel, rebuilt_lock, rebuilt_dependency_inputs) = build_candidate(
@@ -680,6 +685,7 @@ def check(artifacts, revision):
             )
 
         runtime_root = Path("/runtime/package-proof")
+
         runtime_root.mkdir()
 
         qualify_installed(
@@ -727,7 +733,9 @@ def check(artifacts, revision):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description=__doc__)
+
     parser.add_argument("--artifacts", type=Path, required=True)
     parser.add_argument("--revision", required=True)
     args = parser.parse_args()
+
     check(args.artifacts, args.revision)

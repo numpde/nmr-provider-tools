@@ -65,6 +65,7 @@ class SecsSourceReceivingTests(unittest.TestCase):
 
             def change_after_snapshot(*arguments, **options):
                 snapshot = read_upload_file(*arguments, **options)
+
                 Path(root, receipt.name).write_bytes(b"x" * len(original))
 
                 return snapshot
@@ -84,6 +85,7 @@ class SecsSourceReceivingTests(unittest.TestCase):
         with private_source_directory() as (root, directory):
             receipt = snapshot_source(root, body)
             access = SourceAccess({UPLOAD_REF: receipt}, Path(root), directory_fd=directory, max_upload_bytes=len(body))
+
             Path(root, receipt.name).write_bytes(b"x" * len(body))
 
             with (
@@ -236,6 +238,7 @@ class SecsSourceReceivingTests(unittest.TestCase):
     def test_encrypted_members_refuse_before_a_decoder_is_opened(self):
         body = bytearray(zip_bytes((("encrypted", b"value"),)))
         central = body.index(b"PK\x01\x02")
+
         struct.pack_into("<H", body, central + 8, 1)
         struct.pack_into("<H", body, 6, 1)
 
@@ -270,6 +273,7 @@ class SecsSourceReceivingTests(unittest.TestCase):
 
             def observe_view(contents):
                 stream = BytesIO(contents)
+
                 views.append(stream)
 
                 return stream
@@ -282,6 +286,7 @@ class SecsSourceReceivingTests(unittest.TestCase):
                 access.scope_reader(SourceRef(UPLOAD_REF)) as reader,
             ):
                 archive = reader._archive
+
                 raise consumer_failure
 
             self.assertIs(caught.exception, consumer_failure)

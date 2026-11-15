@@ -77,6 +77,7 @@ class DeliveryServiceTests(unittest.IsolatedAsyncioTestCase):
             try:
                 await asyncio.wait_for(service.ready.wait(), 1)
                 item = replace(outcome(), api_origin=peer.origin)
+
                 self.assertEqual(await client.submit(item), item.acceptance())
                 await asyncio.wait_for(self.published.wait(), 2)
                 self.assertEqual(peer.request_bodies, [item.body])
@@ -98,6 +99,7 @@ class DeliveryServiceTests(unittest.IsolatedAsyncioTestCase):
         async with api_tls_peer("success") as peer:
             (service, endpoint) = self.service(peer)
             original = asyncio.create_task(service.run())
+
             await asyncio.wait_for(service.ready.wait(), 1)
             client = DeliveryClient(endpoint, exchange_seconds=1, retirement_seconds=0.2)
             item = replace(outcome(), api_origin=peer.origin)
@@ -114,6 +116,7 @@ class DeliveryServiceTests(unittest.IsolatedAsyncioTestCase):
 
             service.queue.enqueue = delayed_enqueue
             submit = asyncio.create_task(client.submit(item))
+
             self.assertTrue(await asyncio.to_thread(started.wait, 1))
             service.request_stop()
 
@@ -162,6 +165,7 @@ class DeliveryServiceTests(unittest.IsolatedAsyncioTestCase):
                 await client.submit(replace(outcome(), api_origin=peer.origin))
                 await asyncio.wait_for(self.notice_changed.wait(), 1)
                 pending = await client.pending()
+
                 self.assertEqual(pending["publisher"]["state"], "paused")
                 self.assertIn("restart", pending["publisher"]["message"])
                 self.assertEqual(pending["items"][0]["state"], "pending")
@@ -208,10 +212,13 @@ class DeliveryServiceTests(unittest.IsolatedAsyncioTestCase):
 
             with patch.object(DeliveryInbox, "start", delayed_start):
                 original = asyncio.create_task(service.run())
+
                 await asyncio.wait_for(entered.wait(), 1)
                 item = replace(outcome(), api_origin=peer.origin)
+
                 service.queue.enqueue(item)
                 closing = asyncio.create_task(service.close())
+
                 await asyncio.sleep(0)
                 self.assertFalse(closing.done())
                 self.assertFalse(service.retirement_confirmed)
@@ -227,6 +234,7 @@ class DeliveryServiceTests(unittest.IsolatedAsyncioTestCase):
     async def test_changed_binding_refuses_startup_without_retargeting_original_pending_bytes(self):
         item = outcome()
         previous = DeliveryQueue(self.root / "state", limits=self.limits)
+
         previous.enqueue(item)
         previous.close()
 
@@ -269,6 +277,7 @@ class DeliveryServiceTests(unittest.IsolatedAsyncioTestCase):
                 failure_message="SCIENTIFIC_PAYLOAD_NEEDLE"
         )) as peer:
             notices = DeliveryNotices(BrokenStream(), secrets=())
+
             self.addCleanup(notices.close)
             (service, endpoint) = self.service(peer)
             (service.on_notice, service.diagnostic_status) = (notices, notices.status)
@@ -278,6 +287,7 @@ class DeliveryServiceTests(unittest.IsolatedAsyncioTestCase):
             try:
                 await asyncio.wait_for(service.ready.wait(), 1)
                 item = replace(outcome(), api_origin=peer.origin)
+
                 await client.submit(item)
 
                 async with asyncio.timeout(2):
@@ -305,12 +315,14 @@ class DeliveryServiceTests(unittest.IsolatedAsyncioTestCase):
         async with api_tls_peer("success") as peer:
             (template, first) = self.service(peer)
             bad_parent = self.root / "bad-grant"
+
             bad_parent.mkdir(mode=0o755)
             bad_parent.chmod(0o755)
             second = DeliveryEndpoint(peer.origin, "provider:other", bad_parent / "http.sock")
             other_api = api(HttpTransport(trust=peer.trust, exchange_seconds=1, retirement_seconds=0.2), peer.origin)
             output = io.StringIO()
             notices = DeliveryNotices(output, secrets=())
+
             self.addCleanup(notices.close)
 
             service = DeliveryService(
@@ -328,6 +340,7 @@ class DeliveryServiceTests(unittest.IsolatedAsyncioTestCase):
                 await service.run()
 
             report = json.loads(output.getvalue())
+
             self.assertEqual(report["event"], "delivery_binding_start_failed")
             self.assertEqual(report["provider_ref"], second.provider_ref)
             self.assertEqual(report["api_origin"], peer.origin)

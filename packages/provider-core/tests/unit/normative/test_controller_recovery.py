@@ -95,6 +95,7 @@ class ControllerRecoveryTests(unittest.IsolatedAsyncioTestCase):
             task_settle_seconds=0.1)
 
         accepted = await controller.run(record())
+
         self.assertIs(type(accepted), DeliveryAcceptedCheckpoint)
         self.assertEqual(attempted, [delivery.items[0].body] * 3)
         self.assertEqual(accepted.selection.body_sha256, delivery.items[0].body_sha256)

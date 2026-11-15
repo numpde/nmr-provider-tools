@@ -82,6 +82,7 @@ class ChatCarrierRejectionTests(unittest.IsolatedAsyncioTestCase):
             await endpoint.complete([{"role": "user", "content": prompt}], [])
 
         evidence = caught.exception.endpoint_error
+
         self.assertIn("Unsupported tool_choice", evidence["message"])
         self.assertEqual(evidence["code"], "unsupported_parameter")
         self.assertEqual(evidence["param"], "tool_choice")
@@ -151,6 +152,7 @@ class ChatCarrierRejectionTests(unittest.IsolatedAsyncioTestCase):
 
                     port = peer.server.sockets[0].getsockname()[1]
                     (reader, writer) = await asyncio.open_connection("127.0.0.1", port)
+
                     writer.write(outgoing.read())
                     await writer.drain()
                     await asyncio.wait_for(peer.handshake_received.wait(), 1)
@@ -169,6 +171,7 @@ class ChatCarrierRejectionTests(unittest.IsolatedAsyncioTestCase):
                          msg=[record.getMessage() for record in recorded.records])
 
         event = recorded.records[0]
+
         self.assertEqual("ERROR", event.levelname)
 
         self.assertEqual("Error on transport creation for incoming connection",
@@ -176,6 +179,7 @@ class ChatCarrierRejectionTests(unittest.IsolatedAsyncioTestCase):
 
         self.assertIsNotNone(event.exc_info)
         error = event.exc_info[1]
+
         self.assertIn(type(error), (ConnectionAbortedError, ConnectionResetError))
 
         if type(error) is ConnectionAbortedError:
@@ -274,6 +278,7 @@ class ChatCarrierRejectionTests(unittest.IsolatedAsyncioTestCase):
 
             self.addAsyncCleanup(endpoint.retire)
             task = asyncio.create_task(endpoint.complete([], []))
+
             await asyncio.wait_for(peer.received.wait(), 1)
             task.cancel()
 

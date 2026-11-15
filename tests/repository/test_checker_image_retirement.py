@@ -82,6 +82,7 @@ class ImageRetirementTests(unittest.TestCase):
 
     def test_obsolete_image_is_eligible_without_age_grace(self):
         newly_created = image(Created="2099-01-01T00:00:00Z")
+
         self.assertEqual([IDENTIFIER], select_images([newly_created], set(), CURRENT))
 
     def test_only_exact_obsolete_owned_id_is_removed(self):
@@ -97,12 +98,14 @@ class ImageRetirementTests(unittest.TestCase):
         for (borrowed, staged) in ((True, ()), (False, (IDENTIFIER,))):
             with self.subTest(borrowed=borrowed), tempfile.TemporaryDirectory() as directory:
                 engine = Engine(image(), borrower=borrowed)
+
                 self.assertEqual(0, retire(Path(directory), engine, lambda: CURRENT, staged=staged, operations=Path(directory)))
                 self.assertEqual([], engine.removals)
 
     def test_changed_alias_or_new_container_prevents_removal(self):
         with tempfile.TemporaryDirectory() as directory:
             engine = Engine(image(), changed=True)
+
             self.assertEqual(0, retire(Path(directory), engine, lambda: CURRENT, operations=Path(directory)))
             self.assertEqual([], engine.removals)
 
@@ -168,10 +171,13 @@ class ImageRetirementTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             operation = root / "nmr-provider-tools.abcdefgh"
+
             operation.mkdir()
             receipt = operation / "built-image"
+
             receipt.write_text(IDENTIFIER + "\n")
             engine = Engine(image())
+
             self.assertEqual(0, retire(root, engine, lambda: CURRENT, operations=root))
             self.assertEqual([], engine.removals)
             self.assertEqual(retained_image_ids(root), {IDENTIFIER})
@@ -182,6 +188,7 @@ class ImageRetirementTests(unittest.TestCase):
             receipt.write_text(IDENTIFIER + "\n\n")
             self.assertEqual(retained_image_ids(root), set())
             unrelated = root / "other-owner"
+
             unrelated.mkdir()
             (unrelated / "built-image").write_text(IDENTIFIER)
             self.assertEqual(retained_image_ids(root), set())

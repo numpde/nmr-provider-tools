@@ -46,6 +46,7 @@ class SharedServiceCancellationTests(unittest.IsolatedAsyncioTestCase):
 
             with tempfile.TemporaryDirectory() as directory:
                 root = Path(directory)
+
                 (root / "state").mkdir(mode=0o700)
                 (root / "ipc").mkdir(mode=0o700)
                 limits = QueueLimits(2, 8192, 4, 16384)
@@ -73,10 +74,12 @@ class SharedServiceCancellationTests(unittest.IsolatedAsyncioTestCase):
                         await asyncio.wait_for(service.ready.wait(), 5)
                         endpoint = DeliveryEndpoint(peer.origin, item.provider_ref, root / "ipc/socket")
                         client = SharedDeliveryClient(endpoint, material, exchange_seconds=2, retirement_seconds=1)
+
                         self.assertEqual(await client.submit(item), handoff.acceptance())
                         await asyncio.wait_for(peer.received.wait(), 5)
                         worker = service.workers[item.key[:2]]
                         api = worker.api
+
                         service._worker_tasks[item.key[:2]].cancel()
 
                         with self.assertRaisesRegex(RuntimeError, "worker was cancelled"):
@@ -108,6 +111,7 @@ class SharedServiceCancellationTests(unittest.IsolatedAsyncioTestCase):
 
                 try:
                     retained = queue.next_pending_handoff(item.api_origin, item.provider_ref)
+
                     self.assertEqual(retained.outcome, item)
                     self.assertEqual(retained.publication_bytes(), handoff.publication_bytes())
                 finally:

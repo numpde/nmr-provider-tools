@@ -16,6 +16,7 @@ class ExampleDependencyTests(unittest.TestCase):
         for dependency in ("provider-core==0.6.19", "provider-core[api]==0.6.19"):
             with self.subTest(dependency=dependency), TemporaryDirectory() as directory:
                 example = Path(directory) / "example"
+
                 example.mkdir()
 
                 (example / "pyproject.toml").write_text(data=(
@@ -39,6 +40,7 @@ class ExampleDependencyTests(unittest.TestCase):
         ):
             with self.subTest(dependencies=dependencies), TemporaryDirectory() as directory:
                 example = Path(directory) / "example"
+
                 example.mkdir()
 
                 (example / "pyproject.toml").write_text(data=(

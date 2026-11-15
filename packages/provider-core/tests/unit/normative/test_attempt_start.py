@@ -38,6 +38,7 @@ class AttemptStartTests(unittest.IsolatedAsyncioTestCase):
             self.assertEqual(result.state, state)
             self.assertEqual(result.started_at.isoformat(), "2026-10-18T00:00:00+00:00")
             (first, second) = (item[0] for item in transport.calls)
+
             self.assertEqual(first.content, body)
             self.assertEqual(second.content, body)
             self.assertEqual(first.headers["Content-Digest"], second.headers["Content-Digest"])
@@ -52,6 +53,7 @@ class AttemptStartTests(unittest.IsolatedAsyncioTestCase):
 
     def test_builder_preserves_explicit_key_without_inventing_identity(self):
         body = start_body("job:example", "persisted:key-1")
+
         self.assertIs(type(body), bytes)
 
         self.assertEqual(

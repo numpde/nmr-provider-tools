@@ -57,6 +57,7 @@ class UploadRecoveryExhaustionTests(unittest.IsolatedAsyncioTestCase):
                 await owner.acquire_file(UPLOAD_REF, directory_fd=directory, retirement_seconds=0.1)
 
         (failure, original) = (caught.exception, owner.recovery_failure)
+
         self.assertIs(failure.cause, original)
         self.assertIs(failure.response, original.response)
         self.assertIs(failure.cleanup_failures, original.cleanup_failures)

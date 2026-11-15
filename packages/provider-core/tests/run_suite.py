@@ -173,6 +173,7 @@ class _FailureSummaryResult(unittest.TextTestResult):
 
             if "tests" in components:
                 location = "/".join(components[components.index("tests"):]) + f":{frame.lineno}"
+
                 break
 
         if location == "(no traceback)" and frames:
@@ -277,6 +278,7 @@ def main():
         suite.addTests(selected)
 
     result = unittest.TextTestRunner(verbosity=2, resultclass=_FailureSummaryResult).run(suite)
+
     _print_failure_summary(result, selection, sys.stderr)
 
     # silent-defaults: allow-contract -- Unittest success determines the process success or failure exit status.

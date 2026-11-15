@@ -33,6 +33,7 @@ class GeneratedTruncationTests(unittest.TestCase):
     def test_generated_content_length_truncation_is_rejected(self, body, tunnel, data):
         cut = data.draw(st.integers(0, len(body) - 1), label="received entity bytes")
         wire = b"HTTP/1.1 200 OK\r\nContent-Length: " + str(len(body)).encode() + b"\r\n\r\n" + body[:cut]
+
         asyncio.run(self.assert_rejected(wire, tunnel, decoded=False))
 
     @settings(max_examples=32, deadline=None, database=None)
@@ -41,6 +42,7 @@ class GeneratedTruncationTests(unittest.TestCase):
         framed = format(len(body), "x").encode() + b"\r\n" + body + b"\r\n0\r\n\r\n"
         cut = data.draw(st.integers(0, len(framed) - 1), label="received chunk framing bytes")
         wire = b"HTTP/1.1 200 OK\r\nTransfer-Encoding: chunked\r\n\r\n" + framed[:cut]
+
         asyncio.run(self.assert_rejected(wire, tunnel, decoded=False))
 
     @settings(max_examples=24, deadline=None, database=None)
@@ -48,4 +50,5 @@ class GeneratedTruncationTests(unittest.TestCase):
     def test_truncated_gzip_with_complete_http_framing_is_rejected(self, body, tunnel, missing):
         encoded = gzip.compress(body)[:-missing]
         wire = fixed_response(encoded, headers=b"Content-Encoding: gzip\r\n")
+
         asyncio.run(self.assert_rejected(wire, tunnel, decoded=True))

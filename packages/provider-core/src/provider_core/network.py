@@ -220,6 +220,7 @@ class OwnedNetworkBackend(httpcore.AsyncNetworkBackend):
 
     def _own(self, raw):
         stream = _OwnedStream(raw, self)
+
         self._streams.add(stream)
 
         return stream

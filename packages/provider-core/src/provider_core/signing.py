@@ -86,6 +86,7 @@ class SigningIdentity:
 
     def __post_init__(self):
         (origin, authority) = _https_origin(self.origin)
+
         require_credential_ref(self.credential_ref)
 
         if not isinstance(self.private_key, Ed25519PrivateKey):

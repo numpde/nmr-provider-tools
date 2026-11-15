@@ -32,6 +32,7 @@ class SharedDeliveryConfigurationTests(unittest.TestCase):
 
             queue = DeliveryQueue(root, limits=QueueLimits(2, 8192, 4, 16384))
             item = outcome()
+
             queue.enqueue(item)
             queue.hold_legacy_rows()
             queue.enqueue(outcome(suffix="1"))
@@ -53,6 +54,7 @@ class SharedDeliveryConfigurationTests(unittest.TestCase):
                 delivery_discard.main()
 
             result = json.loads(output.getvalue())
+
             self.assertEqual(result["held"][0]["execution_attempt_ref"], item.execution_attempt_ref)
             self.assertEqual(result["pending"][0]["execution_attempt_ref"], outcome(suffix="1").execution_attempt_ref)
             self.assertNotIn("SCIENTIFIC_PAYLOAD_NEEDLE", output.getvalue())
@@ -60,6 +62,7 @@ class SharedDeliveryConfigurationTests(unittest.TestCase):
     def test_atomic_reload_changes_admission_and_worker_retry_retains_last_good(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
+
             (root / "state").mkdir(mode=0o700)
             path = root / "settings.toml"
 
@@ -85,6 +88,7 @@ class SharedDeliveryConfigurationTests(unittest.TestCase):
                 live_configuration=live)
 
             service.queue = DeliveryQueue(root / "state", limits=settings.limits)
+
             self.addCleanup(service.queue.close)
             worker = SimpleNamespace(retry_initial_seconds=1, retry_max_seconds=10, policy_changed=asyncio.Event())
             service.workers[("https://api.example", "provider:example")] = worker
@@ -100,12 +104,14 @@ class SharedDeliveryConfigurationTests(unittest.TestCase):
             (_, _, material) = api_settings_with_material(fields, Mock(return_value=encoded(document())))
             first = DeliveryHandoff(outcome(provider="provider:example"), material)
             second = DeliveryHandoff(outcome(provider="provider:example", suffix="1"), material)
+
             service.queue.enqueue_handoff(first)
 
             with self.assertRaises(DeliveryFull):
                 service.queue.enqueue_handoff(second)
 
             replacement = root / "replacement.toml"
+
             write(replacement, 2, 3)
             replacement.replace(path)
             service._reload()
@@ -113,6 +119,7 @@ class SharedDeliveryConfigurationTests(unittest.TestCase):
             self.assertEqual(service.queue.enqueue_handoff(second), second.acceptance())
             path.write_text("[outbox\n")
             service.next_reload = 0
+
             service._reload()
             self.assertEqual(service.queue.limits.provider_items, 2)
             self.assertEqual(worker.retry_initial_seconds, 3)

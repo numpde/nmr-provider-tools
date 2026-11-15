@@ -37,6 +37,7 @@ class PreparedHandleSession(LiveSession):
 
     async def retire(self):
         self.retirement_calls += 1
+
         await super().retire()
         self.retired_handle = self.returned_handle
 
@@ -68,6 +69,7 @@ class PreparedHandleRevocationTests(unittest.IsolatedAsyncioTestCase):
             for delayed in (False, True):
                 with self.subTest(stop=stop, delayed_retirement=delayed):
                     (claims, session) = (AttemptClaims.live(), PreparedHandleSession())
+
                     session.release.clear()
                     revoked = reply(observation(**stop))
 

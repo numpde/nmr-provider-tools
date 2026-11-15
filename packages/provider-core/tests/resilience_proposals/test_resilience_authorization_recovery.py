@@ -89,6 +89,7 @@ class AuthorizationRecoveryTests(unittest.IsolatedAsyncioTestCase):
 
             with tempfile.TemporaryDirectory() as directory:
                 root = Path(directory)
+
                 (root / "state").mkdir(mode=0o700)
                 (root / "ipc").mkdir(mode=0o700)
                 limits = QueueLimits(4, 16384, 8, 32768)
@@ -102,6 +103,7 @@ class AuthorizationRecoveryTests(unittest.IsolatedAsyncioTestCase):
 
                 with ServiceProxyServer(root / "proxy.sock", "lo", policy, status_directory=root) as proxy:
                     thread = threading.Thread(target=proxy.serve_forever, kwargs={"poll_interval": 0.01})
+
                     thread.start()
                     published = asyncio.Event()
 
@@ -132,10 +134,12 @@ class AuthorizationRecoveryTests(unittest.IsolatedAsyncioTestCase):
                         self.assertEqual(bad_signatures, [], "A terminal request changed its retained signing identity")
                         inventory = service.queue.inventory(peer.origin, "provider:test")
                         retained = [row for row in inventory if row["execution_attempt_ref"] == items[0].execution_attempt_ref]
+
                         self.assertEqual(len(retained), 1, "The refused first handoff must remain recoverable")
                         self.assertIn(retained[0]["state"], ("pending", "held"))
                         self.assertEqual(retained[0]["body_sha256"], items[0].body_sha256)
                         original = DeliveryHandoff(items[0], materials[0])
+
                         self.assertEqual(service.queue.enqueue_handoff(original), original.acceptance())
 
                         self.assertTrue(published.is_set(),
@@ -143,6 +147,7 @@ class AuthorizationRecoveryTests(unittest.IsolatedAsyncioTestCase):
                     finally:
                         primary = sys.exception()
                         cleanup_failures = []
+
                         service.request_stop()
 
                         try:

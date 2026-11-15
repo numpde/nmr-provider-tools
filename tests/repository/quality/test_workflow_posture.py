@@ -72,6 +72,7 @@ class WorkflowPostureTests(unittest.TestCase):
     def test_unreviewed_workflow_cannot_expand_deferred_ci_scope(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
+
             (root / "unreviewed.yml").write_text("name: unreviewed\n", encoding="utf-8")
 
             with patch(f"{__name__}.WORKFLOW_ROOT", root), self.assertRaises(AssertionError):

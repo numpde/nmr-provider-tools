@@ -56,11 +56,13 @@ class MagnetAdaptationTests(unittest.IsolatedAsyncioTestCase):
             acknowledged = await AttemptStarter.live(client, claim, scope=store.scope).start(pending)
             executor = self._executor(client, store, claim, session)
             terminal = await executor.run(acknowledged)
+
             self.assertIs(type(terminal), DeliveryAcceptedCheckpoint)
             interpreter.assert_awaited_once_with(SOURCE)
             worker.assert_awaited_once_with({"smiles": "  CCO  ", "h_solvent": "CDCl3", "c_solvent": "CDCl3"})
             sent = json.loads(executor.delivery.items[0].body)
             content = base64.b64decode(sent["canonical_result_base64"])
+
             self.assertEqual(content, expected_bytes)
             self.assertEqual(json.loads(content), expected)
             self.assertEqual(json.loads(content)["prediction"]["future_binding_field"], {"retain": "exact product-owned content"})
@@ -116,6 +118,7 @@ class MagnetAdaptationTests(unittest.IsolatedAsyncioTestCase):
 
             self.assertIs(failed.exception.cause, indeterminate)
             (entered,) = store.records
+
             self.assertIs(type(entered), EnteredCheckpoint)
             self.assertTrue(session.retired)
             self.assertTrue(executor.work_settled)

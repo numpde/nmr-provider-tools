@@ -205,6 +205,7 @@ def build(pool, output, source, core_wheel, pin, *, revision, wheelhouse_bundle)
                     member.mtime = 315532800
                     member.uid = member.gid = 0
                     member.uname = member.gname = ""
+
                     archive.addfile(member, io.BytesIO(data))
 
         temporary.flush()

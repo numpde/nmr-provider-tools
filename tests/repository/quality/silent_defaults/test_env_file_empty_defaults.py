@@ -39,6 +39,7 @@ class EnvFileEmptyDefaultsTest(unittest.TestCase):
 
     def test_env_assignment_matcher_flags_blank_assignments(self) -> None:
         match = ENV_ASSIGNMENT_RE.match("OCI_TOKEN=")
+
         self.assertIsNotNone(match)
         assert match is not None
         self.assertEqual("", match.group("value"))

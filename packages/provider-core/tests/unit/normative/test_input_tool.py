@@ -61,23 +61,29 @@ class SchemaTests(unittest.TestCase):
 
     def test_nested_dataclass_objects_are_closed(self):
         schema = self.codec.json_schema()
+
         self.assertIs(expr1=False, expr2=schema["additionalProperties"])
         peak = schema["$defs"]["Peak"]
+
         self.assertIs(expr1=False, expr2=peak["additionalProperties"])
         self.assertEqual(first=["integral"], second=peak["required"])
 
     def test_defaults_and_required_nullable_fields_remain_distinct(self):
         schema = self.codec.json_schema()
+
         self.assertEqual(first={"peaks", "pair", "annotation"}, second=set(schema["required"]))
         self.assertEqual(first=7, second=schema["properties"]["count"]["default"])
         alternatives = schema["properties"]["annotation"]["anyOf"]
+
         self.assertIn(member={"type": "null"}, container=alternatives)
         decoded = self.codec.decode(payload=b'{"peaks":[],"pair":[1,"a"],"annotation":null}')
+
         self.assertEqual(first=7, second=decoded.count)
         self.assertIsNone(obj=decoded.annotation)
 
     def test_fixed_tuple_retains_position_and_length(self):
         pair = self.codec.json_schema()["properties"]["pair"]
+
         self.assertEqual(first=[{"type": "integer"}, {"type": "string"}], second=pair["prefixItems"])
         self.assertEqual(first=2, second=pair["minItems"])
         self.assertEqual(first=2, second=pair["maxItems"])
@@ -85,33 +91,40 @@ class SchemaTests(unittest.TestCase):
     def test_variadic_tuple_uses_its_nested_record_definition(self):
         schema = self.codec.json_schema()
         peaks = schema["properties"]["peaks"]
+
         self.assertEqual(first="array", second=peaks["type"])
         self.assertEqual(first={"$ref": "#/$defs/Peak"}, second=peaks["items"])
         self.assertIn(member="Peak", container=schema["$defs"])
 
     def test_enum_and_literal_choices_are_preserved(self):
         schema = self.codec.json_schema()
+
         self.assertEqual(first=["hf", "chf"], second=schema["$defs"]["Family"]["enum"])
         self.assertEqual(first=["source", "corrected"], second=schema["properties"]["label"]["enum"])
 
     def test_recursive_record_keeps_root_relative_references(self):
         schema = JsonDataclassCodec(format="node.v1", value_type=Node).json_schema()
+
         self.assertEqual(first="#/$defs/Node", second=schema["$ref"])
         node = schema["$defs"]["Node"]
+
         self.assertIs(expr1=False, expr2=node["additionalProperties"])
         self.assertIn(member={"$ref": "#/$defs/Node"}, container=node["properties"]["next"]["anyOf"])
 
     def test_exported_schema_documents_do_not_share_mutable_state(self):
         first = self.codec.json_schema()
+
         first["$defs"]["Peak"]["properties"].clear()
         first["required"].clear()
         second = self.codec.json_schema()
+
         self.assertIn(member="integral", container=second["$defs"]["Peak"]["properties"])
         self.assertIn(member="peaks", container=second["required"])
 
     def test_schema_generation_does_not_change_scientific_construction(self):
         self.codec.json_schema()
         peak = Peak(integral="provider code can construct its own Python object")
+
         self.assertEqual(first=str, second=type(peak.integral))
 
         with self.assertRaises(expected_exception=TypeError):
@@ -119,6 +132,7 @@ class SchemaTests(unittest.TestCase):
 
     def test_runtime_rejects_lexical_and_unknown_field_cases_schema_cannot_admit_for_it(self):
         codec = JsonDataclassCodec(format="peak.v1", value_type=Peak)
+
         codec.json_schema()
 
         for payload in (
@@ -155,6 +169,7 @@ class ScientificInputToolDefinitionTests(unittest.IsolatedAsyncioTestCase):
 
     def test_definition_uses_selected_call_and_direct_record_parameters(self):
         function = self.tool_definition.definition["function"]
+
         self.assertEqual(first="prepare", second=function["name"])
         self.assertEqual(first=self.call_binding.input_codec.json_schema(), second=function["parameters"])
         self.assertNotIn(member="value", container=function["parameters"]["properties"])
@@ -229,5 +244,6 @@ class ScientificInputToolDefinitionTests(unittest.IsolatedAsyncioTestCase):
         )
 
         constraint = json.loads(s=constraint_reply["content"])["value"]
+
         self.assertTrue(expr=constraint["required"])
         self.assertIn(member={"type": "null"}, container=constraint["schema"]["anyOf"])

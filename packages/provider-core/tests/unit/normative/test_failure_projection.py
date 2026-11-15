@@ -35,6 +35,7 @@ class CoreFailureProjectionTests(unittest.TestCase):
                 raise RuntimeError("PRIVATE_PROPERTY_CANARY")
 
         failure = ExchangeFailed("Observed failure", network_io=HostileObservation())
+
         self.assertEqual(owned_details(failure), {"message": "Observed failure"})
         self.assertNotIn("PRIVATE_PROPERTY_CANARY", repr(failure_evidence(failure, secrets=())))
 
@@ -43,11 +44,13 @@ class CoreFailureProjectionTests(unittest.TestCase):
             with self.subTest(kind=kind):
                 failure = kind("Selected deployment input was refused")
                 failure.__cause__ = ValueError("PRIVATE_PARSE_DETAIL")
+
                 self.assertEqual(owned_details(failure), {"message": str(failure)})
 
     def test_decoded_rejection_projects_only_the_closed_reason_and_safe_message(self):
         failure = DecodedBodyRejected("invalid_encoding")
         failure.__cause__ = ValueError("PRIVATE_ENCODING_DETAIL")
+
         self.assertEqual(owned_details(failure), {"message": str(failure), "reason": "invalid_encoding"})
         self.assertNotIn("PRIVATE", repr(owned_details(failure)))
 
@@ -82,20 +85,25 @@ class CoreFailureProjectionTests(unittest.TestCase):
 
         self.assertNotIn("PRIVATE", repr(details))
         details["status"] = 200
+
         self.assertEqual(owned_details(failure)["status"], 503)
 
     def test_chat_uses_complete_response_before_transport_head_and_reads_late_metadata(self):
         exchange = ExchangeFailed("Response body did not finish", primary=TimeoutError())
         failure = ChatFailed("exchange_failed", "Cannot complete this model exchange", cause=exchange)
+
         self.assertNotIn("status", owned_details(failure))
         exchange.response_head = HttpResponseHead(429, ((b"x-request-id", b"request:head"), (b"set-cookie", b"PRIVATE")))
+
         self.assertEqual(owned_details(failure)["status"], 429)
         self.assertEqual(owned_details(failure)["request_id"], "request:head")
         failure.response = HttpResponse(503, ((b"x-request-id", b"request:complete"),), b"PRIVATE_BODY")
+
         self.assertEqual(owned_details(failure)["status"], 503)
         self.assertEqual(owned_details(failure)["request_id"], "request:complete")
         self.assertNotIn("PRIVATE", repr(owned_details(failure)))
         exchange.response_head = HttpResponseHead(429, ((b"x-request-id", b"one"), (b"x-request-id", b"two")))
+
         self.assertIsNone(owned_details(exchange)["request_id"])
 
     def test_transport_edges_preserve_original_identity_order_and_independent_cleanup(self):
@@ -148,6 +156,7 @@ class CoreFailureProjectionTests(unittest.TestCase):
                 )
 
                 failure.grant_issued = True
+
                 self.assertTrue(owned_details(failure)["grant_issued"])
 
                 self.assertEqual(
@@ -192,12 +201,14 @@ class CoreFailureProjectionTests(unittest.TestCase):
             )
 
             details = owned_details(failure)
+
             self.assertEqual(details["acknowledgement_received"], acknowledgement is active)
             self.assertEqual("observed_attempt_state" in details, acknowledgement is active)
 
         for received in (False, True):
             failure = DeliveryWorkerFailed(cause=OSError(), api_failure=None, cleanup_failures=(), api_receipt_received=received)
             details = owned_details(failure)
+
             self.assertEqual(details["api_receipt_received"], received)
             self.assertNotIn("PRIVATE", repr(details))
 
@@ -210,6 +221,7 @@ class CoreFailureProjectionTests(unittest.TestCase):
         )
 
         details = owned_details(execution)
+
         self.assertTrue(details["outcome_in_memory"])
         self.assertIs(execution.attempt, active)
         self.assertEqual(details["job_ref"], active.admission.job_ref)
@@ -231,8 +243,10 @@ class CoreFailureProjectionTests(unittest.TestCase):
         failure.delivery_acceptance = {"body_sha256": "sha256:" + "b" * 64}
         (failure.delivery_failure, failure.handoff_interruption) = (cause, interruption)
         details = owned_details(failure)
+
         self.assertTrue(details["delivery_acceptance_received"])
         self.assertNotIn("api_receipt_received", details)
         relationships = list(owned_relationships(failure))
+
         self.assertIn(("local delivery failure", cause), relationships)
         self.assertIn(("handoff interruption", interruption), relationships)

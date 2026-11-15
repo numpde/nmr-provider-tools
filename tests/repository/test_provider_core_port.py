@@ -14,8 +14,10 @@ from tests.repository.quality.sources import ROOT
 class ProviderCorePortTests(unittest.TestCase):
     def test_donor_files_and_distinct_test_methods_remain_accounted_for(self):
         manifest = json.loads((ROOT / "tests/repository/provider-core-sources.json").read_text())
+
         self.assertEqual("d09b77b951551c977e36bc87b5822315a4d1e944", manifest["commit"])
         paths = [entry["path"] for entry in manifest["files"]]
+
         self.assertEqual(len(paths), len(set(paths)))
 
         for entry in manifest["files"]:
@@ -48,6 +50,7 @@ class ProviderCorePortTests(unittest.TestCase):
 
                 if "retired_test_methods" in entry:
                     retired = entry["retired_test_methods"]
+
                     self.assertTrue(all(reason.strip() for reason in retired.values()))
                     self.assertLessEqual(set(retired), expected)
                     self.assertFalse(set(retired) & present)
@@ -55,6 +58,7 @@ class ProviderCorePortTests(unittest.TestCase):
 
                 if "replaced_test_methods" in entry:
                     replacements = entry["replaced_test_methods"]
+
                     self.assertLessEqual(set(replacements), expected)
                     self.assertLessEqual(set(replacements.values()), present)
                     expected -= set(replacements)

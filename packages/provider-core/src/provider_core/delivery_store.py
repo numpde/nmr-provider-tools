@@ -93,6 +93,7 @@ class DeliveryOutcome:
             )
 
         parser = read_complete_body if self.operation is TerminalOperation.COMPLETE else read_fail_body
+
         parser(self.body, execution_attempt_ref=self.execution_attempt_ref)
 
     @property
@@ -166,6 +167,7 @@ class DeliveryQueue:
 
             fcntl.flock(self._lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
             descriptor = self._private_file(directory / "delivery.sqlite3")
+
             os.close(descriptor)
             self._db = sqlite3.connect(directory / "delivery.sqlite3", check_same_thread=False, timeout=1)
 

@@ -55,9 +55,11 @@ def certificate_material():
 def handshake(client_context, certificate, key, hostname):
     with tempfile.TemporaryDirectory() as directory:
         root = Path(directory)
+
         (root / "cert.pem").write_bytes(certificate)
         (root / "key.pem").write_bytes(key)
         server_context = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
+
         server_context.load_cert_chain(root / "cert.pem", root / "key.pem")
 
     (client_in, client_out, server_in, server_out) = (ssl.MemoryBIO() for _ in range(4))
@@ -101,10 +103,13 @@ class CapturedModelTrustTests(unittest.TestCase):
     def test_non_ca_leaf_survives_json_transfer_and_enforces_hostname(self):
         trust = https_trust(self.certificate, label="fixture")
         leaf_der = ssl.PEM_cert_to_DER_cert(self.certificate.decode("ascii"))
+
         self.assertNotIn(leaf_der, trust.get_ca_certs(binary_form=True))
         snapshot = json.loads(json.dumps(capture_trust(trust)))
+
         self.assertEqual(base64.b64decode(snapshot["materials"][0]["data"]), self.certificate)
         restored = restore_trust(snapshot)
+
         self.assertEqual(restored.cert_store_stats(), trust.cert_store_stats())
         self.assertIn(handshake(restored, self.certificate, self.key, "model.fixture"), ("TLSv1.2", "TLSv1.3"))
 
@@ -116,6 +121,7 @@ class CapturedModelTrustTests(unittest.TestCase):
 
         with tempfile.TemporaryDirectory() as directory:
             bundle = Path(directory) / "bundle.pem"
+
             bundle.write_bytes(self.certificate)
             selected = ssl.DefaultVerifyPaths(str(bundle), None, "SSL_CERT_FILE", str(bundle), "SSL_CERT_DIR", directory)
 
@@ -134,6 +140,7 @@ class CapturedModelTrustTests(unittest.TestCase):
 
         self.assertEqual(captured.get_ciphers(), legacy.get_ciphers())
         restored = restore_trust(capture_trust(captured))
+
         self.assertIn(handshake(restored, self.certificate, self.key, "model.fixture"), ("TLSv1.2", "TLSv1.3"))
 
     def test_stricter_native_runtime_defaults_are_preserved_without_changing_explicit_pem_policy(self):
@@ -142,6 +149,7 @@ class CapturedModelTrustTests(unittest.TestCase):
         reference.minimum_version = ssl.TLSVersion.TLSv1_3
         reference.hostname_checks_common_name = False
         reference.post_handshake_auth = True
+
         reference.set_ciphers("ECDHE-RSA-AES128-GCM-SHA256:@SECLEVEL=2")
 
         with patch("provider_core.chat_tls.ssl.create_default_context", return_value=reference):
@@ -163,6 +171,7 @@ class CapturedModelTrustTests(unittest.TestCase):
             self.assertEqual(context.security_level, reference.security_level)
 
         constructor_policy = ssl.SSLContext(ssl.PROTOCOL_TLS_CLIENT)
+
         self.assertEqual(explicit.verify_flags, constructor_policy.verify_flags)
         self.assertEqual(explicit.minimum_version, constructor_policy.minimum_version)
 
@@ -172,6 +181,7 @@ class CapturedModelTrustTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             bundle = root / "bundle.pem"
+
             bundle.write_bytes(self.certificate + self.crl)
             (root / "01234567.0").write_bytes(self.certificate)
             (root / "01234567.r0").write_bytes(self.crl)
@@ -179,6 +189,7 @@ class CapturedModelTrustTests(unittest.TestCase):
             snapshot = json.loads(json.dumps(capture_trust(trust)))
 
         restored = restore_trust(snapshot)
+
         self.assertEqual(restored.cert_store_stats(), trust.cert_store_stats())
         self.assertEqual(1, restored.cert_store_stats()["crl"])
         self.assertIn(handshake(restored, self.certificate, self.key, "model.fixture"), ("TLSv1.2", "TLSv1.3"))
@@ -189,8 +200,10 @@ class CapturedModelTrustTests(unittest.TestCase):
         for name in ("FFFFFFFF.0", "44a46a84.1"):
             with self.subTest(name=name), tempfile.TemporaryDirectory() as directory:
                 root = Path(directory)
+
                 (root / name).write_bytes(self.certificate)
                 trust = CapturedSSLContext(ssl.PROTOCOL_TLS_CLIENT)
+
                 trust.load_verify_locations(capath=root)
                 snapshot = json.loads(json.dumps(capture_trust(trust)))
 
@@ -203,6 +216,7 @@ class CapturedModelTrustTests(unittest.TestCase):
 
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
+
             (root / "44a46a84.0").write_bytes(self.certificate)
             trust.load_verify_locations(capath=root)
             self.assertIn(handshake(trust, self.certificate, self.key, "model.fixture"), ("TLSv1.2", "TLSv1.3"))
@@ -211,6 +225,7 @@ class CapturedModelTrustTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as grant:
             restored = restore_trust(snapshot, directory=grant)
             files = list(Path(grant).glob("capath-*/*"))
+
             self.assertEqual([path.name for path in files], ["44a46a84.0"])
             self.assertEqual(files[0].read_bytes(), self.certificate)
             self.assertIn(handshake(restored, self.certificate, self.key, "model.fixture"), ("TLSv1.2", "TLSv1.3"))
@@ -220,6 +235,7 @@ class CapturedModelTrustTests(unittest.TestCase):
 
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
+
             (root / "44a46a84.0").write_bytes(self.certificate)
             trust.load_verify_locations(capath=root)
 
@@ -228,6 +244,7 @@ class CapturedModelTrustTests(unittest.TestCase):
 
         def observed_directory(*args, **kwargs):
             result = native_directory(*args, **kwargs)
+
             created.append(Path(result.name))
 
             return result
@@ -239,8 +256,10 @@ class CapturedModelTrustTests(unittest.TestCase):
         self.assertFalse(created[0].exists())
         restored = restore_trust(snapshot)
         restored_directory = Path(restored._chat_directory.name)
+
         self.assertTrue(restored_directory.is_dir())
         reference = weakref.ref(restored)
+
         del restored
         gc.collect()
         self.assertIsNone(reference())
@@ -256,10 +275,13 @@ class CapturedModelTrustTests(unittest.TestCase):
 
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
+
             (root / "44a46a84.0").write_bytes(trusted)
             trust = CapturedSSLContext(ssl.PROTOCOL_TLS_CLIENT)
+
             trust.load_verify_locations(capath=root)
             snapshot = json.loads(json.dumps(capture_trust(trust)))
+
             self.assertEqual(base64.b64decode(snapshot["materials"][0]["entries"][0]["data"]), trusted)
 
             with self.assertRaises(ssl.SSLCertVerificationError) as original:
@@ -290,6 +312,7 @@ class CapturedModelTrustTests(unittest.TestCase):
 
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
+
             (root / "cert.pem").write_bytes(self.certificate)
             (root / "key.pem").write_bytes(self.key)
             trust.load_cert_chain(root / "cert.pem", root / "key.pem")

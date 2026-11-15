@@ -123,6 +123,7 @@ class SupervisedChatTransport:
     def _stop(self, exchange, primary, *, at=None):
         if exchange.stopped_at is None:
             exchange.stopped_at = asyncio.get_running_loop().time() if at is None else at
+
             self._fail(exchange, primary, "Cannot complete interpreter HTTP exchange: the original operation was interrupted")
             exchange.stop.set()
 
@@ -262,6 +263,7 @@ class SupervisedChatTransport:
 
     async def _io(self, exchange, raw, maximum_bytes, error_maximum_bytes):
         process = exchange.process
+
         process.stdin.write(framed(raw))
         await process.stdin.drain()
         process.stdin.close()
@@ -288,6 +290,7 @@ class SupervisedChatTransport:
                 return False
 
             remaining = max(0, exchange.deadline - asyncio.get_running_loop().time())
+
             await asyncio.wait({task, stop}, timeout=remaining, return_when=asyncio.FIRST_COMPLETED)
 
             if exchange.stopped_at is None and asyncio.get_running_loop().time() >= exchange.deadline:
@@ -350,6 +353,7 @@ class SupervisedChatTransport:
 
                     if isinstance(reply, ExchangeFailed):
                         exchange.failure = reply
+
                         exchange.cleanup_failures.extend(reply.cleanup_failures)
                     else:
                         exchange.response = reply
@@ -371,6 +375,7 @@ class SupervisedChatTransport:
 
             if exchange.cleanup_task.cancelled():
                 cause = RuntimeError("Interpreter child cleanup owner was cancelled before confirming retirement")
+
                 self._fail(exchange, cause, "Cannot retire interpreter HTTP child: original cleanup was interrupted")
                 exchange.cleanup_failures.append(cause)
             else:

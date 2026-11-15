@@ -21,10 +21,12 @@ def make_invocation_owners(makefile: str, invocation: str) -> list[str]:
             if line == "endef":
                 owner = None
                 in_define = False
+
                 continue
         elif line.startswith("override define "):
             owner = f"define {line.removeprefix('override define ')}"
             in_define = True
+
             continue
         elif line and not line.startswith("\t") and not line.lstrip().startswith("#"):
             (rule_targets, separator, _) = line.partition(":")

@@ -46,6 +46,7 @@ class ChildRetirementTests(unittest.IsolatedAsyncioTestCase):
 
             self.assertIsInstance(failed.exception.cause, ChildChannelClosed)
             process = session.child.process
+
             self.assertIsNone(process.returncode)
             self.assertEqual(session.source_reply["content_hash"], session.source.content_hash)
             self.assertEqual(session.source_reply["marker"], "acquired-source-observed")
@@ -97,9 +98,11 @@ class ChildRetirementTests(unittest.IsolatedAsyncioTestCase):
             (store, acknowledged, claim, session, source, source_api) = await self._source_resources(cleanup, "block_read")
             executor = self._executor(store, claim, session)
             task = asyncio.create_task(executor.run(acknowledged))
+
             cleanup.push_async_callback(self._cancel_executor, task)
             await asyncio.wait_for(session.reading_started.wait(), 2)
             process = session.child.process
+
             self.assertIsNone(process.returncode)
             self.assertTrue(source.exists())
             self.assertEqual(session.source_read_reply, {"state": "reading", "byte_length": session.source.byte_length})
@@ -155,12 +158,14 @@ class ChildRetirementTests(unittest.IsolatedAsyncioTestCase):
         source_api.member = replace(source_api.member, byte_length=len(body), content_hash=digest)
         source_api.grant = replace(source_api.grant, byte_length=len(body), content_hash=digest)
         client = Client(Stream([body]), headers=store_headers(body))
+
         await acquisition.inspect()
 
         with patch("provider_core.transport.httpcore.AsyncConnectionPool", return_value=client):
             receipt = await acquisition.acquire_file(UPLOAD_REF, directory_fd=descriptor, retirement_seconds=0.1)
 
         session = UploadChildSession(store, mode, receipt, directory_fd=descriptor)
+
         cleanup.push_async_callback(session.stop_child)
 
         return (store, acknowledged, claim, session, Path(root, receipt.name), source_api)
@@ -170,6 +175,7 @@ class ChildRetirementTests(unittest.IsolatedAsyncioTestCase):
             (store, acknowledged, claim, session) = await self._resources(cleanup, "success")
             executor = self._executor(store, claim, session)
             terminal = await self._run(cleanup, executor, acknowledged)
+
             self.assertIs(type(terminal), DeliveryAcceptedCheckpoint)
             self.assertIs(terminal.selection.operation, TerminalOperation.COMPLETE)
             self.assertEqual(session.phases, [AcknowledgedCheckpoint, EnteredCheckpoint])
@@ -192,6 +198,7 @@ class ChildRetirementTests(unittest.IsolatedAsyncioTestCase):
             (store, acknowledged, claim, session) = await self._resources(cleanup, "reject")
             executor = self._executor(store, claim, session, preparation_only=True)
             terminal = await self._run(cleanup, executor, acknowledged)
+
             self.assertIs(terminal.selection.operation, TerminalOperation.FAIL)
             self.assertIs(type(terminal.selection.attempt), AcknowledgedCheckpoint)
             self.assertEqual(session.generations, 0)
@@ -204,9 +211,11 @@ class ChildRetirementTests(unittest.IsolatedAsyncioTestCase):
             (store, acknowledged, claim, session) = await self._resources(cleanup, "block")
             executor = self._executor(store, claim, session)
             task = asyncio.create_task(executor.run(acknowledged))
+
             cleanup.push_async_callback(self._cancel_executor, task)
             await asyncio.wait_for(session.generation_started.wait(), 2)
             original_process = session.child.process
+
             self.assertIsNone(original_process.returncode)
             task.cancel()
 
@@ -230,6 +239,7 @@ class ChildRetirementTests(unittest.IsolatedAsyncioTestCase):
                 await self._run(cleanup, executor, acknowledged)
 
             original_process = session.child.process
+
             self.assertIsInstance(failed.exception.cause, ChildChannelClosed)
             self.assertIsNone(original_process.returncode)
             self.assertTrue(any(isinstance(cause, ChildStopUnconfirmed) for cause in failed.exception.cleanup_failures))
@@ -259,6 +269,7 @@ class ChildRetirementTests(unittest.IsolatedAsyncioTestCase):
         directory = cleanup.enter_context(tempfile.TemporaryDirectory())
         (store, acknowledged, claim) = await live_attempt()
         session = ChildSession(store, mode)
+
         cleanup.push_async_callback(session.child.stop)
 
         return (store, acknowledged, claim, session)
@@ -275,6 +286,7 @@ class ChildRetirementTests(unittest.IsolatedAsyncioTestCase):
 
     async def _run(self, cleanup, executor, acknowledged):
         task = asyncio.create_task(executor.run(acknowledged))
+
         cleanup.push_async_callback(self._cancel_executor, task)
 
         return await self._finished(task)

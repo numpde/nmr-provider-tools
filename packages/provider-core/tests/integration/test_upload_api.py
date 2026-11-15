@@ -26,6 +26,7 @@ class UploadApiIntegrationTests(unittest.IsolatedAsyncioTestCase):
                     )
 
                     observed = await api.read_grant("job:example", UPLOAD_REF) if granting else await api.uploads("job:example")
+
                     self.assertEqual(observed.job_ref, "job:example")
                     await asyncio.wait_for(peer.closed.wait(), 1)
                     self.assertEqual(len(peer.requests), 1)
@@ -48,6 +49,7 @@ class UploadApiIntegrationTests(unittest.IsolatedAsyncioTestCase):
             )
 
             request = asyncio.create_task(api.read_grant("job:example", UPLOAD_REF))
+
             await asyncio.wait_for(peer.received.wait(), 1)
             request.cancel()
 

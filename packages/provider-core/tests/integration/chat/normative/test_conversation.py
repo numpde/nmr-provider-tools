@@ -26,6 +26,7 @@ class ConversationTests(unittest.IsolatedAsyncioTestCase):
             return ToolFinished("selected")
 
         result = await conversation.run([], [], dispatch)
+
         self.assertEqual(result.correction_failures, ((1, rejection),))
         self.assertIs(result.correction_failures[0][1].__cause__, cause)
         self.assertEqual(json.loads(result.observation)["corrections"], 1)
@@ -46,6 +47,7 @@ class ConversationTests(unittest.IsolatedAsyncioTestCase):
             return ToolFinished("selected")
 
         result = await conversation.run([], [], dispatch)
+
         self.assertEqual(result.endpoint_failures, ((0, failure),))
         self.assertIsInstance(result.endpoint_failures, tuple)
         self.assertNotIn(b"Earlier request", result.observation)
@@ -77,12 +79,15 @@ class ConversationTests(unittest.IsolatedAsyncioTestCase):
 
         conversation = ToolConversation((first, second), max_turns=3, secrets=())
         result = await conversation.run([{"role": "user", "content": "fixture request"}], [], dispatch)
+
         self.assertEqual(result.value, "submitted")
         self.assertEqual(effects, ["prepare", "submit"])
         transcript = second.complete.call_args.args[0]
+
         self.assertEqual(transcript[1]["reasoning_content"], "fixture reasoning")
         self.assertEqual(json.loads(transcript[2]["content"]), {"reference": "owned-reference"})
         observed = json.loads(result.observation)
+
         self.assertEqual(observed["turns_started"], 3)
 
         self.assertEqual(

@@ -50,6 +50,7 @@ def _configure_proxy_logging(level):
         raise ValueError("Cannot configure proxy logging: choose INFO, DEBUG or WARNING.")
 
     handler = logging.StreamHandler(sys.stderr)
+
     handler.addFilter(_proxy_routine_record)
     handler.setFormatter(CredentialRedactingFormatter("%(asctime)s %(levelname)s %(name)s: %(message)s"))
     logging.basicConfig(level=logging.WARNING, handlers=[handler], force=True)
@@ -258,9 +259,11 @@ class LiveProxyConfiguration:
 
     def apply(self, server, settings):
         server.policy = settings.policy
+
         server._slots.set_limit(settings.max_connections)
         server.max_admission_delay_seconds = settings.max_admission_delay_seconds
         server.admission_order = settings.admission_order
+
         logging.getLogger("provider_core.proxy").setLevel(settings.log_level)
 
     def refresh(self, server):
@@ -368,6 +371,7 @@ class ServiceProxyServer(bound_http_proxy.ProxyServer):
             return
 
         ready_at = time.monotonic() + delay_seconds
+
         self.pending.append((ready_at, ready_at + bound_http_proxy.HEADER_SECONDS, request, client_address))
         self._start_waiting()
 
@@ -412,6 +416,7 @@ class ServiceProxyServer(bound_http_proxy.ProxyServer):
     def server_close(self):
         while self.pending:
             (_, _, request, _) = self.pending.popleft()
+
             self.shutdown_request(request)
 
         super().server_close()
@@ -529,6 +534,7 @@ def socket_grant(path, ready, *, socket_group_id=None):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
+
     parser.add_argument("--interface", required=True)
     parser.add_argument("--mode", choices=("local", "mapped", "external"), required=True)
     parser.add_argument("--authority", action="append")
@@ -566,6 +572,7 @@ def main():
 
         if args.live_config is None:
             policy = ServicePolicy.admit(args.mode, args.authority, addresses)
+
             _configure_proxy_logging(args.log_level)
         else:
             if not args.live_config.is_absolute():
@@ -574,6 +581,7 @@ def main():
             live = LiveProxyConfiguration(args.live_config, args.mode)
             settings = live.read()
             policy = settings.policy
+
             _configure_proxy_logging(settings.log_level)
 
         bound_http_proxy.require_interface(args.interface)

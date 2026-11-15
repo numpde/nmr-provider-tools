@@ -202,6 +202,7 @@ class EmbeddedHostTests(unittest.IsolatedAsyncioTestCase):
 
     async def success(self, operation, codec: PayloadCodec):
         observation = await self.finished(operation)
+
         self.assertIs(Outcome.SUCCEEDED, observation.outcome)
         self.assertEqual((), observation.failures)
         self.assertIs(ResultState.AVAILABLE, observation.result_state)
@@ -231,6 +232,7 @@ class EmbeddedHostTests(unittest.IsolatedAsyncioTestCase):
         )
 
         original_invocation = operation.invocation
+
         self.assertIs(operation, analysis.submit(original_invocation))
 
         another = analysis.submit_call(
@@ -243,6 +245,7 @@ class EmbeddedHostTests(unittest.IsolatedAsyncioTestCase):
 
         self.assertIsNot(operation, another)
         (_, result) = await self.success(operation, binding.run.result_codec)
+
         self.assertEqual(science.SumResult(total=9, count=2), result)
 
     async def test_local_submission_rejects_unbound_and_nonmember_targets(self):
@@ -307,6 +310,7 @@ class EmbeddedHostTests(unittest.IsolatedAsyncioTestCase):
 
         operation.request_stop()
         observed = await self.finished(operation)
+
         self.assertIs(DispatchState.NOT_STARTED, observed.dispatch)
         self.assertIsNone(observed.outcome)
         self.assertTrue(any(isinstance(failure.cause, PermissionError) for failure in observed.failures))
@@ -322,6 +326,7 @@ class EmbeddedHostTests(unittest.IsolatedAsyncioTestCase):
 
         science.load_model(model)
         direct_analysis = science.create_analysis(model)
+
         science.initialize_analysis(direct_analysis)
 
         prepared = science.prepare(
@@ -446,6 +451,7 @@ class EmbeddedHostTests(unittest.IsolatedAsyncioTestCase):
         )
 
         operation = analysis.submit(invocation)
+
         operation.request_stop()
         stopped = await self.finished(operation)
 
@@ -629,9 +635,11 @@ class EmbeddedHostTests(unittest.IsolatedAsyncioTestCase):
                     await slot.reference(binding.prepare, view)
 
         handle = await slot.reference(binding.prepare, operation)
+
         self.assertEqual(operation.reference, handle.producer)
         self.assertEqual("normalized", observed.states[0].name)
         argument = binding.prepared_input.bind(handle)
+
         self.assertEqual("candidate", argument.name)
 
         (_, result) = await self.success(
@@ -686,6 +694,7 @@ class EmbeddedHostTests(unittest.IsolatedAsyncioTestCase):
 
         consumer.request_stop()
         denied = await self.finished(consumer)
+
         self.assertIs(DispatchState.NOT_STARTED, denied.dispatch)
         self.assertIsNone(denied.outcome)
         self.assertTrue(any(isinstance(failure.cause, PermissionError) for failure in denied.failures))
@@ -794,11 +803,14 @@ class EmbeddedHostTests(unittest.IsolatedAsyncioTestCase):
         )
 
         (completed, expected_result) = await self.success(operation, call.result_codec)
+
         await self.settled(analysis.close())
 
         retained_payload = await operation.read_result(completed.result)
+
         self.assertEqual(expected_result, call.result_codec.decode(retained_payload))
         release = operation.release_result(completed.result)
+
         self.assertIs(release, operation.release_result(completed.result))
         await self.settled(release)
         self.assertIs(release, operation.release_result(completed.result))
@@ -829,6 +841,7 @@ class EmbeddedHostTests(unittest.IsolatedAsyncioTestCase):
             context: CallContext[None, None, science.SumInput, NoState],
         ) -> ScientificReturn[science.SumResult]:
             returned = original_call.scientific_call(context)
+
             retained.append(returned.value)
 
             return replace(returned, dispose_value=disposed.append)
@@ -1049,6 +1062,7 @@ class EmbeddedHostTests(unittest.IsolatedAsyncioTestCase):
             instance: science.WeightedSumModel,
         ) -> science.WeightedSumAnalysis:
             analysis_state = science.create_analysis(instance)
+
             created_analyses.append(analysis_state)
 
             return analysis_state
@@ -1108,6 +1122,7 @@ class EmbeddedHostTests(unittest.IsolatedAsyncioTestCase):
             context: CallContext[None, None, science.SumInput, NoState],
         ) -> ScientificReturn[science.SumResult]:
             control = context.require_control()
+
             loop.call_soon_threadsafe(entered.set)
 
             while not control.stop_requested:

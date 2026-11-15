@@ -58,6 +58,7 @@ class ObservationRetryAfterTests(unittest.IsolatedAsyncioTestCase):
             waits.append(timeout)
             awaitable.close()
             clock.now += timeout
+
             raise TimeoutError
 
         namespace.wait_for = wait

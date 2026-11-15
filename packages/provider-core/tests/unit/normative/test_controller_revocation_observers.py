@@ -11,9 +11,11 @@ class RevocationObserverTests(unittest.IsolatedAsyncioTestCase):
     async def pending_revocation(self):
         fixture = revocation_fixture.RevocationContinuationTests()
         session = revocation_fixture.PendingPreparation()
+
         session.release.clear()
         controller = fixture.controller(session)
         failure = await fixture.stopped(controller)
+
         self.addAsyncCleanup(self.finish_original, controller, session)
 
         return (controller, session, failure)
@@ -61,6 +63,7 @@ class RevocationObserverTests(unittest.IsolatedAsyncioTestCase):
 
         async def held_delivery_retirement():
             controller.delivery.retirement_confirmed = False
+
             delivery_retiring.set()
 
             try:
@@ -90,6 +93,7 @@ class RevocationObserverTests(unittest.IsolatedAsyncioTestCase):
             self.assertFalse(controller.shutdown_ready)
             self.assertTrue(controller._claims.owns_job(scope(), record().input.job_ref))
             resumed = asyncio.create_task(controller.settle_revocation(failure))
+
             delivery_release.set()
             observed = await asyncio.wait_for(resumed, 1)
 

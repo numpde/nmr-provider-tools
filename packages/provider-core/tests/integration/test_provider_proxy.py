@@ -42,8 +42,10 @@ class ActualServiceProxyTests(unittest.IsolatedAsyncioTestCase):
                 with ServiceProxyServer(root / "proxy.sock", "lo", policy, status_directory=root, shared_socket=True) as server:
                     server._slots.set_limit(1)
                     server.max_admission_delay_seconds = 0.2
+
                     self.assertTrue(server._slots.acquire())
                     thread = threading.Thread(target=server.serve_forever, kwargs={"poll_interval": 0.01})
+
                     thread.start()
 
                     client = api(HttpTransport(trust=peer.trust,
@@ -62,6 +64,7 @@ class ActualServiceProxyTests(unittest.IsolatedAsyncioTestCase):
                         self.assertFalse(request.done())
                         server._slots.release()
                         page = await asyncio.wait_for(request, 2)
+
                         self.assertEqual(page.jobs, ())
                         self.assertEqual(len(peer.requests), 1)
                     finally:
@@ -90,19 +93,23 @@ class ActualServiceProxyTests(unittest.IsolatedAsyncioTestCase):
                 with ServiceProxyServer(root / "proxy.sock", "lo", policy, status_directory=root, shared_socket=True) as server:
                     server._slots.set_limit(1)
                     server.max_admission_delay_seconds = 0.3
+
                     self.assertTrue(server._slots.acquire())
                     thread = threading.Thread(target=server.serve_forever, kwargs={"poll_interval": 0.01})
+
                     thread.start()
                     writer = None
 
                     try:
                         (reader, writer) = await asyncio.open_unix_connection(server.server_address)
                         started = asyncio.get_running_loop().time()
+
                         writer.write(f"CONNECT api.example:{port} HTTP/1.1\r\n\r\n".encode())
                         await writer.drain()
                         await asyncio.sleep(0.05)
                         server._slots.release()
                         response = await asyncio.wait_for(reader.readuntil(b"\r\n\r\n"), 2)
+
                         self.assertIn(b"200", response)
                         self.assertGreaterEqual(asyncio.get_running_loop().time() - started, 0.28)
                         writer.write(b"still works")
@@ -153,11 +160,13 @@ class ActualServiceProxyTests(unittest.IsolatedAsyncioTestCase):
                                     live_configuration=live) as server:
                 live.apply(server, initial)
                 listener = threading.Thread(target=server.serve_forever, kwargs={"poll_interval": 0.01})
+
                 listener.start()
                 writers = []
 
                 try:
                     (reader, writer) = await asyncio.open_unix_connection(server.server_address)
+
                     writers.append(writer)
                     writer.write(f"CONNECT first.example:{port} HTTP/1.1\r\n\r\n".encode())
                     await writer.drain()
@@ -175,11 +184,13 @@ class ActualServiceProxyTests(unittest.IsolatedAsyncioTestCase):
                     self.assertEqual(await asyncio.wait_for(reader.readexactly(15), 2), b"existing tunnel")
 
                     (refused_reader, refused_writer) = await asyncio.open_unix_connection(server.server_address)
+
                     writers.append(refused_writer)
                     refused_writer.write(f"CONNECT first.example:{port} HTTP/1.1\r\n\r\n".encode())
                     await refused_writer.drain()
                     self.assertIn(b"403", await asyncio.wait_for(refused_reader.readuntil(b"\r\n\r\n"), 2))
                     (new_reader, new_writer) = await asyncio.open_unix_connection(server.server_address)
+
                     writers.append(new_writer)
                     new_writer.write(f"CONNECT second.example:{port} HTTP/1.1\r\n\r\n".encode())
                     await new_writer.drain()
@@ -218,6 +229,7 @@ class ActualServiceProxyTests(unittest.IsolatedAsyncioTestCase):
                 ObservedProxy(Path(directory) / "proxy.sock", "lo", policy, status_directory=Path(directory)) as server,
             ):
                 listener = threading.Thread(target=server.serve_forever, kwargs={"poll_interval": 0.01})
+
                 listener.start()
 
                 transport = HttpTransport(

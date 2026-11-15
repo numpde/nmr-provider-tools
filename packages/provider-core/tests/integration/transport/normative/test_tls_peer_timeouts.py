@@ -40,6 +40,7 @@ class TlsPeerTimeoutTests(unittest.IsolatedAsyncioTestCase):
                 await writer.drain()
                 head = await asyncio.wait_for(reader.readuntil(b"\r\n\r\n"), 2)
                 body = await asyncio.wait_for(reader.readexactly(4), 2)
+
                 self.assertIn(b"HTTP/1.1 200 OK", head)
                 self.assertEqual(b"data", body)
             finally:
@@ -60,6 +61,7 @@ class TlsPeerTimeoutTests(unittest.IsolatedAsyncioTestCase):
                 self.assertEqual((1.75, 0.8), (peer.handshake_seconds, peer.shutdown_seconds))
                 self.assertEqual(1, started.await_count)
                 selected = started.await_args.kwargs
+
                 self.assertEqual(1.75, selected["ssl_handshake_timeout"])
                 self.assertEqual(0.8, selected["ssl_shutdown_timeout"])
 
@@ -69,6 +71,7 @@ class TlsPeerTimeoutTests(unittest.IsolatedAsyncioTestCase):
         with patch("tests.fakes.tls_peer.asyncio.start_server", wraps=original) as started:
             async with TlsPeer("tls-stall", handshake_seconds=1.5, shutdown_seconds=0.25):
                 selected = started.await_args.kwargs
+
                 self.assertNotIn("ssl", selected)
                 self.assertNotIn("ssl_handshake_timeout", selected)
                 self.assertNotIn("ssl_shutdown_timeout", selected)

@@ -123,6 +123,7 @@ class RunningSupervisor:
 
         self.scratch.mkdir(mode=0o700)
         self.command[self.command.index("--scratch") + 1] = str(self.scratch)
+
         self._start()
 
     def session(self, **budgets):
@@ -144,6 +145,7 @@ class RunningSupervisor:
         except subprocess.TimeoutExpired:
             self.process.kill()
             (_, self.diagnostic) = self.process.communicate(timeout=3)
+
             raise
         finally:
             self.temporary.cleanup()

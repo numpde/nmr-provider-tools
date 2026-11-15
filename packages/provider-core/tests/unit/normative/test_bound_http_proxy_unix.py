@@ -23,6 +23,7 @@ from tests.fakes.proxy_logs import capture_proxy_logs
 def serving(server):
     with server:
         thread = threading.Thread(target=server.serve_forever, kwargs={"poll_interval": 0.01})
+
         thread.start()
 
         try:
@@ -47,6 +48,7 @@ def read_all(client):
 class HTTPResponse(socketserver.BaseRequestHandler):
     def handle(self):
         (header, _) = bound_http_proxy.receive_headers(self.request)
+
         self.server.headers.append(header)
         self.request.sendall(b"HTTP/1.1 200 OK\r\nContent-Length: 2\r\nConnection: close\r\n\r\nok")
 
@@ -112,6 +114,7 @@ class UnixProxyTests(unittest.TestCase):
     def test_existing_unix_listener_is_never_replaced(self):
         with tempfile.TemporaryDirectory() as temporary:
             path = Path(temporary) / "gateway.sock"
+
             path.write_bytes(b"owned by another operation")
 
             with self.assertRaises(OSError):
@@ -143,6 +146,7 @@ class UnixProxyTests(unittest.TestCase):
                     patch.object(bound_http_proxy.sys, "argv", ["proxy", *arguments, "--ready-file", str(ready)]),
                 ):
                     listener.return_value.__enter__.return_value = server
+
                     bound_http_proxy.main()
 
                 self.assertEqual(expected, ready.read_text())

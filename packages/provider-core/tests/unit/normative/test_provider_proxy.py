@@ -32,9 +32,11 @@ class ServiceProxyTests(unittest.TestCase):
 
             live = provider_proxy.LiveProxyConfiguration(path, "mapped")
             initial = live.read()
+
             self.assertEqual(initial.max_admission_delay_seconds, 7)
             self.assertEqual(initial.admission_order, "ready")
             server = SimpleNamespace(policy=initial.policy, _slots=bound_http_proxy.ConnectionAdmission(2))
+
             self.assertTrue(server._slots.acquire())
             self.assertTrue(server._slots.acquire())
 
@@ -55,6 +57,7 @@ class ServiceProxyTests(unittest.TestCase):
                 logger.return_value.setLevel.assert_called_once_with("DEBUG")
                 path.write_text("[api_proxy\n")
                 live.next_poll = 0
+
                 live.refresh(server)
                 self.assertEqual(server.policy.authorities, frozenset({("other.example", 443)}))
                 self.assertFalse(server._slots.acquire())
@@ -65,6 +68,7 @@ class ServiceProxyTests(unittest.TestCase):
                                 'allowed_authorities = ["api.example:443"]\n')
 
                 live.next_poll = 0
+
                 live.refresh(server)
                 self.assertIn("max_connections", str(logger.return_value.warning.call_args.args[1]))
 
@@ -72,11 +76,13 @@ class ServiceProxyTests(unittest.TestCase):
                                 + '9' * 400 + '\nlog_level = "INFO"\nallowed_authorities = []\n')
 
                 live.next_poll = 0
+
                 live.refresh(server)
                 self.assertEqual(server.max_admission_delay_seconds, 3)
                 self.assertIn("max_admission_delay_seconds", str(logger.return_value.warning.call_args.args[1]))
                 path.write_text('[api_proxy]\nmax_connections = ' + '[' * 2000 + '1' + ']' * 2000)
                 live.next_poll = 0
+
                 live.refresh(server)
                 self.assertIn("deeply nested", str(logger.return_value.warning.call_args.args[1]))
                 self.assertEqual(server.policy.authorities, frozenset({("other.example", 443)}))
@@ -104,6 +110,7 @@ class ServiceProxyTests(unittest.TestCase):
                 with patch("provider_core.provider_proxy.time.monotonic", return_value=100):
                     for _ in range(5):
                         (owned, peer) = socket.socketpair()
+
                         clients.append(peer)
                         server.process_request(owned, "")
 
@@ -127,6 +134,7 @@ class ServiceProxyTests(unittest.TestCase):
             with ServiceProxyServer(Path(directory) / "proxy.sock", "lo", policy, status_directory=Path(directory), shared_socket=True) as server:
                 server._slots.set_limit(1)
                 server.max_admission_delay_seconds = 7
+
                 self.assertTrue(server._slots.acquire())
                 (first, first_peer) = socket.socketpair()
 
@@ -136,6 +144,7 @@ class ServiceProxyTests(unittest.TestCase):
                     server._start_waiting()
                     self.assertFalse(server.pending)
                     (second, second_peer) = socket.socketpair()
+
                     server.process_request(second, "")
 
                 with patch("provider_core.provider_proxy.time.monotonic", return_value=138):
@@ -229,12 +238,14 @@ class ServiceProxyTests(unittest.TestCase):
                 with patch("provider_core.provider_proxy.time.monotonic", return_value=100), patch.object(server, "start_reserved_request") as start:
                     for _ in range(4):
                         (owned, peer) = socket.socketpair()
+
                         clients.append(peer)
                         server.process_request(owned, "")
 
                     server._slots.release()
                     server.max_admission_delay_seconds = 0
                     (new, new_peer) = socket.socketpair()
+
                     server.process_request(new, "")
                     start.assert_called_once_with(new, "")
                     self.assertEqual(len(server.pending), 4)
@@ -252,6 +263,7 @@ class ServiceProxyTests(unittest.TestCase):
     def test_live_settings_refuse_fifo_without_blocking_the_listener(self):
         with tempfile.TemporaryDirectory() as directory:
             path = Path(directory) / "settings.toml"
+
             os.mkfifo(path)
             live = provider_proxy.LiveProxyConfiguration(path, "external")
 
@@ -281,6 +293,7 @@ class ServiceProxyTests(unittest.TestCase):
         new = ServicePolicy.admit("mapped", ["other.example:443"], ["other.example=192.0.2.2"])
         handler = object.__new__(ServiceProxyHandler)
         handler.server = SimpleNamespace(policy=old, outbound_interface="lo")
+
         handler.destination(b"CONNECT api.example:443 HTTP/1.1\r\n\r\n")
         handler.server.policy = new
 
@@ -406,10 +419,12 @@ logging.getLogger('dependency').warning('dependency-warning')
                     time.sleep(0.01)
 
             first = subprocess.Popen(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+
             self.addCleanup(stop, first)
             wait_ready(first)
             previous = (path.stat().st_ino, ready.stat().st_ino)
             contender = subprocess.run(command, capture_output=True, timeout=2)
+
             self.assertNotEqual(contender.returncode, 0)
             self.assertIn(b"another proxy owns", contender.stderr)
             self.assertEqual(previous, (path.stat().st_ino, ready.stat().st_ino))
@@ -418,6 +433,7 @@ logging.getLogger('dependency').warning('dependency-warning')
             first.communicate(timeout=2)
             self.assertTrue(path.exists())
             second = subprocess.Popen(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+
             self.addCleanup(stop, second)
             wait_ready(second)
 
@@ -527,6 +543,7 @@ logging.getLogger('dependency').warning('dependency-warning')
             with patch.object(bound_http_proxy, "connect_bound", return_value=outbound) as connect:
                 with ServiceProxyServer(path, "lo", policy, status_directory=Path(directory)) as server:
                     worker = threading.Thread(target=server.handle_request)
+
                     worker.start()
 
                     try:

@@ -30,6 +30,7 @@ class AttemptOutcomeTests(unittest.IsolatedAsyncioTestCase):
 
             for replayed in (False, True):
                 result = await getattr(api, method)(retained, execution_attempt_ref=ATTEMPT_REF)
+
                 self.assertEqual(result.replayed, replayed)
                 self.assertEqual(result.execution_attempt_ref, ATTEMPT_REF)
                 self.assertEqual(result.committed_at.isoformat(), "2026-10-18T00:00:00+00:00")
@@ -44,6 +45,7 @@ class AttemptOutcomeTests(unittest.IsolatedAsyncioTestCase):
                 self.assertNotIn("Explain", repr(result))
 
             (first, second) = (call[0] for call in transport.calls)
+
             self.assertEqual((first.content, second.content), (retained, retained))
             self.assertNotEqual(first.headers["Signature-Input"], second.headers["Signature-Input"])
 
@@ -58,10 +60,12 @@ class AttemptOutcomeTests(unittest.IsolatedAsyncioTestCase):
     def test_builders_preserve_maximum_payloads_and_scalar_text(self):
         result = b"x" * 786432
         body = complete_body(ATTEMPT_REF, "雪" * 1024, result)
+
         self.assertLessEqual(len(body), 2097152)
         self.assertEqual(len(json.loads(body)["canonical_result_base64"]), 1048576)
         message = "\U0001f600" * 1024
         body = fail_body(ATTEMPT_REF, "x" * 128, message)
+
         self.assertLessEqual(len(body), 16384)
         self.assertEqual(json.loads(body)["failure_message"], message)
 
@@ -79,4 +83,5 @@ class AttemptOutcomeTests(unittest.IsolatedAsyncioTestCase):
         )
 
         result = await api.complete_attempt(complete_body(ATTEMPT_REF, " result\n雪 ", data), execution_attempt_ref=ATTEMPT_REF)
+
         self.assertEqual(result.result_byte_length, len(data))

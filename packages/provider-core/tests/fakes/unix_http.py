@@ -32,6 +32,7 @@ class UnixHTTPPeer:
             length = int(fields.get(b"Content-Length", b"0"))
 
             body = await reader.readexactly(length)
+
             self.requests.append((head, body))
             writer.write(b"HTTP/1.1 200 OK\r\nContent-Length: 2\r\nConnection: close\r\n\r\n")
             await writer.drain()
@@ -63,6 +64,7 @@ class UnixHTTPPeer:
                 task.cancel()
 
         results = await asyncio.gather(*self.tasks, return_exceptions=True)
+
         await self.server.wait_closed()
         self.scratch.cleanup()
         failures = [failure for failure in results if isinstance(failure, Exception)]

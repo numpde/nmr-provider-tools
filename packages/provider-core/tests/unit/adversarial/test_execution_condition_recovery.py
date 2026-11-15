@@ -41,6 +41,7 @@ class ConditionRecoveryFailureTests(unittest.IsolatedAsyncioTestCase):
 
         (store, acknowledged, claim) = await live_attempt()
         transport = InterruptedTransport()
+
         transport.release.set()
         transport.failure = asyncio.CancelledError()
         transport.last_failure = ExchangeFailed("Interrupted condition delivery")
@@ -85,6 +86,7 @@ class ConditionRecoveryFailureTests(unittest.IsolatedAsyncioTestCase):
     async def test_overlapping_call_invalidates_retry_without_resending_an_old_condition(self):
         (store, acknowledged, claim) = await live_attempt()
         transport = ConditionOutageTransport(first_failed_put=2)
+
         transport.release_retirement.clear()
         session = ReportingSession(store)
 
@@ -256,6 +258,7 @@ class ConditionRecoveryFailureTests(unittest.IsolatedAsyncioTestCase):
     async def test_actual_retirement_gates_resend_and_dependent_effect(self):
         (store, acknowledged, claim) = await live_attempt()
         transport = ConditionOutageTransport(first_failed_put=2)
+
         transport.release_retirement.clear()
         (session, retry) = (ReportingSession(store), Mock())
 
@@ -352,6 +355,7 @@ class ConditionRecoveryFailureTests(unittest.IsolatedAsyncioTestCase):
         self.assertIs(caught.exception.cause, session.caught)
         self.assertIs(caught.exception.outcome, session.outcome)
         first = caught.exception.condition_failure
+
         self.assertIs(type(caught.exception.cause.cause), ApiFailure)
         self.assertIsNot(caught.exception.cause.cause, first)
         self.assertIn(("first condition failure", first), tuple(owned_relationships(caught.exception)))
@@ -360,6 +364,7 @@ class ConditionRecoveryFailureTests(unittest.IsolatedAsyncioTestCase):
             await executor.settle()
 
         suppressed = await executor.retain_suppressed_disposition()
+
         self.assertIs(type(suppressed), SuppressedCheckpoint)
         self.assertFalse(hasattr(suppressed, "candidate"))
         self.assertIsNone(executor._outcome)

@@ -720,6 +720,7 @@ class ResultConsumption:
 
     async def _accept(self) -> None:
         payload = await self.operation.read_result(self.result)
+
         await self._receive(payload)
 
     def start(self) -> asyncio.Task[None]:

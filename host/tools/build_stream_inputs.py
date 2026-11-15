@@ -24,6 +24,7 @@ def main():
         stream.write("\n")
 
     pin = json.loads((context / "requirements/wheelhouse-tool-release.json").read_text())
+
     print(pin["name"], pin["sha256"])
 
 

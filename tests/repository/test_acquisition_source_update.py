@@ -31,6 +31,7 @@ class SourceUpdateTests(unittest.TestCase):
 
     def setUp(self):
         temporary = tempfile.TemporaryDirectory()
+
         self.addCleanup(temporary.cleanup)
         self.root = Path(temporary.name)
         self.source = self.root / "source"
@@ -59,6 +60,7 @@ class SourceUpdateTests(unittest.TestCase):
     def write_snapshot(self, root, version, payload):
         for (name, data) in payload.items():
             path = root / name
+
             path.parent.mkdir(parents=True, exist_ok=True)
             path.write_bytes(data)
             path.chmod(0o644)
@@ -74,6 +76,7 @@ class SourceUpdateTests(unittest.TestCase):
             for (name, data) in payload.items():
                 member = tarfile.TarInfo(name)
                 (member.mode, member.size) = (0o644, len(data))
+
                 archive.addfile(member, io.BytesIO(data))
 
             for (name, kind) in extra:
@@ -97,6 +100,7 @@ class SourceUpdateTests(unittest.TestCase):
     def test_old_snapshot_and_next_pin_replace_membership_without_rewriting_pin(self):
         pin_bytes = self.pin.read_bytes()
         manifest = updates.import_archive(self.source, self.pin, self.archive)
+
         self.assertEqual("2.0.0", manifest["release_version"])
         self.assertEqual(self.new.keys(), updates.verify(self.source)["payload_files"].keys())
         self.assertFalse((self.source / "acquisition_tool/old.py").exists())
@@ -123,6 +127,7 @@ class SourceUpdateTests(unittest.TestCase):
 
     def test_nonregular_archive_is_rejected_without_waiting_for_input(self):
         fifo = self.root / "archive-fifo"
+
         os.mkfifo(fifo)
 
         with self.assertRaisesRegex(ValueError, "regular file"):
@@ -149,6 +154,7 @@ class SourceUpdateTests(unittest.TestCase):
 
     def test_git_checkout_modes_preserve_only_the_executable_contract(self):
         path = self.source / "acquisition_tool/old.py"
+
         path.chmod(0o664)
         updates.verify(self.source)
         path.chmod(0o755)
@@ -158,6 +164,7 @@ class SourceUpdateTests(unittest.TestCase):
 
     def test_unrecorded_directory_or_symlink_is_not_admitted(self):
         extra = self.source / "extra"
+
         extra.mkdir()
 
         with self.assertRaises(ValueError):
@@ -178,6 +185,7 @@ class SourceUpdateTests(unittest.TestCase):
         self.assertIs(failure, caught.exception)
         self.assert_old_source()
         stages = list(self.root.glob(".acquisition-next-*"))
+
         self.assertEqual(1, len(stages))
         self.assertEqual("2.0.0", updates.verify(stages[0])["release_version"])
         self.assertIn(str(stages[0]), " ".join(failure.__notes__))
@@ -192,6 +200,7 @@ class SourceUpdateTests(unittest.TestCase):
         self.assertEqual("2.0.0", updates.verify(self.source)["release_version"])
         self.assertIn("published", " ".join(failure.__notes__))
         stages = list(self.root.glob(".acquisition-next-*"))
+
         self.assertEqual("1.0.0", updates.verify(stages[0])["release_version"])
 
     def test_staging_and_cleanup_failures_both_remain_available(self):
@@ -219,6 +228,7 @@ class SourceUpdateTests(unittest.TestCase):
         self.assertEqual(["gh", "release", "download", "v2.0.0", "--repo", "numpde/nmr-provider-tools"], arguments[:6])
         self.assertEqual(["--pattern", "acquisition-owner-2.0.0.tar.gz"], arguments[-2:])
         destination = Path(arguments[arguments.index("--dir") + 1])
+
         (destination / arguments[-1]).write_bytes(self.archive.read_bytes())
         self.download_directory = destination
 

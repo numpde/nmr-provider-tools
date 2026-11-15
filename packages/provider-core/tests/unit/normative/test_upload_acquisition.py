@@ -11,8 +11,10 @@ class UploadAcquisitionTests(unittest.IsolatedAsyncioTestCase):
     async def test_file_at_exact_fixed_ceiling_acquires_once_and_charges_the_full_bytes(self):
         (owner, api, store) = sources(source_bytes=8)
         store.headers = store_headers(store.body)
+
         await owner.inspect()
         verified = await owner.acquire(UPLOAD_REF)
+
         self.assertEqual(verified.data, b"geometry")
         self.assertEqual(owner.received_bytes, 8)
         self.assertEqual(owner.requests_started, 4)
@@ -27,8 +29,10 @@ class UploadAcquisitionTests(unittest.IsolatedAsyncioTestCase):
                 api.member = replace(api.member, content_hash=None)
 
             store.headers = store_headers(store.body)
+
             await owner.inspect()
             verified = await owner.acquire(UPLOAD_REF)
+
             self.assertEqual(verified.data, b"geometry")
             self.assertIsInstance(verified.data, bytes)
             self.assertEqual(verified.content_hash, api.grant.content_hash)
@@ -37,6 +41,7 @@ class UploadAcquisitionTests(unittest.IsolatedAsyncioTestCase):
             self.assertEqual(owner.requests_started, 4)
             self.assertEqual(api.calls, ["membership", "membership", "grant"])
             request = store.calls[0]
+
             self.assertEqual(request.headers["Authorization"], "Bearer private-bearer")
 
             for forbidden in ("Signature", "Signature-Input", "Content-Type", "Content-Length", "Range"):

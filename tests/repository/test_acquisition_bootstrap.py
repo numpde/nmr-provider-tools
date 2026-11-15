@@ -14,4 +14,5 @@ class AcquisitionSourceTests(unittest.TestCase):
     def test_checked_in_source_matches_its_reviewed_pin(self):
         manifest = verify(ROOT / "bootstrap/acquisition")
         pin = read_pin(ROOT / "requirements/provider-tools-source.json")
+
         self.assertEqual(manifest["release_version"], pin["version"])

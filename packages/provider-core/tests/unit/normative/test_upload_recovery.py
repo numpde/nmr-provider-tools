@@ -137,6 +137,7 @@ class UploadRecoveryTests(unittest.IsolatedAsyncioTestCase):
 
                     if file:
                         result = await owner.acquire_file(UPLOAD_REF, directory_fd=directory, retirement_seconds=0.1)
+
                         self.assertEqual(Path(root, result.name).read_bytes(), BODY)
                         os.unlink(result.name, dir_fd=directory)
                     else:
@@ -294,6 +295,7 @@ class UploadRecoveryTests(unittest.IsolatedAsyncioTestCase):
         with patch("provider_core.transport.httpcore.AsyncConnectionPool", side_effect=clients):
             await owner.inspect()
             task = asyncio.create_task(acquire())
+
             await asyncio.wait_for(waiting.wait(), 0.5)
             task.cancel("caller stop")
 
@@ -354,9 +356,11 @@ class UploadRecoveryTests(unittest.IsolatedAsyncioTestCase):
                 await owner.acquire(UPLOAD_REF)
 
         record = owner.recovery_failure
+
         self.assertIsInstance(record, BaseExceptionGroup)
         self.assertEqual(len(record.exceptions), 2)
         (first, uncertain) = record.exceptions
+
         self.assertEqual(first.problem_code, "upload_read_not_finalized")
         self.assertFalse(first.issuance_may_have_committed)
         self.assertTrue(uncertain.issuance_may_have_committed)
@@ -436,6 +440,7 @@ class UploadRecoveryTests(unittest.IsolatedAsyncioTestCase):
         self.assertIsNone(owner.last_failure)
         first_headers = {name.lower(): value for (name, value) in clients[2].calls[0][0].headers}
         second_headers = {name.lower(): value for (name, value) in clients[4].calls[0][0].headers}
+
         self.assertNotEqual(first_headers[b'signature-input'], second_headers[b'signature-input'])
         self.assertEqual(owner.requests_started, 6)
 
@@ -456,6 +461,7 @@ class UploadRecoveryTests(unittest.IsolatedAsyncioTestCase):
         ):
             await owner.inspect()
             receipt = await owner.acquire_file(UPLOAD_REF, directory_fd=directory, retirement_seconds=0.1)
+
             self.assertEqual(Path(root, receipt.name).read_bytes(), BODY)
             self.assertEqual(len(list(Path(root).iterdir())), 1)
             self.assertIs(owner.recovery_failure, notices[0].cause)
@@ -483,6 +489,7 @@ class UploadRecoveryTests(unittest.IsolatedAsyncioTestCase):
 
         self.assertIsInstance(owner.recovery_failure, BaseExceptionGroup)
         (first, uncertain) = owner.recovery_failure.exceptions
+
         self.assertEqual(first.problem_code, "upload_read_not_finalized")
         self.assertIs(uncertain, api.last_failure)
         self.assertTrue(uncertain.issuance_may_have_committed)
@@ -549,6 +556,7 @@ class UploadRecoveryTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(owner.requests_started, 1)
         self.assertIs(type(caught.exception), UploadRecoveryExhausted)
         outage = caught.exception.cause
+
         self.assertIs(outage, owner.recovery_failure)
         self.assertEqual(outage.retry_after_seconds, 1)
         self.assertIn("1", caught.exception.reason)

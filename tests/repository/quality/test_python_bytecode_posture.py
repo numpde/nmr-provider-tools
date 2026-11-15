@@ -94,6 +94,7 @@ class PythonBytecodePostureTests(unittest.TestCase):
                          "docs/example.sh",
                          ".git/hooks/run.sh"):
                 path = root / name
+
                 path.parent.mkdir(parents=True, exist_ok=True)
                 path.write_text("# fixture\n")
 
@@ -101,9 +102,11 @@ class PythonBytecodePostureTests(unittest.TestCase):
                              {path.relative_to(root).as_posix() for path in production_files(root)})
 
         (issue,) = findings(Path("safe.sh"), "python3 -I secret-private-path.py")
+
         self.assertNotIn("secret-private-path", issue.diagnostic())
         self.assertIn("safe.sh:1:", issue.diagnostic())
 
     def test_production_literal_python_launches_suppress_bytecode(self):
         issues = scan(ROOT)
+
         self.assertEqual([], [issue.diagnostic() for issue in issues])

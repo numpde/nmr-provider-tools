@@ -22,10 +22,13 @@ class ReleasedApiRefusalTests(PinnedApiRelease, unittest.IsolatedAsyncioTestCase
     def test_noncanonical_base64_pad_bits_are_refused_even_when_decoded_bytes_match(self):
         source = b"x"
         document = json.loads(input_response(source))
+
         self.assertEqual(document["canonical_input_base64"], "eA==")
         document["canonical_input_base64"] = "eB=="
+
         self.assertEqual(base64.b64decode(document["canonical_input_base64"], validate=True), source)
         pattern = self.schemas["nmr.provider.job_input.read.response.v1"]["properties"]["canonical_input_base64"]["pattern"]
+
         self.assertIsNone(re.fullmatch(pattern, document["canonical_input_base64"]))
 
         with self.assertRaises(JobInputRejected):
@@ -35,6 +38,7 @@ class ReleasedApiRefusalTests(PinnedApiRelease, unittest.IsolatedAsyncioTestCase
         for mutation in ("artifact", "manifest", "missing", "extra", "symlink"):
             with self.subTest(mutation=mutation), tempfile.TemporaryDirectory() as directory:
                 root = Path(directory) / "release"
+
                 shutil.copytree(RELEASE_ROOT, root)
                 path = root / "schemas/hello_response.v1.schema.json"
 
@@ -42,6 +46,7 @@ class ReleasedApiRefusalTests(PinnedApiRelease, unittest.IsolatedAsyncioTestCase
                     path.write_bytes(path.read_bytes().replace(b"accepted_at", b"accepted_on"))
                 elif mutation == "manifest":
                     path = root / "manifest.json"
+
                     path.write_bytes(path.read_bytes().replace(b"12a53e72", b"22a53e72"))
                 elif mutation == "missing":
                     path.unlink()
@@ -49,6 +54,7 @@ class ReleasedApiRefusalTests(PinnedApiRelease, unittest.IsolatedAsyncioTestCase
                     (root / "unlisted.json").write_bytes(b"{}")
                 else:
                     outside = Path(directory) / "unchanged-schema.json"
+
                     path.rename(outside)
                     path.symlink_to(outside)
 

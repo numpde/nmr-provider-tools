@@ -15,12 +15,14 @@ class ReferenceScienceTests(unittest.TestCase):
 
     def test_index_retains_normalized_sparse_postings_and_matches_repeated_queries(self):
         index = self.index()
+
         self.assertEqual((((0, 0.6),), ((0, 0.8),), ((1, 1.0),)), index.postings)
         settings = science.MatchSettings(minimum_score=0.5)
 
         for (values, label) in (((3, 4, 0), "pattern-a"), ((0, 0, 2), "pattern-b")):
             with self.subTest(values=values):
                 report = science.match(index, settings, science.VectorInput(values=values))
+
                 self.assertEqual(label, report.label)
                 self.assertAlmostEqual(1.0, report.score)
 
@@ -60,6 +62,7 @@ class ReferenceScienceTests(unittest.TestCase):
 
         for values in ((3e307, 4e307, 0), (3e-307, 4e-307, 0)):
             report = science.match(index, science.MatchSettings(minimum_score=0.5), science.VectorInput(values=values))
+
             self.assertEqual("pattern-a", report.label)
             self.assertAlmostEqual(1, report.score)
 

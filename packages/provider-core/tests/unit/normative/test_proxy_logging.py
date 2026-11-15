@@ -15,6 +15,7 @@ class ProxyLoggingTests(unittest.TestCase):
         cause = OSError(32, "Broken pipe; Bearer credential-in-cause")
         failure = RuntimeError("Forwarding stopped; api_key=credential-in-message")
         failure.__cause__ = cause
+
         failure.add_note("upstream-to-client: write 24 bytes; token=credential-in-note")
 
         record = logging.LogRecord(

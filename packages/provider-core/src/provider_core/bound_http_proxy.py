@@ -114,6 +114,7 @@ def receive_headers(client: socket.socket) -> tuple[bytes, bytes]:
         client.settimeout(_remaining(deadline, "header read"))
 
         chunk = client.recv(8192)
+
         _remaining(deadline, "header read")
 
         if not chunk:
@@ -236,6 +237,7 @@ def _read_dns_name(message: bytes, offset: int, depth: int = 0) -> tuple[str, in
                 labels.extend(part.encode("ascii") for part in suffix.split("."))
 
             next_offset = next_offset or offset + 2
+
             break
 
         if size & 0xC0:
@@ -245,6 +247,7 @@ def _read_dns_name(message: bytes, offset: int, depth: int = 0) -> tuple[str, in
 
         if size == 0:
             next_offset = next_offset or offset
+
             break
 
         if not (offset + size <= len(message)):
@@ -303,6 +306,7 @@ def _query_ipv4(
     """Query IPv4 DNS on the chosen device within the shared connection budget."""
 
     query_deadline = min(deadline, time.monotonic() + 3)
+
     _remaining(query_deadline, "DNS query")
     transaction = secrets.randbits(16)
     question = _dns_name(host) + struct.pack("!HH", 1, 1)
@@ -470,6 +474,7 @@ def connect_bound(host: str, port: int, interface: str, *, dns_servers: tuple[st
             return outbound
         except OSError as error:
             last_error = error
+
             outbound.close()
 
     raise last_error or OSError("Cannot connect proxy destination: DNS returned no IPv4 address.")
@@ -512,6 +517,7 @@ def relay(left: socket.socket, right: socket.socket) -> None:
                     readers.remove(source)
 
                     operation = "half-close the destination after source EOF"
+
                     destination.shutdown(socket.SHUT_WR)
                     continue
 
@@ -591,16 +597,20 @@ class ProxyHandler(socketserver.BaseRequestHandler):
 
                 if method == "CONNECT":
                     phase = "forwarding CONNECT acknowledgement to client"
+
                     self.request.sendall(b"HTTP/1.1 200 Connection Established\r\n\r\n")
                 else:
                     phase = "forwarding request headers to upstream"
+
                     outbound.sendall(forwarded_header)
 
                 if remainder:
                     phase = "forwarding initial bytes to upstream"
+
                     outbound.sendall(remainder)
 
                 phase = "forwarding tunnel bytes"
+
                 relay(self.request, outbound)
         except (ConnectionError, OSError, UnicodeError, ValueError) as error:
             if phase == "request admission":
@@ -733,6 +743,7 @@ class UnixRelayHandler(socketserver.BaseRequestHandler):
                 gateway.settimeout(CONNECT_SECONDS)
                 gateway.connect(self.server.gateway_socket)
                 phase = "forwarding"
+
                 relay(self.request, gateway)
         except OSError as error:
             if phase == "gateway connection":
@@ -823,13 +834,16 @@ def main() -> None:
     The launcher grants the worker only the relay's networkless namespace.
     """
     handler = logging.StreamHandler(sys.stderr)
+
     handler.setFormatter(CredentialRedactingFormatter("%(levelname)s %(message)s"))
     logging.basicConfig(level=logging.WARNING, handlers=[handler], force=True)
     parser = argparse.ArgumentParser()
     upstream = parser.add_mutually_exclusive_group(required=True)
+
     upstream.add_argument("--interface")
     upstream.add_argument("--relay-socket", type=Path, help="Private Unix gateway for a loopback-only relay.")
     listener = parser.add_mutually_exclusive_group(required=True)
+
     listener.add_argument("--port", type=int, help="Listener port; 0 asks the kernel to choose a free port.")
     listener.add_argument("--unix-socket", type=Path, help="Private Unix listener; an existing path is never replaced.")
     parser.add_argument("--ready-file", type=Path, required=True)

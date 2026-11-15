@@ -116,6 +116,7 @@ class ApiReadFailureTests(unittest.IsolatedAsyncioTestCase):
 
             failure = caught.exception
             rendered = "".join(traceback.format_exception(failure))
+
             self.assertNotIn("private-", rendered)
 
             # silent-defaults: allow-contract -- Only the known correlated problem obtains the reviewed local code.

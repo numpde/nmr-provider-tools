@@ -16,6 +16,7 @@ class CleanupSettlementTests(unittest.IsolatedAsyncioTestCase):
     async def test_returns_original_completion_observation(self):
         completed = CleanupObservation(revision=1, settled=True, allowance_expired=False, failures=())
         control = SimpleNamespace(observe=AsyncMock(return_value=completed))
+
         self.assertIs(expr1=completed, expr2=await settle_cleanup(control=control))
 
     async def test_original_cleanup_failure_is_not_repackaged(self):
@@ -83,6 +84,7 @@ class CleanupSettlementTests(unittest.IsolatedAsyncioTestCase):
                 await waiting.wait()
                 task.cancel("first interruption")
                 loop = asyncio.get_running_loop()
+
                 loop.call_soon(task.cancel, "second interruption")
                 loop.call_soon(finish.set)
 

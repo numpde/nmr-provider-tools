@@ -75,10 +75,12 @@ class ReferenceWorkflowTests(unittest.IsolatedAsyncioTestCase):
 
                     self.assertNotIsInstance(operation, NotAdmitted)
                     completed = await observe_completion(operation)
+
                     self.assertIs(Outcome.SUCCEEDED, completed.outcome)
                     self.assertEqual((), completed.failures)
                     payload = await operation.read_result(completed.result)
                     report = call.result_codec.decode(payload=payload)
+
                     self.assertEqual(expected, report.label)
                     self.assertAlmostEqual(1.0, report.score)
                     operations.append((operation, completed.result, payload))
@@ -87,6 +89,7 @@ class ReferenceWorkflowTests(unittest.IsolatedAsyncioTestCase):
                     self.assertIsNotNone(library.loaded_index)
 
                 first_index = match.call_args_list[0].kwargs["index"]
+
                 self.assertIs(first_index, match.call_args_list[1].kwargs["index"])
 
                 for (operation, result, payload) in operations:
@@ -97,9 +100,11 @@ class ReferenceWorkflowTests(unittest.IsolatedAsyncioTestCase):
                         received.append(value)
 
                     consumption = ResultConsumption(operation=operation, result=result, receive=receive)
+
                     await consumption.consume()
                     self.assertEqual([payload], received)
                     released = await operation.observe(after=None, wait_seconds=0)
+
                     self.assertIs(ResultState.RELEASED, released.result_state)
 
         self.assertIsNone(library.loaded_index)
@@ -125,6 +130,7 @@ class ReferenceWorkflowTests(unittest.IsolatedAsyncioTestCase):
 
             def open_analysis(*, allocations):
                 analysis = original_open(allocations=allocations)
+
                 opened.append(analysis)
 
                 if len(opened) == 2:
@@ -156,6 +162,7 @@ class ReferenceWorkflowTests(unittest.IsolatedAsyncioTestCase):
 
         self.assertIs(cause, raised.exception)
         report = json.loads(output.getvalue())
+
         self.assertEqual("pattern-a", report["label"])
         self.assertAlmostEqual(1, report["score"])
 
@@ -175,6 +182,7 @@ class ReferenceCommandTests(unittest.TestCase):
 
         self.assertEqual(0, result.returncode, result.stderr)
         reports = [json.loads(line) for line in result.stdout.splitlines()]
+
         self.assertEqual(["pattern-a", "pattern-b"], [report["label"] for report in reports])
 
         for report in reports:

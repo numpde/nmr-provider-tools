@@ -41,10 +41,12 @@ class UploadSnapshotTests(unittest.TestCase):
             with self.subTest(kind=kind), private_source_directory() as (root, directory):
                 receipt = snapshot_source(root, b"original")
                 path = Path(root, receipt.name)
+
                 path.unlink()
 
                 if kind == "symlink":
                     target = Path(root, "target")
+
                     target.write_bytes(b"original")
                     path.symlink_to(target)
                 elif kind == "directory":
@@ -67,6 +69,7 @@ class UploadSnapshotTests(unittest.TestCase):
 
             def replace_entry(name, flags, *, dir_fd):
                 descriptor = opened(name, flags, dir_fd=dir_fd)
+
                 descriptors.append(descriptor)
                 path.replace(Path(root, "retired-original"))
                 path.write_bytes(b"replaced")
@@ -88,6 +91,7 @@ class UploadSnapshotTests(unittest.TestCase):
     def test_same_length_replacement_before_open_cannot_reach_the_parser(self):
         with private_source_directory() as (root, directory):
             receipt = snapshot_source(root, b"original")
+
             Path(root, receipt.name).write_bytes(b"replaced")
             parser = Mock()
 
@@ -108,6 +112,7 @@ class UploadSnapshotTests(unittest.TestCase):
 
             def mutate_after_read(descriptor, count):
                 chunk = read(descriptor, count)
+
                 observed.append(len(chunk))
 
                 if len(observed) == 1:
@@ -137,12 +142,14 @@ class UploadSnapshotTests(unittest.TestCase):
 
             def mutate_after_stat(descriptor):
                 result = fstat(descriptor)
+
                 Path(root, receipt.name).write_bytes(changed)
 
                 return result
 
             def observe(descriptor, count):
                 chunk = read(descriptor, count)
+
                 consumed.append(len(chunk))
 
                 return chunk
@@ -179,6 +186,7 @@ class UploadSnapshotTests(unittest.TestCase):
 
             self.assertIs(caught.exception.cause, primary)
             (close_failure,) = caught.exception.cleanup_failures
+
             self.assertIs(close_failure.cause, cleanup)
             self.assertIn("retire", str(close_failure).lower())
             self.assertEqual(len(calls), 1)
@@ -259,10 +267,12 @@ class UploadSnapshotTests(unittest.TestCase):
 
             self.assertIs(caught.exception, interruption)
             retained = interruption.__cause__
+
             self.assertIs(type(retained), UploadFileReadFailed)
             self.assertIs(retained.cause, previous)
             self.assertIs(retained.interruption, interruption)
             (close_failure,) = retained.cleanup_failures
+
             self.assertIs(close_failure.cause, cleanup)
             closing.assert_called_once()
             self.assertNotIn("PRIVATE", "".join(traceback.format_exception(interruption)))

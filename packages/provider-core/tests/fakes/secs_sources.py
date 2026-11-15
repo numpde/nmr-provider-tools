@@ -163,6 +163,7 @@ class SourceAccess:
 
         if source.member is None and not _is_zip(contents):
             entries = (SourceEntry(source, len(contents)),)
+
             yield ScopeReader(self, source, entries, contents)
 
             return
@@ -171,6 +172,7 @@ class SourceAccess:
             infos = archive.infolist()
             members = _member_index(infos)
             entries = self._scope_entries(source, infos, members)
+
             yield ScopeReader(self, source, entries, contents, archive, members)
 
     def scope(self, source: SourceRef) -> tuple[SourceEntry, ...]:
@@ -311,6 +313,7 @@ class SourceAccess:
         with BytesIO(contents) as stream:
             stream.seek(0, 2)
             size = stream.tell()
+
             stream.seek(max(0, size - 65_557))
             tail = stream.read()
             eocd = tail.rfind(b"PK\x05\x06")

@@ -13,6 +13,7 @@ from provider_core.shared_grants import shared_grants
 
 specification = importlib.util.spec_from_file_location("shared_deployment", "/opt/provider-tools/delivery_deployment.py")
 deployment = importlib.util.module_from_spec(specification)
+
 specification.loader.exec_module(deployment)
 
 
@@ -34,6 +35,7 @@ class SharedDeploymentTests(unittest.TestCase):
             plan = deployment.render_shared(path, path, "sha256:" + "a" * 64)
             grants = shared_grants(path)
             (proxy, outbox) = (plan["proxy"]["services"]["proxy"], plan["outbox"]["services"]["delivery"])
+
             self.assertEqual(proxy["user"], f"{proxy_uid}:{gid}")
             self.assertEqual(outbox["user"], f"{uid}:{gid}")
 

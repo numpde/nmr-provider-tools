@@ -58,8 +58,10 @@ class RunnerRefusalTests(unittest.TestCase):
 
     def test_a_second_retirement_reader_cannot_consume_the_original_frame(self):
         runner = RunningSupervisor()
+
         self.addCleanup(runner.close)
         session = runner.session(startup_seconds=2, retirement_seconds=2)
+
         self.addCleanup(session.close)
         session.connect()
         pid = worker_pid(session.science, b"H")
@@ -143,6 +145,7 @@ class RunnerRefusalTests(unittest.TestCase):
                     status.chmod(0o777)
                 else:
                     selected = root / "status-alias"
+
                     selected.symlink_to(status, target_is_directory=True)
 
                 options = SimpleNamespace(socket=endpoint / "runner.sock",
@@ -205,6 +208,7 @@ class RunnerRefusalTests(unittest.TestCase):
     def test_failed_greeting_cannot_admit_a_retirement_with_null_operation_identity(self):
         with tempfile.TemporaryDirectory() as temporary, socket.socket(socket.AF_UNIX) as listener:
             path = str(Path(temporary) / "runner.sock")
+
             listener.bind(path)
             listener.listen()
             listener.settimeout(1)
@@ -259,6 +263,7 @@ class RunnerRefusalTests(unittest.TestCase):
     def test_partial_greeting_timeout_closes_its_descriptor_and_blocks_another_frame_read(self):
         with tempfile.TemporaryDirectory() as temporary, socket.socket(socket.AF_UNIX) as listener:
             path = str(Path(temporary) / "runner.sock")
+
             listener.bind(path)
             listener.listen()
             listener.settimeout(1)
@@ -319,6 +324,7 @@ class RunnerRefusalTests(unittest.TestCase):
 
         with sender, receiver, one, two:
             before = len(os.listdir("/proc/self/fd"))
+
             sender.sendmsg([b"\0"], [(socket.SOL_SOCKET, socket.SCM_RIGHTS, array.array("i", [one.fileno(), two.fileno()]))])
 
             with self.assertRaises(LifecycleRejected):
@@ -340,6 +346,7 @@ class RunnerRefusalTests(unittest.TestCase):
                     pass
 
             thread = threading.Thread(target=drip)
+
             thread.start()
             started = time.monotonic()
 
@@ -354,11 +361,14 @@ class RunnerRefusalTests(unittest.TestCase):
 
     def test_child_holds_lock_after_supervisor_death_until_child_exit(self):
         runner = RunningSupervisor()
+
         self.addCleanup(runner.close)
         session = runner.session(startup_seconds=2, retirement_seconds=2)
+
         self.addCleanup(session.close)
         session.connect()
         pid = worker_pid(session.science, b"H")
+
         self.addCleanup(self._kill_if_live, pid)
         runner.process.kill()
         runner.process.wait(timeout=2)
@@ -382,6 +392,7 @@ class RunnerRefusalTests(unittest.TestCase):
 
         runner.restart_with_fresh_scratch()
         successor = runner.session(startup_seconds=2, retirement_seconds=2)
+
         self.addCleanup(successor.close)
         successor.connect()
         self.assertEqual(successor.lock_identity, session.lock_identity)
@@ -393,6 +404,7 @@ class RunnerRefusalTests(unittest.TestCase):
         for (role, inode_delta) in (("foreign", 0), ("fixture", 1)):
             with self.subTest(role=role, inode_delta=inode_delta):
                 runner = RunningSupervisor()
+
                 self.addCleanup(runner.close)
                 observed = (runner.endpoint / ".owner-session.lock").stat()
 
@@ -413,8 +425,10 @@ class RunnerRefusalTests(unittest.TestCase):
 
     def test_received_cleanup_failure_keeps_reaped_child_facts_and_stops_admission(self):
         runner = RunningSupervisor()
+
         self.addCleanup(runner.close)
         session = runner.session(startup_seconds=2, retirement_seconds=2)
+
         self.addCleanup(session.close)
         session.connect()
         worker_pid(session.science, b"C")
@@ -450,8 +464,10 @@ class RunnerRefusalTests(unittest.TestCase):
 
     def test_absolute_operation_deadline_stops_connected_but_idle_owner(self):
         runner = RunningSupervisor(operation_seconds=0.25)
+
         self.addCleanup(runner.close)
         session = runner.session(startup_seconds=2, retirement_seconds=2)
+
         self.addCleanup(session.close)
         session.connect()
         session.observe_retirement()
@@ -461,12 +477,15 @@ class RunnerRefusalTests(unittest.TestCase):
 
     def test_busy_runner_does_not_spawn_second_child_without_retirement(self):
         runner = RunningSupervisor()
+
         self.addCleanup(runner.close)
         first = runner.session(startup_seconds=2, retirement_seconds=2)
+
         self.addCleanup(first.close)
         first.connect()
         worker_pid(first.science, b"H")
         second = runner.session(startup_seconds=0.05, retirement_seconds=2)
+
         self.addCleanup(second.close)
 
         with self.assertRaises(TimeoutError):
@@ -475,6 +494,7 @@ class RunnerRefusalTests(unittest.TestCase):
         second.close()
         first.retire()
         third = runner.session(startup_seconds=2, retirement_seconds=2)
+
         self.addCleanup(third.close)
         third.connect()
         self.assertEqual(third.generation, first.generation)

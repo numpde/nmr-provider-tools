@@ -75,6 +75,7 @@ class _ModuleBindingCollector(ast.NodeVisitor):
 
 def _module_bindings(tree: ast.Module) -> list[ast.Assign | ast.AnnAssign]:
     collector = _ModuleBindingCollector()
+
     collector.visit(tree)
 
     return sorted(collector.bindings, key=lambda binding: binding.lineno)

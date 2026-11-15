@@ -54,8 +54,10 @@ class DeliveryQueueRefusalTests(unittest.TestCase):
 
         queue._db.commit()
         expected = queue._db.execute("SELECT * FROM outstanding ORDER BY attempt_ref").fetchall()
+
         queue.close()
         adopted = DeliveryQueue(self.root, limits=QueueLimits(MAX_PROVIDER_ITEMS, 8 * 1024 * 1024, MAX_PROVIDER_ITEMS, 8 * 1024 * 1024))
+
         self.addCleanup(adopted.close)
         self.assertEqual(MAX_PROVIDER_ITEMS + 1, len(adopted.inventory("https://api.example", "provider:test")))
 
@@ -67,6 +69,7 @@ class DeliveryQueueRefusalTests(unittest.TestCase):
 
         adopted._db.set_trace_callback(statements.append)
         status = adopted.status("https://api.example", "provider:test", expected[-1][2])
+
         adopted._db.set_trace_callback(None)
         self.assertEqual(expected[-1][2], status["execution_attempt_ref"])
         self.assertTrue(any("AND attempt_ref=" in query and "LIMIT 1" in query for query in statements))
@@ -87,6 +90,7 @@ class DeliveryQueueRefusalTests(unittest.TestCase):
 
     def open(self):
         queue = DeliveryQueue(self.root, limits=self.limits)
+
         self.addCleanup(queue.close)
 
         return queue
@@ -94,6 +98,7 @@ class DeliveryQueueRefusalTests(unittest.TestCase):
     def test_conflicting_body_cannot_replace_or_remove_the_original(self):
         queue = self.open()
         (original, other) = (outcome(), outcome(message="different accepted candidate"))
+
         queue.enqueue(original)
 
         with self.assertRaises(DeliveryConflict):
@@ -106,6 +111,7 @@ class DeliveryQueueRefusalTests(unittest.TestCase):
 
     def test_corrupt_database_is_not_replaced(self):
         path = self.root / "delivery.sqlite3"
+
         path.write_bytes(b"not a SQLite database")
         path.chmod(0o600)
 
@@ -117,6 +123,7 @@ class DeliveryQueueRefusalTests(unittest.TestCase):
     def test_one_service_owns_the_database(self):
         first = self.open()
         item = outcome()
+
         first.enqueue(item)
 
         with self.assertRaises(DeliveryStorageFailed):
@@ -152,6 +159,7 @@ class DeliveryQueueRefusalTests(unittest.TestCase):
 
         def open_original(*arguments):
             descriptor = real_open(*arguments)
+
             opened.append(descriptor)
 
             return descriptor

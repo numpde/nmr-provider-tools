@@ -138,6 +138,7 @@ def _request(document):
         remaining -= len(name)
         value = decoded_bytes(pair[1], remaining)
         remaining -= len(value)
+
         headers.append((name, value))
 
     limit = document["request_bytes"]
@@ -246,6 +247,7 @@ def main(argv=None):
             return 1
 
         document = read_request(sys.stdin.buffer, maximum)
+
         asyncio.run(_exchange(document, cancellation))
     # silent-defaults: allow-exception-outcome -- A failed child exits unsuccessfully; the parent must reject a missing or partial reply and observe process retirement.
     except BaseException:

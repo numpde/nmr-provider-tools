@@ -43,6 +43,7 @@ def shared_item_lines(*, source: str) -> list[tuple[int, int, int]]:
                 stack[-1].current.append(token)
 
             fstring_depth += 1
+
             continue
 
         if token.type == tokenize.FSTRING_END:
@@ -78,6 +79,7 @@ def shared_item_lines(*, source: str) -> list[tuple[int, int, int]]:
 
                     if not lines[first.start[0] - 1][:first.start[1]].strip():
                         indent = first.start[1]
+
                         break
 
                 for (previous, following) in zip(frame.items, frame.items[1:]):
@@ -113,22 +115,27 @@ def shared_item_lines(*, source: str) -> list[tuple[int, int, int]]:
 class MultilineBracketPostureTests(unittest.TestCase):
     def test_shared_call_arguments_are_flagged(self):
         source = "with open_checkpoint(\n    path=path, expected_sha256=digest,\n) as checkpoint:\n    load()\n"
+
         self.assertEqual(first=[(2, 15, 4)], second=shared_item_lines(source=source))
 
     def test_single_line_groups_stay_compact(self):
         source = "value = call(first, second, option=True)\nvalues = [first, second]\npair = (first, second)\n"
+
         self.assertEqual(first=[], second=shared_item_lines(source=source))
 
     def test_separate_items_and_trailing_commas_are_valid(self):
         source = "value = call(\n    first,\n    option=True,\n)\n"
+
         self.assertEqual(first=[], second=shared_item_lines(source=source))
 
     def test_delimiters_can_share_a_line_with_their_single_item(self):
         source = "value = call(first,\n    second)\n"
+
         self.assertEqual(first=[], second=shared_item_lines(source=source))
 
     def test_signatures_include_positional_and_keyword_markers(self):
         source = "def run(\n    self, first, /, *, option=True,\n):\n    pass\n"
+
         self.assertEqual(first=4, second=len(shared_item_lines(source=source)))
 
     def test_literals_imports_and_subscriptions_share_the_rule(self):
@@ -148,22 +155,27 @@ class MultilineBracketPostureTests(unittest.TestCase):
 
     def test_nested_single_line_groups_own_their_commas(self):
         source = "value = call(\n    pair=(first, second),\n    mapping={first: second, third: fourth},\n)\n"
+
         self.assertEqual(first=[], second=shared_item_lines(source=source))
 
     def test_nested_multiline_group_and_outer_arguments_are_both_checked(self):
         source = "value = call(\n    pair=(\n        first, second,\n    ), option=True,\n)\n"
+
         self.assertEqual(first=[(3, 15, 8), (4, 7, 4)], second=shared_item_lines(source=source))
 
     def test_lambda_parameter_commas_are_not_call_argument_boundaries(self):
         source = "value = call(\n    lambda first, second: first, option=True,\n)\n"
+
         self.assertEqual(first=1, second=len(shared_item_lines(source=source)))
 
     def test_nested_lambda_headers_have_independent_colons(self):
         source = "value = call(\n    lambda first=lambda second, third: second: first, option=True,\n)\n"
+
         self.assertEqual(first=1, second=len(shared_item_lines(source=source)))
 
     def test_string_and_comment_commas_are_opaque(self):
         source = 'value = call(\n    "first, second",  # third, fourth\n    option=True,\n)\n'
+
         self.assertEqual(first=[], second=shared_item_lines(source=source))
 
     def test_fstrings_do_not_create_bracket_frames(self):
@@ -178,6 +190,7 @@ class MultilineBracketPostureTests(unittest.TestCase):
 
     def test_multiline_item_cannot_share_its_closing_line_with_next_item(self):
         source = 'value = call(\n    """first\nsecond""", option=True,\n)\n'
+
         self.assertEqual(first=1, second=len(shared_item_lines(source=source)))
 
     def test_all_authored_python_separates_multiline_bracket_items(self):

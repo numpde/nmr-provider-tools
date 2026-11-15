@@ -22,6 +22,7 @@ from tools.installer import pip_command
 class InstallerImageTests(unittest.TestCase):
     def setUp(self):
         temporary = tempfile.TemporaryDirectory()
+
         self.addCleanup(temporary.cleanup)
         self.root = Path(temporary.name)
         self.record = installer.release(ROOT / "requirements/installer-release.json")
@@ -30,6 +31,7 @@ class InstallerImageTests(unittest.TestCase):
         environment = self.root / "target"
         python = installer.create_environment(environment)
         source = self.root / "source"
+
         source.mkdir()
 
         (source / "pyproject.toml").write_text(
@@ -50,6 +52,7 @@ def build_wheel(wheel_directory, config_settings=None, metadata_directory=None):
 ''')
 
         output = self.root / "wheels"
+
         output.mkdir()
         command = pip_command(python)
 
@@ -67,6 +70,7 @@ def build_wheel(wheel_directory, config_settings=None, metadata_directory=None):
 
         (wheel,) = output.glob("*.whl")
         lock = self.root / "requirements.lock"
+
         lock.write_text("installer-fixture==1.0 --hash=sha256:" + hashlib.sha256(wheel.read_bytes()).hexdigest() + "\n")
 
         subprocess.run([*command,
@@ -94,6 +98,7 @@ def build_wheel(wheel_directory, config_settings=None, metadata_directory=None):
                                 text=True)
 
         (version, installed, prefix) = json.loads(result.stdout)
+
         self.assertEqual(self.record["name"].split("-")[1], version)
         self.assertEqual(environment, Path(prefix))
         self.assertTrue(Path(installed).is_relative_to(environment))
@@ -109,6 +114,7 @@ def build_wheel(wheel_directory, config_settings=None, metadata_directory=None):
         for (source, issued) in INSTALLER_SOURCES:
             if source.endswith(".py"):
                 destination = site / issued
+
                 destination.parent.mkdir(parents=True, exist_ok=True)
                 destination.write_bytes((ROOT / source).read_bytes())
 
@@ -122,9 +128,11 @@ def build_wheel(wheel_directory, config_settings=None, metadata_directory=None):
                    "from acquisition_tool.installer.tools.installer import create_environment"]
 
         environment = os.environ | {"NMR_PROVIDER_TOOLS_IN_CONTAINER": "1"}
+
         subprocess.run(command, env=environment, check=True, capture_output=True, text=True)
         del environment["NMR_PROVIDER_TOOLS_IN_CONTAINER"]
         refused = subprocess.run(command, env=environment, check=False, capture_output=True, text=True)
+
         self.assertNotEqual(0, refused.returncode)
         self.assertIn("Cannot run repository Python without its container launcher", refused.stderr)
 
@@ -153,8 +161,10 @@ def build_wheel(wheel_directory, config_settings=None, metadata_directory=None):
         data = b"verified fixture wheel"
         record = self.record | {"size": len(data), "sha256": hashlib.sha256(data).hexdigest()}
         wheel = self.root / record["name"]
+
         wheel.write_bytes(data)
         captured = self.root / "captured.whl"
+
         installer.capture(wheel, record, captured)
         wheel.unlink()
         wheel.write_bytes(b"replacement")
@@ -162,6 +172,7 @@ def build_wheel(wheel_directory, config_settings=None, metadata_directory=None):
 
     def test_release_rejects_escaping_wheel_names_and_duplicate_fields(self):
         path = self.root / "release.json"
+
         path.write_text(json.dumps(self.record | {"name": "../outside.whl"}))
 
         with self.assertRaisesRegex(ValueError, "release record must identify one pip wheel"):

@@ -23,6 +23,7 @@ def failure_graph(error):
             return
 
         seen[id(current)] = current
+
         visit(current.__cause__)
         visit(current.__context__)
 
@@ -128,6 +129,7 @@ async def child(owner_kind, failure_kind):
 
         async def retire(self):
             self.retire_calls += 1
+
             await asyncio.sleep(0)
             await super().retire()
 
@@ -166,6 +168,7 @@ async def child(owner_kind, failure_kind):
         assert captured_cancellation
         assert owner.last_failure.cause is caught
         executor = owner.operation if owner_kind == "controller" else owner
+
         assert executor.last_failure.operation_interruption is captured_cancellation[0]
     except (ControllerFailed, ExecutionFailed, BaseExceptionGroup) as caught:
         assert not cancelling
@@ -179,6 +182,7 @@ async def child(owner_kind, failure_kind):
             assert isinstance(failure, BaseExceptionGroup)
             assert cleanup in failure_graph(failure)
             primary_record = owner.operation.last_failure if owner_kind == "controller" else owner.last_failure
+
             assert primary_record.cause is fatal
         elif primary_kind == "ordinary":
             assert failure is fatal
@@ -226,6 +230,7 @@ async def owned_port_child(stage, failure_kind):
     (probe, acknowledged, claim) = await live_attempt()
     original = Future()
     fatal = {"system-exit": SystemExit, "keyboard-interrupt": KeyboardInterrupt}[failure_kind]("PRIVATE authored owned-port failure")
+
     original.set_exception(fatal)
     session = Session(probe)
     swallowed = []
@@ -267,6 +272,7 @@ async def owned_port_child(stage, failure_kind):
 
         async def retire(self):
             self.retire_calls += 1
+
             await asyncio.sleep(0)
             await super().retire()
 
@@ -461,6 +467,7 @@ async def graph_child(stage, variant):
         assert previous in failure_graph(caught)
     except BaseExceptionGroup as caught:
         nodes = failure_graph(caught)
+
         assert owner.last_failure in nodes
         assert caught is not primary and caught is not retirement and caught is not delivery_failure
         assert primary.__cause__ is original_primary_cause
@@ -476,6 +483,7 @@ async def graph_child(stage, variant):
             assert primary in nodes
 
         evidence = json.dumps(failure_evidence(caught, secrets=()))
+
         assert '"independent cleanup"' in evidence or stage == "graph-controller-delivery"
 
         if type(retirement) is OSError and stage != "graph-controller-delivery":

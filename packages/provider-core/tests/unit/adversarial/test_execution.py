@@ -70,6 +70,7 @@ class ExecutionFailureTests(unittest.IsolatedAsyncioTestCase):
         self.assertIs(controller.last_failure.interruption_cause, previous)
         self.assertEqual(len(transport.calls), 1)
         session.retirement_failure = None
+
         await controller.settle()
 
     async def test_late_cancelled_child_updates_the_same_escaped_failure_after_timed_out_join(self):
@@ -108,6 +109,7 @@ class ExecutionFailureTests(unittest.IsolatedAsyncioTestCase):
         try:
             with patch.object(session, "prepare", prepare):
                 task = asyncio.create_task(executor.run(acknowledged))
+
                 await asyncio.wait_for(entered.wait(), 1)
                 task.cancel()
 
@@ -116,6 +118,7 @@ class ExecutionFailureTests(unittest.IsolatedAsyncioTestCase):
 
                 await asyncio.wait_for(cancelled.wait(), 1)
                 retained = executor.last_failure
+
                 self.assertIs(caught.exception.__cause__, retained)
                 self.assertIs(retained.cause, caught.exception)
                 self.assertIsNone(retained.operation_interruption)
@@ -162,12 +165,14 @@ class ExecutionFailureTests(unittest.IsolatedAsyncioTestCase):
         try:
             await asyncio.wait_for(entered.wait(), 1)
             original_retirement = executor._retirement_task
+
             task.cancel()
 
             with self.assertRaises(asyncio.CancelledError) as caught:
                 await task
 
             retained = executor.last_failure
+
             self.assertIs(retained.cause, client.last_failure)
             self.assertEqual(retained.cleanup_failures, (caught.exception,))
             self.assertIs(executor._retirement_task, original_retirement)
@@ -220,6 +225,7 @@ class ExecutionFailureTests(unittest.IsolatedAsyncioTestCase):
 
         self.assertIs(caught.exception, cleanup)
         retained = caught.exception.__cause__
+
         self.assertIs(retained, executor.last_failure)
         self.assertIs(retained.cause, client.last_failure)
         self.assertIs(retained.api_failure, client.last_failure)
@@ -227,6 +233,7 @@ class ExecutionFailureTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(retained.cleanup_failures, (cleanup,))
         self.assertEqual(len(transport.calls), 2)
         session.retirement_failure = None
+
         await executor.settle()
         self.assertIs(executor.last_failure, retained)
         self.assertEqual([event[0] for event in session.events], ["retire", "retire"])
@@ -299,6 +306,7 @@ class ExecutionFailureTests(unittest.IsolatedAsyncioTestCase):
             await executor.settle()
 
         (retained,) = store.records
+
         self.assertIs(type(retained), EnteredCheckpoint)
 
 
@@ -357,6 +365,7 @@ class ExecutionFailureTests(unittest.IsolatedAsyncioTestCase):
         self.assertNotIn("private retirement cause", str(failed.exception))
         self.assertEqual([event[0] for event in session.events], ["prepare", "execute", "retire"])
         (retained,) = store.records
+
         self.assertIs(type(retained), DeliveryAcceptedCheckpoint)
         self.assertEqual(len(delivery.items), 1)
         self.assertEqual(retained.selection.body_sha256, delivery.items[0].body_sha256)
@@ -365,6 +374,7 @@ class ExecutionFailureTests(unittest.IsolatedAsyncioTestCase):
             claim.release(owner=claim.lifecycle_owner)
 
         session.retirement_failure = None
+
         self.assertEqual(await executor.settle(), retained)
         self.assertEqual(len(delivery.items), 1)
         claim.release(owner=claim.lifecycle_owner)

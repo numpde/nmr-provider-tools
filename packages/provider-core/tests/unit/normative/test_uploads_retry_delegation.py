@@ -33,6 +33,7 @@ class JobUploadsRetryDelegationTests(unittest.IsolatedAsyncioTestCase):
                         await acquire()
 
                     first = caught.exception
+
                     self.assertTrue(owner.can_retry_transfer(first))
                     self.assertEqual(owner.received_bytes, 1)
                     self.assertEqual(owner.requests_started, 4)

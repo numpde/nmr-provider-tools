@@ -46,6 +46,7 @@ class RepeatedInterpreterTimeoutTests(unittest.TestCase):
                     while time.monotonic() < deadline:
                         if report_path.exists():
                             report = json.loads(report_path.read_text())
+
                             break
 
                         if fixture_process.poll() is not None:
@@ -70,6 +71,7 @@ class RepeatedInterpreterTimeoutTests(unittest.TestCase):
 
                 self.assertIsNotNone(report, msg="No pre-teardown recovery verdict:\n" + stdout + stderr)
                 evidence = json.dumps(report, sort_keys=True)
+
                 self.assertNotIn("scenario_failure", report, msg=evidence)
                 self.assertEqual(5, report["repetitions"], msg=evidence)
                 self.assertGreater(report["repetitions"], report["maximum_attempts"], msg=evidence)
@@ -96,6 +98,7 @@ class RepeatedInterpreterTimeoutTests(unittest.TestCase):
                     self.assertTrue(cycle["controller_shutdown_ready"], msg=evidence)
                     self.assertTrue(cycle["delivery_worker_running"], msg=evidence)
                     expected_descriptors = report["idle_descriptors"] if cycle["receipt_released"] else report["pending_delivery_descriptors"]
+
                     self.assertEqual(expected_descriptors, cycle["descriptors"], msg=evidence)
 
                     if not cycle["receipt_released"]:
@@ -120,6 +123,7 @@ class RepeatedInterpreterTimeoutTests(unittest.TestCase):
                 self.assertTrue(report["original_api_request_owned_at_acknowledgement_release"], msg=evidence)
                 self.assertEqual(1, report["open_prose_connections_at_acknowledgement_release"], msg=evidence)
                 child_pids = {cycle["http_child_pid"] for cycle in report["cycles"]}
+
                 self.assertEqual(5, len(child_pids), msg=evidence)
                 self.assertFalse(child_pids & {report["provider_pid"], report["scientific_worker_before"]["pid"]}, msg=evidence)
                 self.assertEqual(["/ready", *(["/hang"] * 5), "/ready"], report["prose_request_paths"], msg=evidence)
@@ -152,5 +156,6 @@ class RepeatedInterpreterTimeoutTests(unittest.TestCase):
                     self.assertTrue(job["shutdown_ready"], msg=evidence)
 
                 (before, after) = (report["scientific_worker_before"], report["scientific_worker_after"])
+
                 self.assertEqual(before["pid"], after["pid"], msg=evidence)
                 self.assertEqual((1, 2, 2, 7), (after["model_loads"], after["preparations"], after["executions"], after["retirements"]), msg=evidence)

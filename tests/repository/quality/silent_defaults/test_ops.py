@@ -212,6 +212,7 @@ class OpsSilentDefaultsTest(unittest.TestCase):
     def test_ops_files_do_not_publish_silent_defaults(self) -> None:
         files = ops_files()
         findings: list[str] = []
+
         findings.extend(make_default_assignment_findings(files))
         findings.extend(docker_default_findings(files))
         findings.extend(make_function_default_findings(files))
@@ -232,6 +233,7 @@ class OpsSilentDefaultsTest(unittest.TestCase):
 
                 if block_match:
                     environment_indent = len(block_match.group("indent"))
+
                     continue
 
                 if environment_indent is not None and line.strip():
@@ -324,6 +326,7 @@ class OpsSilentDefaultsTest(unittest.TestCase):
             for (label, source, diagnostic) in cases:
                 with self.subTest(label=label, source=source):
                     path = root / label
+
                     path.write_text(source, encoding="utf-8")
 
                     with (
@@ -449,6 +452,7 @@ def docker_default_findings(files: list[Path]) -> list[str]:
 
     for path in files:
         label = path.relative_to(ROOT).as_posix()
+
         findings.extend(docker_default_findings_for_source(path.read_text(encoding="utf-8"), label, ALLOWED_DOCKER_DEFAULTS))
 
     return findings
@@ -471,6 +475,7 @@ def docker_default_findings_for_source(
 
             if entry not in allowed:
                 classification = docker_default_classification(entry, allowed)
+
                 findings.append(f"{label}:{line_number}: {classification} Docker ARG default: {line.strip()}")
 
             continue
@@ -493,6 +498,7 @@ def docker_default_findings_for_source(
 
                 if entry not in allowed:
                     classification = docker_default_classification(entry, allowed)
+
                     findings.append(f"{label}:{line_number}: {classification} Docker ENV default: {line.strip()}")
 
             continue
@@ -509,6 +515,7 @@ def docker_default_findings_for_source(
 
         if entry not in allowed:
             classification = docker_default_classification(entry, allowed)
+
             findings.append(f"{label}:{line_number}: {classification} Docker ENV default: {line.strip()}")
 
     return findings
@@ -539,6 +546,7 @@ def docker_logical_lines(source):
 
         if stripped.endswith("\\"):
             pending += stripped[:-1] + " "
+
             continue
 
         yield (first_line, pending + line)
@@ -563,6 +571,7 @@ def shell_default_findings(files: list[Path]) -> list[str]:
     for entry in sorted(defaults):
         if entry not in ALLOWED_SHELL_DEFAULTS:
             (path, name, operator, value) = entry
+
             findings.append(f"{path}: unreviewed shell default expansion: ${{{name}{operator}{value}}}")
 
     return findings
@@ -604,6 +613,7 @@ def docker_defaults(files: list[Path]) -> set[tuple[str, str, str, str]]:
             if tokens and all(DOCKER_KEY_VALUE_ENV_TOKEN_RE.match(token) for token in tokens):
                 for token in tokens:
                     (name, value) = token.split("=", 1)
+
                     defaults.add(("ENV", label, name, value))
 
                 continue

@@ -144,6 +144,7 @@ class ControllerRecoveryFailureTests(unittest.IsolatedAsyncioTestCase):
 
                     if len(attempted) == 1:
                         delivery.retirement_confirmed = False
+
                         raise failure
 
                     return await submit(item)

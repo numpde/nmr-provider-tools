@@ -91,6 +91,7 @@ def publish_release_wheels(tool, pool, artifacts):
 
             for (wheel_name, checksum, url) in artifacts:
                 (distribution, version, _, _) = parse_wheel_filename(wheel_name)
+
                 stream.write("[[packages]]\n")
 
                 stream.write(
@@ -229,6 +230,7 @@ def _capture_image_inputs(pin, runtime_lock, pool, destination, lock_fd):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description=__doc__)
+
     parser.add_argument("action", choices=("check", "acquire", "capture"))
     parser.add_argument("--pin", type=Path, required=True)
     parser.add_argument("--runtime-lock", type=Path, required=True)
@@ -252,6 +254,7 @@ if __name__ == "__main__":
             parser.error("acquire requires --tool-pin")
 
         acquisition_tool = acquire_tool(args.pool, read_json(args.tool_pin))
+
         acquire_release(args.pin, args.runtime_lock, args.pool, acquisition_tool)
     else:
         if args.destination is None:

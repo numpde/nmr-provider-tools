@@ -19,6 +19,7 @@ from tests.repository.quality.sources import ROOT
 class CheckerOperationTests(unittest.TestCase):
     def setUp(self):
         temporary = tempfile.TemporaryDirectory()
+
         self.addCleanup(temporary.cleanup)
         self.directory = Path(temporary.name)
         self.engine = self.directory / "engine.sh"
@@ -107,12 +108,14 @@ if checker_run "$budget" inert-image; then exit 0; else exit "$?"; fi
 
     def identity_invocation(self, scenario):
         shadow = self.directory / "identity-checkout"
+
         (shadow / "host/tools").mkdir(parents=True)
 
         for name in ("checker_operation.sh", "docker_client.sh", "inference_native.sh", "image_lifecycle.sh"):
             shutil.copyfile(ROOT / "host/tools" / name, shadow / "host/tools" / name)
 
         acquisition = shadow / "bootstrap/acquisition/acquisition_tool"
+
         acquisition.mkdir(parents=True)
 
         # The published owner is an external port here. Its own tests qualify
@@ -177,6 +180,7 @@ exit "$status"
 
     def test_shared_identity_owner_receives_selected_endpoint_policy_and_map_order(self):
         result = self.run_identity_probe("identity-success")
+
         self.assertEqual(0, result.returncode, msg=result.stderr)
         self.assertEqual(["verify", "source", "project", "native"], (self.directory / "identity-events").read_text().splitlines())
 
@@ -212,6 +216,7 @@ exit "$status"
 
     def assert_identity_receipt_blocks_dispatch(self, scenario):
         result = self.run_identity_probe(scenario)
+
         self.assertEqual(2, result.returncode, msg=result.stderr)
         self.assertEqual(["verify", "source", "project"], (self.directory / "identity-events").read_text().splitlines())
 
@@ -231,6 +236,7 @@ exit "$status"
 
     def assert_settled_identity_failure(self, scenario, status):
         result = self.run_identity_probe(scenario)
+
         self.assertEqual(status, result.returncode, msg=result.stderr)
 
         self.assertEqual(
@@ -248,6 +254,7 @@ exit "$status"
 
     def test_identity_verification_failure_stops_before_sourcing_or_probe(self):
         result = self.run_identity_probe("verification-failure")
+
         self.assertEqual(31, result.returncode, msg=result.stderr)
         self.assertEqual(["verify"], (self.directory / "identity-events").read_text().splitlines())
         self.assertEqual(["31", "old-uid", "old-gid", "true"], (self.directory / "identity-result").read_text().splitlines())
@@ -255,12 +262,14 @@ exit "$status"
 
     def test_success_removes_owned_containers_before_temporary_inputs(self):
         result = self.run_probe("success")
+
         self.assertEqual(0, result.returncode, msg=result.stderr)
         self.assertEqual(["create", "start", "ps", "rm", "ps"], (self.directory / "calls").read_text().splitlines())
         self.assertTrue(all(not path.exists() for path in self.owned_paths()))
 
     def test_successful_build_retires_images_only_after_cleanup_and_lock_release(self):
         shadow = self.directory / "checkout"
+
         (shadow / "host/tools").mkdir(parents=True)
 
         for name in ("checker_operation.sh", "docker_client.sh", "inference_native.sh", "image_lifecycle.sh"):
@@ -281,6 +290,7 @@ printf 'retired\\n' > "$PROBE_REPORT.retired"
         command[-1] = str(shadow)
         command[2] = command[2].replace('budget=10', 'image_retire_after_success=true\nbudget=10')
         result = subprocess.run(command, env=environment, capture_output=True, text=True, timeout=15, check=False)
+
         self.assertEqual(0, result.returncode, msg=result.stderr)
         self.assertEqual("retired\n", Path(self.environment["PROBE_REPORT"] + ".retired").read_text())
         self.assertTrue(all(not path.exists() for path in self.owned_paths()))
@@ -289,29 +299,34 @@ printf 'retired\\n' > "$PROBE_REPORT.retired"
         for scenario in ("residue", "enumeration-failure", "malformed-list"):
             with self.subTest(scenario=scenario):
                 result = self.run_probe(scenario)
+
                 self.assertEqual(2, result.returncode, msg=result.stderr)
                 self.assertTrue(all(path.is_dir() for path in self.owned_paths()))
                 self.assertIn("Retained operation", result.stderr)
 
     def test_primary_failure_survives_cleanup_failure(self):
         result = self.run_probe("primary-failure")
+
         self.assertEqual(23, result.returncode, msg=result.stderr)
         self.assertTrue(all(path.is_dir() for path in self.owned_paths()))
 
     def test_failed_create_is_never_started_and_retains_even_after_empty_listing(self):
         result = self.run_probe("uncertain-create")
+
         self.assertEqual(7, result.returncode, msg=result.stderr)
         self.assertNotIn("start", (self.directory / "calls").read_text().splitlines())
         self.assertTrue(all(path.is_dir() for path in self.owned_paths()))
 
     def test_unknown_local_retirement_forbids_next_dispatch_and_cleanup(self):
         result = self.run_probe("unknown-retirement")
+
         self.assertEqual(2, result.returncode, msg=result.stderr)
         self.assertFalse((self.directory / "calls").exists())
         self.assertTrue(all(path.is_dir() for path in self.owned_paths()))
 
     def test_settled_failed_stream_releases_temporary_inputs(self):
         result = self.run_probe("settled-stream-failure")
+
         self.assertEqual(23, result.returncode, msg=result.stderr)
         self.assertEqual("captured build input\n", Path(self.environment["PROBE_REPORT"] + ".stream").read_text())
         self.assertEqual(["ps", "ps"], (self.directory / "calls").read_text().splitlines())
@@ -319,6 +334,7 @@ printf 'retired\\n' > "$PROBE_REPORT.retired"
 
     def test_attachment_deadline_retires_client_and_container_before_releasing_inputs(self):
         result = self.run_probe("attachment-timeout")
+
         self.assertEqual(124, result.returncode, msg=result.stderr)
         self.assertIn("rm", (self.directory / "calls").read_text().splitlines())
         self.assertTrue(all(not path.exists() for path in self.owned_paths()))

@@ -89,6 +89,7 @@ def build(pool, output, source, lock):
                     zip_entry = zipfile.ZipInfo(name, (1980, 1, 1, 0, 0, 0))
                     zip_entry.compress_type = zipfile.ZIP_STORED
                     zip_entry.external_attr = 0o644 << 16
+
                     archive.writestr(zip_entry, member_bytes)
 
             stream.flush()
@@ -108,10 +109,12 @@ def build(pool, output, source, lock):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
+
     parser.add_argument("--pool", type=Path, required=True)
     parser.add_argument("--output", type=Path, required=True)
     parser.add_argument("--lock", type=Path, required=True)
     args = parser.parse_args()
+
     build(args.pool, args.output, Path(__file__).resolve().parent.parent, args.lock)
 
 

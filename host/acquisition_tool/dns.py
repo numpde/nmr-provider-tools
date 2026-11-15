@@ -91,6 +91,7 @@ def capture_dns_servers(interface):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
+
     parser.add_argument("--interface", required=True)
     parser.add_argument("--output", required=True, type=Path)
     args = parser.parse_args()

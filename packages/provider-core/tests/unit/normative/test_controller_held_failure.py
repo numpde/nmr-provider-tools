@@ -113,6 +113,7 @@ class HeldFailureTests(unittest.IsolatedAsyncioTestCase):
         (controller, session, delivery, _) = configured(claims, selected, reference, forged, source=True)
 
         failure = await self.failed_run(controller, selected)
+
         self.assertIs(failure.cause.cause, forged)
 
         with self.assertRaises(ControllerFailed):
@@ -145,6 +146,7 @@ class HeldFailureTests(unittest.IsolatedAsyncioTestCase):
         )
 
         failure = await self.failed_run(controller, selected)
+
         self.assertIs(type(failure.cause.cause), ExecutionStopped)
         self.assertIsNone(failure.cause.outcome)
 
@@ -170,6 +172,7 @@ class HeldFailureTests(unittest.IsolatedAsyncioTestCase):
             unresolved = AnalysisOutcomeUnresolved("PRIVATE_BINDING_DETAIL")
             (controller, session, delivery, transport) = configured(claims, selected, reference, unresolved)
             failure = await self.failed_run(controller, selected)
+
             self.assertIs(controller.require_held_failure(selected, failure), failure)
             self.assertIs(failure.cause.cause, unresolved)
             self.assertIs(unresolved.__cause__, session.original)
@@ -184,6 +187,7 @@ class HeldFailureTests(unittest.IsolatedAsyncioTestCase):
                 claims.claim_live(selected, lifecycle_owner=LiveAttemptProbe())
 
             rendered = repr(failure_evidence(failure, secrets=()))
+
             self.assertIn(type(session.original).__name__, rendered)
             self.assertIn("104", rendered)
             self.assertIn("retain this Attempt", rendered)
@@ -205,6 +209,7 @@ class HeldFailureTests(unittest.IsolatedAsyncioTestCase):
 
         for (controller, selected, failure, transport) in runs:
             calls = len(transport.calls)
+
             self.assertIs(controller.require_held_failure(selected, failure), failure)
             self.assertEqual(len(transport.calls), calls)
             self.assertTrue(claims.owns_job(selected.scope, selected.input.job_ref))
@@ -281,6 +286,7 @@ class HeldFailureTests(unittest.IsolatedAsyncioTestCase):
             return caught.exception
 
         refused = await asyncio.to_thread(asyncio.run, query_from_foreign_loop())
+
         self.assertIs(type(refused.__cause__), ExceptionGroup)
         self.assertIs(refused.__cause__.exceptions[0], failure)
         self.assertIs(type(refused.__cause__.exceptions[1]), OwnershipRefused)
@@ -298,8 +304,10 @@ class HeldFailureTests(unittest.IsolatedAsyncioTestCase):
         cleanup = RuntimeError("PRIVATE_CLEANUP")
         session.retirement_failure = cleanup
         failure = await self.failed_run(controller, selected)
+
         self.assert_original_raised(controller, selected, failure)
         session.retirement_failure = None
+
         await controller.operation.settle()
         self.assertTrue(controller.shutdown_ready)
         self.assertIn(cleanup, failure.cause.cleanup_failures)
@@ -420,6 +428,7 @@ class HeldFailureTests(unittest.IsolatedAsyncioTestCase):
 
         failure = await self.failed_run(controller, selected)
         gap = failure.cause.cause
+
         self.assertIs(type(gap), ObservationGapExpired)
         self.assertIs(gap._executor, controller.operation)
         self.assertIs(failure.cause.api_failure, gap.cause)
@@ -478,6 +487,7 @@ class HeldFailureTests(unittest.IsolatedAsyncioTestCase):
         )
 
         failure = await self.failed_run(controller, selected)
+
         self.assertIs(type(failure.cause.cause), ObservationGapExpired)
         self.assertIs(failure.cause.api_failure, failure.cause.cause.cause)
         self.assertEqual(failure.cause.api_failure.status, 503)
@@ -543,6 +553,7 @@ class HeldFailureTests(unittest.IsolatedAsyncioTestCase):
                 )
 
                 failure = await self.failed_run(controller, selected)
+
                 self.assertTrue(started.is_set())
                 self.assertIs(type(failure.cause.cause), ObservationGapExpired)
                 self.assertTrue(controller.shutdown_ready)
@@ -573,6 +584,7 @@ class HeldFailureTests(unittest.IsolatedAsyncioTestCase):
         for (field, value) in (("api_failure", ApiFailure("unrelated write", "unconfirmed")),
                              ("interruption_cause", asyncio.CancelledError("real interruption"))):
             original = getattr(execution, field)
+
             setattr(execution, field, value)
 
             try:
@@ -615,6 +627,7 @@ class HeldFailureTests(unittest.IsolatedAsyncioTestCase):
 
         failure = await self.failed_run(controller, selected)
         gap = failure.cause.cause
+
         self.assertIs(type(gap), ObservationGapExpired)
         self.assertTrue(gap.read_started)
         self.assertIsNone(gap.cause)

@@ -77,6 +77,7 @@ class WheelhouseTests(unittest.TestCase):
                 raise OSError(5, "private response cleanup detail")
 
         body = BrokenClose(b"private response body")
+
         self.addCleanup(io.BytesIO.close, body)
         error = urllib.error.HTTPError("https://secret.invalid/private", 503, "private", {}, body)
         operation = Mock(side_effect=RequestFailure(error))
@@ -105,6 +106,7 @@ class WheelhouseTests(unittest.TestCase):
             )
 
         unrelated = self.pool / "unrelated.bin"
+
         unrelated.write_bytes(b"preserve unrelated bytes")
         unrelated_before = (unrelated.read_bytes(), unrelated.stat().st_ino)
 
@@ -113,6 +115,7 @@ class WheelhouseTests(unittest.TestCase):
 
         first = self.pool / self.name
         first_before = (first.read_bytes(), first.stat().st_ino)
+
         self.assertEqual(self.content, first_before[0])
         self.assertEqual(unrelated_before, (unrelated.read_bytes(), unrelated.stat().st_ino))
 
@@ -123,6 +126,7 @@ class WheelhouseTests(unittest.TestCase):
 
         self.assertEqual(1, self.requests.count(f"/{self.name}"))
         failed_requests = [path for path in self.requests if path != f"/{self.name}"]
+
         self.assertTrue(failed_requests)
         self.assertTrue(all(path == f"/{second_name}" for path in failed_requests))
 
@@ -142,6 +146,7 @@ class WheelhouseTests(unittest.TestCase):
 
     def setUp(self):
         temporary = tempfile.TemporaryDirectory()
+
         self.addCleanup(temporary.cleanup)
         self.root = Path(temporary.name)
         self.pool = self.root / "pool"
@@ -162,6 +167,7 @@ class WheelhouseTests(unittest.TestCase):
         self.server = ThreadingHTTPServer(("127.0.0.1", 0), partial(Server, directory=str(self.root)))
 
         thread = threading.Thread(target=self.server.serve_forever)
+
         thread.start()
         self.addCleanup(self.server.server_close)
         self.addCleanup(thread.join)
@@ -183,6 +189,7 @@ class WheelhouseTests(unittest.TestCase):
         tool.run("acquire", self.lock, self.pool)
         path = self.pool / self.name
         inode = path.stat().st_ino
+
         tool.run("acquire", self.lock, self.pool)
         self.assertEqual(self.content, path.read_bytes())
         self.assertEqual(inode, path.stat().st_ino)
@@ -199,6 +206,7 @@ class WheelhouseTests(unittest.TestCase):
 
     def test_conflict_is_preserved_without_network(self):
         path = self.pool / self.name
+
         path.write_bytes(b"different")
         inode = path.stat().st_ino
 
@@ -332,6 +340,7 @@ class WheelhouseTests(unittest.TestCase):
 
     def test_response_and_partial_cleanup_failures_preserve_http_cause(self):
         body = io.BytesIO(b"private response body")
+
         self.addCleanup(body.close)
         error = urllib.error.HTTPError("https://secret.invalid/private", 503, "private", {}, body)
 
@@ -379,6 +388,7 @@ class WheelhouseTests(unittest.TestCase):
         digest = hashlib.sha256(self.content).hexdigest()
         url = f'http://127.0.0.1:{self.server.server_port}/{self.name}'
         fd = os.open(self.pool, os.O_RDONLY | os.O_DIRECTORY)
+
         self.addCleanup(os.close, fd)
 
         for (contents, expected) in ((self.content, 'a competing final file was verified'),
@@ -411,6 +421,7 @@ class WheelhouseTests(unittest.TestCase):
 
     def test_index_metadata_retries_transient_failure(self):
         digest = 'a' * 64
+
         self.lock.write_text('--index-url https://example.invalid/simple\nexample==1.0 \\\n    --hash=sha256:' + digest + '\n')
 
         metadata = {'name': 'example',
@@ -430,6 +441,7 @@ class WheelhouseTests(unittest.TestCase):
 
     def test_warm_reader_proceeds_while_acquisitions_share_one_download(self):
         cached = "cached-1.0-py3-none-any.whl"
+
         (self.pool / cached).write_bytes(self.content)
         digest = hashlib.sha256(self.content).hexdigest()
         package = SimpleNamespace(name="cached")
@@ -461,12 +473,14 @@ class WheelhouseTests(unittest.TestCase):
         with patch.object(tool, "download", slow_download):
             first = threading.Thread(target=acquire)
             second = threading.Thread(target=acquire)
+
             first.start()
 
             try:
                 self.assertTrue(started.wait(5))
                 second.start()
                 reader = threading.Thread(target=read_cached)
+
                 reader.start()
                 reader.join(2)
                 self.assertFalse(reader.is_alive(), msg="warm reader waited for the download")
@@ -503,6 +517,7 @@ class WheelhouseTests(unittest.TestCase):
         with patch.object(tool, "download", capture_download):
             fcntl.flock(directory, fcntl.LOCK_EX)
             worker = threading.Thread(target=acquire)
+
             worker.start()
 
             try:
@@ -526,9 +541,11 @@ class WheelhouseTests(unittest.TestCase):
         (self.pool / self.name).write_bytes(self.content)
         (self.pool / "unselected.whl").write_bytes(b"not selected")
         source = self.root / "context"
+
         source.mkdir()
         (source / "Dockerfile").write_text("FROM scratch\n")
         result = io.BytesIO()
+
         stream_context(self.pool, source, [{"lock": str(self.lock), "directory": "wheels/main"}], result)
         result.seek(0)
 
@@ -539,6 +556,7 @@ class WheelhouseTests(unittest.TestCase):
     def test_stream_refuses_changed_artifact_and_source_link(self):
         (self.pool / self.name).write_bytes(b"wrong")
         source = self.root / "context"
+
         source.mkdir()
 
         with self.assertRaisesRegex(ValueError, "bytes differ"):
@@ -579,6 +597,7 @@ class WheelhouseTests(unittest.TestCase):
             stream_context(self.pool, None, [], io.BytesIO(), [entry])
 
         alias = self.root / "alias"
+
         alias.symlink_to(self.root, target_is_directory=True)
         entry["path"] = str(alias / self.lock.name)
         entry["sha256"] = hashlib.sha256(self.lock.read_bytes()).hexdigest()
@@ -609,6 +628,7 @@ class WheelhouseTests(unittest.TestCase):
                     "archive_info": {"hashes": {"sha256": "a" * 64}}}}]}
 
         result = report_manifest(report("file:///pool/torch-1.0%2Bcpu.whl"), "/pool", "wheels", set())
+
         self.assertEqual("torch-1.0+cpu.whl", result[0]["filename"])
 
         for url in ("https://host/pool/a.whl",
@@ -635,6 +655,7 @@ class WheelhouseTests(unittest.TestCase):
     def test_selection_identity_is_stable_and_changes_with_selected_bytes(self):
         first = {"directory": "wheels/main", "filename": "first.whl", "sha256": "a" * 64}
         second = {"directory": "wheels/native", "filename": "second.whl", "sha256": "b" * 64}
+
         self.assertEqual(selection_identity([first, second]), selection_identity([second, first, first]))
         self.assertNotEqual(selection_identity([first]), selection_identity([first | {"sha256": "c" * 64}]))
 
@@ -677,6 +698,7 @@ class WheelhouseTests(unittest.TestCase):
         self.assertEqual("https://example.invalid/files/example-1.0-py3-none-any.whl", projected["packages"][0]["wheels"][0]["url"])
         self.assertEqual(direct, projected["packages"][1]["archive"]["hashes"]["sha256"])
         derived = self.root / "pylock.derived.toml"
+
         derived.write_text(projected_text)
 
         with self.assertRaisesRegex(ValueError, "matching source requirements lock"):
@@ -703,6 +725,7 @@ class WheelhouseTests(unittest.TestCase):
         native = "example-1.0-cp312-cp312-linux_x86_64.whl"
         cached_hash = hashlib.sha256(self.content).hexdigest()
         native_hash = hashlib.sha256(b"native bytes").hexdigest()
+
         (self.pool / cached).write_bytes(self.content)
         (self.pool / native).write_bytes(b"conflicting bytes")
 
@@ -721,20 +744,24 @@ class WheelhouseTests(unittest.TestCase):
 
         self.assertEqual(b"conflicting bytes", (self.pool / native).read_bytes())
         derived = self.root / "pylock.cached.toml"
+
         derived.write_text(projected)
 
         # An alternative appearing later cannot change this projection.
         (self.pool / native).write_bytes(b"native bytes")
 
         artifacts = tool.selected(derived, [], source_lock=self.lock)
+
         self.assertEqual([cached], [entry[0] for entry in artifacts])
         self.assertEqual(cached, tool.run("check", derived, self.pool, artifacts=artifacts)["artifacts"][0]["filename"])
 
     def test_locator_accepts_existing_direct_source_only_when_it_matches_the_pin(self):
         digest = "a" * 64
+
         self.lock.write_text('--index-url https://example.invalid/simple\ntorch==2.3.0+cpu \\\n    --hash=sha256:' + digest + '\n')
         url = "https://example.invalid/torch-2.3.0%2Bcpu-cp312-cp312-linux_x86_64.whl#sha256=" + digest
         projected = tomllib.loads(locate(self.lock, direct_sources=[url]))
+
         self.assertEqual(digest, projected["packages"][0]["archive"]["hashes"]["sha256"])
 
         with self.assertRaisesRegex(ValueError, "differs from its locked identity"):
@@ -756,6 +783,7 @@ class WheelhouseTests(unittest.TestCase):
 
         direct = 'https://example.invalid/example-1.0%2Blocal-py3-none-any.whl#sha256=' + hashes['example-1.0+local-py3-none-any.whl']
         derived = self.root / 'pylock.derived.toml'
+
         derived.write_text(locate(self.lock, direct_sources=[direct]))
         self.assertEqual('1.0+local', tomllib.loads(derived.read_text())['packages'][0]['version'])
         self.assertEqual('example-1.0+local-py3-none-any.whl', tool.selected(derived, [], source_lock=self.lock)[0][0])
@@ -767,26 +795,32 @@ class WheelhouseTests(unittest.TestCase):
 
         with patch('wheelhouse_tool.locate.urllib.request.build_opener') as opener:
             opener.return_value.open.return_value = io.BytesIO(json.dumps(metadata).encode())
+
             derived.write_text(locate(self.lock, allowed_sources=['example']))
 
         package = tomllib.loads(derived.read_text())['packages'][0]
         original_lock = self.lock.read_text()
+
         self.assertEqual('1.0+local', package['version'])
         self.assertEqual(1, len(package['wheels']))
         self.assertTrue(tool.selected(derived, ['example'], source_lock=self.lock)[0][0].endswith('.tar.gz'))
         base = 'example-1.0-py3-none-any.whl'
+
         (self.pool / base).write_bytes(base.encode())
 
         with patch('wheelhouse_tool.locate.urllib.request.build_opener') as opener:
             opener.return_value.open.side_effect = lambda *args, **kwargs: io.BytesIO(json.dumps(metadata).encode())
             cached = tomllib.loads(locate(self.lock, pool=self.pool))['packages'][0]
+
             self.assertEqual('1.0', cached['version'])
             metadata['files'][1]['yanked'] = True
             unyanked = tomllib.loads(locate(self.lock))['packages'][0]
+
             self.assertEqual('1.0', unyanked['version'])
             metadata['files'][1]['yanked'] = False
             source_name = 'example-1.0.tar.gz'
             hashes[source_name] = hashlib.sha256(source_name.encode()).hexdigest()
+
             self.lock.write_text(self.lock.read_text() + '    --hash=sha256:' + hashes[source_name] + '\n')
             metadata['files'] = [entry for entry in metadata['files'] if not entry['filename'].endswith('.tar.gz')]
 
@@ -795,6 +829,7 @@ class WheelhouseTests(unittest.TestCase):
                                       'hashes': {'sha256': hashes[source_name]}})
 
             source = tomllib.loads(locate(self.lock, required_sources=['example'], pool=self.pool))['packages'][0]
+
             self.assertEqual('1.0', source['version'])
             self.assertTrue(source['sdist']['url'].endswith(source_name))
 
@@ -805,6 +840,7 @@ class WheelhouseTests(unittest.TestCase):
 
         self.lock.write_text(original_lock)
         altered = derived.read_text().replace('1.0+local', '2.0').replace('1.0%2Blocal', '2.0')
+
         derived.write_text(altered)
 
         with self.assertRaisesRegex(ValueError, 'different locked version'):
@@ -813,6 +849,7 @@ class WheelhouseTests(unittest.TestCase):
     def test_locator_handles_direct_only_and_required_source(self):
         digest = "a" * 64
         url = "https://example.invalid/torch-2.3.0%2Bcpu-cp312-cp312-linux_x86_64.whl#sha256=" + digest
+
         self.lock.write_text("torch @ " + url + " \\\n    --hash=sha256:" + digest + "\n")
         self.assertEqual("torch", tomllib.loads(locate(self.lock))["packages"][0]["name"])
 
@@ -859,6 +896,7 @@ class WheelhouseTests(unittest.TestCase):
     def test_local_lock_preserves_the_selected_hash_and_uses_a_local_path(self):
         projected = tomllib.loads(tool.local_lock(self.lock, Path("/wheels")))
         artifact = projected["packages"][0]["wheels"][0]
+
         self.assertEqual("/wheels/" + self.name, artifact["path"])
         self.assertNotIn("url", artifact)
         self.assertEqual(hashlib.sha256(self.content).hexdigest(), artifact["hashes"]["sha256"])
@@ -908,6 +946,7 @@ class WheelhouseTests(unittest.TestCase):
 
     def test_credential_in_url_is_rejected_without_disclosure(self):
         lock = self.lock.read_text().replace("http://", "http://user:secret@")
+
         self.lock.write_text(lock)
 
         with self.assertRaises(ValueError) as error:

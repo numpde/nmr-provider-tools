@@ -42,6 +42,7 @@ class RuntimePostureTests(unittest.TestCase):
             ("NMR_PROVIDER_TOOLS_EXPECTED_GID", os.getgid()),
         ):
             expected = os.environ.get(variable)
+
             self.assertIsNotNone(expected, msg=f"Cannot verify caller identity: the maintained launcher must inject {variable}.")
 
             self.assertTrue(
@@ -71,6 +72,7 @@ class RuntimePostureTests(unittest.TestCase):
 
     def test_tmp_is_a_hardened_writable_tmpfs(self):
         (filesystem, options) = mount_record("/tmp")
+
         self.assertEqual("tmpfs", filesystem)
         self.assertTrue({"rw", "noexec", "nosuid", "nodev"} <= options)
 
@@ -85,6 +87,7 @@ class RuntimePostureTests(unittest.TestCase):
             )
 
         (quota, period) = map(int, (cgroup / "cpu.max").read_text().split())
+
         self.assertEqual(2 * period, quota, msg="CPU quota differs from the maintained two-CPU grant.")
 
     def test_fixture_install_retains_no_build_source(self):

@@ -56,6 +56,7 @@ class ExecutionJobPolicyTests(unittest.IsolatedAsyncioTestCase):
 
         try:
             terminal = await execute_with_watchdog(executor, acknowledged)
+
             self.assertIs(terminal.selection.operation, TerminalOperation.COMPLETE)
             self.assertIn("closed", observed)
             self.assertEqual([event[0] for event in session.events], ["prepare", "execute", "retire"])

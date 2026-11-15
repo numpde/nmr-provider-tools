@@ -26,6 +26,7 @@ class ModelReplyBoundaryTests(unittest.IsolatedAsyncioTestCase):
 
         async def observe_launch(*args, **kwargs):
             child = await launch(*args, **kwargs)
+
             children.append(child)
 
             return child
@@ -50,6 +51,7 @@ class ModelReplyBoundaryTests(unittest.IsolatedAsyncioTestCase):
 
                 def observe_endpoint(**settings):
                     endpoint = factory(**settings)
+
                     endpoints.append(endpoint)
 
                     return endpoint
@@ -80,6 +82,7 @@ class ModelReplyBoundaryTests(unittest.IsolatedAsyncioTestCase):
                                 await asyncio.sleep(0.005)
 
                         evidence = json.loads(marker.read_text())
+
                         self.assertEqual(1, len(peer.requests))
                         self.assertEqual(1, len(children))
                         self.assertEqual(1, len(endpoints))
@@ -104,6 +107,7 @@ class ModelReplyBoundaryTests(unittest.IsolatedAsyncioTestCase):
                         else:
                             self.assertIsInstance(failure.primary, asyncio.IncompleteReadError)
                             expected = evidence["written"] if mode == "header" else evidence["written"] - 4
+
                             self.assertEqual(expected, len(failure.primary.partial))
                             self.assertEqual(-signal.SIGKILL, children[0].returncode)
 

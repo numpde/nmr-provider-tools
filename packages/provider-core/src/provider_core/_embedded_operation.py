@@ -145,6 +145,7 @@ class _Operation(_Changes):
     def _check_execution_at_handoff(self):
         """Ask the owning event loop to check execution state before scientific entry."""
         permit = Future()
+
         self.loop.call_soon_threadsafe(self._check_dispatch, permit)
         permit.result()
 
@@ -193,12 +194,15 @@ class _Operation(_Changes):
             self._check_execution_at_handoff()
 
             phase = "instance_initialization"
+
             self._initialize_instance()
 
             phase = "analysis_initialization"
+
             self.science.initialize()
 
             phase = "start"
+
             self._check_execution_at_handoff()
 
             phase = "decoding"
@@ -395,6 +399,7 @@ class _Operation(_Changes):
             )
 
             self.analysis.states[state_reference] = _State(returned_state, self)
+
             returned_arguments.append(StateResult(returned_state.name, state_reference))
 
         self.returned_states = tuple(returned_arguments)
@@ -437,6 +442,7 @@ class _Operation(_Changes):
 
             self.science.failure = cause
             self.science.resident.failure = cause
+
             adoption_receipt.set_exception(cause)
         else:
             adoption_receipt.set_result(None)
@@ -513,6 +519,7 @@ class _Operation(_Changes):
     async def _release(self):
         if not self.value_disposed:
             disposal_future = self.science.resident.executor.submit(self.dispose_value)
+
             await await_original(disposal_future, deadline=None)
 
         self.payload = None

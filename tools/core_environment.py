@@ -130,6 +130,7 @@ def _build_candidate(source, runtime_lock, build_lock, pool, output, lock_fd):
 
         for (role, lock) in (("runtime", runtime_lock), ("build", build_lock)):
             frozen = scratch / f"{role}.lock"
+
             shutil.copyfile(lock, frozen)
             requirements(frozen)
             identities[role] = select_wheels(frozen, pool, lock_fd=lock_fd)
@@ -211,6 +212,7 @@ def _build_candidate(source, runtime_lock, build_lock, pool, output, lock_fd):
 
         install_lock = output / f"provider_core-{release_version}-install.lock"
         runtime_lock_text = locks["runtime"].read_text()
+
         requirements(locks["runtime"])
 
         install_lock.write_text(
@@ -465,6 +467,7 @@ def release(source, runtime_lock, build_lock, pool, output, revision):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
+
     parser.add_argument("action", choices=("release", "install"))
     parser.add_argument("--pool", type=Path, required=True)
     parser.add_argument("--root", type=Path)

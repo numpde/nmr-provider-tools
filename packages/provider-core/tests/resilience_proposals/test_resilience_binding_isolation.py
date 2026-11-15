@@ -64,6 +64,7 @@ class BindingIsolationTests(unittest.IsolatedAsyncioTestCase):
 
             with tempfile.TemporaryDirectory() as directory:
                 root = Path(directory)
+
                 (root / "state").mkdir(mode=0o700)
                 (root / "ipc").mkdir(mode=0o700)
                 limits = QueueLimits(2, 8192, 4, 16384)
@@ -71,6 +72,7 @@ class BindingIsolationTests(unittest.IsolatedAsyncioTestCase):
 
                 with ServiceProxyServer(root / "proxy.sock", "lo", policy, status_directory=root) as proxy:
                     thread = threading.Thread(target=proxy.serve_forever, kwargs={"poll_interval": 0.01})
+
                     thread.start()
                     (failed, published) = (asyncio.Event(), asyncio.Event())
                     (first_api, first_task) = ([], [])
@@ -147,10 +149,12 @@ class BindingIsolationTests(unittest.IsolatedAsyncioTestCase):
 
                             try:
                                 status = queue.status(first.api_origin, first.provider_ref, first.execution_attempt_ref)
+
                                 self.assertIsNotNone(status)
                                 self.assertIn(status["state"], ("pending", "held"))
                                 self.assertEqual(status["body_sha256"], first.body_sha256)
                                 handoff = DeliveryHandoff(first, materials[0])
+
                                 self.assertEqual(queue.enqueue_handoff(handoff), handoff.acceptance())
                                 self.assertEqual(queue.status(first.api_origin, first.provider_ref, first.execution_attempt_ref)["state"], status["state"])
                             finally:

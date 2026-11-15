@@ -59,6 +59,7 @@ def expect_optional_certificate_rejection_reset():
     """
     logger = logging.getLogger("asyncio")
     expected = _OptionalCertificateRejectionReset()
+
     logger.addFilter(expected)
 
     try:
@@ -139,6 +140,7 @@ class TlsPeer:
 
         (root / "cert.pem").write_bytes(certificate.public_bytes(serialization.Encoding.PEM))
         server_trust = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
+
         server_trust.load_cert_chain(root / "cert.pem", root / "key.pem")
         self.server_trust = server_trust
 
@@ -168,6 +170,7 @@ class TlsPeer:
 
     async def handle(self, reader, writer):
         task = asyncio.current_task()
+
         self.handlers.add(task)
 
         try:
@@ -183,6 +186,7 @@ class TlsPeer:
                 return
 
             request = await reader.readuntil(b"\r\n\r\n")
+
             self.requests.append(request)
 
             lengths = [

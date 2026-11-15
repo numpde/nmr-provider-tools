@@ -25,6 +25,7 @@ class PublicationMaterialTests(unittest.TestCase):
         reader = Mock(return_value=self.credential)
         (file_settings, file_provider) = api_settings(self.fields | {"credential_file": "/private/credential"}, reader)
         (retained, provider) = api_settings_from_material(self.fields, credential_bytes=self.credential)
+
         self.assertEqual(provider, file_provider)
         self.assertEqual(retained.identity.origin, file_settings.identity.origin)
         self.assertEqual(retained.identity.credential_ref, file_settings.identity.credential_ref)

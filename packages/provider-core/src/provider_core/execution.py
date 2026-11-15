@@ -623,6 +623,7 @@ class AttemptExecutor:
                 )
 
             entered = mark_execution_entered(acknowledged, prepared.identity)
+
             await self._progress("running")
             await self._write_entry(entered)
             await self._observe_active()
@@ -791,6 +792,7 @@ class AttemptExecutor:
             self._task = None
 
             result = task.result()
+
             self._require_live_permission()
 
             if self._observed_crash is not None and self._observed_crash.phase == phase:
@@ -1119,6 +1121,7 @@ class AttemptExecutor:
                         await asyncio.wait_for(self._crash_notice.wait(), timeout=wait)
                     except TimeoutError:
                         delay = min(recovery.backoff_max_seconds, delay * 2)
+
                         continue
 
                     raise self._observed_crash
@@ -1258,12 +1261,14 @@ class AttemptExecutor:
                     raise
 
                 seconds = random.uniform(delay / 2, delay)
+
                 self._notify_delivery_retry(failure, seconds)
 
                 try:
                     await asyncio.wait_for(self._handoff_stopping.wait(), timeout=seconds)
                 except TimeoutError:
                     delay = min(self._delivery_retry_max, delay * 2)
+
                     continue
 
                 raise
@@ -1446,6 +1451,7 @@ class AttemptExecutor:
                         self._remember(cause, cleanup=True)
                 except (Exception, BaseExceptionGroup) as cause:
                     failed = True
+
                     self._remember(cause, cleanup=True)
 
                     if not isinstance(cause, Exception) and fatal is None:

@@ -34,6 +34,7 @@ class UploadTransferOwnerTests(unittest.IsolatedAsyncioTestCase):
                 await asyncio.Event().wait()
             except asyncio.CancelledError:
                 transfer.last_failure = original
+
                 raise
 
         with private_source_directory() as (root, directory):
@@ -48,6 +49,7 @@ class UploadTransferOwnerTests(unittest.IsolatedAsyncioTestCase):
     async def test_buffered_download_rejects_malformed_grant_before_sending_bearer(self):
         (owner, api, store) = sources()
         api.grant = replace(api.grant, capability="x" * 2049)
+
         await owner.inspect()
 
         with self.assertRaises(UploadFailed):
@@ -263,6 +265,7 @@ class UploadTransferOwnerTests(unittest.IsolatedAsyncioTestCase):
                 return api.grant
 
             receipt = await transfer.acquire_file(grant, directory_fd=directory, retirement_seconds=0.1)
+
             self.assertIs(type(receipt), VerifiedUploadFile)
             self.assertEqual(Path(root, receipt.name).read_bytes(), b"geometry")
             self.assertEqual(charged, [8])

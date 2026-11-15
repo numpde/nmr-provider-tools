@@ -213,6 +213,7 @@ def _operation(control, *, generation, lock_identity, lease, scratch_fd, argv, o
                       deadline=greeting_deadline)
 
         greeting_delivered = True
+
         science.close()
         event = _watch(worker, control, shutdown, operation_deadline, status)
         shutdown_requested = event == "shutdown"
@@ -305,6 +306,7 @@ def serve(options, argv, shutdown):
         status_fd = _private_directory(options.status_directory)
         (lease, lock_identity) = _lease(parent)
         status = ProcessStatus(Path(f"/proc/self/fd/{status_fd}"), options.role)
+
         status.refresh("starting")
 
         if os.listdir(scratch_fd):
@@ -326,6 +328,7 @@ def serve(options, argv, shutdown):
 
             observed = os.stat(options.socket.name, dir_fd=parent, follow_symlinks=False)
             identity = (observed.st_dev, observed.st_ino)
+
             listener.listen(1)
 
             with select.epoll() as events:
@@ -381,11 +384,13 @@ def serve(options, argv, shutdown):
 
 def main(arguments=None):
     parser = argparse.ArgumentParser(description="Serve fixed native children on a private lifecycle socket.")
+
     parser.add_argument("--role", required=True)
     parser.add_argument("--socket", type=Path, required=True)
     parser.add_argument("--scratch", type=Path, required=True)
     parser.add_argument("--status-directory", type=Path, required=True)
     lifetime = parser.add_mutually_exclusive_group(required=True)
+
     lifetime.add_argument("--operation-seconds", type=float)
 
     lifetime.add_argument(

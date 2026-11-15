@@ -97,6 +97,7 @@ class ChildSession:
         self.phases.append(type(self.store.records[0]))
         await self.child.start(self.mode)
         fingerprint = instructions.identity.input_fingerprint
+
         await self.child.send({"operation": "prepare", "source_fingerprint": fingerprint})
         reply = await self.child.receive()
         evidence = ProtectedEvidence("fixture.child.evidence.v1", b"scripted preparation, not chemical validation")
@@ -120,6 +121,7 @@ class ChildSession:
 
         self.phases.append(type(self.store.records[0]))
         self.generations += 1
+
         await self.child.send({"operation": "generate"})
 
         if await self.child.receive() != {"state": "generating"}:

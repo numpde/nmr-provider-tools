@@ -289,6 +289,7 @@ class ExecutionPermissionAdditionalTests(unittest.IsolatedAsyncioTestCase):
     async def test_owned_awaited_child_tasks_can_dispatch_in_both_phases(self):
         transport = LiveConditionTransport()
         (controller, session, delivery) = composed(ChildDispatch, transport, observation_recovery=None, poll_seconds=1)
+
         await self.run_controller(controller, transport)
         self.assertEqual(session.dispatches, ["prepare", "execute"])
         self.assertEqual([event[0] for event in session.events], ["prepare", "execute", "retire"])
@@ -298,6 +299,7 @@ class ExecutionPermissionAdditionalTests(unittest.IsolatedAsyncioTestCase):
     async def test_caught_actual_condition_failure_poison_blocks_next_scientific_effect(self):
         transport = LiveConditionTransport()
         transport.failure = ExchangeFailed("PRIVATE_REPORT_FAILURE")
+
         transport.release.set()
         (controller, session, delivery) = composed(CaughtReportFailure, transport, observation_recovery=None, poll_seconds=1)
 

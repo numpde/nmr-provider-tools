@@ -32,5 +32,6 @@ class ApiEnvironmentTests(unittest.IsolatedAsyncioTestCase):
                 )
 
                 observed = await api.job_input(facts(), analysis_kind_ref="nmr_predict")
+
                 self.assertEqual(observed.specification_bytes, b"private instructions")
                 self.assertEqual(api.expected_topology, topology)

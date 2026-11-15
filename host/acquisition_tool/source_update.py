@@ -316,6 +316,7 @@ def _exchange_directories(first, second):
 
     if exchange(-100, os.fsencode(first), -100, os.fsencode(second), 2) != 0:
         number = ctypes.get_errno()
+
         raise OSError(number, os.strerror(number), f"{first} <-> {second}")
 
 
@@ -350,6 +351,7 @@ def _import_verified_old(source, pin, archive):
 
         for (name, entry) in manifest["payload_files"].items():
             path = stage / name
+
             path.parent.mkdir(parents=True, exist_ok=True)
 
             with path.open("xb") as stream:
@@ -381,6 +383,7 @@ def _import_verified_old(source, pin, archive):
 def import_archive(source_dir, pin_file, archive):
     """Replace clean old source from an authenticated local archive, offline."""
     source = Path(source_dir).absolute()
+
     verify(source)
 
     return _import_verified_old(source, read_pin(pin_file), archive)
@@ -389,6 +392,7 @@ def import_archive(source_dir, pin_file, archive):
 def update(source_dir, pin_file):
     """Download the one pinned GitHub asset and use the same import boundary."""
     source = Path(source_dir).absolute()
+
     verify(source)
     pin = read_pin(pin_file)
     name = f"acquisition-owner-{pin['version']}.tar.gz"
@@ -428,6 +432,7 @@ def main():
 
     for operation in ("verify", "update", "import"):
         command = commands.add_parser(operation)
+
         command.add_argument("--source-dir", type=Path, required=True)
 
         if operation != "verify":

@@ -42,6 +42,7 @@ class LauncherTests(unittest.TestCase):
 
         self.assertEqual(0, result.returncode, msg=result.stderr)
         arguments = shlex.split(result.stdout.splitlines()[-1])
+
         self.assertNotIn("unreviewed", " ".join(arguments))
         self.assertEqual("env", arguments[0])
         self.assertIn("DOCKER_HOST", arguments)
@@ -73,11 +74,13 @@ class LauncherTests(unittest.TestCase):
         env = os.environ | {"PATH": f"{directory}:{os.environ['PATH']}", "DOCKER_CONTEXT": "local-test", "NMR_SELECTED_DOCKER_ENDPOINT": "unix:///tmp/poison.sock", "MAKELEVEL": "1"}
         command = ["make", "--no-print-directory", "tests/repository/command", "DOCKER_CONTEXT=local-test"]
         result = subprocess.run(command, cwd=ROOT, env=env, capture_output=True, text=True, check=False)
+
         self.assertEqual(0, result.returncode, msg=result.stderr)
         self.assertIn("unix:///run/user/1000/docker.sock", result.stdout)
         self.assertNotIn("unix:///tmp/poison.sock", result.stdout)
         command[-1] = "DOCKER_CONTEXT=remote-test"
         result = subprocess.run(command, cwd=ROOT, env=env, capture_output=True, text=True, check=False)
+
         self.assertNotEqual(0, result.returncode)
         self.assertNotIn("ssh://example.invalid", result.stdout)
 
@@ -157,18 +160,22 @@ class LauncherTests(unittest.TestCase):
             (root / ".aws").mkdir()
             (root / "release-artifacts").mkdir()
             launcher = root / "host/tools/repository.sh"
+
             launcher.write_bytes((ROOT / "host/tools/repository.sh").read_bytes())
             environment = os.environ | {"NMR_SELECTED_DOCKER_ENDPOINT": "unix:///var/run/docker.sock"}
             command = ["bash", str(launcher), "--print", "tests/repository"]
             result = subprocess.run(command, env=environment, capture_output=True, text=True, check=False)
+
             self.assertEqual(0, result.returncode, msg=result.stderr)
             arguments = shlex.split(result.stdout)
+
             self.assertIn(f"type=bind,src={root}/future-source,dst=/workspace/future-source,readonly", arguments)
             self.assertNotIn(f"type=bind,src={root}/.aws,dst=/workspace/.aws,readonly", arguments)
             self.assertNotIn(f"type=bind,src={root}/release-artifacts,dst=/workspace/release-artifacts,readonly", arguments)
             self.assertIn(f"type=bind,src={root}/.work,dst=/workspace/.work,readonly", arguments)
             (root / "linked").symlink_to(root / "future-source", target_is_directory=True)
             result = subprocess.run(command, env=environment, capture_output=True, text=True, check=False)
+
             self.assertNotEqual(0, result.returncode)
             self.assertEqual("", result.stdout)
             self.assertIn("Cannot grant repository source", result.stderr)
@@ -176,8 +183,10 @@ class LauncherTests(unittest.TestCase):
     def test_missing_inputs_and_unknown_target_fail_before_engine_execution(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
+
             (root / "host/tools").mkdir(parents=True)
             launcher = root / "host/tools/repository.sh"
+
             launcher.write_bytes((ROOT / "host/tools/repository.sh").read_bytes())
 
             for (target, message) in (

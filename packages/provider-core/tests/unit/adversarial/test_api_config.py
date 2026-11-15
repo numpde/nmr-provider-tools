@@ -53,10 +53,12 @@ class HttpsAdmissionTests(unittest.TestCase):
                 self.settings(read_file)
 
             error = caught.exception
+
             self.assertIn(reason, str(error))
             self.assertIsInstance(error.cause, cause_type)
             self.assertEqual(calls, [("/PRIVATE_PATH/ca.pem", 1048576, "API CA")])
             rendered = json.dumps(failure_evidence(error, secrets=()))
+
             self.assertIn(reason, rendered)
             self.assertIn(cause_type.__name__, rendered)
             self.assertNotIn("PRIVATE", rendered)

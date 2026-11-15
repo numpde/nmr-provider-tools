@@ -63,6 +63,7 @@ class UnixProxy:
                 raise ValueError("Unknown Unix proxy fixture mode")
 
             (incoming, outbound) = await asyncio.open_connection("127.0.0.1", self.origin.port)
+
             writer.write(b"HTTP/1.1 200 Connection Established\r\n\r\n")
             await writer.drain()
 
@@ -81,6 +82,7 @@ class UnixProxy:
                         raise
 
             pumps = [asyncio.create_task(copy(reader, outbound)), asyncio.create_task(copy(incoming, writer))]
+
             await asyncio.gather(*pumps)
         except (ConnectionError, asyncio.IncompleteReadError):
             self.closed.set()
@@ -115,6 +117,7 @@ class UnixProxy:
 
         try:
             results = await asyncio.wait_for(asyncio.gather(*handlers, return_exceptions=True), 2)
+
             await asyncio.wait_for(self.server.wait_closed(), 2)
         finally:
             self.scratch.cleanup()

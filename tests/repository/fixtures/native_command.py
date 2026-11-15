@@ -53,6 +53,7 @@ def fixture_command(name):
 
         control = Path(os.environ["NATIVE_CONTROL"])
         pending = control.with_name(control.name + ".pending")
+
         pending.write_text(json.dumps({"anchor": anchor, "directory": str(target.parent), **identity}))
         pending.replace(control)
 
@@ -72,6 +73,7 @@ def fixture_command(name):
         if target.name == "status." + phase or (target.name == "status" and phase == "status"):
             if os.environ.get("NATIVE_CANCEL_PUBLICATION") == "1":
                 parent = int(Path("/proc", str(anchor), "stat").read_text().split()[3])
+
                 os.kill(parent, signal.SIGTERM)
 
             if "NATIVE_PUBLICATION_FAILED_AT" in os.environ:

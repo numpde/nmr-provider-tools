@@ -62,9 +62,11 @@ class UploadHeadAdmissionTests(unittest.IsolatedAsyncioTestCase):
         mapped.__context__ = PermissionError(errno.EACCES, "incidental permission context")
         original = httpcore.ReadError("protected mapped read")
         original.__context__ = mapped
+
         self.assertFalse(temporary_io_failure(original, 8))
         self.assertFalse(temporary_io_failure(original, 8, network_failure=httpcore.ReadError()))
         self.assertFalse(temporary_io_failure(original, 2, network_failure=original))
         self.assertTrue(temporary_io_failure(original, 3, network_failure=original))
         original.__cause__ = PermissionError(errno.EACCES, "explicit non-temporary refusal")
+
         self.assertFalse(temporary_io_failure(original, 8, network_failure=original))

@@ -96,6 +96,7 @@ class SuppressionOutcomeTests(unittest.IsolatedAsyncioTestCase):
                            task_settle_seconds=0.1)
 
         task = asyncio.create_task(executor.run(acknowledged))
+
         await asyncio.wait_for(reading.wait(), 1)
         task.cancel()
 
@@ -110,6 +111,7 @@ class SuppressionOutcomeTests(unittest.IsolatedAsyncioTestCase):
         self.assertIsNone(transport.pending_owner)
         self.assertTrue(transport.retirement_confirmed)
         retained = await executor.retain_suppressed_disposition()
+
         self.assertIs(retained.reason, SuppressionReason.CALLER_CANCELLED)
         self.assertIsInstance(executor.last_failure.cause, asyncio.CancelledError)
         self.assertIsNone(executor.last_failure.outcome)
@@ -145,6 +147,7 @@ class SuppressionOutcomeTests(unittest.IsolatedAsyncioTestCase):
             await executor.run(acknowledged)
 
         retained = await executor.retain_suppressed_disposition()
+
         self.assertIs(type(retained.attempt), AcknowledgedCheckpoint)
         self.assertIs(retained.reason, SuppressionReason.SERVER_STOP)
         self.assertIsNone(executor.last_failure.outcome)
@@ -158,12 +161,14 @@ class SuppressionOutcomeTests(unittest.IsolatedAsyncioTestCase):
     async def test_suppression_cannot_release_unconfirmed_worker_retirement(self):
         (store, executor, session, claim, transport) = await stopped_executor(RuntimeError("private cleanup failure"))
         retained = await executor.retain_suppressed_disposition()
+
         self.assertEqual(store.records, (retained,))
 
         with self.assertRaises(OwnershipRefused):
             claim.release(owner=claim.lifecycle_owner)
 
         session.retirement_failure = None
+
         self.assertIsNone(await executor.settle())
         self.assertEqual(len(transport.calls), 7)
         self.assertEqual([event[0] for event in session.events].count("execute"), 1)

@@ -49,9 +49,11 @@ class AsyncNativeProcessTests(unittest.IsolatedAsyncioTestCase):
 
     async def test_eof_with_live_child_observes_then_stops_and_joins_original_reader(self):
         pid = await asyncio.to_thread(worker_pid, self.session.science, b"E")
+
         self.assertEqual(b"", await asyncio.to_thread(self.session.science.recv, 1))
         os.kill(pid, 0)
         identity = (self.session.operation, self.session.lock_identity)
+
         self.assertIsNone(self.owner.retirement_deadline)
 
         with self.assertRaises(TimeoutError):
@@ -59,6 +61,7 @@ class AsyncNativeProcessTests(unittest.IsolatedAsyncioTestCase):
 
         original = self.owner.reader
         deadline = self.owner.retirement_deadline
+
         self.assertIsNotNone(deadline)
         self.assertFalse(original.done())
         self.assertIsNone(self.session._observation_failure)
@@ -81,6 +84,7 @@ class AsyncNativeProcessTests(unittest.IsolatedAsyncioTestCase):
                 await asyncio.sleep(0)
 
         original = self.owner.reader
+
         observer.cancel()
 
         with self.assertRaises(asyncio.CancelledError):
@@ -96,8 +100,10 @@ class AsyncNativeProcessTests(unittest.IsolatedAsyncioTestCase):
 
     async def test_original_child_exit_survives_later_stop_and_repeated_join(self):
         pid = await asyncio.to_thread(worker_pid, self.session.science)
+
         await self.owner.observe_retirement(wait_seconds=2)
         (original_exit, reader) = (self.session.original_exit, self.owner.reader)
+
         self.assertEqual(0, original_exit.returncode)
         self.owner.request_stop()
         await self.owner.join_retirement(wait_seconds=2)
@@ -128,6 +134,7 @@ class AsyncNativeProcessTests(unittest.IsolatedAsyncioTestCase):
 
     async def test_control_setup_and_actual_child_retirement_survive_a_saturated_default_pool(self):
         default = ThreadPoolExecutor(max_workers=1)
+
         asyncio.get_running_loop().set_default_executor(default)
         (entered, release) = (threading.Event(), threading.Event())
 
@@ -143,16 +150,20 @@ class AsyncNativeProcessTests(unittest.IsolatedAsyncioTestCase):
                     await asyncio.sleep(0)
 
             pid = worker_pid(self.session.science, b"H")
+
             self.owner.request_stop()
             await self.owner.join_retirement(wait_seconds=2)
             self.assert_retired(pid)
             successor = self.runner.session(startup_seconds=2, retirement_seconds=2)
+
             self.addCleanup(successor.close)
             owner = AsyncRunnerSession(successor)
+
             await owner.connect(wait_seconds=2)
             self.assertFalse(blocker.done())
             self.assertIsInstance(owner.setup, Future)
             pid = worker_pid(successor.science)
+
             await owner.observe_retirement(wait_seconds=2)
             self.assertIsInstance(owner.reader, Future)
             self.assertFalse(blocker.done())
@@ -173,6 +184,7 @@ class AsyncNativeProcessTests(unittest.IsolatedAsyncioTestCase):
 
         def capture(original):
             notification = wrap(original)
+
             wrapped.append(notification)
 
             return notification
@@ -183,10 +195,12 @@ class AsyncNativeProcessTests(unittest.IsolatedAsyncioTestCase):
                 await self.owner.observe_retirement(wait_seconds=0.01)
 
             original = self.owner.reader
+
             self.assertFalse(original.done())
             shutdown.assert_not_called()
             self.assertFalse(wrapped[-1].done())
             observer = asyncio.create_task(self.owner.join_retirement(wait_seconds=2))
+
             await asyncio.sleep(0)
             observer.cancel()
 
@@ -215,11 +229,14 @@ class AsyncNativeProcessTests(unittest.IsolatedAsyncioTestCase):
         self.owner.request_stop()
         await self.owner.join_retirement(wait_seconds=2)
         native = self.runner.session(startup_seconds=2, retirement_seconds=2)
+
         self.addCleanup(native.close)
         cap = time.monotonic() + 1
         owner = AsyncRunnerSession(native, setup_not_after=cap)
+
         await owner.connect(wait_seconds=2)
         pid = worker_pid(native.science, b"H")
+
         await asyncio.sleep(max(0, cap - time.monotonic()))
         self.assertIsNone(owner.retirement_deadline)
         os.kill(pid, 0)
@@ -298,6 +315,7 @@ class AsyncNativeWireTests(unittest.IsolatedAsyncioTestCase):
                 await observe(wait_seconds=1)
 
             original = self.owner.setup if setup else self.owner.reader
+
             self.assertIs(cause, first.exception)
             self.assertFalse(original.cancelled())
             self.assertIs(cause, original.exception())
@@ -350,6 +368,7 @@ class AsyncNativeWireTests(unittest.IsolatedAsyncioTestCase):
                 await asyncio.sleep(0)
 
         cause = self.owner.setup_failure
+
         self.assertIsInstance(cause, RunnerStartupUnavailable)
         self.assertFalse(self.session.control_connected)
         self.listener.setblocking(False)
@@ -369,6 +388,7 @@ class AsyncNativeWireTests(unittest.IsolatedAsyncioTestCase):
 
         opening = asyncio.create_task(self.owner.connect(wait_seconds=1))
         (peer, _) = await asyncio.to_thread(self.listener.accept)
+
         self.addCleanup(peer.close)
 
         # Keep a real connected peer alive without supplying the greeting.
@@ -380,6 +400,7 @@ class AsyncNativeWireTests(unittest.IsolatedAsyncioTestCase):
                 await asyncio.sleep(0)
 
         cause = self.owner.setup_failure
+
         self.assertIsInstance(cause, TimeoutError)
         self.assertIs(cause, self.session._observation_failure)
         self.assertTrue(self.session.control_connected)
@@ -402,6 +423,7 @@ class AsyncNativeWireTests(unittest.IsolatedAsyncioTestCase):
             await self.owner.observe_retirement(wait_seconds=0.01)
 
         original = self.owner.reader
+
         self.assertEqual(cap, self.owner.retirement_deadline)
         self.owner.request_stop()
 
@@ -413,6 +435,7 @@ class AsyncNativeWireTests(unittest.IsolatedAsyncioTestCase):
                 await asyncio.sleep(0)
 
         cause = self.owner.retirement_failure
+
         self.assertIsInstance(cause, TimeoutError)
         self.assertIs(cause, self.session._observation_failure)
 
@@ -488,6 +511,7 @@ class AsyncNativeWireTests(unittest.IsolatedAsyncioTestCase):
                 await self.owner.connect(wait_seconds=0.01)
 
             original = self.owner.setup
+
             self.assertFalse(original.done())
             await asyncio.sleep(max(0, cap - time.monotonic()))
         finally:
@@ -499,6 +523,7 @@ class AsyncNativeWireTests(unittest.IsolatedAsyncioTestCase):
                 await asyncio.sleep(0)
 
         cause = self.owner.setup_failure
+
         self.assertIsInstance(cause, RunnerStartupUnavailable)
         self.assertFalse(self.session.control_connected)
         self.listener.setblocking(False)
@@ -516,8 +541,10 @@ class AsyncNativeWireTests(unittest.IsolatedAsyncioTestCase):
     async def connect(self, *, greeting_delay=0):
         opening = asyncio.create_task(self.owner.connect(wait_seconds=2))
         (self.peer, _) = await asyncio.to_thread(self.listener.accept)
+
         self.addCleanup(self.peer.close)
         (science, remote) = socket.socketpair()
+
         self.addCleanup(remote.close)
 
         if greeting_delay:
@@ -548,12 +575,14 @@ class AsyncNativeWireTests(unittest.IsolatedAsyncioTestCase):
     async def test_partial_frame_continues_in_same_reader_after_observer_timeout(self):
         await self.connect()
         frame = self.retirement_frame()
+
         self.peer.sendall(frame[:6])
 
         with self.assertRaises(TimeoutError):
             await self.owner.observe_retirement(wait_seconds=0.02)
 
         original = self.owner.reader
+
         self.assertFalse(original.done())
         self.peer.sendall(frame[6:])
         await self.owner.join_retirement(wait_seconds=1)
@@ -575,6 +604,7 @@ class AsyncNativeWireTests(unittest.IsolatedAsyncioTestCase):
                 await asyncio.sleep(0)
 
         cause = original.exception()
+
         self.assertIsInstance(cause, TimeoutError)
         self.assertIs(cause, self.owner.retirement_failure)
         self.assertIs(cause, self.session._observation_failure)
@@ -596,6 +626,7 @@ class AsyncNativeWireTests(unittest.IsolatedAsyncioTestCase):
         with patch.object(executor, "shutdown", wraps=executor.shutdown) as shutdown:
             opening = asyncio.create_task(self.owner.connect(wait_seconds=2))
             (peer, _) = await asyncio.to_thread(self.listener.accept)
+
             self.addCleanup(peer.close)
             peer.sendall(b"X")
 
@@ -613,6 +644,7 @@ class AsyncNativeWireTests(unittest.IsolatedAsyncioTestCase):
             self.assertFalse(thread.is_alive())
 
         cause = failed.exception
+
         self.assertIs(cause, self.owner.setup.exception())
         self.assertIs(cause, self.owner.setup_failure)
         self.assertIs(cause, self.session._observation_failure)
@@ -627,8 +659,10 @@ class AsyncNativeWireTests(unittest.IsolatedAsyncioTestCase):
     async def test_cancelled_setup_wait_keeps_original_greeting_read(self):
         opening = asyncio.create_task(self.owner.connect(wait_seconds=2))
         (peer, _) = await asyncio.to_thread(self.listener.accept)
+
         self.addCleanup(peer.close)
         original = self.owner.setup
+
         opening.cancel()
 
         with self.assertRaises(asyncio.CancelledError):
@@ -637,6 +671,7 @@ class AsyncNativeWireTests(unittest.IsolatedAsyncioTestCase):
         self.assertFalse(original.done())
         self.owner.request_stop()
         (science, remote) = socket.socketpair()
+
         self.addCleanup(remote.close)
 
         with science:

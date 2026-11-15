@@ -175,6 +175,7 @@ class LifecycleOrders(RuleBasedStateMachine):
         async def launch():
             case = self.cases[name]
             self.tasks[name] = asyncio.create_task(case.controller.run(case.pending))
+
             await self._progress()
 
         self._act("start", name, launch)
@@ -194,6 +195,7 @@ class LifecycleOrders(RuleBasedStateMachine):
 
         async def release():
             transport.disposition = disposition
+
             transport.release_start.set()
             await self._progress()
 
@@ -406,6 +408,7 @@ class LifecycleOrders(RuleBasedStateMachine):
             for (name, case) in self.cases.items():
                 session = case.session
                 science = session.science
+
                 assert case.start_count <= 1
                 assert session.preparations <= 1
                 assert session.dispatches <= 1
@@ -457,12 +460,14 @@ class LifecycleOrders(RuleBasedStateMachine):
 
                 if name in self.verified_stops:
                     (stopped, effects_at_stop) = self.verified_stops[name]
+
                     assert stopped.observation.job_ref == case.pending.input.job_ref
 
                     assert science.executions == effects_at_stop, (
                         "New scientific work entered after the SDK verified server revocation")
 
                 owned = self.claims.owns_job(case.pending.scope, case.pending.input.job_ref)
+
                 assert owned == (case.controller in owners)
 
                 if session.retiring.is_set() and not session.retirement_completed and case.start_count:
@@ -555,6 +560,7 @@ class LifecycleCampaignSettingsTests(unittest.TestCase):
 
     def test_direct_discovery_without_a_profile_keeps_the_bounded_campaign(self):
         bounded = self.selected_settings(None)
+
         self.assertEqual((32, 40), (bounded.max_examples, bounded.stateful_step_count))
         explicit = self.selected_settings("default")
 
@@ -565,6 +571,7 @@ class LifecycleCampaignSettingsTests(unittest.TestCase):
 
     def test_extended_profile_preserves_the_shared_reproducibility_settings(self):
         extended = self.selected_settings("extended")
+
         self.assertEqual((1000, 150), (extended.max_examples, extended.stateful_step_count))
         self.assertTrue(extended.derandomize)
         self.assertIsNone(extended.database)

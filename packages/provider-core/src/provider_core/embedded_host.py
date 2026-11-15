@@ -304,6 +304,7 @@ class InProcessExecutionHost:
 
         if resident.retirement is None:
             resident.retirement = _Cleanup(self.retirement_seconds)
+
             resident.retirement.start(lambda: self._retire_resident(resident))
 
         return resident.retirement
@@ -311,6 +312,7 @@ class InProcessExecutionHost:
     async def _retire_resident(self, resident):
         if resident.analysis is not None:
             analysis_cleanup = resident.analysis.close()
+
             await asyncio.shield(analysis_cleanup.task)
 
             if analysis_cleanup.failures:
@@ -323,6 +325,7 @@ class InProcessExecutionHost:
             raise RuntimeError("The allocation remains attached to an unsettled analysis.")
 
         disposal_future = resident.executor.submit(resident.dispose)
+
         await await_original(disposal_future, deadline=None)
 
         resident.join_task = self.loop.create_task(
@@ -769,6 +772,7 @@ class InProcessAnalysisExecutor:
                         self.host.state_reserved -= operation.state_allowance
                         operation.state_allowance = 0
                         operation.resources = ResourceState.RELEASED
+
                         operation.changed()
 
                         if operation.result is None:

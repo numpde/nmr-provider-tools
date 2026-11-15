@@ -27,29 +27,35 @@ class PythonCacheCleanupTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory) / "checkout"
             outside = Path(directory) / "outside"
+
             outside.mkdir()
             (outside / "unrelated.pyc").write_bytes(b"outside")
 
             for name in ("tools", "tests", "packages", "src", "containers"):
                 source = root / name
+
                 source.mkdir(parents=True)
                 (source / "top_level.pyc").write_bytes(b"compiled")
                 (source / "code.py").write_text("pass\n", encoding="utf-8")
                 cache = source / "nested/__pycache__"
+
                 cache.mkdir(parents=True)
                 (cache / "code.cpython-312.pyc").write_bytes(b"compiled")
                 (cache / "preserve.txt").write_text("not bytecode", encoding="utf-8")
                 empty = source / "other/__pycache__"
+
                 empty.mkdir(parents=True)
                 (empty / "only.pyo").write_bytes(b"compiled")
 
             (root / "tools/external-link").symlink_to(outside, target_is_directory=True)
 
             result = self.clean(root)
+
             self.assertEqual(0, result.returncode, msg=result.stderr)
 
             for name in ("tools", "tests", "packages", "src", "containers"):
                 source = root / name
+
                 self.assertFalse((source / "top_level.pyc").exists())
                 self.assertTrue((source / "code.py").exists())
                 self.assertFalse((source / "nested/__pycache__/code.cpython-312.pyc").exists())
@@ -62,13 +68,16 @@ class PythonCacheCleanupTests(unittest.TestCase):
     def test_rejects_symlinked_source_root_without_deleting_target(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory) / "checkout"
+
             root.mkdir()
             target = Path(directory) / "outside"
+
             target.mkdir()
             (target / "retained.pyc").write_bytes(b"untouched")
             (root / "tools").symlink_to(target, target_is_directory=True)
 
             result = self.clean(root)
+
             self.assertNotEqual(0, result.returncode)
             self.assertIn("symlink", result.stderr)
             self.assertTrue((target / "retained.pyc").exists())

@@ -260,6 +260,7 @@ def read_complete_body(body, *, execution_attempt_ref):
 def read_fail_body(body, *, execution_attempt_ref):
     """Admit exact public failure facts; do not normalize their text."""
     document = _outcome_document(body, "fail", 16384, execution_attempt_ref, ("failure_code", "failure_message"))
+
     _failure_code(document["failure_code"])
     _scalar_text(document["failure_message"], "failure message")
 

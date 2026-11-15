@@ -15,6 +15,7 @@ class DeliveryLoggingTests(unittest.TestCase):
     def test_record_larger_than_pipe_atomic_limit_still_reaches_the_owned_stream(self):
         output = io.StringIO()
         notices = DeliveryNotices(output, secrets=())
+
         self.addCleanup(notices.close)
         failures = []
 
@@ -31,6 +32,7 @@ class DeliveryLoggingTests(unittest.TestCase):
         notices(ExceptionGroup("Independent binding failures", failures), {"event": "delivery_failed"})
         self.assertGreater(len(output.getvalue().encode()), 4096)
         report = json.loads(output.getvalue())
+
         self.assertEqual(report["event"], "delivery_failed")
         self.assertIn("owned diagnostic", output.getvalue())
         self.assertIn("[truncated]", output.getvalue())
@@ -48,9 +50,11 @@ class DeliveryLoggingTests(unittest.TestCase):
                 pass
 
         notices = DeliveryNotices(BrokenStream(), secrets=("PRIVATE_SECRET",))
+
         self.addCleanup(notices.close)
         notices(None, {"event": "delivery_published", "provider_ref": "provider:example"})
         status = notices.status()
+
         self.assertEqual(status["output_failures"], 1)
         self.assertEqual(status["last_failure_type"], "BrokenPipeError")
         self.assertEqual(status["last_failure_errno"], errno.EPIPE)
@@ -60,6 +64,7 @@ class DeliveryLoggingTests(unittest.TestCase):
     def test_known_credentials_and_credential_fields_are_redacted_before_stream_output(self):
         output = io.StringIO()
         notices = DeliveryNotices(output, secrets=("PRIVATE_SECRET",))
+
         self.addCleanup(notices.close)
 
         notices(ApiFailure("publish Attempt failure", 'token="PRIVATE_TOKEN"'),

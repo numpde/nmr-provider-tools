@@ -126,6 +126,7 @@ def receive_greeting(connection, *, deadline):
         for (level, kind, raw) in ancillary:
             if level == socket.SOL_SOCKET and kind == socket.SCM_RIGHTS:
                 values = array.array("i")
+
                 values.frombytes(raw[:len(raw) - len(raw) % values.itemsize])
                 descriptors.extend(values)
             else:
@@ -135,6 +136,7 @@ def receive_greeting(connection, *, deadline):
             raise LifecycleRejected("Runner greeting requires exactly one scientific endpoint.")
 
         science = socket.socket(fileno=descriptors[0])
+
         descriptors.clear()
 
         if science.family != socket.AF_UNIX or science.type != socket.SOCK_STREAM:

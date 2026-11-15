@@ -29,12 +29,15 @@ class TransportPeerTests(unittest.IsolatedAsyncioTestCase):
             )
 
             transport = HttpTransport(trust=peer.trust, exchange_seconds=1, retirement_seconds=0.5)
+
             await transport.exchange(request, maximum_bytes=4)
             await asyncio.wait_for(peer.closed.wait(), 1)
             lines = peer.requests[0].split(b"\r\n")
+
             self.assertEqual(lines[0], b"GET /input?job=a%2Fb HTTP/1.1")
             headers = dict(line.split(b": ", 1) for line in lines[1:] if line)
             headers = {name.lower(): value for (name, value) in headers.items()}
+
             self.assertEqual(headers[b"host"].decode(), peer.origin.removeprefix("https://"))
             self.assertNotIn(b"content-digest", headers)
             parameters = headers[b"signature-input"].removeprefix(b"sig1=")
@@ -50,6 +53,7 @@ class TransportPeerTests(unittest.IsolatedAsyncioTestCase):
             )
 
             signature = parse(headers[b"signature"], tltype="dictionary")["sig1"][0]
+
             key.public_key().verify(signature, base)
 
     async def test_complete_response_and_redirect_do_not_leave_a_connection(self):
@@ -58,6 +62,7 @@ class TransportPeerTests(unittest.IsolatedAsyncioTestCase):
                 async with TlsPeer(mode) as peer:
                     transport = HttpTransport(trust=peer.trust, exchange_seconds=1, retirement_seconds=0.5)
                     response = await transport.exchange(httpx.Request("GET", peer.origin + "/input"), maximum_bytes=100)
+
                     self.assertEqual((response.status, response.body), (status, body))
                     await asyncio.wait_for(peer.closed.wait(), 1)
                     self.assertEqual(len(peer.requests), 1)

@@ -316,6 +316,7 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     commands = parser.add_subparsers(dest="action", required=True)
     renderer = commands.add_parser("render")
+
     renderer.add_argument("--definition", type=Path, required=True)
     renderer.add_argument("--binding", required=True)
     renderer.add_argument("--service-name")
@@ -324,6 +325,7 @@ def main():
         renderer.add_argument("--" + name, required=True)
 
     initializer = commands.add_parser("initialize")
+
     initializer.add_argument("--shared-group", action="store_true")
 
     for command in (renderer, initializer):
@@ -331,6 +333,7 @@ def main():
             command.add_argument("--" + name, type=int, required=True)
 
     storage = renderer.add_mutually_exclusive_group(required=True)
+
     storage.add_argument("--named-volume", action="store_true")
     storage.add_argument("--directory", type=Path)
     renderer.add_argument("--input-source", nargs=2, action="append")

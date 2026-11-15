@@ -37,6 +37,7 @@ class LiveControlBudgetTests(unittest.IsolatedAsyncioTestCase):
         pending = StartPending(largest_scope, kind, facts, body)
         padding = 65536 - len(_encode_pending(pending))
         pending = replace(pending, scope=replace(largest_scope, api_origin=largest_scope.api_origin + "a" * padding))
+
         self.assertEqual(65536, len(_encode_pending(pending)))
         self.assertEqual(4096, len(pending.body))
 
@@ -62,6 +63,7 @@ class LiveControlBudgetTests(unittest.IsolatedAsyncioTestCase):
         for projection in (acknowledged, entered, selected, accepted, suppressed):
             with self.subTest(phase=type(projection).__name__):
                 encoded = encode_checkpoint(projection)
+
                 self.assertLessEqual(len(encoded), 131072)
                 self.assertNotIn(evidence.content, encoded)
 

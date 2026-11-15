@@ -36,8 +36,10 @@ class ReleasedApiContractTests(PinnedApiRelease, unittest.IsolatedAsyncioTestCas
             with self.subTest(length=length):
                 source = b"x" * length
                 wire = input_response(source)
+
                 self.assertEqual(set(json.loads(wire)), set(schema["required"]))
                 prepared = verify_job_input(wire, feed=facts(source))
+
                 self.assertEqual(prepared.specification_bytes, source)
 
                 self.assertLessEqual(
@@ -58,6 +60,7 @@ class ReleasedApiContractTests(PinnedApiRelease, unittest.IsolatedAsyncioTestCas
         offerings = tuple(AnalysisOffering(f"model_{index}", description) for index in range(offering["maxItems"]))
 
         body = hello_body(display_name=name, description=description, analysis_offerings=offerings)
+
         self.assertEqual(json.loads(body)["display_name"], name)
         self.assertEqual(json.loads(body)["analysis_offerings"][-1]["description"], description)
 
@@ -76,6 +79,7 @@ class ReleasedApiContractTests(PinnedApiRelease, unittest.IsolatedAsyncioTestCas
 
     def test_signer_uses_the_released_bases_and_published_signatures_verify(self):
         vectors = self.openapi["x-nmr-signature-conformance-vectors"]
+
         self.assertEqual({item["name"] for item in vectors}, {"provider-jobs-list-get", "execution-attempt-start-post"})
         self.assertEqual(len(vectors), 2)
         key = Ed25519PrivateKey.generate()
@@ -115,8 +119,10 @@ class ReleasedApiContractTests(PinnedApiRelease, unittest.IsolatedAsyncioTestCas
                 key.public_key().verify(signature, vector["signature_base"].encode())
 
                 published = load_der_public_key(base64.b64decode(vector["public_key_spki_der_b64"]))
+
                 self.assertIsInstance(published, Ed25519PublicKey)
                 published_signature = parse(vector["signature"].encode(), tltype="dictionary")["sig1"][0]
+
                 published.verify(published_signature, vector["signature_base"].encode())
 
     async def test_all_eleven_dispatches_use_released_routes_ceilings_and_closed_top_level_fields(self):
@@ -127,6 +133,7 @@ class ReleasedApiContractTests(PinnedApiRelease, unittest.IsolatedAsyncioTestCas
         }
 
         calls = provider_calls()
+
         self.assertEqual(set(calls), set(routes))
         self.assertEqual(len(calls), 11)
 
@@ -134,21 +141,27 @@ class ReleasedApiContractTests(PinnedApiRelease, unittest.IsolatedAsyncioTestCas
             with self.subTest(operation=operation_id):
                 transport = Transport(reply(call.response))
                 client = api(transport, "https://api.example.test")
+
                 await getattr(client, call.method_name)(*call.arguments, **call.options)
                 ((request, maximum_bytes),) = transport.calls
+
                 self.assertEqual(request.content, call.body)
                 (method, template, operation) = routes[operation_id]
                 path = template.format(job_ref="job:example", execution_attempt_ref=ATTEMPT_REF, upload_ref=UPLOAD_REF)
+
                 self.assertEqual(request.method, method)
                 (raw_path, _, query) = request.url.raw_path.partition(b"?")
+
                 self.assertEqual(raw_path, path.encode())
                 self.assertEqual(maximum_bytes, operation["x-nmr-max-response-bytes"])
                 self.assertLessEqual(len(query), operation["x-nmr-max-query-bytes"])
                 parameters = {item["name"]: item for item in operation["parameters"] if item["in"] == "query"}
                 names = {name for (name, _) in parse_qsl(query.decode(), keep_blank_values=True)}
+
                 self.assertLessEqual(names, set(parameters))
                 self.assertLessEqual({name for (name, item) in parameters.items() if item["required"]}, names)
                 response_schema = self.schemas[operation["x-nmr-response-schema-id"]]
+
                 self.assertEqual(json.loads(call.response)["schema_id"], response_schema["properties"]["schema_id"]["const"])
                 self.assertEqual(set(json.loads(call.response)), set(response_schema["required"]))
                 self.assertFalse(response_schema["additionalProperties"])
@@ -157,6 +170,7 @@ class ReleasedApiContractTests(PinnedApiRelease, unittest.IsolatedAsyncioTestCas
                 if "x-nmr-request-schema-id" in operation:
                     schema = self.schemas[operation["x-nmr-request-schema-id"]]
                     document = json.loads(request.content)
+
                     self.assertEqual(document["schema_id"], schema["properties"]["schema_id"]["const"])
                     self.assertEqual(set(document), set(schema["required"]))
                     self.assertFalse(schema["additionalProperties"])
@@ -165,6 +179,7 @@ class ReleasedApiContractTests(PinnedApiRelease, unittest.IsolatedAsyncioTestCas
 
     def test_topology_vocabulary_is_the_released_routed_environment_vocabulary(self):
         topologies = self.openapi["components"]["headers"]["NmrApiTopology"]["schema"]["enum"]
+
         self.assertEqual(set(topologies), {"dev-local", "dev", "web"})
 
         for topology in topologies:

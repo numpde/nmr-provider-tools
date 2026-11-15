@@ -135,9 +135,11 @@ def check_status(path, role):
 
 def main():
     parser = argparse.ArgumentParser(description="Check current private process readiness without opening an operation socket.")
+
     parser.add_argument("path", type=Path)
     parser.add_argument("role")
     display = parser.add_mutually_exclusive_group()
+
     display.add_argument("--describe", action="store_true")
     display.add_argument("--details", action="store_true")
     options = parser.parse_args()

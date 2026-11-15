@@ -53,6 +53,7 @@ class ScriptedEndpointFactory:
 
     def __call__(self, *, exchange_seconds: float, connect_seconds: float) -> ScriptedEndpoint:
         endpoint = ScriptedEndpoint(proposals=self.proposals)
+
         self.endpoints.append(endpoint)
 
         return endpoint

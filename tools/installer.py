@@ -132,6 +132,7 @@ def install(pool, record):
 
     with tempfile.TemporaryDirectory(prefix="provider-installer-") as temporary:
         captured = Path(temporary) / record["name"]
+
         capture(pool / record["name"], record, captured)
 
         subprocess.run(
@@ -168,6 +169,7 @@ def create_environment(destination):
 
     with tempfile.TemporaryDirectory(prefix="provider-installer-") as temporary:
         captured = Path(temporary) / record["name"]
+
         capture(image / "wheels" / record["name"], record, captured)
         subprocess.run([sys.executable, "-I", "-B", "-m", "venv", "--without-pip", str(destination)], check=True)
 
@@ -194,7 +196,9 @@ def create_environment(destination):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description=__doc__)
+
     parser.add_argument("--record", type=Path, required=True)
     parser.add_argument("--pool", type=Path, required=True)
     args = parser.parse_args()
+
     install(args.pool, release(args.record))

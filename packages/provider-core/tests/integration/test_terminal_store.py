@@ -24,10 +24,12 @@ class TerminalQueueTests(unittest.TestCase):
             if operation is TerminalOperation.COMPLETE:
                 body = complete_body(ATTEMPT_REF, text, result)
                 body += b" " * (2097152 - len(body))
+
                 self.assertEqual(len(body), 2097152)
             else:
                 body = fail_body(ATTEMPT_REF, "input_rejected", text)
                 body += b" " * (16384 - len(body))
+
                 self.assertEqual(len(body), 16384)
 
             item = DeliveryOutcome(scope().api_origin, scope().provider_ref, "job:example", ATTEMPT_REF, operation, body)
@@ -38,6 +40,7 @@ class TerminalQueueTests(unittest.TestCase):
 
                 try:
                     accepted = queue.enqueue(item)
+
                     self.assertEqual(accepted, item.acceptance())
                 finally:
                     queue.close()
@@ -48,6 +51,7 @@ class TerminalQueueTests(unittest.TestCase):
                     self.assertEqual(queue.next_pending(item.api_origin, item.provider_ref), item)
                     self.assertEqual(queue.enqueue(item), accepted)
                     (row,) = queue.inventory(item.api_origin, item.provider_ref)
+
                     self.assertEqual((row["body_sha256"], row["body_bytes"]), (item.body_sha256, len(body)))
                 finally:
                     queue.close()

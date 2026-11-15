@@ -41,6 +41,7 @@ async def _run(service, notices):
 def main():
     parser = argparse.ArgumentParser(description="Deliver queued NMR API outcomes without rerunning analyses.")
     configuration = parser.add_mutually_exclusive_group(required=True)
+
     configuration.add_argument("--config", type=Path, help="Frozen deployment-generated delivery configuration.")
     configuration.add_argument("--shared-config", type=Path, help="Shared operator configuration, reloaded while running.")
     parser.add_argument("--state-directory", type=Path)

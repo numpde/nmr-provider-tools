@@ -52,6 +52,7 @@ class SharedInterpreterCarrierTests(unittest.IsolatedAsyncioTestCase):
                      for name in ("inspect", "prepare")]
 
             result = await owner.run([], tools, dispatch)
+
             self.assertEqual(result.value, "prepared")
             self.assertEqual(result.model_visit, 2)
             self.assertTrue(owner.retirement_confirmed)
@@ -59,6 +60,7 @@ class SharedInterpreterCarrierTests(unittest.IsolatedAsyncioTestCase):
             self.assertTrue(all(len(body) <= 6000 for body in peer.request_bodies))
             messages = json.loads(peer.request_bodies[-1])["messages"]
             history = json.loads(next(message["content"] for message in messages if message["role"] == "tool"))
+
             self.assertFalse(history["value"]["records"][0]["complete"])
 
     async def test_real_https_retry_schema_query_and_single_preparation(self):
@@ -103,6 +105,7 @@ class SharedInterpreterCarrierTests(unittest.IsolatedAsyncioTestCase):
                         "properties": {"format": {"enum": ["text"]}}}}}]
 
             result = await owner.run([], tools, dispatch)
+
             self.assertEqual(result.value, "prepared")
             self.assertEqual(len(peer.requests), 3)
             self.assertEqual(json.loads(result.observations[0])["turns_started"], 2)
@@ -130,6 +133,7 @@ class SharedInterpreterCarrierTests(unittest.IsolatedAsyncioTestCase):
                                               proxy_socket=proxy_socket)
 
                     response = await transport.exchange(httpx.Request("GET", peer.origin), maximum_bytes=4)
+
                     self.assertEqual(response.body, b"data")
                     await transport.retire()
                     self.assertTrue(transport.retirement_confirmed)
@@ -152,6 +156,7 @@ class SharedInterpreterCarrierTests(unittest.IsolatedAsyncioTestCase):
                     await transport.retire()
                     self.assertLess(asyncio.get_running_loop().time() - start, 1.5)
                     failure = caught.exception
+
                     self.assertIs(type(failure.primary), TimeoutError)
                     self.assertIn("connection setup", str(failure.primary))
                     self.assertIs(type(failure.primary.__cause__), TimeoutError)
@@ -190,6 +195,7 @@ class SharedInterpreterCarrierTests(unittest.IsolatedAsyncioTestCase):
             dispatch = AsyncMock(return_value=ToolFinished("prepared"))
             tools = [{"type": "function", "function": {"name": "prepare", "parameters": {"type": "object"}}}]
             result = await owner.run([], tools, dispatch)
+
             self.assertEqual(result.value, "prepared")
             self.assertEqual(len(peer.requests), 2)
             self.assertEqual(len(proxy.headers), 2)

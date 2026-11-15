@@ -105,6 +105,7 @@ class ExplicitTuplePostureTests(unittest.TestCase):
     def test_nested_tuples_are_checked_independently(self):
         source = "value = (first, second), third"
         (finding,) = bare_tuples(source=source)
+
         self.assertEqual(first="(first, second), third", second=ast.get_source_segment(source=source, node=finding))
 
     def test_subscription_lists_keep_python_syntax(self):

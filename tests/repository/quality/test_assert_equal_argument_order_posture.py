@@ -115,6 +115,7 @@ def _message_positions() -> dict[str, int]:
         for (position, parameter) in enumerate(positional_parameters):
             if parameter.name == "msg":
                 positions[method_name] = position
+
                 break
 
     return positions

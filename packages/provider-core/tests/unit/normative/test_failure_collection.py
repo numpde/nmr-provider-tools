@@ -95,6 +95,7 @@ class FailureCollectionTests(unittest.TestCase):
         original = OSError("Receiver failed")
         interrupted = asyncio.CancelledError("Settlement waiter interrupted")
         settlement = BaseExceptionGroup("Settlement failure and interruption", [original, interrupted])
+
         settlement.add_note("Original settlement diagnostic")
 
         with self.failures.capture():
@@ -107,6 +108,7 @@ class FailureCollectionTests(unittest.TestCase):
             self.failures.raise_if_any()
 
         (body, remaining) = raised.exception.exceptions
+
         self.assertIs(expr1=original, expr2=body)
         self.assertEqual(first=(interrupted,), second=remaining.exceptions)
         self.assertEqual(first=settlement.__notes__, second=remaining.__notes__)

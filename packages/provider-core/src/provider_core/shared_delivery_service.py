@@ -136,6 +136,7 @@ class SharedDeliveryService(DeliveryService):
     def _manager_done(self, task):
         if task.cancelled():
             self.inbox.failure = RuntimeError("The delivery manager was cancelled; preserve pending work and restart the service.")
+
             self.inbox.failed.set()
 
             return
@@ -144,12 +145,14 @@ class SharedDeliveryService(DeliveryService):
 
         if error is not None:
             self.inbox.failure = error
+
             self.inbox.failed.set()
             self.on_notice(error, {"event": "delivery_manager_failed"})
 
     def _worker_done(self, key, task):
         if task.cancelled():
             self.inbox.failure = RuntimeError("A delivery worker was cancelled; preserve pending work and settle its API owner.")
+
             self.inbox.failed.set()
 
             return
@@ -158,6 +161,7 @@ class SharedDeliveryService(DeliveryService):
 
         if error is not None:
             self.inbox.failure = error
+
             self.inbox.failed.set()
         elif not self.workers[key].paused:
             del self.workers[key]
@@ -197,6 +201,7 @@ class SharedDeliveryService(DeliveryService):
                 self.workers[key] = worker
                 task = asyncio.create_task(worker.run())
                 self._worker_tasks[key] = task
+
                 task.add_done_callback(lambda completed, selected=key: self._worker_done(selected, completed))
 
             if self.process_status is not None:

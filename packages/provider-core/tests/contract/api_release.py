@@ -30,8 +30,10 @@ class PinnedApiRelease:
             self.assertTrue(path.is_dir() or path.is_file(), path)
 
         raw = (root / "manifest.json").read_bytes()
+
         self.assertEqual(hashlib.sha256(raw).hexdigest(), MANIFEST_SHA256)
         manifest = json.loads(raw)
+
         self.assertEqual(manifest["release_ref"], RELEASE_REF)
         self.assertEqual(manifest["source_revision"], SOURCE_REVISION)
 
@@ -44,17 +46,21 @@ class PinnedApiRelease:
 
         self.assertEqual("sha256:" + hashlib.sha256(material).hexdigest(), RELEASE_REF)
         expected = {"manifest.json", *(entry["path"] for entry in manifest["artifacts"])}
+
         self.assertEqual({path.relative_to(root).as_posix() for path in entries if path.is_file()}, expected)
         documents = {}
 
         for entry in manifest["artifacts"]:
             raw = (root / entry["path"]).read_bytes()
+
             self.assertEqual(len(raw), entry["byte_length"], entry["path"])
             blob = b"blob " + str(len(raw)).encode() + b"\0" + raw
+
             self.assertEqual(hashlib.sha1(blob).hexdigest(), entry["git_blob_sha1"], entry["path"])
             documents[entry["path"]] = json.loads(raw)
 
         schemas = {document["$id"]: document for (path, document) in documents.items() if path.startswith("schemas/")}
+
         self.assertEqual(len(schemas), 16)
 
         return (documents["openapi/openapi.v1.json"], schemas)

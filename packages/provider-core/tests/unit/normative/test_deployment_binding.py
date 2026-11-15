@@ -51,6 +51,7 @@ class DeploymentBindingTests(unittest.TestCase):
     def test_loopback_is_admitted_only_for_host_network_routing(self):
         raw = definition(1)
         literal = raw.replace(b"api.example", b"127.0.0.1")
+
         self.assertEqual("mapped", parse_deployment_bindings(literal).bindings[0].route["mode"])
 
         external = literal.replace(b'mode = "mapped"', b'mode = "external"').replace(
@@ -65,6 +66,7 @@ class DeploymentBindingTests(unittest.TestCase):
             parse_deployment_bindings(local)
 
         peer = local.replace(b"api.example=127.0.0.1", b"api.example=172.18.0.5")
+
         self.assertEqual(["api.example=172.18.0.5"], parse_deployment_bindings(peer).bindings[0].route["addresses"])
 
     def test_unspecified_api_origin_or_peer_is_not_a_route_destination(self):
@@ -86,6 +88,7 @@ class DeploymentBindingTests(unittest.TestCase):
 
         with tempfile.TemporaryDirectory() as directory:
             path = Path(directory) / "definition.toml"
+
             path.write_bytes(definition(2))
 
             result = subprocess.run(
@@ -121,6 +124,7 @@ class DeploymentBindingTests(unittest.TestCase):
 
         read.assert_not_called()
         selected = host.selected("fixture-1")
+
         self.assertEqual("https://api.example", selected.endpoint.api_origin)
         self.assertEqual("provider:fixture-1", selected.endpoint.provider_ref)
         self.assertEqual(65532, selected.endpoint.socket_group_id)

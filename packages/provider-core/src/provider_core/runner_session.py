@@ -90,6 +90,7 @@ class RunnerSession:
 
         phase_deadline = time.monotonic() + self._startup
         deadline = phase_deadline if deadline is None else min(deadline, phase_deadline)
+
         self._connect_control(deadline)
 
         try:

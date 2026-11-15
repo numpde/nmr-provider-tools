@@ -80,6 +80,7 @@ class LiveExecutionTests(unittest.IsolatedAsyncioTestCase):
             with self.subTest(preverified=preverified):
                 (claims, claim, acknowledged, executor, session, delivery, verified) = await self.setup_execution(preverified)
                 accepted = await executor.run(acknowledged)
+
                 self.assertIs(type(accepted), DeliveryAcceptedCheckpoint)
                 self.assertEqual(["prepare", "execute", "retire"], session.events)
 
@@ -93,6 +94,7 @@ class LiveExecutionTests(unittest.IsolatedAsyncioTestCase):
 
     async def test_replacement_executor_cannot_run_the_original_admission_again(self):
         (claims, claim, acknowledged, executor, session, delivery, verified) = await self.setup_execution(True)
+
         await executor.run(acknowledged)
 
         replacement = AttemptExecutor.live(
@@ -130,6 +132,7 @@ class LiveExecutionTests(unittest.IsolatedAsyncioTestCase):
 
     async def test_delivery_ack_frees_report_capacity_while_native_cleanup_is_pending(self):
         (claims, claim, acknowledged, executor, session, delivery, verified) = await self.setup_execution(True)
+
         session.release.clear()
         task = asyncio.create_task(executor.run(acknowledged))
 

@@ -23,6 +23,7 @@ from tests.fakes.delivery import outcome
 class DeliveryProgressNoticeTests(unittest.IsolatedAsyncioTestCase):
     async def asyncSetUp(self):
         scratch = tempfile.TemporaryDirectory()
+
         self.addCleanup(scratch.cleanup)
         self.root = Path(scratch.name)
 
@@ -119,6 +120,7 @@ class DeliveryProgressNoticeTests(unittest.IsolatedAsyncioTestCase):
 
         async with api_tls_peer("success", response_factory=response, response_mode=response_mode) as peer:
             item = replace(outcome(), api_origin=peer.origin)
+
             self.queue.enqueue(item)
 
             # Queue age and this publisher's elapsed wait are different facts.
@@ -131,6 +133,7 @@ class DeliveryProgressNoticeTests(unittest.IsolatedAsyncioTestCase):
                                  restore_after_retries=restored)
 
             worker_started = loop.time()
+
             await asyncio.wait_for(worker.run(), 3)
             evidence = self.evidence()
 
@@ -161,6 +164,7 @@ class DeliveryProgressNoticeTests(unittest.IsolatedAsyncioTestCase):
                               msg="The operator cannot tell how long this exact report has lacked a publication receipt: " + evidence)
 
                 age = facts["publication_wait_seconds"]
+
                 self.assertIsInstance(age, (int, float), msg=evidence)
 
                 # The publication call starts after worker startup and before
@@ -196,6 +200,7 @@ class DeliveryProgressNoticeTests(unittest.IsolatedAsyncioTestCase):
 
         async with api_tls_peer("success", response_factory=response) as peer:
             (first, second) = (replace(outcome(), api_origin=peer.origin), replace(second, api_origin=peer.origin))
+
             self.queue.enqueue(first)
             self.queue.enqueue(second)
 
@@ -223,6 +228,7 @@ class DeliveryProgressNoticeTests(unittest.IsolatedAsyncioTestCase):
                     self.assertTrue("recovered" not in facts or facts["recovered"] is False, msg=evidence)
 
             published = self.notices[-1][1]
+
             self.assertEqual(second.execution_attempt_ref, published["execution_attempt_ref"], msg=evidence)
             self.assertIn("recovered", published, msg=evidence)
             self.assertIs(published["recovered"], False, msg=evidence)
@@ -241,6 +247,7 @@ class DeliveryProgressNoticeTests(unittest.IsolatedAsyncioTestCase):
         try:
             async with api_tls_peer("success") as peer, api_tls_peer("success") as other_trust:
                 item = replace(outcome(), api_origin=peer.origin)
+
                 self.queue.enqueue(item)
 
                 worker = self.worker(peer,
@@ -250,6 +257,7 @@ class DeliveryProgressNoticeTests(unittest.IsolatedAsyncioTestCase):
 
                 await asyncio.wait_for(worker.run(), 3)
                 evidence = self.evidence()
+
                 self.assertTrue(worker.paused, msg=evidence)
                 self.assertEqual(["delivery_binding_paused"], [facts["event"] for (_, facts, _) in self.notices], msg=evidence)
                 self.assertEqual([], peer.requests, msg=evidence)

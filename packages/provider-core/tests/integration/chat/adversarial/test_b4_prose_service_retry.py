@@ -24,6 +24,7 @@ class ProseServiceRetryTests(unittest.IsolatedAsyncioTestCase):
 
         async def response(_request, body):
             job = json.loads(body)["messages"][0]["content"]
+
             requests.append({"job": job, "at": loop.time(), "available": restored.is_set()})
 
             if restored.is_set():
@@ -36,6 +37,7 @@ class ProseServiceRetryTests(unittest.IsolatedAsyncioTestCase):
 
             peer.response_status = 503
             peer.response_headers = ((b"Content-Type", b"application/json"), (b"Retry-After", b"2"))
+
             unavailable_reply_sent.set()
 
             return b'{"error":{"message":"The prose interpreter is temporarily unavailable."}}'
@@ -125,6 +127,7 @@ class ProseServiceRetryTests(unittest.IsolatedAsyncioTestCase):
                     await asyncio.wait(active, timeout=1)
 
                 evidence = json.dumps(requests, sort_keys=True)
+
                 self.assertEqual("job:b4-third", result, msg=evidence)
                 self.assertEqual(["job:b4-third"], tool_calls, msg=evidence)
                 self.assertTrue(all(owner.retirement_confirmed for owner in interpreters), msg=evidence)

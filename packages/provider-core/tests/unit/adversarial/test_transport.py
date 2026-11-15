@@ -205,6 +205,7 @@ class TransportFailureTests(unittest.IsolatedAsyncioTestCase):
                 self.assertIs(transport.last_failure.primary, late_failure)
                 self.assertIsInstance(transport.last_failure.interruption, asyncio.CancelledError if cancel else TimeoutError)
                 rendered = "".join(traceback.format_exception(transport.last_failure)) + repr(transport.last_failure)
+
                 self.assertNotIn("private disk cause", rendered)
                 self.assertNotIn("private network cleanup", rendered)
 
@@ -240,6 +241,7 @@ class TransportFailureTests(unittest.IsolatedAsyncioTestCase):
             append_only = os.open(output.name, os.O_WRONLY | os.O_APPEND)
             (read_pipe, write_pipe) = os.pipe()
             closed = os.dup(output.fileno())
+
             os.close(closed)
 
             try:
@@ -357,6 +359,7 @@ class TransportFailureTests(unittest.IsolatedAsyncioTestCase):
 
         def cancel_before_entry(coroutine, **kwargs):
             task = create_task(coroutine, **kwargs)
+
             task.cancel()
 
             return task
@@ -437,6 +440,7 @@ class TransportFailureTests(unittest.IsolatedAsyncioTestCase):
                     await transport.exchange(httpx.Request("GET", "https://api.example"), maximum_bytes=7, owner=owner)
 
                 original = caught.exception
+
                 self.assertEqual(original.response_head.headers, tuple(headers))
                 self.assertIs(original.primary, primary)
                 self.assertIsInstance(original.interruption, TimeoutError)
@@ -500,6 +504,7 @@ class TransportFailureTests(unittest.IsolatedAsyncioTestCase):
                     await self.transport().exchange(httpx.Request("GET", "https://api.example"), maximum_bytes=7)
 
                 failure = caught.exception
+
                 self.assertEqual((failure.response_head.status, failure.response_head.headers), (503, tuple(headers)))
                 self.assertNotIn("private-head-canary", repr(failure.response_head) + str(failure))
                 self.assertTrue(client.closed)
@@ -570,6 +575,7 @@ class TransportFailureTests(unittest.IsolatedAsyncioTestCase):
                 self.assertIs(failure.primary, primary)
                 self.assertIn(cleanup, failure.cleanup_failures)
                 rendered = "".join(traceback.format_exception(failure)) + repr(failure)
+
                 self.assertNotIn("private-read-canary", rendered)
                 self.assertNotIn("private-close-canary", rendered)
                 self.assertNotIn("private-url-canary", rendered)
@@ -589,6 +595,7 @@ class TransportFailureTests(unittest.IsolatedAsyncioTestCase):
 
                 with patch("provider_core.transport.httpcore.AsyncConnectionPool", return_value=client):
                     task = asyncio.create_task(transport.exchange(httpx.Request("GET", "https://api.example"), maximum_bytes=4))
+
                     await client.sent.wait()
 
                     if cancel:
@@ -606,6 +613,7 @@ class TransportFailureTests(unittest.IsolatedAsyncioTestCase):
 
         with patch("provider_core.transport.httpcore.AsyncConnectionPool", return_value=client) as factory:
             task = asyncio.create_task(transport.exchange(httpx.Request("GET", "https://api.example"), maximum_bytes=4))
+
             await client.sent.wait()
 
             with self.assertRaises(ExchangeFailed):
@@ -663,6 +671,7 @@ class TransportFailureTests(unittest.IsolatedAsyncioTestCase):
 
                 self.assertLess(asyncio.get_running_loop().time() - started, 0.5)
                 original = caught.exception
+
                 self.assertIsInstance(original.primary, TimeoutError)
                 self.assertIsNone(original.response_head)
 

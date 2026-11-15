@@ -98,6 +98,7 @@ class SubmissionTests(unittest.IsolatedAsyncioTestCase):
         def lose_reply(*, invocation):
             requests.append(invocation)
             admitted = submit(invocation=invocation)
+
             operations.append(admitted)
 
             if len(requests) == 1:
@@ -112,6 +113,7 @@ class SubmissionTests(unittest.IsolatedAsyncioTestCase):
             self.assertIs(expr1=original, expr2=raised.exception)
             self.assertIsNone(obj=submission.operation)
             admitted = submission.submit()
+
             self.assertIs(expr1=admitted, expr2=submission.submit())
             operation_observation = await submission.wait()
 
@@ -123,10 +125,12 @@ class SubmissionTests(unittest.IsolatedAsyncioTestCase):
 
     async def test_refusal_requires_explicit_retry_and_does_not_acquire_work(self):
         first = self.submission(value=1)
+
         first.submit()
         operation_observation = await first.wait()
         second = self.submission(value=2)
         refused = second.submit()
+
         self.assertIsInstance(obj=refused, cls=NotAdmitted)
         self.assertIs(expr1=AdmissionCode.CAPACITY, expr2=refused.code)
 
@@ -164,6 +168,7 @@ class SubmissionTests(unittest.IsolatedAsyncioTestCase):
     async def test_acquired_operation_survives_analysis_close_without_submission(self):
         submission = self.submission(value=1)
         admitted = submission.submit()
+
         (await submission.wait()).require_result()
         await observe_cleanup(control=self.analysis_executor.close())
 
@@ -176,10 +181,13 @@ class SubmissionTests(unittest.IsolatedAsyncioTestCase):
 
     async def test_wait_after_release_observes_current_result_state(self):
         submission = self.submission(value=1)
+
         submission.submit()
         operation_observation = await submission.wait()
+
         await observe_cleanup(control=submission.operation.release_result(result=operation_observation.require_result()))
         current = await submission.wait()
+
         self.assertIs(expr1=ResultState.RELEASED, expr2=current.result_state)
 
         with self.assertRaises(expected_exception=RuntimeError):
@@ -189,6 +197,7 @@ class SubmissionTests(unittest.IsolatedAsyncioTestCase):
         original = OSError("Model calculation failed")
         self.science.failure = original
         submission = self.submission(value=1)
+
         submission.submit()
         operation_observation = await submission.wait()
 

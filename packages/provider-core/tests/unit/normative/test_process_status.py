@@ -18,6 +18,7 @@ class ProcessStatusTests(unittest.TestCase):
             root = Path(directory)
             status = ProcessStatus(root, "delivery")
             details = {"queue": {"oldest_pending_age_seconds": 10}, "queue_observation_age_seconds": 2}
+
             status.refresh("ready", details=details)
             before = (root / "status.json").read_bytes()
             written = json.loads(before)["updated_monotonic"]
@@ -31,6 +32,7 @@ class ProcessStatusTests(unittest.TestCase):
                     main()
 
                 value = json.loads(output.getvalue())
+
                 self.assertEqual(value["observation_age_seconds"], 3)
                 self.assertEqual(value["queue_observation_age_seconds"], 5)
                 self.assertEqual(value["queue"]["oldest_pending_age_seconds"], 13)
@@ -40,6 +42,7 @@ class ProcessStatusTests(unittest.TestCase):
     def test_ready_working_and_retirement_have_distinct_meanings(self):
         with tempfile.TemporaryDirectory() as root:
             status = ProcessStatus(Path(root), "reader")
+
             status.refresh("starting")
 
             with self.assertRaisesRegex(ValueError, "starting"):
@@ -60,6 +63,7 @@ class ProcessStatusTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as root:
             path = Path(root) / "status.json"
             status = ProcessStatus(Path(root), "provider")
+
             status.refresh("ready")
             value = json.loads(path.read_bytes())
 
@@ -68,6 +72,7 @@ class ProcessStatusTests(unittest.TestCase):
                     check_status(path, "provider")
 
             value["start_ticks"] += 1
+
             path.write_text(json.dumps(value))
 
             with self.assertRaisesRegex(ValueError, "process identity"):
@@ -77,6 +82,7 @@ class ProcessStatusTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as root:
             root = Path(root)
             victim = root / "victim"
+
             victim.write_text("unchanged")
             (root / ".status.pending").symlink_to(victim)
 
@@ -89,6 +95,7 @@ class ProcessStatusTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as root:
             root = Path(root)
             status = ProcessStatus(root, "reader")
+
             status.refresh("ready")
             before = (root / "status.json").read_bytes()
 

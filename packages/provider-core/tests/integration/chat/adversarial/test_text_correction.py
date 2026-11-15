@@ -38,6 +38,7 @@ class TextCorrectionBoundaryTests(unittest.IsolatedAsyncioTestCase):
         )
 
         dispatch = AsyncMock(return_value=ToolFinished("selected"))
+
         await conversation.run([], [], dispatch)
         self.assertEqual(model.requests[1][0]["tool_calls"][0]["function"]["arguments"], "{}")
         self.assertIn("8-byte limit", model.requests[1][1]["content"])
@@ -89,6 +90,7 @@ class TextCorrectionBoundaryTests(unittest.IsolatedAsyncioTestCase):
         invalid = call("bad", "submit", {})
         invalid["tool_calls"][0]["function"]["arguments"] = r'{"value":"KEY\u005fSECRET","number":NaN}'
         multiple = call("multi-1", "submit", {"private": "KEY_SECRET"})
+
         multiple["tool_calls"].extend(call("multi-2", "submit", {"private": "KEY_SECRET"})["tool_calls"])
         model = recording_endpoint("only", invalid, multiple, call("good", "submit", {}))
 
@@ -100,8 +102,10 @@ class TextCorrectionBoundaryTests(unittest.IsolatedAsyncioTestCase):
         )
 
         dispatch = AsyncMock(return_value=ToolFinished("selected"))
+
         await conversation.run([], [], dispatch)
         transcript = model.requests[2]
+
         self.assertNotIn("SECRET", json.dumps(transcript))
 
         for message in transcript:
@@ -109,6 +113,7 @@ class TextCorrectionBoundaryTests(unittest.IsolatedAsyncioTestCase):
                 self.assertTrue(all(item["function"]["arguments"] == "{}" for item in message["tool_calls"]))
 
         feedback = [message for message in transcript if message["role"] == "tool"]
+
         self.assertEqual(["bad", "multi-1", "multi-2"], [message["tool_call_id"] for message in feedback])
         self.assertTrue(all(message["content"] for message in feedback))
         dispatch.assert_awaited_once_with("submit", {})
@@ -126,6 +131,7 @@ class TextCorrectionBoundaryTests(unittest.IsolatedAsyncioTestCase):
         )
 
         result = await conversation.run([], [], AsyncMock(return_value=ToolFinished("selected")))
+
         self.assertEqual(1, len(result.endpoint_failures))
         self.assertEqual((), result.correction_failures)
         self.assertEqual([[]], second.requests)
@@ -192,6 +198,7 @@ class TextCorrectionBoundaryTests(unittest.IsolatedAsyncioTestCase):
 
         dispatch = AsyncMock()
         original = asyncio.create_task(conversation.run([], [], dispatch))
+
         await entered.wait()
         await conversation.retire()
         release.set()

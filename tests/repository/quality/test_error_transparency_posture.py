@@ -126,12 +126,14 @@ class ErrorTransparencyPostureTests(unittest.TestCase):
         ):
             with self.subTest(message=message):
                 source = f"try:\n    work()\nexcept OSError as exc:\n    raise CommandError({message})\n"
+
                 self.assertEqual(expected, _raw_cli_exception_text(source))
 
     def test_raw_exception_detector_follows_blocks_but_not_new_scopes(self) -> None:
         for (block, expected) in (("if ready", [5]), ("with resource", [5]), ("def deferred(exc)", []), ("class Deferred", [])):
             with self.subTest(block=block):
                 source = f"try:\n    work()\nexcept OSError as exc:\n    {block}:\n        raise CommandError(str(exc))\n"
+
                 self.assertEqual(expected, _raw_cli_exception_text(source))
 
     def test_raw_projection_dispatch_preserves_nested_and_unsupported_message_shapes(self) -> None:
@@ -151,6 +153,7 @@ class ErrorTransparencyPostureTests(unittest.TestCase):
             ):
                 with self.subTest(caught=caught, message=message):
                     source = f"try:\n    work()\nexcept {caught} as exc:\n    raise CommandError({message})\n"
+
                     self.assertEqual(expected, _raw_cli_exception_text(source))
 
     def test_cli_projects_broad_failure_facts_instead_of_dumping_exception_text(self) -> None:
@@ -170,10 +173,12 @@ class ErrorTransparencyPostureTests(unittest.TestCase):
         for message in ('"failed " + "again"', 'f"failed at {path}"', '"failed: " + f"{path}"', 'f"failed"'):
             with self.subTest(message=message):
                 source = f"try:\n    work()\nexcept OSError as exc:\n    raise CommandError({message}, returncode=2) from exc\n"
+
                 self.assertEqual([3], _opaque_oserror_translations(source))
 
     def test_explicit_reason_projection_is_not_a_cause_free_message(self) -> None:
         source = 'try:\n    work()\nexcept OSError as exc:\n    raise CommandError(f"filesystem code {exc.errno}") from exc\n'
+
         self.assertEqual([], _opaque_oserror_translations(source))
 
     def test_detector_flags_fixed_cli_translations_even_with_exception_chaining(self) -> None:
@@ -185,6 +190,7 @@ class ErrorTransparencyPostureTests(unittest.TestCase):
         ):
             with self.subTest(caught=caught, statement=statement):
                 source = f"try:\n    work()\nexcept {caught}:\n    {statement}\n"
+
                 self.assertEqual([3], _opaque_oserror_translations(source))
 
     def test_detector_leaves_other_handler_shapes_for_separate_review(self) -> None:
@@ -199,6 +205,7 @@ class ErrorTransparencyPostureTests(unittest.TestCase):
         ):
             with self.subTest(caught=caught, statement=statement):
                 source = f"try:\n    work()\nexcept {caught}:\n    {statement}\n"
+
                 self.assertEqual([], _opaque_oserror_translations(source))
 
     def test_filesystem_command_failures_do_not_hide_their_cause(self) -> None:

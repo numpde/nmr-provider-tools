@@ -45,6 +45,7 @@ def python_sources(*, production_only):
     roots = ("host", "tools") if production_only else PYTHON_ROOTS
 
     directories = [ROOT / name for name in (*roots, *OPTIONAL_PYTHON_ROOTS)]
+
     directories.extend(ROOT.glob("packages/*/src"))
     directories.extend(ROOT.glob("examples/*/src"))
 

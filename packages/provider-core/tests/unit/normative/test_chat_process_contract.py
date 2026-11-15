@@ -42,6 +42,7 @@ async def launched_children():
 
     async def observed(*args, **kwargs):
         child = await launch(*args, **kwargs)
+
         children.append(child)
 
         return child
@@ -92,6 +93,7 @@ class ChatProcessContractTests(unittest.IsolatedAsyncioTestCase):
         async def reply(_request, _body):
             nonlocal response_started, response_ready
             response_started = loop.time() - started
+
             await asyncio.sleep(1.2)
             response_ready = loop.time() - started
 
@@ -220,6 +222,7 @@ class ChatProcessContractTests(unittest.IsolatedAsyncioTestCase):
     async def test_error_and_decompressed_success_caps_are_enforced_in_the_child(self):
         expanded = json.dumps({"content": "x" * 4096}).encode()
         compressed = gzip.compress(expanded)
+
         self.assertLess(len(compressed), 512)
 
         cases = (
@@ -265,6 +268,7 @@ class ChatProcessContractTests(unittest.IsolatedAsyncioTestCase):
 
                     self.assertEqual("exchange_failed", caught.exception.reason)
                     observation = caught.exception.cause.network_io
+
                     self.assertEqual(proxy, observation.configured_unix_path)
                     self.assertEqual(proxy, observation.unix_path)
                     self.assertEqual("connect_unix", observation.stage)
@@ -288,6 +292,7 @@ class ChatProcessContractTests(unittest.IsolatedAsyncioTestCase):
                     await asyncio.wait_for(running, 2)
 
                 diagnostic = caught.exception.__cause__
+
                 self.assertIs(type(diagnostic), ChatFailed)
                 self.assertEqual("request_cancelled", diagnostic.reason)
                 self.assertIs(diagnostic.cause, endpoint._transport.last_failure)
@@ -313,17 +318,20 @@ class ChatProcessContractTests(unittest.IsolatedAsyncioTestCase):
 
         def observe_directory(*args, **kwargs):
             directory = temporary_directory(*args, **kwargs)
+
             trust_directories.append(Path(directory.name))
 
             return directory
 
         async def observe_exit(*args, **kwargs):
             child = await launch(*args, **kwargs)
+
             children.append(child)
             (original_wait, original_read) = (child.wait, child.stdout.read)
 
             async def held_wait():
                 returncode = await original_wait()
+
                 actual_exit.set()
 
                 try:
@@ -368,6 +376,7 @@ class ChatProcessContractTests(unittest.IsolatedAsyncioTestCase):
                         await asyncio.wait_for(running, 2)
 
                     diagnostic = caught.exception.__cause__
+
                     self.assertEqual("request_cancelled", diagnostic.reason)
                     self.assertIs(diagnostic.cause.caller_interruption, caught.exception)
                     self.assertFalse(observation_cancelled.is_set())
@@ -415,6 +424,7 @@ class ChatProcessContractTests(unittest.IsolatedAsyncioTestCase):
 
                     try:
                         result = await owner.run([], tools, dispatch)
+
                         self.assertEqual("prepared", result.value)
                         self.assertEqual(2, len(peer.requests))
                         dispatch.assert_awaited_once()
@@ -431,6 +441,7 @@ class ChatProcessContractTests(unittest.IsolatedAsyncioTestCase):
             trust.hostname_checks_common_name = False
             trust.verify_flags |= ssl.VERIFY_X509_TRUSTED_FIRST
             restored = restore_trust(capture_trust(trust))
+
             self.assertIsInstance(restored, ssl.SSLContext)
 
             for field in ("minimum_version",

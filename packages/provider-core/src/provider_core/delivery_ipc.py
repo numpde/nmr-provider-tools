@@ -107,6 +107,7 @@ def _socket_grant(path, socket_group_id):
             os.umask(previous)
 
         identity = path.lstat()
+
         listener.listen(MAX_CONNECTIONS)
         listener.setblocking(False)
         yield listener
@@ -258,6 +259,7 @@ class DeliveryInbox:
                 raise DeliveryRequestRejected("Delivery refused an invalid terminal operation, identity or request body; correct the producer request.") from None
 
             accepted = await self.storage(self.queue.enqueue, item)
+
             self.on_accepted(endpoint)
 
             return accepted
@@ -304,6 +306,7 @@ class DeliveryInbox:
 
     async def _client(self, endpoint, reader, writer):
         task = asyncio.current_task()
+
         self._clients.add(task)
         connection = h11.Connection(h11.SERVER, max_incomplete_event_size=MAX_HEADER_BYTES)
         durable_enqueue_confirmed = False
@@ -376,6 +379,7 @@ class DeliveryInbox:
         for tasks in (self._clients, self._storage_tasks):
             if tasks:
                 settled = await asyncio.gather(*(asyncio.shield(task) for task in tuple(tasks)), return_exceptions=True)
+
                 failures.extend(value for value in settled if isinstance(value, BaseException))
 
         self._grants.close()

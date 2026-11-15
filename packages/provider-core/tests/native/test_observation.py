@@ -67,9 +67,11 @@ class ObservationTests(unittest.IsolatedAsyncioTestCase):
 
     async def test_returns_exact_handle_without_releasing_the_result(self):
         result = self.observation.require_result()
+
         self.assertIs(expr1=self.observation.result, expr2=result)
         self.assertEqual(first=b'{"number":7}', second=await self.operation.read_result(result=result))
         current = await self.operation.observe(after=None, wait_seconds=0)
+
         self.assertIs(expr1=ResultState.AVAILABLE, expr2=current.result_state)
 
     def test_original_failure_takes_precedence_over_available_bytes(self):

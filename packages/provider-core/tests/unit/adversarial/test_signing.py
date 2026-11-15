@@ -53,5 +53,6 @@ class SigningRejectionTests(unittest.TestCase):
 
     def test_identity_repr_does_not_expose_signing_material(self):
         identity = SigningIdentity("https://api.example", "credential:private-canary", Ed25519PrivateKey.generate())
+
         self.assertNotIn("private-canary", repr(identity))
         self.assertNotIn("private_key", repr(identity))

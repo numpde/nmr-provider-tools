@@ -33,10 +33,12 @@ class DeliveryFaultSequenceTests(unittest.TestCase):
                        for (item, state) in expected.values() if item.outcome.provider_ref == provider}
 
             rows = queue.inventory("https://api.example", provider)
+
             self.assertEqual({row["execution_attempt_ref"] for row in rows}, set(entries))
 
             for row in rows:
                 (item, state) = entries[row["execution_attempt_ref"]]
+
                 self.assertEqual(row["state"], state)
                 self.assertEqual(row["body_sha256"], item.outcome.body_sha256)
                 self.assertEqual(row["body_bytes"], len(item.outcome.body))
@@ -48,6 +50,7 @@ class DeliveryFaultSequenceTests(unittest.TestCase):
             if pending:
                 self.assertIsNotNone(selected)
                 original = pending[selected.outcome.execution_attempt_ref]
+
                 self.assertEqual(selected.outcome, original.outcome)
                 self.assertEqual(selected.publication_bytes(), original.publication_bytes())
             else:

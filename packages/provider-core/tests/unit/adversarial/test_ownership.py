@@ -16,6 +16,7 @@ def reserve(claims, pending):
 
 def bind(claim):
     owner = object()
+
     claim.begin(owner)
 
     try:
@@ -50,14 +51,17 @@ class AttemptOwnershipTests(unittest.IsolatedAsyncioTestCase):
             reserve(claims, other_job)
 
         independent = reserve(claims, another_job())
+
         independent.release(owner=independent.lifecycle_owner)
         owner = object()
+
         claim.begin(owner)
         claim.bind_attempt(scope(), ATTEMPT_REF, owner=owner)
         claim.require(scope(), ATTEMPT_REF)
 
         with self.assertRaises(OwnershipRefused):
             independent = reserve(claims, another_job())
+
             bind(independent)
 
         with self.assertRaises(OwnershipRefused):
@@ -67,15 +71,18 @@ class AttemptOwnershipTests(unittest.IsolatedAsyncioTestCase):
         claim.finish(owner)
         claim.release(owner=claim.lifecycle_owner)
         replacement = reserve(claims, pending)
+
         replacement.release(owner=replacement.lifecycle_owner)
 
     async def test_remote_binding_conflict_preserves_both_original_claims(self):
         claims = AttemptClaims.live()
         existing = reserve(claims, another_job())
+
         bind(existing)
         pending = record()
         starting = reserve(claims, pending)
         owner = object()
+
         starting.begin(owner)
 
         with self.assertRaises(OwnershipRefused):
@@ -91,6 +98,7 @@ class AttemptOwnershipTests(unittest.IsolatedAsyncioTestCase):
     async def test_lane_generation_differences_do_not_partition_remote_attempt_ownership(self):
         claims = AttemptClaims.live()
         first = reserve(claims, record())
+
         bind(first)
         pending = another_job()
         other = reserve(claims, replace(pending, scope=replace(scope(), consumer_id="another_lane", generation_id="another_generation")))
@@ -100,6 +108,7 @@ class AttemptOwnershipTests(unittest.IsolatedAsyncioTestCase):
 
         other.release(owner=other.lifecycle_owner)
         owner = object()
+
         first.begin(owner)
 
         with self.assertRaises(OwnershipRefused):
@@ -111,6 +120,7 @@ class AttemptOwnershipTests(unittest.IsolatedAsyncioTestCase):
         first.finish(owner)
         first.release(owner=first.lifecycle_owner)
         second = reserve(claims, record())
+
         bind(second)
 
         with self.assertRaises(OwnershipRefused):

@@ -19,6 +19,7 @@ class DeliveryRetireOldTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
             tools = root / 'host/tools'
+
             tools.mkdir(parents=True)
             shutil.copyfile(ROOT / 'host/tools/delivery_retire_old.sh', tools / 'delivery_retire_old.sh')
             (root / 'volumes').write_text(''.join(name + '\n' for name in names))
@@ -103,6 +104,7 @@ checker_call() {
         old = [f'{project}-ipc-{digest}', f'{project}-route-{digest}']
         protected = [f'{project}-queue', f'{project}-proxy-socket', f'{project}-outbox-socket']
         (result, remaining, removed) = self.run_retirement('normal', old + protected)
+
         self.assertEqual(0, result.returncode, msg=result.stderr)
         self.assertEqual(old, removed)
         self.assertEqual(protected, remaining)
@@ -113,6 +115,7 @@ checker_call() {
         for scenario in ('foreign', 'bad-driver', 'borrowed', 'changed'):
             with self.subTest(scenario=scenario):
                 (result, remaining, removed) = self.run_retirement(scenario, [name])
+
                 self.assertNotEqual(0, result.returncode)
                 self.assertEqual([name], remaining)
                 self.assertEqual([], removed)
@@ -121,6 +124,7 @@ checker_call() {
         digest = 'b' * 64
         old = [f'delivery-test-ipc-{digest}', f'delivery-test-route-{digest}']
         (result, remaining, removed) = self.run_retirement('later-borrowed', old)
+
         self.assertNotEqual(0, result.returncode)
         self.assertEqual(old, remaining)
         self.assertEqual([], removed)
@@ -128,6 +132,7 @@ checker_call() {
     def test_interrupted_removal_reports_possible_effect_and_preserves_status(self):
         name = 'delivery-test-ipc-' + 'b' * 64
         (result, remaining, removed) = self.run_retirement('interrupted', [name])
+
         self.assertEqual(130, result.returncode)
         self.assertEqual([], remaining)
         self.assertEqual([name], removed)
@@ -139,11 +144,13 @@ checker_call() {
     def test_malformed_final_inventory_cannot_claim_success(self):
         name = 'delivery-test-ipc-' + 'b' * 64
         (result, _, _) = self.run_retirement('malformed-final', [name])
+
         self.assertNotEqual(0, result.returncode)
         self.assertIn('final volume inventory could not be confirmed', result.stderr)
 
     def test_no_old_volumes_is_idempotent(self):
         (result, remaining, removed) = self.run_retirement('normal', ['delivery-test-queue'])
+
         self.assertEqual(0, result.returncode, msg=result.stderr)
         self.assertEqual(['delivery-test-queue'], remaining)
         self.assertEqual([], removed)

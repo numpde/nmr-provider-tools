@@ -70,6 +70,7 @@ class ChatWireAvailabilityTests(unittest.TestCase):
 
                 self.assertEqual(shared, retry_allowed(original))
                 received = transferred(original)
+
                 self.assertEqual(shared, received.network_failure is received.network_io.error)
                 self.assertEqual(shared, retry_allowed(received))
 
@@ -94,6 +95,7 @@ class ChatWireAvailabilityTests(unittest.TestCase):
 
                 self.assertFalse(retry_allowed(original))
                 received = transferred(original)
+
                 self.assertFalse(retry_allowed(received))
 
                 if obligation == "cleanup":
@@ -113,6 +115,7 @@ class ChatWireAvailabilityTests(unittest.TestCase):
         for primary in failures:
             with self.subTest(kind=type(primary).__name__):
                 original = observed_failure(primary)
+
                 self.assertFalse(retry_allowed(original))
                 self.assertFalse(retry_allowed(transferred(original)))
 
@@ -137,6 +140,7 @@ class ChatWireAvailabilityTests(unittest.TestCase):
             with self.subTest(expected_retry=expected, proxy_status=original.proxy_connect_status):
                 self.assertEqual(expected, retry_allowed(original))
                 received = transferred(original)
+
                 self.assertIs(received.primary, received.network_failure)
                 self.assertEqual(expected, retry_allowed(received))
 
@@ -156,6 +160,7 @@ class ChatWireAvailabilityTests(unittest.TestCase):
                 )
 
                 expected = path == "/private/model.sock"
+
                 self.assertEqual(expected, retry_allowed(original))
                 self.assertEqual(expected, retry_allowed(transferred(original)))
 
@@ -172,8 +177,10 @@ class ChatWireAvailabilityTests(unittest.TestCase):
                 ))
 
                 original = observed_failure(primary, stage="connect_tcp")
+
                 self.assertEqual(expected, retry_allowed(original))
                 received = transferred(original)
+
                 self.assertIs(received.primary.__cause__, received.network_io.cause)
                 self.assertEqual(expected, retry_allowed(received))
 
@@ -181,8 +188,10 @@ class ChatWireAvailabilityTests(unittest.TestCase):
         (primary, related) = (httpcore.ReadError("read"), httpcore.ConnectError("connect"))
         (primary.__cause__, related.__cause__) = (related, primary)
         original = observed_failure(primary)
+
         self.assertFalse(retry_allowed(original))
         received = transferred(original)
+
         self.assertIs(received.primary.__cause__.__cause__, received.primary)
         self.assertFalse(retry_allowed(received))
 
@@ -190,8 +199,10 @@ class ChatWireAvailabilityTests(unittest.TestCase):
         for reason in ("size_limit", "invalid_encoding", "unsupported_encoding"):
             with self.subTest(reason=reason):
                 original = observed_failure(DecodedBodyRejected(reason))
+
                 self.assertFalse(retry_allowed(original))
                 received = transferred(original)
+
                 self.assertIs(type(received.primary), DecodedBodyRejected)
                 self.assertEqual(reason, received.primary.reason)
                 self.assertFalse(retry_allowed(received))
@@ -220,6 +231,7 @@ class ChatWireAvailabilityTests(unittest.TestCase):
 class ChatWireFramingTests(unittest.IsolatedAsyncioTestCase):
     async def test_oversized_length_is_rejected_before_waiting_for_body(self):
         reader = asyncio.StreamReader()
+
         reader.feed_data(struct.pack("!I", 1025))
 
         # No body and no EOF: a parser that starts reading the unadmitted body
@@ -235,16 +247,19 @@ class ChatWireFramingTests(unittest.IsolatedAsyncioTestCase):
         for partial in (wire[:2], wire[:-1]):
             with self.subTest(received_bytes=len(partial)):
                 reader = asyncio.StreamReader()
+
                 reader.feed_data(partial)
                 reader.feed_eof()
 
                 with self.assertRaises(asyncio.IncompleteReadError):
                     document = await read_message(reader, 4096)
+
                     read_reply(document, maximum_bytes=32, error_maximum_bytes=16)
 
     async def test_duplicate_outcome_field_is_not_a_complete_reply(self):
         raw = b'{"version":1,"kind":"failure","kind":"response","status":200,"headers":[],"body":""}'
         reader = asyncio.StreamReader()
+
         reader.feed_data(framed(raw))
         reader.feed_eof()
 

@@ -12,6 +12,7 @@ class AttemptRecordTests(unittest.TestCase):
         scope = RecoveryScope("https://api.example", "provider:example", "lane:carbon", "generation:one")
         record = StartPending(scope, "nmr_predict", facts(), retained_start())
         raw = _encode_pending(record)
+
         self.assertEqual(record.body, retained_start())
         self.assertEqual(record.scope, scope)
         self.assertTrue(raw)
@@ -22,4 +23,5 @@ class AttemptRecordTests(unittest.TestCase):
         original = retained_start()
         body = original + b" " * (4096 - len(original))
         record = StartPending(scope, "nmr_predict", facts(), body)
+
         self.assertLessEqual(len(_encode_pending(record)), 65536)

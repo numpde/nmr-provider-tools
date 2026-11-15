@@ -394,6 +394,7 @@ class _LifecycleMethod:
 
 def _lifecycle(*, owner: type, name: str, keywords: dict[str, type]) -> _LifecycleMethod:
     function = inspect.getattr_static(obj=owner, attr=name)
+
     _synchronous(function=function, label=f"{owner.__qualname__}.{name}")
     parameters = tuple(inspect.signature(obj=function).parameters.values())
 
@@ -592,10 +593,12 @@ class HostedContribution:
             raise TypeError(f"Unexpected {type(self.contribution)=}; adoption requires a configured Contribution instance")
 
         contribution_type = type(self.contribution)
+
         _require_resource_requirements(resource_requirements=self.requirements)
         object.__setattr__(self, "_initialize", _lifecycle(owner=contribution_type, name="initialize", keywords={"assets": AssetAccess}))
         object.__setattr__(self, "_close", _lifecycle(owner=contribution_type, name="close", keywords={}))
         analysis_type = contribution_type.analysis_type
+
         object.__setattr__(self, "_analysis_type", analysis_type)
         object.__setattr__(self, "_analysis_initialize", None)
         object.__setattr__(self, "_analysis_close", None)
@@ -643,6 +646,7 @@ class HostedContribution:
         )
 
         document = description_document(description=description)
+
         del document["binding_revision"]
         del document["binding_id"]
         document["analysis"] = None
@@ -658,6 +662,7 @@ class HostedContribution:
 
         encoded_contract = json.dumps(obj=document, sort_keys=True, ensure_ascii=True, separators=(",", ":")).encode(encoding="ascii")
         revision = "configured-v3:sha256:" + hashlib.sha256(string=encoded_contract).hexdigest()
+
         object.__setattr__(self, "description", replace(description, binding_revision=revision))
 
         object.__setattr__(
@@ -700,6 +705,7 @@ class HostedContribution:
             return None
 
         analysis = object.__new__(self._analysis_type)
+
         Analysis.__init__(self=analysis, contribution=instance)
 
         return analysis

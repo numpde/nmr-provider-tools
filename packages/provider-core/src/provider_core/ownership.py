@@ -269,6 +269,7 @@ class _AttemptClaim:
             )
 
         self._registry._claims[identity] = self
+
         self._identities.add(identity)
 
     def begin(self, owner):

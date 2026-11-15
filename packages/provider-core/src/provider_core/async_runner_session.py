@@ -35,6 +35,7 @@ async def await_original(original, *, deadline):
 
     if not original.done():
         wrapped = asyncio.wrap_future(original)
+
         wrapped.add_done_callback(_observe_completion)
 
         async with asyncio.timeout(seconds):
@@ -183,6 +184,7 @@ class AsyncRunnerSession:
             raise RuntimeError("Cannot observe native retirement before starting the original control setup with connect.")
 
         deadline = min(self._retirement_deadline(), time.monotonic() + wait_seconds)
+
         await self._wait(self._setup, deadline)
 
         if self._reader is None:

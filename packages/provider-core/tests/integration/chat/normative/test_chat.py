@@ -65,14 +65,17 @@ class ChatCarrierTests(unittest.IsolatedAsyncioTestCase):
 
             transport = HttpTransport(trust=peer.trust, exchange_seconds=1, retirement_seconds=0.5)
             endpoint = ChatEndpoint(spec, transport=transport, request_bytes=16384, response_bytes=4096)
+
             self.addAsyncCleanup(endpoint.retire)
             messages = [{"role": "system", "content": "fixture"}, {"role": "user", "content": "SMILES CCl, N=2"}]
             tools = [{"type": "function", "function": {"name": "inspect", "parameters": {"type": "object"}}}]
             observed = await endpoint.complete(messages, tools)
+
             self.assertEqual(observed, message)
             await asyncio.wait_for(peer.closed.wait(), 1)
             self.assertTrue(endpoint.retirement_confirmed)
             (request,) = peer.requests
+
             self.assertEqual(request.split(b"\r\n", 1)[0], b"POST /v1/chat/completions HTTP/1.1")
 
             headers = {
@@ -99,6 +102,7 @@ class ChatCarrierTests(unittest.IsolatedAsyncioTestCase):
             self.assertNotIn("PRIVATE_API_KEY", repr(spec))
             self.assertNotIn(peer.origin, repr(spec))
             identity = json.loads(endpoint.identity)
+
             self.assertEqual(identity["configuration_id"], "local-test")
             self.assertEqual(identity["model"], "fixture-model")
             self.assertNotIn(b"PRIVATE_API_KEY", endpoint.identity)
@@ -113,4 +117,5 @@ class ChatCarrierTests(unittest.IsolatedAsyncioTestCase):
 
             self.assertEqual(rotated.identity, endpoint.identity)
             changed = ChatEndpoint(spec, transport=transport, request_bytes=16384, response_bytes=4097)
+
             self.assertNotEqual(json.loads(changed.identity)["configuration_sha256"], identity["configuration_sha256"])

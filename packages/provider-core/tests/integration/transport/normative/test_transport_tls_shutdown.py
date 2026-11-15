@@ -43,6 +43,7 @@ class TlsShutdownTests(unittest.IsolatedAsyncioTestCase):
         async with AsyncExitStack() as stack:
             peer = await stack.enter_async_context(TlsPeer("success"))
             listener = stack.enter_context(socket.socket())
+
             listener.bind(("127.0.0.1", 0))
             listener.listen(1)
             listener.settimeout(3)

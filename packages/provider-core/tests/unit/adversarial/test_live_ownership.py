@@ -50,6 +50,7 @@ class LiveOwnershipTests(unittest.IsolatedAsyncioTestCase):
                 claims.claim_live(competing, lifecycle_owner=Owner())
 
         other = claims.claim_live(selected("job:b", "key:b"), lifecycle_owner=Owner())
+
         self.assertTrue(first.active)
         self.assertTrue(other.active)
         self.assertIs(first.lifecycle_owner, owner)
@@ -77,12 +78,15 @@ class LiveOwnershipTests(unittest.IsolatedAsyncioTestCase):
                     claims.claim_live(pending, lifecycle_owner=Owner())
 
                 owner.release_ready = True
+
                 first.release(owner=owner)
                 admitted = claims.claim_live(pending, lifecycle_owner=Owner())
+
                 self.assertTrue(admitted.active)
 
     async def test_duplicate_identity_is_not_misreported_as_capacity_backpressure(self):
         claims = AttemptClaims.live(limits=LiveAttemptLimits(maximum_attempts=1))
+
         claims.claim_live(selected("job:a", "key:a"), lifecycle_owner=Owner())
 
         with self.assertRaises(OwnershipRefused) as refused:
@@ -97,6 +101,7 @@ class LiveOwnershipTests(unittest.IsolatedAsyncioTestCase):
         claims = AttemptClaims.live(limits=LiveAttemptLimits(maximum_pending_terminal_bytes=2097152))
         (owner, borrower) = (Owner(), Owner())
         first = claims.claim_live(selected("job:a", "key:a"), lifecycle_owner=owner)
+
         first.begin(borrower)
 
         with self.assertRaises(OwnershipRefused):
@@ -106,8 +111,10 @@ class LiveOwnershipTests(unittest.IsolatedAsyncioTestCase):
             first.release_terminal(owner=borrower)
 
         borrower.terminal_ready = True
+
         first.release_terminal(owner=borrower)
         other = claims.claim_live(selected("job:b", "key:b"), lifecycle_owner=Owner())
+
         self.assertTrue(other.active)
 
         with self.assertRaises(OwnershipRefused):
@@ -135,9 +142,11 @@ class LiveOwnershipTests(unittest.IsolatedAsyncioTestCase):
         claims = AttemptClaims.live(limits=LiveAttemptLimits(maximum_attempts=2))
         first = claims.claim_live(selected("job:a", "key:a"), lifecycle_owner=Owner())
         borrower = Owner()
+
         first.begin(borrower)
         first.bind_attempt(scope(), ATTEMPT_REF, owner=borrower)
         second = claims.claim_live(selected("job:b", "key:b"), lifecycle_owner=Owner())
+
         second.begin(borrower)
 
         with self.assertRaises(OwnershipRefused):
@@ -180,4 +189,5 @@ class LiveOwnershipTests(unittest.IsolatedAsyncioTestCase):
                 claims.claim_live(record(), lifecycle_owner=Owner(), maximum_terminal_bytes=allowance)
 
         claim = claims.claim_live(record(), lifecycle_owner=Owner(), maximum_terminal_bytes=16384)
+
         self.assertEqual(16384, claim.maximum_terminal_bytes)

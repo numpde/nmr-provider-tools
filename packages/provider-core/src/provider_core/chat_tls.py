@@ -282,6 +282,7 @@ def new_https_trust(raw):
 
         context.verify_mode = reference.verify_mode
         context.check_hostname = reference.check_hostname
+
         context.set_ciphers(_cipher_expression(reference))
 
         if (any(getattr(context, name) != getattr(reference, name) for name in _FIELDS)
@@ -448,6 +449,7 @@ def restore_trust(snapshot, *, directory=None):
             owned_directory = tempfile.TemporaryDirectory(prefix="provider-model-trust-")
             directory = owned_directory.name
             context._chat_directory = owned_directory
+
             weakref.finalize(context, owned_directory.cleanup)
         elif not (type(directory) is str and Path(directory).is_absolute() and Path(directory).is_dir()):
             raise _refuse("the captured trust directory grant is invalid")

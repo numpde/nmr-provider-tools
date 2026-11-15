@@ -29,12 +29,14 @@ class ApiNetworkAvailabilityTests(unittest.IsolatedAsyncioTestCase):
     async def test_tls_handshake_eof_allows_same_api_to_recover_with_full_verification(self):
         async with TlsPeer("success",response_body=encoded(membership()),response_headers=response_headers()) as peer:
             port=peer.server.sockets[0].getsockname()[1]
+
             peer.server.close()
             await peer.server.wait_closed()
 
             async def eof_after_client_hello(reader,writer):
                 peer.handlers.add(asyncio.current_task())
                 header=await reader.readexactly(5)
+
                 await reader.readexactly(int.from_bytes(header[3:5],"big"))
                 writer.close()
                 await writer.wait_closed()
@@ -46,6 +48,7 @@ class ApiNetworkAvailabilityTests(unittest.IsolatedAsyncioTestCase):
                 await api.uploads("job:example")
 
             failure=caught.exception
+
             self.assertTrue(api.retirement_confirmed)
 
             print(json.dumps({"primary":type(failure.cause.primary).__name__,
@@ -57,6 +60,7 @@ class ApiNetworkAvailabilityTests(unittest.IsolatedAsyncioTestCase):
             peer.server.close()
             await peer.server.wait_closed()
             trust=ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
+
             trust.load_cert_chain(Path(peer.scratch.name)/"cert.pem",Path(peer.scratch.name)/"key.pem")
             peer.closed=asyncio.Event()
 
@@ -68,6 +72,7 @@ class ApiNetworkAvailabilityTests(unittest.IsolatedAsyncioTestCase):
                                                    ssl_shutdown_timeout=0.5)
 
             result=await api.uploads("job:example")
+
             self.assertEqual(result.job_ref,"job:example")
             self.assertEqual(len(peer.requests),1)
             await asyncio.wait_for(peer.closed.wait(),1)
@@ -103,12 +108,14 @@ class ApiNetworkAvailabilityTests(unittest.IsolatedAsyncioTestCase):
                         await api.uploads("job:example")
 
                     failure = caught.exception
+
                     self.assertTrue(api.retirement_confirmed)
                     self.assertEqual(failure.cause.network_io.stage, "connect_unix")
                     self.assertEqual(failure.cause.network_io.unix_path, proxy.path)
                     self.assertTrue(api.can_retry_read(failure))
                     proxy.server = await asyncio.start_unix_server(proxy.handle, proxy.path, limit=16384)
                     result = await api.uploads("job:example")
+
                     self.assertEqual(result.job_ref, "job:example")
                     self.assertEqual(len(proxy.headers), 1)
                     self.assertEqual(len(peer.requests), 1)

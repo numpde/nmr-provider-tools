@@ -47,11 +47,13 @@ class ProxyCapacityRecoveryTests(unittest.IsolatedAsyncioTestCase):
                 with ObservedProxy(root / 'proxy.sock', 'lo', policy, status_directory=root) as proxy:
                     proxy._slots.set_limit(1)
                     thread = threading.Thread(target=proxy.serve_forever, kwargs={'poll_interval': 0.01})
+
                     thread.start()
                     writer = client = recovered = None
 
                     try:
                         (_reader, writer) = await asyncio.open_unix_connection(str(root / 'proxy.sock'))
+
                         self.assertTrue(await asyncio.to_thread(entered.wait, 2), 'First connection did not occupy the proxy')
 
                         transport = HttpTransport(trust=peer.trust,
@@ -67,9 +69,11 @@ class ProxyCapacityRecoveryTests(unittest.IsolatedAsyncioTestCase):
                         await client.retire()
                         self.assertTrue(client.retirement_confirmed)
                         retryable = client.can_retry_job_discovery(caught.exception)
+
                         writer.close()
                         await writer.wait_closed()
                         writer = None
+
                         self.assertTrue(await asyncio.to_thread(exited.wait, 2), 'Original proxy connection did not retire')
 
                         second = HttpTransport(trust=peer.trust,

@@ -100,6 +100,7 @@ class UploadTransferRetryTests(unittest.IsolatedAsyncioTestCase):
             side_effect=original
         ):
             failure = await self.failed(transfer, api.grant, client, directory=directory)
+
             self.assertIs(failure.cause.primary, original)
             self.assertIs(failure.cause.network_failure, original)
             self.assertTrue(transfer.can_retry_transfer(failure))
@@ -162,6 +163,7 @@ class UploadTransferRetryTests(unittest.IsolatedAsyncioTestCase):
                 transfer = self.transfer(store)
                 client = Client(Stream([b"g"], failure=httpcore.RemoteProtocolError("incomplete body")), headers=headers)
                 failure = await self.failed(transfer, api.grant, client, directory=directory)
+
                 self.assertEqual(transfer.can_retry_transfer(failure), header == "valid")
 
     async def test_temporary_read_failure_cannot_hide_wrong_transfer_head(self):
@@ -196,6 +198,7 @@ class UploadTransferRetryTests(unittest.IsolatedAsyncioTestCase):
                 (_, api, store, _) = file_sources()
                 transfer = self.transfer(store)
                 failure = await self.failed(transfer, api.grant, Client(Stream([body]), headers=headers), directory=directory)
+
                 self.assertFalse(transfer.can_retry_transfer(failure))
 
         with private_source_directory() as (_, directory):
@@ -298,6 +301,7 @@ class UploadTransferRetryTests(unittest.IsolatedAsyncioTestCase):
                             await task
 
                         failure = transfer.last_failure
+
                         self.assertFalse(store.retirement_confirmed)
                         self.assertFalse(transfer.can_retry_transfer(failure))
                     finally:

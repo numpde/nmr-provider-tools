@@ -55,6 +55,7 @@ class DeploymentErrorCliTests(unittest.TestCase):
 
                     self.assertEqual(result.returncode, 2)
                     report = json.loads(result.stderr)
+
                     self.assertEqual(report["failure"]["exception_type"], "BindingDefinitionRejected")
                     self.assertTrue(report["failure"]["message"])
                     self.assertNotIn("PRIVATE_INPUT_CANARY", result.stderr)
@@ -63,6 +64,7 @@ class DeploymentErrorCliTests(unittest.TestCase):
     def test_route_cli_uses_canonical_refusal_after_module_execution(self):
         with tempfile.TemporaryDirectory() as directory:
             path = Path(directory) / "binding.toml"
+
             path.write_bytes(definition(1))
             path.chmod(0o600)
 
@@ -96,6 +98,7 @@ class DeploymentErrorCliTests(unittest.TestCase):
 
             self.assertEqual(result.returncode, 2)
             report = json.loads(result.stderr)
+
             self.assertEqual(report["failure"]["exception_type"], "RouteProjectionRejected")
             self.assertIn("immutable full image ID", report["failure"]["message"])
             self.assertNotIn("PRIVATE_INPUT_CANARY", result.stderr)

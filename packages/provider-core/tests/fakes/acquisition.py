@@ -113,6 +113,7 @@ def private_source_directory():
 
 def snapshot_source(root, data):
     path = Path(root) / "source"
+
     path.write_bytes(data)
 
     return VerifiedUploadFile("job:example", UPLOAD_REF, len(data), "sha256:" + hashlib.sha256(data).hexdigest(), path.name)

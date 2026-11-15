@@ -27,8 +27,10 @@ from tests.fakes.runner import RunningSupervisor
 class ObservedCrashTests(unittest.IsolatedAsyncioTestCase):
     def session(self, phase):
         supervisor = RunningSupervisor()
+
         self.addCleanup(supervisor.close)
         native = supervisor.session(startup_seconds=2, retirement_seconds=2)
+
         self.addCleanup(native.close)
         native.connect()
 
@@ -69,18 +71,22 @@ class ObservedCrashTests(unittest.IsolatedAsyncioTestCase):
                 (session, transport) = (self.session(phase), self.transport(phase))
                 controller = self.controller(session, transport)
                 accepted = await controller.run(record())
+
                 self.assertIs(type(accepted), DeliveryAcceptedCheckpoint)
                 self.assertEqual(calls, len(transport.calls))
                 self.assertEqual(1, len(controller.delivery.items))
                 item = controller.delivery.items[0]
+
                 self.assertIs(TerminalOperation.FAIL, item.operation)
                 body = json.loads(item.body)
+
                 self.assertEqual("worker_crashed", body["failure_code"])
                 self.assertIn("9", body["failure_message"])
                 self.assertNotIn("PRIVATE", body["failure_message"])
                 self.assertLessEqual(len(body["failure_message"]), 1024)
                 self.assertTrue(controller.shutdown_ready)
                 crash = controller.operation.observed_crash
+
                 self.assertEqual(-9, owned_details(crash)["returncode"])
                 self.assertIn(("owned cause", crash.cause), list(owned_relationships(crash)))
 
@@ -108,6 +114,7 @@ class ObservedCrashTests(unittest.IsolatedAsyncioTestCase):
 
     async def test_crash_admitted_before_pending_monitor_read_fails_still_reaches_delivery(self):
         session = self.session("preparing")
+
         session.begin_crash.clear()
 
         class OutageDuringCrash(Transport):
@@ -122,11 +129,13 @@ class ObservedCrashTests(unittest.IsolatedAsyncioTestCase):
         controller = self.controller(session, OutageDuringCrash(*original.replies))
         controller._poll_seconds = 0.01
         accepted = await controller.run(record())
+
         self.assertIs(type(accepted), DeliveryAcceptedCheckpoint)
         self.assertEqual("worker_crashed", json.loads(controller.delivery.items[0].body)["failure_code"])
 
     async def test_recovery_logging_failure_cannot_veto_an_already_admitted_crash(self):
         session = self.session("preparing")
+
         session.begin_crash.clear()
 
         # Native PID exchange and exit observation each allow two seconds.
@@ -155,6 +164,7 @@ class ObservedCrashTests(unittest.IsolatedAsyncioTestCase):
 
         controller._poll_seconds = 0.01
         accepted = await controller.run(record())
+
         self.assertIs(type(accepted), DeliveryAcceptedCheckpoint)
         recovery.on_retry.assert_not_called()
         self.assertEqual(1, len(controller.delivery.items))
@@ -179,6 +189,7 @@ class ObservedCrashTests(unittest.IsolatedAsyncioTestCase):
         controller.delivery = delivery
         controller._on_delivery_retry = Mock(side_effect=diagnostic)
         accepted = await controller.run(record())
+
         self.assertIs(type(accepted), DeliveryAcceptedCheckpoint)
         self.assertEqual(2, len(delivery.attempted))
         self.assertIs(delivery.attempted[0], delivery.attempted[1])

@@ -80,12 +80,14 @@ class ApiAvailabilityTests(unittest.IsolatedAsyncioTestCase):
         for response in responses:
             with self.subTest(status=response.status):
                 (api, transport, failure) = await self.failed_discovery(response)
+
                 self.assertTrue(api.can_retry_job_discovery(failure))
                 self.assertIs(api.can_retry_read(failure), response.status == 429)
                 self.assertFalse(api.can_refresh_hello(failure))
                 self.assertFalse(api.can_replay_terminal(failure))
                 self.assertEqual(len(transport.calls), 1)
                 transport.retirement_confirmed = False
+
                 self.assertFalse(api.can_retry_job_discovery(failure))
                 await api.retire()
                 self.assertTrue(api.can_retry_job_discovery(failure))
@@ -108,10 +110,12 @@ class ApiAvailabilityTests(unittest.IsolatedAsyncioTestCase):
         ):
             with self.subTest(response=type(response).__name__):
                 (api, transport, failure) = await self.failed_discovery(response)
+
                 self.assertFalse(api.can_retry_job_discovery(failure))
                 self.assertEqual(len(transport.calls), 1)
 
         (api, transport, failure) = await self.failed_read(reply(b"maintenance", status=503))
+
         self.assertFalse(api.can_retry_job_discovery(failure))
 
         for (method, path) in (("GET", "/provider/v1/jobs/other"), ("POST", "/provider/v1/jobs")):
@@ -164,9 +168,11 @@ class ApiAvailabilityTests(unittest.IsolatedAsyncioTestCase):
         ):
             with self.subTest(response=type(response).__name__, expected=expected):
                 (api, transport, failure) = await self.failed_read(response)
+
                 self.assertIs(api.can_retry_read(failure), expected)
                 self.assertNotIn("PRIVATE_SERVER_DETAIL", str(failure))
                 transport.retirement_confirmed = False
+
                 self.assertFalse(api.can_retry_read(failure))
                 await api.retire()
                 self.assertIs(api.can_retry_read(failure), expected)
@@ -181,6 +187,7 @@ class ApiAvailabilityTests(unittest.IsolatedAsyncioTestCase):
                 self.assertIs(api.can_refresh_hello(caught.exception), expected)
                 self.assertFalse(api.can_retry_read(caught.exception))
                 transport.retirement_confirmed = False
+
                 self.assertFalse(api.can_refresh_hello(caught.exception))
                 await api.retire()
                 self.assertIs(api.can_refresh_hello(caught.exception), expected)
@@ -190,6 +197,7 @@ class ApiAvailabilityTests(unittest.IsolatedAsyncioTestCase):
         for operation in ("start", "complete", "fail", "progress", "condition"):
             with self.subTest(operation=operation):
                 (api, _, failure) = await self.failed_replay_operation(reply(body_timeout_problem(), status=408), operation=operation)
+
                 self.assertEqual(failure.problem_code, "request_body_timeout")
                 self.assertTrue(api.can_refresh_signature(failure))
                 self.assertIs(api.can_replay_start(failure), operation == "start")
@@ -218,6 +226,7 @@ class ApiAvailabilityTests(unittest.IsolatedAsyncioTestCase):
             for response in responses:
                 with self.subTest(operation=operation, status=response.status):
                     (api, transport, failure) = await self.failed_replay_operation(response, operation=operation)
+
                     self.assertIs(api.can_replay_terminal(failure), operation in ("complete", "fail"))
                     self.assertFalse(api.can_replay_start(failure))
                     self.assertFalse(api.can_retry_condition(failure, execution_attempt_ref=ATTEMPT_REF))
@@ -226,6 +235,7 @@ class ApiAvailabilityTests(unittest.IsolatedAsyncioTestCase):
                     self.assertEqual(failure.status, response.status)
                     self.assertNotIn("PRIVATE_SERVER_DETAIL", str(failure))
                     transport.retirement_confirmed = False
+
                     self.assertFalse(api.can_replay_terminal(failure))
 
     async def test_terminal_retry_still_refuses_untrusted_or_unknown_authentication_evidence(self):
@@ -243,6 +253,7 @@ class ApiAvailabilityTests(unittest.IsolatedAsyncioTestCase):
         ):
             with self.subTest(status=response.status, headers=response.headers):
                 (api, _, failure) = await self.failed_replay_operation(response, operation="complete")
+
                 self.assertFalse(api.can_replay_terminal(failure))
 
     def test_retry_after_accepts_http_time_forms_without_changing_retry_authority(self):
@@ -291,14 +302,18 @@ class ApiAvailabilityTests(unittest.IsolatedAsyncioTestCase):
                 )
 
                 (api, transport, failure) = await self.failed_read(exchange)
+
                 self.assertIs(api.can_retry_read(failure), expected)
                 transport.retirement_confirmed = False
+
                 self.assertFalse(api.can_retry_read(failure))
                 await api.retire()
                 exchange.cleanup_failures = (OSError(errno.EIO, "PRIVATE_CLEANUP"),)
+
                 self.assertFalse(api.can_retry_read(failure))
                 exchange.cleanup_failures = ()
                 exchange.interruption = asyncio.CancelledError()
+
                 self.assertFalse(api.can_retry_read(failure))
 
         exchange = ExchangeFailed(
@@ -308,6 +323,7 @@ class ApiAvailabilityTests(unittest.IsolatedAsyncioTestCase):
         )
 
         (api, _, failure) = await self.failed_read(exchange)
+
         self.assertFalse(api.can_retry_read(failure))
 
     async def test_signature_refresh_requires_a_complete_owned_retired_read_refusal(self):
@@ -325,9 +341,11 @@ class ApiAvailabilityTests(unittest.IsolatedAsyncioTestCase):
 
             with self.subTest(changes=changes, headers=headers):
                 (api, transport, failure) = await self.failed_read(reply(body, status=401, headers=headers))
+
                 self.assertIs(api.can_refresh_signature(failure), expected)
                 self.assertIs(api.can_retry_read(failure), expected)
                 transport.retirement_confirmed = False
+
                 self.assertFalse(api.can_refresh_signature(failure))
                 await api.retire()
                 self.assertIs(api.can_refresh_signature(failure), expected)
@@ -438,11 +456,13 @@ class ApiAvailabilityTests(unittest.IsolatedAsyncioTestCase):
                     }[operation]
 
                     other_replay = api.can_replay_terminal if operation == "start" else api.can_replay_start
+
                     self.assertIs(permission(failure), expected)
                     self.assertFalse(other_replay(failure))
                     self.assertFalse(api.can_retry_read(failure))
                     self.assertFalse(api.can_refresh_hello(failure))
                     transport.retirement_confirmed = False
+
                     self.assertFalse(permission(failure))
                     await api.retire()
                     self.assertIs(permission(failure), expected)
@@ -450,6 +470,7 @@ class ApiAvailabilityTests(unittest.IsolatedAsyncioTestCase):
 
     async def test_progress_deferral_requires_this_attempts_exact_current_retired_put(self):
         (api, transport, original) = await self.failed_replay_operation(reply(b"maintenance", status=503), operation="progress")
+
         self.assertTrue(api.can_defer_phase_progress(original, execution_attempt_ref=ATTEMPT_REF))
         self.assertFalse(api.can_replay_start(original))
         self.assertFalse(api.can_replay_terminal(original))
@@ -497,6 +518,7 @@ class ApiAvailabilityTests(unittest.IsolatedAsyncioTestCase):
 
     async def test_start_replay_requires_current_owned_failure_and_exact_unqueried_start_target(self):
         (api, transport, old) = await self.failed_replay_operation(reply(b"maintenance", status=503), operation="start")
+
         self.assertTrue(api.can_replay_start(old))
 
         operations = (
@@ -530,13 +552,17 @@ class ApiAvailabilityTests(unittest.IsolatedAsyncioTestCase):
         exchange = ExchangeFailed("Head not yet observed", primary=httpcore.RemoteProtocolError())
         (api, transport, failure) = await self.failed_replay_operation(exchange, operation="start")
         transport.retirement_confirmed = False
+
         self.assertFalse(api.can_replay_start(failure))
         exchange.response_head = HttpResponseHead(500, response_headers(status=500, topology=b"web"))
+
         await api.retire()
         self.assertFalse(api.can_replay_start(failure))
         exchange.response_head = None
+
         self.assertTrue(api.can_replay_start(failure))
         exchange.cleanup_failures = (OSError(errno.EIO, "PRIVATE_CLEANUP"),)
+
         self.assertFalse(api.can_replay_start(failure))
 
         class ForeignFailure(ApiFailure):
@@ -546,6 +572,7 @@ class ApiAvailabilityTests(unittest.IsolatedAsyncioTestCase):
         api.last_failure.request_method = "POST"
         api.last_failure.request_target = b"/provider/v1/execution-attempts/start"
         api.last_failure.response = reply(b"maintenance", status=503)
+
         self.assertFalse(api.can_replay_start(api.last_failure))
         self.assertEqual(len(transport.calls), 2)
 
@@ -579,6 +606,7 @@ class ApiAvailabilityTests(unittest.IsolatedAsyncioTestCase):
         ):
             with self.subTest(status=response.status, body=response.body):
                 (api, _, failure) = await self.failed_read(response)
+
                 self.assertIs(api.can_retry_read(failure), expected)
                 self.assertNotIn("PRIVATE", str(failure))
 
@@ -611,16 +639,19 @@ class ApiAvailabilityTests(unittest.IsolatedAsyncioTestCase):
         ):
             with self.subTest(cause=type(cause).__name__):
                 (api, _, failure) = await self.failed_read(io_failure("Exchange failed", stage="connect_tcp", primary=cause))
+
                 self.assertIs(api.can_retry_read(failure), expected)
 
     async def test_retirement_and_late_original_evidence_control_the_decision(self):
         exchange = io_failure("Exchange failed", stage="read", primary=TimeoutError())
         (api, transport, failure) = await self.failed_read(exchange)
         transport.retirement_confirmed = False
+
         self.assertFalse(api.can_retry_read(failure))
         await api.retire()
         self.assertTrue(api.can_retry_read(failure))
         exchange.primary = ssl.SSLCertVerificationError("PRIVATE_CERTIFICATE")
+
         self.assertFalse(api.can_retry_read(failure))
         self.assertFalse(api.can_retry_read(ApiFailure("other API", "unknown")))
 
@@ -642,6 +673,7 @@ class ApiAvailabilityTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(caught.exception.request_target, b"/provider/v1/hello")
         self.assertFalse(api.can_refresh_hello(old_read))
         transport.retirement_confirmed = False
+
         self.assertFalse(api.can_refresh_hello(caught.exception))
         await api.retire()
         self.assertTrue(api.can_refresh_hello(caught.exception))
@@ -709,4 +741,5 @@ class ApiAvailabilityTests(unittest.IsolatedAsyncioTestCase):
                          ConnectionRefusedError(errno.ECONNREFUSED, "local")):
             with self.subTest(error=type(original).__name__):
                 (api, _, failure) = await self.failed_read(ExchangeFailed("Local failure", primary=original))
+
                 self.assertFalse(api.can_retry_read(failure))

@@ -31,6 +31,7 @@ class PreparedIdentityTests(unittest.IsolatedAsyncioTestCase):
         entered = EnteredCheckpoint(AcknowledgedCheckpoint(record(), admission()), EvidenceDigest.from_evidence(IDENTITY))
         raw = encode_checkpoint(entered)
         document = json.loads(raw)
+
         self.assertEqual(document["kind"], "entered")
         self.assertEqual(set(document["prepared"]), {"schema_id", "sha256", "byte_length"})
         self.assertNotIsInstance(entered, PreparedAnalysis)
@@ -41,6 +42,7 @@ class PreparedIdentityTests(unittest.IsolatedAsyncioTestCase):
         identity = ProtectedEvidence("\U0001f600" * 1024, b"x" * MAX_EVIDENCE_BYTES)
         entered = EnteredCheckpoint(AcknowledgedCheckpoint(record(), admission()), EvidenceDigest.from_evidence(identity))
         raw = encode_checkpoint(entered)
+
         self.assertLessEqual(len(raw), MAX_CHECKPOINT_BYTES)
         self.assertNotIn(identity.content, raw)
 

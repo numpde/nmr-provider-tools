@@ -130,6 +130,7 @@ class PreparationToolTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(first=[Sample(value=-1), Sample(value=2)], second=self.science.inputs)
         self.assertEqual(first=self.preparation_tool.operation.reference, second=self.preparation_tool.prepared_state_handle.producer)
         observation = await self.preparation_tool.operation.observe(after=None, wait_seconds=0)
+
         self.assertIs(expr1=ResultState.RELEASED, expr2=observation.result_state)
 
     async def test_operator_failure_is_original_and_cannot_restart_preparation(self):
@@ -236,6 +237,7 @@ class PreparationToolTests(unittest.IsolatedAsyncioTestCase):
 
             self.science.release.set()
             completed = await observe_completion(operation=original)
+
             completed.require_result()
             await self.preparation_tool.resume()
 
@@ -257,6 +259,7 @@ class PreparationToolTests(unittest.IsolatedAsyncioTestCase):
         def lose_reply(*, invocation):
             requests.append(invocation)
             operation = submit(invocation=invocation)
+
             operations.append(operation)
 
             if len(requests) == 1:
@@ -318,6 +321,7 @@ class PreparationToolTests(unittest.IsolatedAsyncioTestCase):
         try:
             self.assertTrue(expr=await asyncio.to_thread(self.science.load_entered.wait, timeout=2))
             expired = self.preparation_tool.operation
+
             await asyncio.sleep(delay=max(0, first_deadline[0] - asyncio.get_running_loop().time()) + 0.01)
             self.assertFalse(expr=task.done())
             self.science.load_release.set()
@@ -326,6 +330,7 @@ class PreparationToolTests(unittest.IsolatedAsyncioTestCase):
                 await task
 
             observed = await expired.observe(after=None, wait_seconds=0)
+
             self.assertTrue(expr=observed.finished)
             self.assertIsInstance(obj=observed.failures[0].cause, cls=StartDeadlineExpired)
             self.assertEqual(first=1, second=self.science.initializations)
@@ -348,6 +353,7 @@ class PreparationToolTests(unittest.IsolatedAsyncioTestCase):
             def release(*, result):
                 reports.append(result)
                 control = release_result(result=result)
+
                 releases.append(control)
 
                 if len(releases) == 1:

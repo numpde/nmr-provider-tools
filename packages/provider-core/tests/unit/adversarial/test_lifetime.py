@@ -39,8 +39,10 @@ class ProviderLifetimeTests(unittest.IsolatedAsyncioTestCase):
 
     async def test_live_lock_excludes_another_owner_without_creating_database(self):
         lifetime = ProviderLifetime(self.root).open()
+
         self.addCleanup(lifetime.close)
         inode = (self.root / ".checkpoint-owner.lock").stat().st_ino
+
         self.assertEqual("blocked", self.contender("live"))
         self.assertFalse((self.root / "checkpoints.sqlite3").exists())
 
@@ -70,6 +72,7 @@ class ProviderLifetimeTests(unittest.IsolatedAsyncioTestCase):
             self.assertTrue(select.select([child.stdout], [], [], 5)[0], "Lifetime child did not report readiness")
             self.assertEqual("acquired", child.stdout.readline().strip())
             inode = (self.root / ".checkpoint-owner.lock").stat().st_ino
+
             self.assertEqual("blocked", self.contender("live"))
         finally:
             child.kill()
@@ -87,6 +90,7 @@ class ProviderLifetimeTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual([], list(self.root.iterdir()))
         self.root.chmod(0o700)
         lock = self.root / ".checkpoint-owner.lock"
+
         lock.touch(mode=0o644)
 
         with self.assertRaises(LifetimeRefused):
@@ -102,6 +106,7 @@ class ProviderLifetimeTests(unittest.IsolatedAsyncioTestCase):
             nonlocal reused
             real_close(descriptor)
             reused = os.open(self.root / "unrelated", os.O_RDWR | os.O_CREAT | os.O_EXCL, 0o600)
+
             self.assertEqual(descriptor, reused)
             raise close_failure
 

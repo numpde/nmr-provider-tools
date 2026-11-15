@@ -82,6 +82,7 @@ class PhaseProgressFailureTests(unittest.IsolatedAsyncioTestCase):
 
         progress_failure = notice.call_args.args[2]
         read_failure = caught.exception.cause
+
         self.assertIs(type(read_failure), ApiFailure)
         self.assertIs(read_failure.__context__, progress_failure)
         self.assertIs(caught.exception.api_failure, read_failure)
@@ -171,6 +172,7 @@ class PhaseProgressFailureTests(unittest.IsolatedAsyncioTestCase):
     async def test_condition_report_still_requires_its_matching_acknowledgement(self):
         (store, acknowledged, claim) = await live_attempt()
         transport = ConditionTransport()
+
         transport.release.set()
         transport.failure = ExchangeFailed("Condition receipt unavailable", primary=TimeoutError())
         (session, notice) = (ReportingSession(store), Mock())

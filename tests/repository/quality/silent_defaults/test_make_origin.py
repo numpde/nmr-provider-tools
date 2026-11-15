@@ -24,6 +24,7 @@ class MakeOriginGateTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             path = root / source
+
             path.parent.mkdir(parents=True, exist_ok=True)
             path.write_text(line + "\n")
 
@@ -76,6 +77,7 @@ class MakeOriginGateTests(unittest.TestCase):
             with self.subTest(line=line):
                 self.assertFalse(is_literal_make_origin_gate("Makefile", line))
                 (dapp_findings, vote_findings) = self.findings_from_both_collectors("Makefile", line)
+
                 self.assertTrue(dapp_findings)
                 self.assertTrue(vote_findings)
 
@@ -86,11 +88,13 @@ class MakeOriginGateTests(unittest.TestCase):
             with self.subTest(source=source):
                 self.assertFalse(is_literal_make_origin_gate(source, line))
                 (dapp_findings, vote_findings) = self.findings_from_both_collectors(source, line)
+
                 self.assertTrue(dapp_findings)
                 self.assertTrue(vote_findings)
 
     def test_raw_conditional_default_assignment_detector_still_matches(self):
         line = "export PROFILE_INPUT ?= $(if $(filter command line,$(origin PROFILE)),$(value PROFILE))"
+
         self.assertRegex(line, dapp.MAKE_DEFAULT_ASSIGNMENT_RE)
         self.assertRegex(line, vote.MAKE_DEFAULT_ASSIGNMENT_RE)
         self.assertFalse(is_literal_make_origin_gate("Makefile", line))

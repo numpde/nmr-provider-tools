@@ -22,6 +22,7 @@ class TextCorrectionTests(unittest.IsolatedAsyncioTestCase):
 
         await conversation.run([], [], AsyncMock(side_effect=[ToolRejected("Choose another record."), ToolFinished("selected")]))
         (assistant, tool) = model.requests[1]
+
         self.assertEqual({"record": 1}, json.loads(assistant["tool_calls"][0]["function"]["arguments"]))
         self.assertEqual({"role": "tool", "tool_call_id": "bad", "content": "Choose another record."}, tool)
         await conversation.retire()
@@ -41,6 +42,7 @@ class TextCorrectionTests(unittest.IsolatedAsyncioTestCase):
 
                 dispatch = AsyncMock(return_value=ToolFinished("selected"))
                 result = await conversation.run([], [], dispatch)
+
                 self.assertEqual([plain, {"role": "user", "content": "correction-v1\n"}], model.requests[1])
                 dispatch.assert_awaited_once_with("submit", {})
                 self.assertEqual("selected", result.value)
@@ -64,6 +66,7 @@ class TextCorrectionTests(unittest.IsolatedAsyncioTestCase):
 
         result = await conversation.run([], [], AsyncMock(side_effect=[rejection, ToolFinished("selected")]))
         (assistant, tool, user) = model.requests[1]
+
         self.assertEqual("assistant", assistant["role"])
         self.assertEqual("fixture reasoning", assistant["reasoning_content"])
         self.assertEqual(value, json.loads(assistant["tool_calls"][0]["function"]["arguments"]))
@@ -77,8 +80,10 @@ class TextCorrectionTests(unittest.IsolatedAsyncioTestCase):
     async def test_default_rejection_still_scrubs_arguments_and_uses_json_tool_feedback(self):
         model = recording_endpoint("only", call("bad", "submit", {"candidate": 1}), call("good", "submit", {}))
         conversation = ToolConversation((model,), max_turns=2, secrets=())
+
         await conversation.run([], [], AsyncMock(side_effect=[ToolRejected("Choose another value."), ToolFinished("selected")]))
         (assistant, tool) = model.requests[1]
+
         self.assertEqual("{}", assistant["tool_calls"][0]["function"]["arguments"])
         self.assertEqual({"rejected": "Choose another value."}, json.loads(tool["content"]))
         await conversation.retire()

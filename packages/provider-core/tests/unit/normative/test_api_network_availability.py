@@ -159,12 +159,14 @@ class ApiNetworkAvailabilityTests(unittest.IsolatedAsyncioTestCase):
                 failure.__cause__ = None
 
                 failure.__context__ = RuntimeError("unrelated later handler")
+
                 self.assertIs(facts.cause, original)
                 self.assertIs(network_availability(failure, facts, network_failure=failure), expected)
 
         for incidental in (RuntimeError("local"), OSError("local setup")):
             incidental.__context__ = ConnectionRefusedError()
             facts = await self.capture_connect(incidental)
+
             self.assertFalse(network_availability(incidental, facts, network_failure=incidental))
 
         self.assertFalse(temporary_io_failure(socket.gaierror(socket.EAI_NONAME, "unchanged generic policy"), 8))
@@ -179,10 +181,12 @@ class ApiNetworkAvailabilityTests(unittest.IsolatedAsyncioTestCase):
             with self.subTest(configured=configured, actual=actual, errno=error.errno):
                 failure = wrapper(error)
                 facts = await self.capture_connect(failure, proxy_socket=configured, path=actual)
+
                 self.assertIs(network_availability(failure, facts, network_failure=failure), expected)
 
         failure = wrapper(FileNotFoundError(errno.ENOENT, "local missing file"))
         facts = await self.capture_connect(failure)
+
         self.assertFalse(network_availability(failure, facts, network_failure=failure))
 
     async def test_each_api_contract_keeps_its_current_exact_route_and_effects(self):
@@ -230,6 +234,7 @@ class ApiNetworkAvailabilityTests(unittest.IsolatedAsyncioTestCase):
                 self.assertFalse(any(check(failure) for check in checks.values()))
                 failure.cause.cleanup_failures = ()
                 client.last_failure = ApiFailure("next", "failure")
+
                 self.assertFalse(any(check(failure) for check in checks.values()))
 
     async def test_same_read_timeout_from_actual_stream_and_local_account_have_distinct_permission(self):
@@ -268,8 +273,10 @@ class ApiNetworkAvailabilityTests(unittest.IsolatedAsyncioTestCase):
         for (maximum, expected) in ((0, False), (10, True)):
             network = OwnedNetworkBackend()
             stream = network._own(RawStream())
+
             self.assertEqual(await stream.read(maximum), b"")
             failure = httpcore.RemoteProtocolError("controlled truncation")
+
             self.assertIs(network_availability(failure, network.observation, network_failure=failure), expected)
             self.assertFalse(network_availability(RuntimeError(), network.observation, network_failure=failure))
             await network.aclose()
@@ -284,6 +291,7 @@ class ApiNetworkAvailabilityTests(unittest.IsolatedAsyncioTestCase):
 
                 with patch("provider_core.network.httpcore.AnyIOBackend", return_value=Backend(stream)):
                     task = asyncio.create_task(client._exchange("read", method="GET", path="/provider/v1/jobs/job:example/uploads", query=b"", maximum_bytes=4096))
+
                     await asyncio.wait_for(stream.closing.wait(), 1)
 
                     if cancel:
@@ -302,6 +310,7 @@ class ApiNetworkAvailabilityTests(unittest.IsolatedAsyncioTestCase):
                         self.assertFalse(cancel)
 
                 failure = client.last_failure
+
                 self.assertTrue(transport.retirement_confirmed)
                 self.assertTrue(failure.cause.network_io.deadline_cancelled)
                 self.assertIs(client.can_retry_read(failure), not cancel)
@@ -380,6 +389,7 @@ class ApiNetworkAvailabilityTests(unittest.IsolatedAsyncioTestCase):
                     original = kind()
                     original.__cause__ = leaf
                     facts = await self.capture_connect(original)
+
                     self.assertIs(network_availability(original, facts, network_failure=original), expected)
 
         for (kind, expected) in ((httpcore.ReadTimeout, True),
@@ -391,6 +401,7 @@ class ApiNetworkAvailabilityTests(unittest.IsolatedAsyncioTestCase):
                 original = kind()
                 original.__cause__ = asyncio.CancelledError()
                 facts = await self.capture_connect(original)
+
                 self.assertIs(network_availability(original, facts, network_failure=original), expected)
 
         class CustomConnection(ConnectionError):
@@ -398,6 +409,7 @@ class ApiNetworkAvailabilityTests(unittest.IsolatedAsyncioTestCase):
 
         for (original, expected) in ((ConnectionError(), True), (CustomConnection(), False)):
             facts = await self.capture_connect(original)
+
             self.assertIs(network_availability(original, facts, network_failure=original), expected)
 
     async def test_sdk_deadline_preserves_explicit_native_cancellation_cause(self):
@@ -435,6 +447,7 @@ class ApiNetworkAvailabilityTests(unittest.IsolatedAsyncioTestCase):
                     failure = await self.failed_exchange(client, "GET", "/provider/v1/jobs/job:example/uploads")
 
                 observation = failure.cause.network_io
+
                 self.assertTrue(transport.retirement_confirmed)
                 self.assertIs(observation.error, cancellations[0])
                 self.assertIs(observation.cause, cause)

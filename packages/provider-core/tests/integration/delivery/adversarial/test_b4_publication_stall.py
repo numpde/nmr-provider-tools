@@ -76,6 +76,7 @@ class PublicationStorageStallTests(unittest.IsolatedAsyncioTestCase):
                 failure_message="SCIENTIFIC_PAYLOAD_NEEDLE",
         )) as peer:
             item = replace(outcome(), api_origin=peer.origin)
+
             self.queue.enqueue(item)
             client = api(HttpTransport(trust=peer.trust, exchange_seconds=0.2, retirement_seconds=0.2), peer.origin)
             endpoint = DeliveryEndpoint(peer.origin, item.provider_ref, self.root / "unused-relay.sock")
@@ -144,6 +145,7 @@ class PublicationStorageStallTests(unittest.IsolatedAsyncioTestCase):
                                      msg="No operator warning described the original publication blocked in storage: " + evidence)
 
                     (failure, stalled, observed_at) = notices[0]
+
                     self.assertIsNotNone(failure, msg="DeliveryNotices must emit this event at warning severity")
 
                     for (name, value) in item.acceptance().items():
@@ -174,6 +176,7 @@ class PublicationStorageStallTests(unittest.IsolatedAsyncioTestCase):
                              [facts["event"] for (_, facts, _) in notices])
 
             (failure, published, _) = notices[-1]
+
             self.assertIsNone(failure)
             self.assertIs(published["recovered"], True)
             self.assertGreater(published["publication_wait_seconds"], stalled["publication_wait_seconds"])
@@ -209,6 +212,7 @@ class PublicationStorageStallTests(unittest.IsolatedAsyncioTestCase):
 
         output = FailFirstWrite()
         diagnostic_sink = DeliveryNotices(output, secrets=())
+
         self.addCleanup(diagnostic_sink.close)
 
         def held_remove(item):
@@ -234,6 +238,7 @@ class PublicationStorageStallTests(unittest.IsolatedAsyncioTestCase):
                 failure_message="SCIENTIFIC_PAYLOAD_NEEDLE",
         )) as peer:
             item = replace(outcome(), api_origin=peer.origin)
+
             self.queue.enqueue(item)
             client = api(HttpTransport(trust=peer.trust, exchange_seconds=0.2, retirement_seconds=0.2), peer.origin)
             endpoint = DeliveryEndpoint(peer.origin, item.provider_ref, self.root / "unused-relay.sock")
@@ -254,6 +259,7 @@ class PublicationStorageStallTests(unittest.IsolatedAsyncioTestCase):
                     await asyncio.wait_for(removal_started.wait(), 3)
                     self.assertEqual(1, len(self.inbox._storage_tasks))
                     original_storage = next(iter(self.inbox._storage_tasks))
+
                     worker.request_stop()
                     self.assertEqual("stopping", worker.status()["state"])
                     await asyncio.wait_for(warning_seen.wait(), alert_seconds + 0.25)
@@ -293,6 +299,7 @@ class PublicationStorageStallTests(unittest.IsolatedAsyncioTestCase):
             self.assertIs(notices[-1][1]["recovered"], True)
             self.assertEqual(1, diagnostic_sink.status()["output_failures"])
             published_log = json.loads(output.getvalue())
+
             self.assertEqual("delivery_published", published_log["event"])
             self.assertIs(published_log["recovered"], True)
             self.assertEqual([], self.queue.inventory(item.api_origin, item.provider_ref))
@@ -314,6 +321,7 @@ class PublicationStorageStallTests(unittest.IsolatedAsyncioTestCase):
                 failure_message="SCIENTIFIC_PAYLOAD_NEEDLE",
         )) as peer:
             item = replace(outcome(), api_origin=peer.origin)
+
             self.queue.enqueue(item)
             client = api(HttpTransport(trust=peer.trust, exchange_seconds=0.2, retirement_seconds=0.2), peer.origin)
             endpoint = DeliveryEndpoint(peer.origin, item.provider_ref, self.root / "unused-relay.sock")
@@ -326,6 +334,7 @@ class PublicationStorageStallTests(unittest.IsolatedAsyncioTestCase):
                                     on_notice=notice)
 
             alert_seconds = client.exchange_seconds + client.retirement_seconds + worker.retry_max_seconds
+
             await asyncio.wait_for(worker.run(), 3)
             self.assertEqual(["delivery_published"], [facts["event"] for (_, facts) in notices])
             self.assertIsNone(notices[0][0])

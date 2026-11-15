@@ -119,6 +119,7 @@ class ImageBuildProxyInputTests(unittest.TestCase):
         exact = Mock()
         raw = b"x" * (_PROXY.MAX_HEADER_BYTES - len(header_end)) + header_end
         exact.recv.side_effect = [raw[index : index + 8192] for index in range(0, len(raw), 8192)]
+
         self.assertEqual(len(_PROXY.receive_headers(exact)[0]), _PROXY.MAX_HEADER_BYTES)
         self.assertEqual(8, exact.recv.call_count)
 
@@ -137,6 +138,7 @@ class ImageBuildProxyInputTests(unittest.TestCase):
         chunks = [prefix[index : index + 8192] for index in range(0, len(prefix), 8192)]
         client = Mock()
         client.recv.side_effect = [*chunks, header[-1:] + body]
+
         self.assertEqual(_PROXY.receive_headers(client), (header, body))
 
 
@@ -288,6 +290,7 @@ class ImageBuildProxyTransportTests(unittest.TestCase):
 
         def expire(*args, **kwargs):
             clock[0] = 30
+
             raise TimeoutError("scripted resolver deadline")
 
         with (
@@ -306,6 +309,7 @@ class ImageBuildProxyTransportTests(unittest.TestCase):
 
         def expire(_address):
             clock[0] = 30
+
             raise TimeoutError("scripted connect deadline")
 
         connection.connect.side_effect = expire
@@ -328,6 +332,7 @@ class ImageBuildProxyTransportTests(unittest.TestCase):
 
         def fail_first(_address):
             clock[0] = 10
+
             raise OSError("scripted route failure")
 
         first.connect.side_effect = fail_first
@@ -423,6 +428,7 @@ class ImageBuildProxyTransportTests(unittest.TestCase):
 
         def client_eof(_size):
             clock[0] = 1
+
             events.append("client EOF")
 
             return b""
@@ -434,12 +440,14 @@ class ImageBuildProxyTransportTests(unittest.TestCase):
                 return b"response"
 
             clock[0] = 4
+
             events.append("server EOF")
 
             return b""
 
         def forward_response(_data):
             clock[0] = 3
+
             events.append("response forwarded")
 
         def select(read, _write, _errors, timeout):
@@ -627,6 +635,7 @@ class ImageBuildProxyWorkerTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temporary:
             ready = Path(temporary) / "proxy.port"
             server = MagicMock(server_address=("127.0.0.1", 12345))
+
             _run_main(server, ready)
             self.assertEqual("12345\n", ready.read_text(encoding="ascii"))
             self.assertEqual(0o600, stat.S_IMODE(ready.stat().st_mode))
@@ -669,6 +678,7 @@ class ImageBuildProxyWorkerTests(unittest.TestCase):
 
         with tempfile.TemporaryDirectory() as temporary:
             ready = Path(temporary) / "proxy.port"
+
             ready.write_text("prior receipt\n", encoding="ascii")
             server = MagicMock(server_address=("127.0.0.1", 12345))
             stderr = io.StringIO()
@@ -687,6 +697,7 @@ class ImageBuildProxyWorkerTests(unittest.TestCase):
             self.assertNotIn(_PRIVATE, str(rejected.exception) + stderr.getvalue())
             self.assertEqual("prior receipt\n", ready.read_text(encoding="ascii"))
             retained = list(Path(temporary).glob(".proxy-ready.*"))
+
             self.assertEqual(1, len(retained))
             self.assertEqual("12345\n", retained[0].read_text(encoding="ascii"))
             server.serve_forever.assert_not_called()
@@ -734,6 +745,7 @@ class ImageBuildProxyWorkerTests(unittest.TestCase):
             self.assertEqual(ready.read_text(encoding="ascii"), "replacement receipt\n" if replaced else "12345\n")
 
             retained = list(Path(temporary).glob(".proxy-ready.*"))
+
             self.assertEqual(1, len(retained))
             self.assertEqual("12345\n", retained[0].read_text(encoding="ascii"))
             self.assertEqual(0o600, stat.S_IMODE(retained[0].stat().st_mode))
@@ -773,10 +785,12 @@ def _run_main(server, ready):
         ),
     ):
         factory.return_value.__enter__.return_value = server
+
         _PROXY.main()
 
     probe_factory.assert_called_once_with(_PROXY.socket.AF_INET, _PROXY.socket.SOCK_STREAM)
     probe = probe_factory.return_value.__enter__.return_value
+
     probe.setsockopt.assert_called_once_with(_PROXY.socket.SOL_SOCKET, _PROXY.socket.SO_BINDTODEVICE, b"eth0\0")
     probe.connect.assert_not_called()
 

@@ -86,6 +86,7 @@ class TransportDecodedTests(unittest.IsolatedAsyncioTestCase):
         charged = []
         transport = self.transport()
         response = await self.decoded(transport, client, account_bytes=charged.append)
+
         self.assertEqual(response.body, b'firstsecond')
         self.assertEqual(response.headers, tuple(headers))
         self.assertEqual(charged, [7, len(encoded)-7])
@@ -154,6 +155,7 @@ class TransportDecodedTests(unittest.IsolatedAsyncioTestCase):
             await self.decoded(transport, client)
 
         failure = caught.exception
+
         self.assertEqual(failure.primary.reason, 'invalid_encoding')
         self.assertEqual(failure.response_head.headers[-1], (b'x-request-id', b'model-7'))
         self.assertIsNone(failure.network_failure)
@@ -220,8 +222,10 @@ class TransportDecodedTests(unittest.IsolatedAsyncioTestCase):
 
         with patch.object(m.httpcore, 'AsyncConnectionPool', return_value=client):
             caller = asyncio.create_task(transport.exchange_decoded(self.request(), maximum_bytes=1024, error_maximum_bytes=128, owner=owner))
+
             await client.close_started.wait()
             original_task = client.task
+
             caller.cancel()
 
             with self.assertRaises(asyncio.CancelledError):
@@ -273,6 +277,7 @@ class TransportDecodedTests(unittest.IsolatedAsyncioTestCase):
             with patch.object(m.httpcore, 'AsyncConnectionPool', return_value=client), tempfile.TemporaryFile() as output:
                 if file_mode:
                     response = await transport.exchange_file(self.request(), output_fd=output.fileno(), maximum_bytes=len(wire))
+
                     output.seek(0)
                     self.assertEqual(output.read(), wire)
                     self.assertEqual(response.byte_length, len(wire))

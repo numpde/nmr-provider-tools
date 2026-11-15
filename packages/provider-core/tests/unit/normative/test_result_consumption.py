@@ -79,6 +79,7 @@ class ResultConsumptionTests(unittest.IsolatedAsyncioTestCase):
             self.assertIs(acceptance, owner.start())
             owner.operation.release_result.assert_not_called()
             second = asyncio.create_task(owner.consume())
+
             acknowledge.set()
 
             async with asyncio.timeout(5):
@@ -193,6 +194,7 @@ class ResultConsumptionTests(unittest.IsolatedAsyncioTestCase):
     async def test_concurrent_observers_share_acceptance_and_release(self):
         receive = AsyncMock()
         owner = self.owner(receive)
+
         await asyncio.gather(owner.consume(), owner.consume())
         receive.assert_awaited_once_with(b"original result")
         owner.operation.read_result.assert_awaited_once_with(owner.result)
@@ -243,6 +245,7 @@ class ResultConsumptionTests(unittest.IsolatedAsyncioTestCase):
     async def test_acceptance_can_be_joined_without_authorizing_release(self):
         receive = AsyncMock()
         owner = self.owner(receive)
+
         self.assertIs(owner.start(), owner.start())
         await owner.wait_for_acceptance()
         receive.assert_awaited_once_with(b"original result")
@@ -251,6 +254,7 @@ class ResultConsumptionTests(unittest.IsolatedAsyncioTestCase):
     async def test_shutdown_of_an_unstarted_owner_has_no_receiver_effect(self):
         receive = AsyncMock()
         owner = self.owner(receive)
+
         self.assertIsNone(await owner.settle())
         self.assertIsNone(owner.acceptance)
         receive.assert_not_awaited()
@@ -269,6 +273,7 @@ class ResultConsumptionTests(unittest.IsolatedAsyncioTestCase):
             await acknowledge.wait()
 
         owner = self.owner(receive)
+
         owner.start()
 
         async with asyncio.timeout(5):
@@ -327,6 +332,7 @@ class ResultConsumptionTests(unittest.IsolatedAsyncioTestCase):
         receive = AsyncMock()
         release = SimpleNamespace(observe=AsyncMock(side_effect=observe))
         owner = self.owner(receive, release=release)
+
         owner.start()
         shutdown = asyncio.create_task(owner.settle())
 
@@ -352,6 +358,7 @@ class ResultConsumptionTests(unittest.IsolatedAsyncioTestCase):
     async def test_receiver_cancellation_is_terminal_during_shutdown(self):
         receive = AsyncMock(side_effect=asyncio.CancelledError("receiver cancelled itself"))
         owner = self.owner(receive)
+
         owner.start()
 
         async with asyncio.timeout(5):

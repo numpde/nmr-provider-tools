@@ -21,6 +21,7 @@ from provider_core.runner_session import RunnerSession
 class RunnerStartupTests(unittest.TestCase):
     def setUp(self):
         temporary = tempfile.TemporaryDirectory()
+
         self.addCleanup(temporary.cleanup)
         self.path = Path(temporary.name) / "runner.sock"
         self.listener = socket.socket(socket.AF_UNIX)
@@ -54,6 +55,7 @@ class RunnerStartupTests(unittest.TestCase):
 
     def test_stop_before_connect_does_not_reach_the_listening_peer(self):
         session = self.session(socket.socket)
+
         self.assertFalse(session.control_connected)
         session.request_stop()
         session.request_stop()
@@ -130,6 +132,7 @@ class RunnerStartupTests(unittest.TestCase):
 
         with ThreadPoolExecutor(max_workers=1) as executor:
             original = executor.submit(session.connect)
+
             self.assertTrue(attempted.wait(1))
             self.assertEqual(expected_errno, failures[0])
             session.request_stop()

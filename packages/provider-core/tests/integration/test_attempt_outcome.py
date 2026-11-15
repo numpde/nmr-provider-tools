@@ -53,6 +53,7 @@ class AttemptOutcomeIntegrationTests(unittest.IsolatedAsyncioTestCase):
                 self.assertTrue(lost.exception.attempt_mutation_may_have_committed)
                 self.assertEqual(len(peer.requests), 1)
                 result = await send(body, execution_attempt_ref=ATTEMPT_REF)
+
                 await asyncio.wait_for(peer.closed.wait(), 1)
                 self.assertTrue(result.replayed)
                 self.assertEqual(peer.request_bodies, [body, body])
@@ -65,6 +66,7 @@ class AttemptOutcomeIntegrationTests(unittest.IsolatedAsyncioTestCase):
 
                 for request in peer.requests:
                     lines = request.split(b"\r\n")
+
                     self.assertEqual(lines[0], b"POST " + path + b" HTTP/1.1")
 
                     headers = {
@@ -86,6 +88,7 @@ class AttemptOutcomeIntegrationTests(unittest.IsolatedAsyncioTestCase):
                     )
 
                     signature = parse(headers[b"signature"], tltype="dictionary")["sig1"][0]
+
                     key.public_key().verify(signature, base)
                     signatures.append(signature)
 
@@ -111,6 +114,7 @@ class AttemptOutcomeIntegrationTests(unittest.IsolatedAsyncioTestCase):
 
                 send = api.complete_attempt if completing else api.fail_attempt
                 task = asyncio.create_task(send(body, execution_attempt_ref=ATTEMPT_REF))
+
                 await asyncio.wait_for(peer.received.wait(), 1)
                 task.cancel()
 

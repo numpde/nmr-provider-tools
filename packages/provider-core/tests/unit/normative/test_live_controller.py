@@ -75,6 +75,7 @@ class LiveControllerTests(unittest.IsolatedAsyncioTestCase):
         verified = verify_job_input(response(), feed=record().input)
         controller = self.controller(self.lifecycle(), claims=claims, preverified_input=verified)
         accepted = await controller.run(record())
+
         self.assertIs(type(accepted), DeliveryAcceptedCheckpoint)
         self.assertIs(verified, controller.session.instructions)
         self.assertEqual(["prepare", "execute", "retire"], controller.session.events)
@@ -84,6 +85,7 @@ class LiveControllerTests(unittest.IsolatedAsyncioTestCase):
 
     async def test_ack_does_not_release_controller_while_native_cleanup_is_pending(self):
         (claims, session) = (AttemptClaims.live(), LiveSession())
+
         session.release.clear()
         verified = verify_job_input(response(), feed=record().input)
         controller = self.controller(self.lifecycle(), claims=claims, session=session, preverified_input=verified)
@@ -135,6 +137,7 @@ class LiveControllerTests(unittest.IsolatedAsyncioTestCase):
             self.assertIn(controller, claims.live_owners())
             self.assertFalse(controller.shutdown_ready)
             joined_observer = asyncio.create_task(controller.join())
+
             await asyncio.sleep(0)
             joined_observer.cancel()
 
@@ -144,6 +147,7 @@ class LiveControllerTests(unittest.IsolatedAsyncioTestCase):
             recovered.set()
             await asyncio.wait_for(delivery.accepted.wait(), 1)
             accepted = await asyncio.wait_for(controller.join(), 1)
+
             self.assertIs(type(accepted), DeliveryAcceptedCheckpoint)
             self.assertIs(accepted, await controller.join())
             self.assertTrue(controller.shutdown_ready)
@@ -161,6 +165,7 @@ class LiveControllerTests(unittest.IsolatedAsyncioTestCase):
 
     async def test_claim_is_visible_when_observer_cancels_before_driver_scheduling(self):
         (claims, session) = (AttemptClaims.live(), LiveSession())
+
         session.release.clear()
 
         controller = self.controller(self.lifecycle(),
@@ -184,6 +189,7 @@ class LiveControllerTests(unittest.IsolatedAsyncioTestCase):
                 asyncio.current_task().cancel()
 
             task = create_task(coroutine)
+
             created.append(task)
 
             return task
@@ -226,8 +232,10 @@ class LiveControllerTests(unittest.IsolatedAsyncioTestCase):
     async def test_local_stop_does_not_set_the_shared_supplied_event(self):
         (supplied, claims) = (asyncio.Event(), AttemptClaims.live())
         stopped = self.controller(self.lifecycle(), claims=claims, stopping=supplied)
+
         stopped.request_stop()
         deferred = await stopped.run(record())
+
         self.assertFalse(deferred.may_have_committed)
         self.assertFalse(supplied.is_set())
         self.assertEqual(stopped.api._transport.calls, [])
@@ -265,6 +273,7 @@ class LiveControllerTests(unittest.IsolatedAsyncioTestCase):
                     admission.set()
                     release.set()
                     held = await asyncio.wait_for(controller.join(), 1)
+
                     self.assertIs(type(held), StartDeferred)
                     self.assertTrue(held.may_have_committed)
                     self.assertEqual(len(transport.calls), 1)
@@ -281,6 +290,7 @@ class LiveControllerTests(unittest.IsolatedAsyncioTestCase):
         class PausedPreparation(LiveSession):
             async def prepare(self, acknowledged, instructions, *, report_condition):
                 result = await super().prepare(acknowledged, instructions, report_condition=report_condition)
+
                 preparing.set()
                 await release.wait()
 
@@ -330,6 +340,7 @@ class LiveControllerTests(unittest.IsolatedAsyncioTestCase):
                 raise failure
 
             task = create_task(coroutine)
+
             created.append(task)
 
             return task
@@ -348,6 +359,7 @@ class LiveControllerTests(unittest.IsolatedAsyncioTestCase):
         controller = self.controller(self.lifecycle(), preverified_input=verify_job_input(response(), feed=record().input))
         loop = asyncio.get_running_loop()
         previous = loop.get_task_factory()
+
         loop.set_task_factory(asyncio.eager_task_factory)
 
         try:
@@ -361,6 +373,7 @@ class LiveControllerTests(unittest.IsolatedAsyncioTestCase):
         claims = AttemptClaims.live()
         controller = self.controller(Transport(reply(start_response(replayed=True))), claims=claims)
         held = await controller.run(record())
+
         self.assertIs(type(held), ActiveStartReplayHeld)
         self.assertTrue(held.acknowledgement.admission.replayed)
         self.assertEqual(["retire"], controller.session.events)
@@ -375,6 +388,7 @@ class LiveControllerTests(unittest.IsolatedAsyncioTestCase):
         class PausedPreparation(LiveSession):
             async def prepare(self, acknowledged, instructions, *, report_condition):
                 result = await super().prepare(acknowledged, instructions, report_condition=report_condition)
+
                 preparing.set()
                 await release.wait()
 
@@ -422,12 +436,14 @@ class LiveControllerTests(unittest.IsolatedAsyncioTestCase):
 
         controller._start_policy = LiveStartPolicy(cadence_seconds=12, on_retry=stop, on_recovered=Mock())
         deferred = await controller.run(record())
+
         self.assertEqual([12], observed)
         self.assertTrue(deferred.may_have_committed)
         self.assertEqual(1, len(controller.api._transport.calls))
 
     async def test_explicit_same_live_retry_runs_science_once_after_exact_replay(self):
         normal = self.lifecycle()
+
         next(normal.replies)
         transport = Transport(reply(b"maintenance", status=503), reply(start_response(replayed=True)), *normal.replies)
 
@@ -459,6 +475,7 @@ class LiveControllerTests(unittest.IsolatedAsyncioTestCase):
             with self.subTest(response_type=type(response).__name__):
                 controller = self.controller(Transport(response))
                 deferred = await controller.run(record())
+
                 self.assertIs(type(deferred), StartDeferred)
                 self.assertEqual(record(), deferred.pending)
                 self.assertEqual(1, len(controller.api._transport.calls))
@@ -470,9 +487,11 @@ class LiveControllerTests(unittest.IsolatedAsyncioTestCase):
         controller = self.controller(Transport(reply(b"maintenance", status=503)))
         controller._start_policy = LiveStartPolicy(10, lambda *_: waiting.set(), Mock())
         task = asyncio.create_task(controller.run(record()))
+
         await asyncio.wait_for(waiting.wait(), 1)
         controller.request_stop()
         deferred = await asyncio.wait_for(task, 1)
+
         self.assertIs(type(deferred), StartDeferred)
         self.assertEqual(record(), controller._claim._pending)
         self.assertEqual(1, len(controller.api._transport.calls))
@@ -499,6 +518,7 @@ class LiveControllerTests(unittest.IsolatedAsyncioTestCase):
                         return await exchange(request, maximum_bytes=maximum_bytes, owner=owner)
                     except ExchangeFailed:
                         (transport.retirement_confirmed, transport.pending_owner) = (False, owner)
+
                         raise
 
                 async def held_retirement(*, owner=None):
@@ -620,6 +640,7 @@ class LiveControllerTests(unittest.IsolatedAsyncioTestCase):
                                               reply(observation(**identity, **stop)))
 
                         session = PendingPreparation()
+
                         session.release.clear()
 
                         controller = self.controller(
@@ -735,6 +756,7 @@ class LiveControllerTests(unittest.IsolatedAsyncioTestCase):
                 await asyncio.wait_for(controller.run(record()), 2)
 
         failure = stopped.exception.cause
+
         self.assertIs(type(failure.cause), ExecutionStopped)
         self.assertIs(type(failure.operation_interruption.__cause__), ChatFailed)
         self.assertTrue(client.closed)
@@ -807,6 +829,7 @@ class LiveControllerTests(unittest.IsolatedAsyncioTestCase):
         transport = Transport(reply(signature_window_problem(), status=401))
         controller = self.controller(transport, claims=claims, policy=policy)
         deferred = await controller.run(record())
+
         self.assertIs(type(deferred), StartDeferred)
         self.assertFalse(deferred.may_have_committed)
         self.assertEqual(["retire"], controller.session.events)
@@ -818,6 +841,7 @@ class LiveControllerTests(unittest.IsolatedAsyncioTestCase):
         transport = Transport(reply(b"maintenance", status=503))
         controller = self.controller(transport, claims=claims, policy=policy)
         deferred = await controller.run(record())
+
         self.assertIs(type(deferred), StartDeferred)
         self.assertTrue(deferred.may_have_committed)
         self.assertEqual(1, len(transport.calls))

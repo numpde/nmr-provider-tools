@@ -70,6 +70,7 @@ def unexplained_settings(source):
 
         if not stripped:
             explained = False
+
             continue
 
         if stripped.startswith("#"):
@@ -77,6 +78,7 @@ def unexplained_settings(source):
 
             if not _optional_setting(comment):
                 explained = explained or _has_prose(comment)
+
                 continue
 
             statement = comment
@@ -103,6 +105,7 @@ def unexplained_settings(source):
 class ExampleTomlExplanationTests(unittest.TestCase):
     def test_reports_each_unexplained_active_and_optional_setting(self):
         source = '# Header\n[api]\nfirst = 1\n# Why second exists.\nsecond = 2\nthird = 3\n\n# fourth = 4\n'
+
         self.assertEqual([3, 6, 8], unexplained_settings(source))
 
     def test_explanations_do_not_cross_blank_lines_or_count_separators(self):
@@ -110,14 +113,17 @@ class ExampleTomlExplanationTests(unittest.TestCase):
 
     def test_accepts_preceding_and_inline_comments_including_optional_settings(self):
         source = '# Use x = one to select the first option.\nx = 1\ny = 2 # Why y exists.\n# Optional trust bundle.\n# ca_file = "/ca.pem"\n# z = 3 # Why z exists.\n'
+
         self.assertEqual([], unexplained_settings(source))
 
     def test_hashes_and_assignments_inside_values_are_not_explanations_or_settings(self):
         source = '"key#name" = "# not a comment"\n# An array of destinations.\naddresses = [\n "a=b", # Element comment.\n]\n# A multiline message.\nmessage = """\npretend = 1\n# Not documentation.\n"""\n'
+
         self.assertEqual([1], unexplained_settings(source))
 
     def test_nested_tables_dotted_keys_and_inline_tables(self):
         source = '[[bindings]]\n# Binding selector.\nname = "one"\n[bindings.api]\n"quoted=key" = 1\n# Nested configuration.\noptions = { retry = 1, delay = 2 }\nother.value = 3\n'
+
         self.assertEqual([5, 8], unexplained_settings(source))
 
     def test_invalid_toml_is_not_silently_skipped(self):
@@ -128,6 +134,7 @@ class ExampleTomlExplanationTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             example = root / "nested/new.example.toml"
+
             example.parent.mkdir()
             example.write_text('unexplained = 1\n', encoding="utf-8")
 

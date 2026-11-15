@@ -121,6 +121,7 @@ def require_read_grant(grant, *, job_ref):
 def read_membership(raw, *, job_ref):
     """Preserve ordered descriptions and pending hashes after exact Job binding."""
     document = read_document(raw, MEMBERSHIP_RESPONSE_BYTES)
+
     _fields(document, {"schema_id", "job_ref", "uploads"})
 
     if document["schema_id"] != "nmr.provider.job_upload_set.read.response.v1" or document["job_ref"] != job_ref:
@@ -185,6 +186,7 @@ def read_grant(raw, *, job_ref, upload_ref):
     _byte_facts(document, pending_allowed=False)
     url = document["download_url"]
     token = document["capability"]
+
     _grant_target_and_token(url, token)
 
     return ReadGrant(

@@ -40,6 +40,7 @@ class AttemptInventoryIntegrationTests(unittest.IsolatedAsyncioTestCase):
                 )
 
                 page = await client.execution_attempts(state="in_progress", limit=2, cursor=None)
+
                 self.assertEqual([item.job_ref for item in page.attempts], [item["job_ref"] for item in order])
                 item = next(item for item in page.attempts if item.job_ref == selected["job_ref"])
                 current = await client.read_attempt(item.execution_attempt_ref, job_ref=item.job_ref)
@@ -84,6 +85,7 @@ class AttemptInventoryIntegrationTests(unittest.IsolatedAsyncioTestCase):
 
             owner = object()
             task = asyncio.create_task(client.execution_attempts(state="in_progress", limit=1, cursor=None, owner=owner))
+
             await asyncio.wait_for(peer.received.wait(), 1)
             self.assertIs(client.pending_owner, owner)
 

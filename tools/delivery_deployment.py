@@ -72,6 +72,7 @@ def read_definition(path):
     )
 
     definition = parse_deployment_bindings(raw_definition)
+
     admit_listeners(definition)
 
     return (definition, hashlib.sha256(raw_definition).hexdigest())
@@ -262,6 +263,7 @@ def render(definition, source, image, checksum):
         networks.update(api_route.compose["networks"])
         volumes.update(api_route.compose["volumes"])
         volumes[binding.ipc_volume] = {"name": binding.ipc_volume}
+
         owned_volume_roots.append(("ipc", binding.ipc_volume, "/volumes/ipc-" + ipc_key))
 
         delivery_service["volumes"].extend(
@@ -654,17 +656,20 @@ def main():
     commands = parser.add_subparsers(dest="command", required=True)
 
     renderer = commands.add_parser("render")
+
     renderer.add_argument("--definition", type=Path, required=True)
     renderer.add_argument("--source", type=Path, required=True)
     renderer.add_argument("--image", required=True)
 
     shared_renderer = commands.add_parser("render-shared")
+
     shared_renderer.add_argument("--definition", type=Path, required=True)
     shared_renderer.add_argument("--source", type=Path, required=True)
     shared_renderer.add_argument("--image", required=True)
 
     for name in ("run", "operator", "health"):
         operation_parser = commands.add_parser(name)
+
         operation_parser.add_argument("--definition", type=Path, required=True)
         operation_parser.add_argument("--sha256", required=True)
 
@@ -684,6 +689,7 @@ def main():
     if options.command == "render":
         (definition, checksum) = read_definition(options.definition)
         compose_plan = render(definition, options.source, options.image, checksum)
+
         print(json.dumps(compose_plan, sort_keys=True, indent=2).replace("$", "$$"))
     elif options.command == "render-shared":
         print(

@@ -54,6 +54,7 @@ class ObservedFactory:
 
     def __call__(self, *, exchange_seconds, connect_seconds):
         endpoint = self.factory(exchange_seconds=exchange_seconds, connect_seconds=connect_seconds)
+
         self.endpoints.append(endpoint)
 
         return endpoint
@@ -68,6 +69,7 @@ class ObservedProseService(ProseService):
 
     def _postpone(self, failure: ChatFailed, delay: float) -> None:
         observed_at = asyncio.get_running_loop().time()
+
         super()._postpone(failure, delay)
         response = failure.response
         status = None
@@ -129,6 +131,7 @@ class DurableHandoff:
     async def submit(self, item):
         self.items.append(item)
         accepted = await self.inbox.storage(self.inbox.queue.enqueue, item)
+
         self.publisher.wake()
 
         return accepted
@@ -200,6 +203,7 @@ async def run_outage(directory, *, mode, backlog, seed):
         nonlocal peak_prose_connections
         job = json.loads(body)["messages"][0]["content"]
         available = restored.is_set()
+
         requests.append({"job": job, "at": loop.time(), "available": available})
         peak_prose_connections = max(peak_prose_connections, sum(not task.done() for task in failed_peer.handlers))
 
@@ -300,6 +304,7 @@ async def run_outage(directory, *, mode, backlog, seed):
 
                 report_condition.require_execution()
                 self.scientific_prepare_calls += 1
+
                 await science("prepare", self.job_ref)
                 self.handle = PreparedAnalysis(ProtectedEvidence("fixture.prepared_input.v1", self.job_ref.encode()))
 
@@ -372,6 +377,7 @@ async def run_outage(directory, *, mode, backlog, seed):
 
         failed_service = ObservedProseService(observed_factories[0])
         healthy_service = ProseService(observed_factories[1])
+
         directory.mkdir(mode=0o700)
         queue = DeliveryQueue(directory, limits=QueueLimits(backlog + 8, 1048576, backlog + 8, 1048576))
         inbox = DeliveryInbox(queue, (), request_seconds=1, on_accepted=Mock(), on_failure=Mock(), binding_status=Mock())
@@ -389,6 +395,7 @@ async def run_outage(directory, *, mode, backlog, seed):
 
         local_delivery = DurableHandoff(inbox, endpoint, publisher)
         tasks = []
+
         await scientific_worker.start()
 
         async def publish_during_outage():
@@ -465,6 +472,7 @@ async def run_outage(directory, *, mode, backlog, seed):
             event("outage_window_started")
             await asyncio.sleep(outage_seconds)
             restored_at = loop.time()
+
             restored.set()
             event("prose_service_restored")
 
@@ -490,6 +498,7 @@ async def run_outage(directory, *, mode, backlog, seed):
         try:
             idle_descriptors = _descriptors()
             original_report_ref = JobsControlTransport("job:b4-original-result").attempt_ref
+
             await run_job("original-result", healthy_service)
             original_report = local_delivery.items[0]
 

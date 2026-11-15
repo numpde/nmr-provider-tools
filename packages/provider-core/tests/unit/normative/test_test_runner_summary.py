@@ -13,6 +13,7 @@ class RunnerSummaryTests(unittest.TestCase):
         output = io.StringIO()
         runner = unittest.TextTestRunner(stream=output, verbosity=0, resultclass=_FailureSummaryResult)
         result = runner.run(unittest.TestSuite(cases))
+
         _print_failure_summary(result, "integration", output)
 
         return (result, output.getvalue())
@@ -36,6 +37,7 @@ class RunnerSummaryTests(unittest.TestCase):
         self.assertFalse(result.wasSuccessful())
         self.assertEqual(3, len(result.problems))
         summary = output[output.index("=== PROVIDER-CORE FAILURE SUMMARY"):]
+
         self.assertIn("3 failing cases", summary)
 
         for name in ("test_failed_assertion", "test_unexpected_exception", "test_seeded_subtest"):
@@ -55,6 +57,7 @@ class RunnerSummaryTests(unittest.TestCase):
                 self.assertTrue(True)
 
         (result, output) = self.render((Passing("test_ok"),))
+
         self.assertTrue(result.wasSuccessful())
         self.assertEqual([], result.problems)
         self.assertNotIn("FAILURE SUMMARY", output)
@@ -66,6 +69,7 @@ class RunnerSummaryTests(unittest.TestCase):
 
         (result, output) = self.render(Failing("test_failed") for _ in range(32))
         summary = output[output.index("=== PROVIDER-CORE FAILURE SUMMARY"):]
+
         self.assertEqual(32, len(result.problems))
         self.assertIn("32 failing cases", summary)
         self.assertIn("7 additional failing cases", summary)
@@ -80,10 +84,12 @@ class RunnerSummaryTests(unittest.TestCase):
                 })
 
         (result, output) = self.render((Cases("test_reset"),))
+
         self.assertFalse(result.wasSuccessful(), msg=output)
         self.assertEqual(1, len(result.errors))
         self.assertEqual(1, len(result.problems))
         summary = output[output.index("=== PROVIDER-CORE FAILURE SUMMARY"):]
+
         self.assertIn("test_reset", summary)
         self.assertIn("ConnectionResetError", summary)
         self.assertIn("Error on transport creation", summary)
@@ -104,6 +110,7 @@ class RunnerSummaryTests(unittest.TestCase):
                 await asyncio.sleep(0)
 
         (result, output) = self.render((Cases("test_late_reset"),))
+
         self.assertFalse(result.wasSuccessful(), msg=output)
         self.assertEqual(1, len(result.errors))
         self.assertIn("test_late_reset", output[output.index("=== PROVIDER-CORE FAILURE SUMMARY"):])
@@ -122,6 +129,7 @@ class RunnerSummaryTests(unittest.TestCase):
                 self.assertIs(type(captured.records[0].exc_info[1]), ConnectionResetError)
 
         (result, output) = self.render((Cases("test_expected"),))
+
         self.assertTrue(result.wasSuccessful(), msg=output)
         self.assertEqual([], result.problems)
         self.assertNotIn("FAILURE SUMMARY", output)
@@ -132,6 +140,7 @@ class RunnerSummaryTests(unittest.TestCase):
                 logging.getLogger("asyncio").error("Task exception was never retrieved")
 
         (result, output) = self.render((Cases("test_error_log"),))
+
         self.assertFalse(result.wasSuccessful(), msg=output)
         self.assertEqual(1, len(result.errors))
         self.assertIn("Task exception was never retrieved", output)
@@ -150,12 +159,14 @@ class RunnerSummaryTests(unittest.TestCase):
                 )
 
         (result, output) = self.render((Cases("test_context"),))
+
         self.assertFalse(result.wasSuccessful(), msg=output)
         self.assertEqual(1, len(result.errors))
         self.assertIn("handle_traceback: deliberate test frame", output)
         self.assertIn("protocol: test peer", output)
         self.assertIn("transport: test SSL transport", output)
         summary = output[output.index("=== PROVIDER-CORE FAILURE SUMMARY"):]
+
         self.assertNotIn("protocol: test peer", summary)
         self.assertNotIn("transport: test SSL transport", summary)
 
@@ -168,6 +179,7 @@ class RunnerSummaryTests(unittest.TestCase):
                 await asyncio.sleep(0)
 
         (result, output) = self.render((Cases("test_clean"),))
+
         self.assertTrue(result.wasSuccessful(), msg=output)
         self.assertEqual(before, tuple(logger.handlers))
 
@@ -185,9 +197,11 @@ class RunnerSummaryTests(unittest.TestCase):
         class Outer(unittest.TestCase):
             def test_nested(self):
                 (inner, _) = run_inner()
+
                 self.assertEqual(1, len(inner.errors))
                 self.assertFalse(inner.wasSuccessful())
 
         (result, output) = self.render((Outer("test_nested"),))
+
         self.assertTrue(result.wasSuccessful(), msg=output)
         self.assertEqual([], result.problems)

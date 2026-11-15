@@ -93,9 +93,11 @@ class ApiEnvelopeTests(unittest.IsolatedAsyncioTestCase):
             await api.read_grant("job:example", UPLOAD_REF)
 
         failure = caught.exception
+
         self.assertEqual((failure.status, failure.request_id), (None, None))
         self.assertTrue(failure.issuance_may_have_committed)
         cause.response_head = HttpResponseHead(401, (MARKER, CORRELATION))
+
         self.assertEqual((failure.status, failure.request_id), (401, "request:header"))
         self.assertTrue(failure.issuance_may_have_committed)
         self.assertIsNone(failure.problem_code)

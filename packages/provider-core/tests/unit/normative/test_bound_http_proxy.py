@@ -46,6 +46,7 @@ class BoundProxyTests(unittest.TestCase):
 
     def test_capacity_can_change_without_displacing_active_connections(self):
         slots = bound_http_proxy.ConnectionAdmission(2)
+
         self.assertTrue(slots.acquire())
         self.assertTrue(slots.acquire())
         self.assertFalse(slots.acquire())
@@ -146,6 +147,7 @@ class BoundProxyTests(unittest.TestCase):
         header = b"x" * (limit - 4) + b"\r\n\r\n"
         client = MagicMock()
         client.recv.side_effect = [header[index : index + 8192] for index in range(0, len(header), 8192)]
+
         self.assertEqual(bound_http_proxy.receive_headers(client), (header, b""))
 
         for oversized in (b"x" * (limit - 3) + b"\r\n\r\n", b"x" * (limit + 1)):
@@ -161,6 +163,7 @@ class BoundProxyTests(unittest.TestCase):
         prefix = header[:-1]
         client = MagicMock()
         client.recv.side_effect = [*[prefix[index : index + 8192] for index in range(0, len(prefix), 8192)], header[-1:] + body]
+
         self.assertEqual(bound_http_proxy.receive_headers(client), (header, body))
 
     def test_tiny_header_fragments_preserve_body_and_early_eof_rejects(self):
@@ -168,6 +171,7 @@ class BoundProxyTests(unittest.TestCase):
         body = b"body"
         client = MagicMock()
         client.recv.side_effect = [*[bytes([byte]) for byte in header[:-1]], header[-1:] + body]
+
         self.assertEqual(bound_http_proxy.receive_headers(client), (header, body))
         client.recv.side_effect = [header[:10], b""]
 
@@ -276,6 +280,7 @@ class BoundProxyTests(unittest.TestCase):
                 with self.subTest(method=method, port=port):
                     header = f"{method} {target} HTTP/1.1\r\n\r\n".encode("ascii")
                     result = bound_http_proxy.parse_destination(header)
+
                     self.assertEqual(result[:3], (method, "example.invalid", port))
 
                     # silent-defaults: allow-contract -- CONNECT preserves request bytes while HTTP forwards the origin-form target; the expected wire bytes are checked separately from parsed host and port; proof=tests/repository/test_bound_http_proxy.py::BoundProxyTests.test_destination_port_boundaries_and_scheme_defaults_are_preserved
@@ -295,6 +300,7 @@ class BoundProxyTests(unittest.TestCase):
             with self.subTest(suffix=suffix):
                 header = f"GET http://example.invalid{suffix} HTTP/1.1\r\nHost: example.invalid\r\n\r\n".encode("ascii")
                 (method, host, port, forwarded) = bound_http_proxy.parse_destination(header)
+
                 self.assertEqual(("GET", "example.invalid", 80), (method, host, port))
 
                 self.assertEqual(
@@ -435,6 +441,7 @@ class BoundProxyTests(unittest.TestCase):
                     ),
                 ):
                     server.return_value.__enter__.return_value = listener
+
                     bound_http_proxy.main()
 
                 server.assert_called_once_with(("127.0.0.1", requested), "eth0", dns_servers=None)

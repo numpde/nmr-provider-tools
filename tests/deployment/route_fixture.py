@@ -34,6 +34,7 @@ def key():
 
 def write_json(path, value):
     temporary = path.with_suffix(".tmp")
+
     temporary.write_text(json.dumps(value, ensure_ascii=True))
     temporary.replace(path)
 
@@ -45,6 +46,7 @@ async def peer(literal_ip):
 
     root = Path("/evidence")
     stopping = asyncio.Event()
+
     asyncio.get_running_loop().add_signal_handler(signal.SIGTERM, stopping.set)
 
     async with api_tls_peer("success") as server:
@@ -72,6 +74,7 @@ async def peer(literal_ip):
             return observation()
 
         server.response_factory = respond
+
         write_json(root / "peer.json", {"origin": origin})
         await stopping.wait()
 
@@ -301,6 +304,7 @@ def compose(projection, image, namespace, operation, fixture, support):
         volume["labels"] = {"org.nmr-provider-tools.operation": operation}
 
     plan["volumes"]["evidence"] = {"external": True, "name": namespace + "-evidence"}
+
     print(json.dumps(plan, ensure_ascii=True, sort_keys=True).replace("$", "$$"))
 
 
@@ -315,14 +319,17 @@ def main():
             command.add_argument("--literal-ip", action="store_true")
 
     selected = commands.add_parser("client")
+
     selected.add_argument("mode", choices=("success", "lost", "direct", "forbidden"))
     selected.add_argument("socket", type=Path)
     shared = commands.add_parser("shared-group")
+
     shared.add_argument("mode", choices=("allowed", "denied"))
     shared.add_argument("socket", type=Path)
     shared.add_argument("owner_uid", type=int)
     shared.add_argument("access_gid", type=int)
     render = commands.add_parser("compose")
+
     render.add_argument("projection", type=Path)
 
     for name in ("image", "namespace", "operation", "fixture", "support"):

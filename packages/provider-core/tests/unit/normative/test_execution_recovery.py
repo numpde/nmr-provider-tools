@@ -22,6 +22,7 @@ class CompletedDuringOutage(PausedSession):
 
     async def execute(self, prepared, *, report_condition):
         result = await super().execute(prepared, report_condition=report_condition)
+
         self.produced.set()
 
         return result
@@ -88,6 +89,7 @@ class ObservationRecoveryTests(unittest.IsolatedAsyncioTestCase):
 
         try:
             terminal = await asyncio.wait_for(executor.run(acknowledged), 3)
+
             self.assertIs(terminal.selection.operation, TerminalOperation.COMPLETE)
             self.assertEqual(terminal.selection.body_sha256, executor.delivery.items[0].body_sha256)
             self.assertIsNone(executor._outcome)

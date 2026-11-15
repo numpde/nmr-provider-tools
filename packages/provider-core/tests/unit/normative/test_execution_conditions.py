@@ -27,6 +27,7 @@ class ExecutionConditionTests(unittest.IsolatedAsyncioTestCase):
     async def test_set_and_clear_in_each_phase_preserve_running_entry_order(self):
         (store, acknowledged, claim) = await live_attempt()
         transport = ConditionTransport()
+
         transport.release.set()
         session = ReportingSession(store)
 
@@ -97,6 +98,7 @@ class ExecutionConditionTests(unittest.IsolatedAsyncioTestCase):
                 try:
                     await asyncio.wait_for(transport.blocked.wait(), 1)
                     reads = transport.reads
+
                     await asyncio.wait_for(executor.poll_attempted.wait(), 1)
                     self.assertEqual(transport.maximum_in_flight, 1)
                     self.assertEqual(transport.reads, reads)

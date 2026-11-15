@@ -21,6 +21,7 @@ class SharedDeliveryIPCTests(unittest.IsolatedAsyncioTestCase):
 
         self.addCleanup(self.scratch.cleanup)
         root = Path(self.scratch.name)
+
         (root / "ipc").mkdir(mode=0o700)
         (root / "state").mkdir(mode=0o700)
         self.queue = DeliveryQueue(root / "state", limits=QueueLimits(2, 8192, 4, 16384))
@@ -49,6 +50,7 @@ class SharedDeliveryIPCTests(unittest.IsolatedAsyncioTestCase):
         (_, _, material) = api_settings_with_material(fields, Mock(return_value=encoded(document(principal_ref=provider))))
         endpoint = DeliveryEndpoint("https://api.example", provider, self.socket)
         client = SharedDeliveryClient(endpoint, material, exchange_seconds=1, retirement_seconds=0.2)
+
         self.addAsyncCleanup(client.retire)
 
         return client
@@ -56,9 +58,11 @@ class SharedDeliveryIPCTests(unittest.IsolatedAsyncioTestCase):
     async def test_two_providers_can_submit_but_neither_can_read_the_queue(self):
         (first, second) = (self.client("provider:first"), self.client("provider:second"))
         (item1, item2) = (outcome(provider="provider:first"), outcome(provider="provider:second"))
+
         self.assertEqual(await first.submit(item1), DeliveryHandoff(item1, first.publication).acceptance())
         self.assertEqual(await second.submit(item2), DeliveryHandoff(item2, second.publication).acceptance())
         reader = DeliveryClient(first.endpoint, exchange_seconds=1, retirement_seconds=0.2)
+
         self.addAsyncCleanup(reader.retire)
 
         with self.assertRaises(DeliveryRejected):
@@ -78,6 +82,7 @@ class SharedDeliveryIPCTests(unittest.IsolatedAsyncioTestCase):
         client = self.client("provider:first")
         item = outcome(provider="provider:first")
         self.inbox.on_accepted = Mock(side_effect=OSError("wake failed"))
+
         self.assertEqual(await client.submit(item), DeliveryHandoff(item, client.publication).acceptance())
         self.assertTrue(self.inbox.failed.is_set())
         self.assertIsInstance(self.inbox.failure, OSError)
@@ -95,6 +100,7 @@ class SharedDeliveryIPCTests(unittest.IsolatedAsyncioTestCase):
 
             if not dropped and status == 200 and document == expected.acceptance():
                 dropped = True
+
                 writer.close()
                 await writer.wait_closed()
 
@@ -110,6 +116,7 @@ class SharedDeliveryIPCTests(unittest.IsolatedAsyncioTestCase):
         await client.retire()
         self.assertEqual(expected.acceptance(), await client.submit(item))
         retained = self.queue.next_pending_handoff(item.api_origin, item.provider_ref)
+
         self.assertEqual(item, retained.outcome)
         self.assertEqual(client.publication, retained.publication)
         self.assertEqual(1, len(self.queue.inventory(item.api_origin, item.provider_ref)))
@@ -118,6 +125,7 @@ class SharedDeliveryIPCTests(unittest.IsolatedAsyncioTestCase):
         client = self.client("provider:first")
         (first, second, third) = (outcome(provider="provider:first", suffix=suffix) for suffix in ("0", "1", "2"))
         accepted = await client.submit(first)
+
         await client.submit(second)
 
         with self.assertRaises(DeliveryFull):

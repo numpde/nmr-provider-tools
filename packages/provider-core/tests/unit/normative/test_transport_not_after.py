@@ -58,6 +58,7 @@ class TransportNotAfterTests(unittest.IsolatedAsyncioTestCase):
 
         async def delayed_observer(selected, *, timeout):
             result = await original_wait(selected, timeout=timeout)
+
             tasks.extend(selected)
 
             # Delay only observation after the actual original exchange completes.
@@ -292,6 +293,7 @@ class TransportNotAfterTests(unittest.IsolatedAsyncioTestCase):
                 if asyncio.current_task() is caller:
                     if not cancellations:
                         cancellation.__cause__ = prior_cause
+
                         first_seen.set()
 
                     cancellations.append(cancellation)
@@ -317,6 +319,7 @@ class TransportNotAfterTests(unittest.IsolatedAsyncioTestCase):
                 await asyncio.wait_for(close_entered.wait(), 0.2)
                 await asyncio.sleep(0)
                 original = transport._active
+
                 caller.cancel("second actual caller cancellation")
 
                 with self.assertRaises(asyncio.CancelledError) as caught:
@@ -331,6 +334,7 @@ class TransportNotAfterTests(unittest.IsolatedAsyncioTestCase):
                 self.assertFalse(original.task.done())
                 self.assertFalse(transport.retirement_confirmed)
                 retained = transport.last_failure
+
                 self.assertIs(retained.primary, native_failure)
                 self.assertEqual(retained.cleanup_failures, ())
                 self.assertNotIn(cancellations[1], retained.cleanup_failures)

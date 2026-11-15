@@ -52,6 +52,7 @@ class ProseServiceTests(unittest.IsolatedAsyncioTestCase):
         first.complete.assert_awaited_once()
         second.complete.assert_not_awaited()
         waiting_failure = next(failure for (_, failure) in owner.failures if isinstance(failure, ChatFailed))
+
         self.assertEqual("service_wait_deadline", waiting_failure.reason)
         self.assertIs(original, waiting_failure.cause)
         self.assertGreater(service.retry_seconds, 0)
@@ -66,6 +67,7 @@ class ProseServiceTests(unittest.IsolatedAsyncioTestCase):
 
         (owner, prepare) = (interpreter(service, seconds=10), AsyncMock())
         task = asyncio.create_task(owner.run([], TOOLS, prepare))
+
         await asyncio.sleep(0)
         await owner.retire()
 
@@ -123,6 +125,7 @@ class ProseServiceTests(unittest.IsolatedAsyncioTestCase):
 
         prepare = AsyncMock(return_value=ToolFinished("prepared"))
         result = await interpreter(unavailable_service, healthy_service, seconds=0.08).run([], TOOLS, prepare)
+
         self.assertEqual("prepared", result.value)
         waiting.complete.assert_not_awaited()
         healthy.complete.assert_awaited_once()
@@ -142,9 +145,11 @@ class ProseServiceTests(unittest.IsolatedAsyncioTestCase):
         jitter.assert_called_once_with(0.25, 0.75)
         self.assertEqual(2, carrier.complete.await_count)
         (first, second) = carrier.complete.await_args_list
+
         self.assertEqual(first.kwargs["not_after"], second.kwargs["not_after"])
         first_budget = json.loads(first.args[0][-1]["content"].split(": ", 1)[1])["budget"]
         second_budget = json.loads(second.args[0][-1]["content"].split(": ", 1)[1])["budget"]
+
         self.assertGreaterEqual(first_budget["model_seconds_remaining"] - second_budget["model_seconds_remaining"], 0.03)
         self.assertEqual(0, service.retry_seconds)
         prepare.assert_awaited_once()

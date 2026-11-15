@@ -14,6 +14,7 @@ class InstallationContractTests(unittest.TestCase):
     def test_binding_cli_refuses_private_parser_text_without_printing_input(self):
         with tempfile.TemporaryDirectory() as directory:
             path = Path(directory) / "binding.toml"
+
             path.write_text('["PRIVATE_BINDING_KEY_CANARY"]\nx=1\n["PRIVATE_BINDING_KEY_CANARY"]\nx=2\n')
             path.chmod(0o600)
 
@@ -213,6 +214,7 @@ class InstallationContractTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             tests = root / "tests"
+
             (tests / "unit").mkdir(parents=True)
 
             for path in (tests / "__init__.py", tests / "unit/__init__.py"):

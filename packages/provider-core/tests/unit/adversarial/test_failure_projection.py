@@ -30,7 +30,9 @@ class CoreFailureProjectionRefusalTests(unittest.TestCase):
         failure = ApiFailure("read state", "no admitted response")
         failure.__cause__ = ValueError("PRIVATE_CAUSE")
         failure.__context__ = TypeError("PRIVATE_CONTEXT")
+
         self.assertEqual(list(owned_relationships(failure)), [("owned cause", None)])
         group = ExceptionGroup("PRIVATE_GROUP", (failure,))
+
         self.assertEqual(owned_details(group), {})
         self.assertEqual(list(owned_relationships(group)), [])

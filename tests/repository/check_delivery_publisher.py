@@ -24,6 +24,7 @@ if not tool_present(pool, tool):
 
 name = f"provider_core-{release['version']}-py3-none-any.whl"
 url = f"https://github.com/numpde/nmr-provider-tools/releases/download/v{release['version']}/{name}"
+
 publish_release_wheels(pool / tool["name"], pool, [(name, release["wheel_sha256"], url)])
 
 # Exercise a genuinely missing synthetic wheel without downloading a second
@@ -47,6 +48,7 @@ class Handler(BaseHTTPRequestHandler):
 
 server = ThreadingHTTPServer(("127.0.0.1", 0), Handler)
 thread = Thread(target=server.serve_forever)
+
 thread.start()
 
 try:
@@ -54,6 +56,7 @@ try:
         test_pool = Path(temporary)
         test_name = "delivery_fixture-1.0-py3-none-any.whl"
         test_url = f"http://127.0.0.1:{server.server_port}/{test_name}"
+
         publish_release_wheels(pool / tool["name"], test_pool, [(test_name, checksum, test_url)])
         publish_release_wheels(pool / tool["name"], test_pool, [(test_name, checksum, test_url)])
 

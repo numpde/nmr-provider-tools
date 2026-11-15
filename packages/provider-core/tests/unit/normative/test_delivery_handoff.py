@@ -35,6 +35,7 @@ class DeliveryHandoffTests(unittest.TestCase):
     def test_round_trip_preserves_exact_result_and_original_publication_material(self):
         handoff = DeliveryHandoff(outcome(provider="provider:example"), self.material())
         restored = read_delivery_handoff(handoff.encode())
+
         self.assertEqual(restored.outcome, handoff.outcome)
         self.assertEqual(restored.publication, handoff.publication)
         self.assertEqual(restored.acceptance(), handoff.acceptance())
@@ -43,6 +44,7 @@ class DeliveryHandoffTests(unittest.TestCase):
     def test_changed_signing_material_changes_acceptance(self):
         item = outcome(provider="provider:example")
         (first, second) = (DeliveryHandoff(item, self.material()), DeliveryHandoff(item, self.material()))
+
         self.assertEqual(first.outcome, second.outcome)
         self.assertNotEqual(first.acceptance()["publication_sha256"], second.acceptance()["publication_sha256"])
 
@@ -53,6 +55,7 @@ class DeliveryHandoffTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             limits = QueueLimits(2, 4096, 4, 8192)
             queue = DeliveryQueue(Path(directory), limits=limits)
+
             self.assertEqual(queue.enqueue_handoff(first), first.acceptance())
             self.assertEqual(queue.enqueue_handoff(first), first.acceptance())
 
@@ -62,6 +65,7 @@ class DeliveryHandoffTests(unittest.TestCase):
             queue.close()
             queue = DeliveryQueue(Path(directory), limits=limits)
             restored = queue.next_pending_handoff(item.api_origin, item.provider_ref)
+
             self.assertEqual(restored.publication, first.publication)
             self.assertEqual(restored.outcome, item)
             queue.remove_published(item)
@@ -74,6 +78,7 @@ class DeliveryHandoffTests(unittest.TestCase):
 
         with tempfile.TemporaryDirectory() as directory:
             queue = DeliveryQueue(Path(directory), limits=QueueLimits(2, 4096, 4, 8192))
+
             queue.enqueue(legacy)
             queue.enqueue_handoff(new)
             self.assertEqual(queue.hold_legacy_rows(), 1)
@@ -87,6 +92,7 @@ class DeliveryHandoffTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             path = Path(directory) / "delivery.sqlite3"
             db = sqlite3.connect(path)
+
             path.chmod(0o600)
             db.execute("CREATE TABLE outstanding (api_origin TEXT NOT NULL, provider_ref TEXT NOT NULL, attempt_ref TEXT NOT NULL, job_ref TEXT NOT NULL, operation TEXT NOT NULL, body BLOB NOT NULL, digest TEXT NOT NULL, state TEXT NOT NULL, created_at REAL NOT NULL, held_reason TEXT, PRIMARY KEY(api_origin,provider_ref,attempt_ref))")
 
@@ -97,6 +103,7 @@ class DeliveryHandoffTests(unittest.TestCase):
             db.commit()
             db.close()
             queue = DeliveryQueue(Path(directory), limits=QueueLimits(2, 4096, 4, 8192))
+
             self.assertEqual(queue.next_pending(item.api_origin, item.provider_ref), item)
             self.assertEqual(queue.hold_legacy_rows(), 1)
             self.assertEqual(queue.inventory(item.api_origin, item.provider_ref)[0]["state"], "held")
@@ -109,6 +116,7 @@ class DeliveryHandoffTests(unittest.TestCase):
 
         with tempfile.TemporaryDirectory() as directory:
             queue = DeliveryQueue(Path(directory), limits=QueueLimits(2, 4096, 4, 8192))
+
             queue.enqueue(legacy)
             queue.enqueue_handoff(new)
             self.assertEqual(queue.hold_legacy_rows(), 1)

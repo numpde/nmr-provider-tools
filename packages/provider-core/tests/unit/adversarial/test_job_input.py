@@ -83,6 +83,7 @@ class UntrustedJobInputTests(unittest.TestCase):
 
     def test_missing_field_and_duplicate_equal_field_are_rejected(self):
         document = json.loads(response())
+
         del document["job_ref"]
         self.rejected(json.dumps(document).encode())
         self.rejected(response()[:-1] + b',"job_ref":"job:example"}')

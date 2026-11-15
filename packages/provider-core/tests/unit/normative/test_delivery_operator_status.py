@@ -28,10 +28,12 @@ class QueueObservationTests(unittest.TestCase):
             material = DeliveryHandoffTests().material()
             first = DeliveryHandoff(outcome(provider="provider:example"), material)
             second = DeliveryHandoff(outcome(provider="provider:example", suffix="1"), material)
+
             queue.enqueue_handoff(first)
             queue.enqueue_handoff(second)
             queue.hold(second.outcome, "retained")
             (bindings, summary, failure) = queue.pending_overview()
+
             self.assertIsNone(failure)
             self.assertEqual(len(bindings), 1)
             self.assertEqual((summary["pending"], summary["held"]), (1, 1))
@@ -45,6 +47,7 @@ class QueueObservationTests(unittest.TestCase):
                 sqlite3.SQLITE_DENY if action == sqlite3.SQLITE_FUNCTION and arg2 == "sum" else sqlite3.SQLITE_OK)
 
             (observed_bindings, observed_summary, failure) = queue.pending_overview()
+
             self.assertEqual(observed_bindings, bindings)
             self.assertIsNone(observed_summary)
             self.assertIsInstance(failure, sqlite3.Error)
@@ -68,6 +71,7 @@ class QueueObservationTests(unittest.TestCase):
             self.assertIsNone(safe_failure.__context__)
             stream = io.StringIO()
             notices = DeliveryNotices(stream, secrets=())
+
             notices.set_level("WARNING")
             notices(safe_failure, {"event": "delivery_overview_failed"})
             self.assertIn("delivery_overview_failed", stream.getvalue())
@@ -89,6 +93,7 @@ class ServiceObservationTests(unittest.IsolatedAsyncioTestCase):
 
             stream = io.StringIO()
             notices = DeliveryNotices(stream, secrets=())
+
             notices.set_level("WARNING")
 
             service = SharedDeliveryService(root / "state",
@@ -111,6 +116,7 @@ class ServiceObservationTests(unittest.IsolatedAsyncioTestCase):
                     sqlite3.SQLITE_DENY if action == sqlite3.SQLITE_FUNCTION and arg2 == "sum" else sqlite3.SQLITE_OK)
 
                 service.overview_at = 0
+
                 service.changed.set()
 
                 for _ in range(100):
