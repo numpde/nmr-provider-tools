@@ -6,17 +6,18 @@ require_container()
 
 import asyncio
 
-from provider_core.contribution import CallBinding, ref
+from provider_core.contribution import CallBinding
 from provider_core.contribution_errors import CallRejected
 from provider_core.conversation import ToolFinished, ToolRejected
 from provider_core.hosting import (
     AnalysisExecution, Invocation, NotAdmitted, Observation, Operation, OperationPolicy,
     Outcome, ReservationRef, ResultRef, ResultRelease, StartDeadlineExpired,
-    observe_cleanup, observe_completion,
+    observe_cleanup,
 )
 from provider_core.input_tool import InputTool
 from provider_core.interpreter import ModelWindowExpired
 from provider_core.state_slots import StateHandle, StateOutputSlot
+from provider_core.submission import Submission
 
 
 class PreparationTool[PreparedT]:
@@ -55,11 +56,22 @@ class PreparationTool[PreparedT]:
         self.execution = execution
         self.reservation = reservation
         self.policy = policy
-        self.invocation: Invocation | None = None
-        self.operation: Operation | None = None
+        self.submission: Submission | None = None
         self.prepared: StateHandle[PreparedT] | None = None
         self.report: ResultRef | None = None
         self.report_release: ResultRelease | None = None
+
+    @property
+    def invocation(self) -> Invocation | None:
+        if self.submission is None:
+            return None
+        return self.submission.invocation
+
+    @property
+    def operation(self) -> Operation | None:
+        if self.submission is None:
+            return None
+        return self.submission.operation
 
     @property
     def name(self) -> str:
@@ -108,15 +120,15 @@ class PreparationTool[PreparedT]:
         except CallRejected as cause:
             raise ToolRejected(cause.message) from cause
         call = self.input_tool.call
-        self.invocation = Invocation(
-            target=ref(call=call),
-            payload=call.input_codec.encode(value=candidate),
+        self.submission = Submission.from_call(
+            execution=self.execution,
+            call=call,
+            scientific_input=candidate,
             states=(),
             reservation=self.reservation,
             policy=self.policy,
             start_not_after=not_after,
         )
-        self.operation = None
         return await self._complete()
 
     async def _complete(self) -> ToolFinished:
@@ -125,17 +137,16 @@ class PreparationTool[PreparedT]:
             return ToolFinished(value="Scientific input prepared")
         if self.operation is None:
             try:
-                operation = self.execution.submit(invocation=self.invocation)
+                operation = self.submission.submit()
             except StartDeadlineExpired as cause:
                 # Submission rejected this request before acquiring an operation.
-                self.invocation = None
+                self.submission = None
                 raise ModelWindowExpired() from cause
             if isinstance(operation, NotAdmitted):
                 raise RuntimeError(f"Cannot prepare scientific input: {operation=}")
-            self.operation = operation
         operation = self.operation
         if self.report is None:
-            completed = await observe_completion(operation=operation)
+            completed = await self.submission.wait()
             if self._start_expired(observation=completed):
                 # Loading has settled and the backend confirms science never started.
                 raise ModelWindowExpired() from completed.failures[0].cause

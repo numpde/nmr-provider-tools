@@ -77,6 +77,29 @@ cleanup before outer resources can close. Settlement can wait indefinitely;
 cleanup's overdue flag does not cancel a scientific thread or end the join. Both
 functions observe an existing control without repeating its cleanup request.
 
+## Retained scientific submissions
+
+`provider_core.submission.Submission` retains one invocation before delivery can
+have effects. Construct it from an existing `Invocation`, or use
+`Submission.from_call(...)` to encode a compiled call's typed scientific input.
+Construction does not submit work.
+
+`submission.submit()` explicitly delivers that same request and returns either
+its operation or the original `NotAdmitted`. After a lost reply, another submit
+uses the same invocation. Once an operation has been acquired, submit returns it
+without contacting execution again. The provider decides whether a refusal
+permits another delivery attempt.
+
+`await submission.wait()` observes the acquired operation without submitting,
+stopping or releasing it. Cancellation leaves the original work running. Later
+waits report current result state, including release; they do not cache success.
+`ResultConsumption` separately owns a receiver attempt and result release.
+
+Retained submissions use portable request identity, held until analysis closure.
+`EmbeddedAnalysis.submit_method()` continues to request separate work on each
+call. A request that must survive an ambiguous delivery should retain a
+`Submission` before its first submit.
+
 ## Scientific input tools
 
 Providers using interpretation can expose an existing scientific method without

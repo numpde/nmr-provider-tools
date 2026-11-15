@@ -68,7 +68,7 @@ class SpectrumWorkflowTests(unittest.IsolatedAsyncioTestCase):
             self.assertIs(ResultState.AVAILABLE, completed.result_state)
             self.assertEqual((), completed.failures)
             await observe_cleanup(analysis.close())
-            retained = await workflow.peak_operation.read_result(completed.result)
+            retained = await workflow.peaks.operation.read_result(completed.result)
             report = codec.decode(payload=retained)
             self.assertEqual(
                 science.PeakReport(peaks=(science.Peak(position=1, height=3), science.Peak(position=3, height=4))),
@@ -80,10 +80,10 @@ class SpectrumWorkflowTests(unittest.IsolatedAsyncioTestCase):
                 received.append(payload)
 
             consumption = ResultConsumption(
-                operation=workflow.peak_operation, result=completed.result, receive=accept,
+                operation=workflow.peaks.operation, result=completed.result, receive=accept,
             )
             await consumption.consume()
-            released = await workflow.peak_operation.observe(after=None, wait_seconds=0)
+            released = await workflow.peaks.operation.observe(after=None, wait_seconds=0)
             self.assertEqual([retained], received)
             self.assertIs(ResultState.RELEASED, released.result_state)
             await consumption.consume()
@@ -99,7 +99,7 @@ class SpectrumWorkflowTests(unittest.IsolatedAsyncioTestCase):
 
             async with asyncio.timeout(10):
                 completed = await workflow.finish()
-                original = workflow.peak_operation
+                original = workflow.peaks.operation
                 failed_consumption = ResultConsumption(
                     operation=original, result=completed.result, receive=reject,
                 )
@@ -117,7 +117,7 @@ class SpectrumWorkflowTests(unittest.IsolatedAsyncioTestCase):
                 # itself never retries or infers that replay is safe.
                 replacement = ResultConsumption(operation=original, result=completed.result, receive=accept)
                 await replacement.consume()
-                self.assertIs(original, workflow.peak_operation)
+                self.assertIs(original, workflow.peaks.operation)
                 self.assertEqual(1, calculate.call_count)
 
     async def test_cancelled_consumer_wait_resumes_the_same_receiver_without_science_replay(self):
@@ -135,7 +135,7 @@ class SpectrumWorkflowTests(unittest.IsolatedAsyncioTestCase):
             async with asyncio.timeout(10):
                 completed = await workflow.finish()
             consumption = ResultConsumption(
-                operation=workflow.peak_operation, result=completed.result, receive=receive,
+                operation=workflow.peaks.operation, result=completed.result, receive=receive,
             )
             waiter = asyncio.create_task(consumption.consume())
             try:
@@ -245,7 +245,7 @@ class SpectrumWorkflowTests(unittest.IsolatedAsyncioTestCase):
 
         with patch("spectrum_provider.science.subtract_baseline", side_effect=held) as calculate:
             workflow, _, _ = await self.workflow(result_bytes=8192)
-            original = workflow.baseline_operation
+            original = workflow.baseline.operation
             waiter = asyncio.create_task(workflow.finish())
             try:
                 self.assertTrue(await asyncio.to_thread(entered.wait, 5))
@@ -265,10 +265,10 @@ class SpectrumWorkflowTests(unittest.IsolatedAsyncioTestCase):
         async with asyncio.timeout(10):
             refused = await workflow.finish()
             self.assertIsInstance(refused, NotAdmitted)
-            completed = await workflow.baseline_operation.observe(after=None, wait_seconds=0)
-            retained = await workflow.baseline_operation.read_result(completed.result)
+            completed = await workflow.baseline.operation.observe(after=None, wait_seconds=0)
+            retained = await workflow.baseline.operation.read_result(completed.result)
             self.assertTrue(retained)
-            self.assertIsNone(workflow.peak_operation)
+            self.assertIsNone(workflow.peaks.operation)
             self.assertIsNone(workflow.baseline_release)
 
     async def test_intermediate_release_failure_does_not_hide_the_final_result(self):
@@ -279,9 +279,9 @@ class SpectrumWorkflowTests(unittest.IsolatedAsyncioTestCase):
             failures=(Failure("release", cause),),
         )))
         async with asyncio.timeout(10):
-            with patch.object(workflow.baseline_operation, "release_result", return_value=release):
+            with patch.object(workflow.baseline.operation, "release_result", return_value=release):
                 completed = await workflow.finish()
-            report = codec.decode(payload=await workflow.peak_operation.read_result(completed.result))
+            report = codec.decode(payload=await workflow.peaks.operation.read_result(completed.result))
             self.assertEqual(2, len(report.peaks))
             self.assertIs(Outcome.SUCCEEDED, completed.outcome)
             with self.assertRaises(OSError) as raised:
@@ -291,13 +291,13 @@ class SpectrumWorkflowTests(unittest.IsolatedAsyncioTestCase):
     async def test_stopping_execution_between_stages_refuses_generation(self):
         workflow, analysis, _ = await self.workflow(result_bytes=8192)
         async with asyncio.timeout(10):
-            await observe_completion(workflow.baseline_operation)
+            await observe_completion(workflow.baseline.operation)
             analysis.request_stop()
             with patch("spectrum_provider.science.detect_peaks", wraps=science.detect_peaks) as calculate:
                 completed = await workflow.finish()
                 self.assertIsInstance(obj=completed, cls=NotAdmitted)
                 self.assertIs(expr1=AdmissionCode.CLOSED, expr2=completed.code)
-                self.assertIsNone(obj=workflow.peak_operation)
+                self.assertIsNone(obj=workflow.peaks.operation)
                 self.assertEqual(first=0, second=calculate.call_count)
                 self.assertIsNotNone(obj=workflow.baseline_release)
                 self.assertIs(expr1=completed, expr2=await workflow.finish())
@@ -337,7 +337,7 @@ class SpectrumWorkflowTests(unittest.IsolatedAsyncioTestCase):
             self.assertIs(ResultState.ENCODING_FAILED, completed.result_state)
             self.assertIsNone(completed.result)
             self.assertTrue(any(failure.cause is cause for failure in repeated.failures))
-            self.assertIsNone(workflow.peak_operation)
+            self.assertIsNone(workflow.peaks)
             self.assertEqual(1, calculate.call_count)
 
 

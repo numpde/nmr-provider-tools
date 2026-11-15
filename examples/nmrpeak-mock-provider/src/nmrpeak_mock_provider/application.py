@@ -3,7 +3,7 @@
 Prediction is provider application code. It uses the SDK Interpreter to obtain
 structured input, then submits the bound prepare and generate methods through
 an EmbeddedAnalysis execution session. The SDK runs those methods; Prediction
-retains their operation handles and chooses when generation can follow validation.
+retains SDK Submission owners and chooses when generation can follow validation.
 It retains one report receiver attempt; provider.py owns the request lifetime.
 """
 
@@ -12,11 +12,12 @@ from importlib.resources import files
 
 from provider_core.embedded_host import EmbeddedAnalysis
 from provider_core.hosting import (
-    OperationPolicy, NotAdmitted, ResultConsumption, observe_completion,
+    OperationPolicy, NotAdmitted, ResultConsumption,
 )
 from provider_core.interpreter import Interpreter
 from provider_core.preparation_tool import PreparationTool
 from provider_core.scientific import HostedContribution
+from provider_core.submission import Submission
 
 from .binding import PeakContribution
 
@@ -49,7 +50,7 @@ class Prediction:
         )
         self.receive = receive
         self.consumption: ResultConsumption | None = None
-        self.generation = None
+        self.generation: Submission | None = None
 
     async def interpret(self, *, source: str) -> None:
         """Extract this offering's scientific input from the supplied source text.
@@ -77,7 +78,7 @@ class Prediction:
             # waited. Publish one receiver owner without an intervening await.
             if self.consumption is None:
                 self.consumption = ResultConsumption(
-                    operation=self.generation,
+                    operation=self.generation.operation,
                     result=result,
                     receive=self.receive,
                 )
@@ -94,13 +95,14 @@ class Prediction:
             raise RuntimeError("Accept an interpretation before generating candidates")
         if self.generation is None:
             reservation, = self.execution.reservations
-            accepted = self.execution.submit_method(
-                method=self.hosted.contribution.generate,
+            self.generation = Submission.from_call(
+                execution=self.execution,
+                call=self.hosted.call(method=self.hosted.contribution.generate),
                 states=(PeakContribution.candidate.bind(handle=self.preparation.prepared),),
                 reservation=reservation, policy=self.policy,
             )
-            if isinstance(accepted, NotAdmitted):
-                raise RuntimeError(f"Cannot generate candidates: {accepted=}")
-            self.generation = accepted
-        completed = await observe_completion(operation=self.generation)
+        accepted = self.generation.submit()
+        if isinstance(accepted, NotAdmitted):
+            raise RuntimeError(f"Cannot generate candidates: {accepted=}")
+        completed = await self.generation.wait()
         return completed.require_result()

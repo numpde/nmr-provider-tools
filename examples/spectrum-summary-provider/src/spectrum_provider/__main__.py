@@ -44,7 +44,7 @@ async def run_demo() -> None:
             if isinstance(result, NotAdmitted):
                 raise RuntimeError(f"Peak admission refused: {result.code.value}: {result.message}")
             consumption = ResultConsumption(
-                operation=workflow.peak_operation,
+                operation=workflow.peaks.operation,
                 result=result.require_result(),
                 receive=print_report,
             )

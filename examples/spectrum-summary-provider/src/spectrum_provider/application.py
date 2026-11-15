@@ -21,8 +21,9 @@ from provider_core.hosting import (
     ReservationRef,
     ResultRelease,
     ResultState,
-    observe_completion,
 )
+
+from provider_core.submission import Submission
 
 
 class PeakWorkflow:
@@ -43,65 +44,51 @@ class PeakWorkflow:
         policy: OperationPolicy,
     ) -> None:
         self.execution = execution
-        self.baseline_invocation = baseline
+        self.baseline = Submission(execution=execution, invocation=baseline)
         self.peak_target = peaks
         self.peak_reservation = peak_reservation
         self.policy = policy
-        self.baseline_operation: Operation | None = None
-        self.peak_operation: Operation | None = None
+        self.peaks: Submission | None = None
         self.peak_refusal: NotAdmitted | None = None
-        self.peak_invocation: Invocation | None = None
         self.baseline_release: ResultRelease | None = None
 
     def start(self) -> Operation | NotAdmitted:
-        """Acquire the operation handle before any cancellable wait."""
-        if self.baseline_operation is not None:
-            return self.baseline_operation
-        accepted = self.execution.submit(
-            invocation=self.baseline_invocation,
-        )
-        if not isinstance(accepted, NotAdmitted):
-            self.baseline_operation = accepted
-        return accepted
+        """Explicitly deliver the retained baseline request before waiting."""
+        return self.baseline.submit()
 
     async def finish(self) -> Observation | NotAdmitted:
         """Resume observation or downstream admission without repeating science."""
-        if self.baseline_operation is None:
+        if self.baseline.operation is None:
             raise RuntimeError("Start the baseline operation before waiting for peaks.")
         if self.peak_refusal is not None:
             return self.peak_refusal
-        if self.peak_operation is None:
-            baseline = await observe_completion(operation=self.baseline_operation)
+        if self.peaks is None or self.peaks.operation is None:
+            baseline = await self.baseline.wait()
             # Science may succeed while encoding fails. Keep both facts intact.
             if baseline.outcome is not Outcome.SUCCEEDED or baseline.result_state is not ResultState.AVAILABLE:
                 return baseline
-            payload = await self.baseline_operation.read_result(result=baseline.result)
-            if self.peak_invocation is None:
-                # Retain the SDK-generated request identity before submission:
-                # a lost reply must not turn a repeated request into new science.
-                self.peak_invocation = Invocation(
+            payload = await self.baseline.operation.read_result(result=baseline.result)
+            if self.peaks is None:
+                self.peaks = Submission(execution=self.execution, invocation=Invocation(
                     target=self.peak_target,
                     payload=payload,
                     states=(),
                     reservation=self.peak_reservation,
                     policy=self.policy,
-                )
-            accepted = self.execution.submit(
-                invocation=self.peak_invocation,
-            )
+                ))
+            accepted = self.peaks.submit()
             if isinstance(accepted, NotAdmitted):
                 if accepted.code is AdmissionCode.CLOSED:
                     # Stopping execution makes downstream admission impossible.
                     # This workflow no longer needs the intermediate result.
-                    self.baseline_release = self.baseline_operation.release_result(result=baseline.result)
+                    self.baseline_release = self.baseline.operation.release_result(result=baseline.result)
                     self.peak_refusal = accepted
                 # A capacity refusal can still be retried using the retained input.
                 return accepted
-            self.peak_operation = accepted
             # The accepted invocation now owns its input bytes. This is an
             # in-memory handoff, not durable report acceptance or publication.
-            self.baseline_release = self.baseline_operation.release_result(result=baseline.result)
+            self.baseline_release = self.baseline.operation.release_result(result=baseline.result)
         # Intermediate cleanup is an independent owner. A release failure must
         # not hide an accepted peak operation or its usable result. The caller
         # observes baseline_release separately when settling the workflow.
-        return await observe_completion(operation=self.peak_operation)
+        return await self.peaks.wait()

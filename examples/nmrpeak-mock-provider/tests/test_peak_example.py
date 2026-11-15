@@ -96,7 +96,7 @@ class PeakExampleTests(unittest.IsolatedAsyncioTestCase):
                                 first=hosted.contribution.configuration.checkpoint_sha256,
                                 second=report["checkpoint_sha256"],
                             )
-                            observed = await prediction.generation.observe(after=None, wait_seconds=0)
+                            observed = await prediction.generation.operation.observe(after=None, wait_seconds=0)
                             self.assertIs(expr1=ResultState.RELEASED, expr2=observed.result_state)
                             reports.append(report)
                 self.assertEqual(first=2, second=len(reports))
@@ -232,6 +232,35 @@ class PeakExampleTests(unittest.IsolatedAsyncioTestCase):
                 await prediction.interpret(source="Formula and proton spectrum")
                 self.assertIsNotNone(obj=prediction.preparation.operation)
                 self.assertEqual(first=2, second=len(self.factory.endpoints[0].requests))
+
+    async def test_generation_lost_submission_reply_resumes_original_scientific_work(self):
+        self.factory.proposals = (candidate(carbon=False),)
+        original = OSError("The generation submission reply was lost")
+        async with self.open_provider() as provider:
+            hf, = [offering for offering in provider.offerings if isinstance(offering.contribution, Hf)]
+            receiver = RecordingReceiver()
+            async with provider.open_prediction(offering=hf, receive=receiver) as prediction:
+                await prediction.interpret(source="Formula and proton spectrum")
+                submit = prediction.execution.submit
+                requests = []
+                operations = []
+
+                def lose_reply(*, invocation):
+                    requests.append(invocation)
+                    operation = submit(invocation=invocation)
+                    operations.append(operation)
+                    if len(requests) == 1:
+                        raise original
+                    return operation
+
+                with patch.object(target=prediction.execution, attribute="submit", new=lose_reply):
+                    with self.assertRaises(expected_exception=OSError) as raised:
+                        await prediction.finish()
+                    self.assertIs(expr1=original, expr2=raised.exception)
+                    await prediction.deliver()
+                self.assertIs(expr1=requests[0], expr2=requests[1])
+                self.assertIs(expr1=operations[0], expr2=operations[1])
+                self.assertEqual(first=1, second=len(receiver.payloads))
 
     async def test_generation_declares_consuming_input_and_does_not_run_twice(self):
         self.factory.proposals = (candidate(carbon=False),)
@@ -369,7 +398,7 @@ class PeakExampleTests(unittest.IsolatedAsyncioTestCase):
                         with self.assertRaises(expected_exception=OSError) as delivery_failure:
                             await prediction.deliver()
                         self.assertIs(expr1=original, expr2=delivery_failure.exception)
-                    retained = await prediction.generation.read_result(prediction.consumption.result)
+                    retained = await prediction.generation.operation.read_result(prediction.consumption.result)
                     self.assertEqual(first=attempts[0], second=retained)
                     self.assertFalse(expr=prediction.execution.closed)
             self.assertIs(expr1=original, expr2=exit_failure.exception)

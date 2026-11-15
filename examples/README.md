@@ -31,6 +31,12 @@ whether rejected interpretation can be corrected, which operation follows a
 baseline, and whether an earlier report must still be delivered after later work
 fails. Matching configuration values do not make deployment choices SDK policy.
 
+`Submission` retains each scientific request before delivery and owns its acquired
+operation. Repeated explicit delivery uses the same invocation; waiting never
+submits work. Preparation, Spectrum's stages and NMRPeak generation use that SDK
+owner. Providers still decide whether to correct input, retry admission or move
+to the next scientific stage.
+
 `ResultConsumption` is an async context manager. Entering does not start delivery;
 `consume()` starts or joins its original receiver attempt. Context exit settles
 that same attempt before outer resources close, preserving independent errors.
