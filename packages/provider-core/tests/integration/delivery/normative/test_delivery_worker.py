@@ -23,12 +23,16 @@ from tests.fakes.api import api
 class DeliveryWorkerTests(unittest.IsolatedAsyncioTestCase):
     async def asyncSetUp(self):
         self.scratch = tempfile.TemporaryDirectory()
+
         self.addCleanup(self.scratch.cleanup)
         self.root = Path(self.scratch.name)
+
         (self.root / "state").mkdir(mode=0o700)
         self.queue = DeliveryQueue(self.root / "state", limits=QueueLimits(4, 16384, 8, 32768))
+
         self.addCleanup(self.queue.close)
         self.inbox = DeliveryInbox(self.queue, (), request_seconds=1, on_accepted=Mock(), on_failure=Mock(), binding_status=Mock())
+
         self.addAsyncCleanup(self.inbox.close)
         self.notices = []
 
@@ -80,7 +84,7 @@ class DeliveryWorkerTests(unittest.IsolatedAsyncioTestCase):
 
             signatures = [request.split(b"Signature-Input: ")[1].split(b"\r\n")[0] for request in peer.requests]
             self.assertNotEqual(signatures[0], signatures[1])
-            self.assertEqual([facts["event"] for _, facts in self.notices], ["delivery_retry", "delivery_published"])
+            self.assertEqual([facts["event"] for (_, facts) in self.notices], ["delivery_retry", "delivery_published"])
             self.assertEqual(self.queue.inventory(item.api_origin, item.provider_ref), [])
 
     async def test_api_rate_limit_and_authentication_refusals_recover_without_restart(self):
@@ -88,11 +92,13 @@ class DeliveryWorkerTests(unittest.IsolatedAsyncioTestCase):
             if len(peer.requests) == 1:
                 peer.response_status = 429
                 peer.response_headers = ((b"content-type", b"text/html"),)
+
                 return b"rate limited"
 
             if len(peer.requests) == 2:
                 peer.response_status = 401
                 peer.response_headers = response_headers(status=401, request_id=b"request:test")
+
                 return signature_window_problem(code="authentication_failed")
 
             peer.response_status = 200
@@ -113,7 +119,7 @@ class DeliveryWorkerTests(unittest.IsolatedAsyncioTestCase):
 
             signatures = [request.split(b"Signature-Input: ")[1].split(b"\r\n")[0] for request in peer.requests]
             self.assertEqual(len(set(signatures)), 3)
-            self.assertEqual([error.status for error, facts in self.notices if facts["event"] == "delivery_retry"], [429, 401])
+            self.assertEqual([error.status for (error, facts) in self.notices if facts["event"] == "delivery_retry"], [429, 401])
             self.assertFalse(worker.paused)
             self.assertEqual(self.queue.inventory(item.api_origin, item.provider_ref), [])
 
@@ -126,7 +132,7 @@ class DeliveryWorkerTests(unittest.IsolatedAsyncioTestCase):
                 execution_attempt_ref=outcome().execution_attempt_ref,
                 failure_code="provider_interrupted", failure_message="SCIENTIFIC_PAYLOAD_NEEDLE"
             )) as healthy:
-                first, second = replace(outcome(), api_origin=limited.origin), replace(outcome(), api_origin=healthy.origin)
+                (first, second) = (replace(outcome(), api_origin=limited.origin), replace(outcome(), api_origin=healthy.origin))
                 self.queue.enqueue(first)
                 self.queue.enqueue(second)
                 worker = self.worker(limited)
@@ -163,7 +169,7 @@ class DeliveryWorkerTests(unittest.IsolatedAsyncioTestCase):
             execution_attempt_ref=second.execution_attempt_ref,
             failure_code="provider_interrupted", failure_message="SCIENTIFIC_PAYLOAD_NEEDLE"
         )]) as peer:
-            first, second = replace(outcome(), api_origin=peer.origin), replace(second, api_origin=peer.origin)
+            (first, second) = (replace(outcome(), api_origin=peer.origin), replace(second, api_origin=peer.origin))
             self.queue.enqueue(first)
             self.queue.enqueue(second)
             worker = self.worker(peer)
@@ -173,7 +179,7 @@ class DeliveryWorkerTests(unittest.IsolatedAsyncioTestCase):
             self.assertEqual(len(retained), 1)
             self.assertEqual(retained[0]["execution_attempt_ref"], first.execution_attempt_ref)
             self.assertEqual(retained[0]["state"], "held")
-            self.assertEqual([facts["event"] for _, facts in self.notices], ["delivery_held", "delivery_published"])
+            self.assertEqual([facts["event"] for (_, facts) in self.notices], ["delivery_held", "delivery_published"])
 
     async def test_restart_publishes_committed_bytes_without_producer_state(self):
         async with api_tls_peer("success", response_body=fail_response(
@@ -184,6 +190,7 @@ class DeliveryWorkerTests(unittest.IsolatedAsyncioTestCase):
             self.queue.enqueue(item)
             self.queue.close()
             self.queue = DeliveryQueue(self.root / "state", limits=QueueLimits(4, 16384, 8, 32768))
+
             self.addCleanup(self.queue.close)
             self.inbox.queue = self.queue
             await asyncio.wait_for(self.worker(peer).run(), 2)
@@ -193,10 +200,10 @@ class DeliveryWorkerTests(unittest.IsolatedAsyncioTestCase):
     async def test_topology_failure_pauses_binding_without_holding_its_pending_items(self):
         # silent-defaults: allow-contract -- Change only the topology header to exercise the wrong-environment refusal.
         headers = [(name, b"web" if name.lower() == b"nmr-api-topology" else value)
-                   for name, value in response_headers()]
+                   for (name, value) in response_headers()]
 
         async with api_tls_peer("success", response_headers=headers) as peer:
-            first, second = replace(outcome(), api_origin=peer.origin), replace(outcome(suffix="1"), api_origin=peer.origin)
+            (first, second) = (replace(outcome(), api_origin=peer.origin), replace(outcome(suffix="1"), api_origin=peer.origin))
             self.queue.enqueue(first)
             self.queue.enqueue(second)
             worker = self.worker(peer)
@@ -220,7 +227,7 @@ class DeliveryWorkerTests(unittest.IsolatedAsyncioTestCase):
                 execution_attempt_ref=outcome().execution_attempt_ref,
                 failure_code="provider_interrupted", failure_message="SCIENTIFIC_PAYLOAD_NEEDLE"
             )) as healthy:
-                first, second = replace(outcome(), api_origin=slow.origin), replace(outcome(), api_origin=healthy.origin)
+                (first, second) = (replace(outcome(), api_origin=slow.origin), replace(outcome(), api_origin=healthy.origin))
                 self.queue.enqueue(first)
                 self.queue.enqueue(second)
                 slow_worker = self.worker(slow)

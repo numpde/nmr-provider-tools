@@ -42,6 +42,7 @@ def checkpoint_volume_name(scope, *, namespace="nmr-api-delivery"):
         )
 
     raw = json.dumps(asdict(scope), sort_keys=True, separators=(",", ":")).encode()
+
     return namespace + "-control-" + hashlib.sha256(raw).hexdigest()
 
 

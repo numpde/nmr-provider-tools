@@ -32,6 +32,7 @@ class CallRejected(Exception):
 
         self.code = code
         self.message = message
+
         super().__init__(message)
 
 

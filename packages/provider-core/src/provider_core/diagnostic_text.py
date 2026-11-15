@@ -27,6 +27,7 @@ _SECRET_FIELD = re.compile(
 
 def redact_credential_fields(text):
     """Redact recognizable credentials; other private request data may remain."""
+
     return _SECRET_FIELD.sub(r"\1[redacted]", _CREDENTIAL.sub("[redacted]", text))
 
 

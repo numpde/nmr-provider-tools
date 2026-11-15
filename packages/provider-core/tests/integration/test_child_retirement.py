@@ -38,7 +38,7 @@ from tests.fakes.uploads import UPLOAD_REF
 class ChildRetirementTests(unittest.IsolatedAsyncioTestCase):
     async def test_acquired_source_survives_closed_reader_output_until_exact_child_stop_and_settlement(self):
         async with AsyncExitStack() as cleanup:
-            store, acknowledged, claim, session, source, source_api = await self._source_resources(cleanup, "close_output")
+            (store, acknowledged, claim, session, source, source_api) = await self._source_resources(cleanup, "close_output")
             executor = self._executor(store, claim, session)
 
             with self.assertRaises(ExecutionFailed) as failed:
@@ -94,7 +94,7 @@ class ChildRetirementTests(unittest.IsolatedAsyncioTestCase):
 
     async def test_cancelled_reader_work_reaps_the_same_child_before_releasing_its_acquired_source(self):
         async with AsyncExitStack() as cleanup:
-            store, acknowledged, claim, session, source, source_api = await self._source_resources(cleanup, "block_read")
+            (store, acknowledged, claim, session, source, source_api) = await self._source_resources(cleanup, "block_read")
             executor = self._executor(store, claim, session)
             task = asyncio.create_task(executor.run(acknowledged))
             cleanup.push_async_callback(self._cancel_executor, task)
@@ -125,7 +125,7 @@ class ChildRetirementTests(unittest.IsolatedAsyncioTestCase):
         for mode in ("block", "close_output"):
             with self.subTest(mode=mode):
                 async with AsyncExitStack() as cleanup:
-                    store, acknowledged, claim, session, source, _ = await self._source_resources(cleanup, mode)
+                    (store, acknowledged, claim, session, source, _) = await self._source_resources(cleanup, mode)
                     session.source = replace(session.source, job_ref="job:different")
                     executor = self._executor(store, claim, session, preparation_only=True)
 
@@ -143,9 +143,9 @@ class ChildRetirementTests(unittest.IsolatedAsyncioTestCase):
 
     async def _source_resources(self, cleanup, mode):
         directory = cleanup.enter_context(tempfile.TemporaryDirectory())
-        store, acknowledged, claim = await live_attempt()
-        root, descriptor = cleanup.enter_context(private_source_directory())
-        acquisition, source_api, _, _ = file_sources()
+        (store, acknowledged, claim) = await live_attempt()
+        (root, descriptor) = cleanup.enter_context(private_source_directory())
+        (acquisition, source_api, _, _) = file_sources()
         # Use a complete, independently authored marker; no scientific decoder
         # or model weights enter this source-lifetime join.
         body = b'{"marker":"acquired-source-observed"}'
@@ -160,11 +160,12 @@ class ChildRetirementTests(unittest.IsolatedAsyncioTestCase):
 
         session = UploadChildSession(store, mode, receipt, directory_fd=descriptor)
         cleanup.push_async_callback(session.stop_child)
-        return store, acknowledged, claim, session, Path(root, receipt.name), source_api
+
+        return (store, acknowledged, claim, session, Path(root, receipt.name), source_api)
 
     async def test_ordered_success_retains_result_and_reaps_child_before_returning_publication(self):
         async with AsyncExitStack() as cleanup:
-            store, acknowledged, claim, session = await self._resources(cleanup, "success")
+            (store, acknowledged, claim, session) = await self._resources(cleanup, "success")
             executor = self._executor(store, claim, session)
             terminal = await self._run(cleanup, executor, acknowledged)
             self.assertIs(type(terminal), DeliveryAcceptedCheckpoint)
@@ -186,7 +187,7 @@ class ChildRetirementTests(unittest.IsolatedAsyncioTestCase):
 
     async def test_scripted_preparation_rejection_never_records_entry_or_generates(self):
         async with AsyncExitStack() as cleanup:
-            store, acknowledged, claim, session = await self._resources(cleanup, "reject")
+            (store, acknowledged, claim, session) = await self._resources(cleanup, "reject")
             executor = self._executor(store, claim, session, preparation_only=True)
             terminal = await self._run(cleanup, executor, acknowledged)
             self.assertIs(terminal.selection.operation, TerminalOperation.FAIL)
@@ -198,7 +199,7 @@ class ChildRetirementTests(unittest.IsolatedAsyncioTestCase):
 
     async def test_cancelled_generation_stops_exact_child_and_keeps_entered_history_without_publication(self):
         async with AsyncExitStack() as cleanup:
-            store, acknowledged, claim, session = await self._resources(cleanup, "block")
+            (store, acknowledged, claim, session) = await self._resources(cleanup, "block")
             executor = self._executor(store, claim, session)
             task = asyncio.create_task(executor.run(acknowledged))
             cleanup.push_async_callback(self._cancel_executor, task)
@@ -220,7 +221,7 @@ class ChildRetirementTests(unittest.IsolatedAsyncioTestCase):
 
     async def test_closed_output_does_not_release_claim_until_that_same_child_is_stopped_and_reaped(self):
         async with AsyncExitStack() as cleanup:
-            store, acknowledged, claim, session = await self._resources(cleanup, "close_output")
+            (store, acknowledged, claim, session) = await self._resources(cleanup, "close_output")
             executor = self._executor(store, claim, session)
 
             with self.assertRaises(ExecutionFailed) as failed:
@@ -254,10 +255,11 @@ class ChildRetirementTests(unittest.IsolatedAsyncioTestCase):
 
     async def _resources(self, cleanup, mode):
         directory = cleanup.enter_context(tempfile.TemporaryDirectory())
-        store, acknowledged, claim = await live_attempt()
+        (store, acknowledged, claim) = await live_attempt()
         session = ChildSession(store, mode)
         cleanup.push_async_callback(session.child.stop)
-        return store, acknowledged, claim, session
+
+        return (store, acknowledged, claim, session)
 
     async def _cancel_executor(self, task):
         if not task.done():
@@ -272,6 +274,7 @@ class ChildRetirementTests(unittest.IsolatedAsyncioTestCase):
     async def _run(self, cleanup, executor, acknowledged):
         task = asyncio.create_task(executor.run(acknowledged))
         cleanup.push_async_callback(self._cancel_executor, task)
+
         return await self._finished(task)
 
     async def _finished(self, task):

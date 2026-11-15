@@ -20,7 +20,7 @@ class StartupFileRejected(ValueError):
     # silent-defaults: allow-contract -- Metadata refusal can precede a native error; independent close failures can follow either refusal or interruption.
     def __init__(self, message, *, cause=None, cleanup_failures=()):
         super().__init__(message)
-        self.cause, self.cleanup_failures = cause, tuple(cleanup_failures)
+        (self.cause, self.cleanup_failures) = (cause, tuple(cleanup_failures))
 
 
 # silent-defaults: allow-contract -- Public configuration and CA inputs forbid group/other writes; credentials additionally require private caller-owned 0400/0600 files.
@@ -33,7 +33,7 @@ def read_startup_file(path, *, maximum_bytes, label, secret=False):
     except OSError as cause:
         raise StartupFileRejected(f"{label} could not be opened as a regular file without a final symlink.", cause=cause) from None
 
-    content, primary, cleanup = None, None, None
+    (content, primary, cleanup) = (None, None, None)
 
     try:
         status = os.fstat(descriptor)

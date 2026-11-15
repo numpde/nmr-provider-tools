@@ -44,13 +44,14 @@ def _path(value, label):
 
 def _binding(table):
     _fields(table, {"api", "socket_path", "socket_group_id", "proxy_socket"}, "binding")
-    settings, provider_ref = api_settings(table["api"], read_startup_file)
+    (settings, provider_ref) = api_settings(table["api"], read_startup_file)
 
     endpoint = DeliveryEndpoint(settings.identity.origin, provider_ref, _path(table["socket_path"], "delivery socket"),
                                 socket_group_id=table["socket_group_id"])
 
     http = replace(settings.http, proxy_socket=str(_path(table["proxy_socket"], "API proxy socket")))
     client = ProviderAPI(settings.identity, http.new_transport(), expected_topology=settings.expected_topology)
+
     return DeliveryBinding(endpoint, client)
 
 

@@ -24,6 +24,7 @@ TOOLS = [{"type": "function", "function": {"name": "prepare", "parameters": {
 def factory(model):
     def build(**grant):
         model.grant = grant
+
         return model
 
     return build
@@ -48,7 +49,7 @@ class InterpreterTests(unittest.IsolatedAsyncioTestCase):
     async def test_private_initial_context_is_rejected_before_any_model_or_science(self):
         from provider_core.diagnostics import failure_evidence
 
-        for messages, tools in (([{"role": "user", "content": "PRIVATE_CREDENTIAL"}], TOOLS),
+        for (messages, tools) in (([{"role": "user", "content": "PRIVATE_CREDENTIAL"}], TOOLS),
                                 ([], [{"description": "PRIVATE_CREDENTIAL"}])):
             with self.subTest(messages=bool(messages)):
                 create = AsyncMock()
@@ -87,9 +88,10 @@ class InterpreterTests(unittest.IsolatedAsyncioTestCase):
 
         async def strong(messages, tools, *, not_after):
             deadlines.append(not_after)
+
             return call("finish", "prepare", {"verbosity": "quiet"})
 
-        first.complete.side_effect, first.retire.side_effect = fast, cleanup
+        (first.complete.side_effect, first.retire.side_effect) = (fast, cleanup)
         second.complete.side_effect = strong
         owner = interpreter(first, second)
 
@@ -115,6 +117,7 @@ class InterpreterTests(unittest.IsolatedAsyncioTestCase):
 
         async def complete(*args, **kwargs):
             events.append("request")
+
             return await original(*args, **kwargs)
 
         model.complete = AsyncMock(side_effect=complete)
@@ -132,7 +135,7 @@ class InterpreterTests(unittest.IsolatedAsyncioTestCase):
         self.assertIs(result.failures[0][1], failure)
 
     async def test_retry_count_and_retry_after_are_bounded_by_original_window(self):
-        for retry_after, attempts in ((b"0", 2), (b"999", 1)):
+        for (retry_after, attempts) in ((b"0", 2), (b"999", 1)):
             with self.subTest(retry_after=retry_after):
                 failure = ChatFailed("http_status", "Busy.", response=SimpleNamespace(status=429, headers=((b"Retry-After", retry_after),)))
                 bad = endpoint("busy", failure, failure)
@@ -163,6 +166,7 @@ class InterpreterTests(unittest.IsolatedAsyncioTestCase):
 
         async def complete(messages, tools, **kwargs):
             captures.append(deepcopy(messages))
+
             return await original_complete(messages, tools, **kwargs)
 
         good.complete = AsyncMock(side_effect=complete)
@@ -305,6 +309,7 @@ class InterpreterTests(unittest.IsolatedAsyncioTestCase):
 
         async def complete(messages, tools, **kwargs):
             captures.append(deepcopy(messages))
+
             return await original(messages, tools, **kwargs)
 
         second.complete = AsyncMock(side_effect=complete)
@@ -329,6 +334,7 @@ class InterpreterTests(unittest.IsolatedAsyncioTestCase):
 
         async def complete(messages, tools, **kwargs):
             captures.append(deepcopy(messages))
+
             return await original(messages, tools, **kwargs)
 
         second.complete = AsyncMock(side_effect=complete)
@@ -357,6 +363,7 @@ class InterpreterTests(unittest.IsolatedAsyncioTestCase):
 
         async def complete(messages, tools, **kwargs):
             captures.append(deepcopy(messages))
+
             return await original(messages, tools, **kwargs)
 
         model.complete = AsyncMock(side_effect=complete)
@@ -364,12 +371,13 @@ class InterpreterTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(state(captures[1])["budget"]["rejections_remaining"], 2)
 
     async def test_retire_during_a_model_visit_cannot_open_a_successor(self):
-        entered, released = asyncio.Event(), asyncio.Event()
-        first, second = endpoint("active"), endpoint("unused")
+        (entered, released) = (asyncio.Event(), asyncio.Event())
+        (first, second) = (endpoint("active"), endpoint("unused"))
 
         async def complete(*args, **kwargs):
             entered.set()
             await released.wait()
+
             return call("late", "prepare", {})
 
         first.complete.side_effect = complete
@@ -388,10 +396,11 @@ class InterpreterTests(unittest.IsolatedAsyncioTestCase):
 
     async def test_late_model_reply_cannot_start_preparation_after_allocation(self):
         clock = [100.0]
-        first, second = endpoint("late"), endpoint("next", call("ok", "prepare", {}))
+        (first, second) = (endpoint("late"), endpoint("next", call("ok", "prepare", {})))
 
         async def complete(*args, not_after, **kwargs):
             clock[0] = not_after + 1
+
             return call("too-late", "prepare", {})
 
         first.complete.side_effect = complete
@@ -405,9 +414,9 @@ class InterpreterTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(second.complete.await_count, 1)
 
     async def test_retire_during_retry_backoff_cannot_resend_after_confirmed_retirement(self):
-        sleeping, released = asyncio.Event(), asyncio.Event()
+        (sleeping, released) = (asyncio.Event(), asyncio.Event())
         failure = ChatFailed("http_status", "Busy.", response=SimpleNamespace(status=503, headers=()))
-        first, second = endpoint("busy", failure, call("late", "prepare", {})), endpoint("unused")
+        (first, second) = (endpoint("busy", failure, call("late", "prepare", {})), endpoint("unused"))
 
         async def backoff(seconds):
             sleeping.set()
@@ -430,10 +439,11 @@ class InterpreterTests(unittest.IsolatedAsyncioTestCase):
 
     async def test_accepted_preparation_is_not_replayed_if_it_finishes_after_model_window(self):
         clock = [100.0]
-        first, second = endpoint("first", call("prepare", "prepare", {})), endpoint("unused")
+        (first, second) = (endpoint("first", call("prepare", "prepare", {})), endpoint("unused"))
 
         async def dispatch(name, arguments, *, not_after):
             clock[0] += 200
+
             return ToolFinished("prepared")
 
         with patch("provider_core.interpreter._now", side_effect=lambda: clock[0]):
@@ -458,12 +468,12 @@ class InterpreterTests(unittest.IsolatedAsyncioTestCase):
             await owner.run([], TOOLS, dispatch)
 
         self.assertIs(caught.exception, scientific)
-        self.assertTrue(any(cause is earlier for _, cause in observed_before_effects))
+        self.assertTrue(any(cause is earlier for (_, cause) in observed_before_effects))
         await owner.retire()
-        self.assertTrue(any(cause is earlier for _, cause in owner.failures))
+        self.assertTrue(any(cause is earlier for (_, cause) in owner.failures))
         context = scientific.__cause__
         self.assertIsInstance(context, ConversationFailed)
-        self.assertTrue(any(cause is earlier for _, cause in context.endpoint_failures))
+        self.assertTrue(any(cause is earlier for (_, cause) in context.endpoint_failures))
 
     async def test_exhaustion_exposes_original_failures_to_existing_protected_projection(self):
         from provider_core.failure_projection import owned_details, owned_relationships
@@ -474,10 +484,10 @@ class InterpreterTests(unittest.IsolatedAsyncioTestCase):
 
         self.assertIn("message", owned_details(caught.exception))
         relationships = tuple(owned_relationships(caught.exception))
-        self.assertTrue(any(isinstance(cause, ChatFailed) for _, cause in relationships))
+        self.assertTrue(any(isinstance(cause, ChatFailed) for (_, cause) in relationships))
 
     async def test_provider_crash_propagates_before_blocked_cleanup_with_exact_owner_retained(self):
-        entered, release = asyncio.Event(), asyncio.Event()
+        (entered, release) = (asyncio.Event(), asyncio.Event())
         first = endpoint("first", call("prepare", "prepare", {}))
 
         async def blocked_cleanup():
@@ -507,7 +517,7 @@ class InterpreterTests(unittest.IsolatedAsyncioTestCase):
         owner = interpreter(model)
         result = await owner.run([], TOOLS, AsyncMock(return_value=ToolFinished("ready")))
         self.assertEqual(len(result.correction_failures), 1)
-        visit, turn, failure = result.correction_failures[0]
+        (visit, turn, failure) = result.correction_failures[0]
         self.assertEqual((visit, turn), (1, 1))
         self.assertIsInstance(failure, ToolRejected)
         await owner.retire()
@@ -539,6 +549,7 @@ class InterpreterTests(unittest.IsolatedAsyncioTestCase):
 
         def build(**grant):
             clock[0] += 20
+
             return model
 
         owner = Interpreter((build,), timeout_seconds=240, context_bytes=16384, secrets=())
@@ -569,6 +580,7 @@ class InterpreterTests(unittest.IsolatedAsyncioTestCase):
 
         async def complete(messages, tools, **kwargs):
             captures.append(deepcopy(messages))
+
             return await original(messages, tools, **kwargs)
 
         model.complete = AsyncMock(side_effect=complete)
@@ -597,12 +609,14 @@ class InterpreterTests(unittest.IsolatedAsyncioTestCase):
 
         async def complete(messages, tools, **kwargs):
             captures.append(deepcopy(messages))
+
             return await original(messages, tools, **kwargs)
 
         async def dispatch(name, arguments, *, not_after):
             if name == "inspect":
                 arguments.pop("source")
                 arguments["selection"].append(3)
+
                 return ToolReply({"rows": 2})
 
             return ToolFinished("ready")
@@ -627,7 +641,7 @@ class InterpreterTests(unittest.IsolatedAsyncioTestCase):
                 result = await interpreter(first, second, context=32768).run([], TOOLS, dispatch)
                 self.assertEqual(result.value, "ready")
                 self.assertEqual(second.complete.await_count, 2)
-                final_messages, final_tools = second.complete.await_args.args
+                (final_messages, final_tools) = second.complete.await_args.args
 
                 size = len(json.dumps({"messages": final_messages, "tools": final_tools},
                                       ensure_ascii=True, sort_keys=True, separators=(",", ":")).encode("ascii"))
@@ -734,6 +748,7 @@ class InterpreterTests(unittest.IsolatedAsyncioTestCase):
 
         async def complete(current_messages, tools, **kwargs):
             captures.append(deepcopy(current_messages))
+
             return await original(current_messages, tools, **kwargs)
 
         model.complete = AsyncMock(side_effect=complete)
@@ -751,7 +766,7 @@ class InterpreterTests(unittest.IsolatedAsyncioTestCase):
 
     async def test_handoff_is_not_accepted_preparation_and_waits_for_retirement(self):
         from provider_core.interpreter import ModelReportedInterpretationProblem
-        entered, release = asyncio.Event(), asyncio.Event()
+        (entered, release) = (asyncio.Event(), asyncio.Event())
         report = ModelReportedInterpretationProblem(model_summary="This model could not interpret the source.")
         first = endpoint("first", call("report", "report_interpretation_problem", {}))
         second = endpoint("second", call("prepare", "prepare", {}))
@@ -868,7 +883,7 @@ class InterpreterTests(unittest.IsolatedAsyncioTestCase):
 
         for through_constraints in (False, True):
             with self.subTest(constraints=through_constraints):
-                entered, settled = asyncio.Event(), asyncio.Event()
+                (entered, settled) = (asyncio.Event(), asyncio.Event())
                 events = []
                 action = ("inspect", {})
 
@@ -891,6 +906,7 @@ class InterpreterTests(unittest.IsolatedAsyncioTestCase):
                         return await inspect(not_after=not_after)
 
                     events.append("prepare")
+
                     return ToolFinished(None)
 
                 first.retire.side_effect = lambda: events.append("model retired")
@@ -942,6 +958,7 @@ class InterpreterTests(unittest.IsolatedAsyncioTestCase):
             self.assertEqual(not_after, 220)
             prepared.append(object())
             clock[0] = 230
+
             return ToolFinished(None)
 
         owner = interpreter(first, second)
@@ -958,13 +975,14 @@ class InterpreterTests(unittest.IsolatedAsyncioTestCase):
         await owner.retire()
 
     async def test_retirement_during_admitted_preparation_retains_late_acceptance(self):
-        entered, finish = asyncio.Event(), asyncio.Event()
+        (entered, finish) = (asyncio.Event(), asyncio.Event())
         first = endpoint("first", call("prepare", "prepare", {}))
         unused = endpoint("unused")
 
         async def prepare(name, arguments, *, not_after):
             entered.set()
             await finish.wait()
+
             return ToolFinished(None)
 
         dispatch = AsyncMock(side_effect=prepare)

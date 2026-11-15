@@ -22,7 +22,7 @@ def unexpected_delivery_retry(*_args):
 
 
 async def stopped_executor(retirement_failure):
-    store, acknowledged, claim = await live_attempt()
+    (store, acknowledged, claim) = await live_attempt()
     session = Session(store)
     session.retirement_failure = retirement_failure
 
@@ -42,7 +42,7 @@ async def stopped_executor(retirement_failure):
     else:
         raise AssertionError("Fixture did not stop the completed result's acceptance")
 
-    return store, executor, session, claim, transport
+    return (store, executor, session, claim, transport)
 
 
 class SuppressionOutcomeTests(unittest.IsolatedAsyncioTestCase):
@@ -55,12 +55,13 @@ class SuppressionOutcomeTests(unittest.IsolatedAsyncioTestCase):
                     self.calls.append((request, maximum_bytes))
                     self.pending_owner = owner
                     self.retirement_confirmed = False
+
                     reading.set()
                     await asyncio.Future()
 
                 return await super().exchange(request, maximum_bytes=maximum_bytes, owner=owner)
 
-        store, acknowledged, claim = await live_attempt()
+        (store, acknowledged, claim) = await live_attempt()
         session = Session(store)
 
         transport = PendingTransport(reply(observation()), reply(response()), reply(progress_response()), reply(observation()),
@@ -96,7 +97,7 @@ class SuppressionOutcomeTests(unittest.IsolatedAsyncioTestCase):
         claim.release(owner=claim.lifecycle_owner)
 
     async def test_classified_preparation_failure_can_be_retained_after_stop_without_execution(self):
-        store, acknowledged, claim = await live_attempt()
+        (store, acknowledged, claim) = await live_attempt()
         session = Session(store)
         session.preparation = AnalysisFailure("invalid_input", "Supply coordinates.", ProtectedEvidence("evidence.v1", b"reason"))
 
@@ -123,7 +124,7 @@ class SuppressionOutcomeTests(unittest.IsolatedAsyncioTestCase):
 
 
     async def test_suppression_cannot_release_unconfirmed_worker_retirement(self):
-        store, executor, session, claim, transport = await stopped_executor(RuntimeError("private cleanup failure"))
+        (store, executor, session, claim, transport) = await stopped_executor(RuntimeError("private cleanup failure"))
         retained = await executor.retain_suppressed_disposition()
         self.assertEqual(store.records, (retained,))
 

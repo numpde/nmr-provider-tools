@@ -186,18 +186,21 @@ class _UploadFile:
         )
 
         self.created = True
+
         metadata = os.fstat(self.fd)
-        self.identity = metadata.st_dev, metadata.st_ino
+        self.identity = (metadata.st_dev, metadata.st_ino)
+
         os.fchmod(self.fd, 0o600)
 
     def _close(self):
-        descriptor, self.fd = self.fd, None
+        (descriptor, self.fd) = (self.fd, None)
 
         try:
             os.close(descriptor)
         except OSError:
             # The kernel may have retired and reused the number despite failure.
             self.close_uncertain = True
+
             raise
 
     def _remove(self):
@@ -205,6 +208,7 @@ class _UploadFile:
             metadata = os.stat(self.name, dir_fd=self.directory_fd, follow_symlinks=False)
         except FileNotFoundError:
             self.created = False
+
             return
 
         if self.identity is None:
@@ -232,11 +236,12 @@ class _UploadFile:
         waiter = asyncio.wrap_future(worker)
         waiter.add_done_callback(_observe_file_io)
         self.pending = _FileIO(operation, worker, waiter)
+
         await self.settle(seconds)
 
     async def settle(self, seconds):
         pending = self.pending
-        done, _unfinished = await asyncio.wait({pending.waiter}, timeout=seconds)
+        (done, _unfinished) = await asyncio.wait({pending.waiter}, timeout=seconds)
 
         if not done:
             raise UploadFailed(
@@ -274,12 +279,14 @@ class UploadTransfer:
         if not all(callable(value) for value in (remaining, before_request, account)):
             raise TypeError("Upload transfer requires explicit remaining-time, request and byte-accounting owners")
 
-        self.job_ref, self._store = job_ref, store
+        (self.job_ref, self._store) = (job_ref, store)
         self._origin = require_store_origin(store_origin)
-        self._remaining, self._before_request, self._account_bytes = remaining, before_request, account
+
+        (self._remaining, self._before_request, self._account_bytes) = (remaining, before_request, account)
         self._exchange_owner = self if exchange_owner is None else exchange_owner
         self._file = None
         self._active = False
+
         self._reset_failure()
 
     def _reset_failure(self):
@@ -333,7 +340,7 @@ class UploadTransfer:
                 except UploadFailed:
                     return False
 
-            if head is not None and any(name.lower() == b"transfer-encoding" for name, _ in head.headers):
+            if head is not None and any(name.lower() == b"transfer-encoding" for (name, _) in head.headers):
                 return False
 
             if type(outcome.primary) is httpcore.RemoteProtocolError:
@@ -346,6 +353,7 @@ class UploadTransfer:
     @property
     def file_cleanup_pending(self):
         """Report whether this owner still retains an unresolved private file."""
+
         return self._file is not None
 
     def _remaining_seconds(self):
@@ -368,6 +376,7 @@ class UploadTransfer:
             raise UploadFailed("previous store resource retirement is unconfirmed; retire its transport before more work")
 
         self._active = True
+
         self._reset_failure()
 
         try:
@@ -433,6 +442,7 @@ class UploadTransfer:
                 result = VerifiedUploadFile(self.job_ref, grant.upload_ref, grant.byte_length, grant.content_hash, file.name)
                 file.shutdown()
                 self._file = None
+
                 return result
             except BaseException as failure:
                 if isinstance(failure, asyncio.CancelledError):
@@ -571,6 +581,7 @@ class UploadTransfer:
             await self._abort_file()
         except asyncio.CancelledError as interruption:
             self._interrupted = True
+
             self._link_file_interruption(interruption)
             raise
         except UploadFailed as failure:
@@ -586,6 +597,7 @@ class UploadTransfer:
         response = await self._transfer(grant)
         verified = VerifiedUpload(self.job_ref, grant.upload_ref, grant.byte_length, grant.content_hash, response.body)
         self._remaining_seconds()
+
         return verified
 
     def _download_request(self, grant):
@@ -625,6 +637,7 @@ class UploadTransfer:
                 _verify_store_headers(head, grant)
             except UploadFailed as failure:
                 self._header_failure = failure
+
                 raise
 
         try:
@@ -640,6 +653,7 @@ class UploadTransfer:
                     )
 
                 self._store_outcome = response
+
                 return response
         except TimeoutError:
             if not deadline.expired():
@@ -656,6 +670,7 @@ class UploadTransfer:
             raise
         except ExchangeFailed as cause:
             self._store_outcome = cause
+
             reason = str(cause.primary) if isinstance(cause.primary, UploadFailed) else str(cause)
             raise UploadFailed(reason, cause=cause) from None
 
@@ -724,6 +739,7 @@ class JobUploads:
         These are exact original exceptions, retained across result handoff or
         cancellation until the next operation. This is no permission to retry.
         """
+
         return self._recovery_failure
 
     def _remember_recovery_failure(self, failure):
@@ -746,6 +762,7 @@ class JobUploads:
 
     def can_retry_transfer(self, failure):
         """Classify the current transfer without dispatching or changing budgets."""
+
         return not self._active and self._transfer_owner.can_retry_transfer(failure)
 
     @property
@@ -771,6 +788,7 @@ class JobUploads:
         self._grant_issued = False
         self._recovery_failure = None
         self._uncertain_issuance = None
+
         self._transfer_owner._reset_failure()
 
         try:
@@ -861,6 +879,7 @@ class JobUploads:
             exhausted = UploadRecoveryExhausted(reason, cause=failure)
 
         self._retain_grant_issuance(exhausted)
+
         return exhausted
 
     def _require_recovery_capacity(self, failure, selected):
@@ -968,6 +987,7 @@ class JobUploads:
                 self._retain_grant_issuance(failure)
                 self._remember_recovery_failure(failure)
                 self.last_failure = failure
+
                 await self._retire_recovery(failure, store_owner=store_owner)
                 api_failure = failure
 
@@ -1034,6 +1054,7 @@ class JobUploads:
         async with self._operation():
             async def observe():
                 self._snapshot = await self._call(self._api, self._api.uploads, self.job_ref)
+
                 return self._snapshot
 
             return await self._recover_source(observe)
@@ -1049,6 +1070,7 @@ class JobUploads:
 
             async def acquire():
                 grant = await self._grant(selected)
+
                 return await self._transfer_owner._download(grant)
 
             return await self._recover_source(acquire, selected=selected)
@@ -1136,14 +1158,14 @@ def _verify_store_headers(response, grant):
 
     digest = base64.b64encode(bytes.fromhex(grant.content_hash.removeprefix("sha256:")))
 
-    for name, expected in (
+    for (name, expected) in (
         (b"content-type", b"application/octet-stream"),
         (b"cache-control", b"no-store"),
         (b"content-length", str(grant.byte_length).encode("ascii")),
         (b"content-digest", b"sha-256=:" + digest + b":"),
     ):
-        if [value for key, value in response.headers if key.lower() == name] != [expected]:
+        if [value for (key, value) in response.headers if key.lower() == name] != [expected]:
             raise UploadFailed(f"store response {name.decode()} does not match the granted whole-file transfer", response=response)
 
-    if any(name.lower() in {b"content-encoding", b"content-range"} for name, _ in response.headers):
+    if any(name.lower() in {b"content-encoding", b"content-range"} for (name, _) in response.headers):
         raise UploadFailed("encoded or partial store responses are not admitted", response=response)

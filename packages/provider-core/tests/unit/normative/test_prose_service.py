@@ -30,13 +30,14 @@ def interpreter(*services, seconds=0.04):
 
 def service_with(*carriers):
     remaining = iter(carriers)
+
     return ProseService(lambda **grant: next(remaining))
 
 
 class ProseServiceTests(unittest.IsolatedAsyncioTestCase):
     async def test_waiting_job_keeps_its_deadline_and_original_service_failure(self):
         original = unavailable()
-        first, second = endpoint("same-service", original), endpoint("same-service")
+        (first, second) = (endpoint("same-service", original), endpoint("same-service"))
         service = service_with(first, second)
 
         for owner in (interpreter(service), interpreter(service)):
@@ -47,20 +48,20 @@ class ProseServiceTests(unittest.IsolatedAsyncioTestCase):
 
         first.complete.assert_awaited_once()
         second.complete.assert_not_awaited()
-        waiting_failure = next(failure for _, failure in owner.failures if isinstance(failure, ChatFailed))
+        waiting_failure = next(failure for (_, failure) in owner.failures if isinstance(failure, ChatFailed))
         self.assertEqual("service_wait_deadline", waiting_failure.reason)
         self.assertIs(original, waiting_failure.cause)
         self.assertGreater(service.retry_seconds, 0)
         self.assertTrue(owner.retirement_confirmed)
 
     async def test_stopping_a_waiting_interpretation_does_not_send_or_prepare(self):
-        first, waiting = endpoint("same-service", unavailable()), endpoint("same-service")
+        (first, waiting) = (endpoint("same-service", unavailable()), endpoint("same-service"))
         service = service_with(first, waiting)
 
         with self.assertRaises(InterpretationFailed):
             await interpreter(service).run([], TOOLS, AsyncMock())
 
-        owner, prepare = interpreter(service, seconds=10), AsyncMock()
+        (owner, prepare) = (interpreter(service, seconds=10), AsyncMock())
         task = asyncio.create_task(owner.run([], TOOLS, prepare))
         await asyncio.sleep(0)
         await owner.retire()
@@ -73,7 +74,7 @@ class ProseServiceTests(unittest.IsolatedAsyncioTestCase):
         self.assertTrue(owner.retirement_confirmed)
 
     async def test_old_inflight_success_cannot_cancel_a_newer_service_refusal(self):
-        received, release = asyncio.Event(), asyncio.Event()
+        (received, release) = (asyncio.Event(), asyncio.Event())
         old = endpoint("same-service")
         refused = endpoint("same-service", unavailable())
         following = endpoint("same-service")
@@ -81,6 +82,7 @@ class ProseServiceTests(unittest.IsolatedAsyncioTestCase):
         async def complete(*args, **kwargs):
             received.set()
             await release.wait()
+
             return call("old-preparation", "prepare", {})
 
         old.complete.side_effect = complete
@@ -108,7 +110,7 @@ class ProseServiceTests(unittest.IsolatedAsyncioTestCase):
             await asyncio.gather(old_task, return_exceptions=True)
 
     async def test_independent_binding_and_fallback_still_prepare_once(self):
-        failed, waiting = endpoint("same-label", unavailable()), endpoint("same-label")
+        (failed, waiting) = (endpoint("same-label", unavailable()), endpoint("same-label"))
         healthy = endpoint("same-label", call("healthy-preparation", "prepare", {}))
         unavailable_service = service_with(failed, waiting)
         healthy_service = service_with(healthy)
@@ -136,7 +138,7 @@ class ProseServiceTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual("prepared", result.value)
         jitter.assert_called_once_with(0.25, 0.75)
         self.assertEqual(2, carrier.complete.await_count)
-        first, second = carrier.complete.await_args_list
+        (first, second) = carrier.complete.await_args_list
         self.assertEqual(first.kwargs["not_after"], second.kwargs["not_after"])
         first_budget = json.loads(first.args[0][-1]["content"].split(": ", 1)[1])["budget"]
         second_budget = json.loads(second.args[0][-1]["content"].split(": ", 1)[1])["budget"]
@@ -159,7 +161,7 @@ class ProseServiceTests(unittest.IsolatedAsyncioTestCase):
 
     async def test_unconfirmed_http_cleanup_prevents_retry_and_fallback(self):
         original = unavailable(b"0")
-        unsettled, fallback = endpoint("unsettled", original), endpoint("unused")
+        (unsettled, fallback) = (endpoint("unsettled", original), endpoint("unused"))
         unsettled.retirement_confirmed = False
         owner = interpreter(service_with(unsettled), service_with(fallback))
         prepare = AsyncMock()
@@ -171,4 +173,4 @@ class ProseServiceTests(unittest.IsolatedAsyncioTestCase):
         fallback.complete.assert_not_awaited()
         prepare.assert_not_awaited()
         self.assertFalse(owner.retirement_confirmed)
-        self.assertTrue(any(failure is original for _, failure in owner.failures))
+        self.assertTrue(any(failure is original for (_, failure) in owner.failures))

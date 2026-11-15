@@ -115,7 +115,7 @@ def _raw_cli_exception_text(source: str) -> list[int]:
 
 class ErrorTransparencyPostureTests(unittest.TestCase):
     def test_raw_exception_text_is_not_a_safe_cause_projection(self) -> None:
-        for message, expected in (
+        for (message, expected) in (
             ('f"failed: {exc}"', [4]),
             ('f"{exc!r}"', [4]),
             ('"failed: " + str(exc)', [4]),
@@ -129,7 +129,7 @@ class ErrorTransparencyPostureTests(unittest.TestCase):
                 self.assertEqual(expected, _raw_cli_exception_text(source))
 
     def test_raw_exception_detector_follows_blocks_but_not_new_scopes(self) -> None:
-        for block, expected in (("if ready", [5]), ("with resource", [5]), ("def deferred(exc)", []), ("class Deferred", [])):
+        for (block, expected) in (("if ready", [5]), ("with resource", [5]), ("def deferred(exc)", []), ("class Deferred", [])):
             with self.subTest(block=block):
                 source = f"try:\n    work()\nexcept OSError as exc:\n    {block}:\n        raise CommandError(str(exc))\n"
                 self.assertEqual(expected, _raw_cli_exception_text(source))
@@ -138,7 +138,7 @@ class ErrorTransparencyPostureTests(unittest.TestCase):
         """Node dispatch retains raw disclosure without treating safe fields as causes."""
 
         for caught in ("OSError", "Exception", "BaseException"):
-            for message, expected in (
+            for (message, expected) in (
                 ('f"{exc!s:>20}"', [4]),
                 ('f"{exc}{exc}"', [4]),
                 ('{"reason": str(repr(exc))}', [4]),
@@ -177,7 +177,7 @@ class ErrorTransparencyPostureTests(unittest.TestCase):
         self.assertEqual([], _opaque_oserror_translations(source))
 
     def test_detector_flags_fixed_cli_translations_even_with_exception_chaining(self) -> None:
-        for caught, statement in (
+        for (caught, statement) in (
             ("OSError", 'raise CommandError("failed")'),
             ("OSError as exc", 'raise CommandError("failed") from exc'),
             ("(OSError, ValueError) as exc", 'raise CommandError("invalid") from exc'),
@@ -188,7 +188,7 @@ class ErrorTransparencyPostureTests(unittest.TestCase):
                 self.assertEqual([3], _opaque_oserror_translations(source))
 
     def test_detector_leaves_other_handler_shapes_for_separate_review(self) -> None:
-        for caught, statement in (
+        for (caught, statement) in (
             ("ValueError as exc", 'raise CommandError("invalid input") from exc'),
             ("OSError as exc", "raise"),
             ("OSError as exc", 'raise OtherError("failed") from exc'),

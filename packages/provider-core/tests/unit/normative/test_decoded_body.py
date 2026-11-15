@@ -21,6 +21,7 @@ def decoded(wire, *, coding=b"gzip", limit=8192, chunk=7):
         result.extend(decoder.feed(b""))
 
     decoder.finish()
+
     return bytes(result)
 
 
@@ -142,12 +143,12 @@ class DecodedBodyTests(unittest.TestCase):
             self.assertEqual(caught.exception.reason, "unsupported_encoding")
             self.assertNotIn("private-coding-sentinel", str(caught.exception))
 
-        for reason, error_type in (("private-reason-sentinel", ValueError), ([], TypeError), (None, TypeError)):
+        for (reason, error_type) in (("private-reason-sentinel", ValueError), ([], TypeError), (None, TypeError)):
             with self.assertRaises(error_type):
                 DecodedBodyRejected(reason)
 
     def test_configuration_errors_and_reuse_are_local_defects(self):
-        for limit, error_type in (
+        for (limit, error_type) in (
             (0, ValueError), (-1, ValueError), (True, TypeError), (1.5, TypeError),
             (sys.maxsize, ValueError), (sys.maxsize + 1, ValueError),
         ):
@@ -176,6 +177,7 @@ class DecodedBodyTests(unittest.TestCase):
 class DeflateTests(unittest.TestCase):
     def raw(self, body):
         encoder = zlib.compressobj(wbits=-zlib.MAX_WBITS)
+
         return encoder.compress(body) + encoder.flush()
 
     def test_wrapper_decision_is_independent_of_header_fragmentation(self):

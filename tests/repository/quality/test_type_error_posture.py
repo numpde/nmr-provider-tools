@@ -151,6 +151,7 @@ def _value_predicate(*, expression: ast.expr) -> bool:
         and isinstance(expression.args[0], ast.GeneratorExp)
     ):
         generator = expression.args[0]
+
         return _value_predicate(expression=generator.elt)
 
     return _builtin(expression=expression.func, name="len") or (

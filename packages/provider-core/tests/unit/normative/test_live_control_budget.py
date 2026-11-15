@@ -19,7 +19,7 @@ from tests.fakes.attempts import start_response
 
 class LiveControlBudgetTests(unittest.IsolatedAsyncioTestCase):
     async def test_maximum_complete_control_projection_fits_the_reserved_128_kib(self):
-        job, provider, kind = "job:" + "j" * 124, "provider:" + "p" * 119, "k" * 128
+        (job, provider, kind) = ("job:" + "j" * 124, "provider:" + "p" * 119, "k" * 128)
         facts = replace(record().input, job_ref=job, input_byte_length=65536)
         body = start_body(job, "k" * 128)
         body += b" " * (4096 - len(body))

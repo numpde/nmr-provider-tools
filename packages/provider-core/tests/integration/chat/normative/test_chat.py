@@ -73,7 +73,7 @@ class ChatCarrierTests(unittest.IsolatedAsyncioTestCase):
                 name.lower(): value.strip()
                 for line in request.split(b"\r\n")[1:]
                 if b":" in line
-                for name, value in [line.split(b":", 1)]
+                for (name, value) in [line.split(b":", 1)]
             }
 
             self.assertEqual(headers[b"authorization"], b"Bearer PRIVATE_API_KEY")

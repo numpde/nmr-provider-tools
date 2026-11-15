@@ -39,7 +39,7 @@ class UnixHTTPRefusalTests(unittest.IsolatedAsyncioTestCase):
         async with UnixHTTPPeer(stall=True) as peer:
             transport = UnixHttpTransport(socket_path=peer.path, exchange_seconds=1, retirement_seconds=0.05)
             owner = object()
-            closing, release = asyncio.Event(), asyncio.Event()
+            (closing, release) = (asyncio.Event(), asyncio.Event())
             close = _OwnedStream.aclose
 
             async def held_close(stream):

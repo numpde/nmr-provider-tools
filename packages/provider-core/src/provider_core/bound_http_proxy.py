@@ -123,7 +123,7 @@ def receive_headers(client: socket.socket) -> tuple[bytes, bytes]:
             raise ValueError("request headers are too large")
 
         if terminator >= 0:
-            return bytes(data[:header_bytes]), bytes(data[header_bytes:])
+            return (bytes(data[:header_bytes]), bytes(data[header_bytes:]))
 
 
 def parse_destination(header: bytes) -> tuple[str, str, int, bytes]:
@@ -133,11 +133,11 @@ def parse_destination(header: bytes) -> tuple[str, str, int, bytes]:
     Invalid destinations, including ports outside 1-65535, raise ValueError.
     """
     lines = header.split(b"\r\n")
-    method, target, version = lines[0].decode("ascii").split(" ", 2)
+    (method, target, version) = lines[0].decode("ascii").split(" ", 2)
     method = method.upper()
 
     if method == "CONNECT":
-        host, separator, port_text = target.rpartition(":")
+        (host, separator, port_text) = target.rpartition(":")
 
         if not separator or not host:
             raise ValueError("CONNECT target must be host:port")
@@ -168,7 +168,7 @@ def parse_destination(header: bytes) -> tuple[str, str, int, bytes]:
         raise ValueError("Cannot admit proxy destination: the port must be an integer from 1 to 65535.")
 
     if method == "CONNECT":
-        return method, host, port, header
+        return (method, host, port, header)
 
     # RFC 9112 section 3.2.1: https://www.rfc-editor.org/rfc/rfc9112.html#section-3.2.1
     # silent-defaults: allow-contract -- Origin-form requires / for an empty URI path; proof=packages/provider-core/tests/unit/normative/test_bound_http_proxy.py::BoundProxyTests.test_empty_absolute_path_becomes_origin_slash
@@ -178,7 +178,8 @@ def parse_destination(header: bytes) -> tuple[str, str, int, bytes]:
         path += "?" + parsed.query
 
     lines[0] = f"{method} {path} {version}".encode("ascii")
-    return method, host, port, b"\r\n".join(lines)
+
+    return (method, host, port, b"\r\n".join(lines))
 
 
 # DNS queries and destination connections both use the selected device.
@@ -222,7 +223,7 @@ def _read_dns_name(message: bytes, offset: int, depth: int = 0) -> tuple[str, in
                 raise DNSNameRejected("truncated DNS compression pointer")
 
             pointer = ((size & 0x3F) << 8) | message[offset + 1]
-            suffix, _ = _read_dns_name(message, pointer, depth + 1)
+            (suffix, _) = _read_dns_name(message, pointer, depth + 1)
 
             if suffix:
                 labels.extend(part.encode("ascii") for part in suffix.split("."))
@@ -246,7 +247,7 @@ def _read_dns_name(message: bytes, offset: int, depth: int = 0) -> tuple[str, in
         offset += size
 
     try:
-        return b".".join(labels).decode("ascii").lower(), next_offset
+        return (b".".join(labels).decode("ascii").lower(), next_offset)
     except UnicodeDecodeError as cause:
         raise DNSNameRejected("DNS name contains a non-ASCII label") from cause
 
@@ -318,7 +319,7 @@ def _query_ipv4(
     if len(response) < 12:
         raise DNSResponseRejected("truncated DNS response")
 
-    response_id, flags, questions, answers, authorities, additional = struct.unpack("!HHHHHH", response[:12])
+    (response_id, flags, questions, answers, authorities, additional) = struct.unpack("!HHHHHH", response[:12])
 
     if response_id != transaction or not flags & 0x8000:
         raise DNSResponseRejected("mismatched DNS response")
@@ -333,12 +334,12 @@ def _query_ipv4(
         raise DNSResponseRejected("DNS response has the wrong question count")
 
     offset = 12
-    question_name, offset = _read_dns_name(response, offset)
+    (question_name, offset) = _read_dns_name(response, offset)
 
     if offset + 4 > len(response):
         raise DNSResponseRejected("truncated DNS question")
 
-    question_type, question_class = struct.unpack("!HH", response[offset : offset + 4])
+    (question_type, question_class) = struct.unpack("!HH", response[offset : offset + 4])
     offset += 4
     expected_name = host.rstrip(".").encode("idna").decode("ascii").lower()
 
@@ -349,12 +350,12 @@ def _query_ipv4(
     aliases: dict[str, str] = {}
 
     for _ in range(answers + authorities + additional):
-        owner, offset = _read_dns_name(response, offset)
+        (owner, offset) = _read_dns_name(response, offset)
 
         if offset + 10 > len(response):
             raise DNSResponseRejected("truncated DNS record")
 
-        record_type, record_class, _ttl, size = struct.unpack("!HHIH", response[offset : offset + 10])
+        (record_type, record_class, _ttl, size) = struct.unpack("!HHIH", response[offset : offset + 10])
         offset += 10
         end = offset + size
 
@@ -365,11 +366,11 @@ def _query_ipv4(
             # silent-defaults: allow-contract -- Each response-local owner bucket contains only its received A records; proof=repository_checks/test_proxy_posture.py::ImageBuildProxyTransportTests.test_dns_groups_only_received_a_records_by_owner
             addresses.setdefault(owner, []).append(socket.inet_ntoa(response[offset:end]))
         elif record_class == 1 and record_type == 5:
-            aliases[owner], _ = _read_dns_name(response, offset)
+            (aliases[owner], _) = _read_dns_name(response, offset)
 
         offset = end
 
-    return addresses, aliases
+    return (addresses, aliases)
 
 
 def resolve_ipv4_bound(
@@ -404,7 +405,7 @@ def resolve_ipv4_bound(
                     raise DNSResponseRejected("DNS response contains an alias cycle")
 
                 visited.add(current)
-                addresses, aliases = _query_ipv4(current, server, interface, deadline=deadline)
+                (addresses, aliases) = _query_ipv4(current, server, interface, deadline=deadline)
 
                 if current in addresses:
                     return tuple(addresses[current])
@@ -448,6 +449,7 @@ def connect_bound(host: str, port: int, interface: str, *, dns_servers: tuple[st
             # inside this try so the existing failure path closes the socket.
             # https://github.com/numpde/magnet-deploy/blob/2d4ee50b0359e71900fce9289ea01f46d0f41249/scripts/image-build-proxy.py#L267-L272
             _remaining(deadline, "connection")
+
             return outbound
         except OSError as error:
             last_error = error
@@ -468,7 +470,7 @@ def relay(left: socket.socket, right: socket.socket) -> None:
     deadline = time.monotonic() + RELAY_IDLE_SECONDS
 
     while readers:
-        readable, _, _ = select.select(readers, (), (), _remaining(deadline, "relay"))
+        (readable, _, _) = select.select(readers, (), (), _remaining(deadline, "relay"))
 
         if not readable:
             raise TimeoutError("Cannot continue proxy relay: no forwarding completed within 120 seconds.")
@@ -516,14 +518,17 @@ def relay(left: socket.socket, right: socket.socket) -> None:
 class ProxyHandler(socketserver.BaseRequestHandler):
     def destination(self, header):
         """Acquisition accepts CONNECT and absolute HTTP destinations."""
+
         return parse_destination(header)
 
     def connect(self, host, port):
         """Acquire the admitted destination through this listener's device."""
+
         return connect_bound(host, port, self.server.outbound_interface, dns_servers=self.server.dns_servers)
 
     def admission_reply(self, _error):
         """Keep the acquisition listener's existing fixed failure response."""
+
         return b"HTTP/1.1 502 Bad Gateway\r\nConnection: close\r\n\r\n"
 
     def report_failure(self, phase, error):
@@ -544,8 +549,8 @@ class ProxyHandler(socketserver.BaseRequestHandler):
         phase = "request admission"
 
         try:
-            header, remainder = receive_headers(self.request)
-            method, host, port, forwarded_header = self.destination(header)
+            (header, remainder) = receive_headers(self.request)
+            (method, host, port, forwarded_header) = self.destination(header)
 
             with self.connect(host, port) as outbound:
                 # sendall may fail after writing a prefix; mark the phase before
@@ -588,6 +593,7 @@ class ConnectionAdmission:
     def __init__(self, limit):
         self._lock = threading.Lock()
         self._active = 0
+
         self.set_limit(limit)
 
     def set_limit(self, limit):
@@ -609,11 +615,12 @@ class ConnectionAdmission:
                 return False
 
             self._active += 1
+
             return True
 
     def load(self):
         with self._lock:
-            return self._active, self._limit
+            return (self._active, self._limit)
 
     def release(self):
         with self._lock:
@@ -635,6 +642,7 @@ class ProxyServer(socketserver.ThreadingTCPServer):
         self.outbound_interface = interface
         self.dns_servers = dns_servers
         self._slots = ConnectionAdmission(MAX_CONNECTIONS)
+
         super().__init__(address, self.request_handler)
 
     def process_request(self, request: socket.socket, client_address: tuple[str, int]) -> None:
@@ -645,6 +653,7 @@ class ProxyServer(socketserver.ThreadingTCPServer):
         # https://github.com/numpde/magnet-deploy/blob/2d4ee50b0359e71900fce9289ea01f46d0f41249/scripts/image-build-proxy.py#L343-L365
         if not self._slots.acquire():
             self.shutdown_request(request)
+
             return
 
         self.start_reserved_request(request, client_address)
@@ -716,6 +725,7 @@ class UnixRelayServer(ProxyServer):
 
     def __init__(self, address: tuple[str, int], gateway_socket: Path):
         self.gateway_socket = str(gateway_socket)
+
         super().__init__(address, "system")
 
 
@@ -744,7 +754,7 @@ def publish_readiness(ready_file, content):
     """Publish complete private readiness without replacing any prior receipt."""
 
     try:
-        descriptor, temporary = tempfile.mkstemp(prefix=".proxy-ready.", dir=ready_file.parent)
+        (descriptor, temporary) = tempfile.mkstemp(prefix=".proxy-ready.", dir=ready_file.parent)
     except OSError:
         raise SystemExit("Cannot start proxy: a private readiness staging file could not be created.") from None
 

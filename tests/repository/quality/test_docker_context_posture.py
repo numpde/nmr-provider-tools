@@ -27,7 +27,7 @@ _PATTERNS = (
 
 
 def implicit_defaults(source):
-    return [number for number, line in enumerate(source.splitlines(), 1)
+    return [number for (number, line) in enumerate(source.splitlines(), 1)
             if not line.lstrip().startswith("#") and any(pattern.search(line) for pattern in _PATTERNS)]
 
 

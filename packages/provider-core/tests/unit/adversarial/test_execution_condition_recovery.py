@@ -39,12 +39,12 @@ class ConditionRecoveryFailureTests(unittest.IsolatedAsyncioTestCase):
                 cancelled_sends.append(executor.api.last_failure)
                 await read_recovered.wait()
 
-        store, acknowledged, claim = await live_attempt()
+        (store, acknowledged, claim) = await live_attempt()
         transport = InterruptedTransport()
         transport.release.set()
         transport.failure = asyncio.CancelledError()
         transport.last_failure = ExchangeFailed("Interrupted condition delivery")
-        cancelled_sends, read_recovered = [], asyncio.Event()
+        (cancelled_sends, read_recovered) = ([], asyncio.Event())
 
         def retry_read(_attempt, _failure, _seconds):
             transport.failure = None
@@ -79,7 +79,7 @@ class ConditionRecoveryFailureTests(unittest.IsolatedAsyncioTestCase):
         claim.release(owner=claim.lifecycle_owner)
 
     async def test_overlapping_call_invalidates_retry_without_resending_an_old_condition(self):
-        store, acknowledged, claim = await live_attempt()
+        (store, acknowledged, claim) = await live_attempt()
         transport = ConditionOutageTransport(first_failed_put=2)
         transport.release_retirement.clear()
         session = ReportingSession(store)
@@ -111,7 +111,7 @@ class ConditionRecoveryFailureTests(unittest.IsolatedAsyncioTestCase):
             self.assertIs(caught.exception.cause, overlap.exception)
             self.assertEqual(len(transport.condition_requests), 1)
             self.assertEqual([event[0] for event in session.events], ["retire"])
-            self.assertFalse(any(b"replacement_condition" in request.content for request, _ in transport.calls))
+            self.assertFalse(any(b"replacement_condition" in request.content for (request, _) in transport.calls))
             claim.release(owner=claim.lifecycle_owner)
         finally:
             transport.release_retirement.set()
@@ -122,10 +122,10 @@ class ConditionRecoveryFailureTests(unittest.IsolatedAsyncioTestCase):
             await asyncio.gather(task, return_exceptions=True)
 
     async def test_cancellation_after_monitor_recovery_retains_first_and_latest_condition_failures(self):
-        store, acknowledged, claim = await live_attempt()
+        (store, acknowledged, claim) = await live_attempt()
         transport = ConditionOutageTransport(first_failed_put=2)
         transport.faults = itertools.repeat(reply(b"PRIVATE condition unavailable", status=503))
-        session, read_recovered = ReportingSession(store), asyncio.Event()
+        (session, read_recovered) = (ReportingSession(store), asyncio.Event())
         failures = []
 
         def retry(_attempt, _phase, _condition, failure, _seconds):
@@ -191,7 +191,7 @@ class ConditionRecoveryFailureTests(unittest.IsolatedAsyncioTestCase):
                 await asyncio.gather(task, return_exceptions=True)
 
     async def test_retry_waiting_behind_the_monitor_cannot_dispatch_after_its_window(self):
-        store, acknowledged, claim = await live_attempt()
+        (store, acknowledged, claim) = await live_attempt()
         transport = ConditionOutageTransport(first_failed_put=2)
         transport.block_read = 2
         transport.faults = itertools.repeat(reply(b"PRIVATE unavailable", status=503))
@@ -235,10 +235,10 @@ class ConditionRecoveryFailureTests(unittest.IsolatedAsyncioTestCase):
             await asyncio.gather(task, return_exceptions=True)
 
     async def test_actual_retirement_gates_resend_and_dependent_effect(self):
-        store, acknowledged, claim = await live_attempt()
+        (store, acknowledged, claim) = await live_attempt()
         transport = ConditionOutageTransport(first_failed_put=2)
         transport.release_retirement.clear()
-        session, retry = ReportingSession(store), Mock()
+        (session, retry) = (ReportingSession(store), Mock())
 
         executor = live_executor(
             api(transport, store.scope.api_origin),
@@ -272,7 +272,7 @@ class ConditionRecoveryFailureTests(unittest.IsolatedAsyncioTestCase):
             await asyncio.gather(task, return_exceptions=True)
 
     async def test_existing_monitor_observes_stop_during_recovery_without_a_second_waiter(self):
-        store, acknowledged, claim = await live_attempt()
+        (store, acknowledged, claim) = await live_attempt()
         transport = ConditionOutageTransport(first_failed_put=2)
         transport.faults = itertools.repeat(reply(b"PRIVATE unavailable", status=503))
         transport.followup_observation = reply(observation(job_state="cancelled"))
@@ -298,7 +298,7 @@ class ConditionRecoveryFailureTests(unittest.IsolatedAsyncioTestCase):
         claim.release(owner=claim.lifecycle_owner)
 
     async def test_expiry_is_not_erased_by_a_binding_that_catches_it_and_returns_science(self):
-        store, acknowledged, claim = await live_attempt()
+        (store, acknowledged, claim) = await live_attempt()
         transport = ConditionOutageTransport(first_failed_put=5)
         transport.faults = itertools.repeat(reply(b"PRIVATE unavailable", status=503))
         session = SwallowingSession(store)
@@ -335,11 +335,11 @@ class ConditionRecoveryFailureTests(unittest.IsolatedAsyncioTestCase):
         claim.release(owner=claim.lifecycle_owner)
 
     async def test_recovered_observer_failure_retains_first_fault_and_actual_received_receipt(self):
-        store, acknowledged, claim = await live_attempt()
+        (store, acknowledged, claim) = await live_attempt()
         transport = ConditionOutageTransport(first_failed_put=2)
         fault = OSError(errno.EIO, "PRIVATE output error")
         session = ReportingSession(store)
-        retry, recovered = Mock(), Mock(side_effect=fault)
+        (retry, recovered) = (Mock(), Mock(side_effect=fault))
 
         executor = live_executor(
             api(transport, store.scope.api_origin),
@@ -370,10 +370,10 @@ class ConditionRecoveryFailureTests(unittest.IsolatedAsyncioTestCase):
             ),
         ):
             with self.subTest(fault=type(fault).__name__):
-                store, acknowledged, claim = await live_attempt()
+                (store, acknowledged, claim) = await live_attempt()
                 transport = ConditionOutageTransport(first_failed_put=2)
                 transport.faults = iter((fault,))
-                session, retry = ReportingSession(store), Mock()
+                (session, retry) = (ReportingSession(store), Mock())
 
                 executor = live_executor(
                     api(transport, store.scope.api_origin),

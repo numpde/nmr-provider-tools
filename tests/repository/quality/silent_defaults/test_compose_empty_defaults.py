@@ -33,7 +33,7 @@ class ComposeEmptyDefaultsTest(unittest.TestCase):
     def test_compose_files_use_strict_interpolation_not_empty_defaults(self) -> None:
         findings: list[str] = []
 
-        for source, line_number, line in surface_lines(
+        for (source, line_number, line) in surface_lines(
             surface_files(COMPOSE_SURFACE_GLOBS),
             skip_comments=True,
         ):

@@ -16,7 +16,7 @@ class AttemptInventoryTests(unittest.IsolatedAsyncioTestCase):
         transport = Transport(reply(response()))
         result = await api(transport, "https://api.example").execution_attempts(state="in_progress", limit=2, cursor="Yg")
         self.assertEqual(len(transport.calls), 1)
-        request, bound = transport.calls[0]
+        (request, bound) = transport.calls[0]
         self.assertEqual(request.method, "GET")
         self.assertEqual(request.url.raw_path, b"/provider/v1/execution-attempts?state=in_progress&limit=2&cursor=Yg")
         self.assertEqual(bound, 65536)
@@ -24,7 +24,7 @@ class AttemptInventoryTests(unittest.IsolatedAsyncioTestCase):
         self.assertNotIn("Content-Digest", request.headers)
         self.assertNotIn("Content-Type", request.headers)
         self.assertIn("Signature", request.headers)
-        item, = result.attempts
+        (item,) = result.attempts
         self.assertEqual(item.provider_attempt_key, "retained-start:01")
         self.assertEqual(item.state, "in_progress")
         self.assertEqual(item.started_at.tzinfo, UTC)

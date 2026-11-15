@@ -22,7 +22,7 @@ class ControllerConditionRecoveryTests(unittest.IsolatedAsyncioTestCase):
         store = LiveAttemptProbe()
         session = ReportingSession(store)
         session.conditions = {"prepare": ("waiting_capacity",), "execute": ()}
-        retry, recovered = Mock(), Mock()
+        (retry, recovered) = (Mock(), Mock())
         replies = list(lifecycle_replies())
         replies[4:4] = [reply(b"PRIVATE outage", status=503), reply(progress_response(condition_code="waiting_capacity"))]
         transport = Transport(*replies)

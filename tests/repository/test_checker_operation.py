@@ -89,7 +89,7 @@ if [[ $PROBE_SCENARIO == attachment-timeout ]]; then budget=1; fi
 if checker_run "$budget" inert-image; then exit 0; else exit "$?"; fi
 '''
 
-        return ["bash", "-c", script, "bash", str(ROOT)], self.environment | {"PROBE_SCENARIO": scenario}
+        return (["bash", "-c", script, "bash", str(ROOT)], self.environment | {"PROBE_SCENARIO": scenario})
 
     def owned_paths(self):
         paths = [Path(line) for line in (self.directory / "report").read_text().splitlines()]
@@ -101,7 +101,8 @@ if checker_run "$budget" inert-image; then exit 0; else exit "$?"; fi
         return paths
 
     def run_probe(self, scenario):
-        command, environment = self.invocation(scenario)
+        (command, environment) = self.invocation(scenario)
+
         return subprocess.run(command, env=environment, capture_output=True, text=True, timeout=15, check=False)
 
     def identity_invocation(self, scenario):
@@ -167,10 +168,11 @@ exit "$status"
             "PROBE_IDENTITY_RESULT": str(self.directory / "identity-result"),
         }
 
-        return ["bash", "-c", script, "bash", str(shadow)], environment
+        return (["bash", "-c", script, "bash", str(shadow)], environment)
 
     def run_identity_probe(self, scenario):
-        command, environment = self.identity_invocation(scenario)
+        (command, environment) = self.identity_invocation(scenario)
+
         return subprocess.run(command, env=environment, capture_output=True, text=True, timeout=15, check=False)
 
     def test_shared_identity_owner_receives_selected_endpoint_policy_and_map_order(self):
@@ -255,7 +257,7 @@ flock --exclusive --nonblock "$borrow"
 printf 'retired\\n' > "$PROBE_REPORT.retired"
 ''')
 
-        command, environment = self.invocation("success")
+        (command, environment) = self.invocation("success")
         command[-1] = str(shadow)
         command[2] = command[2].replace('budget=10', 'image_retire_after_success=true\nbudget=10')
         result = subprocess.run(command, env=environment, capture_output=True, text=True, timeout=15, check=False)
@@ -302,7 +304,7 @@ printf 'retired\\n' > "$PROBE_REPORT.retired"
         self.assertTrue(all(not path.exists() for path in self.owned_paths()))
 
     def test_repeated_signals_do_not_interrupt_teardown(self):
-        command, environment = self.invocation("repeated-signals")
+        (command, environment) = self.invocation("repeated-signals")
 
         with subprocess.Popen(command, env=environment, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True) as process:
             deadline = time.monotonic() + 10
@@ -313,7 +315,7 @@ printf 'retired\\n' > "$PROBE_REPORT.retired"
             self.assertTrue((self.directory / "ready").exists())
             process.send_signal(signal.SIGTERM)
             process.send_signal(signal.SIGHUP)
-            _, diagnostic = process.communicate(timeout=10)
+            (_, diagnostic) = process.communicate(timeout=10)
 
         self.assertEqual(0, process.returncode, msg=diagnostic)
         self.assertTrue(all(not path.exists() for path in self.owned_paths()))

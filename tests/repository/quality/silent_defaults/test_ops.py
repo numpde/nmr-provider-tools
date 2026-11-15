@@ -223,7 +223,7 @@ class OpsSilentDefaultsTest(unittest.TestCase):
             exported_names = shell_exported_names(source) if path.suffix == ".sh" else None
             environment_indent: int | None = None
 
-            for line_number, line in enumerate(source.splitlines(), start=1):
+            for (line_number, line) in enumerate(source.splitlines(), start=1):
                 if line.lstrip().startswith("#"):
                     continue
 
@@ -288,7 +288,7 @@ class OpsSilentDefaultsTest(unittest.TestCase):
             ("TOKEN=; export TOKEN\n", None),
         )
 
-        for source, expected in cases:
+        for (source, expected) in cases:
             with self.subTest(source=source):
                 self.assertEqual(expected, shell_exported_names(source))
 
@@ -320,7 +320,7 @@ class OpsSilentDefaultsTest(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
 
-            for label, source, diagnostic in cases:
+            for (label, source, diagnostic) in cases:
                 with self.subTest(label=label, source=source):
                     path = root / label
                     path.write_text(source, encoding="utf-8")
@@ -361,7 +361,7 @@ class OpsSilentDefaultsTest(unittest.TestCase):
             ("ARG MARKER=1", "containers/checker/Dockerfile", "unreviewed", "ARG"),
         )
 
-        for source, path, classification, instruction in changes:
+        for (source, path, classification, instruction) in changes:
             with self.subTest(source=source, path=path):
                 self.assertEqual(
                     [f"{path}:1: {classification} Docker {instruction} default: {source}"],
@@ -377,7 +377,7 @@ class OpsSilentDefaultsTest(unittest.TestCase):
         findings: list[str] = []
 
         for path in files:
-            for line_number, line in enumerate(path.read_text(encoding="utf-8").splitlines(), start=1):
+            for (line_number, line) in enumerate(path.read_text(encoding="utf-8").splitlines(), start=1):
                 if line.lstrip().startswith("#"):
                     continue
 
@@ -396,7 +396,7 @@ def make_function_default_findings(files: list[Path]) -> list[str]:
     for path in files:
         source = path.relative_to(ROOT).as_posix()
 
-        for line_number, line in enumerate(path.read_text(encoding="utf-8").splitlines(), start=1):
+        for (line_number, line) in enumerate(path.read_text(encoding="utf-8").splitlines(), start=1):
             if line.lstrip().startswith("#") or is_literal_make_origin_gate(source, line):
                 continue
 
@@ -420,7 +420,7 @@ def make_default_assignment_findings(files: list[Path]) -> list[str]:
 def make_default_assignment_findings_for_source(source: str, label: str) -> list[str]:
     findings: list[str] = []
 
-    for line_number, line in enumerate(source.splitlines(), start=1):
+    for (line_number, line) in enumerate(source.splitlines(), start=1):
         if line.lstrip().startswith("#"):
             continue
 
@@ -458,7 +458,7 @@ def docker_default_findings_for_source(
 ) -> list[str]:
     findings: list[str] = []
 
-    for line_number, line in docker_logical_lines(source):
+    for (line_number, line) in docker_logical_lines(source):
         arg_match = DOCKER_ARG_DEFAULT_RE.match(line)
 
         if arg_match and arg_match.group("value") is not None:
@@ -485,7 +485,7 @@ def docker_default_findings_for_source(
 
         if all(DOCKER_KEY_VALUE_ENV_TOKEN_RE.match(token) for token in tokens):
             for token in tokens:
-                name, value = token.split("=", 1)
+                (name, value) = token.split("=", 1)
                 entry = ("ENV", label, name, value)
 
                 if entry not in allowed:
@@ -521,12 +521,12 @@ def docker_logical_lines(source):
     pending = ""
     first_line = 1
 
-    for line_number, line in enumerate(source.splitlines(), start=1):
+    for (line_number, line) in enumerate(source.splitlines(), start=1):
         if not line.strip() or line.lstrip().startswith("#"):
             if pending:
                 continue
 
-            yield line_number, line
+            yield (line_number, line)
             continue
 
         if not pending:
@@ -538,12 +538,12 @@ def docker_logical_lines(source):
             pending += stripped[:-1] + " "
             continue
 
-        yield first_line, pending + line
+        yield (first_line, pending + line)
         pending = ""
 
     if pending:
         # A trailing continuation is malformed, not an empty/default waiver.
-        yield first_line, pending + "\\"
+        yield (first_line, pending + "\\")
 
 
 def docker_default_classification(
@@ -559,7 +559,7 @@ def shell_default_findings(files: list[Path]) -> list[str]:
 
     for entry in sorted(defaults):
         if entry not in ALLOWED_SHELL_DEFAULTS:
-            path, name, operator, value = entry
+            (path, name, operator, value) = entry
             findings.append(f"{path}: unreviewed shell default expansion: ${{{name}{operator}{value}}}")
 
     return findings
@@ -583,7 +583,7 @@ def docker_defaults(files: list[Path]) -> set[tuple[str, str, str, str]]:
     for path in files:
         label = path.relative_to(ROOT).as_posix()
 
-        for _line_number, line in docker_logical_lines(path.read_text(encoding="utf-8")):
+        for (_line_number, line) in docker_logical_lines(path.read_text(encoding="utf-8")):
             arg_match = DOCKER_ARG_DEFAULT_RE.match(line)
 
             if arg_match and arg_match.group("value") is not None:
@@ -600,7 +600,7 @@ def docker_defaults(files: list[Path]) -> set[tuple[str, str, str, str]]:
 
             if tokens and all(DOCKER_KEY_VALUE_ENV_TOKEN_RE.match(token) for token in tokens):
                 for token in tokens:
-                    name, value = token.split("=", 1)
+                    (name, value) = token.split("=", 1)
                     defaults.add(("ENV", label, name, value))
 
                 continue

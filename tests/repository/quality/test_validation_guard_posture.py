@@ -131,7 +131,7 @@ def _split_range_finding(
     ):
         return None
 
-    lower_rejection, upper_rejection = statement.test.values
+    (lower_rejection, upper_rejection) = statement.test.values
 
     if not (
         isinstance(lower_rejection.ops[0], (ast.Lt, ast.LtE))
@@ -191,7 +191,7 @@ def _accepted_atom(node: ast.expr) -> str | None:
             ast.NotIn: "in",
         }
 
-        for operator_type, rendered in inverse_operators.items():
+        for (operator_type, rendered) in inverse_operators.items():
             if isinstance(node.ops[0], operator_type):
                 return f"{left} {rendered} {right}"
 
@@ -229,7 +229,7 @@ def _mixed_ordering_finding(
 
     inverse_boolean_operators = {ast.Or: " and ", ast.And: " or "}
 
-    for operator_type, rendered in inverse_boolean_operators.items():
+    for (operator_type, rendered) in inverse_boolean_operators.items():
         if isinstance(statement.test.op, operator_type):
             conjunction = rendered
             break
@@ -362,7 +362,7 @@ class GuardPostureTests(unittest.TestCase):
             ("and", "if not (math.isfinite(value) or 0 < value)"),
         )
 
-        for operator, expected in cases:
+        for (operator, expected) in cases:
             with self.subTest(operator=operator):
                 source = f"if not math.isfinite(value) {operator} value <= 0:\n    raise ValueError('invalid value')\n"
                 findings = _findings(Path("example.py"), source)
@@ -377,7 +377,7 @@ class GuardPostureTests(unittest.TestCase):
             ("<=", ">=", "if not (minimum < value < maximum)"),
         )
 
-        for lower, upper, expected in cases:
+        for (lower, upper, expected) in cases:
             with self.subTest(lower=lower, upper=upper):
                 source = f"if value {lower} minimum or value {upper} maximum:\n    raise ValueError('outside bounds')\n"
                 findings = _findings(Path("example.py"), source)

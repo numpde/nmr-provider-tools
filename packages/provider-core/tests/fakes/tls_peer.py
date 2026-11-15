@@ -42,6 +42,7 @@ class _OptionalCertificateRejectionReset(logging.Filter):
             and type(record.exc_info[1]) is ConnectionResetError
         ):
             self.records.append(record)
+
             return False
 
         return True
@@ -84,14 +85,14 @@ class TlsPeer:
     ):
         # One test-server TLS policy, distinct from HttpTransport's outbound
         # connect/exchange budget and the supervised interpreter child lifetime.
-        for label, seconds in (
+        for (label, seconds) in (
             ("handshake_seconds", handshake_seconds),
             ("shutdown_seconds", shutdown_seconds),
         ):
             if type(seconds) not in (int, float) or not 0 < seconds < float("inf"):
                 raise ValueError(f"TlsPeer {label} must be finite positive seconds")
 
-        self.handshake_seconds, self.shutdown_seconds = handshake_seconds, shutdown_seconds
+        (self.handshake_seconds, self.shutdown_seconds) = (handshake_seconds, shutdown_seconds)
         self.mode = mode
         self.response_body = response_body
         self.response_bodies = response_bodies
@@ -111,6 +112,7 @@ class TlsPeer:
 
     async def __aenter__(self):
         self.scratch = tempfile.TemporaryDirectory()
+
         root = Path(self.scratch.name)
         key = Ed25519PrivateKey.generate()
         name = x509.Name([x509.NameAttribute(NameOID.COMMON_NAME, "provider-core test peer")])
@@ -146,6 +148,7 @@ class TlsPeer:
 
         server_trust.set_servername_callback(observe_server_name)
         self.trust = https_trust((root / "cert.pem").read_bytes(), label="Test peer")
+
         tls = {}
 
         if self.mode != "tls-stall":
@@ -160,6 +163,7 @@ class TlsPeer:
 
         self.server = await asyncio.start_server(self.handle, self.bind_host, 0, **tls)
         self.origin = f"https://127.0.0.1:{self.server.sockets[0].getsockname()[1]}"
+
         return self
 
     async def handle(self, reader, writer):
@@ -175,6 +179,7 @@ class TlsPeer:
                 self.received.set()
                 await reader.read()
                 self.closed.set()
+
                 return
 
             request = await reader.readuntil(b"\r\n\r\n")
@@ -209,6 +214,7 @@ class TlsPeer:
                     writer.close()
                     await writer.wait_closed()
                     self.closed.set()
+
                     return
 
                 headers = self.response_headers
@@ -218,7 +224,7 @@ class TlsPeer:
 
                 writer.write(
                     f"HTTP/1.1 {self.response_status} {HTTPStatus(self.response_status).phrase}\r\n".encode("ascii")
-                    + b"".join(name + b": " + value + b"\r\n" for name, value in headers)
+                    + b"".join(name + b": " + value + b"\r\n" for (name, value) in headers)
                     + b"Content-Length: "
                     + str(len(body)).encode("ascii")
                     + b"\r\n\r\n"
@@ -232,7 +238,7 @@ class TlsPeer:
 
                 writer.write(
                     b"HTTP/1.1 200 OK\r\n"
-                    + b"".join(name + b": " + value + b"\r\n" for name, value in headers)
+                    + b"".join(name + b": " + value + b"\r\n" for (name, value) in headers)
                     + b"Content-Length: 100\r\n\r\nx"
                 )
             elif mode != "headers-stall":
@@ -265,6 +271,7 @@ class TlsPeer:
 
     async def __aexit__(self, *exception):
         self._closing = True
+
         self.server.close()
         handlers = tuple(self.handlers)
         cancelled = {task for task in handlers if not task.done()}
@@ -291,7 +298,7 @@ class TlsPeer:
 
         failures = [
             result
-            for task, result in zip(handlers, results, strict=True)
+            for (task, result) in zip(handlers, results, strict=True)
             if isinstance(result, BaseException) and not (task in cancelled and isinstance(result, asyncio.CancelledError))
         ]
 

@@ -22,14 +22,17 @@ from tests.fakes.delivery import healthy_diagnostics, outcome
 class DeliveryIPCTests(unittest.IsolatedAsyncioTestCase):
     async def asyncSetUp(self):
         self.scratch = tempfile.TemporaryDirectory()
+
         self.addCleanup(self.scratch.cleanup)
         root = Path(self.scratch.name)
         (root / "ipc").mkdir(mode=0o700)
         (root / "state").mkdir(mode=0o700)
         self.queue = DeliveryQueue(root / "state", limits=QueueLimits(1, 4096, 2, 8192))
+
         self.addCleanup(self.queue.close)
         self.endpoint = DeliveryEndpoint("https://api.example", "provider:test", root / "ipc/http.sock")
-        self.accepted, self.failures = Mock(), Mock()
+
+        (self.accepted, self.failures) = (Mock(), Mock())
 
         self.inbox = DeliveryInbox(
             self.queue, (self.endpoint,), request_seconds=1, on_accepted=self.accepted, on_failure=self.failures,
@@ -39,6 +42,7 @@ class DeliveryIPCTests(unittest.IsolatedAsyncioTestCase):
         await self.inbox.start()
         self.addAsyncCleanup(self.inbox.close)
         self.client = DeliveryClient(self.endpoint, exchange_seconds=1, retirement_seconds=0.2)
+
         self.addAsyncCleanup(self.client.retire)
 
     async def test_submit_and_inventory_prove_durability_without_exporting_payload(self):
@@ -149,6 +153,7 @@ class DeliveryIPCTests(unittest.IsolatedAsyncioTestCase):
                 dropped = True
                 writer.close()
                 await writer.wait_closed()
+
                 return
 
             await respond(connection, writer, status, document)
@@ -171,7 +176,7 @@ class DeliveryIPCTests(unittest.IsolatedAsyncioTestCase):
         with self.assertRaises(DeliveryRejected):
             await client.pending()
 
-        cause, facts = self.failures.call_args.args
+        (cause, facts) = self.failures.call_args.args
         self.assertIs(type(cause), DeliveryRequestRejected)
         self.assertIn("another API/provider", str(cause))
         self.assertEqual(owned_details(cause)["message"], str(cause))
@@ -194,12 +199,12 @@ class DeliveryIPCTests(unittest.IsolatedAsyncioTestCase):
 
         self.assertIn("read delivery status", str(lost.exception))
         self.assertNotIn("retain", str(lost.exception).lower())
-        _, facts = self.failures.call_args.args
+        (_, facts) = self.failures.call_args.args
         self.assertFalse(facts["durable_enqueue_confirmed"])
         self.assertEqual(self.queue.next_pending(item.api_origin, item.provider_ref), item)
 
     async def test_shutdown_joins_committing_write_after_waiter_cancellation(self):
-        started, release = threading.Event(), threading.Event()
+        (started, release) = (threading.Event(), threading.Event())
         item = outcome()
 
         def blocked_enqueue():
@@ -246,6 +251,6 @@ class DeliveryIPCTests(unittest.IsolatedAsyncioTestCase):
         writer.wait_closed = stalled_close
         await asyncio.wait_for(self.inbox._client(self.endpoint, None, writer), 1)
         writer.transport.abort.assert_called_once()
-        cause, facts = self.failures.call_args.args
+        (cause, facts) = self.failures.call_args.args
         self.assertIsInstance(cause, TimeoutError)
         self.assertEqual(facts["event"], "delivery_ipc_close_failed")

@@ -21,7 +21,7 @@ from tests.fakes.execution import LiveAttemptProbe, Session, live_controller
 class ExecutionFailureAgeTests(unittest.IsolatedAsyncioTestCase):
     async def test_same_failure_ages_while_cleanup_is_held_and_remains_historical_after_release(self):
         loop = asyncio.get_running_loop()
-        probe, claims, delivery = LiveAttemptProbe(), AttemptClaims.live(), RecordingDelivery()
+        (probe, claims, delivery) = (LiveAttemptProbe(), AttemptClaims.live(), RecordingDelivery())
         session = Session(probe)
         original_cleanup_failure = OSError(errno.EBUSY, "PRIVATE_SCIENTIFIC_RESOURCE")
         session.retirement_failure = original_cleanup_failure

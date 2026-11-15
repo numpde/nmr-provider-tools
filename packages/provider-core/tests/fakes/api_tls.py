@@ -17,13 +17,13 @@ def api_tls_peer(mode, **options):
 
 def verify_signed_request(request, body, *, origin, key):
     """Verify the local peer's exact request, digest and signing-key binding."""
-    method, target, _ = request.split(b"\r\n", 1)[0].decode().split(" ")
+    (method, target, _) = request.split(b"\r\n", 1)[0].decode().split(" ")
 
     headers = {
         name.lower(): value.strip()
         for line in request.split(b"\r\n")[1:]
         if b":" in line
-        for name, value in [line.split(b":", 1)]
+        for (name, value) in [line.split(b":", 1)]
     }
 
     parsed = urlsplit(target)

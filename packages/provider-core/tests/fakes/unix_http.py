@@ -10,13 +10,15 @@ class UnixHTTPPeer:
     def __init__(self, *, stall=False):
         self.stall = stall
         self.requests = []
-        self.head_sent, self.closed = asyncio.Event(), asyncio.Event()
+
+        (self.head_sent, self.closed) = (asyncio.Event(), asyncio.Event())
         self.tasks = set()
 
     async def __aenter__(self):
         self.scratch = tempfile.TemporaryDirectory()
         self.path = str(Path(self.scratch.name) / "http.sock")
         self.server = await asyncio.start_unix_server(self.handle, self.path)
+
         return self
 
     async def handle(self, reader, writer):

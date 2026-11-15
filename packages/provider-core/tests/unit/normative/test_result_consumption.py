@@ -133,6 +133,7 @@ class ResultConsumptionTests(unittest.IsolatedAsyncioTestCase):
         async def observe(*, after, wait_seconds):
             waiting.set()
             await settled.wait()
+
             return CleanupObservation(revision=1, settled=True, allowance_expired=False, failures=())
 
         release = SimpleNamespace(observe=AsyncMock(side_effect=observe))

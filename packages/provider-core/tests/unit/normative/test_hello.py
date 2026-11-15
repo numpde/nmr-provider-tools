@@ -31,7 +31,7 @@ class HelloTests(unittest.IsolatedAsyncioTestCase):
         )
 
         await api.publish_hello(**announcement(display_name="Changed", analysis_offerings=()))
-        (one, maximum), (two, _) = transport.calls
+        ((one, maximum), (two, _)) = transport.calls
         self.assertEqual((one.method, one.url.raw_path, maximum), ("POST", b"/provider/v1/hello", 65536))
 
         self.assertEqual(

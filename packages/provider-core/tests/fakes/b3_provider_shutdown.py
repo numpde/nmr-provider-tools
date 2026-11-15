@@ -45,7 +45,7 @@ def seeded_schedule(seed):
 def failure_types(error):
     from provider_core.failure_projection import owned_relationships
 
-    seen, names = set(), set()
+    (seen, names) = (set(), set())
 
     def visit(current):
         if current is None or id(current) in seen:
@@ -56,7 +56,7 @@ def failure_types(error):
         visit(current.__cause__)
         visit(current.__context__)
 
-        for _, child in owned_relationships(current):
+        for (_, child) in owned_relationships(current):
             visit(child)
 
         if isinstance(current, BaseExceptionGroup):
@@ -64,6 +64,7 @@ def failure_types(error):
                 visit(child)
 
     visit(error)
+
     return sorted(names)
 
 
@@ -176,6 +177,7 @@ async def shutdown_scenario(schedule, seed, directory, facts):
                     raise AssertionError("Stopping interpretation created a second HTTP endpoint")
 
                 self.endpoint = factory(**settings)
+
                 return self.endpoint
 
             self.interpreter = Interpreter(
@@ -211,6 +213,7 @@ async def shutdown_scenario(schedule, seed, directory, facts):
                 raise AssertionError("The session declared cleanup complete while its HTTP child was still owned")
 
             self.retired = True
+
             note("session_retirement_confirmed")
 
     children = []
@@ -241,6 +244,7 @@ async def shutdown_scenario(schedule, seed, directory, facts):
             # exit observer. Observe and reap it normally.
             independent_children.append(child)
             note("independent_operating_system_child_created", pid=child.pid)
+
             return child
 
         children.append(child)
@@ -255,11 +259,13 @@ async def shutdown_scenario(schedule, seed, directory, facts):
             actual_child_exit.set()
             await allow_exit_observation.wait()
             note("original_exit_observation_returned", pid=child.pid)
+
             return returncode
 
         def observed_signal(number):
             signals.append((int(number), loop.time()))
             note("sdk_signalled_http_child", pid=child.pid, signal=int(number))
+
             return original_signal(number)
 
         child.wait = observed_wait
@@ -268,6 +274,7 @@ async def shutdown_scenario(schedule, seed, directory, facts):
         helper_created.set()
         await allow_creation_return.wait()
         note("original_creation_await_returned", pid=child.pid)
+
         return child
 
     marker = directory / f"http-cleanup-{seed}.jsonl"
@@ -330,7 +337,7 @@ async def shutdown_scenario(schedule, seed, directory, facts):
                 if not observer.done():
                     observer.cancel()
 
-                result, = await asyncio.gather(observer, return_exceptions=True)
+                (result,) = await asyncio.gather(observer, return_exceptions=True)
 
                 if isinstance(result, asyncio.CancelledError):
                     cancelled_observers += 1
@@ -454,7 +461,7 @@ async def shutdown_scenario(schedule, seed, directory, facts):
                 facts["held"]["repeated_retirement_seconds"] = loop.time() - probe_started
 
                 if probe.done():
-                    probe_result, = await asyncio.gather(probe, return_exceptions=True)
+                    (probe_result,) = await asyncio.gather(probe, return_exceptions=True)
                     facts["held"]["retirement_failure_types"] = failure_types(probe_result)
                 else:
                     probe.cancel()
@@ -464,7 +471,7 @@ async def shutdown_scenario(schedule, seed, directory, facts):
             allow_exit_observation.set()
             release_time = loop.time()
             note("test_released_original_os_observations")
-            result, = await asyncio.wait_for(asyncio.gather(running, return_exceptions=True), 3)
+            (result,) = await asyncio.wait_for(asyncio.gather(running, return_exceptions=True), 3)
             note("original_controller_run_finished", result_type=type(result).__name__)
             settlement_failures = []
             settle_deadline = loop.time() + 2
@@ -501,7 +508,7 @@ async def shutdown_scenario(schedule, seed, directory, facts):
                 "stop_time_unchanged": original_exchange.stopped_at == original_stop_time,
                 "prepare_calls": session.prepare_calls, "execute_calls": session.execute_calls,
                 "tool_dispatches": session.tool_dispatches,
-                "start_count": sum(request.url.path.endswith("/start") for request, _ in jobs_api_replies.calls),
+                "start_count": sum(request.url.path.endswith("/start") for (request, _) in jobs_api_replies.calls),
                 "http_request_count": len(peer.requests),
                 "child_count": len(children), "child_pids": [child.pid for child in children],
                 "child_returncodes": [child.returncode for child in children],
@@ -520,7 +527,7 @@ async def shutdown_scenario(schedule, seed, directory, facts):
                 "child_exit_seconds_after_stop": [at - original_stop_time for at in child_exit_times],
                 "observations_released_seconds_after_stop": release_time - original_stop_time,
                 "shutdown_seconds_after_releasing_observations": loop.time() - release_time,
-                "signal_delays": [(number, at - original_stop_time) for number, at in signals],
+                "signal_delays": [(number, at - original_stop_time) for (number, at) in signals],
                 "http_fault_events": [event["kind"] for event in faults],
             })
         finally:

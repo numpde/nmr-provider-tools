@@ -20,7 +20,8 @@ from provider_core.transport_errors import ExchangeFailed
 
 def _worker_command():
     """An isolated interpreter imports only its installed SDK, never provider code."""
-    return sys.executable, "-I", "-B", "-m", "provider_core.chat_worker"
+
+    return (sys.executable, "-I", "-B", "-m", "provider_core.chat_worker")
 
 
 def _owned(coroutine):
@@ -31,6 +32,7 @@ def _owned(coroutine):
         raise
 
     task.add_done_callback(_observe_failure)
+
     return task
 
 
@@ -154,6 +156,7 @@ class SupervisedChatTransport:
                 self._stop(exchange, cause)
 
         self._update_failure(exchange)
+
         return cancellation
 
     def _update_failure(self, exchange):
@@ -210,7 +213,7 @@ class SupervisedChatTransport:
 
         document = {
             "version": 1, "kind": "request", "method": request.method, "url": str(request.url),
-            "headers": [[encoded_bytes(name), encoded_bytes(value)] for name, value in request.headers.raw],
+            "headers": [[encoded_bytes(name), encoded_bytes(value)] for (name, value) in request.headers.raw],
             "body": encoded_bytes(content), "request_bytes": len(content), "trust": self._trust,
             "exchange_seconds": self._exchange_seconds, "connect_seconds": self._connect_seconds,
             "retirement_seconds": self._retirement_seconds, "not_after": deadline,
@@ -226,6 +229,7 @@ class SupervisedChatTransport:
             exchange.task = _owned(self._run(exchange, document, maximum_bytes, error_maximum_bytes))
         except BaseException:
             self._active = None
+
             raise
 
         cancellation = await self._observe(exchange)
@@ -290,6 +294,7 @@ class SupervisedChatTransport:
 
             if asyncio.get_running_loop().time() >= exchange.deadline:
                 self._stop(exchange, TimeoutError("Model HTTP exchange expired before child startup"), at=exchange.deadline)
+
                 return
 
             # Lazy OpenSSL hash-directory lookup is preserved in a private
@@ -300,6 +305,7 @@ class SupervisedChatTransport:
 
             if asyncio.get_running_loop().time() >= exchange.deadline:
                 self._stop(exchange, TimeoutError("Model HTTP exchange expired before child startup"), at=exchange.deadline)
+
                 return
 
             # Only the launcher marker is inherited. Model credentials and TLS
@@ -413,7 +419,7 @@ class SupervisedChatTransport:
 
         # All stages share one original allowance. Its final third includes
         # kill/exit observation, so every repeated retire observes the same cap.
-        for fraction, number in ((0, signal.SIGUSR1), (1 / 3, signal.SIGTERM), (2 / 3, signal.SIGKILL)):
+        for (fraction, number) in ((0, signal.SIGUSR1), (1 / 3, signal.SIGTERM), (2 / 3, signal.SIGKILL)):
             if process.returncode is not None:
                 break
 

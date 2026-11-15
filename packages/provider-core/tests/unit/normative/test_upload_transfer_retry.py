@@ -18,6 +18,7 @@ from tests.fakes.transport import Client, Stream
 def temporary_read_error():
     failure = httpcore.ReadError("protected network detail")
     failure.__cause__ = ConnectionResetError(errno.ECONNRESET, "protected native detail")
+
     return failure
 
 
@@ -44,7 +45,7 @@ class UploadTransferRetryTests(unittest.IsolatedAsyncioTestCase):
 
         for origin in ("network", "account", "write", "grant", "budget"):
             with self.subTest(origin=origin), private_source_directory() as (root, directory):
-                _, api, store, _ = file_sources()
+                (_, api, store, _) = file_sources()
                 stream_failure = None
 
                 if origin == "network":
@@ -85,7 +86,7 @@ class UploadTransferRetryTests(unittest.IsolatedAsyncioTestCase):
                     self.assertIs(caught.exception.cause.network_failure, stream_failure)
 
     async def test_connection_timeout_before_any_head_is_retryable(self):
-        _, api, store, client = file_sources()
+        (_, api, store, client) = file_sources()
         original = httpcore.ConnectTimeout("protected connection detail")
         transfer = self.transfer(store)
 
@@ -98,7 +99,7 @@ class UploadTransferRetryTests(unittest.IsolatedAsyncioTestCase):
             self.assertTrue(transfer.can_retry_transfer(failure))
 
     async def test_new_grant_factory_rethrowing_prior_failure_does_not_reuse_store_provenance(self):
-        _, api, store, _ = file_sources()
+        (_, api, store, _) = file_sources()
         transfer = self.transfer(store)
 
         with private_source_directory() as (_, directory):
@@ -121,7 +122,7 @@ class UploadTransferRetryTests(unittest.IsolatedAsyncioTestCase):
         for status in (200, 401, 403, 404, 429, 500, 503, 507):
             for incomplete in (False, True):
                 with self.subTest(status=status, incomplete=incomplete), private_source_directory() as (_, directory):
-                    _, api, store, _ = file_sources()
+                    (_, api, store, _) = file_sources()
                     transfer = self.transfer(store)
                     stream_failure = None
 
@@ -137,7 +138,7 @@ class UploadTransferRetryTests(unittest.IsolatedAsyncioTestCase):
     async def test_protocol_truncation_requires_exact_valid_whole_file_head(self):
         for header in ("valid", "missing", "wrong-digest", "duplicate", "partial", "transfer-encoding"):
             with self.subTest(header=header), private_source_directory() as (_, directory):
-                _, api, store, _ = file_sources()
+                (_, api, store, _) = file_sources()
                 headers = list(store_headers(b"geometry"))
 
                 if header == "missing":
@@ -159,7 +160,7 @@ class UploadTransferRetryTests(unittest.IsolatedAsyncioTestCase):
     async def test_temporary_read_failure_cannot_hide_wrong_transfer_head(self):
         for headers in ([], list(store_headers(b"geometry")) + [(b"Transfer-Encoding", b"chunked")]):
             with self.subTest(headers=headers), private_source_directory() as (_, directory):
-                _, api, store, _ = file_sources()
+                (_, api, store, _) = file_sources()
                 transfer = self.transfer(store)
 
                 failure = await self.failed(transfer, api.grant,
@@ -171,7 +172,7 @@ class UploadTransferRetryTests(unittest.IsolatedAsyncioTestCase):
     async def test_unproven_network_marker_and_unheaded_protocol_error_do_not_grant_permission(self):
         for original in (httpcore.ReadError("unknown native cause"), httpcore.RemoteProtocolError("bad head")):
             with self.subTest(type=type(original)), private_source_directory() as (_, directory):
-                _, api, store, client = file_sources()
+                (_, api, store, client) = file_sources()
                 transfer = self.transfer(store)
 
                 with patch.object(client, "handle_async_request", side_effect=original):
@@ -181,16 +182,16 @@ class UploadTransferRetryTests(unittest.IsolatedAsyncioTestCase):
                 self.assertFalse(transfer.can_retry_transfer(failure))
 
     async def test_hash_failure_wrong_head_and_noncurrent_failure_never_qualify(self):
-        for body, headers in ((b"badbytes", store_headers(b"geometry")),
+        for (body, headers) in ((b"badbytes", store_headers(b"geometry")),
                               (b"geometry", [])):
             with self.subTest(body=body), private_source_directory() as (_, directory):
-                _, api, store, _ = file_sources()
+                (_, api, store, _) = file_sources()
                 transfer = self.transfer(store)
                 failure = await self.failed(transfer, api.grant, Client(Stream([body]), headers=headers), directory=directory)
                 self.assertFalse(transfer.can_retry_transfer(failure))
 
         with private_source_directory() as (_, directory):
-            _, api, store, _ = file_sources()
+            (_, api, store, _) = file_sources()
             transfer = self.transfer(store)
 
             first = await self.failed(transfer, api.grant, Client(Stream([], failure=temporary_read_error()),
@@ -205,7 +206,7 @@ class UploadTransferRetryTests(unittest.IsolatedAsyncioTestCase):
             self.assertFalse(transfer.can_retry_transfer(second))
 
     async def test_pending_cleanup_can_later_be_settled_without_losing_network_cause(self):
-        _, api, store, _ = file_sources()
+        (_, api, store, _) = file_sources()
         transfer = self.transfer(store)
 
         with private_source_directory() as (root, directory):
@@ -220,7 +221,7 @@ class UploadTransferRetryTests(unittest.IsolatedAsyncioTestCase):
             self.assertEqual(list(Path(root).iterdir()), [])
 
     async def test_source_deadline_never_gains_permission_from_temporary_store_failure(self):
-        _, api, store, _ = file_sources()
+        (_, api, store, _) = file_sources()
         gate = asyncio.Event()
         deadline = asyncio.get_running_loop().time() + 0.05
         transfer = self.transfer(store, remaining=lambda: deadline - asyncio.get_running_loop().time())
@@ -243,8 +244,8 @@ class UploadTransferRetryTests(unittest.IsolatedAsyncioTestCase):
     async def test_late_network_failure_after_cancellation_requires_actual_retirement_and_file_settlement(self):
         for late in (False, True):
             with self.subTest(late=late), private_source_directory() as (root, directory):
-                _, api, store, _ = file_sources()
-                entered, released = asyncio.Event(), asyncio.Event()
+                (_, api, store, _) = file_sources()
+                (entered, released) = (asyncio.Event(), asyncio.Event())
                 original = temporary_read_error()
 
                 class LateStream(Stream):

@@ -32,6 +32,7 @@ class Model:
 
     def load(self, *, checkpoint: BinaryIO) -> None:
         self.tokenizer = Tokenizer()
+
         document = json.load(fp=checkpoint)
         self.candidates = tuple(document["candidates"])
 
@@ -47,6 +48,7 @@ class Model:
 
         offset = sum(len(token) for token in tokens) % len(self.candidates)
         ordered = self.candidates[offset:] + self.candidates[:offset]
+
         return ordered[:beam_size]
 
     def close(self) -> None:

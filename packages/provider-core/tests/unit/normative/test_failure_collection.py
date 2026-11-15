@@ -106,7 +106,7 @@ class FailureCollectionTests(unittest.TestCase):
         with self.assertRaises(expected_exception=BaseExceptionGroup) as raised:
             self.failures.raise_if_any()
 
-        body, remaining = raised.exception.exceptions
+        (body, remaining) = raised.exception.exceptions
         self.assertIs(expr1=original, expr2=body)
         self.assertEqual(first=(interrupted,), second=remaining.exceptions)
         self.assertEqual(first=settlement.__notes__, second=remaining.__notes__)

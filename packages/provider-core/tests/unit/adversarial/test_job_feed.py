@@ -28,7 +28,7 @@ class JobFeedFailureTests(unittest.IsolatedAsyncioTestCase):
                 self.assertEqual(len(transport.calls), 1)
 
     async def test_bad_query_dispatches_nothing(self):
-        for field, bad, error_type in (
+        for (field, bad, error_type) in (
             ("analysis_kind_ref", "wrong kind", ValueError), ("limit", True, TypeError), ("limit", 0, ValueError),
             ("limit", 101, ValueError), ("has_provider_execution_attempt", 0, TypeError),
             ("cursor", "YQ=", ValueError), ("cursor", "YR", ValueError), ("cursor", "", ValueError),
@@ -44,7 +44,7 @@ class JobFeedFailureTests(unittest.IsolatedAsyncioTestCase):
                 self.assertEqual(transport.calls, [])
 
     def test_envelope_kind_view_cursor_and_schema_drift_are_rejected(self):
-        for field, bad in (("schema_id", "future.v2"), ("analysis_kind_ref", "other_kind"),
+        for (field, bad) in (("schema_id", "future.v2"), ("analysis_kind_ref", "other_kind"),
                            ("has_provider_execution_attempt", True), ("has_provider_execution_attempt", 0),
                            ("next_cursor", "YR"), ("next_cursor", "YQ="), ("next_cursor", ""), ("next_cursor", []),
                            ("jobs", {}), ("unexpected", "private canary")):
@@ -59,7 +59,7 @@ class JobFeedFailureTests(unittest.IsolatedAsyncioTestCase):
                 self.assertNotIn("private canary", str(rejected.exception))
 
     def test_item_identity_calendar_and_requested_count_are_admitted(self):
-        for field, bad in (("job_ref", "foreign"), ("analysis_kind_ref", "other_kind"),
+        for (field, bad) in (("job_ref", "foreign"), ("analysis_kind_ref", "other_kind"),
                            ("input_schema_id", "other.v1"), ("input_fingerprint", "sha256:no"),
                            ("input_byte_length", True), ("input_byte_length", 0), ("input_byte_length", 65537),
                            ("created_at", "2026-02-30T00:00:00Z"), ("created_at", "2026-10-18T00:00:00.000000Z"),

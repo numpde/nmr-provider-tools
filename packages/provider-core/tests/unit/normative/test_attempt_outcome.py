@@ -15,7 +15,7 @@ from tests.fakes.attempts import ATTEMPT_REF, complete_response, fail_response
 
 class AttemptOutcomeTests(unittest.IsolatedAsyncioTestCase):
     async def test_terminal_replay_preserves_exact_request_bytes_and_acknowledged_content(self):
-        for method, body, response in (
+        for (method, body, response) in (
             ("complete_attempt", complete_body(ATTEMPT_REF, " result\n雪 ", b"result bytes"), complete_response),
             ("fail_attempt", fail_body(ATTEMPT_REF, "input_rejected", " Explain\n雪\x01 "), fail_response),
         ):
@@ -43,7 +43,7 @@ class AttemptOutcomeTests(unittest.IsolatedAsyncioTestCase):
                 self.assertEqual(result.failure_message, " Explain\n雪\x01 ")
                 self.assertNotIn("Explain", repr(result))
 
-            first, second = (call[0] for call in transport.calls)
+            (first, second) = (call[0] for call in transport.calls)
             self.assertEqual((first.content, second.content), (retained, retained))
             self.assertNotEqual(first.headers["Signature-Input"], second.headers["Signature-Input"])
             # silent-defaults: allow-contract -- The selected terminal method determines the expected complete or fail wire operation.

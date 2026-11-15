@@ -10,8 +10,10 @@ from tests.fakes.credential import document, encoded
 class DeliveryConfigFiles:
     def __init__(self, root, socket_group_id=None):
         self.root = Path(root)
+
         group = os.getgid() if socket_group_id is None else socket_group_id
         self.key = self.root / "signing.private.json"
+
         self.key.write_bytes(encoded(document()))
         self.key.chmod(0o600)
         self.path = self.root / "delivery.toml"

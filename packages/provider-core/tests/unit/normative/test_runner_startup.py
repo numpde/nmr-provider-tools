@@ -24,6 +24,7 @@ class RunnerStartupTests(unittest.TestCase):
         self.addCleanup(temporary.cleanup)
         self.path = Path(temporary.name) / "runner.sock"
         self.listener = socket.socket(socket.AF_UNIX)
+
         self.addCleanup(self.listener.close)
         self.listener.bind(str(self.path))
         self.listener.listen()
@@ -41,6 +42,7 @@ class RunnerStartupTests(unittest.TestCase):
             )
 
         self.addCleanup(session.close)
+
         return session
 
     def test_stop_before_connect_does_not_reach_the_listening_peer(self):
@@ -167,7 +169,7 @@ class RunnerStartupTests(unittest.TestCase):
         self.assertIsNone(session.retirement)
 
     def test_stop_racing_successful_kernel_connect_half_closes_the_accepted_peer(self):
-        connected, release = threading.Event(), threading.Event()
+        (connected, release) = (threading.Event(), threading.Event())
 
         class PausedConnect(socket.socket):
             def connect(self, address):
@@ -188,8 +190,8 @@ class RunnerStartupTests(unittest.TestCase):
             finally:
                 release.set()
 
-            peer, _ = self.listener.accept()
-            science, remote = socket.socketpair()
+            (peer, _) = self.listener.accept()
+            (science, remote) = socket.socketpair()
 
             with peer, science, remote:
                 peer.settimeout(1)
@@ -216,8 +218,8 @@ class RunnerStartupTests(unittest.TestCase):
 
         with ThreadPoolExecutor(max_workers=1) as executor:
             original = executor.submit(session.connect)
-            peer, _ = self.listener.accept()
-            science, remote = socket.socketpair()
+            (peer, _) = self.listener.accept()
+            (science, remote) = socket.socketpair()
 
             with peer, science, remote:
                 peer.settimeout(1)

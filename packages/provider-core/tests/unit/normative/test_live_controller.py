@@ -69,7 +69,7 @@ class LiveControllerTests(unittest.IsolatedAsyncioTestCase):
         self.assertTrue(controller.shutdown_ready)
 
     async def test_ack_does_not_release_controller_while_native_cleanup_is_pending(self):
-        claims, session = AttemptClaims.live(), LiveSession()
+        (claims, session) = (AttemptClaims.live(), LiveSession())
         session.release.clear()
         verified = verify_job_input(response(), feed=record().input)
         controller = self.controller(self.lifecycle(), claims=claims, session=session, preverified_input=verified)
@@ -87,7 +87,7 @@ class LiveControllerTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual((), claims.live_owners())
 
     async def test_cancelled_observer_keeps_original_selected_report_retrying(self):
-        pressured, recovered = asyncio.Event(), asyncio.Event()
+        (pressured, recovered) = (asyncio.Event(), asyncio.Event())
         bodies = []
 
         class PressuredDelivery(RecordingDelivery):
@@ -145,17 +145,18 @@ class LiveControllerTests(unittest.IsolatedAsyncioTestCase):
             await asyncio.wait_for(asyncio.gather(controller.join(), return_exceptions=True), 2)
 
     async def test_claim_is_visible_when_observer_cancels_before_driver_scheduling(self):
-        claims, session = AttemptClaims.live(), LiveSession()
+        (claims, session) = (AttemptClaims.live(), LiveSession())
         session.release.clear()
 
         controller = self.controller(self.lifecycle(), claims=claims, session=session,
                                      preverified_input=verify_job_input(response(), feed=record().input))
 
-        ready, created = asyncio.Event(), []
+        (ready, created) = (asyncio.Event(), [])
         create_task = asyncio.create_task
 
         async def observe():
             await ready.wait()
+
             return await controller.run(record())
 
         observer = create_task(observe())
@@ -167,6 +168,7 @@ class LiveControllerTests(unittest.IsolatedAsyncioTestCase):
 
             task = create_task(coroutine)
             created.append(task)
+
             return task
 
         try:
@@ -185,7 +187,7 @@ class LiveControllerTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(controller.session.events.count("execute"), 1)
 
     async def test_failed_driver_creation_retains_resources_until_no_effect_settlement(self):
-        claims, failure = AttemptClaims.live(), RuntimeError("Cannot create the authored driver")
+        (claims, failure) = (AttemptClaims.live(), RuntimeError("Cannot create the authored driver"))
         transport = self.lifecycle()
         controller = self.controller(transport, claims=claims)
 
@@ -205,7 +207,7 @@ class LiveControllerTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(claims.live_owners(), ())
 
     async def test_local_stop_does_not_set_the_shared_supplied_event(self):
-        supplied, claims = asyncio.Event(), AttemptClaims.live()
+        (supplied, claims) = (asyncio.Event(), AttemptClaims.live())
         stopped = self.controller(self.lifecycle(), claims=claims, stopping=supplied)
         stopped.request_stop()
         deferred = await stopped.run(record())
@@ -221,12 +223,13 @@ class LiveControllerTests(unittest.IsolatedAsyncioTestCase):
     async def test_admission_stop_after_cancelled_observation_prevents_replay_or_late_science(self):
         for receipt in (reply(b"maintenance", status=503), reply(start_response())):
             with self.subTest(status=receipt.status):
-                entered, release, admission = asyncio.Event(), asyncio.Event(), asyncio.Event()
+                (entered, release, admission) = (asyncio.Event(), asyncio.Event(), asyncio.Event())
 
                 class PausedStart(Transport):
                     async def exchange(self, request, *, maximum_bytes, owner=None):
                         entered.set()
                         await release.wait()
+
                         return await super().exchange(request, maximum_bytes=maximum_bytes, owner=owner)
 
                 transport = PausedStart(receipt)
@@ -254,13 +257,14 @@ class LiveControllerTests(unittest.IsolatedAsyncioTestCase):
                     await asyncio.wait_for(asyncio.gather(controller.join(), return_exceptions=True), 2)
 
     async def test_admission_stop_does_not_revoke_already_admitted_science(self):
-        preparing, release, admission = asyncio.Event(), asyncio.Event(), asyncio.Event()
+        (preparing, release, admission) = (asyncio.Event(), asyncio.Event(), asyncio.Event())
 
         class PausedPreparation(LiveSession):
             async def prepare(self, acknowledged, instructions, *, report_condition):
                 result = await super().prepare(acknowledged, instructions, report_condition=report_condition)
                 preparing.set()
                 await release.wait()
+
                 return result
 
         controller = self.controller(
@@ -280,7 +284,7 @@ class LiveControllerTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(controller.session.events, ["prepare", "execute", "retire"])
 
     async def test_start_owner_creation_failure_keeps_a_releasable_no_effect_claim(self):
-        claims, failure = AttemptClaims.live(), RuntimeError("Cannot construct the START owner")
+        (claims, failure) = (AttemptClaims.live(), RuntimeError("Cannot construct the START owner"))
         controller = self.controller(self.lifecycle(), claims=claims)
 
         with patch("provider_core.controller.AttemptStarter.live", side_effect=failure):
@@ -294,7 +298,7 @@ class LiveControllerTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(claims.live_owners(), ())
 
     async def test_second_stop_waiter_creation_failure_joins_the_first_waiter(self):
-        failure, created, calls = RuntimeError("Cannot create the second stop waiter"), [], []
+        (failure, created, calls) = (RuntimeError("Cannot create the second stop waiter"), [], [])
         controller = self.controller(Transport(reply(b"maintenance", status=503)))
         create_task = asyncio.create_task
 
@@ -306,6 +310,7 @@ class LiveControllerTests(unittest.IsolatedAsyncioTestCase):
 
             task = create_task(coroutine)
             created.append(task)
+
             return task
 
         with patch("provider_core.controller.asyncio.create_task", side_effect=spawn):
@@ -344,13 +349,14 @@ class LiveControllerTests(unittest.IsolatedAsyncioTestCase):
         self.assertTrue(controller.shutdown_ready)
 
     async def test_stop_during_preparation_prevents_scientific_execution(self):
-        preparing, release = asyncio.Event(), asyncio.Event()
+        (preparing, release) = (asyncio.Event(), asyncio.Event())
 
         class PausedPreparation(LiveSession):
             async def prepare(self, acknowledged, instructions, *, report_condition):
                 result = await super().prepare(acknowledged, instructions, report_condition=report_condition)
                 preparing.set()
                 await release.wait()
+
                 return result
 
         session = PausedPreparation()
@@ -460,14 +466,14 @@ class LiveControllerTests(unittest.IsolatedAsyncioTestCase):
             with self.subTest(late=late):
                 lost = io_failure("Unconfirmed START", stage="read", primary=httpcore.ReadTimeout())
                 transport = Transport(lost, reply(start_response(state="failed", replayed=True)))
-                exchange, retire = transport.exchange, transport.retire
-                entered, release = asyncio.Event(), asyncio.Event()
+                (exchange, retire) = (transport.exchange, transport.retire)
+                (entered, release) = (asyncio.Event(), asyncio.Event())
 
                 async def held_exchange(request, *, maximum_bytes, owner=None):
                     try:
                         return await exchange(request, maximum_bytes=maximum_bytes, owner=owner)
                     except ExchangeFailed:
-                        transport.retirement_confirmed, transport.pending_owner = False, owner
+                        (transport.retirement_confirmed, transport.pending_owner) = (False, owner)
                         raise
 
                 async def held_retirement(*, owner=None):
@@ -482,7 +488,7 @@ class LiveControllerTests(unittest.IsolatedAsyncioTestCase):
 
                     await retire(owner=owner)
 
-                transport.exchange, transport.retire = held_exchange, held_retirement
+                (transport.exchange, transport.retire) = (held_exchange, held_retirement)
                 controller = self.controller(transport)
                 task = asyncio.create_task(controller.run(record()))
 
@@ -517,6 +523,7 @@ class LiveControllerTests(unittest.IsolatedAsyncioTestCase):
             async def exchange(self, request, *, maximum_bytes, owner=None):
                 result = await super().exchange(request, maximum_bytes=maximum_bytes, owner=owner)
                 clock.elapsed = 91
+
                 return result
 
         controller = self.controller(LateStart(reply(start_response())))
@@ -608,7 +615,7 @@ class LiveControllerTests(unittest.IsolatedAsyncioTestCase):
                                 self.assertTrue(claims.owns_job(scope(), job))
                         finally:
                             session.release.set()
-                            failure, = await asyncio.wait_for(asyncio.gather(run, return_exceptions=True), 1)
+                            (failure,) = await asyncio.wait_for(asyncio.gather(run, return_exceptions=True), 1)
 
                         self.assertIsInstance(failure, ControllerFailed)
                         self.assertIsInstance(failure.cause.cause, ExecutionStopped)
@@ -618,7 +625,7 @@ class LiveControllerTests(unittest.IsolatedAsyncioTestCase):
                             self.assertFalse(claims.owns_job(scope(), job))
 
                         # Settlement must also release a session whose original retirement finished late.
-                        result, = await asyncio.gather(controller.settle(), return_exceptions=True)
+                        (result,) = await asyncio.gather(controller.settle(), return_exceptions=True)
                         settlements.append((result, claims.live_owners()))
                         self.assertIs(controller.operation.settled_revocation, failure.cause.cause.observation)
                         self.assertIsNone(await controller.settle())
@@ -696,7 +703,7 @@ class LiveControllerTests(unittest.IsolatedAsyncioTestCase):
     async def test_revocation_does_not_absorb_an_independent_preparation_failure(self):
         for phase_error in (RuntimeError("preparation failed"), asyncio.CancelledError()):
             with self.subTest(error=type(phase_error).__name__):
-                reading, stopped = asyncio.Event(), asyncio.Event()
+                (reading, stopped) = (asyncio.Event(), asyncio.Event())
                 revocation = reply(observation(job_state="cancelled"))
 
                 class ConcurrentStop(Transport):

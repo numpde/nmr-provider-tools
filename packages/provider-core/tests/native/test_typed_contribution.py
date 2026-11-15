@@ -77,7 +77,7 @@ class TypedContributionTests(unittest.TestCase):
 
     def test_provider_types_survive_payload_state_and_result_boundaries(self):
         binding = _weighted_binding()
-        prepare_call, calculate_call = binding.prepare, binding.calculate
+        (prepare_call, calculate_call) = (binding.prepare, binding.calculate)
         model = binding.instance.construct()
         binding.instance.initialize(model)
         analysis = binding.analysis.construct(model)
@@ -129,7 +129,7 @@ class TypedContributionTests(unittest.TestCase):
             sum_binding(),
         )
 
-        for binding, calls in ((bindings[0], (bindings[0].prepare, bindings[0].calculate)), (bindings[1], (bindings[1].run,))):
+        for (binding, calls) in ((bindings[0], (bindings[0].prepare, bindings[0].calculate)), (bindings[1], (bindings[1].run,))):
             with self.subTest(binding_id=binding.description.binding_id):
                 self.assertIs(type(binding.description.calls), frozenset)
 
@@ -158,7 +158,7 @@ class TypedContributionTests(unittest.TestCase):
 
     def test_call_constructor_derives_provider_and_shared_marker_types(self):
         binding = _weighted_binding()
-        prepare_call, calculate_call = binding.prepare, binding.calculate
+        (prepare_call, calculate_call) = (binding.prepare, binding.calculate)
         sum_call = sum_binding().run
 
         self.assertIs(science.PreparationInput, prepare_call.input_codec.value_type)
@@ -323,6 +323,7 @@ class TypedContributionTests(unittest.TestCase):
             values: contribution.CallContext[None, None, science.SumInput, contribution.NoState],
         ) -> contribution.ScientificReturn[science.SumResult]:
             self.assertIsNone(values.control)
+
             return call.scientific_call(values)
 
         adapted = replace(call, scientific_call=arbitrary_name)
@@ -371,6 +372,7 @@ class TypedContributionTests(unittest.TestCase):
             values: contribution.CallContext[None, None, science.SumInput, contribution.NoState],
         ) -> contribution.ScientificReturn[science.SumResult]:
             values.require_control()
+
             return call.scientific_call(values)
 
         adapted = replace(call, scientific_call=controlled)
@@ -380,7 +382,7 @@ class TypedContributionTests(unittest.TestCase):
 
     def test_implementation_rejects_inconsistent_instance_types(self):
         binding = _weighted_binding()
-        prepare_call, calculate_call = binding.prepare, binding.calculate
+        (prepare_call, calculate_call) = (binding.prepare, binding.calculate)
 
         def wrong_instance(
             values: contribution.CallContext[

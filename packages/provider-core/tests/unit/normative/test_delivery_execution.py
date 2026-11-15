@@ -34,7 +34,7 @@ def executor_at(store, acknowledged, claim, session, delivery):
 class FullUntilReleased(RecordingDelivery):
     def __init__(self):
         super().__init__()
-        self.full_seen, self.release = asyncio.Event(), asyncio.Event()
+        (self.full_seen, self.release) = (asyncio.Event(), asyncio.Event())
         self.attempted = []
 
     async def submit(self, item):
@@ -49,8 +49,8 @@ class FullUntilReleased(RecordingDelivery):
 
 class DeliveryExecutionTests(unittest.IsolatedAsyncioTestCase):
     async def test_success_transfers_exact_result_and_retains_only_compact_acceptance(self):
-        store, acknowledged, claim = await live_attempt()
-        session, delivery = CheckpointSession(store), RecordingDelivery()
+        (store, acknowledged, claim) = await live_attempt()
+        (session, delivery) = (CheckpointSession(store), RecordingDelivery())
         executor = executor_at(store, acknowledged, claim, session, delivery)
         self.assertFalse(executor.delivery_accepted)
         accepted = await executor.run(acknowledged)
@@ -69,8 +69,8 @@ class DeliveryExecutionTests(unittest.IsolatedAsyncioTestCase):
 
 
     async def test_full_queue_paces_the_same_body_while_cleanup_runs(self):
-        store, acknowledged, claim = await live_attempt()
-        session, delivery = CheckpointSession(store), FullUntilReleased()
+        (store, acknowledged, claim) = await live_attempt()
+        (session, delivery) = (CheckpointSession(store), FullUntilReleased())
         executor = executor_at(store, acknowledged, claim, session, delivery)
         task = asyncio.create_task(executor.run(acknowledged))
 
@@ -93,7 +93,7 @@ class DeliveryExecutionTests(unittest.IsolatedAsyncioTestCase):
                 await asyncio.gather(task, return_exceptions=True)
 
     async def test_cleanup_failure_keeps_relay_acceptance_without_another_submission(self):
-        store, acknowledged, claim = await live_attempt()
+        (store, acknowledged, claim) = await live_attempt()
         delivery = RecordingDelivery()
 
         class FailAfterAcceptance(CheckpointSession):
@@ -120,7 +120,7 @@ class DeliveryExecutionTests(unittest.IsolatedAsyncioTestCase):
         claim.release(owner=claim.lifecycle_owner)
 
     async def test_cleanup_failure_preserves_original_backpressure_until_capacity_returns(self):
-        store, acknowledged, claim = await live_attempt()
+        (store, acknowledged, claim) = await live_attempt()
         delivery = FullUntilReleased()
 
         class FailAfterFull(CheckpointSession):
@@ -172,8 +172,8 @@ class DeliveryExecutionTests(unittest.IsolatedAsyncioTestCase):
                 await self.release.wait()
                 await super().retire()
 
-        store, acknowledged, claim = await live_attempt()
-        session, delivery = PausedRetirement(store), FullUntilReleased()
+        (store, acknowledged, claim) = await live_attempt()
+        (session, delivery) = (PausedRetirement(store), FullUntilReleased())
         executor = executor_at(store, acknowledged, claim, session, delivery)
         task = asyncio.create_task(executor.run(acknowledged))
 
@@ -204,8 +204,8 @@ class DeliveryExecutionTests(unittest.IsolatedAsyncioTestCase):
                 await asyncio.gather(task, return_exceptions=True)
 
     async def test_explicit_cancellation_stops_backpressure_without_resubmission_from_settle(self):
-        store, acknowledged, claim = await live_attempt()
-        session, delivery = CheckpointSession(store), FullUntilReleased()
+        (store, acknowledged, claim) = await live_attempt()
+        (session, delivery) = (CheckpointSession(store), FullUntilReleased())
         executor = executor_at(store, acknowledged, claim, session, delivery)
         task = asyncio.create_task(executor.run(acknowledged))
 
@@ -238,8 +238,8 @@ class DeliveryExecutionTests(unittest.IsolatedAsyncioTestCase):
             async def retire(self):
                 raise asyncio.CancelledError("native cleanup interrupted")
 
-        store, acknowledged, claim = await live_attempt()
-        session, delivery = CancelledCleanup(store), RecordingDelivery()
+        (store, acknowledged, claim) = await live_attempt()
+        (session, delivery) = (CancelledCleanup(store), RecordingDelivery())
         executor = executor_at(store, acknowledged, claim, session, delivery)
 
         with self.assertRaises(asyncio.CancelledError):

@@ -55,7 +55,7 @@ class TlsShutdownTests(unittest.IsolatedAsyncioTestCase):
             def serve():
                 # A strict TLS socket distinguishes a proper goodbye from raw
                 # EOF. asyncio's ordinary reader hides that distinction.
-                raw, _address = listener.accept()
+                (raw, _address) = listener.accept()
 
                 with raw:
                     raw.settimeout(3)
@@ -78,6 +78,7 @@ class TlsShutdownTests(unittest.IsolatedAsyncioTestCase):
                         # goodbye raises SSLEOFError even though HTTP succeeded.
                         closed = connection.recv(1)
                         connection.unwrap().close()
+
                         return closed
 
             transport = HttpTransport(
@@ -85,7 +86,7 @@ class TlsShutdownTests(unittest.IsolatedAsyncioTestCase):
                 proxy_socket=proxy_path,
             )
 
-            response, closed = await asyncio.gather(
+            (response, closed) = await asyncio.gather(
                 transport.exchange(httpx.Request("GET", origin + "/input"), maximum_bytes=4),
                 asyncio.to_thread(serve),
                 return_exceptions=True,

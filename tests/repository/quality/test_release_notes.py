@@ -25,7 +25,7 @@ def wrapped_lines(source: str) -> list[int]:
     previous = None
     fence = None
 
-    for number, line in enumerate(source.splitlines(), 1):
+    for (number, line) in enumerate(source.splitlines(), 1):
         if fence is not None:
             marker = fence[0]
 

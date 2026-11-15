@@ -59,7 +59,7 @@ def handshake(client_context, certificate, key, hostname):
         server_context = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
         server_context.load_cert_chain(root / "cert.pem", root / "key.pem")
 
-    client_in, client_out, server_in, server_out = (ssl.MemoryBIO() for _ in range(4))
+    (client_in, client_out, server_in, server_out) = (ssl.MemoryBIO() for _ in range(4))
     client = client_context.wrap_bio(client_in, client_out, server_hostname=hostname)
     server = server_context.wrap_bio(server_in, server_out, server_side=True)
     client_done = server_done = False
@@ -95,7 +95,7 @@ def handshake(client_context, certificate, key, hostname):
 
 class CapturedModelTrustTests(unittest.TestCase):
     def setUp(self):
-        self.certificate, self.key, self.crl = certificate_material()
+        (self.certificate, self.key, self.crl) = certificate_material()
 
     def test_non_ca_leaf_survives_json_transfer_and_enforces_hostname(self):
         trust = https_trust(self.certificate, label="fixture")
@@ -216,6 +216,7 @@ class CapturedModelTrustTests(unittest.TestCase):
         def observed_directory(*args, **kwargs):
             result = native_directory(*args, **kwargs)
             created.append(Path(result.name))
+
             return result
 
         with patch("provider_core.chat_tls.tempfile.TemporaryDirectory", side_effect=observed_directory):

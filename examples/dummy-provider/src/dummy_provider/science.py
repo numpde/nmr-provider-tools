@@ -171,6 +171,7 @@ class PreparedValues:
         prepared_values = self.values
         analysis.accepted_preparation = None
         self.values = None
+
         return prepared_values
 
     def dispose(self) -> None:
@@ -258,6 +259,7 @@ def prepare(
 
     prepared_values = PreparedValues(analysis=analysis, values=candidate.values)
     analysis.accepted_preparation = prepared_values
+
     return prepared_values
 
 

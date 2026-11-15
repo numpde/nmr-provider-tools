@@ -34,7 +34,7 @@ class ProviderCredentialBoundaryTests(unittest.TestCase):
                 self.assertNotIn(baseline["private_key_pkcs8_pem"], str(caught.exception))
 
     def test_public_and_private_keys_must_belong_together(self):
-        first, second = document(), document()
+        (first, second) = (document(), document())
 
         with self.assertRaisesRegex(CredentialRejected, "do not match"):
             parse_provider_credential(encoded(first | {"public_key_spki_der_b64": second["public_key_spki_der_b64"]}))

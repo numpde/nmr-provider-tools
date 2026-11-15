@@ -30,7 +30,7 @@ def late_module_imports(source, *, package=None):
     imports_ended = False
     findings = []
 
-    for index, statement in enumerate(statements):
+    for (index, statement) in enumerate(statements):
         if (
             index == 0
             and isinstance(statement, ast.Expr)

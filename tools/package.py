@@ -31,6 +31,7 @@ from tools.wheelhouse import digest, requirements
 
 def artifact_names(version):
     prefix = f"provider_core-{version}"
+
     return {prefix + suffix for suffix in ("-py3-none-any.whl", ".tar.gz", "-install.lock", "-native-install.lock", "-release.json", "-sha256.json")} | {f"wheelhouse-tool-{version}.pyz", f"acquisition-owner-{version}.tar.gz"}
 
 

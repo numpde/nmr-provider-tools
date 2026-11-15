@@ -28,6 +28,7 @@ from urllib.parse import urlsplit
 
 def key():
     from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
+
     return Ed25519PrivateKey.from_private_bytes(b"\x17" * 32)
 
 
@@ -156,6 +157,7 @@ async def client(mode, path):
             path.stat()
         except PermissionError:
             print("Different UID cannot traverse the private route")
+
             return
 
         raise AssertionError("Different UID unexpectedly traversed the private route")

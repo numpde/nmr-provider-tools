@@ -56,7 +56,7 @@ class CheckerProvisioningTests(unittest.TestCase):
                  (str(self.root), "", "is not an available network interface"),
                  (str(self.root), "missing-interface", "is not an available network interface"))
 
-        for wheelhouse, interface, diagnostic in cases:
+        for (wheelhouse, interface, diagnostic) in cases:
             with self.subTest(wheelhouse=wheelhouse, interface=interface):
                 result = self.invoke_make("checks/dependencies/download", wheelhouse=wheelhouse, interface=interface)
                 self.assertNotEqual(0, result.returncode)
@@ -102,7 +102,7 @@ bash "$root/host/tools/checker.sh" bootstrap-build
         self.assertIn("Cannot build checker: source inputs changed during capture", result.stderr)
 
     def test_image_admission_requires_matching_exact_metadata_and_preserves_cancellation(self):
-        for scenario, expected in (("valid", 0), ("wrong-label", 2), ("nul", 2), ("cancelled", 143), ("missing", 1)):
+        for (scenario, expected) in (("valid", 0), ("wrong-label", 2), ("nul", 2), ("cancelled", 143), ("missing", 1)):
             with self.subTest(scenario=scenario):
                 result = self.shell('''root=$1
 source "$root/host/tools/checker_inputs.sh"

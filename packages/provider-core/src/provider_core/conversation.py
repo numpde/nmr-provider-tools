@@ -214,7 +214,7 @@ class ToolConversation:
         if argument_bytes is not None and (type(argument_bytes) is not int or argument_bytes <= 0):
             raise ValueError("Cannot configure interpretation: argument_bytes must be a positive integer or None.")
 
-        self._endpoints, self._max_turns = endpoints, max_turns
+        (self._endpoints, self._max_turns) = (endpoints, max_turns)
         self._argument_bytes = argument_bytes
         self._max_corrections = max_corrections
         self._text_correction = text_correction
@@ -243,16 +243,19 @@ class ToolConversation:
     @property
     def turns_started(self):
         """Logical turns admitted so far; HTTP retries do not add turns."""
+
         return self._turns
 
     @property
     def correction_count(self):
         """Corrections admitted so far, including protocol and argument repairs."""
+
         return self._corrections
 
     @property
     def observation(self):
         """Bounded route and turn facts, also available after an unsuccessful run."""
+
         return self._observation()
 
     def feedback_context_bytes(self, value, *, messages_suffix):
@@ -275,7 +278,7 @@ class ToolConversation:
             if any(secret in value for secret in self._secrets):
                 raise ConversationFailed("Cannot continue interpretation: its outgoing context contains a configured credential.")
         elif type(value) is dict:
-            for key, item in value.items():
+            for (key, item) in value.items():
                 self._require_no_secrets(key)
                 self._require_no_secrets(item)
         elif type(value) in (tuple, list):
@@ -294,6 +297,7 @@ class ToolConversation:
             # Retirement must retain the failed operation even when a later,
             # independent endpoint cleanup also fails.
             self.last_failure = failure
+
             history = tuple(self.endpoint_failures)
             corrections = tuple(self.correction_failures)
 
@@ -322,12 +326,13 @@ class ToolConversation:
         if self._text_correction is not None:
             self._require_no_secrets(self._text_correction.user_content)
 
-        self._messages, self._tools = (
+        (self._messages, self._tools) = (
             json.loads(_encode(messages)),
             json.loads(_encode(tools)),
         )
 
         self._tools_sha256 = hashlib.sha256(_encode(tools)).hexdigest()
+
         index = 0
         self._route(self._endpoints[index])
 
@@ -341,9 +346,10 @@ class ToolConversation:
 
             try:
                 message = await endpoint.complete(self._messages, self._tools)
-                message, calls = self._admit_carrier(message)
+                (message, calls) = self._admit_carrier(message)
             except (ChatFailed, ConversationFailed) as failure:
                 self.last_failure = failure
+
                 # Keep each bounded private observation, including failures
                 # before a successful fallback. Public routes contain no body.
                 self.endpoint_failures.append((index, failure))
@@ -431,7 +437,7 @@ class ToolConversation:
     def _route(self, endpoint):
         # Identity comes from the trusted adapter, not model response fields.
         identity = json.loads(endpoint.identity)
-        identity = {key: self.redact(value) if type(value) is str else value for key, value in identity.items()}
+        identity = {key: self.redact(value) if type(value) is str else value for (key, value) in identity.items()}
         self._routes.append({"endpoint": identity, "turns_started": 0})
 
     def _require_active(self):
@@ -456,7 +462,7 @@ class ToolConversation:
 
         if (calls is None and self._text_correction is not None
                 and self._text_correction.user_content is not None):
-            return canonical, []
+            return (canonical, [])
 
         if type(calls) is not list or not calls:
             raise ConversationFailed("Cannot interpret model action: the reply supplies no identifiable tool call.")
@@ -497,7 +503,8 @@ class ToolConversation:
 
         canonical["tool_calls"] = admitted
         self._seen_ids.update(identifiers)
-        return canonical, admitted
+
+        return (canonical, admitted)
 
     def _arguments(self, text):
         try:
@@ -525,6 +532,7 @@ class ToolConversation:
             raise ToolRejected("Tool arguments must be one JSON object.")
 
         self._require_no_secrets(arguments)
+
         return arguments
 
     def _feedback(self, identifier, value):
@@ -539,6 +547,7 @@ class ToolConversation:
         reason = str(rejection)
         self._require_no_secrets(reason)
         self.last_rejection = reason
+
         self._corrections += 1
         self.correction_failures.append((self._turns, rejection))
 
@@ -593,6 +602,7 @@ class ToolConversation:
 
     async def retire(self):
         self._retired = True
+
         primary = self.last_failure
         failures = []
         interruption = None

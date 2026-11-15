@@ -124,13 +124,15 @@ class DeliveryInbox:
     max_request_bytes = MAX_REQUEST_BYTES
 
     def __init__(self, queue, endpoints, *, request_seconds, on_accepted, on_failure, binding_status):
-        self.queue, self.endpoints = queue, endpoints
+        (self.queue, self.endpoints) = (queue, endpoints)
         self.request_seconds = request_seconds
-        self.on_accepted, self.on_failure = on_accepted, on_failure
+
+        (self.on_accepted, self.on_failure) = (on_accepted, on_failure)
         self.binding_status = binding_status
-        self._grants, self._servers = ExitStack(), []
-        self._clients, self._storage_tasks = set(), set()
-        self.failed, self.failure = asyncio.Event(), None
+
+        (self._grants, self._servers) = (ExitStack(), [])
+        (self._clients, self._storage_tasks) = (set(), set())
+        (self.failed, self.failure) = (asyncio.Event(), None)
 
     async def start(self):
         try:
@@ -172,6 +174,7 @@ class DeliveryInbox:
 
         if error is not None and not isinstance(error, (DeliveryFull, DeliveryConflict, DeliveryInventoryUnavailable)):
             self.failure = error
+
             self.failed.set()
             self.on_failure(error, {"event": "delivery_storage_failed"})
 
@@ -181,10 +184,11 @@ class DeliveryInbox:
         task = asyncio.create_task(asyncio.to_thread(operation, *arguments))
         self._storage_tasks.add(task)
         task.add_done_callback(self._storage_done)
+
         return await asyncio.shield(task)
 
     async def _read(self, reader, connection):
-        request, body = None, bytearray()
+        (request, body) = (None, bytearray())
 
         async with asyncio.timeout(self.request_seconds):
             while True:
@@ -200,14 +204,14 @@ class DeliveryInbox:
 
                     body.extend(event.data)
                 elif isinstance(event, h11.EndOfMessage):
-                    return request, bytes(body)
+                    return (request, bytes(body))
                 elif isinstance(event, h11.ConnectionClosed):
                     raise ConnectionError("Delivery client disconnected before its complete request.")
 
     def _headers(self, request, endpoint):
         values = {}
 
-        for name, value in request.headers:
+        for (name, value) in request.headers:
             if name in (b"nmr-api-origin", b"nmr-provider-ref", b"nmr-job-ref"):
                 if name in values:
                     raise DeliveryRequestRejected("Delivery identity headers must not repeat.")
@@ -241,6 +245,7 @@ class DeliveryInbox:
 
             accepted = await self.storage(self.queue.enqueue, item)
             self.on_accepted(endpoint)
+
             return accepted
 
         if request.method != b"GET" or body:
@@ -288,24 +293,24 @@ class DeliveryInbox:
             if len(self._clients) > MAX_CONNECTIONS:
                 return
 
-            request, body = await self._read(reader, connection)
+            (request, body) = await self._read(reader, connection)
 
             try:
                 accepted = await self._dispatch(endpoint, request, body)
                 durable_enqueue_confirmed = request.method == b"POST"
-                status, reply = 200, accepted
+                (status, reply) = (200, accepted)
             except DeliveryFull:
-                status, reply = 429, {"error": "Delivery capacity is full; no new item was accepted."}
+                (status, reply) = (429, {"error": "Delivery capacity is full; no new item was accepted."})
             except DeliveryConflict:
-                status, reply = 409, {"error": "The original outstanding terminal request remains unchanged."}
+                (status, reply) = (409, {"error": "The original outstanding terminal request remains unchanged."})
             except DeliveryStorageFailed:
-                status, reply = 503, {"error": "Delivery storage is unavailable; acceptance is not confirmed."}
+                (status, reply) = (503, {"error": "Delivery storage is unavailable; acceptance is not confirmed."})
             except DeliveryInventoryUnavailable as cause:
                 self.on_failure(cause, {"event": "delivery_inventory_unavailable", "provider_ref": endpoint.provider_ref})
-                status, reply = 503, {"error": "Pending inventory is oversized; publication continues and per-Attempt status remains available."}
+                (status, reply) = (503, {"error": "Pending inventory is oversized; publication continues and per-Attempt status remains available."})
             except DeliveryRequestRejected as cause:
                 self.on_failure(cause, {"event": "delivery_request_rejected", "provider_ref": endpoint.provider_ref})
-                status, reply = 400, {"error": "The request does not match this provider's delivery protocol."}
+                (status, reply) = (400, {"error": "The request does not match this provider's delivery protocol."})
 
             await self._respond(connection, writer, status, reply)
         except (OSError, ConnectionError, TimeoutError, h11.ProtocolError) as cause:

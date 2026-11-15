@@ -43,13 +43,13 @@ class ProxyLoggingTests(unittest.TestCase):
         for upstream in (False, True):
             for operation in ("read", "write", "half-close"):
                 with self.subTest(upstream=upstream, operation=operation):
-                    left, right = MagicMock(), MagicMock()
+                    (left, right) = (MagicMock(), MagicMock())
 
                     if upstream:
-                        source, destination = right, left
+                        (source, destination) = (right, left)
                         direction = "upstream-to-client"
                     else:
-                        source, destination = left, right
+                        (source, destination) = (left, right)
                         direction = "client-to-upstream"
 
                     original = BrokenPipeError(32, "Broken pipe")

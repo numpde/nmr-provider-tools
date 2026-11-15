@@ -34,12 +34,15 @@ class SourceUpdateTests(unittest.TestCase):
         self.addCleanup(temporary.cleanup)
         self.root = Path(temporary.name)
         self.source = self.root / "source"
+
         self.source.mkdir()
         self.old = {"acquisition_tool/old.py": b"old source\n"}
         self.new = {"acquisition_tool/new.py": b"new source\n", "compose/worker.yml": b"services: {}\n"}
+
         self.write_snapshot(self.source, "1.0.0", self.old)
         self.archive = self.root / "candidate.tar.gz"
         self.pin = self.root / "release-pin.json"
+
         self.write_archive(extra=())
 
     def manifest(self, version, payload):
@@ -47,13 +50,13 @@ class SourceUpdateTests(unittest.TestCase):
             "release_version": version, "source_revision": "a" * 40,
             "payload_files": {
                 name: {"sha256": hashlib.sha256(data).hexdigest(), "size": len(data), "mode": 0o644}
-                for name, data in payload.items()
+                for (name, data) in payload.items()
             },
             "dependency_inputs": {"wheelhouse-tool-0.9.0.pyz": "b" * 64},
         }
 
     def write_snapshot(self, root, version, payload):
-        for name, data in payload.items():
+        for (name, data) in payload.items():
             path = root / name
             path.parent.mkdir(parents=True, exist_ok=True)
             path.write_bytes(data)
@@ -67,14 +70,14 @@ class SourceUpdateTests(unittest.TestCase):
         payload["acquisition-manifest.json"] = json.dumps(self.manifest("2.0.0", self.new)).encode()
 
         with tarfile.open(self.archive, "w:gz") as archive:
-            for name, data in payload.items():
+            for (name, data) in payload.items():
                 member = tarfile.TarInfo(name)
-                member.mode, member.size = 0o644, len(data)
+                (member.mode, member.size) = (0o644, len(data))
                 archive.addfile(member, io.BytesIO(data))
 
-            for name, kind in extra:
+            for (name, kind) in extra:
                 member = tarfile.TarInfo(name)
-                member.mode, member.type = 0o644, kind
+                (member.mode, member.type) = (0o644, kind)
 
                 if member.isfile():
                     archive.addfile(member, io.BytesIO())
@@ -126,7 +129,7 @@ class SourceUpdateTests(unittest.TestCase):
         self.assert_old_source()
 
     def test_unsafe_or_duplicate_archive_members_never_publish(self):
-        for name, kind in (
+        for (name, kind) in (
             ("../escape", tarfile.REGTYPE), ("/absolute", tarfile.REGTYPE),
             ("acquisition_tool/new.py", tarfile.REGTYPE), ("linked", tarfile.SYMTYPE),
             ("special", tarfile.FIFOTYPE), ("acquisition-manifest.json/child", tarfile.REGTYPE),
@@ -187,7 +190,7 @@ class SourceUpdateTests(unittest.TestCase):
         self.assertEqual("1.0.0", updates.verify(stages[0])["release_version"])
 
     def test_staging_and_cleanup_failures_both_remain_available(self):
-        primary, cleanup = ValueError("candidate stage failed"), PermissionError("stage cleanup failed")
+        (primary, cleanup) = (ValueError("candidate stage failed"), PermissionError("stage cleanup failed"))
         verify = updates.verify
 
         def reject_stage(path):

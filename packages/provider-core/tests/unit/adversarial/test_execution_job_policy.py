@@ -17,9 +17,9 @@ from tests.fakes.api import api
 
 class ExecutionJobPolicyFailureTests(unittest.IsolatedAsyncioTestCase):
     async def test_unknown_cancelled_empty_or_mutable_policies_are_refused_before_claim_ownership(self):
-        store, _, claim = await live_attempt()
+        (store, _, claim) = await live_attempt()
 
-        for states, error_type in (
+        for (states, error_type) in (
             (None, TypeError), ("open", TypeError), ({"open"}, TypeError), (["open"], TypeError),
             (frozenset(), ValueError), (frozenset({"unknown"}), ValueError),
             (frozenset({"open", "unknown"}), ValueError), (frozenset({1}), ValueError),
@@ -35,7 +35,7 @@ class ExecutionJobPolicyFailureTests(unittest.IsolatedAsyncioTestCase):
         for state in ("succeeded", "failed", "expired"):
             for job_state in ("open", "closed", "cancelled"):
                 with self.subTest(state=state, job_state=job_state):
-                    store, acknowledged, claim = await live_attempt()
+                    (store, acknowledged, claim) = await live_attempt()
                     session = Session(store)
                     transport = Transport(reply(observation(state=state, job_state=job_state)))
 
@@ -54,12 +54,12 @@ class ExecutionJobPolicyFailureTests(unittest.IsolatedAsyncioTestCase):
 
     async def test_closed_job_under_open_only_policy_and_cancelled_job_under_secs_policy_stop_each_phase(self):
         for phase in ("prepare", "execute"):
-            for states, stopped_state in ((frozenset({"open"}), "closed"), (frozenset({"open", "closed"}), "cancelled")):
+            for (states, stopped_state) in ((frozenset({"open"}), "closed"), (frozenset({"open", "closed"}), "cancelled")):
                 with self.subTest(phase=phase, states=states, stopped_state=stopped_state):
                     await self._stop_disallowed_job(phase, states, stopped_state)
 
     async def _stop_disallowed_job(self, phase, states, stopped_state):
-        store, acknowledged, claim = await live_attempt()
+        (store, acknowledged, claim) = await live_attempt()
         session = PausedSession(store, phase)
         transport = Transport(reply(response()), reply(progress_response()), reply(progress_response(phase="running")))
         client = api(transport, store.scope.api_origin)
@@ -67,6 +67,7 @@ class ExecutionJobPolicyFailureTests(unittest.IsolatedAsyncioTestCase):
         async def read_attempt(*_args, **_kwargs):
             # silent-defaults: allow-contract -- The fixture Job changes state only after its observed pause.
             job_state = stopped_state if session.paused.is_set() else "open"
+
             return AttemptObservation(ATTEMPT_REF, "job:example", "in_progress", job_state)
 
         client.read_attempt = read_attempt

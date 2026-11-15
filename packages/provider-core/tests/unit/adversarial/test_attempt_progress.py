@@ -22,7 +22,7 @@ class AttemptProgressFailureTests(unittest.IsolatedAsyncioTestCase):
         )
 
     async def test_invalid_snapshot_never_dispatches(self):
-        for phase, condition in (
+        for (phase, condition) in (
             ("done", None),
             ([], None),
             ("preparing", "secret/url"),

@@ -15,7 +15,7 @@ from tests.fakes.uploads import UPLOAD_REF
 
 class UploadAcquisitionTests(unittest.IsolatedAsyncioTestCase):
     async def test_changed_refresh_that_spends_the_last_request_stops_without_a_correction(self):
-        owner, api, store = sources(requests=2)
+        (owner, api, store) = sources(requests=2)
         await owner.inspect()
         api.member = replace(api.member, description="Changed description")
 
@@ -31,7 +31,7 @@ class UploadAcquisitionTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(store.calls, [])
 
     async def test_fixed_file_ceiling_is_correctable_at_one_byte_over_without_grant_or_budget_reset(self):
-        owner, api, store = sources(source_bytes=7)
+        (owner, api, store) = sources(source_bytes=7)
         await owner.inspect()
 
         with self.assertRaises(UploadInputRejected) as caught:
@@ -52,7 +52,7 @@ class UploadAcquisitionTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(owner.requests_started, 1)
 
     async def test_spent_cumulative_bytes_dominate_a_simultaneous_fixed_file_ceiling(self):
-        owner, api, store = sources(source_bytes=8, total_bytes=8)
+        (owner, api, store) = sources(source_bytes=8, total_bytes=8)
         store.headers = store_headers(store.body)
         await owner.inspect()
         await owner.acquire(UPLOAD_REF)
@@ -73,7 +73,7 @@ class UploadAcquisitionTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(len(store.calls), 1)
 
     async def test_spent_requests_or_deadline_dominate_an_oversized_file_refusal(self):
-        owner, api, store = sources(source_bytes=7, requests=1)
+        (owner, api, store) = sources(source_bytes=7, requests=1)
         await owner.inspect()
 
         with self.assertRaises(UploadFailed) as caught:
@@ -86,7 +86,7 @@ class UploadAcquisitionTests(unittest.IsolatedAsyncioTestCase):
 
         with patch("provider_core.uploads.time") as clock:
             clock.monotonic.return_value = 100
-            owner, api, store = sources(source_bytes=7)
+            (owner, api, store) = sources(source_bytes=7)
             await owner.inspect()
             clock.monotonic.return_value = 161
 
@@ -99,7 +99,7 @@ class UploadAcquisitionTests(unittest.IsolatedAsyncioTestCase):
             self.assertEqual(store.calls, [])
 
     async def test_changed_membership_requires_reinspection_before_any_grant(self):
-        owner, api, store = sources()
+        (owner, api, store) = sources()
         await owner.inspect()
         api.member = UploadMember(UPLOAD_REF, "changed description", 8, api.member.content_hash)
 
@@ -115,7 +115,7 @@ class UploadAcquisitionTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(api.calls, ["membership", "membership"])
 
     async def test_source_size_is_admitted_before_grant(self):
-        owner, api, store = sources(source_bytes=4)
+        (owner, api, store) = sources(source_bytes=4)
         await owner.inspect()
 
         with self.assertRaises(UploadFailed):
@@ -125,7 +125,7 @@ class UploadAcquisitionTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(store.calls, [])
 
     async def test_foreign_url_never_receives_bearer(self):
-        owner, api, store = sources()
+        (owner, api, store) = sources()
         original = api.grant
 
         api.grant = ReadGrant(
@@ -148,7 +148,7 @@ class UploadAcquisitionTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(store.calls, [])
 
     async def test_failed_download_bytes_are_charged_and_not_refunded(self):
-        owner, api, store = sources(total_bytes=8)
+        (owner, api, store) = sources(total_bytes=8)
         await owner.inspect()
         store.headers = store_headers(store.body)
         store.body = b"tampered"
@@ -169,20 +169,21 @@ class UploadAcquisitionTests(unittest.IsolatedAsyncioTestCase):
     async def test_expired_deadline_after_hashing_never_returns_late_bytes(self):
         with patch("provider_core.uploads.time") as clock:
             clock.monotonic.return_value = 100
-            owner, _, store = sources()
+            (owner, _, store) = sources()
             store.headers = store_headers(store.body)
             await owner.inspect()
 
             def delayed_verification(*args):
                 verified = VerifiedUpload(*args)
                 clock.monotonic.return_value = 161
+
                 return verified
 
             with patch("provider_core.uploads.VerifiedUpload", side_effect=delayed_verification), self.assertRaises(UploadFailed):
                 await owner.acquire(UPLOAD_REF)
 
     async def test_request_budget_includes_inspection_refresh_and_grant(self):
-        owner, api, store = sources(requests=3)
+        (owner, api, store) = sources(requests=3)
         await owner.inspect()
 
         with self.assertRaises(UploadFailed):
@@ -198,7 +199,7 @@ class UploadAcquisitionTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(owner.requests_started, 3)
 
     async def test_unconfirmed_store_retirement_blocks_even_membership_refresh(self):
-        owner, api, store = sources()
+        (owner, api, store) = sources()
         store.retirement_confirmed = False
 
         with self.assertRaises(UploadFailed):
@@ -208,7 +209,7 @@ class UploadAcquisitionTests(unittest.IsolatedAsyncioTestCase):
 
     async def test_failed_grant_requires_explicit_reinspection_for_changed_or_unchanged_list(self):
         for changed in (False, True):
-            owner, api, store = sources()
+            (owner, api, store) = sources()
             original = api.grant
             failure = ApiFailure("issue Upload read grant", "unavailable")
             failure.issuance_may_have_committed = True
@@ -240,7 +241,7 @@ class UploadAcquisitionTests(unittest.IsolatedAsyncioTestCase):
             {"content_hash": "sha256:" + "f" * 64},
             {"byte_length": 9},
         ):
-            owner, api, store = sources()
+            (owner, api, store) = sources()
             api.grant = replace(api.grant, **changes)
             await owner.inspect()
 
@@ -250,7 +251,7 @@ class UploadAcquisitionTests(unittest.IsolatedAsyncioTestCase):
             self.assertEqual(store.calls, [])
 
     async def test_same_length_corrupted_bytes_are_charged_but_never_returned(self):
-        owner, _, store = sources()
+        (owner, _, store) = sources()
         store.headers = store_headers(store.body)
         store.body = b"tampered"
         await owner.inspect()
@@ -263,7 +264,7 @@ class UploadAcquisitionTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(owner.received_bytes, 8)
 
     async def test_deadline_during_grant_preserves_possible_issuance(self):
-        owner, api, store = sources(seconds=0.05)
+        (owner, api, store) = sources(seconds=0.05)
         failure = ApiFailure("issue Upload read grant", "reply interrupted")
         failure.issuance_may_have_committed = True
 
@@ -286,13 +287,14 @@ class UploadAcquisitionTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(store.calls, [])
 
     async def test_overlapping_inspection_is_rejected_without_poisoning_active_selection(self):
-        owner, api, _ = sources()
-        entered, release = asyncio.Event(), asyncio.Event()
+        (owner, api, _) = sources()
+        (entered, release) = (asyncio.Event(), asyncio.Event())
         original = api.uploads
 
         async def delayed_inspection(job_ref):
             entered.set()
             await release.wait()
+
             return await original(job_ref)
 
         api.uploads = delayed_inspection

@@ -21,7 +21,7 @@ class ExecutionJobPolicyTests(unittest.IsolatedAsyncioTestCase):
                 await self._continue_closed_job(phase)
 
     async def _continue_closed_job(self, phase):
-        store, acknowledged, claim = await live_attempt()
+        (store, acknowledged, claim) = await live_attempt()
         session = PausedSession(store, phase)
 
         client = api(Transport(reply(response()), reply(progress_response()), reply(progress_response(phase="running"))),

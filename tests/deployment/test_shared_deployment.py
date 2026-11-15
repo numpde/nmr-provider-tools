@@ -20,7 +20,7 @@ class SharedDeploymentTests(unittest.TestCase):
     def test_render_separates_proxy_owner_and_stable_socket_from_outbox(self):
         with tempfile.TemporaryDirectory() as directory:
             path = Path(directory) / "settings.toml"
-            uid, gid = os.geteuid(), os.getegid()
+            (uid, gid) = (os.geteuid(), os.getegid())
             proxy_uid = uid + 1
 
             path.write_text(f'[deployment]\nproject = "joint"\nuid = {uid}\nproxy_uid = {proxy_uid}\n'
@@ -33,7 +33,7 @@ class SharedDeploymentTests(unittest.TestCase):
             path.chmod(0o600)
             plan = deployment.render_shared(path, path, "sha256:" + "a" * 64)
             grants = shared_grants(path)
-            proxy, outbox = plan["proxy"]["services"]["proxy"], plan["outbox"]["services"]["delivery"]
+            (proxy, outbox) = (plan["proxy"]["services"]["proxy"], plan["outbox"]["services"]["delivery"])
             self.assertEqual(proxy["user"], f"{proxy_uid}:{gid}")
             self.assertEqual(outbox["user"], f"{uid}:{gid}")
 

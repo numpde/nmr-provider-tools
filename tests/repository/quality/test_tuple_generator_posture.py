@@ -43,6 +43,7 @@ def _has_documented_escape(node: ast.Call, source_lines: list[str]) -> bool:
 
     def documents_reason(line: str) -> bool:
         stripped = line.strip()
+
         return stripped.startswith(_ESCAPE_PREFIX) and bool(stripped.removeprefix(_ESCAPE_PREFIX).strip())
 
     immediate = source_lines[node.lineno - 2]

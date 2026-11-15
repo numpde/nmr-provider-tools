@@ -18,6 +18,7 @@ class ConditionOutageTransport(ConditionTransport):
         self.faults = iter((reply(b"PRIVATE condition response", status=503),))
         self.retirement_entered = asyncio.Event()
         self.release_retirement = asyncio.Event()
+
         self.release_retirement.set()
         self.read_after_failure = asyncio.Event()
         self.followup_observation = None
@@ -36,7 +37,7 @@ class ConditionOutageTransport(ConditionTransport):
                 fault = next(self.faults, None)
 
                 if fault is not None:
-                    self.retirement_confirmed, self.pending_owner = False, owner
+                    (self.retirement_confirmed, self.pending_owner) = (False, owner)
 
                     if isinstance(fault, BaseException):
                         raise fault

@@ -33,8 +33,8 @@ def _inputs(args):
 
         request = ProbeRequest(args.endpoint, args.image, "/usr/local/bin/python3", 0, 0)
 
-        return request, (("uid", "inverse", Identifier(args.host_uid)),
-                         ("gid", "inverse", Identifier(args.host_gid)))
+        return (request, (("uid", "inverse", Identifier(args.host_uid)),
+                         ("gid", "inverse", Identifier(args.host_gid))))
 
     if args.host_uid is not None or args.host_gid is not None:
         raise ValueError("Do not combine host-owner IDs with --map projections.")
@@ -61,7 +61,7 @@ def _inputs(args):
     if args.userns is not None:
         request = replace(request, userns_mode=args.userns)
 
-    return request, projections
+    return (request, projections)
 
 
 def _project(observation, projections):
@@ -104,7 +104,7 @@ def main(argv=None):
 
     try:
         retired = True
-        request, projections = _inputs(args)
+        (request, projections) = _inputs(args)
         retired = False
         observation = probe_identity(request, cancel=cancellation)
         retired = True
@@ -139,7 +139,7 @@ def main(argv=None):
         sys.stderr.write(f"Cannot map engine identity: {failure}\n")
         status = 2
     finally:
-        for number, handler in previous.items():
+        for (number, handler) in previous.items():
             signal.signal(number, handler)
 
         if retired:

@@ -59,7 +59,7 @@ class PreparedHandleRevocationTests(unittest.IsolatedAsyncioTestCase):
         for stop in ({"job_state": "cancelled"}, {"state": "expired"}):
             for delayed in (False, True):
                 with self.subTest(stop=stop, delayed_retirement=delayed):
-                    claims, session = AttemptClaims.live(), PreparedHandleSession()
+                    (claims, session) = (AttemptClaims.live(), PreparedHandleSession())
                     session.release.clear()
                     revoked = reply(observation(**stop))
 
@@ -91,7 +91,7 @@ class PreparedHandleRevocationTests(unittest.IsolatedAsyncioTestCase):
                             self.assertIsNone(controller.operation.settled_revocation)
                     finally:
                         session.release.set()
-                        failure, = await asyncio.wait_for(asyncio.gather(run, return_exceptions=True), 1)
+                        (failure,) = await asyncio.wait_for(asyncio.gather(run, return_exceptions=True), 1)
 
                     self.assertIsInstance(failure, ControllerFailed)
                     self.assertIs(type(failure.cause.cause), ExecutionStopped)
@@ -107,7 +107,7 @@ class PreparedHandleRevocationTests(unittest.IsolatedAsyncioTestCase):
     async def test_revocation_after_entry_retains_ownership_without_dispatching_the_handle(self):
         for stop in ({"job_state": "cancelled"}, {"state": "expired"}):
             with self.subTest(stop=stop):
-                claims, session = AttemptClaims.live(), PreparedHandleSession()
+                (claims, session) = (AttemptClaims.live(), PreparedHandleSession())
 
                 transport = Transport(
                     reply(start_response()), reply(observation()), reply(progress_response()),

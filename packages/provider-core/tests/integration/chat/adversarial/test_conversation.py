@@ -96,7 +96,7 @@ class ConversationBoundaryTests(unittest.IsolatedAsyncioTestCase):
         first_failure = ChatFailed("request_limit", "First request was not sent.")
         second_failure = ChatFailed("exchange_failed", "Second reply was lost.")
         cleanup = OSError("PRIVATE cleanup")
-        first, second = endpoint("first", first_failure), endpoint("second", second_failure)
+        (first, second) = (endpoint("first", first_failure), endpoint("second", second_failure))
         second.retire.side_effect = cleanup
         conversation = ToolConversation((first, second), max_turns=2, secrets=())
 
@@ -153,8 +153,8 @@ class ConversationBoundaryTests(unittest.IsolatedAsyncioTestCase):
                 result = await conversation.run([], [], dispatch)
                 dispatch.assert_awaited_once_with("submit", {})
                 self.assertEqual(json.loads(result.observation)["corrections"], 2)
-                self.assertEqual([turn for turn, _failure in result.correction_failures], [1, 2])
-                self.assertTrue(all(type(failure) is ToolRejected for _turn, failure in result.correction_failures))
+                self.assertEqual([turn for (turn, _failure) in result.correction_failures], [1, 2])
+                self.assertTrue(all(type(failure) is ToolRejected for (_turn, failure) in result.correction_failures))
                 feedback = [m for m in model.complete.call_args.args[0] if m["role"] == "tool"]
                 self.assertEqual([m["tool_call_id"] for m in feedback], ["bad", "multi-1", "multi-2"])
                 self.assertNotIn("PRIVATE", json.dumps(feedback))
@@ -190,7 +190,7 @@ class ConversationBoundaryTests(unittest.IsolatedAsyncioTestCase):
         primary = ChatFailed("exchange_failed", "Fixture reply lost.")
         cleanup = OSError("PRIVATE socket cleanup")
 
-        first, second = (
+        (first, second) = (
             endpoint("first", primary),
             endpoint("second", call("unused", "submit", {})),
         )
@@ -210,7 +210,7 @@ class ConversationBoundaryTests(unittest.IsolatedAsyncioTestCase):
     async def test_cancellation_never_starts_another_endpoint(self):
         primary = asyncio.CancelledError()
 
-        first, second = (
+        (first, second) = (
             endpoint("first", primary),
             endpoint("second", call("unused", "submit", {})),
         )
@@ -225,11 +225,12 @@ class ConversationBoundaryTests(unittest.IsolatedAsyncioTestCase):
         await conversation.retire()
 
     async def test_late_reply_cannot_dispatch_after_retirement(self):
-        entered, release = asyncio.Event(), asyncio.Event()
+        (entered, release) = (asyncio.Event(), asyncio.Event())
 
         async def late_reply(*_):
             entered.set()
             await release.wait()
+
             return call("late", "submit", {})
 
         model = endpoint("fixture")
@@ -247,9 +248,9 @@ class ConversationBoundaryTests(unittest.IsolatedAsyncioTestCase):
         dispatch.assert_not_awaited()
 
     async def test_later_cleanup_keeps_the_original_tool_failure(self):
-        primary, cleanup = OSError("PRIVATE reader"), OSError("PRIVATE cleanup")
+        (primary, cleanup) = (OSError("PRIVATE reader"), OSError("PRIVATE cleanup"))
 
-        first, second = (
+        (first, second) = (
             endpoint("first", call("prepare", "prepare", {})),
             endpoint("second"),
         )
@@ -310,7 +311,7 @@ class ConversationBoundaryTests(unittest.IsolatedAsyncioTestCase):
             with self.subTest(arguments=raw):
                 message = call("report", "report", {})
                 message["tool_calls"][0]["function"]["arguments"] = raw
-                first, second = endpoint("first", message), endpoint("second", call("unused", "submit", {}))
+                (first, second) = (endpoint("first", message), endpoint("second", call("unused", "submit", {})))
                 conversation = ToolConversation((first, second), max_turns=3, secrets=("PRIVATE_MODEL_KEY",))
                 dispatch = AsyncMock()
 
@@ -342,7 +343,7 @@ class ConversationBoundaryTests(unittest.IsolatedAsyncioTestCase):
 
     async def test_failed_exchange_uses_the_shared_turn_budget_before_fallback(self):
         failure = ChatFailed("exchange_failed", "Fixture reply lost.")
-        first, second = endpoint("first", failure), endpoint("second", call("unused", "submit", {}))
+        (first, second) = (endpoint("first", failure), endpoint("second", call("unused", "submit", {})))
         conversation = ToolConversation((first, second), max_turns=1, secrets=())
 
         with self.assertRaises(ConversationFailed) as caught:

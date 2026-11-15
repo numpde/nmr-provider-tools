@@ -26,6 +26,7 @@ class NativeInstallationTests(unittest.TestCase):
 
             async def dispatch(name, arguments):
                 self.assertEqual((name, arguments), ("prepare", {"record": 1}))
+
                 return ToolFinished("accepted")
 
             try:

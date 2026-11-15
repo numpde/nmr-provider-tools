@@ -63,8 +63,8 @@ class UploadRecoveryTests(unittest.IsolatedAsyncioTestCase):
         api = ProviderAPI(SigningIdentity("https://api.example", "credential:test", Ed25519PrivateKey.generate()),
                           api_transport, expected_topology="dev-local")
 
-        return JobUploads("job:example", api=api, store=store, store_origin="https://store.example",
-                          limits=UploadLimits(8, total, requests, seconds), recovery=recovery), api, store
+        return (JobUploads("job:example", api=api, store=store, store_origin="https://store.example",
+                          limits=UploadLimits(8, total, requests, seconds), recovery=recovery), api, store)
 
     # silent-defaults: allow-contract -- Three attempts with a one-millisecond wait keep ordinary recovery fixtures bounded; pacing witnesses supply their actual policy.
     def policy(self, *, stopping=None, on_retry=None, attempts=3, initial=0.001):
@@ -72,7 +72,7 @@ class UploadRecoveryTests(unittest.IsolatedAsyncioTestCase):
                               on_retry or (lambda _failure, _seconds: None))
 
     async def test_one_shot_default_remains_one_attempt(self):
-        owner, _, _ = self.owner()
+        (owner, _, _) = self.owner()
         clients = [api_reply(MEMBERSHIP), api_reply(MEMBERSHIP), api_reply(GRANT), store_reply(failure=temporary_read_error())]
 
         with patch("provider_core.transport.httpcore.AsyncConnectionPool", side_effect=clients):
@@ -93,14 +93,14 @@ class UploadRecoveryTests(unittest.IsolatedAsyncioTestCase):
                 clients = [api_reply(MEMBERSHIP), api_reply(MEMBERSHIP), api_reply(GRANT), store_reply(failure=original),
                            api_reply(MEMBERSHIP), api_reply(GRANT), store_reply()]
 
-                notices, owners = [], []
+                (notices, owners) = ([], [])
 
                 def notice(failure, seconds):
                     self.assertTrue(all(client.closed for client in clients[:4]))
                     self.assertEqual(list(Path(root).iterdir()), [])
                     notices.append(failure)
 
-                owner, _, store = self.owner(recovery=self.policy(on_retry=notice))
+                (owner, _, store) = self.owner(recovery=self.policy(on_retry=notice))
                 retire = store.retire
 
                 async def observed_retire(*, owner=None):
@@ -139,7 +139,7 @@ class UploadRecoveryTests(unittest.IsolatedAsyncioTestCase):
 
     async def test_original_membership_must_match_before_new_grant(self):
         notices = []
-        owner, _, _ = self.owner(recovery=self.policy(on_retry=lambda failure, _: notices.append(failure)))
+        (owner, _, _) = self.owner(recovery=self.policy(on_retry=lambda failure, _: notices.append(failure)))
         changed = membership(uploads=[member(description="changed", byte_length=8, content_hash=HASH)])
 
         clients = [api_reply(MEMBERSHIP), api_reply(MEMBERSHIP), api_reply(GRANT), store_reply(failure=temporary_read_error()),
@@ -155,7 +155,7 @@ class UploadRecoveryTests(unittest.IsolatedAsyncioTestCase):
         self.assertIs(owner.recovery_failure, notices[0])
 
     async def test_request_and_byte_budgets_are_never_refunded(self):
-        owner, _, _ = self.owner(recovery=self.policy())
+        (owner, _, _) = self.owner(recovery=self.policy())
 
         clients = [api_reply(MEMBERSHIP), api_reply(MEMBERSHIP), api_reply(GRANT), store_reply(failure=temporary_read_error()),
                    api_reply(MEMBERSHIP), api_reply(GRANT), store_reply(failure=temporary_read_error()), api_reply(MEMBERSHIP)]
@@ -168,7 +168,7 @@ class UploadRecoveryTests(unittest.IsolatedAsyncioTestCase):
 
         self.assertEqual(owner.requests_started, 7)
         self.assertEqual(owner.received_bytes, 2)
-        owner, _, _ = self.owner(recovery=self.policy(), total=8)
+        (owner, _, _) = self.owner(recovery=self.policy(), total=8)
         clients = [api_reply(MEMBERSHIP), api_reply(MEMBERSHIP), api_reply(GRANT), store_reply(failure=temporary_read_error())]
 
         with patch("provider_core.transport.httpcore.AsyncConnectionPool", side_effect=clients):
@@ -181,7 +181,7 @@ class UploadRecoveryTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(owner.received_bytes, 1)
 
     async def test_attempt_cap_includes_initial_inspection(self):
-        owner, _, _ = self.owner(recovery=self.policy(attempts=2))
+        (owner, _, _) = self.owner(recovery=self.policy(attempts=2))
         clients = [refusal(503, "service_unavailable"), refusal(503, "service_unavailable")]
 
         with patch("provider_core.transport.httpcore.AsyncConnectionPool", side_effect=clients):
@@ -194,7 +194,7 @@ class UploadRecoveryTests(unittest.IsolatedAsyncioTestCase):
     async def test_grant_diagnosis_and_undeclared_rate_status_never_retry(self):
         for status in (500, 429):
             with self.subTest(status=status):
-                owner, _, _ = self.owner(recovery=self.policy())
+                (owner, _, _) = self.owner(recovery=self.policy())
                 clients = [api_reply(MEMBERSHIP), api_reply(MEMBERSHIP), refusal(status, "operation_conflict")]
 
                 with patch("provider_core.transport.httpcore.AsyncConnectionPool", side_effect=clients):
@@ -210,7 +210,7 @@ class UploadRecoveryTests(unittest.IsolatedAsyncioTestCase):
     async def test_scientific_stop_and_notice_failure_prevent_another_request(self):
         for broken in (False, True):
             with self.subTest(broken=broken):
-                stopping, notices = asyncio.Event(), []
+                (stopping, notices) = (asyncio.Event(), [])
                 original_notice = RuntimeError("protected notice failure")
 
                 def notice(failure, _seconds):
@@ -221,7 +221,7 @@ class UploadRecoveryTests(unittest.IsolatedAsyncioTestCase):
 
                     stopping.set()
 
-                owner, _, _ = self.owner(recovery=self.policy(stopping=stopping, on_retry=notice, initial=1))
+                (owner, _, _) = self.owner(recovery=self.policy(stopping=stopping, on_retry=notice, initial=1))
 
                 clients = [api_reply(MEMBERSHIP), api_reply(MEMBERSHIP), api_reply(GRANT),
                            store_reply(failure=temporary_read_error())]
@@ -241,13 +241,13 @@ class UploadRecoveryTests(unittest.IsolatedAsyncioTestCase):
                     self.assertIs(caught.exception.cause, notices[0])
 
     async def test_caller_cancellation_preserves_identity_and_current_outage(self):
-        waiting, cancellations, notices = asyncio.Event(), [], []
+        (waiting, cancellations, notices) = (asyncio.Event(), [], [])
 
         def notice(failure, _seconds):
             notices.append(failure)
             waiting.set()
 
-        owner, _, _ = self.owner(recovery=self.policy(on_retry=notice, initial=1))
+        (owner, _, _) = self.owner(recovery=self.policy(on_retry=notice, initial=1))
         clients = [api_reply(MEMBERSHIP), api_reply(MEMBERSHIP), api_reply(GRANT), store_reply(failure=temporary_read_error())]
 
         async def acquire():
@@ -271,7 +271,7 @@ class UploadRecoveryTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(owner.requests_started, 4)
 
     async def test_recovery_wait_that_cannot_fit_original_deadline_is_rejected(self):
-        owner, _, _ = self.owner(recovery=self.policy(initial=60), seconds=10)
+        (owner, _, _) = self.owner(recovery=self.policy(initial=60), seconds=10)
         clients = [api_reply(MEMBERSHIP), api_reply(MEMBERSHIP), api_reply(GRANT), store_reply(failure=temporary_read_error())]
 
         with patch("provider_core.transport.httpcore.AsyncConnectionPool", side_effect=clients):
@@ -283,7 +283,7 @@ class UploadRecoveryTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(owner.requests_started, 4)
 
     async def test_first_outage_and_first_uncertain_issuance_are_bounded_exact_references(self):
-        owner, _, _ = self.owner(recovery=self.policy(attempts=3))
+        (owner, _, _) = self.owner(recovery=self.policy(attempts=3))
         original = httpcore.ReadTimeout("protected lost reply")
 
         class LostReply(Stream):
@@ -317,7 +317,7 @@ class UploadRecoveryTests(unittest.IsolatedAsyncioTestCase):
         record = owner.recovery_failure
         self.assertIsInstance(record, BaseExceptionGroup)
         self.assertEqual(len(record.exceptions), 2)
-        first, uncertain = record.exceptions
+        (first, uncertain) = record.exceptions
         self.assertEqual(first.problem_code, "upload_read_not_finalized")
         self.assertFalse(first.issuance_may_have_committed)
         self.assertTrue(uncertain.issuance_may_have_committed)
@@ -332,7 +332,7 @@ class UploadRecoveryTests(unittest.IsolatedAsyncioTestCase):
         self.assertIsNone(owner.recovery_failure)
 
     async def test_late_lost_grant_reply_retires_exact_api_before_fresh_signing(self):
-        released, notices = asyncio.Event(), []
+        (released, notices) = (asyncio.Event(), [])
         original = httpcore.ReadTimeout("protected late network failure")
 
         class LateReply(Stream):
@@ -348,7 +348,7 @@ class UploadRecoveryTests(unittest.IsolatedAsyncioTestCase):
 
         transport = HttpTransport(trust=ssl.create_default_context(), exchange_seconds=0.03, retirement_seconds=0.02)
 
-        owner, api, _ = self.owner(recovery=self.policy(on_retry=lambda failure, _: notices.append(failure)),
+        (owner, api, _) = self.owner(recovery=self.policy(on_retry=lambda failure, _: notices.append(failure)),
                                    api_transport=transport)
 
         clients = [api_reply(MEMBERSHIP), api_reply(MEMBERSHIP), Client(LateReply([]), headers=response_headers()),
@@ -389,14 +389,14 @@ class UploadRecoveryTests(unittest.IsolatedAsyncioTestCase):
         self.assertIs(owner.recovery_failure.cause.primary, original)
         self.assertIs(owner.recovery_failure.cause.network_failure, original)
         self.assertIsNone(owner.last_failure)
-        first_headers = {name.lower(): value for name, value in clients[2].calls[0][0].headers}
-        second_headers = {name.lower(): value for name, value in clients[4].calls[0][0].headers}
+        first_headers = {name.lower(): value for (name, value) in clients[2].calls[0][0].headers}
+        second_headers = {name.lower(): value for (name, value) in clients[4].calls[0][0].headers}
         self.assertNotEqual(first_headers[b'signature-input'], second_headers[b'signature-input'])
         self.assertEqual(owner.requests_started, 6)
 
     async def test_file_grant_renewal_keeps_private_file_cleanup_before_fresh_access(self):
         notices = []
-        owner, _, _ = self.owner(recovery=self.policy(on_retry=lambda failure, _: notices.append(failure)))
+        (owner, _, _) = self.owner(recovery=self.policy(on_retry=lambda failure, _: notices.append(failure)))
 
         clients = [api_reply(MEMBERSHIP), api_reply(MEMBERSHIP), refusal(409, "upload_read_not_finalized"),
                    api_reply(MEMBERSHIP), api_reply(GRANT), store_reply()]
@@ -417,7 +417,7 @@ class UploadRecoveryTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(owner.received_bytes, 8)
 
     async def test_total_grant_timeout_keeps_earlier_outage_and_new_issuance_uncertainty(self):
-        owner, api, _ = self.owner(recovery=self.policy(), seconds=0.08)
+        (owner, api, _) = self.owner(recovery=self.policy(), seconds=0.08)
 
         clients = [api_reply(MEMBERSHIP), api_reply(MEMBERSHIP), refusal(409, "upload_read_not_finalized"),
                    api_reply(MEMBERSHIP), Client(Stream([], stall=asyncio.Event()), headers=response_headers())]
@@ -429,20 +429,20 @@ class UploadRecoveryTests(unittest.IsolatedAsyncioTestCase):
                 await owner.acquire(UPLOAD_REF)
 
         self.assertIsInstance(owner.recovery_failure, BaseExceptionGroup)
-        first, uncertain = owner.recovery_failure.exceptions
+        (first, uncertain) = owner.recovery_failure.exceptions
         self.assertEqual(first.problem_code, "upload_read_not_finalized")
         self.assertIs(uncertain, api.last_failure)
         self.assertTrue(uncertain.issuance_may_have_committed)
         self.assertEqual(owner.requests_started, 5)
 
     async def test_admitted_api_retry_after_is_floor_above_local_maximum(self):
-        stopping, notices = asyncio.Event(), []
+        (stopping, notices) = (asyncio.Event(), [])
 
         def notice(failure, seconds):
             notices.append((failure, seconds))
             stopping.set()
 
-        owner, _, _ = self.owner(recovery=self.policy(stopping=stopping, on_retry=notice))
+        (owner, _, _) = self.owner(recovery=self.policy(stopping=stopping, on_retry=notice))
         response = refusal(503, "service_unavailable")
         response.headers += ((b"retry-after", b"1"),)
 
@@ -459,13 +459,13 @@ class UploadRecoveryTests(unittest.IsolatedAsyncioTestCase):
     async def test_local_jitter_is_bounded_and_does_not_consume_scientific_rng(self):
         for sample in (0.01, 0.02):
             with self.subTest(sample=sample):
-                stopping, notices = asyncio.Event(), []
+                (stopping, notices) = (asyncio.Event(), [])
 
                 def notice(_failure, seconds):
                     notices.append(seconds)
                     stopping.set()
 
-                owner, _, _ = self.owner(recovery=self.policy(stopping=stopping, on_retry=notice, initial=0.02))
+                (owner, _, _) = self.owner(recovery=self.policy(stopping=stopping, on_retry=notice, initial=0.02))
                 response = refusal(503, "service_unavailable")
                 scientific_state = random.getstate()
 
@@ -482,7 +482,7 @@ class UploadRecoveryTests(unittest.IsolatedAsyncioTestCase):
 
     async def test_server_floor_that_cannot_fit_deadline_prevents_notice_and_next_read(self):
         notices = []
-        owner, _, _ = self.owner(recovery=self.policy(on_retry=lambda *facts: notices.append(facts)), seconds=0.1)
+        (owner, _, _) = self.owner(recovery=self.policy(on_retry=lambda *facts: notices.append(facts)), seconds=0.1)
         response = refusal(503, "service_unavailable")
         response.headers += ((b"retry-after", b"1"),)
         clients = [response, api_reply(MEMBERSHIP)]
@@ -507,7 +507,7 @@ class UploadRecoveryTests(unittest.IsolatedAsyncioTestCase):
             notices.append((failure, seconds))
             time.sleep(0.15)
 
-        owner, _, _ = self.owner(recovery=self.policy(on_retry=notice, initial=0.2), seconds=0.3)
+        (owner, _, _) = self.owner(recovery=self.policy(on_retry=notice, initial=0.2), seconds=0.3)
         response = refusal(503, "service_unavailable")
 
         with patch("provider_core.transport.httpcore.AsyncConnectionPool", return_value=response), patch(

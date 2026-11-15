@@ -29,6 +29,7 @@ class WeightedAnalysis(sdk.Analysis["WeightedSum"]):
 
     def initialize(self) -> None:
         self._value = science.create_analysis(model=self.contribution.model)
+
         science.initialize_analysis(analysis=self.value)
 
     def close(self) -> None:
@@ -92,6 +93,7 @@ class WeightedSum(sdk.Contribution):
         )
 
         control.report_progress(event=sdk.ProgressEvent(stage="calculation", completed=1, total=1))
+
         return result
 
 

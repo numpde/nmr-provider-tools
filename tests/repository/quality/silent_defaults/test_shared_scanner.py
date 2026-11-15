@@ -55,6 +55,7 @@ def repo_files(patterns: tuple[str, ...]) -> list[Path]:
 
 def excluded(path: Path) -> bool:
     relative = path.relative_to(ROOT)
+
     return is_skipped(path) or relative.parts[: len(SELF_PARTS)] == SELF_PARTS
 
 
@@ -68,7 +69,7 @@ def line_findings(
     findings: list[str] = []
 
     for path in paths:
-        for line_number, line in enumerate(path.read_text(encoding="utf-8").splitlines(), start=1):
+        for (line_number, line) in enumerate(path.read_text(encoding="utf-8").splitlines(), start=1):
             if skip_comments and line.lstrip().startswith("#"):
                 continue
 
@@ -91,7 +92,7 @@ class SharedScannerTest(unittest.TestCase):
 
         marker_line = next(
             line_number
-            for line_number, line in enumerate(path.read_text(encoding="utf-8").splitlines(), start=1)
+            for (line_number, line) in enumerate(path.read_text(encoding="utf-8").splitlines(), start=1)
             if line.startswith("SCANNER_TEST_MARKER = ")
         )
 

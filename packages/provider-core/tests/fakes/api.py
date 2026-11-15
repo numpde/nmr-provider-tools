@@ -96,4 +96,5 @@ def api(transport, origin):
 def io_failure(message, *, primary, stage, **facts):
     """Explicit specimen of an owned I/O failure, never inferred by Transport."""
     observation = NetworkIOObservation(stage=stage, error=primary, cause=primary.__cause__, context=primary.__context__)
+
     return ExchangeFailed(message, primary=primary, network_failure=primary, network_io=observation, **facts)

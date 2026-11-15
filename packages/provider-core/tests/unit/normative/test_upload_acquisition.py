@@ -9,7 +9,7 @@ from tests.fakes.uploads import UPLOAD_REF
 
 class UploadAcquisitionTests(unittest.IsolatedAsyncioTestCase):
     async def test_file_at_exact_fixed_ceiling_acquires_once_and_charges_the_full_bytes(self):
-        owner, api, store = sources(source_bytes=8)
+        (owner, api, store) = sources(source_bytes=8)
         store.headers = store_headers(store.body)
         await owner.inspect()
         verified = await owner.acquire(UPLOAD_REF)
@@ -21,7 +21,7 @@ class UploadAcquisitionTests(unittest.IsolatedAsyncioTestCase):
 
     async def test_pending_or_finalized_source_returns_exact_immutable_bytes_without_signing_store_request(self):
         for pending in (False, True):
-            owner, api, store = sources()
+            (owner, api, store) = sources()
 
             if pending:
                 api.member = replace(api.member, content_hash=None)

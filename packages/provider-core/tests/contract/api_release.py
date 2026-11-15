@@ -18,7 +18,7 @@ MANIFEST_SHA256 = "dda8dc36db963f85ec9105567342dae4ba680476c7ab1114bd1e33acba654
 class PinnedApiRelease:
     def setUp(self):
         super().setUp()
-        self.openapi, self.schemas = self.read_release(RELEASE_ROOT)
+        (self.openapi, self.schemas) = self.read_release(RELEASE_ROOT)
 
     def read_release(self, root):
         """Assert complete immutable identity before interpreting any artifact."""
@@ -54,6 +54,7 @@ class PinnedApiRelease:
             self.assertEqual(hashlib.sha1(blob).hexdigest(), entry["git_blob_sha1"], entry["path"])
             documents[entry["path"]] = json.loads(raw)
 
-        schemas = {document["$id"]: document for path, document in documents.items() if path.startswith("schemas/")}
+        schemas = {document["$id"]: document for (path, document) in documents.items() if path.startswith("schemas/")}
         self.assertEqual(len(schemas), 16)
-        return documents["openapi/openapi.v1.json"], schemas
+
+        return (documents["openapi/openapi.v1.json"], schemas)

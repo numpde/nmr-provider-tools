@@ -55,7 +55,7 @@ class RecoveryScope:
     generation_id: str
 
     def __post_init__(self):
-        origin, _authority = _https_origin(self.api_origin)
+        (origin, _authority) = _https_origin(self.api_origin)
 
         if origin != self.api_origin:
             raise ValueError("Cannot bind recovery scope: API origin must be canonical HTTPS")
@@ -121,6 +121,7 @@ def _admission_bytes(admission):
     document = asdict(admission)
     document["started_at"] = timestamp.isoformat().replace("+00:00", "Z")
     document["schema_id"] = "nmr.provider.execution_attempt_start_response.v1"
+
     return json.dumps(document, sort_keys=True, separators=(",", ":")).encode()
 
 

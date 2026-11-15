@@ -66,6 +66,7 @@ class SecsSourceReceivingTests(unittest.TestCase):
             def change_after_snapshot(*arguments, **options):
                 snapshot = read_upload_file(*arguments, **options)
                 Path(root, receipt.name).write_bytes(b"x" * len(original))
+
                 return snapshot
 
             with patch("tests.fakes.secs_sources.read_upload_file", side_effect=change_after_snapshot) as snapshots:
@@ -170,7 +171,7 @@ class SecsSourceReceivingTests(unittest.TestCase):
     def test_zip64_and_multidisk_preflight_refusals_still_precede_archive_construction(self):
         cases = ((0, 65535, "ZIP64"), (1, 1, "multi-disk"))
 
-        for disk, count, reason in cases:
+        for (disk, count, reason) in cases:
             with self.subTest(reason=reason), private_source_directory() as (root, directory):
                 body = struct.pack("<4s4H2LH", b"PK\x05\x06", disk, disk, count, count, 0, 0, 0)
                 receipt = snapshot_source(root, body)
@@ -204,7 +205,7 @@ class SecsSourceReceivingTests(unittest.TestCase):
             warnings.filterwarnings("ignore", message="Duplicate name:", category=UserWarning)
             duplicate = zip_bytes((("same", b"first"), ("same", b"second")))
 
-        for body, name in (
+        for (body, name) in (
             (duplicate, "same"),
             (zip_bytes(((link, b"target"),)), "link"),
             (zip_bytes((("present", b"value"),)), "missing"),
@@ -254,6 +255,7 @@ class SecsSourceReceivingTests(unittest.TestCase):
             def observe_view(contents):
                 stream = BytesIO(contents)
                 views.append(stream)
+
                 return stream
 
             consumer_failure = RuntimeError("Authored consumer defect")
@@ -272,7 +274,7 @@ class SecsSourceReceivingTests(unittest.TestCase):
             self.assertTrue(all(stream.closed for stream in views))
 
     def test_corrupt_bzip_and_lzma_members_are_input_refusals(self):
-        for compression, offset in ((ZIP_BZIP2, 0), (ZIP_LZMA, 4)):
+        for (compression, offset) in ((ZIP_BZIP2, 0), (ZIP_LZMA, 4)):
             with self.subTest(compression=compression), private_source_directory() as (root, directory):
                 with BytesIO() as output:
                     with ZipFile(output, "w", compression=compression) as archive:
@@ -316,7 +318,7 @@ class SecsSourceReceivingTests(unittest.TestCase):
                 self.assertEqual(reader.read(SourceRef(UPLOAD_REF, "second")).contents, b"1234")
 
     def test_filesystem_failures_are_never_reclassified_as_malformed_input(self):
-        for stream, error in ((Mock(spec=ZipExtFile), OSError(errno.EIO, "PRIVATE_DISK")), (Mock(), OSError("PRIVATE_READ"))):
+        for (stream, error) in ((Mock(spec=ZipExtFile), OSError(errno.EIO, "PRIVATE_DISK")), (Mock(), OSError("PRIVATE_READ"))):
             with self.subTest(error=type(error).__name__):
                 stream.read.side_effect = error
 

@@ -71,6 +71,7 @@ class DeliveryHandoff:
 
     def acceptance(self):
         publication = self.publication_bytes()
+
         return self.outcome.acceptance() | {"publication_sha256": "sha256:" + hashlib.sha256(publication).hexdigest()}
 
     def publication_bytes(self):
@@ -102,7 +103,7 @@ def read_delivery_handoff(raw):
         if type(document) is not dict or set(document) != {"api", "credential", "ca", "outcome"}:
             raise DeliveryHandoffRejected("Delivery handoff requires its documented fields.")
 
-        api, outcome = document["api"], document["outcome"]
+        (api, outcome) = (document["api"], document["outcome"])
 
         if type(api) is not dict or type(outcome) is not dict or set(outcome) != {
             "api_origin", "provider_ref", "job_ref", "execution_attempt_ref", "operation", "body"
@@ -112,7 +113,7 @@ def read_delivery_handoff(raw):
         credential = _decoded(document["credential"])
         # silent-defaults: allow-contract -- Preserve an explicit absence of CA bytes across the handoff.
         ca = None if document["ca"] is None else _decoded(document["ca"])
-        settings, provider_ref = api_settings_from_material(api, credential_bytes=credential, ca_bytes=ca)
+        (settings, provider_ref) = api_settings_from_material(api, credential_bytes=credential, ca_bytes=ca)
 
         material = ApiPublicationMaterial(settings.identity.origin, api["profile"], settings.expected_topology,
                                           provider_ref, settings.http.exchange_seconds, settings.http.retirement_seconds,

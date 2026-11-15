@@ -27,7 +27,7 @@ class UploadSnapshotTests(unittest.TestCase):
             cases.extend((receipt, directory, limit) for limit in (0, -1, True, 1.5, 7))
             cases.extend((replace(receipt, byte_length=length), directory, 8) for length in (-1, True, "8"))
 
-            for candidate, descriptor, limit in cases:
+            for (candidate, descriptor, limit) in cases:
                 with self.subTest(name=candidate.name, descriptor=descriptor, limit=limit):
                     with patch("provider_core.uploads.os.open") as opened, self.assertRaises(UploadFileReadFailed):
                         read_upload_file(candidate, directory_fd=descriptor, maximum_bytes=limit)
@@ -70,6 +70,7 @@ class UploadSnapshotTests(unittest.TestCase):
                 descriptors.append(descriptor)
                 path.replace(Path(root, "retired-original"))
                 path.write_bytes(b"replaced")
+
                 return descriptor
 
             with patch("provider_core.uploads.os.open", side_effect=replace_entry) as opening:
@@ -131,17 +132,19 @@ class UploadSnapshotTests(unittest.TestCase):
     def check_changed_size(self, changed):
         with private_source_directory() as (root, directory):
             receipt = snapshot_source(root, b"original")
-            fstat, read = os.fstat, os.read
+            (fstat, read) = (os.fstat, os.read)
             consumed = []
 
             def mutate_after_stat(descriptor):
                 result = fstat(descriptor)
                 Path(root, receipt.name).write_bytes(changed)
+
                 return result
 
             def observe(descriptor, count):
                 chunk = read(descriptor, count)
                 consumed.append(len(chunk))
+
                 return chunk
 
             with (

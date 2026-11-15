@@ -59,7 +59,7 @@ class SharedGrants:
 def shared_grants(path):
     try:
         document = tomllib.loads(read_startup_file(path, maximum_bytes=65536, label="shared settings").decode("utf-8"))
-        project, gid = document["deployment"]["project"], document["deployment"]["gid"]
+        (project, gid) = (document["deployment"]["project"], document["deployment"]["gid"])
 
         if not (type(project) is str):
             raise TypeError(f"Unexpected {type(project)=}; the shared socket project must be text")

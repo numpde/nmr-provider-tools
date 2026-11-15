@@ -55,22 +55,22 @@ class JobDiscoveryIntegrationTests(unittest.IsolatedAsyncioTestCase):
             transport = HttpTransport(trust=peer.trust, exchange_seconds=1, retirement_seconds=0.5)
             client = ProviderAPI(SigningIdentity(peer.origin, "credential:test", key), transport, expected_topology="dev-local")
             page = await client.jobs(analysis_kind_ref="nmr_predict", has_provider_execution_attempt=False, limit=1, cursor=None)
-            selected, = page.jobs
+            (selected,) = page.jobs
             verified = await client.job_input(selected.input, analysis_kind_ref=selected.analysis_kind_ref)
             self.assertEqual(verified.identity, selected.input)
             self.assertEqual(verified.specification_bytes, b"private instructions")
             self.assertEqual(len(peer.requests), 2)
 
-            for request, expected_target in zip(peer.requests, (
+            for (request, expected_target) in zip(peer.requests, (
                 b"/provider/v1/jobs?analysis_kind_ref=nmr_predict&has_provider_execution_attempt=false&limit=1",
                 b"/provider/v1/jobs/job:example/input?analysis_kind_ref=nmr_predict",
             ), strict=True):
                 self.assertEqual(request.split(b"\r\n")[0], b"GET " + expected_target + b" HTTP/1.1")
 
                 headers = {name.lower(): value.strip() for line in request.split(b"\r\n")[1:] if b":" in line
-                           for name, value in [line.split(b":", 1)]}
+                           for (name, value) in [line.split(b":", 1)]}
 
-                path, query = expected_target.split(b"?", 1)
+                (path, query) = expected_target.split(b"?", 1)
 
                 base = b"\n".join([b'"@method": GET', b'"@authority": ' + peer.origin.removeprefix("https://").encode(),
                                     b'"@path": ' + path, b'"@query": ?' + query,

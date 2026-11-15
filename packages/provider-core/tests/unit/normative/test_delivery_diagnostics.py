@@ -111,7 +111,7 @@ class DeliveryDiagnosticsTests(unittest.TestCase):
         self.assertIn("ValueError", rendered)
 
     def test_full_stderr_pipe_refuses_without_blocking_or_changing_descriptor_policy(self):
-        reader, writer = os.pipe()
+        (reader, writer) = os.pipe()
 
         try:
             os.set_blocking(writer, False)

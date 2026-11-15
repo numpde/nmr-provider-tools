@@ -26,7 +26,7 @@ def _workflow_blank_env_entries_from_lines(lines: list[str], source: str) -> lis
     findings: list[str] = []
     yaml_stack: list[tuple[int, str]] = []
 
-    for line_number, line in enumerate(lines, start=1):
+    for (line_number, line) in enumerate(lines, start=1):
         if not line.strip() or line.lstrip().startswith("#"):
             continue
 
@@ -38,7 +38,7 @@ def _workflow_blank_env_entries_from_lines(lines: list[str], source: str) -> lis
             while yaml_stack and yaml_stack[-1][0] >= indent:
                 yaml_stack.pop()
 
-            parent_keys = [key for _, key in yaml_stack]
+            parent_keys = [key for (_, key) in yaml_stack]
 
             if "env" in parent_keys and WORKFLOW_ENV_EMPTY_RE.match(line):
                 findings.append(f"{source}:{line_number}: {line.strip()}")
@@ -86,7 +86,7 @@ class WorkflowEmptyDefaultsTest(unittest.TestCase):
     def test_workflows_do_not_define_dispatch_defaults(self) -> None:
         findings: list[str] = []
 
-        for source, line_number, line in surface_lines(surface_files(WORKFLOW_GLOBS)):
+        for (source, line_number, line) in surface_lines(surface_files(WORKFLOW_GLOBS)):
             match = WORKFLOW_DEFAULT_FIELD_RE.match(line)
 
             if match:

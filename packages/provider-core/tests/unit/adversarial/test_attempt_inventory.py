@@ -14,7 +14,7 @@ from tests.fakes.api import api
 
 class AttemptInventoryFailureTests(unittest.IsolatedAsyncioTestCase):
     async def test_bad_query_dispatches_nothing(self):
-        for field, bad, error_type in (
+        for (field, bad, error_type) in (
             ("state", "succeeded", ValueError), ("state", True, ValueError), ("limit", True, TypeError),
             ("limit", 0, ValueError), ("limit", 101, ValueError), ("cursor", "YQ=", ValueError),
             ("cursor", "YR", ValueError), ("cursor", "", ValueError), ("cursor", "a\n", ValueError),
@@ -50,7 +50,7 @@ class AttemptInventoryFailureTests(unittest.IsolatedAsyncioTestCase):
                     self.assertNotIn("private canary", rendered)
 
     def test_envelope_schema_cursor_fields_and_requested_count_are_admitted(self):
-        for field, bad in (("schema_id", "future.v2"), ("attempts", {}), ("next_cursor", "YR"),
+        for (field, bad) in (("schema_id", "future.v2"), ("attempts", {}), ("next_cursor", "YR"),
                            ("next_cursor", "YQ="), ("next_cursor", ""), ("next_cursor", []), ("extra", "private canary")):
             document = page(**{field: bad})
 
@@ -69,7 +69,7 @@ class AttemptInventoryFailureTests(unittest.IsolatedAsyncioTestCase):
             read_attempt_inventory(json.dumps(document).encode(), limit=2)
 
     def test_every_row_is_admitted_before_a_page_is_exposed(self):
-        for field, bad in (("analysis_kind_ref", "wrong kind"), ("execution_attempt_ref", "foreign"),
+        for (field, bad) in (("analysis_kind_ref", "wrong kind"), ("execution_attempt_ref", "foreign"),
                            ("job_ref", "foreign"), ("job_ref", []), ("provider_attempt_key", "private canary\n"),
                            ("provider_attempt_key", ""), ("provider_attempt_key", "a" * 129),
                            ("state", "succeeded"), ("state", {}),

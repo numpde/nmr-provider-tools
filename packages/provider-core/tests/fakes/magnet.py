@@ -55,7 +55,7 @@ class MagnetSession:
     """Await interpretation before issuing a handle; predict only after entry."""
 
     def __init__(self, store, interpreter, worker):
-        self.store, self.interpreter, self.worker = store, interpreter, worker
+        (self.store, self.interpreter, self.worker) = (store, interpreter, worker)
         self.phases = []
         self.retired = False
         self._prepared = None
@@ -77,7 +77,8 @@ class MagnetSession:
         candidate = json.dumps(model_input, sort_keys=True, separators=(",", ":")).encode()
         handle = PreparedAnalysis(ProtectedEvidence("fixture.magnet.input.v1", sha256(candidate).hexdigest().encode("ascii")))
         key = json.loads(acknowledged.start.body)["provider_attempt_key"]
-        self._prepared = handle, key, model_input
+        self._prepared = (handle, key, model_input)
+
         return handle
 
     # Match the required session port; this scientific-shape fixture emits no conditions.
@@ -85,8 +86,9 @@ class MagnetSession:
         if self.retired or self._prepared is None or self._prepared[0] is not handle:
             raise ValueError("Magnet fixture execution requires its current unused prepared handle")
 
-        _, key, model_input = self._prepared
+        (_, key, model_input) = self._prepared
         self._prepared = None
+
         self.phases.append(type(self.store.records[0]))
         result = await self.worker(model_input)
 

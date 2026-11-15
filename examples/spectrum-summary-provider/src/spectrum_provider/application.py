@@ -55,6 +55,7 @@ class PeakWorkflow:
 
     def start(self) -> Operation | NotAdmitted:
         """Explicitly deliver the retained baseline request before waiting."""
+
         return self.baseline_submission.submit()
 
     async def finish(self) -> Observation | NotAdmitted:

@@ -76,6 +76,7 @@ class _ModuleBindingCollector(ast.NodeVisitor):
 def _module_bindings(tree: ast.Module) -> list[ast.Assign | ast.AnnAssign]:
     collector = _ModuleBindingCollector()
     collector.visit(tree)
+
     return sorted(collector.bindings, key=lambda binding: binding.lineno)
 
 
@@ -88,6 +89,7 @@ def _has_escape(binding: ast.Assign | ast.AnnAssign, source_lines: list[str]) ->
 
     preceding_line = source_lines[binding.lineno - 2]
     indentation = preceding_line[: len(preceding_line) - len(preceding_line.lstrip())]
+
     return len(indentation) == binding.col_offset and preceding_line.strip() == _ESCAPE
 
 
@@ -184,7 +186,7 @@ class RuntimePolicyPostureTests(unittest.TestCase):
             ),
         )
 
-        for name, source, expected_names in cases:
+        for (name, source, expected_names) in cases:
             with self.subTest(name=name):
                 self.assertEqual(
                     expected_names,

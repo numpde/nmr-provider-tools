@@ -20,7 +20,7 @@ from tests.fakes.uploads import UPLOAD_REF
 
 class UploadSnapshotTests(unittest.IsolatedAsyncioTestCase):
     async def test_actual_acquisition_receipt_becomes_a_closed_immutable_snapshot(self):
-        owner, api, _, client = file_sources()
+        (owner, api, _, client) = file_sources()
         await owner.inspect()
 
         with (
@@ -57,12 +57,13 @@ class UploadSnapshotTests(unittest.IsolatedAsyncioTestCase):
         with private_source_directory() as (root, directory):
             receipt = snapshot_source(root, content)
             read = os.read
-            requested, received = [], []
+            (requested, received) = ([], [])
 
             def observe(descriptor, count):
                 requested.append(count)
                 chunk = read(descriptor, count)
                 received.append(len(chunk))
+
                 return chunk
 
             with patch("provider_core.uploads.os.read", side_effect=observe):

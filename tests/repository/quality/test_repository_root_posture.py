@@ -190,6 +190,7 @@ def _findings_in_body(
 
 def _findings(path: Path, source: str) -> tuple[_Finding, ...]:
     tree = ast.parse(source, filename=str(path))
+
     return _findings_in_body(path=path, statements=tree.body)
 
 

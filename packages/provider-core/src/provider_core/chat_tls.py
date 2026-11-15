@@ -91,6 +91,7 @@ def _file_materials(cafile, capath):
         materials.append(("capath", tuple(captured)))
 
     _require_material_budget(materials)
+
     return tuple(materials)
 
 
@@ -98,10 +99,10 @@ def _require_material_budget(materials):
     count = len(materials)
     total = 0
 
-    for kind, value in materials:
+    for (kind, value) in materials:
         if kind == "capath":
             count += len(value)
-            total += sum(len(raw) for _name, raw in value)
+            total += sum(len(raw) for (_name, raw) in value)
         else:
             total += len(value)
 
@@ -139,7 +140,7 @@ def _load_material(context, kind, raw, directory):
         # parent only after it confirms process and IPC retirement.
         captured = Path(tempfile.mkdtemp(prefix="capath-", dir=directory))
 
-        for name, content in raw:
+        for (name, content) in raw:
             with (captured / name).open("xb") as stream:
                 stream.write(content)
 
@@ -179,9 +180,10 @@ class CapturedSSLContext(ssl.SSLContext):
             return super().load_verify_locations(cafile=cafile, capath=capath, cadata=cadata)
 
         try:
-            for kind, raw in materials:
+            for (kind, raw) in materials:
                 if kind == "capath" and self._chat_directory is None:
                     self._chat_directory = tempfile.TemporaryDirectory(prefix="provider-model-trust-")
+
                     weakref.finalize(self, self._chat_directory.cleanup)
 
                 # An eager PEM/DER/file loader does not use this directory.
@@ -193,6 +195,7 @@ class CapturedSSLContext(ssl.SSLContext):
             # remainder. Ignoring that exception cannot make the result safely
             # reproducible by omitting the partially loaded authority.
             self._chat_opaque = "a trust update did not complete"
+
             raise
 
         self._chat_materials = (*self._chat_materials, *materials)
@@ -226,24 +229,29 @@ class CapturedSSLContext(ssl.SSLContext):
         captured = tuple(protocols)
         result = super().set_alpn_protocols(captured)
         self._chat_alpn = captured
+
         return result
 
     def set_ecdh_curve(self, curve_name):
         result = super().set_ecdh_curve(curve_name)
         self._chat_ecdh_curve = curve_name
+
         return result
 
     # Keep SSLContext's client-certificate API; refuse its authority at model capture.
     def load_cert_chain(self, certfile, keyfile=None, password=None):
         self._chat_opaque = "client certificates or private keys are not transferable"
+
         return super().load_cert_chain(certfile, keyfile, password)
 
     def load_dh_params(self, dhfile):
         self._chat_opaque = "custom DH parameters are not transferable"
+
         return super().load_dh_params(dhfile)
 
     def set_npn_protocols(self, protocols):
         self._chat_opaque = "custom NPN negotiation is not transferable"
+
         return super().set_npn_protocols(protocols)
 
 
@@ -286,13 +294,14 @@ def _facts(context):
 
 def _cipher_expression(context):
     legacy = [cipher["name"] for cipher in context.get_ciphers() if cipher["protocol"] != "TLSv1.3"]
+
     return ":".join((*legacy, "@SECLEVEL=" + str(context.security_level)))
 
 
 def _material_message(kind, value):
     if kind == "capath":
         return {"kind": kind, "entries": [
-            {"name": name, "data": base64.b64encode(raw).decode("ascii")} for name, raw in value
+            {"name": name, "data": base64.b64encode(raw).decode("ascii")} for (name, raw) in value
         ]}
 
     return {"kind": kind, "data": base64.b64encode(value).decode("ascii")}
@@ -320,7 +329,7 @@ def capture_trust(context):
     snapshot = {
         "version": 1,
         "openssl_version": ssl.OPENSSL_VERSION,
-        "materials": [_material_message(kind, value) for kind, value in context._chat_materials],
+        "materials": [_material_message(kind, value) for (kind, value) in context._chat_materials],
         "settings": {name: getattr(context, name) for name in _FIELDS},
         "cipher_expression": _cipher_expression(context),
         # silent-defaults: allow-contract -- No configured ALPN leaves the native default untouched; a configured sequence is replayed exactly.
@@ -384,7 +393,7 @@ def restore_trust(snapshot, *, directory=None):
                     or len(item["entries"]) > MAX_TRUST_MATERIALS):
                 raise _refuse("a captured hashed trust collection is invalid")
 
-            entries, names = [], set()
+            (entries, names) = ([], set())
 
             for entry in item["entries"]:
                 if (type(entry) is not dict or set(entry) != {"name", "data"}
@@ -424,7 +433,7 @@ def restore_trust(snapshot, *, directory=None):
     context = _SSL_CONTEXT(ssl.PROTOCOL_TLS_CLIENT)
     owned_directory = None
 
-    if any(kind == "capath" for kind, _value in materials):
+    if any(kind == "capath" for (kind, _value) in materials):
         if directory is None:
             owned_directory = tempfile.TemporaryDirectory(prefix="provider-model-trust-")
             directory = owned_directory.name
@@ -433,7 +442,7 @@ def restore_trust(snapshot, *, directory=None):
         elif not (type(directory) is str and Path(directory).is_absolute() and Path(directory).is_dir()):
             raise _refuse("the captured trust directory grant is invalid")
 
-    for kind, raw in materials:
+    for (kind, raw) in materials:
         _load_material(context, kind, raw, directory)
 
     for name in _FIELDS:

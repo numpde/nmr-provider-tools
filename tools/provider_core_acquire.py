@@ -25,7 +25,7 @@ def cache_state(pool, locks):
 
     target_tags = set(sys_tags())
 
-    expected_locks = [(lock, {(name, Version(version)): hashes for (name, version), hashes in requirements(lock).items()})
+    expected_locks = [(lock, {(name, Version(version)): hashes for ((name, version), hashes) in requirements(lock).items()})
                       for lock in locks]
 
     missing = False
@@ -82,8 +82,8 @@ def tool_present(pool, pin):
 
 
 def bootstrap_present(pool, lock):
-    package, = tomllib.loads(lock.read_text())["packages"]
-    wheel, = package["wheels"]
+    (package,) = tomllib.loads(lock.read_text())["packages"]
+    (wheel,) = package["wheels"]
     path = pool / Path(urllib.parse.urlsplit(wheel["url"]).path).name
 
     if not path.exists() and not path.is_symlink():
@@ -138,6 +138,7 @@ def main():
             raise ValueError("Cannot use provider-core build inputs: acquire the missing locked dependencies first.")
 
         print(state)
+
         return
 
     pin = json.loads(Path("/wheelhouse-tool-release.json").read_text())

@@ -31,6 +31,7 @@ class ObservedCrashTests(unittest.IsolatedAsyncioTestCase):
         native = supervisor.session(startup_seconds=2, retirement_seconds=2)
         self.addCleanup(native.close)
         native.connect()
+
         return CrashingSession(native, phase)
 
     def transport(self, phase):
@@ -40,6 +41,7 @@ class ObservedCrashTests(unittest.IsolatedAsyncioTestCase):
             replies.extend([reply(observation()), reply(progress_response(phase="running")), reply(observation())])
 
         replies.append(reply(b"API unavailable after crash", status=503))
+
         return Transport(*replies)
 
     def controller(self, session, transport, *, observation_recovery=None):
@@ -55,9 +57,9 @@ class ObservedCrashTests(unittest.IsolatedAsyncioTestCase):
         )
 
     async def test_each_active_phase_reports_crash_once_without_reading_the_outage(self):
-        for phase, calls in (("preparing", 3), ("running", 6)):
+        for (phase, calls) in (("preparing", 3), ("running", 6)):
             with self.subTest(phase=phase):
-                session, transport = self.session(phase), self.transport(phase)
+                (session, transport) = (self.session(phase), self.transport(phase))
                 controller = self.controller(session, transport)
                 accepted = await controller.run(record())
                 self.assertIs(type(accepted), DeliveryAcceptedCheckpoint)
@@ -161,7 +163,7 @@ class ObservedCrashTests(unittest.IsolatedAsyncioTestCase):
 
                 return await super().submit(item)
 
-        delivery, diagnostic = FullOnce(), OSError("Retry logging sink failed")
+        (delivery, diagnostic) = (FullOnce(), OSError("Retry logging sink failed"))
         session = self.session("preparing")
         controller = self.controller(session, self.transport("preparing"))
         controller.delivery = delivery
@@ -176,7 +178,7 @@ class ObservedCrashTests(unittest.IsolatedAsyncioTestCase):
     async def test_native_cleanup_crash_preserves_already_chosen_complete_or_fail(self):
         evidence = ProtectedEvidence("fixture.outcome.v1", b"original scientific outcome")
 
-        for outcome, expected in (
+        for (outcome, expected) in (
             (AnalysisSuccess("result.v1", b"result", evidence), TerminalOperation.COMPLETE),
             (AnalysisFailure("input_rejected", "Input was rejected", evidence), TerminalOperation.FAIL),
         ):

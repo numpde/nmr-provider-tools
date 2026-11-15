@@ -221,7 +221,7 @@ def run_suite(suite: str, patterns: tuple[str, ...]) -> None:
                 wheelhouse,
             )
 
-            for source, name, version in examples:
+            for (source, name, version) in examples:
                 _build_and_install_example(
                     root=scratch / "examples" / name,
                     source=source,

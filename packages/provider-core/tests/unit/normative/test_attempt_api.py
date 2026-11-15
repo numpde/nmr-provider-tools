@@ -30,7 +30,7 @@ class AttemptReadTests(unittest.IsolatedAsyncioTestCase):
                         (ATTEMPT_REF, "job:example", state, job_state),
                     )
 
-                    request, limit = transport.calls[0]
+                    (request, limit) = transport.calls[0]
 
                     self.assertEqual(
                         (request.method, request.url.raw_path, limit),

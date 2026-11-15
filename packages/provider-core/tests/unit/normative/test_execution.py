@@ -27,7 +27,7 @@ class ExecutionTests(unittest.IsolatedAsyncioTestCase):
             reply(observation()),
         )
 
-        store, acknowledged, claim = await live_attempt()
+        (store, acknowledged, claim) = await live_attempt()
         session = Session(store)
 
         executor = live_executor(
@@ -47,7 +47,7 @@ class ExecutionTests(unittest.IsolatedAsyncioTestCase):
 
     async def test_classified_preparation_failure_never_enters_or_executes(self):
         transport = Transport(reply(observation()), reply(response()), reply(progress_response()), reply(observation()))
-        store, acknowledged, claim = await live_attempt()
+        (store, acknowledged, claim) = await live_attempt()
         session = Session(store)
 
         session.preparation = AnalysisFailure(

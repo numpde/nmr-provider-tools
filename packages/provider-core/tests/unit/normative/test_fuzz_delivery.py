@@ -19,25 +19,26 @@ class DeliveryFaultSequenceTests(unittest.TestCase):
                   "provider_ref": provider, "exchange_seconds": 10, "retirement_seconds": 5,
                   "credential_file": "/synthetic/credential"}
 
-        _, _, material = api_settings_with_material(fields, Mock(return_value=encoded(document(principal_ref=provider))))
+        (_, _, material) = api_settings_with_material(fields, Mock(return_value=encoded(document(principal_ref=provider))))
+
         return material
 
     def check_outstanding(self, queue, expected, providers):
         for provider in providers:
             entries = {item.outcome.execution_attempt_ref: (item, state)
-                       for item, state in expected.values() if item.outcome.provider_ref == provider}
+                       for (item, state) in expected.values() if item.outcome.provider_ref == provider}
 
             rows = queue.inventory("https://api.example", provider)
             self.assertEqual({row["execution_attempt_ref"] for row in rows}, set(entries))
 
             for row in rows:
-                item, state = entries[row["execution_attempt_ref"]]
+                (item, state) = entries[row["execution_attempt_ref"]]
                 self.assertEqual(row["state"], state)
                 self.assertEqual(row["body_sha256"], item.outcome.body_sha256)
                 self.assertEqual(row["body_bytes"], len(item.outcome.body))
                 self.assertEqual(queue.status(*item.outcome.key), row)
 
-            pending = {ref: item for ref, (item, state) in entries.items() if state == "pending"}
+            pending = {ref: item for (ref, (item, state)) in entries.items() if state == "pending"}
             selected = queue.next_pending_handoff("https://api.example", provider)
 
             if pending:
@@ -54,7 +55,7 @@ class DeliveryFaultSequenceTests(unittest.TestCase):
         limits = QueueLimits(provider_items=3, provider_bytes=16384, total_items=7, total_bytes=65536)
 
         for seed in range(16):
-            randomizer, expected, trace = random.Random(seed), {}, []
+            (randomizer, expected, trace) = (random.Random(seed), {}, [])
 
             with tempfile.TemporaryDirectory() as directory:
                 queue = DeliveryQueue(Path(directory), limits=limits)
@@ -81,7 +82,7 @@ class DeliveryFaultSequenceTests(unittest.TestCase):
                                                        materials[provider][0])
 
                                 occupied = item.outcome.key in expected
-                                provider_count = sum(old.outcome.provider_ref == provider for old, _ in expected.values())
+                                provider_count = sum(old.outcome.provider_ref == provider for (old, _) in expected.values())
 
                                 if occupied:
                                     with self.assertRaises(DeliveryConflict):
@@ -94,7 +95,7 @@ class DeliveryFaultSequenceTests(unittest.TestCase):
                                     expected[item.outcome.key] = (item, "pending")
                             else:
                                 key = existing_key
-                                item, state = expected[key]
+                                (item, state) = expected[key]
 
                                 if action == "replay":
                                     self.assertEqual(queue.enqueue_handoff(item), item.acceptance())

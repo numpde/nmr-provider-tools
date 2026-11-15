@@ -20,12 +20,14 @@ class RunnerTests(unittest.TestCase):
 
     def setUp(self):
         self.runner = RunningSupervisor()
+
         self.addCleanup(self.runner.close)
 
     def session(self):
         session = self.runner.session(startup_seconds=2, retirement_seconds=2)
         self.addCleanup(session.close)
         session.connect()
+
         return session
 
     def test_two_operations_use_distinct_children_and_preserve_supervisor_and_lock(self):
@@ -125,8 +127,10 @@ class RunnerTests(unittest.TestCase):
 class OwnerSessionLifetimeTests(unittest.TestCase):
     def setUp(self):
         self.runner = RunningSupervisor(operation_seconds=None)
+
         self.addCleanup(self.runner.close)
         self.session = self.runner.session(startup_seconds=2, retirement_seconds=2)
+
         self.addCleanup(self.session.close)
         self.session.connect()
 

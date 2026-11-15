@@ -118,7 +118,7 @@ class BoundProxyTests(unittest.TestCase):
         encoded_name = b"\x03WWW\x07Example\x03COM\0"
         message = encoded_name + b"\x03API\xc0\x04"
 
-        for offset, expected in (
+        for (offset, expected) in (
             (0, ("www.example.com", len(encoded_name))),
             (len(encoded_name), ("api.example.com", len(message))),
         ):
@@ -128,7 +128,7 @@ class BoundProxyTests(unittest.TestCase):
 
         self.assertEqual(("www.example.com", len(encoded_name)), bound_http_proxy._read_dns_name(encoded_name, 0, 16))
 
-        for encoded, offset, depth in ((message, len(encoded_name), 16), (b"", 0, 17)):
+        for (encoded, offset, depth) in ((message, len(encoded_name), 16), (b"", 0, 17)):
             with (
                 self.subTest(offset=offset, depth=depth),
                 self.assertRaisesRegex(ValueError, "compression pointer recursion is too deep"),
@@ -222,7 +222,7 @@ class BoundProxyTests(unittest.TestCase):
 
         for phase in ("http_header", "connect_status", "connect_remainder", "relay"):
             with self.subTest(phase=phase):
-                request, outbound = MagicMock(), MagicMock()
+                (request, outbound) = (MagicMock(), MagicMock())
                 outbound.__enter__.return_value = outbound
 
                 # silent-defaults: allow-contract -- The failure-phase table selects HTTP header forwarding or the CONNECT handshake; each case checks which write can occur before failure; proof=tests/repository/test_bound_http_proxy.py::BoundProxyTests.test_forwarding_attempt_failure_never_appends_an_http_status
@@ -266,7 +266,7 @@ class BoundProxyTests(unittest.TestCase):
 
     def test_destination_port_boundaries_and_scheme_defaults_are_preserved(self):
         for port in (1, 65535):
-            for method, target in (
+            for (method, target) in (
                 ("CONNECT", "example.invalid:" + str(port)),
                 ("GET", "http://example.invalid:" + str(port) + "/path?query=1"),
             ):
@@ -277,7 +277,7 @@ class BoundProxyTests(unittest.TestCase):
                     # silent-defaults: allow-contract -- CONNECT preserves request bytes while HTTP forwards the origin-form target; the expected wire bytes are checked separately from parsed host and port; proof=tests/repository/test_bound_http_proxy.py::BoundProxyTests.test_destination_port_boundaries_and_scheme_defaults_are_preserved
                     self.assertEqual(result[3], header if method == "CONNECT" else b"GET /path?query=1 HTTP/1.1\r\n\r\n")
 
-        for scheme, port in (("http", 80), ("https", 443)):
+        for (scheme, port) in (("http", 80), ("https", 443)):
             with self.subTest(scheme=scheme):
                 self.assertEqual(
                     bound_http_proxy.parse_destination(f"GET {scheme}://example.invalid/ HTTP/1.1\r\n\r\n".encode("ascii"))[2],
@@ -287,10 +287,10 @@ class BoundProxyTests(unittest.TestCase):
     def test_empty_absolute_path_becomes_origin_slash(self):
         # RFC 9112 section 3.2.1 owns the path, including a query-only URI:
         # https://www.rfc-editor.org/rfc/rfc9112.html#section-3.2.1
-        for suffix, origin in (("", "/"), ("?q=one%20two", "/?q=one%20two")):
+        for (suffix, origin) in (("", "/"), ("?q=one%20two", "/?q=one%20two")):
             with self.subTest(suffix=suffix):
                 header = f"GET http://example.invalid{suffix} HTTP/1.1\r\nHost: example.invalid\r\n\r\n".encode("ascii")
-                method, host, port, forwarded = bound_http_proxy.parse_destination(header)
+                (method, host, port, forwarded) = bound_http_proxy.parse_destination(header)
                 self.assertEqual(("GET", "example.invalid", 80), (method, host, port))
 
                 self.assertEqual(
@@ -307,8 +307,8 @@ class BoundProxyTests(unittest.TestCase):
 
     def _assert_forwarding_write_budget(self, method):
         """Observe each peer's timeout at the actual first forwarding write."""
-        clock, observed = [0], []
-        request, outbound = MagicMock(), MagicMock()
+        (clock, observed) = ([0], [])
+        (request, outbound) = (MagicMock(), MagicMock())
         outbound.__enter__.return_value = outbound
         # silent-defaults: allow-contract -- The GET and CONNECT cases choose their respective request-target forms before observing both peers' first-write timeout settings; proof=tests/repository/test_bound_http_proxy.py::BoundProxyTests.test_forwarding_owns_write_budget_after_header_deadline_nearly_expires
         target = "http://example.invalid/" if method == "GET" else "example.invalid:443"
@@ -316,7 +316,8 @@ class BoundProxyTests(unittest.TestCase):
         fragments = iter(((29, header[:-1]), (29.9, header[-1:])))
 
         def receive(_size):
-            clock[0], fragment = next(fragments)
+            (clock[0], fragment) = next(fragments)
+
             return fragment
 
         def sent(_data):
@@ -409,7 +410,7 @@ class BoundProxyTests(unittest.TestCase):
             self.assertFalse(ready.exists())
 
     def test_explicit_listener_ports_reach_the_bind_and_publish_its_actual_port(self):
-        for requested, observed in ((0, 23456), (12345, 12345)):
+        for (requested, observed) in ((0, 23456), (12345, 12345)):
             with self.subTest(port=requested), tempfile.TemporaryDirectory() as temporary:
                 ready = Path(temporary) / "proxy.port"
                 listener = MagicMock()

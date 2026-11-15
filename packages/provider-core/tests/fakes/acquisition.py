@@ -26,6 +26,7 @@ class API:
 
     async def uploads(self, job_ref):
         self.calls.append("membership")
+
         # silent-defaults: allow-contract -- Absent membership contains no synthetic upload members.
         return UploadSet(job_ref, (self.member,) if self.member is not None else ())
 
@@ -55,6 +56,7 @@ class Store:
             before_body(HttpResponseHead(200, tuple(self.headers)))
 
         account_bytes(len(self.body))
+
         return HttpResponse(200, self.headers, self.body)
 
 
@@ -87,14 +89,15 @@ def sources(*, total_bytes=100, source_bytes=100, requests=20, seconds=60, store
         limits=UploadLimits(source_bytes, total_bytes, requests, seconds),
     )
 
-    return owner, api, store
+    return (owner, api, store)
 
 
 def file_sources(**limits):
     transport = HttpTransport(trust=ssl.create_default_context(), exchange_seconds=1, retirement_seconds=0.05)
-    owner, api, _ = sources(store=transport, **limits)
+    (owner, api, _) = sources(store=transport, **limits)
     client = Client(Stream([b"geometry"]), headers=store_headers(b"geometry"))
-    return owner, api, transport, client
+
+    return (owner, api, transport, client)
 
 
 @contextmanager
@@ -103,7 +106,7 @@ def private_source_directory():
         descriptor = os.open(root, os.O_RDONLY | os.O_DIRECTORY | os.O_CLOEXEC)
 
         try:
-            yield root, descriptor
+            yield (root, descriptor)
         finally:
             os.close(descriptor)
 
@@ -111,6 +114,7 @@ def private_source_directory():
 def snapshot_source(root, data):
     path = Path(root) / "source"
     path.write_bytes(data)
+
     return VerifiedUploadFile("job:example", UPLOAD_REF, len(data), "sha256:" + hashlib.sha256(data).hexdigest(), path.name)
 
 

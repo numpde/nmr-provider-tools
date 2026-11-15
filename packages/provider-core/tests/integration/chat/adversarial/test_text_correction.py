@@ -135,7 +135,7 @@ class TextCorrectionBoundaryTests(unittest.IsolatedAsyncioTestCase):
             await conversation.run([], [], dispatch)
 
         self.assertEqual(2, model.complete.await_count)
-        self.assertEqual([1, 2], [turn for turn, _ in caught.exception.correction_failures])
+        self.assertEqual([1, 2], [turn for (turn, _) in caught.exception.correction_failures])
         dispatch.assert_not_awaited()
         await conversation.retire()
 
@@ -156,11 +156,12 @@ class TextCorrectionBoundaryTests(unittest.IsolatedAsyncioTestCase):
         await conversation.retire()
 
     async def test_late_plain_reply_after_retirement_cannot_start_a_repair_or_dispatch(self):
-        entered, release = asyncio.Event(), asyncio.Event()
+        (entered, release) = (asyncio.Event(), asyncio.Event())
 
         async def complete(*_):
             entered.set()
             await release.wait()
+
             return {"role": "assistant", "content": "Try again."}
 
         model = recording_endpoint("only")

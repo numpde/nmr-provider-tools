@@ -77,6 +77,7 @@ def main():
                 live_configuration=live, status_directory=options.status_directory)
 
         asyncio.run(_run(service, notices))
+
         return 0
     # silent-defaults: allow-exception-outcome -- This process boundary reports the retained failure and exits nonzero
     except BaseException as failure:

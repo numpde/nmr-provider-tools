@@ -15,7 +15,7 @@ from tests.fakes.uploads import UPLOAD_REF
 
 class UploadFileAcquisitionTests(unittest.IsolatedAsyncioTestCase):
     async def test_verified_file_handoff_preserves_exact_facts_and_releases_acquisition_owner(self):
-        owner, api, store, client = file_sources()
+        (owner, api, store, client) = file_sources()
         await owner.inspect()
 
         with (
@@ -39,7 +39,7 @@ class UploadFileAcquisitionTests(unittest.IsolatedAsyncioTestCase):
             os.unlink(result.name, dir_fd=directory)
 
     async def test_file_and_byte_outputs_use_the_same_cumulative_session(self):
-        owner, api, _, file_client = file_sources(total_bytes=16)
+        (owner, api, _, file_client) = file_sources(total_bytes=16)
         byte_client = Client(Stream([b"geometry"]), headers=store_headers(b"geometry"))
         await owner.inspect()
 
@@ -56,7 +56,7 @@ class UploadFileAcquisitionTests(unittest.IsolatedAsyncioTestCase):
             self.assertEqual(clients.call_count, 2)
 
     async def test_explicit_private_mode_survives_a_restrictive_creation_umask(self):
-        owner, _, _, client = file_sources()
+        (owner, _, _, client) = file_sources()
         await owner.inspect()
 
         with (

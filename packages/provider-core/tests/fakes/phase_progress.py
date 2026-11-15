@@ -28,7 +28,8 @@ class PhaseProgressTransport(ConditionTransport):
                     raise AssertionError("A failed phase label was resent")
 
                 self.failed = True
-                self.retirement_confirmed, self.pending_owner = False, owner
+
+                (self.retirement_confirmed, self.pending_owner) = (False, owner)
 
                 if isinstance(self.phase_failure, BaseException):
                     raise self.phase_failure
@@ -39,6 +40,7 @@ class PhaseProgressTransport(ConditionTransport):
                 raise AssertionError("Fresh lifecycle read preceded original PUT retirement")
 
             self.fresh_reads += 1
+
             return self.fresh_observation
 
         return received

@@ -26,6 +26,7 @@ def open_checkpoint(*, path: Path, expected_sha256: str) -> BinaryIO:
             raise ValueError(f"Cannot load checkpoint: {actual_sha256=} differs from {expected_sha256=}")
 
         checkpoint.seek(0)
+
         return checkpoint
     except BaseException:
         checkpoint.close()

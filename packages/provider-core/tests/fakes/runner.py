@@ -60,12 +60,15 @@ class RunningSupervisor:
         self.root = Path(self.temporary.name)
         self.endpoint = self.root / "endpoint"
         self.scratch = self.root / "scratch"
+
         self.endpoint.mkdir(mode=0o700)
         self.scratch.mkdir(mode=0o700)
         self.status = self.root / "status"
+
         self.status.mkdir(mode=0o700)
         (self.endpoint / ".owner-session.lock").touch(mode=0o600)
         self.path = self.endpoint / "runner.sock"
+
         # silent-defaults: allow-contract -- This fixture's explicit None selects owner-session lifetime; numeric budgets select the finite CLI.
         lifetime = ["--owner-session-lifetime"] if operation_seconds is None else ["--operation-seconds", str(operation_seconds)]
 
@@ -97,12 +100,14 @@ class RunningSupervisor:
         self.process.communicate(timeout=2)
         self.path.unlink()
         self.scratch = self.root / "successor-scratch"
+
         self.scratch.mkdir(mode=0o700)
         self.command[self.command.index("--scratch") + 1] = str(self.scratch)
         self._start()
 
     def session(self, **budgets):
         observed = (self.endpoint / ".owner-session.lock").stat()
+
         return RunnerSession(self.path, role=self.role, expected_lock_identity=(observed.st_dev, observed.st_ino), **budgets)
 
     def close(self):
@@ -115,10 +120,10 @@ class RunningSupervisor:
             self.process.terminate()
 
         try:
-            _, self.diagnostic = self.process.communicate(timeout=3)
+            (_, self.diagnostic) = self.process.communicate(timeout=3)
         except subprocess.TimeoutExpired:
             self.process.kill()
-            _, self.diagnostic = self.process.communicate(timeout=3)
+            (_, self.diagnostic) = self.process.communicate(timeout=3)
             raise
         finally:
             self.temporary.cleanup()

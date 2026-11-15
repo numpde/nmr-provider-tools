@@ -44,7 +44,7 @@ class UnixTunnelTests(unittest.IsolatedAsyncioTestCase):
                 name.lower(): value
                 for line in peer.requests[0].split(b"\r\n")[1:]
                 if line
-                for name, value in [line.split(b": ", 1)]
+                for (name, value) in [line.split(b": ", 1)]
             }
 
             self.assertEqual(headers[b"host"].decode(), origin.removeprefix("https://"))

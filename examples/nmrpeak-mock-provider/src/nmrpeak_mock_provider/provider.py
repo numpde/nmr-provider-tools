@@ -128,7 +128,7 @@ async def open_provider(
 
         # Family selects a scientific input shape. Each entry is an independently
         # configured model; several entries can use the same contribution class.
-        for family, offering_configs in provider_config["science"].items():
+        for (family, offering_configs) in provider_config["science"].items():
             if family not in predictor_classes:
                 raise ValueError(f"Cannot configure scientific offerings: unsupported {family=}")
 

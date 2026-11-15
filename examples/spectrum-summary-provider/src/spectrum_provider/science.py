@@ -24,7 +24,7 @@ def _finite_samples(values: object, *, label: str) -> tuple[float, ...]:
 
     samples = []
 
-    for index, value in enumerate(values):
+    for (index, value) in enumerate(values):
         samples.append(_finite_number(value, label=f"Spectrum {label}[{index}]"))
 
     return tuple(samples)

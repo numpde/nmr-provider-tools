@@ -91,9 +91,9 @@ class GrantRenewalTests(unittest.IsolatedAsyncioTestCase):
         pending = problem(409, "operation-conflict", "upload_read_not_finalized")
         headers = pending.headers
         # repo-check: allow-tuple-generator -- HttpResponse owns immutable ordered wire headers; retain that shape while omitting the correlation header.
-        without_request = tuple((name, value) for name, value in headers if name.lower() != b"x-request-id")
+        without_request = tuple((name, value) for (name, value) in headers if name.lower() != b"x-request-id")
         # repo-check: allow-tuple-generator -- This malformed topology specimen must retain the same immutable ordered header contract.
-        without_topology = tuple((name, value) for name, value in headers if name.lower() != b"nmr-api-topology")
+        without_topology = tuple((name, value) for (name, value) in headers if name.lower() != b"nmr-api-topology")
 
         responses = (
             replace(pending, headers=without_request),
@@ -107,7 +107,7 @@ class GrantRenewalTests(unittest.IsolatedAsyncioTestCase):
                            response_head=HttpResponseHead(pending.status, headers)),
         )
 
-        for index, response in enumerate(responses):
+        for (index, response) in enumerate(responses):
             with self.subTest(case=index):
                 api = self.api(Transport(response))
                 failure = await self.failure(api)

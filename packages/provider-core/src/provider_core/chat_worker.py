@@ -144,6 +144,7 @@ def _request(document):
 
     require_decoded_limit(document["maximum_bytes"])
     require_decoded_limit(document["error_maximum_bytes"])
+
     return httpx.Request(document["method"], document["url"], headers=headers, content=body)
 
 

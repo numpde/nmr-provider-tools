@@ -26,8 +26,10 @@ class PublicationStorageStallTests(unittest.IsolatedAsyncioTestCase):
     async def asyncSetUp(self):
         directory = self.enterContext(tempfile.TemporaryDirectory())
         self.root = Path(directory)
+
         (self.root / "state").mkdir(mode=0o700)
         self.queue = DeliveryQueue(self.root / "state", limits=QueueLimits(4, 16384, 8, 32768))
+
         self.addCleanup(self.queue.close)
 
         self.inbox = DeliveryInbox(self.queue, (), request_seconds=1, on_accepted=Mock(),
@@ -37,9 +39,9 @@ class PublicationStorageStallTests(unittest.IsolatedAsyncioTestCase):
 
     async def test_original_receipt_waiting_for_storage_emits_one_alert_and_recovers_without_resending(self):
         loop = asyncio.get_running_loop()
-        removal_started, warning_seen = asyncio.Event(), asyncio.Event()
+        (removal_started, warning_seen) = (asyncio.Event(), asyncio.Event())
         release_removal = Event()
-        removal_calls, notices = [], []
+        (removal_calls, notices) = ([], [])
         original_remove = self.queue.remove_published
 
         def held_remove(item):
@@ -96,7 +98,7 @@ class PublicationStorageStallTests(unittest.IsolatedAsyncioTestCase):
                     waiting = self.queue.next_pending(item.api_origin, item.provider_ref)
                     notice_evidence = []
 
-                    for failure, facts, _ in notices:
+                    for (failure, facts, _) in notices:
                         reason = None
 
                         if failure is not None:
@@ -124,13 +126,13 @@ class PublicationStorageStallTests(unittest.IsolatedAsyncioTestCase):
                     self.assertTrue(worker._api_receipt_received, msg=evidence)
                     self.assertTrue(client.retirement_confirmed, msg=evidence)
 
-                    self.assertEqual(["delivery_stalled"], [facts["event"] for _, facts, _ in notices],
+                    self.assertEqual(["delivery_stalled"], [facts["event"] for (_, facts, _) in notices],
                                      msg="No operator warning described the original publication blocked in storage: " + evidence)
 
-                    failure, stalled, observed_at = notices[0]
+                    (failure, stalled, observed_at) = notices[0]
                     self.assertIsNotNone(failure, msg="DeliveryNotices must emit this event at warning severity")
 
-                    for name, value in item.acceptance().items():
+                    for (name, value) in item.acceptance().items():
                         self.assertEqual(value, stalled[name], msg=evidence)
 
                     self.assertIs(stalled["api_receipt_received"], True, msg=evidence)
@@ -153,14 +155,14 @@ class PublicationStorageStallTests(unittest.IsolatedAsyncioTestCase):
                     await asyncio.wait_for(asyncio.shield(original), 3)
 
             self.assertEqual(["delivery_stalled", "delivery_published"],
-                             [facts["event"] for _, facts, _ in notices])
+                             [facts["event"] for (_, facts, _) in notices])
 
-            failure, published, _ = notices[-1]
+            (failure, published, _) = notices[-1]
             self.assertIsNone(failure)
             self.assertIs(published["recovered"], True)
             self.assertGreater(published["publication_wait_seconds"], stalled["publication_wait_seconds"])
 
-            for name, value in item.acceptance().items():
+            for (name, value) in item.acceptance().items():
                 self.assertEqual(value, published[name])
 
             self.assertEqual([item], removal_calls)
@@ -171,10 +173,10 @@ class PublicationStorageStallTests(unittest.IsolatedAsyncioTestCase):
 
     async def test_stop_and_failed_warning_output_preserve_the_original_storage_operation(self):
         loop = asyncio.get_running_loop()
-        removal_started, warning_seen = asyncio.Event(), asyncio.Event()
+        (removal_started, warning_seen) = (asyncio.Event(), asyncio.Event())
         release_removal = Event()
         original_remove = self.queue.remove_published
-        removal_calls, notices = [], []
+        (removal_calls, notices) = ([], [])
 
         class FailFirstWrite(io.StringIO):
             def __init__(self):
@@ -184,6 +186,7 @@ class PublicationStorageStallTests(unittest.IsolatedAsyncioTestCase):
             def write(self, text):
                 if not self.failed_once:
                     self.failed_once = True
+
                     raise OSError("The test operator stream refused its first write")
 
                 return super().write(text)
@@ -241,7 +244,7 @@ class PublicationStorageStallTests(unittest.IsolatedAsyncioTestCase):
                     self.assertEqual([item], removal_calls)
                     self.assertEqual([item.body], peer.request_bodies)
                     self.assertEqual(item, self.queue.next_pending(item.api_origin, item.provider_ref))
-                    self.assertEqual(["delivery_stalled"], [facts["event"] for _, facts in notices])
+                    self.assertEqual(["delivery_stalled"], [facts["event"] for (_, facts) in notices])
                     self.assertIs(notices[0][1]["api_receipt_received"], True)
                     self.assertEqual(1, diagnostic_sink.status()["output_failures"])
                     self.assertEqual("delivery_stalled", diagnostic_sink.status()["last_failed_event"])
@@ -262,7 +265,7 @@ class PublicationStorageStallTests(unittest.IsolatedAsyncioTestCase):
             self.assertFalse(original_storage.cancelled())
             self.assertEqual([item], removal_calls)
             self.assertEqual([item.body], peer.request_bodies)
-            self.assertEqual(["delivery_stalled", "delivery_published"], [facts["event"] for _, facts in notices])
+            self.assertEqual(["delivery_stalled", "delivery_published"], [facts["event"] for (_, facts) in notices])
             self.assertIs(notices[-1][1]["recovered"], True)
             self.assertEqual(1, diagnostic_sink.status()["output_failures"])
             published_log = json.loads(output.getvalue())
@@ -294,13 +297,13 @@ class PublicationStorageStallTests(unittest.IsolatedAsyncioTestCase):
 
             alert_seconds = client.exchange_seconds + client.retirement_seconds + worker.retry_max_seconds
             await asyncio.wait_for(worker.run(), 3)
-            self.assertEqual(["delivery_published"], [facts["event"] for _, facts in notices])
+            self.assertEqual(["delivery_published"], [facts["event"] for (_, facts) in notices])
             self.assertIsNone(notices[0][0])
             self.assertIs(notices[0][1]["recovered"], False)
             # Starting this wait after completion puts it strictly past the
             # alarm's original deadline, even if initial scheduling was slow.
             await asyncio.sleep(alert_seconds + 0.02)
-            self.assertEqual(["delivery_published"], [facts["event"] for _, facts in notices])
+            self.assertEqual(["delivery_published"], [facts["event"] for (_, facts) in notices])
             self.assertEqual([item.body], peer.request_bodies)
             self.assertEqual([], self.queue.inventory(item.api_origin, item.provider_ref))
             self.assertTrue(client.retirement_confirmed)

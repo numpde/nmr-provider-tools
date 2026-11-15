@@ -228,6 +228,7 @@ def operation(
             raise ValueError("An operation may be declared only once")
 
         function.__scientific_operation__ = declaration
+
         return function
 
     return decorate
@@ -279,7 +280,7 @@ def _members(*, contribution: type[Contribution]) -> tuple[tuple[str, Callable],
 
     result = []
 
-    for name, member in sorted(effective.items()):
+    for (name, member) in sorted(effective.items()):
         if isinstance(member, (staticmethod, classmethod)):
             if "__scientific_operation__" in member.__func__.__dict__:
                 raise TypeError(f"Exported operation {name!r} must be an instance method")
@@ -297,7 +298,7 @@ def _members(*, contribution: type[Contribution]) -> tuple[tuple[str, Callable],
     if not result:
         raise ValueError("A contribution must export at least one operation")
 
-    if len({function for _, function in result}) != len(result):
+    if len({function for (_, function) in result}) != len(result):
         raise ValueError("An exported operation cannot have multiple aliases in one contribution")
 
     return tuple(result)
@@ -387,7 +388,7 @@ def _lifecycle(*, owner: type, name: str, keywords: dict[str, type]) -> _Lifecyc
 
     annotations = get_type_hints(obj=function)
 
-    for key, parameter in actual.items():
+    for (key, parameter) in actual.items():
         if parameter.kind is not inspect.Parameter.KEYWORD_ONLY or parameter.default is not inspect.Parameter.empty:
             raise TypeError(f"Lifecycle argument {key!r} must be required and keyword-only")
 
@@ -467,15 +468,15 @@ def _compile_method(
     wrapped = get_origin(tp=output) is ScientificReturn
 
     if wrapped:
-        output, = get_args(tp=output)
+        (output,) = get_args(tp=output)
 
     if declaration.state_outputs and not wrapped:
         raise TypeError(f"Operation {name!r} returning state must return ScientificReturn[Result]")
 
-    input_name, input_type = None, NoInput
+    (input_name, input_type) = (None, NoInput)
 
     if inputs:
-        input_name, input_type = inputs[0]
+        (input_name, input_type) = inputs[0]
 
     analysis_type = contribution.analysis_type
 
@@ -583,7 +584,7 @@ class HostedContribution:
         members = _members(contribution=contribution_type)
         calls = []
 
-        for name, function in members:
+        for (name, function) in members:
             call = _compile_method(
                 contribution=contribution_type, name=name, function=function,
                 resources=self.requirements,
@@ -657,6 +658,7 @@ class HostedContribution:
 
         analysis = object.__new__(self._analysis_type)
         Analysis.__init__(self=analysis, contribution=instance)
+
         return analysis
 
     def initialize_analysis(self, *, analysis: Analysis | None) -> None:

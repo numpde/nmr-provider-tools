@@ -26,7 +26,7 @@ class ApiReadTests(unittest.IsolatedAsyncioTestCase):
 
         self.assertEqual(verified.specification_bytes, b"private instructions")
         self.assertEqual(len(transport.calls), 1)
-        request, ceiling = transport.calls[0]
+        (request, ceiling) = transport.calls[0]
         self.assertEqual(request.method, "GET")
         self.assertEqual(request.url.raw_path, b"/provider/v1/jobs/job:example/input?analysis_kind_ref=nmr_prediction")
         self.assertEqual(ceiling, 131072)

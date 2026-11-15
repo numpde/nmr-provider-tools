@@ -27,7 +27,8 @@ class InstalledDeploymentTests(unittest.TestCase):
         temporary = tempfile.TemporaryDirectory()
         self.addCleanup(temporary.cleanup)
         self.root = Path(temporary.name)
-        self.uid, self.gid = os.geteuid(), os.getegid()
+
+        (self.uid, self.gid) = (os.geteuid(), os.getegid())
         self.binding_file = self.root / "definition.toml"
         self.raw = definition(1).replace(b"uid = 65532", f"uid = {self.uid}".encode()).replace(b"gid = 65532", f"gid = {self.gid}".encode())
         self.image = "sha256:" + "a" * 64
@@ -38,7 +39,8 @@ class InstalledDeploymentTests(unittest.TestCase):
 
     def render(self, raw):
         self.write_definition(raw)
-        selected, checksum = freezer.read_definition(self.binding_file)
+        (selected, checksum) = freezer.read_definition(self.binding_file)
+
         return freezer.render(selected, self.binding_file, self.image, checksum)
 
     def test_long_derived_daemon_socket_refuses_before_recipe_or_secret_reads(self):
@@ -55,18 +57,18 @@ class InstalledDeploymentTests(unittest.TestCase):
         self.write_definition(self.raw)
 
         with patch.object(freezer, "read_startup_file", wraps=freezer.read_startup_file) as read:
-            selected, checksum = freezer.read_definition(self.binding_file)
+            (selected, checksum) = freezer.read_definition(self.binding_file)
             plan = freezer.render(selected, self.binding_file, self.image, checksum)
 
         self.assertEqual([self.binding_file], [call.args[0] for call in read.call_args_list])
         self.assertEqual([self.binding_file], list(self.root.iterdir()))
-        daemon, initializer = plan["services"]["delivery"], plan["services"]["init"]
+        (daemon, initializer) = (plan["services"]["delivery"], plan["services"]["init"])
         self.assertEqual("none", daemon["network_mode"])
         self.assertEqual(["CHOWN"], initializer["cap_add"])
         self.assertEqual(2, len(initializer["volumes"]))
         self.assertNotIn("--control", initializer["command"])
         self.assertTrue(all("-control-" not in name for name in plan["volumes"]))
-        proxy = next(service for name, service in plan["services"].items() if name.startswith("api-") and not name.startswith("api-init-"))
+        proxy = next(service for (name, service) in plan["services"].items() if name.startswith("api-") and not name.startswith("api-init-"))
         self.assertEqual("host", proxy["network_mode"])
         self.assertEqual("INFO", proxy["command"][proxy["command"].index("--log-level") + 1])
         self.assertEqual(["/route"], [mount["target"] for mount in proxy["volumes"]])
@@ -105,7 +107,7 @@ class InstalledDeploymentTests(unittest.TestCase):
                     raw = self.raw.replace(b'mode = "mapped"', b'mode = "external"').replace(b'addresses = ["api.example=127.0.0.1"]', b'resolver_file = "/synthetic/resolver"')
 
                 plan = self.render(raw)
-                proxy = next(service for name, service in plan["services"].items() if name.startswith("api-") and not name.startswith("api-init-"))
+                proxy = next(service for (name, service) in plan["services"].items() if name.startswith("api-") and not name.startswith("api-init-"))
 
                 if mode == "local":
                     self.assertNotIn("network_mode", proxy)
@@ -115,9 +117,9 @@ class InstalledDeploymentTests(unittest.TestCase):
                     self.assertTrue(all(mount["source"] != "/synthetic/resolver" for mount in plan["services"]["delivery"]["volumes"]))
 
     def test_initializer_preserves_correct_nonempty_queue_and_ipc_roots(self):
-        queue, ipc = self.root / "queue", self.root / "ipc"
+        (queue, ipc) = (self.root / "queue", self.root / "ipc")
 
-        for path, mode in ((queue, 0o700), (ipc, 0o710)):
+        for (path, mode) in ((queue, 0o700), (ipc, 0o710)):
             path.mkdir(mode=mode)
             (path / "retained").write_bytes(b"retained state")
 

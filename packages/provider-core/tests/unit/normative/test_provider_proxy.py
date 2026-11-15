@@ -103,7 +103,7 @@ class ServiceProxyTests(unittest.TestCase):
 
                 with patch("provider_core.provider_proxy.time.monotonic", return_value=100):
                     for _ in range(5):
-                        owned, peer = socket.socketpair()
+                        (owned, peer) = socket.socketpair()
                         clients.append(peer)
                         server.process_request(owned, "")
 
@@ -128,14 +128,14 @@ class ServiceProxyTests(unittest.TestCase):
                 server._slots.set_limit(1)
                 server.max_admission_delay_seconds = 7
                 self.assertTrue(server._slots.acquire())
-                first, first_peer = socket.socketpair()
+                (first, first_peer) = socket.socketpair()
 
                 with patch("provider_core.provider_proxy.time.monotonic", return_value=100):
                     server.process_request(first, "")
                     first_peer.close()
                     server._start_waiting()
                     self.assertFalse(server.pending)
-                    second, second_peer = socket.socketpair()
+                    (second, second_peer) = socket.socketpair()
                     server.process_request(second, "")
 
                 with patch("provider_core.provider_proxy.time.monotonic", return_value=138):
@@ -157,8 +157,8 @@ class ServiceProxyTests(unittest.TestCase):
                 for _ in range(4):
                     self.assertTrue(server._slots.acquire())
 
-                first, first_peer = socket.socketpair()
-                second, second_peer = socket.socketpair()
+                (first, first_peer) = socket.socketpair()
+                (second, second_peer) = socket.socketpair()
 
                 with patch("provider_core.provider_proxy.time.monotonic", return_value=100), patch.object(server, "start_reserved_request") as start:
                     server.process_request(first, "")
@@ -188,8 +188,8 @@ class ServiceProxyTests(unittest.TestCase):
                 for _ in range(4):
                     self.assertTrue(server._slots.acquire())
 
-                first, first_peer = socket.socketpair()
-                second, second_peer = socket.socketpair()
+                (first, first_peer) = socket.socketpair()
+                (second, second_peer) = socket.socketpair()
 
                 with patch("provider_core.provider_proxy.time.monotonic", return_value=100), patch.object(server, "start_reserved_request") as start:
                     server.process_request(first, "")
@@ -228,13 +228,13 @@ class ServiceProxyTests(unittest.TestCase):
 
                 with patch("provider_core.provider_proxy.time.monotonic", return_value=100), patch.object(server, "start_reserved_request") as start:
                     for _ in range(4):
-                        owned, peer = socket.socketpair()
+                        (owned, peer) = socket.socketpair()
                         clients.append(peer)
                         server.process_request(owned, "")
 
                     server._slots.release()
                     server.max_admission_delay_seconds = 0
-                    new, new_peer = socket.socketpair()
+                    (new, new_peer) = socket.socketpair()
                     server.process_request(new, "")
                     start.assert_called_once_with(new, "")
                     self.assertEqual(len(server.pending), 4)
@@ -347,7 +347,7 @@ logging.getLogger('dependency').warning('dependency-warning')
 
     def test_exclusive_proxy_restart_replaces_only_stale_private_endpoint_and_readiness(self):
         with tempfile.TemporaryDirectory() as directory:
-            path, ready = Path(directory) / "proxy.sock", Path(directory) / "ready"
+            (path, ready) = (Path(directory) / "proxy.sock", Path(directory) / "ready")
 
             command = [sys.executable, "-B", "-c", "from provider_core.provider_proxy import main; main()",
                        "--interface", "lo", "--mode", "external", "--authority", "api.example:443",
@@ -375,6 +375,7 @@ logging.getLogger('dependency').warning('dependency-warning')
                                 self.assertIn(b"403 Forbidden", client.recv(1024))
 
                             self.assertIsNone(child.poll())
+
                             return
                     # silent-defaults: allow-contract -- Only successful serving proves readiness while the prior stale endpoint is replaced.
                     except (FileNotFoundError, ConnectionRefusedError):
@@ -390,7 +391,7 @@ logging.getLogger('dependency').warning('dependency-warning')
             first = subprocess.Popen(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
             self.addCleanup(stop, first)
             wait_ready(first)
-            previous = path.stat().st_ino, ready.stat().st_ino
+            previous = (path.stat().st_ino, ready.stat().st_ino)
             contender = subprocess.run(command, capture_output=True, timeout=2)
             self.assertNotEqual(contender.returncode, 0)
             self.assertIn(b"another proxy owns", contender.stderr)
@@ -420,7 +421,7 @@ logging.getLogger('dependency').warning('dependency-warning')
 
     def test_cli_publishes_private_complete_readiness_only_after_socket_admission(self):
         with tempfile.TemporaryDirectory() as directory:
-            path, ready = Path(directory) / "proxy.sock", Path(directory) / "ready"
+            (path, ready) = (Path(directory) / "proxy.sock", Path(directory) / "ready")
 
             argv = [
                 "provider_proxy",
@@ -491,7 +492,7 @@ logging.getLogger('dependency').warning('dependency-warning')
 
         with tempfile.TemporaryDirectory() as directory:
             path = Path(directory) / "proxy.sock"
-            outbound, peer = socket.socketpair()
+            (outbound, peer) = socket.socketpair()
 
             with patch.object(bound_http_proxy, "connect_bound", return_value=outbound) as connect:
                 with ServiceProxyServer(path, "lo", policy, status_directory=Path(directory)) as server:

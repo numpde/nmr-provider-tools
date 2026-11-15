@@ -54,7 +54,7 @@ class DockerfileEmptyDefaultsTest(unittest.TestCase):
     def test_dockerfiles_do_not_define_arg_defaults(self) -> None:
         findings: list[str] = []
 
-        for source, line_number, line in surface_lines(
+        for (source, line_number, line) in surface_lines(
             surface_files(DOCKERFILE_GLOBS),
             skip_comments=True,
         ):
@@ -68,7 +68,7 @@ class DockerfileEmptyDefaultsTest(unittest.TestCase):
     def test_dockerfiles_do_not_publish_blank_env_values(self) -> None:
         findings: list[str] = []
 
-        for source, line_number, line in surface_lines(
+        for (source, line_number, line) in surface_lines(
             surface_files(DOCKERFILE_GLOBS),
             skip_comments=True,
         ):

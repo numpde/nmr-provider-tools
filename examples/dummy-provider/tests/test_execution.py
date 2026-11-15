@@ -50,6 +50,7 @@ class DummyInstalledExecutionTests(unittest.IsolatedAsyncioTestCase):
 
         self.assertIs(Outcome.SUCCEEDED, observed_operation.outcome)
         self.assertEqual((), observed_operation.failures)
+
         return observed_operation
 
     async def assert_settled(self, control):
@@ -104,7 +105,7 @@ class DummyInstalledExecutionTests(unittest.IsolatedAsyncioTestCase):
             patch("dummy_provider.science.prepare", wraps=science.prepare) as prepare,
         ):
             analysis = host.open_analysis(allocations=frozenset({hosted.allocation}))
-            reservation, = analysis.reservations
+            (reservation,) = analysis.reservations
 
             operation = analysis.submit_method(
                 method=contribution.prepare,
@@ -123,7 +124,7 @@ class DummyInstalledExecutionTests(unittest.IsolatedAsyncioTestCase):
                 observation = await observe_completion(operation=operation)
                 self.assertTrue(any(item.cause is failure for item in observation.failures))
                 prepare.assert_not_called()
-                model, = loaded_models
+                (model,) = loaded_models
                 self.assertIs(model, contribution.model)
                 self.assertIsNotNone(model.loaded_coefficients)
                 await observe_cleanup(control=analysis.close())
@@ -161,7 +162,7 @@ class DummyInstalledExecutionTests(unittest.IsolatedAsyncioTestCase):
         )
 
         (reservation,) = analysis.reservations
-        prepare_call, calculate_call = weighted_binding.call(method=WeightedSum.prepare), weighted_binding.call(method=WeightedSum.calculate)
+        (prepare_call, calculate_call) = (weighted_binding.call(method=WeightedSum.prepare), weighted_binding.call(method=WeightedSum.calculate))
 
         operation_policy = OperationPolicy(
             queue_stop_request_seconds=5,

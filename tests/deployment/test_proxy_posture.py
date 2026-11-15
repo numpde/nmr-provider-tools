@@ -99,7 +99,7 @@ class ImageBuildProxyInputTests(unittest.TestCase):
         fragments = iter(((14, b"x"), (28, b"x"), (31, final)))
 
         def receive(_size):
-            clock[0], fragment = next(fragments)
+            (clock[0], fragment) = next(fragments)
 
             if fragment is None:
                 raise TimeoutError("scripted socket deadline")
@@ -132,7 +132,7 @@ class ImageBuildProxyInputTests(unittest.TestCase):
 
     def test_header_limit_excludes_a_coalesced_body_remainder(self):
         header = b"x" * (_PROXY.MAX_HEADER_BYTES - 4) + b"\r\n\r\n"
-        prefix, body = header[:-1], b"body"
+        (prefix, body) = (header[:-1], b"body")
         chunks = [prefix[index : index + 8192] for index in range(0, len(prefix), 8192)]
         client = Mock()
         client.recv.side_effect = [*chunks, header[-1:] + body]
@@ -175,7 +175,7 @@ class ImageBuildProxyTransportTests(unittest.TestCase):
             patch.object(_PROXY.secrets, "randbits", return_value=111),
             patch.object(_PROXY.socket, "socket", return_value=resolver),
         ):
-            addresses, aliases = _PROXY._query_ipv4("example.invalid", "203.0.113.53", "eth0", deadline=30)
+            (addresses, aliases) = _PROXY._query_ipv4("example.invalid", "203.0.113.53", "eth0", deadline=30)
 
         self.assertEqual(addresses, {"example.invalid": ["203.0.113.1"]})
         self.assertEqual(aliases, {})
@@ -187,7 +187,7 @@ class ImageBuildProxyTransportTests(unittest.TestCase):
     def test_dns_groups_only_received_a_records_by_owner(self):
         """Keep repeated A records in one bucket without inventing absent owners."""
 
-        for records, expected in (
+        for (records, expected) in (
             ((), {}),
             (
                 (
@@ -205,7 +205,7 @@ class ImageBuildProxyTransportTests(unittest.TestCase):
                     + struct.pack("!HH", 1, 1)
                 )
 
-                for owner, address in records:
+                for (owner, address) in records:
                     response += _PROXY._dns_name(owner) + struct.pack("!HHIH", 1, 1, 60, 4) + _PROXY.socket.inet_aton(address)
 
                 resolver = MagicMock()
@@ -217,7 +217,7 @@ class ImageBuildProxyTransportTests(unittest.TestCase):
                     patch.object(_PROXY.secrets, "randbits", return_value=111),
                     patch.object(_PROXY.socket, "socket", return_value=resolver),
                 ):
-                    addresses, aliases = _PROXY._query_ipv4("example.invalid", "203.0.113.53", "eth0", deadline=30)
+                    (addresses, aliases) = _PROXY._query_ipv4("example.invalid", "203.0.113.53", "eth0", deadline=30)
 
                 self.assertEqual(expected, addresses)
                 self.assertEqual({}, aliases)
@@ -247,6 +247,7 @@ class ImageBuildProxyTransportTests(unittest.TestCase):
 
         def late_reply(_size):
             clock[0] = 3.1
+
             return _dns_response("example.invalid")
 
         resolver.recv.side_effect = late_reply
@@ -322,7 +323,7 @@ class ImageBuildProxyTransportTests(unittest.TestCase):
 
     def test_tcp_tries_next_bound_address_after_an_ordinary_failure(self):
         clock = [0]
-        first, second = Mock(), Mock()
+        (first, second) = (Mock(), Mock())
 
         def fail_first(_address):
             clock[0] = 10
@@ -377,7 +378,7 @@ class ImageBuildProxyTransportTests(unittest.TestCase):
 
     def _assert_relay_inactivity(self, blocked):
         clock = [0]
-        left, right = Mock(), Mock()
+        (left, right) = (Mock(), Mock())
         left.recv.side_effect = lambda _size: (clock.__setitem__(0, 2), b"data")[1]
 
         def send(_data):
@@ -396,7 +397,7 @@ class ImageBuildProxyTransportTests(unittest.TestCase):
             if not ready:
                 clock[0] += timeout
 
-            return ready, [], []
+            return (ready, [], [])
 
         with (
             patch.object(_PROXY.time, "monotonic", side_effect=lambda: clock[0]),
@@ -414,21 +415,24 @@ class ImageBuildProxyTransportTests(unittest.TestCase):
     def test_client_half_close_preserves_the_returning_response(self):
         """Client EOF ends its upload, not the server's remaining response."""
 
-        left, right = Mock(), Mock()
-        clock, events, snapshots = [0], [], []
+        (left, right) = (Mock(), Mock())
+        (clock, events, snapshots) = ([0], [], [])
 
         def client_eof(_size):
             clock[0] = 1
             events.append("client EOF")
+
             return b""
 
         def server_read(_size):
             if clock[0] == 1:
                 clock[0] = 2
+
                 return b"response"
 
             clock[0] = 4
             events.append("server EOF")
+
             return b""
 
         def forward_response(_data):
@@ -437,8 +441,9 @@ class ImageBuildProxyTransportTests(unittest.TestCase):
 
         def select(read, _write, _errors, timeout):
             snapshots.append((list(read), timeout))
+
             # silent-defaults: allow-contract -- The scripted first read delivers client EOF, then server reads must still forward the response and its EOF; proof=tests/deployment/test_proxy_posture.py::ImageBuildProxyTransportTests.test_client_half_close_preserves_the_returning_response
-            return ([left] if len(snapshots) == 1 else [right]), [], []
+            return (([left] if len(snapshots) == 1 else [right]), [], [])
 
         left.recv.side_effect = client_eof
         right.recv.side_effect = server_read
@@ -468,7 +473,7 @@ class ImageBuildProxyTransportTests(unittest.TestCase):
         https://github.com/numpde/magnet-deploy/blob/2d4ee50b0359e71900fce9289ea01f46d0f41249/scripts/image-build-proxy.py#L296-L298
         """
         clock = [0]
-        left, right = Mock(), Mock()
+        (left, right) = (Mock(), Mock())
         left.recv.side_effect = lambda _size: (clock.__setitem__(0, 1), b"data")[1]
         right.sendall.side_effect = lambda _data: clock.__setitem__(0, 120.1)
 
@@ -559,9 +564,9 @@ class ImageBuildProxyWorkerTests(unittest.TestCase):
         self.assertNotIn(_PRIVATE, stderr.getvalue())
 
     def test_forwarding_error_does_not_append_http_failure_to_a_tunnel(self):
-        request, connection = Mock(), MagicMock()
+        (request, connection) = (Mock(), MagicMock())
         connection.__enter__.return_value = connection
-        stderr, stdout = io.StringIO(), io.StringIO()
+        (stderr, stdout) = (io.StringIO(), io.StringIO())
 
         with (
             patch.object(_PROXY, "receive_headers", return_value=(b"CONNECT example.invalid:443 HTTP/1.1\r\n\r\n", b"")),
@@ -578,7 +583,7 @@ class ImageBuildProxyWorkerTests(unittest.TestCase):
     def test_initial_forwarding_write_failure_does_not_append_http_failure(self):
         for phase in ("http_header", "connect_status", "connect_remainder"):
             with self.subTest(phase=phase):
-                request, connection = Mock(), MagicMock()
+                (request, connection) = (Mock(), MagicMock())
                 connection.__enter__.return_value = connection
 
                 # silent-defaults: allow-contract -- The HTTP-header failure uses GET; the two CONNECT write failures use tunnel admission bytes; proof=tests/deployment/test_proxy_posture.py::ImageBuildProxyWorkerTests.test_initial_forwarding_write_failure_does_not_append_http_failure
@@ -592,7 +597,7 @@ class ImageBuildProxyWorkerTests(unittest.TestCase):
                 remainder = b"body" if phase == "connect_remainder" else b""
                 writer = request if phase == "connect_status" else connection
                 writer.sendall.side_effect = OSError(_PRIVATE)
-                stderr, stdout = io.StringIO(), io.StringIO()
+                (stderr, stdout) = (io.StringIO(), io.StringIO())
 
                 with (
                     patch.object(_PROXY, "receive_headers", return_value=(header, remainder)),
@@ -641,6 +646,7 @@ class ImageBuildProxyWorkerTests(unittest.TestCase):
             def inspect_publication(source, destination, **kwargs):
                 self.assertFalse(ready.exists())
                 self.assertEqual("12345\n", Path(source).read_text(encoding="ascii"))
+
                 return link(source, destination, **kwargs)
 
             with patch.object(_PROXY.os, "link", side_effect=inspect_publication):

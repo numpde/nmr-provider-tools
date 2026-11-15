@@ -44,6 +44,7 @@ class DecodedBodyRejected(ValueError):
             raise ValueError("Unknown decoded-body rejection reason")
 
         self.reason = reason
+
         super().__init__(_MESSAGES[reason])
 
 
@@ -56,6 +57,7 @@ class _Budget:
             raise DecodedBodyRejected("size_limit")
 
         self.remaining -= len(data)
+
         return data
 
     def decompress(self, decoder, data):
@@ -100,6 +102,7 @@ class _Gzip:
             # only unused_data remains, and belongs to another complete member.
             data = self._decoder.unused_data
             self._decoder = None
+
             self._members += 1
 
         return b"".join(output)
@@ -121,10 +124,12 @@ class _Deflate:
 
             if len(data) < 2:
                 self._prefix = data
+
                 return b""
 
             self._prefix = b""
-            first, second = data[0], data[1]
+
+            (first, second) = (data[0], data[1])
 
             wrapped = (first & 15 == 8 and first >> 4 <= 7
                        and ((first << 8) | second) % 31 == 0)
@@ -146,7 +151,7 @@ class _Deflate:
 def _codings(headers):
     codings = []
 
-    for name, value in headers:
+    for (name, value) in headers:
         if name.lower() == b"content-encoding":
             for coding in value.split(b",", _MAX_CODINGS):
                 coding = coding.strip(b" \t").lower()
@@ -198,6 +203,7 @@ class DecodedBody:
             return data
         except BaseException:
             self._state = "failed"
+
             raise
 
     def finish(self):
@@ -208,6 +214,7 @@ class DecodedBody:
                 stage.finish()
         except BaseException:
             self._state = "failed"
+
             raise
 
         self._state = "finished"

@@ -14,14 +14,15 @@ from tests.fakes.execution import Session, live_attempt, live_executor
 
 class ObservationRetryAfterTests(unittest.IsolatedAsyncioTestCase):
     async def fixture(self, *, gap, observer=None):
-        probe, acknowledged, claim = await live_attempt()
+        (probe, acknowledged, claim) = await live_attempt()
         clock = SimpleNamespace(now=100.0)
-        reads, waits, notices = [], [], []
+        (reads, waits, notices) = ([], [], [])
         headers = (*response_headers(status=429, request_id=b"request:rate"), (b"retry-after", b"1"))
 
         class TimedTransport(Transport):
             async def exchange(self, request, *, maximum_bytes, owner=None):
                 reads.append(clock.now)
+
                 return await super().exchange(request, maximum_bytes=maximum_bytes, owner=owner)
 
         transport = TimedTransport(reply(b"PRIVATE server body", status=429, headers=headers), reply(observation()))
@@ -38,7 +39,8 @@ class ObservationRetryAfterTests(unittest.IsolatedAsyncioTestCase):
             task_settle_seconds=.1, observation_recovery=ObservationRecovery(gap, .2, retry, Mock()))
 
         executor._record = executor._acknowledged = acknowledged
-        return executor, clock, reads, waits, notices
+
+        return (executor, clock, reads, waits, notices)
 
     def clock(self, clock, waits):
         namespace = SimpleNamespace(**vars(asyncio))
@@ -51,10 +53,11 @@ class ObservationRetryAfterTests(unittest.IsolatedAsyncioTestCase):
             raise TimeoutError
 
         namespace.wait_for = wait
+
         return patch("provider_core.execution.asyncio", namespace)
 
     async def test_retry_after_floor_precedes_the_next_actual_read(self):
-        executor, clock, reads, waits, notices = await self.fixture(gap=3)
+        (executor, clock, reads, waits, notices) = await self.fixture(gap=3)
 
         with self.clock(clock, waits), patch("provider_core.execution.random.uniform", return_value=.1):
             result = await executor._observe_until_available(clock.now + 3)
@@ -66,7 +69,7 @@ class ObservationRetryAfterTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(notices[0][1], 1.0)
 
     async def test_unfit_floor_waits_for_original_gap_without_retry_or_notice(self):
-        executor, clock, reads, waits, notices = await self.fixture(gap=.5)
+        (executor, clock, reads, waits, notices) = await self.fixture(gap=.5)
 
         with self.clock(clock, waits), patch("provider_core.execution.random.uniform", return_value=.1):
             with self.assertRaises(ObservationGapExpired) as caught:
@@ -83,7 +86,7 @@ class ObservationRetryAfterTests(unittest.IsolatedAsyncioTestCase):
         def consume_gap(clock):
             clock.now += 3
 
-        executor, clock, reads, waits, notices = await self.fixture(gap=2, observer=consume_gap)
+        (executor, clock, reads, waits, notices) = await self.fixture(gap=2, observer=consume_gap)
 
         with self.clock(clock, waits), patch("provider_core.execution.random.uniform", return_value=.1):
             with self.assertRaises(ObservationGapExpired) as caught:

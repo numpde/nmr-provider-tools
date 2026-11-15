@@ -55,6 +55,7 @@ class WaitingSession(Session):
             await self._wait()
 
         self.produced.set()
+
         return result
 
 
@@ -62,7 +63,7 @@ class ExecutionObservationTests(unittest.IsolatedAsyncioTestCase):
     async def test_stop_during_each_phase_cancels_once_and_never_publishes(self):
         for phase in ("prepare", "execute"):
             with self.subTest(phase=phase):
-                store, acknowledged, claim = await live_attempt()
+                (store, acknowledged, claim) = await live_attempt()
                 replies = [reply(observation()), reply(response()), reply(progress_response())]
 
                 if phase == "execute":
@@ -99,7 +100,7 @@ class ExecutionObservationTests(unittest.IsolatedAsyncioTestCase):
                     session.release.set()
 
     async def test_retired_worker_with_pending_task_keeps_claim_until_original_task_settles(self):
-        store, acknowledged, claim = await live_attempt()
+        (store, acknowledged, claim) = await live_attempt()
         session = WaitingSession(store, "prepare", resist=True)
 
         transport = Transport(
@@ -139,7 +140,7 @@ class ExecutionObservationTests(unittest.IsolatedAsyncioTestCase):
             session.release.set()
 
     async def test_final_stop_preserves_completed_result_without_terminal_publication(self):
-        store, acknowledged, claim = await live_attempt()
+        (store, acknowledged, claim) = await live_attempt()
         session = Session(store)
 
         transport = Transport(
@@ -184,7 +185,7 @@ class ExecutionObservationTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual([e[0] for e in session.events], ["prepare", "execute", "retire"])
 
     async def test_result_during_failed_poll_is_preserved_with_original_api_failure(self):
-        store, acknowledged, claim = await live_attempt()
+        (store, acknowledged, claim) = await live_attempt()
         session = WaitingSession(store, "execute")
 
         class RacingTransport(Transport):
@@ -236,7 +237,7 @@ class ExecutionObservationTests(unittest.IsolatedAsyncioTestCase):
             session.release.set()
 
     async def test_late_execution_result_updates_failure_and_keeps_unretained_outcome_owned(self):
-        store, acknowledged, claim = await live_attempt()
+        (store, acknowledged, claim) = await live_attempt()
         session = WaitingSession(store, "execute", resist=True)
 
         transport = Transport(
@@ -288,7 +289,7 @@ class ExecutionObservationTests(unittest.IsolatedAsyncioTestCase):
     async def test_failed_binding_needs_no_final_acceptance_read(self):
         for phase in ("prepare", "execute"):
             with self.subTest(phase=phase):
-                store, acknowledged, claim = await live_attempt()
+                (store, acknowledged, claim) = await live_attempt()
                 replies = [reply(observation()), reply(response()), reply(progress_response())]
 
                 if phase == "execute":
@@ -317,7 +318,7 @@ class ExecutionObservationTests(unittest.IsolatedAsyncioTestCase):
                 claim.release(owner=claim.lifecycle_owner)
 
     async def test_cancellation_during_poll_retains_api_ownership_until_settlement(self):
-        store, acknowledged, claim = await live_attempt()
+        (store, acknowledged, claim) = await live_attempt()
         session = WaitingSession(store, "execute")
         reading = asyncio.Event()
 
@@ -327,6 +328,7 @@ class ExecutionObservationTests(unittest.IsolatedAsyncioTestCase):
                     self.calls.append((request, maximum_bytes))
                     self.pending_owner = owner
                     self.retirement_confirmed = False
+
                     reading.set()
                     await asyncio.Future()
 

@@ -177,9 +177,11 @@ class PreparationToolTests(unittest.IsolatedAsyncioTestCase):
 
             def release(*, result):
                 release_result(result=result)
+
                 return SimpleNamespace(observe=AsyncMock(side_effect=original))
 
             self.enterContext(patch.object(target=admitted, attribute="release_result", new=release))
+
             return admitted
 
         with patch.object(target=self.analysis_executor, attribute="submit", new=failing_release):
@@ -294,6 +296,7 @@ class PreparationToolTests(unittest.IsolatedAsyncioTestCase):
 
         def first_model(**settings):
             first_deadline.append(asyncio.get_running_loop().time() + settings["exchange_seconds"])
+
             return first
 
         interpreter = Interpreter(
@@ -352,6 +355,7 @@ class PreparationToolTests(unittest.IsolatedAsyncioTestCase):
                 return control
 
             self.enterContext(patch.object(target=operation, attribute="release_result", new=release))
+
             return operation
 
         with patch.object(target=self.analysis_executor, attribute="submit", new=lose_release_reply):

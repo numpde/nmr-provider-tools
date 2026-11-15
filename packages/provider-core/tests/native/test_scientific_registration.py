@@ -46,6 +46,7 @@ class Sum(Contribution):
     @operation()
     def calculate(self, *, numbers: Numbers) -> Total:
         self.calls += 1
+
         return Total(value=self.configuration.scale * sum(numbers.values))
 
     def helper(self, *, numbers: Numbers) -> Total:
@@ -58,10 +59,12 @@ class FailedInitialization(Sum):
 
     def initialize(self, *, assets: AssetAccess) -> None:
         self.partial_resource = object()
+
         raise self.startup_failure
 
     def close(self) -> None:
         self.cleanup_resource = self.partial_resource
+
         raise self.cleanup_failure
 
 
@@ -96,7 +99,7 @@ def adopt(*, host, contribution, amount=1):
 
 async def run_sum(*, host, hosted, operation_id):
     analysis = host.open_analysis(analysis_id=operation_id, allocation_names=(hosted.allocation.allocation,))
-    reservation, = analysis.reservations
+    (reservation,) = analysis.reservations
 
     operation = analysis.submit_method(
         method=hosted.contribution.calculate,
@@ -114,7 +117,7 @@ async def run_sum(*, host, hosted, operation_id):
         observed = await observe_completion(operation=operation)
         await observe_cleanup(control=analysis.close())
 
-    return operation, observed
+    return (operation, observed)
 
 
 class AdoptionTests(unittest.IsolatedAsyncioTestCase):
@@ -148,7 +151,7 @@ class AdoptionTests(unittest.IsolatedAsyncioTestCase):
     async def test_released_local_operations_leave_no_submission_history(self):
         hosted = adopt(host=self.host, contribution=Sum(configuration=Settings(scale=2)))
         analysis = self.host.open_analysis(allocations=frozenset({hosted.allocation}))
-        reservation, = analysis.reservations
+        (reservation,) = analysis.reservations
 
         operation_policy = OperationPolicy(
             queue_stop_request_seconds=5,
@@ -182,7 +185,7 @@ class AdoptionTests(unittest.IsolatedAsyncioTestCase):
         retained_handles = []
 
         for index in range(20):
-            operation, completed = await run_sum(
+            (operation, completed) = await run_sum(
                 host=self.host,
                 hosted=hosted,
                 operation_id=str(index),
@@ -272,6 +275,7 @@ class AdoptionTests(unittest.IsolatedAsyncioTestCase):
 
     async def asyncSetUp(self):
         self.host = new_host()
+
         self.addAsyncCleanup(self.retire, host=self.host)
 
     async def retire(self, *, host):
@@ -284,7 +288,7 @@ class AdoptionTests(unittest.IsolatedAsyncioTestCase):
         hosted = adopt(host=self.host, contribution=instance)
         self.assertIs(expr1=instance, expr2=hosted.contribution)
         self.assertEqual(first=0, second=instance.initializations)
-        operation, observed = await run_sum(host=self.host, hosted=hosted, operation_id="calculate")
+        (operation, observed) = await run_sum(host=self.host, hosted=hosted, operation_id="calculate")
         self.assertIs(expr1=Outcome.SUCCEEDED, expr2=observed.outcome)
         self.assertIs(expr1=marker, expr2=instance.marker)
         self.assertEqual(first=1, second=instance.initializations)
@@ -397,7 +401,7 @@ class AdoptionTests(unittest.IsolatedAsyncioTestCase):
                 return super().calculate(numbers=numbers)
 
         hosted = adopt(host=self.host, contribution=UnrestrictedSum(configuration=Settings(scale=2)))
-        call, = hosted.description.calls
+        (call,) = hosted.description.calls
         self.assertEqual(first=frozenset(), second=call.resources)
         self.assertEqual(first=1, second=len(hosted.requirements))
 
@@ -693,7 +697,7 @@ class AdoptionTests(unittest.IsolatedAsyncioTestCase):
             def initialize(self, *, assets) -> None:
                 pass
 
-        for contribution_type, method in ((MissingInput, "calculate"), (MissingOutput, "calculate"), (MissingAssets, "initialize")):
+        for (contribution_type, method) in ((MissingInput, "calculate"), (MissingOutput, "calculate"), (MissingAssets, "initialize")):
             instance = contribution_type(configuration=Settings(scale=2))
 
             with self.subTest(contribution_type=contribution_type):
@@ -745,7 +749,7 @@ class AdoptionTests(unittest.IsolatedAsyncioTestCase):
         ConfiguredSum.initialize = changed
 
         try:
-            _, observed = await run_sum(host=self.host, hosted=hosted, operation_id="run")
+            (_, observed) = await run_sum(host=self.host, hosted=hosted, operation_id="run")
             self.assertEqual(first=(), second=observed.failures)
         finally:
             ConfiguredSum.initialize = original
@@ -825,7 +829,7 @@ class AdoptionTests(unittest.IsolatedAsyncioTestCase):
 
         self.assertCountEqual(first=[HostedContribution, ValueError], second=[type(result) for result in results])
         self.assertCountEqual(first=[0, 1], second=allocation_counts)
-        failure, = [result for result in results if isinstance(result, ValueError)]
+        (failure,) = [result for result in results if isinstance(result, ValueError)]
         self.assertIn(member="already owns", container=str(failure))
         self.assertEqual(first=0, second=instance.initializations)
         self.assertEqual(first=1, second=instance.closes)
@@ -848,7 +852,7 @@ class AdoptionTests(unittest.IsolatedAsyncioTestCase):
     async def test_reservation_rejects_foreign_ownership_and_missing_input_before_dispatch(self):
         hosted = adopt(host=self.host, contribution=Sum(configuration=Settings(scale=2)))
         analysis = self.host.open_analysis(allocations=frozenset({hosted.allocation}))
-        reservation, = analysis.reservations
+        (reservation,) = analysis.reservations
 
         operation_policy = OperationPolicy(
             queue_stop_request_seconds=5,
@@ -876,7 +880,7 @@ class AdoptionTests(unittest.IsolatedAsyncioTestCase):
         handles = [adopt(host=self.host, contribution=instance) for instance in (first, second)]
 
         for hosted in handles:
-            _, observed = await run_sum(host=self.host, hosted=hosted, operation_id=hosted.allocation.allocation)
+            (_, observed) = await run_sum(host=self.host, hosted=hosted, operation_id=hosted.allocation.allocation)
             self.assertEqual(first=(), second=observed.failures)
 
         self.assertIs(expr1=first.configuration, expr2=second.configuration)
@@ -889,7 +893,7 @@ class AdoptionTests(unittest.IsolatedAsyncioTestCase):
         hosted = adopt(host=host, contribution=instance)
         resident = host.residents[hosted.allocation.allocation]
         self.addCleanup(resident.executor.shutdown, wait=True)
-        _, completed = await run_sum(host=host, hosted=hosted, operation_id="failure")
+        (_, completed) = await run_sum(host=host, hosted=hosted, operation_id="failure")
         self.assertIs(expr1=instance.startup_failure, expr2=completed.failures[0].cause)
 
         with self.assertRaises(expected_exception=BaseExceptionGroup) as raised:

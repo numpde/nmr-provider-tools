@@ -27,8 +27,10 @@ from tests.fakes.api import api
 class DeliveryServiceTests(unittest.IsolatedAsyncioTestCase):
     async def asyncSetUp(self):
         self.scratch = tempfile.TemporaryDirectory()
+
         self.addCleanup(self.scratch.cleanup)
         self.root = Path(self.scratch.name)
+
         (self.root / "state").mkdir(mode=0o700)
         (self.root / "ipc").mkdir(mode=0o700)
         self.limits = QueueLimits(4, 16384, 8, 32768)
@@ -49,17 +51,17 @@ class DeliveryServiceTests(unittest.IsolatedAsyncioTestCase):
             if facts["event"] == "delivery_published":
                 self.published.set()
 
-        return DeliveryService(
+        return (DeliveryService(
             self.root / "state", limits=self.limits, bindings=(DeliveryBinding(endpoint, client),),
             request_seconds=1, retry_initial_seconds=0.01, retry_max_seconds=0.02, on_notice=notice, diagnostic_status=healthy_diagnostics,
-        ), endpoint
+        ), endpoint)
 
     async def test_producer_acknowledgement_and_api_receipt_have_distinct_connected_effects(self):
         async with api_tls_peer("success", response_body=fail_response(
             execution_attempt_ref=outcome().execution_attempt_ref,
             failure_code="provider_interrupted", failure_message="SCIENTIFIC_PAYLOAD_NEEDLE"
         )) as peer:
-            service, endpoint = self.service(peer)
+            (service, endpoint) = self.service(peer)
             original = asyncio.create_task(service.run())
             client = DeliveryClient(endpoint, exchange_seconds=1, retirement_seconds=0.2)
 
@@ -85,12 +87,12 @@ class DeliveryServiceTests(unittest.IsolatedAsyncioTestCase):
 
     async def test_interrupted_shutdown_keeps_original_commit_owned_until_later_settlement(self):
         async with api_tls_peer("success") as peer:
-            service, endpoint = self.service(peer)
+            (service, endpoint) = self.service(peer)
             original = asyncio.create_task(service.run())
             await asyncio.wait_for(service.ready.wait(), 1)
             client = DeliveryClient(endpoint, exchange_seconds=1, retirement_seconds=0.2)
             item = replace(outcome(), api_origin=peer.origin)
-            started, release = threading.Event(), threading.Event()
+            (started, release) = (threading.Event(), threading.Event())
             enqueue = service.queue.enqueue
 
             def delayed_enqueue(value):
@@ -139,10 +141,10 @@ class DeliveryServiceTests(unittest.IsolatedAsyncioTestCase):
     async def test_scoped_status_reports_paused_publisher_while_inbox_still_accepts(self):
         # silent-defaults: allow-contract -- Change only the topology header to exercise the wrong-environment refusal.
         headers = [(name, b"web" if name.lower() == b"nmr-api-topology" else value)
-                   for name, value in response_headers()]
+                   for (name, value) in response_headers()]
 
         async with api_tls_peer("success", response_headers=headers) as peer:
-            service, endpoint = self.service(peer)
+            (service, endpoint) = self.service(peer)
             original = asyncio.create_task(service.run())
             client = DeliveryClient(endpoint, exchange_seconds=1, retirement_seconds=0.2)
 
@@ -162,7 +164,7 @@ class DeliveryServiceTests(unittest.IsolatedAsyncioTestCase):
 
     async def test_provider_allowances_must_fit_host_budget_before_storage_opens(self):
         async with api_tls_peer("success") as peer:
-            service, endpoint = self.service(peer)
+            (service, endpoint) = self.service(peer)
 
             other = DeliveryBinding(
                 DeliveryEndpoint(peer.origin, "provider:other", self.root / "other/http.sock"),
@@ -181,8 +183,8 @@ class DeliveryServiceTests(unittest.IsolatedAsyncioTestCase):
 
     async def test_stop_during_startup_joins_original_listener_without_starting_delivery(self):
         async with api_tls_peer("success") as peer:
-            service, endpoint = self.service(peer)
-            entered, release = asyncio.Event(), asyncio.Event()
+            (service, endpoint) = self.service(peer)
+            (entered, release) = (asyncio.Event(), asyncio.Event())
             start = DeliveryInbox.start
 
             async def delayed_start(inbox):
@@ -215,7 +217,7 @@ class DeliveryServiceTests(unittest.IsolatedAsyncioTestCase):
         previous.close()
 
         async with api_tls_peer("success") as peer:
-            service, endpoint = self.service(peer)
+            (service, endpoint) = self.service(peer)
 
             with self.assertRaisesRegex(DeliveryUnavailable, "bindings missing"):
                 await service.run()
@@ -249,8 +251,8 @@ class DeliveryServiceTests(unittest.IsolatedAsyncioTestCase):
         )) as peer:
             notices = DeliveryNotices(BrokenStream(), secrets=())
             self.addCleanup(notices.close)
-            service, endpoint = self.service(peer)
-            service.on_notice, service.diagnostic_status = notices, notices.status
+            (service, endpoint) = self.service(peer)
+            (service.on_notice, service.diagnostic_status) = (notices, notices.status)
             original = asyncio.create_task(service.run())
             client = DeliveryClient(endpoint, exchange_seconds=1, retirement_seconds=0.2)
 
@@ -282,7 +284,7 @@ class DeliveryServiceTests(unittest.IsolatedAsyncioTestCase):
 
     async def test_failed_second_binding_identifies_its_grant_and_retires_first_listener(self):
         async with api_tls_peer("success") as peer:
-            template, first = self.service(peer)
+            (template, first) = self.service(peer)
             bad_parent = self.root / "bad-grant"
             bad_parent.mkdir(mode=0o755)
             bad_parent.chmod(0o755)

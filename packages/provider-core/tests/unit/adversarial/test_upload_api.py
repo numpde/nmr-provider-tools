@@ -101,7 +101,7 @@ class UploadApiFailureTests(unittest.IsolatedAsyncioTestCase):
             (409, "operation-conflict", "project_purge_in_progress", False),
         )
 
-        for status, kind, code, uncertain in cases:
+        for (status, kind, code, uncertain) in cases:
             document = {
                 "type": "urn:nmr-api:problem:" + kind,
                 "title": "Private title",

@@ -125,12 +125,13 @@ def _read_https_settings(table, label, read_file):
         if type(raw) is not bytes:
             raise ApiConfigurationRejected(f"Cannot load {label} CA: the selected reader did not return bytes.")
 
-    return _https_from_material(table, label, raw), raw
+    return (_https_from_material(table, label, raw), raw)
 
 
 def https_settings(table, label, read_file):
     """Load explicit CA bytes once; ambient environment never grants TLS roots."""
-    settings, _ = _read_https_settings(table, label, read_file)
+    (settings, _) = _read_https_settings(table, label, read_file)
+
     return settings
 
 
@@ -148,27 +149,29 @@ def _signing_identity(table, credential_bytes):
         raise ApiConfigurationRejected("API signing credential does not match the configured profile and provider.")
 
     identity = SigningIdentity(table["origin"], credential.credential_ref, credential.private_key)
-    return identity, credential.provider_ref
+
+    return (identity, credential.provider_ref)
 
 
 def api_settings(table, read_file):
     """Bind the verified credential principal/profile before constructing signing."""
-    settings, provider_ref, _ = api_settings_with_material(table, read_file)
-    return settings, provider_ref
+    (settings, provider_ref, _) = api_settings_with_material(table, read_file)
+
+    return (settings, provider_ref)
 
 
 def api_settings_with_material(table, read_file):
     """Admit one API owner and retain the exact inputs needed for its outbox."""
     require_api_fields(table)
     raw = read_file(table["credential_file"], maximum_bytes=MAX_CREDENTIAL_BYTES, label="API signing credential", secret=True)
-    identity, provider_ref = _signing_identity(table, raw)
-    http, ca_bytes = _read_https_settings(table, "API", read_file)
+    (identity, provider_ref) = _signing_identity(table, raw)
+    (http, ca_bytes) = _read_https_settings(table, "API", read_file)
     settings = ApiSettings(identity, http, table["topology"])
 
     material = ApiPublicationMaterial(identity.origin, table["profile"], table["topology"], provider_ref,
                                       table["exchange_seconds"], table["retirement_seconds"], raw, ca_bytes)
 
-    return settings, provider_ref, material
+    return (settings, provider_ref, material)
 
 
 def api_settings_from_material(table, *, credential_bytes, ca_bytes=None):
@@ -181,9 +184,9 @@ def api_settings_from_material(table, *, credential_bytes, ca_bytes=None):
     if type(credential_bytes) is not bytes or len(credential_bytes) > MAX_CREDENTIAL_BYTES:
         raise ApiConfigurationRejected("API signing credential requires bounded issued-document bytes.")
 
-    identity, provider_ref = _signing_identity(table, credential_bytes)
+    (identity, provider_ref) = _signing_identity(table, credential_bytes)
 
     if ca_bytes is not None and (type(ca_bytes) is not bytes or len(ca_bytes) > 1048576):
         raise ApiConfigurationRejected("API CA requires bytes within the 1048576-byte limit.")
 
-    return ApiSettings(identity, _https_from_material(table, "API", ca_bytes), table["topology"]), provider_ref
+    return (ApiSettings(identity, _https_from_material(table, "API", ca_bytes), table["topology"]), provider_ref)

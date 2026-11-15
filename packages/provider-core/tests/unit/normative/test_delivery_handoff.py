@@ -24,7 +24,8 @@ class DeliveryHandoffTests(unittest.TestCase):
                   "provider_ref": "provider:example", "exchange_seconds": 10, "retirement_seconds": 5,
                   "credential_file": "/private/credential"}
 
-        _, _, material = api_settings_with_material(fields, Mock(return_value=credential))
+        (_, _, material) = api_settings_with_material(fields, Mock(return_value=credential))
+
         return material
 
     def test_round_trip_preserves_exact_result_and_original_publication_material(self):
@@ -37,13 +38,13 @@ class DeliveryHandoffTests(unittest.TestCase):
 
     def test_changed_signing_material_changes_acceptance(self):
         item = outcome(provider="provider:example")
-        first, second = DeliveryHandoff(item, self.material()), DeliveryHandoff(item, self.material())
+        (first, second) = (DeliveryHandoff(item, self.material()), DeliveryHandoff(item, self.material()))
         self.assertEqual(first.outcome, second.outcome)
         self.assertNotEqual(first.acceptance()["publication_sha256"], second.acceptance()["publication_sha256"])
 
     def test_queue_restarts_with_original_material_and_refuses_changed_material(self):
         item = outcome(provider="provider:example")
-        first, other = DeliveryHandoff(item, self.material()), DeliveryHandoff(item, self.material())
+        (first, other) = (DeliveryHandoff(item, self.material()), DeliveryHandoff(item, self.material()))
 
         with tempfile.TemporaryDirectory() as directory:
             limits = QueueLimits(2, 4096, 4, 8192)
@@ -99,7 +100,7 @@ class DeliveryHandoffTests(unittest.TestCase):
 
     def test_old_owner_can_attach_original_material_without_overwriting_new_handoffs(self):
         legacy = outcome(provider="provider:example")
-        material, other = self.material(), self.material()
+        (material, other) = (self.material(), self.material())
         new = DeliveryHandoff(outcome(provider="provider:example", suffix="1"), other)
 
         with tempfile.TemporaryDirectory() as directory:

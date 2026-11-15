@@ -52,7 +52,7 @@ class PreparedIdentityTests(unittest.IsolatedAsyncioTestCase):
             reply(observation()),
         )
 
-        store, acknowledged, claim = await live_attempt()
+        (store, acknowledged, claim) = await live_attempt()
         session = Session(store)
         session.handle = session.preparation = PreparedAnalysis(IDENTITY)
 

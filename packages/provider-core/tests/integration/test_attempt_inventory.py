@@ -43,16 +43,16 @@ class AttemptInventoryIntegrationTests(unittest.IsolatedAsyncioTestCase):
                 self.assertEqual((current.execution_attempt_ref, current.job_ref, current.state, current.job_state),
                                  (selected["execution_attempt_ref"], selected["job_ref"], "in_progress", "closed"))
 
-                for request, target in zip(peer.requests, (
+                for (request, target) in zip(peer.requests, (
                     b"/provider/v1/execution-attempts?state=in_progress&limit=2",
                     b"/provider/v1/execution-attempts/" + selected["execution_attempt_ref"].encode(),
                 ), strict=True):
                     self.assertEqual(request.split(b"\r\n")[0], b"GET " + target + b" HTTP/1.1")
 
                     headers = {name.lower(): value.strip() for line in request.split(b"\r\n")[1:] if b":" in line
-                               for name, value in [line.split(b":", 1)]}
+                               for (name, value) in [line.split(b":", 1)]}
 
-                    path, _, query = target.partition(b"?")
+                    (path, _, query) = target.partition(b"?")
 
                     base = b"\n".join([b'"@method": GET', b'"@authority": ' + peer.origin.removeprefix("https://").encode(),
                                         b'"@path": ' + path, b'"@query": ?' + query,

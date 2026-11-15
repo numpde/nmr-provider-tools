@@ -23,13 +23,13 @@ class ConditionRecoveryTests(unittest.IsolatedAsyncioTestCase):
                 await self.check_current_condition(failed_put)
 
     async def check_current_condition(self, failed_put):
-        store, acknowledged, claim = await live_attempt()
+        (store, acknowledged, claim) = await live_attempt()
         transport = ConditionOutageTransport(first_failed_put=failed_put)
         # Two failed sends make the capped doubling/backoff observable by
         # the existing monitor, without a second reader in the report port.
         transport.faults = iter((reply(b"PRIVATE first", status=503), reply(b"PRIVATE second", status=503)))
         session = ReportingSession(store)
-        notices, recovered = [], Mock()
+        (notices, recovered) = ([], Mock())
 
         def retry(attempt, phase, condition, failure, seconds):
             self.assertEqual(attempt.start, acknowledged.start)

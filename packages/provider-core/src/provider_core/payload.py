@@ -168,7 +168,7 @@ def _dataclass_fields(value_type: type[object]):
             f"{value_type.__qualname__} must annotate every init field and no non-field names"
         )
 
-    return declared_fields, annotations
+    return (declared_fields, annotations)
 
 
 def _validate_annotation(
@@ -235,6 +235,7 @@ def _validate_annotation(
 
     if isinstance(annotation, type) and is_dataclass(annotation):
         _validate_dataclass(annotation, seen=seen)
+
         return
 
     raise TypeError(f"{path} uses unsupported portable annotation {annotation!r}")
@@ -336,7 +337,7 @@ def _decode_value(value: object, annotation: object, *, path: str) -> object:
                 expected,
                 path=_path_index(path, index),
             )
-            for index, (item, expected) in enumerate(
+            for (index, (item, expected)) in enumerate(
                 zip(value, arguments, strict=True)
             )
         )
@@ -348,6 +349,7 @@ def _decode_value(value: object, annotation: object, *, path: str) -> object:
             return None
 
         member = next(item for item in members if item is not NoneType)
+
         return _decode_value(value, member, path=path)
 
     if isinstance(annotation, type) and issubclass(annotation, Enum):
@@ -479,7 +481,7 @@ def _encode_value(value: object, annotation: object, *, path: str) -> object:
                 expected,
                 path=_path_index(path, index),
             )
-            for index, (item, expected) in enumerate(
+            for (index, (item, expected)) in enumerate(
                 zip(value, arguments, strict=True)
             )
         ]
@@ -491,6 +493,7 @@ def _encode_value(value: object, annotation: object, *, path: str) -> object:
             return None
 
         member = next(item for item in members if item is not NoneType)
+
         return _encode_value(value, member, path=path)
 
     if isinstance(annotation, type) and issubclass(annotation, Enum):

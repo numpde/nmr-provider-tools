@@ -21,12 +21,13 @@ class ModelReplyBoundaryTests(unittest.IsolatedAsyncioTestCase):
         body = json.dumps({"choices": [{"message": call("selected", "prepare", {}),
                                        "finish_reason": "tool_calls"}]}).encode()
 
-        children, endpoints = [], []
+        (children, endpoints) = ([], [])
         launch = asyncio.create_subprocess_exec
 
         async def observe_launch(*args, **kwargs):
             child = await launch(*args, **kwargs)
             children.append(child)
+
             return child
 
         with tempfile.TemporaryDirectory() as directory:
@@ -46,6 +47,7 @@ class ModelReplyBoundaryTests(unittest.IsolatedAsyncioTestCase):
                 def observe_endpoint(**settings):
                     endpoint = factory(**settings)
                     endpoints.append(endpoint)
+
                     return endpoint
 
                 interpreter = Interpreter((observe_endpoint,), timeout_seconds=10,

@@ -21,8 +21,10 @@ class CheckerDependencyTests(unittest.TestCase):
         self.addCleanup(temporary.cleanup)
         self.root = Path(temporary.name)
         self.pool = self.root / "pool"
+
         self.pool.mkdir()
         self.capture = self.root / "capture"
+
         self.capture.mkdir()
 
         self.package = {
@@ -32,8 +34,10 @@ class CheckerDependencyTests(unittest.TestCase):
         }
 
         self.artifact = self.pool / self.package["file"]
+
         self.artifact.write_bytes(b"make")
         self.manifest = self.root / "dependencies.json"
+
         self.manifest.write_text(json.dumps({"platform": "linux/amd64", "packages": [self.package]}))
 
     def test_declaration_rejects_duplicate_fields_and_foreign_artifacts(self):
@@ -43,7 +47,7 @@ class CheckerDependencyTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "duplicate JSON field"):
             dependencies.declaration(self.manifest)
 
-        for changes, error_type in (
+        for (changes, error_type) in (
             ({"name": "ruff"}, ValueError),
             ({"file": "../make.deb"}, ValueError),
             ({"size": True}, TypeError),

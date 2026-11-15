@@ -81,6 +81,7 @@ class PreparedInput:
 
         tokens = self.tokens
         self.tokens = None
+
         return tokens
 
     def close(self) -> None:

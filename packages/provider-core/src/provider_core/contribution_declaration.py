@@ -29,7 +29,7 @@ def _json_dataclass_bytes[T](
         value_type=type(value),
     )
 
-    return codec.format, codec.encode(value)
+    return (codec.format, codec.encode(value))
 
 
 def json_configuration[T](

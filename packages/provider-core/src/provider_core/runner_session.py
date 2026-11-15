@@ -51,8 +51,8 @@ class RunnerSession:
     def __init__(self, path, *, role, expected_lock_identity, startup_seconds, retirement_seconds):
         positive_seconds(startup_seconds)
         positive_seconds(retirement_seconds)
-        self.path, self._startup, self._cleanup = str(path), startup_seconds, retirement_seconds
-        self.role, self.expected_lock_identity = role, tuple(expected_lock_identity)
+        (self.path, self._startup, self._cleanup) = (str(path), startup_seconds, retirement_seconds)
+        (self.role, self.expected_lock_identity) = (role, tuple(expected_lock_identity))
         self.control = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
         self.science = None
         self.generation = self.operation = self.lock_identity = None
@@ -69,6 +69,7 @@ class RunnerSession:
     @property
     def retirement_seconds(self):
         """Return the configured aggregate allowance for native observation and stop."""
+
         return self._cleanup
 
     @property
@@ -78,6 +79,7 @@ class RunnerSession:
         This proves neither greeting nor retirement. False does not exclude an
         operation after an arbitrary OS connect failure.
         """
+
         return self._connected
 
     def connect(self, *, deadline=None):
@@ -85,6 +87,7 @@ class RunnerSession:
             raise ValueError("Runner session connect is single-use; retain its original setup operation.")
 
         self._connect_started = True
+
         phase_deadline = time.monotonic() + self._startup
         deadline = phase_deadline if deadline is None else min(deadline, phase_deadline)
         self._connect_control(deadline)
@@ -96,17 +99,19 @@ class RunnerSession:
                 if self._stop_requested.is_set():
                     self.control.shutdown(socket.SHUT_WR)
 
-            greeting, self.science = receive_greeting(self.control, deadline=deadline)
+            (greeting, self.science) = receive_greeting(self.control, deadline=deadline)
 
             if greeting["role"] != self.role or tuple(greeting["lock"]) != self.expected_lock_identity:
                 self.science.close()
                 self.science = None
+
                 raise LifecycleRejected("Runner greeting does not match the admitted role and stable lifetime lock.")
 
-            self.generation, self.operation = greeting["generation"], greeting["operation"]
+            (self.generation, self.operation) = (greeting["generation"], greeting["operation"])
             self.lock_identity = tuple(greeting["lock"])
         except BaseException as cause:
             self._observation_failure = cause
+
             raise
 
     def _connect_control(self, deadline):
@@ -123,6 +128,7 @@ class RunnerSession:
 
             try:
                 self.control.connect(self.path)
+
                 return
             except OSError as cause:
                 if cause.errno not in (errno.ENOENT, errno.ECONNREFUSED):
@@ -199,6 +205,7 @@ class RunnerSession:
                 # A partial frame cannot restart at its remaining bytes. Retain
                 # this owner until the binding's proof session settles it.
                 self._observation_failure = cause
+
                 raise
 
         if not self.retirement.scratch_released:

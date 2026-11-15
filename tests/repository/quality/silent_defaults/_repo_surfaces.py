@@ -65,11 +65,11 @@ def surface_lines(
     for path in paths:
         source = repo_source(path)
 
-        for line_number, line in enumerate(
+        for (line_number, line) in enumerate(
             path.read_text(encoding="utf-8").splitlines(),
             start=1,
         ):
             if skip_comments and line.lstrip().startswith("#"):
                 continue
 
-            yield source, line_number, line
+            yield (source, line_number, line)

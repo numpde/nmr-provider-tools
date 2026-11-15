@@ -32,6 +32,7 @@ from provider_core.transport_errors import ExchangeFailed
 
 def transferred(failure):
     document = json.loads(message_bytes(failure_message(failure)))
+
     return read_reply(document, maximum_bytes=32, error_maximum_bytes=16)
 
 
@@ -117,7 +118,7 @@ class ChatWireAvailabilityTests(unittest.TestCase):
 
         without_eof = observed_failure(httpcore.RemoteProtocolError(str(primary)))
 
-        for expected, original in (
+        for (expected, original) in (
             (True, eof), (False, without_eof),
             (True, observed_failure(httpcore.ConnectError("proxy refusal"), proxy_connect_status=503)),
             (False, observed_failure(httpcore.ConnectError("proxy refusal"), proxy_connect_status=407)),
@@ -144,7 +145,7 @@ class ChatWireAvailabilityTests(unittest.TestCase):
                 self.assertEqual(expected, retry_allowed(transferred(original)))
 
     def test_one_nonavailability_group_member_prevents_retry(self):
-        for last, expected in ((ConnectionResetError(errno.ECONNRESET, "reset"), True),
+        for (last, expected) in ((ConnectionResetError(errno.ECONNRESET, "reset"), True),
                                (ssl.SSLCertVerificationError(1, "untrusted certificate"), False)):
             with self.subTest(expected_retry=expected):
                 primary = httpcore.ConnectError("both address attempts failed")
@@ -160,8 +161,8 @@ class ChatWireAvailabilityTests(unittest.TestCase):
                 self.assertEqual(expected, retry_allowed(received))
 
     def test_cyclic_cause_evidence_does_not_become_a_retryable_leaf(self):
-        primary, related = httpcore.ReadError("read"), httpcore.ConnectError("connect")
-        primary.__cause__, related.__cause__ = related, primary
+        (primary, related) = (httpcore.ReadError("read"), httpcore.ConnectError("connect"))
+        (primary.__cause__, related.__cause__) = (related, primary)
         original = observed_failure(primary)
         self.assertFalse(retry_allowed(original))
         received = transferred(original)

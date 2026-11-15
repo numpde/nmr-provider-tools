@@ -47,7 +47,7 @@ class TerminalQueueTests(unittest.TestCase):
                 try:
                     self.assertEqual(queue.next_pending(item.api_origin, item.provider_ref), item)
                     self.assertEqual(queue.enqueue(item), accepted)
-                    row, = queue.inventory(item.api_origin, item.provider_ref)
+                    (row,) = queue.inventory(item.api_origin, item.provider_ref)
                     self.assertEqual((row["body_sha256"], row["body_bytes"]), (item.body_sha256, len(body)))
                 finally:
                     queue.close()

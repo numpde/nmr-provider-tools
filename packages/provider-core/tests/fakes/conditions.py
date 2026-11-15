@@ -23,10 +23,12 @@ class ReportingSession(Session):
 
     async def prepare(self, acknowledged, instructions, *, report_condition):
         await self.report("prepare", report_condition)
+
         return await super().prepare(acknowledged, instructions, report_condition=report_condition)
 
     async def execute(self, prepared, *, report_condition):
         await self.report("execute", report_condition)
+
         return await super().execute(prepared, report_condition=report_condition)
 
 

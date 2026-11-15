@@ -18,11 +18,13 @@ from tests.fakes.delivery import outcome
 class SharedDeliveryIPCTests(unittest.IsolatedAsyncioTestCase):
     async def asyncSetUp(self):
         self.scratch = tempfile.TemporaryDirectory()
+
         self.addCleanup(self.scratch.cleanup)
         root = Path(self.scratch.name)
         (root / "ipc").mkdir(mode=0o700)
         (root / "state").mkdir(mode=0o700)
         self.queue = DeliveryQueue(root / "state", limits=QueueLimits(2, 8192, 4, 16384))
+
         self.addCleanup(self.queue.close)
         self.socket = root / "ipc/http.sock"
 
@@ -37,15 +39,16 @@ class SharedDeliveryIPCTests(unittest.IsolatedAsyncioTestCase):
                   "provider_ref": provider, "exchange_seconds": 10, "retirement_seconds": 5,
                   "credential_file": "/private/credential"}
 
-        _, _, material = api_settings_with_material(fields, Mock(return_value=encoded(document(principal_ref=provider))))
+        (_, _, material) = api_settings_with_material(fields, Mock(return_value=encoded(document(principal_ref=provider))))
         endpoint = DeliveryEndpoint("https://api.example", provider, self.socket)
         client = SharedDeliveryClient(endpoint, material, exchange_seconds=1, retirement_seconds=0.2)
         self.addAsyncCleanup(client.retire)
+
         return client
 
     async def test_two_providers_can_submit_but_neither_can_read_the_queue(self):
-        first, second = self.client("provider:first"), self.client("provider:second")
-        item1, item2 = outcome(provider="provider:first"), outcome(provider="provider:second")
+        (first, second) = (self.client("provider:first"), self.client("provider:second"))
+        (item1, item2) = (outcome(provider="provider:first"), outcome(provider="provider:second"))
         self.assertEqual(await first.submit(item1), DeliveryHandoff(item1, first.publication).acceptance())
         self.assertEqual(await second.submit(item2), DeliveryHandoff(item2, second.publication).acceptance())
         reader = DeliveryClient(first.endpoint, exchange_seconds=1, retirement_seconds=0.2)
@@ -87,6 +90,7 @@ class SharedDeliveryIPCTests(unittest.IsolatedAsyncioTestCase):
                 dropped = True
                 writer.close()
                 await writer.wait_closed()
+
                 return
 
             await respond(connection, writer, status, document)
@@ -105,7 +109,7 @@ class SharedDeliveryIPCTests(unittest.IsolatedAsyncioTestCase):
 
     async def test_full_queue_refuses_new_handoff_but_accepts_identical_replay(self):
         client = self.client("provider:first")
-        first, second, third = (outcome(provider="provider:first", suffix=suffix) for suffix in ("0", "1", "2"))
+        (first, second, third) = (outcome(provider="provider:first", suffix=suffix) for suffix in ("0", "1", "2"))
         accepted = await client.submit(first)
         await client.submit(second)
 

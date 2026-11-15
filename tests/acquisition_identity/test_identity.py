@@ -65,12 +65,12 @@ class IdentityTests(unittest.TestCase):
                                        IdMap([IdRange(0, 2000, 1)]), "a" * 64)
 
     def run_entrypoint(self):
-        output, diagnostic = io.StringIO(), io.StringIO()
+        (output, diagnostic) = (io.StringIO(), io.StringIO())
 
         with redirect_stdout(output), redirect_stderr(diagnostic):
             status = identity.main(self.argv)
 
-        return status, output.getvalue(), diagnostic.getvalue()
+        return (status, output.getvalue(), diagnostic.getvalue())
 
     def mapping_arguments(self, *projections):
         arguments = ["--endpoint", "unix:///fixture/engine.sock", "--image", "fixture:local",
@@ -108,6 +108,7 @@ class IdentityTests(unittest.TestCase):
     def test_projection_observes_the_selected_user_namespace(self, probe):
         probe.return_value = self.observation
         self.argv = self.mapping_arguments(("uid", "forward", "0")) + ["--userns", "host"]
+
         self.assertEqual((0, "1000\n", ""), self.run_entrypoint())
         self.assertEqual("host", probe.call_args.args[0].userns_mode)
 
@@ -115,7 +116,8 @@ class IdentityTests(unittest.TestCase):
     def test_failed_later_projection_never_releases_partial_values(self, probe):
         probe.return_value = self.observation
         self.argv = self.mapping_arguments(("uid", "forward", "0"), ("gid", "inverse", "999"))
-        status, output, diagnostic = self.run_entrypoint()
+
+        (status, output, diagnostic) = self.run_entrypoint()
         self.assertEqual((2, ""), (status, output))
         self.assertIn("not mapped", diagnostic)
         self.assertEqual(b"retired\n", self.receipt.read_bytes())
@@ -136,6 +138,7 @@ class IdentityTests(unittest.TestCase):
             with self.subTest(arguments=arguments):
                 self.receipt.unlink(missing_ok=True)
                 self.argv = arguments
+
                 self.assertEqual((2, ""), self.run_entrypoint()[:2])
                 self.assertEqual(b"retired\n", self.receipt.read_bytes())
 
@@ -151,6 +154,7 @@ class IdentityTests(unittest.TestCase):
             def write(self, value):
                 test.assertEqual(b"retired\n", test.receipt.read_bytes())
                 test.assertEqual(previous, signal.getsignal(signal.SIGTERM))
+
                 return super().write(value)
 
         output = GuardedOutput()
@@ -190,7 +194,7 @@ class IdentityTests(unittest.TestCase):
     def test_unmapped_owner_failure_still_records_completed_probe_retirement(self, probe):
         probe.return_value = self.observation
         self.argv[self.argv.index("1000")] = "1001"
-        status, output, diagnostic = self.run_entrypoint()
+        (status, output, diagnostic) = self.run_entrypoint()
         self.assertEqual((2, ""), (status, output))
         self.assertIn("not mapped", diagnostic)
         self.assertEqual(b"retired\n", self.receipt.read_bytes())
@@ -198,7 +202,7 @@ class IdentityTests(unittest.TestCase):
     @patch.object(identity, "probe_identity")
     def test_request_refusal_records_no_dispatch_without_traceback(self, probe):
         self.argv[self.argv.index("unix:///fixture/engine.sock")] = "tcp://fixture:2375"
-        status, output, diagnostic = self.run_entrypoint()
+        (status, output, diagnostic) = self.run_entrypoint()
         self.assertEqual((2, ""), (status, output))
         probe.assert_not_called()
         self.assertNotIn("Traceback", diagnostic)
@@ -208,7 +212,7 @@ class IdentityTests(unittest.TestCase):
     def test_unresolved_probe_keeps_retirement_receipt_absent(self, probe):
         failure = ProbeFailure(Problem("engine", "fixture failure"), Retirement(ResourceState.UNRESOLVED))
         probe.side_effect = failure
-        status, output, diagnostic = self.run_entrypoint()
+        (status, output, diagnostic) = self.run_entrypoint()
         self.assertEqual((2, ""), (status, output))
         self.assertFalse(self.receipt.exists())
         probe.assert_called_once()
@@ -227,7 +231,7 @@ class IdentityTests(unittest.TestCase):
                     remaining = ()
 
                 probe.side_effect = ProbeFailure(problem, Retirement(ResourceState.RETIRED, problems=remaining))
-                status, output, diagnostic = self.run_entrypoint()
+                (status, output, diagnostic) = self.run_entrypoint()
                 self.assertEqual((2, ""), (status, output))
                 self.assertIn("fixture client unresolved", diagnostic)
                 self.assertFalse(self.receipt.exists())

@@ -87,27 +87,27 @@ checker_finish
             if (directory / "calls").exists():
                 calls = (directory / "calls").read_text().splitlines()
 
-            return result, calls
+            return (result, calls)
 
     def test_removes_in_dependency_order(self):
-        result, calls = self.exercise(False)
+        (result, calls) = self.exercise(False)
         self.assertEqual(0, result.returncode, msg=result.stderr)
         self.assertEqual(["a", "b", "c"], calls)
 
     def test_failed_relay_keeps_gateway(self):
-        result, calls = self.exercise(True)
+        (result, calls) = self.exercise(True)
         self.assertEqual(2, result.returncode, msg=result.stderr)
         self.assertEqual(["a", "b"], calls)
 
     def test_unknown_container_or_unconfirmed_create_preserves_everything(self):
         for options in ({"unexpected": True}, {"pending": True}):
             with self.subTest(options=options):
-                result, calls = self.exercise(False, **options)
+                (result, calls) = self.exercise(False, **options)
                 self.assertEqual(2, result.returncode, msg=result.stderr)
                 self.assertEqual([], calls)
 
     def test_primary_failure_is_not_replaced_by_cleanup_failure(self):
-        result, calls = self.exercise(True, primary=23)
+        (result, calls) = self.exercise(True, primary=23)
         self.assertEqual(23, result.returncode, msg=result.stderr)
         self.assertEqual(["a", "b"], calls)
 

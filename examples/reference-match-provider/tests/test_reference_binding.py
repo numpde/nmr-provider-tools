@@ -31,6 +31,7 @@ class ReferenceBindingTests(unittest.IsolatedAsyncioTestCase):
 
     async def binding(self):
         provider = await self.enterAsyncContext(provider_setup.open_provider())
+
         return provider.matcher
 
     async def test_installed_distribution_contains_the_scientific_package(self):

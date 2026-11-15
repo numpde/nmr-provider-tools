@@ -15,7 +15,7 @@ class DeliveryConfigurationTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             files = DeliveryConfigFiles(directory, socket_group_id=65532)
             service = load_delivery_service(files.path, on_notice=Mock(), diagnostic_status=healthy_diagnostics)
-            binding, = service.bindings
+            (binding,) = service.bindings
             self.assertEqual(binding.endpoint.api_origin, "https://api.example")
             self.assertEqual(binding.endpoint.provider_ref, "provider:example")
             self.assertEqual(binding.api.identity.credential_ref, "credential:example")

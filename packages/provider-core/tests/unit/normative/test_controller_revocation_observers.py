@@ -15,14 +15,15 @@ class RevocationObserverTests(unittest.IsolatedAsyncioTestCase):
         controller = fixture.controller(session)
         failure = await fixture.stopped(controller)
         self.addAsyncCleanup(self.finish_original, controller, session)
-        return controller, session, failure
+
+        return (controller, session, failure)
 
     async def finish_original(self, controller, session):
         session.release.set()
         await asyncio.gather(controller.settle(), return_exceptions=True)
 
     async def test_concurrent_observers_receive_the_same_original_revocation(self):
-        controller, session, failure = await self.pending_revocation()
+        (controller, session, failure) = await self.pending_revocation()
         first = asyncio.create_task(controller.settle_revocation(failure))
         second = asyncio.create_task(controller.settle_revocation(failure))
 
@@ -51,8 +52,8 @@ class RevocationObserverTests(unittest.IsolatedAsyncioTestCase):
             await asyncio.gather(controller.settle(), return_exceptions=True)
 
     async def test_cancelling_an_observer_inside_settlement_leaves_recovery_joinable(self):
-        controller, session, failure = await self.pending_revocation()
-        delivery_retiring, delivery_release = asyncio.Event(), asyncio.Event()
+        (controller, session, failure) = await self.pending_revocation()
+        (delivery_retiring, delivery_release) = (asyncio.Event(), asyncio.Event())
         delivery_interrupted = asyncio.Event()
         original_retire = controller.delivery.retire
 
@@ -109,7 +110,7 @@ class RevocationObserverTests(unittest.IsolatedAsyncioTestCase):
             await asyncio.gather(controller.settle(), return_exceptions=True)
 
     async def test_external_settlement_joins_the_original_revocation_wait(self):
-        controller, session, failure = await self.pending_revocation()
+        (controller, session, failure) = await self.pending_revocation()
         continuation = asyncio.create_task(controller.settle_revocation(failure))
         external = None
 

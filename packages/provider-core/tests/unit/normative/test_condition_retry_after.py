@@ -33,7 +33,7 @@ def make_executor(store, claim, session, transport, *, window, on_retry=None):
 
 class ConditionRetryAfterTests(unittest.IsolatedAsyncioTestCase):
     async def test_retry_floor_beyond_window_expires_without_a_second_put(self):
-        store, acknowledged, claim = await live_attempt()
+        (store, acknowledged, claim) = await live_attempt()
         transport = ConditionOutageTransport(first_failed_put=2)
         transport.faults = itertools.repeat(unavailable_with_retry_after())
         session = ReportingSession(store)
@@ -69,7 +69,7 @@ class ConditionRetryAfterTests(unittest.IsolatedAsyncioTestCase):
 
                 return await super().exchange(request, maximum_bytes=maximum_bytes, owner=owner)
 
-        store, acknowledged, claim = await live_attempt()
+        (store, acknowledged, claim) = await live_attempt()
         transport = TimedTransport()
         transport.faults = iter((unavailable_with_retry_after(),))
         session = ReportingSession(store)
@@ -82,7 +82,7 @@ class ConditionRetryAfterTests(unittest.IsolatedAsyncioTestCase):
         claim.release(owner=claim.lifecycle_owner)
 
     async def test_server_stop_interrupts_the_advised_wait(self):
-        store, acknowledged, claim = await live_attempt()
+        (store, acknowledged, claim) = await live_attempt()
         transport = ConditionOutageTransport(first_failed_put=2)
         transport.faults = itertools.repeat(unavailable_with_retry_after())
         transport.followup_observation = reply(observation(job_state="cancelled"))

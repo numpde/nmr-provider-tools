@@ -214,7 +214,7 @@ def _scientific_call_shape(
     if get_origin(context_type) is not CallContext or len(get_args(context_type)) != 4:
         raise TypeError("Scientific call must accept one CallContext[Instance, Analysis, Input, State]")
 
-    instance_type, analysis_type, input_type, state_type = get_args(context_type)
+    (instance_type, analysis_type, input_type, state_type) = get_args(context_type)
 
     if not all(isinstance(value, type) for value in (instance_type, analysis_type, input_type, state_type)):
         raise TypeError("Scientific context parameters must name concrete types")
@@ -385,7 +385,7 @@ class ResourceRequirement:
 
     @property
     def identity(self) -> tuple[str, str, str | None]:
-        return self.kind, self.unit, self.selector
+        return (self.kind, self.unit, self.selector)
 
 
 def _require_resource_requirements(resource_requirements: object) -> None:
@@ -929,14 +929,17 @@ class CallBinding[InputT, StateT, OutputT]:
 
     def encode_input(self, value: InputT) -> bytes:
         """Encode input using this exact call's codec."""
+
         return self.input_codec.encode(value)
 
     def decode_result(self, payload: bytes) -> OutputT:
         """Decode a result using this exact call's codec."""
+
         return self.result_codec.decode(payload)
 
     def decode_input(self, payload: bytes) -> InputT:
         """Decode the declared portable payload into the provider's InputT."""
+
         return self.input_codec.decode(payload)
 
     def invoke(
@@ -1163,7 +1166,7 @@ def _require_state_kinds(*, calls: tuple[CallBinding, ...]) -> None:
         for parameter in call.description.state_inputs:
             declared_types.append((parameter.kind, call.state_binding.input_types[parameter.name]))
 
-        for kind, value_type in declared_types:
+        for (kind, value_type) in declared_types:
             if kind in state_types and state_types[kind] is not value_type:
                 raise TypeError(f"Scientific state kind {kind!r} names different Python types")
 
@@ -1192,7 +1195,7 @@ def description_document(description: ImplementationDescription) -> dict[str, ob
     # Requirements are unordered; canonical array order keeps exported revisions stable.
     # Compare selector presence before its value so None never compares with a string.
     def resource_order(requirement: ResourceRequirement):
-        return requirement.kind, requirement.unit, requirement.selector is not None, requirement.selector
+        return (requirement.kind, requirement.unit, requirement.selector is not None, requirement.selector)
 
     def resource_document(requirement: ResourceRequirement) -> dict[str, object]:
         return {

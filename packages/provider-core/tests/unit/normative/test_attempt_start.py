@@ -34,7 +34,7 @@ class AttemptStartTests(unittest.IsolatedAsyncioTestCase):
 
             self.assertEqual(result.state, state)
             self.assertEqual(result.started_at.isoformat(), "2026-10-18T00:00:00+00:00")
-            first, second = (item[0] for item in transport.calls)
+            (first, second) = (item[0] for item in transport.calls)
             self.assertEqual(first.content, body)
             self.assertEqual(second.content, body)
             self.assertEqual(first.headers["Content-Digest"], second.headers["Content-Digest"])

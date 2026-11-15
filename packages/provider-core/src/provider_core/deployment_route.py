@@ -99,6 +99,7 @@ def _named_initializer(image, interpreter, namespace, key, uid, gid, volume):
     service["labels"]["org.nmr-provider-tools.route-role"] = "initializer"
     # Root initializes only the route volume; its own scratch needs no provider identity.
     service["tmpfs"] = [f"/{name}:rw,nosuid,nodev,noexec,size=64m,mode=0700" for name in ("tmp", "run")]
+
     return service
 
 
@@ -181,7 +182,7 @@ def render_api_route(binding, *, image, interpreter, namespace, uid, gid, storag
         role = service_name
 
     service = _service(image, interpreter, namespace, key, uid, gid)
-    services, volumes = {role: service}, {}
+    (services, volumes) = ({role: service}, {})
     target = "/routes/" + key
 
     if type(storage) is NamedRouteVolume:

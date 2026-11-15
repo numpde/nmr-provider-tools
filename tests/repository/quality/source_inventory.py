@@ -100,7 +100,7 @@ def require_exact_inventory(
     if not isinstance(label, str) or not label:
         raise TypeError("label must be a non-empty string")
 
-    missing, unclassified = inventory_delta(
+    (missing, unclassified) = inventory_delta(
         discovered=discovered,
         reviewed=reviewed,
     )

@@ -67,7 +67,7 @@ class SpectrumScienceTests(unittest.TestCase):
         self.assertIn("at least three samples", rejected.exception.message)
 
     def test_spectrum_rejects_empty_mismatched_and_unordered_samples(self) -> None:
-        for positions, intensities in (
+        for (positions, intensities) in (
             ((), ()),
             ((0, 1), (1,)),
             ((0, 0), (1, 2)),

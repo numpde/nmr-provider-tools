@@ -25,7 +25,7 @@ from tests.fakes.api import api
 
 class ObservationRecoveryFailureTests(unittest.IsolatedAsyncioTestCase):
     async def test_late_success_does_not_gain_authority_before_the_timeout_callback_can_run(self):
-        store, acknowledged, claim = await live_attempt()
+        (store, acknowledged, claim) = await live_attempt()
         session = PausedSession(store, "execute")
 
         class LateReply(Transport):
@@ -33,6 +33,7 @@ class ObservationRecoveryFailureTests(unittest.IsolatedAsyncioTestCase):
                 # Deliberately stall this test loop: the wait timer cannot
                 # run before the valid reply's coroutine returns late.
                 time.sleep(0.1)
+
                 return await super().exchange(request, maximum_bytes=maximum_bytes, owner=owner)
 
         transport = LateReply(reply(observation()))
@@ -70,7 +71,7 @@ class ObservationRecoveryFailureTests(unittest.IsolatedAsyncioTestCase):
         await self.check_expiry(delayed_read_cleanup=True)
 
     async def check_expiry(self, *, delayed_read_cleanup):
-        store, acknowledged, claim = await live_attempt()
+        (store, acknowledged, claim) = await live_attempt()
         retired = asyncio.Event()
 
         class RetiredSession(PausedSession):
@@ -89,7 +90,7 @@ class ObservationRecoveryFailureTests(unittest.IsolatedAsyncioTestCase):
                     return await super().exchange(request, maximum_bytes=maximum_bytes, owner=owner)
 
                 self.calls.append((request, maximum_bytes))
-                self.pending_owner, self.retirement_confirmed = owner, False
+                (self.pending_owner, self.retirement_confirmed) = (owner, False)
                 entered.set()
 
                 try:
@@ -101,6 +102,7 @@ class ObservationRecoveryFailureTests(unittest.IsolatedAsyncioTestCase):
                         await cleanup_release.wait()
 
                     self.last_failure = ExchangeFailed("Authored interrupted read", primary=interruption)
+
                     raise
 
         transport = StalledRead(
@@ -185,7 +187,7 @@ class ObservationRecoveryFailureTests(unittest.IsolatedAsyncioTestCase):
             await asyncio.gather(task, return_exceptions=True)
 
     async def test_lock_wait_expiry_has_no_invented_read_cause_after_an_earlier_recovery(self):
-        store, acknowledged, claim = await live_attempt()
+        (store, acknowledged, claim) = await live_attempt()
         session = ReportingSession(store)
         session.conditions = {"prepare": ("waiting_capacity",), "execute": ()}
         condition_sent = asyncio.Event()
@@ -197,13 +199,14 @@ class ObservationRecoveryFailureTests(unittest.IsolatedAsyncioTestCase):
                     return await super().exchange(request, maximum_bytes=maximum_bytes, owner=owner)
 
                 self.calls.append((request, maximum_bytes))
-                self.pending_owner, self.retirement_confirmed = owner, False
+                (self.pending_owner, self.retirement_confirmed) = (owner, False)
                 condition_sent.set()
 
                 try:
                     await asyncio.Event().wait()
                 except asyncio.CancelledError as interruption:
                     self.last_failure = ExchangeFailed("Authored interrupted condition", primary=interruption)
+
                     raise
 
         transport = BlockedCondition(
@@ -272,7 +275,7 @@ class ObservationRecoveryFailureTests(unittest.IsolatedAsyncioTestCase):
                 ObservationRecovery(1, 1, *observers)
 
     async def test_deadline_keeps_independent_cause_when_failed_read_retirement_is_interrupted(self):
-        store, acknowledged, claim = await live_attempt()
+        (store, acknowledged, claim) = await live_attempt()
         session = PausedSession(store, "execute")
         cleanup_release = asyncio.Event()
         cleanup = OSError(errno.EIO, "PRIVATE retirement evidence")
@@ -280,7 +283,8 @@ class ObservationRecoveryFailureTests(unittest.IsolatedAsyncioTestCase):
         class InterruptedRetirement(Transport):
             async def exchange(self, request, *, maximum_bytes, owner=None):
                 received = await super().exchange(request, maximum_bytes=maximum_bytes, owner=owner)
-                self.pending_owner, self.retirement_confirmed = owner, False
+                (self.pending_owner, self.retirement_confirmed) = (owner, False)
+
                 return received
 
             async def retire(self, *, owner=None):

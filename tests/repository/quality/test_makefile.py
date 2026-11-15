@@ -25,7 +25,7 @@ class MakeSourceInspectionTests(unittest.TestCase):
         self.assertEqual("first\nsecond", make_define_body(makefile, "OWNER"))
 
     def test_rejects_missing_duplicate_or_unowned_defines(self) -> None:
-        for makefile, message in (
+        for (makefile, message) in (
             ("define OWNER\nbody\nendef\n", "must appear once"),
             ("override define OWNER\nbody\n", "has no endef"),
             (
@@ -105,7 +105,7 @@ class MakeSourceInspectionTests(unittest.TestCase):
             ),
         )
 
-        for makefile, target, message in cases:
+        for (makefile, target, message) in cases:
             with self.subTest(target=target), self.assertRaisesRegex(AssertionError, message):
                 make_target_body(makefile, target)
 

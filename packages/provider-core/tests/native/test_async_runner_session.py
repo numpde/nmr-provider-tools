@@ -23,10 +23,13 @@ from tests.fakes.runner import RunningSupervisor, worker_pid
 class AsyncNativeProcessTests(unittest.IsolatedAsyncioTestCase):
     async def asyncSetUp(self):
         self.runner = RunningSupervisor(operation_seconds=None)
+
         self.addCleanup(self.runner.close)
         self.session = self.runner.session(startup_seconds=2, retirement_seconds=2)
+
         self.addCleanup(self.session.close)
         self.owner = AsyncRunnerSession(self.session)
+
         await self.owner.connect(wait_seconds=2)
 
     async def asyncTearDown(self):
@@ -48,7 +51,7 @@ class AsyncNativeProcessTests(unittest.IsolatedAsyncioTestCase):
         pid = await asyncio.to_thread(worker_pid, self.session.science, b"E")
         self.assertEqual(b"", await asyncio.to_thread(self.session.science.recv, 1))
         os.kill(pid, 0)
-        identity = self.session.operation, self.session.lock_identity
+        identity = (self.session.operation, self.session.lock_identity)
         self.assertIsNone(self.owner.retirement_deadline)
 
         with self.assertRaises(TimeoutError):
@@ -94,7 +97,7 @@ class AsyncNativeProcessTests(unittest.IsolatedAsyncioTestCase):
     async def test_original_child_exit_survives_later_stop_and_repeated_join(self):
         pid = await asyncio.to_thread(worker_pid, self.session.science)
         await self.owner.observe_retirement(wait_seconds=2)
-        original_exit, reader = self.session.original_exit, self.owner.reader
+        (original_exit, reader) = (self.session.original_exit, self.owner.reader)
         self.assertEqual(0, original_exit.returncode)
         self.owner.request_stop()
         await self.owner.join_retirement(wait_seconds=2)
@@ -126,7 +129,7 @@ class AsyncNativeProcessTests(unittest.IsolatedAsyncioTestCase):
     async def test_control_setup_and_actual_child_retirement_survive_a_saturated_default_pool(self):
         default = ThreadPoolExecutor(max_workers=1)
         asyncio.get_running_loop().set_default_executor(default)
-        entered, release = threading.Event(), threading.Event()
+        (entered, release) = (threading.Event(), threading.Event())
 
         def occupy_default():
             entered.set()
@@ -171,6 +174,7 @@ class AsyncNativeProcessTests(unittest.IsolatedAsyncioTestCase):
         def capture(original):
             notification = wrap(original)
             wrapped.append(notification)
+
             return notification
 
         with patch.object(executor, "shutdown", wraps=executor.shutdown) as shutdown, \
@@ -233,10 +237,13 @@ class AsyncNativeProcessTests(unittest.IsolatedAsyncioTestCase):
 class AsyncNativeWireTests(unittest.IsolatedAsyncioTestCase):
     async def asyncSetUp(self):
         self.temporary = tempfile.TemporaryDirectory(prefix="async-native-wire-")
+
         self.addCleanup(self.temporary.cleanup)
         self.listener = socket.socket(socket.AF_UNIX)
+
         self.addCleanup(self.listener.close)
         self.path = str(Path(self.temporary.name) / "runner.sock")
+
         self.listener.bind(self.path)
         self.listener.listen()
         self.listener.settimeout(2)
@@ -264,9 +271,9 @@ class AsyncNativeWireTests(unittest.IsolatedAsyncioTestCase):
             raise cause
 
         if setup:
-            hook, observe = "_connect_control", self.owner.connect
+            (hook, observe) = ("_connect_control", self.owner.connect)
         else:
-            hook, observe = "_receive_retirement", self.owner.observe_retirement
+            (hook, observe) = ("_receive_retirement", self.owner.observe_retirement)
 
         with patch.object(self.session, hook, new=native_failure):
             if not setup:
@@ -356,8 +363,9 @@ class AsyncNativeWireTests(unittest.IsolatedAsyncioTestCase):
     async def test_inherited_cap_bounds_the_original_setup_read(self):
         cap = time.monotonic() + 0.08
         self.owner = AsyncRunnerSession(self.session, not_after=cap, setup_not_after=cap + 1)
+
         opening = asyncio.create_task(self.owner.connect(wait_seconds=1))
-        peer, _ = await asyncio.to_thread(self.listener.accept)
+        (peer, _) = await asyncio.to_thread(self.listener.accept)
         self.addCleanup(peer.close)
 
         # Keep a real connected peer alive without supplying the greeting.
@@ -384,6 +392,7 @@ class AsyncNativeWireTests(unittest.IsolatedAsyncioTestCase):
     async def test_inherited_cap_survives_setup_observation_stop_and_repeated_read_join(self):
         cap = time.monotonic() + 0.15
         self.owner = AsyncRunnerSession(self.session, not_after=cap)
+
         await self.connect(greeting_delay=0.04)
 
         with self.assertRaises(TimeoutError):
@@ -428,7 +437,7 @@ class AsyncNativeWireTests(unittest.IsolatedAsyncioTestCase):
         self.assertFalse(self.session.control_connected)
 
     async def test_cancelled_original_future_is_unconfirmed_control_not_native_exit(self):
-        entered, release = threading.Event(), threading.Event()
+        (entered, release) = (threading.Event(), threading.Event())
 
         def occupy_control():
             entered.set()
@@ -462,7 +471,8 @@ class AsyncNativeWireTests(unittest.IsolatedAsyncioTestCase):
     async def test_delayed_setup_dispatch_cannot_connect_after_its_original_setup_cap(self):
         cap = time.monotonic() + 0.04
         self.owner = AsyncRunnerSession(self.session, setup_not_after=cap)
-        entered, release = threading.Event(), threading.Event()
+
+        (entered, release) = (threading.Event(), threading.Event())
 
         def occupy_control():
             entered.set()
@@ -502,9 +512,9 @@ class AsyncNativeWireTests(unittest.IsolatedAsyncioTestCase):
     # silent-defaults: allow-contract -- Ordinary wire fixtures greet immediately; the inherited-cap witness delays that same greeting.
     async def connect(self, *, greeting_delay=0):
         opening = asyncio.create_task(self.owner.connect(wait_seconds=2))
-        self.peer, _ = await asyncio.to_thread(self.listener.accept)
+        (self.peer, _) = await asyncio.to_thread(self.listener.accept)
         self.addCleanup(self.peer.close)
-        science, remote = socket.socketpair()
+        (science, remote) = socket.socketpair()
         self.addCleanup(remote.close)
 
         if greeting_delay:
@@ -573,7 +583,7 @@ class AsyncNativeWireTests(unittest.IsolatedAsyncioTestCase):
 
         with patch.object(executor, "shutdown", wraps=executor.shutdown) as shutdown:
             opening = asyncio.create_task(self.owner.connect(wait_seconds=2))
-            peer, _ = await asyncio.to_thread(self.listener.accept)
+            (peer, _) = await asyncio.to_thread(self.listener.accept)
             self.addCleanup(peer.close)
             peer.sendall(b"X")
 
@@ -604,7 +614,7 @@ class AsyncNativeWireTests(unittest.IsolatedAsyncioTestCase):
 
     async def test_cancelled_setup_wait_keeps_original_greeting_read(self):
         opening = asyncio.create_task(self.owner.connect(wait_seconds=2))
-        peer, _ = await asyncio.to_thread(self.listener.accept)
+        (peer, _) = await asyncio.to_thread(self.listener.accept)
         self.addCleanup(peer.close)
         original = self.owner.setup
         opening.cancel()
@@ -614,7 +624,7 @@ class AsyncNativeWireTests(unittest.IsolatedAsyncioTestCase):
 
         self.assertFalse(original.done())
         self.owner.request_stop()
-        science, remote = socket.socketpair()
+        (science, remote) = socket.socketpair()
         self.addCleanup(remote.close)
 
         with science:

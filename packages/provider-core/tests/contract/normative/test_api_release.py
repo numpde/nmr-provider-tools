@@ -116,32 +116,32 @@ class ReleasedApiContractTests(PinnedApiRelease, unittest.IsolatedAsyncioTestCas
     async def test_all_eleven_dispatches_use_released_routes_ceilings_and_closed_top_level_fields(self):
         routes = {
             operation["operationId"]: (method.upper(), path, operation)
-            for path, item in self.openapi["paths"].items()
-            for method, operation in item.items()
+            for (path, item) in self.openapi["paths"].items()
+            for (method, operation) in item.items()
         }
 
         calls = provider_calls()
         self.assertEqual(set(calls), set(routes))
         self.assertEqual(len(calls), 11)
 
-        for operation_id, call in calls.items():
+        for (operation_id, call) in calls.items():
             with self.subTest(operation=operation_id):
                 transport = Transport(reply(call.response))
                 client = api(transport, "https://api.example.test")
                 await getattr(client, call.method_name)(*call.arguments, **call.options)
                 ((request, maximum_bytes),) = transport.calls
                 self.assertEqual(request.content, call.body)
-                method, template, operation = routes[operation_id]
+                (method, template, operation) = routes[operation_id]
                 path = template.format(job_ref="job:example", execution_attempt_ref=ATTEMPT_REF, upload_ref=UPLOAD_REF)
                 self.assertEqual(request.method, method)
-                raw_path, _, query = request.url.raw_path.partition(b"?")
+                (raw_path, _, query) = request.url.raw_path.partition(b"?")
                 self.assertEqual(raw_path, path.encode())
                 self.assertEqual(maximum_bytes, operation["x-nmr-max-response-bytes"])
                 self.assertLessEqual(len(query), operation["x-nmr-max-query-bytes"])
                 parameters = {item["name"]: item for item in operation["parameters"] if item["in"] == "query"}
-                names = {name for name, _ in parse_qsl(query.decode(), keep_blank_values=True)}
+                names = {name for (name, _) in parse_qsl(query.decode(), keep_blank_values=True)}
                 self.assertLessEqual(names, set(parameters))
-                self.assertLessEqual({name for name, item in parameters.items() if item["required"]}, names)
+                self.assertLessEqual({name for (name, item) in parameters.items() if item["required"]}, names)
                 response_schema = self.schemas[operation["x-nmr-response-schema-id"]]
                 self.assertEqual(json.loads(call.response)["schema_id"], response_schema["properties"]["schema_id"]["const"])
                 self.assertEqual(set(json.loads(call.response)), set(response_schema["required"]))

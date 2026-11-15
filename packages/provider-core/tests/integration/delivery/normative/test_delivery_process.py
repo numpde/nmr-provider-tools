@@ -58,7 +58,8 @@ def _configured_binding(root, peer, proxy, *, provider):
     raw = raw.replace(json.dumps(str(root / "api/http.sock")).encode(), json.dumps(proxy.path).encode())
     raw += b"ca_file = " + json.dumps(str(Path(peer.scratch.name) / "cert.pem")).encode() + b"\n"
     files.write(raw)
-    return files, DeliveryEndpoint(peer.origin, provider, root / "ipc/http.sock"), parse_provider_credential(files.key.read_bytes())
+
+    return (files, DeliveryEndpoint(peer.origin, provider, root / "ipc/http.sock"), parse_provider_credential(files.key.read_bytes()))
 
 
 async def _reap_daemon(process):
@@ -83,7 +84,7 @@ async def _reap_daemon(process):
 
 class DeliveryProcessTests(unittest.IsolatedAsyncioTestCase):
     async def test_discard_configuration_refusals_explain_the_reason_without_opening_queue_or_exposing_values(self):
-        for schema, expected in (
+        for (schema, expected) in (
             ("PRIVATE_SCHEMA", "Cannot inspect or discard held results: use the installed delivery configuration (schema provider-core.delivery.v1)."),
             ("provider-core.delivery.v1", "Cannot inspect or discard held results: the supplied API/provider pair must match exactly one configured binding."),
         ):
@@ -107,7 +108,7 @@ class DeliveryProcessTests(unittest.IsolatedAsyncioTestCase):
                 )
 
                 try:
-                    stdout, stderr = await asyncio.wait_for(process.communicate(), 3)
+                    (stdout, stderr) = await asyncio.wait_for(process.communicate(), 3)
                     self.assertEqual(process.returncode, 2)
                     self.assertEqual(stdout, b"")
                     self.assertIn(expected.encode(), stderr)
@@ -194,7 +195,7 @@ class DeliveryProcessTests(unittest.IsolatedAsyncioTestCase):
             )
 
             try:
-                stdout, stderr = await asyncio.wait_for(process.communicate(), 3)
+                (stdout, stderr) = await asyncio.wait_for(process.communicate(), 3)
                 self.assertEqual(process.returncode, 2)
                 self.assertEqual(stdout, b"")
                 report = json.loads(stderr)
@@ -211,7 +212,7 @@ class DeliveryProcessTests(unittest.IsolatedAsyncioTestCase):
         The peer remembers its synthetic effect. This proves daemon/queue replay,
         not a deployed API's transaction implementation or scientific correctness.
         """
-        effects, received = {}, []
+        (effects, received) = ({}, [])
         item = credential = None
 
         async def accept_then_lose(request, body):
@@ -225,6 +226,7 @@ class DeliveryProcessTests(unittest.IsolatedAsyncioTestCase):
                 self.assertEqual(effects[item.key], body)
             else:
                 effects[item.key] = body
+
                 return None  # Full body received; lose only this API acknowledgement.
 
             return complete_response(execution_attempt_ref=item.execution_attempt_ref,
@@ -233,7 +235,7 @@ class DeliveryProcessTests(unittest.IsolatedAsyncioTestCase):
         async with api_tls_peer("success", response_factory=accept_then_lose) as peer:
             async with UnixProxy(peer.origin, "tunnel") as proxy:
                 with tempfile.TemporaryDirectory() as directory:
-                    files, endpoint, credential = _configured_binding(Path(directory) / "binding", peer, proxy,
+                    (files, endpoint, credential) = _configured_binding(Path(directory) / "binding", peer, proxy,
                         provider="provider:example")
 
                     # The minimum jittered retry wait is 15s, longer than bounded
@@ -331,8 +333,8 @@ class DeliveryProcessTests(unittest.IsolatedAsyncioTestCase):
             async with UnixProxy(peer_a.origin, "tunnel") as proxy_a, UnixProxy(peer_b.origin, "tunnel") as proxy_b:
                 with tempfile.TemporaryDirectory() as directory:
                     root = Path(directory)
-                    files, endpoint_a, credential_a = _configured_binding(root / "first", peer_a, proxy_a, provider="provider:example")
-                    other, endpoint_b, credential_b = _configured_binding(root / "second", peer_b, proxy_b, provider="provider:other")
+                    (files, endpoint_a, credential_a) = _configured_binding(root / "first", peer_a, proxy_a, provider="provider:example")
+                    (other, endpoint_b, credential_b) = _configured_binding(root / "second", peer_b, proxy_b, provider="provider:other")
 
                     self.assertNotEqual(credential_a.private_key.public_key().public_bytes_raw(),
                                         credential_b.private_key.public_key().public_bytes_raw())
@@ -342,7 +344,7 @@ class DeliveryProcessTests(unittest.IsolatedAsyncioTestCase):
                     second = replace(outcome(provider=endpoint_b.provider_ref, message="PRIVATE_BINDING_B_PAYLOAD"), api_origin=peer_b.origin)
                     clients = [DeliveryClient(endpoint, exchange_seconds=1, retirement_seconds=0.2) for endpoint in (endpoint_a, endpoint_b)]
                     foreign = DeliveryClient(replace(endpoint_b, socket_path=endpoint_a.socket_path), exchange_seconds=1, retirement_seconds=0.2)
-                    process, notices = await _launch_daemon(files.path), []
+                    (process, notices) = (await _launch_daemon(files.path), [])
 
                     try:
                         self.assertEqual((await _receive_notice(process, "delivery_ready", notices))["binding_count"], 2)

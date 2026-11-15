@@ -19,7 +19,7 @@ from provider_core.ownership import AttemptClaims
 
 def controlled(session_type, stopping, admission_stopping):
     probe = LiveAttemptProbe()
-    session, delivery = session_type(probe), RecordingDelivery()
+    (session, delivery) = (session_type(probe), RecordingDelivery())
     transport = Transport(*lifecycle_replies())
 
     controller = AttemptController.live(
@@ -32,25 +32,29 @@ def controlled(session_type, stopping, admission_stopping):
     )
 
     probe.controller = controller
-    return controller, session, delivery, transport
+
+    return (controller, session, delivery, transport)
 
 
 class WaitingDispatch(Session):
     def __init__(self, probe):
         super().__init__(probe)
-        self.waiting, self.release = asyncio.Event(), asyncio.Event()
+        (self.waiting, self.release) = (asyncio.Event(), asyncio.Event())
         self.dispatches = 0
         self.checked = False
         self.control = None
 
     async def execute(self, prepared, *, report_condition):
         self.control = report_condition
+
         self.waiting.set()
         await self.release.wait()
         self.checked = True
+
         report_condition.require_execution()
         # No yield between permission and this recording dispatch commitment.
         self.dispatches += 1
+
         return await super().execute(prepared, report_condition=report_condition)
 
 
@@ -58,8 +62,8 @@ class ExecutionPermissionTests(unittest.IsolatedAsyncioTestCase):
     async def test_both_scientific_stop_authorities_veto_a_waited_dispatch(self):
         for authority in ("event", "controller"):
             with self.subTest(authority=authority):
-                stopping, admission = asyncio.Event(), asyncio.Event()
-                controller, session, delivery, _ = controlled(WaitingDispatch, stopping, admission)
+                (stopping, admission) = (asyncio.Event(), asyncio.Event())
+                (controller, session, delivery, _) = controlled(WaitingDispatch, stopping, admission)
                 running = asyncio.create_task(controller.run(record()))
 
                 try:
@@ -93,8 +97,8 @@ class ExecutionPermissionTests(unittest.IsolatedAsyncioTestCase):
                         await asyncio.gather(controller._driver, return_exceptions=True)
 
     async def test_admission_stop_allows_already_admitted_science_and_permit_expires(self):
-        stopping, admission = asyncio.Event(), asyncio.Event()
-        controller, session, delivery, transport = controlled(WaitingDispatch, stopping, admission)
+        (stopping, admission) = (asyncio.Event(), asyncio.Event())
+        (controller, session, delivery, transport) = controlled(WaitingDispatch, stopping, admission)
         running = asyncio.create_task(controller.run(record()))
 
         try:
@@ -127,6 +131,7 @@ class LiveConditionTransport(ConditionTransport):
     async def exchange(self, request, *, maximum_bytes, owner=None):
         if request.method == "POST" and request.url.path.endswith("/start"):
             self.calls.append((request, maximum_bytes))
+
             return reply(start_response())
 
         return await super().exchange(request, maximum_bytes=maximum_bytes, owner=owner)
@@ -134,7 +139,7 @@ class LiveConditionTransport(ConditionTransport):
 
 def composed(session_type, transport, *, observation_recovery, poll_seconds):
     probe = LiveAttemptProbe()
-    session, delivery = session_type(probe), RecordingDelivery()
+    (session, delivery) = (session_type(probe), RecordingDelivery())
 
     controller = AttemptController.live(
         api(transport, probe.scope.api_origin), AttemptClaims.live(), session,
@@ -147,7 +152,8 @@ def composed(session_type, transport, *, observation_recovery, poll_seconds):
     )
 
     probe.controller = controller
-    return controller, session, delivery
+
+    return (controller, session, delivery)
 
 
 class ChildDispatch(Session):
@@ -158,11 +164,14 @@ class ChildDispatch(Session):
 
     async def prepare(self, acknowledged, instructions, *, report_condition):
         self.dispatches = []
+
         await asyncio.create_task(self.checked_child(report_condition, "prepare"))
+
         return await super().prepare(acknowledged, instructions, report_condition=report_condition)
 
     async def execute(self, prepared, *, report_condition):
         await asyncio.create_task(self.checked_child(report_condition, "execute"))
+
         return await super().execute(prepared, report_condition=report_condition)
 
 
@@ -190,6 +199,7 @@ class CaughtInFlightReport(Session):
     async def prepare(self, acknowledged, instructions, *, report_condition):
         prepared = await super().prepare(acknowledged, instructions, report_condition=report_condition)
         self.dispatches = 0
+
         task = asyncio.create_task(report_condition("waiting_capacity"))
 
         try:
@@ -212,12 +222,14 @@ class CaughtInFlightReport(Session):
 class DeadlineDispatch(Session):
     async def execute(self, prepared, *, report_condition):
         self.dispatches = 0
+
         await self.transport.read_blocked.wait()
         executor = self.probe.controller.operation
         deadline = executor._observation_deadline
         self.pending_read = executor._observation_wait
         self.read_was_pending = self.pending_read is not None and not self.pending_read.done()
         self.asserted_deadline = deadline
+
         loop = asyncio.get_running_loop()
 
         # No await while advancing time: scheduled timeout callbacks cannot run.
@@ -226,12 +238,14 @@ class DeadlineDispatch(Session):
                 report_condition.require_execution()
             except ObservationGapExpired as failure:
                 self.dispatch_failure = failure
+
                 self.transport.release_read.set()
                 raise
             else:
                 self.dispatches += 1
 
         self.transport.release_read.set()
+
         return await super().execute(prepared, report_condition=report_condition)
 
 
@@ -256,7 +270,7 @@ class ExecutionPermissionAdditionalTests(unittest.IsolatedAsyncioTestCase):
 
     async def test_owned_awaited_child_tasks_can_dispatch_in_both_phases(self):
         transport = LiveConditionTransport()
-        controller, session, delivery = composed(ChildDispatch, transport, observation_recovery=None, poll_seconds=1)
+        (controller, session, delivery) = composed(ChildDispatch, transport, observation_recovery=None, poll_seconds=1)
         await self.run_controller(controller, transport)
         self.assertEqual(session.dispatches, ["prepare", "execute"])
         self.assertEqual([event[0] for event in session.events], ["prepare", "execute", "retire"])
@@ -267,7 +281,7 @@ class ExecutionPermissionAdditionalTests(unittest.IsolatedAsyncioTestCase):
         transport = LiveConditionTransport()
         transport.failure = ExchangeFailed("PRIVATE_REPORT_FAILURE")
         transport.release.set()
-        controller, session, delivery = composed(CaughtReportFailure, transport, observation_recovery=None, poll_seconds=1)
+        (controller, session, delivery) = composed(CaughtReportFailure, transport, observation_recovery=None, poll_seconds=1)
 
         with self.assertRaises(ControllerFailed) as caught:
             await self.run_controller(controller, transport)
@@ -281,7 +295,7 @@ class ExecutionPermissionAdditionalTests(unittest.IsolatedAsyncioTestCase):
 
     async def test_caught_in_flight_condition_refusal_cannot_publish_after_report_settles(self):
         transport = LiveConditionTransport()
-        controller, session, delivery = composed(CaughtInFlightReport, transport, observation_recovery=None, poll_seconds=1)
+        (controller, session, delivery) = composed(CaughtInFlightReport, transport, observation_recovery=None, poll_seconds=1)
         session.transport = transport
 
         with self.assertRaises(ControllerFailed) as caught:
@@ -301,7 +315,7 @@ class ExecutionPermissionAdditionalTests(unittest.IsolatedAsyncioTestCase):
         transport.block_read = 4
         recovery = ObservationRecovery(1, 0.1, Mock(), Mock())
 
-        controller, session, delivery = composed(DeadlineDispatch, transport,
+        (controller, session, delivery) = composed(DeadlineDispatch, transport,
             observation_recovery=recovery, poll_seconds=0.001)
 
         session.transport = transport

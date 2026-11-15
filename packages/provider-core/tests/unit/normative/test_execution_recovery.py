@@ -23,12 +23,13 @@ class CompletedDuringOutage(PausedSession):
     async def execute(self, prepared, *, report_condition):
         result = await super().execute(prepared, report_condition=report_condition)
         self.produced.set()
+
         return result
 
 
 class ObservationRecoveryTests(unittest.IsolatedAsyncioTestCase):
     async def test_completed_science_waits_for_a_fresh_read_after_settled_outage(self):
-        store, acknowledged, claim = await live_attempt()
+        (store, acknowledged, claim) = await live_attempt()
         session = CompletedDuringOutage(store)
         notices = []
 

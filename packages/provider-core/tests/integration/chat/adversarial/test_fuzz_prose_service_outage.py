@@ -11,7 +11,7 @@ from tests.fakes.b4_prose_outage import run_outage
 class ProseServiceOutageTests(unittest.IsolatedAsyncioTestCase):
     def assert_outage_recovered(self, result):
         evidence = json.dumps(result, sort_keys=True)
-        requests, jobs = result["requests"], result["jobs"]
+        (requests, jobs) = (result["requests"], result["jobs"])
         affected = [job for job in jobs if job["name"].startswith("affected-")]
         post_restoration = [job for job in affected if job["started_at"] >= result["restored_at"]]
         successful = [job for job in post_restoration if not job["failed"]]
@@ -74,7 +74,7 @@ class ProseServiceOutageTests(unittest.IsolatedAsyncioTestCase):
         self.assertTrue(result["children"], msg=evidence)
         self.assertTrue(all(child["returncode"] is not None and not child["alive"] for child in result["children"]), msg=evidence)
         self.assertEqual(len(result["children"]), len({child["pid"] for child in result["children"]}), msg=evidence)
-        before, after = result["scientific_worker_before"], result["scientific_worker_after"]
+        (before, after) = (result["scientific_worker_before"], result["scientific_worker_after"])
         self.assertEqual(before["pid"], after["pid"], msg=evidence)
         self.assertNotEqual(result["provider_pid"], after["pid"], msg=evidence)
         self.assertEqual(1, after["model_loads"], msg=evidence)
@@ -125,7 +125,7 @@ class ProseServiceOutageTests(unittest.IsolatedAsyncioTestCase):
                         self.assertGreaterEqual(following["at"] - observation["at"], 1, msg=evidence)
 
     async def test_seeded_outage_modes_preserve_original_publication_and_warm_science(self):
-        for mode, seed in (("unavailable", 14), ("invalid_retry_after", 41), ("disconnect", 97), ("blocked", 23)):
+        for (mode, seed) in (("unavailable", 14), ("invalid_retry_after", 41), ("disconnect", 97), ("blocked", 23)):
             with self.subTest(mode=mode, seed=seed), tempfile.TemporaryDirectory() as directory:
                 result = await run_outage(Path(directory) / "outbox", mode=mode, backlog=12, seed=seed)
                 self.assert_outage_recovered(result)

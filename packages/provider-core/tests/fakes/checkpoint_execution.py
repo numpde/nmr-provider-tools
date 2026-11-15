@@ -32,6 +32,7 @@ class RecordingDelivery:
     async def submit(self, item):
         self.items.append(item)
         self.accepted.set()
+
         return item.acceptance()
 
     async def retire(self):
@@ -77,6 +78,7 @@ class CausalDelivery(RecordingDelivery):
     def release_for_teardown(self):
         """Unblock disposable tasks only after their behavioral verdict."""
         self._tearing_down = True
+
         self._answers.put_nowait("accepted")
 
     async def submit(self, item):
@@ -99,6 +101,7 @@ class CausalDelivery(RecordingDelivery):
         if disposition == "retryable":
             failure = DeliveryUnavailable("The local delivery service is temporarily unavailable", status=503)
             self.last_failure = failure
+
             raise failure
 
         if disposition == "lost":
@@ -107,6 +110,7 @@ class CausalDelivery(RecordingDelivery):
             self.items.append(item)
             failure = DeliveryUnavailable("The exact local acknowledgement was lost")
             self.last_failure = failure
+
             raise failure
 
         if disposition == "rejected":

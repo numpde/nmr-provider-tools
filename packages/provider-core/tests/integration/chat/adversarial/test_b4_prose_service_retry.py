@@ -20,14 +20,14 @@ class ProseServiceRetryTests(unittest.IsolatedAsyncioTestCase):
         loop = asyncio.get_running_loop()
         restored = asyncio.Event()
         unavailable_reply_sent = asyncio.Event()
-        requests, tool_calls, interpreters = [], [], []
+        (requests, tool_calls, interpreters) = ([], [], [])
 
         async def response(_request, body):
             job = json.loads(body)["messages"][0]["content"]
             requests.append({"job": job, "at": loop.time(), "available": restored.is_set()})
 
             if restored.is_set():
-                peer.response_status, peer.response_headers = 200, None
+                (peer.response_status, peer.response_headers) = (200, None)
 
                 return json.dumps({"choices": [{
                     "message": call("prepare", "prepare_scientific_input", {}),
@@ -37,6 +37,7 @@ class ProseServiceRetryTests(unittest.IsolatedAsyncioTestCase):
             peer.response_status = 503
             peer.response_headers = ((b"Content-Type", b"application/json"), (b"Retry-After", b"2"))
             unavailable_reply_sent.set()
+
             return b'{"error":{"message":"The prose interpreter is temporarily unavailable."}}'
 
         async def restore_only_the_prose_service():
@@ -67,6 +68,7 @@ class ProseServiceRetryTests(unittest.IsolatedAsyncioTestCase):
                         raise AssertionError("The test prose service proposed an unexpected scientific operation")
 
                     tool_calls.append(job)
+
                     return ToolFinished(job)
 
                 tools = [{"type": "function", "function": {
@@ -82,7 +84,7 @@ class ProseServiceRetryTests(unittest.IsolatedAsyncioTestCase):
                 # The first Job has enough time to receive the 503 over real TLS
                 # but not to wait the full Retry-After before its deadline.
                 # The second Job expires without opening another exchange.
-                for job, seconds in (("job:b4-first", 2.0), ("job:b4-second", 0.55)):
+                for (job, seconds) in (("job:b4-first", 2.0), ("job:b4-second", 0.55)):
                     with self.assertRaises(InterpretationFailed):
                         await interpret(job, seconds)
 

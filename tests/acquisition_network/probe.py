@@ -105,9 +105,9 @@ elif sys.argv[1] in ("worker", "session-worker"):
         if proxy.scheme != "http" or proxy.hostname != "127.0.0.1" or proxy.port is None:
             raise RuntimeError("session proxy is not the loopback relay")
 
-        proxy_port, origin_port = proxy.port, int(sys.argv[2])
+        (proxy_port, origin_port) = (proxy.port, int(sys.argv[2]))
     else:
-        proxy_port, origin_port = int(sys.argv[2]), int(sys.argv[3])
+        (proxy_port, origin_port) = (int(sys.argv[2]), int(sys.argv[3]))
 
     check_routes()
     # The same known host origin must be unreachable directly and reachable

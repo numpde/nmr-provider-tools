@@ -32,8 +32,8 @@ class RunnerRefusalTests(unittest.TestCase):
 
                 self.addCleanup(session.close)
                 session.control.close()
-                sender, session.control = socket.socketpair()
-                session.generation, session.operation = "generation", "operation"
+                (sender, session.control) = socket.socketpair()
+                (session.generation, session.operation) = ("generation", "operation")
 
                 with sender:
                     send_document(sender, {
@@ -53,7 +53,7 @@ class RunnerRefusalTests(unittest.TestCase):
         self.addCleanup(session.close)
         session.connect()
         pid = worker_pid(session.science, b"H")
-        entered, release = threading.Event(), threading.Event()
+        (entered, release) = (threading.Event(), threading.Event())
         receive = session._receive_retirement
 
         def original_read(deadline):
@@ -90,10 +90,10 @@ class RunnerRefusalTests(unittest.TestCase):
 
                 self.addCleanup(session.close)
                 session.control.close()
-                sender, session.control = socket.socketpair()
+                (sender, session.control) = socket.socketpair()
 
                 with sender:
-                    session.generation, session.operation = "generation", "operation"
+                    (session.generation, session.operation) = ("generation", "operation")
 
                     reply = {
                         "kind": "retired", "generation": "generation", "operation": "operation",
@@ -112,10 +112,10 @@ class RunnerRefusalTests(unittest.TestCase):
                     self.assertIsNone(session.original_exit)
 
     def test_status_directory_is_private_and_canonical_before_any_status_write(self):
-        for condition, failure_type in (("mode", PermissionError), ("symlink", ValueError)):
+        for (condition, failure_type) in (("mode", PermissionError), ("symlink", ValueError)):
             with self.subTest(condition=condition), tempfile.TemporaryDirectory() as temporary:
                 root = Path(temporary)
-                endpoint, scratch, status = (root / name for name in ("endpoint", "scratch", "status"))
+                (endpoint, scratch, status) = (root / name for name in ("endpoint", "scratch", "status"))
 
                 for directory in (endpoint, scratch, status):
                     directory.mkdir(mode=0o700)
@@ -132,7 +132,7 @@ class RunnerRefusalTests(unittest.TestCase):
                 options = SimpleNamespace(socket=endpoint / "runner.sock", scratch=scratch,
                                           status_directory=selected, role="fixture")
 
-                read_fd, write_fd = os.pipe2(os.O_CLOEXEC | os.O_NONBLOCK)
+                (read_fd, write_fd) = os.pipe2(os.O_CLOEXEC | os.O_NONBLOCK)
 
                 try:
                     os.write(write_fd, b"x")
@@ -175,11 +175,11 @@ class RunnerRefusalTests(unittest.TestCase):
             )
 
             self.addCleanup(session.close)
-            science, remote = socket.socketpair()
+            (science, remote) = socket.socketpair()
 
             with science, remote:
                 def reply():
-                    peer, _ = listener.accept()
+                    (peer, _) = listener.accept()
 
                     with peer:
                         send_greeting(peer, {"kind": "malformed"}, science, deadline=time.monotonic() + 1)
@@ -222,8 +222,8 @@ class RunnerRefusalTests(unittest.TestCase):
 
             with ThreadPoolExecutor(max_workers=1) as executor:
                 original = executor.submit(session.connect)
-                peer, _ = listener.accept()
-                science, remote = socket.socketpair()
+                (peer, _) = listener.accept()
+                (science, remote) = socket.socketpair()
 
                 with peer, science, remote:
                     peer.sendmsg([b"\0\0\0"], [
@@ -256,8 +256,8 @@ class RunnerRefusalTests(unittest.TestCase):
                     self.assertEqual(retired, receive_document(session.control, deadline=time.monotonic() + 1))
 
     def test_extra_received_descriptors_are_closed_on_rejection(self):
-        sender, receiver = socket.socketpair()
-        one, two = socket.socketpair()
+        (sender, receiver) = socket.socketpair()
+        (one, two) = socket.socketpair()
 
         with sender, receiver, one, two:
             before = len(os.listdir("/proc/self/fd"))
@@ -269,7 +269,7 @@ class RunnerRefusalTests(unittest.TestCase):
             self.assertEqual(len(os.listdir("/proc/self/fd")), before)
 
     def test_partial_control_delivery_cannot_reset_the_absolute_phase_deadline(self):
-        sender, receiver = socket.socketpair()
+        (sender, receiver) = socket.socketpair()
 
         with sender, receiver:
             def drip():
@@ -332,7 +332,7 @@ class RunnerRefusalTests(unittest.TestCase):
         successor.observe_retirement()
 
     def test_wrong_role_or_replaced_lock_is_refused_before_scientific_handoff(self):
-        for role, inode_delta in (("foreign", 0), ("fixture", 1)):
+        for (role, inode_delta) in (("foreign", 0), ("fixture", 1)):
             with self.subTest(role=role, inode_delta=inode_delta):
                 runner = RunningSupervisor()
                 self.addCleanup(runner.close)
@@ -379,7 +379,7 @@ class RunnerRefusalTests(unittest.TestCase):
             pass
 
     def test_peer_without_transferred_scientific_descriptor_is_rejected(self):
-        sender, receiver = socket.socketpair()
+        (sender, receiver) = socket.socketpair()
 
         with sender, receiver:
             sender.sendall(b"x")

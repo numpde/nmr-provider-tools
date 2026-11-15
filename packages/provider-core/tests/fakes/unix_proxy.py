@@ -15,10 +15,11 @@ from urllib.parse import urlsplit
 class UnixProxy:
     # silent-defaults: allow-contract -- The synthetic proxy refusal uses its explicit ordinary denial status.
     def __init__(self, origin, mode, *, refusal_status=403):
-        self.origin, self.mode = urlsplit(origin), mode
+        (self.origin, self.mode) = (urlsplit(origin), mode)
         self.refusal_status = refusal_status
         self.headers = []
-        self.received, self.closed = asyncio.Event(), asyncio.Event()
+
+        (self.received, self.closed) = (asyncio.Event(), asyncio.Event())
         self.handlers = set()
 
     async def __aenter__(self):
@@ -44,6 +45,7 @@ class UnixProxy:
 
             if self.mode == "stall":
                 await reader.read()
+
                 return
 
             if self.mode in ("refuse", "malformed"):
@@ -54,12 +56,13 @@ class UnixProxy:
 
                 writer.write(reply)
                 await writer.drain()
+
                 return
 
             if self.mode != "tunnel":
                 raise ValueError("Unknown Unix proxy fixture mode")
 
-            incoming, outbound = await asyncio.open_connection("127.0.0.1", self.origin.port)
+            (incoming, outbound) = await asyncio.open_connection("127.0.0.1", self.origin.port)
             writer.write(b"HTTP/1.1 200 Connection Established\r\n\r\n")
             await writer.drain()
 
@@ -118,7 +121,7 @@ class UnixProxy:
 
         failures = [
             result
-            for task, result in zip(handlers, results, strict=True)
+            for (task, result) in zip(handlers, results, strict=True)
             if isinstance(result, BaseException) and not (task in cancelled and isinstance(result, asyncio.CancelledError))
         ]
 

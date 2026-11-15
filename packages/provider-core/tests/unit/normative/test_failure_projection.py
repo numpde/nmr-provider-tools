@@ -99,7 +99,7 @@ class CoreFailureProjectionTests(unittest.TestCase):
         self.assertIsNone(owned_details(exchange)["request_id"])
 
     def test_transport_edges_preserve_original_identity_order_and_independent_cleanup(self):
-        primary, cleanup, interrupted = TimeoutError(), OSError(), asyncio.CancelledError()
+        (primary, cleanup, interrupted) = (TimeoutError(), OSError(), asyncio.CancelledError())
         failure = ExchangeFailed("Interrupted response", primary=primary, cleanup_failures=(cleanup,), interruption=interrupted)
 
         self.assertEqual(
@@ -112,7 +112,7 @@ class CoreFailureProjectionTests(unittest.TestCase):
         )
 
     def test_conversation_edges_preserve_endpoint_corrections_primary_and_interruption(self):
-        endpoint, cleanup, cause, previous = TimeoutError(), OSError(), RuntimeError(), asyncio.CancelledError()
+        (endpoint, cleanup, cause, previous) = (TimeoutError(), OSError(), RuntimeError(), asyncio.CancelledError())
         correction = ToolRejected("Choose an advertised operation")
 
         failure = ConversationRetirementFailed(
@@ -136,7 +136,7 @@ class CoreFailureProjectionTests(unittest.TestCase):
         )
 
     def test_acquisition_and_reader_failures_keep_separate_grant_and_interruption_facts(self):
-        cause, cleanup, interrupted = OSError(), OSError(), asyncio.CancelledError()
+        (cause, cleanup, interrupted) = (OSError(), OSError(), asyncio.CancelledError())
 
         for kind in (UploadFailed, UploadInputRejected, UploadRecoveryExhausted):
             with self.subTest(kind=kind):
@@ -209,14 +209,14 @@ class CoreFailureProjectionTests(unittest.TestCase):
 
     def test_execution_distinguishes_relay_acceptance_from_api_receipt_and_preserves_delivery_cause(self):
         active = acknowledge_start(record(), admission())
-        cause, interruption = OSError(), asyncio.CancelledError()
+        (cause, interruption) = (OSError(), asyncio.CancelledError())
 
         failure = ExecutionFailed(cause=cause, outcome=None,
                                   api_failure=None, cleanup_failures=(), attempt=active)
 
         self.assertFalse(owned_details(failure)["delivery_acceptance_received"])
         failure.delivery_acceptance = {"body_sha256": "sha256:" + "b" * 64}
-        failure.delivery_failure, failure.handoff_interruption = cause, interruption
+        (failure.delivery_failure, failure.handoff_interruption) = (cause, interruption)
         details = owned_details(failure)
         self.assertTrue(details["delivery_acceptance_received"])
         self.assertNotIn("api_receipt_received", details)

@@ -23,7 +23,7 @@ class TlsPeerTimeoutTests(unittest.IsolatedAsyncioTestCase):
                 cafile=str(Path(peer.scratch.name) / "cert.pem"),
             )
 
-            reader, writer = await asyncio.open_connection(
+            (reader, writer) = await asyncio.open_connection(
                 "127.0.0.1", peer.server.sockets[0].getsockname()[1],
             )
 

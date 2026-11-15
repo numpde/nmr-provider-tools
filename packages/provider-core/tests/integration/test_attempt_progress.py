@@ -41,7 +41,7 @@ class AttemptProgressIntegrationTests(unittest.IsolatedAsyncioTestCase):
                 name.lower(): value.strip()
                 for line in peer.requests[0].split(b"\r\n")[1:]
                 if b":" in line
-                for name, value in [line.split(b":", 1)]
+                for (name, value) in [line.split(b":", 1)]
             }
 
             body = peer.request_bodies[0]

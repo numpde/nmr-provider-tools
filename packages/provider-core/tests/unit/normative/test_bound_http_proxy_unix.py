@@ -46,7 +46,7 @@ def read_all(client):
 
 class HTTPResponse(socketserver.BaseRequestHandler):
     def handle(self):
-        header, _ = bound_http_proxy.receive_headers(self.request)
+        (header, _) = bound_http_proxy.receive_headers(self.request)
         self.server.headers.append(header)
         self.request.sendall(b"HTTP/1.1 200 OK\r\nContent-Length: 2\r\nConnection: close\r\n\r\nok")
 
@@ -127,7 +127,7 @@ class UnixProxyTests(unittest.TestCase):
              "UnixRelayServer", ("127.0.0.1", 23456), "23456\n"),
         )
 
-        for arguments, owner, address, expected in cases:
+        for (arguments, owner, address, expected) in cases:
             with self.subTest(owner=owner), tempfile.TemporaryDirectory() as temporary:
                 ready = Path(temporary) / "ready"
                 server = MagicMock()

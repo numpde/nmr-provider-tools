@@ -88,7 +88,7 @@ class ActualServiceProxyTests(unittest.IsolatedAsyncioTestCase):
                     writer = None
 
                     try:
-                        reader, writer = await asyncio.open_unix_connection(server.server_address)
+                        (reader, writer) = await asyncio.open_unix_connection(server.server_address)
                         started = asyncio.get_running_loop().time()
                         writer.write(f"CONNECT api.example:{port} HTTP/1.1\r\n\r\n".encode())
                         await writer.drain()
@@ -146,7 +146,7 @@ class ActualServiceProxyTests(unittest.IsolatedAsyncioTestCase):
                 writers = []
 
                 try:
-                    reader, writer = await asyncio.open_unix_connection(server.server_address)
+                    (reader, writer) = await asyncio.open_unix_connection(server.server_address)
                     writers.append(writer)
                     writer.write(f"CONNECT first.example:{port} HTTP/1.1\r\n\r\n".encode())
                     await writer.drain()
@@ -163,12 +163,12 @@ class ActualServiceProxyTests(unittest.IsolatedAsyncioTestCase):
                     await writer.drain()
                     self.assertEqual(await asyncio.wait_for(reader.readexactly(15), 2), b"existing tunnel")
 
-                    refused_reader, refused_writer = await asyncio.open_unix_connection(server.server_address)
+                    (refused_reader, refused_writer) = await asyncio.open_unix_connection(server.server_address)
                     writers.append(refused_writer)
                     refused_writer.write(f"CONNECT first.example:{port} HTTP/1.1\r\n\r\n".encode())
                     await refused_writer.drain()
                     self.assertIn(b"403", await asyncio.wait_for(refused_reader.readuntil(b"\r\n\r\n"), 2))
-                    new_reader, new_writer = await asyncio.open_unix_connection(server.server_address)
+                    (new_reader, new_writer) = await asyncio.open_unix_connection(server.server_address)
                     writers.append(new_writer)
                     new_writer.write(f"CONNECT second.example:{port} HTTP/1.1\r\n\r\n".encode())
                     await new_writer.drain()

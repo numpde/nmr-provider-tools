@@ -23,8 +23,8 @@ class PublicationMaterialTests(unittest.TestCase):
 
     def test_retained_credential_reconstructs_the_file_based_api_owner(self):
         reader = Mock(return_value=self.credential)
-        file_settings, file_provider = api_settings(self.fields | {"credential_file": "/private/credential"}, reader)
-        retained, provider = api_settings_from_material(self.fields, credential_bytes=self.credential)
+        (file_settings, file_provider) = api_settings(self.fields | {"credential_file": "/private/credential"}, reader)
+        (retained, provider) = api_settings_from_material(self.fields, credential_bytes=self.credential)
         self.assertEqual(provider, file_provider)
         self.assertEqual(retained.identity.origin, file_settings.identity.origin)
         self.assertEqual(retained.identity.credential_ref, file_settings.identity.credential_ref)
@@ -40,7 +40,7 @@ class PublicationMaterialTests(unittest.TestCase):
     def test_provider_captures_the_same_admitted_material_once(self):
         reader = Mock(return_value=self.credential)
 
-        original, provider, material = api_settings_with_material(
+        (original, provider, material) = api_settings_with_material(
             self.fields | {"credential_file": "/private/credential"}, reader
         )
 
@@ -48,7 +48,7 @@ class PublicationMaterialTests(unittest.TestCase):
         self.assertIsNone(material.ca_bytes)
         self.assertNotIn("PRIVATE KEY", repr(material))
 
-        rebuilt, rebuilt_provider = api_settings_from_material(
+        (rebuilt, rebuilt_provider) = api_settings_from_material(
             material.api_fields(), credential_bytes=material.credential_bytes, ca_bytes=material.ca_bytes
         )
 

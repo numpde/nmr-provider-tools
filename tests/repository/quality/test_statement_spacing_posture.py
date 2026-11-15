@@ -1,6 +1,8 @@
-"""Give multiline statements, including complete control-flow blocks, breathing room.
+"""Separate returns from preceding work and give multiline statements breathing room.
 
 Adjacent statements need a blank line when either spans multiple physical lines.
+Return statements also need separation from any preceding sibling statement.
+Groups of direct self-attribute assignments need separation from following work.
 The first statement in a suite needs no leading separator. Branch clauses stay
 with their owning statement; comments and decorators stay with the next one.
 """
@@ -25,6 +27,7 @@ def _multiline(*, statement: ast.stmt) -> bool:
 
     decorators = getattr(statement, "decorator_list", [])
     start = min([statement.lineno, *(decorator.lineno for decorator in decorators)])
+
     return statement.end_lineno > start
 
 
@@ -44,6 +47,20 @@ def _attached_start(*, statement: ast.stmt, previous: ast.stmt, lines: list[str]
     return start
 
 
+def _assigns_self_attributes(*, statement: ast.stmt) -> bool:
+    if isinstance(statement, ast.Assign):
+        targets = statement.targets
+    elif isinstance(statement, ast.AnnAssign) and statement.value is not None:
+        targets = [statement.target]
+    else:
+        return False
+
+    return all(
+        isinstance(target, ast.Attribute) and isinstance(target.value, ast.Name) and target.value.id == "self"
+        for target in targets
+    )
+
+
 def missing_blank_lines(*, source: str) -> list[int]:
     """Return one-based insertion lines without entering strings or branch clauses."""
     tree = ast.parse(source=source)
@@ -51,12 +68,19 @@ def missing_blank_lines(*, source: str) -> list[int]:
     missing = set()
 
     for owner in ast.walk(node=tree):
-        for _, value in ast.iter_fields(node=owner):
+        for (_, value) in ast.iter_fields(node=owner):
             if not isinstance(value, list) or not value or not all(isinstance(item, ast.stmt) for item in value):
                 continue
 
-            for previous, statement in zip(value, value[1:]):
-                if not (_multiline(statement=previous) or _multiline(statement=statement)):
+            for (previous, statement) in zip(value, value[1:]):
+                ends_attribute_group = _assigns_self_attributes(statement=previous) and not _assigns_self_attributes(statement=statement)
+
+                if not (
+                    isinstance(statement, ast.Return)
+                    or ends_attribute_group
+                    or _multiline(statement=previous)
+                    or _multiline(statement=statement)
+                ):
                     continue
 
                 start = _attached_start(statement=statement, previous=previous, lines=lines)
@@ -91,6 +115,67 @@ class StatementSpacingPostureTests(unittest.TestCase):
     def test_simple_statements_can_stay_grouped(self):
         source = "first = 1\nsecond = 2\nwrite()\nflush()\n"
         self.assertEqual(first=[], second=missing_blank_lines(source=source))
+
+    def test_return_is_separated_from_preceding_work(self):
+        sources = [
+            "async def run():\n    observation = await operation.wait()\n    return observation.require_result()\n",
+            "def run():\n    result = calculate()\n    return result\n",
+            "def run():\n    write()\n    return\n",
+        ]
+
+        for source in sources:
+            with self.subTest(source=source):
+                self.assertEqual(first=[3], second=missing_blank_lines(source=source))
+                self.assertEqual(first=[], second=missing_blank_lines(source=source.replace("\n    return", "\n\n    return")))
+
+    def test_return_as_first_statement_stays_compact(self):
+        sources = [
+            "def run():\n    return result\n",
+            "def run(): return result\n",
+            "def run():\n    if ready:\n        return result\n    else:\n        return other\n",
+        ]
+
+        for source in sources:
+            with self.subTest(source=source):
+                self.assertEqual(first=[], second=missing_blank_lines(source=source))
+
+    def test_return_comments_stay_attached(self):
+        source = "def run():\n    result = calculate()\n    # Keep the exact result.\n    return result\n"
+        self.assertEqual(first=[3], second=missing_blank_lines(source=source))
+        self.assertEqual(first=[], second=missing_blank_lines(source=source.replace("\n    #", "\n\n    #")))
+
+    def test_return_text_in_strings_is_not_code(self):
+        source = 'def run():\n    source = """calculate()\nreturn result\n"""\n'
+        self.assertEqual(first=[], second=missing_blank_lines(source=source))
+
+    def test_self_attribute_assignments_stay_grouped_before_following_work(self):
+        source = "def run(self):\n    self.first = first\n    self.second: Value = second\n    reservation_ref, = executor.reservations\n"
+        self.assertEqual(first=[4], second=missing_blank_lines(source=source))
+        self.assertEqual(first=[], second=missing_blank_lines(source=source.replace("\n    reservation", "\n\n    reservation")))
+
+    def test_self_attribute_group_can_end_the_block(self):
+        source = "def run(self):\n    self.first = first\n    self.second = second\n"
+        self.assertEqual(first=[], second=missing_blank_lines(source=source))
+
+    def test_attribute_group_comments_stay_attached_to_following_work(self):
+        source = "def run(self):\n    self.first = first\n    # Obtain the reservation.\n    reservation_ref, = executor.reservations\n"
+        self.assertEqual(first=[3], second=missing_blank_lines(source=source))
+
+    def test_other_assignment_groups_remain_compact(self):
+        sources = [
+            "def run():\n    owner.first = first\n    owner.second = second\n    local = value\n",
+            "def run(self):\n    self.value: Value\n    local = value\n",
+            "def run(self):\n    local = self.value = value\n    other = value\n",
+            "def run(self):\n    (self.first, self.second) = values\n    local = value\n",
+        ]
+
+        for source in sources:
+            with self.subTest(source=source):
+                self.assertEqual(first=[], second=missing_blank_lines(source=source))
+
+    def test_chained_self_attribute_assignments_end_a_group(self):
+        source = "def run(self):\n    self.first = self.second = value\n    local = value\n"
+        self.assertEqual(first=[3], second=missing_blank_lines(source=source))
 
     def test_shared_semicolon_line_still_requires_a_separator(self):
         source = "value = call(\n    argument=True,\n); after()\n"
@@ -156,11 +241,11 @@ class StatementSpacingPostureTests(unittest.TestCase):
         source = 'value = """one\nif ready:\n    act()\nif pending:\n    other()\n"""\n'
         self.assertEqual(first=[], second=missing_blank_lines(source=source))
 
-    def test_all_authored_python_separates_multiline_statements(self):
+    def test_all_authored_python_obeys_statement_spacing(self):
         findings = []
 
         for path in python_sources(production_only=False):
             for line in missing_blank_lines(source=path.read_text(encoding="utf-8")):
-                findings.append(f"{path.relative_to(ROOT)}:{line}: separate sibling statements around this multiline statement or block with a blank line; split a shared semicolon line first")
+                findings.append(f"{path.relative_to(ROOT)}:{line}: insert a blank line here; separate returns, completed self-attribute assignment groups and multiline statements or blocks; split a shared semicolon line first")
 
         self.assertEqual(first=[], second=findings, msg="\n".join(findings))

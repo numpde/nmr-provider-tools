@@ -62,6 +62,7 @@ class SharedInterpreterCarrierTests(unittest.IsolatedAsyncioTestCase):
 
             if count == 1:
                 peer.response_status = 503
+
                 return b'{"error":{"message":"temporarily unavailable"}}'
 
             peer.response_status = 200
@@ -94,6 +95,7 @@ class SharedInterpreterCarrierTests(unittest.IsolatedAsyncioTestCase):
     async def test_setup_cap_does_not_become_a_response_timeout_direct_or_through_proxy(self):
         async def slow_response(request, body):
             await asyncio.sleep(0.3)
+
             return b"data"
 
         async with TlsPeer("success", response_factory=slow_response) as peer:
@@ -113,7 +115,7 @@ class SharedInterpreterCarrierTests(unittest.IsolatedAsyncioTestCase):
                     self.assertTrue(transport.retirement_confirmed)
 
     async def test_setup_deadline_covers_stalled_connect_and_tls_before_long_response_window(self):
-        for peer_mode, proxy_mode in (("success", "stall"), ("tls-stall", "tunnel")):
+        for (peer_mode, proxy_mode) in (("success", "stall"), ("tls-stall", "tunnel")):
             with self.subTest(peer_mode=peer_mode):
                 async with TlsPeer(peer_mode) as peer, UnixProxy(peer.origin, proxy_mode) as proxy:
                     transport = HttpTransport(trust=peer.trust, exchange_seconds=3, retirement_seconds=0.5,

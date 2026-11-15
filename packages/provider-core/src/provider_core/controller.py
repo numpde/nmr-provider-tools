@@ -91,7 +91,7 @@ class LiveStartPolicy:
     window_seconds: float = 90
 
     def __post_init__(self):
-        for name, value in (("cadence_seconds", self.cadence_seconds), ("window_seconds", self.window_seconds)):
+        for (name, value) in (("cadence_seconds", self.cadence_seconds), ("window_seconds", self.window_seconds)):
             if not (type(value) in (int, float) and math.isfinite(value) and value > 0):
                 raise ValueError(f"Live START {name} must be finite positive seconds")
 
@@ -230,21 +230,24 @@ class AttemptController:
         require_observation_recovery(observation_recovery)
         require_phase_progress_observer(on_unconfirmed_phase_progress)
         require_condition_recovery(condition_recovery)
-        self.delivery, self._on_delivery_retry = delivery, on_delivery_retry
+        (self.delivery, self._on_delivery_retry) = (delivery, on_delivery_retry)
         self._delivery_retry_initial = delivery_retry_initial_seconds
         self._delivery_retry_max = delivery_retry_max_seconds
         self._observation_recovery = observation_recovery
         self._on_unconfirmed_phase_progress = on_unconfirmed_phase_progress
         self._condition_recovery = condition_recovery
-        self.api, self._claims, self.session = api, claims, session
+
+        (self.api, self._claims, self.session) = (api, claims, session)
         self.scope = scope
         self._maximum_terminal_bytes = maximum_terminal_bytes
         self._preverified_input = preverified_input
-        self._stopping, self._start_policy = stopping, start_policy
+
+        (self._stopping, self._start_policy) = (stopping, start_policy)
         self._admission_stopping = admission_stopping
         self._allow_active_start_replay = allow_active_start_replay
         self._allowed_job_states = allowed_job_states
-        self._poll_seconds, self._task_settle_seconds = poll_seconds, task_settle_seconds
+
+        (self._poll_seconds, self._task_settle_seconds) = (poll_seconds, task_settle_seconds)
         self._lifetime = _Lifetime.NEW
         self._driver = None
         self._driver_interruption = None
@@ -264,6 +267,7 @@ class AttemptController:
         The object remains available for diagnosis after settlement; its presence
         does not mean work is still running or that the claim is still borrowed.
         """
+
         return self._operation
 
     @property
@@ -325,6 +329,7 @@ class AttemptController:
                 return executor.settled_revocation
 
             self._revocation_settlement = _create_owned_task(self._settle_revocation(executor))
+
             self._revocation_settlement.add_done_callback(_observe_task_failure)
 
         return await asyncio.shield(self._revocation_settlement)
@@ -340,6 +345,7 @@ class AttemptController:
             await asyncio.wait(tasks)
 
         await self.settle()
+
         return executor.settled_revocation
 
     def require_held_failure(self, pending, failure):
@@ -446,6 +452,7 @@ class AttemptController:
         try:
             self._reserve_start(pending)
             self._driver = _create_owned_task(self._drive(pending))
+
             self._driver.add_done_callback(_observe_task_failure)
         except (Exception, BaseExceptionGroup, asyncio.CancelledError, KeyboardInterrupt, SystemExit) as cause:
             self._remember(cause)
@@ -515,7 +522,8 @@ class AttemptController:
             for event in events:
                 waits.append(_create_owned_task(event.wait()))
 
-            done, _ = await asyncio.wait(waits, timeout=seconds, return_when=asyncio.FIRST_COMPLETED)
+            (done, _) = await asyncio.wait(waits, timeout=seconds, return_when=asyncio.FIRST_COMPLETED)
+
             return bool(done)
         finally:
             for wait in waits:
@@ -530,6 +538,7 @@ class AttemptController:
             # Task observation reconstructs CancelledError; retain the original
             # exception so its independent cleanup evidence is not erased.
             self._driver_interruption = cause
+
             raise
 
     async def _run_lifetime(self, pending):
@@ -543,6 +552,7 @@ class AttemptController:
 
             self._claim.release(owner=self)
             self._lifetime = _Lifetime.RELEASED
+
             return result
         except asyncio.CancelledError as cause:
             self._remember(cause)
@@ -599,21 +609,27 @@ class AttemptController:
 
         if type(acknowledged) is StartDeferred:
             await self._retire_session()
+
             return acknowledged
 
         self._acknowledged = acknowledged
 
         if acknowledged.admission.state != "in_progress":
             self._operation = self.session
+
             await self._retire_session()
+
             return acknowledged
 
         if acknowledged.admission.replayed and not self._allow_active_start_replay:
             await self._retire_session()
+
             return ActiveStartReplayHeld(acknowledged)
 
         self._operation = self._new_executor()
+
         accepted = await self._operation.run(acknowledged)
+
         return accepted
 
     def _new_executor(self):
@@ -685,10 +701,11 @@ class AttemptController:
 
     def _defer_start(self, pending, failure, possible_commit):
         self._start_deferred = StartDeferred(pending, failure, possible_commit, self._acknowledged)
+
         return self._start_deferred
 
     async def _start_live_attempt(self, pending):
-        policy, loop = self._start_policy, asyncio.get_running_loop()
+        (policy, loop) = (self._start_policy, asyncio.get_running_loop())
 
         if self._admission_stopping_requested():
             return self._defer_start(pending, None, False)
@@ -800,6 +817,7 @@ class AttemptController:
 
         if revocation is not None and not revocation.done() and asyncio.current_task() is not revocation:
             await asyncio.shield(revocation)
+
             return None
 
         if self._lifetime in (_Lifetime.RUNNING, _Lifetime.SETTLING):
@@ -809,6 +827,7 @@ class AttemptController:
             return None
 
         self._lifetime = _Lifetime.SETTLING
+
         result = None
         failures = []
 
@@ -876,6 +895,7 @@ class AttemptController:
                     raise self.last_failure from None
 
             self._lifetime = _Lifetime.RELEASED
+
             return result
         finally:
             if self._lifetime is _Lifetime.SETTLING:

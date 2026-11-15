@@ -26,7 +26,7 @@ def mount_record(destination):
         separator = fields.index("-")
 
         if fields[4] == destination:
-            return fields[separator + 1], set(fields[5].split(",")) | set(fields[separator + 3].split(","))
+            return (fields[separator + 1], set(fields[5].split(",")) | set(fields[separator + 3].split(",")))
 
     raise AssertionError(f"Cannot verify runtime mount posture: {destination} has no mountinfo record.")
 
@@ -37,7 +37,7 @@ def process_status():
 
 class RuntimePostureTests(unittest.TestCase):
     def test_runs_as_explicit_non_root_caller_identity(self):
-        for variable, actual in (
+        for (variable, actual) in (
             ("NMR_PROVIDER_TOOLS_EXPECTED_UID", os.getuid()),
             ("NMR_PROVIDER_TOOLS_EXPECTED_GID", os.getgid()),
         ):
@@ -69,19 +69,19 @@ class RuntimePostureTests(unittest.TestCase):
         self.assertEqual({"lo"}, {path.name for path in Path("/sys/class/net").iterdir()})
 
     def test_tmp_is_a_hardened_writable_tmpfs(self):
-        filesystem, options = mount_record("/tmp")
+        (filesystem, options) = mount_record("/tmp")
         self.assertEqual("tmpfs", filesystem)
         self.assertTrue({"rw", "noexec", "nosuid", "nodev"} <= options)
 
     def test_cgroup_v2_enforces_resource_bounds(self):
         cgroup = Path("/sys/fs/cgroup")
 
-        for name, expected in (("pids.max", "64"), ("memory.max", "536870912"), ("memory.swap.max", "0")):
+        for (name, expected) in (("pids.max", "64"), ("memory.max", "536870912"), ("memory.swap.max", "0")):
             self.assertEqual(
                 expected, (cgroup / name).read_text().strip(), msg=f"Cgroup {name} differs from the maintained resource grant."
             )
 
-        quota, period = map(int, (cgroup / "cpu.max").read_text().split())
+        (quota, period) = map(int, (cgroup / "cpu.max").read_text().split())
         self.assertEqual(2 * period, quota, msg="CPU quota differs from the maintained two-CPU grant.")
 
     def test_fixture_install_retains_no_build_source(self):

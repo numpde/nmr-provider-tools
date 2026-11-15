@@ -18,7 +18,7 @@ class ChatProcessProjectionTests(unittest.TestCase):
         child_interruption = asyncio.CancelledError("the original child caller stopped")
         parent_interruption = asyncio.CancelledError("the original parent caller stopped")
 
-        for parent, expected in ((None, child_interruption), (parent_interruption, parent_interruption)):
+        for (parent, expected) in ((None, child_interruption), (parent_interruption, parent_interruption)):
             with self.subTest(parent_interrupted=parent is not None):
                 child = ExchangeFailed(
                     "The child exchange was interrupted.", primary=TimeoutError("response deadline"),

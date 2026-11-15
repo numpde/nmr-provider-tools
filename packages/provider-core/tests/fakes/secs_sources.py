@@ -83,7 +83,7 @@ class ScopeReader:
         self._remaining = access.max_scope_bytes
 
     def read(self, source: SourceRef) -> ReadSource:
-        entry, info = self._entry(source)
+        (entry, info) = self._entry(source)
 
         if entry.byte_length > self._remaining:
             raise ScopeLimitError(source, self._access.max_scope_bytes)
@@ -102,6 +102,7 @@ class ScopeReader:
                 read = self._access._read_member(self._archive, info, source, allowance)
         except ScopeLimitError:
             self._remaining = 0
+
             raise
 
         additional = len(read.contents) - entry.byte_length
@@ -110,17 +111,19 @@ class ScopeReader:
             raise ScopeLimitError(source, self._access.max_scope_bytes)
 
         self._remaining -= max(0, additional)
+
         return read
 
     def _entry(self, source: SourceRef) -> tuple[SourceEntry, ZipInfo | None]:
         if self._archive is not None and source.upload_ref == self._root.upload_ref and source.member is not None:
             info = self._access._indexed_member(self._members, source.member)
-            return SourceEntry(source, info.file_size), info
+
+            return (SourceEntry(source, info.file_size), info)
 
         if self._archive is None and source == self._root:
-            return self.entries[0], None
+            return (self.entries[0], None)
 
-        return self._access.scope(source)[0], None
+        return (self._access.scope(source)[0], None)
 
 
 class SourceAccess:
@@ -159,6 +162,7 @@ class SourceAccess:
         if source.member is None and not _is_zip(contents):
             entries = (SourceEntry(source, len(contents)),)
             yield ScopeReader(self, source, entries, contents)
+
             return
 
         with self._archive(contents) as archive:
@@ -182,6 +186,7 @@ class SourceAccess:
 
         with self._archive(contents) as archive:
             infos = archive.infolist()
+
             return self._scope_entries(source, infos, _member_index(infos))
 
     def _scope_entries(
@@ -189,6 +194,7 @@ class SourceAccess:
     ) -> tuple[SourceEntry, ...]:
         if source.member is not None:
             info = self._indexed_member(members, source.member)
+
             return (SourceEntry(source, info.file_size),)
 
         if len(infos) > 4096:
@@ -234,6 +240,7 @@ class SourceAccess:
             chunks.append(chunk)
 
         contents = b"".join(chunks)
+
         return ReadSource(source, contents, "sha256:" + sha256(contents).hexdigest())
 
     def _read_member(self, archive: ZipFile | None, info: ZipInfo, source: SourceRef, scope_bytes: int) -> ReadSource:
@@ -306,7 +313,7 @@ class SourceAccess:
             if eocd < 0 or len(tail) - eocd < 22:
                 return
 
-            disk, central_disk, disk_entries, total_entries = struct.unpack_from("<4H", tail, eocd + 4)
+            (disk, central_disk, disk_entries, total_entries) = struct.unpack_from("<4H", tail, eocd + 4)
 
             if disk or central_disk or disk_entries != total_entries:
                 raise InputReadError("Cannot inspect this ZIP: multi-disk archives are unsupported")
@@ -317,7 +324,7 @@ class SourceAccess:
                 if locator < 0 or len(tail) - locator < 20:
                     raise InputReadError("Cannot inspect this ZIP: its ZIP64 entry count is unavailable")
 
-                zip64_disk, zip64_offset, total_disks = struct.unpack_from("<IQI", tail, locator + 4)
+                (zip64_disk, zip64_offset, total_disks) = struct.unpack_from("<IQI", tail, locator + 4)
 
                 if zip64_disk or total_disks != 1:
                     raise InputReadError("Cannot inspect this ZIP: multi-disk archives are unsupported")
@@ -370,7 +377,7 @@ def _member_index(infos: list[ZipInfo]) -> dict[str, tuple[ZipInfo, ...]]:
         # silent-defaults: allow-contract -- Start each name's list empty and append every duplicate so selection can reject ambiguity.
         grouped.setdefault(info.filename, []).append(info)
 
-    return {name: tuple(matches) for name, matches in grouped.items()}
+    return {name: tuple(matches) for (name, matches) in grouped.items()}
 
 
 def _read_chunk(stream, size: int) -> bytes:

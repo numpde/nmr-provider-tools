@@ -205,18 +205,21 @@ def _is_zero_getattr_default_call(node: ast.AST) -> bool:
         return False
 
     default = node.args[2]
+
     return isinstance(default, ast.Constant) and default.value == 0 and default.value is not False
 
 
 def _has_empty_get_waiver(source_lines: list[str], node: ast.AST) -> bool:
     start = max(node.lineno - 2, 0)
     end = max(getattr(node, "end_lineno", node.lineno), node.lineno)
+
     return any(EMPTY_GET_DEFAULT_WAIVER in line for line in source_lines[start:end])
 
 
 def _has_pop_default_waiver(source_lines: list[str], node: ast.AST) -> bool:
     start = max(node.lineno - 2, 0)
     end = max(getattr(node, "end_lineno", node.lineno), node.lineno)
+
     return any(POP_DEFAULT_WAIVER in line for line in source_lines[start:end])
 
 
@@ -251,7 +254,7 @@ def _has_same_target_fallback_assignment(
     primary_predicate: Callable[[ast.AST], bool],
     fallback_predicate: Callable[[ast.AST], bool],
 ) -> bool:
-    for target, primary_value in primary_values.items():
+    for (target, primary_value) in primary_values.items():
         fallback_value = fallback_values.get(target)
 
         if fallback_value is None:
@@ -549,23 +552,27 @@ def _has_env_default_expression(source: str) -> bool:
 
 def _has_falsy_default_expression(source: str) -> bool:
     tree = ast.parse(source, filename="<inline>")
+
     return any(_is_falsy_default_boolop(node) for node in ast.walk(tree))
 
 
 def _has_empty_get_default_expression(source: str) -> bool:
     tree = ast.parse(source, filename="<inline>")
     source_lines = source.splitlines()
+
     return any(_is_empty_get_default_call(node) and not _has_empty_get_waiver(source_lines, node) for node in ast.walk(tree))
 
 
 def _has_zero_getattr_default_expression(source: str) -> bool:
     tree = ast.parse(source, filename="<inline>")
+
     return any(_is_zero_getattr_default_call(node) for node in ast.walk(tree))
 
 
 def _has_pop_default_expression(source: str) -> bool:
     tree = ast.parse(source, filename="<inline>")
     source_lines = source.splitlines()
+
     return any(_is_pop_default_call(node) and not _has_pop_default_waiver(source_lines, node) for node in ast.walk(tree))
 
 

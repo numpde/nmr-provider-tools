@@ -62,7 +62,7 @@ class TransportNetworkOriginTests(unittest.IsolatedAsyncioTestCase):
     async def test_same_native_exception_from_stream_and_account_has_distinct_origin(self):
         original = httpcore.ReadError("private detail")
 
-        for origin, chunks, stream_failure in (("network", [], original), ("account", [b"x"], None)):
+        for (origin, chunks, stream_failure) in (("network", [], original), ("account", [b"x"], None)):
             with self.subTest(origin=origin):
                 client = Client(Stream(chunks, failure=stream_failure))
                 transport = HttpTransport(trust=ssl.create_default_context(), exchange_seconds=1, retirement_seconds=1)

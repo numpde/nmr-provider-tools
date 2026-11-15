@@ -61,6 +61,7 @@ class TransportNotAfterTests(unittest.IsolatedAsyncioTestCase):
             tasks.extend(selected)
             # Delay only observation after the actual original exchange completes.
             await asyncio.sleep(max(0, cap - loop.time()) + 0.01)
+
             return result
 
         with patch("provider_core.transport.httpcore.AsyncConnectionPool", return_value=client), patch(
@@ -96,7 +97,7 @@ class TransportNotAfterTests(unittest.IsolatedAsyncioTestCase):
                 self.assertTrue(transport.retirement_confirmed)
 
     async def test_cleanup_allowance_is_not_renewed_and_late_failure_stays_original(self):
-        release, entered, heads = asyncio.Event(), asyncio.Event(), []
+        (release, entered, heads) = (asyncio.Event(), asyncio.Event(), [])
         original = httpcore.ReadError("protected original late failure")
 
         class LateRead(Stream):
@@ -155,7 +156,7 @@ class TransportNotAfterTests(unittest.IsolatedAsyncioTestCase):
                     await transport.retire(owner=owner)
 
     async def test_actual_cancellation_keeps_identity_and_owner_after_absolute_cap(self):
-        release, entered, cancellations = asyncio.Event(), asyncio.Event(), []
+        (release, entered, cancellations) = (asyncio.Event(), asyncio.Event(), [])
 
         class HeldClose(Stream):
             async def aclose(self):
@@ -238,7 +239,7 @@ class TransportNotAfterTests(unittest.IsolatedAsyncioTestCase):
         await self.repeated_cancellations(first_during_request=False)
 
     async def repeated_cancellations(self, *, first_during_request):
-        close_entered, release_close = asyncio.Event(), asyncio.Event()
+        (close_entered, release_close) = (asyncio.Event(), asyncio.Event())
         first_seen = asyncio.Event()
         cancellations = []
         prior_cause = LookupError("protected preexisting caller cause")

@@ -69,9 +69,9 @@ class ExecutionFailureTests(unittest.IsolatedAsyncioTestCase):
         await controller.settle()
 
     async def test_late_cancelled_child_updates_the_same_escaped_failure_after_timed_out_join(self):
-        store, acknowledged, claim = await live_attempt()
+        (store, acknowledged, claim) = await live_attempt()
         session = Session(store)
-        entered, cancelled, release = (asyncio.Event() for _ in range(3))
+        (entered, cancelled, release) = (asyncio.Event() for _ in range(3))
         previous = OSError("PRIVATE prior model cause")
         originals = []
 
@@ -124,9 +124,9 @@ class ExecutionFailureTests(unittest.IsolatedAsyncioTestCase):
             release.set()
 
     async def test_parent_cancellation_during_retirement_wait_is_recorded_once_with_original_child(self):
-        store, acknowledged, claim = await live_attempt()
+        (store, acknowledged, claim) = await live_attempt()
         session = Session(store)
-        entered, release = asyncio.Event(), asyncio.Event()
+        (entered, release) = (asyncio.Event(), asyncio.Event())
 
         async def retire():
             session.events.append(("retire",))
@@ -176,7 +176,7 @@ class ExecutionFailureTests(unittest.IsolatedAsyncioTestCase):
                 await asyncio.gather(task, return_exceptions=True)
 
     async def test_api_primary_and_cleanup_cancellation_keep_both_exact_causes(self):
-        store, acknowledged, claim = await live_attempt()
+        (store, acknowledged, claim) = await live_attempt()
         session = Session(store)
         previous = OSError("PRIVATE prior cleanup cause")
         cleanup = asyncio.CancelledError()
@@ -215,7 +215,7 @@ class ExecutionFailureTests(unittest.IsolatedAsyncioTestCase):
             ExchangeFailed("running reply lost"),
         )
 
-        store, acknowledged, claim = await live_attempt()
+        (store, acknowledged, claim) = await live_attempt()
         session = Session(store)
 
         executor = live_executor(
@@ -237,7 +237,7 @@ class ExecutionFailureTests(unittest.IsolatedAsyncioTestCase):
         claim.release(owner=claim.lifecycle_owner)
 
     async def test_unencodable_result_is_preserved_and_retired_without_reexecution(self):
-        store, acknowledged, claim = await live_attempt()
+        (store, acknowledged, claim) = await live_attempt()
         session = Session(store)
         session.outcome = replace(session.outcome, content=b"x" * 786433)
 
@@ -269,7 +269,7 @@ class ExecutionFailureTests(unittest.IsolatedAsyncioTestCase):
 
 
     async def test_closed_job_before_execution_prevents_science_and_publication(self):
-        store, acknowledged, claim = await live_attempt()
+        (store, acknowledged, claim) = await live_attempt()
         session = Session(store)
 
         executor = live_executor(
@@ -289,8 +289,8 @@ class ExecutionFailureTests(unittest.IsolatedAsyncioTestCase):
         claim.release(owner=claim.lifecycle_owner)
 
     async def test_failed_retirement_preserves_approved_delivery_and_requires_cleanup_before_reuse(self):
-        store, acknowledged, claim = await live_attempt()
-        session, delivery = Session(store), RecordingDelivery()
+        (store, acknowledged, claim) = await live_attempt()
+        (session, delivery) = (Session(store), RecordingDelivery())
         cleanup = RuntimeError("private retirement cause")
         session.retirement_failure = cleanup
 

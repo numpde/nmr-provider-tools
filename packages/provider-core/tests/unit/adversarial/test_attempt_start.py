@@ -23,6 +23,7 @@ class AttemptStartFailureTests(unittest.IsolatedAsyncioTestCase):
 
     async def start(self, api, body=None, **changes):
         facts = {"job_ref": "job:example", "analysis_kind_ref": "nmr_predict", "provider_ref": "provider:example"} | changes
+
         return await api.start_attempt(retained_start() if body is None else body, **facts)
 
     async def test_invalid_retained_request_or_expected_identity_never_sends(self):
@@ -98,7 +99,7 @@ class AttemptStartFailureTests(unittest.IsolatedAsyncioTestCase):
             self.assertEqual(len(transport.calls), 1)
 
     async def test_current_send_refusal_does_not_erase_prior_uncertainty(self):
-        for status, kind, code, uncertain in (
+        for (status, kind, code, uncertain) in (
             (401, "authentication-failed", "signature_expired", False),
             (408, "request-body-timeout", "request_body_timeout", False),
             (409, "operation-conflict", "provider_attempt_key_conflict", False),

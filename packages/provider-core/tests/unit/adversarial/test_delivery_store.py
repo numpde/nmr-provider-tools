@@ -29,10 +29,10 @@ class DeliveryQueueRefusalTests(unittest.TestCase):
             item = DeliveryOutcome("https://api.example", "provider:test", "job:queue", reference,
                                    TerminalOperation.FAIL, fail_body(reference, "provider_interrupted", "legacy exact body"))
 
-            state, reason = "held", "preserve this held obligation"
+            (state, reason) = ("held", "preserve this held obligation")
 
             if index == 0:
-                state, reason = "pending", None
+                (state, reason) = ("pending", None)
 
             queue._db.execute(
                 "INSERT INTO outstanding VALUES(?,?,?,?,?,?,?,?,?,?,NULL)",
@@ -66,6 +66,7 @@ class DeliveryQueueRefusalTests(unittest.TestCase):
 
     def setUp(self):
         self.directory = tempfile.TemporaryDirectory()
+
         self.addCleanup(self.directory.cleanup)
         self.root = Path(self.directory.name)
         self.limits = QueueLimits(provider_items=1, provider_bytes=4096, total_items=2, total_bytes=8192)
@@ -73,11 +74,12 @@ class DeliveryQueueRefusalTests(unittest.TestCase):
     def open(self):
         queue = DeliveryQueue(self.root, limits=self.limits)
         self.addCleanup(queue.close)
+
         return queue
 
     def test_conflicting_body_cannot_replace_or_remove_the_original(self):
         queue = self.open()
-        original, other = outcome(), outcome(message="different accepted candidate")
+        (original, other) = (outcome(), outcome(message="different accepted candidate"))
         queue.enqueue(original)
 
         with self.assertRaises(DeliveryConflict):
@@ -127,12 +129,13 @@ class DeliveryQueueRefusalTests(unittest.TestCase):
 
     def test_failed_descriptor_inspection_closes_the_original_file_before_handoff(self):
         opened = []
-        real_open, real_fstat = os.open, os.fstat
+        (real_open, real_fstat) = (os.open, os.fstat)
         primary = OSError(errno.EIO, "PRIVATE_NATIVE")
 
         def open_original(*arguments):
             descriptor = real_open(*arguments)
             opened.append(descriptor)
+
             return descriptor
 
         with patch("provider_core.delivery_store.os.open", side_effect=open_original), \

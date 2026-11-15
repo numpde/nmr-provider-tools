@@ -54,6 +54,7 @@ class SharedDeliveryInbox(DeliveryInbox):
             # The transaction already committed. A failed publisher wake is a
             # service failure, not a refusal of this durable acknowledgement.
             self.failure = error
+
             self.failed.set()
             self.on_failure(error, {"event": "delivery_publisher_wake_failed"})
 

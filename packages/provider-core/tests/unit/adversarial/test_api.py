@@ -23,7 +23,7 @@ class ApiReadFailureTests(unittest.IsolatedAsyncioTestCase):
         )
 
     async def test_invalid_kind_never_reaches_transport(self):
-        for kind, error_type in (("kind:prediction", ValueError), ("a&job=elsewhere", ValueError), ("a" * 129, ValueError), (None, TypeError)):
+        for (kind, error_type) in (("kind:prediction", ValueError), ("a&job=elsewhere", ValueError), ("a" * 129, ValueError), (None, TypeError)):
             transport = Transport()
 
             with self.subTest(kind=kind), self.assertRaises(error_type):
@@ -100,7 +100,7 @@ class ApiReadFailureTests(unittest.IsolatedAsyncioTestCase):
             "detail": "private-detail-canary",
         }
 
-        for changes, known in (
+        for (changes, known) in (
             ({}, True),
             ({"status": 404}, False),
             ({"code": "private-code-canary"}, False),

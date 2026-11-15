@@ -87,12 +87,12 @@ async def scenario(marker, report, seed):
     release_api_receipt = asyncio.Event()
     completed_result_received = asyncio.Event()
     published = set()
-    notices, cycles, jobs, first_http_stops, completion_receipts = [], [], [], {}, []
+    (notices, cycles, jobs, first_http_stops, completion_receipts) = ([], [], [], {}, [])
 
     result = {"seed": seed, "acknowledgement_cycle": acknowledgement_cycle,
               "acknowledgement_phase": acknowledgement_phase, "cycles": cycles}
 
-    maximum_attempts, repetitions = 2, 5
+    (maximum_attempts, repetitions) = (2, 5)
     claims = AttemptClaims.live(limits=LiveAttemptLimits(maximum_attempts=maximum_attempts))
     provider_stopping = asyncio.Event()
     scientific_worker = WarmWorker()
@@ -125,7 +125,7 @@ async def scenario(marker, report, seed):
 
     class ScientificSession:
         def __init__(self, job_ref, url, trust, scientific_worker):
-            self.job_ref, self.scientific_worker = job_ref, scientific_worker
+            (self.job_ref, self.scientific_worker) = (job_ref, scientific_worker)
             self.prepare_calls = self.execute_calls = self.scientific_prepare_calls = 0
             self.retired = False
             self.handle = self.failure = None
@@ -140,6 +140,7 @@ async def scenario(marker, report, seed):
             def capture_endpoint(*, exchange_seconds, connect_seconds):
                 endpoint = factory(exchange_seconds=exchange_seconds, connect_seconds=connect_seconds)
                 self.http_endpoints.append(endpoint)
+
                 return endpoint
 
             # /ready needs startup, TLS and scientific tool acceptance.
@@ -167,6 +168,7 @@ async def scenario(marker, report, seed):
                 self.scientific_prepare_calls += 1
                 await self.scientific_worker.call("prepare", self.job_ref)
                 self.handle = PreparedAnalysis(ProtectedEvidence("fixture.prepared_input.v1", self.job_ref.encode()))
+
                 return ToolFinished(self.handle)
 
             tools = [{"type": "function", "function": {
@@ -212,14 +214,16 @@ async def scenario(marker, report, seed):
         """Replace local Unix IPC only; return the production queue's exact receipt."""
 
         def __init__(self, inbox, endpoint, publisher):
-            self.inbox, self.endpoint, self.publisher = inbox, endpoint, publisher
+            (self.inbox, self.endpoint, self.publisher) = (inbox, endpoint, publisher)
             self.items = []
-            self.retirement_confirmed, self.last_failure = True, None
+
+            (self.retirement_confirmed, self.last_failure) = (True, None)
 
         async def submit(self, item):
             self.items.append(item)
             accepted = await self.inbox.storage(self.inbox.queue.enqueue, item)
             self.publisher.wake()
+
             return accepted
 
         async def retire(self):
@@ -233,7 +237,7 @@ async def scenario(marker, report, seed):
         reference = document["execution_attempt_ref"]
 
         if request.split(b" ")[1].endswith(b"/complete"):
-            schema, content = read_complete_body(body, execution_attempt_ref=reference)
+            (schema, content) = read_complete_body(body, execution_attempt_ref=reference)
 
             if not completed_result_received.is_set():
                 completed_result_received.set()
@@ -245,7 +249,8 @@ async def scenario(marker, report, seed):
                 result_fingerprint="sha256:" + sha256(content).hexdigest(), result_byte_length=len(content),
             )
 
-        code, message = read_fail_body(body, execution_attempt_ref=reference)
+        (code, message) = read_fail_body(body, execution_attempt_ref=reference)
+
         return fail_response(execution_attempt_ref=reference, failure_code=code, failure_message=message)
 
     def prose_response_mode(request, _body):
@@ -306,6 +311,7 @@ async def scenario(marker, report, seed):
                 async def observe_completion_receipt(body, **settings):
                     receipt = await original_complete(body, **settings)
                     completion_receipts.append(receipt)
+
                     return receipt
 
                 patches.enter_context(patch.object(delivery_api, "complete_attempt", new=observe_completion_receipt))
@@ -335,7 +341,8 @@ async def scenario(marker, report, seed):
                     jobs.append((name, session, control_transport, controller))
                     controller_task = asyncio.create_task(controller.run(pending))
                     await asyncio.wait_for(asyncio.shield(controller_task), 8)
-                    return session, control_transport, controller
+
+                    return (session, control_transport, controller)
 
                 async def wait_for_publication():
                     wanted = {item.execution_attempt_ref for item in local_delivery.items}
@@ -367,6 +374,7 @@ async def scenario(marker, report, seed):
                             result["original_api_request_owned_at_acknowledgement_release"] = delivery_transport.pending_owner is publisher
                             result["open_prose_connections_at_acknowledgement_release"] = sum(not task.done() for task in prose_peer.handlers)
                             release_api_receipt.set()
+
                             return
 
                         await asyncio.sleep(0.005)
@@ -389,7 +397,7 @@ async def scenario(marker, report, seed):
                     release_task = asyncio.create_task(release_receipt_during_fault())
 
                     for number in range(1, repetitions + 1):
-                        session, control_transport, controller = await run_job("timeout-" + str(number), "/hang")
+                        (session, control_transport, controller) = await run_job("timeout-" + str(number), "/hang")
                         http_transport = session.http_endpoints[0]._transport
                         process = http_transport.last_process_result
                         first_stop = first_http_stops[http_transport]
@@ -429,7 +437,7 @@ async def scenario(marker, report, seed):
                     open_prose_connections = await _settled_peer_handlers(prose_peer)
                     open_jobs_api_connections = await _settled_peer_handlers(jobs_api_peer)
 
-                    for request, body in zip(jobs_api_peer.requests, jobs_api_peer.request_bodies, strict=True):
+                    for (request, body) in zip(jobs_api_peer.requests, jobs_api_peer.request_bodies, strict=True):
                         verify_signed_request(request, body, origin=jobs_api_peer.origin, key=delivery_api.identity.private_key)
 
                     result.update(
@@ -447,9 +455,9 @@ async def scenario(marker, report, seed):
                         jobs=[{"name": name, "session_prepare_calls": session.prepare_calls,
                                "scientific_prepare_calls": session.scientific_prepare_calls,
                                "scientific_execute_calls": session.execute_calls,
-                               "starts": sum(request.url.path.endswith("/start") for request, _ in control.calls),
+                               "starts": sum(request.url.path.endswith("/start") for (request, _) in control.calls),
                                "shutdown_ready": controller.shutdown_ready}
-                              for name, session, control, controller in jobs],
+                              for (name, session, control, controller) in jobs],
                         prose_request_paths=[request.split(b" ")[1].decode() for request in prose_peer.requests],
                     )
                 except Exception as failure:

@@ -17,7 +17,7 @@ from tests.fakes.acquisition import store_headers
 
 class UploadTransferOwnerTests(unittest.IsolatedAsyncioTestCase):
     async def test_stalled_grant_factory_respects_transfer_deadline_and_cleans_file(self):
-        _, _, store, _ = file_sources()
+        (_, _, store, _) = file_sources()
         deadline = asyncio.get_running_loop().time() + 0.1
 
         transfer = UploadTransfer("job:example", store=store, store_origin="https://store.example",
@@ -43,7 +43,7 @@ class UploadTransferOwnerTests(unittest.IsolatedAsyncioTestCase):
             self.assertEqual(list(Path(root).iterdir()), [])
 
     async def test_buffered_download_rejects_malformed_grant_before_sending_bearer(self):
-        owner, api, store = sources()
+        (owner, api, store) = sources()
         api.grant = replace(api.grant, capability="x" * 2049)
         await owner.inspect()
 
@@ -53,7 +53,7 @@ class UploadTransferOwnerTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(store.calls, [])
 
     async def test_forged_grant_is_rejected_before_sending_bearer(self):
-        _, api, store, client = file_sources()
+        (_, api, store, client) = file_sources()
 
         for change in ({"upload_ref": "bad?query"}, {"content_hash": "bad"},
                        {"byte_length": True}, {"expires_at": datetime(2099, 1, 1)},
@@ -74,7 +74,7 @@ class UploadTransferOwnerTests(unittest.IsolatedAsyncioTestCase):
                 self.assertEqual(list(Path(root).iterdir()), [])
 
     async def test_direct_request_budget_failure_stops_before_store_and_removes_file(self):
-        _, api, store, client = file_sources()
+        (_, api, store, client) = file_sources()
         original = RuntimeError("request budget refused")
 
         async def grant():
@@ -97,7 +97,7 @@ class UploadTransferOwnerTests(unittest.IsolatedAsyncioTestCase):
             self.assertEqual(list(Path(root).iterdir()), [])
 
     async def test_direct_store_exchange_is_bounded_by_remaining_deadline(self):
-        _, api, store, _ = file_sources()
+        (_, api, store, _) = file_sources()
         blocked = asyncio.Event()
         client = Client(Stream([b"geometry"], stall=blocked), headers=store_headers(b"geometry"))
         deadline = asyncio.get_running_loop().time() + 0.1
@@ -120,7 +120,7 @@ class UploadTransferOwnerTests(unittest.IsolatedAsyncioTestCase):
             self.assertEqual(list(Path(root).iterdir()), [])
 
     async def test_direct_accounting_failure_preserves_cause_and_cleans_file(self):
-        _, api, store, client = file_sources()
+        (_, api, store, client) = file_sources()
         original = RuntimeError("accounting refused")
 
         async def grant():
@@ -143,8 +143,8 @@ class UploadTransferOwnerTests(unittest.IsolatedAsyncioTestCase):
             self.assertEqual(list(Path(root).iterdir()), [])
 
     async def test_direct_pending_store_write_retains_original_owner_until_retirement(self):
-        _, api, store, client = file_sources()
-        entered, release = asyncio.Event(), threading.Event()
+        (_, api, store, client) = file_sources()
+        (entered, release) = (asyncio.Event(), threading.Event())
         loop = asyncio.get_running_loop()
         write = os.write
 
@@ -190,7 +190,7 @@ class UploadTransferOwnerTests(unittest.IsolatedAsyncioTestCase):
             self.assertEqual(list(Path(root).iterdir()), [])
 
     async def test_grant_factory_failure_preserves_cause_and_removes_opened_file(self):
-        _, api, store, _ = file_sources()
+        (_, api, store, _) = file_sources()
         original = RuntimeError("grant callback failed")
 
         async def grant():
@@ -209,7 +209,7 @@ class UploadTransferOwnerTests(unittest.IsolatedAsyncioTestCase):
             self.assertEqual(api.calls, [])
 
     async def test_direct_owner_creates_before_grant_and_verifies_without_membership_reads(self):
-        _, api, store, client = file_sources()
+        (_, api, store, client) = file_sources()
         charged = []
 
 
@@ -221,6 +221,7 @@ class UploadTransferOwnerTests(unittest.IsolatedAsyncioTestCase):
         ):
             async def grant():
                 self.assertEqual(len(list(Path(root).iterdir())), 1)
+
                 return api.grant
 
             receipt = await transfer.acquire_file(grant, directory_fd=directory, retirement_seconds=0.1)
@@ -232,7 +233,7 @@ class UploadTransferOwnerTests(unittest.IsolatedAsyncioTestCase):
             os.unlink(receipt.name, dir_fd=directory)
 
     async def test_direct_corruption_does_not_invent_issuance_and_removes_partial_file(self):
-        _, api, store, _ = file_sources()
+        (_, api, store, _) = file_sources()
         client = Client(Stream([b"badbytes"]), headers=store_headers(b"geometry"))
 
         async def grant():

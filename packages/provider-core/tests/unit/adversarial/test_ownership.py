@@ -26,6 +26,7 @@ def bind(claim):
 
 def another_job():
     pending = record("independent")
+
     return replace(pending, input=replace(pending.input, job_ref="job:other"), body=start_body("job:other", "independent"))
 
 

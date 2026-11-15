@@ -171,7 +171,7 @@ class ContributionDeclarationTests(unittest.TestCase):
             "contract version": replace(identity, contract_version=2),
         }
 
-        for label, changed in variants.items():
+        for (label, changed) in variants.items():
             with self.subTest(changed=label):
                 self.assertNotEqual(identity.revision, changed.revision)
 
@@ -181,7 +181,7 @@ class ContributionDeclarationTests(unittest.TestCase):
         self.assertEqual(configuration.digest, variants["configuration format"].configuration.digest)
 
         for label in ("asset name", "asset media type", "asset byte count"):
-            changed_asset, = variants[label].assets
+            (changed_asset,) = variants[label].assets
             self.assertEqual(asset.digest, changed_asset.digest)
 
     def test_unordered_metadata_has_canonical_identity_and_export_order(self):
@@ -197,7 +197,7 @@ class ContributionDeclarationTests(unittest.TestCase):
         first = replace(binding.identity, assets=frozenset({asset, other_asset}))
         second = replace(binding.identity, assets=frozenset([other_asset, asset]))
         self.assertEqual(first=first.revision, second=second.revision)
-        call, = binding.description.calls
+        (call,) = binding.description.calls
 
         description = replace(
             binding.description,

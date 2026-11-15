@@ -139,6 +139,7 @@ class _Cleanup(_Changes):
     def _expire(self):
         # Observers can see allowance_expired; the cleanup task keeps running.
         self.expired = True
+
         self.changed()
 
     async def _run(self, action):
@@ -217,6 +218,7 @@ class _Resident:
                 raise TimeoutError("Instance initialization exceeded its original allowance.")
         except BaseException as cause:
             self.failure = cause
+
             raise
 
         self.ready = True
@@ -254,9 +256,11 @@ class _ScientificAnalysis:
         try:
             self.value = binding.construct_analysis(instance=self.resident.value)
             self.constructed = True
+
             binding.initialize_analysis(analysis=self.value)
         except BaseException as cause:
             self.failure = cause
+
             raise
 
         self.ready = True
@@ -282,6 +286,7 @@ class _State:
             self.returned.dispose(self.returned.value)
         except BaseException as cause:
             self.disposal_failure = cause
+
             raise
 
         self.disposed = True

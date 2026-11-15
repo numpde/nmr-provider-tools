@@ -20,7 +20,7 @@ class PhaseProgressTests(unittest.IsolatedAsyncioTestCase):
                 await self.check_phase(phase)
 
     async def check_phase(self, phase):
-        store, acknowledged, claim = await live_attempt()
+        (store, acknowledged, claim) = await live_attempt()
         session = Session(store)
         transport = PhaseProgressTransport(phase)
         notices = []
@@ -60,7 +60,7 @@ class PhaseProgressTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(terminal.selection.body_sha256, executor.delivery.items[0].body_sha256)
         self.assertIsNone(executor._outcome)
         self.assertEqual(store.records, (terminal,))
-        commands = [json.loads(request.content) for request, _ in transport.calls if request.method == "PUT"]
+        commands = [json.loads(request.content) for (request, _) in transport.calls if request.method == "PUT"]
 
         self.assertEqual(
             [(item["phase"], item["condition_code"]) for item in commands], [("preparing", None), ("running", None)]
@@ -70,7 +70,7 @@ class PhaseProgressTests(unittest.IsolatedAsyncioTestCase):
         claim.release(owner=claim.lifecycle_owner)
 
     async def test_invalid_observer_refuses_before_session_or_api_effects(self):
-        store, _acknowledged, claim = await live_attempt()
+        (store, _acknowledged, claim) = await live_attempt()
         transport = PhaseProgressTransport("preparing")
         session = Session(store)
 

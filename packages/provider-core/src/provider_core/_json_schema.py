@@ -21,6 +21,7 @@ class _ClosedDataclasses(GenerateJsonSchema):
         """Reflect the SDK codec's unknown-field rule without editing provider types."""
         document = super().dataclass_schema(schema=schema)
         document["additionalProperties"] = False
+
         return document
 
 

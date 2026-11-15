@@ -83,11 +83,13 @@ class Backend:
 def wrapper(error, kind=httpcore.ConnectError):
     wrapped = kind("controlled network wrapper")
     wrapped.__cause__ = error
+
     return wrapped
 
 
 async def plaintext_tls(stream, **options):
     """Isolate network ownership here; integration tests exercise real TLS."""
+
     return stream
 
 
@@ -107,6 +109,7 @@ class ApiNetworkAvailabilityTests(unittest.IsolatedAsyncioTestCase):
                 await network.connect_unix_socket(path)
 
         self.assertIs(caught.exception, error)
+
         return network.observation
 
     # silent-defaults: allow-contract -- Ordinary reads have neither effect flag; the operation matrix explicitly supplies both flags.
@@ -132,7 +135,7 @@ class ApiNetworkAvailabilityTests(unittest.IsolatedAsyncioTestCase):
                      ExceptionGroup("mixed", [ConnectionRefusedError(), RuntimeError()]),
                      ExceptionGroup("mixed TLS", [TimeoutError(), ssl.SSLCertVerificationError()])]
 
-        for original, expected in [(item, True) for item in positives] + [(item, False) for item in negatives]:
+        for (original, expected) in [(item, True) for item in positives] + [(item, False) for item in negatives]:
             with self.subTest(error=type(original).__name__, expected=expected):
                 failure = wrapper(original)
                 facts = await self.capture_connect(failure)
@@ -150,7 +153,7 @@ class ApiNetworkAvailabilityTests(unittest.IsolatedAsyncioTestCase):
         self.assertFalse(temporary_io_failure(socket.gaierror(socket.EAI_NONAME, "unchanged generic policy"), 8))
 
     async def test_only_the_configured_unix_connect_can_admit_absent_socket(self):
-        for configured, actual, error, expected in (
+        for (configured, actual, error, expected) in (
             ("/tmp/proxy.sock", "/tmp/proxy.sock", FileNotFoundError(errno.ENOENT, "absent"), True),
             (None, "/tmp/proxy.sock", FileNotFoundError(errno.ENOENT, "absent"), False),
             ("/tmp/proxy.sock", "/tmp/other.sock", FileNotFoundError(errno.ENOENT, "absent"), False),
@@ -180,7 +183,7 @@ class ApiNetworkAvailabilityTests(unittest.IsolatedAsyncioTestCase):
             ("POST", "/provider/v1/unreviewed", None, False, False),
         ]
 
-        for method, path, selected, issuance, mutation in cases:
+        for (method, path, selected, issuance, mutation) in cases:
             with self.subTest(method=method, path=path):
                 original = wrapper(socket.gaierror(socket.EAI_NONAME, "original resolver"))
                 transport = self.transport()
@@ -194,7 +197,7 @@ class ApiNetworkAvailabilityTests(unittest.IsolatedAsyncioTestCase):
                               progress=lambda error: client.can_defer_phase_progress(error, execution_attempt_ref=ATTEMPT_REF),
                               grant=lambda error: client.can_renew_read_grant(error, job_ref="job:example", upload_ref=UPLOAD_REF))
 
-                for name, check in checks.items():
+                for (name, check) in checks.items():
                     self.assertIs(check(failure), name == selected)
                     self.assertFalse(check(ApiFailure("foreign", "failure")))
 
@@ -210,7 +213,7 @@ class ApiNetworkAvailabilityTests(unittest.IsolatedAsyncioTestCase):
 
     async def test_same_read_timeout_from_actual_stream_and_local_account_have_distinct_permission(self):
         original = httpcore.ReadTimeout("same exact object")
-        head = b"HTTP/1.1 200 OK\r\n" + b"".join(k+b": "+v+b"\r\n" for k,v in response_headers()) + b"Content-Length: 2\r\n\r\nx"
+        head = b"HTTP/1.1 200 OK\r\n" + b"".join(k+b": "+v+b"\r\n" for (k,v) in response_headers()) + b"Content-Length: 2\r\n\r\nx"
 
         for local in (False, True):
             with self.subTest(local=local):
@@ -239,7 +242,7 @@ class ApiNetworkAvailabilityTests(unittest.IsolatedAsyncioTestCase):
                 self.assertTrue(stream.closed)
 
     async def test_eof_requires_nonzero_actual_read_and_cannot_author_local_protocol_fault(self):
-        for maximum, expected in ((0, False), (10, True)):
+        for (maximum, expected) in ((0, False), (10, True)):
             network = OwnedNetworkBackend()
             stream = network._own(RawStream())
             self.assertEqual(await stream.read(maximum), b"")
@@ -283,17 +286,17 @@ class ApiNetworkAvailabilityTests(unittest.IsolatedAsyncioTestCase):
     async def test_head_and_protocol_guards_survive_real_stream_eof(self):
         grant_path = f"/provider/v1/jobs/job:example/uploads/{UPLOAD_REF}/read-capability"
 
-        for status, topology, malformed, read_allowed in (
+        for (status, topology, malformed, read_allowed) in (
             (200, b"dev-local", False, True), (200, b"wrong", False, False),
             (200, b"dev-local", True, False), (500, b"dev-local", False, True),
             (429, b"dev-local", False, True),
         ):
-            for method, path in (("GET", "/provider/v1/jobs/job:example/uploads"), ("POST", grant_path)):
+            for (method, path) in (("GET", "/provider/v1/jobs/job:example/uploads"), ("POST", grant_path)):
                 with self.subTest(status=status, topology=topology, malformed=malformed, method=method):
                     headers = response_headers(status=status, topology=topology)
                     # silent-defaults: allow-contract -- The matrix deliberately contrasts malformed chunk syntax with actual truncated-body EOF.
                     framing = b"Transfer-Encoding: chunked\r\n\r\nnothex\r\nx" if malformed else b"Content-Length: 2\r\n\r\nx"
-                    stream = RawStream(chunks=[f"HTTP/1.1 {status} controlled\r\n".encode() + b"".join(k+b": "+v+b"\r\n" for k,v in headers) + framing])
+                    stream = RawStream(chunks=[f"HTTP/1.1 {status} controlled\r\n".encode() + b"".join(k+b": "+v+b"\r\n" for (k,v) in headers) + framing])
                     transport = self.transport()
                     client = api(transport, "https://api.fixture.example")
 
@@ -338,7 +341,7 @@ class ApiNetworkAvailabilityTests(unittest.IsolatedAsyncioTestCase):
     async def test_typed_io_preserves_explicit_mixed_causes_and_exact_connection_family(self):
         for kind in (httpcore.ReadTimeout, httpcore.ConnectTimeout, TimeoutError, ssl.SSLEOFError,
                      socket.gaierror, ConnectionError):
-            for leaf, expected in ((ConnectionResetError(), True),
+            for (leaf, expected) in ((ConnectionResetError(), True),
                                    (ExceptionGroup("all available", [TimeoutError(), ConnectionRefusedError()]), True),
                                    (ExceptionGroup("mixed local", [TimeoutError(), RuntimeError()]), False),
                                    (ExceptionGroup("mixed TLS", [TimeoutError(), ssl.SSLCertVerificationError()]), False)):
@@ -348,7 +351,7 @@ class ApiNetworkAvailabilityTests(unittest.IsolatedAsyncioTestCase):
                     facts = await self.capture_connect(original)
                     self.assertIs(network_availability(original, facts, network_failure=original), expected)
 
-        for kind, expected in ((httpcore.ReadTimeout, True), (TimeoutError, True),
+        for (kind, expected) in ((httpcore.ReadTimeout, True), (TimeoutError, True),
                                (httpcore.ConnectError, False), (ConnectionError, False), (ssl.SSLEOFError, False)):
             with self.subTest(kind=kind.__name__, implementation_cancel=True):
                 original = kind()
@@ -359,12 +362,12 @@ class ApiNetworkAvailabilityTests(unittest.IsolatedAsyncioTestCase):
         class CustomConnection(ConnectionError):
             pass
 
-        for original, expected in ((ConnectionError(), True), (CustomConnection(), False)):
+        for (original, expected) in ((ConnectionError(), True), (CustomConnection(), False)):
             facts = await self.capture_connect(original)
             self.assertIs(network_availability(original, facts, network_failure=original), expected)
 
     async def test_sdk_deadline_preserves_explicit_native_cancellation_cause(self):
-        for cause, expected in (
+        for (cause, expected) in (
             (None, True), (ConnectionResetError(), True),
             (ssl.SSLCertVerificationError(), False), (RuntimeError(), False),
             (ExceptionGroup("mixed", [TimeoutError(), RuntimeError()]), False),

@@ -250,7 +250,7 @@ def read_complete_body(body, *, execution_attempt_ref):
     if b64encode(result).decode("ascii") != encoded or not 1 <= len(result) <= 786432:
         raise ValueError("Cannot publish Attempt result: base64 must be canonical and encode 1 through 786432 bytes")
 
-    return document["result_schema_id"], result
+    return (document["result_schema_id"], result)
 
 
 def read_fail_body(body, *, execution_attempt_ref):
@@ -258,4 +258,5 @@ def read_fail_body(body, *, execution_attempt_ref):
     document = _outcome_document(body, "fail", 16384, execution_attempt_ref, ("failure_code", "failure_message"))
     _failure_code(document["failure_code"])
     _scalar_text(document["failure_message"], "failure message")
-    return document["failure_code"], document["failure_message"]
+
+    return (document["failure_code"], document["failure_message"])

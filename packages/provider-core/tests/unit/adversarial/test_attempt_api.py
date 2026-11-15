@@ -21,7 +21,7 @@ class AttemptReadRejectionTests(unittest.IsolatedAsyncioTestCase):
         )
 
     async def test_invalid_request_identity_sends_nothing(self):
-        for attempt, job, error_type in (
+        for (attempt, job, error_type) in (
             (ATTEMPT_REF + "\n", "job:example", ValueError),
             ("../private", "job:example", ValueError),
             (None, "job:example", TypeError),

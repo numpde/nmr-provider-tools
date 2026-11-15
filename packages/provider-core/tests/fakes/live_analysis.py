@@ -11,13 +11,15 @@ class LiveSession:
         self.instructions = None
         self.events = []
         self.handle = PreparedAnalysis(ProtectedEvidence("fixture.prepared.v1", b"prepared"))
-        self.retiring, self.release = asyncio.Event(), asyncio.Event()
+
+        (self.retiring, self.release) = (asyncio.Event(), asyncio.Event())
         self.release.set()
         self.content = b"result"
 
     async def prepare(self, acknowledged, instructions, *, report_condition):
         self.events.append("prepare")
         self.instructions = instructions
+
         return self.handle
 
     async def execute(self, prepared, *, report_condition):

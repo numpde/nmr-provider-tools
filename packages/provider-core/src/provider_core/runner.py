@@ -63,7 +63,8 @@ def _lease(parent):
             raise PermissionError("Runner lifetime lock must be a caller-owned mode 0600 regular file.")
 
         fcntl.flock(descriptor, fcntl.LOCK_EX | fcntl.LOCK_NB)
-        return descriptor, (observed.st_dev, observed.st_ino)
+
+        return (descriptor, (observed.st_dev, observed.st_ino))
     except BaseException:
         os.close(descriptor)
         raise
@@ -125,6 +126,7 @@ def _watch(worker, control, shutdown, deadline, status):
 
                 if pidfd in observed:
                     worker.wait()
+
                     return "exited"
 
                 if control.fileno() in observed:
@@ -146,6 +148,7 @@ def _remove_scratch(parent, name, deadline):
 
     if not stat.S_ISDIR(observed.st_mode):
         os.unlink(name, dir_fd=parent)
+
         return
 
     child = os.open(name, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW | os.O_CLOEXEC, dir_fd=parent)
@@ -179,7 +182,7 @@ def _operation(control, *, generation, lock_identity, lease, scratch_fd, argv, o
 
         os.mkdir(operation, mode=0o700, dir_fd=scratch_fd)
         created = True
-        science, child = socket.socketpair()
+        (science, child) = socket.socketpair()
         # Reference the supervisor's held root, without passing that root FD to
         # the child. It remains valid until this child's cleanup has settled.
         work = f"/proc/{os.getpid()}/fd/{scratch_fd}/{operation}"
@@ -229,6 +232,7 @@ def _operation(control, *, generation, lock_identity, lease, scratch_fd, argv, o
                            operation, type(delivery).__name__, delivery.errno)
 
         LOGGER.info("event=child_retired operation=%s returncode=%d reason=%s", operation, returncode, event)
+
         return shutdown_requested
     except RetirementUnconfirmed:
         # Reap/cleanup already spent its bound. Do not double it or erase the
@@ -272,7 +276,7 @@ def serve(options, argv, shutdown):
     try:
         scratch_fd = _private_directory(options.scratch)
         status_fd = _private_directory(options.status_directory)
-        lease, lock_identity = _lease(parent)
+        (lease, lock_identity) = _lease(parent)
         status = ProcessStatus(Path(f"/proc/self/fd/{status_fd}"), options.role)
         status.refresh("starting")
 
@@ -294,7 +298,7 @@ def serve(options, argv, shutdown):
                 os.umask(previous)
 
             observed = os.stat(options.socket.name, dir_fd=parent, follow_symlinks=False)
-            identity = observed.st_dev, observed.st_ino
+            identity = (observed.st_dev, observed.st_ino)
             listener.listen(1)
 
             with select.epoll() as events:
@@ -307,12 +311,13 @@ def serve(options, argv, shutdown):
 
                     if shutdown in ready:
                         status.refresh("stopping")
+
                         return
 
                     if listener.fileno() not in ready:
                         continue
 
-                    control, _ = listener.accept()
+                    (control, _) = listener.accept()
 
                     with control:
                         status.refresh("working")
@@ -320,6 +325,7 @@ def serve(options, argv, shutdown):
                         if _operation(control, generation=generation, lock_identity=lock_identity, lease=lease,
                                       scratch_fd=scratch_fd, argv=argv, options=options, shutdown=shutdown, status=status):
                             status.refresh("stopping")
+
                             return
     finally:
         try:
@@ -368,7 +374,7 @@ def main(arguments=None):
     if not options.worker or options.worker[0] != "--" or len(options.worker) < 2:
         parser.error("Supply one fixed worker command after --.")
 
-    read_fd, write_fd = os.pipe2(os.O_CLOEXEC | os.O_NONBLOCK)
+    (read_fd, write_fd) = os.pipe2(os.O_CLOEXEC | os.O_NONBLOCK)
     previous_wakeup = signal.set_wakeup_fd(write_fd)
     handlers = {}
 
@@ -380,7 +386,7 @@ def main(arguments=None):
     finally:
         signal.set_wakeup_fd(previous_wakeup)
 
-        for number, handler in handlers.items():
+        for (number, handler) in handlers.items():
             signal.signal(number, handler)
 
         os.close(read_fd)

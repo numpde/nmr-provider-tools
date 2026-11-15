@@ -22,10 +22,10 @@ class PhaseProgressFailureTests(unittest.IsolatedAsyncioTestCase):
         for phase in ("preparing", "running"):
             for state in ({"job_state": "cancelled"}, {"state": "succeeded"}):
                 with self.subTest(phase=phase, state=state):
-                    store, acknowledged, claim = await live_attempt()
+                    (store, acknowledged, claim) = await live_attempt()
                     transport = PhaseProgressTransport(phase)
                     transport.fresh_observation = reply(observation(**state))
-                    session, notice = Session(store), Mock()
+                    (session, notice) = (Session(store), Mock())
 
                     executor = live_executor(
                         api(transport, store.scope.api_origin),
@@ -51,10 +51,10 @@ class PhaseProgressFailureTests(unittest.IsolatedAsyncioTestCase):
                     claim.release(owner=claim.lifecycle_owner)
 
     async def test_failed_followup_read_preserves_both_operation_failures(self):
-        store, acknowledged, claim = await live_attempt()
+        (store, acknowledged, claim) = await live_attempt()
         transport = PhaseProgressTransport("preparing")
         transport.fresh_observation = reply(b"PRIVATE read response", status=503)
-        session, notice = Session(store), Mock()
+        (session, notice) = (Session(store), Mock())
 
         executor = live_executor(
             api(transport, store.scope.api_origin),
@@ -82,7 +82,7 @@ class PhaseProgressFailureTests(unittest.IsolatedAsyncioTestCase):
     async def test_callback_or_original_cleanup_failure_stops_before_a_followup_read(self):
         for failing_owner in ("notice", "retirement"):
             with self.subTest(owner=failing_owner):
-                store, acknowledged, claim = await live_attempt()
+                (store, acknowledged, claim) = await live_attempt()
                 transport = PhaseProgressTransport("preparing")
                 session = Session(store)
                 fault = OSError("Authored independent sink/cleanup failure")
@@ -118,9 +118,9 @@ class PhaseProgressFailureTests(unittest.IsolatedAsyncioTestCase):
                 claim.release(owner=claim.lifecycle_owner)
 
     async def test_unreviewed_phase_failure_and_default_policy_remain_fail_stop(self):
-        for observer, status in ((None, 503), (None, 401), (Mock(), 401)):
+        for (observer, status) in ((None, 503), (None, 401), (Mock(), 401)):
             with self.subTest(opt_in=observer is not None, status=status):
-                store, acknowledged, claim = await live_attempt()
+                (store, acknowledged, claim) = await live_attempt()
                 transport = PhaseProgressTransport("preparing")
                 transport.phase_failure = reply(b"PRIVATE refusal", status=status)
                 session = Session(store)
@@ -151,11 +151,11 @@ class PhaseProgressFailureTests(unittest.IsolatedAsyncioTestCase):
                 claim.release(owner=claim.lifecycle_owner)
 
     async def test_condition_report_still_requires_its_matching_acknowledgement(self):
-        store, acknowledged, claim = await live_attempt()
+        (store, acknowledged, claim) = await live_attempt()
         transport = ConditionTransport()
         transport.release.set()
         transport.failure = ExchangeFailed("Condition receipt unavailable", primary=TimeoutError())
-        session, notice = ReportingSession(store), Mock()
+        (session, notice) = (ReportingSession(store), Mock())
 
         executor = live_executor(
             api(transport, store.scope.api_origin),

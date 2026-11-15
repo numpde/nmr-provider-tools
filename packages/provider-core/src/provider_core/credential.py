@@ -95,6 +95,7 @@ def parse_provider_credential(raw):
         ) from None
 
     private_key = _signing_key(document)
+
     return ProviderCredential(document["profile"], document["principal_ref"], document["credential_ref"], private_key)
 
 

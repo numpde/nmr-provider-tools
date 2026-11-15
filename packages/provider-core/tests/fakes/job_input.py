@@ -19,6 +19,7 @@ def response(payload=b"private instructions", **changes):
     }
 
     document.update(changes)
+
     return json.dumps(document, ensure_ascii=False, sort_keys=True, separators=(",", ":")).encode()
 
 

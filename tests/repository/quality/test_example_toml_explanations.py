@@ -38,7 +38,7 @@ def _optional_setting(comment):
 def _inline_explanation(statement):
     # Parsing each prefix distinguishes a real trailing comment from '#' inside
     # quoted keys or values, including multiline strings and arrays.
-    for offset, character in enumerate(statement):
+    for (offset, character) in enumerate(statement):
         if character != "#":
             continue
 
@@ -65,7 +65,7 @@ def unexplained_settings(source):
     explained = False
     findings = []
 
-    for line_number, line in lines:
+    for (line_number, line) in lines:
         stripped = line.strip()
 
         if not stripped:
@@ -88,7 +88,7 @@ def unexplained_settings(source):
                     tomllib.loads(statement)
                     break
                 except TOMLDecodeError:
-                    _, continuation = next(lines)
+                    (_, continuation) = next(lines)
                     statement += "\n" + continuation
 
         if not statement.lstrip().startswith("["):

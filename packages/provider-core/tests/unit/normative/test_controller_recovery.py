@@ -18,8 +18,8 @@ from tests.fakes.controller import SingleRetirementSession, lifecycle_replies
 class ControllerRecoveryTests(unittest.IsolatedAsyncioTestCase):
     async def test_outage_beyond_thirty_seconds_preserves_exact_handoff_without_new_science(self):
         store = LiveAttemptProbe()
-        session, delivery = SingleRetirementSession(store), RecordingDelivery()
-        attempted, submit = [], delivery.submit
+        (session, delivery) = (SingleRetirementSession(store), RecordingDelivery())
+        (attempted, submit) = ([], delivery.submit)
         failure = DeliveryUnavailable("Relay unavailable", status=503)
 
         async def interrupted(item):
@@ -33,7 +33,7 @@ class ControllerRecoveryTests(unittest.IsolatedAsyncioTestCase):
         delivery.submit = interrupted
         delivery.can_retry = Mock(return_value=True)
         loop = asyncio.get_running_loop()
-        real_time, elapsed = loop.time, 0
+        (real_time, elapsed) = (loop.time, 0)
 
         def retry(*_):
             nonlocal elapsed
@@ -57,8 +57,8 @@ class ControllerRecoveryTests(unittest.IsolatedAsyncioTestCase):
 
     async def test_same_controller_retries_owned_bytes_then_clears_after_relay_ack_and_cleanup(self):
         store = LiveAttemptProbe()
-        session, delivery = SingleRetirementSession(store), RecordingDelivery()
-        attempted, submit = [], delivery.submit
+        (session, delivery) = (SingleRetirementSession(store), RecordingDelivery())
+        (attempted, submit) = ([], delivery.submit)
         failures = [DeliveryUnavailable("Unconfirmed relay reply"), DeliveryUnavailable("Relay unavailable", status=503)]
 
         async def interrupted(item):

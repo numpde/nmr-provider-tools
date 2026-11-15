@@ -90,7 +90,7 @@ class ShellEmptyDefaultsTest(unittest.TestCase):
     def test_shell_operator_surfaces_do_not_use_empty_default_expansion(self) -> None:
         findings: list[str] = []
 
-        for source, line_number, line in surface_lines(_shell_surface_files(), skip_comments=True):
+        for (source, line_number, line) in surface_lines(_shell_surface_files(), skip_comments=True):
             for match in INTERPOLATION_DEFAULT_RE.finditer(line):
                 findings.append(
                     f"{source}:{line_number}: "

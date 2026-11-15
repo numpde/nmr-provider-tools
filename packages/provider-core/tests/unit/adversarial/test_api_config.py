@@ -39,12 +39,13 @@ class HttpsAdmissionTests(unittest.TestCase):
                               "API", read_file)
 
     def test_encoding_and_certificate_failures_are_distinct_in_safe_rendered_evidence(self):
-        for raw, reason, cause_type in ((b"PRIVATE_CA\xff", "ASCII", UnicodeDecodeError),
+        for (raw, reason, cause_type) in ((b"PRIVATE_CA\xff", "ASCII", UnicodeDecodeError),
                                         (b"PRIVATE_CA", "OpenSSL", ssl.SSLError)):
             calls = []
 
             def read_file(path, *, maximum_bytes, label):
                 calls.append((path, maximum_bytes, label))
+
                 return raw
 
             with self.subTest(reason=reason), self.assertRaises(ApiConfigurationRejected) as caught:

@@ -13,10 +13,11 @@ from provider_core.delivery_worker import DeliveryWorker, DeliveryWorkerFailed, 
 
 
 def publication_api(material, proxy_socket):
-    settings, _ = api_settings_from_material(material.api_fields(), credential_bytes=material.credential_bytes,
+    (settings, _) = api_settings_from_material(material.api_fields(), credential_bytes=material.credential_bytes,
                                              ca_bytes=material.ca_bytes)
 
     http = replace(settings.http, proxy_socket=str(proxy_socket))
+
     return ProviderAPI(settings.identity, http.new_transport(), expected_topology=settings.expected_topology)
 
 
@@ -25,23 +26,26 @@ class SharedDeliveryWorker(DeliveryWorker):
 
     def __init__(self, inbox, endpoint, proxy_socket, *, retry_initial_seconds, retry_max_seconds, on_notice):
         require_delivery_retry_settings(retry_initial_seconds, retry_max_seconds)
-        self.inbox, self.endpoint, self.proxy_socket = inbox, endpoint, proxy_socket
-        self.retry_initial_seconds, self.retry_max_seconds = retry_initial_seconds, retry_max_seconds
+        (self.inbox, self.endpoint, self.proxy_socket) = (inbox, endpoint, proxy_socket)
+        (self.retry_initial_seconds, self.retry_max_seconds) = (retry_initial_seconds, retry_max_seconds)
         self.on_notice = on_notice
-        self.changed, self.stopping, self.policy_changed = asyncio.Event(), asyncio.Event(), asyncio.Event()
-        self.paused, self._running = False, False
-        self.failure, self._api_receipt_received, self.api = None, False, None
+
+        (self.changed, self.stopping, self.policy_changed) = (asyncio.Event(), asyncio.Event(), asyncio.Event())
+        (self.paused, self._running) = (False, False)
+        (self.failure, self._api_receipt_received, self.api) = (None, False, None)
 
     async def run(self):
         if self._running:
             raise ValueError("A delivery provider already has its serial worker.")
 
         self._running = True
-        operation_failure, cleanup_failures = None, ()
+
+        (operation_failure, cleanup_failures) = (None, ())
 
         try:
             while not self.stopping.is_set() and not self.paused:
                 self._api_receipt_received = False
+
                 self.changed.clear()
 
                 handoff = await self.inbox.storage(
@@ -52,6 +56,7 @@ class SharedDeliveryWorker(DeliveryWorker):
                     return
 
                 self.api = publication_api(handoff.publication, self.proxy_socket)
+
                 await self._deliver(handoff.outcome)
                 await self.api.retire(owner=self)
                 self.api = None

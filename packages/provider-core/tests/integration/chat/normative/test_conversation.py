@@ -22,6 +22,7 @@ class ConversationTests(unittest.IsolatedAsyncioTestCase):
                 raise rejection
 
             self.assertEqual(conversation.correction_failures, [(1, rejection)])
+
             return ToolFinished("selected")
 
         result = await conversation.run([], [], dispatch)
@@ -69,6 +70,7 @@ class ConversationTests(unittest.IsolatedAsyncioTestCase):
 
             first.retire.assert_awaited_once()
             self.assertEqual(arguments, {"reference": "owned-reference"})
+
             return ToolFinished("submitted")
 
         conversation = ToolConversation((first, second), max_turns=3, secrets=())

@@ -61,7 +61,7 @@ class ModelProcessRecoveryTests(unittest.TestCase):
                 except ProcessLookupError:
                     pass
 
-                stdout, stderr = process.communicate(timeout=2)
+                (stdout, stderr) = process.communicate(timeout=2)
 
             self.assertIsNotNone(report, msg="The bounded recovery fixture did not produce a verdict:\n" + stdout + stderr)
             evidence = json.dumps(report, sort_keys=True)
@@ -84,7 +84,7 @@ class ModelProcessRecoveryTests(unittest.TestCase):
             self.assertEqual(2, report["tool_calls"], msg=evidence)
             self.assertEqual(0, report["claim_count"], msg=evidence)
             self.assertEqual(["complete", "fail", "complete"], report["deliveries"], msg=evidence)
-            before, after = report["warm_worker_before"], report["warm_worker_after"]
+            (before, after) = (report["warm_worker_before"], report["warm_worker_after"])
             self.assertEqual(before["pid"], after["pid"], msg=evidence)
             self.assertEqual(1, after["model_loads"], msg=evidence)
             self.assertEqual((2, 2, 3), (after["preparations"], after["executions"], after["retirements"]), msg=evidence)

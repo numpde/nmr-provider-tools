@@ -62,6 +62,7 @@ def _host_options(**changes) -> dict[str, int | float]:
     }
 
     values.update(changes)
+
     return values
 
 
@@ -122,6 +123,7 @@ class _CountingCodec[T]:
 
     def decode(self, payload: bytes) -> T:
         self.counter["decode"] += 1
+
         return self.delegate.decode(payload)
 
     def encode(self, value: T) -> bytes:
@@ -163,6 +165,7 @@ class EmbeddedHostTests(unittest.IsolatedAsyncioTestCase):
         )
 
         self.addAsyncCleanup(self.retire_host, host)
+
         return host
 
     async def retire_host(self, host) -> None:
@@ -180,6 +183,7 @@ class EmbeddedHostTests(unittest.IsolatedAsyncioTestCase):
 
         self.assertEqual((), observation.failures)
         self.assertTrue(observation.settled)
+
         return observation
 
     async def finished(self, operation):
@@ -202,7 +206,8 @@ class EmbeddedHostTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual((), observation.failures)
         self.assertIs(ResultState.AVAILABLE, observation.result_state)
         payload = await operation.read_result(observation.result)
-        return observation, codec.decode(payload)
+
+        return (observation, codec.decode(payload))
 
     async def test_local_bound_submission_and_portable_submission_share_one_owner(self):
         binding = sum_binding()
@@ -231,14 +236,14 @@ class EmbeddedHostTests(unittest.IsolatedAsyncioTestCase):
         )
 
         self.assertIsNot(operation, another)
-        _, result = await self.success(operation, binding.run.result_codec)
+        (_, result) = await self.success(operation, binding.run.result_codec)
         self.assertEqual(science.SumResult(total=9, count=2), result)
 
     async def test_local_submission_rejects_unbound_and_nonmember_targets(self):
         binding = sum_binding()
         host = self.host({"one": binding})
         analysis = host.open_analysis("unbound", allocation_names=("one",))
-        reservation, = analysis.reservations
+        (reservation,) = analysis.reservations
 
         with self.assertRaisesRegex(ValueError, "before a configured binding owns it"):
             analysis.submit_call(
@@ -261,7 +266,7 @@ class EmbeddedHostTests(unittest.IsolatedAsyncioTestCase):
         binding = sum_binding()
         host = self.host({"one": binding})
         analysis = host.open_analysis("local-stop", allocation_names=("one",))
-        reservation, = analysis.reservations
+        (reservation,) = analysis.reservations
 
         wrong_revision = replace(binding, identity=replace(
             binding.identity, implementation="dummy.sum.another",
@@ -331,9 +336,9 @@ class EmbeddedHostTests(unittest.IsolatedAsyncioTestCase):
             allocation_names=("weighted", "sum"),
         )
 
-        prepare_call, calculate_call = weighted.prepare, weighted.calculate
+        (prepare_call, calculate_call) = (weighted.prepare, weighted.calculate)
 
-        preparation, _ = await self.success(
+        (preparation, _) = await self.success(
             analysis.submit(
                 _invocation(
                     analysis,
@@ -346,7 +351,7 @@ class EmbeddedHostTests(unittest.IsolatedAsyncioTestCase):
             prepare_call.result_codec,
         )
 
-        calculation, actual_result = await self.success(
+        (calculation, actual_result) = await self.success(
             analysis.submit(
                 _invocation(
                     analysis,
@@ -372,7 +377,7 @@ class EmbeddedHostTests(unittest.IsolatedAsyncioTestCase):
 
         sum_call = ordinary.run
 
-        _, ordinary_result = await self.success(
+        (_, ordinary_result) = await self.success(
             analysis.submit(
                 _invocation(
                     analysis,
@@ -396,6 +401,7 @@ class EmbeddedHostTests(unittest.IsolatedAsyncioTestCase):
             context: CallContext[None, None, science.SumInput, NoState],
         ) -> ScientificReturn[science.SumResult]:
             entered["invoke"] += 1
+
             return original_call.scientific_call(context)
 
         wrapped_call = replace(
@@ -437,7 +443,7 @@ class EmbeddedHostTests(unittest.IsolatedAsyncioTestCase):
             allocation_names=("two",),
         )
 
-        _, peer_result = await self.success(
+        (_, peer_result) = await self.success(
             peer_analysis.submit(
                 _invocation(
                     peer_analysis,
@@ -465,7 +471,7 @@ class EmbeddedHostTests(unittest.IsolatedAsyncioTestCase):
 
         first = host.open_analysis("first", allocation_names=("one",))
         second = host.open_analysis("second", allocation_names=("two",))
-        prepare_call, calculate_call = binding.prepare, binding.calculate
+        (prepare_call, calculate_call) = (binding.prepare, binding.calculate)
 
         rejected = await self.finished(
             first.submit(
@@ -481,7 +487,7 @@ class EmbeddedHostTests(unittest.IsolatedAsyncioTestCase):
 
         self.assertIs(Outcome.REJECTED, rejected.outcome)
 
-        accepted, _ = await self.success(
+        (accepted, _) = await self.success(
             first.submit(
                 _invocation(
                     first,
@@ -507,7 +513,7 @@ class EmbeddedHostTests(unittest.IsolatedAsyncioTestCase):
 
         self.assertIsInstance(foreign, NotAdmitted)
 
-        _, result = await self.success(
+        (_, result) = await self.success(
             first.submit(
                 _invocation(
                     first,
@@ -553,7 +559,7 @@ class EmbeddedHostTests(unittest.IsolatedAsyncioTestCase):
             ),
         )
 
-        observed, _ = await self.success(operation, binding.prepare.result_codec)
+        (observed, _) = await self.success(operation, binding.prepare.result_codec)
         slot = binding.prepared_output
 
         with self.assertRaisesRegex(ValueError, "not declared by this exact call"):
@@ -584,7 +590,7 @@ class EmbeddedHostTests(unittest.IsolatedAsyncioTestCase):
             ),
         )
 
-        for label, reference, observation, message in mismatches:
+        for (label, reference, observation, message) in mismatches:
             with self.subTest(mismatch=label):
                 view = SimpleNamespace(
                     reference=reference,
@@ -600,7 +606,7 @@ class EmbeddedHostTests(unittest.IsolatedAsyncioTestCase):
         argument = binding.prepared_input.bind(handle)
         self.assertEqual("candidate", argument.name)
 
-        _, result = await self.success(
+        (_, result) = await self.success(
             analysis.submit(
                 _invocation(
                     analysis, binding, operation_id="calculate", call_name="calculate",
@@ -650,7 +656,7 @@ class EmbeddedHostTests(unittest.IsolatedAsyncioTestCase):
             await binding.prepared_output.reference(binding.prepare, producer),
         )
 
-        _, result = await self.success(
+        (_, result) = await self.success(
             analysis.submit(
                 _invocation(
                     analysis, binding, operation_id="permitted", call_name="calculate",
@@ -737,7 +743,7 @@ class EmbeddedHostTests(unittest.IsolatedAsyncioTestCase):
             ),
         )
 
-        completed, expected_result = await self.success(operation, call.result_codec)
+        (completed, expected_result) = await self.success(operation, call.result_codec)
         await self.settled(analysis.close())
 
         retained_payload = await operation.read_result(completed.result)
@@ -774,6 +780,7 @@ class EmbeddedHostTests(unittest.IsolatedAsyncioTestCase):
         ) -> ScientificReturn[science.SumResult]:
             returned = original_call.scientific_call(context)
             retained.append(returned.value)
+
             return replace(returned, dispose_value=disposed.append)
 
         failing_call = replace(
@@ -854,7 +861,7 @@ class EmbeddedHostTests(unittest.IsolatedAsyncioTestCase):
         with self.assertRaises(asyncio.CancelledError):
             await waiter
 
-        _, peer_result = await self.success(
+        (_, peer_result) = await self.success(
             peer_analysis.submit(
                 _invocation(
                     peer_analysis,
@@ -892,7 +899,7 @@ class EmbeddedHostTests(unittest.IsolatedAsyncioTestCase):
             ))),
         )
 
-        for index, unsupported_binding in enumerate(unsupported_bindings):
+        for (index, unsupported_binding) in enumerate(unsupported_bindings):
             with self.subTest(index=index), self.assertRaises(ValueError):
                 Allocation(
                     name=f"unsupported-{index}",
@@ -936,6 +943,7 @@ class EmbeddedHostTests(unittest.IsolatedAsyncioTestCase):
             )
 
             created_instances.append(instance)
+
             return instance
 
         def fail_instance_initialization(
@@ -989,6 +997,7 @@ class EmbeddedHostTests(unittest.IsolatedAsyncioTestCase):
         ) -> science.WeightedSumAnalysis:
             analysis_state = science.create_analysis(instance)
             created_analyses.append(analysis_state)
+
             return analysis_state
 
         def fail_analysis_initialization(
@@ -1085,7 +1094,7 @@ class EmbeddedHostTests(unittest.IsolatedAsyncioTestCase):
         await asyncio.wait_for(entered.wait(), timeout=5)
         operation.request_stop()
 
-        completed, result = await self.success(
+        (completed, result) = await self.success(
             operation,
             cooperative_call.result_codec,
         )

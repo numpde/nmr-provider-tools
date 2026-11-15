@@ -39,7 +39,7 @@ def native_config(path):
             "The native engine configuration must be a JSON object."
         )
 
-    return configuration_bytes, document
+    return (configuration_bytes, document)
 
 
 def configured(document):
@@ -67,6 +67,7 @@ def configured(document):
 
     gc_settings.update(DEFAULTS)
     limits(proposed_configuration)
+
     return proposed_configuration
 
 
@@ -133,7 +134,7 @@ def unit_files(root, context, endpoint, config):
              "[Timer]\nOnCalendar=hourly\nRandomizedDelaySec=15min\nPersistent=true\n"
              f"Unit={name}.service\n\n[Install]\nWantedBy=timers.target\n")
 
-    return name, service, timer
+    return (name, service, timer)
 
 
 def install(root, context, endpoint, path):
@@ -235,10 +236,12 @@ def main():
     # silent-defaults: allow-exception-outcome -- Failed installation exits with failure; proof=tests/repository/test_checker_cache_gc.py::EngineCacheGCTests.test_timer_failure_reports_saved_native_policy
     except (TypeError, ValueError, RuntimeError) as failure:
         print(f"Cannot configure/run engine cache GC: {failure}", file=sys.stderr)
+
         return 2
     # silent-defaults: allow-exception-outcome -- Host command/config failure exits unsuccessfully; proof=tests/repository/test_checker_cache_gc.py::EngineCacheGCTests.test_invalid_dockerd_candidate_never_replaces_native_json_or_installs_timer
     except (OSError, subprocess.SubprocessError, AttributeError, KeyError):
         print("Cannot configure/run engine cache GC: a required file or command failed; inspect the native config and user timer. No engine restart was requested.", file=sys.stderr)
+
         return 2
 
 

@@ -61,22 +61,22 @@ def owned_relationships(error):
     kind = type(error)
 
     if kind is InterpretationFailed:
-        for visit, cause in error.failures:
-            yield f"interpreter model {visit} failure", cause
+        for (visit, cause) in error.failures:
+            yield (f"interpreter model {visit} failure", cause)
 
-        for visit, turn, cause in error.correction_failures:
-            yield f"interpreter model {visit} turn {turn} correction failure", cause
+        for (visit, turn, cause) in error.correction_failures:
+            yield (f"interpreter model {visit} turn {turn} correction failure", cause)
 
     if kind is ConversationRetirementFailed:
-        for endpoint_index, cause in error.failures:
-            yield f"interpreter endpoint {endpoint_index} cleanup", cause
+        for (endpoint_index, cause) in error.failures:
+            yield (f"interpreter endpoint {endpoint_index} cleanup", cause)
 
     if kind in (ConversationFailed, ConversationRetirementFailed):
-        for endpoint_index, cause in error.endpoint_failures:
-            yield f"interpreter endpoint {endpoint_index} failure", cause
+        for (endpoint_index, cause) in error.endpoint_failures:
+            yield (f"interpreter endpoint {endpoint_index} failure", cause)
 
-        for turn_index, cause in error.correction_failures:
-            yield f"interpreter turn {turn_index} correction failure", cause
+        for (turn_index, cause) in error.correction_failures:
+            yield (f"interpreter turn {turn_index} correction failure", cause)
 
     if kind in (
         CredentialRejected,
@@ -103,7 +103,7 @@ def owned_relationships(error):
         ApiConfigurationRejected,
         DeliveryConfigurationRejected,
     ):
-        yield "owned cause", error.cause
+        yield ("owned cause", error.cause)
 
     if kind in (
         ControllerFailed,
@@ -117,52 +117,52 @@ def owned_relationships(error):
         StartupFileRejected,
     ):
         for cause in error.cleanup_failures:
-            yield "independent cleanup", cause
+            yield ("independent cleanup", cause)
 
     if kind in (ConversationRetirementFailed, ChatFailed, ExecutionFailed, ControllerFailed):
-        yield "interruption cause", error.interruption_cause
+        yield ("interruption cause", error.interruption_cause)
 
     if kind is ExecutionFailed:
-        yield "local delivery failure", error.delivery_failure
+        yield ("local delivery failure", error.delivery_failure)
 
         if error.delivery_diagnostic_failure is not None:
-            yield "delivery retry diagnostic", error.delivery_diagnostic_failure
+            yield ("delivery retry diagnostic", error.delivery_diagnostic_failure)
 
-        yield "handoff interruption", error.handoff_interruption
-        yield "analysis operation interruption", error.operation_interruption
-        yield "first condition failure", error.condition_failure
-        yield "latest condition failure", error.latest_condition_failure
+        yield ("handoff interruption", error.handoff_interruption)
+        yield ("analysis operation interruption", error.operation_interruption)
+        yield ("first condition failure", error.condition_failure)
+        yield ("latest condition failure", error.latest_condition_failure)
 
     if kind is StartFailed:
         for cause in error.settlement_failures:
-            yield "independent settlement", cause
+            yield ("independent settlement", cause)
 
     if kind in (ExecutionFailed, StartFailed, DeliveryWorkerFailed):
-        yield "API failure", error.api_failure
+        yield ("API failure", error.api_failure)
 
     if kind is ExchangeFailed:
-        yield "transport primary", error.primary
-        yield "transport interruption", error.interruption
+        yield ("transport primary", error.primary)
+        yield ("transport interruption", error.interruption)
 
         if error.child_failure is not None:
-            yield "model HTTP child evidence", error.child_failure
+            yield ("model HTTP child evidence", error.child_failure)
 
         if error.caller_interruption is not None:
-            yield "transport caller interruption", error.caller_interruption
+            yield ("transport caller interruption", error.caller_interruption)
 
         if type(error.network_io) is NetworkIOObservation and error.network_io.error is not None:
-            yield "network I/O error", error.network_io.error
+            yield ("network I/O error", error.network_io.error)
 
             if error.network_io.cause is not None:
-                yield "network I/O original cause", error.network_io.cause
+                yield ("network I/O original cause", error.network_io.cause)
             elif error.network_io.context is not None:
-                yield "network I/O original context", error.network_io.context
+                yield ("network I/O original context", error.network_io.context)
 
     if kind in (UploadFailed, UploadInputRejected, UploadRecoveryExhausted):
-        yield "acquisition interruption", error.interruption
+        yield ("acquisition interruption", error.interruption)
 
     if kind is UploadFileReadFailed:
-        yield "source reader interruption", error.interruption
+        yield ("source reader interruption", error.interruption)
 
 
 def owned_details(error):

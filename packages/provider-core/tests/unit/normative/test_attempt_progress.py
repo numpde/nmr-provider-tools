@@ -33,7 +33,7 @@ class AttemptProgressTests(unittest.IsolatedAsyncioTestCase):
 
                     self.assertEqual(result.updated_at.isoformat(), "2026-10-18T00:00:00.123456+00:00")
 
-                request, limit = transport.calls[0]
+                (request, limit) = transport.calls[0]
 
                 self.assertEqual(
                     (request.method, request.url.raw_path, limit),

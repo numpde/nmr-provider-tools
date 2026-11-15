@@ -52,7 +52,7 @@ def has_early_guard(source, *, package_marker=False, guard_module="tools.contain
     if len(statements) < 2:
         return False
 
-    imported, called = statements[:2]
+    (imported, called) = statements[:2]
 
     return (
         isinstance(imported, ast.ImportFrom)
@@ -133,7 +133,7 @@ def boundary_imports(root):
     """Report host imports of contained code and reverse production imports."""
     violations = []
 
-    for directory, forbidden in ((root / "host", "tools"), (root / "tools", "host")):
+    for (directory, forbidden) in ((root / "host", "tools"), (root / "tools", "host")):
         for path in sorted(directory.rglob("*.py")):
             for statement in ast.walk(ast.parse(path.read_text())):
                 if isinstance(statement, ast.ImportFrom):

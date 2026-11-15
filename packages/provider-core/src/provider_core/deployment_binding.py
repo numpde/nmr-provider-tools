@@ -132,10 +132,10 @@ def _route(table, origin):
 
     policy = ServicePolicy.admit(mode, [f"{parsed.hostname}:{port}"], addresses)
 
-    if parsed.hostname == "0.0.0.0" or any(ipaddress.IPv4Address(address).is_unspecified for _, address in policy.addresses):
+    if parsed.hostname == "0.0.0.0" or any(ipaddress.IPv4Address(address).is_unspecified for (_, address) in policy.addresses):
         raise BindingDefinitionRejected("Cannot admit API route: an unspecified address is not an API destination; select the intended peer address.")
 
-    if mode == "local" and any(ipaddress.IPv4Address(address).is_loopback for _, address in policy.addresses):
+    if mode == "local" and any(ipaddress.IPv4Address(address).is_loopback for (_, address) in policy.addresses):
         raise BindingDefinitionRejected("Cannot admit local API route: loopback belongs to this proxy; select the API peer on the declared network or mapped routing for host loopback.")
 
     return dict(table)
@@ -148,7 +148,7 @@ def _parse_deployment_bindings(raw):
         raise BindingDefinitionRejected("Cannot read delivery bindings: require a UTF-8 TOML definition.") from cause
 
     _fields(document, {"project", "uid", "gid", "request_seconds", "retry_initial_seconds", "retry_max_seconds", "limits", "bindings"}, "definition")
-    project, uid, gid = document["project"], document["uid"], document["gid"]
+    (project, uid, gid) = (document["project"], document["uid"], document["gid"])
 
     if not (type(project) is str and re.fullmatch(r"[a-z0-9][a-z0-9_-]{0,62}", project) is not None):
         raise BindingDefinitionRejected("Cannot admit delivery bindings: project requires a lowercase Compose name of up to 63 characters.")
@@ -178,7 +178,7 @@ def _parse_deployment_bindings(raw):
     if not (type(rows) is list and 1 <= len(rows) <= MAX_BINDINGS):
         raise BindingDefinitionRejected("Cannot admit delivery bindings: require one through sixteen explicit bindings.")
 
-    bindings, names, identities = [], set(), set()
+    (bindings, names, identities) = ([], set(), set())
 
     for row in rows:
         _fields(row, {"name", "socket_path", "api", "route"}, "binding")
@@ -199,7 +199,7 @@ def _parse_deployment_bindings(raw):
             raise BindingDefinitionRejected("Cannot admit provider socket: select a socket leaf inside its own directory below the filesystem root.")
 
         endpoint = binding.endpoint
-        identity = endpoint.api_origin, endpoint.provider_ref
+        identity = (endpoint.api_origin, endpoint.provider_ref)
 
         if identity in identities:
             raise BindingDefinitionRejected("Cannot admit delivery bindings: two bindings claim the same API/provider identity.")
@@ -299,6 +299,7 @@ def main():
     # silent-defaults: allow-exception-outcome -- This executable reports safe retained evidence and refuses malformed private definitions
     except BindingDefinitionRejected as failure:
         _report_definition_failure(failure)
+
         return 2
 
 

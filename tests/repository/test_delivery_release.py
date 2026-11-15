@@ -25,6 +25,7 @@ class DeliveryReleaseTests(unittest.TestCase):
         self.digest = hashlib.sha256(self.content).hexdigest()
         self.release = {"version": "1.2.3", "wheel_sha256": self.digest, "runtime_wheels": {}}
         self.inputs = patch.object(delivery_image, "release_inputs", return_value=(self.release, b"lock"))
+
         self.inputs.start()
         self.addCleanup(self.inputs.stop)
 

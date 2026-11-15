@@ -54,7 +54,7 @@ def _is_literal(expression: ast.expr) -> bool:
     if isinstance(expression, ast.Dict):
         return all(
             key is not None and _is_literal(key) and _is_literal(value)
-            for key, value in zip(expression.keys, expression.values, strict=True)
+            for (key, value) in zip(expression.keys, expression.values, strict=True)
         )
 
     if isinstance(expression, ast.UnaryOp) and isinstance(expression.op, (ast.Invert, ast.UAdd, ast.USub)):
@@ -112,7 +112,7 @@ def _message_positions() -> dict[str, int]:
             )
         ]
 
-        for position, parameter in enumerate(positional_parameters):
+        for (position, parameter) in enumerate(positional_parameters):
             if parameter.name == "msg":
                 positions[method_name] = position
                 break
@@ -155,6 +155,7 @@ def _positional_message_findings(
 
 def _test_paths() -> list[Path]:
     roots = [REPOSITORY_ROOT / "repository_checks", REPOSITORY_ROOT / "tests"]
+
     return sorted(path for root in roots for path in root.rglob("*.py"))
 
 

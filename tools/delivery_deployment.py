@@ -73,7 +73,8 @@ def read_definition(path):
 
     definition = parse_deployment_bindings(raw_definition)
     admit_listeners(definition)
-    return definition, hashlib.sha256(raw_definition).hexdigest()
+
+    return (definition, hashlib.sha256(raw_definition).hexdigest())
 
 
 def _bind(source, target):
@@ -150,7 +151,7 @@ def admit_listeners(definition):
                 "Linux's 107-byte limit; shorten the provider socket filename."
             ) from cause
 
-        listeners[binding.name] = ipc_key, socket_path
+        listeners[binding.name] = (ipc_key, socket_path)
 
     return listeners
 

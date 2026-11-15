@@ -62,7 +62,7 @@ class ServiceRefused(ValueError):
 
 def authority_parts(authority):
     """Admit the exact ASCII host:port representation emitted by configuration."""
-    host, separator, port_text = authority.rpartition(":")
+    (host, separator, port_text) = authority.rpartition(":")
 
     if not separator or not re.fullmatch(r"[a-z0-9][a-z0-9.-]*", host):
         raise ServiceRefused(
@@ -78,7 +78,7 @@ def authority_parts(authority):
     if not 1 <= port <= 65535 or port_text != str(port):
         raise ServiceRefused("Cannot admit service proxy authority: require a canonical port from 1 through 65535.")
 
-    return host, port
+    return (host, port)
 
 
 @dataclass(frozen=True, slots=True)
@@ -101,7 +101,7 @@ class ServicePolicy:
         mapped = {}
 
         for value in addresses:
-            host, separator, text = value.partition("=")
+            (host, separator, text) = value.partition("=")
 
             try:
                 address = str(ipaddress.IPv4Address(text))
@@ -124,7 +124,7 @@ class ServicePolicy:
         if mode == "external" and mapped:
             raise ServiceRefused("Cannot configure external service proxy: local address assignments are not allowed.")
 
-        if mode in ("local", "mapped") and mapped.keys() != {host for host, _ in admitted}:
+        if mode in ("local", "mapped") and mapped.keys() != {host for (host, _) in admitted}:
             raise ServiceRefused("Cannot configure mapped service proxy: require exactly one address for every admitted host.")
 
         return cls(admitted, tuple(sorted(mapped.items())))
@@ -135,7 +135,7 @@ class ServicePolicy:
 
         try:
             destination = bound_http_proxy.parse_destination(header)
-            _, host, port, _ = destination
+            (_, host, port, _) = destination
             target = header.split(b" ", 2)[1].decode("ascii")
 
             if authority_parts(target) != (host, port):
@@ -153,6 +153,7 @@ class ServicePolicy:
     def connect(self, host, port, interface):
         """Explicit addresses use the existing literal shortcut, with no DNS fallback."""
         address = dict(self.addresses)[host] if self.addresses else host
+
         return bound_http_proxy.connect_bound(address, port, interface)
 
 
@@ -169,7 +170,7 @@ class LiveProxyConfiguration:
     """Read the host-owned proxy settings and apply changes between accepts."""
 
     def __init__(self, path, mode):
-        self.path, self.mode = path, mode
+        (self.path, self.mode) = (path, mode)
         self.next_poll = 0.0
 
     def read(self):
@@ -288,6 +289,7 @@ class LiveProxyConfiguration:
 class ServiceProxyHandler(bound_http_proxy.ProxyHandler):
     def destination(self, header):
         self.policy = self.server.policy
+
         return self.policy.destination(header)
 
     def connect(self, host, port):
@@ -315,10 +317,12 @@ class ServiceProxyServer(bound_http_proxy.ProxyServer):
         self.max_admission_delay_seconds = 0.0
         self.admission_order = "ready"
         self.pending = deque()
+
         super().__init__(str(path), interface)
 
         try:
             self.process_status = ProcessStatus(status_directory, "proxy")
+
             self.process_status.refresh("ready")
         except BaseException:
             self.server_close()
@@ -337,7 +341,7 @@ class ServiceProxyServer(bound_http_proxy.ProxyServer):
             return super().process_request(request, client_address)
 
         self._start_waiting()
-        active, capacity = self._slots.load()
+        (active, capacity) = self._slots.load()
 
         if active * 2 <= capacity:
             fraction = 0.0
@@ -350,10 +354,12 @@ class ServiceProxyServer(bound_http_proxy.ProxyServer):
 
         if delay_seconds == 0 and self.admission_order == "ready" and self._slots.acquire():
             self._start_reserved(request, client_address)
+
             return
 
         if len(self.pending) >= capacity:
             self.shutdown_request(request)
+
             return
 
         ready_at = time.monotonic() + delay_seconds
@@ -363,14 +369,14 @@ class ServiceProxyServer(bound_http_proxy.ProxyServer):
     def _start_waiting(self):
         poller = select.poll()
 
-        for _, _, request, _ in self.pending:
+        for (_, _, request, _) in self.pending:
             poller.register(request, select.POLLHUP | select.POLLERR)
 
-        closed = {fd for fd, events in poller.poll(0) if events & (select.POLLHUP | select.POLLERR | select.POLLNVAL)}
+        closed = {fd for (fd, events) in poller.poll(0) if events & (select.POLLHUP | select.POLLERR | select.POLLNVAL)}
         blocked = False
 
         for _ in range(len(self.pending)):
-            ready_at, expires_at, request, client_address = self.pending.popleft()
+            (ready_at, expires_at, request, client_address) = self.pending.popleft()
             now = time.monotonic()
 
             if request.fileno() in closed or now >= expires_at:
@@ -400,7 +406,7 @@ class ServiceProxyServer(bound_http_proxy.ProxyServer):
 
     def server_close(self):
         while self.pending:
-            _, _, request, _ = self.pending.popleft()
+            (_, _, request, _) = self.pending.popleft()
             self.shutdown_request(request)
 
         super().server_close()
@@ -480,7 +486,7 @@ def socket_grant(path, ready, *, socket_group_id=None):
 
             retired = []
 
-            for leaf, required in ((path, stat.S_ISSOCK), (ready, stat.S_ISREG)):
+            for (leaf, required) in ((path, stat.S_ISSOCK), (ready, stat.S_ISREG)):
                 try:
                     observed = os.stat(leaf.name, dir_fd=descriptor, follow_symlinks=False)
                 except FileNotFoundError:

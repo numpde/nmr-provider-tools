@@ -37,7 +37,7 @@ class JobFeedTests(unittest.IsolatedAsyncioTestCase):
                                                               has_provider_execution_attempt=False, limit=2, cursor="Yg")
 
         self.assertEqual(len(transport.calls), 1)
-        request, bound = transport.calls[0]
+        (request, bound) = transport.calls[0]
         self.assertEqual(request.method, "GET")
         self.assertEqual(request.url.raw_path, b"/provider/v1/jobs?analysis_kind_ref=nmr_predict&has_provider_execution_attempt=false&limit=2&cursor=Yg")
         self.assertEqual(bound, 65536)

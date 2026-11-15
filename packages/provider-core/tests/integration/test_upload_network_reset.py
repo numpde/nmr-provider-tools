@@ -27,7 +27,7 @@ class ResetPeer(TlsPeer):
         try:
             await reader.readuntil(b"\r\n\r\n")
 
-            writer.write(b"HTTP/1.1 200 OK\r\n" + b"".join(name+b": "+value+b"\r\n" for name,value in store_headers(BODY))
+            writer.write(b"HTTP/1.1 200 OK\r\n" + b"".join(name+b": "+value+b"\r\n" for (name,value) in store_headers(BODY))
                          + b"\r\ng")
 
             await writer.drain()
@@ -60,11 +60,12 @@ class UploadNetworkResetTests(unittest.IsolatedAsyncioTestCase):
         self.assertTrue(store.retirement_confirmed)
         self.assertFalse(transfer.file_cleanup_pending)
         await asyncio.wait_for(peer.closed.wait(),1)
-        return transfer, caught.exception
+
+        return (transfer, caught.exception)
 
     async def test_actual_read_reset_context_requires_exact_network_origin(self):
         async with ResetPeer("success") as peer:
-            transfer, failure = await self.failure(peer, lambda _:None)
+            (transfer, failure) = await self.failure(peer, lambda _:None)
             original = failure.cause.primary
             self.assertIs(type(original),httpcore.ReadError)
             self.assertIs(failure.cause.network_failure,original)
@@ -75,10 +76,10 @@ class UploadNetworkResetTests(unittest.IsolatedAsyncioTestCase):
         def account(_count):
             raise original
 
-        headers = [(name,value) for name,value in store_headers(BODY) if name!=b"content-length"]
+        headers = [(name,value) for (name,value) in store_headers(BODY) if name!=b"content-length"]
 
         async with TlsPeer("success",response_body=BODY,response_headers=headers) as peer:
-            transfer, failure = await self.failure(peer,account)
+            (transfer, failure) = await self.failure(peer,account)
             self.assertIs(failure.cause.primary,original)
             self.assertIsNone(failure.cause.network_failure)
             self.assertFalse(transfer.can_retry_transfer(failure))

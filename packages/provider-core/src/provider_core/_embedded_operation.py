@@ -116,6 +116,7 @@ class _Operation(_Changes):
             self.original = self.science.resident.executor.submit(self._run)
         except BaseException as cause:
             self.original = Future()
+
             self.original.set_result(None)
             self.failures = (Failure("dispatch", cause),)
 
@@ -128,6 +129,7 @@ class _Operation(_Changes):
 
     def _expire(self):
         self.expired = True
+
         self.request_stop()
 
     def request_stop(self):
@@ -136,6 +138,7 @@ class _Operation(_Changes):
 
         if not self.stop_requested:
             self.stop_requested = True
+
             self.stop_signal.set()
             self.changed()
 
@@ -162,6 +165,7 @@ class _Operation(_Changes):
             if self.dispatch is DispatchState.QUEUED:
                 self.dispatch = DispatchState.STARTED
                 self.resources = ResourceState.OCCUPIED
+
                 # The worker may now initialize the scientific object and run its
                 # method. Replace the waiting clock with the execution clock.
                 self.queue_timer.cancel()
@@ -329,12 +333,15 @@ class _Operation(_Changes):
 
         if self.raw is None:
             self.value_disposed = True
+
             self.analysis.host.state_reserved -= self.state_allowance
             self.state_allowance = 0
+
             self._release_capacity()
 
         self.analysis.host.input_used -= len(self.invocation.payload)
         self.finished = True
+
         self.completion.set()
         self._forget_settled()
         self.changed()
@@ -391,6 +398,7 @@ class _Operation(_Changes):
             returned_arguments.append(StateResult(returned_state.name, state_reference))
 
         self.returned_states = tuple(returned_arguments)
+
         additional_state_reservations = max(0, len(returned_arguments) - self.state_allowance)
         self.analysis.host.state_reserved += additional_state_reservations
         self.state_allowance += additional_state_reservations
@@ -496,6 +504,7 @@ class _Operation(_Changes):
 
         if self.release is None:
             self.release = _Cleanup(self.invocation.policy.cleanup_overdue_flag_seconds)
+
             self.release.start(self._release)
 
         return self.release
@@ -507,6 +516,7 @@ class _Operation(_Changes):
 
         self.payload = None
         self.result_state = ResultState.RELEASED
+
         self._release_capacity()
         self._forget_settled()
         self.changed()
@@ -557,6 +567,7 @@ class _Operation(_Changes):
                 self.raw.dispose_value(self.raw.value)
         except BaseException as cause:
             self.disposal_failure = cause
+
             raise
 
         self.value_disposed = True

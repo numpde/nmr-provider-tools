@@ -7,7 +7,7 @@ from provider_core.lifetime import ProviderLifetime
 
 
 def main():
-    mode, root = sys.argv[1], Path(sys.argv[2])
+    (mode, root) = (sys.argv[1], Path(sys.argv[2]))
     lifetime = ProviderLifetime(root)
 
     try:

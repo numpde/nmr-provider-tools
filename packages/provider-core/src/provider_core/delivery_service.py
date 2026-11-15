@@ -48,16 +48,19 @@ class DeliveryService:
             raise ValueError("Delivery IPC request deadline must be finite positive seconds.")
 
         require_delivery_retry_settings(retry_initial_seconds, retry_max_seconds)
-        self.directory, self.limits, self.bindings = directory, limits, bindings
+        (self.directory, self.limits, self.bindings) = (directory, limits, bindings)
         self.request_seconds = request_seconds
-        self.retry_initial_seconds, self.retry_max_seconds = retry_initial_seconds, retry_max_seconds
+
+        (self.retry_initial_seconds, self.retry_max_seconds) = (retry_initial_seconds, retry_max_seconds)
         self.on_notice = on_notice
         self.diagnostic_status = diagnostic_status
-        self.ready, self.stopping = asyncio.Event(), asyncio.Event()
-        self.queue, self.inbox = None, None
-        self.workers, self._worker_tasks = {}, ()
+
+        (self.ready, self.stopping) = (asyncio.Event(), asyncio.Event())
+        (self.queue, self.inbox) = (None, None)
+        (self.workers, self._worker_tasks) = ({}, ())
         self.worker_failures = ()
-        self._close_task, self._started = None, False
+
+        (self._close_task, self._started) = (None, False)
         self._startup_task = None
         self.retirement_confirmed = False
 
@@ -82,13 +85,14 @@ class DeliveryService:
 
     async def _start(self):
         self.queue = DeliveryQueue(self.directory, limits=self.limits)
+
         configured = {(binding.endpoint.api_origin, binding.endpoint.provider_ref) for binding in self.bindings}
         missing = set(self.queue.outstanding_bindings()) - configured
 
         if missing:
             failure = DeliveryUnavailable("Pending delivery requires bindings missing from this configuration. Restore their original API/provider bindings before starting; retained requests were not retargeted or deleted.")
 
-            for origin, provider in sorted(missing):
+            for (origin, provider) in sorted(missing):
                 self.on_notice(failure, {"event": "delivery_binding_missing", "api_origin": origin, "provider_ref": provider})
 
             raise failure
@@ -142,6 +146,7 @@ class DeliveryService:
 
         self._started = True
         self._startup_task = asyncio.create_task(self._start())
+
         self._startup_task.add_done_callback(self._observed)
 
         try:
@@ -211,6 +216,7 @@ class DeliveryService:
 
         if self._close_task is None or (self._close_task.done() and self._close_task.exception() is not None):
             self._close_task = asyncio.create_task(self._shutdown())
+
             self._close_task.add_done_callback(self._observed)
 
         await asyncio.shield(self._close_task)

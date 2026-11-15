@@ -195,6 +195,7 @@ class OwnedNetworkBackend(httpcore.AsyncNetworkBackend):
     def _own(self, raw):
         stream = _OwnedStream(raw, self)
         self._streams.add(stream)
+
         return stream
 
     async def aclose(self):
@@ -322,6 +323,7 @@ class _OwnedStream(httpcore.AsyncNetworkStream):
                     # closes the descriptor but before it returns. Retry the
                     # raw close to establish its completion, never SSL unwrap.
                     self._stream = self._raw_stream
+
                     await self._close_raw()
 
                     peer_eof = type(failure) is ssl.SSLEOFError or (
@@ -351,6 +353,7 @@ class _OwnedStream(httpcore.AsyncNetworkStream):
                 # A successful retry proves retirement, but cannot turn a raw
                 # close error into a benign peer TLS goodbye with the same type.
                 self._raw_close_failure = failure
+
                 raise
 
             self._owners.remove(self)

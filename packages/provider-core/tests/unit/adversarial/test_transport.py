@@ -87,7 +87,7 @@ class TransportFailureTests(unittest.IsolatedAsyncioTestCase):
             os.fstat(output.fileno())
 
     async def test_cancelled_file_write_stays_owned_until_original_thread_settles(self):
-        for late_failure, cleanup in (
+        for (late_failure, cleanup) in (
             (None, None),
             (OSError(errno.ENOSPC, "private disk cause"), None),
             (OSError(errno.ENOSPC, "private disk cause"), OSError(errno.EIO, "private network cleanup")),
@@ -99,7 +99,7 @@ class TransportFailureTests(unittest.IsolatedAsyncioTestCase):
         await self._held_file_write(cancel=False, late_failure=OSError(errno.ENOSPC, "private disk cause"), cleanup=None)
 
     async def _held_file_write(self, *, cancel, late_failure, cleanup):
-        entered, release = asyncio.Event(), threading.Event()
+        (entered, release) = (asyncio.Event(), threading.Event())
         loop = asyncio.get_running_loop()
         original_write = os.write
         received = []
@@ -216,7 +216,7 @@ class TransportFailureTests(unittest.IsolatedAsyncioTestCase):
             self.assertEqual(write.call_count, 1)
 
     async def test_invalid_file_descriptor_refuses_before_network_effects(self):
-        for descriptor, error_type in ((-1, ValueError), (True, TypeError), (None, TypeError), ("private path", TypeError)):
+        for (descriptor, error_type) in ((-1, ValueError), (True, TypeError), (None, TypeError), ("private path", TypeError)):
             with (
                 self.subTest(kind=type(descriptor).__name__),
                 patch("provider_core.transport.httpcore.AsyncConnectionPool") as factory,
@@ -232,7 +232,7 @@ class TransportFailureTests(unittest.IsolatedAsyncioTestCase):
         with tempfile.NamedTemporaryFile() as output:
             read_only = os.open(output.name, os.O_RDONLY)
             append_only = os.open(output.name, os.O_WRONLY | os.O_APPEND)
-            read_pipe, write_pipe = os.pipe()
+            (read_pipe, write_pipe) = os.pipe()
             closed = os.dup(output.fileno())
             os.close(closed)
 
@@ -276,7 +276,7 @@ class TransportFailureTests(unittest.IsolatedAsyncioTestCase):
 
     async def _held_file_inspection(self, *, cancel):
         with tempfile.TemporaryFile() as output:
-            entered, release = asyncio.Event(), threading.Event()
+            (entered, release) = (asyncio.Event(), threading.Event())
             loop = asyncio.get_running_loop()
             fstat = os.fstat
 
@@ -349,6 +349,7 @@ class TransportFailureTests(unittest.IsolatedAsyncioTestCase):
         def cancel_before_entry(coroutine, **kwargs):
             task = create_task(coroutine, **kwargs)
             task.cancel()
+
             return task
 
         transport = self.transport()
@@ -385,7 +386,7 @@ class TransportFailureTests(unittest.IsolatedAsyncioTestCase):
         self.assertTrue(transport.retirement_confirmed)
 
     async def test_invalid_unix_socket_paths_refuse_before_client_creation_without_echoing_them(self):
-        for path, error_type in (
+        for (path, error_type) in (
             ("", ValueError), ("PRIVATE relative", ValueError), ("/PRIVATE\x00socket", ValueError),
             ("/" + "x" * 107, ValueError), ("/PRIVATE\ud800", ValueError), (7, TypeError),
         ):
@@ -410,7 +411,7 @@ class TransportFailureTests(unittest.IsolatedAsyncioTestCase):
 
         headers = [(b"x-request-id", b"request:fixture")]
         client = HeldCleanup(Stream([], failure=primary), headers=headers)
-        transport, owner = self.transport(), object()
+        (transport, owner) = (self.transport(), object())
 
         with patch("provider_core.transport.httpcore.AsyncConnectionPool", return_value=client):
             try:
@@ -491,7 +492,7 @@ class TransportFailureTests(unittest.IsolatedAsyncioTestCase):
     async def test_foreign_owner_cannot_retire_or_replace_active_exchange(self):
         client = Client(Stream([]), send_gate=asyncio.Event())
         transport = HttpTransport(trust=ssl.create_default_context(), exchange_seconds=2, retirement_seconds=0.05)
-        owner, stranger = object(), object()
+        (owner, stranger) = (object(), object())
         request = httpx.Request("GET", "https://api.example")
 
         with patch("provider_core.transport.httpcore.AsyncConnectionPool", return_value=client) as factory:

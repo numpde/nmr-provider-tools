@@ -28,7 +28,7 @@ class UploadApiTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual((access.job_ref, access.upload_ref, access.content_hash), ("job:example", UPLOAD_REF, CONTENT_HASH))
         self.assertNotIn("private-bearer-canary", repr(access))
 
-        for (request, ceiling), method, target, limit in zip(
+        for ((request, ceiling), method, target, limit) in zip(
             transport.calls,
             ("GET", "POST"),
             (

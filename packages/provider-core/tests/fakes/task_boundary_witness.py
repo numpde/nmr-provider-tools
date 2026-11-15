@@ -26,7 +26,7 @@ def failure_graph(error):
         visit(current.__cause__)
         visit(current.__context__)
 
-        for _, child in owned_relationships(current):
+        for (_, child) in owned_relationships(current):
             visit(child)
 
         if isinstance(current, BaseExceptionGroup):
@@ -34,6 +34,7 @@ def failure_graph(error):
                 visit(child)
 
     visit(error)
+
     return tuple(seen.values())
 
 
@@ -55,7 +56,7 @@ async def child(owner_kind, failure_kind):
         acknowledged = None
         prefix = [reply(start_response())]
     else:
-        probe, acknowledged, claim = await live_attempt()
+        (probe, acknowledged, claim) = await live_attempt()
         prefix = []
 
     cancelling = failure_kind.startswith("cancel")
@@ -214,7 +215,7 @@ async def owned_port_child(stage, failure_kind):
     from tests.fakes.execution import Session, live_attempt, live_executor
     from tests.fakes.job_input import response
 
-    probe, acknowledged, claim = await live_attempt()
+    (probe, acknowledged, claim) = await live_attempt()
     original = Future()
     fatal = {"system-exit": SystemExit, "keyboard-interrupt": KeyboardInterrupt}[failure_kind]("PRIVATE authored owned-port failure")
     original.set_exception(fatal)
@@ -333,7 +334,7 @@ async def graph_child(stage, variant):
     from tests.fakes.execution import Session, live_attempt, live_controller, live_executor
     from tests.fakes.job_input import response
 
-    probe, acknowledged, claim = await live_attempt()
+    (probe, acknowledged, claim) = await live_attempt()
     session = Session(probe)
     primary = BaseExceptionGroup("authored primary", (KeyboardInterrupt("PRIVATE primary"),))
     previous = LookupError("PRIVATE original cause")

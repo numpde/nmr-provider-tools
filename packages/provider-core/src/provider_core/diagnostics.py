@@ -71,10 +71,11 @@ def failure_evidence(error, *, secrets, describe_owner=describe_core_failure, ow
     it is distinct from the one-argument owned_details(error) projection.
     """
     redact = operator_redactor(secrets=secrets)
-    seen, remaining = {}, _MAX_FAILURE_NODES
+    (seen, remaining) = ({}, _MAX_FAILURE_NODES)
 
     def text(value, maximum):
         redacted = redact(value)
+
         return redacted if len(redacted) <= maximum else redacted[:maximum] + "[truncated]"
 
     def diagnostic_window(value):
@@ -87,13 +88,13 @@ def failure_evidence(error, *, secrets, describe_owner=describe_core_failure, ow
         }
 
     def relationships(current):
-        yield "cause", current.__cause__
-        yield "context", current.__context__
+        yield ("cause", current.__cause__)
+        yield ("context", current.__context__)
         yield from owner_relationships(current)
 
         if isinstance(current, BaseExceptionGroup):
             for member in current.exceptions:
-                yield "group member", member
+                yield ("group member", member)
 
     def describe(current):
         nonlocal remaining
@@ -103,9 +104,9 @@ def failure_evidence(error, *, secrets, describe_owner=describe_core_failure, ow
             return {"exception_reference": seen[id(current)]}
 
         identity = seen[id(current)] = len(seen)
-        frames, count = deque(maxlen=32), 0
+        (frames, count) = (deque(maxlen=32), 0)
 
-        for frame, line in traceback.walk_tb(current.__traceback__):
+        for (frame, line) in traceback.walk_tb(current.__traceback__):
             frames.append(
                 {
                     "file": text(Path(frame.f_code.co_filename).name, 128),
@@ -122,7 +123,7 @@ def failure_evidence(error, *, secrets, describe_owner=describe_core_failure, ow
             evidence["omitted_frame_count"] = count - len(frames)
 
         evidence.update(
-            {name: text(value, 1024) if type(value) is str else value for name, value in describe_owner(current, text, diagnostic_window).items()}
+            {name: text(value, 1024) if type(value) is str else value for (name, value) in describe_owner(current, text, diagnostic_window).items()}
         )
 
         if isinstance(current, OSError) and type(current.errno) is int:
@@ -161,7 +162,7 @@ def failure_evidence(error, *, secrets, describe_owner=describe_core_failure, ow
 
         children = []
 
-        for relationship, child in relationships(current):
+        for (relationship, child) in relationships(current):
             if child is None:
                 continue
 

@@ -52,7 +52,7 @@ def install_fault(stack, path):
     from provider_core.transport import HttpTransport
 
     active = ContextVar("test_model_cleanup_fault", default=None)
-    perform, read, close = HttpTransport._perform, _OwnedStream.read, _OwnedStream.aclose
+    (perform, read, close) = (HttpTransport._perform, _OwnedStream.read, _OwnedStream.aclose)
 
     async def marked_perform(self, request, *args, **kwargs):
         state = None
@@ -123,7 +123,7 @@ def warm_worker():
 
     for line in sys.stdin:
         request = json.loads(line)
-        operation, job = request["operation"], request.get("job")
+        (operation, job) = (request["operation"], request.get("job"))
 
         if operation == "prepare":
             if job in handles:
@@ -183,7 +183,7 @@ def _failure_types(error):
         visit(current.__cause__)
         visit(current.__context__)
 
-        for _, child in owned_relationships(current):
+        for (_, child) in owned_relationships(current):
             visit(child)
 
         if isinstance(current, BaseExceptionGroup):
@@ -191,6 +191,7 @@ def _failure_types(error):
                 visit(child)
 
     visit(error)
+
     return sorted(types)
 
 
@@ -238,7 +239,7 @@ async def scenario(marker, report):
 
     class Session:
         def __init__(self, job, endpoint, trust, worker):
-            self.job, self.worker = job, worker
+            (self.job, self.worker) = (job, worker)
             self.prepare_calls = self.execute_calls = self.tool_calls = self.retire_calls = 0
             self.handle = None
             self.failure = None
@@ -271,6 +272,7 @@ async def scenario(marker, report):
                 self.tool_calls += 1
                 await self.worker.call("prepare", self.job)
                 self.handle = PreparedAnalysis(ProtectedEvidence("fixture.prepared_input.v1", self.job.encode()))
+
                 return ToolFinished(self.handle)
 
             tools = [{"type": "function", "function": {
@@ -287,6 +289,7 @@ async def scenario(marker, report):
                 )
             except ConversationRetirementFailed as failure:
                 self.failure = failure
+
                 raise
             else:
                 return result.value
@@ -320,7 +323,7 @@ async def scenario(marker, report):
     await worker.start()
     claims = AttemptClaims.live(limits=LiveAttemptLimits(maximum_attempts=1))
     stopping = asyncio.Event()
-    controllers, sessions, finished, started, paths = [], [], [], [], []
+    (controllers, sessions, finished, started, paths) = ([], [], [], [], [])
     warm = asyncio.Event()
     timing = {}
     lane_failure = None
@@ -328,6 +331,7 @@ async def scenario(marker, report):
     def response_mode(request, body):
         path = request.split(b" ")[1].decode()
         paths.append(path)
+
         # silent-defaults: allow-contract -- Only the designated hung request stalls; the surrounding Jobs exercise the same healthy endpoint.
         return "headers-stall" if path == "/hang" else "success"
 
@@ -355,7 +359,7 @@ async def scenario(marker, report):
                 nonlocal lane_failure
 
                 try:
-                    for index, name in enumerate(("warmup", "hung", "next"), start=1):
+                    for (index, name) in enumerate(("warmup", "hung", "next"), start=1):
                         job = "job:" + name
                         base = record("recovery:" + name)
 

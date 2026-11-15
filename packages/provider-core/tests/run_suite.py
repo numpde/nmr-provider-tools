@@ -122,6 +122,7 @@ class _FailureSummaryResult(unittest.TextTestResult):
         super().startTestRun()
         self._asyncio_logger = logging.getLogger("asyncio")
         self._asyncio_observer = _AsyncioDiagnosticObserver(self)
+
         self._asyncio_logger.addHandler(self._asyncio_observer)
         _ACTIVE_ASYNCIO_OBSERVERS.append(self._asyncio_observer)
 
@@ -134,10 +135,12 @@ class _FailureSummaryResult(unittest.TextTestResult):
             self._asyncio_logger.removeHandler(self._asyncio_observer)
         finally:
             self._active_test = None
+
             super().stopTestRun()
 
     def startTest(self, test):
         self._active_test = test
+
         super().startTest(test)
 
     def addSuccess(self, test):
@@ -147,7 +150,7 @@ class _FailureSummaryResult(unittest.TextTestResult):
             super().addSuccess(test)
 
     def _record(self, kind, test, error):
-        exception_type, exception, tb = error
+        (exception_type, exception, tb) = error
         reason = str(exception).splitlines()
 
         if reason:
@@ -215,7 +218,7 @@ def _print_failure_summary(result, selection, stream):
 
     print(f"=== PROVIDER-CORE FAILURE SUMMARY ({selection}): {count} failing {noun} ===", file=stream)
 
-    for kind, name, location, failure_type, reason in result.problems[:25]:
+    for (kind, name, location, failure_type, reason) in result.problems[:25]:
         print(f"  {kind} {name}", file=stream)
         print(f"    {location} — {failure_type}: {reason}", file=stream)
 
@@ -271,6 +274,7 @@ def main():
 
     result = unittest.TextTestRunner(verbosity=2, resultclass=_FailureSummaryResult).run(suite)
     _print_failure_summary(result, selection, sys.stderr)
+
     # silent-defaults: allow-contract -- Unittest success determines the process success or failure exit status.
     return 0 if result.wasSuccessful() else 1
 

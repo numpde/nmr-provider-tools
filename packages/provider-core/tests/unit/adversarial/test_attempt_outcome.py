@@ -31,10 +31,11 @@ class AttemptOutcomeFailureTests(unittest.IsolatedAsyncioTestCase):
 
     async def send(self, api, completing, body):
         method = api.complete_attempt if completing else api.fail_attempt
+
         return await method(body, execution_attempt_ref=ATTEMPT_REF)
 
     async def test_invalid_retained_outcomes_send_nothing(self):
-        for completing, changes in (
+        for (completing, changes) in (
             (True, {"canonical_result_base64": "eB=="}),
             (True, {"canonical_result_base64": ""}),
             (True, {"canonical_result_base64": "eA==\n"}),
@@ -56,7 +57,7 @@ class AttemptOutcomeFailureTests(unittest.IsolatedAsyncioTestCase):
 
             self.assertEqual(transport.calls, [])
 
-        for completing, body in ((True, b" " * 2097153), (False, b" " * 16385), (False, bytearray(self.body(False)))):
+        for (completing, body) in ((True, b" " * 2097153), (False, b" " * 16385), (False, bytearray(self.body(False)))):
             transport = Transport()
 
             with self.assertRaises(ValueError):
@@ -65,7 +66,7 @@ class AttemptOutcomeFailureTests(unittest.IsolatedAsyncioTestCase):
             self.assertEqual(transport.calls, [])
 
     def test_invalid_builder_inputs_do_not_create_publication(self):
-        for data, error_type in ((b"", ValueError), (b"x" * 786433, ValueError), (bytearray(b"x"), TypeError)):
+        for (data, error_type) in ((b"", ValueError), (b"x" * 786433, ValueError), (bytearray(b"x"), TypeError)):
             with self.assertRaises(error_type):
                 complete_body(ATTEMPT_REF, "schema", data)
 
@@ -74,7 +75,7 @@ class AttemptOutcomeFailureTests(unittest.IsolatedAsyncioTestCase):
                 fail_body(ATTEMPT_REF, "input_rejected", message)
 
     async def test_mismatched_acknowledgements_retain_uncertainty(self):
-        for completing, response, changes in (
+        for (completing, response, changes) in (
             (True, complete_response, {"result_fingerprint": "sha256:" + "0" * 64}),
             (True, complete_response, {"result_byte_length": True}),
             (True, complete_response, {"result_schema_id": "private-canary"}),
@@ -109,7 +110,7 @@ class AttemptOutcomeFailureTests(unittest.IsolatedAsyncioTestCase):
                 self.assertEqual(len(transport.calls), 1)
 
     async def test_terminal_conflicts_resolve_only_the_current_send(self):
-        for completing, code in (
+        for (completing, code) in (
             (True, "execution_attempt_outcome_expired"),
             (True, "execution_attempt_completion_after_failure"),
             (True, "execution_attempt_completion_replay_mismatch"),

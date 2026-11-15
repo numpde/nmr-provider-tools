@@ -13,13 +13,14 @@ from tests.fakes.runner import worker_pid
 class CrashingSession(LiveSession):
     def __init__(self, native, crash_phase):
         super().__init__()
-        self.native, self.crash_phase = native, crash_phase
+        (self.native, self.crash_phase) = (native, crash_phase)
         self.acknowledged = None
         self.claimed_phase = crash_phase
         self.claimed_owner = self
         self.clone_acknowledgement = False
         self.interrupt_first = False
-        self.begin_crash, self.crash_ready = asyncio.Event(), asyncio.Event()
+
+        (self.begin_crash, self.crash_ready) = (asyncio.Event(), asyncio.Event())
         self.begin_crash.set()
 
     def _observe_exit(self):
@@ -50,6 +51,7 @@ class CrashingSession(LiveSession):
 
     async def prepare(self, acknowledged, instructions, *, report_condition):
         self.acknowledged = acknowledged
+
         prepared = await super().prepare(acknowledged, instructions, report_condition=report_condition)
 
         if self.crash_phase == "preparing":

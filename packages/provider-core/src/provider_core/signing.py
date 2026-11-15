@@ -72,7 +72,7 @@ def _https_origin(value):
     if port is not None and port != 443:
         authority += f":{port}"
 
-    return "https://" + authority, authority
+    return ("https://" + authority, authority)
 
 
 @dataclass(frozen=True, slots=True, repr=False)
@@ -85,7 +85,7 @@ class SigningIdentity:
     authority: str = field(init=False)
 
     def __post_init__(self):
-        origin, authority = _https_origin(self.origin)
+        (origin, authority) = _https_origin(self.origin)
         require_credential_ref(self.credential_ref)
 
         if not isinstance(self.private_key, Ed25519PrivateKey):
@@ -203,7 +203,7 @@ def signed_request(identity, *, method, path, query, body, created, nonce):
         },
     )
 
-    base = "\n".join([f'"{name}": {value}' for name, value in values.items()] + [f'"@signature-params": {ser([member])}'])
+    base = "\n".join([f'"{name}": {value}' for (name, value) in values.items()] + [f'"@signature-params": {ser([member])}'])
     headers["Signature-Input"] = ser({"sig1": member})
     headers["Signature"] = ser({"sig1": (identity.private_key.sign(base.encode("ascii")), {})})
     request = httpx.Request(method, identity.origin + target.decode("ascii"), headers=headers, content=body)

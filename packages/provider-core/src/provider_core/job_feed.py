@@ -53,6 +53,7 @@ def jobs_query(*, analysis_kind_ref, has_provider_execution_attempt, limit, curs
     # silent-defaults: allow-contract -- Encode the caller-selected boolean as the protocol-required lowercase wire value.
     view = "true" if has_provider_execution_attempt else "false"
     query = f"analysis_kind_ref={analysis_kind_ref}&has_provider_execution_attempt={view}&"
+
     return query.encode("ascii") + paging_query(limit=limit, cursor=cursor)
 
 

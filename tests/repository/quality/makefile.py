@@ -27,7 +27,7 @@ def make_invocation_owners(makefile: str, invocation: str) -> list[str]:
             in_define = True
             continue
         elif line and not line.startswith("\t") and not line.lstrip().startswith("#"):
-            rule_targets, separator, _ = line.partition(":")
+            (rule_targets, separator, _) = line.partition(":")
             # silent-defaults: allow-contract -- A literal rule names its owner; a nonrule clears the previous owner so a later tabbed invocation cannot inherit it; proof=tests/repository/quality/test_makefile.py::MakeSourceInspectionTests.test_invocation_inventory_rejects_uninspected_uses
             owner = f"target {rule_targets}" if separator else None
 
@@ -50,7 +50,7 @@ def make_define_body(makefile: str, name: str) -> str:
 
     lines = makefile.splitlines()
     marker = f"override define {name}"
-    marker_indexes = [index for index, line in enumerate(lines) if line == marker]
+    marker_indexes = [index for (index, line) in enumerate(lines) if line == marker]
 
     if len(marker_indexes) != 1:
         raise AssertionError(f"Makefile override define {name!r} must appear once")
@@ -69,7 +69,7 @@ def make_target_body(makefile: str, target: str) -> str:
     """Return the sole plain literal recipe for a target."""
 
     lines = makefile.splitlines(keepends=True)
-    rule_indexes = [index for index, line in enumerate(lines) if _rule_mentions_target(line, target)]
+    rule_indexes = [index for (index, line) in enumerate(lines) if _rule_mentions_target(line, target)]
 
     if not rule_indexes:
         raise AssertionError(f"Makefile target {target!r} is missing")
@@ -77,7 +77,7 @@ def make_target_body(makefile: str, target: str) -> str:
     if len(rule_indexes) > 1:
         raise AssertionError(f"Makefile target {target!r} has multiple literal rules")
 
-    rule_target, _, remainder = lines[rule_indexes[0]].partition(":")
+    (rule_target, _, remainder) = lines[rule_indexes[0]].partition(":")
 
     if rule_target != target or remainder.startswith(":") or ";" in remainder:
         raise AssertionError(f"Makefile target {target!r} must have one plain literal rule")
@@ -107,5 +107,6 @@ def _rule_mentions_target(line: str, target: str) -> bool:
     if line.startswith("\t") or line.lstrip().startswith("#"):
         return False
 
-    rule_targets, separator, _ = line.partition(":")
+    (rule_targets, separator, _) = line.partition(":")
+
     return bool(separator) and target in rule_targets.split()

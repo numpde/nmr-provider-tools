@@ -49,7 +49,7 @@ class WheelhouseBundleTests(unittest.TestCase):
 
             lock = root / "tool.lock"
             lock.write_text(f"example==1.0 \\\n    --hash=sha256:{hashlib.sha256(wheel.read_bytes()).hexdigest()}\n")
-            first, second = root / "first.pyz", root / "second.pyz"
+            (first, second) = (root / "first.pyz", root / "second.pyz")
             build(root, first, root, lock)
             build(root, second, root, lock)
             self.assertEqual(first.read_bytes(), second.read_bytes())
@@ -61,7 +61,7 @@ class WheelhouseBundleTests(unittest.TestCase):
 
             self.assertEqual(set(inventory), set(payload))
 
-            for name, data in payload.items():
+            for (name, data) in payload.items():
                 self.assertEqual(inventory[name]["sha256"], hashlib.sha256(data).hexdigest())
 
             wheel.write_bytes(b"changed")

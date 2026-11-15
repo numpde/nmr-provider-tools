@@ -31,14 +31,14 @@ class SignedHelloTests(unittest.IsolatedAsyncioTestCase):
                 await asyncio.wait_for(peer.closed.wait(), 1)
                 self.assertEqual(accepted.provider_ref, credential.provider_ref)
                 self.assertEqual(len(peer.requests), 1)
-                request, body = peer.requests[0], peer.request_bodies[0]
+                (request, body) = (peer.requests[0], peer.request_bodies[0])
                 self.assertEqual(request.split(b"\r\n")[0], b"POST /provider/v1/hello HTTP/1.1")
 
                 headers = {
                     name.lower(): value.strip()
                     for line in request.split(b"\r\n")[1:]
                     if b":" in line
-                    for name, value in [line.split(b":", 1)]
+                    for (name, value) in [line.split(b":", 1)]
                 }
 
                 self.assertEqual(

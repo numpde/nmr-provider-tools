@@ -86,7 +86,7 @@ class PythonBytecodePostureTests(unittest.TestCase):
             self.assertEqual({"host/tools/run.sh", "new_component/driver.py", "Makefile"},
                              {path.relative_to(root).as_posix() for path in production_files(root)})
 
-        issue, = findings(Path("safe.sh"), "python3 -I secret-private-path.py")
+        (issue,) = findings(Path("safe.sh"), "python3 -I secret-private-path.py")
         self.assertNotIn("secret-private-path", issue.diagnostic())
         self.assertIn("safe.sh:1:", issue.diagnostic())
 

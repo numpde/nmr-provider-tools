@@ -27,7 +27,7 @@ class ProxyCapacityRecoveryTests(unittest.IsolatedAsyncioTestCase):
         async with api_tls_peer('success', response_factory=response) as peer:
             with tempfile.TemporaryDirectory() as directory:
                 root = Path(directory)
-                entered, exited = threading.Event(), threading.Event()
+                (entered, exited) = (threading.Event(), threading.Event())
 
                 class ObservedProxy(ServiceProxyServer):
                     def process_request_thread(self, request, address):
@@ -48,7 +48,7 @@ class ProxyCapacityRecoveryTests(unittest.IsolatedAsyncioTestCase):
                     writer = client = recovered = None
 
                     try:
-                        _reader, writer = await asyncio.open_unix_connection(str(root / 'proxy.sock'))
+                        (_reader, writer) = await asyncio.open_unix_connection(str(root / 'proxy.sock'))
                         self.assertTrue(await asyncio.to_thread(entered.wait, 2), 'First connection did not occupy the proxy')
 
                         transport = HttpTransport(trust=peer.trust, exchange_seconds=2, retirement_seconds=1,

@@ -41,13 +41,16 @@ class ShutdownPeer:
 
     async def __aenter__(self):
         self.stack = AsyncExitStack()
+
         await self.stack.__aenter__()
         certificate = await self.stack.enter_async_context(TlsPeer("success"))
         self.listener = self.stack.enter_context(socket.socket())
+
         self.listener.bind(("127.0.0.1", 0))
         self.listener.listen(len(self.replies))
         self.listener.settimeout(0.1)
         self.origin = f"https://127.0.0.1:{self.listener.getsockname()[1]}"
+
         proxy_path = None
 
         if self.tunnel:
@@ -59,6 +62,7 @@ class ShutdownPeer:
 
         async def observe_shutdown(stream):
             self.shutdown_started.set()
+
             return await unwrap(stream)
 
         self.stack.enter_context(patch.object(TLSStream, "unwrap", observe_shutdown))
@@ -69,6 +73,7 @@ class ShutdownPeer:
         )
 
         self.server = asyncio.create_task(asyncio.to_thread(self.serve, certificate.server_trust))
+
         return self
 
     def backend(self, **options):
@@ -101,16 +106,18 @@ class ShutdownPeer:
                 self.raw_close_successes += 1
 
             raw.aclose = close_raw
+
             return own(raw)
 
         backend._own = observe
+
         return backend
 
     def serve(self, trust):
         for reply in self.replies:
             while not self.release.is_set():
                 try:
-                    raw, _address = self.listener.accept()
+                    (raw, _address) = self.listener.accept()
                     break
                 except TimeoutError:
                     continue

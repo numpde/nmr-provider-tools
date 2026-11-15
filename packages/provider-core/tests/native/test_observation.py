@@ -38,7 +38,7 @@ class ObservationTests(unittest.IsolatedAsyncioTestCase):
         self.addAsyncCleanup(self.retire)
         hosted = self.host.adopt(contribution=Echo(), requirements=frozenset())
         analysis = self.host.open_analysis(allocations=frozenset({hosted.allocation}))
-        reservation, = analysis.reservations
+        (reservation,) = analysis.reservations
 
         self.operation = analysis.submit_method(
             method=hosted.contribution.echo,

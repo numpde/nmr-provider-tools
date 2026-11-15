@@ -17,11 +17,12 @@ class TransportTests(unittest.IsolatedAsyncioTestCase):
     async def test_file_output_is_streamed_and_borrowed_descriptor_stays_open(self):
         chunks = [b"a" * 100003, b"bc", b"d" * 80001]
         client = Client(Stream(chunks))
-        charged, writes = [], []
+        (charged, writes) = ([], [])
         write = os.write
 
         def partial_write(descriptor, data):
             writes.append(len(data))
+
             return write(descriptor, data[:997])
 
         transport = HttpTransport(trust=ssl.create_default_context(), exchange_seconds=2, retirement_seconds=1)

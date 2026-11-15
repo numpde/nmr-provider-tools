@@ -42,9 +42,11 @@ class PublicationTests(unittest.TestCase):
         )
 
         self.note = self.root / "notes/005_release_v0.2.0.md"
+
         self.note.parent.mkdir()
         self.note.write_text("# Authored fixture release\n\nThe reader-facing change.\n")
         self.inputs = self.root / "inputs"
+
         self.inputs.mkdir(mode=0o700)
         artifacts = self.inputs / "artifacts"
         artifacts.mkdir()
@@ -60,10 +62,11 @@ class PublicationTests(unittest.TestCase):
             "provider_core-0.2.0-sha256.json": b"{}",
         }
 
-        for name, content in contents.items():
+        for (name, content) in contents.items():
             (artifacts / name).write_bytes(content)
 
-        self.receipts = "".join(f"QUALIFIED_SHA256 {hashlib.sha256(content).hexdigest()} {name}\n" for name, content in contents.items())
+        self.receipts = "".join(f"QUALIFIED_SHA256 {hashlib.sha256(content).hexdigest()} {name}\n" for (name, content) in contents.items())
+
         (self.inputs / "release-test.log").write_text(self.receipts)
         (self.inputs / "release-build.log").write_text("qualified build\n")
         shutil.copyfile(self.note, self.inputs / "release-notes.md")

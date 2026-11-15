@@ -89,9 +89,9 @@ class ObservedWorkerCrash(RuntimeError):
         if original is None:
             raise ValueError("Cannot classify a worker crash without an original exit observed before local interruption")
 
-        self.acknowledged, self.phase, self.owner = acknowledged, phase, owner
-        self.runner, self.native_exit = runner, original
-        self.evidence, self.cause = evidence, cause
+        (self.acknowledged, self.phase, self.owner) = (acknowledged, phase, owner)
+        (self.runner, self.native_exit) = (runner, original)
+        (self.evidence, self.cause) = (evidence, cause)
 
         super().__init__(
             f"Original worker exit observed (return code {original.returncode}); declared scientific phase: {phase}."

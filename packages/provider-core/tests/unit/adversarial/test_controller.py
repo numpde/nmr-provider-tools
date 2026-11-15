@@ -104,7 +104,7 @@ class ControllerFailureTests(unittest.IsolatedAsyncioTestCase):
         from provider_core.delivery_client import DeliveryRejected
         from provider_core.execution import ExecutionFailed
         store = LiveAttemptProbe()
-        claims, session = AttemptClaims.live(), SingleRetirementSession(store)
+        (claims, session) = (AttemptClaims.live(), SingleRetirementSession(store))
         delivery = RecordingDelivery()
         failure = DeliveryRejected("Relay acknowledgement did not match the submitted body.")
         delivery.submit = AsyncMock(side_effect=failure)

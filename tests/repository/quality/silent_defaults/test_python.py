@@ -160,7 +160,7 @@ def has_same_target_fallback_assignment(
     primary_predicate: Callable[[ast.AST], bool],
     fallback_predicate: Callable[[ast.AST], bool],
 ) -> bool:
-    for target, primary_value in primary_values.items():
+    for (target, primary_value) in primary_values.items():
         fallback_value = fallback_values.get(target)
 
         if fallback_value is not None and primary_predicate(primary_value) and fallback_predicate(fallback_value):
@@ -366,6 +366,7 @@ def is_exception_fallback_handler(node: ast.AST) -> bool:
 
 def source_snippet(source: str, node: ast.AST) -> str:
     segment = ast.get_source_segment(source, node)
+
     return f"<{type(node).__name__}>" if segment is None else " ".join(segment.split())
 
 
@@ -374,13 +375,13 @@ def _default_candidates(tree: ast.AST) -> Iterator[tuple[ast.AST, str]]:
 
     for node in ast.walk(tree):
         if is_silent_default(node):
-            yield node, "python silent default"
+            yield (node, "python silent default")
 
         for default in function_default_nodes(node):
-            yield default, "python function default"
+            yield (default, "python function default")
 
         if is_exception_fallback_handler(node):
-            yield node, "python exception fallback"
+            yield (node, "python exception fallback")
 
 
 def _default_finding(path: Path, source: str, node: ast.AST, label: str) -> str:
@@ -426,7 +427,8 @@ def _boolean_env_or_guards(node: ast.AST) -> Iterator[ast.AST]:
 def python_default_findings(path: Path) -> list[str]:
     source = path.read_text(encoding="utf-8")
     tree = ast.parse(source, filename=str(path))
-    return [_default_finding(path, source, node, label) for node, label in _default_candidates(tree)]
+
+    return [_default_finding(path, source, node, label) for (node, label) in _default_candidates(tree)]
 
 
 def _discarded_env_pop_contract(statement: ast.stmt) -> bool:
@@ -616,7 +618,7 @@ def python_operator_default_findings(path: Path) -> list[str]:
         (key, value, node)
         for node in ast.walk(tree)
         if isinstance(node, ast.Dict)
-        for key, value in zip(node.keys, node.values, strict=True)
+        for (key, value) in zip(node.keys, node.values, strict=True)
     ]
 
     handlers = [(handler, owner) for owner in ast.walk(tree) if isinstance(owner, ast.Try) for handler in owner.handlers]
@@ -628,12 +630,12 @@ def python_operator_default_findings(path: Path) -> list[str]:
         ):
             continue
 
-        prefix, separator, reason = token.string.partition(" -- ")
+        (prefix, separator, reason) = token.string.partition(" -- ")
         next_line = token.end[0] + 1
         following = [node for node in statements if node.lineno == next_line]
         following_loops = [node for node in following if isinstance(node, ast.For)]
-        following_handlers = [(handler, owner) for handler, owner in handlers if handler.lineno == next_line]
-        following_entries = [(key, value, owner) for key, value, owner in entries if key is not None and key.lineno == next_line]
+        following_handlers = [(handler, owner) for (handler, owner) in handlers if handler.lineno == next_line]
+        following_entries = [(key, value, owner) for (key, value, owner) in entries if key is not None and key.lineno == next_line]
         protected = None
 
         if prefix == "# silent-defaults: allow-exception-outcome":
@@ -649,12 +651,12 @@ def python_operator_default_findings(path: Path) -> list[str]:
         if prefix == "# silent-defaults: allow-lambda-body":
             # This placement owns one callable result, never its signature or container.
             following = [body for body in lambda_bodies if body.lineno == next_line]
-            selected = [(node, label) for node, label in candidates if len(following) == 1 and node in ast.walk(following[0])]
+            selected = [(node, label) for (node, label) in candidates if len(following) == 1 and node in ast.walk(following[0])]
 
             boundary = (
                 len(following) == 1
                 and (following[0], "python silent default") in selected
-                and all(label == "python silent default" for _, label in selected)
+                and all(label == "python silent default" for (_, label) in selected)
                 and not any(
                     isinstance(child, ast.Lambda) or is_argparse_default(child) or is_argparse_optional_positional(child)
                     for child in ast.walk(following[0])
@@ -663,7 +665,7 @@ def python_operator_default_findings(path: Path) -> list[str]:
         elif prefix == "# silent-defaults: allow-pop-default":
             selected = [
                 (node, label)
-                for node, label in candidates
+                for (node, label) in candidates
                 if len(following) == 1 and isinstance(following[0], ast.Expr) and node is following[0].value
             ]
 
@@ -671,30 +673,30 @@ def python_operator_default_findings(path: Path) -> list[str]:
         elif following_handlers:
             # ExceptHandler is not ast.stmt. Its header owns this placement,
             # including a same-line Pass; no body or sibling is accepted.
-            following = [handler for handler, _owner in following_handlers]
-            selected = [(node, label) for node, label in candidates if node in following]
+            following = [handler for (handler, _owner) in following_handlers]
+            selected = [(node, label) for (node, label) in candidates if node in following]
             boundary = len(following_handlers) == len(selected) == 1
 
             if boundary:
                 protected = following_handlers[0][1]
         elif not following and following_entries:
-            following = [key for key, _value, _owner in following_entries]
+            following = [key for (key, _value, _owner) in following_entries]
 
             selected = [
                 (node, label)
-                for node, label in candidates
-                if any(node in ast.walk(value) for _key, value, _owner in following_entries)
+                for (node, label) in candidates
+                if any(node in ast.walk(value) for (_key, value, _owner) in following_entries)
             ]
 
-            outermost = [node for node, _ in selected if all(other in ast.walk(node) for other, _ in selected)]
+            outermost = [node for (node, _) in selected if all(other in ast.walk(node) for (other, _) in selected)]
 
             boundary = (
                 len(following_entries) == 1
                 and all(isinstance(key, ast.Constant) for key in following_entries[0][2].keys)
                 and len(outermost) == 1
-                and all(label == "python silent default" for _, label in selected)
+                and all(label == "python silent default" for (_, label) in selected)
                 and not any(
-                    isinstance(child, ast.Lambda) for _key, value, _owner in following_entries for child in ast.walk(value)
+                    isinstance(child, ast.Lambda) for (_key, value, _owner) in following_entries for child in ast.walk(value)
                 )
             )
         elif len(following_loops) == 1:
@@ -702,18 +704,18 @@ def python_operator_default_findings(path: Path) -> list[str]:
             # Targets, body and else suites retain their independent findings.
             following = following_loops
             expression = following[0].iter
-            selected = [(node, label) for node, label in candidates if node in ast.walk(expression)]
-            outermost = [node for node, _ in selected if all(other in ast.walk(node) for other, _ in selected)]
+            selected = [(node, label) for (node, label) in candidates if node in ast.walk(expression)]
+            outermost = [node for (node, _) in selected if all(other in ast.walk(node) for (other, _) in selected)]
 
             boundary = (
                 expression.end_lineno == next_line
                 and len(outermost) == 1
-                and all(label == "python silent default" for _, label in selected)
+                and all(label == "python silent default" for (_, label) in selected)
                 and not any(isinstance(child, ast.Lambda) for child in ast.walk(expression))
             )
         elif len(following) == 1 and isinstance(following[0], ast.FunctionDef | ast.AsyncFunctionDef):
             defaults = function_default_nodes(following[0])
-            selected = [(node, label) for node, label in candidates if any(node in ast.walk(default) for default in defaults)]
+            selected = [(node, label) for (node, label) in candidates if any(node in ast.walk(default) for default in defaults)]
             boundary = bool(defaults)
         elif len(following) == 1 and (
             isinstance(following[0], ast.With | ast.Assign | ast.Return)
@@ -728,21 +730,21 @@ def python_operator_default_findings(path: Path) -> list[str]:
             )
 
             selected = [
-                (node, label) for node, label in candidates if any(node in ast.walk(expression) for expression in expressions)
+                (node, label) for (node, label) in candidates if any(node in ast.walk(expression) for expression in expressions)
             ]
 
-            outermost = [node for node, _ in selected if all(other in ast.walk(node) for other, _ in selected)]
+            outermost = [node for (node, _) in selected if all(other in ast.walk(node) for (other, _) in selected)]
 
             boundary = (
                 len(outermost) == 1
-                and all(label == "python silent default" for _, label in selected)
+                and all(label == "python silent default" for (_, label) in selected)
                 and not any(isinstance(child, ast.Lambda) for expression in expressions for child in ast.walk(expression))
             )
         else:
-            selected = [(node, label) for node, label in candidates if node.lineno == next_line]
+            selected = [(node, label) for (node, label) in candidates if node.lineno == next_line]
             # Nested defaults may express one contract; sibling expressions do
             # not. Strict candidates must still pass their own gate.
-            outermost = [node for node, _ in selected if all(other in ast.walk(node) for other, _ in selected)]
+            outermost = [node for (node, _) in selected if all(other in ast.walk(node) for (other, _) in selected)]
 
             boundary = (
                 len(following) == 1
@@ -751,7 +753,7 @@ def python_operator_default_findings(path: Path) -> list[str]:
                     or (isinstance(following[0], ast.If) and following[0].test.end_lineno == next_line)
                 )
                 and len(outermost) == 1
-                and all(node.end_lineno == next_line for node, _ in selected)
+                and all(node.end_lineno == next_line for (node, _) in selected)
             )
 
         if (
@@ -771,10 +773,10 @@ def python_operator_default_findings(path: Path) -> list[str]:
             # every ordinary contract keeps the shared operator/header guards.
             and (
                 prefix == "# silent-defaults: allow-pop-default"
-                or all(_contract_candidate(node, label, protected=protected) for node, label in selected)
+                or all(_contract_candidate(node, label, protected=protected) for (node, label) in selected)
             )
         ):
-            accepted.update(node for node, _ in selected)
+            accepted.update(node for (node, _) in selected)
         else:
             if prefix == "# silent-defaults: allow-lambda-body":
                 requirement = "an explanation and one immediate generic lambda result at the same column, without nested lambdas or operator inputs"
@@ -785,7 +787,7 @@ def python_operator_default_findings(path: Path) -> list[str]:
 
     findings.extend(
         _default_finding(path, source, node, label)
-        for node, label in candidates
+        for (node, label) in candidates
         if node not in accepted
         and not (
             label == "python silent default"

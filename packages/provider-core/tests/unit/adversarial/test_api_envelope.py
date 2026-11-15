@@ -31,7 +31,7 @@ class ApiEnvelopeTests(unittest.IsolatedAsyncioTestCase):
         with self.assertRaises(TypeError):
             ProviderAPI(self.identity(), transport)
 
-        for topology, error_type in ((None, TypeError), ("run", ValueError), ("PRIVATE", ValueError), (True, TypeError), ([], TypeError)):
+        for (topology, error_type) in ((None, TypeError), ("run", ValueError), ("PRIVATE", ValueError), (True, TypeError), ([], TypeError)):
             with self.subTest(topology_type=type(topology).__name__), self.assertRaises(error_type) as caught:
                 ProviderAPI(self.identity(), transport, expected_topology=topology)
 
@@ -59,7 +59,7 @@ class ApiEnvelopeTests(unittest.IsolatedAsyncioTestCase):
                     self.assertEqual(len(transport.calls), 1)
 
     async def test_bad_body_keeps_header_correlation_but_ambiguous_ids_are_never_trusted(self):
-        for ids, expected in (
+        for (ids, expected) in (
             ((CORRELATION,), "request:header"),
             ((), None),
             (((b"X-Request-ID", b"PRIVATE invalid"),), None),
@@ -114,7 +114,7 @@ class ApiEnvelopeTests(unittest.IsolatedAsyncioTestCase):
             }
         ).encode()
 
-        for topology, request_id, known in (
+        for (topology, request_id, known) in (
             (b"dev-local", b"request:body", True),
             (b"dev-local", b"request:other", False),
             (b"web", b"request:body", False),

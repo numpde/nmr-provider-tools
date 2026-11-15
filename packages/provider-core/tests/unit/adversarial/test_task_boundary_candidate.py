@@ -70,7 +70,7 @@ class TaskBoundaryCandidateTests(unittest.TestCase):
             ("graph-controller-delivery", "cancel"),
         )
 
-        for stage, variant in cases:
+        for (stage, variant) in cases:
             with self.subTest(stage=stage, variant=variant):
                 completed = subprocess.run(
                     [sys.executable, "-I", "-B", str(witness), stage, variant],

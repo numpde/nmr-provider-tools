@@ -71,7 +71,8 @@ async def live_attempt():
     claim.begin(owner)
     claim.bind_attempt(scope(), ATTEMPT_REF, owner=owner)
     claim.finish(owner)
-    return probe, acknowledged, claim
+
+    return (probe, acknowledged, claim)
 
 
 def live_executor(api, probe, claim, session, **settings):
@@ -79,6 +80,7 @@ def live_executor(api, probe, claim, session, **settings):
 
     executor = AttemptExecutor.live(api, claim, session, scope=probe.scope, **settings)
     probe.executor = executor
+
     return executor
 
 
@@ -92,6 +94,7 @@ def live_controller(api, probe, claims, session, **settings):
     )
 
     probe.controller = controller
+
     return controller
 
 
@@ -119,6 +122,7 @@ class Session:
             raise AssertionError("foreign prepared handle")
 
         self.events.append(("execute", self.probe.records[0]))
+
         return self.outcome
 
     async def retire(self):
@@ -145,11 +149,13 @@ class PausedSession(Session):
     async def prepare(self, acknowledged, instructions, *, report_condition):
         prepared = await super().prepare(acknowledged, instructions, report_condition=report_condition)
         await self._pause("prepare")
+
         return prepared
 
     async def execute(self, prepared, *, report_condition):
         outcome = await super().execute(prepared, report_condition=report_condition)
         await self._pause("execute")
+
         return outcome
 
 

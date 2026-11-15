@@ -16,6 +16,7 @@ from provider_core.lifetime import LifetimeRefused, ProviderLifetime
 class ProviderLifetimeTests(unittest.IsolatedAsyncioTestCase):
     def setUp(self):
         self.directory = tempfile.TemporaryDirectory()
+
         self.addCleanup(self.directory.cleanup)
         self.root = Path(self.directory.name)
 
@@ -26,6 +27,7 @@ class ProviderLifetimeTests(unittest.IsolatedAsyncioTestCase):
         ], capture_output=True, text=True, timeout=5)
 
         self.assertEqual(0, result.returncode, result.stderr)
+
         return result.stdout.strip()
 
     async def test_live_lock_excludes_another_owner_without_creating_database(self):

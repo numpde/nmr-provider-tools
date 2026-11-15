@@ -41,7 +41,7 @@ _ENV = "PYTHONDONTWRITEBYTECODE"
 def production_files(root):
     files = []
 
-    for directory, children, names in os.walk(root):
+    for (directory, children, names) in os.walk(root):
         children[:] = [name for name in children if name not in _SKIP and not name.startswith(".")
                        and not (Path(directory) / name).is_symlink()]
 
@@ -124,27 +124,27 @@ def _needs_flag(arguments, env_enabled=False):
 
 
 def _logical_lines(source):
-    pending, first = "", 1
+    (pending, first) = ("", 1)
 
-    for number, line in enumerate(source.splitlines(), 1):
+    for (number, line) in enumerate(source.splitlines(), 1):
         if not pending:
             first = number
 
         if line.endswith("\\"):
             pending += line[:-1] + " "
         else:
-            yield first, pending + line
+            yield (first, pending + line)
             pending = ""
 
     if pending:
-        yield first, pending
+        yield (first, pending)
 
 
 def shell_findings(path, source):
     findings = []
-    global_env, preface = False, path.name not in {"Makefile", "GNUmakefile"} and path.suffix != ".mk"
+    (global_env, preface) = (False, path.name not in {"Makefile", "GNUmakefile"} and path.suffix != ".mk")
 
-    for number, line in _logical_lines(source):
+    for (number, line) in _logical_lines(source):
         if preface and re.fullmatch(r"export PYTHONDONTWRITEBYTECODE=['\"]?1['\"]?", line):
             global_env = True
             continue
@@ -163,7 +163,7 @@ def shell_findings(path, source):
         if not tokens or tokens[0].lstrip("@") in {"echo", "printf"}:
             continue
 
-        for index, token in enumerate(tokens):
+        for (index, token) in enumerate(tokens):
             if not _python(token.lstrip("@")):
                 continue
 
@@ -186,7 +186,7 @@ def shell_findings(path, source):
             prefix = tokens[:index]
             enabled = global_env and not entrypoint
 
-            for position, value in enumerate(prefix):
+            for (position, value) in enumerate(prefix):
                 if value in {"-i", "--ignore-environment", "--unset=" + _ENV}:
                     enabled = False
                 elif value == "-u" and position + 1 < len(prefix) and prefix[position + 1] == _ENV:
@@ -223,7 +223,7 @@ def _env_enabled(node):
         return _env_enabled(node.right)  # Only a literal right-hand override wins.
 
     if isinstance(node, ast.Dict):
-        for key, value in reversed(list(zip(node.keys, node.values))):
+        for (key, value) in reversed(list(zip(node.keys, node.values))):
             if key is None:
                 return False  # A later dictionary expansion may override it.
 

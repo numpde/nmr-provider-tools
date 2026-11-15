@@ -19,7 +19,7 @@ class CleanupFaultSequenceTests(unittest.IsolatedAsyncioTestCase):
         for seed in range(16):
             yields = random.Random(seed).randrange(9)
             cancelled = bool(seed % 2)
-            release, entered = asyncio.Event(), asyncio.Event()
+            (release, entered) = (asyncio.Event(), asyncio.Event())
 
             class CooperativeClose(Stream):
                 async def aclose(self):

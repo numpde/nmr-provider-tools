@@ -46,6 +46,7 @@ class Client:
 
     async def handle_async_request(self, request):
         self.task = asyncio.current_task()
+
         return self.response
 
     async def aclose(self):
@@ -91,7 +92,7 @@ class TransportDecodedTests(unittest.IsolatedAsyncioTestCase):
         self.assertTrue(client.closed and client.stream.closed and transport.retirement_confirmed)
 
     async def test_status_selects_both_caps_from_actual_received_head(self):
-        for status, length, passes in ((201, 12, True), (200, 12, False), (503, 12, False), (503, 4, True)):
+        for (status, length, passes) in ((201, 12, True), (200, 12, False), (503, 12, False), (503, 4, True)):
             with self.subTest(status=status, length=length):
                 client = Client([b'x'*length], status=status)
                 transport = self.transport()
@@ -289,7 +290,7 @@ class TransportDecodedTests(unittest.IsolatedAsyncioTestCase):
         bad = ((0, ValueError), (-1, ValueError), (True, TypeError), (1.0, TypeError), ('5', TypeError), (2**100, ValueError))
 
         with patch.object(m.httpcore, 'AsyncConnectionPool', side_effect=AssertionError('I/O dispatched')):
-            for value, error_type in bad:
+            for (value, error_type) in bad:
                 for field in ('maximum_bytes', 'error_maximum_bytes'):
                     kwargs = dict(maximum_bytes=10, error_maximum_bytes=10)
                     kwargs[field] = value
@@ -297,7 +298,7 @@ class TransportDecodedTests(unittest.IsolatedAsyncioTestCase):
                     with self.subTest(field=field, value=value), self.assertRaises(error_type):
                         await transport.exchange_decoded(self.request(), **kwargs)
 
-            for status, error_type in ((True, TypeError), (99, ValueError), (600, ValueError), ('200', TypeError), (200.0, TypeError)):
+            for (status, error_type) in ((True, TypeError), (99, ValueError), (600, ValueError), ('200', TypeError), (200.0, TypeError)):
                 with self.subTest(status=status), self.assertRaises(error_type):
                     await transport.exchange_decoded(self.request(), maximum_bytes=10, error_maximum_bytes=10, success_status=status)
 

@@ -42,7 +42,9 @@ def recording_endpoint(identifier, *replies):
 
     async def complete(messages, tools):
         model.requests.append(deepcopy(messages))
+
         return await original(messages, tools)
 
     model.complete = AsyncMock(side_effect=complete)
+
     return model

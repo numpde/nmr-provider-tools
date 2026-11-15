@@ -77,7 +77,7 @@ def configured(claims, selected, reference, failure, *, source=False, transport=
         poll_seconds=0.1, task_settle_seconds=0.1, observation_recovery=recovery,
     )
 
-    return controller, session, delivery, transport
+    return (controller, session, delivery, transport)
 
 
 class HeldFailureTests(unittest.IsolatedAsyncioTestCase):
@@ -94,10 +94,10 @@ class HeldFailureTests(unittest.IsolatedAsyncioTestCase):
         self.assertIs(caught.exception, failure)
 
     async def test_adapter_cannot_authorize_release_with_its_own_cancelled_observation(self):
-        claims, selected = AttemptClaims.live(), pending("a")
+        (claims, selected) = (AttemptClaims.live(), pending("a"))
         reference = "execution_attempt:sha256:" + "a" * 64
         forged = ExecutionStopped(AttemptObservation(reference, selected.input.job_ref, "in_progress", "cancelled"))
-        controller, session, delivery, _ = configured(claims, selected, reference, forged, source=True)
+        (controller, session, delivery, _) = configured(claims, selected, reference, forged, source=True)
 
         failure = await self.failed_run(controller, selected)
         self.assertIs(failure.cause.cause, forged)
@@ -110,11 +110,11 @@ class HeldFailureTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual([], delivery.items)
 
     async def test_server_revocation_after_scientific_entry_keeps_an_unreturned_outcome_owned(self):
-        claims, selected = AttemptClaims.live(), pending("a")
+        (claims, selected) = (AttemptClaims.live(), pending("a"))
         reference = "execution_attempt:sha256:" + "a" * 64
         revoked = reply(observation(job_ref=selected.input.job_ref, execution_attempt_ref=reference, job_state="cancelled"))
         transport = Transport(*wire_replies(selected, reference)[:7], revoked)
-        probe, delivery = LiveAttemptProbe(), RecordingDelivery()
+        (probe, delivery) = (LiveAttemptProbe(), RecordingDelivery())
         session = PausedSession(probe, "execute")
 
         controller = live_controller(
@@ -145,7 +145,7 @@ class HeldFailureTests(unittest.IsolatedAsyncioTestCase):
             selected = pending(suffix)
             reference = "execution_attempt:sha256:" + suffix * 64
             unresolved = AnalysisOutcomeUnresolved("PRIVATE_BINDING_DETAIL")
-            controller, session, delivery, transport = configured(claims, selected, reference, unresolved)
+            (controller, session, delivery, transport) = configured(claims, selected, reference, unresolved)
             failure = await self.failed_run(controller, selected)
             self.assertIs(controller.require_held_failure(selected, failure), failure)
             self.assertIs(failure.cause.cause, unresolved)
@@ -173,14 +173,14 @@ class HeldFailureTests(unittest.IsolatedAsyncioTestCase):
         with self.assertRaises(LiveCapacityFull):
             claims.claim_live(pending("c"), lifecycle_owner=LiveAttemptProbe())
 
-        first, second = runs
+        (first, second) = runs
 
-        for owner, selected, foreign in ((first[0], first[1], second[2]),
+        for (owner, selected, foreign) in ((first[0], first[1], second[2]),
                                          (first[0], second[1], first[2])):
             with self.assertRaises(ControllerRefused):
                 owner.require_held_failure(selected, foreign)
 
-        for controller, selected, failure, transport in runs:
+        for (controller, selected, failure, transport) in runs:
             calls = len(transport.calls)
             self.assertIs(controller.require_held_failure(selected, failure), failure)
             self.assertEqual(len(transport.calls), calls)
@@ -190,7 +190,7 @@ class HeldFailureTests(unittest.IsolatedAsyncioTestCase):
         claims = AttemptClaims.live()
         selected = pending("a")
 
-        controller, _, _, _ = configured(claims, selected, "execution_attempt:sha256:" + "a" * 64,
+        (controller, _, _, _) = configured(claims, selected, "execution_attempt:sha256:" + "a" * 64,
                                           AnalysisOutcomeUnresolved("No outcome"))
 
         failure = await self.failed_run(controller, selected)
@@ -216,7 +216,7 @@ class HeldFailureTests(unittest.IsolatedAsyncioTestCase):
     async def test_same_job_with_changed_key_input_or_scope_is_not_the_selected_start(self):
         selected = pending("a")
 
-        controller, _, _, transport = configured(AttemptClaims.live(), selected,
+        (controller, _, _, transport) = configured(AttemptClaims.live(), selected,
             "execution_attempt:sha256:" + "a" * 64, AnalysisOutcomeUnresolved("No outcome"))
 
         failure = await self.failed_run(controller, selected)
@@ -238,7 +238,7 @@ class HeldFailureTests(unittest.IsolatedAsyncioTestCase):
     async def test_foreign_loop_refusal_keeps_both_original_and_ownership_failures(self):
         selected = pending("a")
 
-        controller, _, _, _ = configured(AttemptClaims.live(), selected,
+        (controller, _, _, _) = configured(AttemptClaims.live(), selected,
             "execution_attempt:sha256:" + "a" * 64, AnalysisOutcomeUnresolved("PRIVATE_BINDING_DETAIL"))
 
         failure = await self.failed_run(controller, selected)
@@ -259,7 +259,7 @@ class HeldFailureTests(unittest.IsolatedAsyncioTestCase):
     async def test_historical_cleanup_failure_still_blocks_after_physical_readiness_recovers(self):
         selected = pending("a")
 
-        controller, session, _, _ = configured(AttemptClaims.live(), selected,
+        (controller, session, _, _) = configured(AttemptClaims.live(), selected,
             "execution_attempt:sha256:" + "a" * 64, AnalysisOutcomeUnresolved("No outcome"))
 
         cleanup = RuntimeError("PRIVATE_CLEANUP")
@@ -279,7 +279,7 @@ class HeldFailureTests(unittest.IsolatedAsyncioTestCase):
             ("interruption", (), asyncio.CancelledError("source cancellation"), False),
         )
 
-        for condition, cleanup, interruption, admitted in cases:
+        for (condition, cleanup, interruption, admitted) in cases:
             with self.subTest(condition=condition):
                 outage = ApiFailure("read Upload", "dependency unavailable")
 
@@ -288,7 +288,7 @@ class HeldFailureTests(unittest.IsolatedAsyncioTestCase):
 
                 selected = pending("a")
 
-                controller, _, delivery, _ = configured(AttemptClaims.live(), selected,
+                (controller, _, delivery, _) = configured(AttemptClaims.live(), selected,
                     "execution_attempt:sha256:" + "a" * 64, source, source=True)
 
                 failure = await self.failed_run(controller, selected)
@@ -326,7 +326,7 @@ class HeldFailureTests(unittest.IsolatedAsyncioTestCase):
                 await source_api.retire()
                 await store.retire()
 
-        session, delivery = AcquiringSession(probe), RecordingDelivery()
+        (session, delivery) = (AcquiringSession(probe), RecordingDelivery())
         claims = AttemptClaims.live()
 
         controller = live_controller(
@@ -363,7 +363,7 @@ class HeldFailureTests(unittest.IsolatedAsyncioTestCase):
 
         recovery = ObservationRecovery(0.1, 0.01, Mock(), Mock())
 
-        controller, session, delivery, _ = configured(AttemptClaims.live(), selected, reference,
+        (controller, session, delivery, _) = configured(AttemptClaims.live(), selected, reference,
             AnalysisOutcomeUnresolved("must not execute"), transport=transport, recovery=recovery)
 
         failure = await self.failed_run(controller, selected)
@@ -400,7 +400,7 @@ class HeldFailureTests(unittest.IsolatedAsyncioTestCase):
         selected = pending("a")
         reference = "execution_attempt:sha256:" + "a" * 64
         probe = LiveAttemptProbe()
-        session, delivery = Session(probe), RecordingDelivery()
+        (session, delivery) = (Session(probe), RecordingDelivery())
         transport = Transport()
 
         transport.replies = chain(
@@ -436,7 +436,7 @@ class HeldFailureTests(unittest.IsolatedAsyncioTestCase):
     async def test_gap_retirement_cannot_hide_nested_transport_cleanup_failure(self):
         nested = OSError(13, "PRIVATE_TRANSPORT_CLEANUP")
 
-        for with_cleanup, cleanup in ((False, ()), (True, (nested,))):
+        for (with_cleanup, cleanup) in ((False, ()), (True, (nested,))):
             with self.subTest(with_cleanup=with_cleanup):
                 exchange = io_failure("Scripted interrupted read", primary=TimeoutError(), stage="read",
                                       cleanup_failures=cleanup)
@@ -447,8 +447,9 @@ class HeldFailureTests(unittest.IsolatedAsyncioTestCase):
                     async def exchange(self, request, *, maximum_bytes, owner=None):
                         if request.method == "GET":
                             self.calls.append((request, maximum_bytes))
-                            self.pending_owner, self.retirement_confirmed = owner, False
+                            (self.pending_owner, self.retirement_confirmed) = (owner, False)
                             self.last_failure = exchange
+
                             raise exchange
 
                         return await super().exchange(request, maximum_bytes=maximum_bytes, owner=owner)
@@ -460,7 +461,7 @@ class HeldFailureTests(unittest.IsolatedAsyncioTestCase):
                             try:
                                 await asyncio.Event().wait()
                             finally:
-                                self.pending_owner, self.retirement_confirmed = None, True
+                                (self.pending_owner, self.retirement_confirmed) = (None, True)
                         else:
                             await super().retire(owner=owner)
 
@@ -471,7 +472,7 @@ class HeldFailureTests(unittest.IsolatedAsyncioTestCase):
                     job_ref=selected.input.job_ref, execution_attempt_ref=reference,
                 )))
 
-                controller, _, delivery, _ = configured(
+                (controller, _, delivery, _) = configured(
                     AttemptClaims.live(), selected, reference, AnalysisOutcomeUnresolved("must not execute"),
                     transport=transport, recovery=ObservationRecovery(0.1, 0.01, Mock(), Mock()),
                 )
@@ -496,13 +497,13 @@ class HeldFailureTests(unittest.IsolatedAsyncioTestCase):
     async def test_unrelated_control_interruption_and_pending_outcome_cannot_continue(self):
         selected = pending("a")
 
-        controller, session, _, _ = configured(AttemptClaims.live(), selected,
+        (controller, session, _, _) = configured(AttemptClaims.live(), selected,
             "execution_attempt:sha256:" + "a" * 64, AnalysisOutcomeUnresolved("No outcome"))
 
         failure = await self.failed_run(controller, selected)
         execution = failure.cause
 
-        for field, value in (("api_failure", ApiFailure("unrelated write", "unconfirmed")),
+        for (field, value) in (("api_failure", ApiFailure("unrelated write", "unconfirmed")),
                              ("interruption_cause", asyncio.CancelledError("real interruption"))):
             original = getattr(execution, field)
             setattr(execution, field, value)
@@ -536,7 +537,7 @@ class HeldFailureTests(unittest.IsolatedAsyncioTestCase):
 
         transport = LateRead(*wire_replies(selected, reference))
 
-        controller, session, delivery, _ = configured(
+        (controller, session, delivery, _) = configured(
             AttemptClaims.live(), selected, reference, AnalysisOutcomeUnresolved("must not execute"),
             transport=transport, recovery=ObservationRecovery(0.1, 0.01, Mock(), Mock()),
         )
@@ -555,7 +556,7 @@ class HeldFailureTests(unittest.IsolatedAsyncioTestCase):
         selected = pending("a")
         reference = "execution_attempt:sha256:" + "a" * 64
         probe = LiveAttemptProbe()
-        session, delivery = PausedSession(probe, "execute"), RecordingDelivery()
+        (session, delivery) = (PausedSession(probe, "execute"), RecordingDelivery())
         transport = Transport()
 
         transport.replies = chain(wire_replies(selected, reference), repeat(reply(observation(
@@ -608,7 +609,7 @@ class HeldFailureTests(unittest.IsolatedAsyncioTestCase):
             with self.subTest(kind=type(leaf).__name__):
                 selected = pending("a")
 
-                controller, _, _, _ = configured(AttemptClaims.live(), selected,
+                (controller, _, _, _) = configured(AttemptClaims.live(), selected,
                     "execution_attempt:sha256:" + "a" * 64, leaf)
 
                 failure = await self.failed_run(controller, selected)

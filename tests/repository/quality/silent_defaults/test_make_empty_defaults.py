@@ -45,7 +45,7 @@ def make_function_default_findings():
     """Retain raw Make fallback matches except complete literal origin gates."""
     findings = []
 
-    for source, line_number, line in _make_surface_lines():
+    for (source, line_number, line) in _make_surface_lines():
         if is_literal_make_origin_gate(source, line):
             continue
 
@@ -101,7 +101,7 @@ class MakeEmptyDefaultsTest(unittest.TestCase):
     def test_make_surfaces_do_not_use_conditional_assignment_defaults(self) -> None:
         findings: list[str] = []
 
-        for source, line_number, line in _make_surface_lines():
+        for (source, line_number, line) in _make_surface_lines():
             match = MAKE_DEFAULT_ASSIGNMENT_RE.match(line)
 
             if match:
@@ -115,7 +115,7 @@ class MakeEmptyDefaultsTest(unittest.TestCase):
     def test_make_surfaces_do_not_assign_defaults_after_empty_checks(self) -> None:
         findings: list[str] = []
 
-        for source, line_number, line in _make_surface_lines():
+        for (source, line_number, line) in _make_surface_lines():
             match = MAKE_EMPTY_CHECK_ASSIGNMENT_RE.search(line)
 
             if match and match.group("checked") == match.group("assigned"):
@@ -126,7 +126,7 @@ class MakeEmptyDefaultsTest(unittest.TestCase):
     def test_make_surfaces_do_not_use_target_specific_variables(self) -> None:
         findings: list[str] = []
 
-        for source, line_number, line in _make_surface_lines():
+        for (source, line_number, line) in _make_surface_lines():
             if line.startswith(("\t", " ")):
                 continue
 

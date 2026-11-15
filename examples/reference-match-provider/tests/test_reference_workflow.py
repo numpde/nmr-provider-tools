@@ -54,12 +54,12 @@ class ReferenceWorkflowTests(unittest.IsolatedAsyncioTestCase):
             library = binding.contribution
 
             async with asyncio.timeout(15):
-                for values, expected in (
+                for (values, expected) in (
                     ((3, 4, 0, 0), "pattern-a"),
                     ((0, 0, 1, 1), "pattern-b"),
                 ):
                     analysis = execution_host.open_analysis(allocations=frozenset({binding.allocation}))
-                    reservation, = analysis.reservations
+                    (reservation,) = analysis.reservations
 
                     operation = analysis.submit_method(
                         method=binding.contribution.match,
@@ -83,7 +83,7 @@ class ReferenceWorkflowTests(unittest.IsolatedAsyncioTestCase):
                 first_index = match.call_args_list[0].kwargs["index"]
                 self.assertIs(first_index, match.call_args_list[1].kwargs["index"])
 
-                for operation, result, payload in operations:
+                for (operation, result, payload) in operations:
                     self.assertEqual(payload, await operation.read_result(result))
                     received = []
 
@@ -128,6 +128,7 @@ class ReferenceWorkflowTests(unittest.IsolatedAsyncioTestCase):
                         # Report acceptance is independent of the failed query's
                         # cleanup. Do not delay it behind that cleanup's wait.
                         self.assertTrue(expr=bool(output.getvalue()), msg="Deliver the prior report before failed-query cleanup")
+
                         return original_close()
 
                     analysis.close = close
@@ -135,6 +136,7 @@ class ReferenceWorkflowTests(unittest.IsolatedAsyncioTestCase):
                 return analysis
 
             owner.open_analysis = open_analysis
+
             return owner
 
         with (

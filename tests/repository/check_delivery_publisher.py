@@ -16,7 +16,7 @@ from tools.wheelhouse import read_json
 
 
 pool = Path("/wheelhouse")
-release, _ = release_inputs(Path("/release.json"), Path("/core-runtime.lock"))
+(release, _) = release_inputs(Path("/release.json"), Path("/core-runtime.lock"))
 tool = read_json(Path("/wheelhouse-tool-release.json"))
 
 if not tool_present(pool, tool):

@@ -33,7 +33,7 @@ class MakeOriginGateTests(unittest.TestCase):
             with patch.object(vote, "_make_surface_lines", return_value=[(source, 1, line)]):
                 vote_findings = vote.make_function_default_findings()
 
-            return dapp_findings, vote_findings
+            return (dapp_findings, vote_findings)
 
     def test_complete_origin_gates_are_classified_without_weakening_raw_matchers(self):
         expression = "$(if $(filter command line,$(origin PROFILE)),$(value PROFILE))"
@@ -75,7 +75,7 @@ class MakeOriginGateTests(unittest.TestCase):
         for line in lines:
             with self.subTest(line=line):
                 self.assertFalse(is_literal_make_origin_gate("Makefile", line))
-                dapp_findings, vote_findings = self.findings_from_both_collectors("Makefile", line)
+                (dapp_findings, vote_findings) = self.findings_from_both_collectors("Makefile", line)
                 self.assertTrue(dapp_findings)
                 self.assertTrue(vote_findings)
 
@@ -85,7 +85,7 @@ class MakeOriginGateTests(unittest.TestCase):
         for source in ("host/tools/runner.sh", "tools/runner.py", "containers/Dockerfile"):
             with self.subTest(source=source):
                 self.assertFalse(is_literal_make_origin_gate(source, line))
-                dapp_findings, vote_findings = self.findings_from_both_collectors(source, line)
+                (dapp_findings, vote_findings) = self.findings_from_both_collectors(source, line)
                 self.assertTrue(dapp_findings)
                 self.assertTrue(vote_findings)
 

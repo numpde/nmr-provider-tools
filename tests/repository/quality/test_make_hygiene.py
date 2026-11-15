@@ -56,7 +56,7 @@ class RepositoryHygieneTest(unittest.TestCase):
         findings = []
 
         for path in iter_repo_text_files():
-            for line_number, line in enumerate(read_text(path).splitlines(), start=1):
+            for (line_number, line) in enumerate(read_text(path).splitlines(), start=1):
                 if any(pattern.search(line) for pattern in SECRET_PATTERNS):
                     findings.append(f"{path}:{line_number}: secret pattern")
 
@@ -292,7 +292,7 @@ class RepositoryHygieneTest(unittest.TestCase):
     def make_target_recipe(self, makefile: str, target: str) -> str:
         lines = makefile.splitlines()
 
-        for index, line in enumerate(lines):
+        for (index, line) in enumerate(lines):
             match = MAKE_TARGET_RE.match(line)
 
             if match is not None and target in match.group("names").split():

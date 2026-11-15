@@ -234,7 +234,7 @@ class PackageArtifactTests(unittest.TestCase):
         self.assertNotEqual(0, missing_import.returncode)
 
     def test_source_archive_refuses_traversal_links_duplicate_and_special_members_before_extraction(self):
-        for name, kind in (("provider_core-0.2.0/../../outside", tarfile.REGTYPE),
+        for (name, kind) in (("provider_core-0.2.0/../../outside", tarfile.REGTYPE),
                            ("/absolute", tarfile.REGTYPE), ("provider_core-0.2.0/link", tarfile.SYMTYPE),
                            ("provider_core-0.2.0/device", tarfile.CHRTYPE), ("provider_core-0.2.0/duplicate", "duplicate")):
             with self.subTest(name=name, kind=kind):
@@ -297,7 +297,7 @@ class PackageArtifactTests(unittest.TestCase):
                         expected | {"provider_core/delivery_client.py": b"changed"}):
             with self.subTest(payload=payload):
                 with zipfile.ZipFile(path, "w") as archive:
-                    for name, value in payload.items():
+                    for (name, value) in payload.items():
                         archive.writestr(name, value)
 
                 with self.assertRaisesRegex(ValueError, "wheel"):

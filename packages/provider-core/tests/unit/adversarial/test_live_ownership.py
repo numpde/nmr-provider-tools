@@ -29,6 +29,7 @@ class Owner:
 
 def selected(job, key):
     pending = record(key)
+
     return replace(pending, input=replace(pending.input, job_ref=job), body=start_body(job, key))
 
 
@@ -39,7 +40,7 @@ class LiveOwnershipTests(unittest.IsolatedAsyncioTestCase):
                 owner_type()
 
     async def test_same_job_or_key_excludes_other_lanes_but_unrelated_work_can_run(self):
-        claims, owner = AttemptClaims.live(), Owner()
+        (claims, owner) = (AttemptClaims.live(), Owner())
         pending = selected("job:a", "key:a")
         first = claims.claim_live(pending, lifecycle_owner=owner)
         other_lane = replace(selected("job:a", "key:b"), scope=replace(scope(), consumer_id="other"))
@@ -68,7 +69,7 @@ class LiveOwnershipTests(unittest.IsolatedAsyncioTestCase):
             LiveAttemptLimits(maximum_pending_terminal_bytes=2097152),
         ):
             with self.subTest(limits=limits):
-                claims, owner = AttemptClaims.live(limits=limits), Owner()
+                (claims, owner) = (AttemptClaims.live(limits=limits), Owner())
                 first = claims.claim_live(selected("job:a", "key:a"), lifecycle_owner=owner)
                 pending = selected("job:b", "key:b")
 
@@ -94,7 +95,7 @@ class LiveOwnershipTests(unittest.IsolatedAsyncioTestCase):
 
     async def test_ack_releases_terminal_allowance_but_not_job_or_control_ownership(self):
         claims = AttemptClaims.live(limits=LiveAttemptLimits(maximum_pending_terminal_bytes=2097152))
-        owner, borrower = Owner(), Owner()
+        (owner, borrower) = (Owner(), Owner())
         first = claims.claim_live(selected("job:a", "key:a"), lifecycle_owner=owner)
         first.begin(borrower)
 
@@ -173,7 +174,7 @@ class LiveOwnershipTests(unittest.IsolatedAsyncioTestCase):
     async def test_terminal_grants_cover_fail_and_respect_the_wire_ceiling(self):
         claims = AttemptClaims.live()
 
-        for allowance, error_type in ((True, TypeError), (0, ValueError), (16383, ValueError), (2097153, ValueError)):
+        for (allowance, error_type) in ((True, TypeError), (0, ValueError), (16383, ValueError), (2097153, ValueError)):
             with self.assertRaises(error_type):
                 claims.claim_live(record(), lifecycle_owner=Owner(), maximum_terminal_bytes=allowance)
 

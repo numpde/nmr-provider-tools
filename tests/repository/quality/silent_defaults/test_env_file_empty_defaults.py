@@ -88,7 +88,7 @@ class EnvFileEmptyDefaultsTest(unittest.TestCase):
     def test_env_files_do_not_publish_blank_assignments(self) -> None:
         findings: list[str] = []
 
-        for source, line_number, line in surface_lines(_env_files(), skip_comments=True):
+        for (source, line_number, line) in surface_lines(_env_files(), skip_comments=True):
             stripped = line.strip()
 
             if not stripped:
@@ -104,7 +104,7 @@ class EnvFileEmptyDefaultsTest(unittest.TestCase):
     def test_env_files_do_not_use_interpolation_defaults(self) -> None:
         findings: list[str] = []
 
-        for source, line_number, line in surface_lines(_env_files(), skip_comments=True):
+        for (source, line_number, line) in surface_lines(_env_files(), skip_comments=True):
             for match in INTERPOLATION_DEFAULT_RE.finditer(line):
                 findings.append(
                     f"{source}:{line_number}: "

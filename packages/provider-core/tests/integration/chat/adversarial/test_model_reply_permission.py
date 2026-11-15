@@ -33,7 +33,7 @@ class ObservedAPI(Transport):
 
     def __init__(self, job, reference):
         super().__init__()
-        self.job, self.reference = job, reference
+        (self.job, self.reference) = (job, reference)
         self.stop = {}
 
     async def exchange(self, request, *, maximum_bytes, owner=None):
@@ -71,11 +71,14 @@ class CountingScience:
 
         self.preparations += 1
         self.pending = asyncio.create_task(self._prepare())
+
         self.entered.set()
+
         return await asyncio.shield(self.pending)
 
     async def _prepare(self):
         await self.release.wait()
+
         return self.handle
 
     async def execute(self, prepared):
@@ -83,11 +86,13 @@ class CountingScience:
             raise AssertionError("Scientific execution replaced or repeated its prepared handle")
 
         self.executions += 1
+
         return AnalysisSuccess("fixture.result.v1", b"one execution", ProtectedEvidence("fixture.result.v1", b"evidence"))
 
     async def retire(self):
         if self.pending is not None and self.retired_handle is None:
             self.retired_handle = await asyncio.shield(self.pending)
+
             self.retirements += 1
 
 
@@ -119,7 +124,7 @@ class InterpretedSession:
                 raise AssertionError("Unexpected model tool")
 
             self.dispatches += 1
-            self.dispatch_at, self.dispatch_deadline = asyncio.get_running_loop().time(), not_after
+            (self.dispatch_at, self.dispatch_deadline) = (asyncio.get_running_loop().time(), not_after)
 
             try:
                 try:
@@ -138,10 +143,12 @@ class InterpretedSession:
             "name": "prepare", "parameters": {"type": "object", "properties": {}}}}]
 
         interpreted = await self.interpreter.run([], tools, dispatch)
+
         return interpreted.value
 
     async def execute(self, prepared, *, report_condition):
         report_condition.require_execution()
+
         return await self.science.execute(prepared)
 
     async def retire(self):
@@ -205,6 +212,7 @@ class ShieldedSession(InterpretedSession):
             raise
         except BaseException:
             self.observed = True
+
             raise
 
     async def retire(self):
@@ -217,6 +225,7 @@ class ShieldedSession(InterpretedSession):
             except BaseException as failure:
                 self.observed = True
                 self.retirement_failure = failure
+
                 raise
 
         self.retirement_reentered.set()
@@ -235,16 +244,17 @@ class ObservationGap:
         self.wait = asyncio.wait
 
     async def __call__(self, tasks, *args, **kwargs):
-        done, pending = await self.wait(tasks, *args, **kwargs)
+        (done, pending) = await self.wait(tasks, *args, **kwargs)
         task = getattr(self.controller.operation, "_observation_wait", None)
 
         if (not self.verified.is_set() and task in done and not task.cancelled()
                 and isinstance(task.exception(), ExecutionStopped)):
             self.stop = task.exception()
+
             self.verified.set()
             await self.resume.wait()
 
-        return done, pending
+        return (done, pending)
 
 
 class ReplyRun:
@@ -252,6 +262,7 @@ class ReplyRun:
     def __init__(self, peer, claims, job, session_type, *, transport_type=ObservedAPI,
                  start_policy=None, delivery=None, maximum_terminal_bytes=2097152):
         self.peer = peer
+
         base = record("permission:" + job)
 
         self.pending = StartPending(scope(), base.analysis_kind_ref, replace(base.input, job_ref=job),
@@ -277,7 +288,7 @@ class ReplyRun:
 
     @property
     def start_count(self):
-        return sum(request.url.path.endswith("/start") for request, _ in self.transport.calls)
+        return sum(request.url.path.endswith("/start") for (request, _) in self.transport.calls)
 
 
 @asynccontextmanager
@@ -298,7 +309,7 @@ async def reply_run(claims, job, *, session_type=InterpretedSession):
             running.task = asyncio.create_task(running.controller.run(running.pending))
 
             try:
-                yield running, release_reply
+                yield (running, release_reply)
             finally:
                 release_reply.set()
                 running.observation.resume.set()
@@ -332,7 +343,7 @@ def failure_contains(root, expected):
             return True
 
         return (visit(error.__cause__) or visit(error.__context__)
-                or any(visit(child) for _, child in owned_relationships(error)))
+                or any(visit(child) for (_, child) in owned_relationships(error)))
 
     return visit(root)
 
@@ -342,7 +353,7 @@ class ModelReplyPermissionTests(unittest.IsolatedAsyncioTestCase):
         claims = AttemptClaims.live(limits=LiveAttemptLimits(maximum_attempts=1))
 
         async with reply_run(claims, "job:stopped") as (running, release_reply):
-            session, controller = running.session, running.controller
+            (session, controller) = (running.session, running.controller)
             session.science.release.set()
             session.after_refusal = independent_failure
             await asyncio.wait_for(running.peer.received.wait(), 3)
@@ -413,7 +424,7 @@ class ModelReplyPermissionTests(unittest.IsolatedAsyncioTestCase):
         claims = AttemptClaims.live(limits=LiveAttemptLimits(maximum_attempts=1))
 
         async with reply_run(claims, "job:refused", session_type=InterruptedRefusalSession) as (running, release_reply):
-            session, controller = running.session, running.controller
+            (session, controller) = (running.session, running.controller)
             session.interruption_cause = independent_failure
             await asyncio.wait_for(running.peer.received.wait(), 3)
             running.transport.stop = {"job_state": "cancelled"}
@@ -459,7 +470,7 @@ class ModelReplyPermissionTests(unittest.IsolatedAsyncioTestCase):
         claims = AttemptClaims.live(limits=LiveAttemptLimits(maximum_attempts=1))
 
         async with reply_run(claims, "job:shielded", session_type=ShieldedSession) as (running, release_reply):
-            session, controller = running.session, running.controller
+            (session, controller) = (running.session, running.controller)
             session.resume_monitor = running.observation.resume.set
             settlement = reentered = None
 
@@ -485,7 +496,7 @@ class ModelReplyPermissionTests(unittest.IsolatedAsyncioTestCase):
                 settlement = asyncio.create_task(controller.settle_revocation(failed.exception))
                 reentered = asyncio.create_task(session.retirement_reentered.wait())
 
-                done, _ = await asyncio.wait({settlement, reentered}, timeout=3,
+                (done, _) = await asyncio.wait({settlement, reentered}, timeout=3,
                                             return_when=asyncio.FIRST_COMPLETED)
 
                 self.assertIn(reentered, done, msg="Revocation settlement gave up before reobserving its original session")
@@ -522,7 +533,7 @@ class ModelReplyPermissionTests(unittest.IsolatedAsyncioTestCase):
         claims = AttemptClaims.live(limits=LiveAttemptLimits(maximum_attempts=1))
 
         async with reply_run(claims, "job:admitted") as (running, release_reply):
-            science, controller = running.session.science, running.controller
+            (science, controller) = (running.session.science, running.controller)
             release_reply.set()
             await asyncio.wait_for(science.entered.wait(), 3)
             original = science.pending
@@ -589,6 +600,7 @@ class PreparedExecutionGateSession(HeldRetirementSession):
             raise AssertionError("The interpreter substituted a prepared scientific handle")
 
         self.accepted_handle = prepared
+
         return prepared
 
     async def execute(self, prepared, *, report_condition):
@@ -600,6 +612,7 @@ class PreparedExecutionGateSession(HeldRetirementSession):
         # The adapter checks the original reporter again after the gate.
         # A prior START or successful preparation is not a future permission.
         report_condition.require_execution()
+
         return await super().execute(prepared, report_condition=report_condition)
 
 
@@ -710,7 +723,7 @@ class ComposedLifecycleOwnershipTests(unittest.IsolatedAsyncioTestCase):
                 held.session.release_retirement.set()
                 held.session.science.release.set()
 
-                for controller, task in ((held.controller, original),
+                for (controller, task) in ((held.controller, original),
                                          (healthy.controller, independent)):
                     if task is not None and not task.done():
                         controller.request_stop()

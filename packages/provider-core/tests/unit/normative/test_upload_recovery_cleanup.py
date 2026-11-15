@@ -42,10 +42,10 @@ class UploadRecoveryCleanupTests(unittest.IsolatedAsyncioTestCase):
         owner = JobUploads("job:example", api=api, store=store, store_origin="https://store.example",
                            limits=UploadLimits(8, 100, 8, seconds), recovery=recovery)
 
-        return owner, api, store, notices
+        return (owner, api, store, notices)
 
     async def test_unresolved_api_and_pending_file_are_retired_independently(self):
-        api_release, file_release = asyncio.Event(), threading.Event()
+        (api_release, file_release) = (asyncio.Event(), threading.Event())
         original = httpcore.ReadTimeout("protected late grant failure")
 
         class LateGrant(Stream):
@@ -59,9 +59,9 @@ class UploadRecoveryCleanupTests(unittest.IsolatedAsyncioTestCase):
                 yield b"unreachable"
 
         api_transport = HttpTransport(trust=ssl.create_default_context(), exchange_seconds=1, retirement_seconds=0.02)
-        owner, api, store, notices = self.owner(seconds=0.15, api_transport=api_transport)
+        (owner, api, store, notices) = self.owner(seconds=0.15, api_transport=api_transport)
         clients = [api_reply(MEMBERSHIP), api_reply(MEMBERSHIP), Client(LateGrant([]), headers=response_headers())]
-        api_retire, store_retire, close = api.retire, store.retire, os.close
+        (api_retire, store_retire, close) = (api.retire, store.retire, os.close)
         calls = []
 
         def held_close(fd):
@@ -110,9 +110,9 @@ class UploadRecoveryCleanupTests(unittest.IsolatedAsyncioTestCase):
                     await owner.settle_file()
 
     async def test_cleanup_cancellation_and_fatal_groups_do_not_skip_other_retirement(self):
-        for cancelled, granted in ((True, True), (False, True), (False, False)):
+        for (cancelled, granted) in ((True, True), (False, True), (False, False)):
             with self.subTest(cancelled=cancelled, granted=granted), private_source_directory() as (root, directory):
-                owner, api, store, notices = self.owner()
+                (owner, api, store, notices) = self.owner()
 
                 clients = [api_reply(MEMBERSHIP), api_reply(MEMBERSHIP), api_reply(GRANT),
                            store_reply(failure=temporary_read_error())]
@@ -125,8 +125,8 @@ class UploadRecoveryCleanupTests(unittest.IsolatedAsyncioTestCase):
                 interruption.__cause__ = prior
                 api_fatal = SystemExit("protected API fatal")
                 store_fatal = BaseExceptionGroup("protected store fatal", (KeyboardInterrupt(), SystemExit()))
-                unlink, blocked, calls = os.unlink, [True], []
-                store_retire, api_retire = store.retire, api.retire
+                (unlink, blocked, calls) = (os.unlink, [True], [])
+                (store_retire, api_retire) = (store.retire, api.retire)
 
                 def remove(*args, **kwargs):
                     if blocked[0]:

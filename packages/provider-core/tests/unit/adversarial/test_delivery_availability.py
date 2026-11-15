@@ -22,6 +22,7 @@ class DeliveryAvailabilityTests(unittest.TestCase):
     def failure(self, primary, **facts):
         failure = DeliveryUnavailable("Local relay unavailable", cause=ExchangeFailed("Local HTTP failed", primary=primary, **facts))
         self.client.last_failure = failure
+
         return failure
 
     def test_missing_listener_in_native_cause_or_context_requires_exact_owned_settled_failure(self):

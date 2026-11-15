@@ -94,7 +94,7 @@ class HostContextTests(unittest.IsolatedAsyncioTestCase):
                 owner.adopt(contribution=OwnedScience(close=close), requirements=frozenset())
                 raise original
 
-        body_failure, retirement_failure = raised.exception.exceptions
+        (body_failure, retirement_failure) = raised.exception.exceptions
         self.assertIs(expr1=original, expr2=body_failure)
         observation = await owner.retire().observe(after=None, wait_seconds=0)
         self.assertIs(expr1=retirement_failure, expr2=observation.failures[0].cause)

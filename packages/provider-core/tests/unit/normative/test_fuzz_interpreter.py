@@ -19,7 +19,7 @@ class InterpreterFaultSequenceTests(unittest.IsolatedAsyncioTestCase):
     async def test_generated_histories_accept_once_after_retired_failures(self):
         for seed in range(32):
             randomizer = random.Random(seed)
-            models, factories, trace, events, effects, deadlines = [], [], [], [], [], {}
+            (models, factories, trace, events, effects, deadlines) = ([], [], [], [], [], {})
             expected_inspections = 0
             visits = randomizer.randint(1, 4)
 
@@ -28,7 +28,7 @@ class InterpreterFaultSequenceTests(unittest.IsolatedAsyncioTestCase):
                 randomizer.shuffle(actions)
                 replies = []
 
-                for index, action in enumerate(actions):
+                for (index, action) in enumerate(actions):
                     if randomizer.choice((False, True)):
                         replies.append(ChatFailed("http_status", "Synthetic unavailable response.",
                                                   response=SimpleNamespace(status=503, headers=((b"Retry-After", b"0"),))))
@@ -50,7 +50,7 @@ class InterpreterFaultSequenceTests(unittest.IsolatedAsyncioTestCase):
                 # silent-defaults: allow-contract -- Freeze this generated visit and endpoint before the loop advances.
                 async def complete(*args, _visit=visit, _original=original, **kwargs):
                     if ("failed request", _visit) in events:
-                        previous_failure = max(index for index, event in enumerate(events)
+                        previous_failure = max(index for (index, event) in enumerate(events)
                                                if event == ("failed request", _visit))
 
                         self.assertIn(("retire", _visit), events[previous_failure + 1:])
@@ -74,6 +74,7 @@ class InterpreterFaultSequenceTests(unittest.IsolatedAsyncioTestCase):
                         self.assertEqual(events[-1], ("retire", _visit - 1))
 
                     events.append(("create", _visit))
+
                     return _model
 
                 models.append(model)
@@ -92,6 +93,7 @@ class InterpreterFaultSequenceTests(unittest.IsolatedAsyncioTestCase):
                     raise ToolRejected("Use the source's supported interpretation.")
 
                 effects.append("one accepted preparation")
+
                 return ToolFinished(effects[0])
 
             with self.subTest(seed=seed, trace=tuple(trace)):
@@ -109,6 +111,6 @@ class InterpreterFaultSequenceTests(unittest.IsolatedAsyncioTestCase):
                 accepted = events.index(("prepare", True))
                 self.assertTrue(all(event[0] == "retire" for event in events[accepted + 1:]))
 
-                for visit, values in deadlines.items():
+                for (visit, values) in deadlines.items():
                     self.assertEqual(len(set(values)), 1)
                     self.assertEqual(models[visit].complete.await_count, models[visit].expected_requests)

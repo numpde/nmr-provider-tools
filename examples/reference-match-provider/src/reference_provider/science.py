@@ -130,10 +130,10 @@ def build_index(reference_set: ReferenceSet) -> ReferenceIndex:
 
     labels = []
 
-    for reference_index, reference in enumerate(reference_set.entries):
+    for (reference_index, reference) in enumerate(reference_set.entries):
         labels.append(reference.label)
 
-        for channel, weight in enumerate(_normalize(reference.values)):
+        for (channel, weight) in enumerate(_normalize(reference.values)):
             if weight > 0:
                 channels[channel].append((reference_index, weight))
 
@@ -157,9 +157,9 @@ def match(index: ReferenceIndex, settings: MatchSettings, candidate: VectorInput
 
     scores = [0.0] * len(index.labels)
 
-    for channel, weight in enumerate(_normalize(candidate.values)):
+    for (channel, weight) in enumerate(_normalize(candidate.values)):
         if weight > 0:
-            for reference_index, reference_weight in index.postings[channel]:
+            for (reference_index, reference_weight) in index.postings[channel]:
                 scores[reference_index] += weight * reference_weight
 
     best_index = min(range(len(scores)), key=lambda position: (-scores[position], index.labels[position]))

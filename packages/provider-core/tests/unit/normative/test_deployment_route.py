@@ -36,10 +36,12 @@ class DeploymentRouteTests(unittest.TestCase):
                      "storage": NamedRouteVolume(), "input_sources": {}}
 
         arguments.update(changes)
+
         return render_api_route(binding, **arguments)
 
     def proxy(self, projection):
         role = next(iter(projection.client_depends_on))
+
         return projection.compose["services"][role]
 
     def test_actual_identity_gets_separate_private_storage_and_readonly_client_grant(self):
@@ -55,7 +57,7 @@ class DeploymentRouteTests(unittest.TestCase):
         self.assertTrue(provider.client_mount["read_only"])
         self.assertTrue(delivery.client_mount["read_only"])
 
-        for projection, uid in ((provider, 65532), (delivery, 1000)):
+        for (projection, uid) in ((provider, 65532), (delivery, 1000)):
             proxy = self.proxy(projection)
             self.assertEqual(f"{uid}:{uid}", proxy["user"])
             self.assertFalse(proxy["volumes"][0]["read_only"])

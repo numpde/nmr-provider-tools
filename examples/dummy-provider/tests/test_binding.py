@@ -112,7 +112,7 @@ class DummyBindingTests(unittest.IsolatedAsyncioTestCase):
             coefficients=science.CoefficientSet(values=(1, 2, 3)),
         )
 
-        prepare_call, calculate_call = weighted_binding.call(method=WeightedSum.prepare), weighted_binding.call(method=WeightedSum.calculate)
+        (prepare_call, calculate_call) = (weighted_binding.call(method=WeightedSum.prepare), weighted_binding.call(method=WeightedSum.calculate))
         sum_call = self.sum_binding().call(method=Sum.run)
 
         self.assertRegex(weighted_binding.description.binding_revision, r"\Aconfigured-v3:sha256:[0-9a-f]{64}\Z")

@@ -14,7 +14,7 @@ from tests.fakes.uploads import UPLOAD_REF, encoded, grant, membership
 
 class UploadApiIntegrationTests(unittest.IsolatedAsyncioTestCase):
     async def test_membership_and_grant_observation_close_api_socket(self):
-        for granting, document in ((False, membership()), (True, grant())):
+        for (granting, document) in ((False, membership()), (True, grant())):
             with self.subTest(granting=granting):
                 async with api_tls_peer("success", response_body=encoded(document)) as peer:
                     transport = HttpTransport(trust=peer.trust, exchange_seconds=1, retirement_seconds=0.5)

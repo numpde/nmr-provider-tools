@@ -99,7 +99,7 @@ class UnixTunnelFailureTests(unittest.IsolatedAsyncioTestCase):
             self.assertNotIn(b"authorization", proxy.headers[0].lower())
 
     async def test_connect_and_tls_stalls_share_aggregate_deadline_and_cancel_closes_tunnel(self):
-        for peer_mode, proxy_mode in (("success", "stall"), ("tls-stall", "tunnel")):
+        for (peer_mode, proxy_mode) in (("success", "stall"), ("tls-stall", "tunnel")):
             for interrupt in (False, True):
                 with self.subTest(peer=peer_mode, cancel=interrupt):
                     async with TlsPeer(peer_mode) as peer, UnixProxy(peer.origin, proxy_mode) as proxy:
@@ -157,7 +157,7 @@ class UnixTunnelFailureTests(unittest.IsolatedAsyncioTestCase):
                 await transport.retire()
                 self.assertIsInstance(caught.exception.primary, httpcore.ConnectError)
                 self.assertEqual(caught.exception.proxy_connect_status, 200)
-                causes, pending = [], [caught.exception.primary]
+                (causes, pending) = ([], [caught.exception.primary])
 
                 while pending:
                     cause = pending.pop()

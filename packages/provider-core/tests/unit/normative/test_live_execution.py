@@ -51,7 +51,7 @@ class LiveExecutionTests(unittest.IsolatedAsyncioTestCase):
         transport = Transport(*replies)
         client = api(transport, scope().api_origin)
         acknowledged = await AttemptStarter.live(client, claim, scope=scope()).start(pending)
-        session, delivery = LiveSession(), RecordingDelivery()
+        (session, delivery) = (LiveSession(), RecordingDelivery())
 
         executor = AttemptExecutor.live(
             client, claim, session, scope=scope(), preverified_input=verified,
@@ -61,12 +61,13 @@ class LiveExecutionTests(unittest.IsolatedAsyncioTestCase):
         )
 
         owner.executor = executor
-        return claims, claim, acknowledged, executor, session, delivery, verified
+
+        return (claims, claim, acknowledged, executor, session, delivery, verified)
 
     async def test_input_ordering_and_exact_delivery_without_storage(self):
         for preverified in (False, True):
             with self.subTest(preverified=preverified):
-                claims, claim, acknowledged, executor, session, delivery, verified = await self.setup_execution(preverified)
+                (claims, claim, acknowledged, executor, session, delivery, verified) = await self.setup_execution(preverified)
                 accepted = await executor.run(acknowledged)
                 self.assertIs(type(accepted), DeliveryAcceptedCheckpoint)
                 self.assertEqual(["prepare", "execute", "retire"], session.events)
@@ -80,7 +81,7 @@ class LiveExecutionTests(unittest.IsolatedAsyncioTestCase):
                 self.assertTrue(executor.retirement_confirmed)
 
     async def test_replacement_executor_cannot_run_the_original_admission_again(self):
-        claims, claim, acknowledged, executor, session, delivery, verified = await self.setup_execution(True)
+        (claims, claim, acknowledged, executor, session, delivery, verified) = await self.setup_execution(True)
         await executor.run(acknowledged)
 
         replacement = AttemptExecutor.live(
@@ -97,7 +98,7 @@ class LiveExecutionTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(1, len(delivery.items))
 
     async def test_oversized_result_keeps_scientific_outcome_without_retaining_a_pending_report(self):
-        claims, claim, acknowledged, executor, session, delivery, verified = await self.setup_execution(True, terminal_bytes=16384)
+        (claims, claim, acknowledged, executor, session, delivery, verified) = await self.setup_execution(True, terminal_bytes=16384)
         session.content = b"x" * 20000
 
         with self.assertRaises(ExecutionFailed):
@@ -109,7 +110,7 @@ class LiveExecutionTests(unittest.IsolatedAsyncioTestCase):
         self.assertTrue(executor.retirement_confirmed)
 
     async def test_delivery_ack_frees_report_capacity_while_native_cleanup_is_pending(self):
-        claims, claim, acknowledged, executor, session, delivery, verified = await self.setup_execution(True)
+        (claims, claim, acknowledged, executor, session, delivery, verified) = await self.setup_execution(True)
         session.release.clear()
         task = asyncio.create_task(executor.run(acknowledged))
 

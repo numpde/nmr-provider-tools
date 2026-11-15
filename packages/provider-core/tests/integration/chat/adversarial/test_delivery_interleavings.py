@@ -55,7 +55,7 @@ class DeliveryLifecycleInterleavings(unittest.IsolatedAsyncioTestCase):
             try:
                 await asyncio.wait_for(delivery.wait_for_offers(1), 6)
                 await asyncio.wait_for(original.session.retiring.wait(), 6)
-                selected, = delivery.offers
+                (selected,) = delivery.offers
                 self.assertIs(type(original.controller.operation._checkpoint), TerminalSelectedCheckpoint)
 
                 self.assertEqual((1, 1), (
@@ -111,7 +111,7 @@ class DeliveryLifecycleInterleavings(unittest.IsolatedAsyncioTestCase):
 
                 original.session.release_retirement.set()
 
-                original_result, = await asyncio.wait_for(
+                (original_result,) = await asyncio.wait_for(
                     asyncio.gather(driver, return_exceptions=True), 8)
 
                 if isinstance(original_result, ControllerFailed):
@@ -209,7 +209,7 @@ class DeliveryLifecycleInterleavings(unittest.IsolatedAsyncioTestCase):
 
                     try:
                         await asyncio.wait_for(delivery.wait_for_offers(1), 6)
-                        original, = delivery.offers
+                        (original,) = delivery.offers
                         self.assertIs(type(run.controller.operation._checkpoint), TerminalSelectedCheckpoint)
                         delivery.answer(disposition)
 

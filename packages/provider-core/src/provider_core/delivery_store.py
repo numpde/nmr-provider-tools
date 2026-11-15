@@ -97,7 +97,7 @@ class DeliveryOutcome:
 
     @property
     def key(self):
-        return self.api_origin, self.provider_ref, self.execution_attempt_ref
+        return (self.api_origin, self.provider_ref, self.execution_attempt_ref)
 
     @property
     def body_sha256(self):
@@ -143,9 +143,10 @@ class DeliveryQueue:
                 "Delivery storage requires explicit queue limits."
             )
 
-        self.limits, self.directory = limits, directory
+        (self.limits, self.directory) = (limits, directory)
         self._serial = threading.RLock()
-        self._db, self._lock, self._failure = None, None, None
+
+        (self._db, self._lock, self._failure) = (None, None, None)
 
         try:
             facts = directory.lstat()
@@ -156,10 +157,12 @@ class DeliveryQueue:
                 raise DeliveryStorageFailed("Cannot open delivery storage: its directory must be canonical, caller-owned and mode 0700.")
 
             self._lock = self._private_file(directory / ".owner.lock")
+
             fcntl.flock(self._lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
             descriptor = self._private_file(directory / "delivery.sqlite3")
             os.close(descriptor)
             self._db = sqlite3.connect(directory / "delivery.sqlite3", check_same_thread=False, timeout=1)
+
             self._db.execute("PRAGMA journal_mode=DELETE")
             self._db.execute("PRAGMA synchronous=EXTRA")
             self._db.execute("PRAGMA secure_delete=ON")
@@ -279,11 +282,11 @@ class DeliveryQueue:
 
                 return acceptance
 
-            for where, parameters, maximum_items, maximum_bytes in (
+            for (where, parameters, maximum_items, maximum_bytes) in (
                 (" WHERE api_origin=? AND provider_ref=?", item.key[:2], limits.provider_items, limits.provider_bytes),
                 ("", (), limits.total_items, limits.total_bytes),
             ):
-                count, size = self._db.execute("SELECT COUNT(*),COALESCE(SUM(length(body)),0) FROM outstanding" + where, parameters).fetchone()
+                (count, size) = self._db.execute("SELECT COUNT(*),COALESCE(SUM(length(body)),0) FROM outstanding" + where, parameters).fetchone()
 
                 if count >= maximum_items or size + len(item.body) > maximum_bytes:
                     raise DeliveryFull("Delivery capacity is full. Keep this outcome, wait for space and stop admitting more computation.")
@@ -348,7 +351,7 @@ class DeliveryQueue:
                 "Legacy delivery requires its original publication material."
             )
 
-        settings, provider_ref = api_settings_from_material(
+        (settings, provider_ref) = api_settings_from_material(
             material.api_fields(), credential_bytes=material.credential_bytes, ca_bytes=material.ca_bytes
         )
 
@@ -395,10 +398,10 @@ class DeliveryQueue:
 
         with self._access("inspect pending publication in"):
             bindings = tuple(self._db.execute("SELECT DISTINCT api_origin,provider_ref FROM outstanding WHERE state='pending' ORDER BY api_origin,provider_ref"))
-            overview, failure = None, None
+            (overview, failure) = (None, None)
 
             try:
-                pending, held, bodies, material, oldest = self._db.execute("""
+                (pending, held, bodies, material, oldest) = self._db.execute("""
                     SELECT COALESCE(SUM(state='pending'),0), COALESCE(SUM(state='held'),0),
                            COALESCE(SUM(length(body)),0), COALESCE(SUM(length(publication)),0),
                            MIN(CASE WHEN state='pending' THEN created_at END)
@@ -415,7 +418,7 @@ class DeliveryQueue:
                 if type(code) is int:
                     failure.sqlite_errorcode = code
 
-            return bindings, overview, failure
+            return (bindings, overview, failure)
 
     def inventory(self, api_origin, provider_ref):
         return self._inventory(api_origin, provider_ref, None, None)
@@ -466,7 +469,7 @@ class DeliveryQueue:
                     "created_at": created,
                     "held_reason": reason,
                 }
-                for job_ref, attempt_ref, operation, digest, size, state, created, reason in rows
+                for (job_ref, attempt_ref, operation, digest, size, state, created, reason) in rows
             ]
 
     def _match(self, item):

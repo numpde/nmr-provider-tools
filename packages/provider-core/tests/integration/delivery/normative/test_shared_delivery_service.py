@@ -29,6 +29,7 @@ class SharedDeliveryServiceTests(unittest.IsolatedAsyncioTestCase):
         async def response(_request, _body):
             if len(peer.requests) == 1:
                 peer.response_status = 429
+
                 return b"retry"
 
             peer.response_status = 200
@@ -45,7 +46,7 @@ class SharedDeliveryServiceTests(unittest.IsolatedAsyncioTestCase):
                       "provider_ref": "provider:test", "exchange_seconds": 2, "retirement_seconds": 1,
                       "credential_file": "/gone/key", "ca_file": "/gone/ca"}
 
-            _, _, material = api_settings_with_material(
+            (_, _, material) = api_settings_with_material(
                 fields, lambda _path, **options: credential if options["label"] == "API signing credential" else ca
             )
 
@@ -69,7 +70,7 @@ class SharedDeliveryServiceTests(unittest.IsolatedAsyncioTestCase):
                 with ServiceProxyServer(root / "proxy.sock", "lo", policy, status_directory=root) as proxy:
                     thread = threading.Thread(target=proxy.serve_forever, kwargs={"poll_interval": 0.01})
                     thread.start()
-                    retry, published = asyncio.Event(), asyncio.Event()
+                    (retry, published) = (asyncio.Event(), asyncio.Event())
 
                     class Notices:
                         def set_level(self, _level):
@@ -116,7 +117,7 @@ class SharedDeliveryServiceTests(unittest.IsolatedAsyncioTestCase):
         async with api_tls_peer("success", response_factory=response) as peer:
             items = [replace(item, api_origin=peer.origin) for item in items]
             ca = (Path(peer.scratch.name) / "cert.pem").read_bytes()
-            materials, keys = [], []
+            (materials, keys) = ([], [])
 
             for _ in items:
                 credential = encoded(document(principal_ref="provider:test"))
@@ -125,7 +126,7 @@ class SharedDeliveryServiceTests(unittest.IsolatedAsyncioTestCase):
                           "provider_ref": "provider:test", "exchange_seconds": 2, "retirement_seconds": 1,
                           "credential_file": "/gone/key", "ca_file": "/gone/ca"}
 
-                settings, _, material = api_settings_with_material(
+                (settings, _, material) = api_settings_with_material(
                     fields, lambda _path, **options: credential if options["label"] == "API signing credential" else ca
                 )
 
@@ -139,7 +140,7 @@ class SharedDeliveryServiceTests(unittest.IsolatedAsyncioTestCase):
                 limits = QueueLimits(4, 16384, 8, 32768)
                 queue = DeliveryQueue(root / "state", limits=limits)
 
-                for item, material in zip(items, materials):
+                for (item, material) in zip(items, materials):
                     queue.enqueue_handoff(DeliveryHandoff(item, material))
 
                 queue.close()
@@ -168,7 +169,7 @@ class SharedDeliveryServiceTests(unittest.IsolatedAsyncioTestCase):
                     try:
                         await asyncio.wait_for(published.wait(), 5)
 
-                        for request, item, key in zip(peer.requests, items, keys):
+                        for (request, item, key) in zip(peer.requests, items, keys):
                             verify_signed_request(request, item.body, origin=peer.origin, key=key)
 
                         self.assertEqual(peer.request_bodies, [item.body for item in items])

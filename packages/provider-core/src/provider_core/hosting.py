@@ -69,7 +69,7 @@ class BackendCapabilities:
     progress: bool
 
     def __post_init__(self):
-        for name, values, expected_type in (
+        for (name, values, expected_type) in (
             ("contract_versions", self.contract_versions, int),
             ("isolation", self.isolation, IsolationRequirement),
             ("concurrency", self.concurrency, ConcurrencyRequirement),
@@ -583,6 +583,7 @@ def _start_owned_task[ResultT](operation: Callable[[], Awaitable[ResultT]]) -> a
         raise
 
     task.add_done_callback(_observe_owned_task)
+
     return task
 
 
@@ -652,6 +653,7 @@ async def settle_cleanup(
     any observer interruptions. An overdue flag alone does not end settlement.
     This observes the supplied control; it never repeats a cleanup request.
     """
+
     return await _join_settlement(task=_start_owned_task(operation=partial(observe_cleanup, control=control)))
 
 
@@ -686,6 +688,7 @@ class ResultConsumption:
 
     async def __aenter__(self) -> ResultConsumption:
         """Retain this owner without starting its receiver."""
+
         return self
 
     async def __aexit__(self, exception_type, exception, traceback) -> None:

@@ -78,7 +78,7 @@ class InProcessExecutionHost:
         a memory limit on caller-held handles. Time allowances are in seconds.
         """
 
-        for name, value in (
+        for (name, value) in (
             ("input_bytes", input_bytes),
             ("result_bytes", result_bytes),
             ("state_values", state_values),
@@ -90,7 +90,7 @@ class InProcessExecutionHost:
             if not (0 < value):
                 raise ValueError(f"Expected a positive capacity for {name=}; received {value=}")
 
-        for name, value in (
+        for (name, value) in (
             ("initialization_seconds", initialization_seconds),
             ("retirement_seconds", retirement_seconds),
         ):
@@ -136,6 +136,7 @@ class InProcessExecutionHost:
 
     async def __aenter__(self) -> InProcessExecutionHost:
         """Keep this host alive around explicitly nested request/resource owners."""
+
         return self
 
     async def __aexit__(self, exception_type, exception, traceback) -> None:
@@ -194,6 +195,7 @@ class InProcessExecutionHost:
     @property
     def allocations(self) -> frozenset[AllocationRef]:
         """Snapshot the hosted scientific allocations without promising an order."""
+
         return frozenset(resident.reference for resident in self.residents.values())
 
     def _require_loop(self):
@@ -268,6 +270,7 @@ class InProcessExecutionHost:
         )
 
         self.allocations_fixed = True
+
         self.analyses[analysis_id] = analysis_executor
 
         for resident in selected_residents:
@@ -514,6 +517,7 @@ class InProcessAnalysisExecutor:
                 raise RequestConflict("This operation ID already identifies different work.")
 
             existing_operation.retain_identity |= retain_identity
+
             return existing_operation
 
         if operation_key in self.host.operations:
@@ -574,6 +578,7 @@ class InProcessAnalysisExecutor:
             owner.claim = operation.reference
 
         operation.start()
+
         return operation
 
 
@@ -711,6 +716,7 @@ class InProcessAnalysisExecutor:
             )
 
             self.cleanup = _Cleanup(cleanup_overdue_flag_seconds)
+
             self.cleanup.start(self._close)
 
         return self.cleanup

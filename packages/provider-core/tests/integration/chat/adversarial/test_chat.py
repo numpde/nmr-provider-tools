@@ -31,7 +31,7 @@ class ChatCarrierRejectionTests(unittest.IsolatedAsyncioTestCase):
             self.assertEqual(caught.exception.cause.primary.reason, "size_limit")
 
             self.assertIn((b"x-request-id", b"fixture-request"),
-                          [(name.lower(), value) for name, value in caught.exception.cause.response_head.headers])
+                          [(name.lower(), value) for (name, value) in caught.exception.cause.response_head.headers])
 
             self.assertTrue(endpoint.retirement_confirmed)
             self.assertEqual(len(peer.requests), 1)
@@ -126,14 +126,14 @@ class ChatCarrierRejectionTests(unittest.IsolatedAsyncioTestCase):
 
             try:
                 async with TlsPeer("success", handshake_seconds=0.25) as peer:
-                    incoming, outgoing = ssl.MemoryBIO(), ssl.MemoryBIO()
+                    (incoming, outgoing) = (ssl.MemoryBIO(), ssl.MemoryBIO())
                     client = peer.trust.wrap_bio(incoming, outgoing, server_side=False, server_hostname="localhost")
 
                     with self.assertRaises(ssl.SSLWantReadError):
                         client.do_handshake()
 
                     port = peer.server.sockets[0].getsockname()[1]
-                    reader, writer = await asyncio.open_connection("127.0.0.1", port)
+                    (reader, writer) = await asyncio.open_connection("127.0.0.1", port)
                     writer.write(outgoing.read())
                     await writer.drain()
                     await asyncio.wait_for(peer.handshake_received.wait(), 1)
@@ -181,7 +181,7 @@ class ChatCarrierRejectionTests(unittest.IsolatedAsyncioTestCase):
         transport.exchange_decoded.assert_not_awaited()
 
     async def test_http_failure_and_malformed_replies_keep_raw_evidence_private(self):
-        for status, body in (
+        for (status, body) in (
             (401, b"PRIVATE_KEY PRIVATE_SOURCE"),
             (200, b'{"choices":[],"choices":[]}'),
             (200, b'{"choices": []}'),
@@ -209,7 +209,7 @@ class ChatCarrierRejectionTests(unittest.IsolatedAsyncioTestCase):
                 self.assertNotIn("PRIVATE", str(caught.exception))
 
     async def test_consumed_response_limit_and_trickle_deadline_retire_actual_connections(self):
-        for mode, maximum in (("success", 16), ("trickle", 4096)):
+        for (mode, maximum) in (("success", 16), ("trickle", 4096)):
             with self.subTest(mode=mode):
                 async with TlsPeer(mode, response_body=b"x" * 100) as peer:
                     transport = HttpTransport(trust=peer.trust, exchange_seconds=0.15, retirement_seconds=0.5)

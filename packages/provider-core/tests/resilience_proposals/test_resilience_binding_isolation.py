@@ -50,7 +50,7 @@ class BindingIsolationTests(unittest.IsolatedAsyncioTestCase):
                           "provider_ref": item.provider_ref, "exchange_seconds": 2, "retirement_seconds": 1,
                           "credential_file": "/fixture/credential", "ca_file": "/fixture/ca"}
 
-                _, _, material = api_settings_with_material(
+                (_, _, material) = api_settings_with_material(
                     fields, lambda _path, **options: credential if options["label"] == "API signing credential" else ca)
 
                 materials.append(material)
@@ -65,8 +65,8 @@ class BindingIsolationTests(unittest.IsolatedAsyncioTestCase):
                 with ServiceProxyServer(root / "proxy.sock", "lo", policy, status_directory=root) as proxy:
                     thread = threading.Thread(target=proxy.serve_forever, kwargs={"poll_interval": 0.01})
                     thread.start()
-                    failed, published = asyncio.Event(), asyncio.Event()
-                    first_api, first_task = [], []
+                    (failed, published) = (asyncio.Event(), asyncio.Event())
+                    (first_api, first_task) = ([], [])
                     original_deliver = SharedDeliveryWorker._deliver
 
                     async def fail_first(worker, item):
@@ -97,7 +97,7 @@ class BindingIsolationTests(unittest.IsolatedAsyncioTestCase):
                         try:
                             await asyncio.wait_for(service.ready.wait(), 5)
 
-                            for item, material in zip((first, second), materials):
+                            for (item, material) in zip((first, second), materials):
                                 clients.append(SharedDeliveryClient(
                                     DeliveryEndpoint(peer.origin, item.provider_ref, root / "ipc/socket"), material,
                                     exchange_seconds=2, retirement_seconds=1))

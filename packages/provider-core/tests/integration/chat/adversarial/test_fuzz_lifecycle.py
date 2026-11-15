@@ -100,7 +100,7 @@ class LifecycleOrders(RuleBasedStateMachine):
             try:
                 return original_check(executor, observation)
             except ExecutionStopped as stopped:
-                for name, case in self.cases.items():
+                for (name, case) in self.cases.items():
                     if case.controller.operation is executor:
                         if name not in self.verified_stops:
                             self.verified_stops[name] = (stopped, case.session.science.executions)
@@ -314,7 +314,7 @@ class LifecycleOrders(RuleBasedStateMachine):
 
         async def join():
             case = self.cases[name]
-            result, = await asyncio.gather(task, return_exceptions=True)
+            (result,) = await asyncio.gather(task, return_exceptions=True)
 
             if isinstance(result, ControllerFailed) and case.session.retirement_completed:
                 observed = await case.controller.settle_revocation(result)
@@ -351,7 +351,7 @@ class LifecycleOrders(RuleBasedStateMachine):
                 or not self.tasks[name].done()):
             return
 
-        peers = [case for other, case in self.cases.items() if other != name
+        peers = [case for (other, case) in self.cases.items() if other != name
                  and case.controller in self.claims.live_owners()
                  and case.session.science.pending is not None
                  and not case.session.science.pending.done()
@@ -361,7 +361,7 @@ class LifecycleOrders(RuleBasedStateMachine):
             return
 
         async def repeat():
-            successor, = peers
+            (successor,) = peers
             exact_science = successor.session.science.pending
             exact_claim = successor.controller._claim
             # The original driver is already complete; its late observers
@@ -389,7 +389,7 @@ class LifecycleOrders(RuleBasedStateMachine):
         async def inspect():
             owners = set(self.claims.live_owners())
 
-            for name, case in self.cases.items():
+            for (name, case) in self.cases.items():
                 session = case.session
                 science = session.science
                 assert case.start_count <= 1
@@ -440,7 +440,7 @@ class LifecycleOrders(RuleBasedStateMachine):
                     assert science.executions == 0
 
                 if name in self.verified_stops:
-                    stopped, effects_at_stop = self.verified_stops[name]
+                    (stopped, effects_at_stop) = self.verified_stops[name]
                     assert stopped.observation.job_ref == case.pending.input.job_ref
 
                     assert science.executions == effects_at_stop, (
@@ -466,7 +466,7 @@ class LifecycleOrders(RuleBasedStateMachine):
 
     def teardown(self):
         async def close():
-            for name, case in self.cases.items():
+            for (name, case) in self.cases.items():
                 self.replies[name].set()
                 case.delivery.release_for_teardown()
                 case.transport.release_start.set()
@@ -480,7 +480,7 @@ class LifecycleOrders(RuleBasedStateMachine):
                 case.session.release_execution.set()
                 case.session.release_retirement.set()
 
-            for name, task in self.tasks.items():
+            for (name, task) in self.tasks.items():
                 if not task.done():
                     self.cases[name].controller.request_stop()
 

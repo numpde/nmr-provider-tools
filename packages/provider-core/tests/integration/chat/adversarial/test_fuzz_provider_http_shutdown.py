@@ -66,10 +66,11 @@ class ProviderHttpShutdownTests(unittest.TestCase):
                 except ProcessLookupError:
                     pass
 
-                stdout, stderr = process.communicate(timeout=2)
+                (stdout, stderr) = process.communicate(timeout=2)
 
             self.assertIsNotNone(report, msg="No bounded shutdown verdict was produced:\n" + stdout + stderr)
             self.assertNotIn("fixture_failure", report, msg=json.dumps(report, sort_keys=True))
+
             return report["scenarios"]
 
     def assert_original_http_child_retired(self, facts):
@@ -147,25 +148,25 @@ class ProviderHttpShutdownTests(unittest.TestCase):
             self.assertIn("_ExitPending", held["retirement_failure_types"], msg=evidence)
 
     def test_active_attempt_stop_during_http_child_startup_retires_that_child(self):
-        facts, = self.run_schedules("startup", 0)
+        (facts,) = self.run_schedules("startup", 0)
         self.assert_unconfirmed_child_remains_owned(facts)
         self.assert_original_http_child_retired(facts)
 
     def test_active_attempt_stop_during_blocked_https_closes_child_and_connection(self):
-        facts, = self.run_schedules("https_wait", 0)
+        (facts,) = self.run_schedules("https_wait", 0)
         self.assert_original_http_child_retired(facts)
 
     def test_active_attempt_stop_kills_http_child_that_ignores_stop_signals(self):
-        facts, = self.run_schedules("uncooperative_https", 0)
+        (facts,) = self.run_schedules("uncooperative_https", 0)
         self.assert_original_http_child_retired(facts)
 
     def test_late_http_child_startup_keeps_claim_while_exit_is_unconfirmed(self):
-        facts, = self.run_schedules("late_startup", 0)
+        (facts,) = self.run_schedules("late_startup", 0)
         self.assert_unconfirmed_child_remains_owned(facts)
         self.assert_original_http_child_retired(facts)
 
     def test_delayed_exit_observation_keeps_slot_and_does_not_renew_cleanup_deadline(self):
-        facts, = self.run_schedules("late_exit_observation", 0)
+        (facts,) = self.run_schedules("late_exit_observation", 0)
         self.assert_unconfirmed_child_remains_owned(facts)
         self.assert_original_http_child_retired(facts)
 
@@ -181,7 +182,7 @@ class ProviderHttpShutdownTests(unittest.TestCase):
                 self.assert_original_http_child_retired(facts)
 
     def test_independent_real_child_completes_while_original_exit_observation_is_held(self):
-        facts, = self.run_schedules("concurrent_late_exit_observation", 0)
+        (facts,) = self.run_schedules("concurrent_late_exit_observation", 0)
         held = facts["held"]
 
         for field in (

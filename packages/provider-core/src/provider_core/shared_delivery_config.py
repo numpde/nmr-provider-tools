@@ -55,7 +55,7 @@ class SharedDeliveryConfiguration:
                 raise TypeError(f"Unexpected {type(table)=}; outbox settings must be an object")
 
             limits = QueueLimits(table["provider_items"], table["provider_bytes"], table["total_items"], table["total_bytes"])
-            initial, maximum, level = table["retry_initial_seconds"], table["retry_max_seconds"], table["log_level"]
+            (initial, maximum, level) = (table["retry_initial_seconds"], table["retry_max_seconds"], table["log_level"])
             require_delivery_retry_settings(initial, maximum)
 
             if level not in ("INFO", "DEBUG", "WARNING"):

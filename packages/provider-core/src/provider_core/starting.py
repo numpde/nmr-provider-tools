@@ -71,10 +71,12 @@ class AttemptStarter:
 
     async def start(self, pending):
         """Retain a new pending start, or the identical existing one, before sending."""
+
         return await self._start(pending)
 
     async def resume(self, pending):
         """Replay only an exact existing pending start under the current scope."""
+
         return await self._start(pending)
 
     async def _start(self, pending):
@@ -93,11 +95,13 @@ class AttemptStarter:
 
         try:
             self._unretained = await self._send(pending)
+
             self.claim.bind_attempt(self.scope, self._unretained.admission.execution_attempt_ref, owner=self)
             # Return the actual received admission. Historical disk metadata is
             # deliberately a different type and cannot recreate this live path.
             result = self._unretained
             self._unretained = None
+
             return result
         except asyncio.CancelledError as cause:
             self._remember("Attempt start was cancelled; preserve its exact request and settle owned I/O before reuse", cause)
@@ -109,6 +113,7 @@ class AttemptStarter:
             ) from None
         finally:
             self._observing = False
+
             self._finish_if_settled()
 
     async def _send(self, pending):
@@ -122,9 +127,11 @@ class AttemptStarter:
             )
         except asyncio.CancelledError:
             self._api_failure = self.api.last_failure
+
             raise
         except ApiFailure as failure:
             self._api_failure = failure
+
             raise
 
         return acknowledge_start(pending, admission)
@@ -156,6 +163,7 @@ class AttemptStarter:
             ) from None
         finally:
             self._observing = False
+
             self._finish_if_settled()
 
     def _finish_if_settled(self):
@@ -180,4 +188,5 @@ class AttemptStarter:
         )
 
         self.last_failure = failure
+
         return failure

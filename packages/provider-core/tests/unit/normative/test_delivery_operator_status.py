@@ -31,7 +31,7 @@ class QueueObservationTests(unittest.TestCase):
             queue.enqueue_handoff(first)
             queue.enqueue_handoff(second)
             queue.hold(second.outcome, "retained")
-            bindings, summary, failure = queue.pending_overview()
+            (bindings, summary, failure) = queue.pending_overview()
             self.assertIsNone(failure)
             self.assertEqual(len(bindings), 1)
             self.assertEqual((summary["pending"], summary["held"]), (1, 1))
@@ -44,7 +44,7 @@ class QueueObservationTests(unittest.TestCase):
             queue._db.set_authorizer(lambda action, arg1, arg2, _db, _trigger:
                 sqlite3.SQLITE_DENY if action == sqlite3.SQLITE_FUNCTION and arg2 == "sum" else sqlite3.SQLITE_OK)
 
-            observed_bindings, observed_summary, failure = queue.pending_overview()
+            (observed_bindings, observed_summary, failure) = queue.pending_overview()
             self.assertEqual(observed_bindings, bindings)
             self.assertIsNone(observed_summary)
             self.assertIsInstance(failure, sqlite3.Error)
@@ -60,7 +60,7 @@ class QueueObservationTests(unittest.TestCase):
                     return original.execute(query)
 
             with patch.object(queue, "_db", FailedAggregate()):
-                _, summary, safe_failure = queue.pending_overview()
+                (_, summary, safe_failure) = queue.pending_overview()
 
             self.assertIsNone(summary)
             self.assertIs(type(safe_failure), sqlite3.OperationalError)

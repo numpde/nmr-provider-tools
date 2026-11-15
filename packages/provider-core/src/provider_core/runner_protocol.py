@@ -26,7 +26,7 @@ class LifecycleRejected(RuntimeError):
 
     def __init__(self, message, *, returncode=None, scratch_released=None):
         super().__init__(message)
-        self.returncode, self.scratch_released = returncode, scratch_released
+        (self.returncode, self.scratch_released) = (returncode, scratch_released)
 
 
 class RetirementUnconfirmed(RuntimeError):
@@ -56,7 +56,7 @@ def _read(connection, size, deadline):
 
     while len(result) < size:
         _remaining(connection, deadline)
-        chunk, ancillary, flags, _ = connection.recvmsg(size - len(result), 0)
+        (chunk, ancillary, flags, _) = connection.recvmsg(size - len(result), 0)
 
         if flags & socket.MSG_CTRUNC or ancillary:
             raise LifecycleRejected("Unexpected descriptor transfer in a lifecycle frame.")
@@ -114,13 +114,13 @@ def receive_greeting(connection, *, deadline):
     try:
         _remaining(connection, deadline)
 
-        first, ancillary, flags, _ = connection.recvmsg(
+        (first, ancillary, flags, _) = connection.recvmsg(
             1, socket.CMSG_SPACE(8 * array.array("i").itemsize), socket.MSG_CMSG_CLOEXEC
         )
 
         unexpected = False
 
-        for level, kind, raw in ancillary:
+        for (level, kind, raw) in ancillary:
             if level == socket.SOL_SOCKET and kind == socket.SCM_RIGHTS:
                 values = array.array("i")
                 values.frombytes(raw[:len(raw) - len(raw) % values.itemsize])
@@ -148,7 +148,7 @@ def receive_greeting(connection, *, deadline):
         ):
             raise LifecycleRejected("Runner greeting has invalid generation, operation or lock identity.")
 
-        return value, science
+        return (value, science)
     except BaseException:
         if science is not None:
             science.close()

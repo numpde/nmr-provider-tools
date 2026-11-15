@@ -69,6 +69,7 @@ class HeldObserver:
 
     def publish(self, observation):
         self.observation = observation
+
         self.changed.set()
 
 

@@ -113,7 +113,8 @@ class PreparationTool[PreparedT]:
         if not operation_observation.finished or len(operation_observation.failures) != 1:
             return False
 
-        failure, = operation_observation.failures
+        (failure,) = operation_observation.failures
+
         return failure.phase == "start" and isinstance(failure.cause, StartDeadlineExpired)
 
     async def _prepare(self, *, name: str, arguments: dict, not_after: float) -> ToolFinished:
@@ -153,6 +154,7 @@ class PreparationTool[PreparedT]:
     async def _complete(self) -> ToolFinished:
         if self.preparation_report_release is not None:
             await observe_cleanup(control=self.preparation_report_release)
+
             return ToolFinished(value="Scientific input prepared")
 
         if self.operation is None:
@@ -161,6 +163,7 @@ class PreparationTool[PreparedT]:
             except StartDeadlineExpired as cause:
                 # Submission rejected this request before acquiring an operation.
                 self.preparation_submission = None
+
                 raise ModelWindowExpired() from cause
 
             if isinstance(preparation_admission, NotAdmitted):
@@ -191,5 +194,7 @@ class PreparationTool[PreparedT]:
         # Retain the exact report before requesting release: a lost reply must
         # retry that release, even after the report's bytes are already gone.
         self.preparation_report_release = preparation_operation.release_result(result=self.preparation_report_ref)
+
         await observe_cleanup(control=self.preparation_report_release)
+
         return ToolFinished(value="Scientific input prepared")

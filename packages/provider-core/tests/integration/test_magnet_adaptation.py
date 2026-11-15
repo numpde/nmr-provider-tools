@@ -40,7 +40,7 @@ from tests.fakes.api import api
 class MagnetAdaptationTests(unittest.IsolatedAsyncioTestCase):
     async def test_preparation_preserves_source_and_model_fields_and_publishes_opaque_product_bytes(self):
         with tempfile.TemporaryDirectory() as directory:
-            pending, store, claim = await self._open(directory)
+            (pending, store, claim) = await self._open(directory)
             interpreter = AsyncMock(return_value={"smiles": "  CCO  ", "solvent": "CDCl3"})
             worker = AsyncMock(return_value=prediction())
             session = MagnetSession(store, interpreter, worker)
@@ -70,7 +70,7 @@ class MagnetAdaptationTests(unittest.IsolatedAsyncioTestCase):
 
     async def test_typed_preentry_unavailability_remains_retry_safe_without_a_new_core_outcome_type(self):
         with tempfile.TemporaryDirectory() as directory:
-            pending, store, claim = await self._open(directory)
+            (pending, store, claim) = await self._open(directory)
             unavailable = RetrySafeUnavailable("scripted interpreter unavailable before prediction")
             interpreter = AsyncMock(side_effect=unavailable)
             worker = AsyncMock()
@@ -102,7 +102,7 @@ class MagnetAdaptationTests(unittest.IsolatedAsyncioTestCase):
 
     async def test_indeterminate_prediction_retains_live_owner_without_reexecution(self):
         with tempfile.TemporaryDirectory() as directory:
-            pending, store, claim = await self._open(directory)
+            (pending, store, claim) = await self._open(directory)
             indeterminate = IndeterminatePrediction("scripted prediction reply lost")
             worker = AsyncMock(side_effect=indeterminate)
             session = MagnetSession(store, AsyncMock(return_value={"smiles": "  CCO  ", "solvent": "CDCl3"}), worker)
@@ -132,7 +132,8 @@ class MagnetAdaptationTests(unittest.IsolatedAsyncioTestCase):
     async def _open(self, directory):
         pending = StartPending(scope(), ANALYSIS_KIND, facts(SOURCE), retained_start())
         store = LiveAttemptProbe()
-        return pending, store, AttemptClaims.live().claim_live(pending, lifecycle_owner=store)
+
+        return (pending, store, AttemptClaims.live().claim_live(pending, lifecycle_owner=store))
 
     def _executor(self, client, store, claim, session):
         return live_executor(client, store, claim, session,

@@ -131,6 +131,7 @@ class ChatEndpointFactory:
         """Exact messages/tools capacity after reserving this carrier's envelope."""
         empty_context = _json_bytes({"messages": [], "tools": []})
         overhead = len(_encode_request(self.spec, [], [])) - len(empty_context)
+
         return self.request_bytes - overhead
 
     def __call__(self, *, exchange_seconds, connect_seconds):
@@ -179,15 +180,16 @@ def _without_echoes(value, echoes):
             spans.append((start, start + len(echo)))
             start = value.find(echo, start + 1)
 
-    parts, end = [], 0
+    (parts, end) = ([], 0)
 
-    for start, stop in sorted(spans):
+    for (start, stop) in sorted(spans):
         if start >= end:
             parts.extend((value[end:start], "[redacted]"))
 
         end = max(end, stop)
 
     parts.append(value[end:])
+
     # silent-defaults: allow-contract -- Replace nonprinting diagnostic characters with spaces while retaining readable redacted structure.
     return " ".join("".join(char if char.isprintable() else " " for char in "".join(parts)).split())
 
@@ -250,8 +252,8 @@ class ChatEndpoint:
             error_response_bytes = response_bytes
 
         require_chat_limits(request_bytes=request_bytes, response_bytes=error_response_bytes)
-        self.spec, self._transport = spec, transport
-        self._request_bytes, self._response_bytes = request_bytes, response_bytes
+        (self.spec, self._transport) = (spec, transport)
+        (self._request_bytes, self._response_bytes) = (request_bytes, response_bytes)
         self._error_response_bytes = error_response_bytes
 
     @property

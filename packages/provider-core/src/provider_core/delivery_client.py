@@ -36,6 +36,7 @@ def delivery_volume_name(api_origin, provider_ref, *, namespace="nmr-api-deliver
         raise ValueError("Delivery requires the configured canonical API origin.")
 
     require_provider_ref(provider_ref)
+
     return namespace + "-ipc-" + hashlib.sha256((api_origin + "\0" + provider_ref).encode()).hexdigest()
 
 
@@ -49,7 +50,7 @@ class DeliveryUnavailable(RuntimeError):
     # A local service refusal has a status; transport interruption instead supplies a protected cause without a received status.
     def __init__(self, message, *, cause=None, status=None):
         super().__init__(message)
-        self.cause, self.status = cause, status
+        (self.cause, self.status) = (cause, status)
 
 
 @dataclass(frozen=True, slots=True)

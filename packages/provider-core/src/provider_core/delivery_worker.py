@@ -23,7 +23,7 @@ class DeliveryWorkerFailed(RuntimeError):
 
     def __init__(self, *, cause, api_failure, cleanup_failures, api_receipt_received):
         super().__init__("Delivery stopped for this provider binding; preserve its pending queue and settle the retained failure before restarting delivery.")
-        self.cause, self.api_failure = cause, api_failure
+        (self.cause, self.api_failure) = (cause, api_failure)
         self.cleanup_failures = cleanup_failures
         self.api_receipt_received = api_receipt_received
 
@@ -44,12 +44,13 @@ class DeliveryWorker:
             raise ValueError("Delivery signing origin differs from its configured binding.")
 
         require_delivery_retry_settings(retry_initial_seconds, retry_max_seconds)
-        self.inbox, self.endpoint, self.api = inbox, endpoint, api
-        self.retry_initial_seconds, self.retry_max_seconds = retry_initial_seconds, retry_max_seconds
+        (self.inbox, self.endpoint, self.api) = (inbox, endpoint, api)
+        (self.retry_initial_seconds, self.retry_max_seconds) = (retry_initial_seconds, retry_max_seconds)
         self.on_notice = on_notice
-        self.changed, self.stopping, self.policy_changed = asyncio.Event(), asyncio.Event(), asyncio.Event()
-        self.paused, self._running = False, False
-        self.failure, self._api_receipt_received = None, False
+
+        (self.changed, self.stopping, self.policy_changed) = (asyncio.Event(), asyncio.Event(), asyncio.Event())
+        (self.paused, self._running) = (False, False)
+        (self.failure, self._api_receipt_received) = (None, False)
 
     def wake(self):
         self.changed.set()
@@ -81,7 +82,7 @@ class DeliveryWorker:
     async def _backoff(self, delay, minimum, seconds):
         """Apply changed retry policy to the next attempt without waking for arrivals."""
         loop = asyncio.get_running_loop()
-        started, deadline = loop.time(), loop.time() + seconds
+        (started, deadline) = (loop.time(), loop.time() + seconds)
 
         while not self.stopping.is_set():
             remaining = deadline - loop.time()
@@ -89,7 +90,7 @@ class DeliveryWorker:
             if remaining <= 0:
                 return
 
-            stop, changed = asyncio.create_task(self.stopping.wait()), asyncio.create_task(self.policy_changed.wait())
+            (stop, changed) = (asyncio.create_task(self.stopping.wait()), asyncio.create_task(self.policy_changed.wait()))
 
             try:
                 await asyncio.wait((stop, changed), timeout=remaining, return_when=asyncio.FIRST_COMPLETED)
@@ -171,7 +172,9 @@ class DeliveryWorker:
 
                     if not item_refusal:
                         self.paused = True
+
                         self.on_notice(failure, facts("delivery_binding_paused"))
+
                         return
 
                     await self.inbox.storage(
@@ -180,9 +183,11 @@ class DeliveryWorker:
                     )
 
                     self.on_notice(failure, facts("delivery_held"))
+
                     return
                 else:
                     self._api_receipt_received = True
+
                     await self.inbox.storage(self.inbox.queue.remove_published, item)
 
                     self.on_notice(None, {**facts("delivery_published"), "replayed": receipt.replayed,
@@ -197,11 +202,13 @@ class DeliveryWorker:
             raise ValueError("A delivery binding already has its serial API worker.")
 
         self._running = True
-        operation_failure, cleanup_failures = None, ()
+
+        (operation_failure, cleanup_failures) = (None, ())
 
         try:
             while not self.stopping.is_set() and not self.paused:
                 self._api_receipt_received = False
+
                 self.changed.clear()
 
                 item = await self.inbox.storage(

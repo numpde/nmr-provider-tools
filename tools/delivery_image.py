@@ -43,11 +43,12 @@ def release_inputs(pin, runtime_lock):
             "Cannot use delivery release: runtime lock differs from the issued install lock."
         )
 
-    return release, install_lock_bytes
+    return (release, install_lock_bytes)
 
 
 def release_wheels(release):
     provider_wheel_name = f"provider_core-{release['version']}-py3-none-any.whl"
+
     return dict(release["runtime_wheels"]) | {provider_wheel_name: release["wheel_sha256"]}
 
 

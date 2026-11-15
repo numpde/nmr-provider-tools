@@ -40,7 +40,7 @@ def _checksum(value):
 
 def read_pin(path):
     """Read the consumer's expected release; downloads never rewrite this pin."""
-    data, _metadata = _regular_bytes(Path(path))
+    (data, _metadata) = _regular_bytes(Path(path))
     pin = _json(data, f"release pin {path}")
 
     if type(pin) is not dict:
@@ -111,7 +111,7 @@ def read_manifest(data):
     if not (entries) or "acquisition-manifest.json" in entries:
         raise ValueError("Acquisition manifest must inventory its payload without hashing itself.")
 
-    for name, entry in entries.items():
+    for (name, entry) in entries.items():
         path = _relative_name(name)
 
         if any(parent.as_posix() in entries for parent in path.parents):
@@ -152,7 +152,7 @@ def read_manifest(data):
             "Acquisition dependency inputs must map artifact names to SHA-256 checksums."
         )
 
-    for name, checksum in dependencies.items():
+    for (name, checksum) in dependencies.items():
         if type(name) is not str or type(checksum) is not str:
             raise TypeError(
                 f"Unexpected {type(name)=}, {type(checksum)=}; "
@@ -176,7 +176,7 @@ def _regular_bytes(path):
             raise ValueError(f"Cannot read acquisition input {path}: require a regular file.")
 
         with os.fdopen(descriptor, "rb", closefd=False) as stream:
-            return stream.read(), metadata
+            return (stream.read(), metadata)
     finally:
         os.close(descriptor)
 
@@ -198,7 +198,7 @@ def verify(source_dir):
     if source.resolve() != source or source.is_symlink() or not source.is_dir():
         raise ValueError(f"Cannot verify acquisition source {source}: require a real directory without symlink parents.")
 
-    data, metadata = _regular_bytes(source / "acquisition-manifest.json")
+    (data, metadata) = _regular_bytes(source / "acquisition-manifest.json")
 
     if metadata.st_mode & 0o111 or metadata.st_nlink != 1:
         raise ValueError("The acquisition manifest must not be executable or have extra hard links.")
@@ -211,7 +211,7 @@ def verify(source_dir):
 
     actual = set()
 
-    for root, directories, files in os.walk(source, followlinks=False):
+    for (root, directories, files) in os.walk(source, followlinks=False):
         for name in directories:
             directory = Path(root) / name
 
@@ -229,7 +229,7 @@ def verify(source_dir):
             if relative not in entries:
                 raise ValueError(f"Acquisition source contains an unrecorded file: {relative}.")
 
-            content, metadata = _regular_bytes(path)
+            (content, metadata) = _regular_bytes(path)
 
             if metadata.st_nlink != 1:
                 raise ValueError(f"Acquisition source file has extra hard links: {relative}.")
@@ -301,7 +301,7 @@ def _admit_archive(data, pin):
 
             _check_bytes(member.name, payload[member.name], entry)
 
-    return payload, manifest
+    return (payload, manifest)
 
 
 def _exchange_directories(first, second):
@@ -333,8 +333,8 @@ def _publish(source, stage):
 
 
 def _import_verified_old(source, pin, archive):
-    data, _metadata = _regular_bytes(Path(archive))
-    payload, manifest = _admit_archive(data, pin)
+    (data, _metadata) = _regular_bytes(Path(archive))
+    (payload, manifest) = _admit_archive(data, pin)
     stage = Path(tempfile.mkdtemp(prefix=".acquisition-next-", dir=source.parent))
 
     try:
@@ -345,7 +345,7 @@ def _import_verified_old(source, pin, archive):
 
         manifest_path.chmod(0o644)
 
-        for name, entry in manifest["payload_files"].items():
+        for (name, entry) in manifest["payload_files"].items():
             path = stage / name
             path.parent.mkdir(parents=True, exist_ok=True)
 
@@ -354,7 +354,7 @@ def _import_verified_old(source, pin, archive):
 
             path.chmod(entry["mode"])
 
-        for root, _directories, _files in os.walk(stage):
+        for (root, _directories, _files) in os.walk(stage):
             Path(root).chmod(0o755)
 
         verify(stage)
@@ -370,6 +370,7 @@ def _import_verified_old(source, pin, archive):
         raise
 
     _publish(source, stage)
+
     return manifest
 
 
@@ -377,6 +378,7 @@ def import_archive(source_dir, pin_file, archive):
     """Replace clean old source from an authenticated local archive, offline."""
     source = Path(source_dir).absolute()
     verify(source)
+
     return _import_verified_old(source, read_pin(pin_file), archive)
 
 

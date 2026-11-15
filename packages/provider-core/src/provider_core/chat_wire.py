@@ -98,7 +98,7 @@ def _size(header, maximum):
     if len(header) != 4:
         raise ValueError("Interpreter child message ended before its length")
 
-    size, = struct.unpack("!I", header)
+    (size,) = struct.unpack("!I", header)
 
     if not 0 < size <= maximum:
         raise ValueError("Interpreter child message exceeds its admitted limit")
@@ -135,11 +135,12 @@ def read_request(stream, maximum_bytes):
 
 async def read_message(reader, maximum_bytes):
     size = _size(await reader.readexactly(4), maximum_bytes)
+
     return read_document(await reader.readexactly(size), maximum_bytes)
 
 
 def _headers(headers):
-    return [[encoded_bytes(name), encoded_bytes(value)] for name, value in headers]
+    return [[encoded_bytes(name), encoded_bytes(value)] for (name, value) in headers]
 
 
 def _read_headers(headers):
@@ -165,7 +166,7 @@ def _read_headers(headers):
         if len(pair) != 2:
             raise ValueError("Interpreter child header is malformed")
 
-        name, value = (decoded_bytes(part, remaining) for part in pair)
+        (name, value) = (decoded_bytes(part, remaining) for part in pair)
         remaining -= len(name) + len(value)
 
         if not 0 <= remaining:
@@ -196,7 +197,7 @@ def response_message(response):
 
 def failure_message(failure):
     """Keep typed cause/reference relationships inside a bounded inert graph."""
-    nodes, seen = [], {}
+    (nodes, seen) = ([], {})
 
     def reference(error):
         if error is None:
@@ -222,7 +223,7 @@ def failure_message(failure):
         if type(error) is DecodedBodyRejected:
             node["reason"] = error.reason
 
-        node["cause"], node["context"] = reference(error.__cause__), reference(error.__context__)
+        (node["cause"], node["context"]) = (reference(error.__cause__), reference(error.__context__))
         node["suppress_context"] = error.__suppress_context__
 
         if isinstance(error, BaseExceptionGroup):
@@ -232,7 +233,7 @@ def failure_message(failure):
 
     primary = reference(failure.primary)
     cleanup = [reference(error) for error in failure.cleanup_failures]
-    interruption, network_failure = reference(failure.interruption), reference(failure.network_failure)
+    (interruption, network_failure) = (reference(failure.interruption), reference(failure.network_failure))
     network = failure.network_io
 
     if network is not None:
@@ -289,7 +290,7 @@ def _read_failure(document):
 
         constructing.add(index)
         node = nodes[index]
-        kind, text = node["type"], node["text"]
+        (kind, text) = (node["type"], node["text"])
 
         if not (type(kind) is str and type(text) is str):
             raise TypeError(
@@ -332,13 +333,14 @@ def _read_failure(document):
 
         errors[index] = result
         constructing.remove(index)
+
         return result
 
     for index in range(len(nodes)):
         error(index)
 
-    for current, node in zip(errors, nodes):
-        current.__cause__, current.__context__ = error(node["cause"]), error(node["context"])
+    for (current, node) in zip(errors, nodes):
+        (current.__cause__, current.__context__) = (error(node["cause"]), error(node["context"]))
 
         if type(node["suppress_context"]) is not bool:
             raise TypeError(
@@ -432,4 +434,5 @@ def read_reply(document, *, maximum_bytes, error_maximum_bytes):
 
     status = _status(document["status"])
     body = decoded_bytes(document["body"], maximum_bytes if status == 200 else error_maximum_bytes)
+
     return HttpResponse(status, _read_headers(document["headers"]), body)

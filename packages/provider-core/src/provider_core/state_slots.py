@@ -103,6 +103,7 @@ class StateOutputSlot[T]:
 
     def returned(self, value: T) -> ReturnedState[T]:
         """Give the host custody before any later state validation or encoding."""
+
         return ReturnedState(name=self.name, kind=self.kind.name, value=value, dispose=self.dispose)
 
     async def reference(self, call: CallBinding[Any, Any, Any], operation: Operation) -> StateHandle[T]:

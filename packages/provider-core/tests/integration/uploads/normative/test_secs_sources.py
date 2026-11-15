@@ -24,7 +24,7 @@ from tests.integration.uploads.fixtures import zip_bytes
 class SecsSourceReceivingTests(unittest.IsolatedAsyncioTestCase):
     async def test_acquired_zip_receipt_reaches_the_existing_member_consumption_contract(self):
         body = zip_bytes((("first.json", b'{"record":1}'), ("second.json", b'{"record":2}')))
-        owner, api, transport, _ = file_sources(source_bytes=len(body), total_bytes=len(body))
+        (owner, api, transport, _) = file_sources(source_bytes=len(body), total_bytes=len(body))
         digest = "sha256:" + hashlib.sha256(body).hexdigest()
         api.member = replace(api.member, byte_length=len(body), content_hash=digest)
         api.grant = replace(api.grant, byte_length=len(body), content_hash=digest)

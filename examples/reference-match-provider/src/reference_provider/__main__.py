@@ -41,7 +41,7 @@ async def run_demo() -> None:
 
             for values in ((3, 4, 0, 0), (0, 0, 1, 1)):
                 analysis_executor = execution_host.open_analysis(allocations=frozenset({hosted_matcher.allocation}))
-                reservation_ref, = analysis_executor.reservations
+                (reservation_ref,) = analysis_executor.reservations
 
                 match_operation = analysis_executor.submit_method(
                     method=hosted_matcher.contribution.match,
@@ -72,7 +72,7 @@ async def run_demo() -> None:
 
         # A later analysis failure must not suppress an earlier usable report.
         # Failed consumption keeps the result owned until this process exits.
-        for match_operation, result_ref in pending_report_deliveries:
+        for (match_operation, result_ref) in pending_report_deliveries:
             with failure_collector.capture():
                 async with ResultConsumption(operation=match_operation, result=result_ref, receive=print_report) as result_consumer:
                     await result_consumer.consume()

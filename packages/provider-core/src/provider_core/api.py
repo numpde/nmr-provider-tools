@@ -90,12 +90,14 @@ class ApiFailure(RuntimeError):
     @property
     def status(self):
         head = self._received_head()
+
         # silent-defaults: allow-contract -- An unobserved response has no status; absence must remain distinguishable from a received status.
         return None if head is None else head.status
 
     @property
     def request_id(self):
         head = self._received_head()
+
         # silent-defaults: allow-contract -- Request correlation exists only in an observed response.
         return None if head is None else response_request_id(head.headers)
 
@@ -108,7 +110,7 @@ class ApiFailure(RuntimeError):
         """
         head = self._received_head()
         # silent-defaults: allow-contract -- Absent or ambiguous server timing advice grants no Retry-After floor.
-        values = [] if head is None else [value for name, value in head.headers if name.lower() == b"retry-after"]
+        values = [] if head is None else [value for (name, value) in head.headers if name.lower() == b"retry-after"]
 
         if len(values) != 1:
             return None
@@ -244,7 +246,7 @@ _PROBLEM_REASONS = {
 def _unique_problem_fields(pairs):
     document = {}
 
-    for key, value in pairs:
+    for (key, value) in pairs:
         if key in document:
             raise ValueError("Duplicate problem field")
 
@@ -265,7 +267,7 @@ def _http_failure(response, operation):
     This reads diagnostics, not mutation-effect certainty or retry permission.
     """
     failure = ApiFailure(operation, f"API returned HTTP {response.status}; no verified response was obtained", response=response)
-    content_types = [value for key, value in response.headers if key.lower() == b"content-type"]
+    content_types = [value for (key, value) in response.headers if key.lower() == b"content-type"]
 
     if content_types != [b"application/problem+json"] or len(response.body) > 4096:
         return failure
@@ -299,6 +301,7 @@ def _http_failure(response, operation):
 
     failure = ApiFailure(operation, f"{reason} (HTTP {response.status})", response=response)
     failure.problem_code = problem["code"]
+
     return failure
 
 
@@ -312,8 +315,8 @@ def _require_api_headers(response, operation, expected_topology):
     # silent-defaults: allow-contract -- The pinned protocol selects JSON for success and problem JSON for refusal.
     content_type = b"application/json" if response.status == 200 else b"application/problem+json"
 
-    for name, expected in ((b"content-type", content_type), (b"cache-control", b"no-store")):
-        values = [value for key, value in response.headers if key.lower() == name]
+    for (name, expected) in ((b"content-type", content_type), (b"cache-control", b"no-store")):
+        values = [value for (key, value) in response.headers if key.lower() == name]
 
         if values != [expected]:
             raise ApiFailure(
@@ -322,15 +325,15 @@ def _require_api_headers(response, operation, expected_topology):
                 response=response,
             )
 
-    if any(name.lower() == b"content-encoding" for name, _ in response.headers):
+    if any(name.lower() == b"content-encoding" for (name, _) in response.headers):
         raise ApiFailure(operation, "encoded response bodies are not supported by the API contract", response=response)
 
-    markers = [value for name, value in response.headers if name.lower() == b"nmr-api-topology"]
+    markers = [value for (name, value) in response.headers if name.lower() == b"nmr-api-topology"]
 
     if markers != [expected_topology.encode("ascii")]:
         raise ApiFailure(operation, "response must identify exactly the configured Nmr-Api-Topology", response=response)
 
-    request_ids = [value for name, value in response.headers if name.lower() == b"x-request-id"]
+    request_ids = [value for (name, value) in response.headers if name.lower() == b"x-request-id"]
 
     if len(request_ids) > 1 or (response.status != 200 and response_request_id(response.headers) is None):
         raise ApiFailure(operation, "response request correlation is missing or ambiguous", response=response)
@@ -366,11 +369,13 @@ class ProviderAPI:
     @property
     def identity(self):
         """The granted signing capability, for trusted composition's binding checks."""
+
         return self._identity
 
     @property
     def expected_topology(self):
         """The configured routed API environment, independent of signing profile."""
+
         return self._expected_topology
 
     @property
@@ -523,6 +528,7 @@ class ProviderAPI:
         progress PUT x-nmr-recovery (latest_progress) and HTTP500 description;
         source 12a53e720fc87e1a4144c76203f8853d5afaf753 (fixture manifest).
         """
+
         return self._recoverable_progress_failure(failure, execution_attempt_ref)
 
     def can_retry_condition(self, failure, *, execution_attempt_ref):
@@ -534,6 +540,7 @@ class ProviderAPI:
         phase-only deferral. Authority: the same pinned latest_progress recovery
         and HTTP500 rule documented by can_defer_phase_progress.
         """
+
         return self._recoverable_progress_failure(failure, execution_attempt_ref)
 
     def _recoverable_progress_failure(self, failure, execution_attempt_ref):
@@ -683,7 +690,8 @@ class ProviderAPI:
         # A proxy may omit API headers or use HTML during maintenance. Retrying
         # an operation grants no interpretation of that body; an explicit environment
         # mismatch must not be hidden by the gateway status.
-        markers = [value for name, value in response.headers if name.lower() == b"nmr-api-topology"]
+        markers = [value for (name, value) in response.headers if name.lower() == b"nmr-api-topology"]
+
         return markers in ([], [self._expected_topology.encode("ascii")])
 
     async def retire(self, *, owner=None):
@@ -947,7 +955,7 @@ class ProviderAPI:
         Uncertainty never authorizes replacing it with another result or failure.
         """
         require_attempt_ref(execution_attempt_ref)
-        result_schema_id, result = read_complete_body(body, execution_attempt_ref=execution_attempt_ref)
+        (result_schema_id, result) = read_complete_body(body, execution_attempt_ref=execution_attempt_ref)
 
         response = await self._exchange(
             "complete Execution Attempt",
@@ -976,7 +984,7 @@ class ProviderAPI:
         preserves exact accepted text; it does not guess which content is secret.
         """
         require_attempt_ref(execution_attempt_ref)
-        failure_code, failure_message = read_fail_body(body, execution_attempt_ref=execution_attempt_ref)
+        (failure_code, failure_message) = read_fail_body(body, execution_attempt_ref=execution_attempt_ref)
 
         response = await self._exchange(
             "publish Attempt failure",
@@ -1054,6 +1062,7 @@ class ProviderAPI:
             )
 
         self.last_failure = failure
+
         return failure
 
     # silent-defaults: allow-contract -- Callers explicitly mark issuance and Attempt effects; ordinary exchanges acquire neither effect claim.

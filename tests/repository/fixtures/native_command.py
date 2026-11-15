@@ -19,7 +19,7 @@ def fixture_command(name):
     arguments = sys.argv[1:]
 
     if name == "mv":
-        source, target = map(Path, arguments[-2:])
+        (source, target) = map(Path, arguments[-2:])
         selected = os.environ.get("NATIVE_CORRUPT_REMOVAL_ROLE")
         identity = {}
 
@@ -97,6 +97,7 @@ def fixture_command(name):
 
             if mutation == "symlink":
                 target.symlink_to(source)
+
                 return 0
 
             if mutation in {"fifo", "directory", "deadline-fifo", "deadline-directory", "deadline-symlink"}:
@@ -133,9 +134,11 @@ def fixture_command(name):
             os.kill(os.getppid(), int(os.environ["NATIVE_CANCEL_CLEANUP"]))
 
         sys.stderr.write("fixture cleanup failed after deletion\n")
+
         return 23
 
     os.execv("/bin/" + name, [name, *arguments])
+
     return 97
 
 

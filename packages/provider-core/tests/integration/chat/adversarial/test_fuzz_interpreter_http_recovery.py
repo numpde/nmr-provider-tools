@@ -43,7 +43,7 @@ class RepeatedInterpreterTimeoutTests(unittest.TestCase):
 
                         time.sleep(0.01)
                 finally:
-                    for number, wait_seconds in ((signal.SIGTERM, 0.5), (signal.SIGKILL, 2)):
+                    for (number, wait_seconds) in ((signal.SIGTERM, 0.5), (signal.SIGKILL, 2)):
                         try:
                             os.killpg(fixture_process.pid, number)
                         # silent-defaults: allow-contract -- A missing disposable group is already stopped; communicate still reaps its original process.
@@ -56,7 +56,7 @@ class RepeatedInterpreterTimeoutTests(unittest.TestCase):
                         except subprocess.TimeoutExpired:
                             pass
 
-                    stdout, stderr = fixture_process.communicate(timeout=2)
+                    (stdout, stderr) = fixture_process.communicate(timeout=2)
 
                 self.assertIsNotNone(report, msg="No pre-teardown recovery verdict:\n" + stdout + stderr)
                 evidence = json.dumps(report, sort_keys=True)
@@ -118,7 +118,7 @@ class RepeatedInterpreterTimeoutTests(unittest.TestCase):
                 self.assertEqual(report["original_result_receipt_result"], report["original_result_receipt_verified"], msg=evidence)
                 self.assertTrue(report["delivery_request_bodies_match"], msg=evidence)
                 self.assertEqual(7, len(report["published_attempts"]), msg=evidence)
-                self.assertEqual(["delivery_published"] * 7, [facts["event"] for _, facts in report["notices"]], msg=evidence)
+                self.assertEqual(["delivery_published"] * 7, [facts["event"] for (_, facts) in report["notices"]], msg=evidence)
                 self.assertEqual([], report["queue_inventory"], msg=evidence)
                 self.assertEqual(0, report["final_live_claims"], msg=evidence)
                 self.assertEqual(0, report["final_open_prose_connections"], msg=evidence)
@@ -137,6 +137,6 @@ class RepeatedInterpreterTimeoutTests(unittest.TestCase):
 
                     self.assertTrue(job["shutdown_ready"], msg=evidence)
 
-                before, after = report["scientific_worker_before"], report["scientific_worker_after"]
+                (before, after) = (report["scientific_worker_before"], report["scientific_worker_after"])
                 self.assertEqual(before["pid"], after["pid"], msg=evidence)
                 self.assertEqual((1, 2, 2, 7), (after["model_loads"], after["preparations"], after["executions"], after["retirements"]), msg=evidence)

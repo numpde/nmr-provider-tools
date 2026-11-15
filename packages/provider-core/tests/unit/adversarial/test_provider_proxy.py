@@ -25,7 +25,7 @@ class ServiceProxyRefusalTests(unittest.TestCase):
         policy = ServicePolicy.admit("external", ["private.example:443"], [])
         question = bound_http_proxy._dns_name("other.private") + struct.pack("!HH", 1, 1)
 
-        for packet, expected in (
+        for (packet, expected) in (
             (struct.pack("!HHHHHH", transaction, 0x8003, 1, 0, 0, 0), "DNS server returned rcode 3"),
             (b"PRIVATE", "truncated DNS response"),
             (
@@ -97,7 +97,7 @@ class ServiceProxyRefusalTests(unittest.TestCase):
             self.assertNotIn(b"200", request.sendall.call_args.args[0])
 
     def test_policy_refuses_ambiguity_and_incomplete_or_extra_local_mappings(self):
-        for mode, authorities, addresses in (
+        for (mode, authorities, addresses) in (
             ("external", [], []),
             ("external", ["api.example:443", "api.example:443"], []),
             ("external", ["API.example:443"], []),
@@ -145,7 +145,7 @@ class ServiceProxyRefusalTests(unittest.TestCase):
     def test_socket_and_readiness_grants_refuse_existing_leaves_or_public_parent(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
-            socket_path, ready = root / "proxy.sock", root / "ready"
+            (socket_path, ready) = (root / "proxy.sock", root / "ready")
 
             with socket_grant(socket_path, ready):
                 pass
@@ -190,6 +190,7 @@ class ServiceProxyRefusalTests(unittest.TestCase):
         def acquire(*args, **kwargs):
             channel = native_socket(*args, **kwargs)
             acquired.append(channel)
+
             return channel
 
         bind = bound_http_proxy.ProxyServer.server_bind
@@ -221,7 +222,7 @@ class ServiceProxyRefusalTests(unittest.TestCase):
 
     def test_invalid_interface_has_an_owned_diagnostic_before_socket_or_readiness(self):
         with tempfile.TemporaryDirectory() as directory:
-            path, ready = Path(directory) / "proxy.sock", Path(directory) / "ready"
+            (path, ready) = (Path(directory) / "proxy.sock", Path(directory) / "ready")
 
             argv = [
                 "provider_proxy",
@@ -261,7 +262,7 @@ class ServiceProxyRefusalTests(unittest.TestCase):
 
     def test_filesystem_refusal_retains_safe_errno_and_private_cause(self):
         with tempfile.TemporaryDirectory() as directory:
-            path, ready = Path(directory) / "proxy.sock", Path(directory) / "ready"
+            (path, ready) = (Path(directory) / "proxy.sock", Path(directory) / "ready")
             primary = PermissionError(13, "PRIVATE_PATH")
 
             with patch.object(Path, "lstat", side_effect=primary), self.assertRaises(ServiceRefused) as caught, socket_grant(path, ready):
@@ -275,7 +276,7 @@ class ServiceProxyRefusalTests(unittest.TestCase):
         request = MagicMock()
         policy = ServicePolicy.admit("external", ["api.example:443"], [])
 
-        for failure, expected in (
+        for (failure, expected) in (
             (
                 bound_http_proxy.ProxyResolutionFailed(
                     "Cannot resolve proxy destination: no non-loopback IPv4 DNS server is configured."

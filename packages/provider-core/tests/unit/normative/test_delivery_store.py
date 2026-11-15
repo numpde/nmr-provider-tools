@@ -12,6 +12,7 @@ from tests.fakes.delivery import outcome
 class DeliveryQueueTests(unittest.TestCase):
     def setUp(self):
         self.directory = tempfile.TemporaryDirectory()
+
         self.addCleanup(self.directory.cleanup)
         self.root = Path(self.directory.name)
         self.limits = QueueLimits(provider_items=1, provider_bytes=4096, total_items=2, total_bytes=8192)
@@ -19,6 +20,7 @@ class DeliveryQueueTests(unittest.TestCase):
     def open(self):
         queue = DeliveryQueue(self.root, limits=self.limits)
         self.addCleanup(queue.close)
+
         return queue
 
     def test_restart_and_duplicate_keep_the_exact_original_body(self):
@@ -48,7 +50,7 @@ class DeliveryQueueTests(unittest.TestCase):
 
     def test_held_work_counts_toward_capacity_without_blocking_another_provider(self):
         queue = self.open()
-        first, other = outcome(), outcome(provider="provider:other", suffix="1")
+        (first, other) = (outcome(), outcome(provider="provider:other", suffix="1"))
         queue.enqueue(first)
         queue.hold(first, "The API rejected this terminal outcome; inspect operator diagnostics.")
 
@@ -63,6 +65,7 @@ class DeliveryQueueTests(unittest.TestCase):
     def test_exact_byte_allowance_accepts_and_overflow_refuses_before_another_insert(self):
         first = outcome()
         self.limits = QueueLimits(provider_items=2, provider_bytes=len(first.body), total_items=4, total_bytes=2 * len(first.body))
+
         queue = self.open()
         queue.enqueue(first)
 
@@ -78,6 +81,7 @@ class DeliveryQueueTests(unittest.TestCase):
 
     def test_operator_discard_requires_exclusive_storage_and_exact_held_identity(self):
         self.limits = QueueLimits(provider_items=2, provider_bytes=8192, total_items=4, total_bytes=16384)
+
         queue = self.open()
         held = outcome(message="DISCARDED_HELD_PAYLOAD_NEEDLE")
         pending = outcome(suffix="1")
@@ -92,7 +96,7 @@ class DeliveryQueueTests(unittest.TestCase):
         with self.assertRaises(DeliveryStorageFailed):
             DeliveryQueue(self.root, limits=self.limits)
 
-        for origin, provider, attempt, digest in (
+        for (origin, provider, attempt, digest) in (
             ("https://other.example", held.provider_ref, held.execution_attempt_ref, held.body_sha256),
             (held.api_origin, other.provider_ref, held.execution_attempt_ref, held.body_sha256),
             (held.api_origin, held.provider_ref, held.execution_attempt_ref, "sha256:" + "f" * 64),

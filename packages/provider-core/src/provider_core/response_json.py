@@ -20,7 +20,7 @@ class ResponseRejected(ValueError):
 def _unique_fields(pairs):
     result = {}
 
-    for name, value in pairs:
+    for (name, value) in pairs:
         if name in result:
             raise ResponseRejected("Response contains a duplicate JSON field")
 

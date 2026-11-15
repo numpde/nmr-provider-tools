@@ -18,9 +18,9 @@ from tests.fakes.transport import Client, Stream
 
 class UploadHeadAdmissionTests(unittest.IsolatedAsyncioTestCase):
     async def test_tiny_grant_refuses_503_before_body_and_retains_exact_head_refusal(self):
-        _, api, _, _ = file_sources()
+        (_, api, _, _) = file_sources()
         grant = replace(api.grant, byte_length=1, content_hash="sha256:"+sha256(b"x").hexdigest())
-        observed, consumed = [], []
+        (observed, consumed) = ([], [])
 
         class ErrorBody(Stream):
             async def __aiter__(self):

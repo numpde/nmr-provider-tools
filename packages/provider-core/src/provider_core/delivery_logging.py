@@ -35,11 +35,13 @@ class DeliveryNotices:
         self.secrets = tuple(secrets)
         self.redact = operator_redactor(secrets=self.secrets)
         self.handler = _DeliveryStreamHandler(stream)
+
         self.handler.setFormatter(logging.Formatter("%(message)s"))
         self.logger = logging.Logger("provider_core.delivery", logging.INFO)
+
         self.logger.propagate = False
         self.logger.addHandler(self.handler)
-        self.output_failures, self.latest_failure = 0, None
+        (self.output_failures, self.latest_failure) = (0, None)
 
     def _failed(self, failure, facts, output_failure):
         self.output_failures += 1
@@ -53,7 +55,7 @@ class DeliveryNotices:
         # writes. Serialization/output failure affects diagnostics, never the
         # API receipt, queue transaction or another publication decision.
         try:
-            document = {name: self.redact(value) if type(value) is str else value for name, value in facts.items()}
+            document = {name: self.redact(value) if type(value) is str else value for (name, value) in facts.items()}
 
             if failure is not None:
                 document["failure"] = failure_evidence(failure, secrets=self.secrets)
@@ -72,7 +74,7 @@ class DeliveryNotices:
         failure_type = failure_errno = failed_event = None
 
         if self.latest_failure is not None:
-            _, facts, error = self.latest_failure
+            (_, facts, error) = self.latest_failure
             failure_type = type(error).__name__[:128]
 
             if isinstance(error, OSError) and type(error.errno) is int:

@@ -25,7 +25,7 @@ class ObservedExecutor(AttemptExecutor):
 
 class ExecutionConditionTests(unittest.IsolatedAsyncioTestCase):
     async def test_set_and_clear_in_each_phase_preserve_running_entry_order(self):
-        store, acknowledged, claim = await live_attempt()
+        (store, acknowledged, claim) = await live_attempt()
         transport = ConditionTransport()
         transport.release.set()
         session = ReportingSession(store)
@@ -40,7 +40,7 @@ class ExecutionConditionTests(unittest.IsolatedAsyncioTestCase):
             task_settle_seconds=0.1,
         ).run(acknowledged)
 
-        commands = [json.loads(request.content) for request, _ in transport.calls if request.method == "PUT"]
+        commands = [json.loads(request.content) for (request, _) in transport.calls if request.method == "PUT"]
 
         self.assertEqual(
             [(command["phase"], command["condition_code"]) for command in commands],
@@ -62,7 +62,7 @@ class ExecutionConditionTests(unittest.IsolatedAsyncioTestCase):
     async def test_pending_condition_blocks_effect_and_serializes_polling(self):
         for phase in ("prepare", "execute"):
             with self.subTest(phase=phase):
-                store, acknowledged, claim = await live_attempt()
+                (store, acknowledged, claim) = await live_attempt()
                 transport = ConditionTransport()
                 session = ReportingSession(store)
                 # silent-defaults: allow-contract -- Disable only the other phase so this fixture reaches the selected phase failure.

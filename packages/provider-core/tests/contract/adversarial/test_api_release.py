@@ -56,7 +56,7 @@ class ReleasedApiRefusalTests(PinnedApiRelease, unittest.IsolatedAsyncioTestCase
                     self.read_release(root)
 
     async def test_each_operation_refuses_changed_schema_and_unknown_top_level_response_fields(self):
-        for operation, call in provider_calls().items():
+        for (operation, call) in provider_calls().items():
             for mutation in ("schema", "extra"):
                 with self.subTest(operation=operation, mutation=mutation):
                     document = json.loads(call.response)

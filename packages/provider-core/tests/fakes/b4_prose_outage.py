@@ -46,7 +46,7 @@ class ObservedFactory:
     """Keep the actual HTTP carriers for pre-teardown resource observations."""
 
     def __init__(self, factory):
-        self.factory, self.endpoints = factory, []
+        (self.factory, self.endpoints) = (factory, [])
 
     @property
     def context_bytes(self):
@@ -55,6 +55,7 @@ class ObservedFactory:
     def __call__(self, *, exchange_seconds, connect_seconds):
         endpoint = self.factory(exchange_seconds=exchange_seconds, connect_seconds=connect_seconds)
         self.endpoints.append(endpoint)
+
         return endpoint
 
 
@@ -76,7 +77,7 @@ class ObservedProseService(ProseService):
             status = response.status
 
             retry_after = [value.decode("ascii", errors="replace")
-                           for name, value in response.headers if name.lower() == b"retry-after"]
+                           for (name, value) in response.headers if name.lower() == b"retry-after"]
 
         self.retry_observations.append({
             "at": observed_at,
@@ -100,6 +101,7 @@ class JobsControlTransport(Transport):
 
         if request.url.path.endswith("/start"):
             self.start_times.append(asyncio.get_running_loop().time())
+
             return reply(start_response(job_ref=self.job_ref, execution_attempt_ref=self.attempt_ref))
 
         if request.url.path.endswith("/progress"):
@@ -118,14 +120,16 @@ class DurableHandoff:
     """Acknowledge actual SQLite custody; the publisher still owns API publication."""
 
     def __init__(self, inbox, endpoint, publisher):
-        self.inbox, self.endpoint, self.publisher = inbox, endpoint, publisher
+        (self.inbox, self.endpoint, self.publisher) = (inbox, endpoint, publisher)
         self.items = []
-        self.retirement_confirmed, self.last_failure = True, None
+
+        (self.retirement_confirmed, self.last_failure) = (True, None)
 
     async def submit(self, item):
         self.items.append(item)
         accepted = await self.inbox.storage(self.inbox.queue.enqueue, item)
         self.publisher.wake()
+
         return accepted
 
     async def retire(self):
@@ -169,13 +173,13 @@ async def run_outage(directory, *, mode, backlog, seed):
     maximum_attempts = 2
     receipt_release_phase = random_order.choice(("request_received", "failed_job_settled"))
     claims = AttemptClaims.live(limits=LiveAttemptLimits(maximum_attempts=maximum_attempts))
-    stopping, restored, first_failed_request, first_failed_job = (asyncio.Event() for _ in range(4))
-    original_report_received, release_original_receipt = asyncio.Event(), asyncio.Event()
-    trace, requests, jobs, notices, publication_receipts = [], [], [], [], []
+    (stopping, restored, first_failed_request, first_failed_job) = (asyncio.Event() for _ in range(4))
+    (original_report_received, release_original_receipt) = (asyncio.Event(), asyncio.Event())
+    (trace, requests, jobs, notices, publication_receipts) = ([], [], [], [], [])
     published = {}
-    scientific_worker, worker_lock = WarmWorker(), asyncio.Lock()
-    original_report_ref, restored_at = None, None
-    peak_claims, peak_prose_connections = 0, 0
+    (scientific_worker, worker_lock) = (WarmWorker(), asyncio.Lock())
+    (original_report_ref, restored_at) = (None, None)
+    (peak_claims, peak_prose_connections) = (0, 0)
 
     def event(name, **facts):
         trace.append({"event": name, "at": loop.time(), **facts})
@@ -205,7 +209,8 @@ async def run_outage(directory, *, mode, backlog, seed):
 
     async def failed_service_response(_request, _body):
         if restored.is_set():
-            failed_peer.response_status, failed_peer.response_headers = 200, None
+            (failed_peer.response_status, failed_peer.response_headers) = (200, None)
+
             return successful_reply
 
         failed_peer.response_status = 503
@@ -227,7 +232,7 @@ async def run_outage(directory, *, mode, backlog, seed):
         reference = json.loads(body)["execution_attempt_ref"]
 
         if request.split(b" ")[1].endswith(b"/complete"):
-            schema, content = read_complete_body(body, execution_attempt_ref=reference)
+            (schema, content) = read_complete_body(body, execution_attempt_ref=reference)
 
             if reference == original_report_ref:
                 original_report_received.set()
@@ -240,10 +245,11 @@ async def run_outage(directory, *, mode, backlog, seed):
                 result_fingerprint="sha256:" + sha256(content).hexdigest(), result_byte_length=len(content),
             )
         else:
-            code, message = read_fail_body(body, execution_attempt_ref=reference)
+            (code, message) = read_fail_body(body, execution_attempt_ref=reference)
             receipt = fail_response(execution_attempt_ref=reference, failure_code=code, failure_message=message)
 
         publication_receipts.append(receipt)
+
         return receipt
 
     def delivery_notice(error, facts):
@@ -288,6 +294,7 @@ async def run_outage(directory, *, mode, backlog, seed):
                 self.scientific_prepare_calls += 1
                 await science("prepare", self.job_ref)
                 self.handle = PreparedAnalysis(ProtectedEvidence("fixture.prepared_input.v1", self.job_ref.encode()))
+
                 return ToolFinished(self.handle)
 
             tools = [{"type": "function", "function": {
@@ -341,7 +348,7 @@ async def run_outage(directory, *, mode, backlog, seed):
             spec=ChatEndpointSpec(configuration_id=name, model="local-prose-test-model",
                                   url=peer.origin + "/chat", api_key="B4_TEST_CREDENTIAL", reasoning_effort=None),
             trust=peer.trust, retirement_seconds=retirement_seconds, request_bytes=32768, response_bytes=8192,
-        )) for name, peer in (("unavailable-prose-service", failed_peer), ("independent-prose-service", healthy_peer)))
+        )) for (name, peer) in (("unavailable-prose-service", failed_peer), ("independent-prose-service", healthy_peer)))
 
         failed_service = ObservedProseService(observed_factories[0])
         healthy_service = ProseService(observed_factories[1])
@@ -376,7 +383,7 @@ async def run_outage(directory, *, mode, backlog, seed):
             pending = StartPending(selected_scope, base.analysis_kind_ref, replace(base.input, job_ref=job_ref),
                                    retained_start(job_ref=job_ref, provider_attempt_key="b4:" + name))
 
-            session, control = ScientificSession(job_ref, service), JobsControlTransport(job_ref)
+            (session, control) = (ScientificSession(job_ref, service), JobsControlTransport(job_ref))
 
             controller = AttemptController.live(
                 api(control, selected_scope.api_origin), claims, session, scope=selected_scope,
@@ -396,7 +403,7 @@ async def run_outage(directory, *, mode, backlog, seed):
             job = {"name": name, "attempt_ref": control.attempt_ref,
                    "prepare_calls": session.prepare_calls, "scientific_prepare_calls": session.scientific_prepare_calls,
                    "execute_calls": session.execute_calls, "failed": session.failure is not None,
-                   "starts": sum(request.url.path.endswith("/start") for request, _ in control.calls),
+                   "starts": sum(request.url.path.endswith("/start") for (request, _) in control.calls),
                    "shutdown_ready": controller.shutdown_ready, "started_at": control.start_times[0], "finished_at": loop.time(),
                    "diagnostic": diagnostic}
 
@@ -453,7 +460,7 @@ async def run_outage(directory, *, mode, backlog, seed):
             await wait_for_publication({item.execution_attempt_ref for item in local_delivery.items})
             peer_connections = [await _settled_peer_handlers(peer) for peer in (failed_peer, healthy_peer, jobs_peer)]
 
-            for request, body in zip(jobs_peer.requests, jobs_peer.request_bodies, strict=True):
+            for (request, body) in zip(jobs_peer.requests, jobs_peer.request_bodies, strict=True):
                 verify_signed_request(request, body, origin=jobs_peer.origin, key=delivery_api.identity.private_key)
 
             carriers = [endpoint for factory in observed_factories for endpoint in factory.endpoints]

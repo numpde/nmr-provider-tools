@@ -79,11 +79,11 @@ class LauncherTests(unittest.TestCase):
     def test_interactive_menu_offers_only_local_contexts(self):
         fixture = ROOT / "tests/repository/fixtures/docker-context"
 
-        environment = {key: value for key, value in os.environ.items()
+        environment = {key: value for (key, value) in os.environ.items()
                        if key not in {"DOCKER_CONTEXT_INPUT_ORIGIN", "DOCKER_CONTEXT_INPUT", "NMR_SELECTED_DOCKER_CONTEXT", "NMR_SELECTED_DOCKER_ENDPOINT"}}
 
         environment["PATH"] = f"{fixture}:{os.environ['PATH']}"
-        pid, terminal = pty.fork()
+        (pid, terminal) = pty.fork()
 
         if pid == 0:
             os.chdir(ROOT)
@@ -95,7 +95,7 @@ class LauncherTests(unittest.TestCase):
 
         try:
             while time.monotonic() < deadline:
-                readable, _, _ = select.select([terminal], [], [], 0.2)
+                (readable, _, _) = select.select([terminal], [], [], 0.2)
 
                 if readable:
                     try:
@@ -112,7 +112,7 @@ class LauncherTests(unittest.TestCase):
             if not sent:
                 os.kill(pid, signal.SIGKILL)
 
-            _, status = os.waitpid(pid, 0)
+            (_, status) = os.waitpid(pid, 0)
         finally:
             os.close(terminal)
 
@@ -171,7 +171,7 @@ class LauncherTests(unittest.TestCase):
             launcher = root / "host/tools/repository.sh"
             launcher.write_bytes((ROOT / "host/tools/repository.sh").read_bytes())
 
-            for target, message in (
+            for (target, message) in (
                 ("tests/repository", "checker_inputs.sh"),
                 ("unreviewed", "unknown target"),
             ):

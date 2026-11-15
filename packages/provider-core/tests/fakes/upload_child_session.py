@@ -24,7 +24,7 @@ class UploadChildSession(ChildSession):
 
     def __init__(self, store, mode, source, *, directory_fd):
         super().__init__(store, mode)
-        self.source, self.directory_fd = source, directory_fd
+        (self.source, self.directory_fd) = (source, directory_fd)
         self.source_reply = None
         self.source_read_reply = None
         self.reading_started = asyncio.Event()
@@ -39,6 +39,7 @@ class UploadChildSession(ChildSession):
 
         self.phases.append(type(self.store.records[0]))
         self._launch = asyncio.create_task(self.child.start(self.mode, pass_fds=(self.directory_fd,)))
+
         await asyncio.shield(self._launch)
 
         await self.child.send(
@@ -54,6 +55,7 @@ class UploadChildSession(ChildSession):
 
         if reply.get("state") == "reading":
             self.source_read_reply = reply
+
             self.reading_started.set()
             reply = await self.child.receive()
 
@@ -65,8 +67,10 @@ class UploadChildSession(ChildSession):
             raise ValueError("Upload child did not acknowledge its exact admitted input and verified source")
 
         self.source_reply = reply
+
         identity = json.dumps({"upload": asdict(self.source), "input": reply}, sort_keys=True).encode()
         self._prepared = PreparedAnalysis(ProtectedEvidence("fixture.upload_child.input.v1", identity))
+
         return self._prepared
 
     async def stop_child(self):

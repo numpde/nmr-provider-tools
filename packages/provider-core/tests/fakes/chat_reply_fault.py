@@ -11,7 +11,7 @@ from provider_core.chat_worker import main
 
 
 def run():
-    mode, marker = sys.argv[1:3]
+    (mode, marker) = sys.argv[1:3]
 
     def held_reply(stream, document):
         if document["kind"] != "response":

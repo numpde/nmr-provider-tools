@@ -18,7 +18,7 @@ from tests.fakes.job_input import response
 
 class PreparedIdentityRefusalTests(unittest.TestCase):
     def test_protected_evidence_refuses_empty_mutable_and_oversized_content(self):
-        for content, error_type in ((b"", ValueError), (bytearray(b"mutable"), TypeError), (b"x" * (MAX_EVIDENCE_BYTES + 1), ValueError)):
+        for (content, error_type) in ((b"", ValueError), (bytearray(b"mutable"), TypeError), (b"x" * (MAX_EVIDENCE_BYTES + 1), ValueError)):
             with self.subTest(content_type=type(content).__name__), self.assertRaises(error_type):
                 ProtectedEvidence("fixture.input.v1", content)
 
@@ -56,7 +56,7 @@ class UnidentifiedPreparationTests(unittest.IsolatedAsyncioTestCase):
             reply(observation()),
         )
 
-        store, acknowledged, claim = await live_attempt()
+        (store, acknowledged, claim) = await live_attempt()
         session = Session(store)
         session.preparation = object()
 

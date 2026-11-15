@@ -32,7 +32,7 @@ class UploadAcquisitionIntegrationTests(unittest.IsolatedAsyncioTestCase):
         body = b"geometry"
         fingerprint = "sha256:" + hashlib.sha256(body).hexdigest()
         # repo-check: allow-tuple-generator -- This fixed header specimen deliberately omits Content-Length for framing qualification.
-        headers = tuple((key, value) for key, value in store_headers(body) if key != b"content-length")
+        headers = tuple((key, value) for (key, value) in store_headers(body) if key != b"content-length")
 
         async with TlsPeer("success", response_body=body, response_headers=headers) as store_peer:
             upload = member(byte_length=len(body), content_hash=fingerprint)
@@ -95,12 +95,12 @@ class UploadAcquisitionIntegrationTests(unittest.IsolatedAsyncioTestCase):
     async def test_deadline_and_cancellation_charge_partial_bytes_and_close_store(self):
         body = b"x" * 100
         fingerprint = "sha256:" + hashlib.sha256(body).hexdigest()
-        headers = [(key, value) for key, value in store_headers(body) if key != b"content-length"]
+        headers = [(key, value) for (key, value) in store_headers(body) if key != b"content-length"]
 
         for cancel in (False, True):
             with self.subTest(cancel=cancel):
                 async with TlsPeer("body-stall", response_headers=headers) as peer:
-                    _, api, _ = sources()
+                    (_, api, _) = sources()
                     api.member = replace(api.member, byte_length=len(body), content_hash=fingerprint)
 
                     api.grant = replace(
@@ -143,10 +143,10 @@ class UploadAcquisitionIntegrationTests(unittest.IsolatedAsyncioTestCase):
                     await transport.retire()
 
     async def test_oversized_store_head_is_rejected_before_body_budget_is_spent(self):
-        headers = [(key, value) for key, value in store_headers(b"geometry") if key != b"content-length"]
+        headers = [(key, value) for (key, value) in store_headers(b"geometry") if key != b"content-length"]
 
         async with TlsPeer("success", response_body=b"oversized", response_headers=headers) as peer:
-            _, api, _ = sources()
+            (_, api, _) = sources()
             api.grant = replace(api.grant, download_url=peer.origin + "/upload/v1/uploads/" + UPLOAD_REF + "/bytes")
             transport = HttpTransport(trust=peer.trust, exchange_seconds=1, retirement_seconds=0.3)
 

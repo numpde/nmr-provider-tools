@@ -141,11 +141,14 @@ class WheelhouseTests(unittest.TestCase):
         self.addCleanup(temporary.cleanup)
         self.root = Path(temporary.name)
         self.pool = self.root / "pool"
+
         self.pool.mkdir()
         self.content = b"locked artifact bytes"
         self.name = "example-1.0-py3-none-any.whl"
+
         (self.root / self.name).write_bytes(self.content)
         self.requests = []
+
         requests = self.requests
 
         class Server(SimpleHTTPRequestHandler):
@@ -153,12 +156,14 @@ class WheelhouseTests(unittest.TestCase):
                 requests.append(self.path)
 
         self.server = ThreadingHTTPServer(("127.0.0.1", 0), partial(Server, directory=str(self.root)))
+
         thread = threading.Thread(target=self.server.serve_forever)
         thread.start()
         self.addCleanup(self.server.server_close)
         self.addCleanup(thread.join)
         self.addCleanup(self.server.shutdown)
         self.lock = self.root / "pylock.toml"
+
         self.write_lock(hashlib.sha256(self.content).hexdigest())
 
     def write_lock(self, digest):
@@ -220,7 +225,7 @@ class WheelhouseTests(unittest.TestCase):
             (http.client.HTTPException('private response'), 'HTTP connection failed'),
         ]
 
-        for error, expected in errors:
+        for (error, expected) in errors:
             with self.subTest(expected=expected):
                 output = io.StringIO()
 
@@ -284,7 +289,7 @@ class WheelhouseTests(unittest.TestCase):
         failures = [(urllib.error.HTTPError('https://example.invalid', 404, '', {}, None), 1),
                     (ssl.SSLCertVerificationError('private'), 1), (TimeoutError('private'), 3)]
 
-        for error, attempts in failures:
+        for (error, attempts) in failures:
             with self.subTest(attempts=attempts):
                 with patch.object(tool.urllib.request, 'urlopen', side_effect=error) as open_url, \
                      patch('wheelhouse_tool.network.time.sleep'):
@@ -371,7 +376,7 @@ class WheelhouseTests(unittest.TestCase):
         fd = os.open(self.pool, os.O_RDONLY | os.O_DIRECTORY)
         self.addCleanup(os.close, fd)
 
-        for contents, expected in ((self.content, 'a competing final file was verified'),
+        for (contents, expected) in ((self.content, 'a competing final file was verified'),
                                    (b'conflict', 'the competing final file differs from the lock')):
             with self.subTest(expected=expected):
                 destination.write_bytes(contents)
@@ -422,7 +427,7 @@ class WheelhouseTests(unittest.TestCase):
         digest = hashlib.sha256(self.content).hexdigest()
         package = SimpleNamespace(name="cached")
         cached_artifacts = [(cached, digest, "", package, None)]
-        started, resume = threading.Event(), threading.Event()
+        (started, resume) = (threading.Event(), threading.Event())
         original_download = tool.download
         errors = []
 
@@ -687,7 +692,7 @@ class WheelhouseTests(unittest.TestCase):
 
         metadata = {"name": "example", "files": [
             {"filename": name, "url": f"https://example.invalid/{name}", "hashes": {"sha256": digest}}
-            for name, digest in ((cached, cached_hash), (native, native_hash))
+            for (name, digest) in ((cached, cached_hash), (native, native_hash))
         ]}
 
         with patch("wheelhouse_tool.locate.urllib.request.build_opener") as opener:
@@ -734,7 +739,7 @@ class WheelhouseTests(unittest.TestCase):
 
         metadata = {'name': 'example', 'files': [
             {'filename': name, 'url': 'https://example.invalid/' + name.replace('+', '%2B'), 'hashes': {'sha256': digest}}
-            for name, digest in hashes.items()]}
+            for (name, digest) in hashes.items()]}
 
         with patch('wheelhouse_tool.locate.urllib.request.build_opener') as opener:
             opener.return_value.open.return_value = io.BytesIO(json.dumps(metadata).encode())

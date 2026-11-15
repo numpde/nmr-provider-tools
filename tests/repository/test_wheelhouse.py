@@ -24,17 +24,20 @@ class WheelhouseTests(unittest.TestCase):
         self.addCleanup(temporary.cleanup)
         self.root = Path(temporary.name)
         self.pool = self.root / "shared pool"
+
         self.pool.mkdir()
         self.index = self.root / "index"
+
         self.index.mkdir()
         self.cached = self.make_wheel("pool-cached")
         self.missing = self.make_wheel("pool-missing")
+
         shutil.copyfile(self.cached, self.pool / self.cached.name)
         self.lock = self.root / "requirements.lock"
 
         self.lock.write_text("".join(
             f"{name}==1.0 " + "\\\n" + f"    --hash=sha256:{wheelhouse.digest(path)}\n"
-            for name, path in (("pool-cached", self.cached), ("pool-missing", self.missing))
+            for (name, path) in (("pool-cached", self.cached), ("pool-missing", self.missing))
         ))
 
     # silent-defaults: allow-contract -- The synthetic wheel builder defaults to version 1.0, while version-identity tests may select another explicit pin.

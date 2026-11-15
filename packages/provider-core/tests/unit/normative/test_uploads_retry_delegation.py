@@ -17,7 +17,7 @@ class JobUploadsRetryDelegationTests(unittest.IsolatedAsyncioTestCase):
     async def test_grant_failure_resets_previous_transfer_on_both_acquisition_paths(self):
         for path in ("buffered", "file"):
             with self.subTest(path=path), private_source_directory() as (root, directory):
-                owner, api, store, _ = file_sources()
+                (owner, api, store, _) = file_sources()
                 client = Client(Stream([b"g"], failure=temporary_read_error()), headers=store_headers(b"geometry"))
 
                 async def acquire():
@@ -65,7 +65,7 @@ class UploadRetryInterruptionTests(unittest.IsolatedAsyncioTestCase):
                               remaining=lambda: 2, before_request=lambda: None, account=lambda _count: None)
 
     async def test_actual_store_deadline_interruption_refuses_late_temporary_failure(self):
-        _, api, _, _ = file_sources()
+        (_, api, _, _) = file_sources()
         store = HttpTransport(trust=ssl.create_default_context(), exchange_seconds=0.03, retirement_seconds=0.1)
         original = temporary_read_error()
 
@@ -111,7 +111,7 @@ class UploadRetryInterruptionTests(unittest.IsolatedAsyncioTestCase):
             async def exchange_file(self, *_args, **_kwargs):
                 raise outcome
 
-        _, api, _, _ = file_sources()
+        (_, api, _, _) = file_sources()
         transfer = self.transfer(SuppliedStore())
 
         async def grant():

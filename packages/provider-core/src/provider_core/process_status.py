@@ -71,7 +71,7 @@ class ProcessStatus:
             os.close(descriptor)
 
         os.replace(pending, self.directory / "status.json")
-        self.phase, self.details, self.updated = phase, details, now
+        (self.phase, self.details, self.updated) = (phase, details, now)
 
 
 def read_status(path, role):

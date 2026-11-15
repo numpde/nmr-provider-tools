@@ -92,7 +92,7 @@ class VerifiedJobInput:
 def _unique_fields(pairs):
     document = {}
 
-    for key, value in pairs:
+    for (key, value) in pairs:
         if key in document:
             raise JobInputRejected("Cannot verify Job input: response contains a duplicate JSON field.")
 

@@ -17,7 +17,7 @@ from tests.fakes.attempts import ATTEMPT_REF, complete_response, fail_response
 
 class AttemptOutcomeIntegrationTests(unittest.IsolatedAsyncioTestCase):
     async def test_lost_acknowledgement_followed_by_explicit_exact_body_resend(self):
-        for completing, result_bytes, message in (
+        for (completing, result_bytes, message) in (
             (True, b"result bytes", ""),
             (False, b"", " Explain\n雪\x01 "),
             (True, b"x" * 786432, ""),
@@ -66,7 +66,7 @@ class AttemptOutcomeIntegrationTests(unittest.IsolatedAsyncioTestCase):
                     self.assertEqual(lines[0], b"POST " + path + b" HTTP/1.1")
 
                     headers = {
-                        name.lower(): value.strip() for line in lines[1:] if b":" in line for name, value in [line.split(b":", 1)]
+                        name.lower(): value.strip() for line in lines[1:] if b":" in line for (name, value) in [line.split(b":", 1)]
                     }
 
                     self.assertEqual(parse(headers[b"content-digest"], tltype="dictionary")["sha-256"][0], sha256(body).digest())

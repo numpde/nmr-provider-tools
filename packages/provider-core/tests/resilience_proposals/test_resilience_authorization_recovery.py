@@ -39,7 +39,7 @@ class AuthorizationRecoveryTests(unittest.IsolatedAsyncioTestCase):
         bad_signatures = []
 
         async def reply(request, body):
-            index = next((i for i, item in enumerate(items) if body == item.body), None)
+            index = next((i for (i, item) in enumerate(items) if body == item.body), None)
 
             if index is None:
                 bad_signatures.append("unexpected terminal body")
@@ -53,6 +53,7 @@ class AuthorizationRecoveryTests(unittest.IsolatedAsyncioTestCase):
             if index == 0 or bad_signatures:
                 peer.response_status = 401
                 peer.response_headers = response_headers(status=401, request_id=b"request:test")
+
                 return signature_window_problem(code="authentication_failed")
 
             peer.response_status = 200
@@ -73,7 +74,7 @@ class AuthorizationRecoveryTests(unittest.IsolatedAsyncioTestCase):
                           "provider_ref": "provider:test", "exchange_seconds": 2, "retirement_seconds": 1,
                           "credential_file": "/gone/key", "ca_file": "/gone/ca"}
 
-                settings, _, material = api_settings_with_material(
+                (settings, _, material) = api_settings_with_material(
                     fields, lambda _path, **options: credential if options["label"] == "API signing credential" else ca)
 
                 keys.append(settings.identity.private_key)
@@ -86,7 +87,7 @@ class AuthorizationRecoveryTests(unittest.IsolatedAsyncioTestCase):
                 limits = QueueLimits(4, 16384, 8, 32768)
                 queue = DeliveryQueue(root / "state", limits=limits)
 
-                for item, material in zip(items, materials):
+                for (item, material) in zip(items, materials):
                     queue.enqueue_handoff(DeliveryHandoff(item, material))
 
                 queue.close()

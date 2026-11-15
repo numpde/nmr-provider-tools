@@ -32,7 +32,7 @@ class RejectedTlsDiagnosticTests(unittest.TestCase):
     def test_one_exact_server_reset_is_claimed_but_a_second_is_unowned(self):
         logger = logging.getLogger("asyncio")
         before = tuple(logger.filters)
-        first, repeated = self.record(), self.record()
+        (first, repeated) = (self.record(), self.record())
 
         with tls_peer.expect_optional_certificate_rejection_reset() as records:
             self.assertFalse(logger.filter(first))

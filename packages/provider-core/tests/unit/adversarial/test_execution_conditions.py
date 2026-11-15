@@ -26,6 +26,7 @@ class PausingSession(ReportingSession):
         result = await super().prepare(acknowledged, instructions, report_condition=report_condition)
         await self.finish.wait()
         self.returning.set()
+
         return result
 
 
@@ -34,6 +35,7 @@ class ExecutionConditionFailureTests(unittest.IsolatedAsyncioTestCase):
         class QueuedSession(ReportingSession):
             async def report(self, _phase, report_condition):
                 self.operation = asyncio.current_task()
+
                 await start_report.wait()
                 reporting.set()
 
@@ -42,10 +44,10 @@ class ExecutionConditionFailureTests(unittest.IsolatedAsyncioTestCase):
                 except asyncio.CancelledError as cause:
                     self.caught = cause
 
-        store, acknowledged, claim = await live_attempt()
+        (store, acknowledged, claim) = await live_attempt()
         transport = ConditionTransport()
         transport.block_read = 2
-        start_report, reporting = asyncio.Event(), asyncio.Event()
+        (start_report, reporting) = (asyncio.Event(), asyncio.Event())
         session = QueuedSession(store)
 
         executor = live_executor(
@@ -74,7 +76,7 @@ class ExecutionConditionFailureTests(unittest.IsolatedAsyncioTestCase):
             self.assertIs(executor.last_failure.operation_interruption, session.caught)
             self.assertEqual([event[0] for event in session.events], ["prepare", "retire"])
             self.assertEqual(transport.maximum_in_flight, 1)
-            self.assertFalse(any(b"waiting_capacity" in request.content for request, _ in transport.calls))
+            self.assertFalse(any(b"waiting_capacity" in request.content for (request, _) in transport.calls))
             claim.release(owner=claim.lifecycle_owner)
         finally:
             start_report.set()
@@ -86,7 +88,7 @@ class ExecutionConditionFailureTests(unittest.IsolatedAsyncioTestCase):
             await asyncio.gather(task, return_exceptions=True)
 
     async def test_report_queued_behind_poll_rechecks_phase_after_acquiring_exchange(self):
-        store, acknowledged, claim = await live_attempt()
+        (store, acknowledged, claim) = await live_attempt()
         transport = ConditionTransport()
         transport.block_read = 2
         session = PausingSession(store)
@@ -123,7 +125,7 @@ class ExecutionConditionFailureTests(unittest.IsolatedAsyncioTestCase):
                 await report
 
             await asyncio.wait_for(task, 1)
-            self.assertFalse(any(b"late_condition" in request.content for request, _ in transport.calls))
+            self.assertFalse(any(b"late_condition" in request.content for (request, _) in transport.calls))
             self.assertEqual(transport.maximum_in_flight, 1)
             claim.release(owner=claim.lifecycle_owner)
         finally:
@@ -139,7 +141,7 @@ class ExecutionConditionFailureTests(unittest.IsolatedAsyncioTestCase):
                 await asyncio.gather(report, return_exceptions=True)
 
     async def test_retained_phase_reporters_refuse_without_api_effect(self):
-        store, acknowledged, claim = await live_attempt()
+        (store, acknowledged, claim) = await live_attempt()
         transport = ConditionTransport()
         transport.release.set()
         session = ReportingSession(store)
@@ -165,7 +167,7 @@ class ExecutionConditionFailureTests(unittest.IsolatedAsyncioTestCase):
         claim.release(owner=claim.lifecycle_owner)
 
     async def test_invalid_condition_uses_existing_request_admission_and_never_executes(self):
-        store, acknowledged, claim = await live_attempt()
+        (store, acknowledged, claim) = await live_attempt()
         transport = ConditionTransport()
         session = ReportingSession(store)
         session.conditions["prepare"] = ("PRIVATE invalid text",)
@@ -190,7 +192,7 @@ class ExecutionConditionFailureTests(unittest.IsolatedAsyncioTestCase):
     async def test_swallowed_report_failure_still_stops_next_phase_or_publication(self):
         for phase in ("prepare", "execute"):
             with self.subTest(phase=phase):
-                store, acknowledged, claim = await live_attempt()
+                (store, acknowledged, claim) = await live_attempt()
                 transport = ConditionTransport()
                 transport.release.set()
                 transport.failure = ExchangeFailed("Authored private transport cause")
@@ -239,7 +241,7 @@ class ExecutionConditionFailureTests(unittest.IsolatedAsyncioTestCase):
                 await super().prepare(acknowledged, instructions, report_condition=report_condition)
                 raise later
 
-        store, acknowledged, claim = await live_attempt()
+        (store, acknowledged, claim) = await live_attempt()
         transport = ConditionTransport()
         transport.release.set()
         previous = OSError("Authored private interrupted cause")
@@ -280,7 +282,7 @@ class ExecutionConditionFailureTests(unittest.IsolatedAsyncioTestCase):
                 await super().prepare(acknowledged, instructions, report_condition=report_condition)
                 raise later
 
-        store, acknowledged, claim = await live_attempt()
+        (store, acknowledged, claim) = await live_attempt()
         transport = ConditionTransport()
         transport.release.set()
         transport.failure = ExchangeFailed("Authored private transport cause")

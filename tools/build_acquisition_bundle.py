@@ -96,7 +96,7 @@ def dependency_files(pool, pin):
             if not member.is_dir():
                 _add(files, member.filename, archive.read(member))
 
-    return files, {wheel_name: observed_sha256}
+    return (files, {wheel_name: observed_sha256})
 
 
 def contents(pool, source, core_wheel, pin, *, revision, wheelhouse_bundle):
@@ -115,7 +115,7 @@ def contents(pool, source, core_wheel, pin, *, revision, wheelhouse_bundle):
 
     _add(files, "compose/acquisition.yml", (source / "compose/acquisition.yml").read_bytes())
 
-    for source_name, issued_name in INSTALLER_SOURCES:
+    for (source_name, issued_name) in INSTALLER_SOURCES:
         _add(files, issued_name, (source / source_name).read_bytes())
 
     installer = installer_release(source / "requirements/installer-release.json")
@@ -172,7 +172,7 @@ def contents(pool, source, core_wheel, pin, *, revision, wheelhouse_bundle):
         "sha256": hashlib.sha256(manifest).hexdigest(), "size": len(manifest), "mode": 0o644,
     }
 
-    return files, {"source_files": source_inventory, "dependency_inputs": dependencies}
+    return (files, {"source_files": source_inventory, "dependency_inputs": dependencies})
 
 
 def build(pool, output, source, core_wheel, pin, *, revision, wheelhouse_bundle):

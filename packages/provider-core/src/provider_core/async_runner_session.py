@@ -122,6 +122,7 @@ class AsyncRunnerSession:
     @property
     def retirement_deadline(self):
         """Share the actual aggregate deadline with provider-owned recovery."""
+
         return self._deadline
 
     def _release(self, original):
@@ -139,6 +140,7 @@ class AsyncRunnerSession:
             raise
 
         original.add_done_callback(completed)
+
         return original
 
     async def _wait(self, original, deadline):
@@ -205,4 +207,5 @@ class AsyncRunnerSession:
 
     async def join_retirement(self, *, wait_seconds):
         """Join the same reader; a previous stop failure does not prevent joining."""
+
         return await self.observe_retirement(wait_seconds=wait_seconds)

@@ -200,13 +200,15 @@ class _FileBody:
         worker = self._executor.submit(operation, *args)
         waiter = asyncio.wrap_future(worker)
         waiter.add_done_callback(_observe_file_write)
-        self._pending = worker, waiter
+        self._pending = (worker, waiter)
+
         await self.settle()
 
     async def settle(self):
-        worker, waiter = self._pending
+        (worker, waiter) = self._pending
         await asyncio.wait({waiter})
         self._pending = None
+
         worker.result()
 
     def shutdown(self):
@@ -221,7 +223,7 @@ def response_request_id(headers):
     diagnostics share the reviewed owner. Authority: the API revision pinned in
     api.py, nmr_api/request_ids.py. A received ID proves no API/model effect.
     """
-    values = [value for name, value in headers if name.lower() == b"x-request-id"]
+    values = [value for (name, value) in headers if name.lower() == b"x-request-id"]
 
     if len(values) == 1 and re.fullmatch(rb"[!-~]{1,128}", values[0]) is not None:
         return values[0].decode("ascii")
@@ -355,11 +357,13 @@ class HttpTransport:
     @property
     def retirement_confirmed(self):
         """Whether no exchange or unresolved cleanup remains owned here."""
+
         return self._active is None
 
     @property
     def pending_owner(self):
         """Caller whose admitted exchange still owns I/O or unresolved cleanup."""
+
         # silent-defaults: allow-contract -- No active exchange means there is no pending I/O owner.
         return None if self._active is None else self._active.owner
 
@@ -387,6 +391,7 @@ class HttpTransport:
     async def _perform(self, request, maximum_bytes, account_bytes, outcome, output_fd, before_body, decoder_factory, not_after):
         if not_after is not None and asyncio.get_running_loop().time() >= not_after:
             outcome.primary = TimeoutError("HTTP exchange absolute deadline expired before task entry")
+
             return outcome
 
         client = None
@@ -647,6 +652,7 @@ class HttpTransport:
 
         def decoder_for(head):
             limit = maximum_bytes if head.status == success_status else error_maximum_bytes
+
             return DecodedBody(head.headers, maximum_bytes=limit)
 
         return await self._exchange(
@@ -700,6 +706,7 @@ class HttpTransport:
             _positive_seconds(not_after)
 
         self.last_failure = None
+
         loop = asyncio.get_running_loop()
 
         if not_after is not None and loop.time() >= not_after:
@@ -709,6 +716,7 @@ class HttpTransport:
             )
 
             self.last_failure = failure
+
             raise failure from None
 
         received = _Outcome()
@@ -719,6 +727,7 @@ class HttpTransport:
 
         exchange = _Exchange(task, received, owner, not_after)
         self._active = exchange
+
         primary = None
         cancellation = None
 
@@ -728,7 +737,7 @@ class HttpTransport:
             if not_after is not None:
                 seconds = max(0, min(seconds, not_after - loop.time()))
 
-            done, _ = await asyncio.wait({task}, timeout=seconds)
+            (done, _) = await asyncio.wait({task}, timeout=seconds)
 
             if not done or not_after is not None and loop.time() >= not_after:
                 primary = TimeoutError("HTTP exchange exceeded its aggregate deadline")

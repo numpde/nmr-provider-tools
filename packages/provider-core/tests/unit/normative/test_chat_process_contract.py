@@ -43,6 +43,7 @@ async def launched_children():
     async def observed(*args, **kwargs):
         child = await launch(*args, **kwargs)
         children.append(child)
+
         return child
 
     with patch("provider_core.chat_process.asyncio.create_subprocess_exec", side_effect=observed):
@@ -80,6 +81,7 @@ class ChatProcessContractTests(unittest.IsolatedAsyncioTestCase):
             response_started = loop.time() - started
             await asyncio.sleep(1.2)
             response_ready = loop.time() - started
+
             return completion()
 
         async with TlsPeer("success", response_factory=reply) as peer, launched_children() as children:
@@ -123,7 +125,7 @@ class ChatProcessContractTests(unittest.IsolatedAsyncioTestCase):
                 headers = dict(line.split(b": ", 1) for line in peer.requests[0].split(b"\r\n")[1:] if b": " in line)
 
                 self.assertEqual(b"Bearer PRIVATE_FIXTURE_KEY",
-                                 {name.lower(): value for name, value in headers.items()}[b"authorization"])
+                                 {name.lower(): value for (name, value) in headers.items()}[b"authorization"])
 
                 self.assertEqual(["localhost"], peer.server_names)
 
@@ -171,7 +173,7 @@ class ChatProcessContractTests(unittest.IsolatedAsyncioTestCase):
             self.assertTrue(endpoint.retirement_confirmed)
 
     async def test_success_uses_its_response_limit_and_http_refusal_sends_once(self):
-        for status, body, error_bytes in ((200, completion(), 16), (503, b'{"error":{"message":"busy"}}', 64)):
+        for (status, body, error_bytes) in ((200, completion(), 16), (503, b'{"error":{"message":"busy"}}', 64)):
             with self.subTest(status=status):
                 async with TlsPeer("success", response_body=body, response_status=status) as peer, launched_children() as children:
                     endpoint = self.factory(peer.origin + "/chat", peer.trust,
@@ -203,7 +205,7 @@ class ChatProcessContractTests(unittest.IsolatedAsyncioTestCase):
             (200, compressed, ((b"Content-Encoding", b"gzip"),), 512, 512),
         )
 
-        for status, body, headers, response_bytes, error_bytes in cases:
+        for (status, body, headers, response_bytes, error_bytes) in cases:
             with self.subTest(status=status):
                 async with TlsPeer("success", response_status=status, response_body=body,
                                    response_headers=headers) as peer, launched_children() as children:
@@ -275,8 +277,8 @@ class ChatProcessContractTests(unittest.IsolatedAsyncioTestCase):
                 await endpoint.retire()
 
     async def test_cancellation_after_reply_eof_preserves_the_original_exit_observer(self):
-        actual_exit, reply_eof = asyncio.Event(), asyncio.Event()
-        allow_observation, observation_cancelled = asyncio.Event(), asyncio.Event()
+        (actual_exit, reply_eof) = (asyncio.Event(), asyncio.Event())
+        (allow_observation, observation_cancelled) = (asyncio.Event(), asyncio.Event())
         children = []
         trust_directories = []
         launch = asyncio.create_subprocess_exec
@@ -285,12 +287,13 @@ class ChatProcessContractTests(unittest.IsolatedAsyncioTestCase):
         def observe_directory(*args, **kwargs):
             directory = temporary_directory(*args, **kwargs)
             trust_directories.append(Path(directory.name))
+
             return directory
 
         async def observe_exit(*args, **kwargs):
             child = await launch(*args, **kwargs)
             children.append(child)
-            original_wait, original_read = child.wait, child.stdout.read
+            (original_wait, original_read) = (child.wait, child.stdout.read)
 
             async def held_wait():
                 returncode = await original_wait()
@@ -312,7 +315,8 @@ class ChatProcessContractTests(unittest.IsolatedAsyncioTestCase):
 
                 return value
 
-            child.wait, child.stdout.read = held_wait, observed_read
+            (child.wait, child.stdout.read) = (held_wait, observed_read)
+
             return child
 
         async with TlsPeer("success", response_body=completion()) as peer:
@@ -366,9 +370,11 @@ class ChatProcessContractTests(unittest.IsolatedAsyncioTestCase):
                             return None
 
                         peer.response_status = 503
+
                         return b'{"error":{"message":"temporarily unavailable"}}'
 
                     peer.response_status = 200
+
                     return completion()
 
                 async with TlsPeer("success", response_factory=response) as peer, launched_children() as children:

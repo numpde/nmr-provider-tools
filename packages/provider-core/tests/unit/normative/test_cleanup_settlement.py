@@ -45,6 +45,7 @@ class CleanupSettlementTests(unittest.IsolatedAsyncioTestCase):
 
             waiting.set()
             await finish.wait()
+
             return CleanupObservation(revision=2, settled=True, allowance_expired=True, failures=())
 
         control = SimpleNamespace(observe=observe)
@@ -72,6 +73,7 @@ class CleanupSettlementTests(unittest.IsolatedAsyncioTestCase):
             waiting.set()
             await finish.wait()
             completed.append(True)
+
             return CleanupObservation(revision=1, settled=True, allowance_expired=False, failures=())
 
         task = asyncio.create_task(coro=settle_cleanup(control=SimpleNamespace(observe=observe)))

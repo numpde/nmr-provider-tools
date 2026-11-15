@@ -34,6 +34,7 @@ class ObservedCrashRecoveryTests(unittest.IsolatedAsyncioTestCase):
         native.connect()
         session = CrashingSession(native, "preparing")
         session.begin_crash.clear()
+
         return session
 
     def controller(self, session, transport, recovery, *, poll_seconds):
@@ -56,6 +57,7 @@ class ObservedCrashRecoveryTests(unittest.IsolatedAsyncioTestCase):
         # scheduling still use their real event loop and monotonic deadlines.
         namespace = SimpleNamespace(**vars(asyncio))
         namespace.get_running_loop = lambda: SimpleNamespace(time=lambda: clock.now)
+
         return patch("provider_core.execution.asyncio", namespace)
 
     async def test_received_stop_still_vetoes_crash_reporting_at_observation_deadline(self):
@@ -141,7 +143,7 @@ class ObservedCrashRecoveryTests(unittest.IsolatedAsyncioTestCase):
                 result = await super().exchange(request, maximum_bytes=maximum_bytes, owner=owner)
 
                 if len(self.calls) == 4:
-                    self.pending_owner, self.retirement_confirmed = owner, False
+                    (self.pending_owner, self.retirement_confirmed) = (owner, False)
 
                 return result
 
@@ -188,7 +190,7 @@ class ObservedCrashRecoveryTests(unittest.IsolatedAsyncioTestCase):
 
                 return received
 
-        retry, recovered = Mock(), Mock()
+        (retry, recovered) = (Mock(), Mock())
         headers = (*response_headers(status=429, request_id=b"request:rate"), (b"retry-after", b"10"))
         transport = CrashDuringFloor(*self.initial_replies(), reply(b"maintenance", status=429, headers=headers))
         recovery = ObservationRecovery(3, .5, retry, recovered)

@@ -39,7 +39,7 @@ class AttemptStartIntegrationTests(unittest.IsolatedAsyncioTestCase):
                 self.assertEqual(lines[0], b"POST /provider/v1/execution-attempts/start HTTP/1.1")
 
                 headers = {
-                    name.lower(): value.strip() for line in lines[1:] if b":" in line for name, value in [line.split(b":", 1)]
+                    name.lower(): value.strip() for line in lines[1:] if b":" in line for (name, value) in [line.split(b":", 1)]
                 }
 
                 self.assertEqual(parse(headers[b"content-digest"], tltype="dictionary")["sha-256"][0], sha256(body).digest())

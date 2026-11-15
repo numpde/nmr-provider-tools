@@ -16,6 +16,7 @@ def observation(**changes):
     }
 
     document.update(changes)
+
     return json.dumps(document).encode()
 
 

@@ -213,6 +213,7 @@ class ScientificInputToolDefinitionTests(unittest.IsolatedAsyncioTestCase):
 
         async def dispatch(name, arguments, *, not_after):
             accepted.append(self.tool_definition.decode(name=name, arguments=arguments))
+
             return ToolFinished(value="Validated")
 
         await interpreter.run(messages=[], tools=[self.tool_definition.definition], dispatch=dispatch)

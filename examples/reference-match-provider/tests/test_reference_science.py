@@ -18,7 +18,7 @@ class ReferenceScienceTests(unittest.TestCase):
         self.assertEqual((((0, 0.6),), ((0, 0.8),), ((1, 1.0),)), index.postings)
         settings = science.MatchSettings(minimum_score=0.5)
 
-        for values, label in (((3, 4, 0), "pattern-a"), ((0, 0, 2), "pattern-b")):
+        for (values, label) in (((3, 4, 0), "pattern-a"), ((0, 0, 2), "pattern-b")):
             with self.subTest(values=values):
                 report = science.match(index, settings, science.VectorInput(values=values))
                 self.assertEqual(label, report.label)
@@ -42,7 +42,7 @@ class ReferenceScienceTests(unittest.TestCase):
             science.Reference(label="axis", values=(1, 0)),
         )))
 
-        for values, minimum, code in (
+        for (values, minimum, code) in (
             ((1,), 0, "wrong_dimensions"),
             ((0, 0), 0, "zero_vector"),
             ((0, 1), 0, "no_overlap"),
@@ -63,7 +63,7 @@ class ReferenceScienceTests(unittest.TestCase):
             self.assertAlmostEqual(1, report.score)
 
     def test_negative_nonfinite_boolean_and_empty_vectors_are_rejected(self):
-        for values, error in (
+        for (values, error) in (
             ((-1,), ValueError), ((float("nan"),), ValueError),
             ((float("inf"),), ValueError), ((True,), TypeError), ((), ValueError),
         ):

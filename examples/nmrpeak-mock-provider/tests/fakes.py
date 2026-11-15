@@ -13,6 +13,7 @@ class ScriptedEndpoint:
         self.proposals = proposals
         self.requests = []
         self.retirement_confirmed = False
+
         encoded = json.dumps(obj=proposals, sort_keys=True).encode(encoding="utf-8")
 
         self.identity = json.dumps(obj={
@@ -50,6 +51,7 @@ class ScriptedEndpointFactory:
     def __call__(self, *, exchange_seconds: float, connect_seconds: float) -> ScriptedEndpoint:
         endpoint = ScriptedEndpoint(proposals=self.proposals)
         self.endpoints.append(endpoint)
+
         return endpoint
 
 

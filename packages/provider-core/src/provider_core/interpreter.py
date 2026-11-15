@@ -121,11 +121,13 @@ class ProseService:
     @property
     def context_bytes(self) -> int:
         """Keep the captured carrier's byte allowance available to its caller."""
+
         return self._factory.context_bytes
 
     @property
     def retry_seconds(self) -> float:
         """Delay for known dependent Jobs; the HTTP send checks it again."""
+
         return max(0.0, self._not_before - _now())
 
     def __call__(self, *, exchange_seconds: float, connect_seconds: float) -> ModelEndpoint:
@@ -287,11 +289,13 @@ class Interpreter:
     @property
     def retirement_confirmed(self) -> bool:
         """Confirm model I/O only; the caller still owns run-task/science settlement."""
+
         return all(visit.retirement_confirmed for visit in self._visits)
 
     @property
     def failures(self) -> tuple[ModelFailure, ...]:
         """Protected failures observed so far, including before scientific effects."""
+
         return self._failures()
 
     @property
@@ -302,7 +306,7 @@ class Interpreter:
         return tuple(
             (visit.number, turn, error)
             for visit in self._visits
-            for turn, error in visit.conversation.correction_failures
+            for (turn, error) in visit.conversation.correction_failures
         )
 
     @property
@@ -362,6 +366,7 @@ class Interpreter:
             raise ValueError("This interpretation already ran or retired; create a new interpretation for another Attempt.")
 
         self._used = True
+
         deadline = _now() + self.timeout_seconds
 
         if not_after is not None:
@@ -382,7 +387,7 @@ class Interpreter:
             original = json.loads(_encode(messages))
             provider_tools = _ProviderTools(tools, dispatch=dispatch, describe=describe_constraints)
 
-            for index, factory in enumerate(self._factories):
+            for (index, factory) in enumerate(self._factories):
                 if self._stopped.is_set():
                     raise ConversationFailed("Interpretation was retired; no successor model may start.")
 
@@ -425,6 +430,7 @@ class Interpreter:
             raise InterpretationFailed(self._failures(), self.correction_failures)
         except BaseException as failure:
             self.last_failure = failure
+
             failures = self._failures()
 
             if failures and not isinstance(failure, InterpretationFailed):
@@ -480,7 +486,7 @@ def _no_secrets(value: object, secrets: tuple[str, ...]) -> None:
                 "Cannot continue interpretation: captured context contains a configured credential."
             )
     elif isinstance(value, dict):
-        for key, item in value.items():
+        for (key, item) in value.items():
             _no_secrets(key, secrets)
             _no_secrets(item, secrets)
     elif isinstance(value, (tuple, list)):
@@ -558,12 +564,13 @@ class _History:
 
         if len(data) > HISTORY_BYTES:
             self._unavailable += 1
+
             return
 
         while self._records and (
             self._bytes + len(data) > HISTORY_BYTES or len(self._records) >= HISTORY_RECORDS
         ):
-            _, oldest = self._records.popitem(last=False)
+            (_, oldest) = self._records.popitem(last=False)
             self._bytes -= len(oldest.data)
             self._unavailable += 1
 
@@ -622,7 +629,7 @@ class _History:
         if not fits({"records": results}):
             raise ToolRejected("History reply cannot fit the remaining context; request fewer records.")
 
-        for index, query in enumerate(queries):
+        for (index, query) in enumerate(queries):
             record = self._records.get(query["ref"])
 
             if record is not None:
@@ -648,7 +655,7 @@ class _History:
             return complete
 
         # Find a prefix that fits the encoded envelope, including JSON escaping.
-        low, high = cursor, len(record.data)
+        (low, high) = (cursor, len(record.data))
 
         while low < high:
             middle = (low + high + 1) // 2
@@ -697,7 +704,7 @@ class _DescribeInputConstraints:
         )
 
     async def invoke(self, arguments: Document, *, not_after: float) -> ToolReply:
-        name, path = arguments.get("tool"), arguments.get("field")
+        (name, path) = (arguments.get("tool"), arguments.get("field"))
 
         if (
             set(arguments) - {"tool", "field"}
@@ -858,7 +865,7 @@ def _retry_after(failure: ChatFailed) -> float:
     if response is None:
         return 0.0
 
-    values = [value for name, value in response.headers if name.lower() == b"retry-after"]
+    values = [value for (name, value) in response.headers if name.lower() == b"retry-after"]
 
     if len(values) != 1:
         return 0.0
@@ -910,6 +917,7 @@ class _ModelVisit:
         self.provider_failure: Exception | None = None
         self.outcome: ConversationResult | ConversationHandoff | None = None
         self.http_failures: list[ChatFailed] = []
+
         reader = tools.describe
         guarded_reader = None
 
@@ -921,6 +929,7 @@ class _ModelVisit:
                     raise
                 except Exception as failure:
                     self.provider_failure = failure
+
                     raise
 
         self._tools = _Tools(tools, (
@@ -961,6 +970,7 @@ class _ModelVisit:
     async def run(self, messages: list[Document]) -> ConversationResult | ConversationHandoff:
         try:
             self.outcome = await self.conversation.run(messages, self._tools.definitions, self._dispatch)
+
             return self.outcome
         except ConversationFailed as failure:
             if failure is not self.provider_failure:
@@ -1122,6 +1132,7 @@ class _ModelVisit:
             raise
         except Exception as failure:
             self.provider_failure = failure
+
             raise
 
         if type(outcome) is ToolReply:

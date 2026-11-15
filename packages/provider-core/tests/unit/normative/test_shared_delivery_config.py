@@ -79,7 +79,7 @@ class SharedDeliveryConfigurationTests(unittest.TestCase):
                       "provider_ref": "provider:example", "exchange_seconds": 1, "retirement_seconds": 1,
                       "credential_file": "/gone/key"}
 
-            _, _, material = api_settings_with_material(fields, Mock(return_value=encoded(document())))
+            (_, _, material) = api_settings_with_material(fields, Mock(return_value=encoded(document())))
             first = DeliveryHandoff(outcome(provider="provider:example"), material)
             second = DeliveryHandoff(outcome(provider="provider:example", suffix="1"), material)
             service.queue.enqueue_handoff(first)

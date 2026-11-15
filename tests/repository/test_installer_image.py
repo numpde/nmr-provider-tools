@@ -56,7 +56,7 @@ def build_wheel(wheel_directory, config_settings=None, metadata_directory=None):
         subprocess.run([*command, "wheel", "--no-index", "--no-deps", "--no-build-isolation",
                         "--wheel-dir", str(output), str(source)], check=True, capture_output=True, text=True)
 
-        wheel, = output.glob("*.whl")
+        (wheel,) = output.glob("*.whl")
         lock = self.root / "requirements.lock"
         lock.write_text("installer-fixture==1.0 --hash=sha256:" + hashlib.sha256(wheel.read_bytes()).hexdigest() + "\n")
 
@@ -69,7 +69,7 @@ def build_wheel(wheel_directory, config_settings=None, metadata_directory=None):
                                  "print(json.dumps([pip.__version__, pip.__file__, sys.prefix]))"],
                                 check=True, capture_output=True, text=True)
 
-        version, installed, prefix = json.loads(result.stdout)
+        (version, installed, prefix) = json.loads(result.stdout)
         self.assertEqual(self.record["name"].split("-")[1], version)
         self.assertEqual(environment, Path(prefix))
         self.assertTrue(Path(installed).is_relative_to(environment))
@@ -81,7 +81,7 @@ def build_wheel(wheel_directory, config_settings=None, metadata_directory=None):
             [str(python), "-I", "-B", "-c", "import sysconfig; print(sysconfig.get_path('purelib'))"], text=True,
         ).strip())
 
-        for source, issued in INSTALLER_SOURCES:
+        for (source, issued) in INSTALLER_SOURCES:
             if source.endswith(".py"):
                 destination = site / issued
                 destination.parent.mkdir(parents=True, exist_ok=True)

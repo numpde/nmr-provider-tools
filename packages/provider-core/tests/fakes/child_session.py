@@ -82,7 +82,7 @@ class ChildSession:
     """A scripted admission/one-generation binding, with exact-child ownership."""
 
     def __init__(self, store, mode):
-        self.store, self.mode = store, mode
+        (self.store, self.mode) = (store, mode)
         self.child = ScriptedChild()
         self.phases = []
         self.generations = 0
@@ -108,6 +108,7 @@ class ChildSession:
             raise ValueError("Scripted preparation did not acknowledge the exact source")
 
         self._prepared = PreparedAnalysis(ProtectedEvidence("fixture.child.input.v1", fingerprint.encode("ascii")))
+
         return self._prepared
 
     # Match the required session port; child retirement tests emit no conditions.
@@ -116,6 +117,7 @@ class ChildSession:
             raise ValueError("Scripted generation requires this session's current unused handle")
 
         self._prepared = None
+
         self.phases.append(type(self.store.records[0]))
         self.generations += 1
         await self.child.send({"operation": "generate"})

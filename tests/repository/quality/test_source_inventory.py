@@ -28,6 +28,7 @@ from .sources import ROOT
 
 def has_external_frontend(source):
     """Reject frontend directives even when hidden behind introductory comments."""
+
     return re.search(r"(?im)^\s*#\s*syntax\s*=", source) is not None
 
 
@@ -54,7 +55,7 @@ def root_entry_visibility_findings(manifest, root):
     findings = []
 
     for record in records[:-1]:
-        kind, separator, name = record.partition("\t")
+        (kind, separator, name) = record.partition("\t")
 
         if not separator or not name or "/" in name or name in {".", ".."}:
             raise ValueError("root-entry manifest has an invalid root name")
@@ -290,7 +291,7 @@ class SourceInventoryRepositoryTests(unittest.TestCase):
         )
 
         arguments = shlex.split(result.stdout)
-        mounts = [arguments[index + 1] for index, value in enumerate(arguments) if value == "--mount"]
+        mounts = [arguments[index + 1] for (index, value) in enumerate(arguments) if value == "--mount"]
 
         for subtree in ("host", "tools", "tests", "requirements", "containers", "notes"):
             self.assertIn(f"type=bind,src={ROOT / subtree},dst=/workspace/{subtree},readonly", mounts)

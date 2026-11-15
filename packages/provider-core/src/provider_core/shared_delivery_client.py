@@ -20,7 +20,7 @@ class SharedDeliveryClient:
         if (endpoint.api_origin, endpoint.provider_ref) != (publication.origin, publication.provider_ref):
             raise ValueError("Delivery endpoint and publication material require the same API and provider identity.")
 
-        self.endpoint, self.publication = endpoint, publication
+        (self.endpoint, self.publication) = (endpoint, publication)
         self._client = DeliveryClient(endpoint, exchange_seconds=exchange_seconds, retirement_seconds=retirement_seconds)
 
     @property

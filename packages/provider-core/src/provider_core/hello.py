@@ -76,7 +76,7 @@ def hello_body(*, display_name, description, analysis_offerings):
     if not (len(analysis_offerings) <= 64):
         raise ValueError("Cannot announce provider: analysis offerings must be a tuple of at most 64 entries")
 
-    offerings, kinds = [], set()
+    (offerings, kinds) = ([], set())
 
     for offering in analysis_offerings:
         if type(offering) is not AnalysisOffering:

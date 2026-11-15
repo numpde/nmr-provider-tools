@@ -49,7 +49,7 @@ class AcquisitionBundleTests(unittest.TestCase):
         (source / "compose").mkdir()
         (source / "compose/acquisition.yml").write_bytes((ROOT / "compose/acquisition.yml").read_bytes())
 
-        for source_name, _issued_name in INSTALLER_SOURCES:
+        for (source_name, _issued_name) in INSTALLER_SOURCES:
             path = source / source_name
             path.parent.mkdir(parents=True, exist_ok=True)
             path.write_bytes((ROOT / source_name).read_bytes())
@@ -77,7 +77,8 @@ class AcquisitionBundleTests(unittest.TestCase):
                        'hashes = {sha256 = "' + hashlib.sha256(identity.read_bytes()).hexdigest() + '"}\n')
 
         (root / "wheelhouse-tool-0.5.9.pyz").write_bytes(b"selected built wheel tool")
-        return source, wheel, identity, pin
+
+        return (source, wheel, identity, pin)
 
     def build(self, root, output, source, wheel, pin):
         return build(root, output, source, wheel, pin, revision="a" * 40,
@@ -86,14 +87,14 @@ class AcquisitionBundleTests(unittest.TestCase):
     def test_rebuild_has_identical_bytes_and_normalized_source_provenance(self):
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
-            source, wheel, identity, pin = self.fixture(root)
-            first, second = root / "first.tar.gz", root / "second.tar.gz"
+            (source, wheel, identity, pin) = self.fixture(root)
+            (first, second) = (root / "first.tar.gz", root / "second.tar.gz")
             record = self.build(root, first, source, wheel, pin)
             self.assertEqual(record, self.build(root, second, source, wheel, pin))
             self.assertEqual(first.read_bytes(), second.read_bytes())
             expected = {"compose/acquisition.yml", "acquisition-manifest.json"} | set(SOURCE_FILES) | {"provider_core/" + name for name in PROXY_FILES} | {"linux_idmap/__init__.py"}
             installer = json.loads((source / "requirements/installer-release.json").read_text())
-            expected.update(issued_name for _source_name, issued_name in INSTALLER_SOURCES)
+            expected.update(issued_name for (_source_name, issued_name) in INSTALLER_SOURCES)
             expected.add("acquisition_tool/installer/wheels/" + installer["name"])
 
             with tarfile.open(first, "r:gz") as archive:
@@ -123,7 +124,7 @@ class AcquisitionBundleTests(unittest.TestCase):
     def test_missing_owner_source_or_changed_identity_wheel_never_publishes_output(self):
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
-            source, wheel, identity, pin = self.fixture(root)
+            (source, wheel, identity, pin) = self.fixture(root)
             output = root / "bundle.tar.gz"
             (source / "host" / SOURCE_FILES[0]).unlink()
 
@@ -143,7 +144,7 @@ class AcquisitionBundleTests(unittest.TestCase):
     def test_dependency_payload_addition_needs_no_consumer_inventory_edit(self):
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
-            source, wheel, identity, pin = self.fixture(root)
+            (source, wheel, identity, pin) = self.fixture(root)
 
             with zipfile.ZipFile(identity, "a") as dependency:
                 dependency.writestr("linux_idmap/ordinary_new_module.py", b"VALUE = 1\n")

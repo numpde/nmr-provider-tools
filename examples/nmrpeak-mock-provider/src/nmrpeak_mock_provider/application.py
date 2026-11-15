@@ -45,7 +45,8 @@ class PredictionWorkflow:
         self.hosted_predictor = hosted_predictor
         self.interpreter = interpreter
         self.operation_policy = operation_policy
-        reservation_ref, = analysis_executor.reservations
+
+        (reservation_ref,) = analysis_executor.reservations
 
         self.preparation_tool = PreparationTool(
             call_binding=hosted_predictor.call(method=hosted_predictor.contribution.prepare),
@@ -109,7 +110,7 @@ class PredictionWorkflow:
             raise RuntimeError("Accept an interpretation before generating candidates")
 
         if self.generation_submission is None:
-            reservation_ref, = self.analysis_executor.reservations
+            (reservation_ref,) = self.analysis_executor.reservations
 
             self.generation_submission = Submission.from_call(
                 analysis_executor=self.analysis_executor,
@@ -125,4 +126,5 @@ class PredictionWorkflow:
             raise RuntimeError(f"Cannot generate candidates: {generation_admission=}")
 
         operation_observation = await self.generation_submission.wait()
+
         return operation_observation.require_result()

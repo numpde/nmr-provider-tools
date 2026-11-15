@@ -34,7 +34,7 @@ class ProviderLifetime:
         if not (root.is_absolute()):
             raise ValueError("Provider lifetime requires an absolute private root.")
 
-        self._root, self._descriptor = root, None
+        (self._root, self._descriptor) = (root, None)
         self._close_failure = None
 
     def open(self):
@@ -82,10 +82,11 @@ class ProviderLifetime:
             raise self._close_failure
 
         if self._descriptor is not None:
-            descriptor, self._descriptor = self._descriptor, None
+            (descriptor, self._descriptor) = (self._descriptor, None)
 
             try:
                 os.close(descriptor)
             except BaseException as failure:
                 self._close_failure = failure
+
                 raise

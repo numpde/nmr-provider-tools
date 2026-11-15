@@ -14,7 +14,7 @@ from tests.fakes.job_input import facts, response
 
 class ApiMetadataTlsTests(unittest.IsolatedAsyncioTestCase):
     async def test_valid_correlation_survives_foreign_environment_bad_json_and_failed_body(self):
-        for mode, topology, body in (
+        for (mode, topology, body) in (
             ("success", b"web", response()),
             ("success", b"dev-local", b'{"PRIVATE":'),
             ("disconnect", b"dev-local", b""),

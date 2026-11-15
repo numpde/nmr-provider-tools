@@ -25,7 +25,7 @@ class ControllerRecoveryFailureTests(unittest.IsolatedAsyncioTestCase):
                         DeliveryUnavailable("Local policy refused", status=403)):
             with self.subTest(kind=type(failure).__name__):
                 store = LiveAttemptProbe()
-                session, delivery, retry = SingleRetirementSession(store), RecordingDelivery(), Mock()
+                (session, delivery, retry) = (SingleRetirementSession(store), RecordingDelivery(), Mock())
                 delivery.submit = AsyncMock(side_effect=failure)
 
                 controller = live_controller(api(Transport(*lifecycle_replies()), scope().api_origin), store, AttemptClaims.live(), session,
@@ -44,8 +44,8 @@ class ControllerRecoveryFailureTests(unittest.IsolatedAsyncioTestCase):
 
     async def test_failed_retry_recipient_keeps_original_send_evidence_without_new_submission(self):
         store = LiveAttemptProbe()
-        session, delivery = SingleRetirementSession(store), RecordingDelivery()
-        original, output_failure = DeliveryFull("Relay queue full"), OSError("Authored recipient failure")
+        (session, delivery) = (SingleRetirementSession(store), RecordingDelivery())
+        (original, output_failure) = (DeliveryFull("Relay queue full"), OSError("Authored recipient failure"))
         delivery.submit = AsyncMock(side_effect=original)
 
         controller = live_controller(api(Transport(*lifecycle_replies()), scope().api_origin), store, AttemptClaims.live(), session,
@@ -63,8 +63,8 @@ class ControllerRecoveryFailureTests(unittest.IsolatedAsyncioTestCase):
 
     async def test_selected_report_survives_observer_cancellation_and_explicit_stop(self):
         store = LiveAttemptProbe()
-        session, delivery, entered = SingleRetirementSession(store), RecordingDelivery(), asyncio.Event()
-        recovered, bodies, submit = asyncio.Event(), [], delivery.submit
+        (session, delivery, entered) = (SingleRetirementSession(store), RecordingDelivery(), asyncio.Event())
+        (recovered, bodies, submit) = (asyncio.Event(), [], delivery.submit)
 
         async def pressured(item):
             bodies.append(item.body)
@@ -110,9 +110,9 @@ class ControllerRecoveryFailureTests(unittest.IsolatedAsyncioTestCase):
         for disposition in ("permanent", "cleanup", "available"):
             with self.subTest(disposition=disposition):
                 store = LiveAttemptProbe()
-                session, delivery = SingleRetirementSession(store), RecordingDelivery()
-                started, release = asyncio.Event(), asyncio.Event()
-                attempted, submit = [], delivery.submit
+                (session, delivery) = (SingleRetirementSession(store), RecordingDelivery())
+                (started, release) = (asyncio.Event(), asyncio.Event())
+                (attempted, submit) = ([], delivery.submit)
                 failure = DeliveryUnavailable("Original local transport unfinished")
 
                 async def interrupted(item):
@@ -173,12 +173,12 @@ class ControllerRecoveryFailureTests(unittest.IsolatedAsyncioTestCase):
 
     async def test_retry_settings_reject_nonfinite_bounds_and_missing_recipient_before_effects(self):
         store = LiveAttemptProbe()
-        session, transport = SingleRetirementSession(store), Transport()
+        (session, transport) = (SingleRetirementSession(store), Transport())
 
         settings = dict(delivery=RecordingDelivery(), on_delivery_retry=Mock(), delivery_retry_initial_seconds=1,
             delivery_retry_max_seconds=2, allowed_job_states=frozenset({"open"}), poll_seconds=1, task_settle_seconds=0.1)
 
-        for key, value in (("delivery_retry_initial_seconds", True), ("delivery_retry_initial_seconds", 0),
+        for (key, value) in (("delivery_retry_initial_seconds", True), ("delivery_retry_initial_seconds", 0),
                            ("delivery_retry_max_seconds", float("nan")), ("delivery_retry_max_seconds", float("inf")),
                            ("delivery_retry_max_seconds", 0.5), ("on_delivery_retry", None)):
             with self.subTest(key=key, value=value), self.assertRaises(ValueError):

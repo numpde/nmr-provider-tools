@@ -15,7 +15,7 @@ from tests.fakes.hello import announcement, receipt
 
 class HelloBoundaryTests(unittest.IsolatedAsyncioTestCase):
     def test_offering_fields_are_admitted_at_construction_before_aggregation(self):
-        for kind, description, error_type in (
+        for (kind, description, error_type) in (
             ("PRIVATE invalid", "d", ValueError),
             ("nmr_predict", "PRIVATE\udfff", ValueError),
             ("nmr_predict", "PRIVATE\0value", ValueError),

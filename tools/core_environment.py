@@ -239,7 +239,7 @@ def _build_candidate(source, runtime_lock, build_lock, pool, output, lock_fd):
         if requirements(native_lock) != {("provider-core", release_version): {digest(wheel)}}:
             raise ValueError("Cannot publish provider-core: native installation lock differs from the built wheel.")
 
-    return wheel, install_lock, identities
+    return (wheel, install_lock, identities)
 
 
 # silent-defaults: allow-contract -- An optional caller-supplied wheel pool is immutable and empty by default; the expected-inputs and required-files None values signal distinct checks.
@@ -286,6 +286,7 @@ def _install_environment(root, lock, pool, expected_inputs, extra_pools, require
 
     subprocess.run([*pip_command(environment_python), "--no-cache-dir", "check"], check=True)
     shutil.copyfile(lock, root / "provider-core-install.lock")
+
     return environment_python
 
 

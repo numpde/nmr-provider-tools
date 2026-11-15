@@ -28,7 +28,8 @@ class Engine:
     # silent-defaults: allow-contract -- The synthetic Docker engine defaults to unborrowed, unmodified, well-formed metadata; each adversarial test opts in explicitly.
     def __init__(self, value, *, borrower=False, changed=False, malformed=False):
         self.value = value
-        self.borrower, self.changed, self.malformed = borrower, changed, malformed
+
+        (self.borrower, self.changed, self.malformed) = (borrower, changed, malformed)
         self.calls = []
         self.inspections = 0
 
@@ -90,7 +91,7 @@ class ImageRetirementTests(unittest.TestCase):
         self.assertEqual(engine.removals, [("image", "rm", "--no-prune", IDENTIFIER)])
 
     def test_container_borrower_or_staged_id_is_protected(self):
-        for borrowed, staged in ((True, ()), (False, (IDENTIFIER,))):
+        for (borrowed, staged) in ((True, ()), (False, (IDENTIFIER,))):
             with self.subTest(borrowed=borrowed), tempfile.TemporaryDirectory() as directory:
                 engine = Engine(image(), borrower=borrowed)
                 self.assertEqual(0, retire(Path(directory), engine, lambda: CURRENT, staged=staged, operations=Path(directory)))

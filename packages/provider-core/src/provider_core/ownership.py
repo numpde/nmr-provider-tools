@@ -49,8 +49,9 @@ def _identity(scope, reference):
         )
 
     require_attempt_ref(reference)
+
     # Lane/generation labels cannot partition ownership of one remote Attempt.
-    return scope.api_origin, scope.provider_ref, "attempt", reference
+    return (scope.api_origin, scope.provider_ref, "attempt", reference)
 
 
 def _start_identity(pending):
@@ -64,7 +65,8 @@ def _start_identity(pending):
     # nmr_api/operations/execution_attempt_start.py:396-412 reserves keys
     # provider-wide: another Job or lane must not form a separate local owner.
     key = json.loads(pending.body)["provider_attempt_key"]
-    return pending.scope.api_origin, pending.scope.provider_ref, "start", key
+
+    return (pending.scope.api_origin, pending.scope.provider_ref, "start", key)
 
 
 class AttemptClaims:
@@ -117,6 +119,7 @@ class AttemptClaims:
         claim._pending = pending
         claim._lifecycle_owner = lifecycle_owner
         claim._maximum_terminal_bytes = claim._pending_terminal_bytes = maximum_terminal_bytes
+
         return claim
 
     def _require_live_capacity(self, terminal_bytes):
@@ -137,6 +140,7 @@ class AttemptClaims:
     def live_owners(self):
         """Keep held controllers reachable when composition selects unrelated work."""
         self._require_live_view()
+
         # repo-check: allow-tuple-generator -- Snapshot the bounded actual owner inventory without copying lifecycle state.
         return tuple(claim._lifecycle_owner for claim in set(self._claims.values()))
 
@@ -151,6 +155,7 @@ class AttemptClaims:
             )
 
         require_job_ref(job_ref)
+
         return (scope.api_origin, scope.provider_ref, "job", job_ref) in self._claims
 
     def _require_live_view(self):
@@ -171,6 +176,7 @@ class AttemptClaims:
 
         self._require_live_capacity(live_terminal_bytes)
         self._loop = loop
+
         claim = _AttemptClaim(self, identities)
 
         for identity in claim._identities:
@@ -197,11 +203,13 @@ class _AttemptClaim:
     def lifecycle_owner(self):
         """Return the actual controller rather than a copied lifecycle phase."""
         self._registry._require(self)
+
         return self._lifecycle_owner
 
     @property
     def maximum_terminal_bytes(self):
         self._registry._require(self)
+
         return self._maximum_terminal_bytes
 
     @property
@@ -212,6 +220,7 @@ class _AttemptClaim:
     def operation_owner(self):
         """Observe the existing borrower so composition settles that exact owner."""
         self._registry._require(self)
+
         return self._operation_owner
 
     def require(self, scope, execution_attempt_ref):

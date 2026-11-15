@@ -23,7 +23,7 @@ import tempfile
 def unique_fields(pairs):
     record = {}
 
-    for name, value in pairs:
+    for (name, value) in pairs:
         if name in record:
             raise ValueError("Cannot start the installer: release record contains a duplicate field.")
 
@@ -143,6 +143,7 @@ def install(pool, record):
 
 def pip_command(python):
     """Run the target's pinned installer in the shared-pool lock holder."""
+
     return [str(python), "-I", "-B", "-m", "pip", "--isolated"]
 
 
