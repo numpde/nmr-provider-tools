@@ -6,6 +6,7 @@ import asyncio
 import sys
 
 from provider_core.failure_collection import FailureCollector
+
 from provider_core.hosting import (
     NotAdmitted, ResultConsumption,
     observe_cleanup,
@@ -23,20 +24,21 @@ async def run_demo() -> None:
     when an observer cap expires.
     """
     async with open_provider() as provider:
-        analysis = None
+        analysis_executor = None
         workflow = None
-        failures = FailureCollector(message="The example and its cleanup reported failures.")
+        failure_collector = FailureCollector(message="The example and its cleanup reported failures.")
 
         async def print_report(payload: bytes) -> None:
             # Flushed stdout is this demo's consumer, not a durable report queue.
             sys.stdout.buffer.write(payload + b"\n")
             sys.stdout.buffer.flush()
 
-        with failures.capture():
+        with failure_collector.capture():
             workflow = provider.create_workflow(
                 spectrum=Spectrum(positions=(0, 1, 2, 3, 4), intensities=(1, 4, 2, 5, 1)),
             )
-            analysis = workflow.execution
+
+            analysis_executor = workflow.analysis_executor
             started = workflow.start()
             if isinstance(started, NotAdmitted):
                 raise RuntimeError(f"Baseline admission refused: {started.code.value}: {started.message}")
@@ -44,28 +46,30 @@ async def run_demo() -> None:
                 result = await workflow.finish()
             if isinstance(result, NotAdmitted):
                 raise RuntimeError(f"Peak admission refused: {result.code.value}: {result.message}")
-            consumption = ResultConsumption(
-                operation=workflow.peaks.operation,
+
+            result_consumer = ResultConsumption(
+                operation=workflow.peak_detection_submission.operation,
                 result=result.require_result(),
                 receive=print_report,
             )
-            async with consumption:
+
+            async with result_consumer:
                 async with asyncio.timeout(15):
-                    await consumption.consume()
-        if analysis is not None:
-            with failures.capture():
-                analysis.request_stop()
-        if workflow is not None and workflow.baseline_release is not None:
-            with failures.capture():
+                    await result_consumer.consume()
+        if analysis_executor is not None:
+            with failure_collector.capture():
+                analysis_executor.request_stop()
+        if workflow is not None and workflow.baseline_report_release is not None:
+            with failure_collector.capture():
                 async with asyncio.timeout(15):
-                    await observe_cleanup(control=workflow.baseline_release)
+                    await observe_cleanup(control=workflow.baseline_report_release)
         # Preserve analysis cleanup failures; host retirement follows on scope exit.
-        if analysis is not None:
-            with failures.capture():
-                control = analysis.close()
+        if analysis_executor is not None:
+            with failure_collector.capture():
+                control = analysis_executor.close()
                 async with asyncio.timeout(15):
                     await observe_cleanup(control=control)
-        failures.raise_if_any()
+        failure_collector.raise_if_any()
 
 
 if __name__ == "__main__":

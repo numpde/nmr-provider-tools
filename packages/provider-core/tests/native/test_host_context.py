@@ -6,7 +6,7 @@ from threading import Event
 import unittest
 from unittest.mock import patch
 
-from provider_core.embedded_host import EmbeddedHost
+from provider_core.embedded_host import InProcessExecutionHost
 from provider_core.hosting import settle_cleanup
 from provider_core.scientific import Contribution, operation
 
@@ -29,8 +29,8 @@ class OwnedScience(Contribution):
         self.close_resource()
 
 
-def host() -> EmbeddedHost:
-    return EmbeddedHost(
+def host() -> InProcessExecutionHost:
+    return InProcessExecutionHost(
         input_bytes=4096,
         result_bytes=4096,
         state_values=1,

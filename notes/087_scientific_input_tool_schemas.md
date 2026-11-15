@@ -64,7 +64,7 @@ Preserve defaulted optional fields, nullable required fields, fixed and variadic
 tuples, Enum/Literal values, and root-level definitions and references. Codec subclasses are not assumed to
 retain those semantics and are refused along with other codec implementations.
 
-A shared InputTool owns the generated definition and argument decoding. Its name
+A shared ScientificInputToolDefinition owns the generated definition and argument decoding. Its name
 comes from the selected compiled scientific method. Its parameters are the input
 record itself, without an arbitrary `value` envelope. Providers supply the actual
 compiled call and a meaningful tool description, not field dictionaries, protocol
@@ -77,7 +77,7 @@ provider science.
 
 Pydantic stays in the SDK's existing `api` dependency set. The native installation
 and its imports remain free of third-party dependencies; schema generation loads
-the library only when requested. Consumers using InputTool declare the API extra;
+the library only when requested. Consumers using ScientificInputToolDefinition declare the API extra;
 the mock example does so explicitly. The selected version is 2.14.3, with core 2.50.4.
 The publisher's advisories affecting dataclass aliases and extra-key validation
 were fixed in 2.14.2:

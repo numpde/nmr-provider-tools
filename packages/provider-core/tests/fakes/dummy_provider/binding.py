@@ -6,8 +6,9 @@ from dataclasses import dataclass
 
 import provider_core.contribution as contribution
 import provider_core.contribution_declaration as declaration
+
 from provider_core.state_slots import (
-    SlotStateBinding, StateInputSlot, StateKind, StateOutputSlot,
+    SlotStateBinding, StateInputSlot, StateTypeDescriptor, StateOutputSlot,
 )
 
 from . import science
@@ -20,9 +21,11 @@ class WeightedSumBinding(contribution.ImplementationBinding[
     prepare: contribution.CallBinding[
         science.PreparationInput, contribution.NoState, science.PreparationResult,
     ]
+
     calculate: contribution.CallBinding[
         contribution.NoInput, science.CalculationState, science.PredictionResult,
     ]
+
     prepared_output: StateOutputSlot[science.PreparedValues]
     prepared_input: StateInputSlot[science.PreparedValues]
 
@@ -49,13 +52,16 @@ def weighted_sum_binding(
     coefficients: science.CoefficientSet,
 ) -> WeightedSumBinding:
     """Bind immutable settings and coefficients to one weighted model revision."""
-    prepared_kind = StateKind(name="dummy.prepared-values.v1", value_type=science.PreparedValues)
+    prepared_kind = StateTypeDescriptor(name="dummy.prepared-values.v1", value_type=science.PreparedValues)
+
     prepared_output = prepared_kind.output(
         name="normalized", dispose=science.dispose_prepared,
     )
+
     prepared_input = prepared_kind.input(
         name="candidate", use=contribution.StateUse.CONSUME,
     )
+
     calculation_state = SlotStateBinding(
         value_type=science.CalculationState,
         inputs=(prepared_input,),
@@ -93,6 +99,7 @@ def weighted_sum_binding(
         ],
     ) -> contribution.ScientificReturn[science.PredictionResult]:
         control = context.require_control()
+
         control.report_progress(
             contribution.ProgressEvent(
                 stage="calculation",
@@ -100,10 +107,12 @@ def weighted_sum_binding(
                 total=1,
             )
         )
+
         prediction = science.calculate(
             analysis=context.analysis,
             state=context.state,
         )
+
         control.report_progress(
             contribution.ProgressEvent(
                 stage="calculation",
@@ -118,12 +127,14 @@ def weighted_sum_binding(
         settings,
         format_id="dummy.settings.v1",
     )
+
     coefficient_asset = declaration.json_asset(
         coefficients,
         name="coefficients",
         format_id="dummy.coefficients.v1",
         media_type="application/vnd.nmr-provider-tools.dummy-coefficients+json",
     )
+
     assets = frozenset({coefficient_asset})
 
     prepare_call = contribution.CallBinding.from_json_dataclasses(
@@ -140,6 +151,7 @@ def weighted_sum_binding(
         progress=False,
         scientific_call=prepare,
     )
+
     calculate_call = contribution.CallBinding.from_json_dataclasses(
         name="calculate",
         input_type=contribution.NoInput,
@@ -154,6 +166,7 @@ def weighted_sum_binding(
         progress=True,
         scientific_call=calculate,
     )
+
     return WeightedSumBinding(
         identity=contribution.ConfiguredIdentity(
             binding_id="dummy.weighted-sum",
@@ -188,6 +201,7 @@ def sum_binding() -> SumBinding:
         return science.sum_values(summation=scientific_input)
 
     configuration = None
+
     run_call = contribution.CallBinding.from_function(
         name="run",
         input_type=science.SumInput,

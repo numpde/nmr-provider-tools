@@ -17,7 +17,8 @@ from dummy_provider import science
 from dummy_provider import binding as binding_setup
 from dummy_provider.binding import WeightedSum, WeightedSumConfig, read_resource_requirements
 from provider_core.contribution import ProgressEvent
-from provider_core.embedded_host import EmbeddedHost
+from provider_core.embedded_host import InProcessExecutionHost
+
 from provider_core.hosting import (
     OperationPolicy,
     NotAdmitted,
@@ -33,10 +34,12 @@ class DummyInstalledExecutionTests(unittest.IsolatedAsyncioTestCase):
     async def asyncSetUp(self):
         directory = Path(self.enterContext(TemporaryDirectory()))
         configuration = directory / "provider.toml"
+
         shutil.copyfile(
             src=Path(__file__).parent / "config/deployments/localhost/provider.toml",
             dst=configuration,
         )
+
         self.enterContext(patch.object(target=binding_setup, attribute="PROVIDER_CONFIG_PATH", new=configuration))
 
     async def assert_succeeded(self, operation):
@@ -61,7 +64,8 @@ class DummyInstalledExecutionTests(unittest.IsolatedAsyncioTestCase):
 
     async def test_partial_model_loading_keeps_the_original_cleanup_owner(self):
         """A loader may fail after acquisition; retirement still owns that model."""
-        host = EmbeddedHost(
+
+        host = InProcessExecutionHost(
             input_bytes=4096,
             result_bytes=4096,
             state_values=1,
@@ -69,7 +73,9 @@ class DummyInstalledExecutionTests(unittest.IsolatedAsyncioTestCase):
             initialization_seconds=5,
             retirement_seconds=5,
         )
+
         self.addAsyncCleanup(self.retire_host, host)
+
         hosted = host.adopt(
             contribution=WeightedSum(configuration=WeightedSumConfig(
                 settings=science.WeightedSumSettings(scale=2, offset=1),
@@ -77,6 +83,7 @@ class DummyInstalledExecutionTests(unittest.IsolatedAsyncioTestCase):
             )),
             requirements=read_resource_requirements(),
         )
+
         contribution = hosted.contribution
         failure = OSError("Cannot finish loading model coefficients")
         loaded_models = []
@@ -96,6 +103,7 @@ class DummyInstalledExecutionTests(unittest.IsolatedAsyncioTestCase):
         ):
             analysis = host.open_analysis(allocations=frozenset({hosted.allocation}))
             reservation, = analysis.reservations
+
             operation = analysis.submit_method(
                 method=contribution.prepare,
                 scientific_input=science.PreparationInput(values=(1, 2, 3)),
@@ -108,6 +116,7 @@ class DummyInstalledExecutionTests(unittest.IsolatedAsyncioTestCase):
                     reject_encoded_result_over_bytes=4096,
                 ),
             )
+
             async with asyncio.timeout(10):
                 observation = await observe_completion(operation=operation)
                 self.assertTrue(any(item.cause is failure for item in observation.failures))
@@ -129,10 +138,13 @@ class DummyInstalledExecutionTests(unittest.IsolatedAsyncioTestCase):
             initialization_seconds=5,
             retirement_seconds=5,
         )
-        host = EmbeddedHost(
+
+        host = InProcessExecutionHost(
             **host_options,
         )
+
         self.addAsyncCleanup(self.retire_host, host)
+
         weighted_binding = host.adopt(
             contribution=WeightedSum(configuration=WeightedSumConfig(
                 settings=science.WeightedSumSettings(scale=2, offset=1),
@@ -144,6 +156,7 @@ class DummyInstalledExecutionTests(unittest.IsolatedAsyncioTestCase):
         analysis = host.open_analysis(
             allocations=frozenset({weighted_binding.allocation}),
         )
+
         (reservation,) = analysis.reservations
         prepare_call, calculate_call = weighted_binding.call(method=WeightedSum.prepare), weighted_binding.call(method=WeightedSum.calculate)
 
@@ -162,6 +175,7 @@ class DummyInstalledExecutionTests(unittest.IsolatedAsyncioTestCase):
              scientific_input=science.PreparationInput(values=()),
             states=(), reservation=reservation, policy=operation_policy,
         )
+
         rejection = await observe_completion(operation=rejected)
         self.assertIs(Outcome.REJECTED, rejection.outcome)
         original_session = analysis.science[weighted_binding.allocation.allocation].value
@@ -174,15 +188,18 @@ class DummyInstalledExecutionTests(unittest.IsolatedAsyncioTestCase):
             reservation=reservation,
             policy=operation_policy,
         )
+
         self.assertNotIsInstance(preparation_operation, NotAdmitted)
 
         preparation_observation = await self.assert_succeeded(preparation_operation)
         self.assertIs(original_session, analysis.science[weighted_binding.allocation.allocation].value)
         self.assertEqual(1, len(preparation_observation.states))
         self.assertEqual("normalized", preparation_observation.states[0].name)
+
         prepared = await WeightedSum.normalized.reference(
             call=prepare_call, operation=preparation_operation,
         )
+
         calculation_state = WeightedSum.candidate.bind(handle=prepared)
         self.assertEqual("candidate", calculation_state.name)
         self.assertIs(ResultState.AVAILABLE, preparation_observation.result_state)
@@ -197,6 +214,7 @@ class DummyInstalledExecutionTests(unittest.IsolatedAsyncioTestCase):
             result=preparation_observation.result,
             receive=accept_preparation,
         )
+
         self.addAsyncCleanup(preparation_consumption.settle)
         async with asyncio.timeout(10):
             await preparation_consumption.consume()
@@ -208,6 +226,7 @@ class DummyInstalledExecutionTests(unittest.IsolatedAsyncioTestCase):
             reservation=reservation,
             policy=operation_policy,
         )
+
         self.assertNotIsInstance(calculation_operation, NotAdmitted)
 
         calculation_observation = await self.assert_succeeded(calculation_operation)
@@ -225,11 +244,13 @@ class DummyInstalledExecutionTests(unittest.IsolatedAsyncioTestCase):
             ),
             calculation_observation.progress,
         )
+
         calculation_consumption = ResultConsumption(
             operation=calculation_operation,
             result=calculation_observation.result,
             receive=accept_calculation,
         )
+
         self.addAsyncCleanup(calculation_consumption.settle)
         async with asyncio.timeout(10):
             await calculation_consumption.consume()

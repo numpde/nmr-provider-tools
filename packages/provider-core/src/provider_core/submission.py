@@ -7,6 +7,7 @@ from provider_core.container_guard import require_container
 require_container()
 
 from provider_core.contribution import CallBinding, NoInput, ref
+
 from provider_core.hosting import (
     AnalysisExecution, Invocation, NotAdmitted, Observation, Operation,
     OperationPolicy, ReservationRef, StateArgument, observe_completion,
@@ -28,8 +29,8 @@ class Submission:
     change submit_method(), where every call requests new work.
     """
 
-    def __init__(self, *, execution: AnalysisExecution, invocation: Invocation) -> None:
-        self._execution = execution
+    def __init__(self, *, analysis_executor: AnalysisExecution, invocation: Invocation) -> None:
+        self._analysis_executor = analysis_executor
         self._invocation = invocation
         self._operation: Operation | None = None
 
@@ -46,23 +47,24 @@ class Submission:
     def from_call[InputT, StateT, OutputT](
         cls,
         *,
-        execution: AnalysisExecution,
-        call: CallBinding[InputT, StateT, OutputT],
+        analysis_executor: AnalysisExecution,
+        call_binding: CallBinding[InputT, StateT, OutputT],
         scientific_input: InputT | NoInput = NoInput(),
         states: tuple[StateArgument, ...],
-        reservation: ReservationRef,
-        policy: OperationPolicy,
+        reservation_ref: ReservationRef,
+        operation_policy: OperationPolicy,
         start_not_after: float | None = None,
     ) -> Submission:
         """Encode scientific input through its compiled codec without submitting."""
+
         return cls(
-            execution=execution,
+            analysis_executor=analysis_executor,
             invocation=Invocation(
-                target=ref(call=call),
-                payload=call.encode_input(value=scientific_input),
+                target=ref(call=call_binding),
+                payload=call_binding.encode_input(value=scientific_input),
                 states=states,
-                reservation=reservation,
-                policy=policy,
+                reservation=reservation_ref,
+                policy=operation_policy,
                 start_not_after=start_not_after,
             ),
         )
@@ -71,10 +73,10 @@ class Submission:
         """Deliver this request once, or return its already acquired operation."""
         if self.operation is not None:
             return self.operation
-        accepted = self._execution.submit(invocation=self.invocation)
-        if not isinstance(accepted, NotAdmitted):
-            self._operation = accepted
-        return accepted
+        admission_result = self._analysis_executor.submit(invocation=self.invocation)
+        if not isinstance(admission_result, NotAdmitted):
+            self._operation = admission_result
+        return admission_result
 
     async def wait(self) -> Observation:
         """Observe original admitted work without submitting or releasing anything."""

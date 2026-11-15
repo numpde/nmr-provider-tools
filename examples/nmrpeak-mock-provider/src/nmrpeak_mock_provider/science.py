@@ -49,7 +49,7 @@ class Settings:
 
 
 @dataclass(frozen=True, slots=True, kw_only=True)
-class Validation:
+class PreparationReport:
     token_count: int
 
 
@@ -98,6 +98,7 @@ def prepare(*, model: Model, candidate: HfInput | ChfInput, settings: Settings) 
             code="token_limit",
             message=f"Cannot generate with {token_count=}; requires 1 through {settings.maximum_input_tokens=}",
         )
+
     return PreparedInput(tokens=tokens)
 
 

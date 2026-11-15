@@ -31,7 +31,7 @@ session for each analysis.
 Provider setup passes each exact object to `host.adopt(contribution=...,
 requirements=...)`. The returned hosted handle exposes its compiled methods and
 allocation. Workflows submit actual bound methods through
-`EmbeddedAnalysis.submit_method(method=..., scientific_input=..., reservation=...,
+`InProcessAnalysisExecutor.submit_method(method=..., scientific_input=..., reservation=...,
 policy=...)`. Portable `Invocation` callers obtain addresses with
 `hosted.reference(method=...)`.
 
@@ -65,7 +65,7 @@ independent body and settlement failures. Entering does not start delivery, and
 repeated waits never resend. The provider still owns pipeline ordering, execution
 stop decisions and the lifetime of the receiver's external resources.
 
-`EmbeddedHost` is also an async context manager. Put request tasks and receiver
+`InProcessExecutionHost` is also an async context manager. Put request tasks and receiver
 contexts inside the host lifetime. Its exit requests SDK retirement and joins the
 original cleanup, deferring cancellation until cleanup completes or reports a
 failure. A failure does not establish that every resource retired. The host does
@@ -96,7 +96,7 @@ waits report current result state, including release; they do not cache success.
 `ResultConsumption` separately owns a receiver attempt and result release.
 
 Retained submissions use portable request identity, held until analysis closure.
-`EmbeddedAnalysis.submit_method()` continues to request separate work on each
+`InProcessAnalysisExecutor.submit_method()` continues to request separate work on each
 call. A request that must survive an ambiguous delivery should retain a
 `Submission` before its first submit.
 
@@ -121,29 +121,29 @@ writing a second input schema. Install `provider-core[api]`; scientific records
 remain ordinary frozen/slotted dataclasses.
 
 ```python
-from provider_core.preparation_tool import PreparationTool
+from provider_core.preparation_tool import PreparationToolHandler
 
-tool = PreparationTool(
-    call=hosted.call(method=hosted.contribution.prepare),
-    output=ScientificContribution.validated,
-    execution=analysis,
-    reservation=analysis.reservation(allocation=hosted.allocation),
-    policy=operation_policy,
+preparation_handler = PreparationToolHandler(
+    call_binding=hosted_predictor.call(method=hosted_predictor.contribution.prepare),
+    state_output_slot=ScientificContribution.validated,
+    analysis_executor=analysis_executor,
+    reservation_ref=analysis_executor.reservation(allocation=hosted_predictor.allocation),
+    operation_policy=operation_policy,
     description="Submit source-faithful spectrum data for validation.",
 )
 ```
 
-Pass `tools=[tool.definition]` and `dispatch=tool.dispatch` to `Interpreter.run`.
-The SDK decodes proposals, executes preparation, retains `tool.prepared` for the
+Pass `tools=[preparation_handler.definition]` and `dispatch=preparation_handler.dispatch` to `Interpreter.run`.
+The SDK decodes proposals, executes preparation, retains `preparation_handler.prepared_state_handle` for the
 provider's next scientific method, and releases the temporary validation report.
 Input rejection permits model correction; operator failures retain their original
 causes. A confirmed start-window expiry permits the next model to try after the
-original work settles. `tool.resume()` resumes the original request or release
+original work settles. `preparation_handler.resume()` resumes the original request or release
 after cancellation or a lost reply, without submitting new science.
 
 The provider selects the preparation method and its output port; the SDK does not
 choose the subsequent scientific sequence. For tools that only advertise and
-decode input, `provider_core.input_tool.InputTool` remains available independently.
+decode input, `provider_core.input_tool.ScientificInputToolDefinition` remains available independently.
 The tool derives its name
 from the compiled method and uses the input record's fields as parameters;
 providers supply no protocol name, wrapper field or duplicate record definition.

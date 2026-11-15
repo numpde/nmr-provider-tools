@@ -18,6 +18,7 @@ from weakref import WeakSet
 from provider_core.async_runner_session import await_original
 from provider_core.contribution import CallBinding, ImplementationBinding, IsolationRequirement, NoInput, ResourceRequirement, ref
 from provider_core.scientific import AssetAccess, NoAssets, Contribution, HostedContribution
+
 from provider_core.hosting import (
     AdmissionCode,
     AllocationRef,
@@ -35,7 +36,9 @@ from provider_core.hosting import (
     settle_cleanup,
     _raise_context_failure,
 )
+
 from provider_core._embedded_operation import _Operation
+
 from provider_core._embedded_support import (
     EMBEDDED_CAPABILITIES,
     Allocation,
@@ -47,7 +50,7 @@ from provider_core._embedded_support import (
 )
 
 
-class EmbeddedHost:
+class InProcessExecutionHost:
     """Own adopted scientific objects and their local SDK execution resources.
 
     An async context joins original retirement before propagating cancellation or
@@ -74,6 +77,7 @@ class EmbeddedHost:
         Byte and state budgets cover currently owned work; they do not impose
         a memory limit on caller-held handles. Time allowances are in seconds.
         """
+
         for name, value in (
             ("input_bytes", input_bytes),
             ("result_bytes", result_bytes),
@@ -84,6 +88,7 @@ class EmbeddedHost:
                 raise TypeError(f"Unexpected {type(value)=}; {name=} requires an integer")
             if not (0 < value):
                 raise ValueError(f"Expected a positive capacity for {name=}; received {value=}")
+
         for name, value in (
             ("initialization_seconds", initialization_seconds),
             ("retirement_seconds", retirement_seconds),
@@ -91,6 +96,7 @@ class EmbeddedHost:
             if type(value) not in (int, float):
                 raise TypeError(f"Unexpected {type(value)=}; {name=} requires a number of seconds")
             positive_seconds(value=value)
+
         if not (
             type(allocations) is tuple
             and all(type(item) is Allocation for item in allocations)
@@ -108,10 +114,12 @@ class EmbeddedHost:
         self.progress_records = progress_records
         self.initialization_seconds = initialization_seconds
         self.retirement_seconds = retirement_seconds
+
         self.residents = {
             item.name: _Resident(host_identity=self.identity, name=item.name, binding=item.binding, assets=item.assets)
             for item in allocations
         }
+
         self.analyses = {}
         self.allocations_fixed = False
         self.operations = {}
@@ -121,7 +129,7 @@ class EmbeddedHost:
         self.retirement = None
         self.retiring = False
 
-    async def __aenter__(self) -> EmbeddedHost:
+    async def __aenter__(self) -> InProcessExecutionHost:
         """Keep this host alive around explicitly nested request/resource owners."""
         return self
 
@@ -154,10 +162,12 @@ class EmbeddedHost:
         if self.retiring or self.allocations_fixed:
             raise CapacityUnavailable("Adopt contributions before opening analyses or retiring the host.")
         allocation_name = uuid4().hex
+
         hosted = HostedContribution(
             contribution=contribution, host=self.identity, allocation_name=allocation_name,
             requirements=requirements, resident_resources=resident_resources, isolation=isolation,
         )
+
         _require_supported_binding(hosted)
         custody = contribution._custody
         with custody.lock:
@@ -182,7 +192,7 @@ class EmbeddedHost:
     def open_analysis(
         self, analysis_id: str | None = None, *, allocation_names: tuple[str, ...] | None = None,
         allocations: frozenset[AllocationRef] | None = None,
-    ) -> EmbeddedAnalysis:
+    ) -> InProcessAnalysisExecutor:
         """Reserve exact allocation handles and create an analysis identity.
 
         Explicit analysis_id/allocation_names are the legacy protocol form.
@@ -207,6 +217,7 @@ class EmbeddedHost:
             raise TypeError(f"Unexpected {type(analysis_id)=}; an analysis identity must be a string")
         if type(allocation_names) is not tuple:
             raise TypeError(f"Unexpected {type(allocation_names)=}; supply an immutable tuple of allocation names")
+
         if not (
             0 < len(analysis_id) <= 160
             and allocation_names
@@ -219,6 +230,7 @@ class EmbeddedHost:
             raise CapacityUnavailable("A requested allocation does not belong to this host.")
 
         selected_residents = [self.residents[name] for name in allocation_names]
+
         if any(
             resident.analysis is not None
             or resident.failure is not None
@@ -228,13 +240,17 @@ class EmbeddedHost:
         ):
             raise CapacityUnavailable("A requested allocation is occupied, failed or retiring.")
 
-        analysis = EmbeddedAnalysis(self, analysis_id, selected_residents)
-        self.allocations_fixed = True
-        self.analyses[analysis_id] = analysis
-        for resident in selected_residents:
-            resident.analysis = analysis
-        return analysis
+        analysis_executor = InProcessAnalysisExecutor(
+            execution_host=self,
+            analysis_id=analysis_id,
+            residents=selected_residents,
+        )
 
+        self.allocations_fixed = True
+        self.analyses[analysis_id] = analysis_executor
+        for resident in selected_residents:
+            resident.analysis = analysis_executor
+        return analysis_executor
 
     def retire_allocation(self, reference):
         """Pool administration retires one exact allocation and its current analysis."""
@@ -260,14 +276,17 @@ class EmbeddedHost:
                     "The allocation's analysis did not settle.",
                     [failure.cause for failure in analysis_cleanup.failures],
                 )
+
         if resident.analysis is not None:
             raise RuntimeError("The allocation remains attached to an unsettled analysis.")
 
         disposal_future = resident.executor.submit(resident.dispose)
         await await_original(disposal_future, deadline=None)
+
         resident.join_task = self.loop.create_task(
             asyncio.to_thread(resident.executor.shutdown, wait=True)
         )
+
         await asyncio.shield(resident.join_task)
         resident.retired = True
 
@@ -281,10 +300,12 @@ class EmbeddedHost:
         if self.retirement is None:
             self.retiring = True
             self.retirement = _Cleanup(self.retirement_seconds)
+
             retirements = [
                 self.retire_allocation(resident.reference)
                 for resident in self.residents.values()
             ]
+
             self.retirement.start(lambda: self._retire(retirements))
         return self.retirement
 
@@ -297,30 +318,33 @@ class EmbeddedHost:
             raise BaseExceptionGroup("Some original resources remain unretired.", failures)
 
 
-class EmbeddedAnalysis:
-    """Local analysis returned by EmbeddedHost.open_analysis.
+class InProcessAnalysisExecutor:
+    """In-process executor returned by InProcessExecutionHost.open_analysis.
 
     Its reservations belong to that host. Both bound-call and portable
     invocation submission use the same admission and operation owners.
     """
 
-    def __init__(self, host, identity, residents):
-        self.host = host
-        self.identity = identity
+    def __init__(self, *, execution_host, analysis_id, residents):
+        self.host = execution_host
+        self.identity = analysis_id
+
         self.science = {
             resident.name: _ScientificAnalysis(resident)
             for resident in residents
         }
+
         self.reservations = frozenset(
             ReservationRef(
-                host=host.identity,
-                analysis=identity,
+                host=execution_host.identity,
+                analysis=analysis_id,
                 allocation=resident.name,
                 binding_id=resident.binding.description.binding_id,
                 binding_revision=resident.binding.description.binding_revision,
             )
             for resident in residents
         )
+
         self.operations = {}
         # Observe resource-release changes through surviving handles without
         # making their completed operations owned by this analysis.
@@ -363,6 +387,7 @@ class EmbeddedAnalysis:
         """
         if type(call) is not CallBinding:
             raise TypeError("Local call submission requires a bound CallBinding member")
+
         invocation = Invocation(
             operation_id=uuid4().hex,
             target=ref(call),
@@ -372,6 +397,7 @@ class EmbeddedAnalysis:
             policy=policy,
             start_not_after=start_not_after,
         )
+
         return self._submit(
             invocation=invocation,
             retain_identity=False,
@@ -403,6 +429,7 @@ class EmbeddedAnalysis:
         call = hosted.call(method=method)
         if type(scientific_input) is NoInput and call.input_codec.value_type is not NoInput:
             raise TypeError(f"Unexpected {type(scientific_input)=}; {call.description.name=} requires {call.input_codec.value_type=}")
+
         return self.submit_call(
             call=call,
             payload=call.encode_input(value=scientific_input), states=states,
@@ -413,6 +440,7 @@ class EmbeddedAnalysis:
         self, invocation: Invocation,
     ) -> Operation | NotAdmitted:
         """Retain portable request identity until this analysis closes."""
+
         return self._submit(
             invocation=invocation,
             retain_identity=True,
@@ -446,17 +474,20 @@ class EmbeddedAnalysis:
         _require_start_deadline(start_not_after=invocation.start_not_after, now=self.host.loop.time())
         scientific_analysis = self.science[invocation.reservation.allocation]
         implementation_binding = scientific_analysis.resident.binding
+
         selected_call = next(
             item
             for item in implementation_binding._calls
             if item.description.name == invocation.target.name
         )
+
         state_owners = self._state_owners(invocation, selected_call)
         if isinstance(state_owners, NotAdmitted):
             return state_owners
 
         host = self.host
         returned_state_count = len(selected_call.description.state_outputs)
+
         if not (
             host.input_used + len(invocation.payload) <= host.input_bytes
             and host.result_reserved + invocation.policy.reject_encoded_result_over_bytes <= host.result_bytes
@@ -477,6 +508,7 @@ class EmbeddedAnalysis:
             states=state_owners,
             retain_identity=retain_identity,
         )
+
         self.observed_operations.add(operation)
         self.operations[invocation.operation_id] = operation
         host.operations[operation_key] = operation
@@ -495,6 +527,7 @@ class EmbeddedAnalysis:
                 code=AdmissionCode.INVALID_REFERENCE,
                 message="Reservation belongs to another analysis, host or allocation.",
             )
+
         return None
 
     def _refusal(self, invocation):
@@ -504,6 +537,7 @@ class EmbeddedAnalysis:
         if refusal is not None:
             return refusal
         reservation = invocation.reservation
+
         if (invocation.target.binding_id, invocation.target.binding_revision) != (
             reservation.binding_id,
             reservation.binding_revision,
@@ -512,7 +546,9 @@ class EmbeddedAnalysis:
                 code=AdmissionCode.INVALID_REQUEST,
                 message="The selected implementation differs from the reserved binding revision.",
             )
+
         scientific_analysis = self.science[reservation.allocation]
+
         if (
             scientific_analysis.failure is not None
             or scientific_analysis.resident.failure is not None
@@ -521,6 +557,7 @@ class EmbeddedAnalysis:
                 code=AdmissionCode.UNAVAILABLE,
                 message="The original scientific initialization failed and remains owned.",
             )
+
         if invocation.target.name not in {
             item.description.name
             for item in scientific_analysis.resident.binding._calls
@@ -529,16 +566,19 @@ class EmbeddedAnalysis:
                 code=AdmissionCode.INVALID_REQUEST,
                 message="The selected scientific call is not registered.",
             )
+
         if invocation.policy.reject_encoded_input_over_bytes < len(invocation.payload):
             return NotAdmitted(
                 code=AdmissionCode.INVALID_REQUEST,
                 message="Scientific input exceeds this invocation's byte allowance.",
             )
+
         return None
 
     def _state_owners(self, invocation, call):
         state_arguments = {item.name: item.reference for item in invocation.states}
         declared_parameters = {item.name: item for item in call.description.state_inputs}
+
         if (
             len(state_arguments) != len(invocation.states)
             or set(state_arguments) != set(declared_parameters)
@@ -547,6 +587,7 @@ class EmbeddedAnalysis:
                 code=AdmissionCode.INVALID_REQUEST,
                 message="State arguments must match the call's distinct declared names.",
             )
+
         if len(set(state_arguments.values())) != len(state_arguments):
             return NotAdmitted(
                 code=AdmissionCode.INVALID_REFERENCE,
@@ -556,6 +597,7 @@ class EmbeddedAnalysis:
         state_owners = {}
         for (name, reference) in state_arguments.items():
             owner = self.states.get(reference)
+
             if (
                 owner is None
                 or reference.allocation != invocation.reservation.allocation
@@ -570,6 +612,7 @@ class EmbeddedAnalysis:
                     code=AdmissionCode.INVALID_REFERENCE,
                     message="Scientific state is foreign, incompatible, consumed or already in use.",
                 )
+
             state_owners[name] = owner
         return state_owners
 
@@ -598,10 +641,12 @@ class EmbeddedAnalysis:
         self.host._require_loop()
         if self.cleanup is None:
             self.request_stop()
+
             cleanup_overdue_flag_seconds = min(
                 (item.invocation.policy.cleanup_overdue_flag_seconds for item in self.operations.values()),
                 default=self.host.retirement_seconds,
             )
+
             self.cleanup = _Cleanup(cleanup_overdue_flag_seconds)
             self.cleanup.start(self._close)
         return self.cleanup
@@ -621,6 +666,7 @@ class EmbeddedAnalysis:
                     allocation_name,
                     scientific_analysis,
                 )
+
                 await await_original(disposal_future, deadline=None)
             except BaseException as cause:
                 cleanup_failures.append(cause)

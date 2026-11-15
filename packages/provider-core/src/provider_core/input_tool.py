@@ -18,7 +18,7 @@ from provider_core.payload import JsonDataclassCodec
 
 
 @dataclass(frozen=True, slots=True, kw_only=True)
-class InputTool:
+class ScientificInputToolDefinition:
     """One scientific input exposed as a language-model function tool.
 
     The definition uses the input record's fields directly as parameters. Its
@@ -27,29 +27,30 @@ class InputTool:
     Custom codecs are refused rather than assigned guessed JSON semantics.
     """
 
-    call: CallBinding
+    call_binding: CallBinding
     description: str
 
     def __post_init__(self) -> None:
-        if type(self.call.input_codec) is not JsonDataclassCodec:
+        if type(self.call_binding.input_codec) is not JsonDataclassCodec:
             raise TypeError(
-                f"Unexpected {type(self.call.input_codec)=}; "
+                f"Unexpected {type(self.call_binding.input_codec)=}; "
                 "cannot advertise a scientific input without the built-in JSON dataclass codec"
             )
 
     @property
     def name(self) -> str:
-        return self.call.description.name
+        return self.call_binding.description.name
 
     @property
     def definition(self) -> dict:
         """Return a fresh tool carrier with definitions rooted beside its parameters."""
+
         return {
             "type": "function",
             "function": {
                 "name": self.name,
                 "description": self.description,
-                "parameters": self.call.input_codec.json_schema(),
+                "parameters": self.call_binding.input_codec.json_schema(),
             },
         }
 
@@ -61,4 +62,4 @@ class InputTool:
         """
         if name != self.name:
             raise ToolRejected(f"Cannot accept {name=}; submit scientific input using {self.name=}")
-        return self.call.input_codec.decode(payload=json.dumps(obj=arguments).encode(encoding="utf-8"))
+        return self.call_binding.input_codec.decode(payload=json.dumps(obj=arguments).encode(encoding="utf-8"))

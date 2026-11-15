@@ -6,7 +6,7 @@ from dataclasses import dataclass
 from pathlib import Path
 import tomllib
 
-from provider_core.embedded_host import EmbeddedHost
+from provider_core.embedded_host import InProcessExecutionHost
 from provider_core.hosting import OperationPolicy
 from provider_core.scientific import HostedContribution, ResourceRequirement
 
@@ -23,7 +23,7 @@ PROVIDER_CONFIG_PATH = Path("config/deployments/localhost/provider.toml")
 class Provider:
     """Retain the selected library and policy across independent query analyses."""
 
-    host: EmbeddedHost
+    execution_host: InProcessExecutionHost
     matcher: HostedContribution
     operation_policy: OperationPolicy
 
@@ -32,26 +32,30 @@ class Provider:
 async def open_provider() -> AsyncIterator[Provider]:
     """Read configuration once; indexing remains lazy until the first query."""
     with PROVIDER_CONFIG_PATH.open(mode="rb") as source:
-        configuration = tomllib.load(source)
-    policy = OperationPolicy(**configuration["execution"]["operation_policy"])
-    requirements = frozenset(
-        ResourceRequirement(**requirement)
-        for requirement in configuration["execution"]["resource_requirement"]
+        provider_config = tomllib.load(source)
+    operation_policy = OperationPolicy(**provider_config["execution"]["operation_policy"])
+
+    resource_requirements = frozenset(
+        ResourceRequirement(**resource_requirement)
+        for resource_requirement in provider_config["execution"]["resource_requirement"]
     )
-    matching = configuration["science"]["matching"]
-    references = []
-    for reference in matching["references"]:
-        references.append(science.Reference(label=reference["label"], values=tuple(reference["values"])))
-    scientific_configuration = ReferenceConfig(
-        settings=science.MatchSettings(**matching["settings"]),
-        references=science.ReferenceSet(entries=tuple(references)),
+
+    matching_config = provider_config["science"]["matching"]
+    reference_entries = []
+    for reference_config in matching_config["references"]:
+        reference_entries.append(science.Reference(label=reference_config["label"], values=tuple(reference_config["values"])))
+
+    reference_configuration = ReferenceConfig(
+        settings=science.MatchSettings(**matching_config["settings"]),
+        references=science.ReferenceSet(entries=tuple(reference_entries)),
     )
-    async with EmbeddedHost(**configuration["execution"]["embedded_host"]) as host:
+
+    async with InProcessExecutionHost(**provider_config["execution"]["in_process_execution_host"]) as execution_host:
         yield Provider(
-            host=host,
-            matcher=host.adopt(
-                contribution=ReferenceMatcher(configuration=scientific_configuration),
-                requirements=requirements,
+            execution_host=execution_host,
+            matcher=execution_host.adopt(
+                contribution=ReferenceMatcher(configuration=reference_configuration),
+                requirements=resource_requirements,
             ),
-            operation_policy=policy,
+            operation_policy=operation_policy,
         )

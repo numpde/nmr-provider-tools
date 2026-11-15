@@ -8,13 +8,16 @@ import unittest
 from dataclasses import dataclass, replace
 
 import provider_core.contribution as contribution
+
 from provider_core.payload import (
     DataclassStateBinding,
     JsonDataclassCodec,
     PayloadRejected,
 )
-from provider_core.state_slots import SlotStateBinding, StateKind
+
+from provider_core.state_slots import SlotStateBinding, StateTypeDescriptor
 from tests.fakes.dummy_provider import science
+
 from tests.fakes.dummy_provider.binding import (
     sum_binding,
     weighted_sum_binding,
@@ -47,13 +50,16 @@ class TypedContributionTests(unittest.TestCase):
     def test_direct_science_uses_the_same_typed_objects_without_hosting(self):
         settings = science.WeightedSumSettings(scale=2, offset=1)
         coefficients = science.CoefficientSet(values=(1, 2, 3))
+
         model = science.create_model(
             settings=settings,
             coefficients=coefficients,
         )
+
         science.load_model(model)
         analysis = science.create_analysis(model)
         science.initialize_analysis(analysis)
+
         prepared = science.prepare(
             analysis=analysis,
             candidate=science.PreparationInput(values=(2, 4, 6)),
@@ -90,6 +96,7 @@ class TypedContributionTests(unittest.TestCase):
             {},
             control,
         )
+
         prepared_values = preparation.states[0].value
 
         self.assertIs(science.PreparationResult, type(preparation.value))
@@ -110,6 +117,7 @@ class TypedContributionTests(unittest.TestCase):
             ),
             calculation.value,
         )
+
         self.assertEqual(
             {"count": 3, "total": 57.0},
             json.loads(calculate_call.encode_result(calculation.value)),
@@ -124,6 +132,7 @@ class TypedContributionTests(unittest.TestCase):
         for binding, calls in ((bindings[0], (bindings[0].prepare, bindings[0].calculate)), (bindings[1], (bindings[1].run,))):
             with self.subTest(binding_id=binding.description.binding_id):
                 self.assertIs(type(binding.description.calls), frozenset)
+
                 self.assertEqual(
                     frozenset(call.description for call in calls),
                     binding.description.calls,
@@ -131,14 +140,17 @@ class TypedContributionTests(unittest.TestCase):
 
                 for call in calls:
                     self.assertIs(type(call.state_binding.names), tuple)
+
                     self.assertEqual(
                         call.description.input_format,
                         call.input_codec.format,
                     )
+
                     self.assertEqual(
                         call.description.result_format,
                         call.result_codec.format,
                     )
+
                     self.assertEqual(
                         [state.name for state in call.description.state_inputs],
                         list(call.state_binding.names),
@@ -153,10 +165,12 @@ class TypedContributionTests(unittest.TestCase):
         self.assertIs(contribution.NoState, prepare_call.state_binding.value_type)
         self.assertIs(science.PreparationResult, prepare_call.result_codec.value_type)
         self.assertIs(contribution.NoInput, calculate_call.input_codec.value_type)
+
         self.assertEqual(
             "provider-core.no-input.v1",
             calculate_call.description.input_format,
         )
+
         self.assertIs(science.CalculationState, calculate_call.state_binding.value_type)
         self.assertIs(science.PredictionResult, calculate_call.result_codec.value_type)
         self.assertIs(science.SumInput, sum_call.input_codec.value_type)
@@ -173,6 +187,7 @@ class TypedContributionTests(unittest.TestCase):
         self.assertIs(science.PreparationInput, type(preparation_input))
         self.assertIs(science.SumInput, type(sum_input))
         self.assertIsNot(type(preparation_input), type(sum_input))
+
         self.assertNotEqual(
             prepare_call.description.input_format,
             sum_call.description.input_format,
@@ -180,6 +195,7 @@ class TypedContributionTests(unittest.TestCase):
 
     def test_payload_codec_rejects_invalid_wire_shapes(self):
         codec = sum_binding().run.input_codec
+
         invalid_payloads = (
             b'{"values":[1],"values":[2]}',
             b'{"values":[true]}',
@@ -200,6 +216,7 @@ class TypedContributionTests(unittest.TestCase):
             ),
             coefficients=science.CoefficientSet(values=(2,)),
         )
+
         prepare_call = binding.prepare
         model = binding.instance.construct()
         binding.instance.initialize(model)
@@ -219,6 +236,7 @@ class TypedContributionTests(unittest.TestCase):
                 {},
                 _Control(),
             )
+
         self.assertEqual("empty_input", preparation_rejection.exception.code)
 
         sum_call = sum_binding().run
@@ -232,6 +250,7 @@ class TypedContributionTests(unittest.TestCase):
                 {},
                 _Control(),
             )
+
         self.assertEqual("empty_input", sum_rejection.exception.code)
 
     def test_nonfinite_values_are_rejected_during_portable_construction(self):
@@ -247,11 +266,14 @@ class TypedContributionTests(unittest.TestCase):
             ),
             coefficients=science.CoefficientSet(values=(1,)),
         )
+
         analysis = science.create_analysis(model)
+
         prepared = science.PreparedValues(
             analysis=analysis,
             values=(1,),
         )
+
         state_binding = DataclassStateBinding(
             value_type=science.CalculationState,
         )
@@ -371,6 +393,7 @@ class TypedContributionTests(unittest.TestCase):
             prepare_call,
             scientific_call=wrong_instance,
         )
+
         with self.assertRaises(TypeError):
             replace(
                 binding,
@@ -387,6 +410,7 @@ class TypedContributionTests(unittest.TestCase):
             binding.instance,
             construct=wrong_constructor,
         )
+
         with self.assertRaises(TypeError):
             replace(
                 binding,
@@ -401,30 +425,36 @@ class TypedContributionTests(unittest.TestCase):
     def test_state_input_kind_and_consumption_cannot_diverge(self):
         call = _weighted_binding().calculate
         parameter = call.description.state_inputs[0]
+
         variants = (
             replace(parameter, kind="wrong-kind"),
             replace(parameter, use=contribution.StateUse.BORROW),
         )
+
         for parameter in variants:
             with self.subTest(parameter=parameter), self.assertRaisesRegex(ValueError, "kind/use"):
                 replace(call, description=replace(call.description, state_inputs=(parameter,)))
 
     def test_one_state_kind_cannot_mean_different_python_types(self):
         binding = _weighted_binding()
-        wrong_input = StateKind(
+
+        wrong_input = StateTypeDescriptor(
             name=binding.prepared_input.kind.name, value_type=science.SumResult,
         ).input(name=binding.prepared_input.name, use=contribution.StateUse.CONSUME)
+
         wrong_state = SlotStateBinding(
             value_type=science.CalculationState,
             inputs=(wrong_input,),
             assemble=lambda values: science.CalculationState(prepared=wrong_input.read(values)),
         )
+
         wrong_call = replace(binding.calculate, state_binding=wrong_state)
         with self.assertRaisesRegex(TypeError, "different Python types"):
             replace(binding, calculate=wrong_call)
 
     def test_binding_rejects_codec_format_mismatch(self):
         call = sum_binding().run
+
         wrong_codec = JsonDataclassCodec(
             format="wrong.v1",
             value_type=science.SumInput,

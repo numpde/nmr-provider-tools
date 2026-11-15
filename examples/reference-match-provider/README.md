@@ -55,7 +55,7 @@ there is no persistent owner that could recover it after this demo exits.
 The four reference patterns are **synthetic illustrations**. This example makes
 no claim about chemical identification, validated NMR behavior or performance.
 It implements the scientific contribution and execution boundary over the real
-`EmbeddedHost`; it does not implement the future common Jobs service, concurrent
+`InProcessExecutionHost`; it does not implement the future common Jobs service, concurrent
 analysis sharing, durable publication or remote execution.
 
 From the repository root, qualify all independently installed examples with:

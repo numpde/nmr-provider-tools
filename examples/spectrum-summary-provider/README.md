@@ -2,7 +2,7 @@
 
 This standalone provider illustrates the contribution and execution boundaries
 in [the end-state design](../../notes/066_provider_execution_end_state.txt).
-It runs with the SDK's real local `EmbeddedHost`. It does not implement the
+It runs with the SDK's real local `InProcessExecutionHost`. It does not implement the
 planned common Jobs service, worker pool, durable delivery queue or remote backend.
 
 ## Responsibilities

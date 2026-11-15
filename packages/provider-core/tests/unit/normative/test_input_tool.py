@@ -13,9 +13,9 @@ from typing import Literal
 import unittest
 
 from provider_core.conversation import ToolFinished, ToolRejected
-from provider_core.embedded_host import EmbeddedHost
+from provider_core.embedded_host import InProcessExecutionHost
 from provider_core.hosting import observe_cleanup
-from provider_core.input_tool import InputTool
+from provider_core.input_tool import ScientificInputToolDefinition
 from provider_core.interpreter import Interpreter
 from provider_core.payload import JsonDataclassCodec, PayloadRejected
 from provider_core.scientific import Contribution, operation
@@ -119,6 +119,7 @@ class SchemaTests(unittest.TestCase):
     def test_runtime_rejects_lexical_and_unknown_field_cases_schema_cannot_admit_for_it(self):
         codec = JsonDataclassCodec(format="peak.v1", value_type=Peak)
         codec.json_schema()
+
         for payload in (
             b'{"integral":1.0}', b'{"integral":true}', b'{"integral":"1"}',
             b'{"integral":1,"integral":2}', b'{"integral":1,"extra":0}',
@@ -129,9 +130,9 @@ class SchemaTests(unittest.TestCase):
                     codec.decode(payload=payload)
 
 
-class InputToolTests(unittest.IsolatedAsyncioTestCase):
+class ScientificInputToolDefinitionTests(unittest.IsolatedAsyncioTestCase):
     async def asyncSetUp(self):
-        self.host = EmbeddedHost(
+        self.execution_host = InProcessExecutionHost(
             input_bytes=4096,
             result_bytes=4096,
             state_values=1,
@@ -139,40 +140,42 @@ class InputToolTests(unittest.IsolatedAsyncioTestCase):
             initialization_seconds=5,
             retirement_seconds=5,
         )
+
         self.addAsyncCleanup(self.retire)
-        self.hosted = self.host.adopt(contribution=Spectra(), requirements=frozenset())
-        self.call = self.hosted.call(method=self.hosted.contribution.prepare)
-        self.tool = InputTool(call=self.call, description="Submit source-faithful spectrum data")
+        self.hosted_contribution = self.execution_host.adopt(contribution=Spectra(), requirements=frozenset())
+        self.call_binding = self.hosted_contribution.call(method=self.hosted_contribution.contribution.prepare)
+        self.tool_definition = ScientificInputToolDefinition(call_binding=self.call_binding, description="Submit source-faithful spectrum data")
 
     async def retire(self):
-        await observe_cleanup(control=self.host.retire())
+        await observe_cleanup(control=self.execution_host.retire())
 
     def test_definition_uses_selected_call_and_direct_record_parameters(self):
-        function = self.tool.definition["function"]
+        function = self.tool_definition.definition["function"]
         self.assertEqual(first="prepare", second=function["name"])
-        self.assertEqual(first=self.call.input_codec.json_schema(), second=function["parameters"])
+        self.assertEqual(first=self.call_binding.input_codec.json_schema(), second=function["parameters"])
         self.assertNotIn(member="value", container=function["parameters"]["properties"])
         self.assertNotIn(member="strict", container=function)
 
     def test_decoding_constructs_scientific_input_without_executing_science(self):
-        candidate = self.tool.decode(
-            name=self.tool.name,
+        candidate = self.tool_definition.decode(
+            name=self.tool_definition.name,
             arguments={"peaks": [{"integral": 3}], "pair": [2, "a"], "annotation": None},
         )
+
         self.assertEqual(first=Spectrum, second=type(candidate))
         self.assertEqual(first=(Peak(integral=3),), second=candidate.peaks)
 
     def test_wrong_name_is_a_correctable_tool_rejection(self):
         with self.assertRaises(expected_exception=ToolRejected):
-            self.tool.decode(name="another_method", arguments={})
+            self.tool_definition.decode(name="another_method", arguments={})
 
     def test_structural_failure_keeps_original_codec_rejection(self):
         with self.assertRaises(expected_exception=PayloadRejected) as raised:
-            self.tool.decode(name=self.tool.name, arguments={"value": {}})
+            self.tool_definition.decode(name=self.tool_definition.name, arguments={"value": {}})
         self.assertEqual(first="unexpected_field", second=raised.exception.code)
 
     def test_custom_codec_does_not_acquire_guessed_json_semantics(self):
-        original = self.call.input_codec
+        original = self.call_binding.input_codec
 
         class CustomCodec:
             format = original.format
@@ -184,36 +187,40 @@ class InputToolTests(unittest.IsolatedAsyncioTestCase):
             def decode(self, payload):
                 return original.decode(payload=payload)
 
-        custom = replace(self.call, input_codec=CustomCodec())
+        custom = replace(self.call_binding, input_codec=CustomCodec())
         with self.assertRaisesRegex(expected_exception=TypeError, expected_regex="CustomCodec"):
-            InputTool(call=custom, description="Cannot infer this codec's schema")
+            ScientificInputToolDefinition(call_binding=custom, description="Cannot infer this codec's schema")
 
     async def test_interpreter_can_inspect_generated_constraints_before_submitting(self):
         carrier = endpoint(
             "schema-reader",
-            call("inspect", "describe_input_constraints", {"tool": self.tool.name, "field": "annotation"}),
-            call("submit", self.tool.name, {"peaks": [], "pair": [1, "a"], "annotation": None}),
+            call("inspect", "describe_input_constraints", {"tool": self.tool_definition.name, "field": "annotation"}),
+            call("submit", self.tool_definition.name, {"peaks": [], "pair": [1, "a"], "annotation": None}),
         )
+
         interpreter = Interpreter(
             endpoint_factories=(lambda **settings: carrier,),
             timeout_seconds=5,
             context_bytes=32768,
             secrets=(),
         )
+
         self.addAsyncCleanup(interpreter.retire)
         accepted = []
 
         async def dispatch(name, arguments, *, not_after):
-            accepted.append(self.tool.decode(name=name, arguments=arguments))
+            accepted.append(self.tool_definition.decode(name=name, arguments=arguments))
             return ToolFinished(value="Validated")
 
-        await interpreter.run(messages=[], tools=[self.tool.definition], dispatch=dispatch)
+        await interpreter.run(messages=[], tools=[self.tool_definition.definition], dispatch=dispatch)
         self.assertEqual(first=1, second=len(accepted))
         self.assertEqual(first=Spectrum, second=type(accepted[0]))
+
         constraint_reply = next(
             message for message in carrier.complete.call_args_list[1].args[0]
             if message["role"] == "tool" and message["tool_call_id"] == "inspect"
         )
+
         constraint = json.loads(s=constraint_reply["content"])["value"]
         self.assertTrue(expr=constraint["required"])
         self.assertIn(member={"type": "null"}, container=constraint["schema"]["anyOf"])

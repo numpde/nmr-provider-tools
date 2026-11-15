@@ -1,5 +1,5 @@
 # Provider startup reads this file to configure HF/CHF science and SDK execution.
-[execution.embedded_host]
+[execution.in_process_execution_host]
 # Across scientific-method submissions, cap total encoded input bytes and
 # reserved result space. Saved operation handles can retain completed input bytes.
 # For larger inputs or reports, replace either value:

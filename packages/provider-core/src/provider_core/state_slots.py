@@ -18,11 +18,12 @@ from typing import Any, cast
 from provider_core.contribution import (
     CallBinding, ReturnedState, StateOutput, StateParameter, StateUse, _identity, ref,
 )
+
 from provider_core.hosting import Operation, OperationRef, StateArgument, StateRef
 
 
 @dataclass(frozen=True, slots=True)
-class StateKind[T]:
+class StateTypeDescriptor[T]:
     """A scientific state type; its qualified Python name supplies the identity.
 
     Explicit names remain available for existing portable contracts. Declare
@@ -51,7 +52,7 @@ class StateKind[T]:
 class StateHandle[T]:
     """A typed view of an observed reference, not a live scientific object."""
 
-    kind: StateKind[T]
+    kind: StateTypeDescriptor[T]
     reference: StateRef
     def __post_init__(self) -> None:
         if self.reference.kind != self.kind.name:
@@ -67,7 +68,7 @@ class StateOutputSlot[T]:
     """Own a producer's output identity and its scientific disposal callback."""
 
     name: str | None = None
-    kind: StateKind[T]
+    kind: StateTypeDescriptor[T]
     dispose: Callable[[T], None]
     _inferred: bool = field(init=False, repr=False)
 
@@ -119,6 +120,7 @@ class StateOutputSlot[T]:
         for output in observation.states:
             if output.name == self.name:
                 reference = output.reference
+
                 if (
                     reference.host != observation.operation.host
                     or reference.analysis != observation.operation.analysis
@@ -137,7 +139,7 @@ class StateInputSlot[T]:
     """Name a consumer input independently of the producer's output name."""
 
     name: str | None = None
-    kind: StateKind[T]
+    kind: StateTypeDescriptor[T]
     use: StateUse
     _inferred: bool = field(init=False, repr=False)
 

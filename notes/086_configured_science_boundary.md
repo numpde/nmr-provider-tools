@@ -77,7 +77,7 @@ records likewise receive generated identities and can be retained for transport
 resubmission. Explicit IDs remain a low-level protocol facility, not an authoring
 requirement.
 
-StateKind(value_type=PreparedInput) derives its identity from the scientific
+StateTypeDescriptor(value_type=PreparedInput) derives its identity from the scientific
 Python type. Declare ports as class attributes, such as
 candidate = kind.input(use=StateUse.CONSUME). Python supplies the port name;
 that attribute matches the method's candidate parameter. Inherited ports retain
@@ -96,11 +96,11 @@ obligations settle; their handles remain usable for observation.
 Portable submission deduplication is scoped to an open analysis. That analysis
 retains its accepted request history until close; closed analyses reject every
 submission, including a previously accepted request. There is no host-wide
-completed-request archive. EmbeddedHost therefore has no analysis_records or
+completed-request archive. InProcessExecutionHost therefore has no analysis_records or
 operation_records parameters: resident reservations bound concurrent analyses, and
 input/result/state capacity bounds admitted scientific work.
 
-EmbeddedHost declares the six capacity/time parameters directly as typed,
+InProcessExecutionHost declares the six capacity/time parameters directly as typed,
 keyword-only constructor arguments. Provider startup can pass
 **provider_config["execution"]["embedded_host"] without an intermediate policy record. The host
 validates those values at construction and has no knowledge of TOML.

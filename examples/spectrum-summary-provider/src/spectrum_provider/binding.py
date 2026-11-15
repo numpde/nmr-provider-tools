@@ -7,7 +7,7 @@ import provider_core.scientific as sdk
 from . import science
 
 
-class Baseline(sdk.Contribution):
+class BaselineCorrector(sdk.Contribution):
     def __init__(self, *, configuration: science.BaselineSettings) -> None:
         super().__init__()
         self.configuration = configuration
@@ -17,7 +17,7 @@ class Baseline(sdk.Contribution):
         return science.subtract_baseline(spectrum=spectrum, settings=self.configuration)
 
 
-class Peaks(sdk.Contribution):
+class PeakDetector(sdk.Contribution):
     def __init__(self, *, configuration: science.PeakSettings) -> None:
         super().__init__()
         self.configuration = configuration

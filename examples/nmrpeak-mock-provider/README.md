@@ -82,7 +82,7 @@ inputs using recorded source text, scripted model replies and an in-memory
 receiver. It does not construct SDK execution sessions or arrange their cleanup.
 
 `open_prediction` creates a request's interpreter and execution session. The SDK
-InputTool derives the tool name and schema from the selected scientific method
+ScientificInputToolDefinition derives the tool name and schema from the selected scientific method
 and decodes its arguments through that method's existing input codec. Provider
 code supplies the scientific description without copying fields or choosing a
 schema through an HF/CHF switch.
@@ -114,13 +114,13 @@ and candidate rankings make no chemistry claim.
 | Responsibility | This example | Current NMRPeak |
 |---|---|---|
 | Startup composition | `open_provider` | `provider_main.py` composes configuration, interpreter settings and runners |
-| Per-request lifetime | `open_prediction` and `Prediction` | `provider_process.py` creates an `NmrpeakAnalysisSession` per selected job |
+| Per-request lifetime | `open_prediction` and `PredictionWorkflow` | `provider_process.py` creates an `NmrpeakAnalysisSession` per selected job |
 | Interpretation | One SDK interpreter per prediction, shared endpoint services | `input_interpreter.py` creates per-Attempt interpretation owners |
 | Scientific flow | Validate spectra, retain prepared input, generate candidates | Runner validation and generation |
 | Results and cleanup | Retained SDK result and receiver attempt | Shared Attempt and delivery owners retain obligations |
 
 This is an example of the target SDK boundary, not a claim that NMRPeak already
-uses `EmbeddedHost`. The real provider uses separately supervised runners; here
+uses `InProcessExecutionHost`. The real provider uses separately supervised runners; here
 science runs in SDK-managed threads. `checkpoint.py` follows NMRPeak's same-open-file
 verification/loading approach. An open descriptor does not prevent in-place file
 mutation; deployment must not overwrite checkpoint contents during use.

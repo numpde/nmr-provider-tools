@@ -16,11 +16,13 @@ from types import SimpleNamespace
 import unittest
 from unittest.mock import patch
 
-from provider_core.embedded_host import EmbeddedHost
+from provider_core.embedded_host import InProcessExecutionHost
+
 from provider_core.hosting import (
     NotAdmitted, Outcome, ResultConsumption, ResultState,
     observe_cleanup, observe_completion,
 )
+
 from reference_provider import science
 from reference_provider import __main__ as demo
 from reference_provider.binding import ReferenceMatcher
@@ -31,10 +33,12 @@ class ReferenceWorkflowTests(unittest.IsolatedAsyncioTestCase):
     async def asyncSetUp(self):
         directory = Path(self.enterContext(TemporaryDirectory()))
         self.configuration = directory / "provider.toml"
+
         shutil.copyfile(
             src=Path(__file__).parent / "config/deployments/localhost/provider.toml",
             dst=self.configuration,
         )
+
         self.enterContext(patch.object(target=provider_setup, attribute="PROVIDER_CONFIG_PATH", new=self.configuration))
 
     async def test_two_analyses_reuse_the_index_while_results_remain_independently_owned(self):
@@ -42,7 +46,7 @@ class ReferenceWorkflowTests(unittest.IsolatedAsyncioTestCase):
         match = self.enterContext(patch("reference_provider.science.match", wraps=science.match))
         operations = []
         async with provider_setup.open_provider() as provider:
-            host = provider.host
+            execution_host = provider.execution_host
             operation_policy = provider.operation_policy
             binding = provider.matcher
             call = binding.call(method=ReferenceMatcher.match)
@@ -52,13 +56,15 @@ class ReferenceWorkflowTests(unittest.IsolatedAsyncioTestCase):
                     ((3, 4, 0, 0), "pattern-a"),
                     ((0, 0, 1, 1), "pattern-b"),
                 ):
-                    analysis = host.open_analysis(allocations=frozenset({binding.allocation}))
+                    analysis = execution_host.open_analysis(allocations=frozenset({binding.allocation}))
                     reservation, = analysis.reservations
+
                     operation = analysis.submit_method(
                         method=binding.contribution.match,
                         scientific_input=science.VectorInput(values=values),
                         states=(), reservation=reservation, policy=operation_policy,
                     )
+
                     self.assertNotIsInstance(operation, NotAdmitted)
                     completed = await observe_completion(operation)
                     self.assertIs(Outcome.SUCCEEDED, completed.outcome)
@@ -101,7 +107,7 @@ class ReferenceWorkflowTests(unittest.IsolatedAsyncioTestCase):
             return original_match(index=index, settings=settings, candidate=candidate)
 
         def observed_host(**options):
-            owner = EmbeddedHost(**options)
+            owner = InProcessExecutionHost(**options)
             original_open = owner.open_analysis
             opened = []
 
@@ -125,7 +131,7 @@ class ReferenceWorkflowTests(unittest.IsolatedAsyncioTestCase):
 
         with (
             patch("reference_provider.science.match", side_effect=fail_second),
-            patch.object(provider_setup, "EmbeddedHost", side_effect=observed_host),
+            patch.object(provider_setup, "InProcessExecutionHost", side_effect=observed_host),
             patch.object(demo, "sys", SimpleNamespace(stdout=SimpleNamespace(buffer=output))),
         ):
             async with asyncio.timeout(15):
@@ -141,10 +147,12 @@ class ReferenceCommandTests(unittest.TestCase):
     def test_installed_command_reuses_the_library_outside_its_source_tree(self):
         with TemporaryDirectory() as directory:
             shutil.copytree(src=Path(__file__).parent / "config", dst=Path(directory) / "config")
+
             result = subprocess.run(
                 [sys.executable, "-I", "-B", "-m", "reference_provider"],
                 cwd=Path(directory), capture_output=True, text=True, timeout=30,
             )
+
         self.assertEqual(0, result.returncode, result.stderr)
         reports = [json.loads(line) for line in result.stdout.splitlines()]
         self.assertEqual(["pattern-a", "pattern-b"], [report["label"] for report in reports])

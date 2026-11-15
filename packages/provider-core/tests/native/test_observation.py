@@ -3,11 +3,13 @@
 from dataclasses import dataclass, replace
 import unittest
 
-from provider_core.embedded_host import EmbeddedHost
+from provider_core.embedded_host import InProcessExecutionHost
+
 from provider_core.hosting import (
     Failure, NotAdmitted, OperationPolicy, Outcome, ResultState,
     observe_cleanup, observe_completion,
 )
+
 from provider_core.scientific import Contribution, operation
 
 
@@ -24,7 +26,7 @@ class Echo(Contribution):
 
 class ObservationTests(unittest.IsolatedAsyncioTestCase):
     async def asyncSetUp(self):
-        self.host = EmbeddedHost(
+        self.host = InProcessExecutionHost(
             input_bytes=4096,
             result_bytes=4096,
             state_values=1,
@@ -32,10 +34,12 @@ class ObservationTests(unittest.IsolatedAsyncioTestCase):
             initialization_seconds=5,
             retirement_seconds=5,
         )
+
         self.addAsyncCleanup(self.retire)
         hosted = self.host.adopt(contribution=Echo(), requirements=frozenset())
         analysis = self.host.open_analysis(allocations=frozenset({hosted.allocation}))
         reservation, = analysis.reservations
+
         self.operation = analysis.submit_method(
             method=hosted.contribution.echo,
             scientific_input=Value(number=7),
@@ -49,6 +53,7 @@ class ObservationTests(unittest.IsolatedAsyncioTestCase):
                 reject_encoded_result_over_bytes=4096,
             ),
         )
+
         self.assertNotIsInstance(obj=self.operation, cls=NotAdmitted)
         self.observation = await observe_completion(operation=self.operation)
 
@@ -72,10 +77,12 @@ class ObservationTests(unittest.IsolatedAsyncioTestCase):
     def test_independent_failures_keep_their_original_objects_and_order(self):
         original = ValueError("Science failed")
         interruption = KeyboardInterrupt("Observation was interrupted")
+
         failed = replace(self.observation, failures=(
             Failure(phase="science", cause=original),
             Failure(phase="backend", cause=interruption),
         ))
+
         with self.assertRaises(expected_exception=BaseExceptionGroup) as raised:
             failed.require_result()
         self.assertEqual(first=(original, interruption), second=raised.exception.exceptions)
@@ -91,6 +98,7 @@ class ObservationTests(unittest.IsolatedAsyncioTestCase):
             {"result_state": ResultState.RELEASED},
             {"result": None},
         )
+
         for changed in changes:
             with self.subTest(changed=changed):
                 with self.assertRaisesRegex(expected_exception=RuntimeError, expected_regex="Cannot use the result"):

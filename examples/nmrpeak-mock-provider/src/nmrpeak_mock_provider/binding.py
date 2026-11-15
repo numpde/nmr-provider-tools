@@ -14,9 +14,9 @@ from .checkpoint import open_checkpoint
 
 
 class PeakContribution(sdk.Contribution):
-    prepared_kind = sdk.StateKind(value_type=science.PreparedInput)
-    validated = prepared_kind.output(dispose=science.dispose_prepared)
-    candidate = prepared_kind.input(use=sdk.StateUse.CONSUME)
+    prepared_state_type = sdk.StateTypeDescriptor(value_type=science.PreparedInput)
+    validated = prepared_state_type.output(dispose=science.dispose_prepared)
+    candidate = prepared_state_type.input(use=sdk.StateUse.CONSUME)
 
     def __init__(
         self, *, configuration: science.Settings, checkpoint_path: Path,
@@ -33,6 +33,7 @@ class PeakContribution(sdk.Contribution):
     def initialize(self, *, assets: sdk.AssetAccess) -> None:
         """SDK calls this before science; retain the model before loading can fail."""
         self.model = self.create_model()
+
         with open_checkpoint(
             path=self.checkpoint_path, expected_sha256=self.configuration.checkpoint_sha256,
         ) as checkpoint:
@@ -43,10 +44,11 @@ class PeakContribution(sdk.Contribution):
         if self.model is not None:
             self.model.close()
 
-    def prepare_input(self, *, candidate: science.HfInput | science.ChfInput) -> sdk.ScientificReturn[science.Validation]:
+    def prepare_input(self, *, candidate: science.HfInput | science.ChfInput) -> sdk.ScientificReturn[science.PreparationReport]:
         prepared = science.prepare(model=self.model, candidate=candidate, settings=self.configuration)
+
         return sdk.ScientificReturn(
-            value=science.Validation(token_count=len(prepared.tokens)),
+            value=science.PreparationReport(token_count=len(prepared.tokens)),
             states=(self.validated.returned(value=prepared),),
         )
 
@@ -55,6 +57,7 @@ class PeakContribution(sdk.Contribution):
         tokens = candidate.consume()
         generated = self.model.generate(tokens=tokens, beam_size=self.configuration.beam_size)
         science.validate_candidates(candidates=generated, settings=self.configuration)
+
         return science.Candidates(
             generated_smiles=generated,
             checkpoint_sha256=self.configuration.checkpoint_sha256,
@@ -63,11 +66,11 @@ class PeakContribution(sdk.Contribution):
 
 class Hf(PeakContribution):
     @sdk.operation(state_outputs=(PeakContribution.validated,))
-    def prepare(self, *, candidate: science.HfInput) -> sdk.ScientificReturn[science.Validation]:
+    def prepare(self, *, candidate: science.HfInput) -> sdk.ScientificReturn[science.PreparationReport]:
         return self.prepare_input(candidate=candidate)
 
 
 class Chf(PeakContribution):
     @sdk.operation(state_outputs=(PeakContribution.validated,))
-    def prepare(self, *, candidate: science.ChfInput) -> sdk.ScientificReturn[science.Validation]:
+    def prepare(self, *, candidate: science.ChfInput) -> sdk.ScientificReturn[science.PreparationReport]:
         return self.prepare_input(candidate=candidate)

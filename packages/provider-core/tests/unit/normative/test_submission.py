@@ -6,7 +6,7 @@ from threading import Event
 import unittest
 from unittest.mock import patch
 
-from provider_core.embedded_host import EmbeddedHost
+from provider_core.embedded_host import InProcessExecutionHost
 from provider_core.hosting import AdmissionCode, NotAdmitted, OperationPolicy, ResultState, observe_cleanup
 from provider_core.scientific import Contribution, operation
 from provider_core.submission import Submission
@@ -39,7 +39,7 @@ class Science(Contribution):
 
 class SubmissionTests(unittest.IsolatedAsyncioTestCase):
     async def asyncSetUp(self):
-        self.host = await self.enterAsyncContext(EmbeddedHost(
+        self.execution_host = await self.enterAsyncContext(InProcessExecutionHost(
             input_bytes=4096,
             result_bytes=4096,
             state_values=1,
@@ -47,10 +47,12 @@ class SubmissionTests(unittest.IsolatedAsyncioTestCase):
             initialization_seconds=5,
             retirement_seconds=5,
         ))
+
         self.science = Science()
-        self.hosted = self.host.adopt(contribution=self.science, requirements=frozenset())
-        self.execution = self.host.open_analysis(allocations=frozenset({self.hosted.allocation}))
-        self.policy = OperationPolicy(
+        self.hosted_contribution = self.execution_host.adopt(contribution=self.science, requirements=frozenset())
+        self.analysis_executor = self.execution_host.open_analysis(allocations=frozenset({self.hosted_contribution.allocation}))
+
+        self.operation_policy = OperationPolicy(
             queue_stop_request_seconds=5,
             execution_stop_request_seconds=5,
             cleanup_overdue_flag_seconds=5,
@@ -60,17 +62,17 @@ class SubmissionTests(unittest.IsolatedAsyncioTestCase):
 
     def submission(self, *, value):
         return Submission.from_call(
-            execution=self.execution,
-            call=self.hosted.call(method=self.science.calculate),
+            analysis_executor=self.analysis_executor,
+            call_binding=self.hosted_contribution.call(method=self.science.calculate),
             scientific_input=Sample(value=value),
             states=(),
-            reservation=self.execution.reservation(allocation=self.hosted.allocation),
-            policy=self.policy,
+            reservation_ref=self.analysis_executor.reservation(allocation=self.hosted_contribution.allocation),
+            operation_policy=self.operation_policy,
         )
 
     async def test_construction_and_wait_do_not_submit(self):
-        submit = self.execution.submit
-        with patch.object(target=self.execution, attribute="submit", wraps=submit) as deliver:
+        submit = self.analysis_executor.submit
+        with patch.object(target=self.analysis_executor, attribute="submit", wraps=submit) as deliver:
             submission = self.submission(value=1)
             with self.assertRaises(expected_exception=RuntimeError):
                 await submission.wait()
@@ -81,7 +83,7 @@ class SubmissionTests(unittest.IsolatedAsyncioTestCase):
     async def test_lost_reply_reuses_the_exact_invocation_and_original_operation(self):
         submission = self.submission(value=1)
         original = OSError("The scientific submission reply was lost")
-        submit = self.execution.submit
+        submit = self.analysis_executor.submit
         requests = []
         operations = []
 
@@ -93,24 +95,24 @@ class SubmissionTests(unittest.IsolatedAsyncioTestCase):
                 raise original
             return admitted
 
-        with patch.object(target=self.execution, attribute="submit", new=lose_reply):
+        with patch.object(target=self.analysis_executor, attribute="submit", new=lose_reply):
             with self.assertRaises(expected_exception=OSError) as raised:
                 submission.submit()
             self.assertIs(expr1=original, expr2=raised.exception)
             self.assertIsNone(obj=submission.operation)
             admitted = submission.submit()
             self.assertIs(expr1=admitted, expr2=submission.submit())
-            completed = await submission.wait()
+            operation_observation = await submission.wait()
         self.assertIs(expr1=requests[0], expr2=requests[1])
         self.assertIs(expr1=operations[0], expr2=operations[1])
         self.assertEqual(first=2, second=len(requests))
-        completed.require_result()
+        operation_observation.require_result()
         self.assertEqual(first=[Sample(value=1)], second=self.science.inputs)
 
     async def test_refusal_requires_explicit_retry_and_does_not_acquire_work(self):
         first = self.submission(value=1)
         first.submit()
-        completed = await first.wait()
+        operation_observation = await first.wait()
         second = self.submission(value=2)
         refused = second.submit()
         self.assertIsInstance(obj=refused, cls=NotAdmitted)
@@ -118,7 +120,7 @@ class SubmissionTests(unittest.IsolatedAsyncioTestCase):
         with self.assertRaises(expected_exception=RuntimeError):
             await second.wait()
         self.assertEqual(first=[Sample(value=1)], second=self.science.inputs)
-        await observe_cleanup(control=first.operation.release_result(result=completed.require_result()))
+        await observe_cleanup(control=first.operation.release_result(result=operation_observation.require_result()))
         second.submit()
         (await second.wait()).require_result()
         self.assertEqual(first=[Sample(value=1), Sample(value=2)], second=self.science.inputs)
@@ -146,18 +148,18 @@ class SubmissionTests(unittest.IsolatedAsyncioTestCase):
         submission = self.submission(value=1)
         admitted = submission.submit()
         (await submission.wait()).require_result()
-        await observe_cleanup(control=self.execution.close())
-        with patch.object(target=self.execution, attribute="submit", side_effect=AssertionError("Closed session must not receive work")):
+        await observe_cleanup(control=self.analysis_executor.close())
+        with patch.object(target=self.analysis_executor, attribute="submit", side_effect=AssertionError("Closed session must not receive work")):
             self.assertIs(expr1=admitted, expr2=submission.submit())
-            completed = await submission.wait()
-        completed.require_result()
+            operation_observation = await submission.wait()
+        operation_observation.require_result()
         self.assertEqual(first=[Sample(value=1)], second=self.science.inputs)
 
     async def test_wait_after_release_observes_current_result_state(self):
         submission = self.submission(value=1)
         submission.submit()
-        completed = await submission.wait()
-        await observe_cleanup(control=submission.operation.release_result(result=completed.require_result()))
+        operation_observation = await submission.wait()
+        await observe_cleanup(control=submission.operation.release_result(result=operation_observation.require_result()))
         current = await submission.wait()
         self.assertIs(expr1=ResultState.RELEASED, expr2=current.result_state)
         with self.assertRaises(expected_exception=RuntimeError):
@@ -168,7 +170,7 @@ class SubmissionTests(unittest.IsolatedAsyncioTestCase):
         self.science.failure = original
         submission = self.submission(value=1)
         submission.submit()
-        completed = await submission.wait()
+        operation_observation = await submission.wait()
         with self.assertRaises(expected_exception=OSError) as raised:
-            completed.require_result()
+            operation_observation.require_result()
         self.assertIs(expr1=original, expr2=raised.exception)

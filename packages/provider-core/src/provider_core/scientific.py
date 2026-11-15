@@ -29,9 +29,10 @@ from provider_core.contribution import (
     ScientificControl, ScientificReturn, StateUse,
     _MethodCall, _ScientificCallShape, _require_state_kinds, _require_resource_requirements, description_document, ref,
 )
+
 from provider_core.payload import JsonDataclassCodec, PayloadCodec
 from provider_core.hosting import AllocationRef
-from provider_core.state_slots import StateInputSlot, StateKind, StateOutputSlot
+from provider_core.state_slots import StateInputSlot, StateTypeDescriptor, StateOutputSlot
 
 
 @dataclass(frozen=True, slots=True, kw_only=True)
@@ -71,7 +72,7 @@ class _Custody:
 class Contribution:
     """Base class for a scientific object that the SDK runs and cleans up.
 
-    Provider startup code creates an SDK execution manager, such as EmbeddedHost,
+    Provider startup code creates an SDK execution manager, such as InProcessExecutionHost,
     and gives it this object. That manager is called the host below. It retains
     the object, initializes it before scientific work, runs admitted operations,
     and calls its cleanup method when provider shutdown requests retirement.
@@ -208,6 +209,7 @@ def operation(
     Omitted resources use the contribution's common call requirements. Explicit
     empty resources mean that this operation has no call resource requirements.
     """
+
     declaration = _Declaration(
         state_inputs=state_inputs, state_outputs=state_outputs, resources=requirements,
         concurrency=concurrency, interruption=interruption, progress=progress,
@@ -293,6 +295,7 @@ def _schema(*, annotation: object, seen: frozenset[type]) -> object:
             "origin": f"{origin.__module__}.{origin.__qualname__}",
             "arguments": [_schema(annotation=item, seen=seen) for item in get_args(tp=annotation)],
         }
+
     if annotation is Ellipsis:
         return {"variadic": True}
     if not isinstance(annotation, type):
@@ -302,6 +305,7 @@ def _schema(*, annotation: object, seen: frozenset[type]) -> object:
         return document
     if is_dataclass(obj=annotation):
         hints = get_type_hints(obj=annotation)
+
         document["fields"] = [
             {"name": member.name, "type": _schema(annotation=hints[member.name], seen=seen | {annotation})}
             for member in fields(class_or_instance=annotation)
@@ -318,6 +322,7 @@ def _codec(*, value_type: type, supplied: PayloadCodec | None) -> PayloadCodec:
         if supplied.value_type is not value_type:
             raise TypeError("Scientific codec type differs from the method annotation")
         return supplied
+
     return JsonDataclassCodec(
         format=f"python-json.v1:{value_type.__module__}.{value_type.__qualname__}",
         value_type=value_type,
@@ -428,6 +433,7 @@ def _compile_method(
         control_parameter = controls[0]
     input_codec = _codec(value_type=input_type, supplied=declaration.input_codec)
     result_codec = _codec(value_type=output, supplied=declaration.result_codec)
+
     callback = _MethodCall(
         function=function, receiver=parameters[0].name,
         shape=_ScientificCallShape(
@@ -439,7 +445,9 @@ def _compile_method(
         control_parameter=control_parameter,
         wrapped_result=wrapped,
     )
+
     output_descriptions = [slot.description for slot in declaration.state_outputs]
+
     return CallBinding(
         description=CallDescription(
             name=name, input_format=input_codec.format, result_format=result_codec.format,
@@ -512,11 +520,13 @@ class HostedContribution:
                 contribution=contribution_type, name=name, function=function,
                 resources=self.requirements,
             )
+
             object.__setattr__(call, "_owner", self)
             calls.append(call)
         object.__setattr__(self, "_calls", tuple(calls))
         _require_state_kinds(calls=self._calls)
         call_descriptions = [call.description for call in calls]
+
         description = ImplementationDescription(
             binding_id="allocation:" + host + ":" + allocation_name.encode(encoding="utf-8").hex(),
             binding_revision="configured-v3:sha256:" + "0" * 64,
@@ -524,20 +534,24 @@ class HostedContribution:
             calls=frozenset(call_descriptions),
             resident_resources=self.resident_resources, isolation=self.isolation,
         )
+
         document = description_document(description=description)
         del document["binding_revision"]
         del document["binding_id"]
         document["analysis"] = None
         if self._analysis_type is not None:
             document["analysis"] = f"{self._analysis_type.__module__}.{self._analysis_type.__qualname__}"
+
         document["operation_schemas"] = [
             {"input": _schema(annotation=call.input_codec.value_type, seen=frozenset()),
              "result": _schema(annotation=call.result_codec.value_type, seen=frozenset())}
             for call in calls
         ]
+
         encoded_contract = json.dumps(obj=document, sort_keys=True, ensure_ascii=True, separators=(",", ":")).encode(encoding="ascii")
         revision = "configured-v3:sha256:" + hashlib.sha256(string=encoded_contract).hexdigest()
         object.__setattr__(self, "description", replace(description, binding_revision=revision))
+
         object.__setattr__(self, "allocation", AllocationRef(
             host=host, allocation=allocation_name,
             binding_id=self.description.binding_id, binding_revision=revision,

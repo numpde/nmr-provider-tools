@@ -42,9 +42,9 @@ class WeightedSum(sdk.Contribution):
 
     analysis_type = WeightedAnalysis
     _model: science.WeightedSumModel | None = None
-    prepared_kind = sdk.StateKind(value_type=science.PreparedValues)
-    normalized = prepared_kind.output(dispose=science.dispose_prepared)
-    candidate = prepared_kind.input(use=sdk.StateUse.CONSUME)
+    prepared_state_type = sdk.StateTypeDescriptor(value_type=science.PreparedValues)
+    normalized = prepared_state_type.output(dispose=science.dispose_prepared)
+    candidate = prepared_state_type.input(use=sdk.StateUse.CONSUME)
 
     @property
     def model(self) -> science.WeightedSumModel:
@@ -59,6 +59,7 @@ class WeightedSum(sdk.Contribution):
             settings=self.configuration.settings,
             coefficients=self.configuration.coefficients,
         )
+
         science.load_model(model=self.model)
 
     def close(self) -> None:
@@ -70,6 +71,7 @@ class WeightedSum(sdk.Contribution):
         self, *, analysis: WeightedAnalysis, candidate: science.PreparationInput,
     ) -> sdk.ScientificReturn[science.PreparationResult]:
         prepared = science.prepare(analysis=analysis.value, candidate=candidate)
+
         return sdk.ScientificReturn(
             value=science.PreparationResult(count=prepared.value_count),
             states=(self.normalized.returned(value=prepared),),
@@ -81,10 +83,12 @@ class WeightedSum(sdk.Contribution):
         control: sdk.ScientificControl,
     ) -> science.PredictionResult:
         control.report_progress(event=sdk.ProgressEvent(stage="calculation", completed=0, total=1))
+
         result = science.calculate(
             analysis=analysis.value,
             state=science.CalculationState(prepared=candidate),
         )
+
         control.report_progress(event=sdk.ProgressEvent(stage="calculation", completed=1, total=1))
         return result
 
@@ -104,6 +108,7 @@ def read_resource_requirements() -> frozenset[sdk.ResourceRequirement]:
     """Read this deployment's declared scientific call requirements."""
     with PROVIDER_CONFIG_PATH.open(mode="rb") as source:
         configuration = tomllib.load(source)
+
     return frozenset(
         sdk.ResourceRequirement(**requirement)
         for requirement in configuration["execution"]["resource_requirement"]

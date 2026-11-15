@@ -15,7 +15,7 @@ import unittest
 from unittest.mock import patch
 
 import provider_core.contribution as contribution
-from provider_core.embedded_host import EmbeddedHost
+from provider_core.embedded_host import InProcessExecutionHost
 from provider_core.hosting import observe_cleanup
 from dummy_provider import science
 from dummy_provider import binding as binding_setup
@@ -26,12 +26,15 @@ class DummyBindingTests(unittest.IsolatedAsyncioTestCase):
     async def asyncSetUp(self):
         directory = Path(self.enterContext(TemporaryDirectory()))
         self.configuration = directory / "provider.toml"
+
         shutil.copyfile(
             src=Path(__file__).parent / "config/deployments/localhost/provider.toml",
             dst=self.configuration,
         )
+
         self.enterContext(patch.object(target=binding_setup, attribute="PROVIDER_CONFIG_PATH", new=self.configuration))
-        self.host = EmbeddedHost(
+
+        self.host = InProcessExecutionHost(
             input_bytes=4096,
             result_bytes=4096,
             state_values=1,
@@ -39,6 +42,7 @@ class DummyBindingTests(unittest.IsolatedAsyncioTestCase):
             initialization_seconds=5,
             retirement_seconds=5,
         )
+
         self.addAsyncCleanup(self.retire)
 
     async def retire(self):
@@ -56,9 +60,11 @@ class DummyBindingTests(unittest.IsolatedAsyncioTestCase):
     async def test_installed_distribution_contains_the_scientific_package(self) -> None:
         installed_distribution = metadata.distribution("dummy-provider-example")
         installed_package = Path(resources.files("dummy_provider")).resolve()
+
         distribution_package = Path(
             installed_distribution.locate_file("dummy_provider")
         ).resolve()
+
         python_package_roots = {
             path.parts[0]
             for path in installed_distribution.files
@@ -103,6 +109,7 @@ class DummyBindingTests(unittest.IsolatedAsyncioTestCase):
             settings=science.WeightedSumSettings(scale=2, offset=1),
             coefficients=science.CoefficientSet(values=(1, 2, 3)),
         )
+
         prepare_call, calculate_call = weighted_binding.call(method=WeightedSum.prepare), weighted_binding.call(method=WeightedSum.calculate)
         sum_call = self.sum_binding().call(method=Sum.run)
 
@@ -119,9 +126,11 @@ class DummyBindingTests(unittest.IsolatedAsyncioTestCase):
             settings=science.WeightedSumSettings(scale=2, offset=1),
             coefficients=science.CoefficientSet(values=(1, 2, 3)),
         )
+
         expected = contribution.ResourceRequirement(
             kind="cpu", amount=1, unit="thread", selector="generic", exclusive=False,
         )
+
         for binding in (weighted, self.sum_binding()):
             for call in binding.description.calls:
                 with self.subTest(binding=binding.description.binding_id, call=call.name):
@@ -132,6 +141,7 @@ class DummyBindingTests(unittest.IsolatedAsyncioTestCase):
             settings=science.WeightedSumSettings(scale=2, offset=1),
             coefficients=science.CoefficientSet(values=(1, 2, 3)),
         )
+
         original_bindings = (weighted, self.sum_binding())
         configured = '[[execution.resource_requirement]]\nkind = "cpu"\namount = 2\nunit = "thread"\nselector = "generic"\nexclusive = false\n'
         with TemporaryDirectory() as directory:
@@ -143,12 +153,15 @@ class DummyBindingTests(unittest.IsolatedAsyncioTestCase):
                     settings=science.WeightedSumSettings(scale=2, offset=1),
                     coefficients=science.CoefficientSet(values=(1, 2, 3)),
                 )
+
                 updated_bindings = (updated, self.sum_binding())
                 resource_file.write_text("# Same resource values\n" + configured, encoding="utf-8")
+
                 reformatted = self.weighted_binding(
                     settings=science.WeightedSumSettings(scale=2, offset=1),
                     coefficients=science.CoefficientSet(values=(1, 2, 3)),
                 )
+
                 reformatted_bindings = (reformatted, self.sum_binding())
 
         for (original, changed, same_values) in zip(
@@ -165,10 +178,12 @@ class DummyBindingTests(unittest.IsolatedAsyncioTestCase):
     async def test_invalid_resource_values_are_rejected(self) -> None:
         with TemporaryDirectory() as directory:
             root = Path(directory)
+
             (root / "provider.toml").write_text(
                 '[[execution.resource_requirement]]\nkind = "cpu"\namount = 0\nunit = "thread"\nselector = "generic"\nexclusive = false\n',
                 encoding="utf-8",
             )
+
             with patch.object(target=binding_setup, attribute="PROVIDER_CONFIG_PATH", new=root / "provider.toml"):
                 with self.assertRaisesRegex(ValueError, "Resource amount must be a positive integer"):
                     self.sum_binding()

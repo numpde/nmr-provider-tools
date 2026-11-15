@@ -14,13 +14,13 @@ from functools import partial
 from pathlib import Path
 import tomllib
 
-from provider_core.embedded_host import EmbeddedHost
+from provider_core.embedded_host import InProcessExecutionHost
 from provider_core.failure_collection import FailureCollector
 from provider_core.hosting import OperationPolicy, settle_cleanup
 from provider_core.interpreter import EndpointFactory, Interpreter
 from provider_core.scientific import HostedContribution, ResourceRequirement
 
-from .application import Prediction
+from .application import PredictionWorkflow
 from .binding import Chf, Hf
 from .science import Model, Settings
 
@@ -38,7 +38,7 @@ class Provider:
     inventory; it does not assign fixed slots to particular scientific variants.
     """
 
-    host: EmbeddedHost
+    execution_host: InProcessExecutionHost
     operation_policy: OperationPolicy
     offerings: frozenset[HostedContribution]
     create_interpreter: Callable[[], Interpreter]
@@ -49,7 +49,7 @@ class Provider:
         *,
         offering: HostedContribution,
         receive: Callable[[bytes], Awaitable[None]],
-    ) -> AsyncIterator[Prediction]:
+    ) -> AsyncIterator[PredictionWorkflow]:
         """Own one request's interpretation, scientific execution and receiver.
 
         The caller selects an offering and supplies its report receiver. It can
@@ -60,31 +60,33 @@ class Provider:
         """
         if offering not in self.offerings:
             raise ValueError("Cannot open a prediction for an offering outside this provider")
-        interpreter = self.create_interpreter()
-        execution = None
-        prediction = None
-        failures = FailureCollector(message="Prediction work and cleanup failed independently")
-        with failures.capture():
-            execution = self.host.open_analysis(allocations=frozenset({offering.allocation}))
-            prediction = Prediction(
-                execution=execution,
-                hosted=offering,
-                interpreter=interpreter,
-                policy=self.operation_policy,
+        input_interpreter = self.create_interpreter()
+        analysis_executor = None
+        prediction_workflow = None
+        failure_collector = FailureCollector(message="Prediction work and cleanup failed independently")
+        with failure_collector.capture():
+            analysis_executor = self.execution_host.open_analysis(allocations=frozenset({offering.allocation}))
+
+            prediction_workflow = PredictionWorkflow(
+                analysis_executor=analysis_executor,
+                hosted_predictor=offering,
+                interpreter=input_interpreter,
+                operation_policy=self.operation_policy,
                 receive=receive,
             )
-            yield prediction
+
+            yield prediction_workflow
         # Join the receiver before science and interpretation release resources it
         # may still use. Each owner settles its work; collection only preserves errors.
-        if prediction is not None:
-            with failures.capture():
-                await prediction.settle_receiver()
-        if execution is not None:
-            with failures.capture():
-                await settle_cleanup(control=execution.close())
-        with failures.capture():
-            await interpreter.retire()
-        failures.raise_if_any()
+        if prediction_workflow is not None:
+            with failure_collector.capture():
+                await prediction_workflow.settle_receiver()
+        if analysis_executor is not None:
+            with failure_collector.capture():
+                await settle_cleanup(control=analysis_executor.close())
+        with failure_collector.capture():
+            await input_interpreter.retire()
+        failure_collector.raise_if_any()
 
 
 @asynccontextmanager
@@ -104,32 +106,36 @@ async def open_provider(
     """
     with PROVIDER_CONFIG_PATH.open(mode="rb") as source:
         provider_config = tomllib.load(source)
-    async with EmbeddedHost(**provider_config["execution"]["embedded_host"]) as host:
+    async with InProcessExecutionHost(**provider_config["execution"]["in_process_execution_host"]) as execution_host:
         operation_policy = OperationPolicy(**provider_config["execution"]["operation_policy"])
-        requested_requirements = frozenset(
+
+        resource_requirements = frozenset(
             ResourceRequirement(**resource_requirement)
             for resource_requirement in provider_config["execution"]["resource_requirement"]
         )
-        contribution_types = {"hf": Hf, "chf": Chf}
+
+        predictor_classes = {"hf": Hf, "chf": Chf}
         offerings = set()
         # Family selects a scientific input shape. Each entry is an independently
         # configured model; several entries can use the same contribution class.
-        for family, configurations in provider_config["science"].items():
-            if family not in contribution_types:
+        for family, offering_configs in provider_config["science"].items():
+            if family not in predictor_classes:
                 raise ValueError(f"Cannot configure scientific offerings: unsupported {family=}")
-            contribution_type = contribution_types[family]
-            for configured in configurations:
-                contribution = contribution_type(
-                    configuration=Settings(**configured["settings"]),
-                    checkpoint_path=PROVIDER_CONFIG_PATH.parent / configured["checkpoint_path"],
+            predictor_class = predictor_classes[family]
+            for offering_config in offering_configs:
+                predictor = predictor_class(
+                    configuration=Settings(**offering_config["settings"]),
+                    checkpoint_path=PROVIDER_CONFIG_PATH.parent / offering_config["checkpoint_path"],
                     create_model=create_model,
                 )
-                offerings.add(host.adopt(
-                    contribution=contribution,
-                    requirements=requested_requirements,
+
+                offerings.add(execution_host.adopt(
+                    contribution=predictor,
+                    requirements=resource_requirements,
                 ))
+
         yield Provider(
-            host=host,
+            execution_host=execution_host,
             operation_policy=operation_policy,
             offerings=frozenset(offerings),
             create_interpreter=partial(

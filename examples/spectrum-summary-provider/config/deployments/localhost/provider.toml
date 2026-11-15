@@ -1,5 +1,5 @@
 # Capacity for scientific execution in this deployment.
-[execution.embedded_host]
+[execution.in_process_execution_host]
 input_bytes = 8192
 result_bytes = 8192
 state_values = 1

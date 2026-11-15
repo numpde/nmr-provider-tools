@@ -8,7 +8,7 @@ from dataclasses import dataclass, replace
 from threading import Barrier, Event
 import unittest
 
-from provider_core.embedded_host import Allocation, EmbeddedHost
+from provider_core.embedded_host import Allocation, InProcessExecutionHost
 from provider_core.hosting import ResourceState, CapacityUnavailable, AdmissionCode, OperationPolicy, NotAdmitted, Outcome, RequestConflict, StartDeadlineExpired, DispatchState, Invocation, observe_cleanup, observe_completion
 from provider_core.scientific import AssetAccess, Contribution, HostedContribution, IsolationRequirement, NoAssets, ResourceRequirement, operation
 
@@ -65,8 +65,8 @@ class FailedInitialization(Sum):
         raise self.cleanup_failure
 
 
-def new_host() -> EmbeddedHost:
-    return EmbeddedHost(
+def new_host() -> InProcessExecutionHost:
+    return InProcessExecutionHost(
         input_bytes=8192,
         result_bytes=8192,
         state_values=8,
@@ -97,6 +97,7 @@ def adopt(*, host, contribution, amount=1):
 async def run_sum(*, host, hosted, operation_id):
     analysis = host.open_analysis(analysis_id=operation_id, allocation_names=(hosted.allocation.allocation,))
     reservation, = analysis.reservations
+
     operation = analysis.submit_method(
         method=hosted.contribution.calculate,
         scientific_input=Numbers(values=(1, 2)), states=(), reservation=reservation,
@@ -108,6 +109,7 @@ async def run_sum(*, host, hosted, operation_id):
             reject_encoded_result_over_bytes=1024,
         ),
     )
+
     async with asyncio.timeout(10):
         observed = await observe_completion(operation=operation)
         await observe_cleanup(control=analysis.close())
@@ -124,25 +126,27 @@ class AdoptionTests(unittest.IsolatedAsyncioTestCase):
             "initialization_seconds": 5,
             "retirement_seconds": 5,
         }
+
         for name in options:
             for value in (True, "5"):
                 with self.subTest(name=name, value=value):
                     with self.assertRaises(expected_exception=TypeError):
-                        EmbeddedHost(**(options | {name: value}))
+                        InProcessExecutionHost(**(options | {name: value}))
             for value in (0, -1):
                 with self.subTest(name=name, value=value):
                     with self.assertRaises(expected_exception=ValueError):
-                        EmbeddedHost(**(options | {name: value}))
+                        InProcessExecutionHost(**(options | {name: value}))
         for name in ("initialization_seconds", "retirement_seconds"):
             for value in (float("inf"), float("nan")):
                 with self.subTest(name=name, value=value):
                     with self.assertRaises(expected_exception=ValueError):
-                        EmbeddedHost(**(options | {name: value}))
+                        InProcessExecutionHost(**(options | {name: value}))
 
     async def test_released_local_operations_leave_no_submission_history(self):
         hosted = adopt(host=self.host, contribution=Sum(configuration=Settings(scale=2)))
         analysis = self.host.open_analysis(allocations=frozenset({hosted.allocation}))
         reservation, = analysis.reservations
+
         operation_policy = OperationPolicy(
             queue_stop_request_seconds=5,
             execution_stop_request_seconds=5,
@@ -150,6 +154,7 @@ class AdoptionTests(unittest.IsolatedAsyncioTestCase):
             reject_encoded_input_over_bytes=1024,
             reject_encoded_result_over_bytes=1024,
         )
+
         for _ in range(20):
             operation = analysis.submit_method(
                 method=hosted.contribution.calculate,
@@ -158,6 +163,7 @@ class AdoptionTests(unittest.IsolatedAsyncioTestCase):
                 reservation=reservation,
                 policy=operation_policy,
             )
+
             completed = await observe_completion(operation=operation)
             await observe_cleanup(control=operation.release_result(result=completed.result))
             self.assertEqual(first={}, second=self.host.operations)
@@ -176,6 +182,7 @@ class AdoptionTests(unittest.IsolatedAsyncioTestCase):
                 hosted=hosted,
                 operation_id=str(index),
             )
+
             retained_handles.append(operation)
             self.assertEqual(first={}, second=self.host.analyses)
             self.assertEqual(first={}, second=operation.analysis.operations)
@@ -194,9 +201,9 @@ class AdoptionTests(unittest.IsolatedAsyncioTestCase):
             adopt(host=self.host, contribution=Sum(configuration=Settings(scale=2)))
 
     async def test_state_ports_use_python_types_and_attribute_names(self):
-        from provider_core.scientific import StateKind, StateUse
+        from provider_core.scientific import StateTypeDescriptor, StateUse
 
-        kind = StateKind(value_type=Total)
+        kind = StateTypeDescriptor(value_type=Total)
 
         class Ports:
             produced = kind.output(dispose=lambda value: None)
@@ -215,12 +222,15 @@ class AdoptionTests(unittest.IsolatedAsyncioTestCase):
 
     async def test_sdk_creates_allocation_analysis_and_operation_identities(self):
         instance = Sum(configuration=Settings(scale=2))
+
         hosted = self.host.adopt(
             contribution=instance,
             requirements=frozenset({ResourceRequirement(kind="cpu", amount=1, unit="thread")}),
         )
+
         analysis = self.host.open_analysis(allocations=frozenset({hosted.allocation}))
         reservation = analysis.reservation(allocation=hosted.allocation)
+
         operation_policy = OperationPolicy(
             queue_stop_request_seconds=5,
             execution_stop_request_seconds=5,
@@ -228,10 +238,12 @@ class AdoptionTests(unittest.IsolatedAsyncioTestCase):
             reject_encoded_input_over_bytes=1024,
             reject_encoded_result_over_bytes=1024,
         )
+
         operations = [analysis.submit_method(
             method=instance.calculate, scientific_input=Numbers(values=(1,)),
             states=(), reservation=reservation, policy=operation_policy,
         ) for _ in range(2)]
+
         self.assertIsNot(expr1=operations[0], expr2=operations[1])
         for operation in operations:
             await observe_completion(operation=operation)
@@ -287,6 +299,7 @@ class AdoptionTests(unittest.IsolatedAsyncioTestCase):
         second = adopt(host=self.host, contribution=Sum(configuration=Settings(scale=2)))
         analysis = self.host.open_analysis(allocations=frozenset({first.allocation, second.allocation}))
         reservation = analysis.reservation(allocation=second.allocation)
+
         operation_policy = OperationPolicy(
             queue_stop_request_seconds=5,
             execution_stop_request_seconds=5,
@@ -294,14 +307,17 @@ class AdoptionTests(unittest.IsolatedAsyncioTestCase):
             reject_encoded_input_over_bytes=1024,
             reject_encoded_result_over_bytes=1024,
         )
+
         for method in (first.contribution.calculate, Sum.calculate):
             with self.assertRaises(expected_exception=ValueError):
                 analysis.submit_method(method=method,  scientific_input=Numbers(values=(1,)), states=(), reservation=reservation, policy=operation_policy)
+
         refused = analysis.submit(invocation=Invocation(
             operation_id="portable", target=first.reference(method=first.contribution.calculate),
             payload=first.call(method=first.contribution.calculate).input_codec.encode(value=Numbers(values=(1,))),
             states=(), reservation=reservation, policy=operation_policy,
         ))
+
         self.assertIsInstance(obj=refused, cls=NotAdmitted)
         self.assertEqual(first=0, second=second.contribution.calls)
 
@@ -311,16 +327,19 @@ class AdoptionTests(unittest.IsolatedAsyncioTestCase):
         cpu = ResourceRequirement(kind="cpu", amount=1, unit="thread")
         selected_cpu = ResourceRequirement(kind="cpu", amount=2, unit="thread", selector="avx")
         memory = ResourceRequirement(kind="host-memory", amount=4096, unit="byte")
+
         first = self.host.adopt(
             contribution=Sum(configuration=Settings(scale=2)),
             requirements=frozenset({memory, selected_cpu, cpu}),
             resident_resources=frozenset({memory, selected_cpu, cpu}),
         )
+
         repeated = self.host.adopt(
             contribution=Sum(configuration=Settings(scale=2)),
             requirements=frozenset([cpu, selected_cpu, memory, cpu]),
             resident_resources=frozenset([cpu, selected_cpu, memory, cpu]),
         )
+
         self.assertEqual(first=first.description.binding_revision, second=repeated.description.binding_revision)
         document = description_document(description=first.description)
         for exported in (document["resident_resources"], document["calls"][0]["resources"]):
@@ -396,6 +415,7 @@ class AdoptionTests(unittest.IsolatedAsyncioTestCase):
         hosted = adopt(host=self.host, contribution=instance)
         execution = self.host.open_analysis(allocations=frozenset({hosted.allocation}))
         reservation = execution.reservation(allocation=hosted.allocation)
+
         first = execution.submit_method(
             method=instance.calculate,
             scientific_input=Numbers(values=(1,)),
@@ -403,8 +423,10 @@ class AdoptionTests(unittest.IsolatedAsyncioTestCase):
             reservation=reservation,
             policy=deadline_policy(),
         )
+
         completed = await observe_completion(operation=first)
         retained = await first.read_result(result=completed.result)
+
         waiting = execution.submit_method(
             method=instance.calculate,
             scientific_input=Numbers(values=(2,)),
@@ -412,7 +434,9 @@ class AdoptionTests(unittest.IsolatedAsyncioTestCase):
             reservation=reservation,
             policy=deadline_policy(),
         )
+
         execution.request_stop()
+
         refused = execution.submit_method(
             method=instance.calculate,
             scientific_input=Numbers(values=(3,)),
@@ -420,6 +444,7 @@ class AdoptionTests(unittest.IsolatedAsyncioTestCase):
             reservation=reservation,
             policy=deadline_policy(),
         )
+
         self.assertIsInstance(obj=refused, cls=NotAdmitted)
         self.assertIs(expr1=AdmissionCode.CLOSED, expr2=refused.code)
         stopped = await observe_completion(operation=waiting)
@@ -447,6 +472,7 @@ class AdoptionTests(unittest.IsolatedAsyncioTestCase):
                         policy=deadline_policy(),
                         start_not_after=invalid,
                     )
+
         with self.assertRaises(expected_exception=StartDeadlineExpired):
             execution.submit_method(
                 method=instance.calculate,
@@ -456,6 +482,7 @@ class AdoptionTests(unittest.IsolatedAsyncioTestCase):
                 policy=deadline_policy(),
                 start_not_after=asyncio.get_running_loop().time() - 1,
             )
+
         self.assertEqual(first={}, second=execution.operations)
         self.assertEqual(first=0, second=self.host.input_used)
         self.assertEqual(first=0, second=self.host.result_reserved)
@@ -468,6 +495,7 @@ class AdoptionTests(unittest.IsolatedAsyncioTestCase):
         hosted = adopt(host=self.host, contribution=instance)
         execution = self.host.open_analysis(allocations=frozenset({hosted.allocation}))
         reservation = execution.reservation(allocation=hosted.allocation)
+
         held = execution.submit_method(
             method=instance.calculate,
             scientific_input=Numbers(values=(1,)),
@@ -475,6 +503,7 @@ class AdoptionTests(unittest.IsolatedAsyncioTestCase):
             reservation=reservation,
             policy=replace(deadline_policy(), reject_encoded_result_over_bytes=self.host.result_bytes),
         )
+
         completed = await observe_completion(operation=held)
         self.assertEqual(first=self.host.result_bytes, second=self.host.result_reserved)
         with self.assertRaises(expected_exception=StartDeadlineExpired):
@@ -486,6 +515,7 @@ class AdoptionTests(unittest.IsolatedAsyncioTestCase):
                 policy=deadline_policy(),
                 start_not_after=asyncio.get_running_loop().time() - 1,
             )
+
         self.assertEqual(first=1, second=instance.calls)
         self.assertEqual(first=1, second=len(execution.operations))
         await observe_cleanup(control=held.release_result(result=completed.result))
@@ -508,6 +538,7 @@ class AdoptionTests(unittest.IsolatedAsyncioTestCase):
         hosted = adopt(host=self.host, contribution=instance)
         execution = self.host.open_analysis(allocations=frozenset({hosted.allocation}))
         reservation = execution.reservation(allocation=hosted.allocation)
+
         first = execution.submit_method(
             method=instance.calculate,
             scientific_input=Numbers(values=(1,)),
@@ -515,9 +546,11 @@ class AdoptionTests(unittest.IsolatedAsyncioTestCase):
             reservation=reservation,
             policy=deadline_policy(),
         )
+
         try:
             self.assertTrue(expr=await asyncio.to_thread(entered.wait, 2))
             deadline = asyncio.get_running_loop().time() + 0.05
+
             waiting = execution.submit(invocation=Invocation(
                 target=hosted.reference(method=instance.calculate),
                 payload=hosted.call(method=instance.calculate).input_codec.encode(value=Numbers(values=(2,))),
@@ -526,6 +559,7 @@ class AdoptionTests(unittest.IsolatedAsyncioTestCase):
                 policy=deadline_policy(),
                 start_not_after=deadline,
             ))
+
             await asyncio.sleep(delay=max(0, deadline - asyncio.get_running_loop().time()) + 0.01)
         finally:
             release.set()
@@ -553,6 +587,7 @@ class AdoptionTests(unittest.IsolatedAsyncioTestCase):
         hosted = adopt(host=self.host, contribution=instance)
         execution = self.host.open_analysis(allocations=frozenset({hosted.allocation}))
         deadline = asyncio.get_running_loop().time() + 1
+
         operation = execution.submit_method(
             method=instance.calculate,
             scientific_input=Numbers(values=(1,)),
@@ -561,6 +596,7 @@ class AdoptionTests(unittest.IsolatedAsyncioTestCase):
             policy=deadline_policy(),
             start_not_after=deadline,
         )
+
         try:
             self.assertTrue(expr=await asyncio.to_thread(entered.wait, 2))
             await asyncio.sleep(delay=max(0, deadline - asyncio.get_running_loop().time()) + 0.01)
@@ -686,6 +722,7 @@ class AdoptionTests(unittest.IsolatedAsyncioTestCase):
                 requirements=frozenset({ResourceRequirement(kind="cpu", amount=1, unit="thread")}),
                 isolation=IsolationRequirement.DEDICATED_PROCESS,
             )
+
         self.assertEqual(first=0, second=instance.initializations)
         self.assertEqual(first=0, second=instance.closes)
         self.assertEqual(first=frozenset(), second=self.host.allocations)
@@ -724,9 +761,11 @@ class AdoptionTests(unittest.IsolatedAsyncioTestCase):
             return asyncio.run(main=attempt())
         with ThreadPoolExecutor(max_workers=2) as executor:
             futures = [executor.submit(compete) for _ in range(2)]
+
             results = await asyncio.gather(
                 *[asyncio.wrap_future(future=future) for future in futures], return_exceptions=True,
             )
+
         self.assertCountEqual(first=[HostedContribution, ValueError], second=[type(result) for result in results])
         self.assertCountEqual(first=[0, 1], second=allocation_counts)
         failure, = [result for result in results if isinstance(result, ValueError)]
@@ -738,7 +777,7 @@ class AdoptionTests(unittest.IsolatedAsyncioTestCase):
         instance = Sum(configuration=Settings(scale=2))
         hosted = adopt(host=self.host, contribution=instance)
         with self.assertRaises(expected_exception=TypeError):
-            EmbeddedHost(
+            InProcessExecutionHost(
                 allocations=(Allocation(name="bypass", binding=hosted),),
                 input_bytes=8192,
                 result_bytes=8192,
@@ -752,6 +791,7 @@ class AdoptionTests(unittest.IsolatedAsyncioTestCase):
         hosted = adopt(host=self.host, contribution=Sum(configuration=Settings(scale=2)))
         analysis = self.host.open_analysis(allocations=frozenset({hosted.allocation}))
         reservation, = analysis.reservations
+
         operation_policy = OperationPolicy(
             queue_stop_request_seconds=5,
             execution_stop_request_seconds=5,
@@ -759,6 +799,7 @@ class AdoptionTests(unittest.IsolatedAsyncioTestCase):
             reject_encoded_input_over_bytes=1024,
             reject_encoded_result_over_bytes=1024,
         )
+
         for forged in (replace(reservation, host="other"), replace(reservation, allocation="missing"), replace(reservation, analysis="other")):
             refused = analysis.submit_method(method=Sum.calculate,  scientific_input=Numbers(values=(1,)), states=(), reservation=forged, policy=operation_policy)
             self.assertIsInstance(obj=refused, cls=NotAdmitted)
