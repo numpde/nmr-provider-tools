@@ -1,13 +1,17 @@
 """Compose the scientific offerings once and assemble each requested workflow."""
 
 from contextlib import asynccontextmanager
+from importlib.resources import files
+import tomllib
 
 from provider_core.contribution import ref
 from provider_core.embedded_host import EmbeddedHost
 from provider_core.hosting import Invocation, OperationPolicy
+from provider_core.scientific import ResourceRequirement
 
 from .application import PeakWorkflow
-from .binding import Baseline, Peaks, create_bindings
+from .binding import Baseline, Peaks
+from . import science
 from .science import Spectrum
 
 
@@ -16,9 +20,21 @@ class Provider:
 
     def __init__(self, *, host: EmbeddedHost) -> None:
         self.host = host
-        bindings = create_bindings(host=host)
-        self.baseline, = [binding for binding in bindings if isinstance(binding.contribution, Baseline)]
-        self.peaks, = [binding for binding in bindings if isinstance(binding.contribution, Peaks)]
+        package = files(anchor=__package__)
+        settings = tomllib.loads(package.joinpath("settings.toml").read_text(encoding="utf-8"))
+        requirements = frozenset({ResourceRequirement(
+            **tomllib.loads(package.joinpath("resources.toml").read_text(encoding="utf-8")),
+        )})
+        # These are ordered workflow roles, not interchangeable offerings.
+        # Retain the exact handles instead of rediscovering roles from a set.
+        self.baseline = host.adopt(
+            contribution=Baseline(configuration=science.BaselineSettings(**settings["baseline"])),
+            requirements=requirements,
+        )
+        self.peaks = host.adopt(
+            contribution=Peaks(configuration=science.PeakSettings(**settings["peaks"])),
+            requirements=requirements,
+        )
 
     def create_workflow(self, *, spectrum: Spectrum) -> PeakWorkflow:
         """Assemble an unstarted baseline→peaks request using the adopted science.

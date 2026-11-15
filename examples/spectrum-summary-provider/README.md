@@ -13,16 +13,15 @@ src/spectrum_provider/
 ├── binding.py       configured contributions, codecs and stable revisions
 ├── settings.toml    baseline and minimum peak height
 ├── resources.toml   scientific CPU requirement
+├── provider.py      settings, direct adoption and per-request composition
 ├── application.py   the provider's fixed baseline → peaks sequence
 └── __main__.py      local deployment, permission and stdout consumption
 ```
 
-`create_bindings()` is provider-owned assembly: it reads settings, constructs
-`Baseline` and `Peaks`, and adopts them on separate allocations with explicit
-`requirements`. Their exported methods read their own ordinary attributes. The
-returned call inventories supply codecs and portable references to those exact
-allocations. Assembly belongs inside the host cleanup scope so a failure while
-adopting the second object still retires the first.
+`Provider` reads settings and adopts each scientific object directly into its
+baseline or peaks workflow role. These roles define the scientific sequence;
+they are not an unordered offering inventory. The SDK retains each exact object
+and owns its execution lifetime.
 
 `PeakWorkflow` chooses the scientific sequence using only the public execution
 contract. It does not import scientific types, codecs or the local backend.
