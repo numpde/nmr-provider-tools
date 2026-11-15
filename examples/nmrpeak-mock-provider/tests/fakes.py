@@ -22,6 +22,7 @@ class ScriptedEndpoint:
 
     async def complete(self, messages: list[dict], tools: list[dict], *, not_after: float) -> dict:
         index = len(self.requests)
+        # Retain the messages as received, independent of later history mutation.
         self.requests.append(deepcopy(x=messages))
         if index >= len(self.proposals):
             raise RuntimeError("The recorded interpreter has no further response")

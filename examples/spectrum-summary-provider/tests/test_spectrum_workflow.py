@@ -13,6 +13,8 @@ import sys
 import shutil
 import tomllib
 
+# tomli_w writes TOML; the standard library's tomllib only reads it.
+# Tests edit temporary deployment files to exercise real provider startup.
 import tomli_w
 from tempfile import TemporaryDirectory
 from threading import Event

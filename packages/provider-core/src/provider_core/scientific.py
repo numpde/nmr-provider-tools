@@ -469,6 +469,8 @@ class HostedContribution:
     """
 
     contribution: Contribution
+    # InitVar passes adoption inputs to __post_init__ without storing parallel
+    # fields beside the derived allocation handle.
     host: InitVar[str]
     allocation_name: InitVar[str]
     requirements: frozenset[ResourceRequirement]

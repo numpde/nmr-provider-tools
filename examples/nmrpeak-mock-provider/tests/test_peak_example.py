@@ -22,6 +22,8 @@ import tomllib
 import unittest
 from unittest.mock import Mock, patch
 
+# tomli_w writes TOML; the standard library's tomllib only reads it.
+# Tests edit temporary deployment files to exercise real provider startup.
 import tomli_w
 
 from provider_core.hosting import AdmissionCode, CapacityUnavailable, NotAdmitted, ResultState, StartDeadlineExpired
@@ -111,6 +113,7 @@ class PeakExampleTests(unittest.IsolatedAsyncioTestCase):
                 document = tomllib.loads(original)
                 selected = {family: [] for family in families}
                 for family in families:
+                    # Each model needs independent nested settings before beam_size changes.
                     configured = deepcopy(x=document["science"][family][0])
                     entries = selected[family]
                     configured["settings"]["beam_size"] = len(entries) + 1
