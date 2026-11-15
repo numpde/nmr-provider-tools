@@ -33,8 +33,10 @@ class PhaseProgressTests(unittest.IsolatedAsyncioTestCase):
             self.assertTrue(failure.attempt_mutation_may_have_committed)
             self.assertTrue(transport.retirement_confirmed)
             self.assertEqual(transport.fresh_reads, 0)
+
             # silent-defaults: allow-contract -- Only phases reached before the injected stop belong in the expected event order.
             expected_events = [] if phase == "preparing" else ["prepare"]
+
             self.assertEqual([event[0] for event in session.events], expected_events)
             notices.append(failure)
 

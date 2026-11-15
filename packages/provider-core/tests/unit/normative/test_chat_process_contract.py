@@ -72,6 +72,7 @@ class ChatProcessContractTests(unittest.IsolatedAsyncioTestCase):
         # Allow real DNS and TLS setup, but keep its grant shorter than the
         # response delay so success proves the setup timer was disabled.
         loop = asyncio.get_running_loop()
+
         started = None
         response_started = None
         response_ready = None

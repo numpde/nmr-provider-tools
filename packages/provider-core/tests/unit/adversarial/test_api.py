@@ -116,8 +116,10 @@ class ApiReadFailureTests(unittest.IsolatedAsyncioTestCase):
             failure = caught.exception
             rendered = "".join(traceback.format_exception(failure))
             self.assertNotIn("private-", rendered)
+
             # silent-defaults: allow-contract -- Only the known correlated problem obtains the reviewed local code.
             self.assertEqual(failure.problem_code, "signature_expired" if known else None)
+
             # Header correlation survives rejected/unknown body diagnostics.
             self.assertEqual(failure.request_id, "request:test")
 

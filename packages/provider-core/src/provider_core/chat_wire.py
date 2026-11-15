@@ -24,9 +24,11 @@ from provider_core.transport_errors import ExchangeFailed
 # The data-only child protocol bounds metadata independently of decoded body limits.
 # repo-check: allow-module-constant
 METADATA_BYTES = 1024 * 1024
+
 # Failure evidence remains a bounded graph, independent of endpoint retry policy.
 # repo-check: allow-module-constant
 _ERROR_NODES = 32
+
 # Protected exception descriptions have a fixed protocol bound.
 # repo-check: allow-module-constant
 _ERROR_TEXT = 4096
@@ -319,6 +321,7 @@ def _read_failure(document):
         else:
             # silent-defaults: allow-contract -- Unreviewed child error types retain protected evidence without acquiring retry authority.
             constructor = _ERROR_TYPES.get(kind, RemoteExchangeError)
+
             number = node["errno"]
 
             if number is not None and (type(number) is not int or not (

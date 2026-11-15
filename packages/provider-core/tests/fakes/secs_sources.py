@@ -145,10 +145,12 @@ class SourceAccess:
         max_scope_bytes: int = 256 * 1024 * 1024,
     ):
         self.files = files
+
         # input_formats.py::prepare_representation at the pinned revision uses
         # access.directory for fixed-name scientific temporaries. That scratch
         # grant is separate from directory_fd's acquired-source read grant.
         self.directory = directory
+
         self.directory_fd = directory_fd
         self.max_upload_bytes = max_upload_bytes
         self.max_member_bytes = max_member_bytes

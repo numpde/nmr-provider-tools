@@ -610,6 +610,7 @@ class LiveControllerTests(unittest.IsolatedAsyncioTestCase):
                             if cycle:
                                 # The SDK can return the original stop before retirement finishes.
                                 await asyncio.wait((run,), timeout=1)
+
                                 self.assertTrue(run.done())
                                 self.assertIsNone(controller.operation.settled_revocation)
                                 self.assertTrue(claims.owns_job(scope(), job))
@@ -626,6 +627,7 @@ class LiveControllerTests(unittest.IsolatedAsyncioTestCase):
 
                         # Settlement must also release a session whose original retirement finished late.
                         (result,) = await asyncio.gather(controller.settle(), return_exceptions=True)
+
                         settlements.append((result, claims.live_owners()))
                         self.assertIs(controller.operation.settled_revocation, failure.cause.cause.observation)
                         self.assertIsNone(await controller.settle())
@@ -720,6 +722,7 @@ class LiveControllerTests(unittest.IsolatedAsyncioTestCase):
                     async def prepare(self, acknowledged, instructions, *, report_condition):
                         # Finish the phase independently while the SDK is reading server state.
                         asyncio.current_task().add_done_callback(lambda _: stopped.set())
+
                         await reading.wait()
                         raise phase_error
 

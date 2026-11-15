@@ -560,6 +560,7 @@ class AttemptExecutor:
                 # Cleanup has already retained its own cancellation. Preserve
                 # the original caller interruption and every independent cause.
                 self._link_interruption(cause)
+
                 raise cause from self.last_failure
 
             if self._interruption_has_evidence():
@@ -622,6 +623,7 @@ class AttemptExecutor:
         # Both original tasks start before either is observed. Relay
         # backpressure cannot defer native cleanup.
         self._begin_retirement()
+
         self._handoff_wait = asyncio.create_task(contain_task_exit(self._handoff))
 
         self._handoff_wait.add_done_callback(_observe_task_failure)
@@ -652,6 +654,7 @@ class AttemptExecutor:
 
     async def _execute_session(self, prepared, *, report_condition):
         outcome = await self.session.execute(prepared, report_condition=report_condition)
+
         # Capture before any final read or caught report failure can compete
         # with the returned science. Retention grants no publication authority.
         self._outcome = outcome
@@ -787,6 +790,7 @@ class AttemptExecutor:
             # A known binding failure needs no acceptance read. For a successful
             # return, finish observation before accepting the handle or outcome.
             await self._observe_active()
+
             self._require_live_permission()
 
             return result
@@ -841,8 +845,10 @@ class AttemptExecutor:
         """Retry only this awaited current fact while the monitor remains the sole reader."""
         policy = self._condition_recovery
         deadline = None
+
         # silent-defaults: allow-contract -- Without an admitted recovery policy there is no retry backoff.
         delay = min(self._poll_seconds, policy.backoff_max_seconds) if policy is not None else None
+
         self._condition_failure = self._latest_condition_failure = self._condition_receipt = None
 
         while True:
@@ -929,6 +935,7 @@ class AttemptExecutor:
             # Release the lock during pacing. The existing monitor can observe
             # server stop and cancel this same session task; no second reader.
             await asyncio.sleep(min(seconds, remaining))
+
             delay = min(policy.backoff_max_seconds, delay * 2)
 
         if self._condition_failure is not None:
@@ -1171,6 +1178,7 @@ class AttemptExecutor:
                     raise
 
             self._on_unconfirmed_phase_progress(self._record, phase, failure)
+
             # Observe outside the exchange lock. Keeping this inside the failed
             # PUT's handler preserves it as context if observation/cleanup fails.
             await self._observe_active()

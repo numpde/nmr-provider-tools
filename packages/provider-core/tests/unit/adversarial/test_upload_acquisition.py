@@ -57,9 +57,11 @@ class UploadAcquisitionTests(unittest.IsolatedAsyncioTestCase):
         await owner.inspect()
         await owner.acquire(UPLOAD_REF)
         await owner.inspect()
+
         # Both the fixed ceiling and spent cumulative budget reject this member;
         # spent work must remain an operational hold rather than invite repair.
         api.member = replace(api.member, byte_length=9)
+
         await owner.inspect()
 
         with self.assertRaises(UploadFailed) as caught:
@@ -231,8 +233,10 @@ class UploadAcquisitionTests(unittest.IsolatedAsyncioTestCase):
                 api.member = None
 
             observed = await owner.inspect()
+
             # silent-defaults: allow-contract -- Changed membership remains empty until an explicit refreshed inspection.
             self.assertEqual(len(observed.members), 0 if changed else 1)
+
             self.assertEqual(store.calls, [])
 
     async def test_expired_or_changed_grant_never_reaches_store(self):

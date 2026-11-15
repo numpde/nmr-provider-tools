@@ -185,6 +185,7 @@ class SecsSourceReceivingTests(unittest.TestCase):
     def test_listing_ceiling_does_not_disable_an_exact_member(self):
         # repo-check: allow-tuple-generator -- The immutable archive-entry specimen exercises expanded listing byte limits.
         entries = tuple(("x" * 200 + str(index), b"v") for index in range(1300))
+
         body = zip_bytes(entries)
 
         with private_source_directory() as (root, directory):

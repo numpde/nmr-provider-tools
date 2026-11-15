@@ -22,11 +22,14 @@ import weakref
 # Fixed serialization allowances bound a single immutable TLS grant.
 # repo-check: allow-module-constant
 MAX_TRUST_BYTES = 4 * 1024 * 1024
+
 # repo-check: allow-module-constant
 MAX_TRUST_MATERIALS = 4096
+
 # Native OpenSSL hash-directory lookup names, not configurable destinations.
 # repo-check: allow-module-constant
 _HASHED_TRUST_FILE = re.compile(r"[0-9a-fA-F]{8}\.(?:r)?[0-9]+\Z")
+
 # Replay uses the native context implementation without ambient root loading.
 # repo-check: allow-module-constant
 _SSL_CONTEXT = ssl.SSLContext
@@ -189,6 +192,7 @@ class CapturedSSLContext(ssl.SSLContext):
                 # An eager PEM/DER/file loader does not use this directory.
                 # silent-defaults: allow-contract -- Only a recorded lazy store needs an owned directory; eager loaders consume their bytes immediately.
                 directory = None if self._chat_directory is None else self._chat_directory.name
+
                 _load_material(self, kind, raw, directory)
         except BaseException:
             # OpenSSL may have accepted part of an input before rejecting its
@@ -263,6 +267,7 @@ def new_https_trust(raw):
         # This first step also rejects ambient TLS overrides before consulting
         # the native default helper, which can otherwise enable key logging.
         context.load_default_certs()
+
         # Runtime defaults may tighten without a deprecation period (Python
         # 3.13 adds STRICT/PARTIAL_CHAIN). Copy policy from the actual runtime,
         # while granting trust only through the captured original material.

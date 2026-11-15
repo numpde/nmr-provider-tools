@@ -108,6 +108,7 @@ class CausalDelivery(RecordingDelivery):
             # The relay may have accepted these immutable bytes; the producer
             # saw no verified ACK and may not infer or replace the outcome.
             self.items.append(item)
+
             failure = DeliveryUnavailable("The exact local acknowledgement was lost")
             self.last_failure = failure
 

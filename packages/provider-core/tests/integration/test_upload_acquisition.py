@@ -31,6 +31,7 @@ class UploadAcquisitionIntegrationTests(unittest.IsolatedAsyncioTestCase):
     async def _signed_api_to_bearer_store(self, *, file_output):
         body = b"geometry"
         fingerprint = "sha256:" + hashlib.sha256(body).hexdigest()
+
         # repo-check: allow-tuple-generator -- This fixed header specimen deliberately omits Content-Length for framing qualification.
         headers = tuple((key, value) for (key, value) in store_headers(body) if key != b"content-length")
 

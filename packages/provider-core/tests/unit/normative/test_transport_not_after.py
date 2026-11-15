@@ -59,6 +59,7 @@ class TransportNotAfterTests(unittest.IsolatedAsyncioTestCase):
         async def delayed_observer(selected, *, timeout):
             result = await original_wait(selected, timeout=timeout)
             tasks.extend(selected)
+
             # Delay only observation after the actual original exchange completes.
             await asyncio.sleep(max(0, cap - loop.time()) + 0.01)
 

@@ -164,6 +164,7 @@ def contents(pool, source, core_wheel, pin, *, revision, wheelhouse_bundle):
     }, sort_keys=True, indent=2) + "\n").encode()
 
     _add(files, "acquisition-manifest.json", manifest)
+
     # Legacy importers still need every member in the external SDK issuer.
     # Only the embedded inventory excludes itself; the archive digest covers it.
     source_inventory = dict(payload_inventory)

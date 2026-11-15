@@ -466,6 +466,7 @@ async def scenario(marker, report, seed):
                 # Capture before the outer test stops the fixture's process group.
                 # That emergency cleanup must never make a recovery assertion pass.
                 temporary = report.with_suffix(".pending")
+
                 temporary.write_text(json.dumps(result, sort_keys=True))
                 temporary.replace(report)
                 await asyncio.Event().wait()

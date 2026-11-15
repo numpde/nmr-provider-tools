@@ -198,6 +198,7 @@ class _FileBody:
         # Register the original future before yielding. File admission and each
         # bounded write finish before network work can advance to its next phase.
         worker = self._executor.submit(operation, *args)
+
         waiter = asyncio.wrap_future(worker)
         waiter.add_done_callback(_observe_file_write)
         self._pending = (worker, waiter)
@@ -396,8 +397,10 @@ class HttpTransport:
 
         client = None
         response = None
+
         # silent-defaults: allow-contract -- No output descriptor selects the buffered response; a supplied descriptor selects file output.
         file_body = None if output_fd is None else _FileBody(output_fd)
+
         network = None
 
         try:
@@ -469,8 +472,10 @@ class HttpTransport:
 
             # silent-defaults: allow-contract -- Raw/file exchanges have no decoder; only exchange_decoded supplies one.
             decoder = None if decoder_factory is None else decoder_factory(outcome.response_head)
+
             # silent-defaults: allow-contract -- Only a buffered response owns an in-memory body; file mode does not buffer it.
             body = bytearray() if file_body is None else None
+
             received_bytes = 0
             iterator = response.aiter_stream().__aiter__()
 

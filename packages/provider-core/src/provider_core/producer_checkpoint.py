@@ -26,6 +26,7 @@ from provider_core.attempt_response import ATTEMPT_RESPONSE_BYTES, AttemptAdmiss
 # Bound the control projection independently of scientific payload size.
 # repo-check: allow-module-constant
 MAX_CHECKPOINT_BYTES = MAX_PENDING_RECORD_BYTES + ATTEMPT_RESPONSE_BYTES + 16384
+
 # Identify the bounded control projection used to qualify live metadata size.
 # repo-check: allow-module-constant
 SCHEMA = "provider_core.producer_checkpoint.v1"

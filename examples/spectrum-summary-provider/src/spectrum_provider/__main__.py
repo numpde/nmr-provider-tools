@@ -32,6 +32,7 @@ async def run_demo() -> None:
         async def print_report(payload: bytes) -> None:
             # Flushed stdout is this demo's consumer, not a durable report queue.
             sys.stdout.buffer.write(payload + b"\n")
+
             sys.stdout.buffer.flush()
 
         with failure_collector.capture():

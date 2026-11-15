@@ -16,6 +16,7 @@ import tomllib
 # tomli_w writes TOML; the standard library's tomllib only reads it.
 # Tests edit temporary deployment files to exercise real provider startup.
 import tomli_w
+
 from tempfile import TemporaryDirectory
 from threading import Event
 from types import SimpleNamespace
@@ -153,6 +154,7 @@ class SpectrumWorkflowTests(unittest.IsolatedAsyncioTestCase):
                 # caller explicitly selects a new attempt; the failed owner
                 # itself never retries or infers that replay is safe.
                 replacement = ResultConsumption(operation=original, result=operation_observation.result, receive=accept)
+
                 await replacement.consume()
                 self.assertIs(original, workflow.peak_detection_submission.operation)
                 self.assertEqual(1, calculate.call_count)

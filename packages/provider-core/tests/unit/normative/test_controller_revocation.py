@@ -73,9 +73,11 @@ class PreparedHandleRevocationTests(unittest.IsolatedAsyncioTestCase):
 
                     try:
                         await asyncio.wait_for(session.retiring.wait(), 1)
+
                         # The fourth exchange is the acceptance read following
                         # the successful return of this exact prepared handle.
                         self.assertEqual(4, len(transport.calls))
+
                         self.assertIs(session.handle, session.returned_handle)
                         self.assertIsNone(session.retired_handle)
                         self.assertEqual(["prepare"], session.events)

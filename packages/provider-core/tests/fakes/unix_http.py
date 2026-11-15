@@ -27,8 +27,10 @@ class UnixHTTPPeer:
         try:
             head = await reader.readuntil(b"\r\n\r\n")
             fields = dict(line.split(b": ", 1) for line in head.split(b"\r\n")[1:] if line)
+
             # silent-defaults: allow-contract -- Absent Content-Length means the fixture request has no framed body.
             length = int(fields.get(b"Content-Length", b"0"))
+
             body = await reader.readexactly(length)
             self.requests.append((head, body))
             writer.write(b"HTTP/1.1 200 OK\r\nContent-Length: 2\r\nConnection: close\r\n\r\n")

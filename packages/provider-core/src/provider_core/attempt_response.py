@@ -21,6 +21,7 @@ from provider_core.response_json import ResponseRejected, read_document, read_ti
 # The pinned Attempt response has this wire byte ceiling.
 # repo-check: allow-module-constant
 ATTEMPT_RESPONSE_BYTES = 65536
+
 # The pinned API owns this closed Job state vocabulary.
 # repo-check: allow-module-constant
 JOB_STATES = frozenset({"open", "closed", "cancelled"})

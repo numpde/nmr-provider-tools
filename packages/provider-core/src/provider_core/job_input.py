@@ -20,12 +20,15 @@ from dataclasses import dataclass, field
 # The admitted input profile has this fixed protocol identity.
 # repo-check: allow-module-constant
 INPUT_SCHEMA = "nmr.job.specification.text.v1"
+
 # The pinned input response has this fixed protocol identity.
 # repo-check: allow-module-constant
 RESPONSE_SCHEMA = "nmr.provider.job_input.read.response.v1"
+
 # The protocol bounds exact Job input bytes before scientific admission.
 # repo-check: allow-module-constant
 MAX_INPUT_BYTES = 65536
+
 # The pinned input response has this byte ceiling.
 # repo-check: allow-module-constant
 MAX_RESPONSE_BYTES = 131072

@@ -212,6 +212,7 @@ class TlsPeer:
                     # Simulate losing an acknowledgement after the full request
                     # arrived. Domain commit semantics belong to API qualification.
                     writer.close()
+
                     await writer.wait_closed()
                     self.closed.set()
 
@@ -289,9 +290,11 @@ class TlsPeer:
                 close_seconds = max(2, self.handshake_seconds + self.shutdown_seconds + 0.5)
 
             await asyncio.wait_for(self.server.wait_closed(), close_seconds)
+
             # A handshake can finish after the cancellation snapshot. Its late
             # closing handler also belongs to this fixture, including failures.
             handlers = tuple(self.handlers)
+
             results = await asyncio.wait_for(asyncio.gather(*handlers, return_exceptions=True), 2)
         finally:
             self.scratch.cleanup()

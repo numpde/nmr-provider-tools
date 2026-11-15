@@ -72,8 +72,10 @@ class ChatWireAvailabilityTests(unittest.TestCase):
             with self.subTest(obligation=obligation):
                 cleanup = OSError(errno.EIO, "independent original close failure")
                 cancellation = asyncio.CancelledError("original caller interruption")
+
                 # silent-defaults: allow-contract -- Each subcase injects only its named independent obligation.
                 cleanup_failures = (cleanup,) if obligation == "cleanup" else ()
+
                 # silent-defaults: allow-contract -- The cleanup-only subcase has no caller cancellation.
                 caller_interruption = cancellation if obligation == "caller" else None
 

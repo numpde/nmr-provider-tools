@@ -651,6 +651,7 @@ def python_operator_default_findings(path: Path) -> list[str]:
         if prefix == "# silent-defaults: allow-lambda-body":
             # This placement owns one callable result, never its signature or container.
             following = [body for body in lambda_bodies if body.lineno == next_line]
+
             selected = [(node, label) for (node, label) in candidates if len(following) == 1 and node in ast.walk(following[0])]
 
             boundary = (
@@ -674,6 +675,7 @@ def python_operator_default_findings(path: Path) -> list[str]:
             # ExceptHandler is not ast.stmt. Its header owns this placement,
             # including a same-line Pass; no body or sibling is accepted.
             following = [handler for (handler, _owner) in following_handlers]
+
             selected = [(node, label) for (node, label) in candidates if node in following]
             boundary = len(following_handlers) == len(selected) == 1
 
@@ -703,6 +705,7 @@ def python_operator_default_findings(path: Path) -> list[str]:
             # A For header owns only its iterable, even with a same-line body.
             # Targets, body and else suites retain their independent findings.
             following = following_loops
+
             expression = following[0].iter
             selected = [(node, label) for (node, label) in candidates if node in ast.walk(expression)]
             outermost = [node for (node, _) in selected if all(other in ast.walk(node) for (other, _) in selected)]
@@ -742,6 +745,7 @@ def python_operator_default_findings(path: Path) -> list[str]:
             )
         else:
             selected = [(node, label) for (node, label) in candidates if node.lineno == next_line]
+
             # Nested defaults may express one contract; sibling expressions do
             # not. Strict candidates must still pass their own gate.
             outermost = [node for (node, _) in selected if all(other in ast.walk(node) for (other, _) in selected)]

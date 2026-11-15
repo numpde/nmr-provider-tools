@@ -109,6 +109,7 @@ class ApiFailure(RuntimeError):
         or ambiguous advice leaves the operation owner's local pacing intact.
         """
         head = self._received_head()
+
         # silent-defaults: allow-contract -- Absent or ambiguous server timing advice grants no Retry-After floor.
         values = [] if head is None else [value for (name, value) in head.headers if name.lower() == b"retry-after"]
 
@@ -312,6 +313,7 @@ def _require_api_headers(response, operation, expected_topology):
     7356c354368f2355d3ab5cef00cf48c67cea9c2c,
     src/secs_inference/provider/http.py:290-332. Chat/store remain neutral.
     """
+
     # silent-defaults: allow-contract -- The pinned protocol selects JSON for success and problem JSON for refusal.
     content_type = b"application/json" if response.status == 200 else b"application/problem+json"
 

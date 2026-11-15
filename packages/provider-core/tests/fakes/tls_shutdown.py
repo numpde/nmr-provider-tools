@@ -150,6 +150,7 @@ class ShutdownPeer:
                     # SSLSocket.close is deliberately bypassed: no TLS goodbye
                     # may accidentally turn a ragged EOF into a cooperative peer.
                     os.close(connection.detach())
+
                     self.connections_closed += 1
 
     async def __aexit__(self, kind, value, traceback):

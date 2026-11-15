@@ -95,6 +95,7 @@ class PeakWorkflow:
                     # Stopping execution makes downstream admission impossible.
                     # This workflow no longer needs the intermediate result.
                     self.baseline_report_release = self.baseline_submission.operation.release_result(result=baseline_observation.result)
+
                     self.peak_detection_refusal = peak_detection_admission
 
                 # A capacity refusal can still be retried using the retained input.

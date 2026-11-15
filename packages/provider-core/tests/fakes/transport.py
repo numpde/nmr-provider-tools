@@ -40,6 +40,7 @@ class Client:
         self.closed = False
         self.calls = []
         self.status = status
+
         # silent-defaults: allow-contract -- None requests valid JSON headers; explicit empty or malformed header specimens stay observable.
         self.headers = [(b"content-type", b"application/json")] if headers is None else headers
 

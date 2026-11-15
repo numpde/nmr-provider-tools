@@ -124,6 +124,7 @@ class UploadFileAcquisitionTests(unittest.IsolatedAsyncioTestCase):
     async def _held_create(self, *, cancel, late_failure):
         # silent-defaults: allow-contract -- This fault scenario deliberately separates cancellation from deadline expiry.
         (owner, api, store, _) = file_sources(seconds=2 if cancel else 0.1)
+
         (entered, release) = (asyncio.Event(), threading.Event())
         loop = asyncio.get_running_loop()
         await owner.inspect()
@@ -253,6 +254,7 @@ class UploadFileAcquisitionTests(unittest.IsolatedAsyncioTestCase):
     async def _held_close(self, *, cancel, late_failure):
         # silent-defaults: allow-contract -- This fault scenario deliberately separates cancellation from file-read expiry.
         (owner, api, store, client) = file_sources(seconds=2 if cancel else 0.1)
+
         (entered, release) = (asyncio.Event(), threading.Event())
         loop = asyncio.get_running_loop()
         await owner.inspect()

@@ -183,6 +183,7 @@ class DeliveryService:
             worker.request_stop()
 
         settled = await asyncio.gather(*(asyncio.shield(task) for task in self._worker_tasks), return_exceptions=True)
+
         # repo-check: allow-tuple-generator -- Settled worker failures are stable evidence distinct from later cleanup failures.
         self.worker_failures = tuple(value for value in settled if isinstance(value, BaseException))
 

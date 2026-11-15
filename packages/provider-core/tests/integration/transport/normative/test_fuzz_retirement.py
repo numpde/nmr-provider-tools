@@ -27,6 +27,7 @@ class TransportFaultSequenceTests(unittest.IsolatedAsyncioTestCase):
 
                     owner = object()
                     request = httpx.Request("GET", peer.origin + "/fault-sequence")
+
                     # silent-defaults: allow-contract -- Aggregate-only cases intentionally omit the inherited cap.
                     deadline = asyncio.get_running_loop().time() + 0.3 if inherited else None
 
@@ -49,6 +50,7 @@ class TransportFaultSequenceTests(unittest.IsolatedAsyncioTestCase):
                             self.assertIsInstance(caught.exception.primary, TimeoutError)
                             self.assertTrue(peer.received.is_set())
                             await asyncio.wait_for(peer.closed.wait(), 1)
+
                             # silent-defaults: allow-contract -- Stalled TLS cannot carry an HTTP request; later phases carry one.
                             self.assertEqual(len(peer.requests), 0 if phase == "tls-stall" else 1)
 

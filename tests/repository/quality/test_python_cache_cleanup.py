@@ -91,4 +91,5 @@ class PythonCacheCleanupTests(unittest.TestCase):
         # separately enforces that flag. Make's non-isolated helpers inherit
         # this policy even when launched by nested shell scripts.
         makefile = (ROOT / "Makefile").read_text(encoding="utf-8")
+
         self.assertIn("override export PYTHONDONTWRITEBYTECODE := 1", makefile)

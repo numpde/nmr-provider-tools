@@ -104,6 +104,7 @@ class ObservedWorkerCrash(RuntimeError):
     def public_failure(self):
         # A signal number does not establish why that signal was sent.
         phase = {"preparing": "preparation", "running": "calculation"}[self.phase]
+
         code = self.native_exit.returncode
         status = f"signal {-code}" if code < 0 else f"exit status {code}"
 

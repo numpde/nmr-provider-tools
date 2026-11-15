@@ -46,6 +46,7 @@ class ProseServiceOutageTests(unittest.IsolatedAsyncioTestCase):
 
         # One publisher owns the exact original report throughout the outage.
         release = next(event for event in result["trace"] if event["event"] == "original_jobs_api_receipt_released")
+
         healthy = next(event for event in result["trace"] if event["event"] == "healthy_report_published_during_outage")
         self.assertTrue(release["publisher_owns_request"], msg=evidence)
         self.assertTrue(healthy["prose_service_still_unavailable"], msg=evidence)
@@ -67,6 +68,7 @@ class ProseServiceOutageTests(unittest.IsolatedAsyncioTestCase):
 
         # These were sampled while peers, publisher and scientific worker still ran.
         self.assertEqual([], result["queue_inventory"], msg=evidence)
+
         self.assertEqual(0, result["final_claims"], msg=evidence)
         self.assertEqual([0, 0, 0], result["open_peer_connections"], msg=evidence)
         self.assertTrue(result["all_http_owners_retired"], msg=evidence)

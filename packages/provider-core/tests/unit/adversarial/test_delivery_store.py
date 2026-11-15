@@ -52,12 +52,14 @@ class DeliveryQueueRefusalTests(unittest.TestCase):
 
         # Single-Attempt recovery uses the primary key even when full IPC inventory cannot fit.
         statements = []
+
         adopted._db.set_trace_callback(statements.append)
         status = adopted.status("https://api.example", "provider:test", expected[-1][2])
         adopted._db.set_trace_callback(None)
         self.assertEqual(expected[-1][2], status["execution_attempt_ref"])
         self.assertTrue(any("AND attempt_ref=" in query and "LIMIT 1" in query for query in statements))
         self.assertIsNone(adopted.status("https://other.example", "provider:test", expected[-1][2]))
+
         # The original pending row remains available while all held rows stay held.
         self.assertEqual(expected[0][2], adopted.next_pending("https://api.example", "provider:test").execution_attempt_ref)
 

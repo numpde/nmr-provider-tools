@@ -34,6 +34,7 @@ async def run_demo() -> None:
         async def print_report(payload: bytes) -> None:
             # Receiver return means flushed local consumption, not durable delivery.
             sys.stdout.buffer.write(payload + b"\n")
+
             sys.stdout.buffer.flush()
 
         with failure_collector.capture():

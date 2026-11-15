@@ -58,6 +58,7 @@ class DeliveryEndpoint:
     api_origin: str
     provider_ref: str
     socket_path: Path
+
     # Direct same-UID embeddings may retain private IPC; deployed shared bindings explicitly grant a socket group.
     socket_group_id: int | None = None
 

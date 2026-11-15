@@ -40,8 +40,10 @@ def python_sources(*, production_only):
     package tests and example tests. The caller must choose the check's
     responsibility.
     """
+
     # silent-defaults: allow-contract -- The required production_only choice selects host/tools or all authored roots; future shared-package and example modules belong to both inventories; proof=tests/repository/quality/test_source_inventory.py::SourceInventoryUnitTests.test_python_source_selection_respects_explicit_scope
     roots = ("host", "tools") if production_only else PYTHON_ROOTS
+
     directories = [ROOT / name for name in (*roots, *OPTIONAL_PYTHON_ROOTS)]
     directories.extend(ROOT.glob("packages/*/src"))
     directories.extend(ROOT.glob("examples/*/src"))

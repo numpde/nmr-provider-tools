@@ -48,6 +48,7 @@ class PublicationStorageStallTests(unittest.IsolatedAsyncioTestCase):
             # DeliveryInbox still owns this exact offloaded operation. Returning
             # the matching API receipt is what authorizes entering this method.
             removal_calls.append(item)
+
             loop.call_soon_threadsafe(removal_started.set)
 
             if not release_removal.wait(5):
@@ -79,6 +80,7 @@ class PublicationStorageStallTests(unittest.IsolatedAsyncioTestCase):
             # Existing public grants define when an uninterrupted publication
             # wait becomes an operator concern; no new test-only policy exists.
             alert_seconds = client.exchange_seconds + client.retirement_seconds + worker.retry_max_seconds
+
             started_at = loop.time()
 
             with patch.object(self.queue, "remove_published", side_effect=held_remove):
@@ -144,6 +146,7 @@ class PublicationStorageStallTests(unittest.IsolatedAsyncioTestCase):
                     # The original owner remains held; a second elapsed budget
                     # must neither repeat the alert nor resend its accepted report.
                     await asyncio.sleep(alert_seconds + 0.02)
+
                     self.assertEqual(1, len(notices), msg=evidence)
                     self.assertEqual([item], removal_calls, msg=evidence)
                     self.assertEqual([item.body], peer.request_bodies, msg=evidence)
@@ -235,10 +238,12 @@ class PublicationStorageStallTests(unittest.IsolatedAsyncioTestCase):
                     worker.request_stop()
                     self.assertEqual("stopping", worker.status()["state"])
                     await asyncio.wait_for(warning_seen.wait(), alert_seconds + 0.25)
+
                     # Stop ends admission to the publisher, not its accepted
                     # storage operation. Even a refused log write cannot decide
                     # cancellation, replay, or the report's publication status.
                     self.assertFalse(original.done())
+
                     self.assertFalse(original_storage.done())
                     self.assertEqual({original_storage}, self.inbox._storage_tasks)
                     self.assertEqual([item], removal_calls)
@@ -300,9 +305,11 @@ class PublicationStorageStallTests(unittest.IsolatedAsyncioTestCase):
             self.assertEqual(["delivery_published"], [facts["event"] for (_, facts) in notices])
             self.assertIsNone(notices[0][0])
             self.assertIs(notices[0][1]["recovered"], False)
+
             # Starting this wait after completion puts it strictly past the
             # alarm's original deadline, even if initial scheduling was slow.
             await asyncio.sleep(alert_seconds + 0.02)
+
             self.assertEqual(["delivery_published"], [facts["event"] for (_, facts) in notices])
             self.assertEqual([item.body], peer.request_bodies)
             self.assertEqual([], self.queue.inventory(item.api_origin, item.provider_ref))

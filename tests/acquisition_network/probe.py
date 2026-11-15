@@ -110,9 +110,11 @@ elif sys.argv[1] in ("worker", "session-worker"):
         (proxy_port, origin_port) = (int(sys.argv[2]), int(sys.argv[3]))
 
     check_routes()
+
     # The same known host origin must be unreachable directly and reachable
     # through the gateway. Its distinct loopback address avoids relay collisions.
     denied(socket.AF_INET, ("127.0.0.2", origin_port))
+
     denied(socket.AF_INET, ("192.0.2.1", 443))
 
     if socket.has_ipv6:

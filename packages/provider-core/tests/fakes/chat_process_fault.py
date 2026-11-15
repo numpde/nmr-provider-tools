@@ -22,10 +22,13 @@ from unittest.mock import Mock, patch
 # The blocked request must instead reach the actual read and expire.
 # repo-check: allow-module-constant
 HEALTHY_MODEL_SECONDS = 4.0
+
 # repo-check: allow-module-constant
 BLOCKED_MODEL_SECONDS = 2.0
+
 # repo-check: allow-module-constant
 CLEANUP_SECONDS = 0.3
+
 # A bounded verdict precedes fixture teardown, including child cleanup.
 # repo-check: allow-module-constant
 RECOVERY_SECONDS = 7.0
@@ -159,6 +162,7 @@ class WarmWorker:
     async def call(self, operation, job=None):
         self.process.stdin.write(json.dumps({"operation": operation, "job": job}).encode() + b"\n")
         await self.process.stdin.drain()
+
         # Worker IPC is not the original model HTTP request's deadline.
         line = await asyncio.wait_for(self.process.stdout.readline(), 3)
 
@@ -368,6 +372,7 @@ async def scenario(marker, report):
 
                         # silent-defaults: allow-contract -- The middle Job alone selects the injected fault; warmup and recovery use the healthy route.
                         session = Session(job, peer.origin + ("/hang" if name == "hung" else "/ready"), trust, worker)
+
                         transport = ApiTransport(job, index)
 
                         controller = AttemptController.live(
@@ -400,15 +405,21 @@ async def scenario(marker, report):
 
             task = asyncio.create_task(lane())
             await asyncio.wait_for(warm.wait(), 6)
+
             # silent-defaults: allow-contract -- A failure before hung-Job admission still receives a bounded verdict wait; it cannot satisfy the recovery assertions.
             remaining = max(0, timing.get("started", time.monotonic()) + RECOVERY_SECONDS - time.monotonic())
+
             await asyncio.wait({task}, timeout=remaining)
             final_worker = await worker.call("snapshot")
+
             # silent-defaults: allow-contract -- An absent fault log supplies zero positive fault evidence and must fail the explicit engagement assertions.
             events = [] if not marker.exists() else [json.loads(line) for line in marker.read_text().splitlines()]
+
             engaged = [event for event in events if event["kind"] == "cleanup_engaged"]
+
             # silent-defaults: allow-contract -- Missing engagement records no owner PID; the test independently requires engagement and a distinct child PID.
             fault_pid = engaged[0]["pid"] if engaged else None
+
             alive = False
 
             if fault_pid is not None:
@@ -447,6 +458,7 @@ async def scenario(marker, report):
             # The outer test can now retire the process group without turning
             # teardown into an apparent successful recovery.
             temporary = report.with_suffix(".pending")
+
             temporary.write_text(json.dumps(result, sort_keys=True))
             temporary.replace(report)
             await asyncio.Event().wait()

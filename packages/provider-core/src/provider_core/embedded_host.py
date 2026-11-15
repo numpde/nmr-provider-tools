@@ -383,9 +383,11 @@ class InProcessAnalysisExecutor:
         )
 
         self.operations = {}
+
         # Observe resource-release changes through surviving handles without
         # making their completed operations owned by this analysis.
         self.observed_operations = WeakSet()
+
         self.states = {}
         self.closed = False
         self.cleanup = None

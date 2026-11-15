@@ -38,6 +38,7 @@ from provider_core.signing import _https_origin
 # Bound the exact-request envelope admitted into live control bookkeeping.
 # repo-check: allow-module-constant
 MAX_PENDING_RECORD_BYTES = 65536
+
 # Diagnostic envelope precedent: pinned NMRPeak attempt_diagnostic.py. Unlike its
 # history trimming, required evidence here is rejected rather than truncated.
 # Bound the protected retained evidence envelope.

@@ -533,14 +533,15 @@ class HostedContribution:
     values. Provider-owned objects can be mutable, unhashable or define their own
     equality; none of those choices changes a hosted handle's set membership.
 
+    The constructor-only host and allocation_name inputs pass through InitVar to
+    __post_init__, which derives the allocation handle without duplicate fields.
+
     The revision identifies schemas and the exported
     execution contract. Deployment owns installed artifact provenance separately;
     this contract neither identifies code bytes nor proves method purity.
     """
 
     contribution: Contribution
-    # InitVar passes adoption inputs to __post_init__ without storing parallel
-    # fields beside the derived allocation handle.
     host: InitVar[str]
     allocation_name: InitVar[str]
     requirements: frozenset[ResourceRequirement]

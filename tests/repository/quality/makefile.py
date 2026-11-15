@@ -28,6 +28,7 @@ def make_invocation_owners(makefile: str, invocation: str) -> list[str]:
             continue
         elif line and not line.startswith("\t") and not line.lstrip().startswith("#"):
             (rule_targets, separator, _) = line.partition(":")
+
             # silent-defaults: allow-contract -- A literal rule names its owner; a nonrule clears the previous owner so a later tabbed invocation cannot inherit it; proof=tests/repository/quality/test_makefile.py::MakeSourceInspectionTests.test_invocation_inventory_rejects_uninspected_uses
             owner = f"target {rule_targets}" if separator else None
 

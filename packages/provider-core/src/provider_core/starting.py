@@ -97,9 +97,11 @@ class AttemptStarter:
             self._unretained = await self._send(pending)
 
             self.claim.bind_attempt(self.scope, self._unretained.admission.execution_attempt_ref, owner=self)
+
             # Return the actual received admission. Historical disk metadata is
             # deliberately a different type and cannot recreate this live path.
             result = self._unretained
+
             self._unretained = None
 
             return result

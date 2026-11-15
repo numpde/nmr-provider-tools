@@ -279,9 +279,11 @@ class ResultConsumptionTests(unittest.IsolatedAsyncioTestCase):
                     await shutdown_waiting.wait()
 
                 shutdown.cancel("first shutdown interruption")
+
                 # call_soon executes after the first cancellation is delivered;
                 # no wall-clock sleep guesses whether the receiver has returned.
                 asyncio.get_running_loop().call_soon(shutdown.cancel, "second shutdown interruption")
+
                 asyncio.get_running_loop().call_soon(acknowledge.set)
 
                 with self.assertRaises(BaseExceptionGroup) as raised:

@@ -65,8 +65,10 @@ class ExecutionConditionTests(unittest.IsolatedAsyncioTestCase):
                 (store, acknowledged, claim) = await live_attempt()
                 transport = ConditionTransport()
                 session = ReportingSession(store)
+
                 # silent-defaults: allow-contract -- Disable only the other phase so this fixture reaches the selected phase failure.
                 other_phase = "execute" if phase == "prepare" else "prepare"
+
                 session.conditions[other_phase] = ()
 
                 executor = ObservedExecutor.live(

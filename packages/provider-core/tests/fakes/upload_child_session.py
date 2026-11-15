@@ -86,6 +86,7 @@ class UploadChildSession(ChildSession):
             # Cancellation cannot hide a later-created child. Join the original
             # launch before borrowing its exact process-exit confirmation.
             await asyncio.shield(self._launch)
+
             await super().retire()
 
         if self.source_removals == 0:

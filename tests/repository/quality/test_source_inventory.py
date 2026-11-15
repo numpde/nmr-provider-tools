@@ -15,6 +15,7 @@ require_container()
 # There are no checked-in Compose service/build files. Generated runtime recipes
 # have separate rendering and deployment checks; this inventory owns image sources.
 import re
+
 import shlex
 import subprocess
 import tempfile
@@ -33,6 +34,7 @@ def has_external_frontend(source):
 
 
 ROOT_ENTRY_MANIFEST = Path("/repository-source-inventory/root-entries")
+
 # The coordinator explicitly keeps checkout control, credentials and writable
 # acquisition/runtime state outside source-check authority. Capturing their
 # names in the manifest proves classification without exposing their contents.

@@ -16,6 +16,7 @@ import time
 # Bound the runner control message before parsing or dispatch.
 # repo-check: allow-module-constant
 MAXIMUM_CONTROL_BYTES = 4096
+
 # The runner control token uses this fixed nonce grammar.
 # repo-check: allow-module-constant
 _TOKEN = re.compile(r"[0-9a-f]{32}\Z")

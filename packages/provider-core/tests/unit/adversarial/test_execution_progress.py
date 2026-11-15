@@ -43,8 +43,10 @@ class PhaseProgressFailureTests(unittest.IsolatedAsyncioTestCase):
 
                     self.assertIs(type(caught.exception.cause), ExecutionStopped)
                     self.assertIs(caught.exception.cause.__context__, notice.call_args.args[2])
+
                     # silent-defaults: allow-contract -- Only phases reached before the injected stop belong in the expected event order.
                     expected = ["retire"] if phase == "preparing" else ["prepare", "retire"]
+
                     self.assertEqual([event[0] for event in session.events], expected)
                     self.assertEqual(store.records, (AcknowledgedCheckpoint(acknowledged.start, acknowledged.admission),))
                     notice.assert_called_once()

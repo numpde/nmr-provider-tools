@@ -122,6 +122,7 @@ class ConfiguredMemberTests(unittest.TestCase):
             # The unary sum has no dependency on loaded coefficients or an
             # initialized analysis, although its implementation owns both hooks.
             self.assertIsNone(model.loaded_coefficients)
+
             self.assertFalse(analysis.is_open)
 
             returned = binding.run.invoke(

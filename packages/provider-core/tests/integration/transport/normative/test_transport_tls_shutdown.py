@@ -74,9 +74,11 @@ class TlsShutdownTests(unittest.IsolatedAsyncioTestCase):
                             request.extend(chunk)
 
                         connection.sendall(b"HTTP/1.1 200 OK\r\nContent-Length: 4\r\n\r\ndata")
+
                         # Read after the complete response: a missing client
                         # goodbye raises SSLEOFError even though HTTP succeeded.
                         closed = connection.recv(1)
+
                         connection.unwrap().close()
 
                         return closed

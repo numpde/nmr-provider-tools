@@ -46,6 +46,7 @@ class AttemptOutcomeTests(unittest.IsolatedAsyncioTestCase):
             (first, second) = (call[0] for call in transport.calls)
             self.assertEqual((first.content, second.content), (retained, retained))
             self.assertNotEqual(first.headers["Signature-Input"], second.headers["Signature-Input"])
+
             # silent-defaults: allow-contract -- The selected terminal method determines the expected complete or fail wire operation.
             operation = "complete" if method == "complete_attempt" else "fail"
 

@@ -670,8 +670,10 @@ class TransportFailureTests(unittest.IsolatedAsyncioTestCase):
 
         with patch("provider_core.transport.httpcore.AsyncConnectionPool") as factory:
             task = asyncio.create_task(transport.exchange(httpx.Request("GET", "https://api.example"), maximum_bytes=4))
+
             # The exchange is ready first; retirement is ready before its child.
             retirement = asyncio.create_task(transport.retire())
+
             await retirement
 
             with self.assertRaises(asyncio.CancelledError):

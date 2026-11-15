@@ -3,6 +3,8 @@
 Adjacent statements need a blank line when either spans multiple physical lines.
 Return statements also need separation from any preceding sibling statement.
 Groups of direct self-attribute assignments need separation from following work.
+Standalone comments and their following statement form a separated unit; trailing
+inline comments impose no additional spacing.
 The first statement in a suite needs no leading separator. Branch clauses stay
 with their owning statement; comments and decorators stay with the next one.
 """
@@ -12,7 +14,9 @@ from tools.container_guard import require_container
 require_container()
 
 import ast
+import io
 import textwrap
+import tokenize
 import unittest
 
 from .sources import ROOT, python_sources
@@ -25,23 +29,20 @@ def _multiline(*, statement: ast.stmt) -> bool:
         if isinstance(statement.value.value, str):
             return False
 
+    return statement.end_lineno > _statement_start(statement=statement)
+
+
+def _statement_start(*, statement: ast.stmt) -> int:
     decorators = getattr(statement, "decorator_list", [])
-    start = min([statement.lineno, *(decorator.lineno for decorator in decorators)])
 
-    return statement.end_lineno > start
+    return min([statement.lineno, *(decorator.lineno for decorator in decorators)])
 
 
-def _attached_start(*, statement: ast.stmt, previous: ast.stmt, lines: list[str]) -> int:
-    decorators = getattr(statement, "decorator_list", [])
-    start = min([statement.lineno, *(decorator.lineno for decorator in decorators)])
+def _attached_start(*, statement: ast.stmt, comment_columns: dict[int, int]) -> int:
+    """Include genuine standalone comments at this statement's indentation."""
+    start = _statement_start(statement=statement)
 
-    while start > previous.end_lineno + 1:
-        preceding = lines[start - 2]
-        indentation = len(preceding) - len(preceding.lstrip())
-
-        if not preceding.lstrip().startswith("#") or indentation != statement.col_offset:
-            break
-
+    while comment_columns.get(start - 1) == statement.col_offset:
         start -= 1
 
     return start
@@ -65,6 +66,13 @@ def missing_blank_lines(*, source: str) -> list[int]:
     """Return one-based insertion lines without entering strings or branch clauses."""
     tree = ast.parse(source=source)
     lines = source.splitlines()
+
+    comment_columns = {
+        token.start[0]: token.start[1]
+        for token in tokenize.generate_tokens(readline=io.StringIO(source).readline)
+        if token.type == tokenize.COMMENT and not lines[token.start[0] - 1][:token.start[1]].strip()
+    }
+
     missing = set()
 
     for owner in ast.walk(node=tree):
@@ -74,16 +82,18 @@ def missing_blank_lines(*, source: str) -> list[int]:
 
             for (previous, statement) in zip(value, value[1:]):
                 ends_attribute_group = _assigns_self_attributes(statement=previous) and not _assigns_self_attributes(statement=statement)
+                previous_start = _attached_start(statement=previous, comment_columns=comment_columns)
+                start = _attached_start(statement=statement, comment_columns=comment_columns)
 
                 if not (
                     isinstance(statement, ast.Return)
                     or ends_attribute_group
+                    or previous_start < _statement_start(statement=previous)
+                    or start < _statement_start(statement=statement)
                     or _multiline(statement=previous)
                     or _multiline(statement=statement)
                 ):
                     continue
-
-                start = _attached_start(statement=statement, previous=previous, lines=lines)
 
                 if not any(not line.strip() for line in lines[previous.end_lineno:start - 1]):
                     missing.add(start)
@@ -92,6 +102,35 @@ def missing_blank_lines(*, source: str) -> list[int]:
 
 
 class StatementSpacingPostureTests(unittest.TestCase):
+    def test_standalone_comment_and_statement_are_separated_as_one_unit(self):
+        source = "first = 1\n# Explain the next assignment.\nsecond = 2\nthird = 3\n"
+        self.assertEqual(first=[2, 4], second=missing_blank_lines(source=source))
+        self.assertEqual(first=[], second=missing_blank_lines(source=source.replace("\n#", "\n\n#").replace("\nthird", "\n\nthird")))
+
+    def test_commented_first_statement_needs_only_a_trailing_separator(self):
+        source = "def run():\n    # Explain the first assignment.\n    first = 1\n    second = 2\n"
+        self.assertEqual(first=[4], second=missing_blank_lines(source=source))
+
+    def test_commented_last_statement_needs_no_trailing_blank(self):
+        source = "def run():\n    # Explain the assignment.\n    first = 1\n"
+        self.assertEqual(first=[], second=missing_blank_lines(source=source))
+
+    def test_consecutive_commented_statements_share_one_separator(self):
+        source = "# First assignment.\nfirst = 1\n# Second assignment.\nsecond = 2\n"
+        self.assertEqual(first=[3], second=missing_blank_lines(source=source))
+
+    def test_inline_comments_do_not_require_separators(self):
+        source = "first = 1\nsecond = 2  # Explain this assignment.\nthird = 3\n"
+        self.assertEqual(first=[], second=missing_blank_lines(source=source))
+
+    def test_hash_inside_a_string_is_not_an_attached_comment(self):
+        source = '\"\"\"Text\n#\"\"\"\nfirst = 1\nsecond = 2\n'
+        self.assertEqual(first=[], second=missing_blank_lines(source=source))
+
+    def test_decorator_internal_comment_stays_with_the_declaration(self):
+        source = "@first\n# Explain the second decorator.\n@second\ndef run(): pass\n"
+        self.assertEqual(first=[], second=missing_blank_lines(source=source))
+
     def test_consecutive_guards_require_a_separator(self):
         source = "if missing:\n    raise RuntimeError()\nif pending:\n    submit()\n"
         self.assertEqual(first=[3], second=missing_blank_lines(source=source))
@@ -246,6 +285,6 @@ class StatementSpacingPostureTests(unittest.TestCase):
 
         for path in python_sources(production_only=False):
             for line in missing_blank_lines(source=path.read_text(encoding="utf-8")):
-                findings.append(f"{path.relative_to(ROOT)}:{line}: insert a blank line here; separate returns, completed self-attribute assignment groups and multiline statements or blocks; split a shared semicolon line first")
+                findings.append(f"{path.relative_to(ROOT)}:{line}: insert a blank line here; separate commented statements, returns, completed self-attribute assignment groups and multiline statements or blocks; split a shared semicolon line first")
 
         self.assertEqual(first=[], second=findings, msg="\n".join(findings))

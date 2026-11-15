@@ -909,6 +909,7 @@ class AttemptController:
             return
 
         await contain_task_exit(retire_session, self.session)
+
         # Record only this controller's cleanup confirmation. Execution retains
         # its own confirmation; an approved handoff can finish independently.
         self._retired_by_controller = True

@@ -407,8 +407,10 @@ class ImageBuildProxyTransportTests(unittest.TestCase):
             _PROXY.relay(left, right)
 
         right.settimeout.assert_called_once_with(118)
+
         # silent-defaults: allow-contract -- A blocked first write stops after one select; a completed write reaches the next select before inactivity expires; proof=tests/deployment/test_proxy_posture.py::ImageBuildProxyTransportTests.test_relay_resets_inactivity_only_after_a_completed_bounded_write
         self.assertEqual(selected.call_count, 1 if blocked else 2)
+
         # silent-defaults: allow-contract -- Only the completed write renews inactivity from second three, moving expiry from 120 to 123; proof=tests/deployment/test_proxy_posture.py::ImageBuildProxyTransportTests.test_relay_resets_inactivity_only_after_a_completed_bounded_write
         self.assertEqual(clock[0], 120 if blocked else 123)
 
@@ -595,6 +597,7 @@ class ImageBuildProxyWorkerTests(unittest.TestCase):
 
                 # silent-defaults: allow-contract -- Only the CONNECT-remainder scenario supplies body bytes so that its initial forwarding write is exercised; proof=tests/deployment/test_proxy_posture.py::ImageBuildProxyWorkerTests.test_initial_forwarding_write_failure_does_not_append_http_failure
                 remainder = b"body" if phase == "connect_remainder" else b""
+
                 writer = request if phase == "connect_status" else connection
                 writer.sendall.side_effect = OSError(_PRIVATE)
                 (stderr, stdout) = (io.StringIO(), io.StringIO())
@@ -723,8 +726,10 @@ class ImageBuildProxyWorkerTests(unittest.TestCase):
             self.assertIn("Readiness was published; serving will continue", stderr.getvalue())
             self.assertIn("Cannot confirm temporary readiness cleanup", stderr.getvalue())
             self.assertNotIn(_PRIVATE, stderr.getvalue())
+
             # silent-defaults: allow-contract -- The replacement scenario keeps its replacement receipt; the ordinary scenario keeps the published port receipt while serving continues; proof=tests/deployment/test_proxy_posture.py::ImageBuildProxyWorkerTests.test_readiness_published_receipt_still_serves_when_temporary_cleanup_fails
             self.assertEqual(ready.read_text(encoding="ascii"), "replacement receipt\n" if replaced else "12345\n")
+
             retained = list(Path(temporary).glob(".proxy-ready.*"))
             self.assertEqual(1, len(retained))
             self.assertEqual("12345\n", retained[0].read_text(encoding="ascii"))

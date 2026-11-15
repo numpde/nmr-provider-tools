@@ -119,6 +119,7 @@ class DeliveryLifecycleInterleavings(unittest.IsolatedAsyncioTestCase):
                     # observation allowance before its gate was released.
                     # Its own later settlement remains the authority.
                     self.assertIs(original_result, original.controller.last_failure)
+
                     await asyncio.wait_for(original.controller.settle(), 6)
                 else:
                     self.assertIs(type(original_result), DeliveryAcceptedCheckpoint)
@@ -220,8 +221,10 @@ class DeliveryLifecycleInterleavings(unittest.IsolatedAsyncioTestCase):
                         self.assertEqual(1, len(delivery.offers))
                         self.assertFalse(delivery.accepted.is_set())
                         self.assertIs(run.controller.operation._delivery_outcome, original)
+
                         # silent-defaults: allow-contract -- A lost acknowledgement follows acceptance; an unavailable receiver has accepted no report.
                         self.assertEqual([original] if disposition == "lost" else [], delivery.items)
+
                         self.assertTrue(run.controller.work_settled)
                         self.assertFalse(run.controller.shutdown_ready)
                         self.assertEqual((run.controller,), claims.live_owners())

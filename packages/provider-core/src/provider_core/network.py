@@ -26,6 +26,7 @@ from anyio.streams.tls import TLSStream
 # These adapters belong to the pinned httpcore 1.0.9 backend. Reuse its
 # timeout/error conversion while choosing TLS shutdown policy explicitly.
 from httpcore._backends.anyio import AnyIOStream
+
 from httpcore._exceptions import map_exceptions
 
 
@@ -102,6 +103,7 @@ def _availability(cause, remaining, observation, *, timeout_cancellation=False):
         return False
 
     context = observation.context if cause is observation.error else cause.__context__
+
     # AnyIO's grouped address failure uses an explicit OSError cause. An
     # errno-less local setup error cannot borrow incidental handler context.
     preceding = explicit if explicit is not None or type(cause) is OSError else context

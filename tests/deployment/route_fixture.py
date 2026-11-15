@@ -283,6 +283,7 @@ def compose(projection, image, namespace, operation, fixture, support):
     # The explicit canary can reach the TLS peer directly. Losing the selected
     # proxy must still fail, so a hidden transport fallback cannot pass.
     plan["services"]["canary"] = copy.deepcopy(plan["services"]["client"])
+
     plan["services"]["canary"]["network_mode"] = "host"
 
     for volume in plan["volumes"].values():

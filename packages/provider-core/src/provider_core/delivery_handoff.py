@@ -111,8 +111,10 @@ def read_delivery_handoff(raw):
             raise DeliveryHandoffRejected("Delivery handoff requires complete API and outcome fields.")
 
         credential = _decoded(document["credential"])
+
         # silent-defaults: allow-contract -- Preserve an explicit absence of CA bytes across the handoff.
         ca = None if document["ca"] is None else _decoded(document["ca"])
+
         (settings, provider_ref) = api_settings_from_material(api, credential_bytes=credential, ca_bytes=ca)
 
         material = ApiPublicationMaterial(settings.identity.origin, api["profile"], settings.expected_topology,

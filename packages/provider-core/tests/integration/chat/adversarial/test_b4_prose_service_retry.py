@@ -42,8 +42,10 @@ class ProseServiceRetryTests(unittest.IsolatedAsyncioTestCase):
 
         async def restore_only_the_prose_service():
             await unavailable_reply_sent.wait()
+
             # Restoration does not revoke the two-second wait already sent.
             await asyncio.sleep(1.6)
+
             restored.set()
 
         async with TlsPeer("success", response_factory=response) as peer:

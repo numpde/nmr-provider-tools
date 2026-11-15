@@ -196,9 +196,11 @@ class AdoptionTests(unittest.IsolatedAsyncioTestCase):
             self.assertEqual(first={}, second=operation.analysis.operations)
             self.assertEqual(first={}, second=operation.analysis.states)
             self.assertEqual(first=0, second=self.host.input_used)
+
             # The finished analysis does not own result release. The result
             # remains readable, and its unreleased bytes remain host-owned.
             self.assertTrue(expr=await operation.read_result(result=completed.result))
+
             self.assertEqual(first=1, second=len(self.host.operations))
             await observe_cleanup(control=operation.release_result(result=completed.result))
             self.assertEqual(first={}, second=self.host.operations)

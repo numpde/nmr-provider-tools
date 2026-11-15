@@ -429,6 +429,7 @@ class CapturedNativeTests(unittest.TestCase):
 
                 # silent-defaults: allow-contract -- The cancellation-only scenario is untimed; the two expiry scenarios receive a one-second client budget; proof=tests/repository/test_inference_native.py::CapturedNativeTests.test_container_expiry_and_repeated_cancellation_never_renew_grace
                 budget = "untimed" if phase == "during-cancellation" else "1"
+
                 (command, environment) = self.container_policy_command(budget=budget, mode="stdio")
 
                 process = subprocess.Popen(
@@ -453,8 +454,10 @@ class CapturedNativeTests(unittest.TestCase):
 
                 (stdout, stderr) = process.communicate(timeout=5)
                 self.retain_cleanup(stderr)
+
                 # silent-defaults: allow-contract -- The known-expiry case injects HUP and expects 129; the other cases inject INT and expect 130; proof=tests/repository/test_inference_native.py::CapturedNativeTests.test_container_expiry_and_repeated_cancellation_never_renew_grace
                 expected = 129 if phase == "known-at-expiry" else 130
+
                 self.assertEqual(expected, process.returncode, msg=stderr)
                 self.assertEqual("", stdout)
                 self.assertEqual(f"{expected} {expected} true\n", (self.root / "container-outcome").read_text())
@@ -784,6 +787,7 @@ class CapturedNativeTests(unittest.TestCase):
                 with self.subTest(mode=mode, early=early):
                     self.helper.write_text(source.replace(creation, "scratch=$(exit 28)", 1) if early else source)
                     (command, environment) = self.outcome_command(mode, next_success=False)
+
                     # silent-defaults: allow-contract -- Scratch creation failure needs no publication fault; the post-creation case fails ready publication before native dispatch; proof=tests/repository/test_inference_native.py::CapturedNativeTests.test_early_known_and_unknown_failures_reset_outcome_without_dispatch
                     additions = {} if early else {"NATIVE_PUBLICATION_FAILURE": "ready"}
 
@@ -810,6 +814,7 @@ class CapturedNativeTests(unittest.TestCase):
                     # Inject at the unique copy boundary; this does not claim
                     # to observe the external scheduler's tiny signal window.
                     self.helper.write_text(source.replace(boundary, f'    kill -{int(signum)} "$BASHPID"\n' + boundary, 1))
+
                     (command, environment) = self.outcome_command(mode, next_success=False)
                     result = subprocess.run(command, env=environment | {"PATH": os.environ["PATH"]}, capture_output=True, text=True, timeout=5, check=False)
                     self.retain_cleanup(result.stderr)
@@ -918,6 +923,7 @@ class CapturedNativeTests(unittest.TestCase):
         self.await_file(self.observation)
         observed = json.loads(self.observation.read_text())
         drain = int(drain_receipt.read_text())
+
         # These finite fixture processes remain recorded after their anchor dies.
         # Cleanup uses only those exact observations, after collecting primary status.
         os.kill(observed["parent"], signal.SIGKILL)
@@ -997,6 +1003,7 @@ class CapturedNativeTests(unittest.TestCase):
         self.assertEqual(1, source.count(retirement))
         self.assertEqual(1, source.count(birth))
         self.assertEqual(1, source.count(join))
+
         # TERM leaves the held anchor live so its actual wait can be interrupted.
         # Record that exact group before startup so failed assertions can retire
         # it before the next signal scenario starts.
@@ -1114,6 +1121,7 @@ class CapturedNativeTests(unittest.TestCase):
 
         # Corrupt only the second call: the first true fact cannot grant later cleanup.
         source = self.helper.read_text()
+
         entry = "    inference_result=\n    inference_retirement_confirmed=true\n"
         self.assertEqual(1, source.count(entry))
 
@@ -1355,9 +1363,11 @@ class CapturedNativeTests(unittest.TestCase):
         self.assertFalse(self.observation.exists())
         observed = json.loads(self.control.read_text())
         self.assertTrue(Path(observed["directory"]).is_dir())
+
         # This external probe owns the finite injected anchor and retires it;
         # production correctly made no group effect from its corrupted receipt.
         os.killpg(observed["anchor"], signal.SIGKILL)
+
         self.assert_retired(observed["anchor"])
         self.assert_retired(int(receipt.read_text()))
 
@@ -1370,6 +1380,7 @@ class CapturedNativeTests(unittest.TestCase):
                     source = self.helper.read_text()
                     terminal = '        if { printf "%s\\n" "$status" > "$receipt.pending" \\\n'
                     self.assertEqual(1, source.count(terminal))
+
                     # Fail the first write step through the same timestamped
                     # fixture used for a failed final status rename.
                     self.helper.write_text(source.replace(terminal, '        if { mv -- "$receipt.ready" "$receipt.printf" \\\n', 1))
@@ -1550,6 +1561,7 @@ class CapturedNativeTests(unittest.TestCase):
 class StdioNativeTests(unittest.TestCase):
     # Reuse the existing finite filesystem/process fixture, not captured tests.
     setUp = CapturedNativeTests.setUp
+
     command = CapturedNativeTests.command
     await_file = CapturedNativeTests.await_file
     assert_retired = CapturedNativeTests.assert_retired
@@ -1855,6 +1867,7 @@ class StdioNativeTests(unittest.TestCase):
                     # The helper returns the diagnostic; publishing that result
                     # to this deliberately full pipe is the harness's decision.
                     diagnostic = self.root / "stdio-cleanup-diagnostic"
+
                     publication = 'printf "%s" "$inference_diagnostic" >&2'
                     self.assertEqual(1, command[2].count(publication))
 
@@ -1884,9 +1897,11 @@ class StdioNativeTests(unittest.TestCase):
 
                     try:
                         process.send_signal(signum)
+
                         # Keep both consumers unread until owner exit. communicate
                         # would drain a full stderr pipe and conceal owner writes.
                         self.assertEqual(128 + signum, process.wait(timeout=4))
+
                         self.assertEqual("true\n", (self.root / "retired").read_text())
                         self.assert_client_retired()
                         self.assertFalse(Path(json.loads(self.control.read_text())["directory"]).exists())

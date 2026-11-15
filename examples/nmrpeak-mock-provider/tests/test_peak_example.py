@@ -130,6 +130,7 @@ class PeakExampleTests(unittest.IsolatedAsyncioTestCase):
                 for family in families:
                     # Each model needs independent nested settings before beam_size changes.
                     configured = deepcopy(x=document["science"][family][0])
+
                     entries = selected[family]
                     configured["settings"]["beam_size"] = len(entries) + 1
                     entries.append(configured)

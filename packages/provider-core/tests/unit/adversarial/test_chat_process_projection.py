@@ -36,6 +36,7 @@ class ChatProcessProjectionTests(unittest.TestCase):
                 # Exercise the actual parent evidence merge after admitting a
                 # child reply; no process or TLS setup is needed for this state.
                 transport = SupervisedChatTransport.__new__(SupervisedChatTransport)
+
                 transport._update_failure(exchange)
                 self.assertIs(child, transport.last_failure)
                 self.assertIs(expected, child.caller_interruption)

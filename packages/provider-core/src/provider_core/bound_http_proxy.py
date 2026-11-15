@@ -39,22 +39,27 @@ from provider_core.diagnostic_text import CredentialRedactingFormatter
 # https://github.com/numpde/magnet-deploy/blob/2d4ee50b0359e71900fce9289ea01f46d0f41249/scripts/image-build-proxy.py#L31-L36
 # repo-check: allow-module-constant
 MAX_HEADER_BYTES = 64 * 1024
+
 # Relay owns one bounded forwarding chunk rather than an accumulated body.
 # https://github.com/numpde/magnet-deploy/blob/2d4ee50b0359e71900fce9289ea01f46d0f41249/scripts/image-build-proxy.py#L31-L36
 # repo-check: allow-module-constant
 BUFFER_BYTES = 128 * 1024
+
 # Header reads share one absolute admission budget across all fragments.
 # https://github.com/numpde/magnet-deploy/blob/2d4ee50b0359e71900fce9289ea01f46d0f41249/scripts/image-build-proxy.py#L31-L36
 # repo-check: allow-module-constant
 HEADER_SECONDS = 30
+
 # DNS and destination addresses share the connection owner's finite budget.
 # https://github.com/numpde/magnet-deploy/blob/2d4ee50b0359e71900fce9289ea01f46d0f41249/scripts/image-build-proxy.py#L31-L36
 # repo-check: allow-module-constant
 CONNECT_SECONDS = 30
+
 # Relay renews this inactivity budget only after a completed bounded write.
 # https://github.com/numpde/magnet-deploy/blob/2d4ee50b0359e71900fce9289ea01f46d0f41249/scripts/image-build-proxy.py#L31-L36
 # repo-check: allow-module-constant
 RELAY_IDLE_SECONDS = 120
+
 # The listener reserves this fixed worker capacity before allocating threads.
 # https://github.com/numpde/magnet-deploy/blob/2d4ee50b0359e71900fce9289ea01f46d0f41249/scripts/image-build-proxy.py#L31-L36
 # repo-check: allow-module-constant
@@ -107,6 +112,7 @@ def receive_headers(client: socket.socket) -> tuple[bytes, bytes]:
         # A fragment arriving after the deadline cannot complete admission.
         # https://github.com/numpde/magnet-deploy/blob/2d4ee50b0359e71900fce9289ea01f46d0f41249/scripts/image-build-proxy.py#L54-L56
         client.settimeout(_remaining(deadline, "header read"))
+
         chunk = client.recv(8192)
         _remaining(deadline, "header read")
 
@@ -115,6 +121,7 @@ def receive_headers(client: socket.socket) -> tuple[bytes, bytes]:
 
         data.extend(chunk)
         terminator = data.find(b"\r\n\r\n")
+
         # Coalesced body bytes belong to forwarding, not header admission.
         # https://github.com/numpde/magnet-deploy/blob/2d4ee50b0359e71900fce9289ea01f46d0f41249/repository_checks/test_image_build_proxy.py#L88
         header_bytes = terminator + 4 if terminator >= 0 else len(data)
@@ -311,6 +318,7 @@ def _query_ipv4(
         resolver.send(request)
         resolver.settimeout(_remaining(query_deadline, "DNS query"))
         response = resolver.recv(65535)
+
         # Native timeouts bound the wait, but a late successful return must
         # also fail admission. This closes the inherited upstream deadline gap.
         # https://github.com/numpde/magnet-deploy/blob/2d4ee50b0359e71900fce9289ea01f46d0f41249/scripts/image-build-proxy.py#L183-L184
@@ -422,10 +430,13 @@ def resolve_ipv4_bound(
 
     # silent-defaults: allow-contract -- Distinguish failed DNS queries from completed replies containing no IPv4 address; neither outcome selects another route.
     reason = "the configured DNS queries failed" if failures else "the configured resolvers did not return an IPv4 address"
+
     failure = ProxyResolutionFailed(f"Cannot resolve proxy destination on the selected interface: {reason}.", failures)
+
     # Preserve source-bearing evidence privately; service logs use only the
     # owned reason above and bounded native exception classes/errno.
     failure.add_note("; ".join(errors))
+
     raise failure
 
 
@@ -445,6 +456,7 @@ def connect_bound(host: str, port: int, interface: str, *, dns_servers: tuple[st
 
             outbound.settimeout(_remaining(deadline, "connection"))
             outbound.connect((address, port))
+
             # A late successful connect still owns an open socket; reject it
             # inside this try so the existing failure path closes the socket.
             # https://github.com/numpde/magnet-deploy/blob/2d4ee50b0359e71900fce9289ea01f46d0f41249/scripts/image-build-proxy.py#L267-L272
@@ -493,25 +505,30 @@ def relay(left: socket.socket, right: socket.socket) -> None:
                     # EOF closes only this direction; the reverse direction
                     # can still carry a response to a completed client upload.
                     readers.remove(source)
+
                     operation = "half-close the destination after source EOF"
                     destination.shutdown(socket.SHUT_WR)
                     continue
 
                 operation = f"write {len(data)} bytes"
+
                 # select does not guarantee that a later write cannot stall.
                 destination.settimeout(_remaining(deadline, "relay write"))
+
                 destination.sendall(data)
             except OSError as error:
                 # Keep the native exception and its traceback. The relay knows
                 # direction and operation, but cannot infer HTTP acceptance
                 # from encrypted bytes or claim a failed write delivered none.
                 error.add_note(f"Proxy relay {direction}: could not {operation}; delivery may be partial.")
+
                 raise
 
             # Only a write completed within the budget can renew inactivity.
             # Upstream resets immediately after sendall, accepting late success.
             # https://github.com/numpde/magnet-deploy/blob/2d4ee50b0359e71900fce9289ea01f46d0f41249/scripts/image-build-proxy.py#L296-L298
             _remaining(deadline, "relay write")
+
             deadline = time.monotonic() + RELAY_IDLE_SECONDS
 
 
@@ -545,6 +562,8 @@ class ProxyHandler(socketserver.BaseRequestHandler):
         A fixed HTTP error is emitted only before forwarding is attempted. Once
         a write starts, its completion may be uncertain and a second HTTP status
         would corrupt the forwarded response or CONNECT tunnel.
+
+        Forwarding gives both peer sockets a fresh bounded write timeout.
         """
         phase = "request admission"
 
@@ -557,10 +576,12 @@ class ProxyHandler(socketserver.BaseRequestHandler):
                 # the first HTTP header or CONNECT-success write is attempted.
                 # https://github.com/numpde/magnet-deploy/blob/2d4ee50b0359e71900fce9289ea01f46d0f41249/repository_checks/test_image_build_proxy.py#L296
                 phase = "forwarding"
-                # Header admission leaves its remaining timeout on the client;
-                # forwarding owns a fresh bounded write budget for both peers.
+
+                # Header admission leaves its remaining timeout on this client
+                # socket; reset it so forwarding gets a fresh write budget.
                 # https://github.com/numpde/magnet-deploy/blob/2d4ee50b0359e71900fce9289ea01f46d0f41249/scripts/image-build-proxy.py#L312-L315
                 self.request.settimeout(RELAY_IDLE_SECONDS)
+
                 outbound.settimeout(RELAY_IDLE_SECONDS)
 
                 if method == "CONNECT":
@@ -692,6 +713,7 @@ class UnixProxyServer(ProxyServer):
         # Never unlink an existing path. The launcher owns the private parent
         # and removes it only after every container borrower has retired.
         super().server_bind()
+
         Path(self.server_address).chmod(0o600)
 
 
@@ -768,6 +790,7 @@ def publish_readiness(ready_file, content):
         # only complete content and cannot overwrite a file or symlink.
         # https://github.com/numpde/magnet-deploy/blob/2d4ee50b0359e71900fce9289ea01f46d0f41249/scripts/image-build-proxy.py#L398-L410
         os.link(temporary, ready_file, follow_symlinks=False)
+
         published = True
     except OSError as error:
         raise SystemExit(f"Cannot start proxy: readiness publication failed ({type(error).__name__}).") from None

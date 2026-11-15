@@ -22,9 +22,11 @@ from unittest.mock import patch
 from .sources import REPOSITORY_ROOT
 
 WORKFLOW_ROOT = REPOSITORY_ROOT / ".github" / "workflows"
+
 # This port does not introduce a hosted CI workflow (notes/001). Adding a workflow requires review of
 # this inventory; discovery alone cannot authorize a new execution surface.
 REVIEWED_WORKFLOWS: tuple[str, ...] = ()
+
 ACTION_USES_LINE = re.compile(r"(?m)^[ \t]+uses:[ \t]+(?P<target>\S+)")
 PINNED_EXTERNAL_USES = re.compile(r"^[^@\s]+@[0-9a-f]{40}$")
 

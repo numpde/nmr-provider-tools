@@ -129,7 +129,10 @@ class ApiEnvelopeTests(unittest.IsolatedAsyncioTestCase):
 
             # silent-defaults: allow-contract -- Only the known correlated problem obtains the reviewed local code.
             self.assertEqual(caught.exception.problem_code, "signature_expired" if known else None)
+
             self.assertEqual(caught.exception.issuance_may_have_committed, not known)
+
             # silent-defaults: allow-contract -- A missing request ID remains absent in the refusal specimen.
             self.assertEqual(caught.exception.request_id, None if request_id is None else request_id.decode())
+
             self.assertNotIn("PRIVATE", str(caught.exception))

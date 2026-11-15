@@ -30,6 +30,7 @@ from provider_core.process_status import ProcessStatus
 # Use a fixed diagnostic role for the reusable session owner.
 # repo-check: allow-module-constant
 LOGGER = logging.getLogger("provider_core.runner")
+
 # One fixed lock leaf owns the exclusive runner session.
 # repo-check: allow-module-constant
 LOCK_NAME = ".owner-session.lock"
@@ -183,9 +184,11 @@ def _operation(control, *, generation, lock_identity, lease, scratch_fd, argv, o
         os.mkdir(operation, mode=0o700, dir_fd=scratch_fd)
         created = True
         (science, child) = socket.socketpair()
+
         # Reference the supervisor's held root, without passing that root FD to
         # the child. It remains valid until this child's cleanup has settled.
         work = f"/proc/{os.getpid()}/fd/{scratch_fd}/{operation}"
+
         environment = os.environ | {"TMPDIR": str(work)}
 
         worker = subprocess.Popen(

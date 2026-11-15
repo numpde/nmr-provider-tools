@@ -155,10 +155,12 @@ class DeliveryWorker:
                             seconds += minimum
 
                         self.on_notice(failure, {**facts("delivery_retry"), "retry_seconds": seconds})
+
                         # New arrivals must not bypass backoff. Only shutdown ends
                         # this wait early; no overall expiry discards a durable item.
                         # silent-defaults: allow-contract -- No Retry-After header adds no server-directed delay.
                         await self._backoff(delay, 0 if minimum is None else minimum, seconds)
+
                         delay = min(self.retry_max_seconds, delay * 2)
                         continue
 

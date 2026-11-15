@@ -57,8 +57,10 @@ class AttemptOutcomeIntegrationTests(unittest.IsolatedAsyncioTestCase):
                 self.assertTrue(result.replayed)
                 self.assertEqual(peer.request_bodies, [body, body])
                 signatures = []
+
                 # silent-defaults: allow-contract -- The selected terminal method determines the expected complete or fail wire operation.
                 operation = b"complete" if completing else b"fail"
+
                 path = b"/provider/v1/execution-attempts/" + operation
 
                 for request in peer.requests:

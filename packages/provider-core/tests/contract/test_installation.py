@@ -175,6 +175,7 @@ class InstallationContractTests(unittest.TestCase):
 
     def test_missing_container_marker_rejects_operational_import(self):
         environment = dict(os.environ)
+
         # silent-defaults: allow-pop-default -- Remove the inherited marker only to prove the missing-marker refusal.
         environment.pop("PROVIDER_CORE_IN_CONTAINER", None)
 

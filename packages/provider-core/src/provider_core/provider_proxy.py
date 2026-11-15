@@ -207,10 +207,13 @@ class LiveProxyConfiguration:
 
         maximum = table.get("max_connections")
         level = table.get("log_level")
+
         # silent-defaults: allow-contract -- Existing settings gain the seven-second ramp when the runtime is updated.
         delay = table.get("max_admission_delay_seconds", 7.0)
+
         # silent-defaults: allow-contract -- Existing settings use the ready-first order when the runtime is updated.
         order = table.get("admission_order", "ready")
+
         authorities = table.get("allowed_authorities")
 
         if type(maximum) is not int or maximum <= 0:

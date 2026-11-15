@@ -139,8 +139,10 @@ class ApiNetworkAvailabilityTests(unittest.IsolatedAsyncioTestCase):
             with self.subTest(error=type(original).__name__, expected=expected):
                 failure = wrapper(original)
                 facts = await self.capture_connect(failure)
+
                 # The pinned pool can erase links on this same original object.
                 failure.__cause__ = None
+
                 failure.__context__ = RuntimeError("unrelated later handler")
                 self.assertIs(facts.cause, original)
                 self.assertIs(network_availability(failure, facts, network_failure=failure), expected)
@@ -204,8 +206,10 @@ class ApiNetworkAvailabilityTests(unittest.IsolatedAsyncioTestCase):
                 self.assertIs(client.can_retry_condition(failure, execution_attempt_ref=ATTEMPT_REF), selected == "progress")
                 self.assertIs(failure.issuance_may_have_committed, issuance)
                 self.assertIs(failure.attempt_mutation_may_have_committed, mutation)
+
                 # Same known availability cannot authorize foreign cleanup or a later operation.
                 failure.cause.cleanup_failures = (OSError("independent close"),)
+
                 self.assertFalse(any(check(failure) for check in checks.values()))
                 failure.cause.cleanup_failures = ()
                 client.last_failure = ApiFailure("next", "failure")
@@ -219,8 +223,10 @@ class ApiNetworkAvailabilityTests(unittest.IsolatedAsyncioTestCase):
             with self.subTest(local=local):
                 # silent-defaults: allow-contract -- The local specimen supplies a complete body so native reads cannot author its fault.
                 chunks = [head+b"x"] if local else [head]
+
                 # silent-defaults: allow-contract -- Only the native specimen raises from the stream; both use the same original exception.
                 native_error = None if local else original
+
                 stream = RawStream(chunks=chunks, error=native_error)
                 transport = self.transport()
                 client = api(transport, "https://api.fixture.example")
@@ -294,8 +300,10 @@ class ApiNetworkAvailabilityTests(unittest.IsolatedAsyncioTestCase):
             for (method, path) in (("GET", "/provider/v1/jobs/job:example/uploads"), ("POST", grant_path)):
                 with self.subTest(status=status, topology=topology, malformed=malformed, method=method):
                     headers = response_headers(status=status, topology=topology)
+
                     # silent-defaults: allow-contract -- The matrix deliberately contrasts malformed chunk syntax with actual truncated-body EOF.
                     framing = b"Transfer-Encoding: chunked\r\n\r\nnothex\r\nx" if malformed else b"Content-Length: 2\r\n\r\nx"
+
                     stream = RawStream(chunks=[f"HTTP/1.1 {status} controlled\r\n".encode() + b"".join(k+b": "+v+b"\r\n" for (k,v) in headers) + framing])
                     transport = self.transport()
                     client = api(transport, "https://api.fixture.example")
@@ -386,6 +394,7 @@ class ApiNetworkAvailabilityTests(unittest.IsolatedAsyncioTestCase):
                 stream = CancelledRead()
                 transport = self.transport(exchange_seconds=.02)
                 client = api(transport, "https://api.fixture.example")
+
                 # This witness isolates aggregate deadline cancellation; httpcore's
                 # separate read deadline must not race it for the same 20 ms.
                 original_read = httpcore._backends.anyio.AnyIOStream.read

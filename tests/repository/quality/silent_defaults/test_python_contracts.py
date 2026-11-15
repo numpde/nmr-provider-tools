@@ -778,6 +778,7 @@ class PythonContractApplicabilityTests(unittest.TestCase):
         # This placement was formerly rejected alongside unsupported Return
         # neighbours; the For header now owns its generic iterable explicitly.
         source = 'for value in payload.get("results", []):\n    consume(value)\n'
+
         (raw, applicable) = self.exercise_property(source, accepted=False)
         self.assertEqual(1, len(raw))
         self.assertEqual(raw, applicable)

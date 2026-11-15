@@ -52,6 +52,7 @@ class WaitingDispatch(Session):
         self.checked = True
 
         report_condition.require_execution()
+
         # No yield between permission and this recording dispatch commitment.
         self.dispatches += 1
 
@@ -213,6 +214,7 @@ class CaughtInFlightReport(Session):
                 self.dispatches += 1
         finally:
             self.transport.release.set()
+
             # The child is owned and joined even when its poisoned report raises.
             self.report_results = await asyncio.gather(task, return_exceptions=True)
 
@@ -310,9 +312,11 @@ class ExecutionPermissionAdditionalTests(unittest.IsolatedAsyncioTestCase):
 
     async def test_expired_actual_observation_window_blocks_dispatch_before_timer_callback(self):
         transport = LiveConditionTransport()
+
         # First three reads are admission/preparation/entry observations; the
         # fourth is the actual monitor read while execute awaits dispatch.
         transport.block_read = 4
+
         recovery = ObservationRecovery(1, 0.1, Mock(), Mock())
 
         (controller, session, delivery) = composed(DeadlineDispatch, transport,

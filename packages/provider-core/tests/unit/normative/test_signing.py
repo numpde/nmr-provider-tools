@@ -36,8 +36,10 @@ class SigningTests(unittest.TestCase):
                 )
 
                 self.assertEqual(request.url.raw_path, b"/provider/input?job=job%3Ax&kind=a%2Fb")
+
                 # silent-defaults: allow-contract -- HTTPX exposes both as empty content; the following digest assertions preserve the supplied-body distinction.
                 self.assertEqual(request.content, body or b"")
+
                 self.assertEqual(request.headers["Host"], "api.example")
                 components = '"@method" "@authority" "@path" "@query"'
 

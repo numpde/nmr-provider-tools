@@ -108,6 +108,7 @@ class DeliveryProgressNoticeTests(unittest.IsolatedAsyncioTestCase):
         async with api_tls_peer("success", response_factory=response, response_mode=response_mode) as peer:
             item = replace(outcome(), api_origin=peer.origin)
             self.queue.enqueue(item)
+
             # Queue age and this publisher's elapsed wait are different facts.
             # A notice must not include time before this owner began publishing.
             await asyncio.sleep(0.12)
@@ -145,10 +146,12 @@ class DeliveryProgressNoticeTests(unittest.IsolatedAsyncioTestCase):
 
                 age = facts["publication_wait_seconds"]
                 self.assertIsInstance(age, (int, float), msg=evidence)
+
                 # The publication call starts after worker startup and before
                 # the TLS peer receives its first request. A small scheduling
                 # allowance covers calculating a fact before its callback.
                 self.assertGreaterEqual(age + 0.02, observed_at - request_times[0], msg=evidence)
+
                 self.assertLessEqual(age, observed_at - worker_started + 0.02, msg=evidence)
                 waits.append(age)
 

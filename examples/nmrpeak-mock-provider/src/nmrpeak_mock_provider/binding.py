@@ -22,11 +22,13 @@ class PeakContribution(sdk.Contribution):
         self, *, configuration: science.Settings, checkpoint_path: Path,
         create_model: Callable[[], science.Model],
     ) -> None:
+        """Retain inputs without opening the checkpoint or creating the model."""
         super().__init__()
         self.configuration = configuration
+
         # Assembly supplies the file location; configuration supplies its expected digest.
-        # Saving this path and constructor does not open the file or create the model.
         self.checkpoint_path = checkpoint_path
+
         self.create_model = create_model
         self.model: science.Model | None = None
 

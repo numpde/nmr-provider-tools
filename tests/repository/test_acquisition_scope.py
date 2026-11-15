@@ -283,6 +283,7 @@ acquisition_scope --endpoint unix:///outer.sock --bootstrap-image fixture:bootst
         binary = root / 'bin'
         binary.mkdir()
         docker = binary / 'docker'
+
         # Execute checked-in source through a symlink; scratch remains noexec.
         docker.symlink_to(Path(__file__).resolve().parent / "fixtures/acquisition_engine.sh")
 
@@ -397,6 +398,7 @@ acquisition_compose_worker offline result "$STATE/caller.yml" worker-offline
     def rescue_native_removal(self, observed, scope_pid, operation, client):
         # A retained PID alone does not authorize signalling a group.
         anchor = observed['anchor']
+
         command = Path(f'/proc/{anchor}/cmdline').read_bytes().split(b'\0')[:-1]
         start = Path(f'/proc/{anchor}/stat').read_text().rsplit(')', 1)[1].split()[19]
         self.assertEqual(observed['command'], [os.fsdecode(part) for part in command])
@@ -772,6 +774,7 @@ return 2
                         if output == 'empty':
                             # A complete EOF receipt permits recovery before stdout publication.
                             cid.write_bytes(identifier)
+
                             (expected_cid, expected_stdout) = (identifier, b'')
                             self.assertEqual(64, cid.stat().st_size)
                         elif output == 'exact':
@@ -962,8 +965,10 @@ _acq_fail 'fixture diagnostic'
 """ + action
 
                 (process, root) = self.launch(callback, env={'CALLER_EXITS': '1'})
+
                 # Do not drain stderr until the caller has observed retirement.
                 self.wait_marker(process, root / 'caller-exit')
+
                 self.assert_exit(process, root, 2)
 
     def test_exiting_caller_trap_preserves_the_framework_diagnostic(self):
@@ -1222,9 +1227,11 @@ return "$first"
                     env={'WORKER_STATUS': '0', 'FAIL_REMOVE': failed})
 
                 (stdout, stderr) = process.communicate(timeout=20)
+
                 # This fake-engine test deliberately creates unresolved owner
                 # evidence; remove only its observed test operation artifacts.
                 operation = Path((root / 'scratch').read_text().strip())
+
                 self.addCleanup(shutil.rmtree, operation, ignore_errors=True)
 
                 match = re.search(r'--config (/tmp/nmrnet-docker-client\.[^/]+)/config',

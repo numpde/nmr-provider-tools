@@ -209,8 +209,10 @@ class SharedDeliveryService(DeliveryService):
 
         if overview is not None:
             oldest = overview.pop("oldest_pending_created_at")
+
             # silent-defaults: allow-contract -- Invalid stored times have no reliable age.
             age = time.time() - oldest if type(oldest) in (int, float) and math.isfinite(oldest) else None
+
             # silent-defaults: allow-contract -- A future timestamp does not establish a nonnegative age.
             overview["oldest_pending_age_seconds"] = age if age is not None and age >= 0 else None
 
@@ -244,6 +246,7 @@ class SharedDeliveryService(DeliveryService):
             worker.request_stop()
 
         settled = await asyncio.gather(*(asyncio.shield(task) for task in tuple(self._worker_tasks.values())), return_exceptions=True)
+
         # repo-check: allow-tuple-generator -- Retain the final independent worker failures as immutable shutdown evidence.
         self.worker_failures = tuple(value for value in settled if isinstance(value, BaseException))
 

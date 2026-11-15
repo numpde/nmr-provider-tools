@@ -29,8 +29,10 @@ class UploadApiIntegrationTests(unittest.IsolatedAsyncioTestCase):
                     self.assertEqual(observed.job_ref, "job:example")
                     await asyncio.wait_for(peer.closed.wait(), 1)
                     self.assertEqual(len(peer.requests), 1)
+
                     # silent-defaults: allow-contract -- The chosen operation determines the expected mutation POST or read GET.
                     self.assertTrue(peer.requests[0].startswith(b"POST " if granting else b"GET "))
+
                     self.assertNotIn(b"private-bearer-canary", peer.requests[0])
                     self.assertNotIn(b"Content-Digest:", peer.requests[0])
                     await transport.retire()

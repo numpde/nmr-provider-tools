@@ -277,6 +277,7 @@ def owned_details(error):
     if kind is ExecutionFailed:
         # Historical failure age is not a live claim or worker-readiness check.
         details["failure_age_seconds"] = time.monotonic() - error.observed_at
+
         details["outcome_in_memory"] = error.outcome is not None
         details["condition_receipt_received"] = error.condition_receipt is not None
 

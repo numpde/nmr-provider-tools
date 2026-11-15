@@ -18,6 +18,7 @@ INTERPOLATION_DEFAULT_RE = re.compile(
 )
 
 SILENT_DEFAULTS_TEST_PARTS = frozenset({"silent_defaults"})
+
 # The original private deployment files do not exist here. No local exclusions.
 SILENT_DEFAULTS_PRIVATE_ENV_EXCLUSIONS = frozenset()
 

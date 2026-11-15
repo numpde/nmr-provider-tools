@@ -301,6 +301,7 @@ class LifecycleOrders(RuleBasedStateMachine):
             # Local stopping is not a verified remote cancellation or a
             # terminal-delivery acknowledgement.
             self.cases[name].controller.request_stop()
+
             await self._progress()
 
         self._act("local_stop", name, withdraw)
@@ -329,6 +330,7 @@ class LifecycleOrders(RuleBasedStateMachine):
                     # A failed START exchange is not a grant to prepare work,
                     # and positive cleanup cannot release uncertain custody.
                     assert case.transport.sent_disposition == "uncertain"
+
                     assert self.claims.owns_job(case.pending.scope, case.pending.input.job_ref)
                     await case.controller.settle()
                     assert self.claims.owns_job(case.pending.scope, case.pending.input.job_ref)
@@ -345,6 +347,7 @@ class LifecycleOrders(RuleBasedStateMachine):
         # Only compare against a successor whose actual science is still
         # suspended by its own gate; otherwise it may finish independently.
         original = self.cases[name]
+
         claim = original.controller._claim
 
         if (claim is None or claim.active or name not in self.tasks
@@ -364,9 +367,11 @@ class LifecycleOrders(RuleBasedStateMachine):
             (successor,) = peers
             exact_science = successor.session.science.pending
             exact_claim = successor.controller._claim
+
             # The original driver is already complete; its late observers
             # must neither dispatch again nor retire another claim.
             old_dispatches = (original.start_count, original.session.preparations)
+
             await asyncio.gather(original.controller.join(), return_exceptions=True)
             await original.controller.settle()
 
@@ -417,6 +422,7 @@ class LifecycleOrders(RuleBasedStateMachine):
                         # Selection, a rejected reply or possible local storage
                         # is not the SDK's verified acceptance checkpoint.
                         assert not case.controller.shutdown_ready
+
                         assert not case.controller.operation.delivery_accepted
                     elif case.controller.operation.delivery_accepted:
                         assert case.controller._claim._pending_terminal_bytes == 0, (
@@ -429,6 +435,7 @@ class LifecycleOrders(RuleBasedStateMachine):
                     # The SDK accepted the one original handle before calling
                     # the session's execute operation.
                     assert session.accepted_handle is science.handle
+
                     assert science.preparations == 1
 
                 if science.retired_handle is not None:

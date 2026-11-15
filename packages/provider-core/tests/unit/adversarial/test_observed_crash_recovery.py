@@ -56,6 +56,7 @@ class ObservedCrashRecoveryTests(unittest.IsolatedAsyncioTestCase):
         # Patch only execution's clock lookup. Native I/O and asyncio's own
         # scheduling still use their real event loop and monotonic deadlines.
         namespace = SimpleNamespace(**vars(asyncio))
+
         namespace.get_running_loop = lambda: SimpleNamespace(time=lambda: clock.now)
 
         return patch("provider_core.execution.asyncio", namespace)

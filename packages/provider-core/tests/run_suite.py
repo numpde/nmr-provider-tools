@@ -88,6 +88,7 @@ class _AsyncioDiagnosticObserver(logging.Handler):
             # Preserve the original handle_traceback, protocol, and transport
             # details in unittest's full error report, not the short index.
             context_limit = 8192
+
             context = original_context[:context_limit]
 
             if len(original_context) > context_limit:

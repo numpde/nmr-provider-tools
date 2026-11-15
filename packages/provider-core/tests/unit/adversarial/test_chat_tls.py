@@ -237,6 +237,7 @@ class CapturedModelTrustTests(unittest.TestCase):
         # X509_CERT_AUX: SEQUENCE { reject [0] { id-kp-serverAuth } }.
         # Identical certificate DER with this AUX suffix rejects server use.
         der = ssl.PEM_cert_to_DER_cert(self.certificate.decode("ascii"))
+
         encoded = base64.b64encode(der + bytes.fromhex("300ca00a06082b06010505070301"))
         trusted = b"-----BEGIN TRUSTED CERTIFICATE-----\n" + encoded + b"\n-----END TRUSTED CERTIFICATE-----\n"
 

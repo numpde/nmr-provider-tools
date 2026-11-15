@@ -167,6 +167,7 @@ class PreparationToolTests(unittest.IsolatedAsyncioTestCase):
 
     async def test_report_release_failure_keeps_state_and_forbids_another_proposal(self):
         original = OSError("Report release reply was lost")
+
         # Fault observation of the release control; keep actual preparation,
         # release request and shared cleanup observation in the exercised path.
         submit = self.analysis_executor.submit

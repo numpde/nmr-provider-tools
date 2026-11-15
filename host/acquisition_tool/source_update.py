@@ -358,6 +358,7 @@ def _import_verified_old(source, pin, archive):
             Path(root).chmod(0o755)
 
         verify(stage)
+
         # A download or staging can take time. Refuse an old-source edit made
         # while this command was preparing the replacement, before exchanging.
         verify(source)

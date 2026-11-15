@@ -30,8 +30,10 @@ class ConversationBoundaryTests(unittest.IsolatedAsyncioTestCase):
                     primary.__cause__ = previous
 
                 model = endpoint("fixture", call("bad", "prepare", {}), call("next", "prepare", {}))
+
                 # silent-defaults: allow-contract -- One turn reaches exhaustion; the two-turn specimen reaches the injected later failure.
                 conversation = ToolConversation((model,), max_turns=1 if primary is None else 2, secrets=())
+
                 dispatch = AsyncMock(side_effect=[rejection, primary])
                 expected = ConversationFailed if primary is None else type(primary)
 

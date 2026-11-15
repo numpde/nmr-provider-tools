@@ -26,9 +26,11 @@ from provider_core.delivery_store import DeliveryConflict, DeliveryFull, Deliver
 # The existing terminal request codec owns this complete-body wire ceiling.
 # repo-check: allow-module-constant
 MAX_REQUEST_BYTES = 2097152  # Existing read_complete_body wire ceiling; fail remains parser-bounded to 16 KiB.
+
 # Bound IPC HTTP framing before body admission.
 # repo-check: allow-module-constant
 MAX_HEADER_BYTES = 16384
+
 # Bound concurrently retained local listener tasks.
 # repo-check: allow-module-constant
 MAX_CONNECTIONS = 32
@@ -46,8 +48,10 @@ def _socket_grant(path, socket_group_id):
     listener needs no separate readiness file; its owner closes servers first.
     """
     shared = socket_group_id is not None
+
     # silent-defaults: allow-contract -- Directory access mode follows the explicit same-UID or shared-group socket grant.
     parent_modes = (0o710, 0o2710) if shared else (0o700,)
+
     # silent-defaults: allow-contract -- Socket mode follows the explicit same-UID or shared-group connection grant.
     socket_mode = 0o660 if shared else 0o600
 
@@ -92,6 +96,7 @@ def _socket_grant(path, socket_group_id):
             path.unlink()
 
         listener = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+
         # Grant group connect access at birth; credentials and database stay private.
         # silent-defaults: allow-contract -- Birth umask enforces the selected private or shared-group socket posture.
         previous = os.umask(0o117 if shared else 0o177)
@@ -182,6 +187,7 @@ class DeliveryInbox:
         # Cancelling an HTTP waiter cannot close SQLite or discard a write
         # that may still commit. close() joins these original tasks first.
         task = asyncio.create_task(asyncio.to_thread(operation, *arguments))
+
         self._storage_tasks.add(task)
         task.add_done_callback(self._storage_done)
 

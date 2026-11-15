@@ -13,6 +13,7 @@ from provider_core.decoded_body import DecodedBody, DecodedBodyRejected
 def decoded(wire, *, coding=b"gzip", limit=8192, chunk=7):
     # silent-defaults: allow-contract -- None models an absent Content-Encoding header in this specimen.
     headers = () if coding is None else ((b"Content-Encoding", coding),)
+
     decoder = DecodedBody(headers, maximum_bytes=limit)
     result = bytearray()
 

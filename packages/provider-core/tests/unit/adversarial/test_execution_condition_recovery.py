@@ -143,6 +143,7 @@ class ConditionRecoveryFailureTests(unittest.IsolatedAsyncioTestCase):
             # Trigger interruption while this observer still holds API
             # access, before a queued condition can race another send.
             task.cancel()
+
             read_recovered.set()
 
         executor = live_executor(
@@ -214,9 +215,11 @@ class ConditionRecoveryFailureTests(unittest.IsolatedAsyncioTestCase):
         try:
             await asyncio.wait_for(transport.read_blocked.wait(), 1)
             sends = len(transport.condition_requests)
+
             # The admission window includes this held real exchange lock.
             # Its read still has to settle; elapsed time cannot replace it.
             await asyncio.sleep(2 * window)
+
             transport.release_read.set()
 
             with self.assertRaises(ExecutionFailed) as caught:

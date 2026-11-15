@@ -146,6 +146,7 @@ def failure_evidence(error, *, secrets, describe_owner=describe_core_failure, ow
             # Native result identity excludes SQL, paths and exception text.
             # https://docs.python.org/3.12/library/sqlite3.html#sqlite3.Error
             code = getattr(current, "sqlite_errorcode", None)
+
             name = getattr(current, "sqlite_errorname", None)
 
             if type(code) is int:

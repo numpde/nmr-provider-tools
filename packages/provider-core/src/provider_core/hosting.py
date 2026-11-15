@@ -287,6 +287,7 @@ class Invocation:
     states: tuple[StateArgument, ...]
     reservation: ReservationRef
     policy: OperationPolicy
+
     # None adds no external start deadline to the execution policy's clocks.
     start_not_after: float | None = field(default=None, kw_only=True)
 

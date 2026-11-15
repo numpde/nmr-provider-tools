@@ -124,6 +124,7 @@ def _route(table, origin):
             raise BindingDefinitionRejected("Cannot admit delivery route: addresses must be explicit hostname=IPv4 strings.")
 
     parsed = urlsplit(origin)
+
     # HTTPS owns port 443 when the canonical origin omits an explicit port.
     port = parsed.port
 

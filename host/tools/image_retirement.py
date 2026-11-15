@@ -23,8 +23,10 @@ class RetirementRefused(RuntimeError):
 
 # repo-check: allow-module-constant
 _ID = re.compile(r"sha256:[0-9a-f]{64}")
+
 # repo-check: allow-module-constant
 _HASH = re.compile(r"[0-9a-f]{64}")
+
 # repo-check: allow-module-constant
 _LABEL = "org.nmr-provider-tools."
 
@@ -179,8 +181,10 @@ def select_images(images, protected, current):
 
         # silent-defaults: allow-contract -- Docker reports absent optional Labels as null; only that absence means no labels.
         image_labels = {} if image_labels is None else image_labels
+
         # silent-defaults: allow-contract -- Docker reports absent optional RepoTags as null; only that absence means no aliases.
         image_tags = [] if image_tags is None else image_tags
+
         # silent-defaults: allow-contract -- Docker reports absent optional RepoDigests as null; only that absence means no digest aliases.
         image_digests = [] if image_digests is None else image_digests
 
@@ -326,6 +330,7 @@ def retire(root, docker, current, *, staged=(), operations=Path("/tmp")):
         # Immutable IDs only. Docker refuses late references; never force or
         # remove a retargetable alias, parent image, cache entry, or volume.
         docker("image", "rm", "--no-prune", image_id)
+
         removed_count += 1
 
     return removed_count

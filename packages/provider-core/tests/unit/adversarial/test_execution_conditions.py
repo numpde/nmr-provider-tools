@@ -197,8 +197,10 @@ class ExecutionConditionFailureTests(unittest.IsolatedAsyncioTestCase):
                 transport.release.set()
                 transport.failure = ExchangeFailed("Authored private transport cause")
                 session = SwallowingSession(store)
+
                 # silent-defaults: allow-contract -- Disable only the other phase so this fixture reaches the selected phase failure.
                 other_phase = "execute" if phase == "prepare" else "prepare"
+
                 session.conditions[other_phase] = ()
                 cleanup = RuntimeError("Authored private cleanup cause")
                 session.retirement_failure = cleanup
@@ -221,8 +223,10 @@ class ExecutionConditionFailureTests(unittest.IsolatedAsyncioTestCase):
                     self.assertIsInstance(failed.exception.cause, ApiFailure)
                     self.assertIs(failed.exception.api_failure, session.caught)
                     self.assertIn(cleanup, failed.exception.cleanup_failures)
+
                     # silent-defaults: allow-contract -- Only execution failure can retain the already-computed outcome.
                     self.assertIs(failed.exception.outcome, session.outcome if phase == "execute" else None)
+
                     (retained,) = store.records
 
                     self.assertIs(

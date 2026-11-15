@@ -13,6 +13,7 @@ require_container()
 # Original groups: Python bytecode, first-party symlinks, help completeness,
 # scoped targets, aggregate campaigns, sole entrypoint, phony/default/duplicates.
 import re
+
 import subprocess
 import tempfile
 import unittest
@@ -154,9 +155,11 @@ class RepositoryHygieneTest(unittest.TestCase):
             self.fail("Makefile must declare an explicit default goal")
 
         goal = match.group("name")
+
         # The default invocation should be safe discovery, not an execution
         # lane. Keep `make` equivalent to `make help`.
         self.assertEqual("help", goal)
+
         self.assertIn(goal, self.make_targets(makefile))
 
     def test_default_goal_accepts_one_bare_or_owned_help_assignment(self):

@@ -550,6 +550,7 @@ class JsonDataclassCodec[T]:
         library. The document is independent of other exports and keeps local
         definitions at its root so consumers can use it directly as parameters.
         """
+
         # Load optional schema dependencies only when export is requested.
         from provider_core._json_schema import dataclass_json_schema
 

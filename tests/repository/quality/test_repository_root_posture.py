@@ -142,6 +142,7 @@ def _findings_in_body(
     inherited_source_location_depths: dict[str, int] | None = None,
 ) -> tuple[_Finding, ...]:
     findings: list[_Finding] = []
+
     # silent-defaults: allow-contract -- A top-level body starts with no source-location bindings; nested bodies copy the inherited scope before updating their own map; proof=tests/repository/quality/test_repository_root_posture.py::RepositoryRootPostureTests.test_detector_flags_source_layout_repository_root_inference
     source_location_depths = dict(inherited_source_location_depths or {})
 

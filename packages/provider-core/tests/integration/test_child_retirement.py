@@ -146,9 +146,11 @@ class ChildRetirementTests(unittest.IsolatedAsyncioTestCase):
         (store, acknowledged, claim) = await live_attempt()
         (root, descriptor) = cleanup.enter_context(private_source_directory())
         (acquisition, source_api, _, _) = file_sources()
+
         # Use a complete, independently authored marker; no scientific decoder
         # or model weights enter this source-lifetime join.
         body = b'{"marker":"acquired-source-observed"}'
+
         digest = "sha256:" + hashlib.sha256(body).hexdigest()
         source_api.member = replace(source_api.member, byte_length=len(body), content_hash=digest)
         source_api.grant = replace(source_api.grant, byte_length=len(body), content_hash=digest)
@@ -290,8 +292,10 @@ class ChildRetirementTests(unittest.IsolatedAsyncioTestCase):
     # silent-defaults: allow-contract -- Normal fixtures reach running progress; refusal cases explicitly stop their reply sequence at preparation.
     def _executor(self, store, claim, session, *, preparation_only=False):
         beginning = (reply(observation()), reply(response()), reply(progress_response()), reply(observation()))
+
         # silent-defaults: allow-contract -- A pre-execution refusal must not receive a synthetic running acknowledgement.
         after = () if preparation_only else (reply(progress_response(phase="running")),)
+
         # Long poll interval isolates child/caller-cancellation correctness from
         # scheduler-dependent read counts; all waits have separate test watchdogs.
         transport = Transport(*itertools.chain(beginning, after, itertools.repeat(reply(observation()), 16)))

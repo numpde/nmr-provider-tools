@@ -536,6 +536,7 @@ class UploadTransfer:
                 # No grant can precede an observed create. Its late intrinsic
                 # failure replaces only that create wait's interruption cause.
                 self._remember_file_interruption(self.last_failure.cause)
+
                 self.last_failure.cause = failure
 
         if file.close_uncertain:

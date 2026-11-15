@@ -194,6 +194,7 @@ class DeliveryQueue:
             # Until return, this descriptor belongs here rather than self._lock
             # or SQLite. A close failure retains the admission failure as context.
             os.close(descriptor)
+
             raise
 
         return descriptor
@@ -315,6 +316,7 @@ class DeliveryQueue:
 
             try:
                 document = json.loads(publication)
+
                 # Reuse the wire admission path to validate retained inputs and identity.
                 import base64
 
@@ -413,6 +415,7 @@ class DeliveryQueue:
             except sqlite3.Error as error:
                 # Do not carry SQLite text, traceback or causal context across the diagnostic boundary.
                 failure = type(error)()
+
                 code = getattr(error, "sqlite_errorcode", None)
 
                 if type(code) is int:

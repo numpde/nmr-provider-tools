@@ -101,6 +101,7 @@ class _Gzip:
             # A non-rejected call has not reached the output sentinel. At EOF,
             # only unused_data remains, and belongs to another complete member.
             data = self._decoder.unused_data
+
             self._decoder = None
 
             self._members += 1
@@ -185,8 +186,10 @@ class DecodedBody:
         require_decoded_limit(maximum_bytes)
         constructors = {b"identity": _Identity, b"gzip": _Gzip, b"deflate": _Deflate}
         codings = _codings(headers)
+
         # repo-check: allow-tuple-generator -- The admitted decoding stages stay fixed for this entity.
         self._stages = tuple(constructors[coding](maximum_bytes) for coding in codings)
+
         self._state = "open"
 
     def _require_open(self):

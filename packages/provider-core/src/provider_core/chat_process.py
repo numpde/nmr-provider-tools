@@ -300,6 +300,7 @@ class SupervisedChatTransport:
             # Lazy OpenSSL hash-directory lookup is preserved in a private
             # captured copy. Its parent owner survives even a killed child.
             exchange.trust_directory = tempfile.TemporaryDirectory(prefix="provider-model-http-")
+
             document["trust_directory"] = exchange.trust_directory.name
             raw = message_bytes(document)
 
@@ -317,9 +318,11 @@ class SupervisedChatTransport:
             ))
 
             await self._until_stop(exchange, exchange.launch)
+
             # A cancelled observer cannot discard a startup that may create a
             # child later. This retained task adopts and retires that exact PID.
             exchange.process = await asyncio.shield(exchange.launch)
+
             exchange.exit = _owned(exchange.process.wait())
 
             if exchange.stopped_at is None:
@@ -442,6 +445,7 @@ class SupervisedChatTransport:
                 exchange.cleanup_failures.append(cause)
 
         self._close_pipes(process)
+
         # If exit cannot be confirmed inside the allowance, _observe returns a
         # held failure while this same task continues to own the process.
         await asyncio.shield(exchange.exit)

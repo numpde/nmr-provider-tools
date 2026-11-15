@@ -143,6 +143,7 @@ async def run_outage(directory, *, mode, backlog, seed):
     """Return measurements before closing peers, publisher or scientific worker."""
     loop = asyncio.get_running_loop()
     random_order = random.Random(seed)
+
     # All model requests include fresh Python startup, TLS and tool decoding.
     # The unavailable peer must outlast the affected original deadline; the
     # independent healthy route must have enough allowance to finish science.
@@ -150,6 +151,7 @@ async def run_outage(directory, *, mode, backlog, seed):
     # 12-Job backlog, so a recovered Job must still be unstarted when service
     # restoration occurs. Retry-After keeps its own stronger one-second floor.
     outage_seconds = 2.5
+
     interpretation_seconds = 1.5
     recovery_seconds = 3
     minimum_delay = 0.25
@@ -372,6 +374,7 @@ async def run_outage(directory, *, mode, backlog, seed):
             # once the unavailable peer has received a request; child startup
             # failures before that point must not consume its eight-second budget.
             await first_failed_request.wait()
+
             await publisher.run()
 
         publisher_task = asyncio.create_task(publish_during_outage())

@@ -359,10 +359,12 @@ class ModelReplyPermissionTests(unittest.IsolatedAsyncioTestCase):
             await asyncio.wait_for(running.peer.received.wait(), 3)
             running.transport.stop = stop
             await asyncio.wait_for(running.observation.verified.wait(), 3)
+
             # The real correlated read has finished, but its original monitor
             # remains inside its existing wait. No fake yield splits a gate
             # from the scientific submission it protects.
             self.assertFalse(running.observation.resume.is_set())
+
             release_reply.set()
             await asyncio.wait_for(session.dispatch_finished.wait(), 3)
             preparations = session.science.preparations
@@ -491,9 +493,11 @@ class ModelReplyPermissionTests(unittest.IsolatedAsyncioTestCase):
                 self.assertFalse(session.cleanup_confirmed)
                 self.assertFalse(controller.work_settled)
                 self.assertEqual(1, len(claims.live_owners()))
+
                 # Observing the same exception again is not cleanup success.
                 # Only the original session's later positive return can release.
                 settlement = asyncio.create_task(controller.settle_revocation(failed.exception))
+
                 reentered = asyncio.create_task(session.retirement_reentered.wait())
 
                 (done, _) = await asyncio.wait({settlement, reentered}, timeout=3,
@@ -609,6 +613,7 @@ class PreparedExecutionGateSession(HeldRetirementSession):
 
         self.execution_entered.set()
         await self.release_execution.wait()
+
         # The adapter checks the original reporter again after the gate.
         # A prior START or successful preparation is not a future permission.
         report_condition.require_execution()
@@ -685,6 +690,7 @@ class ComposedLifecycleOwnershipTests(unittest.IsolatedAsyncioTestCase):
                 # B performs real model HTTP, preparation, execution, handoff,
                 # session retirement and claim release while A remains held.
                 healthy.session.science.release.set()
+
                 independent = asyncio.create_task(healthy.controller.run(healthy.pending))
                 result = await asyncio.wait_for(asyncio.shield(independent), 6)
                 self.assertIs(type(result), DeliveryAcceptedCheckpoint)
@@ -815,6 +821,7 @@ class PreparedPermissionInterleavingTests(unittest.IsolatedAsyncioTestCase):
                         # This event comes from the SDK's correlated read and
                         # ExecutionStopped classification, not the fake's write.
                         running.transport.stop = stop
+
                         await asyncio.wait_for(running.observation.verified.wait(), 3)
 
                         self.assertIs(running.controller.operation._observed_stop,
@@ -829,11 +836,13 @@ class PreparedPermissionInterleavingTests(unittest.IsolatedAsyncioTestCase):
 
                         controller = running.controller
                         self.assertIs(caught.exception.cause.cause, running.observation.stop)
+
                         # The accepted preparation has already crossed the SDK's
                         # EnteredCheckpoint, even though the scientific adapter
                         # has not performed a new effect. Only pre-entry
                         # AcknowledgedCheckpoint can use settle_revocation().
                         self.assertIs(type(controller.operation._checkpoint), EnteredCheckpoint)
+
                         self.assertEqual(0, session.science.executions)
                         await asyncio.wait_for(session.retiring.wait(), 3)
                         self.assertEqual((controller,), claims.live_owners())
@@ -843,6 +852,7 @@ class PreparedPermissionInterleavingTests(unittest.IsolatedAsyncioTestCase):
                         # Positive retirement proves resource closure, not a
                         # valid disposition for an already-entered Attempt.
                         session.release_retirement.set()
+
                         original_retirement = controller.operation._retirement_task
                         self.assertIsNotNone(original_retirement)
                         await asyncio.wait_for(asyncio.shield(original_retirement), 3)

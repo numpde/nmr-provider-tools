@@ -121,6 +121,7 @@ def read_upload_file(receipt, *, directory_fd, maximum_bytes):
     except BaseException as cause:
         # This worker owns closure even when its synchronous read is interrupted.
         primary = cause
+
         raise
     finally:
         try:

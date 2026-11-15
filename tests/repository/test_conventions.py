@@ -90,8 +90,10 @@ def unguarded_sources(root):
         portable_sources.add(installed_entrypoint)
 
     sources.difference_update(portable_sources)
+
     # The shared guard must be importable before its caller checks the marker.
     sources.discard(root / "tools" / "container_guard.py")
+
     # The scientific rejection contract is portable: it must be importable by
     # scientific code before any container execution boundary exists.
     portable_sources.discard(core_root / "contribution_errors.py")

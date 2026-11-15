@@ -59,6 +59,7 @@ def main():
             raise RuntimeError("The scripted source-read hold unexpectedly completed")
 
         snapshot = read_upload_file(receipt, directory_fd=source["directory_fd"], maximum_bytes=receipt.byte_length)
+
         # The marker comes from the verified acquired bytes, never the request's
         # Job fingerprint or an echoed expected marker. This is JSON, not science.
         prepared.update(content_hash=snapshot.content_hash, marker=json.loads(snapshot.data)["marker"])

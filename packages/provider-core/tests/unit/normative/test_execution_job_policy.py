@@ -32,6 +32,7 @@ class ExecutionJobPolicyTests(unittest.IsolatedAsyncioTestCase):
         async def read_attempt(*_args, **_kwargs):
             # silent-defaults: allow-contract -- The fixture Job changes state only after its observed pause.
             state = "closed" if session.paused.is_set() else "open"
+
             observed.append(state)
 
             if state == "closed":

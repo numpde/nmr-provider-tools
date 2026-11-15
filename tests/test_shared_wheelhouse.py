@@ -702,8 +702,10 @@ class WheelhouseTests(unittest.TestCase):
         self.assertEqual(b"conflicting bytes", (self.pool / native).read_bytes())
         derived = self.root / "pylock.cached.toml"
         derived.write_text(projected)
+
         # An alternative appearing later cannot change this projection.
         (self.pool / native).write_bytes(b"native bytes")
+
         artifacts = tool.selected(derived, [], source_lock=self.lock)
         self.assertEqual([cached], [entry[0] for entry in artifacts])
         self.assertEqual(cached, tool.run("check", derived, self.pool, artifacts=artifacts)["artifacts"][0]["filename"])

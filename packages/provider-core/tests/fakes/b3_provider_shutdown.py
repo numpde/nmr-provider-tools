@@ -243,6 +243,7 @@ async def shutdown_scenario(schedule, seed, directory, facts):
             # This second real supervised child is not the original's delayed
             # exit observer. Observe and reap it normally.
             independent_children.append(child)
+
             note("independent_operating_system_child_created", pid=child.pid)
 
             return child
@@ -279,6 +280,7 @@ async def shutdown_scenario(schedule, seed, directory, facts):
 
     marker = directory / f"http-cleanup-{seed}.jsonl"
     pending = selected_start(f"{schedule.stage}-{seed}")
+
     # silent-defaults: allow-contract -- The concurrent scenario needs capacity for the original held Attempt and one independent successor.
     claims = AttemptClaims.live(limits=LiveAttemptLimits(maximum_attempts=2 if concurrent else 1))
 

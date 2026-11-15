@@ -56,6 +56,7 @@ class InterpreterFaultSequenceTests(unittest.IsolatedAsyncioTestCase):
                         self.assertIn(("retire", _visit), events[previous_failure + 1:])
 
                     events.append(("request", _visit))
+
                     # silent-defaults: allow-contract -- First observation creates this visit's deadline history.
                     deadlines.setdefault(_visit, []).append(kwargs["not_after"])
 

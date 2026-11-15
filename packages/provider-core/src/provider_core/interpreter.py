@@ -44,25 +44,33 @@ from provider_core.transport_errors import ExchangeFailed
 # SDK policy, not a second provider configuration surface.
 # repo-check: allow-module-constant
 MODEL_TURNS = 12
+
 # repo-check: allow-module-constant
 MODEL_REJECTIONS = 3
+
 # repo-check: allow-module-constant
 HTTP_ATTEMPTS = 2
+
 # repo-check: allow-module-constant
 CONNECT_SECONDS = 10
+
 # repo-check: allow-module-constant
 HISTORY_BYTES = 1024 * 1024
+
 # repo-check: allow-module-constant
 HISTORY_RECORDS = 48
+
 # Two remaining-time floats may change decimal length before the next request.
 # repo-check: allow-module-constant
 _CLOCK_ENCODING_RESERVE_BYTES = 64
+
 # repo-check: allow-module-constant
 _RETRYABLE_STATUSES = {408, 429, 500, 502, 503, 504}
 
 # Tool documents are provider-defined JSON; this module owns their envelopes,
 # not the scientific fields inside them.
 type Document = dict[str, Any]
+
 type ModelFailure = tuple[int, BaseException]
 type CorrectionFailure = tuple[int, int, BaseException]
 type RecordKind = Literal["rejected_proposal", "tool_observation", "unverified_interpretation_problem"]
@@ -559,6 +567,7 @@ class _History:
     def remember(self, visit: int, kind: RecordKind, tool: str, value: object) -> None:
         # Screen the whole value before pagination could split a credential.
         _no_secrets(value, self._secrets)
+
         data = _encode(value)
         self._sequence += 1
 
@@ -1017,6 +1026,7 @@ class _ModelVisit:
                     revision = await self._service._wait(deadline=self._deadline, stopped=self._stopped)
 
                 outgoing = self._request_context(messages, tools)
+
                 # Bound I/O, not scientific dispatch: an accepted preparation
                 # finishing late must never become an invitation to replay it.
                 reply = await self._endpoint.complete(outgoing, tools, not_after=self._deadline)
@@ -1073,6 +1083,7 @@ class _ModelVisit:
         # Keep the size predicate stable during prefix search. The clock margin
         # covers later spelling changes when feedback and the request are built.
         budget = self.budget()
+
         suffix = [self._state_message()]
 
         def fits(value: Document) -> bool:

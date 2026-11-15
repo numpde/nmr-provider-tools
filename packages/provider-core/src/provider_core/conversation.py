@@ -121,6 +121,7 @@ def independent_interruption_failure(failure):
         return failure
 
     retained = failure.__cause__
+
     # This owner can add earlier endpoint/correction history around the original
     # cause. Unwrap that one known carrier, never arbitrary exception graphs.
     cause = retained.cause if type(retained) is ConversationFailed else retained
@@ -229,6 +230,7 @@ class ToolConversation:
         self.last_rejection = None
         self.last_failure = None
         self.endpoint_failures = []
+
         # One rejection per started turn bounds this private, one-based history.
         self.correction_failures = []
 
@@ -353,6 +355,7 @@ class ToolConversation:
                 # Keep each bounded private observation, including failures
                 # before a successful fallback. Public routes contain no body.
                 self.endpoint_failures.append((index, failure))
+
                 self._routes[-1]["failure"] = "invalid_tool_carrier"
 
                 if isinstance(failure, ChatFailed):
@@ -391,6 +394,7 @@ class ToolConversation:
                 # Invalid argument text may contain encoded credentials. Keep
                 # its call identity and safe correction, not that raw text.
                 call["function"]["arguments"] = "{}"
+
                 self._correct_turn(calls, rejection)
                 continue
 
@@ -437,6 +441,7 @@ class ToolConversation:
     def _route(self, endpoint):
         # Identity comes from the trusted adapter, not model response fields.
         identity = json.loads(endpoint.identity)
+
         identity = {key: self.redact(value) if type(value) is str else value for (key, value) in identity.items()}
         self._routes.append({"endpoint": identity, "turns_started": 0})
 
@@ -518,6 +523,7 @@ class ToolConversation:
         try:
             # The consumed response and any caller-supplied tighter bound own size.
             arguments = read_document(raw, len(raw))
+
             _encode(arguments)
         except (
             ResponseRejected,

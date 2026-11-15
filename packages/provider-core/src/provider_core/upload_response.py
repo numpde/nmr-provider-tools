@@ -20,6 +20,7 @@ from provider_core.response_json import ResponseRejected, read_document
 # The pinned upload membership response has this byte ceiling.
 # repo-check: allow-module-constant
 MEMBERSHIP_RESPONSE_BYTES = 2097152
+
 # The pinned upload grant response has this byte ceiling.
 # repo-check: allow-module-constant
 GRANT_RESPONSE_BYTES = 65536

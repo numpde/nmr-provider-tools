@@ -53,8 +53,10 @@ class ReleasedApiContractTests(PinnedApiRelease, unittest.IsolatedAsyncioTestCas
         offering = properties["analysis_offerings"]
         name = "𐍈" * properties["display_name"]["maxLength"]
         description = "𐍈" * properties["description"]["maxLength"]
+
         # repo-check: allow-tuple-generator -- The Hello codec requires a tuple so this fixture exercises the actual wire contract.
         offerings = tuple(AnalysisOffering(f"model_{index}", description) for index in range(offering["maxItems"]))
+
         body = hello_body(display_name=name, description=description, analysis_offerings=offerings)
         self.assertEqual(json.loads(body)["display_name"], name)
         self.assertEqual(json.loads(body)["analysis_offerings"][-1]["description"], description)
@@ -101,13 +103,17 @@ class ReleasedApiContractTests(PinnedApiRelease, unittest.IsolatedAsyncioTestCas
                 self.assertEqual(request.headers["Signature-Input"], vector["signature_input"])
                 self.assertEqual(request.headers.get("Content-Digest"), vector["content_digest"])
                 self.assertEqual(request.headers.get("Content-Type"), vector["content_type"])
+
                 # silent-defaults: allow-contract -- Empty raw query adds no URL delimiter; the released signature base still covers '?'.
                 target = vector["raw_path"] + ("?" + vector["raw_query"] if vector["raw_query"] else "")
+
                 self.assertEqual(request.url.raw_path, target.encode())
                 signature = parse(request.headers["Signature"].encode(), tltype="dictionary")["sig1"][0]
+
                 # Verify against the RELEASED bytes, not a base reconstructed by
                 # core or this test. Vector signing keys are neither known nor needed.
                 key.public_key().verify(signature, vector["signature_base"].encode())
+
                 published = load_der_public_key(base64.b64decode(vector["public_key_spki_der_b64"]))
                 self.assertIsInstance(published, Ed25519PublicKey)
                 published_signature = parse(vector["signature"].encode(), tltype="dictionary")["sig1"][0]

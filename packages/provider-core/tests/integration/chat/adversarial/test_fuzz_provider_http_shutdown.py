@@ -95,6 +95,7 @@ class ProviderHttpShutdownTests(unittest.TestCase):
         self.assertEqual(0, facts["unfinished_peer_connections"], msg=evidence)
         self.assertEqual(facts["descriptors_before_launch"], facts["descriptors_after_cleanup"], msg=evidence)
         self.assertFalse(facts["trust_directory_exists"], msg=evidence)
+
         # The provider requested local stop, not a terminal Job cancellation
         # from the Jobs API. Its passive Attempt claim remains intentionally held.
         self.assertEqual(1, facts["claim_count_after_local_stop"], msg=evidence)

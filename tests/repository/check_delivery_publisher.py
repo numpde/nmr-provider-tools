@@ -29,6 +29,7 @@ publish_release_wheels(pool / tool["name"], pool, [(name, release["wheel_sha256"
 # Exercise a genuinely missing synthetic wheel without downloading a second
 # copy of any real dependency from the shared pool.
 content = b"synthetic delivery publisher test"
+
 checksum = hashlib.sha256(content).hexdigest()
 requests = []
 

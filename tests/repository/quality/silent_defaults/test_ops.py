@@ -70,6 +70,7 @@ def ops_files() -> list[Path]:
 
 def shell_exported_names(source: str) -> set[str] | None:
     """Find literal publication candidates, or retain raw coverage when uncertain."""
+
     # The pinned Dapp detector matches assignments, not shell publication. In
     # Host Docker-client directories are private lifecycle state; exported
     # environment variables are separate observations.
@@ -350,9 +351,11 @@ class OpsSilentDefaultsTest(unittest.TestCase):
 
     def test_runtime_docker_environment_contracts_reject_value_path_and_instruction_changes(self):
         """Reviewing an image ENV value grants no changed value, path or build ARG."""
+
         # Synthetic positive ownership keeps this detector exercised before
         # selecting a production value. It grants no additional image default.
         allowed = {("ENV", "containers/checker/Dockerfile", "MARKER", "1")}
+
         self.assertEqual([], docker_default_findings_for_source("ENV MARKER=1\n", "containers/checker/Dockerfile", allowed))
 
         changes = (

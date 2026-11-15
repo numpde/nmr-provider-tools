@@ -55,6 +55,7 @@ class HelloTests(unittest.IsolatedAsyncioTestCase):
     def test_maximum_unicode_snapshot_stays_within_wire_cap_without_losing_scalars(self):
         # repo-check: allow-tuple-generator -- This maximum tuple specimen proves the Hello collection boundary.
         offerings = tuple(AnalysisOffering("kind_" + str(index), "🧪" * 1024) for index in range(64))
+
         body = hello_body(display_name="🧪" * 128, description="🧪" * 1024, analysis_offerings=offerings)
         self.assertLessEqual(len(body), 512 * 1024)
         self.assertIn("🧪".encode(), body)

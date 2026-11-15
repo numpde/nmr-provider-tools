@@ -72,6 +72,7 @@ class RevocationObserverTests(unittest.IsolatedAsyncioTestCase):
         # Enter the real executor/controller settlement, past the helper's
         # initial wait for the already owned scientific retirement task.
         controller.delivery.retire = held_delivery_retirement
+
         observer = asyncio.create_task(controller.settle_revocation(failure))
         resumed = None
 
@@ -117,6 +118,7 @@ class RevocationObserverTests(unittest.IsolatedAsyncioTestCase):
         try:
             await asyncio.sleep(0)
             external = asyncio.create_task(controller.settle())
+
             # Exceed the existing 0.05-second observation allowance. External
             # shutdown observation must join the pending owner, not retry it.
             await asyncio.sleep(0.08)

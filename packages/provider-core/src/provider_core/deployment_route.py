@@ -97,6 +97,7 @@ def _named_initializer(image, interpreter, namespace, key, uid, gid, volume):
                    volumes=[_volume(volume, "/route", readonly=False)])
 
     service["labels"]["org.nmr-provider-tools.route-role"] = "initializer"
+
     # Root initializes only the route volume; its own scratch needs no provider identity.
     service["tmpfs"] = [f"/{name}:rw,nosuid,nodev,noexec,size=64m,mode=0700" for name in ("tmp", "run")]
 
@@ -228,8 +229,10 @@ def initialize_route(uid, gid, path, *, shared_group=False):
         raise RouteProjectionRejected("Cannot initialize API route volume: root with CHOWN and explicit target identity is required.")
 
     path = Path(_path(path))
+
     # silent-defaults: allow-contract -- Directory access follows the explicitly selected shared or private grant.
     mode = 0o710 if shared_group else 0o700
+
     observed = path.lstat()
 
     if not stat.S_ISDIR(observed.st_mode):
