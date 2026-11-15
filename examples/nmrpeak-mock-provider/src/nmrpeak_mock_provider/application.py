@@ -1,24 +1,27 @@
-"""Ask the SDK to validate interpreted input and run scientific generation.
+"""Interpret one source, run scientific validation/generation and retain delivery.
 
 Prediction is provider application code. It uses the SDK Interpreter to obtain
 structured input, then submits the bound prepare and generate methods through
 an EmbeddedAnalysis execution session. The SDK runs those methods; Prediction
 retains their operation handles and chooses when generation can follow validation.
+It retains one report receiver attempt; provider.py owns the request lifetime.
 """
 
+from collections.abc import Awaitable, Callable
 import json
 
 from provider_core.contribution_errors import CallRejected
 from provider_core.conversation import ToolFinished, ToolRejected
 from provider_core.embedded_host import EmbeddedAnalysis
 from provider_core.hosting import (
-    OperationPolicy, NotAdmitted, Outcome, ResultState, StartDeadlineExpired,
+    OperationPolicy, NotAdmitted, Outcome, ResultConsumption, ResultState, StartDeadlineExpired,
     observe_cleanup, observe_completion,
 )
 from provider_core.interpreter import Interpreter, ModelWindowExpired
 from provider_core.scientific import HostedContribution
 
-from .binding import PeakContribution
+from .binding import Chf, PeakContribution
+from .composition import interpretation_messages, interpretation_tools
 
 
 class Prediction:
@@ -32,11 +35,14 @@ class Prediction:
     def __init__(
         self, *, execution: EmbeddedAnalysis, hosted: HostedContribution,
         interpreter: Interpreter, policy: OperationPolicy,
+        receive: Callable[[bytes], Awaitable[None]],
     ) -> None:
         self.execution = execution
         self.hosted = hosted
         self.interpreter = interpreter
         self.policy = policy
+        self.receive = receive
+        self.consumption: ResultConsumption | None = None
         self.preparations = []
         self.prepared = None
         self.generation = None
@@ -85,11 +91,41 @@ class Prediction:
         await observe_cleanup(control=operation.release_result(result=completed.result))
         return ToolFinished(value="Scientific input validated")
 
-    async def interpret(self, *, messages: list[dict], tools: list[dict]) -> None:
-        """Ask Interpreter for structured input, using dispatch for its tool proposals."""
+    async def interpret(self, *, source: str) -> None:
+        """Extract this offering's scientific input from the supplied source text.
+
+        The request caller supplies source text, not tool schemas or an HF/CHF
+        switch. The selected scientific object determines which spectra to ask for.
+        """
         await self.interpreter.run(
-            messages=messages, tools=tools, dispatch=self.dispatch,
+            messages=interpretation_messages(source=source),
+            tools=interpretation_tools(carbon=isinstance(self.hosted.contribution, Chf)),
+            dispatch=self.dispatch,
         )
+
+    async def deliver(self) -> None:
+        """Generate once and join the original receiver attempt; never resend.
+
+        A canceled wait may call deliver again on this request. A failed receiver
+        keeps its original error and result available while the request stays open;
+        the surrounding service owns reconciliation before closing the request.
+        """
+        if self.consumption is None:
+            result = await self.finish()
+            # Another waiter may have joined the same generation while this one
+            # waited. Publish one receiver owner without an intervening await.
+            if self.consumption is None:
+                self.consumption = ResultConsumption(
+                    operation=self.generation,
+                    result=result,
+                    receive=self.receive,
+                )
+        await self.consumption.consume()
+
+    async def settle_receiver(self) -> None:
+        """Join any started receiver before request cleanup can release its result."""
+        if self.consumption is not None:
+            await self.consumption.settle()
 
     async def finish(self):
         """Submit generate once, then wait on the same operation and return its result."""

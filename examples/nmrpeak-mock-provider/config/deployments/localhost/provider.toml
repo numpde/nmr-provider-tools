@@ -39,8 +39,8 @@ queue_stop_request_seconds = 5
 # For slower science, replace execution_stop_request_seconds:
 # execution_stop_request_seconds = 60
 execution_stop_request_seconds = 5
-# Cleanup begins when the provider releases a result or closes the SDK session
-# used to validate and generate one prediction.
+# This allowance covers release of a validation report or an accepted generation
+# report, and cleanup when leaving a prediction context closes its execution.
 # Mark unfinished cleanup overdue after this many seconds and keep cleaning up.
 # This example keeps waiting; the overdue flag does not print a warning by itself.
 cleanup_overdue_flag_seconds = 5
@@ -79,3 +79,10 @@ checkpoint_sha256 = "367c6761437cd17944e812e2d91425f356fc8238be4b4f7c917b2368167
 maximum_input_tokens = 64
 beam_size = 2
 maximum_candidate_characters = 64
+
+# Each prediction gets its own interpretation session. Ordered endpoint services
+# are supplied by startup code; these limits apply across that request's attempts
+# to extract spectrum data, including corrections proposed by language models.
+[interpreter]
+timeout_seconds = 15
+context_bytes = 32768

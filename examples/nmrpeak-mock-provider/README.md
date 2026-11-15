@@ -1,160 +1,137 @@
 # NMRPeak mock provider
 
-Provider setup reads deployment configuration and creates the HF/CHF scientific
-objects and SDK execution manager. `Prediction`, the request-handling application
-code, asks the SDK to validate interpreted input and generate candidates.
-The integration tests supply requests and consume the resulting reports.
+This example models provider setup and one prose-input prediction workflow against
+the SDK's target scientific interface. The scientific model and tokenizer are
+small stand-ins. Tests replace the language-model endpoint and report receiver;
+the interpreter, scientific execution, result ownership and cleanup are real SDK
+components.
 
-The model and tokenizer are small stand-ins; the tests supply a scripted
-language-model endpoint. The SDK
-interpreter, scientific execution and cleanup are real. The example uses no ML
-libraries, credentials or network services; Job discovery and durable API delivery
-remain responsibilities of the surrounding provider.
-
-| Component | Example | NMRPeak counterpart |
-|---|---|---|
-| HF / CHF inputs | Separate immutable types | Formula/proton and formula/proton/carbon offerings |
-| Interpretation | SDK `Interpreter` and `ProseService` | Existing shared interpretation flow |
-| LLM service | `ScriptedEndpointFactory` | HTTP endpoint factory implementing the same SDK protocol |
-| Scientific validation | Loaded tokenizer, required spectra and token limit | Runner validation before generation |
-| Prepared input | SDK state, consumed once | Validated request retained until generation |
-| Model loading | Retain the model before verifying and loading its checkpoint | Keep partially loaded components available for cleanup |
-| Model/tokenizer | Small deterministic Python implementations | Loaded neural model and NMR tokenizer |
-| Output admission | Candidate count and string bounds | Provider-owned candidate validation |
-| Execution | SDK `EmbeddedHost` runs submitted scientific methods | Execution and cleanup inside the chosen deployment |
-| Report consumption | SDK `ResultConsumption`, recording test receiver | Retained result passed to the external delivery receiver |
+Provider startup does not run synthetic jobs. Tests invoke the same request
+workflow that a surrounding provider service would invoke.
 
 ```text
+config/deployments/localhost/
+    provider.toml    scientific settings, execution and interpretation limits
 src/nmrpeak_mock_provider/
+    provider.py      provider setup and per-request lifetimes
+    application.py   interpretation → validation → generation → report consumption
+    composition.py   explicit HF/CHF assembly and interpretation tool schemas
+    binding.py       scientific methods, initialization and prepared-state ports
     science.py       scientific records, model interface and result admission
-    binding.py       HF/CHF contributions, initialization and prepared-state ports
-    checkpoint.py    verify and load through one open file
-    application.py   interpretation → validation → generation
-    composition.py   explicit provider assembly and interpretation tool schemas
-    fake_model.py    stand-in tokenizer and neural model
+    checkpoint.py    verification and loading through one open file
+    fake_model.py    replaceable tokenizer and model stand-ins
     interpreter.md   source-faithful extraction instructions
-    hf.json/chf.json tiny checkpoint substitutes
-    provider.py      deployment setup and SDK retirement
-config/
-    deployments/localhost/
-        provider.toml    scientific settings and execution policy
+    hf.json/chf.json checkpoint substitutes
 tests/
     fakes.py             scripted LLM endpoint and recording report receiver
-    test_peak_example.py installed integration scenarios and failure tests
+    test_peak_example.py installed workflow and failure scenarios
 ```
 
-`open_provider` is provider-written setup, not an SDK hook. The surrounding
-application calls it with an explicit model constructor. It reads the deployment
-file, constructs the HF/CHF `Settings`, and passes them and the constructor to
-`adopt_offerings`. That helper builds `Hf` and `Chf` using the packaged `hf.json`
-and `chf.json` checkpoint substitutes. It asks `host.adopt` to retain each exact
-object before the SDK calls its initialize method, where provider code loads the
-model. Assembly returns an unordered `frozenset` of hosted handles.
+## Provider setup
 
-The context yields a `Provider` containing the execution manager, per-operation
-policy and offerings. Its caller owns request discovery and report delivery and
-finishes its request handlers and receivers before leaving the context.
-`open_provider` then retires the SDK, including after partial setup or a caller
-failure. Independent caller and retirement failures preserve both original causes.
-Setup does not create requests, contact a language model or load science.
+`open_provider` is provider-written assembly, not an SDK discovery hook. The
+surrounding service supplies an explicit model constructor, ordered endpoint
+services and known credential values for SDK diagnostic scrubbing. A service
+shares `ProseService` objects between requests to retain endpoint retry delays;
+each request gets its own `Interpreter`.
 
-A real provider supplies its checkpoint locations in its own assembly code.
-The path locates a file; the expected digest determines which contents are
-accepted. A replacement model implements the same scientific interface, so the
-provider can keep the same validation, generation and cleanup sequence.
+Setup reads `config/deployments/localhost/provider.toml` relative to the application's
+working directory. The top-level `PROVIDER_CONFIG_PATH` in `provider.py` selects
+that path; there is no configuration-path argument. Configuration stays outside
+the wheel. Different deployments can select different scientific settings and
+model constructors without changing the SDK.
 
-`checkpoint.py` follows NMRPeak's `families/nmrpeak/checkpoint_file.py`: verification
-and deserialization use the same descriptor. Deployment must not overwrite an
-installed file during use. This example does not invent a snapshot service or
-claim that an open descriptor prevents in-place mutation.
+`adopt_offerings` constructs HF and CHF with their settings and checkpoint paths,
+then asks the SDK to retain each exact scientific object. It returns an unordered
+frozenset of hosted offerings. Adoption records resource requirements; it does not
+allocate hardware. The deployment must provide the requested CPU/GPU resources.
+Model loading begins when scientific work first needs that object. Interpretation
+limits are passed to each new SDK interpreter, which validates them on construction.
 
-`Prediction.interpret` asks the SDK `Interpreter` to turn text into structured
-input. When a language model proposes input, `Interpreter` invokes the
-provider's `Prediction.dispatch`. That method decodes the proposal and submits
-`prepare` through `EmbeddedAnalysis.submit_method`.
+The provider context retires scientific objects on exit, including after partial
+assembly. The surrounding service must finish its request contexts before leaving
+it, for example by keeping its request task group inside the provider context.
+Independent work and retirement failures retain their original causes.
 
-SDK admission means the submission passed its ownership, input-size and capacity
-checks: the SDK creates an operation handle and queues the work. It does not mean
-`prepare` has run or validated the input. When the executor is ready, the SDK
-checks whether that execution session or operation has been stopped and whether
-its original start deadline has passed. It then starts scientific execution.
+## One request
 
-If `prepare` rejects correctable input, `Prediction` returns `ToolRejected` to the
-interpreter so the language model can propose a correction. Loading and execution
-failures propagate as their original exceptions. Once `prepare` succeeds,
-`Prediction` retains the prepared-input reference and releases its validation
-report bytes. It then submits `generate` using that prepared input. Repeated waits
-observe the saved operation; submitting a method again would request more work.
+After the surrounding service receives source text and selects one of
+`provider.offerings`, its request handler uses this workflow:
 
-The integration scenario retains a `ResultConsumption` for each generated report.
-That SDK object passes result bytes to a receiver, then releases them after the
-receiver returns successfully. A canceled wait can resume the same consumption.
-Receiver failure leaves the result available without rerunning science or
-resending automatically. The test receiver records bytes in memory; it proves
-local consumption, not durable delivery. The synthetic checkpoints and rankings
-make no chemistry claim.
+```python
+async with provider.open_prediction(
+    offering=offering,
+    receive=receive_report,
+) as prediction:
+    await prediction.interpret(source=source_text)
+    await prediction.deliver()
+```
 
-Provider code requests cleanup by releasing results, closing execution sessions
-and retiring the host. Cleanup timers only make an overdue flag observable; they
-do not cancel cleanup. The example uses `observe_cleanup`, which keeps waiting
-after that flag and raises any original cleanup failures. It does not log an
-overdue warning by itself.
+Here `provider` comes from `open_provider`; `offering` is the selected hosted
+scientific object. The service supplies `source_text` and `receive_report`, an
+async callable accepting encoded report bytes. The test supplies these same
+inputs using recorded source text, scripted model replies and an in-memory
+receiver. It does not construct SDK execution sessions or arrange their cleanup.
 
-From this repository, build the SDK and example wheels and run the installed
-tests outside the checkout:
+`open_prediction` creates a request's interpreter and execution session. Application
+code chooses the interpretation schema from the selected HF/CHF scientific object.
+The interpreter asks a language model to extract spectrum data, then asks the SDK
+to run the offering's scientific validation method. Correctable input errors go
+back to the language model; model-loading and scientific failures propagate as
+their original exceptions. SDK admission means work was accepted for execution,
+not that the input is scientifically valid.
+
+Successful validation retains prepared input for generation. `deliver` requests
+generation once, retains its operation and result, and creates one receiver attempt.
+Concurrent or repeated delivery waits join that same attempt. Cancellation of a
+wait does not authorize new generation or a resend. A receiver error remains the
+original error; result bytes stay available while the request context is open so
+the surrounding service can inspect or reconcile the outcome.
+
+Leaving the request context ends that reconciliation window. Cleanup joins an
+already started receiver before closing scientific execution, then retires the
+interpreter. It still attempts independent cleanup after an error and preserves
+independent causes together. A cleanup deadline only marks work overdue; it does
+not force a running Python thread or receiver to stop.
+
+The receiver defines acceptance. The test receiver records bytes in memory;
+that proves neither durable storage nor API delivery. The synthetic checkpoints
+and candidate rankings make no chemistry claim.
+
+## Relationship to real NMRPeak
+
+| Responsibility | This example | Current NMRPeak |
+|---|---|---|
+| Startup composition | `open_provider` | `provider_main.py` composes configuration, interpreter settings and runners |
+| Per-request lifetime | `open_prediction` and `Prediction` | `provider_process.py` creates an `NmrpeakAnalysisSession` per selected job |
+| Interpretation | One SDK interpreter per prediction, shared endpoint services | `input_interpreter.py` creates per-Attempt interpretation owners |
+| Scientific flow | Validate spectra, retain prepared input, generate candidates | Runner validation and generation |
+| Results and cleanup | Retained SDK result and receiver attempt | Shared Attempt and delivery owners retain obligations |
+
+This is an example of the target SDK boundary, not a claim that NMRPeak already
+uses `EmbeddedHost`. The real provider uses separately supervised runners; here
+science runs in SDK-managed threads. `checkpoint.py` follows NMRPeak's same-open-file
+verification/loading approach. An open descriptor does not prevent in-place file
+mutation; deployment must not overwrite checkpoint contents during use.
+
+Job discovery, authorization, Hello/readiness, signal handling, durable delivery,
+crash recovery and runner supervision belong to the surrounding service and are
+not implemented here. NMRPeak also accepts structured input; this example covers
+the prose interpretation route. There is no placeholder server or executable
+that pretends to implement those omitted responsibilities.
+
+## Run the installed tests
+
+From the repository root:
 
 ```sh
 make tests/integration/provider-core DOCKER_CONTEXT=science \
   WHEELHOUSE=/home/ra/Downloads/wheelhouse TEST_PATTERN=test_peak_example.py
 ```
 
-The installed tests run both HF and CHF through interpretation, scientific
-validation, generation and report consumption. They finish receivers before
-closing execution sessions and retiring the interpreter and provider. There is
-no executable demo or request server in this package: its application code is
-called by a surrounding provider service. Process placement remains
-deployment-owned; the example does not copy NMRPeak's private worker frames into
-the scientific API.
-
-
-Provider constructor settings are ordinary object attributes. The SDK does not
-serialize or hash them. Call identity refers to the adopted allocation; scientific
-provenance remains provider-owned. Local submission uses the actual receiver
-(e.g. `method=contribution.generate`). Adoption takes `requirements=...`;
-hardware availability must be established by the environment running the provider.
-
-The SDK supplies execution identities. Use allocation handles with
-`host.open_analysis(allocations=frozenset({hosted.allocation}))`, retain returned operation
-handles, and observe those handles to resume waiting. Each new submission means
-new work. State kinds and ports derive their names from Python types and class
-attributes rather than manually assigned labels.
-
-Each deployment's `provider.toml` supplies both scientific settings and execution
-policy. The maintained file is `config/deployments/localhost/provider.toml`
-relative to this example project root. Configuration is excluded from the wheel.
-Supply its `config/` tree in the working directory;
-the top-level `PROVIDER_CONFIG_PATH` in `provider.py` selects the deployment file.
-Setup takes no configuration-path argument.
-
-Startup reads that file once, constructs HF/CHF `Settings` from its science
-sections, and passes them and an explicit model constructor to `adopt_offerings`.
-That provider-owned helper reads no configuration and chooses no model code.
-The SDK receives the resulting scientific objects and their requirements.
-A provider can choose another constructor in its own startup composition without
-adding model discovery or imports to the SDK.
-
-The installed-provider test supplies configuration outside the wheel and changes
-beam size between runs, verifying that deployment configuration changes the
-scientific results without changing the installed application.
-
-Adoption records resource requirements and establishes scientific-object ownership.
-It does not discover or allocate CPU/GPU hardware. The returned allocation handle
-identifies an execution owner, not a hardware grant.
-
-Execution owns cancellation. Provider code calls `execution.request_stop()` to
-refuse more work and signal unfinished operations while retaining results needed
-by receivers. It calls `execution.close()` later to dispose those resources.
-The interpreter supplies `start_not_after` for validation using the same event-loop
-clock; the SDK checks it before admission and before science, including after model
-loading. A deadline failure reaches the interpreter only after the original worker
-has settled, or when admission was refused before any worker was started.
+The maintained lane builds and installs the SDK and example wheels, then runs
+outside the checkout. Tests run both offerings through the public request
+workflow, change beam size using external deployment configuration, and exercise
+input correction, retained delivery, concurrent waits, cancellation and original
+failure propagation. Lower-level scientific tests cover checkpoint errors,
+partially loaded models, prepared-input consumption and candidate validation.

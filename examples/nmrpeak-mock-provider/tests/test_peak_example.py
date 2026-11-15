@@ -5,7 +5,6 @@ from provider_core.container_guard import require_container
 require_container()
 
 import asyncio
-from contextlib import AsyncExitStack
 from dataclasses import replace
 from importlib import metadata, resources
 import json
@@ -17,14 +16,14 @@ from threading import Event
 import unittest
 from unittest.mock import patch
 
-from provider_core.embedded_host import EmbeddedAnalysis, EmbeddedHost
-from provider_core.hosting import OperationPolicy, NotAdmitted, StartDeadlineExpired, ResultConsumption, ResultState, observe_cleanup, observe_completion
+from provider_core.embedded_host import EmbeddedHost
+from provider_core.hosting import CapacityUnavailable, OperationPolicy, NotAdmitted, StartDeadlineExpired, ResultConsumption, ResultState, observe_cleanup, observe_completion
 from provider_core.interpreter import Interpreter, ModelWindowExpired, ProseService
 from provider_core.scientific import ResourceRequirement
 
 from nmrpeak_mock_provider.application import Prediction
 from nmrpeak_mock_provider.binding import Chf, Hf, PeakContribution
-from nmrpeak_mock_provider.composition import adopt_offerings, interpretation_messages, interpretation_tools
+from nmrpeak_mock_provider.composition import adopt_offerings
 from nmrpeak_mock_provider.fake_model import Model, Tokenizer
 from nmrpeak_mock_provider import provider as provider_setup
 from nmrpeak_mock_provider.science import Settings
@@ -81,6 +80,7 @@ class PeakExampleTests(unittest.IsolatedAsyncioTestCase):
         self.addAsyncCleanup(self.close_analysis, execution=execution)
         return Prediction(
             execution=execution, hosted=hosted, interpreter=interpreter,
+            receive=RecordingReceiver(),
             policy=OperationPolicy(
                 queue_stop_request_seconds=5,
                 execution_stop_request_seconds=5,
@@ -92,7 +92,7 @@ class PeakExampleTests(unittest.IsolatedAsyncioTestCase):
 
     async def interpret(self, *, prediction, carbon):
         async with asyncio.timeout(15):
-            await prediction.interpret(messages=interpretation_messages(source="Recorded NMR source"), tools=interpretation_tools(carbon=carbon))
+            await prediction.interpret(source="Recorded NMR source")
 
     async def test_both_offerings_interpret_validate_generate_and_deliver(self):
         for hosted in self.offerings:
@@ -314,12 +314,15 @@ class PeakExampleTests(unittest.IsolatedAsyncioTestCase):
         self.assertIsNone(obj=self.chf.contribution.model)
 
 
-async def close_execution(*, execution: EmbeddedAnalysis) -> None:
-    """Wait for the test's requested analysis cleanup before retiring its provider."""
-    await observe_cleanup(control=execution.close())
-
-
 class InstalledProviderTests(unittest.IsolatedAsyncioTestCase):
+    async def asyncSetUp(self):
+        self.factory = ScriptedEndpointFactory(proposals=(), context_bytes=32768)
+        self.services = (ProseService(factory=self.factory),)
+        configuration = Path(__file__).parent / "config/deployments/localhost/provider.toml"
+        selected_config = patch.object(target=provider_setup, attribute="PROVIDER_CONFIG_PATH", new=configuration)
+        selected_config.start()
+        self.addCleanup(selected_config.stop)
+
     async def test_external_deployment_settings_change_scientific_results(self):
         package = Path(str(resources.files(anchor="nmrpeak_mock_provider")))
         distribution = metadata.distribution(distribution_name="nmrpeak-mock-provider-example")
@@ -334,40 +337,18 @@ class InstalledProviderTests(unittest.IsolatedAsyncioTestCase):
                 )
                 reports = []
                 with patch.object(target=provider_setup, attribute="PROVIDER_CONFIG_PATH", new=configuration):
-                    async with provider_setup.open_provider(create_model=Model) as provider:
+                    async with provider_setup.open_provider(
+                        create_model=Model,
+                        endpoint_factories=self.services,
+                        secrets=(),
+                    ) as provider:
                         for hosted in provider.offerings:
                             carbon = isinstance(hosted.contribution, Chf)
-                            factory = ScriptedEndpointFactory(proposals=(candidate(carbon=carbon),), context_bytes=32768)
-                            async with AsyncExitStack() as request_cleanup:
-                                interpreter = Interpreter(
-                                    endpoint_factories=(ProseService(factory=factory),),
-                                    timeout_seconds=15,
-                                    context_bytes=factory.context_bytes,
-                                    secrets=(),
-                                )
-                                request_cleanup.push_async_callback(interpreter.retire)
-                                execution = provider.host.open_analysis(allocations=frozenset({hosted.allocation}))
-                                request_cleanup.push_async_callback(close_execution, execution=execution)
-                                prediction = Prediction(
-                                    execution=execution,
-                                    hosted=hosted,
-                                    interpreter=interpreter,
-                                    policy=provider.operation_policy,
-                                )
-                                await prediction.interpret(
-                                    messages=interpretation_messages(source="Recorded NMR source"),
-                                    tools=interpretation_tools(carbon=carbon),
-                                )
-                                result = await prediction.finish()
-                                receiver = RecordingReceiver()
-                                consumption = ResultConsumption(
-                                    operation=prediction.generation,
-                                    result=result,
-                                    receive=receiver,
-                                )
-                                # Finish the original receiver before closing its execution session.
-                                request_cleanup.push_async_callback(consumption.settle)
-                                await consumption.consume()
+                            self.factory.proposals = (candidate(carbon=carbon),)
+                            receiver = RecordingReceiver()
+                            async with provider.open_prediction(offering=hosted, receive=receiver) as prediction:
+                                await prediction.interpret(source="Recorded NMR source")
+                                await prediction.deliver()
                                 report, = receiver.payloads
                                 reports.append(json.loads(s=report))
                 self.assertEqual(first=2, second=len(reports))
@@ -385,7 +366,11 @@ class InstalledProviderTests(unittest.IsolatedAsyncioTestCase):
 
         configuration = Path(__file__).parent / "config/deployments/localhost/provider.toml"
         with patch.object(target=provider_setup, attribute="PROVIDER_CONFIG_PATH", new=configuration):
-            async with provider_setup.open_provider(create_model=create_model) as provider:
+            async with provider_setup.open_provider(
+                create_model=create_model,
+                endpoint_factories=self.services,
+                secrets=(),
+            ) as provider:
                 self.assertEqual(first=2, second=len(provider.offerings))
                 self.assertEqual(first=[], second=created)
         retirement = await provider.host.retire().observe(after=None, wait_seconds=0)
@@ -414,7 +399,11 @@ class InstalledProviderTests(unittest.IsolatedAsyncioTestCase):
         with patch.object(target=provider_setup, attribute="PROVIDER_CONFIG_PATH", new=configuration):
             with patch.object(target=provider_setup, attribute="adopt_offerings", new=adopt_partially):
                 with self.assertRaises(expected_exception=OSError) as raised:
-                    async with provider_setup.open_provider(create_model=Model):
+                    async with provider_setup.open_provider(
+                        create_model=Model,
+                        endpoint_factories=self.services,
+                        secrets=(),
+                    ):
                         self.fail(msg="Partial assembly must not yield a provider")
         self.assertIs(expr1=original, expr2=raised.exception)
         self.assertEqual(first=1, second=len(closed))
@@ -430,7 +419,11 @@ class InstalledProviderTests(unittest.IsolatedAsyncioTestCase):
         with patch.object(target=provider_setup, attribute="PROVIDER_CONFIG_PATH", new=configuration):
             with patch.object(target=Hf, attribute="close", new=fail_close):
                 with self.assertRaises(expected_exception=BaseExceptionGroup) as raised:
-                    async with provider_setup.open_provider(create_model=Model) as provider:
+                    async with provider_setup.open_provider(
+                        create_model=Model,
+                        endpoint_factories=self.services,
+                        secrets=(),
+                    ) as provider:
                         raise original
         # Keep the SDK's original aggregate, including the original science failure.
         body_failure, retirement_failure = raised.exception.exceptions
@@ -438,3 +431,188 @@ class InstalledProviderTests(unittest.IsolatedAsyncioTestCase):
         observation = await provider.host.retire().observe(after=None, wait_seconds=0)
         self.assertIs(expr1=retirement_failure, expr2=observation.failures[0].cause)
         self.assertEqual(first=(cleanup,), second=retirement_failure.exceptions)
+
+
+    async def test_request_corrects_input_and_concurrent_delivery_sends_once(self):
+        rejected = candidate(carbon=False)
+        rejected["proton_peaks"] = []
+        self.factory.proposals = (rejected, candidate(carbon=False))
+        receiver = RecordingReceiver()
+        async with provider_setup.open_provider(
+            create_model=Model,
+            endpoint_factories=self.services,
+            secrets=(),
+        ) as provider:
+            hf, = [offering for offering in provider.offerings if isinstance(offering.contribution, Hf)]
+            async with provider.open_prediction(offering=hf, receive=receiver) as prediction:
+                await prediction.interpret(source="Formula and proton spectrum")
+                await asyncio.gather(prediction.deliver(), prediction.deliver())
+                consumption = prediction.consumption
+                await prediction.deliver()
+                self.assertIs(expr1=consumption, expr2=prediction.consumption)
+                self.assertEqual(first=2, second=len(prediction.preparations))
+                self.assertEqual(first=1, second=len(receiver.payloads))
+            self.assertTrue(expr=prediction.execution.closed)
+            self.assertTrue(expr=self.factory.endpoints[0].retirement_confirmed)
+
+    async def test_failed_receiver_keeps_original_result_until_request_exit(self):
+        self.factory.proposals = (candidate(carbon=False),)
+        original = OSError("Receiver acknowledgement was lost")
+        attempts = []
+
+        async def receive(payload):
+            attempts.append(payload)
+            raise original
+
+        async with provider_setup.open_provider(
+            create_model=Model,
+            endpoint_factories=self.services,
+            secrets=(),
+        ) as provider:
+            hf, = [offering for offering in provider.offerings if isinstance(offering.contribution, Hf)]
+            with self.assertRaises(expected_exception=OSError) as exit_failure:
+                async with provider.open_prediction(offering=hf, receive=receive) as prediction:
+                    await prediction.interpret(source="Formula and proton spectrum")
+                    for _ in range(2):
+                        with self.assertRaises(expected_exception=OSError) as delivery_failure:
+                            await prediction.deliver()
+                        self.assertIs(expr1=original, expr2=delivery_failure.exception)
+                    retained = await prediction.generation.read_result(prediction.consumption.result)
+                    self.assertEqual(first=attempts[0], second=retained)
+                    self.assertFalse(expr=prediction.execution.closed)
+            self.assertIs(expr1=original, expr2=exit_failure.exception)
+            self.assertEqual(first=1, second=len(attempts))
+            self.assertTrue(expr=prediction.execution.closed)
+            self.assertTrue(expr=self.factory.endpoints[0].retirement_confirmed)
+
+    async def test_cancelled_request_joins_receiver_before_releasing_science(self):
+        self.factory.proposals = (candidate(carbon=False),)
+        entered = asyncio.Event()
+        body_left = asyncio.Event()
+        accepted = asyncio.Event()
+        attempts = []
+        requests = []
+
+        async def receive(payload):
+            attempts.append(payload)
+            entered.set()
+            await accepted.wait()
+            self.assertFalse(expr=requests[0].execution.closed)
+
+        async with provider_setup.open_provider(
+            create_model=Model,
+            endpoint_factories=self.services,
+            secrets=(),
+        ) as provider:
+            hf, = [offering for offering in provider.offerings if isinstance(offering.contribution, Hf)]
+
+            async def run_request():
+                async with provider.open_prediction(offering=hf, receive=receive) as prediction:
+                    requests.append(prediction)
+                    await prediction.interpret(source="Formula and proton spectrum")
+                    try:
+                        await prediction.deliver()
+                    finally:
+                        body_left.set()
+
+            task = asyncio.create_task(coro=run_request())
+            try:
+                async with asyncio.timeout(10):
+                    await entered.wait()
+                    task.cancel()
+                    await body_left.wait()
+                    self.assertFalse(expr=task.done())
+                    accepted.set()
+                    with self.assertRaises(expected_exception=asyncio.CancelledError):
+                        await task
+            finally:
+                accepted.set()
+                await asyncio.gather(task, return_exceptions=True)
+            self.assertEqual(first=1, second=len(attempts))
+            self.assertTrue(expr=requests[0].execution.closed)
+            self.assertTrue(expr=self.factory.endpoints[0].retirement_confirmed)
+
+    async def test_model_loading_failure_propagates_and_retires_interpretation(self):
+        self.factory.proposals = (candidate(carbon=False),)
+        original = OSError("Cannot load the selected checkpoint")
+
+        def fail_load(self, *, checkpoint):
+            raise original
+
+        async with provider_setup.open_provider(
+            create_model=Model,
+            endpoint_factories=self.services,
+            secrets=(),
+        ) as provider:
+            hf, = [offering for offering in provider.offerings if isinstance(offering.contribution, Hf)]
+            receiver = RecordingReceiver()
+            with patch.object(target=Model, attribute="load", new=fail_load):
+                with self.assertRaises(expected_exception=OSError) as raised:
+                    async with provider.open_prediction(offering=hf, receive=receiver) as prediction:
+                        await prediction.interpret(source="Formula and proton spectrum")
+            self.assertIs(expr1=original, expr2=raised.exception)
+            self.assertEqual(first=[], second=receiver.payloads)
+            self.assertTrue(expr=prediction.execution.closed)
+            self.assertTrue(expr=self.factory.endpoints[0].retirement_confirmed)
+
+    async def test_foreign_offering_is_rejected_before_interpretation(self):
+        async with provider_setup.open_provider(
+            create_model=Model,
+            endpoint_factories=self.services,
+            secrets=(),
+        ) as provider:
+            async with provider_setup.open_provider(
+                create_model=Model,
+                endpoint_factories=self.services,
+                secrets=(),
+            ) as other:
+                foreign = next(iter(other.offerings))
+                with self.assertRaises(expected_exception=ValueError):
+                    async with provider.open_prediction(offering=foreign, receive=RecordingReceiver()):
+                        self.fail(msg="A foreign offering must not open a prediction")
+            self.assertEqual(first=[], second=self.factory.endpoints)
+
+
+    async def test_provider_reuses_model_with_fresh_interpretation_per_request(self):
+        self.factory.proposals = (candidate(carbon=False),)
+        models = []
+
+        def create_model():
+            model = Model()
+            models.append(model)
+            return model
+
+        async with provider_setup.open_provider(
+            create_model=create_model,
+            endpoint_factories=self.services,
+            secrets=(),
+        ) as provider:
+            hf, = [offering for offering in provider.offerings if isinstance(offering.contribution, Hf)]
+            for _ in range(2):
+                receiver = RecordingReceiver()
+                async with provider.open_prediction(offering=hf, receive=receiver) as prediction:
+                    await prediction.interpret(source="Formula and proton spectrum")
+                    await prediction.deliver()
+                self.assertEqual(first=1, second=len(receiver.payloads))
+            self.assertEqual(first=1, second=len(models))
+            self.assertIs(expr1=models[0], expr2=hf.contribution.model)
+            self.assertEqual(first=2, second=len(self.factory.endpoints))
+            self.assertTrue(expr=all(endpoint.retirement_confirmed for endpoint in self.factory.endpoints))
+        self.assertIsNone(obj=models[0].tokenizer)
+
+    async def test_occupied_offering_refuses_second_request_without_disrupting_first(self):
+        self.factory.proposals = (candidate(carbon=False),)
+        receiver = RecordingReceiver()
+        async with provider_setup.open_provider(
+            create_model=Model,
+            endpoint_factories=self.services,
+            secrets=(),
+        ) as provider:
+            hf, = [offering for offering in provider.offerings if isinstance(offering.contribution, Hf)]
+            async with provider.open_prediction(offering=hf, receive=receiver) as original:
+                with self.assertRaises(expected_exception=CapacityUnavailable):
+                    async with provider.open_prediction(offering=hf, receive=RecordingReceiver()):
+                        self.fail(msg="One scientific allocation cannot serve two active requests")
+                await original.interpret(source="Formula and proton spectrum")
+                await original.deliver()
+                self.assertEqual(first=1, second=len(receiver.payloads))
