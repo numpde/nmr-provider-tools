@@ -5,14 +5,13 @@ from __future__ import annotations
 import asyncio
 import sys
 
-from provider_core.embedded_host import EmbeddedHost
 from provider_core.failure_collection import FailureCollector
 from provider_core.hosting import (
-    OperationPolicy, NotAdmitted, ResultConsumption,
+    NotAdmitted, ResultConsumption,
     observe_cleanup, observe_completion,
 )
 
-from .binding import create_binding
+from .provider import open_provider
 from .science import VectorInput
 
 
@@ -23,21 +22,9 @@ async def run_demo() -> None:
     Host exit then joins original retirement, deferring interruption while SDK
     resources are pending rather than abandoning cleanup when a cap expires.
     """
-    async with EmbeddedHost(
-        input_bytes=8192,
-        result_bytes=8192,
-        state_values=1,
-        progress_records=1,
-        initialization_seconds=5,
-        retirement_seconds=5,
-    ) as host:
-        operation_policy = OperationPolicy(
-            queue_stop_request_seconds=5,
-            execution_stop_request_seconds=10,
-            cleanup_overdue_flag_seconds=5,
-            reject_encoded_input_over_bytes=4096,
-            reject_encoded_result_over_bytes=4096,
-        )
+    async with open_provider() as provider:
+        host = provider.host
+        operation_policy = provider.operation_policy
         analysis = None
         retained = []
         failures = FailureCollector(message="Reference matching and cleanup reported failures.")
@@ -48,7 +35,7 @@ async def run_demo() -> None:
             sys.stdout.buffer.flush()
 
         with failures.capture():
-            binding = create_binding(host=host)
+            binding = provider.matcher
             for values in ((3, 4, 0, 0), (0, 0, 1, 1)):
                 analysis = host.open_analysis(allocations=frozenset({binding.allocation}))
                 reservation, = analysis.reservations

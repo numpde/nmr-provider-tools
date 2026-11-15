@@ -22,7 +22,7 @@ async def run_demo() -> None:
     host context joins original retirement instead of abandoning pending cleanup
     when an observer cap expires.
     """
-    async with open_provider(result_bytes=8192) as provider:
+    async with open_provider() as provider:
         analysis = None
         workflow = None
         failures = FailureCollector(message="The example and its cleanup reported failures.")

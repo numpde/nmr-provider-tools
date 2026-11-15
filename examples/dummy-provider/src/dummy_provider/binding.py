@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from importlib.resources import files
+from pathlib import Path
 import tomllib
 
 import provider_core.scientific as sdk
@@ -95,9 +95,16 @@ class Sum(sdk.Contribution):
         return science.sum_values(summation=summation)
 
 
+# This component example's caller supplies the host and operation policy.
+# repo-check: allow-module-constant
+PROVIDER_CONFIG_PATH = Path("config/deployments/localhost/provider.toml")
+
+
 def read_resource_requirements() -> frozenset[sdk.ResourceRequirement]:
-    """Read this example's call requirements from its resource configuration."""
-    requirements_file = files(anchor=__package__).joinpath("resources.toml")
-    return frozenset({sdk.ResourceRequirement(
-        **tomllib.loads(requirements_file.read_text(encoding="utf-8")),
-    )})
+    """Read this deployment's declared scientific call requirements."""
+    with PROVIDER_CONFIG_PATH.open(mode="rb") as source:
+        configuration = tomllib.load(source)
+    return frozenset(
+        sdk.ResourceRequirement(**requirement)
+        for requirement in configuration["execution"]["resource_requirement"]
+    )

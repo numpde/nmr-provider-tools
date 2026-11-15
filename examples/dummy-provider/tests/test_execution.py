@@ -7,10 +7,14 @@ from provider_core.container_guard import require_container
 require_container()
 
 import asyncio
+from pathlib import Path
+import shutil
+from tempfile import TemporaryDirectory
 import unittest
 from unittest.mock import patch
 
 from dummy_provider import science
+from dummy_provider import binding as binding_setup
 from dummy_provider.binding import WeightedSum, WeightedSumConfig, read_resource_requirements
 from provider_core.contribution import ProgressEvent
 from provider_core.embedded_host import EmbeddedHost
@@ -26,6 +30,15 @@ from provider_core.hosting import (
 
 
 class DummyInstalledExecutionTests(unittest.IsolatedAsyncioTestCase):
+    async def asyncSetUp(self):
+        directory = Path(self.enterContext(TemporaryDirectory()))
+        configuration = directory / "provider.toml"
+        shutil.copyfile(
+            src=Path(__file__).parent / "config/deployments/localhost/provider.toml",
+            dst=configuration,
+        )
+        self.enterContext(patch.object(target=binding_setup, attribute="PROVIDER_CONFIG_PATH", new=configuration))
+
     async def assert_succeeded(self, operation):
         """Wait for the operation's terminal observation and require success."""
         async with asyncio.timeout(10):

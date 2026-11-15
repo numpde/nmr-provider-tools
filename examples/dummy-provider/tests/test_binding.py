@@ -9,6 +9,7 @@ from pathlib import Path
 import os
 import subprocess
 import sys
+import shutil
 from tempfile import TemporaryDirectory
 import unittest
 from unittest.mock import patch
@@ -17,11 +18,19 @@ import provider_core.contribution as contribution
 from provider_core.embedded_host import EmbeddedHost
 from provider_core.hosting import observe_cleanup
 from dummy_provider import science
+from dummy_provider import binding as binding_setup
 from dummy_provider.binding import Sum, WeightedSum, WeightedSumConfig, read_resource_requirements
 
 
 class DummyBindingTests(unittest.IsolatedAsyncioTestCase):
     async def asyncSetUp(self):
+        directory = Path(self.enterContext(TemporaryDirectory()))
+        self.configuration = directory / "provider.toml"
+        shutil.copyfile(
+            src=Path(__file__).parent / "config/deployments/localhost/provider.toml",
+            dst=self.configuration,
+        )
+        self.enterContext(patch.object(target=binding_setup, attribute="PROVIDER_CONFIG_PATH", new=self.configuration))
         self.host = EmbeddedHost(
             input_bytes=4096,
             result_bytes=4096,
@@ -61,8 +70,6 @@ class DummyBindingTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual({"dummy_provider"}, python_package_roots)
         self.assertTrue((installed_package / "science.py").is_file())
         self.assertTrue((installed_package / "binding.py").is_file())
-        self.assertTrue((installed_package / "resources.toml").is_file())
-        self.assertIn("dummy_provider/resources.toml", {str(path) for path in installed_distribution.files})
 
     async def test_science_import_does_not_require_the_host_launcher(self) -> None:
         environment = os.environ.copy()
@@ -107,7 +114,7 @@ class DummyBindingTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual("normalized", WeightedSum.normalized.name)
         self.assertEqual("candidate", WeightedSum.candidate.name)
 
-    async def test_all_calls_declare_the_packaged_cpu_requirement(self) -> None:
+    async def test_all_calls_declare_the_deployment_cpu_requirement(self) -> None:
         weighted = self.weighted_binding(
             settings=science.WeightedSumSettings(scale=2, offset=1),
             coefficients=science.CoefficientSet(values=(1, 2, 3)),
@@ -126,12 +133,12 @@ class DummyBindingTests(unittest.IsolatedAsyncioTestCase):
             coefficients=science.CoefficientSet(values=(1, 2, 3)),
         )
         original_bindings = (weighted, self.sum_binding())
-        configured = 'kind = "cpu"\namount = 2\nunit = "thread"\nselector = "generic"\nexclusive = false\n'
+        configured = '[[execution.resource_requirement]]\nkind = "cpu"\namount = 2\nunit = "thread"\nselector = "generic"\nexclusive = false\n'
         with TemporaryDirectory() as directory:
             root = Path(directory)
-            resource_file = root / "resources.toml"
+            resource_file = root / "provider.toml"
             resource_file.write_text(configured, encoding="utf-8")
-            with patch("dummy_provider.binding.files", return_value=root):
+            with patch.object(target=binding_setup, attribute="PROVIDER_CONFIG_PATH", new=root / "provider.toml"):
                 updated = self.weighted_binding(
                     settings=science.WeightedSumSettings(scale=2, offset=1),
                     coefficients=science.CoefficientSet(values=(1, 2, 3)),
@@ -158,11 +165,11 @@ class DummyBindingTests(unittest.IsolatedAsyncioTestCase):
     async def test_invalid_resource_values_are_rejected(self) -> None:
         with TemporaryDirectory() as directory:
             root = Path(directory)
-            (root / "resources.toml").write_text(
-                'kind = "cpu"\namount = 0\nunit = "thread"\nselector = "generic"\nexclusive = false\n',
+            (root / "provider.toml").write_text(
+                '[[execution.resource_requirement]]\nkind = "cpu"\namount = 0\nunit = "thread"\nselector = "generic"\nexclusive = false\n',
                 encoding="utf-8",
             )
-            with patch("dummy_provider.binding.files", return_value=root):
+            with patch.object(target=binding_setup, attribute="PROVIDER_CONFIG_PATH", new=root / "provider.toml"):
                 with self.assertRaisesRegex(ValueError, "Resource amount must be a positive integer"):
                     self.sum_binding()
 

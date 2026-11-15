@@ -24,6 +24,13 @@ NMRPeak iterates a configurable inventory, allowing several models of one input
 family. Spectrum instead retains the baseline and peaks roles required by its
 fixed scientific sequence. An unordered collection should not erase those roles.
 
+Deployment choices live outside wheels in `config/deployments/localhost/provider.toml`.
+Each example selects its document with `PROVIDER_CONFIG_PATH`. Spectrum, Reference
+and NMRPeak read execution parameters and provider-specific science settings once
+at startup. Dummy only reads its call resource requirements, leaving host and
+operation policy to the caller. Tests stage that same configuration layout and
+invoke the production setup paths.
+
 Shared execution mechanics belong in the SDK. After observing completion,
 `observation.require_result()` returns a usable result handle or raises the
 original execution failures. Providers retain scientific decisions such as

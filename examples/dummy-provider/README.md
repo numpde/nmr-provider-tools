@@ -2,13 +2,13 @@
 
 This standalone Python project shows how scientific functions and a binding
 adapter use the installed `provider_core` interface. The scientific package
-contains `science.py`, `binding.py`, `resources.toml` and its package marker.
+contains `science.py`, `binding.py` and its package marker.
 
 ```text
+config/deployments/localhost/provider.toml   declared CPU requirements
 src/dummy_provider/
     science.py         scientific types, functions and state lifetimes
     binding.py         configured scientific call and lifecycle registrations
-    resources.toml     CPU requirement shared by the three scientific calls
 tests/
     test_science.py    direct calculations and scientific rejection/correction
     test_binding.py    binding declarations and installed package boundary
@@ -86,3 +86,8 @@ attributes rather than manually assigned labels.
 Adoption records resource requirements and establishes scientific-object ownership.
 It does not discover or allocate CPU/GPU hardware. The returned allocation handle
 identifies an execution owner, not a hardware grant.
+
+`read_resource_requirements()` reads the external deployment document selected by
+`PROVIDER_CONFIG_PATH` in `binding.py`. The configuration stays outside the wheel.
+This component example leaves host capacity and operation policy to its caller;
+it does not create a provider service merely to load resource requirements.

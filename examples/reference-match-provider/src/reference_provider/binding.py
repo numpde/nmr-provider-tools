@@ -3,11 +3,8 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from importlib.resources import files
-import tomllib
 
 import provider_core.scientific as sdk
-from provider_core.embedded_host import EmbeddedHost
 
 from . import science
 
@@ -38,21 +35,3 @@ class ReferenceMatcher(sdk.Contribution):
         return science.match(
             index=self.loaded_index, settings=self.configuration.settings, candidate=candidate,
         )
-
-
-def create_binding(*, host: EmbeddedHost) -> sdk.HostedContribution:
-    """Provider-owned assembly, invoked explicitly; no index is loaded here."""
-    package = files(anchor=__package__)
-    configured = tomllib.loads(package.joinpath("settings.toml").read_text(encoding="utf-8"))
-    settings = science.MatchSettings(**configured["matching"])
-    references = []
-    for reference in configured["references"]:
-        references.append(science.Reference(label=reference["label"], values=tuple(reference["values"])))
-    reference_set = science.ReferenceSet(entries=tuple(references))
-    requirement = sdk.ResourceRequirement(
-        **tomllib.loads(package.joinpath("resources.toml").read_text(encoding="utf-8"))
-    )
-    return host.adopt(
-        contribution=ReferenceMatcher(configuration=ReferenceConfig(settings=settings, references=reference_set)),
-        requirements=frozenset({requirement}),
-    )

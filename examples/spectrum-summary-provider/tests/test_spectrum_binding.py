@@ -7,49 +7,43 @@ require_container()
 from importlib import metadata, resources
 from pathlib import Path
 import sys
+import shutil
 from tempfile import TemporaryDirectory
 import unittest
 from unittest.mock import patch
 
 import provider_core.contribution as contribution
 import provider_core.scientific as sdk
-from provider_core.embedded_host import EmbeddedHost
-from provider_core.hosting import observe_cleanup
 from spectrum_provider import science
 from spectrum_provider.binding import Baseline, Peaks
-from spectrum_provider.provider import Provider
+from spectrum_provider import provider as provider_setup
 
 
 class SpectrumBindingTests(unittest.IsolatedAsyncioTestCase):
     async def asyncSetUp(self):
-        self.host = EmbeddedHost(
-            input_bytes=4096,
-            result_bytes=4096,
-            state_values=1,
-            progress_records=1,
-            initialization_seconds=5,
-            retirement_seconds=5,
+        directory = Path(self.enterContext(TemporaryDirectory()))
+        self.configuration = directory / "provider.toml"
+        shutil.copyfile(
+            src=Path(__file__).parent / "config/deployments/localhost/provider.toml",
+            dst=self.configuration,
         )
-        self.addAsyncCleanup(self.retire)
+        self.enterContext(patch.object(target=provider_setup, attribute="PROVIDER_CONFIG_PATH", new=self.configuration))
 
-    async def retire(self):
-        await observe_cleanup(control=self.host.retire())
+    async def provider(self):
+        return await self.enterAsyncContext(provider_setup.open_provider())
 
-    def provider(self):
-        return Provider(host=self.host)
-
-    async def test_installed_distribution_contains_its_package_and_configuration(self) -> None:
+    async def test_installed_distribution_contains_its_package(self) -> None:
         distribution = metadata.distribution("spectrum-summary-provider-example")
         package = Path(resources.files("spectrum_provider")).resolve()
         self.assertEqual(package, Path(distribution.locate_file("spectrum_provider")).resolve())
         self.assertTrue(package.is_relative_to(Path(sys.prefix).resolve()))
-        for name in ("science.py", "binding.py", "settings.toml", "resources.toml"):
+        for name in ("science.py", "binding.py", "provider.py"):
             with self.subTest(name=name):
                 self.assertTrue(package.joinpath(name).is_file())
                 self.assertIn(f"spectrum_provider/{name}", {str(path) for path in distribution.files})
 
     async def test_independent_bindings_share_the_typed_spectrum_format(self) -> None:
-        provider = self.provider()
+        provider = await self.provider()
         baseline = provider.baseline
         peaks = provider.peaks
         baseline_call = baseline.call(method=Baseline.run)
@@ -75,7 +69,7 @@ class SpectrumBindingTests(unittest.IsolatedAsyncioTestCase):
         expected = contribution.ResourceRequirement(
             kind="cpu", amount=1, unit="thread", selector="generic", exclusive=False,
         )
-        provider = self.provider()
+        provider = await self.provider()
         for binding in (provider.baseline, provider.peaks):
             with self.subTest(binding=binding.description.binding_id):
                 self.assertIs(type(binding.contribution).initialize, sdk.Contribution.initialize)
@@ -87,28 +81,14 @@ class SpectrumBindingTests(unittest.IsolatedAsyncioTestCase):
                 self.assertEqual((), call.description.state_outputs)
 
     async def test_provider_settings_remain_local_to_each_implementation(self) -> None:
-        original = self.provider()
-        package = resources.files("spectrum_provider")
-        with TemporaryDirectory() as directory:
-            root = Path(directory)
-            root.joinpath("resources.toml").write_text(
-                package.joinpath("resources.toml").read_text(encoding="utf-8"),
-                encoding="utf-8",
-            )
-            configured = "[baseline]\nbaseline = 2.0\n[peaks]\nminimum_height = 2.0\n"
-            root.joinpath("settings.toml").write_text(configured, encoding="utf-8")
-            with patch("spectrum_provider.provider.files", return_value=root):
-                changed = self.provider()
-                root.joinpath("settings.toml").write_text(
-                    "# Formatting does not change scientific settings\n" + configured,
-                    encoding="utf-8",
-                )
-                reformatted = self.provider()
-                root.joinpath("settings.toml").write_text(
-                    "[baseline]\nbaseline = 2.0\n[peaks]\nminimum_height = 4.0\n",
-                    encoding="utf-8",
-                )
-                changed_peak_settings = self.provider()
+        original = await self.provider()
+        configured = self.configuration.read_text(encoding="utf-8").replace("baseline = 1.0", "baseline = 2.0")
+        self.configuration.write_text(data=configured, encoding="utf-8")
+        changed = await self.provider()
+        self.configuration.write_text(data="# Formatting does not change settings\n" + configured, encoding="utf-8")
+        reformatted = await self.provider()
+        self.configuration.write_text(data=configured.replace("minimum_height = 2.0", "minimum_height = 4.0"), encoding="utf-8")
+        changed_peak_settings = await self.provider()
 
         self.assertNotEqual(original.baseline.contribution.configuration, changed.baseline.contribution.configuration)
         self.assertEqual(original.peaks.description.binding_revision, changed.peaks.description.binding_revision)

@@ -7,16 +7,16 @@ portable result transfer.
 
 `ReferenceMatcher` inherits `Contribution` and exports its keyword-only `match`
 method. Its constructor retains the provider's settings and reference records.
-`create_binding()` is explicitly called provider assembly, which adopts that
-object before index initialization. Local execution submits
-`method=binding.contribution.match`. The helper name has no SDK meaning.
+`open_provider()` reads the selected external deployment document and adopts
+the configured matcher before index initialization. Local execution submits
+`method=binding.contribution.match`. The helper is provider application code, not an SDK discovery hook.
 
 ```text
+config/deployments/localhost/provider.toml   science, resources and execution policy
 src/reference_provider/
 ├── science.py       immutable reference data, inverted index and direct query
 ├── binding.py       configured contribution and allocation-owned index lifecycle
-├── settings.toml    reference asset and matching threshold
-├── resources.toml   scientific CPU requirement
+├── provider.py      deployment loading, scientific assembly and host lifetime
 └── __main__.py      local deployment and two sequential analyses
 ```
 
@@ -29,14 +29,14 @@ Values must be finite and nonnegative. Zero queries, dimension mismatches, no
 overlap and scores below the configured threshold are explicit rejections.
 Exact score ties choose the lexicographically smallest label.
 
-`create_binding()` passes settings and reference data to the provider-owned
+`open_provider()` passes settings and reference data to the provider-owned
 constructor. It exports `ReferenceMatcher.match`. The instance
 initializer builds the actual index once; retirement disposes that retained
 index. Each query is self-contained, so there are no analysis hooks, scratch
 workspace or prepared-state handles. A completed report contains only a label
 and score and needs no live index to be read.
 
-The executable reserves one fixed CPU allocation. It closes and observes the
+The executable reuses one adopted matcher. It closes and observes the
 first analysis before opening the second on that same initialized allocation.
 The first result stays retained and readable while the second query runs.
 Finally, SDK `ResultConsumption` owns each report's read/consumer attempt and
@@ -65,7 +65,9 @@ make tests/integration/provider-core DOCKER_CONTEXT=science WHEELHOUSE=/home/ra/
 ```
 
 With this example and the matching candidate SDK installed inside a permitted
-container, run `python -I -B -m reference_provider`. It prints two JSON reports:
+container, run `python -I -B -m reference_provider` from a directory containing
+`config/deployments/localhost/provider.toml`. The document stays outside the wheel;
+`PROVIDER_CONFIG_PATH` in `provider.py` selects it. It prints two JSON reports:
 `pattern-a` for `(3, 4, 0, 0)` and `pattern-b` for `(0, 0, 1, 1)`, each scoring
 approximately `1`. Flushed stdout is the local consumer; it is not a durable
 report queue or proof of central API publication.

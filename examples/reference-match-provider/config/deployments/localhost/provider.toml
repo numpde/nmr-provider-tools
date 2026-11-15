@@ -1,0 +1,44 @@
+# Capacity for scientific execution in this deployment.
+[execution.embedded_host]
+input_bytes = 8192
+result_bytes = 8192
+state_values = 1
+progress_records = 1
+initialization_seconds = 5
+retirement_seconds = 5
+
+# Apply these allowances separately to each submitted scientific method.
+[execution.operation_policy]
+queue_stop_request_seconds = 5
+execution_stop_request_seconds = 10
+cleanup_overdue_flag_seconds = 5
+reject_encoded_input_over_bytes = 4096
+reject_encoded_result_over_bytes = 4096
+
+# Declared CPU needs; the operator must make this capacity available.
+[[execution.resource_requirement]]
+kind = "cpu"
+amount = 1
+unit = "thread"
+selector = "generic"
+exclusive = false
+
+# Scientific settings stay in provider-owned records.
+[science.matching.settings]
+minimum_score = 0.5
+
+[[science.matching.references]]
+label = "pattern-a"
+values = [3.0, 4.0, 0.0, 0.0]
+
+[[science.matching.references]]
+label = "pattern-b"
+values = [0.0, 0.0, 1.0, 1.0]
+
+[[science.matching.references]]
+label = "pattern-c"
+values = [1.0, 0.0, 1.0, 0.0]
+
+[[science.matching.references]]
+label = "pattern-d"
+values = [0.0, 1.0, 0.0, 2.0]

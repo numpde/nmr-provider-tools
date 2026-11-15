@@ -1,0 +1,7 @@
+# CPU requirements for this example; its caller owns host and operation policy.
+[[execution.resource_requirement]]
+kind = "cpu"
+amount = 1
+unit = "thread"
+selector = "generic"
+exclusive = false

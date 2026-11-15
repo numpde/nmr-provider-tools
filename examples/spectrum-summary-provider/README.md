@@ -8,17 +8,17 @@ planned common Jobs service, worker pool, durable delivery queue or remote backe
 ## Responsibilities
 
 ```text
+config/deployments/localhost/provider.toml   science, resources and execution policy
 src/spectrum_provider/
 ├── science.py       portable spectra, settings and ordinary calculations
 ├── binding.py       configured contributions, codecs and stable revisions
-├── settings.toml    baseline and minimum peak height
-├── resources.toml   scientific CPU requirement
 ├── provider.py      settings, direct adoption and per-request composition
 ├── application.py   the provider's fixed baseline → peaks sequence
-└── __main__.py      local deployment, permission and stdout consumption
+└── __main__.py      two-stage demonstration and stdout consumption
 ```
 
-`Provider` reads settings and adopts each scientific object directly into its
+`open_provider()` reads the external deployment document once and adopts each
+scientific object directly into its
 baseline or peaks workflow role. These roles define the scientific sequence;
 they are not an unordered offering inventory. The SDK retains each exact object
 and owns its execution lifetime.
@@ -122,3 +122,9 @@ intermediate-result release and analysis cleanup. Those explicit observations
 keep their caller timeouts; final host settlement can wait longer rather than
 abandon pending SDK cleanup. Cleanup failure remains an error, not confirmation
 that resources were released.
+
+Deployment settings stay outside the wheel. Run the installed demo from a directory
+containing `config/deployments/localhost/provider.toml`; `PROVIDER_CONFIG_PATH` in
+`provider.py` selects that document. Host capacity, operation allowances, CPU needs
+and scientific settings come from it. Provider setup passes typed scientific
+settings to the contributions; the SDK receives its own execution parameters.

@@ -1,13 +1,15 @@
 """Compose the scientific offerings once and assemble each requested workflow."""
 
+from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
-from importlib.resources import files
+from dataclasses import dataclass
+from pathlib import Path
 import tomllib
 
 from provider_core.contribution import ref
 from provider_core.embedded_host import EmbeddedHost
 from provider_core.hosting import Invocation, OperationPolicy
-from provider_core.scientific import ResourceRequirement
+from provider_core.scientific import HostedContribution, ResourceRequirement
 
 from .application import PeakWorkflow
 from .binding import Baseline, Peaks
@@ -15,26 +17,19 @@ from . import science
 from .science import Spectrum
 
 
-class Provider:
-    """Retain this provider's scientific roles within its SDK host lifetime."""
+# Select the deployment document relative to the application's working directory.
+# repo-check: allow-module-constant
+PROVIDER_CONFIG_PATH = Path("config/deployments/localhost/provider.toml")
 
-    def __init__(self, *, host: EmbeddedHost) -> None:
-        self.host = host
-        package = files(anchor=__package__)
-        settings = tomllib.loads(package.joinpath("settings.toml").read_text(encoding="utf-8"))
-        requirements = frozenset({ResourceRequirement(
-            **tomllib.loads(package.joinpath("resources.toml").read_text(encoding="utf-8")),
-        )})
-        # These are ordered workflow roles, not interchangeable offerings.
-        # Retain the exact handles instead of rediscovering roles from a set.
-        self.baseline = host.adopt(
-            contribution=Baseline(configuration=science.BaselineSettings(**settings["baseline"])),
-            requirements=requirements,
-        )
-        self.peaks = host.adopt(
-            contribution=Peaks(configuration=science.PeakSettings(**settings["peaks"])),
-            requirements=requirements,
-        )
+
+@dataclass(frozen=True, slots=True, kw_only=True, eq=False)
+class Provider:
+    """Retain the exact scientific roles and operation policy selected at startup."""
+
+    host: EmbeddedHost
+    baseline: HostedContribution
+    peaks: HostedContribution
+    operation_policy: OperationPolicy
 
     def create_workflow(self, *, spectrum: Spectrum) -> PeakWorkflow:
         """Assemble an unstarted baseline→peaks request using the adopted science.
@@ -45,13 +40,6 @@ class Provider:
         """
         baseline_call = self.baseline.call(method=self.baseline.contribution.run)
         payload = baseline_call.input_codec.encode(value=spectrum)
-        policy = OperationPolicy(
-            queue_stop_request_seconds=5,
-            execution_stop_request_seconds=10,
-            cleanup_overdue_flag_seconds=5,
-            reject_encoded_input_over_bytes=4096,
-            reject_encoded_result_over_bytes=4096,
-        )
         analysis = self.host.open_analysis(allocations=frozenset({self.baseline.allocation, self.peaks.allocation}))
         return PeakWorkflow(
             execution=analysis,
@@ -60,24 +48,36 @@ class Provider:
                 payload=payload,
                 states=(),
                 reservation=analysis.reservation(allocation=self.baseline.allocation),
-                policy=policy,
+                policy=self.operation_policy,
             ),
             peaks=self.peaks.reference(method=self.peaks.contribution.run),
             peak_reservation=analysis.reservation(allocation=self.peaks.allocation),
-            policy=policy,
+            policy=self.operation_policy,
         )
 
 
 @asynccontextmanager
-async def open_provider(*, result_bytes: int):
-    """Own startup and retirement, with a deployment-selected result capacity."""
-    # Scientific requirements describe needs; adoption does not reserve hardware.
-    async with EmbeddedHost(
-        input_bytes=8192,
-        result_bytes=result_bytes,
-        state_values=1,
-        progress_records=1,
-        initialization_seconds=5,
-        retirement_seconds=5,
-    ) as host:
-        yield Provider(host=host)
+async def open_provider() -> AsyncIterator[Provider]:
+    """Read deployment choices once and own the adopted science until retirement."""
+    with PROVIDER_CONFIG_PATH.open(mode="rb") as source:
+        configuration = tomllib.load(source)
+    policy = OperationPolicy(**configuration["execution"]["operation_policy"])
+    requirements = frozenset(
+        ResourceRequirement(**requirement)
+        for requirement in configuration["execution"]["resource_requirement"]
+    )
+    async with EmbeddedHost(**configuration["execution"]["embedded_host"]) as host:
+        # Baseline and peak detection are mandatory roles in this scientific
+        # sequence. Keep their exact handles rather than rediscovering a role.
+        yield Provider(
+            host=host,
+            baseline=host.adopt(
+                contribution=Baseline(configuration=science.BaselineSettings(**configuration["science"]["baseline"]["settings"])),
+                requirements=requirements,
+            ),
+            peaks=host.adopt(
+                contribution=Peaks(configuration=science.PeakSettings(**configuration["science"]["peaks"]["settings"])),
+                requirements=requirements,
+            ),
+            operation_policy=policy,
+        )

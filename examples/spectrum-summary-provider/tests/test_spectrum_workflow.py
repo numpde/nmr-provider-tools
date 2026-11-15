@@ -10,6 +10,10 @@ import json
 from pathlib import Path
 import subprocess
 import sys
+import shutil
+import tomllib
+
+import tomli_w
 from tempfile import TemporaryDirectory
 from threading import Event
 from types import SimpleNamespace
@@ -31,6 +35,15 @@ from spectrum_provider.binding import Baseline
 
 
 class SpectrumWorkflowTests(unittest.IsolatedAsyncioTestCase):
+    async def asyncSetUp(self):
+        directory = Path(self.enterContext(TemporaryDirectory()))
+        self.configuration = directory / "provider.toml"
+        shutil.copyfile(
+            src=Path(__file__).parent / "config/deployments/localhost/provider.toml",
+            dst=self.configuration,
+        )
+        self.enterContext(patch.object(target=provider_setup, attribute="PROVIDER_CONFIG_PATH", new=self.configuration))
+
     async def test_lost_submission_reply_reuses_the_generated_invocation(self):
         workflow, _, _ = await self.workflow(result_bytes=8192)
         submit = workflow.execution.submit
@@ -53,7 +66,10 @@ class SpectrumWorkflowTests(unittest.IsolatedAsyncioTestCase):
         self.assertIs(expr1=Outcome.SUCCEEDED, expr2=completed.outcome)
 
     async def workflow(self, *, result_bytes):
-        provider = await self.enterAsyncContext(provider_setup.open_provider(result_bytes=result_bytes))
+        configuration = tomllib.loads(self.configuration.read_text(encoding="utf-8"))
+        configuration["execution"]["embedded_host"]["result_bytes"] = result_bytes
+        self.configuration.write_text(data=tomli_w.dumps(configuration), encoding="utf-8")
+        provider = await self.enterAsyncContext(provider_setup.open_provider())
         workflow = provider.create_workflow(
             spectrum=science.Spectrum(positions=(0, 1, 2, 3, 4), intensities=(1, 4, 2, 5, 1)),
         )
@@ -344,6 +360,7 @@ class SpectrumWorkflowTests(unittest.IsolatedAsyncioTestCase):
 class SpectrumCommandTests(unittest.TestCase):
     def test_installed_command_runs_outside_its_source_tree(self):
         with TemporaryDirectory() as directory:
+            shutil.copytree(src=Path(__file__).parent / "config", dst=Path(directory) / "config")
             result = subprocess.run(
                 [sys.executable, "-I", "-B", "-m", "spectrum_provider"],
                 cwd=Path(directory), capture_output=True, text=True, timeout=30,
