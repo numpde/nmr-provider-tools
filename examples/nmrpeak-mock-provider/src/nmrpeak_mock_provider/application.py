@@ -13,7 +13,7 @@ from provider_core.contribution_errors import CallRejected
 from provider_core.conversation import ToolFinished, ToolRejected
 from provider_core.embedded_host import EmbeddedAnalysis
 from provider_core.hosting import (
-    OperationPolicy, NotAdmitted, Outcome, ResultConsumption, ResultState, StartDeadlineExpired,
+    OperationPolicy, NotAdmitted, Outcome, ResultConsumption, StartDeadlineExpired,
     observe_cleanup, observe_completion,
 )
 from provider_core.interpreter import Interpreter, ModelWindowExpired
@@ -76,11 +76,14 @@ class Prediction:
                 raise RuntimeError(f"Cannot prepare scientific input: {operation=}")
             self.preparations.append(operation)
             completed = await observe_completion(operation=operation)
-            if completed.outcome is Outcome.REJECTED:
-                cause, = [failure.cause for failure in completed.failures]
-                if isinstance(cause, CallRejected):
-                    raise ToolRejected(cause.message) from cause
-            self.require_result(completed=completed)
+            try:
+                completed.require_result()
+            except CallRejected as cause:
+                # Only scientific input rejection permits language-model repair.
+                # A result-encoding rejection is an operator failure instead.
+                if completed.outcome is not Outcome.REJECTED:
+                    raise
+                raise ToolRejected(cause.message) from cause
         except StartDeadlineExpired as cause:
             # Interpreter can change models only after the original SDK operation
             # has finished, or when the SDK refused it before admission.
@@ -143,16 +146,4 @@ class Prediction:
                 raise RuntimeError(f"Cannot generate candidates: {accepted=}")
             self.generation = accepted
         completed = await observe_completion(operation=self.generation)
-        self.require_result(completed=completed)
-        return completed.result
-
-    @staticmethod
-    def require_result(*, completed) -> None:
-        """Raise original failures, otherwise require a successful readable result."""
-        causes = [failure.cause for failure in completed.failures]
-        if len(causes) == 1:
-            raise causes[0]
-        if causes:
-            raise BaseExceptionGroup("Independent scientific operation failures", causes)
-        if completed.outcome is not Outcome.SUCCEEDED or completed.result_state is not ResultState.AVAILABLE:
-            raise RuntimeError(f"Scientific operation has no consumable result: {completed=}")
+        return completed.require_result()

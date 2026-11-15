@@ -296,3 +296,103 @@ class ResultConsumptionTests(unittest.IsolatedAsyncioTestCase):
                 await owner.settle()
         receive.assert_awaited_once_with(b"original result")
         owner.operation.release_result.assert_not_called()
+
+    async def test_unstarted_context_does_not_call_receiver_or_release_result(self):
+        receive = AsyncMock()
+        owner = self.owner(receive)
+        async with owner as entered:
+            self.assertIs(expr1=owner, expr2=entered)
+        receive.assert_not_awaited()
+        owner.operation.read_result.assert_not_awaited()
+        owner.operation.release_result.assert_not_called()
+
+    async def test_context_preserves_same_receiver_failure_once(self):
+        original = OSError("Receiver acknowledgement is unknown")
+        receive = AsyncMock(side_effect=original)
+        owner = self.owner(receive)
+        with self.assertRaises(expected_exception=OSError) as raised:
+            async with owner:
+                await owner.consume()
+        self.assertIs(expr1=original, expr2=raised.exception)
+        receive.assert_awaited_once_with(b"original result")
+        owner.operation.release_result.assert_not_called()
+
+    async def test_context_exit_raises_original_receiver_failure_without_body_failure(self):
+        original = OSError("Original receiver failed")
+        owner = self.owner(AsyncMock(side_effect=original))
+        with self.assertRaises(expected_exception=OSError) as raised:
+            async with owner:
+                owner.start()
+        self.assertIs(expr1=original, expr2=raised.exception)
+
+    async def test_context_keeps_independent_body_and_release_failures(self):
+        original = ValueError("Request bookkeeping failed")
+        cleanup = OSError("Original result release failed")
+        release = SimpleNamespace(observe=AsyncMock(return_value=CleanupObservation(
+            revision=1,
+            settled=False,
+            allowance_expired=False,
+            failures=(Failure(phase="cleanup", cause=cleanup),),
+        )))
+        receive = AsyncMock()
+        owner = self.owner(receive, release=release)
+        with self.assertRaises(expected_exception=BaseExceptionGroup) as raised:
+            async with owner:
+                owner.start()
+                raise original
+        self.assertEqual(first=(original, cleanup), second=raised.exception.exceptions)
+        receive.assert_awaited_once_with(b"original result")
+        owner.operation.release_result.assert_called_once_with(owner.result)
+
+    async def test_context_body_failure_without_acceptance_keeps_same_cause(self):
+        original = ValueError("Cannot prepare report delivery")
+        receive = AsyncMock()
+        owner = self.owner(receive)
+        with self.assertRaises(expected_exception=ValueError) as raised:
+            async with owner:
+                raise original
+        self.assertIs(expr1=original, expr2=raised.exception)
+        receive.assert_not_awaited()
+
+    async def test_cancelled_context_joins_receiver_before_outer_resources_close(self):
+        started = asyncio.Event()
+        body_left = asyncio.Event()
+        acknowledge = asyncio.Event()
+        outer_closed = asyncio.Event()
+        deliveries = []
+
+        async def receive(payload):
+            deliveries.append(payload)
+            started.set()
+            await acknowledge.wait()
+            self.assertFalse(expr=outer_closed.is_set())
+
+        owner = self.owner(receive)
+
+        async def use_result():
+            try:
+                async with owner:
+                    try:
+                        await owner.consume()
+                    finally:
+                        body_left.set()
+            finally:
+                outer_closed.set()
+
+        task = asyncio.create_task(coro=use_result())
+        try:
+            async with asyncio.timeout(5):
+                await started.wait()
+                task.cancel()
+                await body_left.wait()
+                self.assertFalse(expr=task.done())
+                self.assertFalse(expr=outer_closed.is_set())
+                acknowledge.set()
+                with self.assertRaises(expected_exception=asyncio.CancelledError):
+                    await task
+            self.assertTrue(expr=outer_closed.is_set())
+            self.assertEqual(first=[b"original result"], second=deliveries)
+            owner.operation.release_result.assert_called_once_with(owner.result)
+        finally:
+            acknowledge.set()
+            await asyncio.gather(task, return_exceptions=True)

@@ -43,6 +43,28 @@ providers own scientific meaning and operation ordering. See the
 [standalone examples](../../examples/README.md). This authoring API adds no
 automatic retries, worker pool, Jobs service or deployment authority.
 
+After `observe_completion(operation=operation)`, use
+`observation.require_result()` to obtain the usable result handle or raise the
+original failure causes. Successful science alone does not prove result encoding
+succeeded. Workflows can still inspect the observation directly when deciding
+whether to repair input or proceed to another scientific step.
+
+Own report acceptance inside its resource lifetime:
+
+```python
+async with ResultConsumption(
+    operation=operation,
+    result=observation.require_result(),
+    receive=receive_report,
+) as consumption:
+    await consumption.consume()
+```
+
+The context joins an already started receiver before outer cleanup and preserves
+independent body and settlement failures. Entering does not start delivery, and
+repeated waits never resend. The provider still owns pipeline ordering, execution
+stop decisions and the lifetime of the receiver's external resources.
+
 ## Scientific input tools
 
 Providers using interpretation can expose an existing scientific method without

@@ -7,11 +7,11 @@ import sys
 
 from provider_core.embedded_host import EmbeddedHost
 from provider_core.hosting import (
-    OperationPolicy, NotAdmitted, Outcome, ResultConsumption, ResultState,
+    OperationPolicy, NotAdmitted, ResultConsumption,
     observe_cleanup, observe_completion,
 )
 
-from .binding import ReferenceMatcher, create_binding
+from .binding import create_binding
 from .science import VectorInput
 
 
@@ -45,7 +45,7 @@ async def run_demo() -> None:
 
     try:
         binding = create_binding(host=host)
-        for name, values in (("first", (3, 4, 0, 0)), ("second", (0, 0, 1, 1))):
+        for values in ((3, 4, 0, 0), (0, 0, 1, 1)):
             analysis = host.open_analysis(allocations=frozenset({binding.allocation}))
             cleanup_requests.append(analysis.close)
             reservation, = analysis.reservations
@@ -58,12 +58,7 @@ async def run_demo() -> None:
                 raise RuntimeError(f"Reference match admission refused: {operation.code.value}: {operation.message}")
             async with asyncio.timeout(15):
                 completed = await observe_completion(operation=operation)
-            if completed.failures:
-                causes.extend(failure.cause for failure in completed.failures)
-                break
-            if completed.outcome is not Outcome.SUCCEEDED or completed.result_state is not ResultState.AVAILABLE:
-                raise RuntimeError(f"Reference match produced no usable report: {completed!r}")
-            retained.append((operation, completed.result))
+            retained.append((operation, completed.require_result()))
             # Same allocation supports sequential analyses. Its index remains
             # initialized; its first result remains retained under a separate owner.
             async with asyncio.timeout(15):
@@ -77,19 +72,11 @@ async def run_demo() -> None:
         # A later analysis failure must not suppress an earlier usable report.
         # Failed consumption keeps the result owned until this process exits.
         for operation, result in retained:
-            consumption = ResultConsumption(operation=operation, result=result, receive=print_report)
             try:
-                await consumption.consume()
+                async with ResultConsumption(operation=operation, result=result, receive=print_report) as consumption:
+                    await consumption.consume()
             except BaseException as cause:
                 causes.append(cause)
-            finally:
-                # A cancelled observer must not abandon the original receiver
-                # while later analysis/host cleanup invalidates its resources.
-                try:
-                    await consumption.settle()
-                except BaseException as cause:
-                    if not any(original is cause for original in causes):
-                        causes.append(cause)
         cleanup_requests.append(host.retire)
         # Each request and its observation have their own error boundary.
         for request in cleanup_requests:

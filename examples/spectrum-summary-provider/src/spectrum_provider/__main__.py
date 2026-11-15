@@ -9,7 +9,7 @@ from provider_core.contribution import ref
 from provider_core.embedded_host import EmbeddedHost
 from provider_core.hosting import (
     OperationPolicy, Invocation, NotAdmitted, ResultConsumption,
-    ResultState, observe_cleanup,
+    observe_cleanup,
 )
 
 from .application import PeakWorkflow
@@ -31,7 +31,6 @@ async def run_demo() -> None:
     )
     analysis = None
     workflow = None
-    consumption = None
     causes = []
 
 
@@ -76,29 +75,19 @@ async def run_demo() -> None:
             result = await workflow.finish()
         if isinstance(result, NotAdmitted):
             raise RuntimeError(f"Peak admission refused: {result.code.value}: {result.message}")
-        if result.failures:
-            causes.extend(failure.cause for failure in result.failures)
-        elif result.result_state is ResultState.AVAILABLE:
-            consumption = ResultConsumption(
-                operation=workflow.peak_operation, result=result.result, receive=print_report,
-            )
+        consumption = ResultConsumption(
+            operation=workflow.peak_operation,
+            result=result.require_result(),
+            receive=print_report,
+        )
+        async with consumption:
             async with asyncio.timeout(15):
                 await consumption.consume()
-        else:
-            raise RuntimeError(f"Peak report was not delivered: {result!r}")
     except BaseException as cause:
         causes.append(cause)
     finally:
         if analysis is not None:
             analysis.request_stop()
-        if consumption is not None and consumption.acceptance is not None:
-            try:
-                # Complete the original acceptance and release observation,
-                # deferring further cancellation until their outcome is known.
-                await consumption.settle()
-            except BaseException as cause:
-                if not any(original is cause for original in causes):
-                    causes.append(cause)
         if workflow is not None and workflow.baseline_release is not None:
             try:
                 async with asyncio.timeout(15):

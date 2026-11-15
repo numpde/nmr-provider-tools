@@ -403,6 +403,31 @@ class Observation:
     allowance_expired: bool
     resources: ResourceState
 
+    def require_result(self) -> ResultRef:
+        """Return this observation's usable result or raise its original failures.
+
+        Science can succeed while result encoding fails. A usable result requires
+        completed successful science, available bytes and an actual result handle.
+        This check neither waits nor releases anything. Workflows that need to
+        inspect rejections themselves can keep using the observation's fields.
+        """
+        causes = [failure.cause for failure in self.failures]
+        if len(causes) == 1:
+            raise causes[0]
+        if causes:
+            raise BaseExceptionGroup("Scientific execution reported independent failures", causes)
+        if not (
+            self.finished
+            and self.outcome is Outcome.SUCCEEDED
+            and self.result_state is ResultState.AVAILABLE
+            and self.result is not None
+        ):
+            raise RuntimeError(
+                f"Cannot use the result of {self.operation=}; "
+                f"{self.finished=}, {self.outcome=}, {self.result_state=}, {self.result=}"
+            )
+        return self.result
+
 
 @dataclass(frozen=True, slots=True)
 class CleanupObservation:
@@ -518,6 +543,8 @@ class ResultConsumption:
 
     Cancelling a waiter leaves acceptance running. Keep this owner and join its
     acceptance before closing resources the receiver or result reader may use.
+    An async context joins it on exit, including after body failure or cancellation;
+    entering the context does not start acceptance or release an unused result.
     """
 
     __slots__ = ("_operation", "_result", "_receive", "_acceptance", "_release")
@@ -534,6 +561,22 @@ class ResultConsumption:
         self._receive = receive
         self._acceptance: asyncio.Task[None] | None = None
         self._release: ResultRelease | None = None
+
+    async def __aenter__(self) -> ResultConsumption:
+        """Retain this owner without starting its receiver."""
+        return self
+
+    async def __aexit__(self, exception_type, exception, traceback) -> None:
+        """Settle before outer cleanup; preserve body and independent receiver failures."""
+        try:
+            await self.settle()
+        except BaseException as cleanup:
+            if exception is None or cleanup is exception:
+                raise
+            raise BaseExceptionGroup(
+                "Context work and result settlement failed independently",
+                [exception, cleanup],
+            ) from None
 
     @property
     def operation(self) -> Operation:
