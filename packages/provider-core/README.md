@@ -100,6 +100,20 @@ Retained submissions use portable request identity, held until analysis closure.
 call. A request that must survive an ambiguous delivery should retain a
 `Submission` before its first submit.
 
+## Independent failures
+
+`provider_core.failure_collection.FailureCollector` shares error collection while
+providers keep their explicit cleanup phases. Wrap each attempted phase in
+`with failures.capture():`, then call `failures.raise_if_any()` after all phases.
+A lone original exception is raised directly; independent causes are grouped.
+Later observations of the same cause are omitted by identity, including overlaps
+inside exception groups. Existing groups remain intact when no filtering is needed.
+
+The collector owns no resources, callbacks or tasks. Capturing cancellation does
+not settle interrupted work: use the existing receiver, cleanup and host owners
+for that. Providers still choose ordering, including Reference's delivery of a
+prior usable report before observing a later failed analysis's cleanup.
+
 ## Scientific input tools
 
 Providers using interpretation can expose an existing scientific method without

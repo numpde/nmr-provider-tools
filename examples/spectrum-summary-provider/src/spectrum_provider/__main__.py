@@ -5,6 +5,7 @@ from __future__ import annotations
 import asyncio
 import sys
 
+from provider_core.failure_collection import FailureCollector
 from provider_core.hosting import (
     NotAdmitted, ResultConsumption,
     observe_cleanup,
@@ -24,14 +25,14 @@ async def run_demo() -> None:
     async with open_provider(result_bytes=8192) as provider:
         analysis = None
         workflow = None
-        causes = []
+        failures = FailureCollector(message="The example and its cleanup reported failures.")
 
         async def print_report(payload: bytes) -> None:
             # Flushed stdout is this demo's consumer, not a durable report queue.
             sys.stdout.buffer.write(payload + b"\n")
             sys.stdout.buffer.flush()
 
-        try:
+        with failures.capture():
             workflow = provider.create_workflow(
                 spectrum=Spectrum(positions=(0, 1, 2, 3, 4), intensities=(1, 4, 2, 5, 1)),
             )
@@ -51,29 +52,20 @@ async def run_demo() -> None:
             async with consumption:
                 async with asyncio.timeout(15):
                     await consumption.consume()
-        except BaseException as cause:
-            causes.append(cause)
-        finally:
-            if analysis is not None:
+        if analysis is not None:
+            with failures.capture():
                 analysis.request_stop()
-            if workflow is not None and workflow.baseline_release is not None:
-                try:
-                    async with asyncio.timeout(15):
-                        await observe_cleanup(control=workflow.baseline_release)
-                except BaseException as cause:
-                    causes.append(cause)
-            # Preserve analysis cleanup failures; host retirement follows on scope exit.
-            if analysis is not None:
-                try:
-                    control = analysis.close()
-                    async with asyncio.timeout(15):
-                        await observe_cleanup(control=control)
-                except BaseException as cause:
-                    causes.append(cause)
-        if len(causes) == 1:
-            raise causes[0]
-        if causes:
-            raise BaseExceptionGroup("The example and its cleanup reported failures.", causes)
+        if workflow is not None and workflow.baseline_release is not None:
+            with failures.capture():
+                async with asyncio.timeout(15):
+                    await observe_cleanup(control=workflow.baseline_release)
+        # Preserve analysis cleanup failures; host retirement follows on scope exit.
+        if analysis is not None:
+            with failures.capture():
+                control = analysis.close()
+                async with asyncio.timeout(15):
+                    await observe_cleanup(control=control)
+        failures.raise_if_any()
 
 
 if __name__ == "__main__":

@@ -14,6 +14,7 @@ from pathlib import Path
 import tomllib
 
 from provider_core.embedded_host import EmbeddedHost
+from provider_core.failure_collection import FailureCollector
 from provider_core.hosting import OperationPolicy, settle_cleanup
 from provider_core.interpreter import EndpointFactory, Interpreter
 from provider_core.scientific import HostedContribution, ResourceRequirement
@@ -59,15 +60,11 @@ class Provider:
         if offering not in self.offerings:
             raise ValueError("Cannot open a prediction for an offering outside this provider")
         interpreter = self.create_interpreter()
-        cleanup_actions = [interpreter.retire]
-        failures = []
-        try:
+        execution = None
+        prediction = None
+        failures = FailureCollector(message="Prediction work and cleanup failed independently")
+        with failures.capture():
             execution = self.host.open_analysis(allocations=frozenset({offering.allocation}))
-
-            async def close_execution() -> None:
-                await settle_cleanup(control=execution.close())
-
-            cleanup_actions.insert(0, close_execution)
             prediction = Prediction(
                 execution=execution,
                 hosted=offering,
@@ -75,23 +72,18 @@ class Provider:
                 policy=self.operation_policy,
                 receive=receive,
             )
-            cleanup_actions.insert(0, prediction.settle_receiver)
             yield prediction
-        except BaseException as cause:
-            failures.append(cause)
-        # Join the receiver first, then science, then interpretation. Still attempt
-        # independent cleanup if one owner fails. Re-observing the same receiver
-        # error must not report it as an additional independent failure.
-        for cleanup in cleanup_actions:
-            try:
-                await cleanup()
-            except BaseException as cause:
-                if all(cause is not failure for failure in failures):
-                    failures.append(cause)
-        if len(failures) == 1:
-            raise failures[0]
-        if failures:
-            raise BaseExceptionGroup("Prediction work and cleanup failed independently", failures) from None
+        # Join the receiver before science and interpretation release resources it
+        # may still use. Each owner settles its work; collection only preserves errors.
+        if prediction is not None:
+            with failures.capture():
+                await prediction.settle_receiver()
+        if execution is not None:
+            with failures.capture():
+                await settle_cleanup(control=execution.close())
+        with failures.capture():
+            await interpreter.retire()
+        failures.raise_if_any()
 
 
 @asynccontextmanager
