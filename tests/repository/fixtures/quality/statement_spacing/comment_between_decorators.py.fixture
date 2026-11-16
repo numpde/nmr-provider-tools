@@ -1,0 +1,4 @@
+@first
+# Explain the second decorator.
+@second
+def run(): pass

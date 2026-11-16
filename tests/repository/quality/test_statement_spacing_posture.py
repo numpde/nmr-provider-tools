@@ -107,40 +107,46 @@ def missing_blank_lines(*, source: str) -> list[int]:
     return sorted(missing)
 
 
+def _fixture_source(*, fixture_name: str) -> str:
+    return (ROOT / "tests/repository/fixtures/quality/statement_spacing" / fixture_name).read_text(encoding="utf-8")
+
+
 class StatementSpacingPostureTests(unittest.TestCase):
     def test_standalone_comment_and_statement_are_separated_as_one_unit(self):
-        source = "first = 1\n# Explain the next assignment.\nsecond = 2\nthird = 3\n"
+        source = _fixture_source(fixture_name="comment_without_separators.py.fixture")
 
         self.assertEqual(first=[2, 4], second=missing_blank_lines(source=source))
-        self.assertEqual(first=[], second=missing_blank_lines(source=source.replace("\n#", "\n\n#").replace("\nthird", "\n\nthird")))
+        separated_source = _fixture_source(fixture_name="comment_with_separators.py.fixture")
+
+        self.assertEqual(first=[], second=missing_blank_lines(source=separated_source))
 
     def test_commented_first_statement_needs_only_a_trailing_separator(self):
-        source = "def run():\n    # Explain the first assignment.\n    first = 1\n    second = 2\n"
+        source = _fixture_source(fixture_name="commented_first_statement.py.fixture")
 
         self.assertEqual(first=[4], second=missing_blank_lines(source=source))
 
     def test_commented_last_statement_needs_no_trailing_blank(self):
-        source = "def run():\n    # Explain the assignment.\n    first = 1\n"
+        source = _fixture_source(fixture_name="commented_last_statement.py.fixture")
 
         self.assertEqual(first=[], second=missing_blank_lines(source=source))
 
     def test_consecutive_commented_statements_share_one_separator(self):
-        source = "# First assignment.\nfirst = 1\n# Second assignment.\nsecond = 2\n"
+        source = _fixture_source(fixture_name="consecutive_commented_statements.py.fixture")
 
         self.assertEqual(first=[3], second=missing_blank_lines(source=source))
 
     def test_inline_comments_do_not_require_separators(self):
-        source = "first = 1\nsecond = 2  # Explain this assignment.\nthird = 3\n"
+        source = _fixture_source(fixture_name="inline_comment.py.fixture")
 
         self.assertEqual(first=[], second=missing_blank_lines(source=source))
 
     def test_hash_inside_a_string_is_not_an_attached_comment(self):
-        source = '\"\"\"Text\n#\"\"\"\nfirst = 1\nsecond = 2\n'
+        source = _fixture_source(fixture_name="hash_in_string.py.fixture")
 
         self.assertEqual(first=[], second=missing_blank_lines(source=source))
 
     def test_decorator_internal_comment_stays_with_the_declaration(self):
-        source = "@first\n# Explain the second decorator.\n@second\ndef run(): pass\n"
+        source = _fixture_source(fixture_name="comment_between_decorators.py.fixture")
 
         self.assertEqual(first=[], second=missing_blank_lines(source=source))
 
