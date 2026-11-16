@@ -82,7 +82,14 @@ def _relative_name(acquisition_path):
 
     path = PurePosixPath(acquisition_path)
 
-    if not path.parts or path.is_absolute() or ".." in path.parts or path.as_posix() != acquisition_path:
+    is_canonical_relative_path = (
+        (bool(path.parts)) and
+        (not path.is_absolute()) and
+        (".." not in path.parts) and
+        (path.as_posix() == acquisition_path)
+    )
+
+    if not is_canonical_relative_path:
         raise ValueError(f"Acquisition inventory path is not a canonical relative file: {acquisition_path=}")
 
     return path
