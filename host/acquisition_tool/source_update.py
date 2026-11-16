@@ -108,13 +108,18 @@ def read_manifest(data: str | bytes | bytearray) -> AcquisitionManifest:
     if not (type(manifest) is (expected_type := dict)):
         raise TypeError(f"{type(manifest)=} ≠ {expected_type=}")
 
-    if set(manifest) != {
+    required_manifest_fields = {
         "release_version",
         "source_revision",
         "payload_files",
         "dependency_inputs",
-    }:
-        raise ValueError("Acquisition manifest must identify its release, source, payload and dependency inputs.")
+    }
+
+    missing_manifest_fields = sorted(required_manifest_fields - set(manifest))
+    unexpected_manifest_fields = sorted(set(manifest) - required_manifest_fields)
+
+    if missing_manifest_fields or unexpected_manifest_fields:
+        raise ValueError(f"Acquisition manifest {missing_manifest_fields=}; {unexpected_manifest_fields=}")
 
     manifest_release_version = manifest["release_version"]
 

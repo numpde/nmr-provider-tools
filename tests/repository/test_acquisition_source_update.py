@@ -58,6 +58,18 @@ class SourceUpdateTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "metadata must contain exactly sha256, size and mode"):
             updates.read_manifest(json.dumps(manifest))
 
+    def test_manifest_reports_missing_and_unexpected_top_level_fields(self):
+        manifest = self.manifest("1.0.0", self.old)
+
+        del manifest["source_revision"]
+        manifest["unexpected"] = True
+
+        with self.assertRaises(ValueError) as caught:
+            updates.read_manifest(json.dumps(manifest))
+
+        self.assertIn("missing_manifest_fields=['source_revision']", str(caught.exception))
+        self.assertIn("unexpected_manifest_fields=['unexpected']", str(caught.exception))
+
     def test_manifest_identifies_inventory_conflicts(self):
         manifest = self.manifest("1.0.0", self.old)
         metadata = manifest["payload_files"]["acquisition_tool/old.py"]
