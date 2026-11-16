@@ -69,7 +69,7 @@ class PeakExampleTests(unittest.IsolatedAsyncioTestCase):
 
         for name in ("config", "models"):
             shutil.copytree(
-                src=Path(__file__).parent / name,
+                src=Path(__file__).parent.parent / name,
                 dst=directory / name,
             )
 
