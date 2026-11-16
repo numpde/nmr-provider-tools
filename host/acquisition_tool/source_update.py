@@ -286,9 +286,7 @@ def _admit_archive(
         members = archive.getmembers()
         names = [member.name for member in members]
         member_counts = Counter(names)
-        duplicate_members = member_counts - Counter(member_counts.keys())
-
-        if duplicate_members:
+        if duplicate_members := member_counts - Counter(member_counts.keys()):
             raise ValueError(f"Acquisition archive contains {duplicate_members=}")
 
         for member in members:
