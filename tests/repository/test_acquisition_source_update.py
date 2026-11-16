@@ -485,6 +485,30 @@ class SourceUpdateTests(unittest.TestCase):
         self.assertEqual("2.0.0", updates.verify(self.source)["release_version"])
         self.assertFalse(self.download_directory.exists())
 
+    def test_download_cleanup_failure_reports_published_source(self):
+        download_directory = self.root / "download"
+        download_directory.mkdir()
+        cleanup_failure = PermissionError("download cleanup failed")
+
+        class DownloadDirectory:
+            def __enter__(self):
+                return str(download_directory)
+
+            def __exit__(self, exception_type, exception, traceback):
+                raise cleanup_failure
+
+        with (
+            patch.object(updates.tempfile, "TemporaryDirectory", return_value=DownloadDirectory()),
+            patch.object(updates.subprocess, "run", side_effect=self.download),
+            self.assertRaises(PermissionError) as caught,
+        ):
+            updates.update(self.source, self.pin)
+
+        self.assertIs(cleanup_failure, caught.exception)
+        self.assertIn("published", " ".join(cleanup_failure.__notes__))
+        self.assertIn(str(self.source), " ".join(cleanup_failure.__notes__))
+        self.assertEqual("2.0.0", updates.verify(self.source)["release_version"])
+
     def test_edit_during_download_is_not_overwritten(self):
         def download_and_edit(arguments, *, check):
             self.download(arguments, check=check)
