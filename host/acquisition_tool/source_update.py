@@ -139,7 +139,7 @@ def read_manifest(data: str | bytes | bytearray) -> AcquisitionManifest:
             raise TypeError(f"{name=}; {type(entry)=} ≠ {expected_type=}")
 
         if set(entry) != {"sha256", "size", "mode"}:
-            raise ValueError(f"Acquisition payload {name=}: metadata requires sha256, size and mode; {sorted(entry)=}")
+            raise ValueError(f"Acquisition payload {name=}: metadata must contain exactly sha256, size and mode; {sorted(entry)=}")
 
         if not _checksum(entry["sha256"]):
             raise ValueError(f"Acquisition payload {name=}: sha256 must have 64 lowercase hexadecimal characters")

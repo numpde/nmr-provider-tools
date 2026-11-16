@@ -53,7 +53,7 @@ class SourceUpdateTests(unittest.TestCase):
         manifest = self.manifest("1.0.0", self.old)
         del manifest["payload_files"][member_name]["sha256"]
 
-        with self.assertRaisesRegex(ValueError, "metadata requires sha256, size and mode"):
+        with self.assertRaisesRegex(ValueError, "metadata must contain exactly sha256, size and mode"):
             updates.read_manifest(json.dumps(manifest))
 
     def setUp(self):
@@ -307,6 +307,7 @@ class SourceUpdateTests(unittest.TestCase):
             ("/absolute", tarfile.REGTYPE),
             ("acquisition_tool/new.py", tarfile.REGTYPE),
             ("linked", tarfile.SYMTYPE),
+            ("hardlinked", tarfile.LNKTYPE),
             ("special", tarfile.FIFOTYPE),
             ("acquisition-manifest.json/child", tarfile.REGTYPE),
         ):
