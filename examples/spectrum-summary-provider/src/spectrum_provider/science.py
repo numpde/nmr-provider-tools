@@ -12,7 +12,7 @@ def _finite_number(value: object, *, label: str) -> float:
     if not (type(value) in (expected_type := (int, float))):
         raise TypeError(f"{label=}; {type(value)=} ≠ {expected_type=}")
 
-    if not (math.isfinite(value)):
+    if not math.isfinite(value):
         raise ValueError(f"{label} must be finite")
 
     return float(value)
@@ -106,7 +106,7 @@ def subtract_baseline(spectrum: Spectrum, settings: BaselineSettings) -> Spectru
     for intensity in spectrum.intensities:
         value = intensity - settings.baseline
 
-        if not (math.isfinite(value)):
+        if not math.isfinite(value):
             raise ArithmeticError("Baseline subtraction produced a nonfinite intensity")
 
         corrected.append(value)
