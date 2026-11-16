@@ -9,6 +9,7 @@ from .container_guard import require_container
 require_container()
 
 import argparse
+from collections import Counter
 import hashlib
 import json
 import os
@@ -20,16 +21,14 @@ import sys
 import tempfile
 
 
-def unique_fields(pairs):
-    record = {}
+def unique_fields(field_pairs):
+    field_counts = Counter(field_name for (field_name, _) in field_pairs)
+    duplicate_fields = field_counts - Counter(field_counts.keys())
 
-    for (name, value) in pairs:
-        if name in record:
-            raise ValueError("Cannot start the installer: release record contains a duplicate field.")
+    if duplicate_fields:
+        raise ValueError(f"Cannot start the installer: release record contains duplicate fields: {duplicate_fields=}")
 
-        record[name] = value
-
-    return record
+    return dict(field_pairs)
 
 
 def release(path):
