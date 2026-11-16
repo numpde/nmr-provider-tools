@@ -1,0 +1,2 @@
+Extract the molecular formula and proton NMR peaks for the HF offering.
+Each proton peak includes its centroid, integral, multiplicity and couplings.

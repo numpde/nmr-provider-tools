@@ -6,7 +6,6 @@ build-backend = "setuptools.build_meta"
 name = "nmrpeak-mock-provider-example"
 version = "0.1.0"
 description = "NMRPeak-shaped scientific hosting with lightweight model and service stand-ins"
-readme = "README.md"
 requires-python = ">=3.12"
 dependencies = ["provider-core[api]==0.6.19"]
 
@@ -19,4 +18,4 @@ namespaces = false
 include-package-data = false
 
 [tool.setuptools.package-data]
-nmrpeak_mock_provider = ["system_prompt.txt"]
+nmrpeak_mock_provider = ["system_prompt.txt", "hf_description.txt", "chf_description.txt"]

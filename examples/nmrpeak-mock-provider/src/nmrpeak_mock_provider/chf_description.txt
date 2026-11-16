@@ -1,0 +1,3 @@
+Extract the molecular formula, proton NMR peaks and carbon NMR peaks for the
+CHF offering. Each proton peak includes its centroid, integral, multiplicity
+and couplings; carbon peaks contain their reported shifts.

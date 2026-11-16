@@ -106,6 +106,13 @@ class PeakExampleTests(unittest.IsolatedAsyncioTestCase):
 
                         async with provider.open_prediction(offering=hosted, receive=receiver) as prediction_workflow:
                             await prediction_workflow.interpret(source="Recorded NMR source")
+
+                            initial_messages = self.factory.endpoints[-1].requests[0]
+                            offering_name = "CHF offering" if isinstance(hosted.contribution, Chf) else "HF offering"
+
+                            self.assertEqual(first="system", second=initial_messages[0]["role"])
+                            self.assertIn(member=offering_name, container=initial_messages[1]["content"])
+                            self.assertEqual(first="Recorded NMR source", second=initial_messages[2]["content"])
                             await prediction_workflow.deliver()
                             (payload,) = receiver.payloads
                             prediction_report = json.loads(s=payload)

@@ -73,12 +73,16 @@ class PeakContribution(sdk.Contribution):
 
 
 class Hf(PeakContribution):
+    interpretation_description_file = "hf_description.txt"
+
     @sdk.operation(state_outputs=(PeakContribution.validated,))
     def prepare(self, *, candidate: science.HfInput) -> sdk.ScientificReturn[science.PreparationReport]:
         return self.prepare_input(candidate=candidate)
 
 
 class Chf(PeakContribution):
+    interpretation_description_file = "chf_description.txt"
+
     @sdk.operation(state_outputs=(PeakContribution.validated,))
     def prepare(self, *, candidate: science.ChfInput) -> sdk.ScientificReturn[science.PreparationReport]:
         return self.prepare_input(candidate=candidate)
