@@ -40,7 +40,12 @@ class Provider:
         """
         baseline_call_binding = self.baseline_corrector.call(method=self.baseline_corrector.contribution.run)
         spectrum_payload = baseline_call_binding.input_codec.encode(value=spectrum)
-        analysis_executor = self.execution_host.open_analysis(allocations=frozenset({self.baseline_corrector.allocation, self.peak_detector.allocation}))
+        analysis_executor = self.execution_host.open_analysis(
+            allocations=frozenset({
+                self.baseline_corrector.allocation,
+                self.peak_detector.allocation,
+            }),
+        )
 
         return PeakWorkflow(
             analysis_executor=analysis_executor,
@@ -77,11 +82,15 @@ async def open_provider() -> AsyncIterator[Provider]:
         yield Provider(
             execution_host=execution_host,
             baseline_corrector=execution_host.adopt(
-                contribution=BaselineCorrector(configuration=science.BaselineSettings(**provider_config["science"]["baseline"]["settings"])),
+                contribution=BaselineCorrector(
+                    configuration=science.BaselineSettings(**provider_config["science"]["baseline"]["settings"]),
+                ),
                 requirements=resource_requirements,
             ),
             peak_detector=execution_host.adopt(
-                contribution=PeakDetector(configuration=science.PeakSettings(**provider_config["science"]["peaks"]["settings"])),
+                contribution=PeakDetector(
+                    configuration=science.PeakSettings(**provider_config["science"]["peaks"]["settings"]),
+                ),
                 requirements=resource_requirements,
             ),
             operation_policy=operation_policy,
