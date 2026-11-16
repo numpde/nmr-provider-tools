@@ -284,21 +284,21 @@ def _admit_archive(
 
     with tarfile.open(fileobj=io.BytesIO(archive_bytes), mode="r:gz") as archive:
         members = archive.getmembers()
-        names = [member.name for member in members]
-        member_counts = Counter(names)
+        member_counts = Counter(member.name for member in members)
+
         if duplicate_members := member_counts - Counter(member_counts.keys()):
             raise ValueError(f"Acquisition archive contains {duplicate_members=}")
 
         for member in members:
             path = _relative_name(member.name)
 
-            if any(parent.as_posix() in names for parent in path.parents):
+            if any(parent.as_posix() in member_counts for parent in path.parents):
                 raise ValueError(f"Acquisition archive member conflicts with its parent: {member.name!r}.")
 
             if not (member.isfile()):
                 raise ValueError(f"Acquisition archive contains a link or special member: {member.name!r}.")
 
-        if names.count("acquisition-manifest.json") != 1:
+        if member_counts["acquisition-manifest.json"] != 1:
             raise ValueError("Acquisition archive must contain one acquisition-manifest.json.")
 
         manifest_member = archive.getmember("acquisition-manifest.json")
