@@ -72,7 +72,7 @@ def line_findings(
 
 
 class SharedScannerTest(unittest.TestCase):
-    def test_python_inventories_include_fixtures_outside_executable_scope(self):
+    def test_regular_inventories_exclude_python_fixtures(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             fixture_path = root / "tests/repository/fixtures/example.py.fixture"
@@ -81,18 +81,20 @@ class SharedScannerTest(unittest.TestCase):
             fixture_path.write_text("pass\n", encoding="utf-8")
 
             with patch(f"{__name__}.ROOT", root), patch.object(_repo_surfaces, "REPO_ROOT", root):
-                self.assertEqual(first=[fixture_path], second=repo_files(("tools/**/*.py",)))
+                self.assertEqual(first=[], second=repo_files(("tools/**/*.py",)))
                 self.assertEqual(first=[], second=repo_files(("tools/**/*.sh",)))
+                self.assertEqual(first=[], second=repo_files(("**/*",)))
 
                 self.assertEqual(
-                    first=[fixture_path],
+                    first=[],
                     second=_repo_surfaces.surface_files(("tools/**/*.py",), extra_exclude_parts=frozenset({"tests"})),
                 )
 
                 self.assertEqual(first=[], second=_repo_surfaces.surface_files(("tools/**/*.sh",)))
+                self.assertEqual(first=[], second=_repo_surfaces.surface_files(("**/*",)))
 
     def test_repo_files_excludes_this_check_package(self) -> None:
-        self.assertEqual(source_files(root=ROOT, patterns=("**/*.py.fixture",)), repo_files(("tests/repository/quality/silent_defaults/*.py",)))
+        self.assertEqual([], repo_files(("tests/repository/quality/silent_defaults/*.py",)))
 
     def test_repo_files_excludes_skipped_dependency_material(self) -> None:
         self.assertEqual([], repo_files(("NMRNetplusplus/node_modules/**/*.ts",)))

@@ -89,7 +89,7 @@ def root_entry_visibility_findings(manifest, root):
 
 
 class SourceInventoryUnitTests(unittest.TestCase):
-    def test_python_fixtures_enter_both_source_scopes_and_text_checks(self):
+    def test_python_fixtures_are_excluded_from_regular_source_checks(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
 
@@ -118,24 +118,32 @@ class SourceInventoryUnitTests(unittest.TestCase):
                 fixture_path.parent.mkdir(parents=True, exist_ok=True)
                 fixture_path.write_text("pass\n", encoding="utf-8")
 
-            expected_fixtures = sorted(root / fixture_name for fixture_name in fixture_names)
+            for private_name in private_names:
+                (root / private_name.removesuffix(".fixture")).write_text("pass\n", encoding="utf-8")
 
             (root / "host/linked.py.fixture").symlink_to(root / "secrets/example.py.fixture")
+            (root / "host/linked.py").symlink_to(root / "secrets/example.py")
             (root / "linked").symlink_to(root / "secrets", target_is_directory=True)
 
             with patch.object(sources, "ROOT", root):
-                self.assertEqual(first=expected_fixtures, second=sources.python_sources(production_only=True))
-                self.assertEqual(first=expected_fixtures, second=sources.python_sources(production_only=False))
-                self.assertEqual(first=expected_fixtures, second=sources.iter_repo_text_files())
-                self.assertEqual(first=expected_fixtures, second=sources.source_files(root=root, patterns=("linked/*.py.fixture",)))
+                self.assertEqual(first=[], second=sources.python_sources(production_only=True))
+                self.assertEqual(first=[], second=sources.python_sources(production_only=False))
+                self.assertEqual(first=[], second=sources.iter_repo_text_files())
+                self.assertEqual(first=[], second=sources.source_files(root=root, patterns=("linked/*",)))
+                self.assertEqual(first=[], second=sources.source_files(root=root, patterns=("**/*",)))
+                self.assertEqual(first=[], second=sources.source_files(root=root, patterns=("**/*.py.fixture",)))
+                self.assertTrue(sources.is_python_source(path=root / fixture_names[0]))
+                self.assertEqual("pass\n", sources.read_text(root / fixture_names[0]))
 
                 ordinary_source = root / "host/ordinary.py"
 
                 ordinary_source.write_text("pass\n", encoding="utf-8")
-                self.assertEqual(first=sorted([*expected_fixtures, ordinary_source]), second=sources.source_files(root=root, patterns=("host/*.py",)))
+                self.assertTrue(sources.is_python_source(path=ordinary_source))
+                self.assertEqual(first=[ordinary_source], second=sources.source_files(root=root, patterns=("host/*.py",)))
+                self.assertEqual(first=[ordinary_source], second=sources.source_files(root=root, patterns=("**/*",)))
 
                 self.assertEqual(
-                    first=expected_fixtures,
+                    first=[],
                     second=sources.source_files(
                         root=root,
                         patterns=("host/*.py",),

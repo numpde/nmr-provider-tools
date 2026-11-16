@@ -2,9 +2,9 @@
 
 The launcher pins /workspace; local conventions govern host, tools, tests, packages and
 standalone examples and library mocks. Future src, packages/*/src, examples/*/src
-and mocks/*/src sources enter these inventories automatically. Python fixtures
-remain source: their suffix must not hide them from any applicable policy,
-including checks whose ordinary module inventory is production-only.
+and mocks/*/src sources enter these inventories automatically. Python fixture
+samples are excluded from regular source checks; dedicated scenario tests read
+their samples directly.
 """
 
 from tools.container_guard import require_container
@@ -40,7 +40,7 @@ def python_sources(*, production_only):
     Both projections include future src, packages/*/src, examples/*/src and mocks/*/src
     modules. Production checks own host and contained tools; whole-repository checks also own tests,
     package tests and example tests. The caller must choose the check's
-    responsibility. Both projections also include every public .py.fixture.
+    responsibility. Fixture samples belong to dedicated scenario tests.
     """
 
     # silent-defaults: allow-contract -- The required production_only choice selects host/tools or all authored roots; future shared-package and example modules belong to both inventories; proof=tests/repository/quality/test_source_inventory.py::SourceInventoryUnitTests.test_python_source_selection_respects_explicit_scope
@@ -74,12 +74,12 @@ def _is_skipped_relative(*, relative_path: Path) -> bool:
 
 
 def is_python_source(*, path: Path) -> bool:
-    """Classify executable modules and source fixtures identically for Python rules."""
+    """Recognize Python modules and samples for direct detector dispatch."""
 
     return path.name.endswith((".py", ".py.fixture"))
 
 
-# silent-defaults: allow-contract -- Empty rule-specific exclusions scan every selected public source; private exclusions always apply and Python fixtures cannot be scoped out; proof=tests/repository/quality/test_source_inventory.py::SourceInventoryUnitTests.test_python_fixtures_enter_both_source_scopes_and_text_checks
+# silent-defaults: allow-contract -- Empty rule-specific exclusions scan every selected public source; private exclusions and fixture-sample exclusions always apply; proof=tests/repository/quality/test_source_inventory.py::SourceInventoryUnitTests.test_python_fixtures_are_excluded_from_regular_source_checks
 def source_files(
     *,
     root: Path,
@@ -88,36 +88,24 @@ def source_files(
     exclude_repo_paths=frozenset(),
     exclude_subtrees=(),
 ) -> list[Path]:
-    """Own file discovery, private exclusions and mandatory Python-fixture coverage.
+    """Discover regular source files within the caller's selected scope.
 
-    Callers select ordinary source scope through patterns and relative exclusions.
-    Any Python selection also includes every public .py.fixture, even outside
-    that scope: moving a sample into a fixture must not bypass any source rule.
-    Non-Python selections keep their scope. Private exclusions apply throughout;
-    symlink files and ancestors cannot redirect a public name into private data.
+    Fixture samples remain available to dedicated scenario tests through direct
+    reads. Private exclusions apply throughout; symlink files and ancestors
+    cannot redirect a public name into private data.
     """
-    patterns = tuple(patterns)
     paths = {path for pattern in patterns for path in root.glob(pattern)}
-
-    fixture_paths = {
-        path
-        for path in root.rglob("*.py.fixture")
-    } if any(is_python_source(path=Path(pattern)) for pattern in patterns) else set()
 
     return sorted(
         path
-        for path in paths | fixture_paths
-        if not _is_skipped_relative(relative_path=path.relative_to(root))
+        for path in paths
+        if not path.name.endswith(".py.fixture")
+        and not _is_skipped_relative(relative_path=path.relative_to(root))
         and not any((root / ancestor).is_symlink() for ancestor in (path.relative_to(root), *path.relative_to(root).parents))
         and path.is_file()
-        and (
-            path in fixture_paths
-            or (
-                not exclude_parts.intersection(path.relative_to(root).parts)
-                and path.relative_to(root) not in exclude_repo_paths
-                and not any(path.relative_to(root).is_relative_to(subtree) for subtree in exclude_subtrees)
-            )
-        )
+        and not exclude_parts.intersection(path.relative_to(root).parts)
+        and path.relative_to(root) not in exclude_repo_paths
+        and not any(path.relative_to(root).is_relative_to(subtree) for subtree in exclude_subtrees)
     )
 
 

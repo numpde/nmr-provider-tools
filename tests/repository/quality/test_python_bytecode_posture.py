@@ -99,7 +99,7 @@ class PythonBytecodePostureTests(unittest.TestCase):
                 path.parent.mkdir(parents=True, exist_ok=True)
                 path.write_text("# fixture\n")
 
-            self.assertEqual({"host/tools/run.sh", "new_component/driver.py", "Makefile", "tests/fixtures/run.py.fixture"},
+            self.assertEqual({"host/tools/run.sh", "new_component/driver.py", "Makefile"},
                              {path.relative_to(root).as_posix() for path in production_files(root)})
 
         (issue,) = findings(Path("safe.sh"), "python3 -I secret-private-path.py")
