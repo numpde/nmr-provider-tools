@@ -158,7 +158,7 @@ def read_manifest(data: str | bytes | bytearray) -> AcquisitionManifest:
             raise TypeError(f"{name=}; {type(entry_mode)=} ≠ {expected_type=}")
 
         if not (entry["mode"] in (0o644, 0o755)):
-            raise ValueError(f"Acquisition payload {name=}: {entry_mode=:o} must be 644 or 755")
+            raise ValueError(f"Acquisition payload {name=}: {entry_mode=:o} (octal); JSON mode must be 420 or 493")
 
     dependencies = manifest["dependency_inputs"]
 

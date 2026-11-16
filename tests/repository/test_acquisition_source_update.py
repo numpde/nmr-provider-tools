@@ -37,7 +37,7 @@ class SourceUpdateTests(unittest.TestCase):
             ({"sha256": []}, ValueError, "sha256"),
             ({"size": -1}, ValueError, "entry_size=-1"),
             ({"size": True}, TypeError, "entry_size"),
-            ({"mode": 0o600}, ValueError, "entry_mode=600"),
+            ({"mode": 0o600}, ValueError, "entry_mode=600 (octal); JSON mode must be 420 or 493"),
             ({"mode": True}, TypeError, "entry_mode"),
         ):
             with self.subTest(field_changes=field_changes):
