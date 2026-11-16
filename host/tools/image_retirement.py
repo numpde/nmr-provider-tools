@@ -51,9 +51,7 @@ def run(arguments):
                 ),
             )
         except (OSError, subprocess.TimeoutExpired):
-            raise RetirementRefused(
-                "An image inspection/removal client did not complete; retain remaining images."
-            ) from None
+            raise RetirementRefused("An image inspection/removal client did not complete; retain remaining images.") from None
 
         if command_result.returncode:
             raise RetirementRefused(
@@ -65,9 +63,7 @@ def run(arguments):
         captured_output = output.read(2097152)
 
         if len(captured_output) >= 2097152:
-            raise RetirementRefused(
-                "Image metadata reached its capture limit; no complete inventory was established."
-            )
+            raise RetirementRefused("Image metadata reached its capture limit; no complete inventory was established.")
 
         return captured_output.decode("utf-8")
 
@@ -112,7 +108,8 @@ def retained_image_ids(directory):
     protected_image_ids = set()
 
     for receipt in (
-        path for name in ("built-image", "built-bootstrap", "built-checker")
+        path
+        for name in ("built-image", "built-bootstrap", "built-checker")
         for path in directory.glob("nmr-provider-tools.*/" + name)
     ):
         if receipt.is_symlink() or receipt.parent.is_symlink():
