@@ -76,7 +76,7 @@ class PreparationResult:
             raise TypeError(f"{type(actual_count)=} ≠ {expected_type=}")
 
         if not (0 < self.count):
-            raise ValueError("count must be a positive integer")
+            raise ValueError(f"Expected a positive {self.count=}")
 
 
 @dataclass(frozen=True, slots=True, kw_only=True)
@@ -92,7 +92,7 @@ class PredictionResult:
             raise TypeError(f"{type(actual_count)=} ≠ {expected_type=}")
 
         if not (0 < self.count):
-            raise ValueError("count must be a positive integer")
+            raise ValueError(f"Expected a positive {self.count=}")
 
 
 @dataclass(frozen=True, slots=True, kw_only=True)
@@ -108,7 +108,7 @@ class SumResult:
             raise TypeError(f"{type(actual_count)=} ≠ {expected_type=}")
 
         if not (0 < self.count):
-            raise ValueError("count must be a positive integer")
+            raise ValueError(f"Expected a positive {self.count=}")
 
 
 @dataclass(slots=True, kw_only=True, eq=False)
@@ -297,7 +297,7 @@ def calculate(
     prediction_total = analysis.model.settings.offset + analysis.model.settings.scale * weighted_sum
 
     if not np.isfinite(prediction_total):
-        raise ArithmeticError("The weighted prediction total is not finite")
+        raise ArithmeticError(f"The weighted {prediction_total=} is not finite")
 
     return PredictionResult(total=prediction_total, count=prepared_samples.size)
 
@@ -314,12 +314,12 @@ def sum_values(summation: SumInput) -> SumResult:
 
     # Floating accumulation preserves the example's real-valued calculation;
     # an integer accumulator can wrap before a later finiteness check sees it.
-    total = float(np.sum(a=summation.samples, dtype=float))
+    sum_total = float(np.sum(a=summation.samples, dtype=float))
 
-    if not np.isfinite(total):
-        raise ArithmeticError("The sum total is not finite")
+    if not np.isfinite(sum_total):
+        raise ArithmeticError(f"The {sum_total=} is not finite")
 
-    return SumResult(total=total, count=summation.samples.size)
+    return SumResult(total=sum_total, count=summation.samples.size)
 
 
 def dispose_prepared(prepared: PreparedSamples) -> None:
