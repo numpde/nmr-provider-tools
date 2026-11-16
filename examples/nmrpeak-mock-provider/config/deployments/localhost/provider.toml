@@ -89,19 +89,26 @@ maximum_input_tokens = 64
 beam_size = 2
 maximum_candidate_characters = 64
 
-# Each prediction gets its own interpretation session. Ordered endpoint services
-# are supplied by startup code; these limits apply across that request's attempts
-# to extract spectrum data, including corrections proposed by language models.
+# Each prediction gets its own interpretation session. Startup supplies the
+# ordered endpoint services; these settings govern their use for that request.
 [interpreter]
-timeout_seconds = 15
-context_bytes = 32768
-# Limit each model's conversation turns and rejected tool-call corrections.
-max_model_turns = 12
-max_model_corrections = 3
-# Each model turn permits this many HTTP attempts, including the first.
-# Use this connection timeout for the model endpoint.
-max_http_attempts = 2
-connect_seconds = 10
-# Keep at most this many encoded bytes and records of interpretation history.
-history_max_bytes = 1048576
-history_max_records = 48
+# Allow this much time across all models. Already admitted preparation can finish
+# after the budget expires; the SDK does not start replacement work because of it.
+interpretation_budget_seconds = 15
+# Reject a model turn if its combined messages and tool definitions, encoded as
+# compact ASCII JSON including their envelope, exceed this many bytes.
+reject_combined_messages_and_tools_over_bytes = 32768
+# Each model gets its own limits. Rejected proposals, invalid tool arguments
+# and otherwise valid responses without exactly one tool call count as
+# rejections. Reaching either limit ends that model's visit.
+end_model_visit_after_turns = 12
+end_model_visit_after_rejections = 3
+# The total includes the initial HTTP attempt. Only retryable failures can retry,
+# and the model's remaining time may permit fewer attempts than this limit.
+total_http_attempts_per_turn = 2
+# Apply this connection timeout to each model endpoint exchange.
+connection_timeout_seconds = 10
+# Across model visits, retain captured records within both limits. Evict oldest
+# records as necessary; omit a record that alone exceeds the byte limit.
+retain_history_up_to_bytes = 1048576
+retain_history_up_to_records = 48

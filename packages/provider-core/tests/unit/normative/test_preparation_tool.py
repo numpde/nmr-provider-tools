@@ -132,8 +132,8 @@ class PreparationToolTests(unittest.IsolatedAsyncioTestCase):
 
         interpreter = Interpreter(
             endpoint_factories=(lambda **settings: carrier,),
-            timeout_seconds=5,
-            context_bytes=32768,
+            interpretation_budget_seconds=5,
+            reject_combined_messages_and_tools_over_bytes=32768,
             **interpreter_test_limits(),
             secrets=(),
         )
@@ -318,8 +318,8 @@ class PreparationToolTests(unittest.IsolatedAsyncioTestCase):
 
         interpreter = Interpreter(
             endpoint_factories=(first_model, lambda **settings: second),
-            timeout_seconds=2,
-            context_bytes=32768,
+            interpretation_budget_seconds=2,
+            reject_combined_messages_and_tools_over_bytes=32768,
             **interpreter_test_limits(),
             secrets=(),
         )

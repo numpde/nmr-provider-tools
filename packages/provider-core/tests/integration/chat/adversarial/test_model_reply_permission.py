@@ -118,8 +118,8 @@ class InterpretedSession:
         )
 
         self.interpreter = Interpreter((factory,),
-                                       timeout_seconds=10,
-                                       context_bytes=16384,
+                                       interpretation_budget_seconds=10,
+                                       reject_combined_messages_and_tools_over_bytes=16384,
                                        **interpreter_test_limits(),
                                        secrets=("PRIVATE_FIXTURE_KEY",))
 

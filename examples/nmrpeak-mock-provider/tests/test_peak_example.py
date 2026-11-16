@@ -175,7 +175,7 @@ class PeakExampleTests(unittest.IsolatedAsyncioTestCase):
 
     async def test_deployment_correction_limit_controls_interpretation(self):
         document = tomllib.loads(self.configuration.read_text(encoding="utf-8"))
-        document["interpreter"]["max_model_corrections"] = 1
+        document["interpreter"]["end_model_visit_after_rejections"] = 1
 
         self.configuration.write_text(data=tomli_w.dumps(document), encoding="utf-8")
         rejected_proposal = candidate(carbon=False) | {"formula": ""}

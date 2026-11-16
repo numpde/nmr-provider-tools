@@ -163,8 +163,8 @@ async def scenario(marker, report, seed):
                 timeout_seconds = 2.0
 
             self.interpreter = Interpreter((capture_endpoint,),
-                                           timeout_seconds=timeout_seconds,
-                                           context_bytes=16384,
+                                           interpretation_budget_seconds=timeout_seconds,
+                                           reject_combined_messages_and_tools_over_bytes=16384,
                                            **interpreter_test_limits(),
                                            secrets=("PRIVATE_B3_FIXTURE_KEY",))
 

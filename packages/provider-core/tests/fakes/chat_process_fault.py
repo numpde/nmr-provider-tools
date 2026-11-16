@@ -271,8 +271,8 @@ async def scenario(marker, report):
 
             self.interpreter = Interpreter(
                 (factory,),
-                timeout_seconds=BLOCKED_MODEL_SECONDS if endpoint.endswith("/hang") else HEALTHY_MODEL_SECONDS,
-                context_bytes=16384,
+                interpretation_budget_seconds=BLOCKED_MODEL_SECONDS if endpoint.endswith("/hang") else HEALTHY_MODEL_SECONDS,
+                reject_combined_messages_and_tools_over_bytes=16384,
                 **interpreter_test_limits(),
                 secrets=("PRIVATE_FIXTURE_KEY",),
             )

@@ -70,8 +70,8 @@ class NativeInstallationTests(unittest.TestCase):
             model = endpoint("native", call("selected", "prepare", {}))
 
             owner = Interpreter((lambda **grant: model,),
-                                timeout_seconds=30,
-                                context_bytes=16384,
+                                interpretation_budget_seconds=30,
+                                reject_combined_messages_and_tools_over_bytes=16384,
                                 **interpreter_test_limits(),
                                 secrets=())
 

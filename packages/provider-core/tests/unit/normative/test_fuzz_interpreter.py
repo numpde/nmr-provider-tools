@@ -102,7 +102,7 @@ class InterpreterFaultSequenceTests(unittest.IsolatedAsyncioTestCase):
                 return ToolFinished(effects[0])
 
             with self.subTest(seed=seed, trace=tuple(trace)):
-                owner = Interpreter(tuple(factories) + (unused,), timeout_seconds=240, context_bytes=1024 * 1024, **interpreter_test_limits(), secrets=())
+                owner = Interpreter(tuple(factories) + (unused,), interpretation_budget_seconds=240, reject_combined_messages_and_tools_over_bytes=1024 * 1024, **interpreter_test_limits(), secrets=())
 
                 with patch("provider_core.interpreter.asyncio.sleep", new=AsyncMock()):
                     result = await owner.run([], TOOLS, dispatch)

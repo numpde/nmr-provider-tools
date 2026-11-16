@@ -286,8 +286,8 @@ async def run_outage(directory, *, mode, backlog, seed):
                              job_ref.endswith(("original-result", "healthy-during-outage")) else interpretation_seconds)
 
             self.interpreter = Interpreter((service,),
-                                           timeout_seconds=model_seconds,
-                                           context_bytes=16384,
+                                           interpretation_budget_seconds=model_seconds,
+                                           reject_combined_messages_and_tools_over_bytes=16384,
                                            **interpreter_test_limits(),
                                            secrets=("B4_TEST_CREDENTIAL",))
 

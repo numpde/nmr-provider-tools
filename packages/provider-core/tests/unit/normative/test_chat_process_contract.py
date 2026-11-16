@@ -415,8 +415,8 @@ class ChatProcessContractTests(unittest.IsolatedAsyncioTestCase):
 
                 async with TlsPeer("success", response_factory=response) as peer, launched_children() as children:
                     owner = Interpreter((self.factory(peer.origin + "/chat", peer.trust),),
-                                        timeout_seconds=8,
-                                        context_bytes=16384,
+                                        interpretation_budget_seconds=8,
+                                        reject_combined_messages_and_tools_over_bytes=16384,
                                         **interpreter_test_limits(),
                                         secrets=("PRIVATE_FIXTURE_KEY",))
 

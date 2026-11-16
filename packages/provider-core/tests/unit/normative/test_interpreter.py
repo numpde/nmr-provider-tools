@@ -37,8 +37,8 @@ def factory(model):
 def interpreter(*models, timeout=240, context=1024 * 1024):
     # repo-check: allow-tuple-generator -- Interpreter accepts only a captured immutable endpoint tuple, not a generator of mutable mock factories.
     return Interpreter(tuple(factory(model) for model in models),
-                       timeout_seconds=timeout,
-                       context_bytes=context,
+                       interpretation_budget_seconds=timeout,
+                       reject_combined_messages_and_tools_over_bytes=context,
                        **interpreter_test_limits(),
                        secrets=("PRIVATE_CREDENTIAL",))
 
@@ -54,24 +54,28 @@ def feedback(messages):
 class InterpreterTests(unittest.IsolatedAsyncioTestCase):
     def test_invalid_deployment_budgets_fail_before_endpoint_creation(self):
         setting_names = (
-            "max_model_turns",
-            "max_model_corrections",
-            "max_http_attempts",
-            "connect_seconds",
-            "history_max_bytes",
-            "history_max_records",
+            "interpretation_budget_seconds",
+            "reject_combined_messages_and_tools_over_bytes",
+            "end_model_visit_after_turns",
+            "end_model_visit_after_rejections",
+            "total_http_attempts_per_turn",
+            "connection_timeout_seconds",
+            "retain_history_up_to_bytes",
+            "retain_history_up_to_records",
         )
 
         for setting_name in setting_names:
             with self.subTest(setting_name=setting_name):
                 endpoint_factory = Mock()
-                limits = interpreter_test_limits() | {setting_name: 0}
+                limits = interpreter_test_limits() | {
+                    "interpretation_budget_seconds": 30,
+                    "reject_combined_messages_and_tools_over_bytes": 16384,
+                    setting_name: 0,
+                }
 
                 with self.assertRaises(expected_exception=ValueError):
                     Interpreter(
                         endpoint_factories=(endpoint_factory,),
-                        timeout_seconds=30,
-                        context_bytes=16384,
                         secrets=(),
                         **limits,
                     )
@@ -88,8 +92,8 @@ class InterpreterTests(unittest.IsolatedAsyncioTestCase):
                 dispatch = AsyncMock()
 
                 owner = Interpreter((create,),
-                                    timeout_seconds=30,
-                                    context_bytes=4096,
+                                    interpretation_budget_seconds=30,
+                                    reject_combined_messages_and_tools_over_bytes=4096,
                                     **interpreter_test_limits(),
                                     secrets=("PRIVATE_CREDENTIAL",))
 
@@ -319,7 +323,7 @@ class InterpreterTests(unittest.IsolatedAsyncioTestCase):
 
     async def test_expired_job_deadline_never_creates_an_endpoint(self):
         build = AsyncMock()
-        owner = Interpreter((build,), timeout_seconds=240, context_bytes=8192, **interpreter_test_limits(), secrets=())
+        owner = Interpreter((build,), interpretation_budget_seconds=240, reject_combined_messages_and_tools_over_bytes=8192, **interpreter_test_limits(), secrets=())
 
         with self.assertRaises(InterpretationFailed):
             await owner.run([], TOOLS, AsyncMock(), not_after=asyncio.get_running_loop().time() - 1)
@@ -338,11 +342,11 @@ class InterpreterTests(unittest.IsolatedAsyncioTestCase):
 
     async def test_configured_turn_limit_and_connection_timeout_reach_the_model(self):
         model = endpoint("fixture", *(call(f"inspect-{index}", "inspect", {}) for index in range(3)))
-        limits = interpreter_test_limits() | {"max_model_turns": 2, "connect_seconds": 4}
+        limits = interpreter_test_limits() | {"end_model_visit_after_turns": 2, "connection_timeout_seconds": 4}
         owner = Interpreter(
             endpoint_factories=(factory(model),),
-            timeout_seconds=30,
-            context_bytes=16384,
+            interpretation_budget_seconds=30,
+            reject_combined_messages_and_tools_over_bytes=16384,
             secrets=(),
             **limits,
         )
@@ -357,11 +361,11 @@ class InterpreterTests(unittest.IsolatedAsyncioTestCase):
 
     async def test_configured_correction_limit_stops_after_rejection(self):
         model = endpoint("fixture", call("one", "inspect", {}), call("two", "inspect", {}))
-        limits = interpreter_test_limits() | {"max_model_corrections": 1}
+        limits = interpreter_test_limits() | {"end_model_visit_after_rejections": 1}
         owner = Interpreter(
             endpoint_factories=(factory(model),),
-            timeout_seconds=30,
-            context_bytes=16384,
+            interpretation_budget_seconds=30,
+            reject_combined_messages_and_tools_over_bytes=16384,
             secrets=(),
             **limits,
         )
@@ -374,11 +378,11 @@ class InterpreterTests(unittest.IsolatedAsyncioTestCase):
     async def test_configured_http_attempt_limit_stops_retry(self):
         failure = ChatFailed("http_status", "Unavailable", response=SimpleNamespace(status=503, headers=()))
         model = endpoint("fixture", failure, call("later", "prepare", {"verbosity": "full"}))
-        limits = interpreter_test_limits() | {"max_http_attempts": 1}
+        limits = interpreter_test_limits() | {"total_http_attempts_per_turn": 1}
         owner = Interpreter(
             endpoint_factories=(factory(model),),
-            timeout_seconds=30,
-            context_bytes=16384,
+            interpretation_budget_seconds=30,
+            reject_combined_messages_and_tools_over_bytes=16384,
             secrets=(),
             **limits,
         )
@@ -398,11 +402,11 @@ class InterpreterTests(unittest.IsolatedAsyncioTestCase):
                     ChatFailed("invalid_response", "No usable reply"),
                 )
                 second = endpoint("second", call("finish", "prepare", {"verbosity": "full"}))
-                limits = interpreter_test_limits() | {"history_max_bytes": max_bytes, "history_max_records": max_records}
+                limits = interpreter_test_limits() | {"retain_history_up_to_bytes": max_bytes, "retain_history_up_to_records": max_records}
                 owner = Interpreter(
                     endpoint_factories=(factory(first), factory(second)),
-                    timeout_seconds=30,
-                    context_bytes=16384,
+                    interpretation_budget_seconds=30,
+                    reject_combined_messages_and_tools_over_bytes=16384,
                     secrets=(),
                     **limits,
                 )
@@ -698,7 +702,7 @@ class InterpreterTests(unittest.IsolatedAsyncioTestCase):
 
             return model
 
-        owner = Interpreter((build,), timeout_seconds=240, context_bytes=16384, **interpreter_test_limits(), secrets=())
+        owner = Interpreter((build,), interpretation_budget_seconds=240, reject_combined_messages_and_tools_over_bytes=16384, **interpreter_test_limits(), secrets=())
 
         with patch("provider_core.interpreter._now", side_effect=lambda: clock[0]):
             result = await owner.run(

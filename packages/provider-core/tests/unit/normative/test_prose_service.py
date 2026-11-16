@@ -28,7 +28,7 @@ def unavailable(wait=b"1"):
 
 # silent-defaults: allow-contract -- The unit fixture grants a deliberately short 40-ms interpretation window unless each test requests another one.
 def interpreter(*services, seconds=0.04):
-    return Interpreter(services, timeout_seconds=seconds, context_bytes=16384, **interpreter_test_limits(), secrets=())
+    return Interpreter(services, interpretation_budget_seconds=seconds, reject_combined_messages_and_tools_over_bytes=16384, **interpreter_test_limits(), secrets=())
 
 
 def service_with(*carriers):

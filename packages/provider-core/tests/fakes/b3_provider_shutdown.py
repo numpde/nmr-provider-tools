@@ -190,8 +190,8 @@ async def shutdown_scenario(schedule, seed, directory, facts):
 
             self.interpreter = Interpreter(
                 (observed_factory,),
-                timeout_seconds=30,
-                context_bytes=16384,
+                interpretation_budget_seconds=30,
+                reject_combined_messages_and_tools_over_bytes=16384,
                 **interpreter_test_limits(),
                 secrets=("PRIVATE_FIXTURE_KEY",),
             )

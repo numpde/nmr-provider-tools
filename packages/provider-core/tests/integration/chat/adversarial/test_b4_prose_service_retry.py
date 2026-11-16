@@ -69,8 +69,8 @@ class ProseServiceRetryTests(unittest.IsolatedAsyncioTestCase):
 
             async def interpret(job, seconds):
                 interpreter = Interpreter((service,),
-                                          timeout_seconds=seconds,
-                                          context_bytes=16384,
+                                          interpretation_budget_seconds=seconds,
+                                          reject_combined_messages_and_tools_over_bytes=16384,
                                           **interpreter_test_limits(),
                                           secrets=("B4_TEST_CREDENTIAL",))
 

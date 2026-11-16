@@ -44,8 +44,8 @@ class SharedInterpreterCarrierTests(unittest.IsolatedAsyncioTestCase):
             ) for name in ("first", "second"))
 
             owner = Interpreter(factories,
-                                timeout_seconds=10,
-                                context_bytes=min(item.context_bytes for item in factories),
+                                interpretation_budget_seconds=10,
+                                reject_combined_messages_and_tools_over_bytes=min(item.context_bytes for item in factories),
                                 **interpreter_test_limits(),
                                 secrets=("PRIVATE_KEY",))
 
@@ -96,7 +96,7 @@ class SharedInterpreterCarrierTests(unittest.IsolatedAsyncioTestCase):
                 response_bytes=8192,
             )
 
-            owner = Interpreter((build,), timeout_seconds=10, context_bytes=16384, **interpreter_test_limits(), secrets=("PRIVATE_KEY",))
+            owner = Interpreter((build,), interpretation_budget_seconds=10, reject_combined_messages_and_tools_over_bytes=16384, **interpreter_test_limits(), secrets=("PRIVATE_KEY",))
             dispatch = AsyncMock(return_value=ToolFinished("prepared"))
 
             tools = [{"type": "function",
@@ -192,7 +192,7 @@ class SharedInterpreterCarrierTests(unittest.IsolatedAsyncioTestCase):
                 response_bytes=8192,
             )
 
-            owner = Interpreter((build,), timeout_seconds=10, context_bytes=16384, **interpreter_test_limits(), secrets=("PRIVATE_KEY",))
+            owner = Interpreter((build,), interpretation_budget_seconds=10, reject_combined_messages_and_tools_over_bytes=16384, **interpreter_test_limits(), secrets=("PRIVATE_KEY",))
             dispatch = AsyncMock(return_value=ToolFinished("prepared"))
             tools = [{"type": "function", "function": {"name": "prepare", "parameters": {"type": "object"}}}]
             result = await owner.run([], tools, dispatch)

@@ -10,12 +10,12 @@ def interpreter_test_limits():
     """Give test conversations explicit budgets independent of deployment policy."""
 
     return {
-        "max_model_turns": 12,
-        "max_model_corrections": 3,
-        "max_http_attempts": 2,
-        "connect_seconds": 10,
-        "history_max_bytes": 1048576,
-        "history_max_records": 48,
+        "end_model_visit_after_turns": 12,
+        "end_model_visit_after_rejections": 3,
+        "total_http_attempts_per_turn": 2,
+        "connection_timeout_seconds": 10,
+        "retain_history_up_to_bytes": 1048576,
+        "retain_history_up_to_records": 48,
     }
 
 
