@@ -152,7 +152,14 @@ class DummyBindingTests(unittest.IsolatedAsyncioTestCase):
         )
 
         original_bindings = (weighted, self.sum_binding())
-        configured = '[[execution.resource_requirement]]\nkind = "cpu"\namount = 2\nunit = "thread"\nselector = "generic"\nexclusive = false\n'
+        configured = (
+            '[[execution.resource_requirement]]\n'
+            'kind = "cpu"\n'
+            'amount = 2\n'
+            'unit = "thread"\n'
+            'selector = "generic"\n'
+            'exclusive = false\n'
+        )
 
         with TemporaryDirectory() as directory:
             root = Path(directory)
@@ -198,7 +205,14 @@ class DummyBindingTests(unittest.IsolatedAsyncioTestCase):
             root = Path(directory)
 
             (root / "provider.toml").write_text(
-                '[[execution.resource_requirement]]\nkind = "cpu"\namount = 0\nunit = "thread"\nselector = "generic"\nexclusive = false\n',
+                (
+                    '[[execution.resource_requirement]]\n'
+                    'kind = "cpu"\n'
+                    'amount = 0\n'
+                    'unit = "thread"\n'
+                    'selector = "generic"\n'
+                    'exclusive = false\n'
+                ),
                 encoding="utf-8",
             )
 
