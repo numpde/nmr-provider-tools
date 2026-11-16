@@ -56,6 +56,19 @@ class SourceUpdateTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "metadata must contain exactly sha256, size and mode"):
             updates.read_manifest(json.dumps(manifest))
 
+    def test_manifest_reports_the_invalid_release_identity(self):
+        for (changes, expected_field) in (
+            ({"release_version": "latest"}, "manifest_release_version='latest'"),
+            ({"source_revision": "not-a-revision"}, "manifest_source_revision='not-a-revision'"),
+        ):
+            with self.subTest(changes=changes):
+                manifest = self.manifest("1.0.0", self.old)
+
+                with self.assertRaises(ValueError) as caught:
+                    updates.read_manifest(json.dumps(manifest | changes))
+
+                self.assertIn(expected_field, str(caught.exception))
+
     def setUp(self):
         temporary = tempfile.TemporaryDirectory()
 
