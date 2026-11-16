@@ -250,8 +250,7 @@ def verify(source_dir):
 
             if actual_execute_bits != release_execute_bits:
                 raise ValueError(
-                    f"Acquisition file {relative_path=} has "
-                    f"{actual_execute_bits=:03o}; release specifies {release_execute_bits=:03o}"
+                    f"Acquisition {relative_path=}: {actual_execute_bits=:03o} ≠ {release_execute_bits=:03o}"
                 )
 
             actual.add(relative_path)
