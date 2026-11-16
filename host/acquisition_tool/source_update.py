@@ -310,8 +310,8 @@ def _admit_archive(
         members = archive.getmembers()
         member_counts = Counter(member.name for member in members)
 
-        if duplicate_members := member_counts - Counter(member_counts.keys()):
-            raise ValueError(f"Acquisition archive contains {duplicate_members=}")
+        if extra_member_occurrences := member_counts - Counter(member_counts.keys()):
+            raise ValueError(f"Acquisition archive contains {extra_member_occurrences=}")
 
         for member in members:
             path = _relative_name(member.name)

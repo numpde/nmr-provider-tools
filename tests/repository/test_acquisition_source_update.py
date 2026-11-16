@@ -318,6 +318,15 @@ class SourceUpdateTests(unittest.TestCase):
 
                 self.assert_old_source()
 
+    def test_duplicate_archive_member_reports_extra_occurrences(self):
+        self.write_archive(extra=(("acquisition_tool/new.py", tarfile.REGTYPE),))
+
+        with self.assertRaises(ValueError) as caught:
+            updates.import_archive(self.source, self.pin, self.archive)
+
+        self.assertIn("extra_member_occurrences=Counter({'acquisition_tool/new.py': 1})", str(caught.exception))
+        self.assert_old_source()
+
     def test_git_checkout_modes_preserve_only_the_executable_contract(self):
         path = self.source / "acquisition_tool/old.py"
 
