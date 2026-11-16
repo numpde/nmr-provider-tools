@@ -76,8 +76,8 @@ class PredictionWorkflow:
         ).read_text(encoding="utf-8")
 
         # The tool definition tells the language model how to propose input.
-        # When it does, the interpreter calls dispatch with that proposal; the
-        # preparation tool runs scientific validation and retains accepted input.
+        # When it does, the interpreter calls dispatch with that proposal;
+        # the preparation tool runs scientific validation and retains accepted input.
         await self.interpreter.run(
             messages=[
                 {"role": "system", "content": system_prompt},

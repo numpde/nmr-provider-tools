@@ -165,8 +165,8 @@ class SpectrumWorkflowTests(unittest.IsolatedAsyncioTestCase):
                 async def accept(payload):
                     self.assertEqual(retained, payload)
 
-                # This test receiver refused before any external effect. The
-                # caller explicitly selects a new attempt; the failed owner
+                # This test receiver refused before any external effect.
+                # The caller explicitly selects a new attempt; the failed owner
                 # itself never retries or infers that replay is safe.
                 replacement = ResultConsumption(operation=original, result=operation_observation.result, receive=accept)
 
