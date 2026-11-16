@@ -384,7 +384,7 @@ class PeakExampleTests(unittest.IsolatedAsyncioTestCase):
         async with self.open_provider() as provider:
             (proton_formula_predictor,) = [offering for offering in provider.offerings if isinstance(offering.contribution, Hf)]
 
-            with self.assertRaisesRegex(expected_exception=ValueError, expected_regex="checkpoint"):
+            with self.assertRaisesRegex(expected_exception=ValueError, expected_regex="actual_sha256="):
                 async with provider.open_prediction(offering=proton_formula_predictor, receive=RecordingReceiver()) as prediction_workflow:
                     await prediction_workflow.interpret(source="Formula and proton spectrum")
 

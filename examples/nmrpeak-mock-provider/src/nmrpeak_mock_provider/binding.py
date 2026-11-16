@@ -8,9 +8,9 @@ from collections.abc import Callable
 from pathlib import Path
 
 import provider_core.scientific as sdk
+from provider_core.verified_file import open_verified_file
 
 from . import science
-from .checkpoint import open_checkpoint
 
 
 class PeakContribution(sdk.Contribution):
@@ -41,8 +41,8 @@ class PeakContribution(sdk.Contribution):
         """SDK calls this before science; retain the model before loading can fail."""
         self.model = self.create_model()
 
-        with open_checkpoint(
-            path=self.checkpoint_path,
+        with open_verified_file(
+            source_file_path=self.checkpoint_path,
             expected_sha256=self.configuration.checkpoint_sha256,
         ) as checkpoint:
             self.model.load(checkpoint=checkpoint)
