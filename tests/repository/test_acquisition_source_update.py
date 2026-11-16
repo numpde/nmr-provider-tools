@@ -75,7 +75,7 @@ class SourceUpdateTests(unittest.TestCase):
 
     def test_manifest_reports_the_invalid_release_identity(self):
         for (changes, expected_requirement, expected_field) in (
-            ({"release_version": "latest"}, "must be X.Y.Z without leading zeroes", "manifest_release_version='latest'"),
+            ({"release_version": "latest"}, "must be X.Y.Z in ASCII digits without leading zeroes", "manifest_release_version='latest'"),
             ({"source_revision": "not-a-revision"}, "revision must be 40 lowercase hexadecimal characters", "manifest_source_revision='not-a-revision'"),
         ):
             with self.subTest(changes=changes):
@@ -191,7 +191,7 @@ class SourceUpdateTests(unittest.TestCase):
     def test_release_pin_errors_identify_the_invalid_field(self):
         for (release_pin, expected_message) in (
             ({"version": "2.0.0"}, "require exactly version and archive_sha256"),
-            ({"version": "latest", "archive_sha256": "a" * 64}, "must be X.Y.Z without leading zeroes"),
+            ({"version": "latest", "archive_sha256": "a" * 64}, "must be X.Y.Z in ASCII digits without leading zeroes"),
             ({"version": "2.0.0", "archive_sha256": "bad"}, "archive_sha256"),
         ):
             with self.subTest(release_pin=release_pin):

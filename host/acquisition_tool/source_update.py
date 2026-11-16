@@ -71,7 +71,7 @@ def read_pin(release_pin_path):
     release_version = pin["version"]
 
     if not _version(release_version):
-        raise ValueError(f"Acquisition {release_pin_path=}: {release_version=} must be X.Y.Z without leading zeroes")
+        raise ValueError(f"Acquisition {release_pin_path=}: {release_version=} must be X.Y.Z in ASCII digits without leading zeroes")
 
     if not _checksum(pin["archive_sha256"]):
         raise ValueError(f"Acquisition {release_pin_path=}: archive_sha256 must have 64 lowercase hexadecimal characters")
@@ -119,7 +119,7 @@ def read_manifest(data: str | bytes | bytearray) -> AcquisitionManifest:
     manifest_release_version = manifest["release_version"]
 
     if not _version(manifest_release_version):
-        raise ValueError(f"Acquisition manifest {manifest_release_version=} must be X.Y.Z without leading zeroes")
+        raise ValueError(f"Acquisition manifest {manifest_release_version=} must be X.Y.Z in ASCII digits without leading zeroes")
 
     if not (type((manifest_source_revision := manifest["source_revision"])) is (expected_type := str)):
         raise TypeError(f"{type(manifest_source_revision)=} ≠ {expected_type=}")
