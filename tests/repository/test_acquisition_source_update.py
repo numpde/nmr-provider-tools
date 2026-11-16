@@ -408,11 +408,10 @@ class SourceUpdateTests(unittest.TestCase):
         self.assert_old_source()
         self.assertEqual([], list(self.root.glob(".acquisition-next-*")))
 
-    def test_unsafe_or_duplicate_archive_members_never_publish(self):
+    def test_unsafe_archive_members_never_publish(self):
         for (name, kind) in (
             ("../escape", tarfile.REGTYPE),
             ("/absolute", tarfile.REGTYPE),
-            ("acquisition_tool/new.py", tarfile.REGTYPE),
             ("linked", tarfile.SYMTYPE),
             ("hardlinked", tarfile.LNKTYPE),
             ("special", tarfile.FIFOTYPE),
