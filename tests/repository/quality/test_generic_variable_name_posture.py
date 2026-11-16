@@ -37,6 +37,7 @@ def _generic_name(*, variable_name: str) -> bool:
         "data",
         "item",
         "items",
+        "label",
         "result",
         "results",
         "obj",
@@ -90,10 +91,10 @@ def _findings(*, source: str) -> list[_Finding]:
 
 class GenericVariableNamePostureTests(unittest.TestCase):
     def test_generic_parameters_assignments_and_comprehensions_are_flagged(self):
-        source = "def convert(value, /, *items, data, **values):\n    result = [item for item in items]\n    return result\n"
+        source = "def convert(value, /, *items, data, label, **values):\n    result = [item for item in items]\n    return result\n"
 
         self.assertEqual(
-            first=["data", "items", "value", "values", "item", "result"],
+            first=["data", "items", "label", "value", "values", "item", "result"],
             second=[finding.variable_name for finding in _findings(source=source)],
         )
 
