@@ -155,6 +155,12 @@ class SourceUpdateTests(unittest.TestCase):
         self.assertIn(f"actual_sha256='{hashlib.sha256(modified_bytes).hexdigest()}'", str(caught.exception))
         self.assertIn(f"release_sha256='{release_sha256}'", str(caught.exception))
 
+    def test_snapshot_reports_unobserved_recorded_files(self):
+        (self.source / "acquisition_tool/old.py").unlink()
+
+        with self.assertRaisesRegex(ValueError, r"unobserved_files=\['acquisition_tool/old\.py'\]"):
+            updates.verify(self.source)
+
     def test_checksum_failure_precedes_tar_parsing_and_preserves_source(self):
         self.archive.write_bytes(b"not an authenticated archive")
 

@@ -278,8 +278,10 @@ def verify(source_dir):
 
             actual.add(acquisition_rel_path)
 
-    if actual != set(entries) | {"acquisition-manifest.json"}:
-        raise ValueError("Acquisition source is missing files from its recorded release.")
+    unobserved_files = sorted((set(entries) | {"acquisition-manifest.json"}) - actual)
+
+    if unobserved_files:
+        raise ValueError(f"Acquisition source did not contain {unobserved_files=}")
 
     return manifest
 
