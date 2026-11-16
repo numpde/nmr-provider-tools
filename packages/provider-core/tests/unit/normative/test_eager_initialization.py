@@ -85,7 +85,7 @@ class EagerInitializationTests(unittest.IsolatedAsyncioTestCase):
                 contribution = LoadingContribution()
                 offering = first_host.adopt(contribution=contribution, requirements=frozenset())
 
-                with self.assertRaises(ValueError):
+                with self.assertRaises(expected_exception=ValueError):
                     await second_host.initialize(allocation=offering.allocation)
 
                 self.assertEqual(first=0, second=contribution.loads)
@@ -96,7 +96,7 @@ class EagerInitializationTests(unittest.IsolatedAsyncioTestCase):
         offering = host.adopt(contribution=contribution, requirements=frozenset())
         retirement = host.retire()
 
-        with self.assertRaises(CapacityUnavailable):
+        with self.assertRaises(expected_exception=CapacityUnavailable):
             await host.initialize(allocation=offering.allocation)
 
         await retirement.task
@@ -108,7 +108,7 @@ class EagerInitializationTests(unittest.IsolatedAsyncioTestCase):
             offering = host.adopt(contribution=contribution, requirements=frozenset())
             analysis = host.open_analysis(allocations=frozenset({offering.allocation}))
 
-            with self.assertRaises(CapacityUnavailable):
+            with self.assertRaises(expected_exception=CapacityUnavailable):
                 await host.initialize(allocation=offering.allocation)
 
             await analysis.close().task
@@ -124,10 +124,10 @@ class EagerInitializationTests(unittest.IsolatedAsyncioTestCase):
                 self.assertTrue(expr=await asyncio.to_thread(contribution.entered.wait, timeout=2))
                 first_waiter.cancel()
 
-                with self.assertRaises(asyncio.CancelledError):
+                with self.assertRaises(expected_exception=asyncio.CancelledError):
                     await first_waiter
 
-                with self.assertRaises(CapacityUnavailable):
+                with self.assertRaises(expected_exception=CapacityUnavailable):
                     host.open_analysis(allocations=frozenset({offering.allocation}))
 
                 contribution.release.set()
@@ -144,10 +144,10 @@ class EagerInitializationTests(unittest.IsolatedAsyncioTestCase):
             offering = host.adopt(contribution=contribution, requirements=frozenset())
 
             try:
-                with self.assertRaises(TimeoutError):
+                with self.assertRaises(expected_exception=TimeoutError):
                     await host.initialize(allocation=offering.allocation)
 
-                with self.assertRaises(TimeoutError):
+                with self.assertRaises(expected_exception=TimeoutError):
                     await host.initialize(allocation=offering.allocation)
 
                 self.assertEqual(first=1, second=contribution.loads)
@@ -168,7 +168,7 @@ class EagerInitializationTests(unittest.IsolatedAsyncioTestCase):
             offering = host.adopt(contribution=contribution, requirements=frozenset())
 
             for _ in range(2):
-                with self.assertRaises(OSError) as raised:
+                with self.assertRaises(expected_exception=OSError) as raised:
                     await host.initialize(allocation=offering.allocation)
 
                 self.assertIs(expr1=contribution.failure, expr2=raised.exception)
@@ -187,7 +187,7 @@ class EagerInitializationTests(unittest.IsolatedAsyncioTestCase):
             failed_offering = host.adopt(contribution=failed, requirements=frozenset())
             healthy_offering = host.adopt(contribution=healthy, requirements=frozenset())
 
-            with self.assertRaises(OSError) as raised:
+            with self.assertRaises(expected_exception=OSError) as raised:
                 await host.initialize(allocation=failed_offering.allocation)
 
             self.assertIs(expr1=failed.failure, expr2=raised.exception)
@@ -204,7 +204,7 @@ class EagerInitializationTests(unittest.IsolatedAsyncioTestCase):
             failed.release.set()
             failed_offering = host.adopt(contribution=failed, requirements=frozenset())
 
-            with self.assertRaises(OSError):
+            with self.assertRaises(expected_exception=OSError):
                 await host.initialize(allocation=failed_offering.allocation)
 
             await host.retire_allocation(failed_offering.allocation).task
@@ -227,7 +227,7 @@ class EagerInitializationTests(unittest.IsolatedAsyncioTestCase):
             self.assertTrue(expr=await asyncio.to_thread(contribution.entered.wait, timeout=2))
             waiter.cancel()
 
-            with self.assertRaises(asyncio.CancelledError):
+            with self.assertRaises(expected_exception=asyncio.CancelledError):
                 await waiter
 
             contribution.release.set()
@@ -252,12 +252,12 @@ class EagerInitializationTests(unittest.IsolatedAsyncioTestCase):
                 self.assertTrue(expr=await asyncio.to_thread(contribution.entered.wait, timeout=2))
                 waiter.cancel()
 
-                with self.assertRaises(asyncio.CancelledError):
+                with self.assertRaises(expected_exception=asyncio.CancelledError):
                     await waiter
 
                 contribution.release.set()
 
-                with self.assertRaises(OSError) as raised:
+                with self.assertRaises(expected_exception=OSError) as raised:
                     await host.initialize(allocation=offering.allocation)
 
                 self.assertIs(expr1=contribution.failure, expr2=raised.exception)
@@ -273,7 +273,7 @@ class EagerInitializationTests(unittest.IsolatedAsyncioTestCase):
         offering = host.adopt(contribution=contribution, requirements=frozenset())
 
         try:
-            with self.assertRaises(TimeoutError):
+            with self.assertRaises(expected_exception=TimeoutError):
                 await host.initialize(allocation=offering.allocation)
 
             contribution.release.set()
@@ -294,7 +294,7 @@ class EagerInitializationTests(unittest.IsolatedAsyncioTestCase):
         offering = host.adopt(contribution=contribution, requirements=frozenset())
 
         try:
-            with self.assertRaises(TimeoutError):
+            with self.assertRaises(expected_exception=TimeoutError):
                 await host.initialize(allocation=offering.allocation)
 
             contribution.release.set()
@@ -320,7 +320,7 @@ class EagerInitializationTests(unittest.IsolatedAsyncioTestCase):
         offering = host.adopt(contribution=contribution, requirements=frozenset())
 
         try:
-            with self.assertRaises(TimeoutError):
+            with self.assertRaises(expected_exception=TimeoutError):
                 await host.initialize(allocation=offering.allocation)
 
             contribution.release.set()

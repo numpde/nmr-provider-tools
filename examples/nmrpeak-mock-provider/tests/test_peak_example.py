@@ -448,6 +448,32 @@ class PeakExampleTests(unittest.IsolatedAsyncioTestCase):
         self.assertTrue(expr=retirement.settled)
         self.assertTrue(expr=all(model.tokenizer is None for model in created))
 
+    async def test_second_model_failure_closes_both_models_before_startup_fails(self):
+        original = OSError("Second model failed to load")
+        models = []
+        closed = []
+
+        class SecondLoadFails(Model):
+            def load(self, *, checkpoint):
+                models.append(self)
+                super().load(checkpoint=checkpoint)
+
+                if len(models) == 2:
+                    raise original
+
+            def close(self) -> None:
+                closed.append(self)
+                super().close()
+
+        with self.assertRaises(expected_exception=OSError) as raised:
+            async with self.open_provider(create_model=SecondLoadFails):
+                self.fail(msg="The provider must not start after a model load fails")
+
+        self.assertIs(expr1=original, expr2=raised.exception)
+        self.assertEqual(first=2, second=len(models))
+        self.assertEqual(first=set(models), second=set(closed))
+        self.assertTrue(expr=all(model.tokenizer is None for model in models))
+
     async def test_request_corrects_input_and_concurrent_delivery_sends_once(self):
         rejected = candidate(carbon=False)
         rejected["proton_peaks"] = []
