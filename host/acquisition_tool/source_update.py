@@ -63,9 +63,7 @@ def read_pin(path):
     pin = _json(data, f"release pin {path}")
 
     if not (type(pin) is (expected_type := dict)):
-        raise TypeError(
-            f"{path=}; {type(pin)=} ≠ {expected_type=}"
-        )
+        raise TypeError(f"{path=}; {type(pin)=} ≠ {expected_type=}")
 
     if set(pin) != {"version", "archive_sha256"} or not (_version(pin["version"])) or not (_checksum(pin["archive_sha256"])):
         raise ValueError(f"Cannot read release pin {path}: require version and archive_sha256.")
@@ -100,9 +98,7 @@ def read_manifest(data: str | bytes | bytearray) -> AcquisitionManifest:
     manifest = _json(data, "acquisition-manifest.json")
 
     if not (type(manifest) is (expected_type := dict)):
-        raise TypeError(
-            f"{type(manifest)=} ≠ {expected_type=}"
-        )
+        raise TypeError(f"{type(manifest)=} ≠ {expected_type=}")
 
     if set(manifest) != {
         "release_version",
@@ -116,9 +112,7 @@ def read_manifest(data: str | bytes | bytearray) -> AcquisitionManifest:
         raise ValueError("Acquisition manifest has no exact release version or Git source revision.")
 
     if not (type((manifest_source_revision := manifest["source_revision"])) is (expected_type := str)):
-        raise TypeError(
-            f"{type(manifest_source_revision)=} ≠ {expected_type=}"
-        )
+        raise TypeError(f"{type(manifest_source_revision)=} ≠ {expected_type=}")
 
     if not (re.fullmatch(r"[0-9a-f]{40}", manifest["source_revision"])):
         raise ValueError("Acquisition manifest has no exact release version or Git source revision.")
@@ -126,9 +120,7 @@ def read_manifest(data: str | bytes | bytearray) -> AcquisitionManifest:
     entries = manifest["payload_files"]
 
     if not (type(entries) is (expected_type := dict)):
-        raise TypeError(
-            f"{type(entries)=} ≠ {expected_type=}"
-        )
+        raise TypeError(f"{type(entries)=} ≠ {expected_type=}")
 
     if not (entries) or "acquisition-manifest.json" in entries:
         raise ValueError("Acquisition manifest must inventory its payload without hashing itself.")
@@ -140,25 +132,19 @@ def read_manifest(data: str | bytes | bytearray) -> AcquisitionManifest:
             raise ValueError(f"Acquisition payload file conflicts with a parent path: {name!r}.")
 
         if not (type(entry) is (expected_type := dict)):
-            raise TypeError(
-                f"{name=}; {type(entry)=} ≠ {expected_type=}"
-            )
+            raise TypeError(f"{name=}; {type(entry)=} ≠ {expected_type=}")
 
         if not (set(entry) == {"sha256", "size", "mode"} and _checksum(entry["sha256"])):
             raise ValueError(f"Acquisition payload has invalid file metadata: {name!r}.")
 
         if not (type((entry_size := entry["size"])) is (expected_type := int)):
-            raise TypeError(
-                f"{name=}; {type(entry_size)=} ≠ {expected_type=}"
-            )
+            raise TypeError(f"{name=}; {type(entry_size)=} ≠ {expected_type=}")
 
         if not (0 <= entry["size"]):
             raise ValueError(f"Acquisition payload has invalid file metadata: {name!r}.")
 
         if not (type((entry_mode := entry["mode"])) is (expected_type := int)):
-            raise TypeError(
-                f"{name=}; {type(entry_mode)=} ≠ {expected_type=}"
-            )
+            raise TypeError(f"{name=}; {type(entry_mode)=} ≠ {expected_type=}")
 
         if not (entry["mode"] in (0o644, 0o755)):
             raise ValueError(f"Acquisition payload has invalid file metadata: {name!r}.")
@@ -166,20 +152,14 @@ def read_manifest(data: str | bytes | bytearray) -> AcquisitionManifest:
     dependencies = manifest["dependency_inputs"]
 
     if not (type(dependencies) is (expected_type := dict)):
-        raise TypeError(
-            f"{type(dependencies)=} ≠ {expected_type=}"
-        )
+        raise TypeError(f"{type(dependencies)=} ≠ {expected_type=}")
 
     for (name, checksum) in dependencies.items():
         if not (type(name) is (expected_name_type := str)):
-            raise TypeError(
-                f"{type(name)=} ≠ {expected_name_type=}"
-            )
+            raise TypeError(f"{type(name)=} ≠ {expected_name_type=}")
 
         if not (type(checksum) is (expected_checksum_type := str)):
-            raise TypeError(
-                f"{type(checksum)=} ≠ {expected_checksum_type=}"
-            )
+            raise TypeError(f"{type(checksum)=} ≠ {expected_checksum_type=}")
 
         if not name or not _checksum(checksum):
             raise ValueError("Acquisition dependency inputs must map artifact names to SHA-256 checksums.")
