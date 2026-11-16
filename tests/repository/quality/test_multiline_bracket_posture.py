@@ -114,27 +114,49 @@ def shared_item_lines(*, source: str) -> list[tuple[int, int, int]]:
 
 class MultilineBracketPostureTests(unittest.TestCase):
     def test_shared_call_arguments_are_flagged(self):
-        source = "with open_checkpoint(\n    path=path, expected_sha256=digest,\n) as checkpoint:\n    load()\n"
+        source = (
+            "with open_checkpoint(\n"
+            "    path=path, expected_sha256=digest,\n"
+            ") as checkpoint:\n"
+            "    load()\n"
+        )
 
         self.assertEqual(first=[(2, 15, 4)], second=shared_item_lines(source=source))
 
     def test_single_line_groups_stay_compact(self):
-        source = "value = call(first, second, option=True)\nvalues = [first, second]\npair = (first, second)\n"
+        source = (
+            "value = call(first, second, option=True)\n"
+            "values = [first, second]\n"
+            "pair = (first, second)\n"
+        )
 
         self.assertEqual(first=[], second=shared_item_lines(source=source))
 
     def test_separate_items_and_trailing_commas_are_valid(self):
-        source = "value = call(\n    first,\n    option=True,\n)\n"
+        source = (
+            "value = call(\n"
+            "    first,\n"
+            "    option=True,\n"
+            ")\n"
+        )
 
         self.assertEqual(first=[], second=shared_item_lines(source=source))
 
     def test_delimiters_can_share_a_line_with_their_single_item(self):
-        source = "value = call(first,\n    second)\n"
+        source = (
+            "value = call(first,\n"
+            "    second)\n"
+        )
 
         self.assertEqual(first=[], second=shared_item_lines(source=source))
 
     def test_signatures_include_positional_and_keyword_markers(self):
-        source = "def run(\n    self, first, /, *, option=True,\n):\n    pass\n"
+        source = (
+            "def run(\n"
+            "    self, first, /, *, option=True,\n"
+            "):\n"
+            "    pass\n"
+        )
 
         self.assertEqual(first=4, second=len(shared_item_lines(source=source)))
 
