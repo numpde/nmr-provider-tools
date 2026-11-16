@@ -237,7 +237,7 @@ def verify(source_dir):
     manifest_execute_bits = metadata.st_mode & 0o111
 
     if manifest_execute_bits:
-        raise ValueError(f"Acquisition {manifest_path=}: {manifest_execute_bits=:03o}")
+        raise ValueError(f"Acquisition {manifest_path=}: {manifest_execute_bits=:03o} ≠ 000 (octal)")
 
     manifest_link_count = metadata.st_nlink
 
@@ -293,7 +293,7 @@ def verify(source_dir):
 
             if actual_execute_bits != release_execute_bits:
                 raise ValueError(
-                    f"Acquisition {acquisition_rel_path=}: {actual_execute_bits=:03o} ≠ {release_execute_bits=:03o}"
+                    f"Acquisition {acquisition_rel_path=}: {actual_execute_bits=:03o} ≠ {release_execute_bits=:03o} (octal)"
                 )
 
             actual.add(acquisition_rel_path)
@@ -346,7 +346,7 @@ def _admit_archive(
         manifest_member = archive.getmember("acquisition-manifest.json")
 
         if manifest_member.mode != 0o644:
-            raise ValueError(f"Acquisition archive manifest {manifest_member.mode=:04o} ≠ 0644")
+            raise ValueError(f"Acquisition archive manifest {manifest_member.mode=:04o} ≠ 0644 (octal)")
 
         payload = {member.name: archive.extractfile(member).read() for member in members}
         manifest = read_manifest(payload["acquisition-manifest.json"])
@@ -376,7 +376,7 @@ def _admit_archive(
                 raise ValueError(f"Acquisition archive {member.name=}: {member.size=} ≠ {expected_size=}")
 
             if member.mode != expected_mode:
-                raise ValueError(f"Acquisition archive {member.name=}: {member.mode=:o} ≠ {expected_mode=:o}")
+                raise ValueError(f"Acquisition archive {member.name=}: {member.mode=:o} ≠ {expected_mode=:o} (octal)")
 
             _check_bytes(member.name, payload[member.name], entry)
 

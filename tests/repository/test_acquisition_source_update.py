@@ -311,6 +311,9 @@ class SourceUpdateTests(unittest.TestCase):
                 diagnostic = str(caught.exception)
 
                 self.assertIn(f"member.{mismatch}=", diagnostic)
+
+                if mismatch == "mode":
+                    self.assertIn("(octal)", diagnostic)
                 other_field = {"size": "member.mode=", "mode": "member.size="}[mismatch]
 
                 self.assertNotIn(other_field, diagnostic)
