@@ -145,6 +145,42 @@ class SourceUpdateTests(unittest.TestCase):
 
         self.assert_old_source()
 
+    def test_archive_metadata_errors_report_the_actual_mismatch(self):
+        member_name = "acquisition_tool/new.py"
+        member_bytes = self.new[member_name]
+
+        for (declared_size, declared_mode, mismatch) in (
+            (len(member_bytes) + 1, 0o644, "size"),
+            (len(member_bytes), 0o755, "mode"),
+            (len(member_bytes) + 1, 0o755, "size"),
+        ):
+            with self.subTest(mismatch=mismatch, declared_size=declared_size, declared_mode=declared_mode):
+                manifest = self.manifest("2.0.0", self.new)
+                manifest["payload_files"][member_name].update(size=declared_size, mode=declared_mode)
+                payload = self.new | {"acquisition-manifest.json": json.dumps(manifest).encode()}
+
+                with tarfile.open(self.archive, "w:gz") as archive:
+                    for (archive_name, archive_bytes) in payload.items():
+                        archive_member = tarfile.TarInfo(archive_name)
+                        (archive_member.mode, archive_member.size) = (0o644, len(archive_bytes))
+
+                        archive.addfile(archive_member, io.BytesIO(archive_bytes))
+
+                pin = json.loads(self.pin.read_text())
+                pin["archive_sha256"] = hashlib.sha256(self.archive.read_bytes()).hexdigest()
+
+                self.pin.write_text(json.dumps(pin))
+
+                with self.assertRaises(ValueError) as caught:
+                    updates.import_archive(self.source, self.pin, self.archive)
+
+                diagnostic = str(caught.exception)
+
+                self.assertIn(f"member.{mismatch}=", diagnostic)
+                self.assertNotIn("member.mode=" if mismatch == "size" else "member.size=", diagnostic)
+                self.assert_old_source()
+                self.assertEqual([], list(self.root.glob(".acquisition-next-*")))
+
     def test_unsafe_or_duplicate_archive_members_never_publish(self):
         for (name, kind) in (
             ("../escape", tarfile.REGTYPE),
@@ -169,7 +205,7 @@ class SourceUpdateTests(unittest.TestCase):
         updates.verify(self.source)
         path.chmod(0o755)
 
-        with self.assertRaisesRegex(ValueError, "executable bits"):
+        with self.assertRaisesRegex(ValueError, "actual_execute_bits=111.*release_execute_bits=000"):
             updates.verify(self.source)
 
     def test_unrecorded_directory_or_symlink_is_not_admitted(self):
