@@ -153,9 +153,7 @@ class PredictionWorkflow:
 
             self.generation_submission = generation_submission
 
-        generation_admission = generation_submission.submit()
-
-        if isinstance(generation_admission, NotAdmitted):
+        if isinstance((generation_admission := generation_submission.submit()), NotAdmitted):
             raise RuntimeError(f"Cannot generate candidates: {generation_admission=}")
 
         operation_observation = await generation_submission.wait()
