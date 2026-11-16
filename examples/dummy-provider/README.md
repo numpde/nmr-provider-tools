@@ -28,9 +28,9 @@ lists, and the adapter converts them to numerical arrays. Its private transport
 record uses the SDK's immutable sequence representation; scientific records and
 retained state hold arrays throughout. The SDK has no numerical-library dependency.
 
-The scalar-only mock in `mocks/mock_numpy/` has not yet been extended to satisfy
-this array contract. This conversion deliberately defines the example first;
-installed array tests expose the missing mock operations until that next step.
+The stand-in in `mocks/mock_numpy/` implements this exercised array subset and
+has its own conformance tests. It uses independent storage, rejects mismatched
+vectors and unsupported operations, and has no NumPy, Torch or SDK dependency.
 
 The weighted-sum binding holds a reusable model and per-analysis state. Its
 prepare call returns worker-local state that calculate consumes. The stateless

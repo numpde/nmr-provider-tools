@@ -5,7 +5,7 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "mock-numpy"
 version = "0.1.0"
-description = "Scalar finiteness stand-in for the provider examples"
+description = "Array operations stand-in for the provider examples"
 readme = "README.md"
 requires-python = ">=3.12"
 dependencies = []
