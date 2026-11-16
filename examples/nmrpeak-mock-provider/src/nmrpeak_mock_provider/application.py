@@ -69,7 +69,7 @@ class PredictionWorkflow:
         The request caller supplies source text. The selected scientific method
         already declares its input type; the SDK derives its tool schema.
         """
-        instructions = files(anchor=__package__).joinpath("interpreter.md").read_text(encoding="utf-8")
+        instructions = files(anchor=__package__).joinpath("system_prompt.txt").read_text(encoding="utf-8")
 
         await self.interpreter.run(
             messages=[{"role": "system", "content": instructions}, {"role": "user", "content": source}],

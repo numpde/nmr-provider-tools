@@ -22,7 +22,7 @@ src/nmrpeak_mock_provider/
     science.py       scientific records, model interface and result admission
     checkpoint.py    verification and loading through one open file
     fake_model.py    replaceable tokenizer and model stand-ins
-    interpreter.md   source-faithful extraction instructions
+    system_prompt.txt   source-faithful extraction instructions
 tests/
     fakes.py             scripted LLM endpoint and recording report receiver
     test_peak_example.py installed workflow and failure scenarios
