@@ -91,7 +91,7 @@ class PreparedInput:
 def prepare(*, model: Model, candidate: HfInput | ChfInput, settings: Settings) -> PreparedInput:
     """Use the loaded tokenizer to reject an input before generation starts."""
 
-    if not candidate.formula or not candidate.proton_peaks:
+    if (not candidate.formula) or (not candidate.proton_peaks):
         raise ScientificRejection(code="missing_science", message="Supply a formula and proton peaks")
 
     if isinstance(candidate, ChfInput) and not candidate.carbon_peaks:
@@ -100,7 +100,7 @@ def prepare(*, model: Model, candidate: HfInput | ChfInput, settings: Settings) 
     tokens = model.tokenize(candidate=candidate)
     token_count = len(tokens)
 
-    if not tokens or token_count > settings.maximum_input_tokens:
+    if (not tokens) or (token_count > settings.maximum_input_tokens):
         raise ScientificRejection(
             code="token_limit",
             message=f"Cannot generate with {token_count=}; requires 1 through {settings.maximum_input_tokens=}",
@@ -109,8 +109,8 @@ def prepare(*, model: Model, candidate: HfInput | ChfInput, settings: Settings) 
     return PreparedInput(tokens=tokens)
 
 
-def dispose_prepared(value: PreparedInput) -> None:
-    value.close()
+def dispose_prepared(prepared_input: PreparedInput) -> None:
+    prepared_input.close()
 
 
 def validate_candidates(*, candidates: tuple[str, ...], settings: Settings) -> None:
@@ -122,7 +122,7 @@ def validate_candidates(*, candidates: tuple[str, ...], settings: Settings) -> N
     candidate_count = len(candidates)
 
     if not (1 <= candidate_count <= settings.beam_size):
-        raise ValueError(f"Invalid model output: {candidate_count=} exceeds the range 1 through {settings.beam_size=}")
+        raise ValueError(f"Invalid model output: {candidate_count=} must be from 1 through {settings.beam_size=}")
 
     for candidate in candidates:
         if not (type(candidate) is (expected_type := str)):
@@ -131,4 +131,4 @@ def validate_candidates(*, candidates: tuple[str, ...], settings: Settings) -> N
         character_count = len(candidate)
 
         if not (1 <= character_count <= settings.maximum_candidate_characters):
-            raise ValueError(f"Invalid model output: {character_count=} exceeds the range 1 through {settings.maximum_candidate_characters=}")
+            raise ValueError(f"Invalid model output: {character_count=} must be from 1 through {settings.maximum_candidate_characters=}")
