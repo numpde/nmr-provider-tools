@@ -228,32 +228,32 @@ def verify(source_dir):
 
         for name in files:
             path = Path(root) / name
-            relative_path = path.relative_to(source).as_posix()
+            acquisition_rel_path = path.relative_to(source).as_posix()
 
-            if relative_path == "acquisition-manifest.json":
-                actual.add(relative_path)
+            if acquisition_rel_path == "acquisition-manifest.json":
+                actual.add(acquisition_rel_path)
                 continue
 
-            if not (relative_path in entries):
-                raise ValueError(f"Acquisition source contains an unrecorded file: {relative_path=}")
+            if not (acquisition_rel_path in entries):
+                raise ValueError(f"Acquisition source contains an unrecorded file: {acquisition_rel_path=}")
 
             (content, metadata) = _regular_bytes(path)
 
             if metadata.st_nlink != 1:
-                raise ValueError(f"Acquisition source file has extra hard links: {relative_path=}")
+                raise ValueError(f"Acquisition source file has extra hard links: {acquisition_rel_path=}")
 
-            _check_bytes(relative_path, content, entries[relative_path])
+            _check_bytes(acquisition_rel_path, content, entries[acquisition_rel_path])
 
             # Git records executable bits, not checkout read/write permissions.
             actual_execute_bits = metadata.st_mode & 0o111
-            release_execute_bits = entries[relative_path]["mode"] & 0o111
+            release_execute_bits = entries[acquisition_rel_path]["mode"] & 0o111
 
             if actual_execute_bits != release_execute_bits:
                 raise ValueError(
-                    f"Acquisition {relative_path=}: {actual_execute_bits=:03o} ≠ {release_execute_bits=:03o}"
+                    f"Acquisition {acquisition_rel_path=}: {actual_execute_bits=:03o} ≠ {release_execute_bits=:03o}"
                 )
 
-            actual.add(relative_path)
+            actual.add(acquisition_rel_path)
 
     if actual != set(entries) | {"acquisition-manifest.json"}:
         raise ValueError("Acquisition source is missing files from its recorded release.")
