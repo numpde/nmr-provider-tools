@@ -45,8 +45,8 @@ def _version(value):
     return type(value) is str and re.fullmatch(r"(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)", value)
 
 
-def _checksum(value):
-    return type(value) is str and re.fullmatch(r"[0-9a-f]{64}", value)
+def is_checksum(candidate_checksum):
+    return type(candidate_checksum) is str and re.fullmatch(r"[0-9a-f]{64}", candidate_checksum) is not None
 
 
 def read_pin(release_pin_path):
@@ -65,7 +65,7 @@ def read_pin(release_pin_path):
     if not _version(release_version):
         raise ValueError(f"Acquisition {release_pin_path=}: {release_version=} must be X.Y.Z in ASCII digits without leading zeroes")
 
-    if not _checksum(pin["archive_sha256"]):
+    if not is_checksum(pin["archive_sha256"]):
         raise ValueError(f"Acquisition {release_pin_path=}: archive_sha256 must have 64 lowercase hexadecimal characters")
 
     return pin
@@ -148,7 +148,7 @@ def read_manifest(data: str | bytes | bytearray) -> AcquisitionManifest:
         if set(entry) != {"sha256", "size", "mode"}:
             raise ValueError(f"Acquisition payload {acquisition_rel_path=}: metadata must contain exactly sha256, size and mode; {sorted(entry)=}")
 
-        if not _checksum(entry["sha256"]):
+        if not is_checksum(entry["sha256"]):
             raise ValueError(f"Acquisition payload {acquisition_rel_path=}: sha256 must have 64 lowercase hexadecimal characters")
 
         if not (type((entry_size := entry["size"])) is (expected_type := int)):
@@ -178,7 +178,7 @@ def read_manifest(data: str | bytes | bytearray) -> AcquisitionManifest:
         if not dependency_name:
             raise ValueError(f"Acquisition dependency name must be nonempty: {dependency_name=}")
 
-        if not _checksum(dependency_sha256):
+        if not is_checksum(dependency_sha256):
             raise ValueError(f"Acquisition {dependency_name=}: {dependency_sha256=} must be a lowercase SHA-256 digest")
 
     return manifest
