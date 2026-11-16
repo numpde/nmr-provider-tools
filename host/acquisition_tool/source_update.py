@@ -333,8 +333,16 @@ def _admit_archive(
 
         entries = manifest["payload_files"]
 
-        if set(payload) != set(entries) | {"acquisition-manifest.json"}:
-            raise ValueError("Acquisition archive members differ from its embedded inventory.")
+        expected_members = set(entries) | {"acquisition-manifest.json"}
+        missing_members = sorted(expected_members - set(payload))
+
+        if missing_members:
+            raise ValueError(f"Acquisition archive is missing {missing_members=}")
+
+        unrecorded_members = sorted(set(payload) - expected_members)
+
+        if unrecorded_members:
+            raise ValueError(f"Acquisition archive contains {unrecorded_members=}")
 
         for member in members:
             if member.name == "acquisition-manifest.json":

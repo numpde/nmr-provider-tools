@@ -244,6 +244,36 @@ class SourceUpdateTests(unittest.TestCase):
         self.assert_old_source()
         self.assertEqual([], list(self.root.glob(".acquisition-next-*")))
 
+    def test_archive_reports_missing_and_unrecorded_members(self):
+        self.write_archive(extra=(("unexpected", tarfile.REGTYPE),))
+
+        with self.assertRaisesRegex(ValueError, r"unrecorded_members=\['unexpected'\]"):
+            updates.import_archive(self.source, self.pin, self.archive)
+
+        self.assert_old_source()
+        manifest_bytes = json.dumps(self.manifest("2.0.0", self.new)).encode()
+
+        with tarfile.open(self.archive, "w:gz") as archive:
+            for (archive_name, archive_bytes) in (
+                ("acquisition-manifest.json", manifest_bytes),
+                ("compose/worker.yml", self.new["compose/worker.yml"]),
+            ):
+                archive_member = tarfile.TarInfo(archive_name)
+                (archive_member.mode, archive_member.size) = (0o644, len(archive_bytes))
+
+                archive.addfile(archive_member, io.BytesIO(archive_bytes))
+
+        pin = json.loads(self.pin.read_text())
+        pin["archive_sha256"] = hashlib.sha256(self.archive.read_bytes()).hexdigest()
+
+        self.pin.write_text(json.dumps(pin))
+
+        with self.assertRaisesRegex(ValueError, r"missing_members=\['acquisition_tool/new\.py'\]"):
+            updates.import_archive(self.source, self.pin, self.archive)
+
+        self.assert_old_source()
+        self.assertEqual([], list(self.root.glob(".acquisition-next-*")))
+
     def test_unsafe_or_duplicate_archive_members_never_publish(self):
         for (name, kind) in (
             ("../escape", tarfile.REGTYPE),
