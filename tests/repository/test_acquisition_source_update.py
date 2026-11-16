@@ -132,6 +132,29 @@ class SourceUpdateTests(unittest.TestCase):
 
         self.assertIs(scan_failure, caught.exception)
 
+    def test_payload_mismatch_identifies_size_or_digest(self):
+        acquisition_file = self.source / "acquisition_tool/old.py"
+        recorded_bytes = self.old["acquisition_tool/old.py"]
+        release_sha256 = hashlib.sha256(recorded_bytes).hexdigest()
+
+        acquisition_file.write_bytes(recorded_bytes + b"x")
+
+        with self.assertRaises(ValueError) as caught:
+            updates.verify(self.source)
+
+        self.assertIn("acquisition_rel_path='acquisition_tool/old.py'", str(caught.exception))
+        self.assertIn(f"actual_size={len(recorded_bytes) + 1} ≠ release_size={len(recorded_bytes)}", str(caught.exception))
+
+        modified_bytes = b"X" + recorded_bytes[1:]
+        acquisition_file.write_bytes(modified_bytes)
+
+        with self.assertRaises(ValueError) as caught:
+            updates.verify(self.source)
+
+        self.assertIn("acquisition_rel_path='acquisition_tool/old.py'", str(caught.exception))
+        self.assertIn(f"actual_sha256='{hashlib.sha256(modified_bytes).hexdigest()}'", str(caught.exception))
+        self.assertIn(f"release_sha256='{release_sha256}'", str(caught.exception))
+
     def test_checksum_failure_precedes_tar_parsing_and_preserves_source(self):
         self.archive.write_bytes(b"not an authenticated archive")
 

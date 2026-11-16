@@ -187,9 +187,18 @@ def _regular_bytes(path):
         os.close(descriptor)
 
 
-def _check_bytes(name, data, entry):
-    if len(data) != entry["size"] or hashlib.sha256(data).hexdigest() != entry["sha256"]:
-        raise ValueError(f"Acquisition file differs from its recorded release: {name}.")
+def _check_bytes(acquisition_rel_path, content, entry):
+    actual_size = len(content)
+    release_size = entry["size"]
+
+    if actual_size != release_size:
+        raise ValueError(f"Acquisition {acquisition_rel_path=}: {actual_size=} ≠ {release_size=}")
+
+    actual_sha256 = hashlib.sha256(content).hexdigest()
+    release_sha256 = entry["sha256"]
+
+    if actual_sha256 != release_sha256:
+        raise ValueError(f"Acquisition {acquisition_rel_path=}: {actual_sha256=} ≠ {release_sha256=}")
 
 
 def _raise_walk_error(error: OSError) -> None:
