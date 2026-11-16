@@ -214,8 +214,11 @@ class AdoptionTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(first=20, second=instance.calls)
         self.assertEqual(first=20, second=len(retained_handles))
 
-        with self.assertRaises(expected_exception=CapacityUnavailable):
-            adopt(host=self.host, contribution=Sum(configuration=Settings(scale=2)))
+        replacement = Sum(configuration=Settings(scale=2))
+        hosted_replacement = adopt(host=self.host, contribution=replacement)
+
+        self.assertIs(expr1=replacement, expr2=hosted_replacement.contribution)
+        self.assertEqual(first={}, second=self.host.analyses)
 
     async def test_state_ports_use_python_types_and_attribute_names(self):
         from provider_core.scientific import StateType, StateUse

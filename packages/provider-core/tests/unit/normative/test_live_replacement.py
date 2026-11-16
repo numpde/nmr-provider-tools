@@ -177,6 +177,7 @@ class LiveReplacementTests(unittest.IsolatedAsyncioTestCase):
             self.assertIs(expr1=retirement, expr2=self.host.retire_allocation(offering.allocation))
             release.set()
             await settle_cleanup(control=retirement)
+            await settle_cleanup(control=retirement)
             self.assertNotIn(member=offering.allocation, container=self.host.allocations)
             self.assertTrue(expr=original.closed)
         finally:
@@ -215,4 +216,7 @@ class LiveReplacementTests(unittest.IsolatedAsyncioTestCase):
             with self.assertRaises(expected_exception=CapacityUnavailable):
                 host.open_analysis(allocations=frozenset({failed.allocation}))
         finally:
-            await host.retire().task
+            shutdown = host.retire()
+            await shutdown.task
+
+        self.assertIs(expr1=original_failure, expr2=shutdown.failures[0].cause.exceptions[0])

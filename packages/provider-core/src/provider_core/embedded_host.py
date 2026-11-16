@@ -62,7 +62,7 @@ class InProcessExecutionHost:
 
     capabilities = EMBEDDED_CAPABILITIES
 
-    # silent-defaults: allow-contract -- An empty host accepts explicit allocations before its first analysis opens.
+    # silent-defaults: allow-contract -- An empty host accepts explicitly adopted contributions.
     def __init__(
         self,
         allocations: tuple[Allocation, ...] = (),
@@ -132,7 +132,6 @@ class InProcessExecutionHost:
         }
 
         self.analyses = {}
-        self.allocations_fixed = False
         self.operations = {}
         self.input_used = 0
         self.result_reserved = 0
@@ -172,11 +171,12 @@ class InProcessExecutionHost:
 
         Rejection leaves ownership with the caller. Successful adoption retains
         the receiver before initialization and permanently forbids re-adoption.
+        Existing analyses keep their original allocations; shutdown refuses adoption.
         """
         self._require_loop()
 
-        if self.retiring or self.allocations_fixed:
-            raise CapacityUnavailable("Adopt contributions before opening analyses or retiring the host.")
+        if self.retiring:
+            raise CapacityUnavailable("Cannot adopt a contribution while the host is retiring.")
 
         allocation_name = uuid4().hex
 
@@ -206,7 +206,7 @@ class InProcessExecutionHost:
 
     @property
     def allocations(self) -> frozenset[AllocationRef]:
-        """Snapshot the hosted scientific allocations without promising an order."""
+        """Snapshot hosted or unsettled allocations; omit successful retirements."""
 
         return frozenset(resident.reference for resident in self.residents.values())
 
@@ -302,6 +302,9 @@ class InProcessExecutionHost:
             for reference in allocations:
                 resident = self.residents.get(reference.allocation)
 
+                if resident is None and reference.host == self.identity:
+                    raise CapacityUnavailable("The reference does not identify a current allocation on this host.")
+
                 if resident is None or resident.reference != reference:
                     raise ValueError("The allocation handle does not belong to this host")
 
@@ -349,8 +352,6 @@ class InProcessExecutionHost:
             residents=selected_residents,
         )
 
-        self.allocations_fixed = True
-
         self.analyses[analysis_id] = analysis_executor
 
         for resident in selected_residents:
@@ -359,7 +360,11 @@ class InProcessExecutionHost:
         return analysis_executor
 
     def retire_allocation(self, reference):
-        """Pool administration retires one exact allocation and its current analysis."""
+        """Retire one allocation and its analysis; retain the returned control.
+
+        Successful retirement removes the allocation from the host. The retained
+        control still reports its outcome; failed cleanup stays owned by the host.
+        """
         self._require_loop()
 
         if not (type(reference) is (expected_type := AllocationRef)):
@@ -423,6 +428,7 @@ class InProcessExecutionHost:
             raise BaseExceptionGroup("Allocation initialization or cleanup failed.", failures)
 
         resident.retired = True
+        del self.residents[resident.name]
 
     def retire(self):
         """Request cleanup of all hosted scientific objects and refuse new analyses.
