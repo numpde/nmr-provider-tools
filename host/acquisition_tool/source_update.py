@@ -114,7 +114,7 @@ def read_manifest(data: str | bytes | bytearray) -> AcquisitionManifest:
     if not (type((manifest_source_revision := manifest["source_revision"])) is (expected_type := str)):
         raise TypeError(f"{type(manifest_source_revision)=} ≠ {expected_type=}")
 
-    if not (re.fullmatch(r"[0-9a-f]{40}", manifest["source_revision"])):
+    if not re.fullmatch(r"[0-9a-f]{40}", manifest["source_revision"]):
         raise ValueError("Acquisition manifest has no exact release version or Git source revision.")
 
     entries = manifest["payload_files"]
@@ -174,7 +174,7 @@ def _regular_bytes(path):
     try:
         metadata = os.fstat(descriptor)
 
-        if not (stat.S_ISREG(metadata.st_mode)):
+        if not stat.S_ISREG(metadata.st_mode):
             raise ValueError(f"Cannot read acquisition input {path}: require a regular file.")
 
         with os.fdopen(descriptor, "rb", closefd=False) as stream:
