@@ -1,7 +1,8 @@
 """Spell negative raising guards as ``if not (expected_condition): raise ...``.
 
 This standalone spelling check covers conditions whose body directly raises:
-an outer not needs encompassing parentheses, and single is-not/not-in comparisons
+an outer not needs encompassing parentheses around compound operands; direct call
+predicates may omit that extra grouping. Single is-not/not-in comparisons
 should negate their accepted identity/membership condition. It does not infer
 accepted predicates for arbitrary equality, ordering or boolean expressions.
 Exception type, exception construction and chaining do not restrict the rule.
@@ -63,7 +64,7 @@ def guard_findings(*, source: str) -> list[tuple[int, str]]:
         condition = statement.test
 
         if isinstance(condition, ast.UnaryOp) and isinstance(condition.op, ast.Not):
-            if not _parenthesized_not(expression=ast.get_source_segment(source=source, node=condition)):
+            if not isinstance(condition.operand, ast.Call) and not _parenthesized_not(expression=ast.get_source_segment(source=source, node=condition)):
                 findings.append((statement.lineno, "parenthesize the complete expected condition after not"))
         elif isinstance(condition, ast.Compare) and len(condition.ops) == 1:
             if isinstance(condition.ops[0], ast.IsNot):
@@ -80,12 +81,23 @@ class ExpectedConditionGuardPostureTests(unittest.TestCase):
             "if not 1 <= count <= settings.beam_size:\n    raise ValueError\n",
             'if type(candidate) is not str:\n    raise TypeError(f"Unexpected {type(candidate)=}")\n',
             "if candidate not in supported:\n    raise ValueError()\n",
-            "if not isinstance(candidate, str):\n    raise builtins.TypeError() from cause\n",
         ]
 
         for source in sources:
             with self.subTest(source=source):
                 self.assertEqual(first=1, second=len(guard_findings(source=source)))
+
+    def test_direct_call_predicates_need_no_extra_grouping(self):
+        for predicate in ["predicate()", "isinstance(candidate, str)", "owner.ready()", "np.isfinite(samples).all()"]:
+            for condition in [f"not {predicate}", f"not ({predicate})"]:
+                with self.subTest(condition=condition):
+                    source = f"if {condition}:\n    raise builtins.TypeError() from cause\n"
+
+                    self.assertEqual(first=[], second=guard_findings(source=source))
+
+        source = "if not predicate() == expected:\n    raise ValueError()\n"
+
+        self.assertEqual(first=1, second=len(guard_findings(source=source)))
 
     def test_parentheses_enclose_the_complete_expected_condition(self):
         for condition in ["not (first) and second", "not (first) or second"]:
