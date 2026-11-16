@@ -38,11 +38,13 @@ class Spectrum:
     def __post_init__(self) -> None:
         positions = _finite_samples(self.positions, label="positions")
         intensities = _finite_samples(self.intensities, label="intensities")
+        position_count = len(positions)
+        intensity_count = len(intensities)
 
-        if not positions or len(positions) != len(intensities):
+        if (not positions) or (position_count != intensity_count):
             raise ValueError(
                 "A spectrum requires nonempty, equally sized positions and intensities; "
-                f"received {len(positions)} positions and {len(intensities)} intensities"
+                f"received {position_count=} and {intensity_count=}"
             )
 
         for index in range(1, len(positions)):
@@ -104,12 +106,12 @@ def subtract_baseline(spectrum: Spectrum, settings: BaselineSettings) -> Spectru
     corrected = []
 
     for intensity in spectrum.intensities:
-        value = intensity - settings.baseline
+        corrected_intensity = intensity - settings.baseline
 
-        if not math.isfinite(value):
-            raise ArithmeticError("Baseline subtraction produced a nonfinite intensity")
+        if not math.isfinite(corrected_intensity):
+            raise ArithmeticError(f"Baseline subtraction produced a nonfinite {corrected_intensity=}")
 
-        corrected.append(value)
+        corrected.append(corrected_intensity)
 
     return Spectrum(positions=spectrum.positions, intensities=tuple(corrected))
 
