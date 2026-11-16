@@ -308,7 +308,7 @@ def _admit_archive(
         manifest_member = archive.getmember("acquisition-manifest.json")
 
         if manifest_member.mode != 0o644:
-            raise ValueError("Acquisition archive manifest must have mode 0644.")
+            raise ValueError(f"Acquisition archive manifest {manifest_member.mode=:04o} ≠ 0644")
 
         payload = {member.name: archive.extractfile(member).read() for member in members}
         manifest = read_manifest(payload["acquisition-manifest.json"])

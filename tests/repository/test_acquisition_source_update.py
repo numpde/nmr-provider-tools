@@ -181,6 +181,24 @@ class SourceUpdateTests(unittest.TestCase):
                 self.assert_old_source()
                 self.assertEqual([], list(self.root.glob(".acquisition-next-*")))
 
+    def test_archive_manifest_mode_is_reported_before_manifest_parsing(self):
+        with tarfile.open(self.archive, "w:gz") as archive:
+            archive_member = tarfile.TarInfo("acquisition-manifest.json")
+            (archive_member.mode, archive_member.size) = (0o755, 1)
+
+            archive.addfile(archive_member, io.BytesIO(b"{"))
+
+        pin = json.loads(self.pin.read_text())
+        pin["archive_sha256"] = hashlib.sha256(self.archive.read_bytes()).hexdigest()
+
+        self.pin.write_text(json.dumps(pin))
+
+        with self.assertRaisesRegex(ValueError, "manifest_member.mode=0755 ≠ 0644"):
+            updates.import_archive(self.source, self.pin, self.archive)
+
+        self.assert_old_source()
+        self.assertEqual([], list(self.root.glob(".acquisition-next-*")))
+
     def test_unsafe_or_duplicate_archive_members_never_publish(self):
         for (name, kind) in (
             ("../escape", tarfile.REGTYPE),
