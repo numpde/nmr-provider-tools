@@ -67,8 +67,9 @@ class PeakContribution(sdk.Contribution):
     def generate(self, *, candidate: science.PreparedInput) -> science.Candidates:
         """Consume prepared tokens once and admit the model's bounded output."""
 
-        tokens = candidate.consume()
-        generated = self.model.generate(tokens=tokens, beam_size=self.configuration.beam_size)
+        # The SDK consumes the state reference before calling generate, so another
+        # operation cannot reuse it or run after its cleanup.
+        generated = self.model.generate(tokens=candidate.tokens, beam_size=self.configuration.beam_size)
 
         science.validate_candidates(candidates=generated, settings=self.configuration)
 

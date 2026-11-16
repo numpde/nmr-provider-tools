@@ -83,21 +83,10 @@ class Model(Protocol):
 class PreparedInput:
     """The validated input retained until one generation or analysis cleanup."""
 
-    tokens: tuple[str, ...] | None
-
-    def consume(self) -> tuple[str, ...]:
-        """Transfer tokens to one generation; reject reuse after consumption or cleanup."""
-
-        if self.tokens is None:
-            raise RuntimeError("Validated input was already consumed or disposed")
-
-        tokens = self.tokens
-        self.tokens = None
-
-        return tokens
+    tokens: tuple[str, ...]
 
     def close(self) -> None:
-        self.tokens = None
+        self.tokens = ()
 
 
 def prepare(*, model: Model, candidate: HfInput | ChfInput, settings: Settings) -> PreparedInput:
