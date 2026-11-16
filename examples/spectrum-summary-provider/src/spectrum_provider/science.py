@@ -47,11 +47,14 @@ class Spectrum:
                 f"received {position_count=} and {intensity_count=}"
             )
 
-        for index in range(1, len(positions)):
-            if not (positions[index - 1] < positions[index]):
+        for position_index in range(1, len(positions)):
+            previous_position = positions[position_index - 1]
+            current_position = positions[position_index]
+
+            if not (previous_position < current_position):
                 raise ValueError(
                     "Spectrum positions must strictly increase; "
-                    f"position {index} does not exceed position {index - 1}"
+                    f"{position_index=}; {previous_position=}; {current_position=}"
                 )
 
         object.__setattr__(self, "positions", positions)
