@@ -58,6 +58,21 @@ class SourceUpdateTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "metadata must contain exactly sha256, size and mode"):
             updates.read_manifest(json.dumps(manifest))
 
+    def test_manifest_identifies_inventory_conflicts(self):
+        manifest = self.manifest("1.0.0", self.old)
+        metadata = manifest["payload_files"]["acquisition_tool/old.py"]
+
+        for (payload_files, expected_message) in (
+            ({}, "payload inventory must not be empty"),
+            ({"acquisition-manifest.json": metadata}, "must not include the manifest itself"),
+            ({"ancestor": metadata, "ancestor/child": metadata}, "name='ancestor/child' has an inventoried parent=PurePosixPath('ancestor')"),
+        ):
+            with self.subTest(payload_files=payload_files):
+                with self.assertRaises(ValueError) as caught:
+                    updates.read_manifest(json.dumps(manifest | {"payload_files": payload_files}))
+
+                self.assertIn(expected_message, str(caught.exception))
+
     def test_manifest_reports_the_invalid_release_identity(self):
         for (changes, expected_requirement, expected_field) in (
             ({"release_version": "latest"}, "release version must be exact", "manifest_release_version='latest'"),

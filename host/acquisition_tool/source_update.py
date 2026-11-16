@@ -130,14 +130,18 @@ def read_manifest(data: str | bytes | bytearray) -> AcquisitionManifest:
     if not (type(entries) is (expected_type := dict)):
         raise TypeError(f"{type(entries)=} ≠ {expected_type=}")
 
-    if not (entries) or "acquisition-manifest.json" in entries:
-        raise ValueError("Acquisition manifest must inventory its payload without hashing itself.")
+    if not (entries):
+        raise ValueError("Acquisition manifest payload inventory must not be empty")
+
+    if "acquisition-manifest.json" in entries:
+        raise ValueError("Acquisition manifest payload inventory must not include the manifest itself")
 
     for (name, entry) in entries.items():
         path = _relative_name(name)
 
-        if any(parent.as_posix() in entries for parent in path.parents):
-            raise ValueError(f"Acquisition payload file conflicts with a parent path: {name!r}.")
+        for parent in path.parents:
+            if parent.as_posix() in entries:
+                raise ValueError(f"Acquisition payload {name=} has an inventoried {parent=}")
 
         if not (type(entry) is (expected_type := dict)):
             raise TypeError(f"{name=}; {type(entry)=} ≠ {expected_type=}")
