@@ -8,14 +8,14 @@ import math
 from provider_core.contribution_errors import ScientificRejection
 
 
-def _finite(value: object) -> float:
-    if not (type(value) in (expected_type := (int, float))):
-        raise TypeError(f"{type(value)=} ≠ {expected_type=}")
+def _finite(numeric_value: object) -> float:
+    if not (type(numeric_value) in (expected_type := (int, float))):
+        raise TypeError(f"{type(numeric_value)=} ≠ {expected_type=}")
 
-    if not (math.isfinite(value) and 0 <= value):
-        raise ValueError("Reference matching requires finite nonnegative numeric values")
+    if not (math.isfinite(numeric_value) and (0 <= numeric_value)):
+        raise ValueError(f"Reference matching requires finite nonnegative {numeric_value=}")
 
-    return float(value)
+    return float(numeric_value)
 
 
 @dataclass(frozen=True, slots=True, kw_only=True)
