@@ -474,6 +474,49 @@ class PeakExampleTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(first=set(models), second=set(closed))
         self.assertTrue(expr=all(model.tokenizer is None for model in models))
 
+    async def test_cancelled_startup_joins_model_loading_before_cleanup(self):
+        entered = Event()
+        release = Event()
+        models = []
+        closed = []
+
+        class HeldModel(Model):
+            def load(self, *, checkpoint):
+                models.append(self)
+                entered.set()
+
+                if not release.wait(timeout=5):
+                    raise TimeoutError("Test did not release model loading")
+
+                super().load(checkpoint=checkpoint)
+
+            def close(self) -> None:
+                closed.append(self)
+                super().close()
+
+        async def start_provider():
+            async with self.open_provider(create_model=HeldModel):
+                self.fail(msg="Cancelled startup must not yield a provider")
+
+        startup = asyncio.create_task(coro=start_provider())
+
+        try:
+            self.assertTrue(expr=await asyncio.to_thread(entered.wait, timeout=2))
+            startup.cancel()
+            await asyncio.sleep(delay=0)
+            self.assertFalse(expr=startup.done())
+            self.assertEqual(first=[], second=closed)
+            release.set()
+
+            with self.assertRaises(expected_exception=asyncio.CancelledError):
+                await startup
+
+            self.assertEqual(first=models, second=closed)
+            self.assertTrue(expr=all(model.tokenizer is None for model in models))
+        finally:
+            release.set()
+            await asyncio.gather(startup, return_exceptions=True)
+
     async def test_request_corrects_input_and_concurrent_delivery_sends_once(self):
         rejected = candidate(carbon=False)
         rejected["proton_peaks"] = []
