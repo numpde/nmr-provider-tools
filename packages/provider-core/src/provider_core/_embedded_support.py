@@ -202,6 +202,7 @@ class _Resident:
         self.initialization = None
         self.initialization_deadline = None
         self.initialization_abandoned = False
+        self.initialization_failure_observed = False
         self.initialization_limit_failure = TimeoutError("Instance initialization exceeded its original allowance.")
         self.dispose_attempted = False
         self.join_task = None

@@ -241,6 +241,7 @@ class InProcessExecutionHost:
             if resident.initialization is not None and resident.initialization.done():
                 if resident.initialization.exception() is resident.failure:
                     resident.initialization_abandoned = False
+                    resident.initialization_failure_observed = True
 
             raise resident.failure
 
@@ -255,15 +256,19 @@ class InProcessExecutionHost:
 
             raise
         except TimeoutError as cause:
-            if not resident.initialization.done():
+            if resident.initialization.done() and resident.initialization.exception() is cause:
+                resident.initialization_abandoned = False
+                resident.initialization_failure_observed = True
+            else:
                 resident.failure = cause
                 resident.initialization_abandoned = True
-            else:
-                resident.initialization_abandoned = False
 
             raise
-        except BaseException:
+        except BaseException as cause:
             resident.initialization_abandoned = False
+
+            if resident.initialization.done() and resident.initialization.exception() is cause:
+                resident.initialization_failure_observed = True
 
             raise
         else:
@@ -399,7 +404,7 @@ class InProcessExecutionHost:
         except BaseException as cause:
             failures.append(cause)
 
-        if resident.initialization_abandoned:
+        if resident.initialization_abandoned and not resident.initialization_failure_observed:
             initialization_failure = resident.initialization.exception()
 
             if initialization_failure is not None and initialization_failure is not resident.initialization_limit_failure:
