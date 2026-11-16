@@ -19,7 +19,11 @@ def ungrouped_negated_boolean_lines(*, source: str) -> list[int]:
         if not isinstance(expression, ast.BoolOp) or expression.lineno != expression.end_lineno:
             continue
 
-        if not any(isinstance(operand, ast.UnaryOp) and isinstance(operand.op, ast.Not) for operand in expression.values):
+        if not any(
+            (isinstance(operand, ast.UnaryOp) and isinstance(operand.op, ast.Not))
+            or (isinstance(operand, ast.Compare) and any(isinstance(operator, (ast.NotIn, ast.IsNot)) for operator in operand.ops))
+            for operand in expression.values
+        ):
             continue
 
         line = lines[expression.lineno - 1]
@@ -40,7 +44,8 @@ class NegatedBooleanGroupingPostureTests(unittest.TestCase):
     def test_negated_operands_need_explicit_grouping(self) -> None:
         self.assertEqual(first=[1], second=ungrouped_negated_boolean_lines(source='if not name or "x" in name: pass'))
         self.assertEqual(first=[], second=ungrouped_negated_boolean_lines(source='if (not name) or ("x" in name): pass'))
-        self.assertEqual(first=[], second=ungrouped_negated_boolean_lines(source='if not (name and "x" not in name): pass'))
+        self.assertEqual(first=[1], second=ungrouped_negated_boolean_lines(source='if not (name and "x" not in name): pass'))
+        self.assertEqual(first=[], second=ungrouped_negated_boolean_lines(source='if not ((name) and ("x" not in name)): pass'))
         self.assertEqual(first=[], second=ungrouped_negated_boolean_lines(source="if ready or waiting: pass"))
 
     def test_authored_python_groups_negated_boolean_operands(self) -> None:
