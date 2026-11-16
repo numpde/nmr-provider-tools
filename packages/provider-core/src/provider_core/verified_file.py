@@ -4,20 +4,21 @@ from provider_core.container_guard import require_container
 
 require_container()
 
+from collections.abc import Iterator
+from contextlib import contextmanager
 from hashlib import file_digest
 from pathlib import Path
 from typing import BinaryIO
 
 
-def open_verified_file(*, source_file_path: Path, expected_sha256: str) -> BinaryIO:
-    """Verify and rewind a file; the caller owns closing the returned handle.
+@contextmanager
+def open_verified_file(*, source_file_path: Path, expected_sha256: str) -> Iterator[BinaryIO]:
+    """Verify and rewind a file, then keep it open for the consumer's context.
 
     The file must remain unchanged through verification and consumption.
     Keeping it open does not prevent another process from modifying its bytes.
     """
-    source_file = source_file_path.open(mode="rb")
-
-    try:
+    with source_file_path.open(mode="rb") as source_file:
         actual_sha256 = file_digest(source_file, "sha256").hexdigest()
 
         if actual_sha256 != expected_sha256:
@@ -25,7 +26,4 @@ def open_verified_file(*, source_file_path: Path, expected_sha256: str) -> Binar
 
         source_file.seek(0)
 
-        return source_file
-    except BaseException:
-        source_file.close()
-        raise
+        yield source_file

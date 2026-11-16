@@ -29,8 +29,22 @@ class VerifiedFileTests(unittest.TestCase):
 
         with patch.object(target=Path, attribute="open", return_value=opened_file):
             with self.assertRaises(expected_exception=ValueError) as failure:
-                open_verified_file(source_file_path=Path("model.bin"), expected_sha256=expected_sha256)
+                with open_verified_file(source_file_path=Path("model.bin"), expected_sha256=expected_sha256):
+                    self.fail("A mismatched file must not be handed to the consumer")
 
         self.assertTrue(expr=opened_file.closed)
         self.assertIn(member=sha256(contents).hexdigest(), container=str(failure.exception))
         self.assertIn(member=expected_sha256, container=str(failure.exception))
+
+    def test_consumer_failure_closes_the_file_and_propagates(self):
+        contents = b"model checkpoint"
+        opened_file = BytesIO(contents)
+        failure = OSError("Model loading failed")
+
+        with patch.object(target=Path, attribute="open", return_value=opened_file):
+            with self.assertRaises(expected_exception=OSError) as raised:
+                with open_verified_file(source_file_path=Path("model.bin"), expected_sha256=sha256(contents).hexdigest()):
+                    raise failure
+
+        self.assertIs(expr1=failure, expr2=raised.exception)
+        self.assertTrue(expr=opened_file.closed)
