@@ -1,0 +1,4 @@
+requirement = (
+    f"provider-core=={release_version} \\\n"
+    f"    --hash=sha256:{wheel_digest}\n"  # machine-string: pip requires package and hash syntax; expression labels would invalidate the requirement.
+)

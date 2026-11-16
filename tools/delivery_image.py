@@ -36,7 +36,9 @@ def release_inputs(pin, runtime_lock):
 
     install_lock_bytes = (
         runtime_requirements.rstrip()
-        + f"\nprovider-core=={release_version} \\\n    --hash=sha256:{wheel_digest}\n"
+        + "\n"
+        f"provider-core=={release_version} \\\n"
+        f"    --hash=sha256:{wheel_digest}\n"  # machine-string: pip consumes package and hash syntax; expression labels would invalidate the requirement.
     ).encode()
 
     if hashlib.sha256(install_lock_bytes).hexdigest() != release["install_lock_sha256"]:
@@ -130,12 +132,12 @@ def acquire_release(pin, runtime_lock, pool, tool):
         require_download_proxy()
 
         if wheel_name.startswith("provider_core-"):
-            url = f"https://github.com/numpde/nmr-provider-tools/releases/download/v{release['version']}/{wheel_name}"
+            url = f"https://github.com/numpde/nmr-provider-tools/releases/download/v{release['version']}/{wheel_name}"  # machine-string: GitHub release paths require bare version and artifact names, without expression labels.
         else:
             (distribution, version, *_) = wheel_name.split("-")
 
             with urllib.request.urlopen(
-                f"https://pypi.org/pypi/{distribution}/{version}/json",
+                f"https://pypi.org/pypi/{distribution}/{version}/json",  # machine-string: PyPI routes by distribution and version path segments; expression labels would change the endpoint.
                 timeout=30,
             ) as response:
                 metadata = json.load(response)

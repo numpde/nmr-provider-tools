@@ -32,7 +32,7 @@ class SamplesCodec[SampleInputT: science.PreparationInput | science.SumInput]:
             self,
             "_json_codec",
             JsonDataclassCodec(
-                format=f"python-json.v1:{self.value_type.__module__}.{self.value_type.__qualname__}",
+                format=f"python-json.v1:{self.value_type.__module__}.{self.value_type.__qualname__}",  # machine-string: codec format identifiers contain the qualified Python type name, without expression labels.
                 value_type=_JsonSamples,
             ),
         )

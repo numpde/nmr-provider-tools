@@ -1,0 +1,3 @@
+document = f"""[package]
+version = "{version}"
+"""  # machine-string: the TOML consumer needs the version value, without its Python expression name.

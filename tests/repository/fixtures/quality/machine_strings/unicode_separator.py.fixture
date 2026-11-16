@@ -1,0 +1,2 @@
+path = f"/données/ {nom}.json"  # machine-string: the filesystem needs this exact path, without expression labels.
+url = f"https://example.invalid/{segment}"  # machine-string: the HTTP client needs this URL path, without expression labels.

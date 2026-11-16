@@ -1,0 +1,4 @@
+path = (
+    f"/work/{model_name}"  # machine-string: this marker precedes the end of the combined literal.
+    ".json"
+)

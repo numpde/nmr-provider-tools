@@ -1,0 +1,2 @@
+# machine-string: the filesystem consumes this path.
+path = f"/work/{model_name}.json"

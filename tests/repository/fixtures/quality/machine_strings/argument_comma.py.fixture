@@ -1,0 +1,4 @@
+parser.add_argument(
+    f"--{phase}-seconds",  # machine-string: argparse must register the literal command-line option, without expression labels.
+    type=float,
+)

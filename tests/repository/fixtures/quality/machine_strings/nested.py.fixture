@@ -1,0 +1,1 @@
+url = f"https://example.invalid/{f'{segment}'}"  # machine-string: the HTTP client needs URL syntax; this exemption does not cover the nested f-string.

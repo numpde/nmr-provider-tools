@@ -1,0 +1,1 @@
+url = f"https://pypi.org/pypi/{distribution}/{version}/json"  # machine-string: PyPI consumes URL path segments; expression labels would change the endpoint.

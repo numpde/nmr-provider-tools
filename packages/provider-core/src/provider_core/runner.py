@@ -400,7 +400,11 @@ def main(arguments=None):
     )
 
     for name in ("startup", "terminate", "kill", "cleanup"):
-        parser.add_argument(f"--{name}-seconds", type=float, required=True)
+        parser.add_argument(
+            f"--{name}-seconds",  # machine-string: argparse registers the literal option name; expression labels would change the accepted CLI.
+            type=float,
+            required=True,
+        )
 
     parser.add_argument("worker", nargs=argparse.REMAINDER)
     options = parser.parse_args(arguments)

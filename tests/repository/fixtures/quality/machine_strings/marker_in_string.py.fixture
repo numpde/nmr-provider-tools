@@ -1,0 +1,1 @@
+message = f"# machine-string: this text is inside a string, {checkpoint_path}"

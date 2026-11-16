@@ -101,7 +101,10 @@ def main():
         descriptor = os.open(args.output, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
 
         with os.fdopen(descriptor, "w", encoding="ascii") as output:
-            output.writelines(f"nameserver {server}\n" for server in servers)
+            output.writelines(
+                f"nameserver {server}\n"  # machine-string: resolv.conf requires a bare resolver address after nameserver, without expression labels.
+                for server in servers
+            )
     except ResolverCaptureFailed as error:
         parser.exit(2, f"{error}\n")
     except (OSError, UnicodeError) as error:

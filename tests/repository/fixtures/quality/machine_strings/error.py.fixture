@@ -1,0 +1,1 @@
+raise OSError(f"Cannot open {checkpoint_path}")

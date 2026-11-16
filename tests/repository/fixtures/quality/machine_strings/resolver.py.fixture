@@ -1,0 +1,1 @@
+line = f"nameserver {server}\n"  # machine-string: resolv.conf requires a bare resolver address after nameserver.
