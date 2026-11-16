@@ -162,13 +162,41 @@ class MultilineBracketPostureTests(unittest.TestCase):
 
     def test_literals_imports_and_subscriptions_share_the_rule(self):
         sources = [
-            "value = [\n    first, second,\n]",
-            "value = (\n    first, second,\n)",
-            "value = {\n    first, second,\n}",
-            'value = {\n    "first": 1, "second": 2,\n}',
-            "from package import (\n    first, second,\n)",
-            "value = array[\n    :, :,\n]",
-            "value = tuple[\n    int, str,\n]",
+            (
+                "value = [\n"
+                "    first, second,\n"
+                "]"
+            ),
+            (
+                "value = (\n"
+                "    first, second,\n"
+                ")"
+            ),
+            (
+                "value = {\n"
+                "    first, second,\n"
+                "}"
+            ),
+            (
+                "value = {\n"
+                '    "first": 1, "second": 2,\n'
+                "}"
+            ),
+            (
+                "from package import (\n"
+                "    first, second,\n"
+                ")"
+            ),
+            (
+                "value = array[\n"
+                "    :, :,\n"
+                "]"
+            ),
+            (
+                "value = tuple[\n"
+                "    int, str,\n"
+                "]"
+            ),
         ]
 
         for source in sources:
