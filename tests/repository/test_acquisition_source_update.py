@@ -9,12 +9,15 @@ import io
 import json
 import os
 from pathlib import Path
+import subprocess
+import sys
 import tarfile
 import tempfile
 import unittest
 from unittest.mock import patch
 
 from host.acquisition_tool import source_update as updates
+from tests.repository.quality.sources import ROOT
 
 
 class SourceUpdateTests(unittest.TestCase):
@@ -254,6 +257,30 @@ class SourceUpdateTests(unittest.TestCase):
         self.assertIn("acquisition_rel_path='acquisition_tool/old.py'", str(caught.exception))
         self.assertIn(f"actual_sha256='{hashlib.sha256(modified_bytes).hexdigest()}'", str(caught.exception))
         self.assertIn(f"release_sha256='{release_sha256}'", str(caught.exception))
+
+    def test_verify_cli_preserves_payload_mismatch_evidence(self):
+        acquisition_file = self.source / "acquisition_tool/old.py"
+        acquisition_file.write_bytes(b"changed")
+
+        command_result = subprocess.run(
+            [
+                sys.executable,
+                "-I",
+                "-B",
+                str(ROOT / "host/acquisition_tool/source_update.py"),
+                "verify",
+                "--source-dir",
+                str(self.source),
+            ],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+
+        self.assertNotEqual(0, command_result.returncode)
+        self.assertEqual("", command_result.stdout)
+        self.assertIn("acquisition_rel_path='acquisition_tool/old.py'", command_result.stderr)
+        self.assertIn("actual_size=7 ≠ release_size=11", command_result.stderr)
 
     def test_snapshot_reports_unobserved_recorded_files(self):
         (self.source / "acquisition_tool/old.py").unlink()
