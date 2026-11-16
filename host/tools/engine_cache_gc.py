@@ -34,9 +34,7 @@ def native_config(path):
     document = json.loads(configuration_bytes)
 
     if not (type(document) is (expected_type := dict)):
-        raise TypeError(
-            f"{type(document)=} ≠ {expected_type=}"
-        )
+        raise TypeError(f"{type(document)=} ≠ {expected_type=}")
 
     return (configuration_bytes, document)
 
@@ -50,17 +48,13 @@ def configured(document):
     builder_settings = proposed_configuration.setdefault("builder", {})
 
     if not (type(builder_settings) is (expected_type := dict)):
-        raise TypeError(
-            f"{type(builder_settings)=} ≠ {expected_type=}"
-        )
+        raise TypeError(f"{type(builder_settings)=} ≠ {expected_type=}")
 
     # silent-defaults: allow-contract -- Installation creates absent native GC objects; proof=tests/repository/test_checker_cache_gc.py::EngineCacheGCTests.test_native_policy_merge_preserves_unrelated_fields_and_runtime_reads_it
     gc_settings = builder_settings.setdefault("gc", {})
 
     if not (type(gc_settings) is (expected_type := dict)):
-        raise TypeError(
-            f"{type(gc_settings)=} ≠ {expected_type=}"
-        )
+        raise TypeError(f"{type(gc_settings)=} ≠ {expected_type=}")
 
     gc_settings.update(DEFAULTS)
     limits(proposed_configuration)
@@ -72,9 +66,7 @@ def limits(document):
     gc_settings = document["builder"]["gc"]
 
     if not (type(gc_settings) is (expected_type := dict)):
-        raise TypeError(
-            f"{type(gc_settings)=} ≠ {expected_type=}"
-        )
+        raise TypeError(f"{type(gc_settings)=} ≠ {expected_type=}")
 
     if not (type((gc_settings_enabled := gc_settings.get("enabled"))) is (expected_type := bool)):
         raise TypeError(
@@ -85,9 +77,7 @@ def limits(document):
         return None
 
     if gc_settings.get("policy"):
-        raise ValueError(
-            "A custom native GC policy cannot be reproduced by this single threshold-based prune timer."
-        )
+        raise ValueError("A custom native GC policy cannot be reproduced by this single threshold-based prune timer.")
 
     thresholds = []
 
@@ -117,18 +107,22 @@ def argument(value):
 
 
 def unit_files(root, context, endpoint, config):
-    if not (endpoint.startswith("unix:///")):
+    if not endpoint.startswith("unix:///"):
         raise ValueError("Cache collection requires the selected local Unix engine.")
 
     name = "engine-cache-gc-" + hashlib.sha256(endpoint.encode()).hexdigest()[:16]
 
-    command = " ".join(argument(value) for value in (
-        "/bin/bash",
-        str(root / "host/tools/engine_cache_gc.sh"),
-        "run",
-        context,
-        endpoint,
-        str(config)))
+    command = " ".join(
+        argument(value)
+        for value in (
+            "/bin/bash",
+            str(root / "host/tools/engine_cache_gc.sh"),
+            "run",
+            context,
+            endpoint,
+            str(config),
+        )
+    )
 
     service = ("[Unit]\nDescription=Unused BuildKit cache collection for one local engine\n\n"
                "[Service]\nType=oneshot\nTimeoutStartSec=360\nExecStart=:" + command + "\n")
