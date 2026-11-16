@@ -9,6 +9,7 @@ import tomllib
 import provider_core.scientific as sdk
 
 from . import science
+from .payloads import SamplesCodec
 
 
 @dataclass(frozen=True, slots=True, kw_only=True)
@@ -69,7 +70,10 @@ class WeightedSum(sdk.Contribution):
         if self._model is not None:
             science.dispose_model(model=self._model)
 
-    @sdk.operation(state_outputs=(normalized,))
+    @sdk.operation(
+        state_outputs=(normalized,),
+        input_codec=SamplesCodec(value_type=science.PreparationInput),
+    )
     def prepare(
         self,
         *,
@@ -104,7 +108,10 @@ class WeightedSum(sdk.Contribution):
 
 
 class Sum(sdk.Contribution):
-    @sdk.operation(concurrency=sdk.ConcurrencyRequirement.PARALLEL)
+    @sdk.operation(
+        concurrency=sdk.ConcurrencyRequirement.PARALLEL,
+        input_codec=SamplesCodec(value_type=science.SumInput),
+    )
     def run(self, *, summation: science.SumInput) -> science.SumResult:
         return science.sum_values(summation=summation)
 

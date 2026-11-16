@@ -12,6 +12,8 @@ import shutil
 from tempfile import TemporaryDirectory
 import unittest
 
+import mock_numpy as np
+
 from unittest.mock import patch
 
 from dummy_provider import science
@@ -83,7 +85,7 @@ class DummyInstalledExecutionTests(unittest.IsolatedAsyncioTestCase):
         hosted = host.adopt(
             contribution=WeightedSum(configuration=WeightedSumConfig(
                 settings=science.WeightedSumSettings(scale=2, offset=1),
-                coefficients=science.CoefficientSet(weights=(1, 2, 3)),
+                coefficients=science.CoefficientSet(weights=np.array(object=[1, 2, 3], dtype=float)),
             )),
             requirements=read_resource_requirements(),
         )
@@ -110,7 +112,7 @@ class DummyInstalledExecutionTests(unittest.IsolatedAsyncioTestCase):
 
             operation = analysis.submit_method(
                 method=contribution.prepare,
-                scientific_input=science.PreparationInput(samples=(1, 2, 3)),
+                scientific_input=science.PreparationInput(samples=np.array(object=[1, 2, 3], dtype=float)),
                 states=(),
                 reservation=reservation,
                 policy=OperationPolicy(
@@ -156,7 +158,7 @@ class DummyInstalledExecutionTests(unittest.IsolatedAsyncioTestCase):
         weighted_binding = host.adopt(
             contribution=WeightedSum(configuration=WeightedSumConfig(
                 settings=science.WeightedSumSettings(scale=2, offset=1),
-                coefficients=science.CoefficientSet(weights=(1, 2, 3)),
+                coefficients=science.CoefficientSet(weights=np.array(object=[1, 2, 3], dtype=float)),
             )),
             requirements=read_resource_requirements(),
         )
@@ -176,11 +178,11 @@ class DummyInstalledExecutionTests(unittest.IsolatedAsyncioTestCase):
             reject_encoded_result_over_bytes=1024,
         )
 
-        preparation_input = science.PreparationInput(samples=(1, 2, 3))
+        preparation_input = science.PreparationInput(samples=np.array(object=[1, 2, 3], dtype=float))
 
         rejected = analysis.submit_method(
             method=weighted_binding.contribution.prepare,
-             scientific_input=science.PreparationInput(samples=()),
+             scientific_input=science.PreparationInput(samples=np.array(object=[], dtype=float)),
             states=(),
             reservation=reservation,
             policy=operation_policy,

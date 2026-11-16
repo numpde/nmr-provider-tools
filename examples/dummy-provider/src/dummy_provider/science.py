@@ -1,42 +1,18 @@
 """Scientific records, operations and state lifetimes for the dummy provider.
 
-Portable inputs and results use immutable records. A weighted model persists
-across analyses, each analysis owns its accepted preparation, and calculation
-consumes that preparation.
+Numerical weights and samples use arrays; scalar results use immutable records.
+A weighted model persists across analyses, each analysis owns its accepted
+preparation, and calculation consumes that preparation. Array-bearing records
+use identity equality because array comparisons are elementwise.
 """
 
 from __future__ import annotations
 
-import math
 from dataclasses import dataclass, field
 
 import mock_numpy as np
 
 from provider_core.contribution_errors import ScientificRejection
-
-
-def _finite_scalar(*, numeric_scalar: object, field_description: str) -> float:
-    if not (type(numeric_scalar) in (expected_type := (int, float))):
-        raise TypeError(f"{field_description=}; {type(numeric_scalar)=} ≠ {expected_type=}")
-
-    if not (np.isfinite(numeric_scalar)):
-        raise ValueError(f"{field_description} must be a finite number")
-
-    return float(numeric_scalar)
-
-
-def _finite_samples(*, numeric_samples: object, field_description: str) -> tuple[float, ...]:
-    if not (type(numeric_samples) is (expected_type := tuple)):
-        raise TypeError(f"{field_description=}; {type(numeric_samples)=} ≠ {expected_type=}")
-
-    # repo-check: allow-tuple-generator -- The scientific records retain immutable numerical sequences.
-    return tuple(
-        _finite_scalar(
-            numeric_scalar=sample_number,
-            field_description=f"{field_description}[{sample_index}]",
-        )
-        for (sample_index, sample_number) in enumerate(numeric_samples)
-    )
 
 
 class ScientificInputRejected(ScientificRejection):
@@ -49,40 +25,46 @@ class WeightedSumSettings:
     offset: float
 
     def __post_init__(self) -> None:
-        object.__setattr__(self, "scale", _finite_scalar(numeric_scalar=self.scale, field_description="scale"))
-        object.__setattr__(self, "offset", _finite_scalar(numeric_scalar=self.offset, field_description="offset"))
+        if not np.isfinite(self.scale):
+            raise ValueError(f"Expected a finite scale; {self.scale=}")
+
+        if not np.isfinite(self.offset):
+            raise ValueError(f"Expected a finite offset; {self.offset=}")
 
 
-@dataclass(frozen=True, slots=True, kw_only=True)
+@dataclass(frozen=True, slots=True, kw_only=True, eq=False)
 class CoefficientSet:
-    weights: tuple[float, ...]
-
-    def __post_init__(self) -> None:
-        coefficient_weights = _finite_samples(
-            numeric_samples=self.weights,
-            field_description="coefficient weights",
-        )
-
-        if not (coefficient_weights):
-            raise ValueError("coefficient weights must not be empty")
-
-        object.__setattr__(self, "weights", coefficient_weights)
+    weights: np.ndarray
 
 
-@dataclass(frozen=True, slots=True, kw_only=True)
+@dataclass(frozen=True, slots=True, kw_only=True, eq=False)
 class PreparationInput:
-    samples: tuple[float, ...]
+    samples: np.ndarray
 
     def __post_init__(self) -> None:
-        object.__setattr__(self, "samples", _finite_samples(numeric_samples=self.samples, field_description="preparation samples"))
+        if not (self.samples.ndim == 1):
+            raise ValueError(f"Expected a preparation vector; {self.samples.shape=}")
+
+        if not (self.samples.dtype.kind in "iuf"):
+            raise ValueError(f"Expected real numeric samples; {self.samples.dtype=}")
+
+        if not np.isfinite(self.samples).all():
+            raise ValueError("Preparation samples must all be finite")
 
 
-@dataclass(frozen=True, slots=True, kw_only=True)
+@dataclass(frozen=True, slots=True, kw_only=True, eq=False)
 class SumInput:
-    samples: tuple[float, ...]
+    samples: np.ndarray
 
     def __post_init__(self) -> None:
-        object.__setattr__(self, "samples", _finite_samples(numeric_samples=self.samples, field_description="summation samples"))
+        if not (self.samples.ndim == 1):
+            raise ValueError(f"Expected a summation vector; {self.samples.shape=}")
+
+        if not (self.samples.dtype.kind in "iuf"):
+            raise ValueError(f"Expected real numeric samples; {self.samples.dtype=}")
+
+        if not np.isfinite(self.samples).all():
+            raise ValueError("Summation samples must all be finite")
 
 
 @dataclass(frozen=True, slots=True, kw_only=True)
@@ -103,7 +85,8 @@ class PredictionResult:
     count: int
 
     def __post_init__(self) -> None:
-        object.__setattr__(self, "total", _finite_scalar(numeric_scalar=self.total, field_description="prediction total"))
+        if not np.isfinite(self.total):
+            raise ValueError(f"Expected a finite prediction; {self.total=}")
 
         if not (type((actual_count := self.count)) is (expected_type := int)):
             raise TypeError(f"{type(actual_count)=} ≠ {expected_type=}")
@@ -118,7 +101,8 @@ class SumResult:
     count: int
 
     def __post_init__(self) -> None:
-        object.__setattr__(self, "total", _finite_scalar(numeric_scalar=self.total, field_description="sum total"))
+        if not np.isfinite(self.total):
+            raise ValueError(f"Expected a finite sum; {self.total=}")
 
         if not (type((actual_count := self.count)) is (expected_type := int)):
             raise TypeError(f"{type(actual_count)=} ≠ {expected_type=}")
@@ -127,43 +111,50 @@ class SumResult:
             raise ValueError("count must be a positive integer")
 
 
-@dataclass(slots=True, kw_only=True)
+@dataclass(slots=True, kw_only=True, eq=False)
 class WeightedSumModel:
     settings: WeightedSumSettings
     coefficients: CoefficientSet
-    loaded_coefficients: tuple[float, ...] | None = field(default=None, init=False, repr=False)
+    loaded_coefficients: np.ndarray | None = field(default=None, init=False, repr=False)
 
 
-@dataclass(slots=True, kw_only=True)
+@dataclass(slots=True, kw_only=True, eq=False)
 class WeightedSumAnalysis:
     model: WeightedSumModel
     is_open: bool = field(default=False, init=False)
     accepted_preparation: PreparedSamples | None = field(default=None, init=False, repr=False)
 
 
-@dataclass(slots=True, kw_only=True)
+@dataclass(slots=True, kw_only=True, eq=False)
 class PreparedSamples:
     """Worker-local samples owned by exactly one scientific analysis."""
 
     analysis: WeightedSumAnalysis
-    samples: tuple[float, ...] | None = field(repr=False)
+    samples: np.ndarray | None = field(repr=False)
 
     def __post_init__(self) -> None:
-        normalized_samples = _finite_samples(numeric_samples=self.samples, field_description="prepared samples")
+        # Snapshot before validation so accepted state owns the checked array.
+        self.samples = self.samples.copy()
 
-        if not (normalized_samples):
-            raise ValueError("prepared samples must not be empty")
+        if not (self.samples.ndim == 1 and self.samples.size > 0):
+            raise ValueError(f"Expected a nonempty prepared vector; {self.samples.shape=}")
 
-        self.samples = normalized_samples
+        if not (self.samples.dtype.kind in "iuf"):
+            raise ValueError(f"Expected real numeric samples; {self.samples.dtype=}")
+
+        self.samples = np.asarray(a=self.samples, dtype=float)
+
+        if not np.isfinite(self.samples).all():
+            raise ValueError("Prepared samples must all be finite")
 
     @property
     def sample_count(self) -> int:
         if self.samples is None:
             raise RuntimeError("The prepared samples have already been consumed or disposed")
 
-        return len(self.samples)
+        return self.samples.size
 
-    def consume(self, *, analysis: WeightedSumAnalysis) -> tuple[float, ...]:
+    def consume(self, *, analysis: WeightedSumAnalysis) -> np.ndarray:
         if not (self.analysis is analysis):
             raise RuntimeError("The prepared samples belong to another analysis")
 
@@ -203,7 +194,21 @@ def load_model(model: WeightedSumModel) -> None:
     if not (model.loaded_coefficients is None):
         raise RuntimeError("The model coefficients are already loaded")
 
-    model.loaded_coefficients = model.coefficients.weights
+    # Validate the copy the model will retain; assembly still owns its array.
+    coefficient_weights = model.coefficients.weights.copy()
+
+    if not (coefficient_weights.ndim == 1 and coefficient_weights.size > 0):
+        raise ValueError(f"Expected a nonempty coefficient vector; {coefficient_weights.shape=}")
+
+    if not (coefficient_weights.dtype.kind in "iuf"):
+        raise ValueError(f"Expected real numeric weights; {coefficient_weights.dtype=}")
+
+    coefficient_weights = np.asarray(a=coefficient_weights, dtype=float)
+
+    if not np.isfinite(coefficient_weights).all():
+        raise ValueError("Coefficient weights must all be finite")
+
+    model.loaded_coefficients = coefficient_weights
 
 
 def dispose_model(model: WeightedSumModel) -> None:
@@ -236,7 +241,7 @@ def prepare(
     if not (analysis.is_open):
         raise RuntimeError("Cannot prepare input for a closed analysis")
 
-    if not (candidate.samples):
+    if not (candidate.samples.size > 0):
         raise ScientificInputRejected(
             "empty_input",
             "Preparation input must contain at least one sample",
@@ -253,8 +258,8 @@ def prepare(
     if loaded_coefficients is None:
         raise RuntimeError("Cannot prepare input because model coefficients are not loaded")
 
-    actual_sample_count = len(candidate.samples)
-    expected_sample_count = len(loaded_coefficients)
+    actual_sample_count = candidate.samples.size
+    expected_sample_count = loaded_coefficients.size
 
     if actual_sample_count != expected_sample_count:
         raise ScientificInputRejected(
@@ -287,39 +292,34 @@ def calculate(
 
     # State is consumed before numerical work. A later failure does not make the
     # old state reference usable again.
-    weighted_sum = math.fsum(
-        coefficient * sample_number
-        for (coefficient, sample_number) in zip(
-            loaded_coefficients,
-            prepared_samples,
-            strict=True,
-        )
-    )
+    weighted_sum = float(np.dot(a=loaded_coefficients, b=prepared_samples))
 
     prediction_total = analysis.model.settings.offset + analysis.model.settings.scale * weighted_sum
 
-    if not (np.isfinite(prediction_total)):
+    if not np.isfinite(prediction_total):
         raise ArithmeticError("The weighted prediction total is not finite")
 
-    return PredictionResult(total=prediction_total, count=len(prepared_samples))
+    return PredictionResult(total=prediction_total, count=prepared_samples.size)
 
 
 def sum_values(summation: SumInput) -> SumResult:
     if not (type(summation) is (expected_type := SumInput)):
         raise TypeError(f"{type(summation)=} ≠ {expected_type=}")
 
-    if not (summation.samples):
+    if not (summation.samples.size > 0):
         raise ScientificInputRejected(
             "empty_input",
             "Sum input must contain at least one sample",
         )
 
-    total = math.fsum(summation.samples)
+    # Floating accumulation preserves the example's real-valued calculation;
+    # an integer accumulator can wrap before a later finiteness check sees it.
+    total = float(np.sum(a=summation.samples, dtype=float))
 
-    if not (np.isfinite(total)):
+    if not np.isfinite(total):
         raise ArithmeticError("The sum total is not finite")
 
-    return SumResult(total=total, count=len(summation.samples))
+    return SumResult(total=total, count=summation.samples.size)
 
 
 def dispose_prepared(prepared: PreparedSamples) -> None:

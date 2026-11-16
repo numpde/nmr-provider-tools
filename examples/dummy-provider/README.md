@@ -2,29 +2,35 @@
 
 This standalone Python project shows how scientific functions and a binding
 adapter use the installed `provider_core` interface. The scientific package
-contains `science.py`, `binding.py` and its package marker.
+contains `science.py`, `binding.py`, `payloads.py` and its package marker.
 
 ```text
 config/deployments/localhost/provider.toml   declared CPU requirements
 src/dummy_provider/
     science.py         scientific types, functions and state lifetimes
     binding.py         configured scientific call and lifecycle registrations
+    payloads.py        JSON sample lists to scientific arrays, and back
 tests/
     test_science.py    direct calculations and scientific rejection/correction
     test_binding.py    binding declarations and installed package boundary
     test_execution.py prepare/calculate and partial-loading cleanup through the host
 ```
 
-The example imports `mock_numpy as np` for its scalar `np.isfinite` checks.
-The standalone mock lives in `mocks/mock_numpy/` and implements only that required
-function using the standard library. Neither NumPy nor Torch is installed for
-this example. The mock has no SDK dependency; registration and lifecycle wiring
-remain in this provider package.
+The example imports `mock_numpy as np` and uses arrays for coefficient weights,
+request samples and prepared samples. It checks arrays with
+`np.isfinite(...).all()`, copies the arrays retained by a model or preparation,
+and calculates through `np.dot` and `np.sum`. Retained numerical arrays and sum
+accumulation use floating point to avoid integer wraparound. Scalar checks call `np.isfinite`
+directly; there is no scalar-conversion or tuple-validation helper.
 
-The small mock-backed example retains `weights` and request/prepared `samples`
-as immutable tuples. It illustrates the NumPy-style call site without emulating
-NumPy arrays or its numerical algorithms. A provider using real arrays would
-supply its actual numerical library.
+`payloads.py` owns the transport adapter: the SDK JSON codec admits JSON sample
+lists, and the adapter converts them to numerical arrays. Its private transport
+record uses the SDK's immutable sequence representation; scientific records and
+retained state hold arrays throughout. The SDK has no numerical-library dependency.
+
+The scalar-only mock in `mocks/mock_numpy/` has not yet been extended to satisfy
+this array contract. This conversion deliberately defines the example first;
+installed array tests expose the missing mock operations until that next step.
 
 The weighted-sum binding holds a reusable model and per-analysis state. Its
 prepare call returns worker-local state that calculate consumes. The stateless
