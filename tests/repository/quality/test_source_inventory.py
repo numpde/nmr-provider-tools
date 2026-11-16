@@ -117,6 +117,8 @@ class SourceInventoryUnitTests(unittest.TestCase):
                 "tests/unit.py",
                 "tests/repository/check.py",
                 "src/nested/future.py",
+                "mocks/library/src/mock_library/owner.py",
+                "mocks/library/tests/test_owner.py",
                 "packages/example/src/example/owner.py",
                 "packages/example/tests/test_owner.py",
                 "unowned/ignored.py",
@@ -130,6 +132,7 @@ class SourceInventoryUnitTests(unittest.TestCase):
                 self.assertEqual(
                     [
                         root / "host/scripts/operation.py",
+                        root / "mocks/library/src/mock_library/owner.py",
                         root / "packages/example/src/example/owner.py",
                         root / "src/nested/future.py",
                         root / "tools/nested/a.py",
@@ -141,6 +144,8 @@ class SourceInventoryUnitTests(unittest.TestCase):
                 self.assertEqual(
                     [
                         root / "host/scripts/operation.py",
+                        root / "mocks/library/src/mock_library/owner.py",
+                        root / "mocks/library/tests/test_owner.py",
                         root / "packages/example/src/example/owner.py",
                         root / "packages/example/tests/test_owner.py",
                         root / "src/nested/future.py",

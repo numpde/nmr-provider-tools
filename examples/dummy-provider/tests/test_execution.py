@@ -12,7 +12,6 @@ import shutil
 from tempfile import TemporaryDirectory
 import unittest
 
-import numpy as np
 from unittest.mock import patch
 
 from dummy_provider import science
@@ -84,7 +83,7 @@ class DummyInstalledExecutionTests(unittest.IsolatedAsyncioTestCase):
         hosted = host.adopt(
             contribution=WeightedSum(configuration=WeightedSumConfig(
                 settings=science.WeightedSumSettings(scale=2, offset=1),
-                coefficients=science.CoefficientSet(weights=np.array(object=(1, 2, 3), dtype=np.float64)),
+                coefficients=science.CoefficientSet(weights=(1, 2, 3)),
             )),
             requirements=read_resource_requirements(),
         )
@@ -157,7 +156,7 @@ class DummyInstalledExecutionTests(unittest.IsolatedAsyncioTestCase):
         weighted_binding = host.adopt(
             contribution=WeightedSum(configuration=WeightedSumConfig(
                 settings=science.WeightedSumSettings(scale=2, offset=1),
-                coefficients=science.CoefficientSet(weights=np.array(object=(1, 2, 3), dtype=np.float64)),
+                coefficients=science.CoefficientSet(weights=(1, 2, 3)),
             )),
             requirements=read_resource_requirements(),
         )

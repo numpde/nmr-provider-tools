@@ -1,7 +1,8 @@
 """Inventory authored sources visible to the contained repository lane.
 
 The launcher pins /workspace; local conventions govern host, tools, tests, packages and
-standalone examples. Future src, packages/*/src and examples/*/src sources enter
+standalone examples and library mocks. Future src, packages/*/src, examples/*/src
+and mocks/*/src sources enter
 these inventories automatically.
 """
 
@@ -35,7 +36,7 @@ SKIP_DIRS = {
 def python_sources(*, production_only):
     """Use the caller's explicit production or whole-repository inventory.
 
-    Both projections include future src, packages/*/src and examples/*/src
+    Both projections include future src, packages/*/src, examples/*/src and mocks/*/src
     modules. Production checks own host and contained tools; whole-repository checks also own tests,
     package tests and example tests. The caller must choose the check's
     responsibility.
@@ -48,10 +49,12 @@ def python_sources(*, production_only):
 
     directories.extend(ROOT.glob("packages/*/src"))
     directories.extend(ROOT.glob("examples/*/src"))
+    directories.extend(ROOT.glob("mocks/*/src"))
 
     if not production_only:
         directories.extend(ROOT.glob("packages/*/tests"))
         directories.extend(ROOT.glob("examples/*/tests"))
+        directories.extend(ROOT.glob("mocks/*/tests"))
 
     return sorted(path for directory in directories for path in directory.rglob("*.py"))
 

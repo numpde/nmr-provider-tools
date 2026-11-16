@@ -29,11 +29,11 @@ from tools.installer import pip_command
 from tools.wheelhouse import digest, requirements
 
 
-def _discover_examples(examples: Path, core_version: str) -> list[tuple[Path, str, str]]:
+def _discover_projects(*, project_root: Path) -> list[tuple[Path, str, str]]:
     projects = []
     names = set()
 
-    for metadata in sorted(examples.glob("*/pyproject.toml")):
+    for metadata in sorted(project_root.glob("*/pyproject.toml")):
         project = tomllib.loads(metadata.read_text())["project"]
         distribution_name = project["name"]
         distribution_version = project["version"]
@@ -48,13 +48,13 @@ def _discover_examples(examples: Path, core_version: str) -> list[tuple[Path, st
             distribution_name
         ) is None:
             raise ValueError(
-                f"Cannot install example {metadata.parent.name!r}: distribution "
+                f"Cannot install project {metadata.parent.name!r}: distribution "
                 "name must use lowercase letters, digits and single hyphens."
             )
 
         if distribution_name == "provider-core" or distribution_name in names:
             raise ValueError(
-                f"Cannot install example {distribution_name!r}: distribution "
+                f"Cannot install project {distribution_name!r}: distribution "
                 "names must be unique and must not shadow provider-core."
             )
 
@@ -68,9 +68,51 @@ def _discover_examples(examples: Path, core_version: str) -> list[tuple[Path, st
             distribution_version,
         ) is None:
             raise ValueError(
-                f"Cannot install example {distribution_name!r}: "
+                f"Cannot install project {distribution_name!r}: "
                 "a three-part version is required."
             )
+
+        names.add(distribution_name)
+        projects.append((metadata.parent, distribution_name, distribution_version))
+
+    if not (projects):
+        raise ValueError(f"No standalone projects found under {project_root=}")
+
+    return projects
+
+
+def _discover_mocks(*, mocks_root: Path) -> list[tuple[Path, str, str]]:
+    projects = _discover_projects(project_root=mocks_root)
+
+    for (source, distribution_name, _) in projects:
+        project = tomllib.loads((source / "pyproject.toml").read_text())["project"]
+
+        if not (distribution_name.startswith("mock-")):
+            raise ValueError(f"A scientific stand-in distribution must start with mock-; {distribution_name=}")
+
+        if not (project["dependencies"] == []):
+            raise ValueError(f"Library stand-ins must remain dependency-free; {source=}")
+
+        if (source / "requirements.lock").exists():
+            raise ValueError(f"A dependency-free stand-in cannot install a dependency lock; {source=}")
+
+    return projects
+
+
+def _discover_examples(
+    examples: Path,
+    core_version: str,
+    *,
+    mock_dependencies: frozenset[str],
+) -> list[tuple[Path, str, str]]:
+    projects = _discover_projects(project_root=examples)
+    mock_names = {dependency.split("==")[0] for dependency in mock_dependencies}
+
+    for (source, distribution_name, _) in projects:
+        project = tomllib.loads((source / "pyproject.toml").read_text())["project"]
+
+        if distribution_name in mock_names:
+            raise ValueError(f"An example cannot replace a scientific stand-in; {distribution_name=}")
 
         dependencies = project["dependencies"]
         sdk_dependencies = {f"provider-core=={core_version}", f"provider-core[api]=={core_version}"}
@@ -79,32 +121,29 @@ def _discover_examples(examples: Path, core_version: str) -> list[tuple[Path, st
         if not (len(selected_sdk_dependencies) == 1):
             raise ValueError(f"Example must require exactly the candidate SDK or its API extra; {dependencies=}")
 
-        scientific_dependencies = set(dependencies) - selected_sdk_dependencies
+        scientific_dependencies = set(dependencies) - selected_sdk_dependencies - mock_dependencies
 
-        if not scientific_dependencies and (metadata.parent / "requirements.lock").exists():
+        if not scientific_dependencies and (source / "requirements.lock").exists():
             raise ValueError("An example without scientific dependencies cannot install a scientific lock")
 
         if scientific_dependencies:
-            scientific_lock = requirements(lock=metadata.parent / "requirements.lock")
+            scientific_lock = requirements(lock=source / "requirements.lock")
 
-            if any(name == "provider-core" for (name, _) in scientific_lock):
-                raise ValueError("An example scientific lock cannot replace the candidate SDK")
+            protected_projects = {"provider-core", *mock_names}
+
+            for (locked_project, _) in scientific_lock:
+                if locked_project in protected_projects:
+                    raise ValueError(f"An example scientific lock cannot replace a repository-built project; {locked_project=}")
 
             locked_dependencies = {f"{name}=={version}" for (name, version) in scientific_lock}
 
             if not (scientific_dependencies <= locked_dependencies):
                 raise ValueError(f"Example scientific dependencies must be pinned in its hashed lock; {scientific_dependencies=}; {locked_dependencies=}")
 
-        names.add(distribution_name)
-        projects.append((metadata.parent, distribution_name, distribution_version))
-
-    if not (projects):
-        raise ValueError("Cannot qualify installed examples: /examples contains no standalone projects.")
-
     return projects
 
 
-def _build_and_install_example(
+def _build_and_install_project(
     *,
     root: Path,
     source: Path,
@@ -114,48 +153,48 @@ def _build_and_install_example(
     python: Path,
     pool: Path,
 ) -> None:
-    example_output = root / "release"
+    project_output = root / "release"
 
-    example_output.mkdir(parents=True)
+    project_output.mkdir(parents=True)
 
     build_source_wheel(
         source=source,
         staged_source=root / "source",
         python=builder_python,
-        output=example_output,
+        output=project_output,
     )
 
     wheel_distribution_name = distribution_name.replace("-", "_")
-    example_wheel = example_output / f"{wheel_distribution_name}-{distribution_version}-py3-none-any.whl"
+    project_wheel = project_output / f"{wheel_distribution_name}-{distribution_version}-py3-none-any.whl"
 
     if (
-        set(example_output.iterdir()) != {example_wheel}
-        or not example_wheel.is_file()
-        or example_wheel.is_symlink()
+        set(project_output.iterdir()) != {project_wheel}
+        or not project_wheel.is_file()
+        or project_wheel.is_symlink()
     ):
-        raise ValueError(f"Example {distribution_name!r} did not produce its one expected wheel.")
+        raise ValueError(f"Project {distribution_name!r} did not produce its one expected wheel.")
 
-    example_install_lock = root / "example-install.lock"
+    project_install_lock = root / "project-install.lock"
     continuation = "\\"
 
-    example_install_lock.write_text(
+    project_install_lock.write_text(
         f"{distribution_name}=={distribution_version} {continuation}\n"
-        f"    --hash=sha256:{digest(example_wheel)}\n"
+        f"    --hash=sha256:{digest(project_wheel)}\n"
     )
 
     scientific_lock_path = source / "requirements.lock"
 
     if scientific_lock_path.is_file():
-        with example_install_lock.open(mode="a", encoding="utf-8") as install_lock_file:
+        with project_install_lock.open(mode="a", encoding="utf-8") as install_lock_file:
             install_lock_file.write(scientific_lock_path.read_text(encoding="utf-8"))
 
     install_locked(
         python,
-        example_install_lock,
+        project_install_lock,
         pool,
-        root / "example-install.json",
-        extra_pools=(example_output,),
-        required_files={example_wheel.name: example_wheel},
+        root / "project-install.json",
+        extra_pools=(project_output,),
+        required_files={project_wheel.name: project_wheel},
     )
 
     subprocess.run([*pip_command(python), "--no-cache-dir", "check"], check=True)
@@ -233,16 +272,38 @@ def run_suite(suite: str, patterns: tuple[str, ...]) -> None:
                 (Path("/package") / "pyproject.toml").read_text()
             )["project"]["version"]
 
-            examples = _discover_examples(Path("/examples"), core_version)
-
             builder_python = install_environment(
                 Path("/runtime/example-builder"),
                 Path("/core-build.lock"),
                 wheelhouse,
             )
 
+            scientific_mocks = _discover_mocks(mocks_root=Path("/mocks"))
+            mock_dependencies = frozenset(f"{name}=={version}" for (_, name, version) in scientific_mocks)
+
+            for (source, name, version) in scientific_mocks:
+                _build_and_install_project(
+                    root=scratch / "mocks" / name,
+                    source=source,
+                    distribution_name=name,
+                    distribution_version=version,
+                    builder_python=builder_python,
+                    python=runtime_python,
+                    pool=wheelhouse,
+                )
+
+                namespace = "mock_" + name.replace("-", "_")
+
+                shutil.copytree(source / "tests", test_tree / "tests/integration" / namespace)
+
+            examples = _discover_examples(
+                examples=Path("/examples"),
+                core_version=core_version,
+                mock_dependencies=mock_dependencies,
+            )
+
             for (source, name, version) in examples:
-                _build_and_install_example(
+                _build_and_install_project(
                     root=scratch / "examples" / name,
                     source=source,
                     distribution_name=name,

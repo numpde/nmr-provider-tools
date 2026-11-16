@@ -36,7 +36,7 @@ def _python_cache_artifacts() -> list[str]:
         if cache_path.exists():
             artifacts.append(cache_path)
 
-    for root_name in (*PYTHON_CACHE_ROOTS, "src", "packages"):
+    for root_name in (*PYTHON_CACHE_ROOTS, "src", "packages", "examples", "mocks"):
         root = REPOSITORY_ROOT / root_name
 
         if not root.exists():

@@ -34,7 +34,7 @@ class DummyProviderExampleTests(unittest.TestCase):
         )
 
         self.assertEqual(
-            [f"provider-core=={core['project']['version']}", "numpy==2.5.4"],
+            [f"provider-core=={core['project']['version']}", "mock-numpy==0.1.0"],
             project["project"]["dependencies"],
         )
 

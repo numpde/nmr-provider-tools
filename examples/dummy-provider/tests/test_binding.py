@@ -13,7 +13,6 @@ import shutil
 from tempfile import TemporaryDirectory
 import unittest
 
-import numpy as np
 from unittest.mock import patch
 
 import provider_core.contribution as contribution
@@ -111,7 +110,7 @@ class DummyBindingTests(unittest.IsolatedAsyncioTestCase):
     async def test_binding_preserves_provider_owned_types(self) -> None:
         weighted_binding = self.weighted_binding(
             settings=science.WeightedSumSettings(scale=2, offset=1),
-            coefficients=science.CoefficientSet(weights=np.array(object=(1, 2, 3), dtype=np.float64)),
+            coefficients=science.CoefficientSet(weights=(1, 2, 3)),
         )
 
         (prepare_call, calculate_call) = (weighted_binding.call(method=WeightedSum.prepare), weighted_binding.call(method=WeightedSum.calculate))
@@ -128,7 +127,7 @@ class DummyBindingTests(unittest.IsolatedAsyncioTestCase):
     async def test_all_calls_declare_the_deployment_cpu_requirement(self) -> None:
         weighted = self.weighted_binding(
             settings=science.WeightedSumSettings(scale=2, offset=1),
-            coefficients=science.CoefficientSet(weights=np.array(object=(1, 2, 3), dtype=np.float64)),
+            coefficients=science.CoefficientSet(weights=(1, 2, 3)),
         )
 
         expected = contribution.ResourceRequirement(
@@ -147,7 +146,7 @@ class DummyBindingTests(unittest.IsolatedAsyncioTestCase):
     async def test_resource_values_change_revision_without_changing_existing_bindings(self) -> None:
         weighted = self.weighted_binding(
             settings=science.WeightedSumSettings(scale=2, offset=1),
-            coefficients=science.CoefficientSet(weights=np.array(object=(1, 2, 3), dtype=np.float64)),
+            coefficients=science.CoefficientSet(weights=(1, 2, 3)),
         )
 
         original_bindings = (weighted, self.sum_binding())
@@ -162,7 +161,7 @@ class DummyBindingTests(unittest.IsolatedAsyncioTestCase):
             with patch.object(target=binding_setup, attribute="PROVIDER_CONFIG_PATH", new=root / "provider.toml"):
                 updated = self.weighted_binding(
                     settings=science.WeightedSumSettings(scale=2, offset=1),
-                    coefficients=science.CoefficientSet(weights=np.array(object=(1, 2, 3), dtype=np.float64)),
+                    coefficients=science.CoefficientSet(weights=(1, 2, 3)),
                 )
 
                 updated_bindings = (updated, self.sum_binding())
@@ -171,7 +170,7 @@ class DummyBindingTests(unittest.IsolatedAsyncioTestCase):
 
                 reformatted = self.weighted_binding(
                     settings=science.WeightedSumSettings(scale=2, offset=1),
-                    coefficients=science.CoefficientSet(weights=np.array(object=(1, 2, 3), dtype=np.float64)),
+                    coefficients=science.CoefficientSet(weights=(1, 2, 3)),
                 )
 
                 reformatted_bindings = (reformatted, self.sum_binding())
