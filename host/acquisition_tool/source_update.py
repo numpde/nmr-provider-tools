@@ -138,20 +138,23 @@ def read_manifest(data: str | bytes | bytearray) -> AcquisitionManifest:
         if not (type(entry) is (expected_type := dict)):
             raise TypeError(f"{name=}; {type(entry)=} ≠ {expected_type=}")
 
-        if not (set(entry) == {"sha256", "size", "mode"} and _checksum(entry["sha256"])):
-            raise ValueError(f"Acquisition payload has invalid file metadata: {name!r}.")
+        if set(entry) != {"sha256", "size", "mode"}:
+            raise ValueError(f"Acquisition payload {name=}: metadata requires sha256, size and mode; {sorted(entry)=}")
+
+        if not _checksum(entry["sha256"]):
+            raise ValueError(f"Acquisition payload {name=}: sha256 must have 64 lowercase hexadecimal characters")
 
         if not (type((entry_size := entry["size"])) is (expected_type := int)):
             raise TypeError(f"{name=}; {type(entry_size)=} ≠ {expected_type=}")
 
         if not (0 <= entry["size"]):
-            raise ValueError(f"Acquisition payload has invalid file metadata: {name!r}.")
+            raise ValueError(f"Acquisition payload {name=}: {entry_size=} must be nonnegative")
 
         if not (type((entry_mode := entry["mode"])) is (expected_type := int)):
             raise TypeError(f"{name=}; {type(entry_mode)=} ≠ {expected_type=}")
 
         if not (entry["mode"] in (0o644, 0o755)):
-            raise ValueError(f"Acquisition payload has invalid file metadata: {name!r}.")
+            raise ValueError(f"Acquisition payload {name=}: {entry_mode=:o} must be 644 or 755")
 
     dependencies = manifest["dependency_inputs"]
 

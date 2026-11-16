@@ -29,6 +29,33 @@ class SourceUpdateTests(unittest.TestCase):
             with self.subTest(changes=changes), self.assertRaises(ValueError):
                 updates.read_manifest(json.dumps(manifest | changes))
 
+    def test_manifest_reports_invalid_payload_metadata_fields(self):
+        member_name = "acquisition_tool/old.py"
+
+        for (field_changes, exception_type, diagnostic) in (
+            ({"sha256": "bad"}, ValueError, "sha256"),
+            ({"sha256": []}, ValueError, "sha256"),
+            ({"size": -1}, ValueError, "entry_size=-1"),
+            ({"size": True}, TypeError, "entry_size"),
+            ({"mode": 0o600}, ValueError, "entry_mode=600"),
+            ({"mode": True}, TypeError, "entry_mode"),
+        ):
+            with self.subTest(field_changes=field_changes):
+                manifest = self.manifest("1.0.0", self.old)
+                manifest["payload_files"][member_name].update(field_changes)
+
+                with self.assertRaises(exception_type) as caught:
+                    updates.read_manifest(json.dumps(manifest))
+
+                self.assertIn(diagnostic, str(caught.exception))
+                self.assertIn(member_name, str(caught.exception))
+
+        manifest = self.manifest("1.0.0", self.old)
+        del manifest["payload_files"][member_name]["sha256"]
+
+        with self.assertRaisesRegex(ValueError, "metadata requires sha256, size and mode"):
+            updates.read_manifest(json.dumps(manifest))
+
     def setUp(self):
         temporary = tempfile.TemporaryDirectory()
 
