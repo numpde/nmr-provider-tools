@@ -274,8 +274,8 @@ def verify(source_dir):
                 raise ValueError(f"Acquisition source has an unrecorded {acquisition_rel_directory=}")
 
         for name in files:
-            path = Path(root) / name
-            acquisition_rel_path = path.relative_to(source).as_posix()
+            acquisition_file_path = Path(root) / name
+            acquisition_rel_path = acquisition_file_path.relative_to(source).as_posix()
 
             if acquisition_rel_path == "acquisition-manifest.json":
                 actual.add(acquisition_rel_path)
@@ -284,7 +284,7 @@ def verify(source_dir):
             if not (acquisition_rel_path in entries):
                 raise ValueError(f"Acquisition source contains an unrecorded file: {acquisition_rel_path=}")
 
-            (content, metadata) = _regular_bytes(path)
+            (content, metadata) = _regular_bytes(acquisition_file_path)
 
             acquisition_link_count = metadata.st_nlink
 
@@ -338,9 +338,9 @@ def _admit_archive(
             raise ValueError(f"Acquisition archive contains {extra_member_occurrences=}")
 
         for member in members:
-            path = _relative_name(member.name)
+            archive_member_path = _relative_name(member.name)
 
-            for parent in path.parents:
+            for parent in archive_member_path.parents:
                 if parent.as_posix() in member_counts:
                     raise ValueError(f"Acquisition archive: {member.name=} has an archived {parent=}")
 
