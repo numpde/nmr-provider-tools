@@ -192,6 +192,11 @@ def _check_bytes(name, data, entry):
         raise ValueError(f"Acquisition file differs from its recorded release: {name}.")
 
 
+def _raise_walk_error(error: OSError) -> None:
+    """Preserve a directory scan failure instead of reporting files as missing."""
+    raise error
+
+
 def verify(source_dir):
     """Check installed files against their OLD manifest and return that manifest.
 
@@ -226,7 +231,7 @@ def verify(source_dir):
 
     actual = set()
 
-    for (root, directories, files) in os.walk(source, followlinks=False):
+    for (root, directories, files) in os.walk(source, followlinks=False, onerror=_raise_walk_error):
         for name in directories:
             directory = Path(root) / name
 

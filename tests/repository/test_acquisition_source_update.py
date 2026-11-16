@@ -116,6 +116,22 @@ class SourceUpdateTests(unittest.TestCase):
         download.assert_not_called()
         self.assertEqual(b"local edit", (self.source / "acquisition_tool/old.py").read_bytes())
 
+    def test_directory_scan_failure_is_propagated(self):
+        acquisition_directory = self.source / "acquisition_tool"
+        scan_failure = PermissionError(13, "Permission denied", str(acquisition_directory))
+        original_scandir = os.scandir
+
+        def scan_directory(directory):
+            if os.fspath(directory) == str(acquisition_directory):
+                raise scan_failure
+
+            return original_scandir(directory)
+
+        with patch.object(os, "scandir", side_effect=scan_directory), self.assertRaises(PermissionError) as caught:
+            updates.verify(self.source)
+
+        self.assertIs(scan_failure, caught.exception)
+
     def test_checksum_failure_precedes_tar_parsing_and_preserves_source(self):
         self.archive.write_bytes(b"not an authenticated archive")
 
