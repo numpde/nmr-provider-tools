@@ -292,11 +292,12 @@ def _admit_archive(
         for member in members:
             path = _relative_name(member.name)
 
-            if any(parent.as_posix() in member_counts for parent in path.parents):
-                raise ValueError(f"Acquisition archive member conflicts with its parent: {member.name!r}.")
+            for parent in path.parents:
+                if parent.as_posix() in member_counts:
+                    raise ValueError(f"{member.name=} has an archived {parent=}")
 
             if not (member.isfile()):
-                raise ValueError(f"Acquisition archive contains a link or special member: {member.name!r}.")
+                raise ValueError(f"{member.name=} is not a file: {member.type=}")
 
         if member_counts["acquisition-manifest.json"] != 1:
             raise ValueError("Acquisition archive must contain one acquisition-manifest.json.")
