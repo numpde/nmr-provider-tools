@@ -26,7 +26,7 @@ from tools.core_environment import (
 )
 
 from tools.installer import pip_command
-from tools.wheelhouse import digest
+from tools.wheelhouse import digest, requirements
 
 
 def _discover_examples(examples: Path, core_version: str) -> list[tuple[Path, str, str]]:
@@ -72,14 +72,28 @@ def _discover_examples(examples: Path, core_version: str) -> list[tuple[Path, st
                 "a three-part version is required."
             )
 
-        if not (project.get("dependencies") in (
-            [f"provider-core=={core_version}"],
-            [f"provider-core[api]=={core_version}"],
-        )):
-            raise ValueError(
-                f"Cannot install example {distribution_name!r}: its only dependency "
-                f"must be provider-core=={core_version} or its [api] extra."
-            )
+        dependencies = project["dependencies"]
+        sdk_dependencies = {f"provider-core=={core_version}", f"provider-core[api]=={core_version}"}
+        selected_sdk_dependencies = sdk_dependencies.intersection(dependencies)
+
+        if not (len(selected_sdk_dependencies) == 1):
+            raise ValueError(f"Example must require exactly the candidate SDK or its API extra; {dependencies=}")
+
+        scientific_dependencies = set(dependencies) - selected_sdk_dependencies
+
+        if not scientific_dependencies and (metadata.parent / "requirements.lock").exists():
+            raise ValueError("An example without scientific dependencies cannot install a scientific lock")
+
+        if scientific_dependencies:
+            scientific_lock = requirements(lock=metadata.parent / "requirements.lock")
+
+            if any(name == "provider-core" for (name, _) in scientific_lock):
+                raise ValueError("An example scientific lock cannot replace the candidate SDK")
+
+            locked_dependencies = {f"{name}=={version}" for (name, version) in scientific_lock}
+
+            if not (scientific_dependencies <= locked_dependencies):
+                raise ValueError(f"Example scientific dependencies must be pinned in its hashed lock; {scientific_dependencies=}; {locked_dependencies=}")
 
         names.add(distribution_name)
         projects.append((metadata.parent, distribution_name, distribution_version))
@@ -128,6 +142,12 @@ def _build_and_install_example(
         f"{distribution_name}=={distribution_version} {continuation}\n"
         f"    --hash=sha256:{digest(example_wheel)}\n"
     )
+
+    scientific_lock_path = source / "requirements.lock"
+
+    if scientific_lock_path.is_file():
+        with example_install_lock.open(mode="a", encoding="utf-8") as install_lock_file:
+            install_lock_file.write(scientific_lock_path.read_text(encoding="utf-8"))
 
     install_locked(
         python,
