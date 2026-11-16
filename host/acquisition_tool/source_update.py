@@ -246,12 +246,12 @@ def verify(source_dir):
 
             # Git records executable bits, not checkout read/write permissions.
             actual_execute_bits = metadata.st_mode & 0o111
-            expected_execute_bits = entries[relative_path]["mode"] & 0o111
+            release_execute_bits = entries[relative_path]["mode"] & 0o111
 
-            if actual_execute_bits != expected_execute_bits:
+            if actual_execute_bits != release_execute_bits:
                 raise ValueError(
-                    f"Acquisition file executable bits differ: "
-                    f"{relative_path=}; {actual_execute_bits=:03o}; {expected_execute_bits=:03o}"
+                    f"Acquisition file {relative_path=} has "
+                    f"{actual_execute_bits=:03o}; release specifies {release_execute_bits=:03o}"
                 )
 
             actual.add(relative_path)
