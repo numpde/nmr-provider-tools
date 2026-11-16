@@ -165,15 +165,18 @@ def read_manifest(data: str | bytes | bytearray) -> AcquisitionManifest:
     if not (type(dependencies) is (expected_type := dict)):
         raise TypeError(f"{type(dependencies)=} ≠ {expected_type=}")
 
-    for (name, checksum) in dependencies.items():
-        if not (type(name) is (expected_name_type := str)):
-            raise TypeError(f"{type(name)=} ≠ {expected_name_type=}")
+    for (dependency_name, dependency_sha256) in dependencies.items():
+        if not (type(dependency_name) is (expected_name_type := str)):
+            raise TypeError(f"{type(dependency_name)=} ≠ {expected_name_type=}")
 
-        if not (type(checksum) is (expected_checksum_type := str)):
-            raise TypeError(f"{type(checksum)=} ≠ {expected_checksum_type=}")
+        if not (type(dependency_sha256) is (expected_checksum_type := str)):
+            raise TypeError(f"{dependency_name=}; {type(dependency_sha256)=} ≠ {expected_checksum_type=}")
 
-        if not name or not _checksum(checksum):
-            raise ValueError("Acquisition dependency inputs must map artifact names to SHA-256 checksums.")
+        if not (dependency_name):
+            raise ValueError(f"Acquisition dependency name must be nonempty: {dependency_name=}")
+
+        if not _checksum(dependency_sha256):
+            raise ValueError(f"Acquisition {dependency_name=}: {dependency_sha256=} must be a lowercase SHA-256 digest")
 
     return manifest
 

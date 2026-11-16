@@ -72,6 +72,20 @@ class SourceUpdateTests(unittest.TestCase):
                 self.assertIn(expected_field, str(caught.exception))
                 self.assertIn(expected_requirement, str(caught.exception))
 
+    def test_manifest_identifies_invalid_dependency_metadata(self):
+        for (dependencies, expected_diagnostic) in (
+            ({"": "a" * 64}, "dependency_name=''"),
+            ({"wheel.pyz": "bad"}, "dependency_name='wheel.pyz': dependency_sha256='bad'"),
+        ):
+            with self.subTest(dependencies=dependencies):
+                manifest = self.manifest("1.0.0", self.old)
+                manifest["dependency_inputs"] = dependencies
+
+                with self.assertRaises(ValueError) as caught:
+                    updates.read_manifest(json.dumps(manifest))
+
+                self.assertIn(expected_diagnostic, str(caught.exception))
+
     def setUp(self):
         temporary = tempfile.TemporaryDirectory()
 
