@@ -78,7 +78,7 @@ def _relative_name(acquisition_path):
         raise TypeError(f"{type(acquisition_path)=} ≠ {expected_type=}")
 
     if (not acquisition_path) or ("\0" in acquisition_path):
-        raise ValueError(f"Acquisition inventory path is empty or contains a null character: {acquisition_path=}")
+        raise ValueError(f"Acquisition path must be nonempty and contain no nulls: {acquisition_path=}")
 
     path = PurePosixPath(acquisition_path)
 
