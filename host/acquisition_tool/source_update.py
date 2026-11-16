@@ -73,17 +73,17 @@ def read_pin(path):
     return pin
 
 
-def _relative_name(name):
-    if not (type(name) is (expected_type := str)):
-        raise TypeError(f"{type(name)=} ≠ {expected_type=}")
+def _relative_name(acquisition_path):
+    if not (type(acquisition_path) is (expected_type := str)):
+        raise TypeError(f"{type(acquisition_path)=} ≠ {expected_type=}")
 
-    if (not name) or ("\0" in name):
-        raise ValueError(f"Acquisition inventory path is empty or contains a null character: {name=}")
+    if (not acquisition_path) or ("\0" in acquisition_path):
+        raise ValueError(f"Acquisition inventory path is empty or contains a null character: {acquisition_path=}")
 
-    path = PurePosixPath(name)
+    path = PurePosixPath(acquisition_path)
 
-    if not path.parts or path.is_absolute() or ".." in path.parts or path.as_posix() != name:
-        raise ValueError(f"Acquisition inventory path is not a canonical relative file: {name!r}.")
+    if not path.parts or path.is_absolute() or ".." in path.parts or path.as_posix() != acquisition_path:
+        raise ValueError(f"Acquisition inventory path is not a canonical relative file: {acquisition_path=}")
 
     return path
 
