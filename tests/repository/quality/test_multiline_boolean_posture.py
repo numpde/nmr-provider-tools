@@ -1,7 +1,8 @@
 """Make multiline and/or expressions read as a vertical list of conditions.
 
-Each operand has its own parentheses. The operator ends the preceding
-operand's line, so the next line starts with the next condition.
+Each operand has its own parentheses unless it is a direct call, whose call
+brackets already mark its boundary. The operator ends the preceding operand's
+line, so the next line starts with the next condition.
 """
 
 from tools.container_guard import require_container
@@ -29,12 +30,15 @@ def multiline_boolean_findings(*, source: str) -> list[tuple[int, str]]:
             before = lines[operand.lineno - 1][:operand.col_offset].rstrip()
             after = lines[operand.end_lineno - 1][operand.end_col_offset:].lstrip()
 
-            if not (before.endswith(b"(") and after.startswith(b")")):
+            grouped = before.endswith(b"(") and after.startswith(b")")
+
+            if not grouped and not isinstance(operand, ast.Call):
                 findings.append((operand.lineno, "group each multiline Boolean operand"))
                 continue
 
             if index < len(expression.values) - 1:
-                following = after[1:].strip().split(b"#", 1)[0].strip()
+                following = after[1:] if grouped else after
+                following = following.strip().split(b"#", 1)[0].strip()
 
                 if following != operator:
                     findings.append((operand.end_lineno, "put the Boolean operator at the end of the preceding line"))
@@ -55,6 +59,7 @@ class MultilineBooleanPostureTests(unittest.TestCase):
                 self.assertTrue(expr=multiline_boolean_findings(source=ungrouped))
 
         self.assertEqual(first=[], second=multiline_boolean_findings(source="result = first and second\n"))
+        self.assertEqual(first=[], second=multiline_boolean_findings(source="result = (\n    ready() and\n    (enabled)\n)\n"))
 
     def test_authored_python_uses_multiline_boolean_layout(self) -> None:
         findings = [

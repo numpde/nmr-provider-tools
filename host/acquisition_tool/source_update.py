@@ -83,7 +83,7 @@ def _relative_name(acquisition_path):
     path = PurePosixPath(acquisition_path)
 
     is_canonical_relative_path = (
-        (bool(path.parts)) and
+        bool(path.parts) and
         (not path.is_absolute()) and
         (".." not in path.parts) and
         (path.as_posix() == acquisition_path)
