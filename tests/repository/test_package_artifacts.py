@@ -494,6 +494,6 @@ class PackageArtifactTests(unittest.TestCase):
 
         self.assertEqual(
             [("core_environment.py", "_build_candidate"),
-             ("provider_core_tests.py", "_build_and_install_example")],
+             ("provider_core_tests.py", "_build_and_install_project")],
             sorted(shared_callers),
         )
