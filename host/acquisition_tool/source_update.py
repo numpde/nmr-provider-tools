@@ -192,18 +192,18 @@ def read_manifest(data: str | bytes | bytearray) -> AcquisitionManifest:
     return manifest
 
 
-def _regular_bytes(path):
+def _regular_bytes(acquisition_input_path):
     """Read one opened regular file, without following links or blocking on a FIFO."""
-    descriptor = os.open(path, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK)
+    descriptor = os.open(acquisition_input_path, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK)
 
     try:
         metadata = os.fstat(descriptor)
 
         if not stat.S_ISREG(metadata.st_mode):
-            raise ValueError(f"Cannot read acquisition input {path}: require a regular file.")
+            raise ValueError(f"Cannot read {acquisition_input_path=}: require a regular file")
 
-        with os.fdopen(descriptor, "rb", closefd=False) as stream:
-            return (stream.read(), metadata)
+        with os.fdopen(descriptor, "rb", closefd=False) as acquisition_file:
+            return (acquisition_file.read(), metadata)
     finally:
         os.close(descriptor)
 
