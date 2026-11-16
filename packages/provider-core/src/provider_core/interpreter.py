@@ -41,25 +41,6 @@ from provider_core.conversation import (
 
 from provider_core.transport_errors import ExchangeFailed
 
-# SDK policy, not a second provider configuration surface.
-# repo-check: allow-module-constant
-MODEL_TURNS = 12
-
-# repo-check: allow-module-constant
-MODEL_REJECTIONS = 3
-
-# repo-check: allow-module-constant
-HTTP_ATTEMPTS = 2
-
-# repo-check: allow-module-constant
-CONNECT_SECONDS = 10
-
-# repo-check: allow-module-constant
-HISTORY_BYTES = 1024 * 1024
-
-# repo-check: allow-module-constant
-HISTORY_RECORDS = 48
-
 # Two remaining-time floats may change decimal length before the next request.
 # repo-check: allow-module-constant
 _CLOCK_ENCODING_RESERVE_BYTES = 64
@@ -231,7 +212,7 @@ class ModelWindowExpired(Exception):
 class Interpreter:
     """One API Attempt's interpretation across ordered provider endpoint factories.
 
-    A factory receives the selected model's exchange_seconds and the SDK's short
+    A factory receives the selected model's exchange_seconds and configured
     connect_seconds. Provider dispatch returns ToolReply for inspection and
     ToolFinished for accepted preparation; ToolRejected requests repair, while
     ModelReportedInterpretationProblem advances an unverified claim to the next model.
@@ -239,6 +220,11 @@ class Interpreter:
 
     Providers share a ProseService binding across Jobs to retain endpoint retry
     delays. Plain factories remain suitable for independent one-off callers.
+
+    The total timeout covers all model visits. Turn and correction limits apply
+    to each model; the HTTP-attempt limit applies to each model turn. History
+    limits bound the evidence retained across visits. The caller supplies these
+    settings together with the context-byte and connection-time limits.
 
     Normal completion and model transitions observe I/O retirement. On a provider
     dispatch exception, the caller retains this object and owns retire(), allowing
@@ -253,6 +239,12 @@ class Interpreter:
         *,
         timeout_seconds: float,
         context_bytes: int,
+        max_model_turns: int,
+        max_model_corrections: int,
+        max_http_attempts: int,
+        connect_seconds: float,
+        history_max_bytes: int,
+        history_max_records: int,
         secrets: tuple[str, ...],
     ):
         if not (isinstance(endpoint_factories, (expected_type := tuple))):
@@ -282,6 +274,25 @@ class Interpreter:
         if not (0 < context_bytes):
             raise ValueError("Cannot configure interpretation: context_bytes must be a positive byte limit.")
 
+        for (setting_name, setting_value) in (
+            ("max_model_turns", max_model_turns),
+            ("max_model_corrections", max_model_corrections),
+            ("max_http_attempts", max_http_attempts),
+            ("history_max_bytes", history_max_bytes),
+            ("history_max_records", history_max_records),
+        ):
+            if not (type(setting_value) is (expected_type := int)):
+                raise TypeError(f"{setting_name=}; {type(setting_value)=} ≠ {expected_type=}")
+
+            if not (0 < setting_value):
+                raise ValueError(f"Interpreter setting must be positive: {setting_name=}; {setting_value=}")
+
+        if not (type(connect_seconds) in (expected_type := (int, float))):
+            raise TypeError(f"{type(connect_seconds)=} ≠ {expected_type=}")
+
+        if (not math.isfinite(connect_seconds)) or (connect_seconds <= 0):
+            raise ValueError(f"Interpreter connection timeout must be finite and positive: {connect_seconds=}")
+
         if not (isinstance(secrets, (expected_type := tuple))):
             raise TypeError(
                 f"{type(secrets)=} ≠ {expected_type=}"
@@ -301,8 +312,12 @@ class Interpreter:
         self._factories = endpoint_factories
         self.timeout_seconds = timeout_seconds
         self.context_bytes = context_bytes
+        self.max_model_turns = max_model_turns
+        self.max_model_corrections = max_model_corrections
+        self.max_http_attempts = max_http_attempts
+        self.connect_seconds = connect_seconds
         self._secrets = secrets
-        self._history = _History(secrets)
+        self._history = _History(secrets=secrets, max_bytes=history_max_bytes, max_records=history_max_records)
         self._visits: list[_ModelVisit] = []
         self._used = False
         self._stopped = asyncio.Event()
@@ -426,7 +441,7 @@ class Interpreter:
                 model_deadline = now + window
 
                 visit = _ModelVisit(
-                    factory,
+                    factory=factory,
                     exchange_seconds=window,
                     number=index + 1,
                     deadline=model_deadline,
@@ -434,6 +449,10 @@ class Interpreter:
                     history=self._history,
                     stopped=self._stopped,
                     context_bytes=self.context_bytes,
+                    max_model_turns=self.max_model_turns,
+                    max_model_corrections=self.max_model_corrections,
+                    max_http_attempts=self.max_http_attempts,
+                    connect_seconds=self.connect_seconds,
                     secrets=self._secrets,
                 )
 
@@ -580,10 +599,12 @@ class _HistoryRecord:
 
 
 class _History:
-    """Retain one interpretation's snapshots in capture order, within fixed limits."""
+    """Retain one interpretation's snapshots within its configured limits."""
 
-    def __init__(self, secrets: tuple[str, ...]):
+    def __init__(self, secrets: tuple[str, ...], *, max_bytes: int, max_records: int):
         self._secrets = secrets
+        self._max_bytes = max_bytes
+        self._max_records = max_records
         self._records: OrderedDict[str, _HistoryRecord] = OrderedDict()
         self._bytes = 0
         self._sequence = 0
@@ -596,13 +617,13 @@ class _History:
         data = _encode(value)
         self._sequence += 1
 
-        if len(data) > HISTORY_BYTES:
+        if len(data) > self._max_bytes:
             self._unavailable += 1
 
             return
 
         while self._records and (
-            self._bytes + len(data) > HISTORY_BYTES or len(self._records) >= HISTORY_RECORDS
+            self._bytes + len(data) > self._max_bytes or len(self._records) >= self._max_records
         ):
             (_, oldest) = self._records.popitem(last=False)
             self._bytes -= len(oldest.data)
@@ -984,6 +1005,10 @@ class _ModelVisit:
         history: _History,
         stopped: asyncio.Event,
         context_bytes: int,
+        max_model_turns: int,
+        max_model_corrections: int,
+        max_http_attempts: int,
+        connect_seconds: float,
         secrets: tuple[str, ...],
     ):
         self.number = number
@@ -991,6 +1016,9 @@ class _ModelVisit:
         self._history = history
         self._stopped = stopped
         self._context_bytes = context_bytes
+        self._max_model_turns = max_model_turns
+        self._max_model_corrections = max_model_corrections
+        self._max_http_attempts = max_http_attempts
         self.failure: ConversationFailed | None = None
         self.provider_failure: Exception | None = None
         self.outcome: ConversationResult | ConversationHandoff | None = None
@@ -1021,12 +1049,12 @@ class _ModelVisit:
         if isinstance(factory, ProseService):
             self._service = factory
 
-        self._endpoint = factory(exchange_seconds=exchange_seconds, connect_seconds=CONNECT_SECONDS)
+        self._endpoint = factory(exchange_seconds=exchange_seconds, connect_seconds=connect_seconds)
 
         self.conversation = ToolConversation(
             (self,),
-            max_turns=MODEL_TURNS,
-            max_corrections=MODEL_REJECTIONS,
+            max_turns=max_model_turns,
+            max_corrections=max_model_corrections,
             secrets=secrets,
             text_correction=TextCorrection(),
         )
@@ -1042,8 +1070,8 @@ class _ModelVisit:
     def budget(self) -> Document:
         return {
             "model_seconds_remaining": max(0, self._deadline - _now()),
-            "turns_remaining": MODEL_TURNS - self.conversation.turns_started,
-            "rejections_remaining": MODEL_REJECTIONS - self.conversation.correction_count,
+            "turns_remaining": self._max_model_turns - self.conversation.turns_started,
+            "rejections_remaining": self._max_model_corrections - self.conversation.correction_count,
         }
 
     async def run(self, messages: list[Document]) -> ConversationResult | ConversationHandoff:
@@ -1080,7 +1108,7 @@ class _ModelVisit:
             )
 
     async def complete(self, messages: list[Document], tools: list[Document]) -> Document:
-        for attempt in range(HTTP_ATTEMPTS):
+        for attempt in range(self._max_http_attempts):
             if self._stopped.is_set():
                 raise ConversationFailed("Interpretation was retired; no model HTTP retry may start.")
 
@@ -1113,7 +1141,7 @@ class _ModelVisit:
                 if self._service is not None:
                     self._service._postpone(failure, delay)
 
-                if attempt + 1 == HTTP_ATTEMPTS or _now() + delay >= self._deadline:
+                if attempt + 1 == self._max_http_attempts or _now() + delay >= self._deadline:
                     raise
 
                 if self._service is None:

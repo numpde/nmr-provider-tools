@@ -27,7 +27,7 @@ from unittest.mock import Mock, patch
 import tomli_w
 
 from provider_core.hosting import AdmissionCode, CapacityUnavailable, NotAdmitted, ResultState, StartDeadlineExpired
-from provider_core.interpreter import ModelWindowExpired, ProseService
+from provider_core.interpreter import InterpretationFailed, ModelWindowExpired, ProseService
 
 from nmrpeak_mock_provider import provider as provider_setup
 from nmrpeak_mock_provider.binding import Chf, Hf, PeakContribution
@@ -172,6 +172,23 @@ class PeakExampleTests(unittest.IsolatedAsyncioTestCase):
                             first=offering.contribution.configuration.beam_size,
                             second=len(prediction_report["generated_smiles"]),
                         )
+
+    async def test_deployment_correction_limit_controls_interpretation(self):
+        document = tomllib.loads(self.configuration.read_text(encoding="utf-8"))
+        document["interpreter"]["max_model_corrections"] = 1
+
+        self.configuration.write_text(data=tomli_w.dumps(document), encoding="utf-8")
+        rejected_proposal = candidate(carbon=False) | {"formula": ""}
+        self.factory.proposals = (rejected_proposal, candidate(carbon=False))
+
+        async with self.open_provider() as provider:
+            (predictor,) = [offering for offering in provider.offerings if isinstance(offering.contribution, Hf)]
+
+            async with provider.open_prediction(offering=predictor, receive=RecordingReceiver()) as prediction_workflow:
+                with self.assertRaises(expected_exception=InterpretationFailed):
+                    await prediction_workflow.interpret(source="Formula and proton spectrum")
+
+        self.assertEqual(first=1, second=len(self.factory.endpoints[0].requests))
 
     async def test_unknown_scientific_family_fails_during_real_startup(self):
         document = tomllib.loads(self.configuration.read_text(encoding="utf-8"))

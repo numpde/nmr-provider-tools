@@ -23,7 +23,7 @@ from tests.fakes.api import Transport, api, reply
 from tests.fakes.attempt_store import record, scope
 from tests.fakes.attempts import observation, progress_response, retained_start, start_response
 from tests.fakes.checkpoint_execution import RecordingDelivery
-from tests.fakes.conversation import call
+from tests.fakes.conversation import call, interpreter_test_limits
 from tests.fakes.job_input import response
 from tests.fakes.tls_peer import TlsPeer
 
@@ -120,6 +120,7 @@ class InterpretedSession:
         self.interpreter = Interpreter((factory,),
                                        timeout_seconds=10,
                                        context_bytes=16384,
+                                       **interpreter_test_limits(),
                                        secrets=("PRIVATE_FIXTURE_KEY",))
 
     async def prepare(self, acknowledged, instructions, *, report_condition):

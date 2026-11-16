@@ -64,7 +64,7 @@ class NativeInstallationTests(unittest.TestCase):
     def test_native_interpreter_runs_shared_flow_without_api_dependencies(self):
         from provider_core.interpreter import Interpreter
         from provider_core.conversation import ToolFinished
-        from tests.fakes.conversation import call, endpoint
+        from tests.fakes.conversation import call, endpoint, interpreter_test_limits
 
         async def run():
             model = endpoint("native", call("selected", "prepare", {}))
@@ -72,6 +72,7 @@ class NativeInstallationTests(unittest.TestCase):
             owner = Interpreter((lambda **grant: model,),
                                 timeout_seconds=30,
                                 context_bytes=16384,
+                                **interpreter_test_limits(),
                                 secrets=())
 
             async def dispatch(name, arguments, *, not_after):

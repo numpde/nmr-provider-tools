@@ -86,8 +86,7 @@ class PredictionWorkflow:
         # The model receives feedback on rejection and can try again.
         # After preparation accepts input, the SDK retains it for generate
         # and interpretation ends. Other failures propagate to the caller.
-        # The SDK's interpreter.MODEL_TURNS and MODEL_REJECTIONS bound each conversation;
-        # the deployment also sets a timeout.
+        # Deployment settings bound each conversation and its overall time.
         await self.interpreter.run(
             messages=[
                 {"role": "system", "content": system_prompt},

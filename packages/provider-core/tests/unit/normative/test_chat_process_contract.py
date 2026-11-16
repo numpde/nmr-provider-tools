@@ -23,7 +23,7 @@ from provider_core.decoded_body import DecodedBodyRejected
 from provider_core.diagnostics import failure_evidence
 from provider_core.interpreter import Interpreter
 from provider_core.transport import ExchangeFailed
-from tests.fakes.conversation import call
+from tests.fakes.conversation import call, interpreter_test_limits
 from tests.fakes.tls_peer import TlsPeer
 
 
@@ -417,6 +417,7 @@ class ChatProcessContractTests(unittest.IsolatedAsyncioTestCase):
                     owner = Interpreter((self.factory(peer.origin + "/chat", peer.trust),),
                                         timeout_seconds=8,
                                         context_bytes=16384,
+                                        **interpreter_test_limits(),
                                         secrets=("PRIVATE_FIXTURE_KEY",))
 
                     dispatch = AsyncMock(return_value=ToolFinished("prepared"))

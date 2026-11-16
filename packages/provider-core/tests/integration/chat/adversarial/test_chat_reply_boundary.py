@@ -12,7 +12,7 @@ from unittest.mock import AsyncMock, patch
 from provider_core.chat import ChatEndpointFactory, ChatEndpointSpec
 from provider_core.conversation import ToolFinished
 from provider_core.interpreter import InterpretationFailed, Interpreter
-from tests.fakes.conversation import call
+from tests.fakes.conversation import call, interpreter_test_limits
 from tests.fakes.tls_peer import TlsPeer
 
 
@@ -59,6 +59,7 @@ class ModelReplyBoundaryTests(unittest.IsolatedAsyncioTestCase):
                 interpreter = Interpreter((observe_endpoint,),
                                           timeout_seconds=10,
                                           context_bytes=16384,
+                                          **interpreter_test_limits(),
                                           secrets=("PRIVATE_FIXTURE_KEY",))
 
                 tools = [{"type": "function",

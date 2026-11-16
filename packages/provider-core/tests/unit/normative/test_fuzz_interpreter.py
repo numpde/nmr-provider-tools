@@ -8,7 +8,7 @@ from unittest.mock import AsyncMock, patch
 from provider_core.chat_errors import ChatFailed
 from provider_core.conversation import ToolFinished, ToolRejected, ToolReply
 from provider_core.interpreter import Interpreter
-from tests.fakes.conversation import call, endpoint
+from tests.fakes.conversation import call, interpreter_test_limits, endpoint
 
 
 TOOLS = [{"type": "function", "function": {"name": name, "parameters": {"type": "object"}}}
@@ -102,7 +102,7 @@ class InterpreterFaultSequenceTests(unittest.IsolatedAsyncioTestCase):
                 return ToolFinished(effects[0])
 
             with self.subTest(seed=seed, trace=tuple(trace)):
-                owner = Interpreter(tuple(factories) + (unused,), timeout_seconds=240, context_bytes=1024 * 1024, secrets=())
+                owner = Interpreter(tuple(factories) + (unused,), timeout_seconds=240, context_bytes=1024 * 1024, **interpreter_test_limits(), secrets=())
 
                 with patch("provider_core.interpreter.asyncio.sleep", new=AsyncMock()):
                     result = await owner.run([], TOOLS, dispatch)

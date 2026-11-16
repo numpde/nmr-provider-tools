@@ -220,7 +220,7 @@ async def scenario(marker, report):
     from tests.fakes.attempt_store import record, scope
     from tests.fakes.attempts import observation, progress_response, retained_start, start_response
     from tests.fakes.checkpoint_execution import RecordingDelivery
-    from tests.fakes.conversation import call
+    from tests.fakes.conversation import call, interpreter_test_limits
     from tests.fakes.job_input import response
     from tests.fakes.tls_peer import TlsPeer
 
@@ -273,6 +273,7 @@ async def scenario(marker, report):
                 (factory,),
                 timeout_seconds=BLOCKED_MODEL_SECONDS if endpoint.endswith("/hang") else HEALTHY_MODEL_SECONDS,
                 context_bytes=16384,
+                **interpreter_test_limits(),
                 secrets=("PRIVATE_FIXTURE_KEY",),
             )
 

@@ -6,6 +6,19 @@ from types import SimpleNamespace
 from unittest.mock import AsyncMock
 
 
+def interpreter_test_limits():
+    """Give test conversations explicit budgets independent of deployment policy."""
+
+    return {
+        "max_model_turns": 12,
+        "max_model_corrections": 3,
+        "max_http_attempts": 2,
+        "connect_seconds": 10,
+        "history_max_bytes": 1048576,
+        "history_max_records": 48,
+    }
+
+
 def call(identifier, name, arguments):
     return {
         "role": "assistant",

@@ -12,7 +12,7 @@ from provider_core.conversation import ToolFinished, ToolReply
 from provider_core.interpreter import Interpreter
 from provider_core.network import network_availability
 from provider_core.transport import ExchangeFailed, HttpTransport
-from tests.fakes.conversation import call
+from tests.fakes.conversation import call, interpreter_test_limits
 from tests.fakes.tls_peer import TlsPeer
 from tests.fakes.unix_proxy import UnixProxy
 
@@ -46,6 +46,7 @@ class SharedInterpreterCarrierTests(unittest.IsolatedAsyncioTestCase):
             owner = Interpreter(factories,
                                 timeout_seconds=10,
                                 context_bytes=min(item.context_bytes for item in factories),
+                                **interpreter_test_limits(),
                                 secrets=("PRIVATE_KEY",))
 
             tools = [{"type": "function", "function": {"name": name, "parameters": {"type": "object"}}}
@@ -95,7 +96,7 @@ class SharedInterpreterCarrierTests(unittest.IsolatedAsyncioTestCase):
                 response_bytes=8192,
             )
 
-            owner = Interpreter((build,), timeout_seconds=10, context_bytes=16384, secrets=("PRIVATE_KEY",))
+            owner = Interpreter((build,), timeout_seconds=10, context_bytes=16384, **interpreter_test_limits(), secrets=("PRIVATE_KEY",))
             dispatch = AsyncMock(return_value=ToolFinished("prepared"))
 
             tools = [{"type": "function",
@@ -191,7 +192,7 @@ class SharedInterpreterCarrierTests(unittest.IsolatedAsyncioTestCase):
                 response_bytes=8192,
             )
 
-            owner = Interpreter((build,), timeout_seconds=10, context_bytes=16384, secrets=("PRIVATE_KEY",))
+            owner = Interpreter((build,), timeout_seconds=10, context_bytes=16384, **interpreter_test_limits(), secrets=("PRIVATE_KEY",))
             dispatch = AsyncMock(return_value=ToolFinished("prepared"))
             tools = [{"type": "function", "function": {"name": "prepare", "parameters": {"type": "object"}}}]
             result = await owner.run([], tools, dispatch)

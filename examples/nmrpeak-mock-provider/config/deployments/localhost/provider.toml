@@ -95,3 +95,13 @@ maximum_candidate_characters = 64
 [interpreter]
 timeout_seconds = 15
 context_bytes = 32768
+# Limit each model's conversation turns and rejected tool-call corrections.
+max_model_turns = 12
+max_model_corrections = 3
+# Each model turn permits this many HTTP attempts, including the first.
+# Use this connection timeout for the model endpoint.
+max_http_attempts = 2
+connect_seconds = 10
+# Keep at most this many encoded bytes and records of interpretation history.
+history_max_bytes = 1048576
+history_max_records = 48

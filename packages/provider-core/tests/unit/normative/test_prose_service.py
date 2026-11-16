@@ -9,7 +9,7 @@ from unittest.mock import AsyncMock, patch
 from provider_core.chat_errors import ChatFailed
 from provider_core.conversation import ConversationFailed, ConversationRetirementFailed, ToolFinished
 from provider_core.interpreter import InterpretationFailed, Interpreter, ProseService
-from tests.fakes.conversation import call, endpoint
+from tests.fakes.conversation import call, interpreter_test_limits, endpoint
 
 
 TOOLS = [{"type": "function",
@@ -28,7 +28,7 @@ def unavailable(wait=b"1"):
 
 # silent-defaults: allow-contract -- The unit fixture grants a deliberately short 40-ms interpretation window unless each test requests another one.
 def interpreter(*services, seconds=0.04):
-    return Interpreter(services, timeout_seconds=seconds, context_bytes=16384, secrets=())
+    return Interpreter(services, timeout_seconds=seconds, context_bytes=16384, **interpreter_test_limits(), secrets=())
 
 
 def service_with(*carriers):

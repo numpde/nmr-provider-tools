@@ -20,7 +20,7 @@ from provider_core.interpreter import Interpreter
 from provider_core.payload import JsonDataclassCodec, PayloadRejected
 from provider_core.scientific import Contribution, operation
 
-from tests.fakes.conversation import call, endpoint
+from tests.fakes.conversation import call, interpreter_test_limits, endpoint
 
 
 class Family(str, Enum):
@@ -223,6 +223,7 @@ class ScientificInputToolDefinitionTests(unittest.IsolatedAsyncioTestCase):
             endpoint_factories=(lambda **settings: carrier,),
             timeout_seconds=5,
             context_bytes=32768,
+            **interpreter_test_limits(),
             secrets=(),
         )
 

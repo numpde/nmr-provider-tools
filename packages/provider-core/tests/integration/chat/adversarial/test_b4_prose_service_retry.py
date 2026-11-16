@@ -11,7 +11,7 @@ import unittest
 from provider_core.chat import ChatEndpointFactory, ChatEndpointSpec
 from provider_core.conversation import ToolFinished
 from provider_core.interpreter import InterpretationFailed, Interpreter, ProseService
-from tests.fakes.conversation import call
+from tests.fakes.conversation import call, interpreter_test_limits
 from tests.fakes.tls_peer import TlsPeer
 
 
@@ -71,6 +71,7 @@ class ProseServiceRetryTests(unittest.IsolatedAsyncioTestCase):
                 interpreter = Interpreter((service,),
                                           timeout_seconds=seconds,
                                           context_bytes=16384,
+                                          **interpreter_test_limits(),
                                           secrets=("B4_TEST_CREDENTIAL",))
 
                 interpreters.append(interpreter)

@@ -126,7 +126,7 @@ async def shutdown_scenario(schedule, seed, directory, facts):
     from tests.fakes.checkpoint_execution import RecordingDelivery
     from tests.fakes.job_input import response
     from tests.fakes.tls_peer import TlsPeer
-    from tests.fakes.conversation import call
+    from tests.fakes.conversation import call, interpreter_test_limits
     from tests.integration.chat.adversarial.test_model_reply_permission import InterpretedSession, ReplyRun
 
     loop = asyncio.get_running_loop()
@@ -192,6 +192,7 @@ async def shutdown_scenario(schedule, seed, directory, facts):
                 (observed_factory,),
                 timeout_seconds=30,
                 context_bytes=16384,
+                **interpreter_test_limits(),
                 secrets=("PRIVATE_FIXTURE_KEY",),
             )
 

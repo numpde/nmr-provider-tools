@@ -605,8 +605,9 @@ prose_service = ProseService(ChatEndpointFactory(
 ))
 
 interpretation = Interpreter(
-    (prose_service,), timeout_seconds=240,
-    context_bytes=prose_service.context_bytes, secrets=(spec.api_key,),
+    endpoint_factories=(prose_service,),
+    secrets=(spec.api_key,),
+    **provider_config["interpreter"],
 )
 result = await interpretation.run(original_messages, provider_tools, dispatch,
                                   not_after=job_deadline)

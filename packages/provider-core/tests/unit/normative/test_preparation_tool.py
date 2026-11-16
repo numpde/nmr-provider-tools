@@ -14,7 +14,7 @@ from provider_core.interpreter import Interpreter
 from provider_core.preparation_tool import PreparationTool
 from provider_core.scientific import AssetAccess, Contribution, ScientificReturn, StateType, StateUse, operation
 
-from tests.fakes.conversation import call, endpoint
+from tests.fakes.conversation import call, interpreter_test_limits, endpoint
 
 
 @dataclass(frozen=True, slots=True, kw_only=True)
@@ -134,6 +134,7 @@ class PreparationToolTests(unittest.IsolatedAsyncioTestCase):
             endpoint_factories=(lambda **settings: carrier,),
             timeout_seconds=5,
             context_bytes=32768,
+            **interpreter_test_limits(),
             secrets=(),
         )
 
@@ -319,6 +320,7 @@ class PreparationToolTests(unittest.IsolatedAsyncioTestCase):
             endpoint_factories=(first_model, lambda **settings: second),
             timeout_seconds=2,
             context_bytes=32768,
+            **interpreter_test_limits(),
             secrets=(),
         )
 

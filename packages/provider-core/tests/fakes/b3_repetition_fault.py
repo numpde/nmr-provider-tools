@@ -77,7 +77,7 @@ async def scenario(marker, report, seed):
     from tests.fakes.attempt_store import record, scope
     from tests.fakes.attempts import complete_response, fail_response, observation, progress_response, retained_start, start_response
     from tests.fakes.chat_process_fault import WarmWorker, _failure_types
-    from tests.fakes.conversation import call
+    from tests.fakes.conversation import call, interpreter_test_limits
     from tests.fakes.job_input import response
     from tests.fakes.tls_peer import TlsPeer
 
@@ -165,6 +165,7 @@ async def scenario(marker, report, seed):
             self.interpreter = Interpreter((capture_endpoint,),
                                            timeout_seconds=timeout_seconds,
                                            context_bytes=16384,
+                                           **interpreter_test_limits(),
                                            secrets=("PRIVATE_B3_FIXTURE_KEY",))
 
         async def prepare(self, acknowledged, instructions, *, report_condition):

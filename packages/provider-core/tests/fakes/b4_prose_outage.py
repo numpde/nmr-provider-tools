@@ -37,7 +37,7 @@ from tests.fakes.attempt_store import record, scope
 from tests.fakes.attempts import complete_response, fail_response, observation, progress_response, retained_start, start_response
 from tests.fakes.b3_repetition_fault import _descriptors, _process_alive, _settled_peer_handlers
 from tests.fakes.chat_process_fault import WarmWorker
-from tests.fakes.conversation import call
+from tests.fakes.conversation import call, interpreter_test_limits
 from tests.fakes.job_input import response
 from tests.fakes.tls_peer import TlsPeer
 
@@ -288,6 +288,7 @@ async def run_outage(directory, *, mode, backlog, seed):
             self.interpreter = Interpreter((service,),
                                            timeout_seconds=model_seconds,
                                            context_bytes=16384,
+                                           **interpreter_test_limits(),
                                            secrets=("B4_TEST_CREDENTIAL",))
 
         async def prepare(self, acknowledged, instructions, *, report_condition):
