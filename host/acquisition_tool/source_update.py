@@ -20,6 +20,24 @@ import stat
 import subprocess
 import tarfile
 import tempfile
+from typing import TypedDict
+
+
+class PayloadFileMetadata(TypedDict):
+    """Size, mode and digest recorded for one acquisition payload file."""
+
+    sha256: str
+    size: int
+    mode: int
+
+
+class AcquisitionManifest(TypedDict):
+    """The manifest shape validated by read_manifest before its callers use it."""
+
+    release_version: str
+    source_revision: str
+    payload_files: dict[str, PayloadFileMetadata]
+    dependency_inputs: dict[str, str]
 
 
 def _json(data, description):
@@ -71,7 +89,7 @@ def _relative_name(name):
     return path
 
 
-def read_manifest(data):
+def read_manifest(data: str | bytes | bytearray) -> AcquisitionManifest:
     """Admit the recorded inventory, excluding only the manifest's own bytes."""
     manifest = _json(data, "acquisition-manifest.json")
 
@@ -246,14 +264,24 @@ def verify(source_dir):
     return manifest
 
 
-def _admit_archive(data, pin):
+def _admit_archive(
+    *,
+    archive_bytes: bytes,
+    expected_archive_sha256: str,
+) -> tuple[dict[str, bytes], AcquisitionManifest]:
+    """Authenticate the exact archive before reading its manifest or payload.
+
+    The trusted digest identifies the archive; its embedded release version
+    describes those authenticated bytes and needs no separate comparison.
+    """
+
     # The manifest is inside the download. It cannot authenticate that download.
-    observed = hashlib.sha256(data).hexdigest()
+    archive_sha256 = hashlib.sha256(archive_bytes).hexdigest()
 
-    if observed != pin["archive_sha256"]:
-        raise ValueError(f"Acquisition archive checksum mismatch: expected {pin['archive_sha256']}, received {observed}.")
+    if archive_sha256 != expected_archive_sha256:
+        raise ValueError(f"Acquisition archive checksum mismatch: {archive_sha256=} ≠ {expected_archive_sha256=}")
 
-    with tarfile.open(fileobj=io.BytesIO(data), mode="r:gz") as archive:
+    with tarfile.open(fileobj=io.BytesIO(archive_bytes), mode="r:gz") as archive:
         members = archive.getmembers()
         names = [member.name for member in members]
 
@@ -279,9 +307,6 @@ def _admit_archive(data, pin):
 
         payload = {member.name: archive.extractfile(member).read() for member in members}
         manifest = read_manifest(payload["acquisition-manifest.json"])
-
-        if manifest["release_version"] != pin["version"]:
-            raise ValueError("Acquisition archive version differs from the reviewed release pin.")
 
         entries = manifest["payload_files"]
 
@@ -332,8 +357,13 @@ def _publish(source, stage):
 
 
 def _import_verified_old(source, pin, archive):
-    (data, _metadata) = _regular_bytes(Path(archive))
-    (payload, manifest) = _admit_archive(data, pin)
+    (archive_bytes, _metadata) = _regular_bytes(Path(archive))
+
+    (payload, manifest) = _admit_archive(
+        archive_bytes=archive_bytes,
+        expected_archive_sha256=pin["archive_sha256"],
+    )
+
     stage = Path(tempfile.mkdtemp(prefix=".acquisition-next-", dir=source.parent))
 
     try:

@@ -125,6 +125,16 @@ class SourceUpdateTests(unittest.TestCase):
         parse.assert_not_called()
         self.assert_old_source()
 
+    def test_reviewed_digest_authenticates_archive_without_a_version_comparison(self) -> None:
+        release_pin = json.loads(self.pin.read_text())
+        release_pin["version"] = "9.0.0"
+
+        self.pin.write_text(json.dumps(release_pin))
+        manifest = updates.import_archive(source_dir=self.source, pin_file=self.pin, archive=self.archive)
+
+        self.assertEqual(first="2.0.0", second=manifest["release_version"])
+        self.assertEqual(first="2.0.0", second=updates.verify(self.source)["release_version"])
+
     def test_nonregular_archive_is_rejected_without_waiting_for_input(self):
         fifo = self.root / "archive-fifo"
 

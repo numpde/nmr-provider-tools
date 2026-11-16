@@ -78,7 +78,7 @@ arguments=(--init --pull=never --network=none --read-only
     --mount "type=bind,src=$metadata,dst=/repository-source-inventory/root-entries,readonly"
     --entrypoint python3 "$image" -B -m unittest)
 if [[ $suite == release ]]; then
-    arguments+=(tests.repository.test_publish tests.repository.test_package_artifacts tests.repository.test_wheelhouse_bundle tests.repository.test_acquisition_bundle
+    arguments+=(tests.repository.test_publish tests.repository.test_package_artifacts tests.repository.test_wheelhouse_bundle tests.repository.test_acquisition_bundle tests.repository.test_acquisition_source_update
                 tests.repository.test_delivery_release tests.repository.test_wheelhouse -v)
 elif [[ $suite == installer ]]; then
     arguments+=(tests.repository.test_installer_image tests.repository.test_checker_dependencies tests.repository.test_checker_provisioning -v)
