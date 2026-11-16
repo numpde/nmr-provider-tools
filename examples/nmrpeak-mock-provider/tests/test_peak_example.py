@@ -57,8 +57,8 @@ class PeakExampleTests(unittest.IsolatedAsyncioTestCase):
 
         # Bind only test substitutes to the actual startup function. Startup itself
         # reads configuration and constructs every scientific object and SDK owner.
-        self.open_provider = partial(
-            provider_setup.open_provider,
+        self.open_offerings = partial(
+            provider_setup.open_offerings,
             create_model=Model,
             endpoint_factories=(ProseService(factory=self.factory),),
             secrets=(),
@@ -99,16 +99,16 @@ class PeakExampleTests(unittest.IsolatedAsyncioTestCase):
                 self.configure_science(variant="chf", beam_size=beam_size)
                 prediction_reports = []
 
-                async with self.open_provider() as provider:
-                    for hosted in provider.offerings:
-                        self.factory.proposals = (candidate(carbon=isinstance(hosted.contribution, Chf)),)
+                async with self.open_offerings() as offerings:
+                    for hosted in offerings:
+                        self.factory.proposals = (candidate(carbon=isinstance(hosted.hosted_predictor.contribution, Chf)),)
                         receiver = RecordingReceiver()
 
-                        async with provider.open_prediction(offering=hosted, receive=receiver) as prediction_workflow:
+                        async with hosted.open_prediction(receive=receiver) as prediction_workflow:
                             await prediction_workflow.interpret(source="Recorded NMR source")
 
                             initial_messages = self.factory.endpoints[-1].requests[0]
-                            offering_name = "CHF offering" if isinstance(hosted.contribution, Chf) else "HF offering"
+                            offering_name = "CHF offering" if isinstance(hosted.hosted_predictor.contribution, Chf) else "HF offering"
 
                             self.assertEqual(first="system", second=initial_messages[0]["role"])
                             self.assertIn(member=offering_name, container=initial_messages[1]["content"])
@@ -118,7 +118,7 @@ class PeakExampleTests(unittest.IsolatedAsyncioTestCase):
                             prediction_report = json.loads(s=payload)
 
                             self.assertEqual(
-                                first=hosted.contribution.configuration.checkpoint_sha256,
+                                first=hosted.hosted_predictor.contribution.configuration.checkpoint_sha256,
                                 second=prediction_report["checkpoint_sha256"],
                             )
 
@@ -154,14 +154,14 @@ class PeakExampleTests(unittest.IsolatedAsyncioTestCase):
 
                 self.configuration.write_text(data=tomli_w.dumps(document), encoding="utf-8")
 
-                async with self.open_provider() as provider:
-                    self.assertEqual(first=len(families), second=len(provider.offerings))
+                async with self.open_offerings() as offerings:
+                    self.assertEqual(first=len(families), second=len(offerings))
 
-                    for offering in provider.offerings:
-                        self.factory.proposals = (candidate(carbon=isinstance(offering.contribution, Chf)),)
+                    for offering in offerings:
+                        self.factory.proposals = (candidate(carbon=isinstance(offering.hosted_predictor.contribution, Chf)),)
                         receiver = RecordingReceiver()
 
-                        async with provider.open_prediction(offering=offering, receive=receiver) as prediction_workflow:
+                        async with offering.open_prediction(receive=receiver) as prediction_workflow:
                             await prediction_workflow.interpret(source="Formula and selected spectra")
                             await prediction_workflow.deliver()
 
@@ -169,7 +169,7 @@ class PeakExampleTests(unittest.IsolatedAsyncioTestCase):
                         prediction_report = json.loads(s=payload)
 
                         self.assertEqual(
-                            first=offering.contribution.configuration.beam_size,
+                            first=offering.hosted_predictor.contribution.configuration.beam_size,
                             second=len(prediction_report["generated_smiles"]),
                         )
 
@@ -181,10 +181,10 @@ class PeakExampleTests(unittest.IsolatedAsyncioTestCase):
         rejected_proposal = candidate(carbon=False) | {"formula": ""}
         self.factory.proposals = (rejected_proposal, candidate(carbon=False))
 
-        async with self.open_provider() as provider:
-            (predictor,) = [offering for offering in provider.offerings if isinstance(offering.contribution, Hf)]
+        async with self.open_offerings() as offerings:
+            (predictor,) = [offering for offering in offerings if isinstance(offering.hosted_predictor.contribution, Hf)]
 
-            async with provider.open_prediction(offering=predictor, receive=RecordingReceiver()) as prediction_workflow:
+            async with predictor.open_prediction(receive=RecordingReceiver()) as prediction_workflow:
                 with self.assertRaises(expected_exception=InterpretationFailed):
                     await prediction_workflow.interpret(source="Formula and proton spectrum")
 
@@ -197,7 +197,7 @@ class PeakExampleTests(unittest.IsolatedAsyncioTestCase):
         self.configuration.write_text(data=tomli_w.dumps(document), encoding="utf-8")
 
         with self.assertRaisesRegex(expected_exception=ValueError, expected_regex="unsupported family='unknown'"):
-            async with self.open_provider():
+            async with self.open_offerings():
                 self.fail(msg="An unsupported scientific family must not yield a provider")
 
     async def test_partial_assembly_failure_retires_the_already_adopted_object(self):
@@ -217,7 +217,7 @@ class PeakExampleTests(unittest.IsolatedAsyncioTestCase):
         with patch(target="nmrpeak_mock_provider.provider.Chf", new=InvalidChf):
             with patch.object(target=Hf, attribute="close", new=record_close):
                 with self.assertRaises(expected_exception=TypeError):
-                    async with self.open_provider():
+                    async with self.open_offerings():
                         self.fail(msg="Partial assembly must not yield a provider")
 
         (first,) = closed
@@ -234,16 +234,16 @@ class PeakExampleTests(unittest.IsolatedAsyncioTestCase):
                 self.configure_science(variant="hf", **{field: 0})
 
                 with self.assertRaises(expected_exception=ValueError):
-                    async with self.open_provider(create_model=create_model):
+                    async with self.open_offerings(create_model=create_model):
                         self.fail(msg="Invalid scientific settings must fail during startup")
 
         create_model.assert_not_called()
 
     async def test_expired_interpretation_window_admits_no_scientific_work(self):
-        async with self.open_provider() as provider:
-            (proton_formula_predictor,) = [offering for offering in provider.offerings if isinstance(offering.contribution, Hf)]
+        async with self.open_offerings() as offerings:
+            (proton_formula_predictor,) = [offering for offering in offerings if isinstance(offering.hosted_predictor.contribution, Hf)]
 
-            async with provider.open_prediction(offering=proton_formula_predictor, receive=RecordingReceiver()) as prediction_workflow:
+            async with proton_formula_predictor.open_prediction(receive=RecordingReceiver()) as prediction_workflow:
                 with self.assertRaises(expected_exception=ModelWindowExpired) as raised:
                     await prediction_workflow.preparation_tool.dispatch(
                         name=prediction_workflow.preparation_tool.name,
@@ -253,7 +253,7 @@ class PeakExampleTests(unittest.IsolatedAsyncioTestCase):
 
                 self.assertIsInstance(obj=raised.exception.__cause__, cls=StartDeadlineExpired)
                 self.assertIsNone(obj=prediction_workflow.preparation_tool.operation)
-                self.assertIsNotNone(obj=proton_formula_predictor.contribution.model)
+                self.assertIsNotNone(obj=proton_formula_predictor.hosted_predictor.contribution.model)
 
     async def test_interpreter_deadline_waits_for_original_tokenization_to_settle(self):
         entered = Event()
@@ -266,10 +266,10 @@ class PeakExampleTests(unittest.IsolatedAsyncioTestCase):
 
                 return super().tokenize(candidate=candidate)
 
-        async with self.open_provider(create_model=HeldModel) as provider:
-            (proton_formula_predictor,) = [offering for offering in provider.offerings if isinstance(offering.contribution, Hf)]
+        async with self.open_offerings(create_model=HeldModel) as offerings:
+            (proton_formula_predictor,) = [offering for offering in offerings if isinstance(offering.hosted_predictor.contribution, Hf)]
 
-            async with provider.open_prediction(offering=proton_formula_predictor, receive=RecordingReceiver()) as prediction_workflow:
+            async with proton_formula_predictor.open_prediction(receive=RecordingReceiver()) as prediction_workflow:
                 deadline = asyncio.get_running_loop().time() + 1
 
                 task = asyncio.create_task(coro=prediction_workflow.preparation_tool.dispatch(
@@ -299,10 +299,10 @@ class PeakExampleTests(unittest.IsolatedAsyncioTestCase):
     async def test_hf_input_rejects_carbon_fields_before_scientific_validation(self):
         self.factory.proposals = (candidate(carbon=True), candidate(carbon=False))
 
-        async with self.open_provider() as provider:
-            (proton_formula_predictor,) = [offering for offering in provider.offerings if isinstance(offering.contribution, Hf)]
+        async with self.open_offerings() as offerings:
+            (proton_formula_predictor,) = [offering for offering in offerings if isinstance(offering.hosted_predictor.contribution, Hf)]
 
-            async with provider.open_prediction(offering=proton_formula_predictor, receive=RecordingReceiver()) as prediction_workflow:
+            async with proton_formula_predictor.open_prediction(receive=RecordingReceiver()) as prediction_workflow:
                 await prediction_workflow.interpret(source="Formula and proton spectrum")
                 self.assertIsNotNone(obj=prediction_workflow.preparation_tool.operation)
                 self.assertEqual(first=2, second=len(self.factory.endpoints[0].requests))
@@ -311,11 +311,11 @@ class PeakExampleTests(unittest.IsolatedAsyncioTestCase):
         self.factory.proposals = (candidate(carbon=False),)
         original = OSError("The generation submission reply was lost")
 
-        async with self.open_provider() as provider:
-            (proton_formula_predictor,) = [offering for offering in provider.offerings if isinstance(offering.contribution, Hf)]
+        async with self.open_offerings() as offerings:
+            (proton_formula_predictor,) = [offering for offering in offerings if isinstance(offering.hosted_predictor.contribution, Hf)]
             receiver = RecordingReceiver()
 
-            async with provider.open_prediction(offering=proton_formula_predictor, receive=receiver) as prediction_workflow:
+            async with proton_formula_predictor.open_prediction(receive=receiver) as prediction_workflow:
                 await prediction_workflow.interpret(source="Formula and proton spectrum")
                 submit = prediction_workflow.analysis_executor.submit
                 requests = []
@@ -346,10 +346,10 @@ class PeakExampleTests(unittest.IsolatedAsyncioTestCase):
     async def test_generation_declares_consuming_input_and_does_not_run_twice(self):
         self.factory.proposals = (candidate(carbon=False),)
 
-        async with self.open_provider() as provider:
-            (proton_formula_predictor,) = [offering for offering in provider.offerings if isinstance(offering.contribution, Hf)]
+        async with self.open_offerings() as offerings:
+            (proton_formula_predictor,) = [offering for offering in offerings if isinstance(offering.hosted_predictor.contribution, Hf)]
 
-            async with provider.open_prediction(offering=proton_formula_predictor, receive=RecordingReceiver()) as prediction_workflow:
+            async with proton_formula_predictor.open_prediction(receive=RecordingReceiver()) as prediction_workflow:
                 await prediction_workflow.interpret(source="Formula and proton spectrum")
                 result_ref = await prediction_workflow.finish()
 
@@ -359,7 +359,7 @@ class PeakExampleTests(unittest.IsolatedAsyncioTestCase):
                 # Probe the provider's actual port declaration: a second scientific
                 # submission must be refused before trying to reuse consumed input.
                 duplicate = prediction_workflow.analysis_executor.submit_method(
-                    method=proton_formula_predictor.contribution.generate,
+                    method=proton_formula_predictor.hosted_predictor.contribution.generate,
                     states={PeakContribution.candidate: prediction_workflow.preparation_tool.prepared_state_handle},
                     reservation=reservation,
                     policy=prediction_workflow.operation_policy,
@@ -371,14 +371,14 @@ class PeakExampleTests(unittest.IsolatedAsyncioTestCase):
     async def test_invalid_generated_candidates_fail_without_reinterpretation(self):
         self.factory.proposals = (candidate(carbon=False),)
 
-        async with self.open_provider() as provider:
-            (proton_formula_predictor,) = [offering for offering in provider.offerings if isinstance(offering.contribution, Hf)]
-            settings = proton_formula_predictor.contribution.configuration
+        async with self.open_offerings() as offerings:
+            (proton_formula_predictor,) = [offering for offering in offerings if isinstance(offering.hosted_predictor.contribution, Hf)]
+            settings = proton_formula_predictor.hosted_predictor.contribution.configuration
             invalid_outputs = ((), ("",), ("C",) * (settings.beam_size + 1), ("C" * (settings.maximum_candidate_characters + 1),))
 
             for output in invalid_outputs:
                 with self.subTest(output=output):
-                    async with provider.open_prediction(offering=proton_formula_predictor, receive=RecordingReceiver()) as prediction_workflow:
+                    async with proton_formula_predictor.open_prediction(receive=RecordingReceiver()) as prediction_workflow:
                         await prediction_workflow.interpret(source="Formula and proton spectrum")
 
                         with patch.object(target=Model, attribute="generate", return_value=output) as generate:
@@ -395,7 +395,7 @@ class PeakExampleTests(unittest.IsolatedAsyncioTestCase):
     async def test_checkpoint_mismatch_stops_loading_before_model_deserialization(self):
         self.configure_science(variant="hf", checkpoint_sha256="0" * 64)
         with self.assertRaisesRegex(expected_exception=ValueError, expected_regex="actual_sha256="):
-            async with self.open_provider():
+            async with self.open_offerings():
                 self.fail(msg="A mismatched checkpoint must prevent provider startup")
 
     async def test_partial_loading_preserves_original_error_and_closes_same_model(self):
@@ -417,7 +417,7 @@ class PeakExampleTests(unittest.IsolatedAsyncioTestCase):
                 super().close()
 
         with self.assertRaises(expected_exception=OSError) as raised:
-            async with self.open_provider(create_model=PartialModel):
+            async with self.open_offerings(create_model=PartialModel):
                 self.fail(msg="A failed model load must prevent provider startup")
 
         (model,) = models
@@ -438,12 +438,12 @@ class PeakExampleTests(unittest.IsolatedAsyncioTestCase):
 
             return model
 
-        async with self.open_provider(create_model=create_model) as provider:
-            self.assertEqual(first=2, second=len(provider.offerings))
+        async with self.open_offerings(create_model=create_model) as offerings:
+            self.assertEqual(first=2, second=len(offerings))
             self.assertEqual(first=2, second=len(created))
             self.assertTrue(expr=all(model.tokenizer is not None for model in created))
 
-        retirement = await provider.execution_host.retire().observe(after=None, wait_seconds=0)
+        retirement = await next(iter(offerings)).execution_host.retire().observe(after=None, wait_seconds=0)
 
         self.assertTrue(expr=retirement.settled)
         self.assertTrue(expr=all(model.tokenizer is None for model in created))
@@ -466,7 +466,7 @@ class PeakExampleTests(unittest.IsolatedAsyncioTestCase):
                 super().close()
 
         with self.assertRaises(expected_exception=OSError) as raised:
-            async with self.open_provider(create_model=SecondLoadFails):
+            async with self.open_offerings(create_model=SecondLoadFails):
                 self.fail(msg="The provider must not start after a model load fails")
 
         self.assertIs(expr1=original, expr2=raised.exception)
@@ -495,7 +495,7 @@ class PeakExampleTests(unittest.IsolatedAsyncioTestCase):
                 super().close()
 
         async def start_provider():
-            async with self.open_provider(create_model=HeldModel):
+            async with self.open_offerings(create_model=HeldModel):
                 self.fail(msg="Cancelled startup must not yield a provider")
 
         startup = asyncio.create_task(coro=start_provider())
@@ -523,10 +523,10 @@ class PeakExampleTests(unittest.IsolatedAsyncioTestCase):
         self.factory.proposals = (rejected, candidate(carbon=False))
         receiver = RecordingReceiver()
 
-        async with self.open_provider() as provider:
-            (proton_formula_predictor,) = [offering for offering in provider.offerings if isinstance(offering.contribution, Hf)]
+        async with self.open_offerings() as offerings:
+            (proton_formula_predictor,) = [offering for offering in offerings if isinstance(offering.hosted_predictor.contribution, Hf)]
 
-            async with provider.open_prediction(offering=proton_formula_predictor, receive=receiver) as prediction_workflow:
+            async with proton_formula_predictor.open_prediction(receive=receiver) as prediction_workflow:
                 await prediction_workflow.interpret(source="Formula and proton spectrum")
                 await asyncio.gather(prediction_workflow.deliver(), prediction_workflow.deliver())
                 result_consumer = prediction_workflow.result_consumer
@@ -548,11 +548,11 @@ class PeakExampleTests(unittest.IsolatedAsyncioTestCase):
             attempts.append(payload)
             raise original
 
-        async with self.open_provider() as provider:
-            (proton_formula_predictor,) = [offering for offering in provider.offerings if isinstance(offering.contribution, Hf)]
+        async with self.open_offerings() as offerings:
+            (proton_formula_predictor,) = [offering for offering in offerings if isinstance(offering.hosted_predictor.contribution, Hf)]
 
             with self.assertRaises(expected_exception=OSError) as exit_failure:
-                async with provider.open_prediction(offering=proton_formula_predictor, receive=receive) as prediction_workflow:
+                async with proton_formula_predictor.open_prediction(receive=receive) as prediction_workflow:
                     await prediction_workflow.interpret(source="Formula and proton spectrum")
 
                     for _ in range(2):
@@ -585,11 +585,11 @@ class PeakExampleTests(unittest.IsolatedAsyncioTestCase):
             await allow_receiver_acceptance.wait()
             self.assertFalse(expr=requests[0].analysis_executor.closed)
 
-        async with self.open_provider() as provider:
-            (proton_formula_predictor,) = [offering for offering in provider.offerings if isinstance(offering.contribution, Hf)]
+        async with self.open_offerings() as offerings:
+            (proton_formula_predictor,) = [offering for offering in offerings if isinstance(offering.hosted_predictor.contribution, Hf)]
 
             async def run_request():
-                async with provider.open_prediction(offering=proton_formula_predictor, receive=receive) as prediction_workflow:
+                async with proton_formula_predictor.open_prediction(receive=receive) as prediction_workflow:
                     requests.append(prediction_workflow)
                     await prediction_workflow.interpret(source="Formula and proton spectrum")
 
@@ -618,16 +618,15 @@ class PeakExampleTests(unittest.IsolatedAsyncioTestCase):
             self.assertTrue(expr=requests[0].analysis_executor.closed)
             self.assertTrue(expr=self.factory.endpoints[0].retirement_confirmed)
 
-    async def test_foreign_offering_is_rejected_before_interpretation(self):
-        async with self.open_provider() as provider:
-            async with self.open_provider() as other:
-                foreign = next(iter(other.offerings))
+    async def test_offering_cannot_open_prediction_after_its_host_retires(self):
+        async with self.open_offerings() as offerings:
+            offering = next(iter(offerings))
 
-                with self.assertRaises(expected_exception=ValueError):
-                    async with provider.open_prediction(offering=foreign, receive=RecordingReceiver()):
-                        self.fail(msg="A foreign offering must not open a prediction_workflow")
+        with self.assertRaises(expected_exception=CapacityUnavailable):
+            async with offering.open_prediction(receive=RecordingReceiver()):
+                self.fail(msg="A retired offering must not open a prediction")
 
-            self.assertEqual(first=[], second=self.factory.endpoints)
+        self.assertEqual(first=[], second=self.factory.endpoints)
 
     async def test_provider_reuses_model_with_fresh_interpretation_per_request(self):
         self.factory.proposals = (candidate(carbon=False),)
@@ -640,20 +639,20 @@ class PeakExampleTests(unittest.IsolatedAsyncioTestCase):
 
             return model
 
-        async with self.open_provider(create_model=create_model) as provider:
-            (proton_formula_predictor,) = [offering for offering in provider.offerings if isinstance(offering.contribution, Hf)]
+        async with self.open_offerings(create_model=create_model) as offerings:
+            (proton_formula_predictor,) = [offering for offering in offerings if isinstance(offering.hosted_predictor.contribution, Hf)]
 
             for _ in range(2):
                 receiver = RecordingReceiver()
 
-                async with provider.open_prediction(offering=proton_formula_predictor, receive=receiver) as prediction_workflow:
+                async with proton_formula_predictor.open_prediction(receive=receiver) as prediction_workflow:
                     await prediction_workflow.interpret(source="Formula and proton spectrum")
                     await prediction_workflow.deliver()
 
                 self.assertEqual(first=1, second=len(receiver.payloads))
 
             self.assertEqual(first=2, second=len(models))
-            self.assertIn(member=proton_formula_predictor.contribution.model, container=models)
+            self.assertIn(member=proton_formula_predictor.hosted_predictor.contribution.model, container=models)
             self.assertEqual(first=2, second=len(self.factory.endpoints))
             self.assertTrue(expr=all(endpoint.retirement_confirmed for endpoint in self.factory.endpoints))
 
@@ -663,12 +662,12 @@ class PeakExampleTests(unittest.IsolatedAsyncioTestCase):
         self.factory.proposals = (candidate(carbon=False),)
         receiver = RecordingReceiver()
 
-        async with self.open_provider() as provider:
-            (proton_formula_predictor,) = [offering for offering in provider.offerings if isinstance(offering.contribution, Hf)]
+        async with self.open_offerings() as offerings:
+            (proton_formula_predictor,) = [offering for offering in offerings if isinstance(offering.hosted_predictor.contribution, Hf)]
 
-            async with provider.open_prediction(offering=proton_formula_predictor, receive=receiver) as original:
+            async with proton_formula_predictor.open_prediction(receive=receiver) as original:
                 with self.assertRaises(expected_exception=CapacityUnavailable):
-                    async with provider.open_prediction(offering=proton_formula_predictor, receive=RecordingReceiver()):
+                    async with proton_formula_predictor.open_prediction(receive=RecordingReceiver()):
                         self.fail(msg="One scientific allocation cannot serve two active requests")
 
                 await original.interpret(source="Formula and proton spectrum")

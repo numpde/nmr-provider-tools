@@ -1,6 +1,6 @@
 """Set up the provider's scientific objects and SDK execution lifetime.
 
-The application calls open_provider explicitly and supplies its model constructor.
+The application calls open_offerings explicitly and supplies its model constructor.
 The application supplies language-model endpoint factories and report receivers.
 This module owns provider and request lifetimes; it creates no requests or scripted
 service responses. Discovery and durable delivery belong to the surrounding service.
@@ -33,35 +33,28 @@ PROVIDER_CONFIG_PATH = Path("config/deployments/localhost/provider.toml")
 
 
 @dataclass(frozen=True, slots=True, kw_only=True, eq=False)
-class Provider:
-    """The execution manager, per-request policy and available scientific objects.
-
-    Each request selects one of the unordered adopted offerings.
-    """
+class Offering:
+    """Open predictions for one hosted model using the shared execution host."""
 
     execution_host: InProcessExecutionHost
     operation_policy: OperationPolicy
-    offerings: frozenset[HostedContribution]
+    hosted_predictor: HostedContribution
     create_interpreter: Callable[[], Interpreter]
 
     @asynccontextmanager
     async def open_prediction(
         self,
         *,
-        offering: HostedContribution,
         receive: Callable[[bytes], Awaitable[None]],
     ) -> AsyncIterator[PredictionWorkflow]:
         """Own one request's interpretation, scientific execution and receiver.
 
-        The caller selects an offering and supplies its report receiver. It can
+        The caller supplies the report receiver. It can
         inspect a receiver failure while this context is open; exiting ends that
         reconciliation window and disposes remaining results. Cancellation also
         joins an already started receiver before closing its execution session.
         Independent work and cleanup errors propagate together without resending.
         """
-
-        if not (offering in self.offerings):
-            raise ValueError("Cannot open a prediction for an offering outside this provider")
 
         input_interpreter = self.create_interpreter()
         analysis_executor = None
@@ -69,11 +62,11 @@ class Provider:
         failure_collector = FailureCollector(message="Prediction work and cleanup failed independently")
 
         with failure_collector.capture():
-            analysis_executor = self.execution_host.open_analysis(allocations=frozenset({offering.allocation}))
+            analysis_executor = self.execution_host.open_analysis(allocations=frozenset({self.hosted_predictor.allocation}))
 
             prediction_workflow = PredictionWorkflow(
                 analysis_executor=analysis_executor,
-                hosted_predictor=offering,
+                hosted_predictor=self.hosted_predictor,
                 interpreter=input_interpreter,
                 operation_policy=self.operation_policy,
                 receive=receive,
@@ -98,17 +91,17 @@ class Provider:
 
 
 @asynccontextmanager
-async def open_provider(
+async def open_offerings(
     *,
     create_model: Callable[[], Model],
     endpoint_factories: tuple[EndpointFactory, ...],
     secrets: tuple[str, ...],
-) -> AsyncIterator[Provider]:
+) -> AsyncIterator[frozenset[Offering]]:
     """Read deployment settings, assemble science and retire the SDK on exit.
 
     This is provider-written setup, not an SDK discovery hook. The application's
     request-handling code opens predictions and finishes those contexts before
-    leaving the provider context. Models are loaded before the provider is yielded.
+    leaving this context. Models are loaded before offerings are yielded.
     Setup failure, body failure and independent cleanup failure
     retain their original causes.
     """
@@ -160,14 +153,19 @@ async def open_provider(
                 # No such policy is chosen here; host shutdown still owns cleanup.
                 raise
 
-        yield Provider(
-            execution_host=execution_host,
-            operation_policy=operation_policy,
-            offerings=frozenset(offerings),
-            create_interpreter=partial(
-                Interpreter,
-                endpoint_factories=endpoint_factories,
-                secrets=secrets,
-                **provider_config["interpreter"],
-            ),
+        create_interpreter = partial(
+            Interpreter,
+            endpoint_factories=endpoint_factories,
+            secrets=secrets,
+            **provider_config["interpreter"],
+        )
+
+        yield frozenset(
+            Offering(
+                execution_host=execution_host,
+                operation_policy=operation_policy,
+                hosted_predictor=hosted_predictor,
+                create_interpreter=create_interpreter,
+            )
+            for hosted_predictor in offerings
         )
