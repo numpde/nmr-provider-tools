@@ -437,13 +437,13 @@ class SourceUpdateTests(unittest.TestCase):
 
         extra.mkdir()
 
-        with self.assertRaises(ValueError):
+        with self.assertRaisesRegex(ValueError, "unrecorded acquisition_rel_directory='extra'"):
             updates.verify(self.source)
 
         extra.rmdir()
         extra.symlink_to(self.root, target_is_directory=True)
 
-        with self.assertRaises(ValueError):
+        with self.assertRaisesRegex(ValueError, "directory is a symlink"):
             updates.verify(self.source)
 
     def test_exchange_failure_keeps_old_source_and_retains_candidate_evidence(self):

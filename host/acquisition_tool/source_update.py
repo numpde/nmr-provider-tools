@@ -256,10 +256,15 @@ def verify(source_dir):
 
     for (root, directories, files) in os.walk(source, followlinks=False, onerror=_raise_walk_error):
         for name in directories:
-            directory = Path(root) / name
+            acquisition_directory = Path(root) / name
 
-            if directory.is_symlink() or directory.relative_to(source).as_posix() not in expected_dirs:
-                raise ValueError(f"Acquisition source contains an unrecorded or symlink directory: {directory}.")
+            if acquisition_directory.is_symlink():
+                raise ValueError(f"Acquisition directory is a symlink: {acquisition_directory=}")
+
+            acquisition_rel_directory = acquisition_directory.relative_to(source).as_posix()
+
+            if not (acquisition_rel_directory in expected_dirs):
+                raise ValueError(f"Acquisition source has an unrecorded {acquisition_rel_directory=}")
 
         for name in files:
             path = Path(root) / name
