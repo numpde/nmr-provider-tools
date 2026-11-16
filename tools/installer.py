@@ -22,11 +22,12 @@ import tempfile
 
 
 def unique_fields(field_pairs):
-    field_counts = Counter(field_name for (field_name, _) in field_pairs)
+    """Reject duplicate JSON object keys before constructing the dictionary."""
+    field_counts = Counter(key for (key, _) in field_pairs)
     duplicate_fields = field_counts - Counter(field_counts.keys())
 
     if duplicate_fields:
-        raise ValueError(f"Cannot start the installer: release record contains duplicate fields: {duplicate_fields=}")
+        raise ValueError(f"Cannot start the installer: release record contains {duplicate_fields=}")
 
     return dict(field_pairs)
 
