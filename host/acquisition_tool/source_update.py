@@ -294,10 +294,10 @@ def _admit_archive(
 
             for parent in path.parents:
                 if parent.as_posix() in member_counts:
-                    raise ValueError(f"{member.name=} has an archived {parent=}")
+                    raise ValueError(f"Acquisition archive: {member.name=} has an archived {parent=}")
 
             if not (member.isfile()):
-                raise ValueError(f"{member.name=} is not a file: {member.type=}")
+                raise ValueError(f"Acquisition archive: {member.name=} is not a file: {member.type=}")
 
         if member_counts["acquisition-manifest.json"] != 1:
             raise ValueError("Acquisition archive must contain one acquisition-manifest.json.")
