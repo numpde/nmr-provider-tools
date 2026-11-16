@@ -39,6 +39,7 @@ def _generic_name(*, variable_name: str) -> bool:
         "items",
         "label",
         "file",
+        "filepath",
         "path",
         "relative_path",
         "rel_path",
@@ -95,10 +96,10 @@ def _findings(*, source: str) -> list[_Finding]:
 
 class GenericVariableNamePostureTests(unittest.TestCase):
     def test_generic_path_and_file_names_are_flagged(self):
-        source = "path = 1\nrelative_path = 2\nrel_path = 3\nfile = 4\nacquisition_rel_path = 5\n"
+        source = "path = 1\nrelative_path = 2\nrel_path = 3\nfile = 4\nfilepath = 5\nacquisition_rel_path = 6\n"
 
         self.assertEqual(
-            first=["path", "relative_path", "rel_path", "file"],
+            first=["path", "relative_path", "rel_path", "file", "filepath"],
             second=[finding.variable_name for finding in _findings(source=source)],
         )
 
