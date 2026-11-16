@@ -57,9 +57,9 @@ class SourceUpdateTests(unittest.TestCase):
             updates.read_manifest(json.dumps(manifest))
 
     def test_manifest_reports_the_invalid_release_identity(self):
-        for (changes, expected_field) in (
-            ({"release_version": "latest"}, "manifest_release_version='latest'"),
-            ({"source_revision": "not-a-revision"}, "manifest_source_revision='not-a-revision'"),
+        for (changes, expected_requirement, expected_field) in (
+            ({"release_version": "latest"}, "release version must be exact", "manifest_release_version='latest'"),
+            ({"source_revision": "not-a-revision"}, "revision must be 40 lowercase hexadecimal characters", "manifest_source_revision='not-a-revision'"),
         ):
             with self.subTest(changes=changes):
                 manifest = self.manifest("1.0.0", self.old)
@@ -68,6 +68,7 @@ class SourceUpdateTests(unittest.TestCase):
                     updates.read_manifest(json.dumps(manifest | changes))
 
                 self.assertIn(expected_field, str(caught.exception))
+                self.assertIn(expected_requirement, str(caught.exception))
 
     def setUp(self):
         temporary = tempfile.TemporaryDirectory()

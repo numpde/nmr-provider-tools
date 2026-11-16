@@ -117,13 +117,13 @@ def read_manifest(data: str | bytes | bytearray) -> AcquisitionManifest:
     manifest_release_version = manifest["release_version"]
 
     if not _version(manifest_release_version):
-        raise ValueError(f"Acquisition manifest requires an exact {manifest_release_version=}")
+        raise ValueError(f"Acquisition manifest release version must be exact: {manifest_release_version=}")
 
     if not (type((manifest_source_revision := manifest["source_revision"])) is (expected_type := str)):
         raise TypeError(f"{type(manifest_source_revision)=} ≠ {expected_type=}")
 
     if not re.fullmatch(r"[0-9a-f]{40}", manifest_source_revision):
-        raise ValueError(f"Acquisition manifest requires a 40-digit lowercase hexadecimal {manifest_source_revision=}")
+        raise ValueError(f"Acquisition manifest revision must be 40 lowercase hexadecimal characters: {manifest_source_revision=}")
 
     entries = manifest["payload_files"]
 
