@@ -77,7 +77,7 @@ def _relative_name(name):
     if not (type(name) is (expected_type := str)):
         raise TypeError(f"{type(name)=} ≠ {expected_type=}")
 
-    if not (name) or "\0" in name:
+    if (not name) or ("\0" in name):
         raise ValueError("Acquisition inventory contains an empty or non-text file path.")
 
     path = PurePosixPath(name)
