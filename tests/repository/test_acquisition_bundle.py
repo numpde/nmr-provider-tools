@@ -195,15 +195,18 @@ class AcquisitionBundleTests(unittest.TestCase):
 
             (source / "host/acquisition_tool/source_update.py").write_bytes(authored_updater.read_bytes())
             archive_path = root / "candidate.tar.gz"
+
             self.build(root, archive_path, source, wheel, pin)
 
             release_pin = root / "release-pin.json"
+
             release_pin.write_text(json.dumps({
                 "version": "0.6.0",
                 "archive_sha256": hashlib.sha256(archive_path.read_bytes()).hexdigest(),
             }))
 
             snapshot = root / "snapshot"
+
             shutil.copytree(ROOT / "bootstrap/acquisition", snapshot)
 
             subprocess.run(

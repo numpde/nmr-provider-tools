@@ -276,6 +276,7 @@ def verify(source_dir):
 
             # Git records executable bits, not checkout read/write permissions.
             actual_execute_bits = metadata.st_mode & 0o111
+
             release_execute_bits = entries[acquisition_rel_path]["mode"] & 0o111
 
             if actual_execute_bits != release_execute_bits:

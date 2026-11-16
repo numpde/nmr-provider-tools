@@ -42,6 +42,7 @@ class SourceUpdateTests(unittest.TestCase):
         ):
             with self.subTest(field_changes=field_changes):
                 manifest = self.manifest("1.0.0", self.old)
+
                 manifest["payload_files"][member_name].update(field_changes)
 
                 with self.assertRaises(exception_type) as caught:
@@ -51,6 +52,7 @@ class SourceUpdateTests(unittest.TestCase):
                 self.assertIn(member_name, str(caught.exception))
 
         manifest = self.manifest("1.0.0", self.old)
+
         del manifest["payload_files"][member_name]["sha256"]
 
         with self.assertRaisesRegex(ValueError, "metadata must contain exactly sha256, size and mode"):
@@ -202,6 +204,7 @@ class SourceUpdateTests(unittest.TestCase):
         self.assertIn(f"actual_size={len(recorded_bytes) + 1} ≠ release_size={len(recorded_bytes)}", str(caught.exception))
 
         modified_bytes = b"X" + recorded_bytes[1:]
+
         acquisition_file.write_bytes(modified_bytes)
 
         with self.assertRaises(ValueError) as caught:
@@ -257,6 +260,7 @@ class SourceUpdateTests(unittest.TestCase):
         ):
             with self.subTest(mismatch=mismatch, declared_size=declared_size, declared_mode=declared_mode):
                 manifest = self.manifest("2.0.0", self.new)
+
                 manifest["payload_files"][member_name].update(size=declared_size, mode=declared_mode)
                 payload = self.new | {"acquisition-manifest.json": json.dumps(manifest).encode()}
 
@@ -278,7 +282,9 @@ class SourceUpdateTests(unittest.TestCase):
                 diagnostic = str(caught.exception)
 
                 self.assertIn(f"member.{mismatch}=", diagnostic)
-                self.assertNotIn("member.mode=" if mismatch == "size" else "member.size=", diagnostic)
+                other_field = {"size": "member.mode=", "mode": "member.size="}[mismatch]
+
+                self.assertNotIn(other_field, diagnostic)
                 self.assert_old_source()
                 self.assertEqual([], list(self.root.glob(".acquisition-next-*")))
 
