@@ -202,6 +202,7 @@ class _Resident:
         self.initialization = None
         self.initialization_deadline = None
         self.initialization_abandoned = False
+        self.initialization_limit_failure = TimeoutError("Instance initialization exceeded its original allowance.")
         self.dispose_attempted = False
         self.join_task = None
         self.retirement = None
@@ -225,7 +226,7 @@ class _Resident:
             binding.initialize_instance(instance=self.value, assets=self.assets)
 
             if seconds < time.monotonic() - started_at:
-                raise TimeoutError("Instance initialization exceeded its original allowance.")
+                raise self.initialization_limit_failure
         except BaseException as cause:
             self.failure = cause
 
