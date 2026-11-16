@@ -78,9 +78,14 @@ class PredictionWorkflow:
             self.hosted_predictor.contribution.interpretation_prompt_file,
         ).read_text(encoding="utf-8")
 
-        # The tool definition tells the language model how to propose input.
-        # When it does, the interpreter calls dispatch with that proposal;
-        # the preparation tool runs scientific validation and retains accepted input.
+        # The model calls prepare to propose a formula and peaks. The SDK also
+        # supplies tools for inspecting input constraints and previous attempts.
+        # The interpreter passes each proposal to dispatch for validation.
+        # The model receives feedback on rejection and can try again.
+        # After preparation accepts input, the SDK retains it for generate
+        # and interpretation ends. Other failures propagate to the caller.
+        # The SDK's interpreter.MODEL_TURNS and MODEL_REJECTIONS currently allow
+        # 12 turns and 3 corrections per model; the deployment also sets a timeout.
         await self.interpreter.run(
             messages=[
                 {"role": "system", "content": system_prompt},
