@@ -24,7 +24,7 @@ async def await_original(original, *, deadline):
     This wait grants no resource retirement or permission to close its inputs.
     """
 
-    if not (isinstance(original, (expected_type := Future))):
+    if not isinstance(original, (expected_type := Future)):
         raise TypeError(f"{type(original)=} ≠ {expected_type=}")
 
     seconds = None
@@ -148,7 +148,7 @@ class AsyncRunnerSession:
         try:
             return await await_original(original, deadline=deadline)
         except FutureCancelledError:
-            if not (original.cancelled()):
+            if not original.cancelled():
                 raise
 
             raise self._failure(original) from None
