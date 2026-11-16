@@ -149,6 +149,10 @@ async def open_provider(
 
         for offering in offerings:
             try:
+                # The SDK calls this offering's initialize() on its worker thread.
+                # That creates the model, verifies its checkpoint and loads it.
+                # Wait for loading before making the provider available. A timeout
+                # does not stop loading; the host joins it during cleanup.
                 await execution_host.initialize(allocation=offering.allocation)
             except Exception:
                 # Provider policy can decide here whether this offering should be
