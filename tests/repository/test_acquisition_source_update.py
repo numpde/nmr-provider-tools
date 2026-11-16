@@ -65,7 +65,7 @@ class SourceUpdateTests(unittest.TestCase):
         for (payload_files, expected_message) in (
             ({}, "payload inventory must not be empty"),
             ({"acquisition-manifest.json": metadata}, "must not include the manifest itself"),
-            ({"ancestor": metadata, "ancestor/child": metadata}, "name='ancestor/child' has an inventoried parent=PurePosixPath('ancestor')"),
+            ({"ancestor": metadata, "ancestor/child": metadata}, "acquisition_rel_path='ancestor/child' has an inventoried parent=PurePosixPath('ancestor')"),
         ):
             with self.subTest(payload_files=payload_files):
                 with self.assertRaises(ValueError) as caught:

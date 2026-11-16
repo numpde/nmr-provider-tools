@@ -136,33 +136,33 @@ def read_manifest(data: str | bytes | bytearray) -> AcquisitionManifest:
     if "acquisition-manifest.json" in entries:
         raise ValueError("Acquisition manifest payload inventory must not include the manifest itself")
 
-    for (name, entry) in entries.items():
-        path = _relative_name(name)
+    for (acquisition_rel_path, entry) in entries.items():
+        inventory_path = _relative_name(acquisition_rel_path)
 
-        for parent in path.parents:
+        for parent in inventory_path.parents:
             if parent.as_posix() in entries:
-                raise ValueError(f"Acquisition payload {name=} has an inventoried {parent=}")
+                raise ValueError(f"Acquisition payload {acquisition_rel_path=} has an inventoried {parent=}")
 
         if not (type(entry) is (expected_type := dict)):
-            raise TypeError(f"{name=}; {type(entry)=} ≠ {expected_type=}")
+            raise TypeError(f"{acquisition_rel_path=}; {type(entry)=} ≠ {expected_type=}")
 
         if set(entry) != {"sha256", "size", "mode"}:
-            raise ValueError(f"Acquisition payload {name=}: metadata must contain exactly sha256, size and mode; {sorted(entry)=}")
+            raise ValueError(f"Acquisition payload {acquisition_rel_path=}: metadata must contain exactly sha256, size and mode; {sorted(entry)=}")
 
         if not _checksum(entry["sha256"]):
-            raise ValueError(f"Acquisition payload {name=}: sha256 must have 64 lowercase hexadecimal characters")
+            raise ValueError(f"Acquisition payload {acquisition_rel_path=}: sha256 must have 64 lowercase hexadecimal characters")
 
         if not (type((entry_size := entry["size"])) is (expected_type := int)):
-            raise TypeError(f"{name=}; {type(entry_size)=} ≠ {expected_type=}")
+            raise TypeError(f"{acquisition_rel_path=}; {type(entry_size)=} ≠ {expected_type=}")
 
         if not (0 <= entry["size"]):
-            raise ValueError(f"Acquisition payload {name=}: {entry_size=} must be nonnegative")
+            raise ValueError(f"Acquisition payload {acquisition_rel_path=}: {entry_size=} must be nonnegative")
 
         if not (type((entry_mode := entry["mode"])) is (expected_type := int)):
-            raise TypeError(f"{name=}; {type(entry_mode)=} ≠ {expected_type=}")
+            raise TypeError(f"{acquisition_rel_path=}; {type(entry_mode)=} ≠ {expected_type=}")
 
         if not (entry["mode"] in (0o644, 0o755)):
-            raise ValueError(f"Acquisition payload {name=}: {entry_mode=:o} (octal); JSON mode must be 420 or 493")
+            raise ValueError(f"Acquisition payload {acquisition_rel_path=}: {entry_mode=:o} (octal); JSON mode must be 420 or 493")
 
     dependencies = manifest["dependency_inputs"]
 
