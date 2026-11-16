@@ -326,6 +326,7 @@ class SourceUpdateTests(unittest.TestCase):
 
                 if mismatch == "mode":
                     self.assertIn("(octal)", diagnostic)
+
                 other_field = {"size": "member.mode=", "mode": "member.size="}[mismatch]
 
                 self.assertNotIn(other_field, diagnostic)
@@ -531,6 +532,7 @@ class SourceUpdateTests(unittest.TestCase):
 
     def test_download_cleanup_failure_reports_published_source(self):
         download_directory = self.root / "download"
+
         download_directory.mkdir()
         cleanup_failure = PermissionError("download cleanup failed")
 
