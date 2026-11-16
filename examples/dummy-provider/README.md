@@ -15,6 +15,21 @@ tests/
     test_execution.py prepare/calculate and partial-loading cleanup through the host
 ```
 
+The scientific example depends on NumPy (imported as `np`). Model `weights` and
+retained prepared `samples` are one-dimensional float64 arrays. The example
+checks real numeric dtypes and uses [`np.isfinite`](https://numpy.org/doc/stable/reference/generated/numpy.isfinite.html)
+to reject NaN and infinity. Each retained vector owns a read-only copy, so caller
+mutation cannot change the model or accepted preparation. Array conversion follows
+NumPy numeric promotion; the JSON codec separately rejects booleans where float
+samples are declared. Calculation uses
+`np.dot`; the stateless operation uses `np.sum`.
+
+`PreparationInput.samples` and `SumInput.samples` are JSON-facing tuple fields.
+The SDK's ordinary dataclass codec carries these sequences; scientific preparation
+and summation convert them to arrays. NumPy arrays stay within provider-owned
+model and state objects. `requirements.lock` pins the example's scientific wheel;
+NumPy is not a provider-core dependency.
+
 The weighted-sum binding holds a reusable model and per-analysis state. Its
 prepare call returns worker-local state that calculate consumes. The stateless
 sum binding uses the same interface for a single calculation.

@@ -44,7 +44,7 @@ class WeightedSum(sdk.Contribution):
 
     analysis_type = WeightedAnalysis
     _model: science.WeightedSumModel | None = None
-    prepared_state_type = sdk.StateType(value_type=science.PreparedValues)
+    prepared_state_type = sdk.StateType(value_type=science.PreparedSamples)
     normalized = prepared_state_type.output(dispose=science.dispose_prepared)
     candidate = prepared_state_type.input(use=sdk.StateUse.CONSUME)
 
@@ -79,7 +79,7 @@ class WeightedSum(sdk.Contribution):
         prepared = science.prepare(analysis=analysis.value, candidate=candidate)
 
         return sdk.ScientificReturn(
-            value=science.PreparationResult(count=prepared.value_count),
+            value=science.PreparationResult(count=prepared.sample_count),
             states=(self.normalized.returned(value=prepared),),
         )
 
@@ -88,19 +88,19 @@ class WeightedSum(sdk.Contribution):
         self,
         *,
         analysis: WeightedAnalysis,
-        candidate: science.PreparedValues,
+        candidate: science.PreparedSamples,
         control: sdk.ScientificControl,
     ) -> science.PredictionResult:
         control.report_progress(event=sdk.ProgressEvent(stage="calculation", completed=0, total=1))
 
-        result = science.calculate(
+        prediction_result = science.calculate(
             analysis=analysis.value,
             state=science.CalculationState(prepared=candidate),
         )
 
         control.report_progress(event=sdk.ProgressEvent(stage="calculation", completed=1, total=1))
 
-        return result
+        return prediction_result
 
 
 class Sum(sdk.Contribution):

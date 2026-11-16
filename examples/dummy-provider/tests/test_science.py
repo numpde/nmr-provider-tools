@@ -6,6 +6,8 @@ require_container()
 
 import unittest
 
+import numpy as np
+
 from dummy_provider import science
 
 
@@ -13,7 +15,7 @@ class DummyScienceTests(unittest.TestCase):
     def test_weighted_sum_uses_provider_types_directly(self) -> None:
         model = science.create_model(
             settings=science.WeightedSumSettings(scale=2, offset=1),
-            coefficients=science.CoefficientSet(values=(1, 2, 3)),
+            coefficients=science.CoefficientSet(weights=np.array(object=(1, 2, 3), dtype=np.float64)),
         )
 
         self.addCleanup(science.dispose_model, model)
@@ -24,14 +26,14 @@ class DummyScienceTests(unittest.TestCase):
         self.addCleanup(science.dispose_analysis, analysis)
         science.initialize_analysis(analysis)
 
-        prepared_values = science.prepare(
+        prepared_samples = science.prepare(
             analysis=analysis,
-            candidate=science.PreparationInput(values=(2, 4, 6)),
+            candidate=science.PreparationInput(samples=(2, 4, 6)),
         )
 
         actual_prediction = science.calculate(
             analysis=analysis,
-            state=science.CalculationState(prepared=prepared_values),
+            state=science.CalculationState(prepared=prepared_samples),
         )
 
         self.assertEqual(science.PredictionResult(total=57, count=3), actual_prediction)
@@ -39,7 +41,7 @@ class DummyScienceTests(unittest.TestCase):
     def test_rejected_candidate_does_not_discard_the_analysis(self) -> None:
         model = science.create_model(
             settings=science.WeightedSumSettings(scale=1, offset=0),
-            coefficients=science.CoefficientSet(values=(2, 3)),
+            coefficients=science.CoefficientSet(weights=np.array(object=(2, 3), dtype=np.float64)),
         )
 
         self.addCleanup(science.dispose_model, model)
@@ -53,27 +55,27 @@ class DummyScienceTests(unittest.TestCase):
         with self.assertRaises(science.ScientificInputRejected) as rejection:
             science.prepare(
                 analysis=analysis,
-                candidate=science.PreparationInput(values=(1,)),
+                candidate=science.PreparationInput(samples=(1,)),
             )
 
         self.assertEqual("wrong_count", rejection.exception.code)
 
         corrected_preparation = science.prepare(
             analysis=analysis,
-            candidate=science.PreparationInput(values=(1, 2)),
+            candidate=science.PreparationInput(samples=(1, 2)),
         )
 
-        self.assertEqual(2, corrected_preparation.value_count)
+        self.assertEqual(2, corrected_preparation.sample_count)
 
     def test_stateless_sum_needs_no_model_or_analysis(self) -> None:
-        actual_result = science.sum_values(summation=science.SumInput(values=(2, 4, 6)))
+        actual_result = science.sum_values(summation=science.SumInput(samples=(2, 4, 6)))
 
         self.assertEqual(science.SumResult(total=12, count=3), actual_result)
 
     def test_scientific_calls_reject_other_input_types(self) -> None:
         model = science.create_model(
             settings=science.WeightedSumSettings(scale=1, offset=0),
-            coefficients=science.CoefficientSet(values=(2, 3)),
+            coefficients=science.CoefficientSet(weights=np.array(object=(2, 3), dtype=np.float64)),
         )
 
         self.addCleanup(science.dispose_model, model)
@@ -87,33 +89,80 @@ class DummyScienceTests(unittest.TestCase):
         with self.assertRaises(TypeError):
             science.prepare(
                 analysis=analysis,
-                candidate=science.SumInput(values=(1, 2)),
+                candidate=science.SumInput(samples=(1, 2)),
             )
 
         with self.assertRaises(TypeError):
             science.sum_values(
-                summation=science.PreparationInput(values=(1, 2)),
+                summation=science.PreparationInput(samples=(1, 2)),
             )
 
         with self.assertRaises(TypeError):
             science.calculate(
                 analysis=analysis,
-                state=science.PreparationInput(values=(1, 2)),
+                state=science.PreparationInput(samples=(1, 2)),
             )
 
-    def test_prepared_values_validate_type_before_emptiness(self) -> None:
+    def test_vectors_reject_wrong_shape_dtype_nonfinite_and_empty_samples(self) -> None:
         model = science.create_model(
             settings=science.WeightedSumSettings(scale=1, offset=0),
-            coefficients=science.CoefficientSet(values=(1,)),
+            coefficients=science.CoefficientSet(weights=np.array(object=(1,), dtype=np.float64)),
         )
 
-        analysis = science.create_analysis(model)
+        analysis = science.create_analysis(model=model)
 
-        with self.assertRaises(TypeError):
-            science.PreparedValues(analysis=analysis, values=[])
+        for invalid_samples in (
+            np.array(object=1.0),
+            np.array(object=((1.0,),)),
+            np.array(object=(True,)),
+            np.array(object=("1",)),
+            np.array(object=(1 + 2j,)),
+            np.array(object=(np.nan,)),
+            np.array(object=(np.inf,)),
+            np.array(object=(-np.inf,)),
+            np.array(object=(), dtype=np.float64),
+        ):
+            with self.subTest(invalid_samples=invalid_samples), self.assertRaises(expected_exception=ValueError):
+                science.PreparedSamples(analysis=analysis, samples=invalid_samples)
 
-        with self.assertRaises(ValueError):
-            science.PreparedValues(analysis=analysis, values=())
+    def test_array_conversion_uses_numpy_numeric_promotion(self) -> None:
+        coefficient_weights = np.array(object=(True, 2.0))
+        coefficients = science.CoefficientSet(weights=coefficient_weights)
+
+        np.testing.assert_array_equal(actual=coefficients.weights, desired=(1.0, 2.0))
+        self.assertEqual(first=np.dtype(np.float64), second=coefficients.weights.dtype)
+
+    def test_retained_vectors_own_their_storage(self) -> None:
+        original_weights = np.array(object=(2.0, 3.0))
+        coefficients = science.CoefficientSet(weights=original_weights)
+
+        model = science.create_model(
+            settings=science.WeightedSumSettings(scale=1, offset=0),
+            coefficients=coefficients,
+        )
+
+        analysis = science.create_analysis(model=model)
+        original_samples = np.array(object=(4.0, 5.0))
+        prepared_samples = science.PreparedSamples(analysis=analysis, samples=original_samples)
+
+
+        original_weights[:] = 99
+        original_samples[:] = 99
+
+        np.testing.assert_array_equal(actual=coefficients.weights, desired=(2.0, 3.0))
+        np.testing.assert_array_equal(actual=prepared_samples.samples, desired=(4.0, 5.0))
+        self.assertFalse(expr=coefficients.weights.flags.writeable)
+        self.assertFalse(expr=prepared_samples.samples.flags.writeable)
+
+        analysis.accepted_preparation = prepared_samples
+        consumed_samples = prepared_samples.consume(analysis=analysis)
+
+        np.testing.assert_array_equal(actual=consumed_samples, desired=(4.0, 5.0))
+        self.assertIsNone(obj=prepared_samples.samples)
+        self.assertIsNone(obj=analysis.accepted_preparation)
+
+        with self.assertRaises(expected_exception=RuntimeError):
+            prepared_samples.consume(analysis=analysis)
 
 
 if __name__ == "__main__":
