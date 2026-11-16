@@ -112,7 +112,7 @@ def prepare(*, model: Model, candidate: HfInput | ChfInput, settings: Settings) 
     tokens = model.tokenize(candidate=candidate)
     token_count = len(tokens)
 
-    if (not tokens) or (token_count > settings.maximum_input_tokens):
+    if not (tokens and (token_count <= settings.maximum_input_tokens)):
         raise ScientificRejection(
             code="token_limit",
             message=f"Cannot generate with {token_count=}; requires 1 through {settings.maximum_input_tokens=}",

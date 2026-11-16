@@ -6,6 +6,9 @@ predicates may omit that extra grouping. Single is-not/not-in comparisons
 should negate their accepted identity/membership condition. It does not infer
 accepted predicates for arbitrary equality, ordering or boolean expressions.
 Exception type, exception construction and chaining do not restrict the rule.
+For a disjunction of failure conditions, an explicit ``not`` must not be mixed
+with an unnegated operand; write all failures as negations or negate the complete
+accepted condition. Gated ``and`` conditions remain outside this spelling rule.
 The existing validation checker reviews range and value logic independently.
 """
 
@@ -63,6 +66,12 @@ def guard_findings(*, source: str) -> list[tuple[int, str]]:
 
         condition = statement.test
 
+        if isinstance(condition, ast.BoolOp) and isinstance(condition.op, ast.Or):
+            negated = [isinstance(operand, ast.UnaryOp) and isinstance(operand.op, ast.Not) for operand in condition.values]
+
+            if any(negated) and (not all(negated)):
+                findings.append((statement.lineno, "use consistently negated failure conditions or negate the complete expected condition"))
+
         if isinstance(condition, ast.UnaryOp) and isinstance(condition.op, ast.Not):
             if not isinstance(condition.operand, ast.Call) and not _parenthesized_not(expression=ast.get_source_segment(source=source, node=condition)):
                 findings.append((statement.lineno, "parenthesize the complete expected condition after not"))
@@ -76,6 +85,43 @@ def guard_findings(*, source: str) -> list[tuple[int, str]]:
 
 
 class ExpectedConditionGuardPostureTests(unittest.TestCase):
+    def test_mixed_disjunction_in_raising_guard_is_flagged(self):
+        for condition in (
+            "(not tokens) or (token_count > limit)",
+            "(bad_count > limit) or (not samples)",
+            "(not ready) or missing or (not permitted)",
+        ):
+            with self.subTest(condition=condition):
+                source = (
+                    f"if {condition}:\n"
+                    f"    raise ScientificRejection()\n"
+                )
+
+                self.assertEqual(first=1, second=len(guard_findings(source=source)))
+
+    def test_consistent_negations_and_gated_conditions_are_allowed(self):
+        for condition in (
+            "(not tokens) or (not (token_count <= limit))",
+            "not (tokens and (token_count <= limit))",
+            "enabled and not available",
+            "invalid or missing",
+        ):
+            with self.subTest(condition=condition):
+                source = (
+                    f"if {condition}:\n"
+                    f"    raise ValueError()\n"
+                )
+
+                self.assertEqual(first=[], second=guard_findings(source=source))
+
+    def test_mixed_disjunction_without_direct_raise_is_outside_rule(self):
+        source = (
+            "if (not tokens) or (token_count > limit):\n"
+            "    return None\n"
+        )
+
+        self.assertEqual(first=[], second=guard_findings(source=source))
+
     def test_examples_require_expected_condition_form(self):
         sources = [
             "if not 1 <= count <= settings.beam_size:\n    raise ValueError\n",
