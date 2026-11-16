@@ -1,4 +1,4 @@
-"""Flag generic variable bindings so each name must explain its role.
+"""Flag generic bindings and function names so each name explains its role.
 
 This deliberately strict first pass includes helpers, tests and public keyword
 parameters. Findings require semantic review; they do not authorize renaming a
@@ -25,7 +25,7 @@ class _Finding:
 
     def diagnostic(self, *, path: Path) -> str:
         return (
-            f"{path}:{self.line}: generic variable {self.variable_name!r}; "
+            f"{path}:{self.line}: generic name {self.variable_name!r}; "
             "name its class or purpose; review public keyword and field contracts before renaming"
         )
 
@@ -38,6 +38,11 @@ def _generic_name(*, variable_name: str) -> bool:
         "item",
         "items",
         "entries",
+        "prepare",
+        "process",
+        "execute",
+        "validate",
+        "run",
         "label",
         "file",
         "filepath",
@@ -59,7 +64,9 @@ def _findings(*, source: str) -> list[_Finding]:
     for syntax_node in ast.walk(node=ast.parse(source=source)):
         bindings = []
 
-        if isinstance(syntax_node, ast.arg):
+        if isinstance(syntax_node, (ast.FunctionDef, ast.AsyncFunctionDef)):
+            bindings.append((syntax_node.lineno, syntax_node.name))
+        elif isinstance(syntax_node, ast.arg):
             bindings.append((syntax_node.lineno, syntax_node.arg))
         elif isinstance(syntax_node, ast.Name) and isinstance(syntax_node.ctx, ast.Store):
             bindings.append((syntax_node.lineno, syntax_node.id))
@@ -96,6 +103,25 @@ def _findings(*, source: str) -> list[_Finding]:
 
 
 class GenericVariableNamePostureTests(unittest.TestCase):
+    def test_generic_action_names_are_flagged_for_functions_and_variables(self):
+        source = (
+            "def prepare():\n"
+            "    pass\n"
+            "async def process():\n"
+            "    pass\n"
+            "execute = 1\n"
+            "_VALIDATE = 2\n"
+            "run = 3\n"
+            "def prepare_input():\n"
+            "    pass\n"
+            "run_inference = 4\n"
+        )
+
+        self.assertEqual(
+            first=["prepare", "process", "execute", "_VALIDATE", "run"],
+            second=[finding.variable_name for finding in _findings(source=source)],
+        )
+
     def test_entries_requires_a_specific_purpose(self):
         source = (
             "entries = []\n"
