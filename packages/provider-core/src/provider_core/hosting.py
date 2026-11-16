@@ -374,6 +374,12 @@ class NotAdmitted:
         if not (self.message):
             raise ValueError("Non-admission requires an explanatory message")
 
+    def __str__(self) -> str:
+        code = self.code.value
+        message = self.message
+
+        return f"{code=!s}; {message=!s}"
+
     @property
     def reason(self):
         return self.message

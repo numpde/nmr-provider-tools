@@ -12,10 +12,12 @@ from unittest.mock import AsyncMock
 
 from provider_core.hosting import (
     AcceptanceState,
+    AdmissionCode,
     CallRef,
     CleanupObservation,
     DispatchState,
     Failure,
+    NotAdmitted,
     Observation,
     OperationRef,
     Outcome,
@@ -74,6 +76,11 @@ class HeldObserver:
 
 
 class HostingObservationTests(unittest.IsolatedAsyncioTestCase):
+    def test_non_admission_describes_its_code_and_reason(self):
+        refusal = NotAdmitted(code=AdmissionCode.CAPACITY, message="No execution capacity is available")
+
+        self.assertEqual(first="code=capacity; message=No execution capacity is available", second=str(refusal))
+
     async def test_completion_preserves_scientific_success_and_encoding_failure(self):
         cause = ValueError("The completed scientific result cannot be encoded")
 

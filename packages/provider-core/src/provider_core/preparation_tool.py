@@ -176,7 +176,7 @@ class PreparationTool[PreparedT]:
                 raise ModelWindowExpired() from cause
 
             if isinstance(preparation_admission, NotAdmitted):
-                raise RuntimeError(f"Cannot prepare scientific input: {preparation_admission=}")
+                raise RuntimeError(f"Cannot prepare scientific input: {preparation_admission=!s}")
 
         preparation_operation = self.operation
 
