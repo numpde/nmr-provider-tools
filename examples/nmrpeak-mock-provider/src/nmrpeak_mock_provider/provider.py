@@ -108,8 +108,8 @@ async def open_provider(
 
     This is provider-written setup, not an SDK discovery hook. The application's
     request-handling code opens predictions and finishes those contexts before
-    leaving the provider context. Model loading starts only when science
-    is requested. Setup failure, body failure and independent cleanup failure
+    leaving the provider context. Models are loaded before the provider is yielded.
+    Setup failure, body failure and independent cleanup failure
     retain their original causes.
     """
 
@@ -146,6 +146,9 @@ async def open_provider(
                     contribution=predictor,
                     requirements=resource_requirements,
                 ))
+
+        for offering in offerings:
+            await execution_host.initialize(allocation=offering.allocation)
 
         yield Provider(
             execution_host=execution_host,

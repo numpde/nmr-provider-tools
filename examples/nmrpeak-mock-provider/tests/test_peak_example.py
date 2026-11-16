@@ -253,18 +253,18 @@ class PeakExampleTests(unittest.IsolatedAsyncioTestCase):
 
                 self.assertIsInstance(obj=raised.exception.__cause__, cls=StartDeadlineExpired)
                 self.assertIsNone(obj=prediction_workflow.preparation_tool.operation)
-                self.assertIsNone(obj=proton_formula_predictor.contribution.model)
+                self.assertIsNotNone(obj=proton_formula_predictor.contribution.model)
 
-    async def test_interpreter_deadline_waits_for_original_loading_to_settle(self):
+    async def test_interpreter_deadline_waits_for_original_tokenization_to_settle(self):
         entered = Event()
         release = Event()
 
         class HeldModel(Model):
-            def load(self, *, checkpoint):
+            def tokenize(self, *, candidate):
                 entered.set()
                 release.wait(timeout=5)
 
-                return super().load(checkpoint=checkpoint)
+                return super().tokenize(candidate=candidate)
 
         async with self.open_provider(create_model=HeldModel) as provider:
             (proton_formula_predictor,) = [offering for offering in provider.offerings if isinstance(offering.contribution, Hf)]
@@ -285,15 +285,13 @@ class PeakExampleTests(unittest.IsolatedAsyncioTestCase):
                         self.assertFalse(expr=task.done())
                         release.set()
 
-                        with self.assertRaises(expected_exception=ModelWindowExpired) as raised:
-                            await task
+                        await task
 
-                    self.assertIsInstance(obj=raised.exception.__cause__, cls=StartDeadlineExpired)
                     self.assertIsNotNone(obj=prediction_workflow.preparation_tool.operation)
                     observed = await prediction_workflow.preparation_tool.operation.observe(after=None, wait_seconds=0)
 
                     self.assertTrue(expr=observed.finished)
-                    self.assertIsNone(obj=prediction_workflow.preparation_tool.prepared_state_handle)
+                    self.assertIsNotNone(obj=prediction_workflow.preparation_tool.prepared_state_handle)
                 finally:
                     release.set()
                     await asyncio.gather(task, return_exceptions=True)
@@ -396,20 +394,9 @@ class PeakExampleTests(unittest.IsolatedAsyncioTestCase):
 
     async def test_checkpoint_mismatch_stops_loading_before_model_deserialization(self):
         self.configure_science(variant="hf", checkpoint_sha256="0" * 64)
-        self.factory.proposals = (candidate(carbon=False),)
-
-        async with self.open_provider() as provider:
-            (proton_formula_predictor,) = [offering for offering in provider.offerings if isinstance(offering.contribution, Hf)]
-
-            with self.assertRaisesRegex(expected_exception=ValueError, expected_regex="actual_sha256="):
-                async with provider.open_prediction(offering=proton_formula_predictor, receive=RecordingReceiver()) as prediction_workflow:
-                    await prediction_workflow.interpret(source="Formula and proton spectrum")
-
-            self.assertIsNotNone(obj=proton_formula_predictor.contribution.model)
-            self.assertIsNone(obj=proton_formula_predictor.contribution.model.tokenizer)
-            self.assertIsNone(obj=prediction_workflow.generation_submission)
-            self.assertTrue(expr=prediction_workflow.analysis_executor.closed)
-            self.assertTrue(expr=self.factory.endpoints[0].retirement_confirmed)
+        with self.assertRaisesRegex(expected_exception=ValueError, expected_regex="actual_sha256="):
+            async with self.open_provider():
+                self.fail(msg="A mismatched checkpoint must prevent provider startup")
 
     async def test_partial_loading_preserves_original_error_and_closes_same_model(self):
         original = OSError("Cannot finish loading weights")
@@ -429,26 +416,19 @@ class PeakExampleTests(unittest.IsolatedAsyncioTestCase):
                 closed.append(self)
                 super().close()
 
-        async with self.open_provider(create_model=PartialModel) as provider:
-            (proton_formula_predictor,) = [offering for offering in provider.offerings if isinstance(offering.contribution, Hf)]
+        with self.assertRaises(expected_exception=OSError) as raised:
+            async with self.open_provider(create_model=PartialModel):
+                self.fail(msg="A failed model load must prevent provider startup")
 
-            with self.assertRaises(expected_exception=OSError) as raised:
-                async with provider.open_prediction(offering=proton_formula_predictor, receive=receiver) as prediction_workflow:
-                    await prediction_workflow.interpret(source="Formula and proton spectrum")
+        (model,) = models
 
-            (model,) = models
-
-            self.assertIs(expr1=original, expr2=raised.exception)
-            self.assertEqual(first=[], second=receiver.payloads)
-            self.assertIs(expr1=model, expr2=proton_formula_predictor.contribution.model)
-            self.assertIsNotNone(obj=model.tokenizer)
-            self.assertTrue(expr=prediction_workflow.analysis_executor.closed)
-            self.assertTrue(expr=self.factory.endpoints[0].retirement_confirmed)
+        self.assertIs(expr1=original, expr2=raised.exception)
+        self.assertEqual(first=[], second=receiver.payloads)
 
         self.assertEqual(first=[model], second=closed)
         self.assertIsNone(obj=model.tokenizer)
 
-    async def test_setup_does_not_start_science_and_retires_on_exit(self):
+    async def test_setup_loads_models_and_retires_on_exit(self):
         created = []
 
         def create_model():
@@ -460,12 +440,13 @@ class PeakExampleTests(unittest.IsolatedAsyncioTestCase):
 
         async with self.open_provider(create_model=create_model) as provider:
             self.assertEqual(first=2, second=len(provider.offerings))
-            self.assertEqual(first=[], second=created)
+            self.assertEqual(first=2, second=len(created))
+            self.assertTrue(expr=all(model.tokenizer is not None for model in created))
 
         retirement = await provider.execution_host.retire().observe(after=None, wait_seconds=0)
 
         self.assertTrue(expr=retirement.settled)
-        self.assertEqual(first=[], second=created)
+        self.assertTrue(expr=all(model.tokenizer is None for model in created))
 
     async def test_request_corrects_input_and_concurrent_delivery_sends_once(self):
         rejected = candidate(carbon=False)
@@ -602,12 +583,12 @@ class PeakExampleTests(unittest.IsolatedAsyncioTestCase):
 
                 self.assertEqual(first=1, second=len(receiver.payloads))
 
-            self.assertEqual(first=1, second=len(models))
-            self.assertIs(expr1=models[0], expr2=proton_formula_predictor.contribution.model)
+            self.assertEqual(first=2, second=len(models))
+            self.assertIn(member=proton_formula_predictor.contribution.model, container=models)
             self.assertEqual(first=2, second=len(self.factory.endpoints))
             self.assertTrue(expr=all(endpoint.retirement_confirmed for endpoint in self.factory.endpoints))
 
-        self.assertIsNone(obj=models[0].tokenizer)
+        self.assertTrue(expr=all(model.tokenizer is None for model in models))
 
     async def test_occupied_offering_refuses_second_request_without_disrupting_first(self):
         self.factory.proposals = (candidate(carbon=False),)
