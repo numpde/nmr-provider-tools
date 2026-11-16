@@ -228,27 +228,33 @@ def verify(source_dir):
 
         for name in files:
             path = Path(root) / name
-            relative = path.relative_to(source).as_posix()
+            relative_path = path.relative_to(source).as_posix()
 
-            if relative == "acquisition-manifest.json":
-                actual.add(relative)
+            if relative_path == "acquisition-manifest.json":
+                actual.add(relative_path)
                 continue
 
-            if not (relative in entries):
-                raise ValueError(f"Acquisition source contains an unrecorded file: {relative}.")
+            if not (relative_path in entries):
+                raise ValueError(f"Acquisition source contains an unrecorded file: {relative_path=}")
 
             (content, metadata) = _regular_bytes(path)
 
             if metadata.st_nlink != 1:
-                raise ValueError(f"Acquisition source file has extra hard links: {relative}.")
+                raise ValueError(f"Acquisition source file has extra hard links: {relative_path=}")
 
-            _check_bytes(relative, content, entries[relative])
+            _check_bytes(relative_path, content, entries[relative_path])
 
             # Git records executable bits, not checkout read/write permissions.
-            if (metadata.st_mode & 0o111) != (entries[relative]["mode"] & 0o111):
-                raise ValueError(f"Acquisition file executable bits differ from its recorded release: {relative}.")
+            actual_execute_bits = metadata.st_mode & 0o111
+            expected_execute_bits = entries[relative_path]["mode"] & 0o111
 
-            actual.add(relative)
+            if actual_execute_bits != expected_execute_bits:
+                raise ValueError(
+                    f"Acquisition file executable bits differ: "
+                    f"{relative_path=}; {actual_execute_bits=:03o}; {expected_execute_bits=:03o}"
+                )
+
+            actual.add(relative_path)
 
     if actual != set(entries) | {"acquisition-manifest.json"}:
         raise ValueError("Acquisition source is missing files from its recorded release.")
