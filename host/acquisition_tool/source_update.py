@@ -112,7 +112,7 @@ def read_manifest(data: str | bytes | bytearray) -> AcquisitionManifest:
     }:
         raise ValueError("Acquisition manifest must identify its release, source, payload and dependency inputs.")
 
-    if not (_version(manifest["release_version"])):
+    if not _version(manifest["release_version"]):
         raise ValueError("Acquisition manifest has no exact release version or Git source revision.")
 
     if not (type((manifest_source_revision := manifest["source_revision"])) is (expected_type := str)):
