@@ -148,7 +148,13 @@ async def open_provider(
                 ))
 
         for offering in offerings:
-            await execution_host.initialize(allocation=offering.allocation)
+            try:
+                await execution_host.initialize(allocation=offering.allocation)
+            except Exception:
+                # Provider policy can decide here whether this offering should be
+                # retired and retried or left unavailable while others serve work.
+                # No such policy is chosen here; host shutdown still owns cleanup.
+                raise
 
         yield Provider(
             execution_host=execution_host,
