@@ -65,7 +65,11 @@ def read_pin(path):
     if not (type(pin) is (expected_type := dict)):
         raise TypeError(f"{path=}; {type(pin)=} ≠ {expected_type=}")
 
-    if set(pin) != {"version", "archive_sha256"} or not (_version(pin["version"])) or not (_checksum(pin["archive_sha256"])):
+    if (
+        (set(pin) != {"version", "archive_sha256"}) or
+        (not _version(pin["version"])) or
+        (not _checksum(pin["archive_sha256"]))
+    ):
         raise ValueError(f"Cannot read release pin {path}: require version and archive_sha256.")
 
     return pin
@@ -208,8 +212,10 @@ def verify(source_dir):
     manifest = read_manifest(data)
     entries = manifest["payload_files"]
 
-    expected_dirs = {parent.as_posix() for name in entries
-                     for parent in PurePosixPath(name).parents if parent != PurePosixPath(".")}
+    expected_dirs = {
+        parent.as_posix() for name in entries
+        for parent in PurePosixPath(name).parents if parent != PurePosixPath(".")
+    }
 
     actual = set()
 
