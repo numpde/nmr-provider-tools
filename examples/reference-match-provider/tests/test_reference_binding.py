@@ -23,7 +23,7 @@ class ReferenceBindingTests(unittest.IsolatedAsyncioTestCase):
         self.configuration = directory / "provider.toml"
 
         shutil.copyfile(
-            src=Path(__file__).parent / "config/deployments/localhost/provider.toml",
+            src=Path(__file__).parent.parent / "config/deployments/localhost/provider.toml",
             dst=self.configuration,
         )
 

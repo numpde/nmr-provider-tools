@@ -52,7 +52,7 @@ class SpectrumWorkflowTests(unittest.IsolatedAsyncioTestCase):
         self.configuration = directory / "provider.toml"
 
         shutil.copyfile(
-            src=Path(__file__).parent / "config/deployments/localhost/provider.toml",
+            src=Path(__file__).parent.parent / "config/deployments/localhost/provider.toml",
             dst=self.configuration,
         )
 
@@ -446,7 +446,7 @@ class SpectrumWorkflowTests(unittest.IsolatedAsyncioTestCase):
 class SpectrumCommandTests(unittest.TestCase):
     def test_installed_command_runs_outside_its_source_tree(self):
         with TemporaryDirectory() as directory:
-            shutil.copytree(src=Path(__file__).parent / "config", dst=Path(directory) / "config")
+            shutil.copytree(src=Path(__file__).parent.parent / "config", dst=Path(directory) / "config")
 
             result = subprocess.run(
                 [sys.executable, "-I", "-B", "-m", "spectrum_provider"],

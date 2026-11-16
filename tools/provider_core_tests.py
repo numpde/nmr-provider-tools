@@ -315,7 +315,10 @@ def run_suite(suite: str, patterns: tuple[str, ...]) -> None:
 
                 namespace = "example_" + name.replace("-", "_")
 
-                shutil.copytree(source / "tests", test_tree / "tests/integration" / namespace)
+                example_tree = test_tree / "tests/integration" / namespace
+                example_tree.mkdir()
+                (example_tree / "__init__.py").touch()
+                shutil.copytree(source / "tests", example_tree / "tests")
 
                 # Deployment configuration and model data stay outside wheels.
                 # Preserve their relative layout when exercising installed code.
@@ -325,7 +328,7 @@ def run_suite(suite: str, patterns: tuple[str, ...]) -> None:
                     if directory.is_dir():
                         shutil.copytree(
                             src=directory,
-                            dst=test_tree / "tests/integration" / namespace / directory_name,
+                            dst=example_tree / directory_name,
                         )
 
         # silent-defaults: allow-contract -- Fuzz selects both owned suites; every other admitted selector names one suite.
