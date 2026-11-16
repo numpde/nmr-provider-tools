@@ -8,7 +8,9 @@ import hashlib
 import json
 import os
 import re
+import shutil
 import subprocess
+import sys
 import tarfile
 import tempfile
 import unittest
@@ -184,3 +186,44 @@ class AcquisitionBundleTests(unittest.TestCase):
             manifest = verify(extracted)
 
             self.assertIn("linux_idmap/ordinary_new_module.py", manifest["payload_files"])
+
+    def test_current_bootstrap_imports_a_new_bundle_with_the_authored_updater(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            (source, wheel, _identity, pin) = self.fixture(root)
+            authored_updater = ROOT / "host/acquisition_tool/source_update.py"
+
+            (source / "host/acquisition_tool/source_update.py").write_bytes(authored_updater.read_bytes())
+            archive_path = root / "candidate.tar.gz"
+            self.build(root, archive_path, source, wheel, pin)
+
+            release_pin = root / "release-pin.json"
+            release_pin.write_text(json.dumps({
+                "version": "0.6.0",
+                "archive_sha256": hashlib.sha256(archive_path.read_bytes()).hexdigest(),
+            }))
+
+            snapshot = root / "snapshot"
+            shutil.copytree(ROOT / "bootstrap/acquisition", snapshot)
+
+            subprocess.run(
+                [
+                    sys.executable,
+                    "-I",
+                    "-B",
+                    str(ROOT / "bootstrap/acquisition/acquisition_tool/source_update.py"),
+                    "import",
+                    "--source-dir",
+                    str(snapshot),
+                    "--pin-file",
+                    str(release_pin),
+                    "--archive",
+                    str(archive_path),
+                ],
+                check=True,
+                capture_output=True,
+                text=True,
+            )
+
+            self.assertEqual(authored_updater.read_bytes(), (snapshot / "acquisition_tool/source_update.py").read_bytes())
+            self.assertEqual("0.6.0", verify(snapshot)["release_version"])
