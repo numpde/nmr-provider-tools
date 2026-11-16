@@ -12,6 +12,7 @@ require_container()
 
 import asyncio
 from collections.abc import Callable, Mapping
+import time
 from uuid import uuid4
 from weakref import WeakSet
 
@@ -213,6 +214,57 @@ class InProcessExecutionHost:
         if not (asyncio.get_running_loop() is self.loop):
             raise RuntimeError("The embedded host belongs to its original event loop.")
 
+    async def initialize(self, *, allocation: AllocationRef) -> None:
+        """Load an adopted contribution before accepting requests for it.
+
+        Concurrent or cancelled waiters observe the same load. A timeout leaves
+        that load owned by the host; retirement waits for its worker before close.
+        Failed or overdue initialization is not retried on the same contribution.
+        """
+        self._require_loop()
+
+        if not (type(allocation) is (expected_type := AllocationRef)):
+            raise TypeError(f"{type(allocation)=} ≠ {expected_type=}")
+
+        resident = self.residents.get(allocation.allocation)
+
+        if resident is None or resident.reference != allocation:
+            raise ValueError("The allocation handle does not belong to this host")
+
+        if self.retiring or resident.retirement is not None or resident.retired:
+            raise CapacityUnavailable("Cannot initialize an allocation that is retiring")
+
+        if resident.analysis is not None:
+            raise CapacityUnavailable("Cannot initialize an allocation while an analysis owns it")
+
+        if resident.failure is not None:
+            raise resident.failure
+
+        if resident.initialization is None:
+            resident.initialization_deadline = time.monotonic() + self.initialization_seconds
+            resident.initialization = resident.executor.submit(resident.initialize, self.initialization_seconds)
+
+        try:
+            await await_original(resident.initialization, deadline=resident.initialization_deadline)
+        except asyncio.CancelledError:
+            resident.initialization_abandoned = True
+
+            raise
+        except TimeoutError as cause:
+            if not resident.initialization.done():
+                resident.failure = cause
+                resident.initialization_abandoned = True
+            else:
+                resident.initialization_abandoned = False
+
+            raise
+        except BaseException:
+            resident.initialization_abandoned = False
+
+            raise
+        else:
+            resident.initialization_abandoned = False
+
     def open_analysis(
         self,
         analysis_id: str | None = None,
@@ -274,6 +326,7 @@ class InProcessExecutionHost:
 
         if any(
             resident.analysis is not None
+            or (resident.initialization is not None and not resident.initialization.done())
             or resident.failure is not None
             or resident.retirement is not None
             or resident.retired
@@ -335,13 +388,31 @@ class InProcessExecutionHost:
 
         disposal_future = resident.executor.submit(resident.dispose)
 
-        await await_original(disposal_future, deadline=None)
+        failures = []
+
+        try:
+            await await_original(disposal_future, deadline=None)
+        except BaseException as cause:
+            failures.append(cause)
+
+        if resident.initialization_abandoned:
+            initialization_failure = resident.initialization.exception()
+
+            if initialization_failure is not None and not isinstance(initialization_failure, TimeoutError):
+                failures.append(initialization_failure)
 
         resident.join_task = self.loop.create_task(
             asyncio.to_thread(resident.executor.shutdown, wait=True)
         )
 
         await asyncio.shield(resident.join_task)
+
+        if len(failures) == 1:
+            raise failures[0]
+
+        if failures:
+            raise BaseExceptionGroup("Allocation initialization or cleanup failed.", failures)
+
         resident.retired = True
 
     def retire(self):

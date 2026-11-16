@@ -199,6 +199,9 @@ class _Resident:
         self.constructed = False
         self.ready = False
         self.failure = None
+        self.initialization = None
+        self.initialization_deadline = None
+        self.initialization_abandoned = False
         self.dispose_attempted = False
         self.join_task = None
         self.retirement = None
