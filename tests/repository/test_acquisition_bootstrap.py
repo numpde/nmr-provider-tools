@@ -11,7 +11,8 @@ from tests.repository.quality.sources import ROOT
 
 
 class AcquisitionSourceTests(unittest.TestCase):
-    def test_checked_in_source_matches_its_reviewed_pin(self):
+    def test_checked_in_snapshot_verifies_and_its_version_matches_the_pin(self):
+        """Check snapshot integrity and version labels; the archive digest is not checked here."""
         manifest = verify(ROOT / "bootstrap/acquisition")
         pin = read_pin(ROOT / "requirements/provider-tools-source.json")
 
