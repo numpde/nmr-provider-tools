@@ -57,20 +57,22 @@ def _checksum(value):
     return type(value) is str and re.fullmatch(r"[0-9a-f]{64}", value)
 
 
-def read_pin(path):
+def read_pin(release_pin_path):
     """Read the consumer's expected release; downloads never rewrite this pin."""
-    (data, _metadata) = _regular_bytes(Path(path))
-    pin = _json(data, f"release pin {path}")
+    (data, _metadata) = _regular_bytes(Path(release_pin_path))
+    pin = _json(data, f"release pin {release_pin_path}")
 
     if not (type(pin) is (expected_type := dict)):
-        raise TypeError(f"{path=}; {type(pin)=} ≠ {expected_type=}")
+        raise TypeError(f"{release_pin_path=}; {type(pin)=} ≠ {expected_type=}")
 
-    if (
-        (set(pin) != {"version", "archive_sha256"}) or
-        (not _version(pin["version"])) or
-        (not _checksum(pin["archive_sha256"]))
-    ):
-        raise ValueError(f"Cannot read release pin {path}: require version and archive_sha256.")
+    if set(pin) != {"version", "archive_sha256"}:
+        raise ValueError(f"Acquisition {release_pin_path=}: require exactly version and archive_sha256; {sorted(pin)=}")
+
+    if not _version(pin["version"]):
+        raise ValueError(f"Acquisition {release_pin_path=}: {pin['version']=} must be an exact release version")
+
+    if not _checksum(pin["archive_sha256"]):
+        raise ValueError(f"Acquisition {release_pin_path=}: archive_sha256 must have 64 lowercase hexadecimal characters")
 
     return pin
 

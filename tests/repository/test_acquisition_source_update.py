@@ -143,6 +143,21 @@ class SourceUpdateTests(unittest.TestCase):
         download.assert_not_called()
         self.assertEqual(b"local edit", (self.source / "acquisition_tool/old.py").read_bytes())
 
+    def test_release_pin_errors_identify_the_invalid_field(self):
+        for (release_pin, expected_message) in (
+            ({"version": "2.0.0"}, "require exactly version and archive_sha256"),
+            ({"version": "latest", "archive_sha256": "a" * 64}, "version"),
+            ({"version": "2.0.0", "archive_sha256": "bad"}, "archive_sha256"),
+        ):
+            with self.subTest(release_pin=release_pin):
+                self.pin.write_text(json.dumps(release_pin))
+
+                with self.assertRaises(ValueError) as caught:
+                    updates.read_pin(self.pin)
+
+                self.assertIn(expected_message, str(caught.exception))
+                self.assertIn(str(self.pin), str(caught.exception))
+
     def test_directory_scan_failure_is_propagated(self):
         acquisition_directory = self.source / "acquisition_tool"
         scan_failure = PermissionError(13, "Permission denied", str(acquisition_directory))
