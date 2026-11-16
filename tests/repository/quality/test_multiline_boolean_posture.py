@@ -24,7 +24,10 @@ def multiline_boolean_findings(*, source: str) -> list[tuple[int, str]]:
         if not isinstance(expression, ast.BoolOp) or expression.lineno == expression.end_lineno:
             continue
 
-        operator = b"and" if isinstance(expression.op, ast.And) else b"or"
+        if isinstance(expression.op, ast.And):
+            operator = b"and"
+        else:
+            operator = b"or"
 
         for (index, operand) in enumerate(expression.values):
             before = lines[operand.lineno - 1][:operand.col_offset].rstrip()

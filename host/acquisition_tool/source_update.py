@@ -87,7 +87,7 @@ def _relative_name(acquisition_path):
         (path.as_posix() == acquisition_path)
     )
 
-    if not is_canonical_relative_path:
+    if not (is_canonical_relative_path):
         raise ValueError(f"Acquisition inventory path is not a canonical relative file: {acquisition_path=}")
 
     return path
