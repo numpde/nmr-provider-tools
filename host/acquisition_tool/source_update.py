@@ -41,14 +41,6 @@ class AcquisitionManifest(TypedDict):
     dependency_inputs: dict[str, str]
 
 
-def _json(data, description):
-    try:
-        return json.loads(data)
-    except (ValueError, UnicodeError) as error:
-        error.add_note(f"Reading {description}.")
-        raise
-
-
 def _version(value):
     return type(value) is str and re.fullmatch(r"(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)", value)
 
@@ -59,8 +51,8 @@ def _checksum(value):
 
 def read_pin(release_pin_path):
     """Read the consumer's expected release; downloads never rewrite this pin."""
-    (data, _metadata) = _regular_bytes(Path(release_pin_path))
-    pin = _json(data, f"release pin {release_pin_path}")
+    (data, _) = _regular_bytes(Path(release_pin_path))
+    pin = json.loads(data)
 
     if not (type(pin) is (expected_type := dict)):
         raise TypeError(f"{release_pin_path=}; {type(pin)=} ≠ {expected_type=}")
@@ -95,15 +87,15 @@ def _relative_name(acquisition_path):
         (path.as_posix() == acquisition_path)
     )
 
-    if not (is_canonical_relative_path):
-        raise ValueError(f"Acquisition inventory path is not a canonical relative file: {acquisition_path=}")
+    if not is_canonical_relative_path:
+        raise ValueError(f"Acquisition path is not canonical and relative: {acquisition_path=}")
 
     return path
 
 
 def read_manifest(data: str | bytes | bytearray) -> AcquisitionManifest:
     """Admit the recorded inventory, excluding only the manifest's own bytes."""
-    manifest = _json(data, "acquisition-manifest.json")
+    manifest = json.loads(data)
 
     if not (type(manifest) is (expected_type := dict)):
         raise TypeError(f"{type(manifest)=} ≠ {expected_type=}")
@@ -137,7 +129,7 @@ def read_manifest(data: str | bytes | bytearray) -> AcquisitionManifest:
     if not (type(entries) is (expected_type := dict)):
         raise TypeError(f"{type(entries)=} ≠ {expected_type=}")
 
-    if not (entries):
+    if not entries:
         raise ValueError("Acquisition manifest payload inventory must not be empty")
 
     if "acquisition-manifest.json" in entries:
@@ -183,7 +175,7 @@ def read_manifest(data: str | bytes | bytearray) -> AcquisitionManifest:
         if not (type(dependency_sha256) is (expected_checksum_type := str)):
             raise TypeError(f"{dependency_name=}; {type(dependency_sha256)=} ≠ {expected_checksum_type=}")
 
-        if not (dependency_name):
+        if not dependency_name:
             raise ValueError(f"Acquisition dependency name must be nonempty: {dependency_name=}")
 
         if not _checksum(dependency_sha256):
