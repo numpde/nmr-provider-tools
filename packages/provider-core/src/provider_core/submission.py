@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from collections.abc import Mapping
+
 from provider_core.container_guard import require_container
 
 require_container()
@@ -16,9 +18,10 @@ from provider_core.hosting import (
     Operation,
     OperationPolicy,
     ReservationRef,
-    StateArgument,
     observe_completion,
 )
+
+from provider_core.state_slots import StateHandle, StateInputSlot, state_references
 
 
 class Submission:
@@ -57,19 +60,19 @@ class Submission:
         analysis_executor: AnalysisExecution,
         call_binding: CallBinding[InputT, StateT, OutputT],
         scientific_input: InputT | NoInput = NoInput(),
-        states: tuple[StateArgument, ...],
+        states: Mapping[StateInputSlot, StateHandle],
         reservation_ref: ReservationRef,
         operation_policy: OperationPolicy,
         start_not_after: float | None = None,
     ) -> Submission:
-        """Encode scientific input through its compiled codec without submitting."""
+        """Encode input and project state-port handles without submitting."""
 
         return cls(
             analysis_executor=analysis_executor,
             invocation=Invocation(
                 target=ref(call=call_binding),
                 payload=call_binding.encode_input(value=scientific_input),
-                states=states,
+                states=state_references(states=states),
                 reservation=reservation_ref,
                 policy=operation_policy,
                 start_not_after=start_not_after,

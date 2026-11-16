@@ -25,7 +25,7 @@ from provider_core.contribution import (
     ref,
 )
 
-from provider_core.hosting import Operation, OperationRef, StateArgument, StateRef
+from provider_core.hosting import Operation, OperationRef, StateRef
 
 
 @dataclass(frozen=True, slots=True)
@@ -191,14 +191,6 @@ class StateInputSlot[T]:
     def description(self) -> StateParameter:
         return StateParameter(name=self.name, kind=self.kind.name, use=self.use)
 
-    def bind(self, handle: StateHandle[T]) -> StateArgument:
-        """Describe a connection; actual guarded dispatch decides state use."""
-
-        if handle.kind.name != self.kind.name or handle.reference.kind != self.kind.name or handle.kind.value_type is not self.kind.value_type:
-            raise ValueError("State handle has a different scientific kind or Python type")
-
-        return StateArgument(name=self.name, reference=handle.reference)
-
     def read(self, values: Mapping[str, object]) -> T:
         """Read a host-admitted live value while preserving its concrete type."""
         value = values[self.name]
@@ -207,6 +199,32 @@ class StateInputSlot[T]:
             raise TypeError(f"{self.name=}; {type(value)=} ≠ {expected_type=}")
 
         return cast(T, value)
+
+
+def state_references(*, states: Mapping[StateInputSlot, StateHandle]) -> dict[str, StateRef]:
+    """Project typed provider ports and handles into portable invocation references."""
+
+    if not (isinstance(states, (expected_type := Mapping))):
+        raise TypeError(f"{type(states)=} ≠ {expected_type=}")
+
+    references = {}
+
+    for (state_port, state_handle) in states.items():
+        if not (type(state_port) is (expected_type := StateInputSlot)):
+            raise TypeError(f"{type(state_port)=} ≠ {expected_type=}")
+
+        if not (type(state_handle) is (expected_type := StateHandle)):
+            raise TypeError(f"{type(state_handle)=} ≠ {expected_type=}")
+
+        if (state_handle.kind != state_port.kind) or (state_handle.reference.kind != state_port.kind.name):
+            raise ValueError("State handle has a different scientific kind or Python type")
+
+        if state_port.name in references:
+            raise ValueError(f"State ports have the same {state_port.name=}")
+
+        references[state_port.name] = state_handle.reference
+
+    return references
 
 
 @dataclass(frozen=True, slots=True, kw_only=True)

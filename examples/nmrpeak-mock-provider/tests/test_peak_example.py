@@ -345,7 +345,7 @@ class PeakExampleTests(unittest.IsolatedAsyncioTestCase):
                 # submission must be refused before trying to reuse consumed input.
                 duplicate = prediction_workflow.analysis_executor.submit_method(
                     method=proton_formula_predictor.contribution.generate,
-                    states=(PeakContribution.candidate.bind(handle=prediction_workflow.preparation_tool.prepared_state_handle),),
+                    states={PeakContribution.candidate: prediction_workflow.preparation_tool.prepared_state_handle},
                     reservation=reservation,
                     policy=prediction_workflow.operation_policy,
                 )

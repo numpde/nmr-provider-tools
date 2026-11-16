@@ -74,9 +74,11 @@ class PredictionWorkflow:
         prompt_files = files(anchor=__package__).joinpath("prompts")
         system_prompt = prompt_files.joinpath("system_prompt.txt").read_text(encoding="utf-8")
 
-        offering_prompt = prompt_files.joinpath(
-            self.hosted_predictor.contribution.interpretation_prompt_file,
-        ).read_text(encoding="utf-8")
+        offering_prompt = (
+            prompt_files
+            .joinpath(self.hosted_predictor.contribution.interpretation_prompt_file)
+            .read_text(encoding="utf-8")
+        )
 
         # The model calls prepare to propose a formula and peaks. The SDK also
         # supplies tools for inspecting input constraints and previous attempts.
@@ -131,25 +133,31 @@ class PredictionWorkflow:
         the original submitted operation.
         """
 
-        if self.preparation_tool.prepared_state_handle is None:
+        prepared_state_handle = self.preparation_tool.prepared_state_handle
+
+        if prepared_state_handle is None:
             raise RuntimeError("Accept an interpretation before generating candidates")
 
-        if self.generation_submission is None:
+        generation_submission = self.generation_submission
+
+        if generation_submission is None:
             reservation_ref = self.analysis_executor.reservation(allocation=self.hosted_predictor.allocation)
 
-            self.generation_submission = Submission.from_call(
+            generation_submission = Submission.from_call(
                 analysis_executor=self.analysis_executor,
                 call_binding=self.hosted_predictor.call(method=self.hosted_predictor.contribution.generate),
-                states=(PeakContribution.candidate.bind(handle=self.preparation_tool.prepared_state_handle),),
+                states={PeakContribution.candidate: prepared_state_handle},
                 reservation_ref=reservation_ref,
                 operation_policy=self.operation_policy,
             )
 
-        generation_admission = self.generation_submission.submit()
+            self.generation_submission = generation_submission
+
+        generation_admission = generation_submission.submit()
 
         if isinstance(generation_admission, NotAdmitted):
             raise RuntimeError(f"Cannot generate candidates: {generation_admission=}")
 
-        operation_observation = await self.generation_submission.wait()
+        operation_observation = await generation_submission.wait()
 
         return operation_observation.require_result()

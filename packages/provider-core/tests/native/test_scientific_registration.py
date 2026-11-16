@@ -104,7 +104,7 @@ async def run_sum(*, host, hosted, operation_id):
     operation = analysis.submit_method(
         method=hosted.contribution.calculate,
         scientific_input=Numbers(values=(1, 2)),
-        states=(),
+        states={},
         reservation=reservation,
         policy=OperationPolicy(
             queue_stop_request_seconds=5,
@@ -168,7 +168,7 @@ class AdoptionTests(unittest.IsolatedAsyncioTestCase):
             operation = analysis.submit_method(
                 method=hosted.contribution.calculate,
                 scientific_input=Numbers(values=(1,)),
-                states=(),
+                states={},
                 reservation=reservation,
                 policy=operation_policy,
             )
@@ -260,7 +260,7 @@ class AdoptionTests(unittest.IsolatedAsyncioTestCase):
         operations = [analysis.submit_method(
             method=instance.calculate,
             scientific_input=Numbers(values=(1,)),
-            states=(),
+            states={},
             reservation=reservation,
             policy=operation_policy,
         ) for _ in range(2)]
@@ -343,13 +343,13 @@ class AdoptionTests(unittest.IsolatedAsyncioTestCase):
 
         for method in (first.contribution.calculate, Sum.calculate):
             with self.assertRaises(expected_exception=ValueError):
-                analysis.submit_method(method=method,  scientific_input=Numbers(values=(1,)), states=(), reservation=reservation, policy=operation_policy)
+                analysis.submit_method(method=method,  scientific_input=Numbers(values=(1,)), states={}, reservation=reservation, policy=operation_policy)
 
         refused = analysis.submit(invocation=Invocation(
             operation_id="portable",
             target=first.reference(method=first.contribution.calculate),
             payload=first.call(method=first.contribution.calculate).input_codec.encode(value=Numbers(values=(1,))),
-            states=(),
+            states={},
             reservation=reservation,
             policy=operation_policy,
         ))
@@ -472,7 +472,7 @@ class AdoptionTests(unittest.IsolatedAsyncioTestCase):
         first = execution.submit_method(
             method=instance.calculate,
             scientific_input=Numbers(values=(1,)),
-            states=(),
+            states={},
             reservation=reservation,
             policy=deadline_policy(),
         )
@@ -483,7 +483,7 @@ class AdoptionTests(unittest.IsolatedAsyncioTestCase):
         waiting = execution.submit_method(
             method=instance.calculate,
             scientific_input=Numbers(values=(2,)),
-            states=(),
+            states={},
             reservation=reservation,
             policy=deadline_policy(),
         )
@@ -493,7 +493,7 @@ class AdoptionTests(unittest.IsolatedAsyncioTestCase):
         refused = execution.submit_method(
             method=instance.calculate,
             scientific_input=Numbers(values=(3,)),
-            states=(),
+            states={},
             reservation=reservation,
             policy=deadline_policy(),
         )
@@ -523,7 +523,7 @@ class AdoptionTests(unittest.IsolatedAsyncioTestCase):
                     execution.submit_method(
                         method=instance.calculate,
                         scientific_input=Numbers(values=(1,)),
-                        states=(),
+                        states={},
                         reservation=reservation,
                         policy=deadline_policy(),
                         start_not_after=invalid,
@@ -533,7 +533,7 @@ class AdoptionTests(unittest.IsolatedAsyncioTestCase):
             execution.submit_method(
                 method=instance.calculate,
                 scientific_input=Numbers(values=(1,)),
-                states=(),
+                states={},
                 reservation=reservation,
                 policy=deadline_policy(),
                 start_not_after=asyncio.get_running_loop().time() - 1,
@@ -555,7 +555,7 @@ class AdoptionTests(unittest.IsolatedAsyncioTestCase):
         held = execution.submit_method(
             method=instance.calculate,
             scientific_input=Numbers(values=(1,)),
-            states=(),
+            states={},
             reservation=reservation,
             policy=replace(deadline_policy(), reject_encoded_result_over_bytes=self.host.result_bytes),
         )
@@ -568,7 +568,7 @@ class AdoptionTests(unittest.IsolatedAsyncioTestCase):
             execution.submit_method(
                 method=instance.calculate,
                 scientific_input=Numbers(values=(2,)),
-                states=(),
+                states={},
                 reservation=reservation,
                 policy=deadline_policy(),
                 start_not_after=asyncio.get_running_loop().time() - 1,
@@ -602,7 +602,7 @@ class AdoptionTests(unittest.IsolatedAsyncioTestCase):
         first = execution.submit_method(
             method=instance.calculate,
             scientific_input=Numbers(values=(1,)),
-            states=(),
+            states={},
             reservation=reservation,
             policy=deadline_policy(),
         )
@@ -614,7 +614,7 @@ class AdoptionTests(unittest.IsolatedAsyncioTestCase):
             waiting = execution.submit(invocation=Invocation(
                 target=hosted.reference(method=instance.calculate),
                 payload=hosted.call(method=instance.calculate).input_codec.encode(value=Numbers(values=(2,))),
-                states=(),
+                states={},
                 reservation=reservation,
                 policy=deadline_policy(),
                 start_not_after=deadline,
@@ -656,7 +656,7 @@ class AdoptionTests(unittest.IsolatedAsyncioTestCase):
         operation = execution.submit_method(
             method=instance.calculate,
             scientific_input=Numbers(values=(1,)),
-            states=(),
+            states={},
             reservation=execution.reservation(allocation=hosted.allocation),
             policy=deadline_policy(),
             start_not_after=deadline,
@@ -905,13 +905,13 @@ class AdoptionTests(unittest.IsolatedAsyncioTestCase):
         )
 
         for forged in (replace(reservation, host="other"), replace(reservation, allocation="missing"), replace(reservation, analysis="other")):
-            refused = analysis.submit_method(method=Sum.calculate,  scientific_input=Numbers(values=(1,)), states=(), reservation=forged, policy=operation_policy)
+            refused = analysis.submit_method(method=Sum.calculate,  scientific_input=Numbers(values=(1,)), states={}, reservation=forged, policy=operation_policy)
 
             self.assertIsInstance(obj=refused, cls=NotAdmitted)
             self.assertIs(expr1=AdmissionCode.INVALID_REFERENCE, expr2=refused.code)
 
         with self.assertRaises(expected_exception=TypeError):
-            analysis.submit_method(method=hosted.contribution.calculate,  states=(), reservation=reservation, policy=operation_policy)
+            analysis.submit_method(method=hosted.contribution.calculate,  states={}, reservation=reservation, policy=operation_policy)
 
         self.assertEqual(first=0, second=hosted.contribution.calls)
         self.assertEqual(first={}, second=self.host.operations)

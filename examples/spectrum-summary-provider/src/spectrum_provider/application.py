@@ -82,7 +82,7 @@ class PeakWorkflow:
                     invocation=Invocation(
                         target=self.peak_detection_call_ref,
                         payload=corrected_spectrum_payload,
-                        states=(),
+                        states={},
                         reservation=self.peak_detection_reservation_ref,
                         policy=self.operation_policy,
                     ),

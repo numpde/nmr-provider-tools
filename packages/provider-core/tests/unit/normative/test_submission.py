@@ -69,7 +69,7 @@ class SubmissionTests(unittest.IsolatedAsyncioTestCase):
             analysis_executor=self.analysis_executor,
             call_binding=self.hosted_contribution.call(method=self.science.calculate),
             scientific_input=Sample(value=value),
-            states=(),
+            states={},
             reservation_ref=self.analysis_executor.reservation(allocation=self.hosted_contribution.allocation),
             operation_policy=self.operation_policy,
         )

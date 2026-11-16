@@ -68,7 +68,7 @@ class ReferenceWorkflowTests(unittest.IsolatedAsyncioTestCase):
                     operation = analysis.submit_method(
                         method=binding.contribution.match,
                         scientific_input=science.VectorInput(values=values),
-                        states=(),
+                        states={},
                         reservation=reservation,
                         policy=operation_policy,
                     )

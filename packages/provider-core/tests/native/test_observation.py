@@ -48,7 +48,7 @@ class ObservationTests(unittest.IsolatedAsyncioTestCase):
         self.operation = analysis.submit_method(
             method=hosted.contribution.echo,
             scientific_input=Value(number=7),
-            states=(),
+            states={},
             reservation=reservation,
             policy=OperationPolicy(
                 queue_stop_request_seconds=5,

@@ -152,7 +152,7 @@ class PreparationTool[PreparedT]:
             analysis_executor=self.analysis_executor,
             call_binding=call_binding,
             scientific_input=scientific_input,
-            states=(),
+            states={},
             reservation_ref=self.reservation_ref,
             operation_policy=self.operation_policy,
             start_not_after=not_after,

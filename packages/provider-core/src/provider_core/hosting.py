@@ -11,12 +11,13 @@ from provider_core.container_guard import require_container
 require_container()
 
 import asyncio
-from collections.abc import Awaitable, Callable
+from collections.abc import Awaitable, Callable, Mapping
 from dataclasses import dataclass, field
 from enum import Enum
 from functools import partial
 import math
 import re
+from types import MappingProxyType
 from typing import Never, Protocol
 from uuid import uuid4
 
@@ -191,20 +192,6 @@ class ResultRef:
 
 
 @dataclass(frozen=True, slots=True)
-class StateArgument:
-    name: str
-    reference: StateRef
-
-    def __post_init__(self):
-        _identity(self.name, "State argument name")
-
-        if not (type((actual_reference := self.reference)) is (expected_type := StateRef)):
-            raise TypeError(
-                f"{type(actual_reference)=} ≠ {expected_type=}"
-            )
-
-
-@dataclass(frozen=True, slots=True)
 class StateResult:
     """A named producer output; its name does not name a consumer input."""
 
@@ -291,13 +278,14 @@ class Invocation:
     Invocation asks the SDK to perform separate work. start_not_after uses the
     addressed backend's event-loop clock, not a wall-clock or cross-host timestamp.
     It bounds entry to initialization and science; observing or retrying the same
-    invocation cannot extend it.
+    invocation cannot extend it. State input names map to portable references;
+    construction snapshots that mapping so retries retain the same inputs.
     """
 
     operation_id: str = field(default_factory=lambda: uuid4().hex, kw_only=True)
     target: CallRef
     payload: bytes = field(repr=False)
-    states: tuple[StateArgument, ...]
+    states: Mapping[str, StateRef]
     reservation: ReservationRef
     policy: OperationPolicy
 
@@ -332,12 +320,18 @@ class Invocation:
 
         state_arguments = self.states
 
-        if not (type(state_arguments) is (expected_type := tuple)):
+        if not (isinstance(state_arguments, (expected_type := Mapping))):
             raise TypeError(f"{type(state_arguments)=} ≠ {expected_type=}")
 
-        for state_argument in state_arguments:
-            if not (type(state_argument) is (expected_type := StateArgument)):
-                raise TypeError(f"{type(state_argument)=} ≠ {expected_type=}")
+        state_arguments = dict(state_arguments)
+
+        for (state_name, state_reference) in state_arguments.items():
+            _identity(state_name, "State argument name")
+
+            if not (type(state_reference) is (expected_type := StateRef)):
+                raise TypeError(f"{type(state_reference)=} ≠ {expected_type=}")
+
+        object.__setattr__(self, "states", MappingProxyType(state_arguments))
 
         reservation_ref = self.reservation
 

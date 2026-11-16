@@ -53,7 +53,7 @@ class Provider:
             baseline_invocation=Invocation(
                 target=ref(call=baseline_call_binding),
                 payload=spectrum_payload,
-                states=(),
+                states={},
                 reservation=analysis_executor.reservation(allocation=self.baseline_corrector.allocation),
                 policy=self.operation_policy,
             ),

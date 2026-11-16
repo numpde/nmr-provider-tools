@@ -11,7 +11,7 @@ from provider_core.container_guard import require_container
 require_container()
 
 import asyncio
-from collections.abc import Callable
+from collections.abc import Callable, Mapping
 from uuid import uuid4
 from weakref import WeakSet
 
@@ -31,11 +31,12 @@ from provider_core.hosting import (
     RequestConflict,
     ReservationRef,
     ResourceState,
-    StateArgument,
     positive_seconds,
     settle_cleanup,
     _raise_context_failure,
 )
+
+from provider_core.state_slots import StateHandle, StateInputSlot, state_references
 
 from provider_core._embedded_operation import _Operation
 
@@ -436,7 +437,7 @@ class InProcessAnalysisExecutor:
         call: CallBinding[InputT, StateT, OutputT],
         *,
         payload: bytes,
-        states: tuple[StateArgument, ...],
+        states: Mapping[StateInputSlot, StateHandle],
         reservation: ReservationRef,
         policy: OperationPolicy,
         start_not_after: float | None = None,
@@ -457,7 +458,7 @@ class InProcessAnalysisExecutor:
             operation_id=uuid4().hex,
             target=ref(call),
             payload=payload,
-            states=states,
+            states=state_references(states=states),
             reservation=reservation,
             policy=policy,
             start_not_after=start_not_after,
@@ -474,7 +475,7 @@ class InProcessAnalysisExecutor:
         *,
         method: Callable,
         scientific_input: object = NoInput(),
-        states: tuple[StateArgument, ...],
+        states: Mapping[StateInputSlot, StateHandle],
         reservation: ReservationRef,
         policy: OperationPolicy,
         start_not_after: float | None = None,
@@ -670,13 +671,10 @@ class InProcessAnalysisExecutor:
         return None
 
     def _state_owners(self, invocation, call):
-        state_arguments = {item.name: item.reference for item in invocation.states}
+        state_arguments = invocation.states
         declared_parameters = {item.name: item for item in call.description.state_inputs}
 
-        if (
-            len(state_arguments) != len(invocation.states)
-            or set(state_arguments) != set(declared_parameters)
-        ):
+        if set(state_arguments) != set(declared_parameters):
             return NotAdmitted(
                 code=AdmissionCode.INVALID_REQUEST,
                 message="State arguments must match the call's distinct declared names.",

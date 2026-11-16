@@ -113,7 +113,7 @@ class DummyInstalledExecutionTests(unittest.IsolatedAsyncioTestCase):
             operation = analysis.submit_method(
                 method=contribution.prepare,
                 scientific_input=science.PreparationInput(samples=np.array(object=[1, 2, 3], dtype=float)),
-                states=(),
+                states={},
                 reservation=reservation,
                 policy=OperationPolicy(
                     queue_stop_request_seconds=5,
@@ -183,7 +183,7 @@ class DummyInstalledExecutionTests(unittest.IsolatedAsyncioTestCase):
         rejected = analysis.submit_method(
             method=weighted_binding.contribution.prepare,
              scientific_input=science.PreparationInput(samples=np.array(object=[], dtype=float)),
-            states=(),
+            states={},
             reservation=reservation,
             policy=operation_policy,
         )
@@ -198,7 +198,7 @@ class DummyInstalledExecutionTests(unittest.IsolatedAsyncioTestCase):
         preparation_operation = analysis.submit_method(
             method=weighted_binding.contribution.prepare,
             scientific_input=preparation_input,
-            states=(),
+            states={},
             reservation=reservation,
             policy=operation_policy,
         )
@@ -216,9 +216,7 @@ class DummyInstalledExecutionTests(unittest.IsolatedAsyncioTestCase):
             operation=preparation_operation,
         )
 
-        calculation_state = WeightedSum.candidate.bind(handle=prepared)
-
-        self.assertEqual("candidate", calculation_state.name)
+        self.assertEqual("candidate", WeightedSum.candidate.name)
         self.assertIs(ResultState.AVAILABLE, preparation_observation.result_state)
         self.assertIsNotNone(preparation_observation.result)
 
@@ -241,7 +239,7 @@ class DummyInstalledExecutionTests(unittest.IsolatedAsyncioTestCase):
         # Result release leaves the returned scientific state available to calculate.
         calculation_operation = analysis.submit_method(
             method=weighted_binding.contribution.calculate,
-            states=(calculation_state,),
+            states={WeightedSum.candidate: prepared},
             reservation=reservation,
             policy=operation_policy,
         )

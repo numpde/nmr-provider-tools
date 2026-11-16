@@ -110,6 +110,18 @@ class PreparationToolTests(unittest.IsolatedAsyncioTestCase):
             not_after=asyncio.get_running_loop().time() + 5,
         )
 
+    async def test_input_port_rejects_a_handle_of_another_scientific_type(self):
+        await self.propose(value=1)
+        unrelated_port = StateType(value_type=str).input(name="candidate", use=StateUse.CONSUME)
+
+        with self.assertRaisesRegex(expected_exception=ValueError, expected_regex="different scientific kind"):
+            self.analysis_executor.submit_method(
+                method=self.science.consume,
+                states={unrelated_port: self.preparation_tool.prepared_state_handle},
+                reservation=self.preparation_tool.reservation_ref,
+                policy=self.preparation_tool.operation_policy,
+            )
+
     async def test_interpreter_corrects_shape_and_science_then_retains_one_state(self):
         carrier = endpoint(
             "preparation",
@@ -200,7 +212,7 @@ class PreparationToolTests(unittest.IsolatedAsyncioTestCase):
 
         operation = self.analysis_executor.submit_method(
             method=self.science.consume,
-            states=(Science.candidate.bind(handle=self.preparation_tool.prepared_state_handle),),
+            states={Science.candidate: self.preparation_tool.prepared_state_handle},
             reservation=self.preparation_tool.reservation_ref,
             policy=self.preparation_tool.operation_policy,
         )

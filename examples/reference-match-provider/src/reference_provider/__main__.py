@@ -49,7 +49,7 @@ async def run_demo() -> None:
                 match_operation = analysis_executor.submit_method(
                     method=hosted_matcher.contribution.match,
                     scientific_input=VectorInput(values=values),
-                    states=(),
+                    states={},
                     reservation=reservation_ref,
                     policy=operation_policy,
                 )
