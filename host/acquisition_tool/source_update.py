@@ -8,6 +8,7 @@ retire processes that already hold source files open.
 """
 
 import argparse
+from collections import Counter
 import ctypes
 import hashlib
 import io
@@ -284,9 +285,11 @@ def _admit_archive(
     with tarfile.open(fileobj=io.BytesIO(archive_bytes), mode="r:gz") as archive:
         members = archive.getmembers()
         names = [member.name for member in members]
+        member_counts = Counter(names)
+        duplicate_members = member_counts - Counter(member_counts.keys())
 
-        if len(set(names)) != len(names):
-            raise ValueError("Acquisition archive contains duplicate members.")
+        if duplicate_members:
+            raise ValueError(f"Acquisition archive contains {duplicate_members=}")
 
         for member in members:
             path = _relative_name(member.name)
