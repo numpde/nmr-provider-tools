@@ -70,7 +70,7 @@ class Allocation:
         if not (type((actual_name := self.name)) is (expected_type := str)):
             raise TypeError(f"{type(actual_name)=} ≠ {expected_type=}")
 
-        if not (isinstance((actual_binding := self.binding), (expected_type := (ImplementationBinding, HostedContribution)))):
+        if not isinstance((actual_binding := self.binding), (expected_type := (ImplementationBinding, HostedContribution))):
             raise TypeError(f"{type(actual_binding)=} ≠ {expected_type=}")
 
         if not (0 < len(self.name) <= 160):
@@ -115,7 +115,7 @@ class _Changes:
         if not (type(wait_seconds) in (expected_type := (int, float))):
             raise TypeError(f"{type(wait_seconds)=} ≠ {expected_type=}")
 
-        if not (math.isfinite(wait_seconds)):
+        if not math.isfinite(wait_seconds):
             raise ValueError("Observation wait must be finite nonnegative seconds.")
 
         if not (0 <= wait_seconds):
