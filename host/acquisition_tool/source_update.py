@@ -318,9 +318,14 @@ def _admit_archive(
                 continue
 
             entry = entries[member.name]
+            expected_size = entry["size"]
+            expected_mode = entry["mode"]
 
-            if member.size != entry["size"] or member.mode != entry["mode"]:
-                raise ValueError(f"Acquisition archive member metadata differs: {member.name}.")
+            if member.size != expected_size or member.mode != expected_mode:
+                raise ValueError(
+                    f"Acquisition archive member metadata differs: {member.name=}; "
+                    f"{member.size=} ≠ {expected_size=}; {member.mode=:o} ≠ {expected_mode=:o}"
+                )
 
             _check_bytes(member.name, payload[member.name], entry)
 
