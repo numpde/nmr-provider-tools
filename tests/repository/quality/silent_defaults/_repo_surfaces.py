@@ -10,7 +10,7 @@ import re
 from collections.abc import Iterable, Iterator
 from pathlib import Path
 
-from ..sources import ROOT as REPO_ROOT
+from ..sources import ROOT as REPO_ROOT, source_files
 
 INTERPOLATION_DEFAULT_RE = re.compile(
     r"\$\{(?P<name>[A-Za-z_][A-Za-z0-9_]*|[0-9]+|[#$!?*@_-])"
@@ -45,16 +45,12 @@ def surface_files(
     exclude_repo_paths: frozenset[Path] = frozenset(),
 ) -> list[Path]:
     _validate_repo_relative_paths(exclude_repo_paths)
-    exclude_parts = SILENT_DEFAULTS_TEST_PARTS | extra_exclude_parts
-    paths: set[Path] = set()
 
-    for pattern in patterns:
-        paths.update(REPO_ROOT.glob(pattern))
-
-    return sorted(
-        path
-        for path in paths
-        if path.is_file() and not exclude_parts.intersection(repo_path(path).parts) and repo_path(path) not in exclude_repo_paths
+    return source_files(
+        root=REPO_ROOT,
+        patterns=patterns,
+        exclude_parts=SILENT_DEFAULTS_TEST_PARTS | extra_exclude_parts,
+        exclude_repo_paths=exclude_repo_paths,
     )
 
 

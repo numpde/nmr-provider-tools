@@ -8,7 +8,7 @@ import ast
 import tomllib
 import unittest
 
-from tests.repository.quality.sources import ROOT
+from tests.repository.quality.sources import ROOT, source_files
 
 
 class DummyProviderExampleTests(unittest.TestCase):
@@ -49,7 +49,12 @@ class DummyProviderExampleTests(unittest.TestCase):
 
         findings = []
 
-        for path in sorted(source.glob("*.py")):
+        paths = source_files(root=ROOT, patterns=(f"{source.relative_to(ROOT)}/*.py",))
+
+        for path in paths:
+            if path.parent != source:
+                continue
+
             tree = ast.parse(path.read_text(), filename=str(path))
 
             for node in ast.walk(tree):

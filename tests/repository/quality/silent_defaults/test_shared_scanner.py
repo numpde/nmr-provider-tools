@@ -7,10 +7,13 @@ from tools.container_guard import require_container
 require_container()
 
 import re
+import tempfile
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
-from ..sources import ROOT, is_skipped
+from . import _repo_surfaces
+from ..sources import ROOT, source_files
 
 SELF_PARTS = ("tests", "repository", "quality", "silent_defaults")
 SCANNER_TEST_MARKER = "active"
@@ -45,18 +48,7 @@ def is_literal_make_origin_gate(source: str, line: str) -> bool:
 
 
 def repo_files(patterns: tuple[str, ...]) -> list[Path]:
-    paths: set[Path] = set()
-
-    for pattern in patterns:
-        paths.update(ROOT.glob(pattern))
-
-    return sorted(path for path in paths if path.is_file() and not excluded(path))
-
-
-def excluded(path: Path) -> bool:
-    relative = path.relative_to(ROOT)
-
-    return is_skipped(path) or relative.parts[: len(SELF_PARTS)] == SELF_PARTS
+    return source_files(root=ROOT, patterns=patterns, exclude_subtrees=(Path(*SELF_PARTS),))
 
 
 def line_findings(
@@ -80,8 +72,27 @@ def line_findings(
 
 
 class SharedScannerTest(unittest.TestCase):
+    def test_python_inventories_include_fixtures_outside_executable_scope(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            fixture_path = root / "tests/repository/fixtures/example.py.fixture"
+
+            fixture_path.parent.mkdir(parents=True)
+            fixture_path.write_text("pass\n", encoding="utf-8")
+
+            with patch(f"{__name__}.ROOT", root), patch.object(_repo_surfaces, "REPO_ROOT", root):
+                self.assertEqual(first=[fixture_path], second=repo_files(("tools/**/*.py",)))
+                self.assertEqual(first=[], second=repo_files(("tools/**/*.sh",)))
+
+                self.assertEqual(
+                    first=[fixture_path],
+                    second=_repo_surfaces.surface_files(("tools/**/*.py",), extra_exclude_parts=frozenset({"tests"})),
+                )
+
+                self.assertEqual(first=[], second=_repo_surfaces.surface_files(("tools/**/*.sh",)))
+
     def test_repo_files_excludes_this_check_package(self) -> None:
-        self.assertEqual([], repo_files(("tests/repository/quality/silent_defaults/*.py",)))
+        self.assertEqual(source_files(root=ROOT, patterns=("**/*.py.fixture",)), repo_files(("tests/repository/quality/silent_defaults/*.py",)))
 
     def test_repo_files_excludes_skipped_dependency_material(self) -> None:
         self.assertEqual([], repo_files(("NMRNetplusplus/node_modules/**/*.ts",)))

@@ -18,7 +18,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from tests.repository.quality.sources import ROOT
+from tests.repository.quality.sources import ROOT, source_files
 
 
 # silent-defaults: allow-contract -- Ordinary modules require the guard; the explicit package-marker option permits only empty or docstring-only markers; proof=tests/repository/test_conventions.py::ConventionDetectionTests.test_only_empty_or_documentation_package_markers_are_exempt
@@ -73,13 +73,15 @@ def has_early_guard(source, *, package_marker=False, guard_module="tools.contain
 
 
 def unguarded_sources(root):
-    """Include new production files automatically, without scanning upstream or fixtures."""
-    sources = {path for name in ("tools", "tests/repository", "src") for path in (root / name).rglob("*.py")}
+    """Include new production modules and fixture source without scanning upstream."""
+    sources = set(source_files(root=root, patterns=("tools/**/*.py", "tests/repository/**/*.py", "src/**/*.py")))
     core_root = root / "packages/provider-core/src/provider_core"
+    portable_roots = (core_root, root / "containers/delivery", root / "tests/deployment")
 
     portable_sources = {
-        path for directory in (core_root, root / "containers/delivery", root / "tests/deployment")
-        for path in directory.rglob("*.py")
+        path
+        for path in source_files(root=root, patterns=("packages/provider-core/src/provider_core/**/*.py", "containers/delivery/**/*.py", "tests/deployment/**/*.py"))
+        if any(path.is_relative_to(directory) for directory in portable_roots)
     }
 
     # This finite tool is installed into the shared image, which deliberately
@@ -102,7 +104,7 @@ def unguarded_sources(root):
         str(path.relative_to(root))
         for path in sorted(sources)
         if not has_early_guard(path.read_text(),
-                               package_marker=path.name == "__init__.py",
+                               package_marker=path.name in {"__init__.py", "__init__.py.fixture"},
                                package=".".join(path.parent.relative_to(root).parts))
     ]
 
@@ -112,7 +114,7 @@ def unguarded_sources(root):
         if path != core_root / "container_guard.py"
         and not has_early_guard(
             path.read_text(),
-            package_marker=path.name == "__init__.py",
+            package_marker=path.name in {"__init__.py", "__init__.py.fixture"},
             guard_module="provider_core.container_guard"
         )
     )
@@ -139,7 +141,10 @@ def boundary_imports(root):
     violations = []
 
     for (directory, forbidden) in ((root / "host", "tools"), (root / "tools", "host")):
-        for path in sorted(directory.rglob("*.py")):
+        for path in source_files(root=root, patterns=(f"{directory.relative_to(root)}/**/*.py",)):
+            if not path.is_relative_to(directory):
+                continue
+
             for statement in ast.walk(ast.parse(path.read_text())):
                 if isinstance(statement, ast.ImportFrom):
                     modules = (statement.module,)

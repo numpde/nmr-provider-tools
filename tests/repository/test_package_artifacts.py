@@ -28,7 +28,7 @@ from tools.package import (
 
 from tools.core_environment import behavioral_install_lock, build_source_wheel, normalize_sdist
 from tools.wheelhouse import digest
-from tests.repository.quality.sources import ROOT
+from tests.repository.quality.sources import ROOT, source_files
 
 
 class PackageArtifactTests(unittest.TestCase):
@@ -469,7 +469,12 @@ class PackageArtifactTests(unittest.TestCase):
         wheel_calls = []
         shared_callers = []
 
-        for path in sorted((ROOT / "tools").glob("*.py")):
+        paths = source_files(root=ROOT, patterns=("tools/*.py",))
+
+        for path in paths:
+            if path.parent != ROOT / "tools":
+                continue
+
             module = ast.parse(path.read_text(), filename=str(path))
 
             for function in (node for node in ast.walk(module) if isinstance(node, ast.FunctionDef)):

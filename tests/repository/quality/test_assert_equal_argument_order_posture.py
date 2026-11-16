@@ -15,7 +15,7 @@ import unittest
 from dataclasses import dataclass
 from pathlib import Path
 
-from .sources import REPOSITORY_ROOT
+from .sources import REPOSITORY_ROOT, source_files
 
 
 @dataclass(frozen=True, slots=True)
@@ -155,9 +155,7 @@ def _positional_message_findings(
 
 
 def _test_paths() -> list[Path]:
-    roots = [REPOSITORY_ROOT / "repository_checks", REPOSITORY_ROOT / "tests"]
-
-    return sorted(path for root in roots for path in root.rglob("*.py"))
+    return source_files(root=REPOSITORY_ROOT, patterns=("repository_checks/**/*.py", "tests/**/*.py"))
 
 
 class AssertEqualArgumentOrderPostureTests(unittest.TestCase):

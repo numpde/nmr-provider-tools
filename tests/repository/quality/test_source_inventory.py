@@ -89,6 +89,62 @@ def root_entry_visibility_findings(manifest, root):
 
 
 class SourceInventoryUnitTests(unittest.TestCase):
+    def test_python_fixtures_enter_both_source_scopes_and_text_checks(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+
+            fixture_names = (
+                "host/example.py.fixture",
+                "tests/repository/fixtures/example.py.fixture",
+                "examples/provider/tests/example.py.fixture",
+                "unowned/example.py.fixture",
+                "tools/release-artifacts/example.py.fixture",
+            )
+
+            private_names = (
+                ".git/example.py.fixture",
+                "secrets/example.py.fixture",
+                "tests/secrets/example.py.fixture",
+                "tests/deployment/secrets/example.py.fixture",
+                "host/secrets/example.py.fixture",
+                "release-artifacts/example.py.fixture",
+                "bootstrap/example.py.fixture",
+                ".venv/example.py.fixture",
+            )
+
+            for fixture_name in (*fixture_names, *private_names):
+                fixture_path = root / fixture_name
+
+                fixture_path.parent.mkdir(parents=True, exist_ok=True)
+                fixture_path.write_text("pass\n", encoding="utf-8")
+
+            expected_fixtures = sorted(root / fixture_name for fixture_name in fixture_names)
+
+            (root / "host/linked.py.fixture").symlink_to(root / "secrets/example.py.fixture")
+            (root / "linked").symlink_to(root / "secrets", target_is_directory=True)
+
+            with patch.object(sources, "ROOT", root):
+                self.assertEqual(first=expected_fixtures, second=sources.python_sources(production_only=True))
+                self.assertEqual(first=expected_fixtures, second=sources.python_sources(production_only=False))
+                self.assertEqual(first=expected_fixtures, second=sources.iter_repo_text_files())
+                self.assertEqual(first=expected_fixtures, second=sources.source_files(root=root, patterns=("linked/*.py.fixture",)))
+
+                ordinary_source = root / "host/ordinary.py"
+
+                ordinary_source.write_text("pass\n", encoding="utf-8")
+                self.assertEqual(first=sorted([*expected_fixtures, ordinary_source]), second=sources.source_files(root=root, patterns=("host/*.py",)))
+
+                self.assertEqual(
+                    first=expected_fixtures,
+                    second=sources.source_files(
+                        root=root,
+                        patterns=("host/*.py",),
+                        exclude_parts=frozenset({"host", "tests"}),
+                        exclude_repo_paths=frozenset({Path("host/ordinary.py")}),
+                        exclude_subtrees=(Path("host"),),
+                    ),
+                )
+
     def test_release_outputs_are_private_only_at_checkout_root(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)

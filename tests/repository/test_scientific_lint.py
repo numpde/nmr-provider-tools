@@ -14,7 +14,7 @@ require_container()
 import ast
 import unittest
 
-from tests.repository.quality.sources import ROOT
+from tests.repository.quality.sources import ROOT, source_files
 from tests.repository.test_conventions import has_early_guard
 
 
@@ -84,7 +84,7 @@ class ImportOrderDetectionTests(unittest.TestCase):
 
 class ScientificLintTests(unittest.TestCase):
     def test_provider_core_import_order(self):
-        paths = sorted((ROOT / "src").rglob("*.py"))
+        paths = source_files(root=ROOT, patterns=("src/**/*.py",))
 
         findings = [
             f"{path.relative_to(ROOT)}:{line}: module import follows operational statements"
@@ -97,10 +97,11 @@ class ScientificLintTests(unittest.TestCase):
     def test_guard_exception_retains_late_module_import_rejection(self):
         # Bootstrap identity has an intentional isolated import-path setup;
         # it is qualified by the cold-bundle import tests, not this rule.
+        paths = source_files(root=ROOT, patterns=[f"{name}/**/*.py" for name in ("host/tools", "tools", "tests", "src", "packages")])
+
         findings = [
             f"{path.relative_to(ROOT)}:{line}: module import follows operational statements"
-            for name in ("host/tools", "tools", "tests", "src", "packages")
-            for path in sorted((ROOT / name).rglob("*.py"))
+            for path in sorted(paths)
             for line in late_module_imports(path.read_text(), package=".".join(path.parent.relative_to(ROOT).parts))
         ]
 

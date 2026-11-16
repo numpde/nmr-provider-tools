@@ -11,7 +11,7 @@ require_container()
 import re
 import unittest
 
-from .sources import ROOT
+from .sources import ROOT, source_files
 
 
 _PATTERNS = (
@@ -53,11 +53,11 @@ class DockerContextPostureTests(unittest.TestCase):
         self.assertEqual([], implicit_defaults('# Run make test DOCKER_CONTEXT=default'))
 
     def test_runtime_sources_do_not_force_default(self):
-        roots = (ROOT / "tools", ROOT / "packages/provider-core/src", ROOT / "containers")
-        paths = [ROOT / "Makefile"]
+        patterns = ["Makefile"]
 
-        paths.extend(path for root in roots for path in root.rglob("*")
-                     if path.is_file() and (path.suffix in (".sh", ".py") or path.name == "Dockerfile"))
+        patterns.extend(f"{directory}/**/{pattern}" for directory in ("tools", "packages/provider-core/src", "containers") for pattern in ("*.py", "*.sh", "Dockerfile"))
+
+        paths = source_files(root=ROOT, patterns=patterns)
 
         failures = [f"{path.relative_to(ROOT)}:{line}" for path in paths
                     for line in implicit_defaults(path.read_text(encoding="utf-8"))]

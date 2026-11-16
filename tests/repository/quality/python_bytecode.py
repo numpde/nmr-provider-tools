@@ -12,11 +12,12 @@ require_container()
 
 import ast
 from dataclasses import dataclass
-import os
 from pathlib import Path
 import re
 import shlex
 import sys
+
+from .sources import is_python_source, source_files
 
 
 @dataclass(frozen=True)
@@ -61,20 +62,11 @@ _ENV = "PYTHONDONTWRITEBYTECODE"
 
 
 def production_files(root):
-    files = []
-
-    for (directory, children, names) in os.walk(root):
-        children[:] = [name for name in children if name not in _SKIP and not name.startswith(".")
-                       and not (Path(directory) / name).is_symlink()]
-
-        for name in names:
-            path = Path(directory) / name
-
-            if (not path.is_symlink() and path.is_file()
-                    and (path.suffix in {".sh", ".py", ".mk"} or name in {"Makefile", "GNUmakefile"})):
-                files.append(path)
-
-    return sorted(files)
+    return source_files(
+        root=root,
+        patterns=("**/*.py", "**/*.sh", "**/*.mk", "**/Makefile", "**/GNUmakefile"),
+        exclude_parts=_SKIP,
+    )
 
 
 def _python(value):
@@ -290,7 +282,7 @@ def python_findings(path, source):
 
 
 def findings(path, source):
-    return python_findings(path, source) if path.suffix == ".py" else shell_findings(path, source)
+    return python_findings(path, source) if is_python_source(path=path) else shell_findings(path, source)
 
 
 def scan(root):

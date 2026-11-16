@@ -89,6 +89,7 @@ class PythonBytecodePostureTests(unittest.TestCase):
                          "new_component/driver.py",
                          "Makefile",
                          "tests/fixtures/run.sh",
+                         "tests/fixtures/run.py.fixture",
                          "bootstrap/generated/run.sh",
                          "vendor/run.py",
                          "docs/example.sh",
@@ -98,13 +99,18 @@ class PythonBytecodePostureTests(unittest.TestCase):
                 path.parent.mkdir(parents=True, exist_ok=True)
                 path.write_text("# fixture\n")
 
-            self.assertEqual({"host/tools/run.sh", "new_component/driver.py", "Makefile"},
+            self.assertEqual({"host/tools/run.sh", "new_component/driver.py", "Makefile", "tests/fixtures/run.py.fixture"},
                              {path.relative_to(root).as_posix() for path in production_files(root)})
 
         (issue,) = findings(Path("safe.sh"), "python3 -I secret-private-path.py")
 
         self.assertNotIn("secret-private-path", issue.diagnostic())
         self.assertIn("safe.sh:1:", issue.diagnostic())
+
+    def test_python_fixture_uses_python_launch_analysis(self):
+        (issue,) = findings(Path("tests/fixtures/run.py.fixture"), 'subprocess.run(["python3", "worker.py"])')
+
+        self.assertEqual(first=1, second=issue.line)
 
     def test_production_literal_python_launches_suppress_bytecode(self):
         issues = scan(ROOT)
