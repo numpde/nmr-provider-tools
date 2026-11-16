@@ -1,0 +1,9 @@
+lines = f"{{{{\n{name=}"
+lines = f"é{{\n{name=}"
+
+lines = """first
+next\nlast"""
+
+lines = f"\n{{"
+lines = f"{{\n}}"
+lines = "a b\nc"

@@ -1,0 +1,7 @@
+lines = f"\n{name=}"
+lines = f"{name=}\nsecond"
+lines = f"{name=:>\n}"
+lines = f"{f'one\ntwo'=}"
+lines = f"{name=:{width}\n}"
+lines = f"{name=:{f'one\ntwo'}}"
+lines = rf"{'one\ntwo'=}"

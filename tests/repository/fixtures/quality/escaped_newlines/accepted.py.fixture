@@ -1,0 +1,30 @@
+lines = "first\n" "second\n"
+lines = b"first\n" b"second\n"
+lines = "\r\n" "second\r\n"
+lines = ""
+lines = r"first\nsecond\n"
+lines = R"first\nsecond\n"
+lines = rb"first\nsecond\n"
+lines = "first\\nsecond\\n"
+lines = "first\\\n"
+lines = f"{name=}\n"
+lines = f"{{{{{name=}}}}}\n"
+lines = rf"first\n{name=}\nsecond"
+lines = f"{f'{name=}\n'=}\n"
+lines = f"{name=:{width}.{precision}f}\n"
+
+lines = """first
+second
+"""
+
+lines = f"""first
+{name=}
+"""
+
+lines = "\x0asecond\u000athird\U0000000afourth\012"
+
+lines = "first\
+second\n"
+
+lines = b"first\r\n" b"second\r\n"
+lines = f"{rf'one\ntwo'=}\n"

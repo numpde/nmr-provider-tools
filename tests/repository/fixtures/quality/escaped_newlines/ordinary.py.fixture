@@ -1,0 +1,6 @@
+lines = "first\nsecond\n"
+lines = b"one\ntwo"
+lines = "\n\n"
+lines = "first\r\nsecond\r\n"
+lines = "one\\\ntwo"
+lines = b"first\r\nsecond\r\n"
