@@ -244,6 +244,18 @@ class SourceUpdateTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "manifest_link_count=2"):
             updates.verify(self.source)
 
+    def test_payload_rejects_a_hard_link_outside_the_snapshot(self):
+        acquisition_file = self.source / "acquisition_tool/old.py"
+        acquisition_alias = self.root / "payload-alias"
+
+        os.link(acquisition_file, acquisition_alias)
+
+        with self.assertRaisesRegex(ValueError, "acquisition_rel_path='acquisition_tool/old.py'.*acquisition_link_count=2"):
+            updates.verify(self.source)
+
+        acquisition_alias.unlink()
+        self.assert_old_source()
+
     def test_unrecorded_directory_or_symlink_is_not_admitted(self):
         extra = self.source / "extra"
 

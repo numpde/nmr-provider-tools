@@ -246,8 +246,10 @@ def verify(source_dir):
 
             (content, metadata) = _regular_bytes(path)
 
-            if metadata.st_nlink != 1:
-                raise ValueError(f"Acquisition source file has extra hard links: {acquisition_rel_path=}")
+            acquisition_link_count = metadata.st_nlink
+
+            if acquisition_link_count != 1:
+                raise ValueError(f"Acquisition {acquisition_rel_path=}: {acquisition_link_count=} ≠ 1")
 
             _check_bytes(acquisition_rel_path, content, entries[acquisition_rel_path])
 
