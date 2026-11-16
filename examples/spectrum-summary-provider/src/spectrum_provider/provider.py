@@ -40,6 +40,7 @@ class Provider:
         """
         baseline_call_binding = self.baseline_corrector.call(method=self.baseline_corrector.contribution.run)
         spectrum_payload = baseline_call_binding.input_codec.encode(value=spectrum)
+
         analysis_executor = self.execution_host.open_analysis(
             allocations=frozenset({
                 self.baseline_corrector.allocation,

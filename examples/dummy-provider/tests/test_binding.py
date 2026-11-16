@@ -152,6 +152,7 @@ class DummyBindingTests(unittest.IsolatedAsyncioTestCase):
         )
 
         original_bindings = (weighted, self.sum_binding())
+
         configured = (
             '[[execution.resource_requirement]]\n'
             'kind = "cpu"\n'
