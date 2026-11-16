@@ -134,7 +134,7 @@ def validate_candidates(*, candidates: tuple[str, ...], settings: Settings) -> N
     candidate_count = len(candidates)
 
     if not (1 <= candidate_count <= settings.beam_size):
-        raise ValueError(f"Invalid model output: {candidate_count=} must be from 1 through {settings.beam_size=}")
+        raise ValueError(f"Expected: 1 ≤ {candidate_count=} ≤ {settings.beam_size=}")
 
     for candidate in candidates:
         if not (type(candidate) is (expected_type := str)):
@@ -143,4 +143,4 @@ def validate_candidates(*, candidates: tuple[str, ...], settings: Settings) -> N
         character_count = len(candidate)
 
         if not (1 <= character_count <= settings.maximum_candidate_characters):
-            raise ValueError(f"Invalid model output: {character_count=} must be from 1 through {settings.maximum_candidate_characters=}")
+            raise ValueError(f"Expected: 1 ≤ {character_count=} ≤ {settings.maximum_candidate_characters=}")
