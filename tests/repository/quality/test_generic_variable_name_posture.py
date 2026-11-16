@@ -38,6 +38,10 @@ def _generic_name(*, variable_name: str) -> bool:
         "item",
         "items",
         "label",
+        "file",
+        "path",
+        "relative_path",
+        "rel_path",
         "result",
         "results",
         "obj",
@@ -90,6 +94,14 @@ def _findings(*, source: str) -> list[_Finding]:
 
 
 class GenericVariableNamePostureTests(unittest.TestCase):
+    def test_generic_path_and_file_names_are_flagged(self):
+        source = "path = 1\nrelative_path = 2\nrel_path = 3\nfile = 4\nacquisition_rel_path = 5\n"
+
+        self.assertEqual(
+            first=["path", "relative_path", "rel_path", "file"],
+            second=[finding.variable_name for finding in _findings(source=source)],
+        )
+
     def test_generic_parameters_assignments_and_comprehensions_are_flagged(self):
         source = "def convert(value, /, *items, data, label, **values):\n    result = [item for item in items]\n    return result\n"
 
