@@ -42,20 +42,20 @@ async def run_demo() -> None:
             )
 
             analysis_executor = workflow.analysis_executor
-            started = workflow.start()
+            baseline_admission = workflow.start()
 
-            if isinstance(started, NotAdmitted):
-                raise RuntimeError(f"Baseline admission refused: {started.code.value}: {started.message}")
+            if isinstance(baseline_admission, NotAdmitted):
+                raise RuntimeError(f"Baseline admission refused: {baseline_admission.code.value=}; {baseline_admission.message=}")
 
             async with asyncio.timeout(15):
-                result = await workflow.finish()
+                peak_observation = await workflow.finish()
 
-            if isinstance(result, NotAdmitted):
-                raise RuntimeError(f"Peak admission refused: {result.code.value}: {result.message}")
+            if isinstance(peak_observation, NotAdmitted):
+                raise RuntimeError(f"Peak admission refused: {peak_observation.code.value=}; {peak_observation.message=}")
 
             result_consumer = ResultConsumption(
                 operation=workflow.peak_detection_submission.operation,
-                result=result.require_result(),
+                result=peak_observation.require_result(),
                 receive=print_report,
             )
 

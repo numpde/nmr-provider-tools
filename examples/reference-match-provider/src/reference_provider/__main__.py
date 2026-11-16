@@ -55,7 +55,7 @@ async def run_demo() -> None:
                 )
 
                 if isinstance(match_operation, NotAdmitted):
-                    raise RuntimeError(f"Reference match admission refused: {match_operation.code.value}: {match_operation.message}")
+                    raise RuntimeError(f"Reference match admission refused: {match_operation.code.value=}; {match_operation.message=}")
 
                 async with asyncio.timeout(15):
                     operation_observation = await observe_completion(operation=match_operation)
