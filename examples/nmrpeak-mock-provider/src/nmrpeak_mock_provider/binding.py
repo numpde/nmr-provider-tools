@@ -14,6 +14,8 @@ from .checkpoint import open_checkpoint
 
 
 class PeakContribution(sdk.Contribution):
+    """Own a model and the prepared-input port shared by HF and CHF."""
+
     prepared_state_type = sdk.StateType(value_type=science.PreparedInput)
     validated = prepared_state_type.output(dispose=science.dispose_prepared)
     candidate = prepared_state_type.input(use=sdk.StateUse.CONSUME)
@@ -52,6 +54,8 @@ class PeakContribution(sdk.Contribution):
             self.model.close()
 
     def prepare_input(self, *, candidate: science.HfInput | science.ChfInput) -> sdk.ScientificReturn[science.PreparationReport]:
+        """Return a token-count report while retaining prepared tokens for generation."""
+
         prepared = science.prepare(model=self.model, candidate=candidate, settings=self.configuration)
 
         return sdk.ScientificReturn(
@@ -61,6 +65,8 @@ class PeakContribution(sdk.Contribution):
 
     @sdk.operation(state_inputs=(candidate,))
     def generate(self, *, candidate: science.PreparedInput) -> science.Candidates:
+        """Consume prepared tokens once and admit the model's bounded output."""
+
         tokens = candidate.consume()
         generated = self.model.generate(tokens=tokens, beam_size=self.configuration.beam_size)
 
@@ -73,7 +79,9 @@ class PeakContribution(sdk.Contribution):
 
 
 class Hf(PeakContribution):
-    interpretation_description_file = "hf_description.txt"
+    """Prepare a formula and proton peaks for generation."""
+
+    interpretation_prompt_file = "hf_prompt.txt"
 
     @sdk.operation(state_outputs=(PeakContribution.validated,))
     def prepare(self, *, candidate: science.HfInput) -> sdk.ScientificReturn[science.PreparationReport]:
@@ -81,7 +89,9 @@ class Hf(PeakContribution):
 
 
 class Chf(PeakContribution):
-    interpretation_description_file = "chf_description.txt"
+    """Prepare a formula and proton and carbon peaks for generation."""
+
+    interpretation_prompt_file = "chf_prompt.txt"
 
     @sdk.operation(state_outputs=(PeakContribution.validated,))
     def prepare(self, *, candidate: science.ChfInput) -> sdk.ScientificReturn[science.PreparationReport]:

@@ -22,12 +22,16 @@ class ProtonPeak:
 
 @dataclass(frozen=True, slots=True, kw_only=True)
 class HfInput:
+    """A formula and unassigned proton peaks proposed for the HF model."""
+
     formula: str
     proton_peaks: tuple[ProtonPeak, ...]
 
 
 @dataclass(frozen=True, slots=True, kw_only=True)
 class ChfInput:
+    """A formula, proton peaks and carbon shifts proposed for the CHF model."""
+
     formula: str
     proton_peaks: tuple[ProtonPeak, ...]
     carbon_peaks: tuple[str, ...]
@@ -35,6 +39,8 @@ class ChfInput:
 
 @dataclass(frozen=True, slots=True, kw_only=True)
 class Settings:
+    """Checkpoint digest and limits for preparation and generated candidates."""
+
     checkpoint_sha256: str
     maximum_input_tokens: int
     beam_size: int
@@ -51,11 +57,15 @@ class Settings:
 
 @dataclass(frozen=True, slots=True, kw_only=True)
 class PreparationReport:
+    """Token count after preparation; generation uses the separately retained state."""
+
     token_count: int
 
 
 @dataclass(frozen=True, slots=True, kw_only=True)
 class Candidates:
+    """Admitted model output and the digest of the checkpoint that generated it."""
+
     generated_smiles: tuple[str, ...]
     checkpoint_sha256: str
 
@@ -76,6 +86,8 @@ class PreparedInput:
     tokens: tuple[str, ...] | None
 
     def consume(self) -> tuple[str, ...]:
+        """Transfer tokens to one generation; reject reuse after consumption or cleanup."""
+
         if self.tokens is None:
             raise RuntimeError("Validated input was already consumed or disposed")
 

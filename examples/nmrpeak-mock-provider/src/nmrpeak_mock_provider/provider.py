@@ -36,8 +36,7 @@ PROVIDER_CONFIG_PATH = Path("config/deployments/localhost/provider.toml")
 class Provider:
     """The execution manager, per-request policy and available scientific objects.
 
-    These fields have different roles. The offerings field is the unordered
-    inventory; it does not assign fixed slots to particular scientific variants.
+    Each request selects one of the unordered adopted offerings.
     """
 
     execution_host: InProcessExecutionHost

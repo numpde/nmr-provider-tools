@@ -68,11 +68,14 @@ class PredictionWorkflow:
 
         The request caller supplies source text. The selected scientific method
         already declares its input type; the SDK derives its tool schema.
+        Rejected proposals can be corrected; scientific acceptance retains input
+        for generation.
         """
-        package_files = files(anchor=__package__)
-        system_prompt = package_files.joinpath("system_prompt.txt").read_text(encoding="utf-8")
-        offering_description = package_files.joinpath(
-            self.hosted_predictor.contribution.interpretation_description_file,
+        prompt_files = files(anchor=__package__).joinpath("prompts")
+        system_prompt = prompt_files.joinpath("system_prompt.txt").read_text(encoding="utf-8")
+
+        offering_prompt = prompt_files.joinpath(
+            self.hosted_predictor.contribution.interpretation_prompt_file,
         ).read_text(encoding="utf-8")
 
         # The tool definition tells the language model how to propose input.
@@ -81,7 +84,7 @@ class PredictionWorkflow:
         await self.interpreter.run(
             messages=[
                 {"role": "system", "content": system_prompt},
-                {"role": "user", "content": offering_description},
+                {"role": "user", "content": offering_prompt},
                 {"role": "user", "content": source},
             ],
             tools=[self.preparation_tool.definition],
@@ -117,7 +120,11 @@ class PredictionWorkflow:
             await self.result_consumer.settle()
 
     async def finish(self):
-        """Submit generate once, then wait on the same operation and return its result."""
+        """Return the generated result reference after preparation is accepted.
+
+        Missing prepared input or an admission refusal raises. Later waits reuse
+        the original submitted operation.
+        """
 
         if self.preparation_tool.prepared_state_handle is None:
             raise RuntimeError("Accept an interpretation before generating candidates")

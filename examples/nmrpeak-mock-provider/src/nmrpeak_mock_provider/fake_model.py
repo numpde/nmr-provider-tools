@@ -11,6 +11,8 @@ from .science import ChfInput, HfInput
 
 
 class Tokenizer:
+    """Flatten mock input into deterministic tokens without chemical interpretation."""
+
     def tokenize(self, *, candidate: HfInput | ChfInput) -> tuple[str, ...]:
         tokens = [candidate.formula]
 

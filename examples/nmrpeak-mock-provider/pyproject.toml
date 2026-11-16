@@ -18,4 +18,4 @@ namespaces = false
 include-package-data = false
 
 [tool.setuptools.package-data]
-nmrpeak_mock_provider = ["system_prompt.txt", "hf_description.txt", "chf_description.txt"]
+nmrpeak_mock_provider = ["prompts/*.txt"]
