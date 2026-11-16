@@ -76,12 +76,18 @@ class InstallationContractTests(unittest.TestCase):
             payload,
             {
                 "provider_core/__init__.py",
+                "provider_core/_json_schema.py",
                 "provider_core/contribution.py",
                 "provider_core/contribution_declaration.py",
                 "provider_core/contribution_errors.py",
                 "provider_core/hosting.py",
+                "provider_core/failure_collection.py",
+                "provider_core/input_tool.py",
+                "provider_core/preparation_tool.py",
                 "provider_core/state_slots.py",
                 "provider_core/scientific.py",
+                "provider_core/submission.py",
+                "provider_core/verified_file.py",
                 "provider_core/embedded_host.py",
                 "provider_core/_embedded_operation.py",
                 "provider_core/_embedded_support.py",
@@ -167,6 +173,7 @@ class InstallationContractTests(unittest.TestCase):
                 "httpcore==1.0.9",
                 "h11==0.16.0",
                 "tomli-w==1.2.0",
+                "pydantic==2.14.3",
             )}
         )
 
