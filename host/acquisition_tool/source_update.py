@@ -204,10 +204,17 @@ def verify(source_dir):
     if source.resolve() != source or source.is_symlink() or not source.is_dir():
         raise ValueError(f"Cannot verify acquisition source {source}: require a real directory without symlink parents.")
 
-    (data, metadata) = _regular_bytes(source / "acquisition-manifest.json")
+    manifest_path = source / "acquisition-manifest.json"
+    (data, metadata) = _regular_bytes(manifest_path)
+    manifest_execute_bits = metadata.st_mode & 0o111
 
-    if metadata.st_mode & 0o111 or metadata.st_nlink != 1:
-        raise ValueError("The acquisition manifest must not be executable or have extra hard links.")
+    if manifest_execute_bits:
+        raise ValueError(f"Acquisition {manifest_path=}: {manifest_execute_bits=:03o}")
+
+    manifest_link_count = metadata.st_nlink
+
+    if manifest_link_count != 1:
+        raise ValueError(f"Acquisition {manifest_path=}: {manifest_link_count=} ≠ 1")
 
     manifest = read_manifest(data)
     entries = manifest["payload_files"]

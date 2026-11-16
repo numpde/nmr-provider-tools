@@ -208,6 +208,24 @@ class SourceUpdateTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "actual_execute_bits=111.*release_execute_bits=000"):
             updates.verify(self.source)
 
+    def test_manifest_rejects_execute_bits_and_accepts_checkout_write_bits(self):
+        manifest_path = self.source / "acquisition-manifest.json"
+
+        manifest_path.chmod(0o664)
+        updates.verify(self.source)
+        manifest_path.chmod(0o654)
+
+        with self.assertRaisesRegex(ValueError, "manifest_execute_bits=010"):
+            updates.verify(self.source)
+
+    def test_manifest_rejects_a_hard_link_outside_the_snapshot(self):
+        manifest_path = self.source / "acquisition-manifest.json"
+
+        os.link(manifest_path, self.root / "manifest-alias")
+
+        with self.assertRaisesRegex(ValueError, "manifest_link_count=2"):
+            updates.verify(self.source)
+
     def test_unrecorded_directory_or_symlink_is_not_admitted(self):
         extra = self.source / "extra"
 
