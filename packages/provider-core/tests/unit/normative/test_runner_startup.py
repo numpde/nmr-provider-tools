@@ -179,15 +179,15 @@ class RunnerStartupTests(unittest.TestCase):
         self.assertIsNone(session.retirement)
 
     def test_stop_racing_successful_kernel_connect_half_closes_the_accepted_peer(self):
-        (connected, release) = (threading.Event(), threading.Event())
+        (connected, release_control_connection) = (threading.Event(), threading.Event())
 
         class PausedConnect(socket.socket):
             def connect(self, address):
                 super().connect(address)
                 connected.set()
 
-                if not (release.wait(1)):
-                    raise TimeoutError("Fixture did not release the successful control connection.")
+                if not (control_connection_released := release_control_connection.wait(timeout=(release_timeout_seconds := 1))):
+                    raise TimeoutError(f"{control_connection_released=} after waiting {release_timeout_seconds=}")
 
         session = self.session(PausedConnect)
 
@@ -198,7 +198,7 @@ class RunnerStartupTests(unittest.TestCase):
                 self.assertTrue(connected.wait(1))
                 session.request_stop()
             finally:
-                release.set()
+                release_control_connection.set()
 
             (peer, _) = self.listener.accept()
             (science, remote) = socket.socketpair()

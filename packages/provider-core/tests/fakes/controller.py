@@ -36,7 +36,7 @@ async def cancel_task(task):
         task.cancel()
         await asyncio.wait((task,), timeout=2)
 
-    if not (task.done()):
+    if not task.done():
         raise TimeoutError("Test task did not settle after cancellation")
 
     if not task.cancelled():

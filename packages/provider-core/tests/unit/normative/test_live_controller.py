@@ -110,7 +110,7 @@ class LiveControllerTests(unittest.IsolatedAsyncioTestCase):
             async def submit(self, item):
                 bodies.append(item.body)
 
-                if not (recovered.is_set()):
+                if not recovered.is_set():
                     pressured.set()
                     raise DeliveryFull("The authored queue is full")
 

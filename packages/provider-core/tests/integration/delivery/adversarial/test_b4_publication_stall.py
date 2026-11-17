@@ -55,8 +55,8 @@ class PublicationStorageStallTests(unittest.IsolatedAsyncioTestCase):
 
             loop.call_soon_threadsafe(removal_started.set)
 
-            if not (release_removal.wait(5)):
-                raise AssertionError("The test did not release its original storage operation")
+            if not release_removal.wait(timeout=(release_timeout_seconds := 5)):
+                raise AssertionError(f"{release_removal.is_set()=} after waiting {release_timeout_seconds=}")
 
             return original_remove(item)
 
@@ -219,8 +219,8 @@ class PublicationStorageStallTests(unittest.IsolatedAsyncioTestCase):
             removal_calls.append(item)
             loop.call_soon_threadsafe(removal_started.set)
 
-            if not (release_removal.wait(5)):
-                raise AssertionError("The test did not release its original storage operation")
+            if not release_removal.wait(timeout=(release_timeout_seconds := 5)):
+                raise AssertionError(f"{release_removal.is_set()=} after waiting {release_timeout_seconds=}")
 
             return original_remove(item)
 

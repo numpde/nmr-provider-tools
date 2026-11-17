@@ -240,14 +240,14 @@ class DeliveryIPCTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(self.queue.next_pending(item.api_origin, item.provider_ref), item)
 
     async def test_shutdown_joins_committing_write_after_waiter_cancellation(self):
-        (started, release) = (threading.Event(), threading.Event())
+        (started, release_storage) = (threading.Event(), threading.Event())
         item = outcome()
 
         def blocked_enqueue():
             started.set()
 
-            if not (release.wait(2)):
-                raise TimeoutError("Test did not release the retained SQLite operation.")
+            if not release_storage.wait(timeout=(release_timeout_seconds := 2)):
+                raise TimeoutError(f"{release_storage.is_set()=} after waiting {release_timeout_seconds=}")
 
             return self.queue.enqueue(item)
 
@@ -272,7 +272,7 @@ class DeliveryIPCTests(unittest.IsolatedAsyncioTestCase):
 
         await asyncio.sleep(0)
         self.assertFalse(closing.done())
-        release.set()
+        release_storage.set()
         await closing
         self.assertEqual(self.queue.next_pending(item.api_origin, item.provider_ref), item)
 

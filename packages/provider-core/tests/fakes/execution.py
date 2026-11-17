@@ -172,19 +172,19 @@ async def execute_with_watchdog(executor, acknowledged):
     task = asyncio.create_task(executor.run(acknowledged))
 
     try:
-        await asyncio.wait((task,), timeout=3)
+        await asyncio.wait((task,), timeout=(execution_timeout_seconds := 3))
 
-        if not (task.done()):
-            raise TimeoutError("Test executor did not finish; cancel and settle its original task")
+        if not task.done():
+            raise TimeoutError(f"Test execution did not finish within {execution_timeout_seconds=}")
 
         return task.result()
     finally:
         if not task.done():
             task.cancel()
-            await asyncio.wait((task,), timeout=1)
+            await asyncio.wait((task,), timeout=(cancellation_timeout_seconds := 1))
 
-        if not (task.done()):
-            raise TimeoutError("Test executor did not settle after cancellation")
+            if not task.done():
+                raise TimeoutError(f"Test execution did not finish within {cancellation_timeout_seconds=} after cancellation was requested")
 
         if not task.cancelled():
             task.exception()

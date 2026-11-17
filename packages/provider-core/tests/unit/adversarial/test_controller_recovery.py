@@ -85,7 +85,7 @@ class ControllerRecoveryFailureTests(unittest.IsolatedAsyncioTestCase):
         async def pressured(item):
             bodies.append(item.body)
 
-            if not (recovered.is_set()):
+            if not recovered.is_set():
                 raise DeliveryFull("Relay full")
 
             return await submit(item)

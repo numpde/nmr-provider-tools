@@ -103,14 +103,14 @@ class DeliveryServiceTests(unittest.IsolatedAsyncioTestCase):
             await asyncio.wait_for(service.ready.wait(), 1)
             client = DeliveryClient(endpoint, exchange_seconds=1, retirement_seconds=0.2)
             item = replace(outcome(), api_origin=peer.origin)
-            (started, release) = (threading.Event(), threading.Event())
+            (started, release_commit) = (threading.Event(), threading.Event())
             enqueue = service.queue.enqueue
 
             def delayed_enqueue(value):
                 started.set()
 
-                if not (release.wait(2)):
-                    raise TimeoutError("Test did not release the original delivery commit.")
+                if not release_commit.wait(timeout=(release_timeout_seconds := 2)):
+                    raise TimeoutError(f"{release_commit.is_set()=} after waiting {release_timeout_seconds=}")
 
                 return enqueue(value)
 
@@ -136,7 +136,7 @@ class DeliveryServiceTests(unittest.IsolatedAsyncioTestCase):
                 self.assertFalse(closing.done())
                 self.assertFalse(service.retirement_confirmed)
             finally:
-                release.set()
+                release_commit.set()
 
             self.assertEqual(await submit, item.acceptance())
             await asyncio.wait_for(closing, 2)

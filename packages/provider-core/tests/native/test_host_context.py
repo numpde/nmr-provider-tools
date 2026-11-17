@@ -106,7 +106,7 @@ class HostContextTests(unittest.IsolatedAsyncioTestCase):
 
     async def test_repeated_cancellation_waits_for_native_resource_close(self):
         entered = Event()
-        release = Event()
+        release_cleanup = Event()
         exited = asyncio.Event()
         closed = []
         owner = host()
@@ -114,8 +114,8 @@ class HostContextTests(unittest.IsolatedAsyncioTestCase):
         def close():
             entered.set()
 
-            if not (release.wait(timeout=5)):
-                raise TimeoutError("Test did not release the native cleanup gate")
+            if not release_cleanup.wait(timeout=(release_timeout_seconds := 5)):
+                raise TimeoutError(f"{release_cleanup.is_set()=} after waiting {release_timeout_seconds=}")
 
             closed.append(True)
 
@@ -141,7 +141,7 @@ class HostContextTests(unittest.IsolatedAsyncioTestCase):
                 await cancellations_delivered.wait()
                 self.assertFalse(expr=task.done())
                 self.assertFalse(expr=exited.is_set())
-                release.set()
+                release_cleanup.set()
 
                 with self.assertRaises(expected_exception=BaseExceptionGroup) as raised:
                     await task
@@ -153,5 +153,5 @@ class HostContextTests(unittest.IsolatedAsyncioTestCase):
 
             self.assertTrue(expr=observation.settled)
         finally:
-            release.set()
+            release_cleanup.set()
             await asyncio.gather(task, return_exceptions=True)

@@ -52,7 +52,7 @@ class FullUntilReleased(RecordingDelivery):
     async def submit(self, item):
         self.attempted.append(item.body)
 
-        if not (self.release.is_set()):
+        if not self.release.is_set():
             self.full_seen.set()
             raise DeliveryFull("Delivery capacity is full.")
 

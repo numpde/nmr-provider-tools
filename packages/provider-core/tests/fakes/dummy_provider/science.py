@@ -328,8 +328,8 @@ def calculate(
         + analysis.model.settings.scale * weighted_sum
     )
 
-    if not (math.isfinite(prediction_total)):
-        raise ArithmeticError("The weighted prediction total is not finite")
+    if not math.isfinite(prediction_total):
+        raise ArithmeticError(f"{prediction_total=} should be finite")
 
     return PredictionResult(
         total=prediction_total,
@@ -344,13 +344,13 @@ def sum_values(summation: SumInput) -> SumResult:
             "Sum input must contain at least one value",
         )
 
-    total = math.fsum(summation.values)
+    sum_total = math.fsum(summation.values)
 
-    if not (math.isfinite(total)):
-        raise ArithmeticError("The sum total is not finite")
+    if not math.isfinite(sum_total):
+        raise ArithmeticError(f"{sum_total=} should be finite")
 
     return SumResult(
-        total=total,
+        total=sum_total,
         count=len(summation.values),
     )
 

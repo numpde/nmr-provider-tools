@@ -65,14 +65,14 @@ class RunnerRefusalTests(unittest.TestCase):
         self.addCleanup(session.close)
         session.connect()
         pid = worker_pid(session.science, b"H")
-        (entered, release) = (threading.Event(), threading.Event())
+        (entered, release_retirement_read) = (threading.Event(), threading.Event())
         receive = session._receive_retirement
 
         def original_read(deadline):
             entered.set()
 
-            if not (release.wait(2)):
-                raise TimeoutError("Original lifecycle read was not released by its test owner")
+            if not release_retirement_read.wait(timeout=(release_timeout_seconds := 2)):
+                raise TimeoutError(f"{release_retirement_read.is_set()=} after waiting {release_timeout_seconds=}")
 
             return receive(deadline)
 
@@ -86,7 +86,7 @@ class RunnerRefusalTests(unittest.TestCase):
                     session.observe_retirement()
             finally:
                 os.kill(pid, signal.SIGKILL)
-                release.set()
+                release_retirement_read.set()
 
             original.result(timeout=3)
 

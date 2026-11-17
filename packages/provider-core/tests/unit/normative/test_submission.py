@@ -23,7 +23,7 @@ class Science(Contribution):
         self.inputs = []
         self.failure = None
         self.entered = None
-        self.release = None
+        self.release_calculation = None
 
     @operation()
     def calculate(self, *, sample: Sample) -> Sample:
@@ -32,8 +32,8 @@ class Science(Contribution):
         if self.entered is not None:
             self.entered.set()
 
-            if not (self.release.wait(timeout=5)):
-                raise TimeoutError("Test did not release scientific calculation")
+            if not (calculation_released := self.release_calculation.wait(timeout=(release_timeout_seconds := 5))):
+                raise TimeoutError(f"{calculation_released=} after waiting {release_timeout_seconds=}")
 
         if not (self.failure is None):
             raise self.failure
@@ -145,7 +145,7 @@ class SubmissionTests(unittest.IsolatedAsyncioTestCase):
 
     async def test_canceled_wait_does_not_stop_or_replay_science(self):
         self.science.entered = Event()
-        self.science.release = Event()
+        self.science.release_calculation = Event()
         submission = self.submission(value=1)
         admitted = submission.submit()
         waiter = asyncio.create_task(coro=submission.wait())
@@ -157,12 +157,12 @@ class SubmissionTests(unittest.IsolatedAsyncioTestCase):
             with self.assertRaises(expected_exception=asyncio.CancelledError):
                 await waiter
 
-            self.science.release.set()
+            self.science.release_calculation.set()
             (await submission.wait()).require_result()
             self.assertIs(expr1=admitted, expr2=submission.submit())
             self.assertEqual(first=[Sample(value=1)], second=self.science.inputs)
         finally:
-            self.science.release.set()
+            self.science.release_calculation.set()
             await asyncio.gather(waiter, return_exceptions=True)
 
     async def test_acquired_operation_survives_analysis_close_without_submission(self):

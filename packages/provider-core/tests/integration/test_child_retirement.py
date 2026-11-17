@@ -277,10 +277,11 @@ class ChildRetirementTests(unittest.IsolatedAsyncioTestCase):
     async def _cancel_executor(self, task):
         if not task.done():
             task.cancel()
-            await asyncio.wait((task,), timeout=1)
 
-        if not (task.done()):
-            raise TimeoutError("Test executor did not settle after cancellation; still attempt exact-child and store cleanup")
+            await asyncio.wait((task,), timeout=(cancellation_timeout_seconds := 1))
+
+            if not task.done():
+                raise TimeoutError(f"Test execution did not finish within {cancellation_timeout_seconds=} after cancellation was requested")
 
         await asyncio.gather(task, return_exceptions=True)
 
@@ -294,10 +295,10 @@ class ChildRetirementTests(unittest.IsolatedAsyncioTestCase):
     async def _finished(self, task):
         # wait_for would await cancellation indefinitely if retirement regressed.
         # Retain the task for bounded cleanup even when this watchdog expires.
-        await asyncio.wait((task,), timeout=3)
+        await asyncio.wait((task,), timeout=(execution_timeout_seconds := 3))
 
-        if not (task.done()):
-            raise TimeoutError("Test executor did not finish; cancel it and clean up its retained child")
+        if not task.done():
+            raise TimeoutError(f"Test execution did not finish within {execution_timeout_seconds=}")
 
         return task.result()
 
