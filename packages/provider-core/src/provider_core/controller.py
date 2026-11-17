@@ -95,7 +95,7 @@ class LiveStartPolicy:
             if not (type(value) in (expected_value_type := (int, float))):
                 raise TypeError(f"{name=}; {type(value)=} ≠ {expected_value_type=}")
 
-            if not (math.isfinite(value)):
+            if not math.isfinite(value):
                 raise ValueError(f"Live START {name} must be finite positive seconds")
 
             if not (value > 0):
@@ -514,7 +514,7 @@ class AttemptController:
                 self._link_interruption(cause)
                 raise
 
-            if not (isinstance(cause, (expected_type := Exception))):
+            if not isinstance(cause, (expected_type := Exception)):
                 raise BaseExceptionGroup(f"{type(cause)=} ≠ {expected_type=}", (cause, self.last_failure)) from None
 
             if not (cleanup_fatal is None):
@@ -615,7 +615,7 @@ class AttemptController:
                 self._link_interruption(interruption)
                 raise
 
-            if not (isinstance(cause, (expected_type := Exception))):
+            if not isinstance(cause, (expected_type := Exception)):
                 raise BaseExceptionGroup(f"{type(cause)=} ≠ {expected_type=}", (cause, self.last_failure)) from None
 
             if not (cleanup_fatal is None):
@@ -915,7 +915,7 @@ class AttemptController:
                         raise cause
 
                 for cause in failures:
-                    if not (isinstance(cause, (expected_type := Exception))):
+                    if not isinstance(cause, (expected_type := Exception)):
                         raise BaseExceptionGroup(f"{type(cause)=} ≠ {expected_type=}", (cause, self.last_failure)) from None
 
                 raise self.last_failure from None
@@ -929,7 +929,7 @@ class AttemptController:
             except (Exception, BaseExceptionGroup) as cause:
                 self._remember(cause, cleanup=True)
 
-                if not (isinstance(cause, (expected_type := Exception))):
+                if not isinstance(cause, (expected_type := Exception)):
                     raise BaseExceptionGroup(f"{type(cause)=} ≠ {expected_type=}", (cause, self.last_failure)) from None
 
                 raise self.last_failure from None

@@ -46,12 +46,12 @@ class Reference:
         if not (type((actual_label := self.label)) is (expected_type := str)):
             raise TypeError(f"{type(actual_label)=} ≠ {expected_type=}")
 
-        if not (self.label.strip()):
+        if not self.label.strip():
             raise ValueError("Each matching reference requires a nonempty label")
 
         object.__setattr__(self, "values", VectorInput(values=self.values).values)
 
-        if not (any(self.values)):
+        if not any(self.values):
             raise ValueError("A matching reference requires at least one positive channel value")
 
 

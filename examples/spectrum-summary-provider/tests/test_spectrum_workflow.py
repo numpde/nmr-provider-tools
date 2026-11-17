@@ -319,7 +319,7 @@ class SpectrumWorkflowTests(unittest.IsolatedAsyncioTestCase):
         def held(spectrum, settings):
             entered.set()
 
-            if not (proceed.wait(5)):
+            if not proceed.wait(5):
                 raise TimeoutError("Test did not release the original baseline calculation")
 
             return subtract(spectrum, settings)

@@ -94,7 +94,7 @@ class SupervisedChatTransport:
         if not (type(connect_seconds) in (expected_type := (int, float))):
             raise TypeError(f"Cannot configure interpreter child: {type(connect_seconds)=} ≠ {expected_type=}")
 
-        if not (math.isfinite(connect_seconds)):
+        if not math.isfinite(connect_seconds):
             raise ValueError("Cannot configure interpreter child: connect_seconds must be finite positive seconds")
 
         if not (connect_seconds > 0):
@@ -210,7 +210,7 @@ class SupervisedChatTransport:
             if not (type(not_after) in (expected_type := (int, float))):
                 raise TypeError(f"Cannot start model HTTP exchange: {type(not_after)=} ≠ {expected_type=}")
 
-            if not (math.isfinite(not_after)):
+            if not math.isfinite(not_after):
                 raise ValueError("Cannot start model HTTP exchange: not_after must be a finite positive deadline")
 
             if not (not_after > 0):

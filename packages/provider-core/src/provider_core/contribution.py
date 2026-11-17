@@ -87,7 +87,7 @@ def _unique(values: Collection[object], key: Callable[[object], object], label: 
 
 
 def _callback(value: object, label: str) -> None:
-    if not (callable(value)):
+    if not callable(value):
         raise TypeError(f"{label} must be callable")
 
 
@@ -186,7 +186,7 @@ def _constructed_type(
 
     constructed_type = hints.get("return")
 
-    if not (isinstance(constructed_type, (expected_constructed_type_type := type))):
+    if not isinstance(constructed_type, (expected_constructed_type_type := type)):
         raise TypeError(f"{label=}; {type(constructed_type)=} ≠ {expected_constructed_type_type=}")
 
     if constructed_type is NoneType:
@@ -219,16 +219,16 @@ def _scientific_call_shape(
 
     (instance_type, analysis_type, input_type, state_type) = get_args(context_type)
 
-    if not (isinstance(instance_type, (expected_instance_type_type := type))):
+    if not isinstance(instance_type, (expected_instance_type_type := type)):
         raise TypeError(f"{type(instance_type)=} ≠ {expected_instance_type_type=}")
 
-    if not (isinstance(analysis_type, (expected_analysis_type_type := type))):
+    if not isinstance(analysis_type, (expected_analysis_type_type := type)):
         raise TypeError(f"{type(analysis_type)=} ≠ {expected_analysis_type_type=}")
 
-    if not (isinstance(input_type, (expected_input_type_type := type))):
+    if not isinstance(input_type, (expected_input_type_type := type)):
         raise TypeError(f"{type(input_type)=} ≠ {expected_input_type_type=}")
 
-    if not (isinstance(state_type, (expected_state_type_type := type))):
+    if not isinstance(state_type, (expected_state_type_type := type)):
         raise TypeError(f"{type(state_type)=} ≠ {expected_state_type_type=}")
 
     return_annotation = resolved_annotations.get("return")
@@ -238,7 +238,7 @@ def _scientific_call_shape(
 
     (output_type,) = get_args(return_annotation)
 
-    if not (isinstance(output_type, (expected_type := type))):
+    if not isinstance(output_type, (expected_type := type)):
         raise TypeError(f"{type(output_type)=} ≠ {expected_type=}")
 
     return _ScientificCallShape(
@@ -327,7 +327,7 @@ class ConfiguredIdentity:
         _identity(self.binding_id, "Binding identity")
         _identity(self.implementation, "Implementation identity")
 
-        if not (self.implementation.isascii()):
+        if not self.implementation.isascii():
             raise ValueError("Implementation identity must be ASCII")
 
         if not (type((actual_contract_version := self.contract_version)) is (expected_type := int)):
@@ -775,7 +775,7 @@ class CallBinding[InputT, StateT, OutputT]:
             (self.input_codec, "Input codec"),
             (self.result_codec, "Result codec"),
         ):
-            if not (isinstance(codec, (expected_codec_type := PayloadCodec))):
+            if not isinstance(codec, (expected_codec_type := PayloadCodec)):
                 raise TypeError(f"{label=}; {type(codec)=} ≠ {expected_codec_type=}")
 
         if self.input_codec.format != self.description.input_format:
@@ -784,7 +784,7 @@ class CallBinding[InputT, StateT, OutputT]:
         if self.result_codec.format != self.description.result_format:
             raise ValueError("Result codec format differs from the call description")
 
-        if not (isinstance((actual_state_binding := self.state_binding), (expected_state_binding_type := StateBinding))):
+        if not isinstance((actual_state_binding := self.state_binding), (expected_state_binding_type := StateBinding)):
             raise TypeError(f"{type(actual_state_binding)=} ≠ {expected_state_binding_type=}")
 
         # repo-check: allow-tuple-generator -- StateBinding.names requires an immutable ordered tuple matching the declared state fields.
@@ -797,7 +797,7 @@ class CallBinding[InputT, StateT, OutputT]:
             raise ValueError("State binding fields differ from the call's declared state inputs")
 
         if self.description.state_inputs:
-            if not (isinstance((actual_state_binding := self.state_binding), (expected_state_binding_type := DeclaredStateBinding))):
+            if not isinstance((actual_state_binding := self.state_binding), (expected_state_binding_type := DeclaredStateBinding)):
                 raise TypeError(f"{type(actual_state_binding)=} ≠ {expected_state_binding_type=}")
 
             if self.state_binding.parameters != self.description.state_inputs:
@@ -814,10 +814,10 @@ class CallBinding[InputT, StateT, OutputT]:
         output_descriptions = []
 
         for slot in self._output_slots:
-            if not (isinstance(slot, (expected_slot_type := StateOutputBinding))):
+            if not isinstance(slot, (expected_slot_type := StateOutputBinding)):
                 raise TypeError(f"{type(slot)=} ≠ {expected_slot_type=}")
 
-            if not (isinstance((actual_value_type := slot.value_type), (expected_value_type_type := type))):
+            if not isinstance((actual_value_type := slot.value_type), (expected_value_type_type := type)):
                 raise TypeError(f"{type(actual_value_type)=} ≠ {expected_value_type_type=}")
 
             output_descriptions.append(slot.description)
@@ -1218,7 +1218,7 @@ def ref[InputT, StateT, OutputT](call: CallBinding[InputT, StateT, OutputT]) -> 
     if owner is None:
         raise ValueError("Cannot reference a call before a configured binding owns it")
 
-    if not (any(member is call for member in owner._calls)):
+    if not any(member is call for member in owner._calls):
         raise ValueError("Call does not belong to its configured binding")
 
     return CallRef(owner.description.binding_id, owner.description.binding_revision, call.description.name)

@@ -771,7 +771,7 @@ def require_interface_name(interface: str) -> None:
 
     # Native lookup admits the same device name consumed by SO_BINDTODEVICE.
     # https://github.com/numpde/magnet-deploy/blob/2d4ee50b0359e71900fce9289ea01f46d0f41249/scripts/image-build-proxy.py#L373-L381
-    if not (re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9_.-]{0,14}", interface)):
+    if not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9_.-]{0,14}", interface):
         raise ValueError(
             "Cannot start proxy: require an ASCII interface name of 1 through 15 bytes, without paths or whitespace."
         )

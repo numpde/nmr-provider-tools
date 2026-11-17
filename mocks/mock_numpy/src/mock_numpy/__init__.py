@@ -186,10 +186,10 @@ def isfinite(numeric_input: object, /) -> bool | ndarray:
 def dot(a: ndarray, b: ndarray) -> float:
     """Compute a floating inner product; mismatched shapes always fail."""
 
-    if not (isinstance(a, (expected_type := ndarray))):
+    if not isinstance(a, (expected_type := ndarray)):
         raise TypeError(f"{type(a)=} ≠ {expected_type=}")
 
-    if not (isinstance(b, (expected_type := ndarray))):
+    if not isinstance(b, (expected_type := ndarray)):
         raise TypeError(f"{type(b)=} ≠ {expected_type=}")
 
     if not (a.ndim == b.ndim == 1):
@@ -207,7 +207,7 @@ def dot(a: ndarray, b: ndarray) -> float:
 def sum(a: ndarray, *, dtype: type) -> float:
     """Reduce real array elements using the example's explicit float accumulator."""
 
-    if not (isinstance(a, (expected_type := ndarray))):
+    if not isinstance(a, (expected_type := ndarray)):
         raise TypeError(f"{type(a)=} ≠ {expected_type=}")
 
     if not (dtype is float and a.dtype.kind in "iuf"):

@@ -74,10 +74,10 @@ class ChatEndpointSpec:
             if not (self.reasoning_effort):
                 raise ValueError("Cannot configure interpreter endpoint: reasoning_effort must be an explicit ASCII word or None.")
 
-            if not (self.reasoning_effort.isascii()):
+            if not self.reasoning_effort.isascii():
                 raise ValueError("Cannot configure interpreter endpoint: reasoning_effort must be an explicit ASCII word or None.")
 
-            if not (self.reasoning_effort.isalnum()):
+            if not self.reasoning_effort.isalnum():
                 raise ValueError("Cannot configure interpreter endpoint: reasoning_effort must be an explicit ASCII word or None.")
 
         if not (type((actual_url := self.url)) is (expected_type := str)):

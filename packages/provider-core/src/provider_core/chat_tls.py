@@ -89,7 +89,7 @@ def _file_materials(cafile, capath):
         captured = []
 
         for entry in entries:
-            if not (entry.is_file()):
+            if not entry.is_file():
                 raise _refuse("a configured hashed trust entry is not a readable regular file")
 
             captured.append((entry.name, _bounded_file(entry)))
@@ -127,7 +127,7 @@ def _load_material(context, kind, raw, directory):
         # recovered from get_ca_certs(). Loading is eager, so close this private
         # descriptor immediately. Process termination also closes it; there is
         # no named temporary file left behind by a killed HTTP child.
-        if not (hasattr(os, "memfd_create")):
+        if not hasattr(os, "memfd_create"):
             raise _refuse("this platform cannot load captured file trust without retained filesystem paths")
 
         descriptor = os.memfd_create("provider-model-trust", os.MFD_CLOEXEC)
@@ -177,7 +177,7 @@ class CapturedSSLContext(ssl.SSLContext):
             if type(cadata) is str:
                 materials.append(("pem", cadata.encode("ascii")))
             else:
-                if not (isinstance(cadata, (expected_types := (bytes, bytearray, memoryview)))):
+                if not isinstance(cadata, (expected_types := (bytes, bytearray, memoryview))):
                     raise TypeError(f"CA data: {type(cadata)=} ≠ {expected_types=}")
 
                 materials.append(("der", bytes(cadata)))

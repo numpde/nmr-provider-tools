@@ -76,7 +76,7 @@ def _positive_seconds(value):
     if not (type(value) in (expected_type := (int, float))):
         raise TypeError(f"{type(value)=} ≠ {expected_type=}")
 
-    if not (math.isfinite(value)):
+    if not math.isfinite(value):
         raise ValueError("Interpreter child requires finite positive timing settings")
 
     if not (value > 0):
