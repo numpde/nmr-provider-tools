@@ -13,7 +13,6 @@ require_container()
 
 import asyncio
 import base64
-import math
 import os
 import secrets
 import stat
@@ -30,6 +29,7 @@ from provider_core.api import ApiFailure
 from provider_core.task_boundary import contain_task_exit
 from provider_core.transport import ExchangeFailed, temporary_io_failure
 from provider_core.response_json import ResponseRejected
+from provider_core.tools import require_positive_number
 from provider_core.upload_response import require_job_ref, require_read_grant, require_upload_ref
 
 
@@ -62,14 +62,7 @@ class UploadLimits:
             if not (0 < value):
                 raise ValueError("Cannot configure Upload acquisition: byte and request limits must be positive integers")
 
-        if not (type((actual_seconds := self.seconds)) in (expected_seconds_type := (int, float))):
-            raise TypeError(f"Cannot configure Upload acquisition: {type(actual_seconds)=} ≠ {expected_seconds_type=}")
-
-        if not (math.isfinite(self.seconds)):
-            raise ValueError("Cannot configure Upload acquisition: duration must be finite positive seconds")
-
-        if not (0 < self.seconds):
-            raise ValueError("Cannot configure Upload acquisition: duration must be finite positive seconds")
+        require_positive_number(self.seconds)
 
 
 class UploadRecoveryExhausted(UploadFailed):
@@ -102,37 +95,25 @@ class UploadRecovery:
             raise ValueError("Upload recovery requires a positive integer attempt limit including the initial attempt")
 
         for seconds in (self.initial_seconds, self.maximum_seconds):
-            if not (type(seconds) in (expected_seconds_type := (int, float))):
-                raise TypeError(f"{type(seconds)=} ≠ {expected_seconds_type=}")
-
-            if not (math.isfinite(seconds)):
-                raise ValueError("Upload recovery pacing requires finite positive seconds")
-
-            if not (0 < seconds):
-                raise ValueError("Upload recovery pacing requires finite positive seconds")
+            require_positive_number(seconds)
 
         if not (self.initial_seconds <= self.maximum_seconds):
             raise ValueError("Upload recovery initial wait cannot exceed its maximum wait")
 
-        if not (isinstance((actual_stopping := self.stopping), (expected_stopping_type := asyncio.Event))):
+        if not isinstance((actual_stopping := self.stopping), (expected_stopping_type := asyncio.Event)):
             raise TypeError(
                 f"{type(actual_stopping)=} ≠ {expected_stopping_type=}"
             )
 
-        if not (callable(self.on_retry)):
-            raise TypeError(
-                f"Unexpected {type(self.stopping)=}; "
-                "Upload recovery requires a scientific stop Event and protected synchronous retry observer"
-            )
+        if not callable(self.on_retry):
+            raise TypeError(f"{self.on_retry=} should be callable")
 
 
 def require_store_origin(value):
     """Require an explicit canonical origin before any bearer can be attached."""
 
     if not (type(value) is (expected_type := str)):
-        raise TypeError(
-            f"{type(value)=} ≠ {expected_type=}"
-        )
+        raise TypeError(f"{type(value)=} ≠ {expected_type=}")
 
     if any(ord(c) <= 32 or ord(c) >= 127 for c in value):
         raise ValueError("Cannot configure Upload store: origin must be visible ASCII HTTPS text")
@@ -296,8 +277,14 @@ class UploadTransfer:
     def __init__(self, job_ref, *, store, store_origin, remaining, before_request, account, exchange_owner=None):
         require_job_ref(job_ref)
 
-        if not (all(callable(value) for value in (remaining, before_request, account))):
-            raise TypeError("Upload transfer requires explicit remaining-time, request and byte-accounting owners")
+        if not callable(remaining):
+            raise TypeError(f"{remaining=} should be callable")
+
+        if not callable(before_request):
+            raise TypeError(f"{before_request=} should be callable")
+
+        if not callable(account):
+            raise TypeError(f"{account=} should be callable")
 
         (self.job_ref, self._store) = (job_ref, store)
         self._origin = require_store_origin(store_origin)
@@ -379,16 +366,10 @@ class UploadTransfer:
     def _remaining_seconds(self):
         seconds = self._remaining()
 
-        if not (type(seconds) in (expected_type := (int, float))):
-            raise UploadFailed(f"{type(seconds)=} ≠ {expected_type=}")
-
-        if not (math.isfinite(seconds)):
-            raise UploadFailed("source transfer requires a positive finite remaining deadline")
-
-        if seconds <= 0:
-            raise UploadFailed("source transfer requires a positive finite remaining deadline")
-
-        return seconds
+        try:
+            return require_positive_number(seconds)
+        except (TypeError, ValueError) as cause:
+            raise UploadFailed("source transfer requires a positive finite remaining deadline") from cause
 
     @asynccontextmanager
     async def _operation(self):
@@ -419,8 +400,8 @@ class UploadTransfer:
         """
 
         async with self._operation():
-            if not (callable(grant_factory)):
-                raise TypeError("Upload transfer requires an async grant factory")
+            if not callable(grant_factory):
+                raise TypeError(f"{grant_factory=} should be callable")
 
             if not (type(directory_fd) is (expected_type := int)):
                 raise UploadFailed(f"{type(directory_fd)=} ≠ {expected_type=}")
@@ -428,14 +409,10 @@ class UploadTransfer:
             if directory_fd < 0:
                 raise UploadFailed("private-file acquisition requires an open directory descriptor")
 
-            if not (type(retirement_seconds) in (expected_type := (int, float))):
-                raise UploadFailed(f"{type(retirement_seconds)=} ≠ {expected_type=}")
-
-            if not (math.isfinite(retirement_seconds)):
-                raise UploadFailed("private-file cleanup requires explicit finite positive retirement seconds")
-
-            if retirement_seconds <= 0:
-                raise UploadFailed("private-file cleanup requires explicit finite positive retirement seconds")
+            try:
+                require_positive_number(retirement_seconds)
+            except (TypeError, ValueError) as cause:
+                raise UploadFailed("private-file cleanup requires explicit finite positive retirement seconds") from cause
 
             file = self._file = _UploadFile(directory_fd, retirement_seconds)
 
@@ -447,7 +424,7 @@ class UploadTransfer:
                     async with deadline:
                         grant = await grant_factory()
                 except TimeoutError as failure:
-                    if not (deadline.expired()):
+                    if not deadline.expired():
                         raise
 
                     prior = self.last_failure
@@ -705,7 +682,7 @@ class UploadTransfer:
 
                 return response
         except TimeoutError:
-            if not (deadline.expired()):
+            if not deadline.expired():
                 raise
 
             raise UploadFailed("the source session's total deadline expired", cause=self._store.last_failure) from None
@@ -914,7 +891,7 @@ class JobUploads:
 
             raise
         except TimeoutError:
-            if not (deadline.expired()):
+            if not deadline.expired():
                 raise
 
             if type(resource_owner.last_failure) is ApiFailure:

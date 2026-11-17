@@ -172,12 +172,12 @@ def read_upload_file(receipt, *, directory_fd, maximum_bytes):
                 raise cleanup from None
 
 
-def _read_upload_snapshot(descriptor, receipt):
+def _read_upload_snapshot(upload_source_fd, receipt):
     try:
-        details = os.fstat(descriptor)
+        details = os.fstat(upload_source_fd)
 
-        if not (stat.S_ISREG(details.st_mode)):
-            raise UploadFileReadFailed("the opened private source is not a regular file")
+        if not stat.S_ISREG(file_mode := details.st_mode):
+            raise UploadFileReadFailed(f"{upload_source_fd=} has bad {file_mode=}")
 
         if details.st_size != receipt.byte_length:
             raise UploadFileReadFailed("the private source file byte length differs from its transfer receipt")
@@ -185,7 +185,7 @@ def _read_upload_snapshot(descriptor, receipt):
         chunks = []
         received = 0
 
-        while chunk := os.read(descriptor, min(65536, receipt.byte_length + 1 - received)):
+        while chunk := os.read(upload_source_fd, min(65536, receipt.byte_length + 1 - received)):
             chunks.append(chunk)
             received += len(chunk)
 

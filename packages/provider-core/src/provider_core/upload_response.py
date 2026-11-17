@@ -103,15 +103,15 @@ def _byte_facts(document, *, pending_allowed):
         raise ResponseRejected("Upload content_hash must be a lowercase SHA-256 fingerprint")
 
 
-def _grant_target_and_token(url, token):
-    if not (type(url) is (expected_type := str)):
-        raise ResponseRejected(f"{type(url)=} ≠ {expected_type=}")
+def _grant_target_and_token(download_url, token):
+    if not (type(download_url) is (expected_type := str)):
+        raise ResponseRejected(f"{type(download_url)=} ≠ {expected_type=}")
 
-    if not (url.startswith("https://")):
-        raise ResponseRejected("Grant download_url must be an HTTPS URL of at most 359 characters")
+    if not download_url.startswith(expected_prefix := "https://"):
+        raise ResponseRejected(f"{download_url=} should start with {expected_prefix=}")
 
-    if len(url) > 359:
-        raise ResponseRejected("Grant download_url must be an HTTPS URL of at most 359 characters")
+    if not (len(download_url) <= (maximum_url_characters := 359)):
+        raise ResponseRejected(f"{len(download_url)=} exceeds {maximum_url_characters=}")
 
     if not (type(token) is (expected_type := str)):
         raise ResponseRejected(f"{type(token)=} ≠ {expected_type=}")
