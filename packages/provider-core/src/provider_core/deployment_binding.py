@@ -71,10 +71,12 @@ class DeploymentBinding:
 
     @property
     def endpoint(self):
-        return DeliveryEndpoint(self.api["origin"],
-                                self.api["provider_ref"],
-                                self.socket_path,
-                                socket_group_id=self.socket_group_id)
+        return DeliveryEndpoint(
+            self.api["origin"],
+            self.api["provider_ref"],
+            self.socket_path,
+            socket_group_id=self.socket_group_id
+        )
 
 
 @dataclass(frozen=True, slots=True, repr=False)
@@ -301,13 +303,19 @@ def _report_definition_failure(failure):
     # Native/parser nodes expose safe facts through the existing protected graph.
     from provider_core.diagnostics import failure_evidence
 
-    print(json.dumps({"operation": "inspect delivery binding",
-        "failure": failure_evidence(
-            failure,
-            secrets=(),
-    )},
-        ensure_ascii=True),
-        file=sys.stderr)
+    print(
+        json.dumps(
+            {
+                "operation": "inspect delivery binding",
+                "failure": failure_evidence(
+                    failure,
+                    secrets=(),
+                )
+            },
+            ensure_ascii=True
+        ),
+        file=sys.stderr
+    )
 
 
 def main():
@@ -335,13 +343,17 @@ def main():
         if args.action == "describe-binding":
             binding = bindings[0]
 
-            print(json.dumps({
-                "ipc_volume": binding.ipc_volume,
-                "socket_path": str(binding.socket_path),
-                "socket_group_id": binding.socket_group_id,
-                "input_paths": input_paths(bindings),
-            },
-                ensure_ascii=True))
+            print(
+                json.dumps(
+                    {
+                        "ipc_volume": binding.ipc_volume,
+                        "socket_path": str(binding.socket_path),
+                        "socket_group_id": binding.socket_group_id,
+                        "input_paths": input_paths(bindings),
+                    },
+                    ensure_ascii=True
+                )
+            )
         else:
             for path in input_paths(bindings):
                 sys.stdout.buffer.write(path.encode("utf-8") + b"\0")

@@ -130,10 +130,14 @@ def require_read_grant(grant, *, job_ref):
     if grant.job_ref != job_ref:
         raise ResponseRejected("Read grant must belong to the selected Job")
 
-    _byte_facts({"upload_ref": grant.upload_ref,
-                 "byte_length": grant.byte_length,
-                 "content_hash": grant.content_hash},
-        pending_allowed=False)
+    _byte_facts(
+        {
+            "upload_ref": grant.upload_ref,
+            "byte_length": grant.byte_length,
+            "content_hash": grant.content_hash
+        },
+        pending_allowed=False
+    )
 
     _grant_target_and_token(grant.download_url, grant.capability)
 

@@ -37,18 +37,22 @@ class HttpsSettings:
     proxy_socket: str | None = None
 
     def __post_init__(self):
-        require_transport_settings(trust=self.trust,
-                                   exchange_seconds=self.exchange_seconds,
-                                   retirement_seconds=self.retirement_seconds,
-                                   proxy_socket=self.proxy_socket)
+        require_transport_settings(
+            trust=self.trust,
+            exchange_seconds=self.exchange_seconds,
+            retirement_seconds=self.retirement_seconds,
+            proxy_socket=self.proxy_socket
+        )
 
     def new_transport(self):
         """Give each runtime role a fresh, independently retired exchange owner."""
 
-        return HttpTransport(trust=self.trust,
-                             exchange_seconds=self.exchange_seconds,
-                             retirement_seconds=self.retirement_seconds,
-                             proxy_socket=self.proxy_socket)
+        return HttpTransport(
+            trust=self.trust,
+            exchange_seconds=self.exchange_seconds,
+            retirement_seconds=self.retirement_seconds,
+            proxy_socket=self.proxy_socket
+        )
 
 
 @dataclass(frozen=True, slots=True, repr=False)
@@ -75,12 +79,14 @@ class ApiPublicationMaterial:
     ca_bytes: bytes | None
 
     def api_fields(self):
-        return {"origin": self.origin,
-                "profile": self.profile,
-                "topology": self.topology,
-                "provider_ref": self.provider_ref,
-                "exchange_seconds": self.exchange_seconds,
-                "retirement_seconds": self.retirement_seconds}
+        return {
+            "origin": self.origin,
+            "profile": self.profile,
+            "topology": self.topology,
+            "provider_ref": self.provider_ref,
+            "exchange_seconds": self.exchange_seconds,
+            "retirement_seconds": self.retirement_seconds
+        }
 
 
 def _require_explicit_tls_environment():
@@ -182,14 +188,16 @@ def api_settings_with_material(table, read_file):
     (http, ca_bytes) = _read_https_settings(table, "API", read_file)
     settings = ApiSettings(identity, http, table["topology"])
 
-    material = ApiPublicationMaterial(identity.origin,
-                                      table["profile"],
-                                      table["topology"],
-                                      provider_ref,
-                                      table["exchange_seconds"],
-                                      table["retirement_seconds"],
-                                      raw,
-                                      ca_bytes)
+    material = ApiPublicationMaterial(
+        identity.origin,
+        table["profile"],
+        table["topology"],
+        provider_ref,
+        table["exchange_seconds"],
+        table["retirement_seconds"],
+        raw,
+        ca_bytes
+    )
 
     return (settings, provider_ref, material)
 

@@ -72,19 +72,23 @@ def _identity(uid, gid):
 
 
 def _volume(name, target, *, readonly):
-    return {"type": "volume",
-            "source": name,
-            "target": target,
-            "read_only": readonly,
-            "volume": {"nocopy": True}}
+    return {
+        "type": "volume",
+        "source": name,
+        "target": target,
+        "read_only": readonly,
+        "volume": {"nocopy": True}
+    }
 
 
 def _bind(source, target, *, readonly):
-    return {"type": "bind",
-            "source": _path(source),
-            "target": target,
-            "read_only": readonly,
-            "bind": {"create_host_path": False}}
+    return {
+        "type": "bind",
+        "source": _path(source),
+        "target": target,
+        "read_only": readonly,
+        "bind": {"create_host_path": False}
+    }
 
 
 def _service(image, interpreter, namespace, key, uid, gid):
@@ -106,28 +110,36 @@ def _service(image, interpreter, namespace, key, uid, gid):
         "restart": "unless-stopped",
         "stop_grace_period": "15s",
         "network_mode": "none",
-        "labels": {"org.nmr-provider-tools.route": namespace,
-                   "org.nmr-provider-tools.route-role": "proxy",
-                   "org.nmr-provider-tools.binding": key},
+        "labels": {
+            "org.nmr-provider-tools.route": namespace,
+            "org.nmr-provider-tools.route-role": "proxy",
+            "org.nmr-provider-tools.binding": key
+        },
         "tmpfs": [f"/{name}:rw,nosuid,nodev,noexec,size=64m,mode=0700,uid={uid},gid={gid}" for name in ("tmp", "run")],
-        "logging": {"driver": "json-file",
-            "options": {"max-size": "10m",
-                    "max-file": "3",
-                    "mode": "non-blocking",
-                    "max-buffer-size": "1m"}},
+        "logging": {
+            "driver": "json-file",
+            "options": {
+                "max-size": "10m",
+                "max-file": "3",
+                "mode": "non-blocking",
+                "max-buffer-size": "1m"
+            }
+        },
     }
 
 
 def _named_initializer(image, interpreter, namespace, key, uid, gid, volume):
     service = _service(image, interpreter, namespace, key, uid, gid)
 
-    service.update(user="0:0",
-                   restart="no",
-                   cap_add=["CHOWN"],
-                   stop_grace_period="10s",
-                   entrypoint=[interpreter, "-I", "-B", "-m", "provider_core.deployment_route"],
-                   command=["initialize", "--uid", str(uid), "--gid", str(gid)],
-                   volumes=[_volume(volume, "/route", readonly=False)])
+    service.update(
+        user="0:0",
+        restart="no",
+        cap_add=["CHOWN"],
+        stop_grace_period="10s",
+        entrypoint=[interpreter, "-I", "-B", "-m", "provider_core.deployment_route"],
+        command=["initialize", "--uid", str(uid), "--gid", str(gid)],
+        volumes=[_volume(volume, "/route", readonly=False)]
+    )
 
     service["labels"]["org.nmr-provider-tools.route-role"] = "initializer"
 
@@ -146,20 +158,22 @@ def _proxy_route(service, binding, interpreter, input_sources, role):
     if port is None:
         port = 443
 
-    command = ["--mode",
-               route["mode"],
-               "--interface",
-               route["interface"],
-               "--log-level",
-               route["log_level"],
-               "--socket",
-               "/route/proxy.sock",
-               "--ready-file",
-               "/route/ready",
-               "--status-directory",
-               "/run",
-               "--authority",
-               f"{parsed.hostname}:{port}"]
+    command = [
+        "--mode",
+        route["mode"],
+        "--interface",
+        route["interface"],
+        "--log-level",
+        route["log_level"],
+        "--socket",
+        "/route/proxy.sock",
+        "--ready-file",
+        "/route/ready",
+        "--status-directory",
+        "/run",
+        "--authority",
+        f"{parsed.hostname}:{port}"
+    ]
 
     networks = {}
 
@@ -183,18 +197,22 @@ def _proxy_route(service, binding, interpreter, input_sources, role):
 
     service["command"] = command
 
-    service["healthcheck"] = {"test": ["CMD",
-                                         interpreter,
-                                         "-I",
-                                         "-B",
-                                         "-m",
-                                         "provider_core.process_status",
-                                         "/run/status.json",
-                                         "proxy"],
-                              "interval": "5s",
-                              "timeout": "2s",
-                              "retries": 3,
-                              "start_period": "5s"}
+    service["healthcheck"] = {
+        "test": [
+            "CMD",
+            interpreter,
+            "-I",
+            "-B",
+            "-m",
+            "provider_core.process_status",
+            "/run/status.json",
+            "proxy"
+        ],
+        "interval": "5s",
+        "timeout": "2s",
+        "retries": 3,
+        "start_period": "5s"
+    }
 
     return networks
 
@@ -277,10 +295,12 @@ def render_api_route(binding, *, image, interpreter, namespace, uid, gid, storag
 
     networks = _proxy_route(service, binding, interpreter, input_sources, role)
 
-    return ApiRouteProjection({"services": services, "networks": networks, "volumes": volumes},
-                              target + "/proxy.sock",
-                              client_mount,
-                              {role: {"condition": "service_healthy"}})
+    return ApiRouteProjection(
+        {"services": services, "networks": networks, "volumes": volumes},
+        target + "/proxy.sock",
+        client_mount,
+        {role: {"condition": "service_healthy"}}
+    )
 
 
 # silent-defaults: allow-contract -- Existing private routes remain private unless the caller explicitly requests the shared group grant.
@@ -379,28 +399,36 @@ def main():
             else:
                 grant = RouteDirectory(options.directory)
 
-            projection = render_api_route(selected,
-                                          image=options.image,
-                                          interpreter=options.interpreter,
-                                          namespace=options.namespace,
-                                          uid=options.uid,
-                                          gid=options.gid,
-                                          storage=grant,
-                                          input_sources=sources,
-                                          service_name=options.service_name)
+            projection = render_api_route(
+                selected,
+                image=options.image,
+                interpreter=options.interpreter,
+                namespace=options.namespace,
+                uid=options.uid,
+                gid=options.gid,
+                storage=grant,
+                input_sources=sources,
+                service_name=options.service_name
+            )
 
             print(json.dumps(asdict(projection), ensure_ascii=True, sort_keys=True))
 
         return 0
     # silent-defaults: allow-exception-outcome -- The CLI reports safe retained evidence and refuses the requested projection or initialization.
     except (Exception, BaseExceptionGroup) as failure:
-        print(json.dumps({"operation": options.action + " API route",
-            "failure": failure_evidence(
-                failure,
-                secrets=(),
-        )},
-            ensure_ascii=True),
-            file=sys.stderr)
+        print(
+            json.dumps(
+                {
+                    "operation": options.action + " API route",
+                    "failure": failure_evidence(
+                        failure,
+                        secrets=(),
+                    )
+                },
+                ensure_ascii=True
+            ),
+            file=sys.stderr
+        )
 
         return 2
 

@@ -36,12 +36,14 @@ class SharedDeliveryInbox(DeliveryInbox):
     max_request_bytes = MAX_HANDOFF_BYTES
 
     def __init__(self, queue, socket, *, request_seconds, on_accepted, on_failure):
-        super().__init__(queue,
-                         (socket,),
-                         request_seconds=request_seconds,
-                         on_accepted=on_accepted,
-                         on_failure=on_failure,
-                         binding_status=None)
+        super().__init__(
+            queue,
+            (socket,),
+            request_seconds=request_seconds,
+            on_accepted=on_accepted,
+            on_failure=on_failure,
+            binding_status=None
+        )
 
     async def _dispatch(self, endpoint, request, body):
         if request.method != b"POST" or request.target != b"/submit":

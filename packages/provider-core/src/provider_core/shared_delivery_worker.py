@@ -13,9 +13,11 @@ from provider_core.delivery_worker import DeliveryWorker, DeliveryWorkerFailed, 
 
 
 def publication_api(material, proxy_socket):
-    (settings, _) = api_settings_from_material(material.api_fields(),
-                                             credential_bytes=material.credential_bytes,
-                                             ca_bytes=material.ca_bytes)
+    (settings, _) = api_settings_from_material(
+        material.api_fields(),
+        credential_bytes=material.credential_bytes,
+        ca_bytes=material.ca_bytes
+    )
 
     http = replace(settings.http, proxy_socket=str(proxy_socket))
 
@@ -83,10 +85,14 @@ class SharedDeliveryWorker(DeliveryWorker):
                 api_receipt_received=self._api_receipt_received,
             )
 
-            self.on_notice(self.failure,
-                {"event": "delivery_worker_failed",
-                                          "api_origin": self.endpoint.api_origin,
-                                          "provider_ref": self.endpoint.provider_ref})
+            self.on_notice(
+                self.failure,
+                {
+                    "event": "delivery_worker_failed",
+                    "api_origin": self.endpoint.api_origin,
+                    "provider_ref": self.endpoint.provider_ref
+                }
+            )
 
             if isinstance(operation_failure, asyncio.CancelledError):
                 raise operation_failure from self.failure

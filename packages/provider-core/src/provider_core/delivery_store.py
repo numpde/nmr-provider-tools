@@ -244,13 +244,15 @@ class DeliveryQueue:
                 raise DeliveryStorageFailed("Cannot adopt another application's database as the delivery queue.")
 
             with self._transaction("initialize"):
-                self._db.execute("""CREATE TABLE outstanding (
+                self._db.execute(
+                    """CREATE TABLE outstanding (
                     api_origin TEXT NOT NULL, provider_ref TEXT NOT NULL, attempt_ref TEXT NOT NULL,
                     job_ref TEXT NOT NULL, operation TEXT NOT NULL CHECK(operation IN ('complete','fail')),
                     body BLOB NOT NULL, digest TEXT NOT NULL,
                     state TEXT NOT NULL CHECK(state IN ('pending','held')),
                     created_at REAL NOT NULL, held_reason TEXT,
-                    PRIMARY KEY(api_origin, provider_ref, attempt_ref))""")
+                    PRIMARY KEY(api_origin, provider_ref, attempt_ref))"""
+                )
 
                 self._db.execute("PRAGMA user_version=1")
 
@@ -326,8 +328,10 @@ class DeliveryQueue:
                 if count >= maximum_items or size + len(item.body) > maximum_bytes:
                     raise DeliveryFull("Delivery capacity is full. Keep this outcome, wait for space and stop admitting more computation.")
 
-            self._db.execute("INSERT INTO outstanding (api_origin,provider_ref,attempt_ref,job_ref,operation,body,digest,state,created_at,held_reason,publication) VALUES (?,?,?,?,?,?,?,'pending',?,NULL,?)",
-                             (*item.key, item.job_ref, item.operation.value, item.body, item.body_sha256, time.time(), publication))
+            self._db.execute(
+                "INSERT INTO outstanding (api_origin,provider_ref,attempt_ref,job_ref,operation,body,digest,state,created_at,held_reason,publication) VALUES (?,?,?,?,?,?,?,'pending',?,NULL,?)",
+                (*item.key, item.job_ref, item.operation.value, item.body, item.body_sha256, time.time(), publication)
+            )
 
         return acceptance
 
@@ -355,12 +359,14 @@ class DeliveryQueue:
                 # Reuse the wire admission path to validate retained inputs and identity.
                 import base64
 
-                document["outcome"] = {"api_origin": item.api_origin,
+                document["outcome"] = {
+                    "api_origin": item.api_origin,
                     "provider_ref": item.provider_ref,
                     "job_ref": item.job_ref,
                     "execution_attempt_ref": item.execution_attempt_ref,
                     "operation": item.operation.value,
-                    "body": base64.b64encode(item.body).decode("ascii")}
+                    "body": base64.b64encode(item.body).decode("ascii")
+                }
 
                 handoff = read_delivery_handoff(json.dumps(document, sort_keys=True, separators=(",", ":")).encode("ascii"))
 
@@ -442,18 +448,22 @@ class DeliveryQueue:
             (overview, failure) = (None, None)
 
             try:
-                (pending, held, bodies, material, oldest) = self._db.execute("""
+                (pending, held, bodies, material, oldest) = self._db.execute(
+                    """
                     SELECT COALESCE(SUM(state='pending'),0), COALESCE(SUM(state='held'),0),
                            COALESCE(SUM(length(body)),0), COALESCE(SUM(length(publication)),0),
                            MIN(CASE WHEN state='pending' THEN created_at END)
                     FROM outstanding
-                """).fetchone()
+                """
+                ).fetchone()
 
-                overview = {"pending": pending,
-                            "held": held,
-                            "body_bytes": bodies,
-                            "publication_bytes": material,
-                            "oldest_pending_created_at": oldest}
+                overview = {
+                    "pending": pending,
+                    "held": held,
+                    "body_bytes": bodies,
+                    "publication_bytes": material,
+                    "oldest_pending_created_at": oldest
+                }
             except sqlite3.Error as error:
                 # Do not carry SQLite text, traceback or causal context across the diagnostic boundary.
                 failure = type(error)()

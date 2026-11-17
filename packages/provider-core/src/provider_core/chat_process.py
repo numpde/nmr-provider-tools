@@ -86,10 +86,12 @@ class SupervisedChatTransport:
     """
 
     def __init__(self, *, trust, exchange_seconds, connect_seconds, retirement_seconds, proxy_socket=None):
-        require_transport_settings(trust=trust,
-                                   exchange_seconds=exchange_seconds,
-                                   retirement_seconds=retirement_seconds,
-                                   proxy_socket=proxy_socket)
+        require_transport_settings(
+            trust=trust,
+            exchange_seconds=exchange_seconds,
+            retirement_seconds=retirement_seconds,
+            proxy_socket=proxy_socket
+        )
 
         require_positive_number(connect_seconds)
 
@@ -136,15 +138,19 @@ class SupervisedChatTransport:
 
             if remaining <= 0:
                 if exchange.stopped_at is None:
-                    self._stop(exchange,
-                               TimeoutError("Model HTTP exchange exceeded its original absolute deadline"),
-                               at=exchange.deadline)
+                    self._stop(
+                        exchange,
+                        TimeoutError("Model HTTP exchange exceeded its original absolute deadline"),
+                        at=exchange.deadline
+                    )
 
                     continue
 
-                self._fail(exchange,
-                           _ExitPending("Interpreter child exit remains unconfirmed; retain its original owner"),
-                           "Cannot retire interpreter HTTP child: process exit remains unconfirmed")
+                self._fail(
+                    exchange,
+                    _ExitPending("Interpreter child exit remains unconfirmed; retain its original owner"),
+                    "Cannot retire interpreter HTTP child: process exit remains unconfirmed"
+                )
 
                 break
 
@@ -292,9 +298,11 @@ class SupervisedChatTransport:
             await asyncio.wait({task, stop}, timeout=remaining, return_when=asyncio.FIRST_COMPLETED)
 
             if exchange.stopped_at is None and asyncio.get_running_loop().time() >= exchange.deadline:
-                self._stop(exchange,
-                           TimeoutError("Model HTTP exchange exceeded its original absolute deadline"),
-                           at=exchange.deadline)
+                self._stop(
+                    exchange,
+                    TimeoutError("Model HTTP exchange exceeded its original absolute deadline"),
+                    at=exchange.deadline
+                )
 
             return task.done() and exchange.stopped_at is None
         finally:
@@ -325,15 +333,17 @@ class SupervisedChatTransport:
 
             # Only the launcher marker is inherited. Model credentials and TLS
             # material travel through the owned pipe, never argv or environment.
-            exchange.launch = _owned(asyncio.create_subprocess_exec(
-                *_worker_command(),
-                str(len(raw)),
-                stdin=asyncio.subprocess.PIPE,
-                stdout=asyncio.subprocess.PIPE,
-                stderr=asyncio.subprocess.DEVNULL,
-                env={"PROVIDER_CORE_IN_CONTAINER": "1"},
-                close_fds=True,
-            ))
+            exchange.launch = _owned(
+                asyncio.create_subprocess_exec(
+                    *_worker_command(),
+                    str(len(raw)),
+                    stdin=asyncio.subprocess.PIPE,
+                    stdout=asyncio.subprocess.PIPE,
+                    stderr=asyncio.subprocess.DEVNULL,
+                    env={"PROVIDER_CORE_IN_CONTAINER": "1"},
+                    close_fds=True,
+                )
+            )
 
             await self._until_stop(exchange, exchange.launch)
 

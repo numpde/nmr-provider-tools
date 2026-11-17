@@ -175,8 +175,10 @@ class DeliveryWorker:
 
             Another request's progress does not settle this retained report.
             """
-            return {**self._facts(event, item),
-                    "publication_wait_seconds": loop.time() - publication_started}
+            return {
+                **self._facts(event, item),
+                "publication_wait_seconds": loop.time() - publication_started
+            }
 
         # One observation budget uses the existing captured API/retry grants.
         # The timer observes stalled storage too; it never cancels that write,
@@ -190,9 +192,11 @@ class DeliveryWorker:
 
             self.on_notice(
                 TimeoutError("Publication is still pending; the publisher retains this report's original API and storage operations."),
-                {**facts("delivery_stalled"),
-                 "api_receipt_received": self._api_receipt_received,
-                 "alert_after_seconds": alert_seconds},
+                {
+                    **facts("delivery_stalled"),
+                    "api_receipt_received": self._api_receipt_received,
+                    "alert_after_seconds": alert_seconds
+                },
             )
 
         alarm = loop.call_later(alert_seconds, stalled)
@@ -259,10 +263,14 @@ class DeliveryWorker:
 
                     await self.inbox.storage(self.inbox.queue.remove_published, item)
 
-                    self.on_notice(None,
-                        {**facts("delivery_published"),
-                                          "replayed": receipt.replayed,
-                                          "recovered": retried or alerted})
+                    self.on_notice(
+                        None,
+                        {
+                            **facts("delivery_published"),
+                            "replayed": receipt.replayed,
+                            "recovered": retried or alerted
+                        }
+                    )
 
                     return
         finally:
@@ -318,12 +326,14 @@ class DeliveryWorker:
                 api_receipt_received=self._api_receipt_received,
             )
 
-            self.on_notice(self.failure,
+            self.on_notice(
+                self.failure,
                 {
                     "event": "delivery_worker_failed",
                     "api_origin": self.endpoint.api_origin,
                     "provider_ref": self.endpoint.provider_ref,
-            })
+                }
+            )
 
             if isinstance(operation_failure, asyncio.CancelledError):
                 raise operation_failure from self.failure

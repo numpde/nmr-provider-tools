@@ -210,11 +210,13 @@ def _status(value):
 
 
 def response_message(response):
-    return {"version": 1,
-            "kind": "response",
-            "status": response.status,
-            "headers": _headers(response.headers),
-            "body": encoded_bytes(response.body)}
+    return {
+        "version": 1,
+        "kind": "response",
+        "status": response.status,
+        "headers": _headers(response.headers),
+        "body": encoded_bytes(response.body)
+    }
 
 
 def failure_message(failure):
@@ -236,10 +238,12 @@ def failure_message(failure):
         index = seen[identity] = len(nodes)
         kind = type(error).__module__ + "." + type(error).__qualname__
 
-        node = {"type": kind,
-                "text": str(error)[:_ERROR_TEXT],
+        node = {
+            "type": kind,
+            "text": str(error)[:_ERROR_TEXT],
                 # silent-defaults: allow-contract -- Only a real integer OSError errno is portable native evidence; None records its absence.
-                "errno": error.errno if isinstance(error, OSError) and type(error.errno) is int else None}
+            "errno": error.errno if isinstance(error, OSError) and type(error.errno) is int else None
+        }
 
         nodes.append(node)
 
@@ -260,32 +264,36 @@ def failure_message(failure):
     network = failure.network_io
 
     if network is not None:
-        network = {"stage": network.stage,
-                   "error": reference(network.error),
-                   "cause": reference(network.cause),
-                   "context": reference(network.context),
-                   "unix_path": network.unix_path,
-                   "configured_unix_path": network.configured_unix_path,
-                   "eof": network.eof,
-                   "deadline_cancelled": network.deadline_cancelled}
+        network = {
+            "stage": network.stage,
+            "error": reference(network.error),
+            "cause": reference(network.cause),
+            "context": reference(network.context),
+            "unix_path": network.unix_path,
+            "configured_unix_path": network.configured_unix_path,
+            "eof": network.eof,
+            "deadline_cancelled": network.deadline_cancelled
+        }
 
     head = failure.response_head
 
     if head is not None:
         head = {"status": head.status, "headers": _headers(head.headers)}
 
-    return {"version": 1,
-            "kind": "failure",
-            "message": str(failure)[:_ERROR_TEXT],
-            "nodes": nodes,
-            "primary": primary,
-            "cleanup": cleanup,
-            "interruption": interruption,
-            "head": head,
-            "proxy_status": failure.proxy_connect_status,
-            "network_failure": network_failure,
-            "network": network,
-            "caller_interruption": reference(failure.caller_interruption)}
+    return {
+        "version": 1,
+        "kind": "failure",
+        "message": str(failure)[:_ERROR_TEXT],
+        "nodes": nodes,
+        "primary": primary,
+        "cleanup": cleanup,
+        "interruption": interruption,
+        "head": head,
+        "proxy_status": failure.proxy_connect_status,
+        "network_failure": network_failure,
+        "network": network,
+        "caller_interruption": reference(failure.caller_interruption)
+    }
 
 
 def _read_failure(document):

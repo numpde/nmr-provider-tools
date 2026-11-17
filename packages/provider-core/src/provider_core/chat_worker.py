@@ -34,24 +34,26 @@ from provider_core.tools import require_positive_number
 
 # One outbound exchange has a closed data-only protocol schema.
 # repo-check: allow-module-constant
-_REQUEST_FIELDS = frozenset({
-    "version",
-    "kind",
-    "method",
-    "url",
-    "headers",
-    "body",
-    "request_bytes",
-    "trust",
-    "exchange_seconds",
-    "connect_seconds",
-    "retirement_seconds",
-    "not_after",
-    "maximum_bytes",
-    "error_maximum_bytes",
-    "proxy_socket",
-    "trust_directory",
-})
+_REQUEST_FIELDS = frozenset(
+    {
+        "version",
+        "kind",
+        "method",
+        "url",
+        "headers",
+        "body",
+        "request_bytes",
+        "trust",
+        "exchange_seconds",
+        "connect_seconds",
+        "retirement_seconds",
+        "not_after",
+        "maximum_bytes",
+        "error_maximum_bytes",
+        "proxy_socket",
+        "trust_directory",
+    }
+)
 
 
 class _Cancellation:

@@ -152,13 +152,15 @@ class DeliveryInbox:
                         limit=MAX_HEADER_BYTES,
                     )
                 except BaseException as cause:
-                    self.on_failure(cause,
+                    self.on_failure(
+                        cause,
                         {
                             "event": "delivery_binding_start_failed",
                             "api_origin": endpoint.api_origin,
                             "provider_ref": endpoint.provider_ref,
                             "socket_path": str(endpoint.socket_path),
-                    })
+                        }
+                    )
 
                     raise
 
@@ -291,12 +293,18 @@ class DeliveryInbox:
     async def _respond(self, connection, writer, status, document):
         content = json.dumps(document, allow_nan=False, separators=(",", ":")).encode("utf-8")
 
-        writer.write(connection.send(h11.Response(status_code=status,
-            headers=[
+        writer.write(
+            connection.send(
+                h11.Response(
+                    status_code=status,
+                    headers=[
                 (b"Content-Type", b"application/json"),
                 (b"Content-Length", str(len(content)).encode()),
                 (b"Connection", b"close")
-        ])))
+        ]
+                )
+            )
+        )
 
         writer.write(connection.send(h11.Data(data=content)))
         writer.write(connection.send(h11.EndOfMessage()))
@@ -336,12 +344,14 @@ class DeliveryInbox:
 
             await self._respond(connection, writer, status, reply)
         except (OSError, ConnectionError, TimeoutError, h11.ProtocolError) as cause:
-            self.on_failure(cause,
+            self.on_failure(
+                cause,
                 {
                     "event": "delivery_ipc_failed",
                     "provider_ref": endpoint.provider_ref,
                     "durable_enqueue_confirmed": durable_enqueue_confirmed,
-            })
+                }
+            )
         except DeliveryRequestRejected as cause:
             self.on_failure(cause, {"event": "delivery_request_rejected", "provider_ref": endpoint.provider_ref})
 

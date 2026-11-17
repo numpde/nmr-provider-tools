@@ -104,9 +104,11 @@ def _read_item(item):
     if item["state"] != "in_progress":
         raise ResponseRejected("Inventory Attempt state must be in_progress")
 
-    return InventoryAttempt(item["analysis_kind_ref"],
-                            item["execution_attempt_ref"],
-                            item["job_ref"],
-                            item["provider_attempt_key"],
-                            item["state"],
-                            read_timestamp(item["started_at"]))
+    return InventoryAttempt(
+        item["analysis_kind_ref"],
+        item["execution_attempt_ref"],
+        item["job_ref"],
+        item["provider_attempt_key"],
+        item["state"],
+        read_timestamp(item["started_at"])
+    )

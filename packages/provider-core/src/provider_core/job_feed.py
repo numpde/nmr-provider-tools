@@ -101,11 +101,13 @@ def read_jobs_page(raw, *, analysis_kind_ref, has_provider_execution_attempt, li
     except (TypeError, ValueError) as cause:
         raise ResponseRejected(str(cause)) from None
 
-    return JobPage(analysis_kind_ref,
-                   has_provider_execution_attempt,
+    return JobPage(
+        analysis_kind_ref,
+        has_provider_execution_attempt,
                    # repo-check: allow-tuple-generator -- The admitted JobPage retains server order in one immutable collection.
-                   tuple(_read_job(item, analysis_kind_ref) for item in jobs),
-                   document["next_cursor"])
+        tuple(_read_job(item, analysis_kind_ref) for item in jobs),
+        document["next_cursor"]
+    )
 
 
 def _read_job(item, analysis_kind_ref):

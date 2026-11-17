@@ -231,13 +231,15 @@ def owned_details(error):
         details["reason"] = error.reason
 
     if kind is ObservedWorkerCrash:
-        details.update({
-            "phase": error.phase,
-            "returncode": error.native_exit.returncode,
-            "worker_role": error.native_exit.role,
-            "worker_generation": error.native_exit.generation,
-            "worker_operation": error.native_exit.operation,
-        })
+        details.update(
+            {
+                "phase": error.phase,
+                "returncode": error.native_exit.returncode,
+                "worker_role": error.native_exit.role,
+                "worker_generation": error.native_exit.generation,
+                "worker_operation": error.native_exit.operation,
+            }
+        )
 
     if kind is DeliveryUnavailable:
         details["status"] = error.status
@@ -325,10 +327,12 @@ def owned_details(error):
 
     if kind is ExchangeFailed and type(error.process) is ChatProcessResult:
         # silent-defaults: allow-contract -- No sent signal has no last-signal identity; retain that absence alongside its zero count.
-        details.update(model_http_pid=error.process.pid,
-                       model_http_returncode=error.process.returncode,
-                       model_http_signals_sent=len(error.process.signals_sent),
-                       model_http_last_signal=error.process.signals_sent[-1] if error.process.signals_sent else None)
+        details.update(
+            model_http_pid=error.process.pid,
+            model_http_returncode=error.process.returncode,
+            model_http_signals_sent=len(error.process.signals_sent),
+            model_http_last_signal=error.process.signals_sent[-1] if error.process.signals_sent else None
+        )
 
     if kind is StartFailed:
         details["acknowledgement_received"] = error.acknowledgement is not None

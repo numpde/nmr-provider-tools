@@ -214,9 +214,11 @@ class RunnerSession:
                 raise
 
         if not (self.retirement.scratch_released):
-            raise LifecycleRejected("Runner child stopped but its scratch cleanup remains unconfirmed.",
-                                    returncode=self.retirement.returncode,
-                                    scratch_released=False)
+            raise LifecycleRejected(
+                "Runner child stopped but its scratch cleanup remains unconfirmed.",
+                returncode=self.retirement.returncode,
+                scratch_released=False
+            )
 
     def _receive_retirement(self, deadline):
         reply = receive_document(self.control, deadline=deadline)

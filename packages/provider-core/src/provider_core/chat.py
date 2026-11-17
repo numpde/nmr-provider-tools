@@ -167,8 +167,10 @@ def _request_echoes(messages, key):
                     texts.append(call["function"].get("arguments"))
 
     # repo-check: allow-tuple-generator -- Capture fixed secret spellings once for redaction across the asynchronous exchange.
-    return tuple(spelling for text in texts if type(text) is str and text
-                 for spelling in (text, json.dumps(text, ensure_ascii=True)[1:-1]))
+    return tuple(
+        spelling for text in texts if type(text) is str and text
+        for spelling in (text, json.dumps(text, ensure_ascii=True)[1:-1])
+    )
 
 
 def _without_echoes(value, echoes):

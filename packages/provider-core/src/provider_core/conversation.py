@@ -266,10 +266,14 @@ class ToolConversation:
         identifier = self._messages[-1]["tool_calls"][0]["id"]
         feedback = self._tool_message(identifier, _encode(value).decode("ascii"))
 
-        return len(_encode({
-            "messages": [*self._messages, feedback, *messages_suffix],
-            "tools": self._tools,
-        }))
+        return len(
+            _encode(
+                {
+                    "messages": [*self._messages, feedback, *messages_suffix],
+                    "tools": self._tools,
+                }
+            )
+        )
 
     def _require_no_secrets(self, value):
         if type(value) is str:

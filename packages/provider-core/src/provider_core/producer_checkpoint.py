@@ -103,10 +103,12 @@ class AcknowledgedCheckpoint:
                 f"{type(actual_start)=} ≠ {expected_type=}"
             )
 
-        read_start(_admission_bytes(self.admission),
-                   job_ref=self.start.input.job_ref,
-                   analysis_kind_ref=self.start.analysis_kind_ref,
-                   provider_ref=self.start.scope.provider_ref)
+        read_start(
+            _admission_bytes(self.admission),
+            job_ref=self.start.input.job_ref,
+            analysis_kind_ref=self.start.analysis_kind_ref,
+            provider_ref=self.start.scope.provider_ref
+        )
 
 
 @dataclass(frozen=True, slots=True)
@@ -220,19 +222,23 @@ def _document(checkpoint):
         return {"kind": "start_pending", "start": json.loads(_encode_pending(checkpoint))}
 
     if type(checkpoint) is AcknowledgedCheckpoint:
-        return {"kind": "acknowledged",
-                "start": json.loads(_encode_pending(checkpoint.start)),
-                "admission": json.loads(_admission_bytes(checkpoint.admission))}
+        return {
+            "kind": "acknowledged",
+            "start": json.loads(_encode_pending(checkpoint.start)),
+            "admission": json.loads(_admission_bytes(checkpoint.admission))
+        }
 
     if type(checkpoint) is EnteredCheckpoint:
         return {"kind": "entered", "acknowledgement": _document(checkpoint.acknowledgement), "prepared": asdict(checkpoint.prepared)}
 
     if type(checkpoint) is TerminalSelectedCheckpoint:
-        return {"kind": "terminal_selected",
-                "attempt": _document(checkpoint.attempt),
-                "operation": checkpoint.operation.value,
-                "body_sha256": checkpoint.body_sha256,
-                "body_bytes": checkpoint.body_bytes}
+        return {
+            "kind": "terminal_selected",
+            "attempt": _document(checkpoint.attempt),
+            "operation": checkpoint.operation.value,
+            "body_sha256": checkpoint.body_sha256,
+            "body_bytes": checkpoint.body_bytes
+        }
 
     if type(checkpoint) is DeliveryAcceptedCheckpoint:
         return {"kind": "delivery_accepted", "selection": _document(checkpoint.selection)}

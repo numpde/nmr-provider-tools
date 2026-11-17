@@ -42,10 +42,12 @@ def _binding(table):
     _fields(table, {"api", "socket_path", "socket_group_id", "proxy_socket"}, "binding")
     (settings, provider_ref) = api_settings(table["api"], read_startup_file)
 
-    endpoint = DeliveryEndpoint(settings.identity.origin,
-                                provider_ref,
-                                require_absolute_path(table["socket_path"]),
-                                socket_group_id=table["socket_group_id"])
+    endpoint = DeliveryEndpoint(
+        settings.identity.origin,
+        provider_ref,
+        require_absolute_path(table["socket_path"]),
+        socket_group_id=table["socket_group_id"]
+    )
 
     http = replace(settings.http, proxy_socket=str(require_absolute_path(table["proxy_socket"])))
     client = ProviderAPI(settings.identity, http.new_transport(), expected_topology=settings.expected_topology)
@@ -66,7 +68,8 @@ def load_delivery_service(path, *, on_notice, diagnostic_status):
     except (UnicodeError, ValueError) as cause:
         raise DeliveryConfigurationRejected("require UTF-8 TOML within 65536 bytes.", cause=cause) from None
 
-    _fields(document,
+    _fields(
+        document,
         {
             "schema_id",
             "state_directory",
@@ -76,7 +79,8 @@ def load_delivery_service(path, *, on_notice, diagnostic_status):
             "limits",
             "bindings",
         },
-        "configuration")
+        "configuration"
+    )
 
     if document["schema_id"] != "provider-core.delivery.v1":
         raise DeliveryConfigurationRejected("require schema provider-core.delivery.v1.")

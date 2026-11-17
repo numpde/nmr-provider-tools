@@ -71,17 +71,19 @@ def main():
             live = SharedDeliveryConfiguration(options.shared_config)
             settings = live.read()
 
-            service = SharedDeliveryService(options.state_directory,
-                                            limits=settings.limits,
-                                            socket=SharedDeliverySocket(options.socket, options.socket_group_id),
-                                            proxy_socket=options.proxy_socket,
-                                            ipc_io_timeout_seconds=options.request_seconds,
-                                            retry_initial_seconds=settings.retry_initial_seconds,
-                                            retry_max_seconds=settings.retry_max_seconds,
-                                            on_notice=notices,
-                                            diagnostic_status=notices.status,
-                                            live_configuration=live,
-                                            status_directory=options.status_directory)
+            service = SharedDeliveryService(
+                options.state_directory,
+                limits=settings.limits,
+                socket=SharedDeliverySocket(options.socket, options.socket_group_id),
+                proxy_socket=options.proxy_socket,
+                ipc_io_timeout_seconds=options.request_seconds,
+                retry_initial_seconds=settings.retry_initial_seconds,
+                retry_max_seconds=settings.retry_max_seconds,
+                on_notice=notices,
+                diagnostic_status=notices.status,
+                live_configuration=live,
+                status_directory=options.status_directory
+            )
 
         asyncio.run(_run(service, notices))
 
@@ -90,11 +92,13 @@ def main():
     except BaseException as failure:
         # The process boundary reports interruptions and grouped cleanup too.
         # Unknown exception text never reaches stderr through a raw traceback.
-        notices(failure,
+        notices(
+            failure,
             {
                 "event": "delivery_failed",
                 "retirement_confirmed": service is None or service.retirement_confirmed,
-        })
+            }
+        )
 
         if isinstance(failure, KeyboardInterrupt):
             return 130

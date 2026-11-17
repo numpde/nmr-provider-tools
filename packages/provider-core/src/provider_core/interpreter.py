@@ -685,10 +685,12 @@ class _History:
             if record is None:
                 status = "unavailable"
 
-            results.append({
-                "ref": query["ref"],
-                "status": status,
-            })
+            results.append(
+                {
+                    "ref": query["ref"],
+                    "status": status,
+                }
+            )
 
         # Every requested reference needs a status even when an earlier page
         # consumes the data allowance. Fill pages around those reserved entries.
@@ -828,13 +830,15 @@ class _DescribeInputConstraints:
             schema = properties[part]
             required = "required" in parent and part in parent["required"]
 
-        return ToolReply({
-            **result,
-            "field": path,
-            "schema": schema,
-            "required": required,
-            "parent_schema": parent,
-        })
+        return ToolReply(
+            {
+                **result,
+                "field": path,
+                "schema": schema,
+                "required": required,
+                "parent_schema": parent,
+            }
+        )
 
 
 class _ReadInterpretationRecords:
@@ -1028,11 +1032,13 @@ class _ModelVisit:
 
                     raise
 
-        self._tools = _Tools(tools,
+        self._tools = _Tools(
+            tools,
             (
                 _DescribeInputConstraints(tools.schemas, guarded_reader),
                 _ReadInterpretationRecords(self._read_history),
-        ))
+        )
+        )
 
         self._service = None
 

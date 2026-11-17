@@ -139,18 +139,20 @@ class AttemptController:
 
     @classmethod
     # silent-defaults: allow-contract -- Note 010 chooses the 2 MiB report ceiling and refuses unproved active replays; supplied input explicitly replaces the post-START read.
-    def live(cls,
-             api,
-             claims,
-             session,
-             *,
-             scope,
-             stopping,
-             start_policy,
-             maximum_terminal_bytes=2097152,
-             preverified_input=None,
-             allow_active_start_replay=False,
-             **settings):
+    def live(
+        cls,
+        api,
+        claims,
+        session,
+        *,
+        scope,
+        stopping,
+        start_policy,
+        maximum_terminal_bytes=2097152,
+        preverified_input=None,
+        allow_active_start_replay=False,
+        **settings,
+    ):
         return cls(
             api,
             scope,

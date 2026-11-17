@@ -352,10 +352,12 @@ class ConfiguredIdentity:
             "contract_version": self.contract_version,
             "configuration": configuration,
             "assets": [
-                {"name": asset.name,
-                 "media_type": asset.media_type,
-                 "digest": asset.digest,
-                 "size_bytes": asset.size_bytes}
+                {
+                    "name": asset.name,
+                    "media_type": asset.media_type,
+                    "digest": asset.digest,
+                    "size_bytes": asset.size_bytes
+                }
                 for asset in sorted(self.assets, key=lambda asset: asset.name)
             ],
         }

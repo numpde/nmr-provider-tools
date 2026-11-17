@@ -500,8 +500,10 @@ class AttemptExecutor:
         if (stop is not None and self.last_failure is not None and self.last_failure.cause is stop
                 and type(self._checkpoint) is AcknowledgedCheckpoint
                 and self._outcome is None and self._delivery_outcome is None
-                and all(error is stop or (type(error) is _SettlementPending and error.executor is self)
-                        for error in self.last_failure.cleanup_failures)
+                and all(
+                    error is stop or (type(error) is _SettlementPending and error.executor is self)
+                    for error in self.last_failure.cleanup_failures
+                )
                 and (self._operation_interruption is None
                      or (self._cancel_requested and independent_interruption_failure(self._operation_interruption) is None))):
             return stop.observation
@@ -628,9 +630,11 @@ class AttemptExecutor:
 
         self._handoff_wait.add_done_callback(_observe_task_failure)
 
-        await asyncio.wait({self._handoff_wait, self._retirement_task},
-                           timeout=self._task_settle_seconds,
-                           return_when=asyncio.FIRST_EXCEPTION)
+        await asyncio.wait(
+            {self._handoff_wait, self._retirement_task},
+            timeout=self._task_settle_seconds,
+            return_when=asyncio.FIRST_EXCEPTION
+        )
 
         if self._handoff_wait.done():
             await self._settle_handoff()
@@ -1232,12 +1236,14 @@ class AttemptExecutor:
         else:
             raise TypeError("Analysis session returned an unsupported outcome; preserve it for binding diagnosis")
 
-        return DeliveryOutcome(self.scope.api_origin,
-                               self.scope.provider_ref,
-                               self._record.start.input.job_ref,
-                               reference,
-                               operation,
-                               body)
+        return DeliveryOutcome(
+            self.scope.api_origin,
+            self.scope.provider_ref,
+            self._record.start.input.job_ref,
+            reference,
+            operation,
+            body
+        )
 
     async def _handoff(self):
         self._require_live_permission()
@@ -1384,10 +1390,12 @@ class AttemptExecutor:
         self._cancel_task()
         self._cancel_observation_wait()
 
-        operations = [self._settle_task,
-                      self._settle_observation_wait,
-                      self._settle_handoff,
-                      self._retire_delivery]
+        operations = [
+            self._settle_task,
+            self._settle_observation_wait,
+            self._settle_handoff,
+            self._retire_delivery
+        ]
 
         if self._retirement is _Retirement.NOT_ATTEMPTED or self._retirement_task is not None:
             # Do not retry failed normal retirement while handling its own error.

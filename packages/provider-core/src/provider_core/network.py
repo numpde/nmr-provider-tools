@@ -56,8 +56,10 @@ def _availability(cause, remaining, observation, *, timeout_cancellation=False):
     explicit = observation.cause if cause is observation.error else cause.__cause__
 
     if type(cause) in (ExceptionGroup, BaseExceptionGroup):
-        return all(_availability(child, remaining - 1, observation, timeout_cancellation=timeout_cancellation)
-                   for child in cause.exceptions)
+        return all(
+            _availability(child, remaining - 1, observation, timeout_cancellation=timeout_cancellation)
+            for child in cause.exceptions
+        )
 
     if type(cause) is asyncio.CancelledError:
         return timeout_cancellation and (
@@ -308,16 +310,18 @@ class _OwnedStream(httpcore.AsyncNetworkStream):
         # Assignment happens only after a successful upgrade: cancellation must
         # leave the raw connection reachable by the final cleanup owner.
         with self._network.io("start_tls"):
-            with map_exceptions({
-                TimeoutError: httpcore.ConnectTimeout,
-                httpcore.ReadTimeout: httpcore.ConnectTimeout,
-                httpcore.WriteTimeout: httpcore.ConnectTimeout,
-                httpcore.ReadError: httpcore.ConnectError,
-                httpcore.WriteError: httpcore.ConnectError,
-                anyio.BrokenResourceError: httpcore.ConnectError,
-                anyio.EndOfStream: httpcore.ConnectError,
-                ssl.SSLError: httpcore.ConnectError,
-            }):
+            with map_exceptions(
+                {
+                    TimeoutError: httpcore.ConnectTimeout,
+                    httpcore.ReadTimeout: httpcore.ConnectTimeout,
+                    httpcore.WriteTimeout: httpcore.ConnectTimeout,
+                    httpcore.ReadError: httpcore.ConnectError,
+                    httpcore.WriteError: httpcore.ConnectError,
+                    anyio.BrokenResourceError: httpcore.ConnectError,
+                    anyio.EndOfStream: httpcore.ConnectError,
+                    ssl.SSLError: httpcore.ConnectError,
+                }
+            ):
                 with anyio.fail_after(timeout):
                     # httpcore's default skips the TLS goodbye and drops the
                     # socket after a complete response. The proxy then fails

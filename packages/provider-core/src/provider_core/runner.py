@@ -204,14 +204,18 @@ def _operation(control, *, generation, lock_identity, lease, scratch_fd, argv, o
         child.close()
         LOGGER.info("event=child_started operation=%s pid=%d", operation, worker.pid)
 
-        send_greeting(control,
-                      {"kind": "opened",
-                                "role": options.role,
-                                "generation": generation,
-                                "operation": operation,
-                                "lock": list(lock_identity)},
-                      science,
-                      deadline=greeting_deadline)
+        send_greeting(
+            control,
+            {
+                "kind": "opened",
+                "role": options.role,
+                "generation": generation,
+                "operation": operation,
+                "lock": list(lock_identity)
+            },
+            science,
+            deadline=greeting_deadline
+        )
 
         greeting_delivered = True
 
@@ -225,38 +229,50 @@ def _operation(control, *, generation, lock_identity, lease, scratch_fd, argv, o
             created = False
         except (OSError, RecursionError) as cause:
             try:
-                send_document(control,
-                              {"kind": "retired",
-                                        "generation": generation,
-                                        "operation": operation,
-                                        "returncode": returncode,
-                                        "scratch_released": False,
-                                        "reason": event},
-                              deadline=time.monotonic() + options.startup_seconds)
+                send_document(
+                    control,
+                    {
+                        "kind": "retired",
+                        "generation": generation,
+                        "operation": operation,
+                        "returncode": returncode,
+                        "scratch_released": False,
+                        "reason": event
+                    },
+                    deadline=time.monotonic() + options.startup_seconds
+                )
             except OSError as delivery:
-                LOGGER.warning("event=failed_cleanup_delivery operation=%s cause_type=%s errno=%s",
-                               operation,
-                               type(delivery).__name__,
-                               delivery.errno)
+                LOGGER.warning(
+                    "event=failed_cleanup_delivery operation=%s cause_type=%s errno=%s",
+                    operation,
+                    type(delivery).__name__,
+                    delivery.errno
+                )
 
             raise RetirementUnconfirmed("Native child stopped but scratch cleanup failed; runner admission must stop.") from cause
 
         control.settimeout(options.startup_seconds)
 
         try:
-            send_document(control,
-                          {"kind": "retired",
-                                    "generation": generation,
-                                    "operation": operation,
-                                    "returncode": returncode,
-                                    "scratch_released": True,
-                                    "reason": event},
-                          deadline=time.monotonic() + options.startup_seconds)
+            send_document(
+                control,
+                {
+                    "kind": "retired",
+                    "generation": generation,
+                    "operation": operation,
+                    "returncode": returncode,
+                    "scratch_released": True,
+                    "reason": event
+                },
+                deadline=time.monotonic() + options.startup_seconds
+            )
         except OSError as delivery:
-            LOGGER.warning("event=retirement_delivery_failed operation=%s child_reaped=true scratch_released=true cause_type=%s errno=%s",
-                           operation,
-                           type(delivery).__name__,
-                           delivery.errno)
+            LOGGER.warning(
+                "event=retirement_delivery_failed operation=%s child_reaped=true scratch_released=true cause_type=%s errno=%s",
+                operation,
+                type(delivery).__name__,
+                delivery.errno
+            )
 
         LOGGER.info("event=child_retired operation=%s returncode=%d reason=%s", operation, returncode, event)
 
@@ -278,10 +294,12 @@ def _operation(control, *, generation, lock_identity, lease, scratch_fd, argv, o
         if worker is not None and not greeting_delivered and isinstance(primary, OSError):
             # A queued caller can leave before its greeting. With its child
             # reaped and scratch removed, this does not poison the supervisor.
-            LOGGER.warning("event=opening_delivery_failed operation=%s child_reaped=true scratch_released=true cause_type=%s errno=%s",
-                           operation,
-                           type(primary).__name__,
-                           primary.errno)
+            LOGGER.warning(
+                "event=opening_delivery_failed operation=%s child_reaped=true scratch_released=true cause_type=%s errno=%s",
+                operation,
+                type(primary).__name__,
+                primary.errno
+            )
 
             return False
 
@@ -353,15 +371,17 @@ def serve(options, argv, shutdown):
                     with control:
                         status.refresh("working")
 
-                        if _operation(control,
-                                      generation=generation,
-                                      lock_identity=lock_identity,
-                                      lease=lease,
-                                      scratch_fd=scratch_fd,
-                                      argv=argv,
-                                      options=options,
-                                      shutdown=shutdown,
-                                      status=status):
+                        if _operation(
+                            control,
+                            generation=generation,
+                            lock_identity=lock_identity,
+                            lease=lease,
+                            scratch_fd=scratch_fd,
+                            argv=argv,
+                            options=options,
+                            shutdown=shutdown,
+                            status=status
+                        ):
                             status.refresh("stopping")
 
                             return

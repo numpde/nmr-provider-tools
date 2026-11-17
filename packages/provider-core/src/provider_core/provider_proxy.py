@@ -614,12 +614,14 @@ def main():
             probe.setsockopt(socket.SOL_SOCKET, socket.SO_BINDTODEVICE, args.interface.encode() + b"\0")
 
         with socket_grant(args.socket, args.ready_file, socket_group_id=args.socket_group_id) as parent:
-            with ServiceProxyServer(parent / args.socket.name,
-                                    args.interface,
-                                    policy,
-                                    status_directory=args.status_directory,
-                                    live_configuration=live,
-                                    shared_socket=args.socket_group_id is not None) as server:
+            with ServiceProxyServer(
+                parent / args.socket.name,
+                args.interface,
+                policy,
+                status_directory=args.status_directory,
+                live_configuration=live,
+                shared_socket=args.socket_group_id is not None
+            ) as server:
                 if live is not None:
                     live.apply(server, settings)
 

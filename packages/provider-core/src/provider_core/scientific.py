@@ -660,8 +660,10 @@ class HostedContribution:
             document["analysis"] = f"{self._analysis_type.__module__}.{self._analysis_type.__qualname__}"
 
         document["operation_schemas"] = [
-            {"input": _schema(annotation=call.input_codec.value_type, seen=frozenset()),
-             "result": _schema(annotation=call.result_codec.value_type, seen=frozenset())}
+            {
+                "input": _schema(annotation=call.input_codec.value_type, seen=frozenset()),
+                "result": _schema(annotation=call.result_codec.value_type, seen=frozenset())
+            }
             for call in calls
         ]
 
