@@ -171,7 +171,7 @@ class LauncherTests(unittest.TestCase):
             environment = os.environ | {"PATH": f"{fixture}:{os.environ['PATH']}", "FAKE_CONTEXT_LOG": str(log)}
 
             result = subprocess.run(
-                ["make", "--no-print-directory", "--dry-run", "tests/repository/command", "checks/image/build", "DOCKER_CONTEXT=local-test"],
+                ["make", "--no-print-directory", "tests/repository/command", "help", "DOCKER_CONTEXT=local-test"],
                 cwd=ROOT,
                 env=environment,
                 capture_output=True,
@@ -181,6 +181,56 @@ class LauncherTests(unittest.TestCase):
 
             self.assertEqual(0, result.returncode, msg=result.stderr)
             self.assertEqual(["inspect"], log.read_text().splitlines())
+
+    def test_make_queries_do_not_select_resources_with_a_terminal(self):
+        fixture = ROOT / "tests/repository/fixtures/docker-context"
+
+        with tempfile.TemporaryDirectory() as directory:
+            log = Path(directory) / "context-inspections"
+            environment = {key: value for (key, value) in os.environ.items()
+                           if key not in {"MAKEFLAGS", "MFLAGS", "MAKEOVERRIDES", "GNUMAKEFLAGS", "MAKELEVEL"}}
+            environment.update(PATH=f"{fixture}:{os.environ['PATH']}", FAKE_CONTEXT_LOG=str(log))
+
+            for options in (("-rR", "-qp"), ("--question",), ("--dry-run",)):
+                with self.subTest(options=options):
+                    (pid, terminal) = pty.fork()
+
+                    if pid == 0:
+                        os.chdir(ROOT)
+                        os.execvpe("make", ["make", "--no-print-directory", *options, "checks/prepare"], environment)
+
+                    output = b""
+                    status = None
+                    deadline = time.monotonic() + 10
+                    terminal_closed = False
+
+                    try:
+                        while time.monotonic() < deadline:
+                            if not terminal_closed and select.select([terminal], [], [], 0.1)[0]:
+                                try:
+                                    output += os.read(terminal, 65536)
+                                except OSError:
+                                    terminal_closed = True
+
+                            (finished, value) = os.waitpid(pid, os.WNOHANG)
+
+                            if finished:
+                                status = value
+                                break
+
+                        if status is None:
+                            os.killpg(pid, signal.SIGKILL)
+                            os.waitpid(pid, 0)
+                    finally:
+                        os.close(terminal)
+
+                    self.assertIsNotNone(status, "Make query blocked on operator input")
+                    self.assertTrue(os.WIFEXITED(status), msg=output[-2000:].decode(errors="replace"))
+                    self.assertIn(os.WEXITSTATUS(status), (0, 1), msg=output[-2000:].decode(errors="replace"))
+                    self.assertNotIn(b"Select a local Docker context", output)
+                    self.assertNotIn(b"WHEELHOUSE (", output)
+                    self.assertNotIn(b"Select NETWORK_INTERFACE", output)
+                    self.assertFalse(log.exists(), "Make query inspected Docker")
 
     def test_preview_discovers_new_public_roots_and_rejects_hidden_links(self):
         with tempfile.TemporaryDirectory() as directory:

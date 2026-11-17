@@ -24,9 +24,24 @@ $(error Acquisition network tests require DOCKER_CONTEXT=<local-name> on the com
 endif
 endif
 
+# Query and dry-run modes, including shell completion's -qp, must not select
+# resources. Make normalizes short options into the first MAKEFLAGS word;
+# long options such as --no-print-directory do not imply a query.
+ifeq ($(origin MAKEFLAGS),command line)
+$(error MAKEFLAGS is reserved; pass Make options as flags rather than MAKEFLAGS=...)
+endif
+override MAKE_PRIMARY_FLAGS := $(firstword $(MAKEFLAGS))
+override MAKE_INTROSPECTION_ONLY := no
+ifeq ($(filter -%,$(MAKE_PRIMARY_FLAGS)),)
+ifneq ($(findstring n,$(MAKE_PRIMARY_FLAGS))$(findstring q,$(MAKE_PRIMARY_FLAGS)),)
+override MAKE_INTROSPECTION_ONLY := yes
+endif
+endif
+
 # Select once for every Docker goal in this invocation. Help and publish/release
 # use no Docker; child processes inherit the captured endpoint.
 ifneq ($(strip $(filter-out help publish/release checks/python-cache/clean provider-tools/verify-checked-in-source-hashes provider-tools/update-checked-in-source-from-pinned-release provider-tools/import-checked-in-source,$(MAKECMDGOALS))),)
+ifneq ($(MAKE_INTROSPECTION_ONLY),yes)
 ifeq ($(origin DOCKER_CONTEXT),command line)
 docker_context_quote = '$(subst ','"'"',$(1))'
 override export NMR_SELECTED_DOCKER_ENDPOINT := $(shell env -u NMR_SELECTED_DOCKER_ENDPOINT -u DOCKER_CONTEXT_INPUT -u DOCKER_CONTEXT_INPUT_ORIGIN DOCKER_CONTEXT_INPUT_ORIGIN='command line' DOCKER_CONTEXT_INPUT=$(call docker_context_quote,$(value DOCKER_CONTEXT)) bash host/tools/docker_context.sh --endpoint)
@@ -35,6 +50,7 @@ override export NMR_SELECTED_DOCKER_ENDPOINT := $(shell env -u NMR_SELECTED_DOCK
 endif
 ifeq ($(strip $(NMR_SELECTED_DOCKER_ENDPOINT)),)
 $(error Select a local Docker context for this operation)
+endif
 endif
 endif
 
