@@ -119,10 +119,10 @@ def _signing_key(document):
     except (TypeError, ValueError, UnicodeError, UnsupportedAlgorithm) as cause:
         raise CredentialRejected("decode a base64 DER public key and an unencrypted PEM private key.", cause=cause) from None
 
-    if not (isinstance(public_key, (expected_type := Ed25519PublicKey))):
+    if not isinstance(public_key, (expected_type := Ed25519PublicKey)):
         raise CredentialRejected(f"{type(public_key)=} ≠ {expected_type=}")
 
-    if not (isinstance(private_key, (expected_type := Ed25519PrivateKey))):
+    if not isinstance(private_key, (expected_type := Ed25519PrivateKey)):
         raise CredentialRejected(f"{type(private_key)=} ≠ {expected_type=}")
 
     if private_key.public_key().public_bytes(Encoding.DER, PublicFormat.SubjectPublicKeyInfo) != public_der:

@@ -88,10 +88,8 @@ class SigningIdentity:
 
         require_credential_ref(self.credential_ref)
 
-        if not (isinstance((actual_private_key := self.private_key), (expected_type := Ed25519PrivateKey))):
-            raise TypeError(
-                f"{type(actual_private_key)=} ≠ {expected_type=}"
-            )
+        if not isinstance((actual_private_key := self.private_key), (expected_type := Ed25519PrivateKey)):
+            raise TypeError(f"{type(actual_private_key)=} ≠ {expected_type=}")
 
         object.__setattr__(self, "origin", origin)
         object.__setattr__(self, "authority", authority)
@@ -113,25 +111,21 @@ def _request_target(method, path, query):
     """Reject ambiguous target forms before a client can normalize signed bytes."""
 
     if not (type(method) is (expected_type := str)):
-        raise TypeError(
-            f"{type(method)=} ≠ {expected_type=}"
-        )
+        raise TypeError(f"{type(method)=} ≠ {expected_type=}")
 
-    if re.fullmatch(r"[A-Z]+", method) is None:
-        raise ValueError("Cannot sign request: method must be an uppercase ASCII HTTP method")
+    if not re.fullmatch((expected_pattern := r"[A-Z]+"), method):
+        raise ValueError(f"{method=} should match {expected_pattern=}")
 
     if not (type(path) is (expected_type := str)):
-        raise TypeError(
-            f"{type(path)=} ≠ {expected_type=}"
-        )
+        raise TypeError(f"{type(path)=} ≠ {expected_type=}")
 
-    if not (path.startswith("/")) or path.startswith("//") or "?" in path or "#" in path:
-        raise ValueError("Cannot sign request: path must be absolute, with query supplied separately and no fragment")
+    parsed_path = urlsplit(path).path
+
+    if not (path.startswith("/") and (parsed_path == path)):
+        raise ValueError(f"{path=} should be an absolute path without an authority, query or fragment")
 
     if not (type(query) is (expected_type := bytes)):
-        raise TypeError(
-            f"{type(query)=} ≠ {expected_type=}"
-        )
+        raise TypeError(f"{type(query)=} ≠ {expected_type=}")
 
     try:
         # silent-defaults: allow-contract -- An empty query omits the delimiter; a nonempty query retains its exact signed bytes.

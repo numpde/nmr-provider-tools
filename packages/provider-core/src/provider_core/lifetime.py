@@ -25,13 +25,13 @@ class ProviderLifetime:
     """
 
     def __init__(self, root):
-        if not (isinstance(root, (expected_type := Path))):
+        if not isinstance(root, (expected_type := Path)):
             raise TypeError(
                 f"{type(root)=} ≠ {expected_type=}"
             )
 
-        if not (root.is_absolute()):
-            raise ValueError("Provider lifetime requires an absolute private root.")
+        if not root.is_absolute():
+            raise ValueError(f"{root=}; expected an absolute path")
 
         (self._root, self._descriptor) = (root, None)
         self._close_failure = None

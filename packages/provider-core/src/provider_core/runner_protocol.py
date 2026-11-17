@@ -138,9 +138,11 @@ def receive_greeting(connection, *, deadline):
 
         value = receive_document(connection, deadline=deadline)
 
-        if (
-            set(value) != {"kind", "role", "generation", "operation", "lock"}
-            or value["kind"] != "opened" or not token(value["generation"]) or not token(value["operation"])
+        if not (
+            (set(value) == {"kind", "role", "generation", "operation", "lock"}) and
+            (value["kind"] == "opened") and
+            token(value["generation"]) and
+            token(value["operation"])
         ):
             raise LifecycleRejected("Runner greeting has invalid generation, operation or lock identity.")
 
@@ -149,8 +151,8 @@ def receive_greeting(connection, *, deadline):
         if not (type(role) is (expected_type := str)):
             raise LifecycleRejected(f"{type(role)=} ≠ {expected_type=}")
 
-        if not (re.fullmatch(r"[a-z][a-z0-9_-]{0,47}", role)):
-            raise LifecycleRejected("Runner greeting has invalid generation, operation or lock identity.")
+        if not re.fullmatch(pattern := r"[a-z][a-z0-9_-]{0,47}", role):
+            raise LifecycleRejected(f"Runner {role=} does not follow {pattern=}.")
 
         lock = value["lock"]
 
