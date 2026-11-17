@@ -32,13 +32,13 @@ def unique_fields(field_pairs):
     return dict(field_pairs)
 
 
-def release(path):
+def release(release_json_path):
     """Read the SDK identity without accepting symlinks or duplicate JSON fields."""
-    descriptor = os.open(path, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK)
+    release_json_fd = os.open(release_json_path, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK)
 
-    with os.fdopen(descriptor, "rb") as stream:
-        if not (stat.S_ISREG(os.fstat(stream.fileno()).st_mode)):
-            raise ValueError("Cannot start the installer: release record must be a regular file.")
+    with os.fdopen(release_json_fd, "rb") as stream:
+        if not stat.S_ISREG(observed_stat_mode := os.fstat(stream.fileno()).st_mode):
+            raise ValueError(f"{release_json_path=} has {observed_stat_mode=}")
 
         record = json.load(stream, object_pairs_hook=unique_fields)
 
@@ -57,14 +57,14 @@ def validate_release(record):
     if not (type((record_name := record["name"])) is (expected_type := str)):
         raise TypeError(f"{type(record_name)=} ≠ {expected_type=}")
 
-    if not (re.fullmatch(r"pip-[0-9]+\.[0-9]+(?:\.[0-9]+)?-py3-none-any\.whl", record["name"])):
-        raise ValueError("Cannot start the installer: release record must identify one pip wheel by name, size, SHA-256 and HTTPS source.")
+    if not re.fullmatch(pattern := r"pip-[0-9]+\.[0-9]+(?:\.[0-9]+)?-py3-none-any\.whl", record_name):
+        raise ValueError(f"Cannot start the installer: {record_name=} does not follow {pattern=}.")
 
     if not (type((record_sha256 := record["sha256"])) is (expected_type := str)):
         raise TypeError(f"{type(record_sha256)=} ≠ {expected_type=}")
 
-    if not re.fullmatch(r"[0-9a-f]{64}", record["sha256"]):
-        raise ValueError("Cannot start the installer: release record must identify one pip wheel by name, size, SHA-256 and HTTPS source.")
+    if not re.fullmatch((expected_pattern := r"[0-9a-f]{64}"), record_sha256):
+        raise ValueError(f"{record_sha256=} should match {expected_pattern=}")
 
     if not (type((record_size := record["size"])) is (expected_type := int)):
         raise TypeError(f"{type(record_size)=} ≠ {expected_type=}")
@@ -86,8 +86,8 @@ def wheel_bytes(wheel, record):
     descriptor = os.open(wheel, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK)
 
     with os.fdopen(descriptor, "rb") as source:
-        if not (stat.S_ISREG(os.fstat(source.fileno()).st_mode)):
-            raise ValueError("Cannot start the installer: its wheel must be a regular file.")
+        if not stat.S_ISREG(observed_stat_mode := os.fstat(source.fileno()).st_mode):
+            raise ValueError(f"Cannot start the installer: {observed_stat_mode=}")
 
         return checked_bytes(source, record)
 

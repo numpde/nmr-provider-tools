@@ -175,7 +175,7 @@ def build_wheel(wheel_directory, config_settings=None, metadata_directory=None):
 
         path.write_text(json.dumps(self.record | {"name": "../outside.whl"}))
 
-        with self.assertRaisesRegex(ValueError, "release record must identify one pip wheel"):
+        with self.assertRaisesRegex(ValueError, r"record_name=.*\.\./outside\.whl.*pattern="):
             installer.release(path)
 
         path.write_text('{"name":"first","name":"second"}')

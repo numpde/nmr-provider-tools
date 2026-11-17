@@ -12,16 +12,16 @@ from contextlib import contextmanager
 
 @contextmanager
 def regular_file(path):
-    descriptor = os.open(path, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK)
+    artifact_fd = os.open(path, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK)
 
     try:
-        if not (stat.S_ISREG(os.fstat(descriptor).st_mode)):
-            raise ValueError(f"Cannot read artifact {path}: expected a regular file without a symlink.")
+        if not stat.S_ISREG(file_mode := os.fstat(artifact_fd).st_mode):
+            raise ValueError(f"{artifact_fd=} has bad {file_mode=}")
 
-        with os.fdopen(descriptor, "rb", closefd=False) as stream:
+        with os.fdopen(artifact_fd, "rb", closefd=False) as stream:
             yield stream
     finally:
-        os.close(descriptor)
+        os.close(artifact_fd)
 
 
 def fsync_directory(path):
