@@ -32,12 +32,12 @@ from provider_core.hosting import (
     RequestConflict,
     ReservationRef,
     ResourceState,
-    positive_seconds,
     settle_cleanup,
     _raise_context_failure,
 )
 
 from provider_core.state_slots import StateHandle, StateInputSlot, state_references
+from provider_core.tools import positive_seconds
 
 from provider_core._embedded_operation import _Operation
 
@@ -99,7 +99,7 @@ class InProcessExecutionHost:
             if not (type(value) in (expected_type := (int, float))):
                 raise TypeError(f"{name=}; {type(value)=} ≠ {expected_type=}")
 
-            positive_seconds(value=value)
+            positive_seconds(value)
 
         if not (type(allocations) is (expected_type := tuple)):
             raise TypeError(f"{type(allocations)=} ≠ {expected_type=}")

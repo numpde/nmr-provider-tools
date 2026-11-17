@@ -10,7 +10,6 @@ from provider_core.container_guard import require_container
 require_container()
 
 import asyncio
-import math
 import signal
 import sys
 
@@ -30,6 +29,7 @@ from provider_core.chat_wire import (
 from provider_core.decoded_body import require_decoded_limit
 from provider_core.transport import HttpTransport
 from provider_core.transport_errors import ExchangeFailed
+from provider_core.tools import positive_seconds
 
 
 # One outbound exchange has a closed data-only protocol schema.
@@ -70,19 +70,6 @@ class _Cancellation:
     def check(self):
         if self.requested:
             raise asyncio.CancelledError("Interpreter HTTP owner stopped the original exchange")
-
-
-def _positive_seconds(value):
-    if not (type(value) in (expected_type := (int, float))):
-        raise TypeError(f"{type(value)=} ≠ {expected_type=}")
-
-    if not math.isfinite(value):
-        raise ValueError("Interpreter child requires finite positive timing settings")
-
-    if not (value > 0):
-        raise ValueError("Interpreter child requires finite positive timing settings")
-
-    return value
 
 
 def _request(document):
@@ -158,7 +145,7 @@ def _request(document):
         raise ValueError("Interpreter child did not receive the complete admitted request")
 
     for field in ("exchange_seconds", "connect_seconds", "retirement_seconds", "not_after"):
-        _positive_seconds(document[field])
+        positive_seconds(document[field])
 
     require_decoded_limit(document["maximum_bytes"])
     require_decoded_limit(document["error_maximum_bytes"])

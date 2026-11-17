@@ -6,7 +6,8 @@ require_container()
 
 import httpcore
 
-from provider_core.transport import HttpTransport, _positive_seconds, require_unix_socket_path
+from provider_core.transport import HttpTransport, require_unix_socket_path
+from provider_core.tools import positive_seconds
 
 # This synthetic HTTP authority names Unix IPC and never selects an external API.
 # repo-check: allow-module-constant
@@ -22,9 +23,9 @@ class UnixHttpTransport(HttpTransport):
 
     def __init__(self, *, socket_path, exchange_seconds, retirement_seconds):
         require_unix_socket_path(socket_path)
-        self._exchange_seconds = _positive_seconds(exchange_seconds)
+        self._exchange_seconds = positive_seconds(exchange_seconds)
         self._connect_seconds = None
-        self._retirement_seconds = _positive_seconds(retirement_seconds)
+        self._retirement_seconds = positive_seconds(retirement_seconds)
         self._socket_path = socket_path
         self._trust = self._proxy_socket = None
         self._active = None

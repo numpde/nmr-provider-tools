@@ -13,7 +13,6 @@ import asyncio
 import errno
 import fcntl
 import hashlib
-import math
 import os
 import re
 import ssl
@@ -28,6 +27,7 @@ import httpcore
 from provider_core.network import NetworkIOObservation, OwnedNetworkBackend
 from provider_core.decoded_body import DecodedBody, DecodedBodyRejected, require_decoded_limit
 from provider_core.transport_errors import ExchangeFailed
+from provider_core.tools import positive_seconds
 
 
 def temporary_io_failure(cause, remaining, *, network_failure=None):
@@ -258,19 +258,6 @@ class _Exchange:
     retirement_deadline: float | None = None
 
 
-def _positive_seconds(value):
-    if not (type(value) in (expected_type := (int, float))):
-        raise TypeError(f"Cannot configure HTTP exchange: {type(value)=} ≠ {expected_type=}")
-
-    if not (math.isfinite(value)):
-        raise ValueError("Cannot configure HTTP exchange: time limits must be finite positive seconds")
-
-    if not (0 < value):
-        raise ValueError("Cannot configure HTTP exchange: time limits must be finite positive seconds")
-
-    return value
-
-
 def require_unix_socket_path(path):
     """Admit the pathname limit shared by the two explicit Unix transports."""
 
@@ -312,8 +299,8 @@ def require_transport_settings(*, trust, exchange_seconds, retirement_seconds, p
     if allow_http and proxy_socket is not None:
         raise ValueError("Cannot configure HTTP exchange: plain HTTP admission requires a direct transport without a proxy")
 
-    _positive_seconds(exchange_seconds)
-    _positive_seconds(retirement_seconds)
+    positive_seconds(exchange_seconds)
+    positive_seconds(retirement_seconds)
 
     if proxy_socket is not None:
         require_unix_socket_path(proxy_socket)
@@ -349,7 +336,7 @@ class HttpTransport:
         self._exchange_seconds = exchange_seconds
 
         if connect_seconds is not None:
-            _positive_seconds(connect_seconds)
+            positive_seconds(connect_seconds)
 
         self._connect_seconds = connect_seconds
         self._retirement_seconds = retirement_seconds
@@ -748,7 +735,7 @@ class HttpTransport:
         self._require_destination(request)
 
         if not_after is not None:
-            _positive_seconds(not_after)
+            positive_seconds(not_after)
 
         self.last_failure = None
 

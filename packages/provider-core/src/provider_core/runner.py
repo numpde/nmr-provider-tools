@@ -24,7 +24,8 @@ import time
 import uuid
 from pathlib import Path
 
-from provider_core.runner_protocol import RetirementUnconfirmed, positive_seconds, send_document, send_greeting
+from provider_core.runner_protocol import RetirementUnconfirmed, send_document, send_greeting
+from provider_core.tools import positive_seconds
 from provider_core.process_status import ProcessStatus
 
 # Use a fixed diagnostic role for the reusable session owner.

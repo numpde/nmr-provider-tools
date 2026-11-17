@@ -11,7 +11,8 @@ import errno
 import threading
 from dataclasses import dataclass
 
-from provider_core.runner_protocol import LifecycleRejected, positive_seconds, receive_document, receive_greeting
+from provider_core.runner_protocol import LifecycleRejected, receive_document, receive_greeting
+from provider_core.tools import positive_seconds
 
 
 @dataclass(frozen=True, slots=True)

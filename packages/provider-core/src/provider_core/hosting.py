@@ -30,17 +30,7 @@ from provider_core.contribution import (
 )
 
 from provider_core.task_boundary import contain_task_exit
-
-
-def positive_seconds(value):
-    if not (type(value) in (expected_type := (int, float))):
-        raise TypeError(f"{type(value)=} ≠ {expected_type=}")
-
-    if not (math.isfinite(value)):
-        raise ValueError("Execution allowances must be finite positive seconds.")
-
-    if not (0 < value):
-        raise ValueError("Execution allowances must be finite positive seconds.")
+from provider_core.tools import positive_seconds
 
 
 def _identity(value, label):

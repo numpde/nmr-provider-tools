@@ -8,7 +8,8 @@ import asyncio
 from concurrent.futures import CancelledError as FutureCancelledError, Future, ThreadPoolExecutor
 import time
 
-from provider_core.runner_protocol import LifecycleRejected, positive_seconds
+from provider_core.runner_protocol import LifecycleRejected
+from provider_core.tools import positive_seconds
 
 
 def _observe_completion(wrapped):

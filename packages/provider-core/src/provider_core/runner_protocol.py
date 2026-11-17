@@ -6,7 +6,6 @@ require_container()
 
 import array
 import json
-import math
 import os
 import re
 import socket
@@ -36,14 +35,6 @@ class RetirementUnconfirmed(RuntimeError):
 
 def token(value):
     return type(value) is str and _TOKEN.fullmatch(value) is not None
-
-
-def positive_seconds(value):
-    if not (type(value) in (expected_types := (int, float))):
-        raise TypeError(f"{type(value)=} ≠ {expected_types=}")
-
-    if not (math.isfinite(value) and 0 < value):
-        raise ValueError("Runner lifecycle budget must be a finite positive number of seconds.")
 
 
 def _remaining(connection, deadline):
