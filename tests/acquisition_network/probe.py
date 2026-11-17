@@ -33,24 +33,27 @@ def exchange(proxy_port, origin_port, tunnel):
 
                 response += block
 
-            if not (response.startswith(b"HTTP/1.1 200 ")):
-                raise RuntimeError("CONNECT did not reach the gateway")
+            (connect_status_line, _, _) = response.partition(b"\r\n")
+
+            if not connect_status_line.startswith(expected_status_prefix := b"HTTP/1.1 200 "):
+                raise RuntimeError(f"{connect_status_line=} should start with {expected_status_prefix=}")
 
             client.sendall(b"GET /proof HTTP/1.1\r\nHost: fixture\r\nConnection: close\r\n\r\n")
         else:
             client.sendall(f"GET http://127.0.0.2:{origin_port}/proof HTTP/1.1\r\nHost: fixture\r\nConnection: close\r\n\r\n".encode())
 
         client.shutdown(socket.SHUT_WR)
-        data = b""
+        origin_response = b""
 
         while block := client.recv(4096):
-            data += block
+            origin_response += block
 
-            if len(data) > 65536:
+            if len(origin_response) > 65536:
                 raise RuntimeError("origin response exceeded its bound")
 
-        if not (data.endswith(b"\r\n\r\nproof")):
-            raise RuntimeError("relay did not deliver the origin response")
+        if not origin_response.endswith(expected_suffix := b"\r\n\r\nproof"):
+            origin_response_suffix = origin_response[-len(expected_suffix):]
+            raise RuntimeError(f"{origin_response_suffix=} should be {expected_suffix=}")
 
 
 def denied(family, address):

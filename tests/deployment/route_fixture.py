@@ -209,8 +209,18 @@ def shared_group_socket(mode, path, owner_uid, access_gid):
 
     mounts = Path("/proc/self/mountinfo").read_text().splitlines()
 
-    if not (any(line.split()[4] == str(path.parent) and "ro" in line.split()[5].split(",") for line in mounts)):
-        raise AssertionError("Shared proxy grant must be mounted read-only")
+    socket_mount_path = str(path.parent)
+    socket_mount_options = [
+        fields[5].split(",")
+        for line in mounts
+        if (fields := line.split())[4] == socket_mount_path
+    ]
+
+    if not socket_mount_options:
+        raise AssertionError(f"{socket_mount_path=} should have a mount entry")
+
+    if not any("ro" in options for options in socket_mount_options):
+        raise AssertionError(f"One of {socket_mount_options=} for {socket_mount_path=} should contain 'ro'")
 
     deadline = time.monotonic() + 10
 
@@ -246,8 +256,10 @@ def shared_group_socket(mode, path, owner_uid, access_gid):
 
                 response.extend(chunk)
 
-            if not (response.startswith(b"HTTP/1.1 403 ")):
-                raise AssertionError("Shared proxy did not refuse the disallowed CONNECT")
+            (connect_status_line, _, _) = bytes(response).partition(b"\r\n")
+
+            if not connect_status_line.startswith(expected_status_prefix := b"HTTP/1.1 403 "):
+                raise AssertionError(f"{connect_status_line=} should start with {expected_status_prefix=}")
 
             try:
                 path.unlink()
