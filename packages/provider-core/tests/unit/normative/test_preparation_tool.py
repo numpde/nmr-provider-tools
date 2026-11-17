@@ -8,6 +8,7 @@ import unittest
 from unittest.mock import AsyncMock, patch
 
 from provider_core.contribution_errors import CallRejected
+from provider_core.conversation import ToolRejected
 from provider_core.embedded_host import InProcessExecutionHost
 from provider_core.hosting import NotAdmitted, OperationPolicy, ResultState, StartDeadlineExpired, observe_cleanup, observe_completion
 from provider_core.interpreter import Interpreter
@@ -36,9 +37,9 @@ class Science(Contribution):
         self.inputs = []
         self.failure = None
         self.entered = None
-        self.release = None
+        self.release_preparation = None
         self.load_entered = None
-        self.load_release = None
+        self.release_loading = None
         self.initializations = 0
 
     def initialize(self, *, assets: AssetAccess) -> None:
@@ -47,8 +48,8 @@ class Science(Contribution):
         if self.load_entered is not None:
             self.load_entered.set()
 
-            if not (self.load_release.wait(timeout=5)):
-                raise TimeoutError("Test did not release scientific loading")
+            if not (loading_released := self.release_loading.wait(timeout=(release_timeout_seconds := 5))):
+                raise TimeoutError(f"{loading_released=} after waiting {release_timeout_seconds=}")
 
     @operation(state_outputs=(prepared,))
     def prepare(self, *, sample: Sample) -> ScientificReturn[Sample]:
@@ -57,8 +58,8 @@ class Science(Contribution):
         if self.entered is not None:
             self.entered.set()
 
-            if not (self.release.wait(timeout=5)):
-                raise TimeoutError("Test did not release scientific preparation")
+            if not (preparation_released := self.release_preparation.wait(timeout=(release_timeout_seconds := 5))):
+                raise TimeoutError(f"{preparation_released=} after waiting {release_timeout_seconds=}")
 
         if not (self.failure is None):
             raise self.failure
@@ -228,9 +229,37 @@ class PreparationToolTests(unittest.IsolatedAsyncioTestCase):
 
         self.assertEqual(first=Sample(value=1), second=report)
 
+    async def test_competing_proposal_is_not_queued_after_input_rejection(self):
+        self.science.entered = Event()
+        self.science.release_preparation = Event()
+        task = asyncio.create_task(coro=self.propose(value=-1))
+
+        try:
+            self.assertTrue(expr=await asyncio.to_thread(self.science.entered.wait, timeout=2))
+
+            # The second proposal must fail while the first is still blocked
+            async with asyncio.timeout(1):
+                with self.assertRaises(expected_exception=RuntimeError):
+                    await self.propose(value=2)
+
+            self.assertFalse(expr=task.done())
+            self.assertEqual(first=[Sample(value=-1)], second=self.science.inputs)
+            self.science.release_preparation.set()
+
+            with self.assertRaises(expected_exception=ToolRejected):
+                await task
+
+            # Only an explicit retry after observing rejection may start new work
+            await self.propose(value=3)
+            self.assertEqual(first=[Sample(value=-1), Sample(value=3)], second=self.science.inputs)
+            self.assertIsNotNone(obj=self.preparation_tool.prepared_state_handle)
+        finally:
+            self.science.release_preparation.set()
+            await asyncio.gather(task, return_exceptions=True)
+
     async def test_canceled_wait_retains_original_operation_and_cannot_submit_again(self):
         self.science.entered = Event()
-        self.science.release = Event()
+        self.science.release_preparation = Event()
         task = asyncio.create_task(coro=self.propose(value=1))
 
         try:
@@ -248,7 +277,7 @@ class PreparationToolTests(unittest.IsolatedAsyncioTestCase):
             with self.assertRaises(expected_exception=RuntimeError):
                 await self.propose(value=2)
 
-            self.science.release.set()
+            self.science.release_preparation.set()
             completed = await observe_completion(operation=original)
 
             completed.require_result()
@@ -260,7 +289,7 @@ class PreparationToolTests(unittest.IsolatedAsyncioTestCase):
             self.assertIs(expr1=original, expr2=self.preparation_tool.operation)
             self.assertEqual(first=[Sample(value=1)], second=self.science.inputs)
         finally:
-            self.science.release.set()
+            self.science.release_preparation.set()
             await asyncio.gather(task, return_exceptions=True)
 
     async def test_lost_submission_reply_resumes_the_same_invocation(self):
@@ -306,7 +335,7 @@ class PreparationToolTests(unittest.IsolatedAsyncioTestCase):
 
     async def test_interpreter_next_model_prepares_after_original_loading_settles(self):
         self.science.load_entered = Event()
-        self.science.load_release = Event()
+        self.science.release_loading = Event()
         first = endpoint("short-window", call("first", "prepare", {"value": 1}))
         second = endpoint("next-model", call("second", "prepare", {"value": 2}))
         first_deadline = []
@@ -338,7 +367,7 @@ class PreparationToolTests(unittest.IsolatedAsyncioTestCase):
 
             await asyncio.sleep(delay=max(0, first_deadline[0] - asyncio.get_running_loop().time()) + 0.01)
             self.assertFalse(expr=task.done())
-            self.science.load_release.set()
+            self.science.release_loading.set()
 
             async with asyncio.timeout(5):
                 await task
@@ -351,7 +380,7 @@ class PreparationToolTests(unittest.IsolatedAsyncioTestCase):
             self.assertEqual(first=[Sample(value=2)], second=self.science.inputs)
             self.assertEqual(first=self.preparation_tool.operation.reference, second=self.preparation_tool.prepared_state_handle.producer)
         finally:
-            self.science.load_release.set()
+            self.science.release_loading.set()
             await asyncio.gather(task, return_exceptions=True)
 
     async def test_lost_release_reply_resumes_release_of_the_same_report(self):
