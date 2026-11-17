@@ -1,0 +1,205 @@
+# Thread/process execution: priority gradient
+
+## Purpose and scope
+
+This note sets implementation priorities for
+[Note 089](089_thread_and_process_execution_boundary.txt). It does not record
+an implemented process host or passing qualification. Note 089 supplies the
+architectural direction; this note determines what must come first, what earns
+broader claims, and what should not become a prerequisite.
+
+Ownership correctness is mandatory. Evidence for it should be economical.
+Broader capability is optional until needed. Exhaustiveness is not a deliverable.
+
+Start with provider-core and the NMRPeak mock: the same scientific contribution
+and request workflow, either a thread or one persistent child per allocation,
+and one allocation per prediction. No automatic restart, distributed execution,
+GPU scheduling, or migration of all real providers belongs in this first slice.
+The child is an execution boundary, not a new security sandbox; existing runtime
+containment is not weakened by this plan.
+
+The first three priority levels define the initial bounded deliverable. They
+are not sequential permission to implement ownership after adding the feature.
+Ordinary review and affected-suite checks still apply to each useful checkpoint.
+
+## 1. Inevitable: without this, there is no feature
+
+Remove request handling's dependence on the live scientific object. Provider
+assembly selects the preparation and generation calls, reservation and prompt;
+the workflow uses those inputs without inspecting the model or naming a concrete
+in-process executor.
+
+Use what already exists. At planning baseline
+6b332e2996190a198a88f3cd8b5fbd02392b5944, HostedContribution.call() accepts
+exported class declarations such as Hf.prepare. PreparationTool already accepts
+AnalysisExecution and an explicit reservation. Do not invent another method
+registry or expand a protocol merely to replace the workflow's current lookups.
+
+Construct and retain the model in the child. Exchange supported encoded inputs,
+results and state references; keep prepared scientific values with their owner.
+The parent receives a hosted handle, not a transparent proxy for arbitrary
+Python object access.
+
+Reuse the existing declaration, invocation, observation and cleanup machinery.
+Separate call metadata from live receiver ownership only as far as the real
+worker requires. Preserve the exact-object adoption contract described in
+[Note 086](086_configured_science_boundary.md) for the in-process adoption path;
+do not pretend a parent object is the child's receiver.
+
+Do not finish a universal host framework, constructor serialization system or
+whole-SDK refactor before running a child. The first useful capability is the
+same prediction workflow on both backends, with backend selection confined to
+startup and no backend-specific request logic.
+
+## 2. Non-negotiable: no lost owners, duplicate science or false retirement
+
+Establish startup ownership before construction begins and operation ownership
+before work is transmitted. Cancellation of a caller's wait must not erase the
+original load or operation, even when the caller has not received its handle.
+Keep construction lightweight; acquire resources during initialization after
+custody exists, retaining partial acquisitions for cleanup.
+
+Re-observing an operation is not submitting another operation. A lost reply or
+expired wait does not establish that science never started. Uncertain execution
+must not become NotAdmitted or permission to replay. Automatic recovery is not
+required: an unavailable allocation with explicit uncertainty is an acceptable
+first-version outcome.
+
+Preserve state ownership and single-use consumption. A state reference must
+belong to the live allocation, analysis and producer. Losing the result of a
+consuming operation must not make its input available again. A replacement must
+not inherit old handles.
+
+Distinguish successful scientific cleanup, confirmed worker termination and
+unresolved retirement. A process exit is not evidence that contribution.close()
+succeeded. Retain outstanding obligations and keep resources charged while
+ownership is unresolved; retained diagnostic history alone is not an outstanding
+resource obligation. Do not silently retry failed cleanup.
+
+Keep input rejection distinct from infrastructure failure and preserve available
+failure phase and causal diagnostics. A worker fault must not become a request
+for the interpreter to correct supposedly bad scientific input. Arbitrary Python
+exception identity need not survive transport.
+
+Give the first worker a bounded private communication channel and an owned stop
+and retirement path. Do not inherit unrelated credentials or service handles.
+These are basic implementation properties, not reasons to build a general
+transport or fault-management framework.
+
+## 3. High-value validation: a few proofs that could disprove the design
+
+Choose tests by the credible implementation error they expose, not by the number
+of imaginable scenarios. Prioritize the following proof obligations:
+
+- Run the same installed provider workflow on both backends, including two
+  predictions through one allocation. Establish that construction and science
+  really occur in the selected worker, the model is reused, and results,
+  delivery and cleanup retain their intended behavior.
+- Interrupt startup and fail partial initialization. Establish that the original
+  load remains owned, acquired resources are not forgotten, and independent
+  initialization and cleanup failures retain their evidence.
+- Let science perform an independently observable effect, then lose its reply.
+  Re-observation must not execute again or invent a result. Use an explicit
+  barrier at the handoff rather than a timing guess.
+- Submit invalid and already consumed state references. Establish that crossing
+  the process boundary has not weakened the existing ownership rules.
+- Lose the worker during active work, then request retirement. Pending work must
+  remain meaningfully observable; worker supervision and resource obligations
+  either settle or remain explicitly unresolved.
+
+These are not instructions to write five giant tests or duplicate every existing
+test for a second backend. Reuse tests for unchanged contracts and add focused
+ones where the new boundary introduces a distinct failure opportunity. Keep
+thread-specific tests: a cancelled wait does not grant forced thread termination.
+Use synchronization for important interruption points, not arbitrary sleeps.
+
+Exercise installed provider code and its real setup/request path early. A fake
+backend that type-checks cannot establish the process boundary. The NMRPeak mock
+can establish that boundary without establishing real-model or GPU suitability.
+
+## 4. Before wider use: proportionate engineering and review
+
+Run affected suites, inspect the final diff and review the ownership decisions
+before declaring a checkpoint complete. Confirm installed execution does not
+need source-tree imports; check actual shutdown and useful diagnostics. Run
+broader suites at meaningful checkpoints, not every expensive lane after every
+small edit. Record unrun checks rather than implying they passed.
+
+Add two independent offerings when claiming independent availability. If A is
+withdrawn and retired, B must continue serving. When replacement is introduced,
+exercise deliberate withdraw, retire, construct fresh A-prime, wait for readiness,
+then advertise. Do not call that an automatic recovery service. Unresolved
+retirement blocks reuse of dependent resources.
+
+Preserve current capacity and exclusion semantics. Multiple workers must not
+silently multiply a host-wide allowance. Broader concurrency is a separate
+capability, not an incidental consequence of having several processes.
+
+Do not duplicate the existing test suite into a process-only suite. Share actual
+contract tests where behavior is common; keep backend-specific faults separate.
+
+## 5. Conditional: required when the supported scope expands
+
+Parent-death containment and the operator recovery procedure become gates for
+unattended deployment. They need not block a controlled demonstration with an
+explicit supervisor, but parent-owned cleanup alone cannot justify a parent-death
+claim. Qualify the actual supervisor and supported descendants when that claim
+is made. Automatic restart remains optional.
+
+Real-model and GPU qualification is required before using that model/device
+combination. The mock's passing tests do not substitute for it, nor must every
+real provider migrate before the first supported configuration is useful.
+
+Multiple allocations in one analysis, wider concurrency, cross-version workers,
+additional platforms and automatic restart require their own implementation and
+evidence when introduced. Keep unsupported combinations explicit and reject them
+before effects; do not assume broader behavior from a narrow passing case.
+
+For parent and child using the same pinned installation, use existing deployment
+artifact evidence. Do not build a general code-attestation service merely because
+version agreement matters. Schema/contract agreement alone is not code identity.
+
+## 6. Validation fetish: maintenance without a changed decision
+
+Exclude tests that merely freeze argument spelling, private fields, helper call
+order or module arrangement when meaningful behavior already covers the risk.
+Do not enumerate every cross-product of fault phase and configuration instead of
+covering distinct ownership transitions.
+
+Do not build elaborate fake backends as a substitute for the actual child, or
+generic protocol, fault-injection and qualification frameworks solely for this
+one slice. Do not require every provider, platform and process-start mechanism
+before accepting a deliberately narrow supported configuration.
+
+Before adding another test, identify the credible regression it would catch and
+why existing evidence would miss it. Before adding machinery, identify the
+current implementation need. Neither a conceivable scenario nor an attractive
+abstraction is sufficient by itself. A newly discovered failure involving an
+essential guarantee belongs at level 2 or 3, regardless of its inconvenience.
+
+## Execution order and stopping point
+
+First, change Offering and PredictionWorkflow to pass the existing call bindings,
+one reservation and provider-owned prompt selection. Keep execution on threads
+and preserve the existing receiver-before-science cleanup order. This is the
+first coherent implementation commit, with its affected tests.
+
+Next, extract only the metadata/ownership separation needed for host-owned
+construction and one real persistent child. Establish the level-2 guarantees as
+part of that implementation, not as a later resilience layer. Run the unchanged
+workflow through the child before broadening the abstraction.
+
+Then establish the focused level-3 proofs, run affected qualification and review
+the final implementation. The initial completion claim is limited to the tested
+installed thread/process profile and its stated failure semantics. It is not
+production recovery, GPU qualification or portability to untested environments.
+
+Keep commits small, coherent and runnable, with substantive bodies recording the
+problem, rationale, change, actual tests/results and limits. Use red/green pairs
+for demonstrated defects, not as ceremony for every addition. Preserve history
+and unrelated work. Do not change repository-check infrastructure, publish a
+release, or migrate other providers as a side effect of this execution work.
+
+Stop once the bounded deliverable has useful behavior, essential ownership
+correctness and credible evidence. Broader capability can follow a concrete need;
+exhaustive validation is not the next milestone by default.
