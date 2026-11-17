@@ -3,8 +3,8 @@
 The rule covers calls, signatures, literals, imports and subscriptions uniformly.
 Single-line bracket groups stay compact. Nested groups own their own commas;
 lambda parameter commas and string contents are not outer item separators.
-Multiline dictionary and set literals also put their entries below the opening
-brace and start the closing brace on its own line.
+Multiline dictionary, set, list and tuple literals also put their entries
+between the opening and closing delimiters.
 """
 
 from tools.container_guard import require_container
@@ -18,6 +18,7 @@ import tokenize
 import unittest
 
 from .sources import ROOT, python_sources
+from .test_multiline_comprehension_posture import _delimiter_pairs
 
 
 @dataclass(slots=True)
@@ -115,29 +116,45 @@ def shared_item_lines(*, source: str) -> list[tuple[int, int, int]]:
     return sorted(findings)
 
 
-def multiline_brace_findings(*, source: str) -> list[tuple[int, str]]:
-    """Check literal braces using AST spans, including dictionary unpacking.
+def multiline_literal_findings(*, source: str) -> list[tuple[int, str]]:
+    """Check delimiters of multiline literals, including dictionary unpacking.
 
     AST columns count UTF-8 bytes, so inspect encoded lines when locating the
-    delimiters. Comprehensions have their own check; braces inside strings are
-    not dictionary or set nodes.
+    delimiters. A tuple may have no parentheses of its own, so require its
+    opening token to match the closing token at the end of its AST span.
     """
     lines = source.encode(encoding="utf-8").splitlines()
+    pairs = _delimiter_pairs(source=source)
     findings = []
 
     for expression in ast.walk(node=ast.parse(source=source)):
-        if not isinstance(expression, (ast.Dict, ast.Set)) or expression.lineno == expression.end_lineno:
+        if not isinstance(expression, (ast.Dict, ast.Set, ast.List, ast.Tuple)) or expression.lineno == expression.end_lineno:
             continue
 
-        after_opening = lines[expression.lineno - 1][expression.col_offset + 1:]
+        opening_line = lines[expression.lineno - 1]
+        opening_column = expression.col_offset
+        opening_symbol = opening_line[opening_column:opening_column + 1]
+        if isinstance(expression, ast.Tuple):
+            closing = pairs.get((expression.lineno, opening_column))
+
+            if opening_symbol != b"(" or closing is None or closing.end[0] != expression.end_lineno:
+                continue
+
+            end_line = lines[expression.end_lineno - 1].decode("utf-8")
+
+            if len(end_line[:closing.end[1]].encode("utf-8")) != expression.end_col_offset:
+                continue
+
+        delimiter = {b"{": "brace", b"[": "bracket", b"(": "parenthesis"}[opening_symbol]
+        after_opening = opening_line[opening_column + 1:]
 
         if after_opening.split(b"#", maxsplit=1)[0].strip():
-            findings.append((expression.lineno, "put literal entries below the opening brace"))
+            findings.append((expression.lineno, f"put literal entries below the opening {delimiter}"))
 
         before_closing = lines[expression.end_lineno - 1][:expression.end_col_offset - 1]
 
         if before_closing.strip():
-            findings.append((expression.end_lineno, "start the closing literal brace on its own line"))
+            findings.append((expression.end_lineno, f"start the closing literal {delimiter} on its own line"))
 
     return sorted(findings)
 
@@ -155,7 +172,22 @@ class MultilineBracketPostureTests(unittest.TestCase):
                 (1, "put literal entries below the opening brace"),
                 (3, "start the closing literal brace on its own line"),
             ],
-            second=multiline_brace_findings(source=source),
+            second=multiline_literal_findings(source=source),
+        )
+
+    def test_returned_multiline_dict_flags_outer_braces_only(self):
+        source = (
+            "def status():\n"
+            '    return {"queue": overview,\n'
+            '            "limits": {"total_items": limit}}\n'
+        )
+
+        self.assertEqual(
+            first=[
+                (2, "put literal entries below the opening brace"),
+                (3, "start the closing literal brace on its own line"),
+            ],
+            second=multiline_literal_findings(source=source),
         )
 
     def test_multiline_braces_allow_comments_and_surrounding_call_delimiters(self):
@@ -171,18 +203,37 @@ class MultilineBracketPostureTests(unittest.TestCase):
             'compact = {"key": "{not a literal}"}\n'
         )
 
-        self.assertEqual(first=[], second=multiline_brace_findings(source=source))
+        self.assertEqual(first=[], second=multiline_literal_findings(source=source))
 
     def test_multiline_set_and_nested_dictionary_braces_use_utf8_positions(self):
         source = 'café = {first,\n    second}\nnested = {\n    "clé": {"value": 1,\n        "other": 2},\n}\n'
 
-        self.assertEqual(first=[1, 2, 4, 5], second=[line for line, _ in multiline_brace_findings(source=source)])
+        self.assertEqual(first=[1, 2, 4, 5], second=[line for line, _ in multiline_literal_findings(source=source)])
 
-    def test_authored_multiline_braces_keep_entries_between_delimiters(self):
+    def test_multiline_list_and_parenthesized_tuple_report_both_delimiters(self):
+        source = 'items = [first,\n    second]\nvalues = (first,\n    "café")\n'
+
+        self.assertEqual(
+            first=[
+                (1, "put literal entries below the opening bracket"),
+                (2, "start the closing literal bracket on its own line"),
+                (3, "put literal entries below the opening parenthesis"),
+                (4, "start the closing literal parenthesis on its own line"),
+            ],
+            second=multiline_literal_findings(source=source),
+        )
+
+    def test_multiline_list_and_tuple_allow_clear_delimiters(self):
+        source = "items = [\n    first,\n    second,\n]\nvalues = (\n    first,\n    second,\n)\na[(first),\n  (second)]\n"
+
+        self.assertEqual(first=[], second=multiline_literal_findings(source=source))
+
+    def test_authored_multiline_literals_keep_entries_between_delimiters(self):
         findings = [
             f"{path.relative_to(ROOT)}:{line}: {message}"
             for path in python_sources(production_only=False)
-            for line, message in multiline_brace_findings(source=path.read_text(encoding="utf-8"))
+            for line,
+            message in multiline_literal_findings(source=path.read_text(encoding="utf-8"))
         ]
 
         self.assertEqual(first=[], second=findings, msg="\n".join(findings))
