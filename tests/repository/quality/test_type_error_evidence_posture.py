@@ -143,7 +143,7 @@ def _expectation_name(*, expression: ast.expr) -> str | None:
     return None
 
 
-def _has_type_pair(*, source: str, message: ast.JoinedStr, subject: ast.expr, expected_name: str) -> bool:
+def _has_type_pair(*, source: str, message: ast.JoinedStr, subject: ast.expr, expected_name: str, membership: bool) -> bool:
     for (index, value) in enumerate(message.values):
         if not (
             isinstance(value, ast.FormattedValue)
@@ -157,7 +157,7 @@ def _has_type_pair(*, source: str, message: ast.JoinedStr, subject: ast.expr, ex
 
         for following in message.values[index + 1:]:
             if isinstance(following, ast.Constant) and isinstance(following.value, str):
-                inequality = inequality or "≠" in following.value
+                inequality = inequality or "≠" in following.value or (membership and "∉" in following.value)
             elif isinstance(following, ast.FormattedValue):
                 if inequality and isinstance(following.value, ast.Name) and following.value.id == expected_name and _is_debug_expression(source=source, formatted=following):
                     return True
@@ -175,6 +175,23 @@ def _expectation_findings(*, path: Path, source: str) -> list[str]:
             continue
 
         predicates = rejected_type_predicates(expression=statement.test)
+
+        membership_expectations = {
+            _expectation_name(expression=node.comparators[0])
+            for node in ast.walk(node=statement.test)
+            if isinstance(node, ast.Compare)
+            and len(node.ops) == 1
+            and isinstance(node.ops[0], (ast.In, ast.NotIn))
+            and _type_call(expression=unwrap_binding(expression=node.left))
+        }
+        membership_expectations.update(
+            _expectation_name(expression=node.args[1])
+            for node in ast.walk(node=statement.test)
+            if isinstance(node, ast.Call)
+            and _builtin(expression=node.func, name="isinstance")
+            and len(node.args) == 2
+            and isinstance(unwrap_binding(expression=node.args[1]), ast.Tuple)
+        )
 
         bound_expectations = [
             node.target.id
@@ -203,7 +220,7 @@ def _expectation_findings(*, path: Path, source: str) -> list[str]:
                 expected_name = _expectation_name(expression=predicate.expected)
                 unavailable = any(isinstance(node, ast.Name) and node.id in predicate.comprehension_names for node in ast.walk(node=subject))
 
-                if has_type_rejection_alternatives(expression=statement.test, rejecting=True) or reused_expectations or expected_name is None or unavailable or not any(_has_type_pair(source=source, message=message, subject=subject, expected_name=expected_name) for message in messages):
+                if has_type_rejection_alternatives(expression=statement.test, rejecting=True) or reused_expectations or expected_name is None or unavailable or not any(_has_type_pair(source=source, message=message, subject=subject, expected_name=expected_name, membership=expected_name in membership_expectations) for message in messages):
                     findings.append(f'{path}:{rejection.lineno}: bind the accepted type as expected_type and report f"{{type({ast.unparse(subject)})=}} ≠ {{expected_type=}}" from the same checked value and expectation')
 
     return findings
@@ -274,6 +291,21 @@ def _subclass_findings(*, path: Path, source: str) -> list[str]:
 
 
 class TypeErrorEvidencePostureTests(unittest.TestCase):
+    def test_nonmembership_symbol_matches_type_membership_guards(self):
+        for condition in (
+            "not (type(seconds) in (expected_types := (int, float)))",
+            "type(seconds) not in (expected_types := (int, float))",
+            "not isinstance(seconds, (expected_types := (int, float)))",
+        ):
+            with self.subTest(condition=condition):
+                source = f'if {condition}:\n    raise TypeError(f"{{type(seconds)=}} ∉ {{expected_types=}}")\n'
+
+                self.assertEqual(first=[], second=_expectation_findings(path=Path("example.py"), source=source))
+
+        source = 'if not (type(seconds) is (expected_type := float)):\n    raise TypeError(f"{type(seconds)=} ∉ {expected_type=}")\n'
+
+        self.assertTrue(expr=_expectation_findings(path=Path("example.py"), source=source))
+
     def test_subclass_evidence_follows_both_bindings_without_requiring_names_or_prose(self):
         for candidate, parent, message in (
             ("candidate", "Parent", 'f"{candidate=} {Parent=}"'),
