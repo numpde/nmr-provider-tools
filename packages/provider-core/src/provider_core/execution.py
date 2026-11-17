@@ -18,7 +18,6 @@ from provider_core.container_guard import require_container
 require_container()
 
 import asyncio
-import math
 import random
 import time
 from builtins import BaseExceptionGroup
@@ -57,6 +56,7 @@ from provider_core.producer_checkpoint import (
 )
 
 from provider_core.transport import ExchangeFailed
+from provider_core.tools import require_positive_number
 
 
 class _Retirement(Enum):
@@ -81,17 +81,6 @@ class _SettlementPending(TimeoutError):
         (self.executor, self.task) = (executor, task)
 
 
-def require_observation_gap(seconds):
-    if not (type(seconds) in (expected_type := (int, float))):
-        raise TypeError(f"{type(seconds)=} ≠ {expected_type=}")
-
-    if not (math.isfinite(seconds)):
-        raise ValueError("Observation gap_seconds must be finite and positive")
-
-    if not (0 < seconds):
-        raise ValueError("Observation gap_seconds must be finite and positive")
-
-
 @dataclass(frozen=True, slots=True)
 class ObservationRecovery:
     """Bound one fresh-observation wait and report its protected outage context.
@@ -106,17 +95,8 @@ class ObservationRecovery:
     on_recovered: Callable[[AcknowledgedAttempt, ApiFailure], None] = field(repr=False)
 
     def __post_init__(self):
-        require_observation_gap(self.gap_seconds)
-        value = self.backoff_max_seconds
-
-        if not (type(value) in (expected_type := (int, float))):
-            raise TypeError(f"{type(value)=} ≠ {expected_type=}")
-
-        if not (math.isfinite(value)):
-            raise ValueError("Observation backoff_max_seconds must be finite and positive")
-
-        if not (0 < value):
-            raise ValueError("Observation backoff_max_seconds must be finite and positive")
+        require_positive_number(self.gap_seconds)
+        require_positive_number(self.backoff_max_seconds)
 
         if not callable(self.on_retry) or not callable(self.on_recovered):
             raise ValueError("Observation recovery requires explicit protected retry and recovery observers")
@@ -136,15 +116,8 @@ class ConditionRecovery:
     on_recovered: Callable[[AcknowledgedAttempt, str, str | None, ApiFailure], None] = field(repr=False)
 
     def __post_init__(self):
-        for (name, value) in (("window_seconds", self.window_seconds), ("backoff_max_seconds", self.backoff_max_seconds)):
-            if not (type(value) in (expected_type := (int, float))):
-                raise TypeError(f"{name=}; {type(value)=} ≠ {expected_type=}")
-
-            if not (math.isfinite(value)):
-                raise ValueError(f"Condition recovery {name} must be finite positive seconds")
-
-            if not (0 < value):
-                raise ValueError(f"Condition recovery {name} must be finite positive seconds")
+        for value in (self.window_seconds, self.backoff_max_seconds):
+            require_positive_number(value)
 
         if not callable(self.on_retry) or not callable(self.on_recovered):
             raise ValueError("Condition recovery requires protected retry and recovery observers")
@@ -347,15 +320,8 @@ def require_execution_settings(*, allowed_job_states, poll_seconds, task_settle_
             "Cannot configure execution: allowed_job_states must be a nonempty frozenset of open or closed; cancelled Jobs stop work"
         )
 
-    for (name, seconds) in (("poll_seconds", poll_seconds), ("task_settle_seconds", task_settle_seconds)):
-        if not (type(seconds) in (expected_seconds_type := (int, float))):
-            raise TypeError(f"{name=}; {type(seconds)=} ≠ {expected_seconds_type=}")
-
-        if not (math.isfinite(seconds)):
-            raise ValueError(f"Cannot configure execution: {name} must be finite and positive")
-
-        if not (0 < seconds):
-            raise ValueError(f"Cannot configure execution: {name} must be finite and positive")
+    for seconds in (poll_seconds, task_settle_seconds):
+        require_positive_number(seconds)
 
 
 class AttemptExecutor:
@@ -612,7 +578,7 @@ class AttemptExecutor:
                 self._link_interruption(interruption)
                 raise
 
-            if not (isinstance(cause, (expected_type := Exception))):
+            if not isinstance(cause, (expected_type := Exception)):
                 raise BaseExceptionGroup(f"{type(cause)=} ≠ {expected_type=}", (cause, self.last_failure)) from None
 
             if not (cleanup_fatal is None):
@@ -875,7 +841,7 @@ class AttemptExecutor:
 
         await asyncio.wait((self._task,), timeout=self._task_settle_seconds)
 
-        if not (self._task.done()):
+        if not self._task.done():
             raise _SettlementPending(
                 "Analysis task has not stopped; retain ownership and settle the original task",
                 executor=self,
@@ -950,7 +916,7 @@ class AttemptExecutor:
                     # API's current-failure evidence before admission is decided.
                     await self.api.retire(owner=self)
 
-                    if not (self.api.can_retry_condition(failure, execution_attempt_ref=reporter.execution_attempt_ref)):
+                    if not self.api.can_retry_condition(failure, execution_attempt_ref=reporter.execution_attempt_ref):
                         raise
 
                     if self._condition_failure is None:
@@ -1137,7 +1103,7 @@ class AttemptExecutor:
                     if not (self._observed_crash is None):
                         raise
 
-                    if not (self.api.can_retry_read(failure)):
+                    if not self.api.can_retry_read(failure):
                         raise
 
                     outage = failure
@@ -1203,7 +1169,7 @@ class AttemptExecutor:
 
         await asyncio.wait({self._observation_wait}, timeout=self._task_settle_seconds)
 
-        if not (self._observation_wait.done()):
+        if not self._observation_wait.done():
             raise TimeoutError("Original observation has not stopped; retain its waiter and API owner before recovery")
 
         task = self._observation_wait
@@ -1236,7 +1202,7 @@ class AttemptExecutor:
             async with self._api_lock:
                 await self.api.retire(owner=self)
 
-                if not (self.api.can_defer_phase_progress(failure, execution_attempt_ref=reference)):
+                if not self.api.can_defer_phase_progress(failure, execution_attempt_ref=reference):
                     raise
 
             self._on_unconfirmed_phase_progress(self._record, phase, failure)
@@ -1359,7 +1325,7 @@ class AttemptExecutor:
 
         await asyncio.wait({self._handoff_wait}, timeout=self._task_settle_seconds)
 
-        if not (self._handoff_wait.done()):
+        if not self._handoff_wait.done():
             raise TimeoutError("Original delivery handoff has not settled; retain its bytes and owner without another submission.")
 
         task = self._handoff_wait
@@ -1397,7 +1363,7 @@ class AttemptExecutor:
                 # or the retirement child while retaining the original task.
                 await asyncio.wait({self._retirement_task}, timeout=self._task_settle_seconds)
 
-                if not (self._retirement_task.done()):
+                if not self._retirement_task.done():
                     raise _SettlementPending(
                         "Original session retirement has not finished; retain it before worker reuse.",
                         executor=self,

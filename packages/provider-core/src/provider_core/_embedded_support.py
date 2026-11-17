@@ -7,7 +7,6 @@ require_container()
 import asyncio
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass, field
-import math
 import time
 
 from provider_core.contribution import (
@@ -26,6 +25,7 @@ from provider_core.hosting import (
 )
 
 from provider_core.scientific import AssetAccess, NoAssets, HostedContribution
+from provider_core.tools import require_nonnegative_number
 
 # This describes the backend's implemented features, not operator-selectable settings.
 # repo-check: allow-module-constant
@@ -112,14 +112,7 @@ class _Changes:
             if not (0 <= after <= self.revision):
                 raise ValueError("Observation cursor must belong to this owner's current history.")
 
-        if not (type(wait_seconds) in (expected_type := (int, float))):
-            raise TypeError(f"{type(wait_seconds)=} ≠ {expected_type=}")
-
-        if not math.isfinite(wait_seconds):
-            raise ValueError("Observation wait must be finite nonnegative seconds.")
-
-        if not (0 <= wait_seconds):
-            raise ValueError("Observation wait must be finite nonnegative seconds.")
+        require_nonnegative_number(wait_seconds)
 
         if after == self.revision and wait_seconds:
             try:

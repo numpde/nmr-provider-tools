@@ -14,7 +14,6 @@ from provider_core.container_guard import require_container
 require_container()
 
 import asyncio
-import math
 import random
 from collections.abc import Callable
 from dataclasses import dataclass, field
@@ -43,6 +42,7 @@ from provider_core.execution import (
 from provider_core.starting import AttemptStarter, StartFailed
 from provider_core.ownership import OwnershipRefused
 from provider_core.uploads import UploadRecoveryExhausted
+from provider_core.tools import require_positive_number
 
 
 class ControllerRefused(RuntimeError):
@@ -91,15 +91,8 @@ class LiveStartPolicy:
     window_seconds: float = 90
 
     def __post_init__(self):
-        for (name, value) in (("cadence_seconds", self.cadence_seconds), ("window_seconds", self.window_seconds)):
-            if not (type(value) in (expected_value_type := (int, float))):
-                raise TypeError(f"{name=}; {type(value)=} ≠ {expected_value_type=}")
-
-            if not math.isfinite(value):
-                raise ValueError(f"Live START {name} must be finite positive seconds")
-
-            if not (value > 0):
-                raise ValueError(f"Live START {name} must be finite positive seconds")
+        for value in (self.cadence_seconds, self.window_seconds):
+            require_positive_number(value)
 
         if not (type((actual_maximum_replays := self.maximum_replays)) is (expected_type := int)):
             raise TypeError(

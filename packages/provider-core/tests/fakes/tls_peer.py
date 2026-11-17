@@ -17,6 +17,7 @@ from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
 from cryptography.x509.oid import NameOID
 
 from provider_core.api_config import https_trust
+from provider_core.tools import require_positive_number
 
 
 class _OptionalCertificateRejectionReset(logging.Filter):
@@ -90,8 +91,10 @@ class TlsPeer:
             ("handshake_seconds", handshake_seconds),
             ("shutdown_seconds", shutdown_seconds),
         ):
-            if type(seconds) not in (int, float) or not 0 < seconds < float("inf"):
-                raise ValueError(f"TlsPeer {label} must be finite positive seconds")
+            try:
+                require_positive_number(seconds)
+            except (TypeError, ValueError) as cause:
+                raise ValueError(f"TlsPeer {label} must be finite positive seconds") from cause
 
         (self.handshake_seconds, self.shutdown_seconds) = (handshake_seconds, shutdown_seconds)
         self.mode = mode

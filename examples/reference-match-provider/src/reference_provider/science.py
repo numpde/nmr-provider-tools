@@ -6,16 +6,11 @@ from dataclasses import dataclass
 import math
 
 from provider_core.contribution_errors import ScientificRejection
+from provider_core.tools import require_nonnegative_number
 
 
 def _finite(numeric_value: object) -> float:
-    if not (type(numeric_value) in (expected_type := (int, float))):
-        raise TypeError(f"{type(numeric_value)=} ≠ {expected_type=}")
-
-    if not (math.isfinite(numeric_value) and (0 <= numeric_value)):
-        raise ValueError(f"Reference matching requires finite nonnegative {numeric_value=}")
-
-    return float(numeric_value)
+    return float(require_nonnegative_number(numeric_value))
 
 
 @dataclass(frozen=True, slots=True, kw_only=True)

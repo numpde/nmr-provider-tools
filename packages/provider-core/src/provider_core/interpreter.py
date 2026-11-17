@@ -40,6 +40,7 @@ from provider_core.conversation import (
 )
 
 from provider_core.transport_errors import ExchangeFailed
+from provider_core.tools import require_positive_number
 
 # Two remaining-time floats may change decimal length before the next request.
 # repo-check: allow-module-constant
@@ -247,7 +248,7 @@ class Interpreter:
         retain_history_up_to_records: int,
         secrets: tuple[str, ...],
     ):
-        if not (isinstance(endpoint_factories, (expected_type := tuple))):
+        if not isinstance(endpoint_factories, (expected_type := tuple)):
             raise TypeError(
                 f"{type(endpoint_factories)=} ≠ {expected_type=}"
             )
@@ -257,14 +258,7 @@ class Interpreter:
                 "Cannot configure interpretation: provide an ordered nonempty tuple of endpoint factories."
             )
 
-        if not (type(interpretation_budget_seconds) in (expected_type := (int, float))):
-            raise TypeError(f"{type(interpretation_budget_seconds)=} ≠ {expected_type=}")
-
-        if not math.isfinite(interpretation_budget_seconds):
-            raise ValueError(f"Interpretation budget must be finite: {interpretation_budget_seconds=}")
-
-        if not (0 < interpretation_budget_seconds):
-            raise ValueError(f"Interpretation budget must be positive: {interpretation_budget_seconds=}")
+        require_positive_number(interpretation_budget_seconds)
 
         if not (type(reject_combined_messages_and_tools_over_bytes) is (expected_type := int)):
             raise TypeError(
@@ -287,19 +281,15 @@ class Interpreter:
             if not (0 < setting_value):
                 raise ValueError(f"Interpreter setting must be positive: {setting_name=}; {setting_value=}")
 
-        if not (type(connection_timeout_seconds) in (expected_type := (int, float))):
-            raise TypeError(f"{type(connection_timeout_seconds)=} ≠ {expected_type=}")
+        require_positive_number(connection_timeout_seconds)
 
-        if (not math.isfinite(connection_timeout_seconds)) or (connection_timeout_seconds <= 0):
-            raise ValueError(f"Interpreter connection timeout must be finite and positive: {connection_timeout_seconds=}")
-
-        if not (isinstance(secrets, (expected_type := tuple))):
+        if not isinstance(secrets, (expected_type := tuple)):
             raise TypeError(
                 f"{type(secrets)=} ≠ {expected_type=}"
             )
 
         for secret in secrets:
-            if not (isinstance(secret, (expected_type := str))):
+            if not isinstance(secret, (expected_type := str)):
                 raise TypeError(
                     f"{type(secret)=} ≠ {expected_type=}"
                 )
@@ -410,7 +400,7 @@ class Interpreter:
             if not (type(not_after) in (expected_type := (int, float))):
                 raise TypeError(f"Cannot start interpretation: {type(not_after)=} ≠ {expected_type=}")
 
-            if not (math.isfinite(not_after)):
+            if not math.isfinite(not_after):
                 raise ValueError("Cannot start interpretation: not_after must be a finite monotonic deadline.")
 
             deadline = min(deadline, not_after)
@@ -654,7 +644,7 @@ class _History:
                 "Provide records as a list of one to eight catalogue references with optional cursors."
             )
 
-        if not (isinstance(queries, (expected_type := list))):
+        if not isinstance(queries, (expected_type := list)):
             raise ToolRejected(
                 f"{type(queries)=} ≠ {expected_type=}"
             )
@@ -667,13 +657,13 @@ class _History:
         results: list[Document] = []
 
         for query in queries:
-            if not (isinstance(query, (expected_type := dict))):
+            if not isinstance(query, (expected_type := dict)):
                 raise ToolRejected(f"{type(query)=} ≠ {expected_type=}")
 
             if set(query) - {"ref", "cursor"}:
                 raise ToolRejected("Each record request needs a ref and an optional integer cursor.")
 
-            if not (isinstance((query_ref := query.get("ref")), (expected_type := str))):
+            if not isinstance((query_ref := query.get("ref")), (expected_type := str)):
                 raise ToolRejected(f"{type(query_ref)=} ≠ {expected_type=}")
 
             # silent-defaults: allow-contract -- The input schema explicitly permits omitted cursors; zero selects the start of the captured history record.
@@ -702,7 +692,7 @@ class _History:
 
         # Every requested reference needs a status even when an earlier page
         # consumes the data allowance. Fill pages around those reserved entries.
-        if not (fits({"records": results})):
+        if not fits({"records": results}):
             raise ToolRejected("History reply cannot fit the remaining context; request fewer records.")
 
         for (index, query) in enumerate(queries):
@@ -791,14 +781,14 @@ class _DescribeInputConstraints:
         if set(arguments) - {"tool", "field"}:
             raise ToolRejected("Name an available provider tool and optionally a nonempty field path.")
 
-        if not (isinstance(name, (expected_type := str))):
+        if not isinstance(name, (expected_type := str)):
             raise ToolRejected(f"{type(name)=} ≠ {expected_type=}")
 
         if not (name in self._schemas):
             raise ToolRejected("Name an available provider tool and optionally a nonempty field path.")
 
         if path is not None:
-            if not (isinstance(path, (expected_path_type := str))):
+            if not isinstance(path, (expected_path_type := str)):
                 raise ToolRejected(f"{type(path)=} ≠ {expected_path_type=}")
 
             if not (path):
@@ -1133,7 +1123,7 @@ class _ModelVisit:
                 self.http_failures.append(failure)
                 await self.retire()
 
-                if not (_retryable(failure)):
+                if not _retryable(failure):
                     raise
 
                 delay = max(random.uniform(0.25, 0.75), _retry_after(failure))

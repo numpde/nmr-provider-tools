@@ -10,7 +10,7 @@ from provider_core.contribution_errors import ScientificRejection
 
 def _finite_number(value: object, *, label: str) -> float:
     if not (type(value) in (expected_type := (int, float))):
-        raise TypeError(f"{label=}; {type(value)=} ≠ {expected_type=}")
+        raise TypeError(f"{label=}; {type(value)=} ∉ {expected_type=}")
 
     if not math.isfinite(value):
         raise ValueError(f"{label} must be finite")

@@ -11,11 +11,12 @@ require_container()
 
 import argparse
 import json
-import math
 import os
 import stat
 import time
 from pathlib import Path
+
+from provider_core.tools import require_nonnegative_number
 
 
 def _start_ticks(pid):
@@ -90,14 +91,14 @@ def read_status(path, role):
     finally:
         os.close(descriptor)
 
-    fields = {"role", "pid", "start_ticks", "updated_monotonic", "phase"}
+    fields = { "role", "pid", "start_ticks", "updated_monotonic", "phase" }
 
     if not (type(value) is (expected_type := dict)):
         raise TypeError(
-            f"{type(value)=} ≠ {expected_type=}"
+            f"{type(value)=} ≠ {expected_type=}",
         )
 
-    if not (set(value) in (fields, fields | {"details"})):
+    if not (set(value) in (fields, fields | { "details" })):
         raise ValueError("Process status has an unsupported shape.")
 
     if "details" in value and type((value_details := value["details"])) is not (expected_value_details_type := dict):
@@ -118,22 +119,15 @@ def read_status(path, role):
     if not (0 < value['start_ticks']):
         raise ValueError("Process status has a different role or invalid process identity.")
 
-    updated = value["updated_monotonic"]
+    status_updated_at = value["updated_monotonic"]
 
-    if not (type(updated) in (expected_updated_type := (int, float))):
-        raise TypeError(f"{type(updated)=} ≠ {expected_updated_type=}")
+    require_nonnegative_number(status_updated_at)
 
-    if not (math.isfinite(updated)):
-        raise ValueError("Process status has an invalid timestamp.")
-
-    if not (0 <= updated):
-        raise ValueError("Process status has an invalid timestamp.")
-
-    if _start_ticks(value["pid"]) != value["start_ticks"]:
+    if not (_start_ticks(value["pid"]) == value["start_ticks"]):
         raise ValueError("Process status belongs to a different process identity.")
 
-    if not (value["phase"] in ("ready", "working", "starting", "stopping", "held", "api-unconfirmed")):
-        raise ValueError("Process status has an unsupported readiness phase.")
+    if not (value["phase"] in (phases := ("ready", "working", "starting", "stopping", "held", "api-unconfirmed"))):
+        raise ValueError(f"{value['phase']=} ∉ {phases=}.")
 
     return value
 
@@ -151,7 +145,9 @@ def check_status(path, role):
 
 
 def main():
-    parser = argparse.ArgumentParser(description="Check current private process readiness without opening an operation socket.")
+    parser = argparse.ArgumentParser(
+        description="Check current private process readiness without opening an operation socket.",
+    )
 
     parser.add_argument("path", type=Path)
     parser.add_argument("role")
@@ -186,7 +182,7 @@ def main():
                 if details.get("queue") is not None and details["queue"].get("oldest_pending_age_seconds") is not None:
                     details["queue"]["oldest_pending_age_seconds"] += age
 
-                print(json.dumps({"observation_age_seconds": age, **details}, sort_keys=True, allow_nan=False))
+                print(json.dumps({ "observation_age_seconds": age, **details }, sort_keys=True, allow_nan=False))
     except (OSError, TypeError, ValueError, KeyError) as cause:
         parser.exit(1, f"Process readiness not confirmed: {cause}\n")
 

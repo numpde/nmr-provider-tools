@@ -6,7 +6,6 @@ require_container()
 
 import asyncio
 from dataclasses import dataclass, field
-import math
 import signal
 import sys
 import tempfile
@@ -16,6 +15,7 @@ from provider_core.chat_wire import METADATA_BYTES, encoded_bytes, framed, messa
 from provider_core.decoded_body import require_decoded_limit
 from provider_core.transport import require_transport_settings
 from provider_core.transport_errors import ExchangeFailed
+from provider_core.tools import require_positive_number
 
 
 def _worker_command():
@@ -91,14 +91,7 @@ class SupervisedChatTransport:
                                    retirement_seconds=retirement_seconds,
                                    proxy_socket=proxy_socket)
 
-        if not (type(connect_seconds) in (expected_type := (int, float))):
-            raise TypeError(f"Cannot configure interpreter child: {type(connect_seconds)=} ≠ {expected_type=}")
-
-        if not math.isfinite(connect_seconds):
-            raise ValueError("Cannot configure interpreter child: connect_seconds must be finite positive seconds")
-
-        if not (connect_seconds > 0):
-            raise ValueError("Cannot configure interpreter child: connect_seconds must be finite positive seconds")
+        require_positive_number(connect_seconds)
 
         self._trust = capture_trust(trust)
         self._exchange_seconds = exchange_seconds
@@ -207,14 +200,7 @@ class SupervisedChatTransport:
         deadline = loop.time() + self._exchange_seconds
 
         if not_after is not None:
-            if not (type(not_after) in (expected_type := (int, float))):
-                raise TypeError(f"Cannot start model HTTP exchange: {type(not_after)=} ≠ {expected_type=}")
-
-            if not math.isfinite(not_after):
-                raise ValueError("Cannot start model HTTP exchange: not_after must be a finite positive deadline")
-
-            if not (not_after > 0):
-                raise ValueError("Cannot start model HTTP exchange: not_after must be a finite positive deadline")
+            require_positive_number(not_after)
 
             deadline = min(deadline, not_after)
 
