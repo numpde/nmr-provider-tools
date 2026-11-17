@@ -15,6 +15,7 @@ from provider_core.delivery_worker import require_delivery_retry_settings
 from provider_core.shared_delivery_ipc import SharedDeliveryInbox
 from provider_core.shared_delivery_worker import SharedDeliveryWorker
 from provider_core.process_status import ProcessStatus
+from provider_core.tools import require_positive_number
 
 
 class SharedDeliveryService(DeliveryService):
@@ -25,7 +26,7 @@ class SharedDeliveryService(DeliveryService):
                  limits,
                  socket,
                  proxy_socket,
-                 request_seconds,
+                 ipc_io_timeout_seconds,
                  retry_initial_seconds,
                  retry_max_seconds,
                  on_notice,
@@ -33,18 +34,13 @@ class SharedDeliveryService(DeliveryService):
                  legacy_material=(),
                  live_configuration=None,
                  status_directory=None):
-        if not (type(request_seconds) in (expected_type := (int, float))):
-            raise TypeError(f"{type(request_seconds)=} ≠ {expected_type=}")
 
-        if not (math.isfinite(request_seconds)):
-            raise ValueError("Delivery IPC request deadline must be finite positive seconds.")
-
-        if not (request_seconds > 0):
-            raise ValueError("Delivery IPC request deadline must be finite positive seconds.")
+        require_positive_number(ipc_io_timeout_seconds)
 
         require_delivery_retry_settings(retry_initial_seconds, retry_max_seconds)
+
         (self.directory, self.limits, self.socket, self.proxy_socket) = (directory, limits, socket, proxy_socket)
-        self.request_seconds = request_seconds
+        self.request_seconds = ipc_io_timeout_seconds
 
         (self.retry_initial_seconds, self.retry_max_seconds) = (retry_initial_seconds, retry_max_seconds)
         (self.on_notice, self.diagnostic_status, self.legacy_material) = (on_notice, diagnostic_status, tuple(legacy_material))

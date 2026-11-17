@@ -97,15 +97,15 @@ class ServiceObservationTests(unittest.IsolatedAsyncioTestCase):
             notices.set_level("WARNING")
 
             service = SharedDeliveryService(root / "state",
-                limits=QueueLimits(4, 16384, 8, 32768),
-                socket=SharedDeliverySocket(root / "ipc/http.sock", None),
-                proxy_socket=root / "absent.sock",
-                request_seconds=1,
-                retry_initial_seconds=1,
-                retry_max_seconds=1,
-                on_notice=notices,
-                diagnostic_status=notices.status,
-                status_directory=root / "status")
+                                            limits=QueueLimits(4, 16384, 8, 32768),
+                                            socket=SharedDeliverySocket(root / "ipc/http.sock", None),
+                                            proxy_socket=root / "absent.sock",
+                                            ipc_io_timeout_seconds=1,
+                                            retry_initial_seconds=1,
+                                            retry_max_seconds=1,
+                                            on_notice=notices,
+                                            diagnostic_status=notices.status,
+                                            status_directory=root / "status")
 
             task = asyncio.create_task(service.run())
 
@@ -156,15 +156,15 @@ class ServiceObservationTests(unittest.IsolatedAsyncioTestCase):
             notice = Mock()
 
             service = SharedDeliveryService(root / "state",
-                limits=QueueLimits(4, 16384, 8, 32768),
-                socket=SharedDeliverySocket(root / "ipc/http.sock", None),
-                proxy_socket=root / "absent.sock",
-                request_seconds=1,
-                retry_initial_seconds=1,
-                retry_max_seconds=1,
-                on_notice=notice,
-                diagnostic_status=Mock(),
-                status_directory=root / "status")
+                                            limits=QueueLimits(4, 16384, 8, 32768),
+                                            socket=SharedDeliverySocket(root / "ipc/http.sock", None),
+                                            proxy_socket=root / "absent.sock",
+                                            ipc_io_timeout_seconds=1,
+                                            retry_initial_seconds=1,
+                                            retry_max_seconds=1,
+                                            on_notice=notice,
+                                            diagnostic_status=Mock(),
+                                            status_directory=root / "status")
 
             task = asyncio.create_task(service.run())
 

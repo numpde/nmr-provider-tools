@@ -98,7 +98,7 @@ class BindingIsolationTests(unittest.IsolatedAsyncioTestCase):
                         limits=limits,
                         socket=SharedDeliverySocket(root / "ipc/socket", None),
                         proxy_socket=root / "proxy.sock",
-                        request_seconds=2,
+                        ipc_io_timeout_seconds=2,
                         retry_initial_seconds=0.01,
                         retry_max_seconds=0.02,
                         on_notice=notice,

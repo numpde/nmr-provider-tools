@@ -72,16 +72,16 @@ def main():
             settings = live.read()
 
             service = SharedDeliveryService(options.state_directory,
-                limits=settings.limits,
-                socket=SharedDeliverySocket(options.socket, options.socket_group_id),
-                proxy_socket=options.proxy_socket,
-                request_seconds=options.request_seconds,
-                retry_initial_seconds=settings.retry_initial_seconds,
-                retry_max_seconds=settings.retry_max_seconds,
-                on_notice=notices,
-                diagnostic_status=notices.status,
-                live_configuration=live,
-                status_directory=options.status_directory)
+                                            limits=settings.limits,
+                                            socket=SharedDeliverySocket(options.socket, options.socket_group_id),
+                                            proxy_socket=options.proxy_socket,
+                                            ipc_io_timeout_seconds=options.request_seconds,
+                                            retry_initial_seconds=settings.retry_initial_seconds,
+                                            retry_max_seconds=settings.retry_max_seconds,
+                                            on_notice=notices,
+                                            diagnostic_status=notices.status,
+                                            live_configuration=live,
+                                            status_directory=options.status_directory)
 
         asyncio.run(_run(service, notices))
 

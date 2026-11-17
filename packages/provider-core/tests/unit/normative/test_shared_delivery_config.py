@@ -77,15 +77,15 @@ class SharedDeliveryConfigurationTests(unittest.TestCase):
             notices = Mock()
 
             service = SharedDeliveryService(root / "state",
-                limits=settings.limits,
-                socket=SharedDeliverySocket(root / "delivery.sock", None),
-                proxy_socket=root / "proxy.sock",
-                request_seconds=1,
-                retry_initial_seconds=1,
-                retry_max_seconds=10,
-                on_notice=notices,
-                diagnostic_status=Mock(),
-                live_configuration=live)
+                                            limits=settings.limits,
+                                            socket=SharedDeliverySocket(root / "delivery.sock", None),
+                                            proxy_socket=root / "proxy.sock",
+                                            ipc_io_timeout_seconds=1,
+                                            retry_initial_seconds=1,
+                                            retry_max_seconds=10,
+                                            on_notice=notices,
+                                            diagnostic_status=Mock(),
+                                            live_configuration=live)
 
             service.queue = DeliveryQueue(root / "state", limits=settings.limits)
 
