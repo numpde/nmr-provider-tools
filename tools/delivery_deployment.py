@@ -32,6 +32,7 @@ from provider_core.startup_file import read_startup_file
 from provider_core.transport import require_unix_socket_path
 from provider_core.provider_proxy import LiveProxyConfiguration
 from provider_core.shared_delivery_config import SharedDeliveryConfiguration
+from provider_core.tools import require_absolute_path, require_positive_number
 
 # Both daemon and generic proxies use the installed application environment.
 # repo-check: allow-module-constant
@@ -50,12 +51,14 @@ def _details(error, text, diagnostic_window):
 
 
 def _path(value):
-    path = Path(value)
+    try:
+        path = require_absolute_path(value)
+    except (TypeError, ValueError) as cause:
+        raise DeliveryDeploymentRejected("Cannot admit a delivery input path") from cause
 
     if (
-        not path.is_absolute()
-        or path.resolve() != path
-        or any(character in str(path) for character in ("\0", "\n", "\r", ","))
+        path.resolve() != path
+        or any(character in str(path) for character in ("\n", "\r", ","))
     ):
         raise DeliveryDeploymentRejected(
             "Delivery inputs require canonical absolute paths without mount delimiters."
@@ -68,7 +71,6 @@ def read_definition(path):
     raw_definition = read_startup_file(
         path,
         maximum_bytes=65536,
-        label="delivery binding definition",
     )
 
     definition = parse_deployment_bindings(raw_definition)
@@ -315,7 +317,7 @@ def render_shared(path, source, image):
 
     try:
         document = tomllib.loads(
-            read_startup_file(path, maximum_bytes=65536, label="shared settings").decode("utf-8")
+            read_startup_file(path, maximum_bytes=65536).decode("utf-8")
         )
 
         host = document["deployment"]
@@ -353,10 +355,9 @@ def render_shared(path, source, image):
         if not (0 < gid):
             raise ValueError
 
-        if not (type(request_seconds) in (expected_type := (int, float))):
-            raise TypeError(f"{type(request_seconds)=} ≠ {expected_type=}")
+        require_positive_number(request_seconds)
 
-        if not (0 < request_seconds < float("inf") and mode in ("local", "mapped", "external")):
+        if not (mode in ("local", "mapped", "external")):
             raise ValueError
 
         if not (type(interface) is (expected_type := str)):
@@ -627,7 +628,8 @@ def initialize(uid, gid, queue, ipc):
         path = _path(target)
         observed_metadata = path.lstat()
 
-        if not (stat.S_ISDIR(observed_metadata.st_mode)):
+        # todo: use format/pattern from elsewhere
+        if not stat.S_ISDIR(observed_metadata.st_mode):
             raise DeliveryDeploymentRejected("Delivery volume root must be a real directory.")
 
         if (

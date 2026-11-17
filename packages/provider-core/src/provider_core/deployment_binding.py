@@ -13,7 +13,6 @@ require_container()
 import argparse
 import ipaddress
 import json
-import math
 import re
 import sys
 import tomllib
@@ -28,6 +27,7 @@ from provider_core.delivery_store import MAX_BINDINGS, QueueLimits
 from provider_core.deployment_errors import BindingDefinitionRejected
 from provider_core.provider_proxy import ServicePolicy, ServiceRefused
 from provider_core.startup_file import StartupFileRejected, read_startup_file
+from provider_core.tools import require_positive_number
 
 
 def _fields(table, expected, label):
@@ -194,14 +194,7 @@ def _parse_deployment_bindings(raw):
     for key in ("request_seconds", "retry_initial_seconds", "retry_max_seconds"):
         value = document[key]
 
-        if not (type(value) in (expected_type := (int, float))):
-            raise BindingDefinitionRejected(f"{type(value)=} ≠ {expected_type=}")
-
-        if not (math.isfinite(value)):
-            raise BindingDefinitionRejected(f"Cannot admit delivery bindings: {key} requires finite positive seconds.")
-
-        if not (0 < value):
-            raise BindingDefinitionRejected(f"Cannot admit delivery bindings: {key} requires finite positive seconds.")
+        require_positive_number(value)
 
     if not (document["retry_initial_seconds"] <= document["retry_max_seconds"]):
         raise BindingDefinitionRejected("Cannot admit delivery bindings: initial retry delay must not exceed maximum delay.")
@@ -281,7 +274,7 @@ def parse_deployment_bindings(raw):
 
 def load_deployment_bindings(path):
     try:
-        raw = read_startup_file(path, maximum_bytes=65536, label="delivery binding definition")
+        raw = read_startup_file(path, maximum_bytes=65536)
     except StartupFileRejected as cause:
         raise BindingDefinitionRejected(str(cause)) from cause
 

@@ -303,7 +303,7 @@ def initialize_route(uid, gid, path, *, shared_group=False):
 
     observed = path.lstat()
 
-    if not (stat.S_ISDIR(observed.st_mode)):
+    if not stat.S_ISDIR(observed.st_mode):
         raise RouteProjectionRejected("Cannot initialize API route volume: its root must be a real directory.")
 
     if (observed.st_uid, observed.st_gid, stat.S_IMODE(observed.st_mode)) == (uid, gid, mode):

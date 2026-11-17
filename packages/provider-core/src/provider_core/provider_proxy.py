@@ -33,6 +33,7 @@ from pathlib import Path
 
 from provider_core import bound_http_proxy
 from provider_core.diagnostic_text import CredentialRedactingFormatter
+from provider_core.tools import require_absolute_path, require_nonnegative_number
 
 
 def _proxy_routine_record(record):
@@ -131,8 +132,8 @@ class ServicePolicy:
         return cls(admitted, tuple(sorted(mapped.items())))
 
     def destination(self, header):
-        if not (header.startswith(b"CONNECT ")):
-            raise ServiceRefused("Cannot admit service proxy request: only CONNECT tunnels are allowed.")
+        if not header.startswith(expected_start := b"CONNECT "):
+            raise ServiceRefused(f"Request header does not have {expected_start=}.")
 
         try:
             destination = bound_http_proxy.parse_destination(header)
@@ -178,8 +179,8 @@ class LiveProxyConfiguration:
         descriptor = os.open(self.path, os.O_RDONLY | os.O_CLOEXEC | os.O_NOFOLLOW | os.O_NONBLOCK)
 
         try:
-            if not (stat.S_ISREG(os.fstat(descriptor).st_mode)):
-                raise ServiceRefused("Proxy configuration must be a regular file.")
+            if not stat.S_ISREG(observed_stat_mode := os.fstat(descriptor).st_mode):
+                raise ServiceRefused(f"Proxy configuration must be a regular file but {observed_stat_mode=}.")
 
             raw = bytearray()
 
@@ -223,10 +224,12 @@ class LiveProxyConfiguration:
         if maximum <= 0:
             raise ServiceRefused("Proxy max_connections must be a positive integer.")
 
-        if not (type(delay) in (expected_delay_type := (int, float))):
-            raise ServiceRefused(f"{type(delay)=} ≠ {expected_delay_type=}")
+        try:
+            require_nonnegative_number(delay)
+        except (TypeError, ValueError) as cause:
+            raise ServiceRefused("Cannot configure proxy admission delay") from cause
 
-        if not (0 <= delay <= bound_http_proxy.HEADER_SECONDS):
+        if not (delay <= bound_http_proxy.HEADER_SECONDS):
             raise ServiceRefused("Proxy max_admission_delay_seconds must be between 0 and 30 seconds.")
 
         if not (order in ("ready", "fifo")):
@@ -422,7 +425,7 @@ class ServiceProxyServer(bound_http_proxy.ProxyServer):
         except BaseException as error:
             self.shutdown_request(request)
 
-            if not (isinstance(error, Exception)):
+            if not isinstance(error, Exception):
                 raise
 
             self.handle_error(request, client_address)
@@ -459,13 +462,13 @@ def socket_grant(path, ready, *, socket_group_id=None):
     No host cleanup loop or extra lifetime registry participates in restart.
     """
 
-    if (
-        not path.is_absolute()
-        or not ready.is_absolute()
-        or path == ready
-        or path.parent != ready.parent
-        or "\0" in str(path) + str(ready)
-    ):
+    try:
+        path = require_absolute_path(path)
+        ready = require_absolute_path(ready)
+    except (TypeError, ValueError) as cause:
+        raise ServiceRefused("Cannot admit service proxy paths") from cause
+
+    if path == ready or path.parent != ready.parent:
         raise ServiceRefused(
             "Cannot start service proxy: socket and readiness require distinct absolute paths in one private directory."
         )
@@ -596,8 +599,8 @@ def main():
 
             _configure_proxy_logging(args.log_level)
         else:
-            if not (args.live_config.is_absolute()):
-                raise ServiceRefused("Cannot configure service proxy: the live settings path must be absolute.")
+            if not args.live_config.is_absolute():
+                raise ServiceRefused(f"{args.live_config=} must be an absolute path.")
 
             live = LiveProxyConfiguration(args.live_config, args.mode)
             settings = live.read()

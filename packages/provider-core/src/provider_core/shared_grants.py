@@ -66,7 +66,7 @@ class SharedGrants:
 
 def shared_grants(path):
     try:
-        document = tomllib.loads(read_startup_file(path, maximum_bytes=65536, label="shared settings").decode("utf-8"))
+        document = tomllib.loads(read_startup_file(path, maximum_bytes=65536).decode("utf-8"))
         (project, gid) = (document["deployment"]["project"], document["deployment"]["gid"])
 
         if not (type(project) is (expected_type := str)):

@@ -11,7 +11,6 @@ require_container()
 
 import tomllib
 from dataclasses import replace
-from pathlib import Path
 
 from provider_core.api import ProviderAPI
 from provider_core.api_config import api_settings
@@ -19,6 +18,7 @@ from provider_core.delivery_client import DeliveryEndpoint
 from provider_core.delivery_service import MAX_BINDINGS, DeliveryBinding, DeliveryService
 from provider_core.delivery_store import QueueLimits
 from provider_core.startup_file import StartupFileRejected, read_startup_file
+from provider_core.tools import require_absolute_path
 
 
 class DeliveryConfigurationRejected(ValueError):
@@ -38,32 +38,16 @@ def _fields(table, fields, label):
         raise DeliveryConfigurationRejected(f"{label} must contain exactly its documented fields.")
 
 
-def _path(value, label):
-    if not (type(value) is (expected_type := str)):
-        raise DeliveryConfigurationRejected(f"{label=}; {type(value)=} ≠ {expected_type=}")
-
-    if not (value):
-        raise DeliveryConfigurationRejected(f"{label} requires an explicit absolute container path.")
-
-    if "\x00" in value:
-        raise DeliveryConfigurationRejected(f"{label} requires an explicit absolute container path.")
-
-    if not (Path(value).is_absolute()):
-        raise DeliveryConfigurationRejected(f"{label} requires an explicit absolute container path.")
-
-    return Path(value)
-
-
 def _binding(table):
     _fields(table, {"api", "socket_path", "socket_group_id", "proxy_socket"}, "binding")
     (settings, provider_ref) = api_settings(table["api"], read_startup_file)
 
     endpoint = DeliveryEndpoint(settings.identity.origin,
                                 provider_ref,
-                                _path(table["socket_path"], "delivery socket"),
+                                require_absolute_path(table["socket_path"]),
                                 socket_group_id=table["socket_group_id"])
 
-    http = replace(settings.http, proxy_socket=str(_path(table["proxy_socket"], "API proxy socket")))
+    http = replace(settings.http, proxy_socket=str(require_absolute_path(table["proxy_socket"])))
     client = ProviderAPI(settings.identity, http.new_transport(), expected_topology=settings.expected_topology)
 
     return DeliveryBinding(endpoint, client)
@@ -73,7 +57,7 @@ def load_delivery_service(path, *, on_notice, diagnostic_status):
     """Consume immutable received bytes; construct owners without starting them."""
 
     try:
-        raw = read_startup_file(path, maximum_bytes=65536, label="delivery configuration")
+        raw = read_startup_file(path, maximum_bytes=65536)
     except StartupFileRejected as cause:
         raise DeliveryConfigurationRejected(str(cause), cause=cause) from None
 
@@ -110,7 +94,7 @@ def load_delivery_service(path, *, on_notice, diagnostic_status):
         # Only existing code-owned admission errors cross this translation.
         # TOML parsing is outside it so parser excerpts never become messages.
         return DeliveryService(
-            _path(document["state_directory"], "delivery state"),
+            require_absolute_path(document["state_directory"]),
             limits=QueueLimits(**document["limits"]),
             # repo-check: allow-tuple-generator -- Freeze the completely admitted binding set before constructing its service.
             bindings=tuple(_binding(table) for table in bindings),

@@ -11,7 +11,8 @@ require_container()
 
 import os
 import stat
-from pathlib import Path
+
+from provider_core.tools import require_absolute_path
 
 
 class StartupFileRejected(ValueError):
@@ -24,23 +25,16 @@ class StartupFileRejected(ValueError):
 
 
 # silent-defaults: allow-contract -- Public configuration and CA inputs forbid group/other writes; credentials additionally require private caller-owned 0400/0600 files.
-def read_startup_file(path, *, maximum_bytes, label, secret=False):
-    if not (isinstance(path, (expected_type := (str, Path)))):
-        raise StartupFileRejected(f"{label=}; {type(path)=} ≠ {expected_type=}")
-
-    if not (str(path)):
-        raise StartupFileRejected(f"{label} requires an explicit absolute container path.")
-
-    if "\x00" in str(path):
-        raise StartupFileRejected(f"{label} requires an explicit absolute container path.")
-
-    if not (Path(path).is_absolute()):
-        raise StartupFileRejected(f"{label} requires an explicit absolute container path.")
+def read_startup_file(path, *, maximum_bytes, secret=False):
+    try:
+        path = require_absolute_path(path)
+    except (TypeError, ValueError) as cause:
+        raise StartupFileRejected("Cannot admit a startup file path", cause=cause) from None
 
     try:
         descriptor = os.open(path, os.O_RDONLY | os.O_CLOEXEC | os.O_NOFOLLOW | os.O_NONBLOCK)
     except OSError as cause:
-        raise StartupFileRejected(f"{label} could not be opened as a regular file without a final symlink.", cause=cause) from None
+        raise StartupFileRejected(f"{path=} could not be opened as a regular file without a final symlink.", cause=cause) from None
 
     (content, primary, cleanup) = (None, None, None)
 
@@ -49,13 +43,13 @@ def read_startup_file(path, *, maximum_bytes, label, secret=False):
         mode = stat.S_IMODE(status.st_mode)
 
         if not stat.S_ISREG(status.st_mode) or status.st_size > maximum_bytes:
-            raise StartupFileRejected(f"{label} must be a regular file within {maximum_bytes} bytes.")
+            raise StartupFileRejected(f"{path=} must be a regular file within {maximum_bytes} bytes.")
 
         if secret:
             if status.st_uid != os.geteuid() or mode not in (0o400, 0o600):
-                raise StartupFileRejected(f"{label} must belong to the container user with mode 0400 or 0600.")
+                raise StartupFileRejected(f"{path=} must belong to the container user with mode 0400 or 0600.")
         elif status.st_uid not in (0, os.geteuid()) or mode & 0o022:
-            raise StartupFileRejected(f"{label} must belong to root or the container user and forbid group/other writes.")
+            raise StartupFileRejected(f"{path=} must belong to root or the container user and forbid group/other writes.")
 
         content = bytearray()
 
@@ -68,7 +62,7 @@ def read_startup_file(path, *, maximum_bytes, label, secret=False):
             content.extend(part)
 
         if len(content) != status.st_size or len(content) > maximum_bytes:
-            raise StartupFileRejected(f"{label} changed length during its bounded startup read.")
+            raise StartupFileRejected(f"{path=} changed length during its bounded startup read.")
 
         content = bytes(content)
     except BaseException as cause:
@@ -82,7 +76,7 @@ def read_startup_file(path, *, maximum_bytes, label, secret=False):
     if primary is not None and not isinstance(primary, Exception):
         if not (cleanup is None):
             raise primary from StartupFileRejected(
-                f"{label} close also failed during interruption.",
+                f"{path=} close also failed during interruption.",
                 cause=primary.__cause__,
                 cleanup_failures=(cleanup,)
             )
@@ -97,7 +91,7 @@ def read_startup_file(path, *, maximum_bytes, label, secret=False):
         cleanup_failures = () if cleanup is None else (cleanup,)
 
         raise StartupFileRejected(
-            f"{label} could not be read and closed; no runtime resources were acquired.",
+            f"{path=} could not be read and closed; no runtime resources were acquired.",
             cause=primary,
             cleanup_failures=cleanup_failures,
         ) from None

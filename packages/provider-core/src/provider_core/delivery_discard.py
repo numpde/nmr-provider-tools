@@ -58,7 +58,6 @@ def main():
         document = tomllib.loads(read_startup_file(
             options.config,
             maximum_bytes=65536,
-            label="delivery configuration"
         ).decode("utf-8"))
 
         if document["schema_id"] != "provider-core.delivery.v1":
