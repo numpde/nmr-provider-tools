@@ -170,7 +170,7 @@ class UploadTransferOwnerTests(unittest.IsolatedAsyncioTestCase):
 
     async def test_direct_pending_store_write_retains_original_owner_until_retirement(self):
         (_, api, store, client) = file_sources()
-        (entered, release) = (asyncio.Event(), threading.Event())
+        (entered, release_store_write) = (asyncio.Event(), threading.Event())
         loop = asyncio.get_running_loop()
         write = os.write
 
@@ -180,8 +180,8 @@ class UploadTransferOwnerTests(unittest.IsolatedAsyncioTestCase):
         def held_write(descriptor, data):
             loop.call_soon_threadsafe(entered.set)
 
-            if not (release.wait(3)):
-                raise TimeoutError("test did not release the original write")
+            if not (store_write_released := release_store_write.wait(timeout=(release_timeout_seconds := 3))):
+                raise TimeoutError(f"{store_write_released=} after waiting {release_timeout_seconds=}")
 
             return write(descriptor, data)
 
@@ -213,7 +213,7 @@ class UploadTransferOwnerTests(unittest.IsolatedAsyncioTestCase):
 
                 self.assertEqual(len(list(Path(root).iterdir())), 1)
             finally:
-                release.set()
+                release_store_write.set()
                 await asyncio.gather(task, return_exceptions=True)
                 await store.retire(owner=transfer)
                 await transfer.settle_file()

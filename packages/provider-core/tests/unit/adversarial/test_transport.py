@@ -101,7 +101,7 @@ class TransportFailureTests(unittest.IsolatedAsyncioTestCase):
         await self._held_file_write(cancel=False, late_failure=OSError(errno.ENOSPC, "private disk cause"), cleanup=None)
 
     async def _held_file_write(self, *, cancel, late_failure, cleanup):
-        (entered, release) = (asyncio.Event(), threading.Event())
+        (entered, release_write) = (asyncio.Event(), threading.Event())
         loop = asyncio.get_running_loop()
         original_write = os.write
         received = []
@@ -135,8 +135,8 @@ class TransportFailureTests(unittest.IsolatedAsyncioTestCase):
         def held_write(descriptor, data):
             loop.call_soon_threadsafe(entered.set)
 
-            if not (release.wait(3)):
-                raise TimeoutError("Test did not release its original file write")
+            if not release_write.wait(timeout=(release_timeout_seconds := 3)):
+                raise TimeoutError(f"{release_write.is_set()=} after waiting {release_timeout_seconds=}")
 
             if not (late_failure is None):
                 raise late_failure
@@ -186,7 +186,7 @@ class TransportFailureTests(unittest.IsolatedAsyncioTestCase):
 
                 self.assertEqual(factory.call_count, 1)
             finally:
-                release.set()
+                release_write.set()
 
                 if not task.done():
                     task.cancel()
@@ -285,15 +285,15 @@ class TransportFailureTests(unittest.IsolatedAsyncioTestCase):
 
     async def _held_file_inspection(self, *, cancel):
         with tempfile.TemporaryFile() as output:
-            (entered, release) = (asyncio.Event(), threading.Event())
+            (entered, release_inspection) = (asyncio.Event(), threading.Event())
             loop = asyncio.get_running_loop()
             fstat = os.fstat
 
             def held_inspection(descriptor):
                 loop.call_soon_threadsafe(entered.set)
 
-                if not (release.wait(3)):
-                    raise TimeoutError("Test did not release its original file inspection")
+                if not release_inspection.wait(timeout=(release_timeout_seconds := 3)):
+                    raise TimeoutError(f"{release_inspection.is_set()=} after waiting {release_timeout_seconds=}")
 
                 return fstat(descriptor)
 
@@ -338,7 +338,7 @@ class TransportFailureTests(unittest.IsolatedAsyncioTestCase):
                     with self.assertRaises(ExchangeFailed):
                         await transport.retire(owner=owner)
                 finally:
-                    release.set()
+                    release_inspection.set()
 
                     if not task.done():
                         task.cancel()

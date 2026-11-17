@@ -51,7 +51,7 @@ class UploadRecoveryCleanupTests(unittest.IsolatedAsyncioTestCase):
         return (owner, api, store, notices)
 
     async def test_unresolved_api_and_pending_file_are_retired_independently(self):
-        (api_release, file_release) = (asyncio.Event(), threading.Event())
+        (api_release, release_file_close) = (asyncio.Event(), threading.Event())
         original = httpcore.ReadTimeout("protected late grant failure")
 
         class LateGrant(Stream):
@@ -71,14 +71,14 @@ class UploadRecoveryCleanupTests(unittest.IsolatedAsyncioTestCase):
         calls = []
 
         def held_close(fd):
-            if not (file_release.wait(2)):
-                raise TimeoutError("test did not release original private close")
+            if not (file_close_released := release_file_close.wait(timeout=(release_timeout_seconds := 2))):
+                raise TimeoutError(f"{file_close_released=} after waiting {release_timeout_seconds=}")
 
             return close(fd)
 
         async def retire_api(*, owner=None):
             self.assertFalse(api.retirement_confirmed)
-            file_release.set()
+            release_file_close.set()
             await api_retire(owner=owner)
 
         async def retire_store(*, owner=None):
@@ -112,7 +112,7 @@ class UploadRecoveryCleanupTests(unittest.IsolatedAsyncioTestCase):
                 self.assertEqual(notices, [])
                 self.assertEqual(owner.requests_started, 3)
             finally:
-                file_release.set()
+                release_file_close.set()
                 api_release.set()
                 await api_retire()
                 await store_retire(owner=owner)

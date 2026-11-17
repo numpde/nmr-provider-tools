@@ -25,7 +25,7 @@ class UploadFileAcquisitionTests(unittest.IsolatedAsyncioTestCase):
 
     async def test_late_metadata_failure_after_open_closes_and_removes_the_original_file(self):
         (owner, api, _, _) = file_sources()
-        (entered, release) = (asyncio.Event(), threading.Event())
+        (entered, release_mode_change) = (asyncio.Event(), threading.Event())
         loop = asyncio.get_running_loop()
         failure = OSError(errno.EIO, "PRIVATE_MODE_CHANGE")
 
@@ -34,8 +34,8 @@ class UploadFileAcquisitionTests(unittest.IsolatedAsyncioTestCase):
         def held_mode_change(_descriptor, _mode):
             loop.call_soon_threadsafe(entered.set)
 
-            if not (release.wait(3)):
-                raise TimeoutError("Test did not release its original file mode change")
+            if not release_mode_change.wait(timeout=(release_timeout_seconds := 3)):
+                raise TimeoutError(f"{release_mode_change.is_set()=} after waiting {release_timeout_seconds=}")
 
             raise failure
 
@@ -60,7 +60,7 @@ class UploadFileAcquisitionTests(unittest.IsolatedAsyncioTestCase):
                 self.assertIs(caught.exception.__cause__, retained)
                 self.assertEqual(calls.closed, [])
             finally:
-                release.set()
+                release_mode_change.set()
 
                 if not task.done():
                     task.cancel()
@@ -77,7 +77,7 @@ class UploadFileAcquisitionTests(unittest.IsolatedAsyncioTestCase):
 
     async def test_expired_create_can_finish_cleanup_within_grace_without_claiming_pending_io(self):
         (owner, api, _, _) = file_sources(seconds=0.1)
-        (entered, release) = (asyncio.Event(), threading.Event())
+        (entered, release_create) = (asyncio.Event(), threading.Event())
         loop = asyncio.get_running_loop()
 
         await owner.inspect()
@@ -87,8 +87,8 @@ class UploadFileAcquisitionTests(unittest.IsolatedAsyncioTestCase):
             def held_open(name, *args, **kwargs):
                 loop.call_soon_threadsafe(entered.set)
 
-                if not (release.wait(3)):
-                    raise TimeoutError("Test did not release original file creation during cleanup")
+                if not release_create.wait(timeout=(release_timeout_seconds := 3)):
+                    raise TimeoutError(f"{release_create.is_set()=} after waiting {release_timeout_seconds=}")
 
                 return calls.open(name, *args, **kwargs)
 
@@ -103,7 +103,7 @@ class UploadFileAcquisitionTests(unittest.IsolatedAsyncioTestCase):
                             await asyncio.sleep(0)
 
                     self.assertFalse(task.done())
-                    release.set()
+                    release_create.set()
 
                     with self.assertRaises(UploadFailed) as caught:
                         await task
@@ -118,7 +118,7 @@ class UploadFileAcquisitionTests(unittest.IsolatedAsyncioTestCase):
                     with self.assertRaisesRegex(UploadFailed, "total deadline expired"):
                         await owner.inspect()
                 finally:
-                    release.set()
+                    release_create.set()
 
                     if not task.done():
                         task.cancel()
@@ -128,7 +128,7 @@ class UploadFileAcquisitionTests(unittest.IsolatedAsyncioTestCase):
         # silent-defaults: allow-contract -- This fault scenario deliberately separates cancellation from deadline expiry.
         (owner, api, store, _) = file_sources(seconds=2 if cancel else 0.1)
 
-        (entered, release) = (asyncio.Event(), threading.Event())
+        (entered, release_create) = (asyncio.Event(), threading.Event())
         loop = asyncio.get_running_loop()
 
         await owner.inspect()
@@ -138,8 +138,8 @@ class UploadFileAcquisitionTests(unittest.IsolatedAsyncioTestCase):
             def held_open(name, *args, **kwargs):
                 loop.call_soon_threadsafe(entered.set)
 
-                if not (release.wait(3)):
-                    raise TimeoutError("Test did not release its original file creation")
+                if not release_create.wait(timeout=(release_timeout_seconds := 3)):
+                    raise TimeoutError(f"{release_create.is_set()=} after waiting {release_timeout_seconds=}")
 
                 if not (late_failure is None):
                     raise late_failure
@@ -177,7 +177,7 @@ class UploadFileAcquisitionTests(unittest.IsolatedAsyncioTestCase):
 
                     self.assertIs(owner.last_failure, retained)
                 finally:
-                    release.set()
+                    release_create.set()
 
                     if not task.done():
                         task.cancel()
@@ -200,7 +200,7 @@ class UploadFileAcquisitionTests(unittest.IsolatedAsyncioTestCase):
 
     async def test_repeated_cancellation_during_create_cleanup_keeps_original_exception_and_evidence(self):
         (owner, api, _, _) = file_sources()
-        (entered, release) = (asyncio.Event(), threading.Event())
+        (entered, release_create) = (asyncio.Event(), threading.Event())
         loop = asyncio.get_running_loop()
 
         await owner.inspect()
@@ -210,8 +210,8 @@ class UploadFileAcquisitionTests(unittest.IsolatedAsyncioTestCase):
             def held_open(name, *args, **kwargs):
                 loop.call_soon_threadsafe(entered.set)
 
-                if not (release.wait(3)):
-                    raise TimeoutError("Test did not release original file creation")
+                if not release_create.wait(timeout=(release_timeout_seconds := 3)):
+                    raise TimeoutError(f"{release_create.is_set()=} after waiting {release_timeout_seconds=}")
 
                 return calls.open(name, *args, **kwargs)
 
@@ -239,7 +239,7 @@ class UploadFileAcquisitionTests(unittest.IsolatedAsyncioTestCase):
                     self.assertEqual(api.calls, ["membership"])
                     self.assertEqual(calls.closed, [])
                 finally:
-                    release.set()
+                    release_create.set()
 
                     if not task.done():
                         task.cancel()
@@ -262,7 +262,7 @@ class UploadFileAcquisitionTests(unittest.IsolatedAsyncioTestCase):
         # silent-defaults: allow-contract -- This fault scenario deliberately separates cancellation from file-read expiry.
         (owner, api, store, client) = file_sources(seconds=2 if cancel else 0.1)
 
-        (entered, release) = (asyncio.Event(), threading.Event())
+        (entered, release_close) = (asyncio.Event(), threading.Event())
         loop = asyncio.get_running_loop()
 
         await owner.inspect()
@@ -277,8 +277,8 @@ class UploadFileAcquisitionTests(unittest.IsolatedAsyncioTestCase):
                 if descriptor in calls.descriptors:
                     loop.call_soon_threadsafe(entered.set)
 
-                    if not (release.wait(3)):
-                        raise TimeoutError("Test did not release its original file close")
+                    if not release_close.wait(timeout=(release_timeout_seconds := 3)):
+                        raise TimeoutError(f"{release_close.is_set()=} after waiting {release_timeout_seconds=}")
 
                     calls.close(descriptor)
 
@@ -321,7 +321,7 @@ class UploadFileAcquisitionTests(unittest.IsolatedAsyncioTestCase):
                     self.assertEqual((owner.received_bytes, owner.requests_started), (8, 4))
                     self.assertTrue(owner.last_failure.grant_issued)
                 finally:
-                    release.set()
+                    release_close.set()
 
                     if not task.done():
                         task.cancel()
@@ -401,7 +401,7 @@ class UploadFileAcquisitionTests(unittest.IsolatedAsyncioTestCase):
     async def test_cancelled_remove_keeps_original_verification_failure_and_observes_one_unlink(self):
         (owner, api, _, client) = file_sources()
         client.headers = []
-        (entered, release) = (asyncio.Event(), threading.Event())
+        (entered, release_remove) = (asyncio.Event(), threading.Event())
         loop = asyncio.get_running_loop()
 
         await owner.inspect()
@@ -415,8 +415,8 @@ class UploadFileAcquisitionTests(unittest.IsolatedAsyncioTestCase):
             def held_remove(name, *args, **kwargs):
                 loop.call_soon_threadsafe(entered.set)
 
-                if not (release.wait(3)):
-                    raise TimeoutError("Test did not release its original file removal")
+                if not release_remove.wait(timeout=(release_timeout_seconds := 3)):
+                    raise TimeoutError(f"{release_remove.is_set()=} after waiting {release_timeout_seconds=}")
 
                 return calls.unlink(name, *args, **kwargs)
 
@@ -443,7 +443,7 @@ class UploadFileAcquisitionTests(unittest.IsolatedAsyncioTestCase):
 
                     self.assertIs(owner.last_failure, original)
                 finally:
-                    release.set()
+                    release_remove.set()
 
                     if not task.done():
                         task.cancel()
@@ -464,7 +464,7 @@ class UploadFileAcquisitionTests(unittest.IsolatedAsyncioTestCase):
 
     async def _held_store_write(self, *, late_failure):
         (owner, api, store, client) = file_sources()
-        (entered, release) = (asyncio.Event(), threading.Event())
+        (entered, release_store_write) = (asyncio.Event(), threading.Event())
         loop = asyncio.get_running_loop()
         write = os.write
 
@@ -473,8 +473,8 @@ class UploadFileAcquisitionTests(unittest.IsolatedAsyncioTestCase):
         def held_write(descriptor, data):
             loop.call_soon_threadsafe(entered.set)
 
-            if not (release.wait(3)):
-                raise TimeoutError("Test did not release its original store write")
+            if not release_store_write.wait(timeout=(release_timeout_seconds := 3)):
+                raise TimeoutError(f"{release_store_write.is_set()=} after waiting {release_timeout_seconds=}")
 
             if not (late_failure is None):
                 raise late_failure
@@ -510,7 +510,7 @@ class UploadFileAcquisitionTests(unittest.IsolatedAsyncioTestCase):
                 self.assertEqual(calls.removed, [])
                 self.assertEqual((owner.received_bytes, owner.requests_started), (8, 4))
             finally:
-                release.set()
+                release_store_write.set()
 
                 if not task.done():
                     task.cancel()
@@ -612,7 +612,7 @@ class UploadFileAcquisitionTests(unittest.IsolatedAsyncioTestCase):
         (owner, _, _, client) = file_sources()
         client.headers = []
         failure = OSError(errno.EACCES, "PRIVATE_REMOVE")
-        (entered, release) = (asyncio.Event(), threading.Event())
+        (entered, release_remove) = (asyncio.Event(), threading.Event())
         loop = asyncio.get_running_loop()
 
         await owner.inspect()
@@ -633,8 +633,8 @@ class UploadFileAcquisitionTests(unittest.IsolatedAsyncioTestCase):
             def held_remove(name, *args, **kwargs):
                 loop.call_soon_threadsafe(entered.set)
 
-                if not (release.wait(3)):
-                    raise TimeoutError("Test did not release its original file removal")
+                if not release_remove.wait(timeout=(release_timeout_seconds := 3)):
+                    raise TimeoutError(f"{release_remove.is_set()=} after waiting {release_timeout_seconds=}")
 
                 return calls.unlink(name, *args, **kwargs)
 
@@ -653,7 +653,7 @@ class UploadFileAcquisitionTests(unittest.IsolatedAsyncioTestCase):
                     self.assertIs(owner.last_failure, retained)
                     self.assertEqual(retained.cleanup_failures, (concrete,))
                 finally:
-                    release.set()
+                    release_remove.set()
 
                     if not task.done():
                         task.cancel()

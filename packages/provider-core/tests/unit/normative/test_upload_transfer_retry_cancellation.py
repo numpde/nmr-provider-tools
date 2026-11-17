@@ -21,15 +21,15 @@ class UploadTransferCancellationTests(unittest.IsolatedAsyncioTestCase):
                                   before_request=lambda: None,
                                   account=lambda _: None)
 
-        (entered, release) = (asyncio.Event(), threading.Event())
+        (entered, release_file_close) = (asyncio.Event(), threading.Event())
         loop = asyncio.get_running_loop()
         close = os.close
 
         def held_close(fd):
             loop.call_soon_threadsafe(entered.set)
 
-            if not (release.wait(2)):
-                raise TimeoutError("probe failed to release close")
+            if not (file_close_released := release_file_close.wait(timeout=(release_timeout_seconds := 2))):
+                raise TimeoutError(f"{file_close_released=} after waiting {release_timeout_seconds=}")
 
             return close(fd)
 
@@ -55,11 +55,11 @@ class UploadTransferCancellationTests(unittest.IsolatedAsyncioTestCase):
                 self.assertTrue(store.retirement_confirmed)
                 self.assertIsNone(failure.interruption)
                 self.assertIsNone(failure.cause.interruption)
-                release.set()
+                release_file_close.set()
                 await transfer.settle_file()
                 self.assertFalse(transfer.can_retry_transfer(failure))
             finally:
-                release.set()
+                release_file_close.set()
                 await asyncio.gather(task, return_exceptions=True)
 
                 if transfer.file_cleanup_pending:
