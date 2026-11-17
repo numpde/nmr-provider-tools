@@ -26,23 +26,23 @@ class SharedDeliveryConfiguration:
         self.path = path
 
     def read(self):
-        descriptor = os.open(self.path, os.O_RDONLY | os.O_CLOEXEC | os.O_NOFOLLOW | os.O_NONBLOCK)
+        outbox_settings_fd = os.open(self.path, os.O_RDONLY | os.O_CLOEXEC | os.O_NOFOLLOW | os.O_NONBLOCK)
 
         try:
-            if not (stat.S_ISREG(os.fstat(descriptor).st_mode)):
-                raise ValueError("Outbox settings must be a regular file.")
+            if not stat.S_ISREG(file_mode := os.fstat(outbox_settings_fd).st_mode):
+                raise ValueError(f"{outbox_settings_fd=} has bad {file_mode=}")
 
             raw = bytearray()
 
             while len(raw) <= 65536:
-                part = os.read(descriptor, 65537 - len(raw))
+                part = os.read(outbox_settings_fd, 65537 - len(raw))
 
                 if not part:
                     break
 
                 raw.extend(part)
         finally:
-            os.close(descriptor)
+            os.close(outbox_settings_fd)
 
         if not (len(raw) <= 65536):
             raise ValueError("Outbox settings exceed the supported file size.")
