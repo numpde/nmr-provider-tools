@@ -9,7 +9,7 @@ from concurrent.futures import CancelledError as FutureCancelledError, Future, T
 import time
 
 from provider_core.runner_protocol import LifecycleRejected
-from provider_core.tools import positive_seconds
+from provider_core.tools import require_positive_number
 
 
 def _observe_completion(wrapped):
@@ -31,7 +31,7 @@ async def await_original(original, *, deadline):
     seconds = None
 
     if deadline is not None:
-        positive_seconds(deadline)
+        require_positive_number(deadline)
         seconds = max(0, deadline - time.monotonic())
 
     if not original.done():
@@ -68,10 +68,10 @@ class AsyncRunnerSession:
 
     def __init__(self, session, *, not_after=None, setup_not_after=None):
         if not_after is not None:
-            positive_seconds(not_after)
+            require_positive_number(not_after)
 
         if setup_not_after is not None:
-            positive_seconds(setup_not_after)
+            require_positive_number(setup_not_after)
 
         self.session = session
         self._not_after = not_after
@@ -165,7 +165,7 @@ class AsyncRunnerSession:
 
     async def connect(self, *, wait_seconds):
         """Start or join the original setup without replacing its startup cap."""
-        positive_seconds(wait_seconds)
+        require_positive_number(wait_seconds)
 
         if self._setup is None:
             self._setup = self._start(self.session.connect, self._setup_completed, deadline=self._setup_not_after)
@@ -179,7 +179,7 @@ class AsyncRunnerSession:
 
     async def observe_retirement(self, *, wait_seconds):
         """Observe without stopping; wait expiry leaves the original read active."""
-        positive_seconds(wait_seconds)
+        require_positive_number(wait_seconds)
 
         if self._setup is None:
             raise RuntimeError("Cannot observe native retirement before starting the original control setup with connect.")

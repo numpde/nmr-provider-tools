@@ -25,7 +25,7 @@ import uuid
 from pathlib import Path
 
 from provider_core.runner_protocol import RetirementUnconfirmed, send_document, send_greeting
-from provider_core.tools import positive_seconds
+from provider_core.tools import require_positive_number
 from provider_core.process_status import ProcessStatus
 
 # Use a fixed diagnostic role for the reusable session owner.
@@ -411,10 +411,10 @@ def main(arguments=None):
     options = parser.parse_args(arguments)
 
     if options.operation_seconds is not None:
-        positive_seconds(options.operation_seconds)
+        require_positive_number(options.operation_seconds)
 
     for seconds in (options.startup_seconds, options.terminate_seconds, options.kill_seconds, options.cleanup_seconds):
-        positive_seconds(seconds)
+        require_positive_number(seconds)
 
     if not options.worker or options.worker[0] != "--" or len(options.worker) < 2:
         parser.error("Supply one fixed worker command after --.")

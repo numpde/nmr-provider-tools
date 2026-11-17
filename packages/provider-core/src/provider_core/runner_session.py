@@ -12,7 +12,7 @@ import threading
 from dataclasses import dataclass
 
 from provider_core.runner_protocol import LifecycleRejected, receive_document, receive_greeting
-from provider_core.tools import positive_seconds
+from provider_core.tools import require_positive_number
 
 
 @dataclass(frozen=True, slots=True)
@@ -50,8 +50,8 @@ class RunnerSession:
     """
 
     def __init__(self, path, *, role, expected_lock_identity, startup_seconds, retirement_seconds):
-        positive_seconds(startup_seconds)
-        positive_seconds(retirement_seconds)
+        require_positive_number(startup_seconds)
+        require_positive_number(retirement_seconds)
         (self.path, self._startup, self._cleanup) = (str(path), startup_seconds, retirement_seconds)
         (self.role, self.expected_lock_identity) = (role, tuple(expected_lock_identity))
         self.control = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
@@ -174,8 +174,8 @@ class RunnerSession:
     def observe_retirement(self, *, deadline=None):
         """Receive cleanup facts without causing retirement (including cap expiry)."""
 
-        if not (self._retirement_reader.acquire(blocking=False)):
-            raise LifecycleRejected("Runner retirement already has an original reader; join that observation instead of reading another frame.")
+        if not self._retirement_reader.acquire(blocking=False):
+            raise LifecycleRejected("Runner retirement already has an original reader; maybe join that observation.")
 
         try:
             self._observe_retirement(deadline)

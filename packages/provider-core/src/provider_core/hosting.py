@@ -30,7 +30,7 @@ from provider_core.contribution import (
 )
 
 from provider_core.task_boundary import contain_task_exit
-from provider_core.tools import positive_seconds
+from provider_core.tools import require_positive_number
 
 
 def _identity(value, label):
@@ -232,7 +232,7 @@ class OperationPolicy:
             self.execution_stop_request_seconds,
             self.cleanup_overdue_flag_seconds,
         ):
-            positive_seconds(value)
+            require_positive_number(value)
 
         (
             reject_encoded_input_over_bytes,
@@ -285,9 +285,9 @@ class Invocation:
     def __post_init__(self):
         if self.start_not_after is not None:
             if not (type((actual_start_not_after := self.start_not_after)) in (expected_type := (int, float))):
-                raise TypeError(f"{type(actual_start_not_after)=} ≠ {expected_type=}")
+                raise TypeError(f"{type(actual_start_not_after)=} ∉ {expected_type=}")
 
-            if not (math.isfinite(self.start_not_after)):
+            if not math.isfinite(self.start_not_after):
                 raise ValueError(f"Cannot set a start deadline with {self.start_not_after=}; expected a finite execution-clock value")
 
         if not (type((actual_operation_id := self.operation_id)) is (expected_type := str)):
@@ -310,7 +310,7 @@ class Invocation:
 
         state_arguments = self.states
 
-        if not (isinstance(state_arguments, (expected_type := Mapping))):
+        if not isinstance(state_arguments, (expected_type := Mapping)):
             raise TypeError(f"{type(state_arguments)=} ≠ {expected_type=}")
 
         state_arguments = dict(state_arguments)

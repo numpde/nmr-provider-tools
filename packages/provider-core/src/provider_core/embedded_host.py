@@ -37,7 +37,7 @@ from provider_core.hosting import (
 )
 
 from provider_core.state_slots import StateHandle, StateInputSlot, state_references
-from provider_core.tools import positive_seconds
+from provider_core.tools import require_positive_number
 
 from provider_core._embedded_operation import _Operation
 
@@ -92,14 +92,8 @@ class InProcessExecutionHost:
             if not (0 < value):
                 raise ValueError(f"Expected a positive capacity for {name=}; received {value=}")
 
-        for (name, value) in (
-            ("initialization_seconds", initialization_seconds),
-            ("retirement_seconds", retirement_seconds),
-        ):
-            if not (type(value) in (expected_type := (int, float))):
-                raise TypeError(f"{name=}; {type(value)=} ≠ {expected_type=}")
-
-            positive_seconds(value)
+        for value in (initialization_seconds, retirement_seconds):
+            require_positive_number(value)
 
         if not (type(allocations) is (expected_type := tuple)):
             raise TypeError(f"{type(allocations)=} ≠ {expected_type=}")
@@ -114,7 +108,7 @@ class InProcessExecutionHost:
         for allocation in allocations:
             binding = allocation.binding
 
-            if not (isinstance(binding, (expected_type := ImplementationBinding))):
+            if not isinstance(binding, (expected_type := ImplementationBinding)):
                 raise TypeError(f"{type(binding)=} ≠ {expected_type=}")
 
         self.loop = asyncio.get_running_loop()
@@ -582,7 +576,7 @@ class InProcessAnalysisExecutor:
 
         hosted = self.science[reservation.allocation].resident.binding
 
-        if not (isinstance(hosted, (expected_type := HostedContribution))):
+        if not isinstance(hosted, (expected_type := HostedContribution)):
             raise TypeError(f"{type(hosted)=} ≠ {expected_type=}")
 
         if not (getattr(method, "__self__", None) is hosted.contribution):

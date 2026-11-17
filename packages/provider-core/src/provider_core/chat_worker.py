@@ -29,7 +29,7 @@ from provider_core.chat_wire import (
 from provider_core.decoded_body import require_decoded_limit
 from provider_core.transport import HttpTransport
 from provider_core.transport_errors import ExchangeFailed
-from provider_core.tools import positive_seconds
+from provider_core.tools import require_positive_number
 
 
 # One outbound exchange has a closed data-only protocol schema.
@@ -145,7 +145,7 @@ def _request(document):
         raise ValueError("Interpreter child did not receive the complete admitted request")
 
     for field in ("exchange_seconds", "connect_seconds", "retirement_seconds", "not_after"):
-        positive_seconds(document[field])
+        require_positive_number(document[field])
 
     require_decoded_limit(document["maximum_bytes"])
     require_decoded_limit(document["error_maximum_bytes"])

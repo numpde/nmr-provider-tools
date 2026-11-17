@@ -27,7 +27,7 @@ import httpcore
 from provider_core.network import NetworkIOObservation, OwnedNetworkBackend
 from provider_core.decoded_body import DecodedBody, DecodedBodyRejected, require_decoded_limit
 from provider_core.transport_errors import ExchangeFailed
-from provider_core.tools import positive_seconds
+from provider_core.tools import require_absolute_path, require_positive_number
 
 
 def temporary_io_failure(cause, remaining, *, network_failure=None):
@@ -259,31 +259,33 @@ class _Exchange:
 
 
 def require_unix_socket_path(path):
-    """Admit the pathname limit shared by the two explicit Unix transports."""
+    """Admit an absolute UTF-8 Unix socket pathname within Linux's byte limit.
+
+    Inspect the path without replacing the original string passed to native I/O.
+    """
 
     if not (type(path) is (expected_type := str)):
         raise TypeError(
             f"{type(path)=} ≠ {expected_type=}"
         )
 
-    if not (path.startswith("/")) or "\0" in path:
-        raise ValueError("Cannot configure Unix socket: supply an absolute UTF-8 pathname without NUL.")
+    require_absolute_path(path)
 
     try:
-        size = len(path.encode("utf-8"))
+        path_byte_count = len(path.encode("utf-8"))
     except UnicodeError:
-        raise ValueError("Cannot configure Unix socket: its pathname must be valid UTF-8.") from None
+        raise ValueError(f"{path=} should be valid UTF-8") from None
 
-    # Linux sun_path[108] includes its terminating NUL.
-    if not (1 <= size <= 107):
-        raise ValueError("Cannot configure Unix socket: its pathname must fit Linux's 107-byte limit.")
+    # Linux sun_path[108] includes its terminating NUL
+    if not (path_byte_count <= (maximum_path_bytes := 107)):
+        raise ValueError(f"{path=} has {path_byte_count=}, exceeding {maximum_path_bytes=}")
 
 
 # silent-defaults: allow-contract -- Existing signed/API transports require HTTPS; direct model HTTP needs explicit opt-in.
 def require_transport_settings(*, trust, exchange_seconds, retirement_seconds, proxy_socket=None, allow_http=False):
     """Admit TLS and deadlines before composition acquires any transport."""
 
-    if not (isinstance(trust, (expected_type := ssl.SSLContext))):
+    if not isinstance(trust, (expected_type := ssl.SSLContext)):
         raise TypeError(
             f"{type(trust)=} ≠ {expected_type=}"
         )
@@ -299,8 +301,8 @@ def require_transport_settings(*, trust, exchange_seconds, retirement_seconds, p
     if allow_http and proxy_socket is not None:
         raise ValueError("Cannot configure HTTP exchange: plain HTTP admission requires a direct transport without a proxy")
 
-    positive_seconds(exchange_seconds)
-    positive_seconds(retirement_seconds)
+    require_positive_number(exchange_seconds)
+    require_positive_number(retirement_seconds)
 
     if proxy_socket is not None:
         require_unix_socket_path(proxy_socket)
@@ -336,7 +338,7 @@ class HttpTransport:
         self._exchange_seconds = exchange_seconds
 
         if connect_seconds is not None:
-            positive_seconds(connect_seconds)
+            require_positive_number(connect_seconds)
 
         self._connect_seconds = connect_seconds
         self._retirement_seconds = retirement_seconds
@@ -735,7 +737,7 @@ class HttpTransport:
         self._require_destination(request)
 
         if not_after is not None:
-            positive_seconds(not_after)
+            require_positive_number(not_after)
 
         self.last_failure = None
 
