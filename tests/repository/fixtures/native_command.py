@@ -36,10 +36,12 @@ def fixture_command(name):
 
             assert anchor == os.getppid()
 
-            identity = {"command": [os.fsdecode(part) for part in command],
-                        "start": Path(f"/proc/{anchor}/stat").read_text().rsplit(")", 1)[1].split()[19],
-                        "group": os.getpgid(anchor),
-                        "session": os.getsid(anchor)}
+            identity = {
+                "command": [os.fsdecode(part) for part in command],
+                "start": Path(f"/proc/{anchor}/stat").read_text().rsplit(")", 1)[1].split()[19],
+                "group": os.getpgid(anchor),
+                "session": os.getsid(anchor)
+            }
 
         phase = os.environ["NATIVE_PUBLICATION_FAILURE"]
         receipt = target.parent / "status.ready"

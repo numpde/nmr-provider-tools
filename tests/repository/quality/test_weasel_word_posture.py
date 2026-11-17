@@ -19,70 +19,76 @@ from .sources import ROOT, source_files
 
 
 # repo-check: allow-module-constant
-_WORDS = frozenset({
-    "admit",
-    "admits",
-    "admitted",
-    "admitting",
-    "admission",
-    "admissions",
-    "qualify",
-    "qualifies",
-    "qualified",
-    "qualifying",
-    "qualification",
-    "qualifications",
-    "approve",
-    "approves",
-    "approved",
-    "approving",
-    "approval",
-    "approvals",
-})
+_WORDS = frozenset(
+    {
+        "admit",
+        "admits",
+        "admitted",
+        "admitting",
+        "admission",
+        "admissions",
+        "qualify",
+        "qualifies",
+        "qualified",
+        "qualifying",
+        "qualification",
+        "qualifications",
+        "approve",
+        "approves",
+        "approved",
+        "approving",
+        "approval",
+        "approvals",
+    }
+)
 
 # repo-check: allow-module-constant
 _WORD_PARTS = re.compile(r"[A-Z]+(?=[A-Z][a-z]|[^A-Za-z]|$)|[A-Z]?[a-z]+")
 
 # repo-check: allow-module-constant
-_CODE_SUFFIXES = frozenset({
-    ".py",
-    ".pyi",
-    ".sh",
-    ".bash",
-    ".c",
-    ".h",
-    ".cc",
-    ".cpp",
-    ".js",
-    ".jsx",
-    ".ts",
-    ".tsx",
-    ".css",
-    ".go",
-    ".rs",
-    ".sql",
-    ".awk",
-    ".pl",
-    ".rb",
-    ".mk",
-})
+_CODE_SUFFIXES = frozenset(
+    {
+        ".py",
+        ".pyi",
+        ".sh",
+        ".bash",
+        ".c",
+        ".h",
+        ".cc",
+        ".cpp",
+        ".js",
+        ".jsx",
+        ".ts",
+        ".tsx",
+        ".css",
+        ".go",
+        ".rs",
+        ".sql",
+        ".awk",
+        ".pl",
+        ".rb",
+        ".mk",
+    }
+)
 
 # repo-check: allow-module-constant
-_TEXT_SUFFIXES = frozenset({
-    ".md",
-    ".txt",
-    ".html",
-    ".toml",
-    ".json",
-    ".yaml",
-    ".yml",
-    ".xml",
-    ".csv",
-    ".example",
-    ".rst",
-    ".lock",
-    ".svg",
-})
+_TEXT_SUFFIXES = frozenset(
+    {
+        ".md",
+        ".txt",
+        ".html",
+        ".toml",
+        ".json",
+        ".yaml",
+        ".yml",
+        ".xml",
+        ".csv",
+        ".example",
+        ".rst",
+        ".lock",
+        ".svg",
+    }
+)
 
 
 def _word_findings(*, source_text: str) -> list[tuple[int, str]]:

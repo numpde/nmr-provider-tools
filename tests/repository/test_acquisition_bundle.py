@@ -35,7 +35,8 @@ class AcquisitionBundleTests(unittest.TestCase):
                 capture_output=True,
                 text=True,
                 timeout=10,
-                check=False)
+                check=False
+            )
 
             self.assertNotEqual(0, result.returncode)
             self.assertEqual("", result.stdout)
@@ -81,22 +82,26 @@ class AcquisitionBundleTests(unittest.TestCase):
 
         pin = root / "pylock.toml"
 
-        pin.write_text('lock-version = "1.0"\n[[packages]]\nname = "linux-idmap"\nversion = "0.3.0"\n'
-                       '[[packages.wheels]]\nurl = "https://example.invalid/' + identity.name + '"\n'
-                       'hashes = {sha256 = "' + hashlib.sha256(identity.read_bytes()).hexdigest() + '"}\n')
+        pin.write_text(
+            'lock-version = "1.0"\n[[packages]]\nname = "linux-idmap"\nversion = "0.3.0"\n'
+            '[[packages.wheels]]\nurl = "https://example.invalid/' + identity.name + '"\n'
+            'hashes = {sha256 = "' + hashlib.sha256(identity.read_bytes()).hexdigest() + '"}\n'
+        )
 
         (root / "wheelhouse-tool-0.5.9.pyz").write_bytes(b"selected built wheel tool")
 
         return (source, wheel, identity, pin)
 
     def build(self, root, output, source, wheel, pin):
-        return build(root,
-                     output,
-                     source,
-                     wheel,
-                     pin,
-                     revision="a" * 40,
-                     wheelhouse_bundle=root / "wheelhouse-tool-0.5.9.pyz")
+        return build(
+            root,
+            output,
+            source,
+            wheel,
+            pin,
+            revision="a" * 40,
+            wheelhouse_bundle=root / "wheelhouse-tool-0.5.9.pyz"
+        )
 
     def test_rebuild_has_identical_bytes_and_normalized_source_provenance(self):
         with tempfile.TemporaryDirectory() as temporary:
@@ -125,18 +130,26 @@ class AcquisitionBundleTests(unittest.TestCase):
                 for member in archive.getmembers():
                     self.assertTrue(member.isfile())
 
-                    self.assertEqual((0, 0, "", "", 0o644, 315532800),
-                                     (member.uid, member.gid, member.uname, member.gname, member.mode, member.mtime))
+                    self.assertEqual(
+                        (0, 0, "", "", 0o644, 315532800),
+                        (member.uid, member.gid, member.uname, member.gname, member.mode, member.mtime)
+                    )
 
                     data = archive.extractfile(member).read()
 
-                    self.assertEqual({"sha256": hashlib.sha256(data).hexdigest(), "size": len(data), "mode": 0o644},
-                                     record["source_files"][member.name])
+                    self.assertEqual(
+                        {"sha256": hashlib.sha256(data).hexdigest(), "size": len(data), "mode": 0o644},
+                        record["source_files"][member.name]
+                    )
 
-            self.assertEqual({identity.name: hashlib.sha256(identity.read_bytes()).hexdigest(),
-                              installer["name"]: installer["sha256"],
-                              "wheelhouse-tool-0.5.9.pyz": hashlib.sha256(b"selected built wheel tool").hexdigest()},
-                             record["dependency_inputs"])
+            self.assertEqual(
+                {
+                    identity.name: hashlib.sha256(identity.read_bytes()).hexdigest(),
+                    installer["name"]: installer["sha256"],
+                    "wheelhouse-tool-0.5.9.pyz": hashlib.sha256(b"selected built wheel tool").hexdigest()
+                },
+                record["dependency_inputs"]
+            )
 
     def test_missing_owner_source_or_changed_identity_wheel_never_publishes_output(self):
         with tempfile.TemporaryDirectory() as temporary:
@@ -169,9 +182,13 @@ class AcquisitionBundleTests(unittest.TestCase):
 
             old_pin = pin.read_text()
 
-            pin.write_text(re.sub(r'sha256 = "[0-9a-f]{64}"',
-                                  'sha256 = "' + hashlib.sha256(identity.read_bytes()).hexdigest() + '"',
-                                  old_pin))
+            pin.write_text(
+                re.sub(
+                    r'sha256 = "[0-9a-f]{64}"',
+                    'sha256 = "' + hashlib.sha256(identity.read_bytes()).hexdigest() + '"',
+                    old_pin
+                )
+            )
 
             archive_path = root / "bundle.tar.gz"
 
@@ -200,10 +217,14 @@ class AcquisitionBundleTests(unittest.TestCase):
 
             release_pin = root / "release-pin.json"
 
-            release_pin.write_text(json.dumps({
-                "version": "0.6.0",
-                "archive_sha256": hashlib.sha256(archive_path.read_bytes()).hexdigest(),
-            }))
+            release_pin.write_text(
+                json.dumps(
+                    {
+                        "version": "0.6.0",
+                        "archive_sha256": hashlib.sha256(archive_path.read_bytes()).hexdigest(),
+                    }
+                )
+            )
 
             snapshot = root / "snapshot"
 

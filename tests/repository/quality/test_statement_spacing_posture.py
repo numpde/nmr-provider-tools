@@ -291,7 +291,8 @@ class StatementSpacingPostureTests(unittest.TestCase):
                 self.assertEqual(first=[2, len(source.splitlines())], second=missing_blank_lines(source=source))
 
     def test_branch_and_exception_clauses_are_not_separate_statements(self):
-        source = textwrap.dedent('''\
+        source = textwrap.dedent(
+            '''\
             if first:
                 act()
             elif second:
@@ -307,7 +308,8 @@ class StatementSpacingPostureTests(unittest.TestCase):
                 accept()
             finally:
                 finish()
-            ''')
+            '''
+        )
 
         self.assertEqual(first=[], second=missing_blank_lines(source=source))
 

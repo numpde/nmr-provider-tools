@@ -29,8 +29,10 @@ class ResolverCaptureTests(unittest.TestCase):
         read.assert_not_called()
 
     def test_resolved_link_dns_is_used_when_networkmanager_has_no_usable_set(self):
-        responses = [SimpleNamespace(returncode=0, stdout=""),
-                     SimpleNamespace(returncode=0, stdout="Link 2 (wlan0): 192.0.2.53 2001:db8::53\n")]
+        responses = [
+            SimpleNamespace(returncode=0, stdout=""),
+            SimpleNamespace(returncode=0, stdout="Link 2 (wlan0): 192.0.2.53 2001:db8::53\n")
+        ]
 
         with patch.object(dns.socket, "if_nametoindex", return_value=2), \
                 patch.object(dns.subprocess, "run", side_effect=responses), \

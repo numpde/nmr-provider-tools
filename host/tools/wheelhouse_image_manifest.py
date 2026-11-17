@@ -10,11 +10,13 @@ def main():
     installer = json.loads(Path(sys.argv[3]).read_text())
 
     with Path(sys.argv[2]).open("x", encoding="utf-8") as stream:
-        json.dump([{"directory": "wheelhouse", "filename": name, "sha256": checksum}
+        json.dump(
+            [{"directory": "wheelhouse", "filename": name, "sha256": checksum}
                    for (name, checksum) in sorted(selection["files"].items())]
-                  + [{"directory": "installer", "filename": installer["name"], "sha256": installer["sha256"]}],
+            + [{"directory": "installer", "filename": installer["name"], "sha256": installer["sha256"]}],
             stream,
-            sort_keys=True)
+            sort_keys=True
+        )
 
         stream.write("\n")
 

@@ -175,21 +175,27 @@ class PackageArtifactTests(unittest.TestCase):
 
         extracted = scratch / "acquisition-source"
 
-        self.assertEqual([
-            call(["bash", "-n", str(extracted / "acquisition_tool/owner.sh")], check=True),
-            call(["python3",
-                  "-I",
-                  "-S",
-                  "-B",
-                  str(extracted / "acquisition_tool/source_update.py"),
-                  "verify",
-                  "--source-dir",
-                  str(extracted)],
-                check=True),
-            call(["python3", "-I", "-S", "-B", str(ROOT / "containers/isolated/acquisition_import_check.py"), str(extracted)], check=True),
-            call(["python3", "-I", "-S", "-B", str(extracted / "acquisition_tool/identity.py"), "--help"], check=True, stdout=subprocess.DEVNULL),
-        ],
-            commands.call_args_list)
+        self.assertEqual(
+            [
+                call(["bash", "-n", str(extracted / "acquisition_tool/owner.sh")], check=True),
+                call(
+                    [
+                        "python3",
+                        "-I",
+                        "-S",
+                        "-B",
+                        str(extracted / "acquisition_tool/source_update.py"),
+                        "verify",
+                        "--source-dir",
+                        str(extracted)
+                    ],
+                    check=True
+                ),
+                call(["python3", "-I", "-S", "-B", str(ROOT / "containers/isolated/acquisition_import_check.py"), str(extracted)], check=True),
+                call(["python3", "-I", "-S", "-B", str(extracted / "acquisition_tool/identity.py"), "--help"], check=True, stdout=subprocess.DEVNULL),
+            ],
+            commands.call_args_list
+        )
 
         for (name, payload, _, _) in members:
             self.assertEqual(payload, (scratch / "acquisition-source" / name).read_bytes())
@@ -253,11 +259,13 @@ class PackageArtifactTests(unittest.TestCase):
         self.assertNotEqual(0, missing_import.returncode)
 
     def test_source_archive_refuses_traversal_links_duplicate_and_special_members_before_extraction(self):
-        for (name, kind) in (("provider_core-0.2.0/../../outside", tarfile.REGTYPE),
-                           ("/absolute", tarfile.REGTYPE),
-                           ("provider_core-0.2.0/link", tarfile.SYMTYPE),
-                           ("provider_core-0.2.0/device", tarfile.CHRTYPE),
-                           ("provider_core-0.2.0/duplicate", "duplicate")):
+        for (name, kind) in (
+            ("provider_core-0.2.0/../../outside", tarfile.REGTYPE),
+            ("/absolute", tarfile.REGTYPE),
+            ("provider_core-0.2.0/link", tarfile.SYMTYPE),
+            ("provider_core-0.2.0/device", tarfile.CHRTYPE),
+            ("provider_core-0.2.0/duplicate", "duplicate")
+        ):
             with self.subTest(name=name, kind=kind):
                 path = self.root / "source.tar.gz"
 
@@ -288,9 +296,11 @@ class PackageArtifactTests(unittest.TestCase):
         for name in ("README.md", "MANIFEST.in", "pyproject.toml", "src/provider_core/__init__.py", "tests/test_contract.py"):
             (source / name).write_text("authored\n")
 
-        inventory = {path.relative_to(source).as_posix(): {"sha256": digest(path),
-                     "size": path.stat().st_size,
-                     "mode": path.stat().st_mode & 0o777} for path in source.rglob("*") if path.is_file()}
+        inventory = {path.relative_to(source).as_posix(): {
+            "sha256": digest(path),
+            "size": path.stat().st_size,
+            "mode": path.stat().st_mode & 0o777
+        } for path in source.rglob("*") if path.is_file()}
 
         metadata = source / "src/provider_core.egg-info"
 
@@ -317,9 +327,11 @@ class PackageArtifactTests(unittest.TestCase):
         path = self.root / "core.whl"
         expected = {"provider_core/__init__.py": b"owned\n", "provider_core/delivery_client.py": b"client\n"}
 
-        for payload in ({"provider_core/__init__.py": b"owned\n"},
-                        expected | {"tools/helper.py": b"leak"},
-                        expected | {"provider_core/delivery_client.py": b"changed"}):
+        for payload in (
+            {"provider_core/__init__.py": b"owned\n"},
+            expected | {"tools/helper.py": b"leak"},
+            expected | {"provider_core/delivery_client.py": b"changed"}
+        ):
             with self.subTest(payload=payload):
                 with zipfile.ZipFile(path, "w") as archive:
                     for (name, value) in payload.items():
@@ -485,15 +497,19 @@ class PackageArtifactTests(unittest.TestCase):
                     if (
                         isinstance(call.func, ast.Attribute)
                         and call.func.attr == "run"
-                        and any(isinstance(item, ast.Constant) and item.value == "wheel"
-                                for item in ast.walk(call))
+                        and any(
+                            isinstance(item, ast.Constant) and item.value == "wheel"
+                            for item in ast.walk(call)
+                        )
                     ):
                         wheel_calls.append((path.name, function.name))
 
         self.assertEqual([("core_environment.py", "build_source_wheel")], wheel_calls)
 
         self.assertEqual(
-            [("core_environment.py", "_build_candidate"),
-             ("provider_core_tests.py", "_build_and_install_project")],
+            [
+                ("core_environment.py", "_build_candidate"),
+                ("provider_core_tests.py", "_build_and_install_project")
+            ],
             sorted(shared_callers),
         )

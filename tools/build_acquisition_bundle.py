@@ -120,9 +120,11 @@ def contents(pool, source, core_wheel, pin, *, revision, wheelhouse_bundle):
 
     installer = installer_release(source / "requirements/installer-release.json")
 
-    _add(files,
-         "acquisition_tool/installer/wheels/" + installer["name"],
-         wheel_bytes(pool / installer["name"], installer))
+    _add(
+        files,
+        "acquisition_tool/installer/wheels/" + installer["name"],
+        wheel_bytes(pool / installer["name"], installer)
+    )
 
     dependencies[installer["name"]] = installer["sha256"]
 
@@ -157,14 +159,16 @@ def contents(pool, source, core_wheel, pin, *, revision, wheelhouse_bundle):
         for (name, data) in sorted(files.items())
     }
 
-    manifest = (json.dumps({
-        "release_version": version,
-        "source_revision": revision,
-        "payload_files": payload_inventory,
-        "dependency_inputs": dependencies,
-    },
+    manifest = (json.dumps(
+        {
+            "release_version": version,
+            "source_revision": revision,
+            "payload_files": payload_inventory,
+            "dependency_inputs": dependencies,
+        },
         sort_keys=True,
-        indent=2) + "\n").encode()
+        indent=2
+    ) + "\n").encode()
 
     _add(files, "acquisition-manifest.json", manifest)
 

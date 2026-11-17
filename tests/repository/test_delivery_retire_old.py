@@ -24,7 +24,8 @@ class DeliveryRetireOldTests(unittest.TestCase):
             shutil.copyfile(ROOT / 'host/tools/delivery_retire_old.sh', tools / 'delivery_retire_old.sh')
             (root / 'volumes').write_text(''.join(name + '\n' for name in names))
 
-            (tools / 'checker_operation.sh').write_text('''
+            (tools / 'checker_operation.sh').write_text(
+                '''
 checker_begin() {
     operation_directory=$PROBE_ROOT/operation
     mkdir "$operation_directory"
@@ -71,7 +72,8 @@ checker_call() {
     mv "$PROBE_ROOT/new" "$PROBE_ROOT/volumes"
     if [[ $PROBE_SCENARIO == interrupted ]]; then operation_diagnostic='native control receipt retained'; return 130; fi
 }
-''')
+'''
+            )
 
             environment = os.environ | {
                 'PROBE_ROOT': str(root),

@@ -36,10 +36,12 @@ class WheelhouseTests(unittest.TestCase):
         shutil.copyfile(self.cached, self.pool / self.cached.name)
         self.lock = self.root / "requirements.lock"
 
-        self.lock.write_text("".join(
-            f"{name}==1.0 " + "\\\n" + f"    --hash=sha256:{wheelhouse.digest(path)}\n"
-            for (name, path) in (("pool-cached", self.cached), ("pool-missing", self.missing))
-        ))
+        self.lock.write_text(
+            "".join(
+                f"{name}==1.0 " + "\\\n" + f"    --hash=sha256:{wheelhouse.digest(path)}\n"
+                for (name, path) in (("pool-cached", self.cached), ("pool-missing", self.missing))
+            )
+        )
 
     # silent-defaults: allow-contract -- The synthetic wheel builder defaults to version 1.0, while version-identity tests may select another explicit pin.
     def make_wheel(self, name, version="1.0"):
@@ -83,17 +85,21 @@ class WheelhouseTests(unittest.TestCase):
 
         shutil.copyfile(alternate, self.pool / alternate.name)
 
-        self.lock.write_text(f"pool-local==1.0 \\\n    --hash=sha256:{wheelhouse.digest(wheel)} \\\n"
-                             f"    --hash=sha256:{wheelhouse.digest(alternate)}\n")
+        self.lock.write_text(
+            f"pool-local==1.0 \\\n    --hash=sha256:{wheelhouse.digest(wheel)} \\\n"
+            f"    --hash=sha256:{wheelhouse.digest(alternate)}\n"
+        )
 
         self.assertEqual("complete", provider_core_acquire.cache_state(self.pool, [self.lock]))
 
     def test_acquisition_bootstrap_dependency_is_checked_outside_runtime_lock(self):
         lock = self.root / "bootstrap.toml"
 
-        lock.write_text('[[packages]]\nname = "identity-fixture"\nversion = "1.0"\n'
-                        '[[packages.wheels]]\nurl = "https://example.invalid/' + self.missing.name + '"\n'
-                        'hashes = {sha256 = "' + wheelhouse.digest(self.missing) + '"}\n')
+        lock.write_text(
+            '[[packages]]\nname = "identity-fixture"\nversion = "1.0"\n'
+            '[[packages.wheels]]\nurl = "https://example.invalid/' + self.missing.name + '"\n'
+            'hashes = {sha256 = "' + wheelhouse.digest(self.missing) + '"}\n'
+        )
 
         self.assertFalse(provider_core_acquire.bootstrap_present(self.pool, lock))
         shutil.copyfile(self.missing, self.pool / self.missing.name)
@@ -123,9 +129,11 @@ class WheelhouseTests(unittest.TestCase):
         thread.start()
 
         try:
-            pin = {"name": "synthetic-tool.pyz",
-                   "sha256": hashlib.sha256(content).hexdigest(),
-                   "url": f"http://127.0.0.1:{server.server_port}/synthetic-tool.pyz"}
+            pin = {
+                "name": "synthetic-tool.pyz",
+                "sha256": hashlib.sha256(content).hexdigest(),
+                "url": f"http://127.0.0.1:{server.server_port}/synthetic-tool.pyz"
+            }
 
             with patch.object(provider_core_acquire, "require_download_proxy"):
                 path = provider_core_acquire.acquire_tool(self.pool, pin)
@@ -176,10 +184,21 @@ class WheelhouseTests(unittest.TestCase):
         report = self.root / "report.json"
 
         def write_report(path):
-            report.write_text(json.dumps({"version": "1",
-                "install": [{"download_info": {
-                    "url": path.as_uri(),
-                    "archive_info": {"hashes": {"sha256": hashlib.sha256(path.read_bytes()).hexdigest()}}}}]}))
+            report.write_text(
+                json.dumps(
+                    {
+                        "version": "1",
+                        "install": [
+                            {
+                                "download_info": {
+                                    "url": path.as_uri(),
+                                    "archive_info": {"hashes": {"sha256": hashlib.sha256(path.read_bytes()).hexdigest()}}
+                                }
+                            }
+                        ]
+                    }
+                )
+            )
 
         write_report(self.pool / self.cached.name)
 

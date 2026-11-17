@@ -154,35 +154,47 @@ def main():
             command = [sys.executable, "-I", "-B", str(tool)]
 
             with projection.open("xb") as output:
-                subprocess.run(command + ["locate",
-                                          "--lock",
-                                          str(lock),
-                                          "--index-url",
-                                          "https://pypi.org/simple",
-                                          "--pool",
-                                          str(pool)],
+                subprocess.run(
+                    command + [
+                        "locate",
+                        "--lock",
+                        str(lock),
+                        "--index-url",
+                        "https://pypi.org/simple",
+                        "--pool",
+                        str(pool)
+                    ],
                     stdout=output,
-                    check=True)
+                    check=True
+                )
 
-            subprocess.run(command + ["acquire",
-                                      "--lock",
-                                      str(projection),
-                                      "--source-lock",
-                                      str(lock),
-                                      "--pool",
-                                      str(pool)],
-                check=True)
-
-    subprocess.run([sys.executable,
-                    "-I",
-                    "-B",
-                    str(tool),
+            subprocess.run(
+                command + [
                     "acquire",
                     "--lock",
-                    str(bootstrap),
+                    str(projection),
+                    "--source-lock",
+                    str(lock),
                     "--pool",
-                    str(pool)],
-        check=True)
+                    str(pool)
+                ],
+                check=True
+            )
+
+    subprocess.run(
+        [
+            sys.executable,
+            "-I",
+            "-B",
+            str(tool),
+            "acquire",
+            "--lock",
+            str(bootstrap),
+            "--pool",
+            str(pool)
+        ],
+        check=True
+    )
 
 
 if __name__ == "__main__":

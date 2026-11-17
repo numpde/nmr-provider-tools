@@ -41,9 +41,11 @@ class EngineCacheGCTests(unittest.TestCase):
             limits(document)
 
     def test_native_policy_merge_preserves_unrelated_fields_and_runtime_reads_it(self):
-        original = {"data-root": "/owned/engine",
-                    "log-driver": "local",
-                    "builder": {"other": {"retained": True}}}
+        original = {
+            "data-root": "/owned/engine",
+            "log-driver": "local",
+            "builder": {"other": {"retained": True}}
+        }
 
         updated = configured(original)
 
@@ -119,20 +121,26 @@ class EngineCacheGCTests(unittest.TestCase):
             config.write_text(json.dumps(document))
             probe = root / "probe.json"
 
-            result = subprocess.run(["bash",
-                                     str(root / "host/tools/engine_cache_gc.sh"),
-                                     "run",
-                                     "science",
-                                     "unix:///tmp/selected-engine.sock",
-                                     str(config)],
-                                    capture_output=True,
-                                    text=True,
-                                    env=os.environ | {"PATH":str(ROOT / "tests/repository/fixtures/cache-gc") + os.pathsep + os.environ["PATH"],
-                                                      "GC_PROBE":str(probe),
-                                                      "DOCKER_HOST":"unix:///tmp/wrong.sock",
-                                                      "HTTP_PROXY":"http://unselected.invalid"},
-                                    timeout=15,
-                                    check=False)
+            result = subprocess.run(
+                [
+                    "bash",
+                    str(root / "host/tools/engine_cache_gc.sh"),
+                    "run",
+                    "science",
+                    "unix:///tmp/selected-engine.sock",
+                    str(config)
+                ],
+                capture_output=True,
+                text=True,
+                env=os.environ | {
+                    "PATH":str(ROOT / "tests/repository/fixtures/cache-gc") + os.pathsep + os.environ["PATH"],
+                    "GC_PROBE":str(probe),
+                    "DOCKER_HOST":"unix:///tmp/wrong.sock",
+                    "HTTP_PROXY":"http://unselected.invalid"
+                },
+                timeout=15,
+                check=False
+            )
 
             self.assertEqual(0, result.returncode, msg=result.stderr)
             observed = json.loads(probe.read_text())

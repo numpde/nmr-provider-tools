@@ -257,7 +257,8 @@ class DebugFstringPostureTests(unittest.TestCase):
                 self.assertEqual(first=[], second=_findings(path=Path("example.py"), source=f"message = {expression}\n"))
 
     def test_multiline_expressions_use_their_own_source_span(self) -> None:
-        source = textwrap.dedent('''\
+        source = textwrap.dedent(
+            '''\
             debug = f"""{(
                 duration
             ) = :.2f}"""
@@ -268,7 +269,8 @@ class DebugFstringPostureTests(unittest.TestCase):
                 first +
                 second
             ) = }"""
-            ''')
+            '''
+        )
 
         findings = _findings(path=Path("example.py"), source=source)
 

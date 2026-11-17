@@ -31,31 +31,33 @@ class Finding:
 
 _COMPILERS = {"pip", "venv", "ensurepip", "build", "setuptools", "compileall", "py_compile"}
 
-_SKIP = {".git",
-         ".agents",
-         ".codex",
-         ".aws",
-         "secrets",
-         "tests",
-         "test",
-         "fixtures",
-         "docs",
-         "notes",
-         "vendor",
-         "vendored",
-         "third_party",
-         "bootstrap",
-         "generated",
-         "node_modules",
-         "dependencies",
-         ".venv",
-         "venv",
-         "__pycache__",
-         ".work",
-         ".cache",
-         "build",
-         "dist",
-         "release-artifacts"}
+_SKIP = {
+    ".git",
+    ".agents",
+    ".codex",
+    ".aws",
+    "secrets",
+    "tests",
+    "test",
+    "fixtures",
+    "docs",
+    "notes",
+    "vendor",
+    "vendored",
+    "third_party",
+    "bootstrap",
+    "generated",
+    "node_modules",
+    "dependencies",
+    ".venv",
+    "venv",
+    "__pycache__",
+    ".work",
+    ".cache",
+    "build",
+    "dist",
+    "release-artifacts"
+}
 
 _PYTHON = re.compile(r"python(?:3(?:\.\d+)?)?$")
 _ENV = "PYTHONDONTWRITEBYTECODE"
@@ -82,8 +84,10 @@ def _inline_imports(source):
 
     modules = {name.name.split(".")[0] for node in ast.walk(tree) if isinstance(node, ast.Import) for name in node.names}
 
-    modules.update(node.module.split(".")[0] for node in ast.walk(tree)
-                   if isinstance(node, ast.ImportFrom) and node.module)
+    modules.update(
+        node.module.split(".")[0] for node in ast.walk(tree)
+        if isinstance(node, ast.ImportFrom) and node.module
+    )
 
     return bool(modules - sys.stdlib_module_names - _COMPILERS)
 

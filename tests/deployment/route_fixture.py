@@ -172,10 +172,12 @@ async def client(mode, path):
     if mode == "direct":
         socket = None
 
-    transport = HttpTransport(trust=ssl.create_default_context(cafile="/evidence/ca.pem"),
-                              exchange_seconds=1,
-                              retirement_seconds=0.5,
-                              proxy_socket=socket)
+    transport = HttpTransport(
+        trust=ssl.create_default_context(cafile="/evidence/ca.pem"),
+        exchange_seconds=1,
+        retirement_seconds=0.5,
+        proxy_socket=socket
+    )
 
     api = ProviderAPI(SigningIdentity(origin, "credential:test", key()), transport, expected_topology="dev-local")
 
@@ -299,10 +301,12 @@ def compose(projection, image, namespace, operation, fixture, support):
         "command": ["success", projection["client_socket"]],
         "labels": {"org.nmr-provider-tools.operation": operation},
         "depends_on": projection["client_depends_on"],
-        "volumes": [projection["client_mount"],
-                    {"type": "volume", "source": "evidence", "target": "/evidence", "read_only": True, "volume": {"nocopy": True}},
-                    {"type": "bind", "source": fixture, "target": "/fixture.py", "read_only": True, "bind": {"create_host_path": False}},
-                    {"type": "bind", "source": support, "target": "/test-support/tests", "read_only": True, "bind": {"create_host_path": False}}],
+        "volumes": [
+            projection["client_mount"],
+            {"type": "volume", "source": "evidence", "target": "/evidence", "read_only": True, "volume": {"nocopy": True}},
+            {"type": "bind", "source": fixture, "target": "/fixture.py", "read_only": True, "bind": {"create_host_path": False}},
+            {"type": "bind", "source": support, "target": "/test-support/tests", "read_only": True, "bind": {"create_host_path": False}}
+        ],
         "tmpfs": ["/tmp:rw,nosuid,nodev,noexec,size=32m,mode=0700,uid=65532,gid=65532"],
     }
 

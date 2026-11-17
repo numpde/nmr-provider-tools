@@ -29,11 +29,13 @@ class WheelhouseBundleTests(unittest.TestCase):
             environment = root / "target"
             command = pip_command(create_environment(environment))
 
-            result = subprocess.run([*command, "list", "--format=json"],
-                                    env=os.environ | {"PYTHONPATH": str(root / "checker-site")},
-                                    check=True,
-                                    capture_output=True,
-                                    text=True)
+            result = subprocess.run(
+                [*command, "list", "--format=json"],
+                env=os.environ | {"PYTHONPATH": str(root / "checker-site")},
+                check=True,
+                capture_output=True,
+                text=True
+            )
 
             self.assertNotIn("checker-only-canary", {item["name"] for item in json.loads(result.stdout)})
 

@@ -24,7 +24,8 @@ class CheckerOperationTests(unittest.TestCase):
         self.directory = Path(temporary.name)
         self.engine = self.directory / "engine.sh"
 
-        self.engine.write_text('''set -eu
+        self.engine.write_text(
+            '''set -eu
 printf '%s\\n' "$1" >> "$PROBE_CALLS"
 identifier=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
 case "$1" in
@@ -55,7 +56,8 @@ case "$1" in
         ;;
     *) exit 99 ;;
 esac
-''')
+'''
+        )
 
         self.environment = os.environ | {
             "PROBE_CALLS": str(self.directory / "calls"),
@@ -120,7 +122,8 @@ if checker_run "$budget" inert-image; then exit 0; else exit "$?"; fi
 
         # The published owner is an external port here. Its own tests qualify
         # probing; this fixture exposes its call, result, and retirement receipt.
-        (acquisition / "owner.sh").write_text('''printf 'source\\n' >> "$PROBE_IDENTITY_EVENTS"
+        (acquisition / "owner.sh").write_text(
+            '''printf 'source\\n' >> "$PROBE_IDENTITY_EVENTS"
 acquisition_project_ids() {
     printf 'project\\n' >> "$PROBE_IDENTITY_EVENTS"
     printf '%s\\n' "${@:2:3}" "${@:6}" > "$PROBE_IDENTITY_ARGUMENTS"
@@ -136,7 +139,8 @@ acquisition_project_ids() {
     local -n fixture_output=$1
     fixture_output=(17 29)
 }
-''')
+'''
+        )
 
         script = '''set -euo pipefail
 root=$1
@@ -185,29 +189,31 @@ exit "$status"
         self.assertEqual(["verify", "source", "project", "native"], (self.directory / "identity-events").read_text().splitlines())
 
         self.assertEqual(
-            ["2",
-             "unix:///fixture-selected.sock",
-             "pinned-image",
-             "--interpreter",
-             "/probe/python",
-             "--user-uid",
-             "0",
-             "--user-gid",
-             "0",
-             "--memory-bytes",
-             "67108864",
-             "--pids-limit",
-             "16",
-             "--nano-cpus",
-             "1000000000",
-             "--map",
-             "uid",
-             "inverse",
-             "1001",
-             "--map",
-             "gid",
-             "inverse",
-             "1002"],
+            [
+                "2",
+                "unix:///fixture-selected.sock",
+                "pinned-image",
+                "--interpreter",
+                "/probe/python",
+                "--user-uid",
+                "0",
+                "--user-gid",
+                "0",
+                "--memory-bytes",
+                "67108864",
+                "--pids-limit",
+                "16",
+                "--nano-cpus",
+                "1000000000",
+                "--map",
+                "uid",
+                "inverse",
+                "1001",
+                "--map",
+                "gid",
+                "inverse",
+                "1002"
+            ],
             (self.directory / "identity-arguments").read_text().splitlines(),
         )
 
@@ -275,7 +281,8 @@ exit "$status"
         for name in ("checker_operation.sh", "docker_client.sh", "inference_native.sh", "image_lifecycle.sh"):
             shutil.copyfile(ROOT / "host/tools" / name, shadow / "host/tools" / name)
 
-        (shadow / "host/tools/image_retirement.sh").write_text('''set -eu
+        (shadow / "host/tools/image_retirement.sh").write_text(
+            '''set -eu
 [[ $1 == --automatic ]]
 [[ ! -e $PROBE_STATE ]]
 readarray -t paths < "$PROBE_REPORT"
@@ -284,7 +291,8 @@ root=$(cd -- "$(dirname -- "$0")/../.." && pwd -P)
 exec {borrow}< "$root"
 flock --exclusive --nonblock "$borrow"
 printf 'retired\\n' > "$PROBE_REPORT.retired"
-''')
+'''
+        )
 
         (command, environment) = self.invocation("success")
         command[-1] = str(shadow)

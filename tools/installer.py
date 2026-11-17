@@ -121,16 +121,18 @@ def install(pool, record):
         capture(pool / record["name"], record, captured)
 
         subprocess.run(
-            [sys.executable,
-             "-I",
-             "-B",
-             str(captured / "pip"),
-             "--isolated",
-             "install",
-             "--no-index",
-             "--no-deps",
-             "--no-compile",
-             str(captured)],
+            [
+                sys.executable,
+                "-I",
+                "-B",
+                str(captured / "pip"),
+                "--isolated",
+                "install",
+                "--no-index",
+                "--no-deps",
+                "--no-compile",
+                str(captured)
+            ],
             check=True,
         )
 
@@ -159,20 +161,22 @@ def create_environment(destination):
         subprocess.run([sys.executable, "-I", "-B", "-m", "venv", "--without-pip", str(destination)], check=True)
 
         subprocess.run(
-            [sys.executable,
-             "-I",
-             "-B",
-             "-m",
-             "pip",
-             "--isolated",
-             "--python",
-             str(python),
-             "install",
-             "--no-index",
-             "--no-deps",
-             "--no-cache-dir",
-             "--no-compile",
-             str(captured)],
+            [
+                sys.executable,
+                "-I",
+                "-B",
+                "-m",
+                "pip",
+                "--isolated",
+                "--python",
+                str(python),
+                "install",
+                "--no-index",
+                "--no-deps",
+                "--no-cache-dir",
+                "--no-compile",
+                str(captured)
+            ],
             check=True,
         )
 

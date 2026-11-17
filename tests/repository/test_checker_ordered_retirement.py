@@ -75,17 +75,21 @@ checker_finish
             if pending:
                 pending_text = "true"
 
-            env = os.environ | {"CALLS": str(directory / "calls"),
-                               "FAIL": fail_text,
-                               "UNEXPECTED": unexpected_text,
-                               "PENDING": pending_text,
-                               "PRIMARY": str(primary)}
+            env = os.environ | {
+                "CALLS": str(directory / "calls"),
+                "FAIL": fail_text,
+                "UNEXPECTED": unexpected_text,
+                "PENDING": pending_text,
+                "PRIMARY": str(primary)
+            }
 
-            result = subprocess.run(["bash", "-c", script, "bash", str(ROOT), str(directory / "operation")],
-                                    env=env,
-                                    capture_output=True,
-                                    text=True,
-                                    timeout=10)
+            result = subprocess.run(
+                ["bash", "-c", script, "bash", str(ROOT), str(directory / "operation")],
+                env=env,
+                capture_output=True,
+                text=True,
+                timeout=10
+            )
 
             calls = []
 

@@ -325,7 +325,8 @@ class CapturedNativeTests(unittest.TestCase):
             'container_native probe "$2" "$NATIVE_RESULT" "$3" "$4" native-client'
         )
 
-        return (command,
+        return (
+            command,
             environment | {
                 "NATIVE_RESULT": mode,
                 "NATIVE_BEHAVIOR": "original-signals",
@@ -334,7 +335,8 @@ class CapturedNativeTests(unittest.TestCase):
                 "NATIVE_DEADLINE_OBSERVED": str(self.root / "container-deadline"),
                 "NATIVE_DEADLINE_ABSENT": str(self.root / "container-no-deadline"),
                 "NATIVE_SIGNAL_MARKER": str(self.root / "signal-observed"),
-        })
+            }
+        )
 
     def reset_container_observations(self):
         for name in (
@@ -535,19 +537,21 @@ class CapturedNativeTests(unittest.TestCase):
 
     # silent-defaults: allow-contract -- Direct captured-command probes use the declared twenty-second client budget unless a scenario supplies another policy; proof=tests/repository/test_inference_native.py::CapturedNativeTests.test_cleanup_preserves_primary_and_traps_are_restored
     def command(self, *, budget="20", environment=None):
-        return ([
-            "/bin/bash",
-            "-euc",
-            'source "$1"; inference_diagnostic=; '
-            'trap \'status=$?; trap - EXIT; printf "%s" "$inference_diagnostic" >&2; exit "$status"\' EXIT; '
-            'inference_native probe "$2" discard "$3" "$4" native-client',
-            "bash",
-            str(self.helper),
-            budget,
-            sys.executable,
-            str(Path(__file__).resolve()),
-        ],
-            (self.environment if environment is None else environment))
+        return (
+            [
+                "/bin/bash",
+                "-euc",
+                'source "$1"; inference_diagnostic=; '
+                'trap \'status=$?; trap - EXIT; printf "%s" "$inference_diagnostic" >&2; exit "$status"\' EXIT; '
+                'inference_native probe "$2" discard "$3" "$4" native-client',
+                "bash",
+                str(self.helper),
+                budget,
+                sys.executable,
+                str(Path(__file__).resolve()),
+            ],
+            (self.environment if environment is None else environment)
+        )
 
     # silent-defaults: allow-contract -- This runner forwards its declared twenty-second fixture budget unless the case explicitly selects another one; proof=tests/repository/test_inference_native.py::CapturedNativeTests.test_cleanup_preserves_primary_and_traps_are_restored
     def run_native(self, *, budget="20", additions=None):
@@ -628,12 +632,14 @@ class CapturedNativeTests(unittest.TestCase):
         )
 
         # silent-defaults: allow-contract -- The required next_success scenario selects whether a second successful native call exercises per-invocation reset; proof=tests/repository/test_inference_native.py::CapturedNativeTests.test_actual_signal_outcome_and_next_success_reset_are_per_invocation
-        return (command,
+        return (
+            command,
             environment | {
                 "NATIVE_RESULT": result,
                 "NATIVE_NEXT": "yes" if next_success else "no",
                 "NATIVE_OUTCOME": str(self.root / "outcome"),
-        })
+            }
+        )
 
     def test_ordinary_signal_number_status_has_no_actual_cancellation_outcome(self):
         for mode in ("discard", "stdio"):
@@ -1483,11 +1489,13 @@ class CapturedNativeTests(unittest.TestCase):
                     # fixture used for a failed final status rename.
                     self.helper.write_text(source.replace(terminal, '        if { mv -- "$receipt.ready" "$receipt.printf" \\\n', 1))
 
-                result = self.run_native(additions={
-                    "NATIVE_PUBLICATION_FAILURE": phase,
-                    "NATIVE_BEHAVIOR": "held-descendant",
-                    "NATIVE_PUBLICATION_FAILED_AT": str(failed_at),
-                })
+                result = self.run_native(
+                    additions={
+                        "NATIVE_PUBLICATION_FAILURE": phase,
+                        "NATIVE_BEHAVIOR": "held-descendant",
+                        "NATIVE_PUBLICATION_FAILED_AT": str(failed_at),
+                    }
+                )
 
                 returned_at = time.monotonic()
 

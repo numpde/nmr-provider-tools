@@ -103,9 +103,11 @@ def unguarded_sources(root):
     failures = [
         str(path.relative_to(root))
         for path in sorted(sources)
-        if not has_early_guard(path.read_text(),
-                               package_marker=path.name in {"__init__.py", "__init__.py.fixture"},
-                               package=".".join(path.parent.relative_to(root).parts))
+        if not has_early_guard(
+            path.read_text(),
+            package_marker=path.name in {"__init__.py", "__init__.py.fixture"},
+            package=".".join(path.parent.relative_to(root).parts)
+        )
     ]
 
     failures.extend(

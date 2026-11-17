@@ -531,17 +531,23 @@ def _exception_outcome_contract(handler, protected):
     if handler.type is None:
         return False
 
-    if any(isinstance(node,
-        (ast.FunctionDef,
-                             ast.AsyncFunctionDef,
-                             ast.Lambda,
-                             ast.Try,
-                             ast.With,
-                             ast.AsyncWith,
-                             ast.For,
-                             ast.AsyncFor,
-                             ast.While))
-           for statement in handler.body for node in ast.walk(statement)):
+    if any(
+        isinstance(
+            node,
+            (
+                ast.FunctionDef,
+                ast.AsyncFunctionDef,
+                ast.Lambda,
+                ast.Try,
+                ast.With,
+                ast.AsyncWith,
+                ast.For,
+                ast.AsyncFor,
+                ast.While
+            )
+        )
+        for statement in handler.body for node in ast.walk(statement)
+    ):
         return False
 
     if any(contains_env_access(statement) or contains_raw_args_access(statement) for statement in protected.body):
@@ -550,17 +556,23 @@ def _exception_outcome_contract(handler, protected):
     if isinstance(handler.body[-1], ast.Return) and _positive_exit(handler.body[-1].value):
         # A direct final return prevents a swallowed failure from falling through
         # to the process success path. Earlier conditional returns must also fail.
-        return all(_positive_exit(node.value) for statement in handler.body
-                   for node in ast.walk(statement) if isinstance(node, ast.Return))
+        return all(
+            _positive_exit(node.value) for statement in handler.body
+            for node in ast.walk(statement) if isinstance(node, ast.Return)
+        )
 
     declared = handler.type.elts if isinstance(handler.type, ast.Tuple) else [handler.type]
 
-    if any(not isinstance(node, ast.Name) or node.id in {"Exception", "BaseException", "ExceptionGroup", "BaseExceptionGroup"}
-           for node in declared):
+    if any(
+        not isinstance(node, ast.Name) or node.id in {"Exception", "BaseException", "ExceptionGroup", "BaseExceptionGroup"}
+        for node in declared
+    ):
         return False
 
-    if any(contains_env_access(statement) or contains_raw_args_access(statement)
-           or any(args_attribute_name(node) is not None for node in ast.walk(statement)) for statement in protected.body):
+    if any(
+        contains_env_access(statement) or contains_raw_args_access(statement)
+        or any(args_attribute_name(node) is not None for node in ast.walk(statement)) for statement in protected.body
+    ):
         return False
 
     if len(handler.body) != 1 or not isinstance(handler.body[0], ast.Return):

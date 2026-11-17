@@ -175,10 +175,14 @@ class SourceUpdateTests(unittest.TestCase):
                 else:
                     archive.addfile(member)
 
-        self.pin.write_text(json.dumps({
-            "version": "2.0.0",
-            "archive_sha256": hashlib.sha256(self.archive.read_bytes()).hexdigest(),
-        }))
+        self.pin.write_text(
+            json.dumps(
+                {
+                    "version": "2.0.0",
+                    "archive_sha256": hashlib.sha256(self.archive.read_bytes()).hexdigest(),
+                }
+            )
+        )
 
     def assert_old_source(self):
         self.assertEqual("1.0.0", updates.verify(self.source)["release_version"])

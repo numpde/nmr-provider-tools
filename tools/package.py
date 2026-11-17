@@ -288,7 +288,8 @@ def qualify_acquisition_bundle(bundle, scratch, expected_source_files):
 
     subprocess.run(["bash", "-n", str(destination / "acquisition_tool/owner.sh")], check=True)
 
-    subprocess.run([
+    subprocess.run(
+        [
         "python3",
         "-I",
         "-S",
@@ -298,7 +299,8 @@ def qualify_acquisition_bundle(bundle, scratch, expected_source_files):
         "--source-dir",
         str(destination),
     ],
-        check=True)
+        check=True
+    )
 
     cold_import_check = Path(__file__).resolve().parent.parent / "containers/isolated/acquisition_import_check.py"
 

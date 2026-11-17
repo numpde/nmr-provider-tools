@@ -52,15 +52,19 @@ class CheckerProvisioningTests(unittest.TestCase):
         return subprocess.run(arguments, cwd=self.root, env=self.environment, capture_output=True, text=True, check=False)
 
     def test_explicit_empty_and_environment_only_selectors_do_not_authorize_acquisition(self):
-        self.environment |= {"WHEELHOUSE": str(self.root),
-                             "WHEELHOUSE_INPUT": str(self.root),
-                             "WHEELHOUSE_INPUT_ORIGIN": "command line",
-                             "NETWORK_INTERFACE_INPUT": "lo"}
+        self.environment |= {
+            "WHEELHOUSE": str(self.root),
+            "WHEELHOUSE_INPUT": str(self.root),
+            "WHEELHOUSE_INPUT_ORIGIN": "command line",
+            "NETWORK_INTERFACE_INPUT": "lo"
+        }
 
-        cases = (("", "lo", "WHEELHOUSE cannot be empty"),
-                 (None, "lo", "WHEELHOUSE must be set on the make command line"),
-                 (str(self.root), "", "is not an available network interface"),
-                 (str(self.root), "missing-interface", "is not an available network interface"))
+        cases = (
+            ("", "lo", "WHEELHOUSE cannot be empty"),
+            (None, "lo", "WHEELHOUSE must be set on the make command line"),
+            (str(self.root), "", "is not an available network interface"),
+            (str(self.root), "missing-interface", "is not an available network interface")
+        )
 
         for (wheelhouse, interface, diagnostic) in cases:
             with self.subTest(wheelhouse=wheelhouse, interface=interface):
@@ -86,19 +90,22 @@ class CheckerProvisioningTests(unittest.TestCase):
         self.assertNotEqual(0, self.shell(source).returncode)
 
     def test_failed_fingerprint_producer_cannot_publish_partial_digest(self):
-        result = self.shell('''root=$1
+        result = self.shell(
+            '''root=$1
 source "$root/host/tools/checker_inputs.sh"
 sha256sum() {
     if [[ $# != 0 && $2 == host/tools/base_image.sh ]]; then return 7; fi
     command sha256sum "$@"
 }
 if fingerprint=$(checker_fingerprint checker); then exit 99; else exit "$?"; fi
-''')
+'''
+        )
 
         self.assertEqual(7, result.returncode, msg=result.stderr)
 
     def test_source_mutation_during_capture_reports_the_changed_inputs(self):
-        result = self.shell('''root=$1
+        result = self.shell(
+            '''root=$1
 export DOCKER_CONTEXT_INPUT=default DOCKER_CONTEXT_INPUT_ORIGIN='command line'
 cp() {
     if [[ $* == *host/tools/base_image.sh* ]]; then printf '\\n# changed during copy\\n' >> "$root/host/tools/base_image.sh"; fi
@@ -106,7 +113,8 @@ cp() {
 }
 export -f cp
 bash "$root/host/tools/checker.sh" bootstrap-build
-''')
+'''
+        )
 
         self.assertEqual(2, result.returncode, msg=result.stderr)
         self.assertIn("Cannot build checker: source inputs changed during capture", result.stderr)
@@ -114,7 +122,8 @@ bash "$root/host/tools/checker.sh" bootstrap-build
     def test_image_admission_requires_matching_exact_metadata_and_preserves_cancellation(self):
         for (scenario, expected) in (("valid", 0), ("wrong-label", 2), ("nul", 2), ("cancelled", 143), ("missing", 1)):
             with self.subTest(scenario=scenario):
-                result = self.shell('''root=$1
+                result = self.shell(
+                    '''root=$1
 source "$root/host/tools/checker_inputs.sh"
 operation_directory=$root
 operation_diagnostic=
@@ -129,7 +138,8 @@ checker_metadata() {
     if [[ SCENARIO == missing ]]; then return 1; fi
 }
 if checker_admit_image "$fingerprint" checker; then [[ $checker_image == "$identifier" ]]; else exit "$?"; fi
-'''.replace("SCENARIO", scenario))
+'''.replace("SCENARIO", scenario)
+                )
 
                 self.assertEqual(expected, result.returncode, msg=result.stderr)
 
@@ -147,13 +157,15 @@ if checker_admit_image "$fingerprint" checker; then [[ $checker_image == "$ident
 
     def test_sdk_acquisition_prepares_the_stdlib_bootstrap_before_installer_workers(self):
         result = subprocess.run(
-            ["make",
-             "--no-print-directory",
-             "--dry-run",
-             "packages/provider-core/download",
-             "DOCKER_CONTEXT=default",
-             f"WHEELHOUSE={self.root}",
-             "NETWORK_INTERFACE=lo"],
+            [
+                "make",
+                "--no-print-directory",
+                "--dry-run",
+                "packages/provider-core/download",
+                "DOCKER_CONTEXT=default",
+                f"WHEELHOUSE={self.root}",
+                "NETWORK_INTERFACE=lo"
+            ],
             cwd=self.root,
             env=self.environment,
             check=True,
@@ -161,5 +173,7 @@ if checker_admit_image "$fingerprint" checker; then [[ $checker_image == "$ident
             text=True,
         )
 
-        self.assertLess(result.stdout.index("bash host/tools/checker.sh prepare"),
-                        result.stdout.index("bash host/tools/provider_core.sh download"))
+        self.assertLess(
+            result.stdout.index("bash host/tools/checker.sh prepare"),
+            result.stdout.index("bash host/tools/provider_core.sh download")
+        )

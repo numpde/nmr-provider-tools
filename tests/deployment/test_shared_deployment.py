@@ -24,12 +24,14 @@ class SharedDeploymentTests(unittest.TestCase):
             (uid, gid) = (os.geteuid(), os.getegid())
             proxy_uid = uid + 1
 
-            path.write_text(f'[deployment]\nproject = "joint"\nuid = {uid}\nproxy_uid = {proxy_uid}\n'
+            path.write_text(
+                f'[deployment]\nproject = "joint"\nuid = {uid}\nproxy_uid = {proxy_uid}\n'
                 f'gid = {gid}\nrequest_seconds = 10\n[api_proxy]\nmax_connections = 32\n'
                 'log_level = "INFO"\nallowed_authorities = ["api.example:443"]\n'
                 '[api_proxy.route]\nmode = "mapped"\ninterface = "lo"\naddresses = ["api.example=127.0.0.1"]\n'
                 '[outbox]\nprovider_items = 8\nprovider_bytes = 8192\ntotal_items = 32\n'
-                'total_bytes = 32768\nretry_initial_seconds = 1\nretry_max_seconds = 30\nlog_level = "INFO"\n')
+                'total_bytes = 32768\nretry_initial_seconds = 1\nretry_max_seconds = 30\nlog_level = "INFO"\n'
+            )
 
             path.chmod(0o600)
             plan = deployment.render_shared(path, path, "sha256:" + "a" * 64)
@@ -39,8 +41,10 @@ class SharedDeploymentTests(unittest.TestCase):
             self.assertEqual(proxy["user"], f"{proxy_uid}:{gid}")
             self.assertEqual(outbox["user"], f"{uid}:{gid}")
 
-            self.assertEqual({"external": True, "name": "joint-proxy-socket"},
-                             plan["outbox"]["volumes"]["joint-proxy-socket"])
+            self.assertEqual(
+                {"external": True, "name": "joint-proxy-socket"},
+                plan["outbox"]["volumes"]["joint-proxy-socket"]
+            )
 
             self.assertEqual({"name": "joint-proxy-socket"}, plan["proxy"]["volumes"]["joint-proxy-socket"])
             self.assertTrue(next(volume for volume in proxy["volumes"] if volume["target"] == "/settings")["read_only"])

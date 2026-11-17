@@ -480,7 +480,8 @@ def update(source_dir, pin_file):
 
     try:
         with tempfile.TemporaryDirectory(prefix="provider-tools-release-") as temporary:
-            subprocess.run([
+            subprocess.run(
+                [
                 "gh",
                 "release",
                 "download",
@@ -492,7 +493,8 @@ def update(source_dir, pin_file):
                 "--pattern",
                 name,
             ],
-                check=True)
+                check=True
+            )
 
             manifest = _import_verified_old(source, pin, Path(temporary) / name)
             published = True

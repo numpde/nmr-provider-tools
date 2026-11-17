@@ -85,19 +85,21 @@ class PublicationTests(unittest.TestCase):
         return subprocess.run(
             ["bash", str(self.root / "host/tools/publish.sh"), action],
             cwd=self.root,
-            env={"PATH": str(self.bin) + os.pathsep + os.defpath,
-                 "TMPDIR": str(self.root),
-                 "TAG_INPUT_ORIGIN": "command line",
-                 "TAG_INPUT": "v0.2.0",
-                 "ARTIFACTS_INPUT_ORIGIN": "command line",
-                 "ARTIFACTS_INPUT": str(self.inputs),
-                 "OUTPUT_INPUT_ORIGIN": "command line",
-                 "OUTPUT_INPUT": str(self.root / "prepared"),
-                 "WHEELHOUSE_INPUT_ORIGIN": "command line",
-                 "WHEELHOUSE_INPUT": str(self.root / "pool"),
-                 "PUBLISH_TEST_MODE": scenario,
-                 "PUBLISH_TEST_TRACE": str(self.trace),
-                 **selected_environment},
+            env={
+                "PATH": str(self.bin) + os.pathsep + os.defpath,
+                "TMPDIR": str(self.root),
+                "TAG_INPUT_ORIGIN": "command line",
+                "TAG_INPUT": "v0.2.0",
+                "ARTIFACTS_INPUT_ORIGIN": "command line",
+                "ARTIFACTS_INPUT": str(self.inputs),
+                "OUTPUT_INPUT_ORIGIN": "command line",
+                "OUTPUT_INPUT": str(self.root / "prepared"),
+                "WHEELHOUSE_INPUT_ORIGIN": "command line",
+                "WHEELHOUSE_INPUT": str(self.root / "pool"),
+                "PUBLISH_TEST_MODE": scenario,
+                "PUBLISH_TEST_TRACE": str(self.trace),
+                **selected_environment
+            },
             capture_output=True,
             text=True,
             timeout=15,
@@ -115,12 +117,14 @@ class PublicationTests(unittest.TestCase):
         self.assertNotIn("gh ", self.trace.read_text())
 
     def test_prepare_missing_output_explains_how_to_create_a_private_destination(self):
-        result = self.run_publisher("publish",
+        result = self.run_publisher(
+            "publish",
             "prepare",
             environment={
                 "OUTPUT_INPUT_ORIGIN": "undefined",
                 "OUTPUT_INPUT": "",
-        })
+            }
+        )
 
         self.assertEqual(2, result.returncode, msg=result.stderr)
         self.assertIn("OUTPUT=", result.stderr)
@@ -146,12 +150,14 @@ class PublicationTests(unittest.TestCase):
         self.assertNotIn("gh ", self.trace.read_text())
 
     def test_release_requires_the_reviewed_prepare_directory(self):
-        result = self.run_publisher("publish",
+        result = self.run_publisher(
+            "publish",
             "release",
             environment={
                 "ARTIFACTS_INPUT_ORIGIN": "undefined",
                 "ARTIFACTS_INPUT": "",
-        })
+            }
+        )
 
         self.assertEqual(2, result.returncode, msg=result.stderr)
         self.assertIn("ARTIFACTS=", result.stderr)
@@ -164,11 +170,13 @@ class PublicationTests(unittest.TestCase):
 
         selected.chmod(0o700)
 
-        result = self.run_publisher("publish",
+        result = self.run_publisher(
+            "publish",
             "release",
             environment={
                 "ARTIFACTS_INPUT": str(selected),
-        })
+            }
+        )
 
         self.assertEqual(2, result.returncode, msg=result.stderr)
         self.assertIn("whole reviewed publish/prepare OUTPUT root", result.stderr)
@@ -266,7 +274,8 @@ class PublicationTests(unittest.TestCase):
         self.assertTrue((self.inputs / "artifacts").is_dir())
 
     def test_unknown_native_retirement_stops_before_any_tag_or_draft_effect(self):
-        (self.root / "host/tools/inference_native.sh").write_text("""inference_native() {
+        (self.root / "host/tools/inference_native.sh").write_text(
+            """inference_native() {
     local operation=$1 status=0
     shift 3
     if ! "$inference_retirement_confirmed"; then
@@ -280,7 +289,8 @@ class PublicationTests(unittest.TestCase):
     fi
     return "$status"
 }
-""")
+"""
+        )
 
         result = self.run_publisher("publish", "release")
 

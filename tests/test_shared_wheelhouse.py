@@ -50,13 +50,15 @@ class WheelhouseTests(unittest.TestCase):
     def test_transient_http_errors_close_before_delay_and_exhaustion(self):
         bodies = [io.BytesIO(b"private response body") for _ in range(3)]
 
-        failures = [RequestFailure(urllib.error.HTTPError(
-            "https://secret.invalid/private",
-            503,
-            "private",
-            {"Retry-After": "5"},
-            body,
-        )) for body in bodies]
+        failures = [RequestFailure(
+            urllib.error.HTTPError(
+                "https://secret.invalid/private",
+                503,
+                "private",
+                {"Retry-After": "5"},
+                body,
+            )
+        ) for body in bodies]
 
         operation = Mock(side_effect=failures)
 
@@ -298,9 +300,11 @@ class WheelhouseTests(unittest.TestCase):
         self.assertEqual(self.content, (self.pool / self.name).read_bytes())
 
     def test_permanent_and_exhausted_failures_have_bounded_attempts(self):
-        failures = [(urllib.error.HTTPError('https://example.invalid', 404, '', {}, None), 1),
-                    (ssl.SSLCertVerificationError('private'), 1),
-                    (TimeoutError('private'), 3)]
+        failures = [
+            (urllib.error.HTTPError('https://example.invalid', 404, '', {}, None), 1),
+            (ssl.SSLCertVerificationError('private'), 1),
+            (TimeoutError('private'), 3)
+        ]
 
         for (error, attempts) in failures:
             with self.subTest(attempts=attempts):
@@ -391,8 +395,10 @@ class WheelhouseTests(unittest.TestCase):
 
         self.addCleanup(os.close, fd)
 
-        for (contents, expected) in ((self.content, 'a competing final file was verified'),
-                                   (b'conflict', 'the competing final file differs from the lock')):
+        for (contents, expected) in (
+            (self.content, 'a competing final file was verified'),
+            (b'conflict', 'the competing final file differs from the lock')
+        ):
             with self.subTest(expected=expected):
                 destination.write_bytes(contents)
 
@@ -424,15 +430,23 @@ class WheelhouseTests(unittest.TestCase):
 
         self.lock.write_text('--index-url https://example.invalid/simple\nexample==1.0 \\\n    --hash=sha256:' + digest + '\n')
 
-        metadata = {'name': 'example',
-            'files': [{'filename': self.name,
+        metadata = {
+            'name': 'example',
+            'files': [
+                {
+                    'filename': self.name,
                     'url': 'https://example.invalid/' + self.name,
-                    'hashes': {'sha256': digest}}]}
+                    'hashes': {'sha256': digest}
+                }
+            ]
+        }
 
         with patch('wheelhouse_tool.locate.urllib.request.build_opener') as opener, \
              patch('wheelhouse_tool.network.time.sleep') as sleep:
-            opener.return_value.open.side_effect = [urllib.error.URLError(TimeoutError('timeout')),
-                                                   io.BytesIO(json.dumps(metadata).encode())]
+            opener.return_value.open.side_effect = [
+                urllib.error.URLError(TimeoutError('timeout')),
+                io.BytesIO(json.dumps(metadata).encode())
+            ]
 
             self.assertEqual('example', tomllib.loads(locate(self.lock))['packages'][0]['name'])
 
@@ -570,14 +584,20 @@ class WheelhouseTests(unittest.TestCase):
     def test_stream_accepts_explicit_source_files_without_staging(self):
         output = io.BytesIO()
 
-        stream_context(self.pool,
+        stream_context(
+            self.pool,
             None,
             [],
             output,
-            [{"path": str(self.lock),
-                                                     "destination": "inputs/pylock.toml",
-                                                     "sha256": hashlib.sha256(self.lock.read_bytes()).hexdigest(),
-                                                     "executable": False}])
+            [
+                {
+                    "path": str(self.lock),
+                    "destination": "inputs/pylock.toml",
+                    "sha256": hashlib.sha256(self.lock.read_bytes()).hexdigest(),
+                    "executable": False
+                }
+            ]
+        )
 
         output.seek(0)
 
@@ -623,21 +643,31 @@ class WheelhouseTests(unittest.TestCase):
 
     def test_report_projects_only_authorized_pool_artifacts(self):
         def report(url):
-            return {"version": "1",
-                "install": [{"download_info": {"url": url,
-                    "archive_info": {"hashes": {"sha256": "a" * 64}}}}]}
+            return {
+                "version": "1",
+                "install": [
+                    {
+                        "download_info": {
+                            "url": url,
+                            "archive_info": {"hashes": {"sha256": "a" * 64}}
+                        }
+                    }
+                ]
+            }
 
         result = report_manifest(report("file:///pool/torch-1.0%2Bcpu.whl"), "/pool", "wheels", set())
 
         self.assertEqual("torch-1.0+cpu.whl", result[0]["filename"])
 
-        for url in ("https://host/pool/a.whl",
-                    "file:///pool/a%2Fb.whl",
-                    "file:///pool/a%FF.whl",
-                    "file:///pool/a\n.whl",
-                    "file:///pool/a%zz.whl",
-                    "file:///pool/a%0A.whl",
-                    "file:///pool/a.whl?query"):
+        for url in (
+            "https://host/pool/a.whl",
+            "file:///pool/a%2Fb.whl",
+            "file:///pool/a%FF.whl",
+            "file:///pool/a\n.whl",
+            "file:///pool/a%zz.whl",
+            "file:///pool/a%0A.whl",
+            "file:///pool/a.whl?query"
+        ):
             with self.subTest(url=url), self.assertRaises(ValueError):
                 report_manifest(report(url), "/pool", "wheels", set())
 
@@ -683,11 +713,13 @@ class WheelhouseTests(unittest.TestCase):
             '    --hash=sha256:' + direct + '\n'
         )
 
-        metadata = {"name": "example",
+        metadata = {
+            "name": "example",
             "files": [
                 {"filename": "example-1.0-py3-none-any.whl", "url": "../../files/example-1.0-py3-none-any.whl", "hashes": {"sha256": digest}},
                 {"filename": "example-1.0-py3-none-any.whl", "url": "../../files/other.whl", "hashes": {"sha256": "c" * 64}},
-        ]}
+            ]
+        }
 
         with patch("wheelhouse_tool.locate.urllib.request.build_opener") as opener:
             opener.return_value.open.return_value = io.BytesIO(json.dumps(metadata).encode())
@@ -729,14 +761,18 @@ class WheelhouseTests(unittest.TestCase):
         (self.pool / cached).write_bytes(self.content)
         (self.pool / native).write_bytes(b"conflicting bytes")
 
-        self.lock.write_text('--index-url https://example.invalid/simple\nexample==1.0 \\\n'
-                             f'    --hash=sha256:{cached_hash} \\\n    --hash=sha256:{native_hash}\n')
+        self.lock.write_text(
+            '--index-url https://example.invalid/simple\nexample==1.0 \\\n'
+            f'    --hash=sha256:{cached_hash} \\\n    --hash=sha256:{native_hash}\n'
+        )
 
-        metadata = {"name": "example",
+        metadata = {
+            "name": "example",
             "files": [
                 {"filename": name, "url": f"https://example.invalid/{name}", "hashes": {"sha256": digest}}
             for (name, digest) in ((cached, cached_hash), (native, native_hash))
-        ]}
+        ]
+        }
 
         with patch("wheelhouse_tool.locate.urllib.request.build_opener") as opener:
             opener.return_value.open.return_value = io.BytesIO(json.dumps(metadata).encode())
@@ -776,10 +812,13 @@ class WheelhouseTests(unittest.TestCase):
         hashes = {name: hashlib.sha256(name.encode()).hexdigest() for name in (
             "example-1.0-py3-none-any.whl",
             "example-1.0+local-py3-none-any.whl",
-            "example-1.0+local.tar.gz")}
+            "example-1.0+local.tar.gz"
+        )}
 
-        self.lock.write_text('--index-url https://example.invalid/simple\nexample==1.0 \\\n' +
-                             ''.join('    --hash=sha256:' + digest + ' \\\n' for digest in hashes.values()))
+        self.lock.write_text(
+            '--index-url https://example.invalid/simple\nexample==1.0 \\\n' +
+            ''.join('    --hash=sha256:' + digest + ' \\\n' for digest in hashes.values())
+        )
 
         direct = 'https://example.invalid/example-1.0%2Blocal-py3-none-any.whl#sha256=' + hashes['example-1.0+local-py3-none-any.whl']
         derived = self.root / 'pylock.derived.toml'
@@ -788,10 +827,12 @@ class WheelhouseTests(unittest.TestCase):
         self.assertEqual('1.0+local', tomllib.loads(derived.read_text())['packages'][0]['version'])
         self.assertEqual('example-1.0+local-py3-none-any.whl', tool.selected(derived, [], source_lock=self.lock)[0][0])
 
-        metadata = {'name': 'example',
+        metadata = {
+            'name': 'example',
             'files': [
                 {'filename': name, 'url': 'https://example.invalid/' + name.replace('+', '%2B'), 'hashes': {'sha256': digest}}
-            for (name, digest) in hashes.items()]}
+            for (name, digest) in hashes.items()]
+        }
 
         with patch('wheelhouse_tool.locate.urllib.request.build_opener') as opener:
             opener.return_value.open.return_value = io.BytesIO(json.dumps(metadata).encode())
@@ -824,9 +865,13 @@ class WheelhouseTests(unittest.TestCase):
             self.lock.write_text(self.lock.read_text() + '    --hash=sha256:' + hashes[source_name] + '\n')
             metadata['files'] = [entry for entry in metadata['files'] if not entry['filename'].endswith('.tar.gz')]
 
-            metadata['files'].append({'filename': source_name,
-                                      'url': 'https://example.invalid/' + source_name,
-                                      'hashes': {'sha256': hashes[source_name]}})
+            metadata['files'].append(
+                {
+                    'filename': source_name,
+                    'url': 'https://example.invalid/' + source_name,
+                    'hashes': {'sha256': hashes[source_name]}
+                }
+            )
 
             source = tomllib.loads(locate(self.lock, required_sources=['example'], pool=self.pool))['packages'][0]
 
@@ -858,10 +903,16 @@ class WheelhouseTests(unittest.TestCase):
 
         self.lock.write_text('--index-url https://example.invalid/simple\nexample==1.0 \\\n    --hash=sha256:' + digest + '\n')
 
-        metadata = {"name": "example",
-            "files": [{"filename": "example-1.0-py3-none-any.whl",
+        metadata = {
+            "name": "example",
+            "files": [
+                {
+                    "filename": "example-1.0-py3-none-any.whl",
                     "url": "https://example.invalid/example-1.0-py3-none-any.whl",
-                    "hashes": {"sha256": digest}}]}
+                    "hashes": {"sha256": digest}
+                }
+            ]
+        }
 
         with patch("wheelhouse_tool.locate.urllib.request.build_opener") as opener:
             opener.return_value.open.return_value = io.BytesIO(json.dumps(metadata).encode())

@@ -164,7 +164,11 @@ class MakeRecipeOwnershipTests(unittest.TestCase):
             with self.subTest(target=target):
                 result = subprocess.run(
                     [self.make, "--dry-run", target, "DOCKER_CONTEXT=default", "TEST_PATTERN=test_makefile.py"],
-                    cwd=REPOSITORY_ROOT, env=environment, capture_output=True, text=True, check=False,
+                    cwd=REPOSITORY_ROOT,
+                    env=environment,
+                    capture_output=True,
+                    text=True,
+                    check=False,
                 )
 
                 self.assertEqual(succeeds, result.returncode == 0, msg=result.stderr)

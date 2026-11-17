@@ -71,8 +71,10 @@ class DeliveryReleaseTests(unittest.TestCase):
         self.assertEqual([], list(self.pool.iterdir()))
 
     def test_capture_records_pins_without_copying_wheels(self):
-        selected = {"lock_sha256": hashlib.sha256(b"lock").hexdigest(),
-                    "files": {self.wheel.name: self.digest}}
+        selected = {
+            "lock_sha256": hashlib.sha256(b"lock").hexdigest(),
+            "files": {self.wheel.name: self.digest}
+        }
 
         with tempfile.TemporaryDirectory() as temporary:
             destination = Path(temporary)
@@ -104,9 +106,13 @@ class DeliveryReleaseTests(unittest.TestCase):
             self.assertEqual(b"lock", (destination / "provider-core-install.lock").read_bytes())
             self.assertEqual(selected, json.loads((destination / "provider-core-wheel-inputs.json").read_text()))
 
-            self.assertEqual([{"directory": "wheelhouse", "filename": self.wheel.name, "sha256": self.digest},
-                              {"directory": "installer", "filename": installer["name"], "sha256": installer["sha256"]}],
-                             json.loads((destination / "provider-core-stream.json").read_text()))
+            self.assertEqual(
+                [
+                    {"directory": "wheelhouse", "filename": self.wheel.name, "sha256": self.digest},
+                    {"directory": "installer", "filename": installer["name"], "sha256": installer["sha256"]}
+                ],
+                json.loads((destination / "provider-core-stream.json").read_text())
+            )
 
             self.assertIn(self.wheel.name, (dockerfile.parent / "Dockerfile.selected").read_text())
             self.assertEqual(inode, self.wheel.stat().st_ino)
@@ -120,8 +126,10 @@ class DeliveryReleaseTests(unittest.TestCase):
 
             lock.write_bytes(b"lock")
 
-            selected = {"lock_sha256": hashlib.sha256(b"lock").hexdigest(),
-                        "files": {self.wheel.name: self.digest}}
+            selected = {
+                "lock_sha256": hashlib.sha256(b"lock").hexdigest(),
+                "files": {self.wheel.name: self.digest}
+            }
 
             with patch.object(core_environment, "select_wheels", return_value=selected), patch.object(
                 core_environment,

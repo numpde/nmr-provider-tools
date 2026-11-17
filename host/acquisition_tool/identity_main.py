@@ -23,12 +23,14 @@ class Cancellation:
 
 
 def _inputs(args):
-    policy = (args.interpreter,
-              args.user_uid,
-              args.user_gid,
-              args.memory_bytes,
-              args.pids_limit,
-              args.nano_cpus)
+    policy = (
+        args.interpreter,
+        args.user_uid,
+        args.user_gid,
+        args.memory_bytes,
+        args.pids_limit,
+        args.nano_cpus
+    )
 
     if args.maps is None:
         if (args.host_uid is None or args.host_gid is None or args.userns is not None
@@ -37,9 +39,13 @@ def _inputs(args):
 
         request = ProbeRequest(args.endpoint, args.image, "/usr/local/bin/python3", 0, 0)
 
-        return (request,
-            (("uid", "inverse", Identifier(args.host_uid)),
-                         ("gid", "inverse", Identifier(args.host_gid))))
+        return (
+            request,
+            (
+                ("uid", "inverse", Identifier(args.host_uid)),
+                ("gid", "inverse", Identifier(args.host_gid))
+            )
+        )
 
     if args.host_uid is not None or args.host_gid is not None:
         raise ValueError("Do not combine host-owner IDs with --map projections.")
