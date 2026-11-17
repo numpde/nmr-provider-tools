@@ -34,8 +34,8 @@ class _Finding:
 
         return (
             f"{self.path}:{self.line}: guard {self.condition!r} {concerns[self.exception]}; "
-            "reject wrong types first in a separate TypeError "
-            "guard, then validate supported values with ValueError"
+            f"reject wrong types first in a separate TypeError "
+            f"guard, then validate supported values with ValueError"
         )
 
 

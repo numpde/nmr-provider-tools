@@ -48,7 +48,7 @@ def _discover_projects(*, project_root: Path) -> list[tuple[Path, str, str]]:
         if distribution_name == "provider-core" or distribution_name in names:
             raise ValueError(
                 f"Cannot install project {distribution_name!r}: distribution "
-                "names must be unique and must not shadow provider-core."
+                f"names must be unique and must not shadow provider-core."
             )
 
         if not isinstance(distribution_version, (expected_type := str)):
@@ -61,7 +61,7 @@ def _discover_projects(*, project_root: Path) -> list[tuple[Path, str, str]]:
         ) is None:
             raise ValueError(
                 f"Cannot install project {distribution_name!r}: "
-                "a three-part version is required."
+                f"a three-part version is required."
             )
 
         names.add(distribution_name)
@@ -216,7 +216,7 @@ def _run_installed_suite(
         raise SystemExit(
             f"Installed provider-core {selection} tests failed "
             f"(exit {test_process.returncode}); see the failure summary or "
-            "diagnostic immediately above."
+            f"diagnostic immediately above."
         )
 
 

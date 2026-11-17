@@ -26,7 +26,7 @@ class _Finding:
     def diagnostic(self, *, path: Path) -> str:
         return (
             f"{path}:{self.line}: generic name {self.variable_name!r}; "
-            "name its class or purpose; review public keyword and field contracts before renaming"
+            f"name its class or purpose; review public keyword and field contracts before renaming"
         )
 
 

@@ -26,8 +26,8 @@ class _Finding:
     def diagnostic(self) -> str:
         return (
             f"{self.path}:{self.line}: assertEqual() has an observation-shaped "
-            "first argument and a literal expectation second; consider "
-            "assertEqual(expected, observed)"
+            f"first argument and a literal expectation second; consider "
+            f"assertEqual(expected, observed)"
         )
 
 
@@ -40,7 +40,7 @@ class _PositionalMessageFinding:
     def diagnostic(self) -> str:
         return (
             f"{self.path}:{self.line}: {self.method}() passes its diagnostic "
-            "message positionally; use msg= so the argument's role is explicit"
+            f"message positionally; use msg= so the argument's role is explicit"
         )
 
 

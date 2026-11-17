@@ -31,8 +31,8 @@ class _Finding:
     def diagnostic(self) -> str:
         return (
             f"{self.path}:{self.line}:{self.column}: "
-            "newline escape must end its individual string literal; "
-            "split the following text into an adjacent literal"
+            f"newline escape must end its individual string literal; "
+            f"split the following text into an adjacent literal"
         )
 
 

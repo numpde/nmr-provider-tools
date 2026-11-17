@@ -31,8 +31,8 @@ class _Finding:
         return (
             f"{self.path}:{self.line}: tuple() directly consumes a comprehension "
             f"{self.expression!r}; tuple may add no semantic value, generator "
-            "syntax is comma-fragile, and an inline list is only a ceremonial "
-            "workaround; build the collection shape its consumer actually owns, "
+            f"syntax is comma-fragile, and an inline list is only a ceremonial "
+            f"workaround; build the collection shape its consumer actually owns, "
             f"or retain it with {_ESCAPE_PREFIX!r} and a concrete reason"
         )
 

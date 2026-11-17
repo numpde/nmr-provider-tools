@@ -30,7 +30,7 @@ class _Finding:
         return (
             f"{self.path}:{self.line}: module-scope uppercase direct-name value "
             f"assignment {self.name}; review whether it belongs in a settings "
-            "snapshot; a retained single-name assignment must place "
+            f"snapshot; a retained single-name assignment must place "
             f"{_ESCAPE!r} immediately above it"
         )
 

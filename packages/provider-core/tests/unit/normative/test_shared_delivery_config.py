@@ -74,7 +74,7 @@ class SharedDeliveryConfigurationTests(unittest.TestCase):
                 target.write_text(
                     f'[outbox]\nprovider_items = {items}\nprovider_bytes = 8192\n'
                     f'total_items = 4\ntotal_bytes = 16384\nretry_initial_seconds = {retry}\n'
-                    'retry_max_seconds = 10\nlog_level = "INFO"\n'
+                    f'retry_max_seconds = 10\nlog_level = "INFO"\n'
                 )
 
             write(path, 1, 1)

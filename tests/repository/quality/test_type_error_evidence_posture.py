@@ -35,7 +35,7 @@ class _Finding:
         return (
             f"{self.path}:{self.line}: type rejection lacks actual type evidence "
             f"for {self.missing_subjects!r}; include each rejected subject with "
-            'debug f-string syntax in natural prose, such as f"Unexpected {type(value)=}; expected str"'
+            f'debug f-string syntax in natural prose, such as f"Unexpected {{type(value)=}}; expected str"'
         )
 
 

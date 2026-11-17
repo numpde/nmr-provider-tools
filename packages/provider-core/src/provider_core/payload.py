@@ -606,7 +606,7 @@ class DataclassStateBinding[T]:
             if get_origin(annotation) is not None or annotation in (Any, object):
                 raise TypeError(
                     f"{self.value_type.__qualname__}.{field.name} "
-                    "must name a concrete live-state class"
+                    f"must name a concrete live-state class"
                 )
 
     @property

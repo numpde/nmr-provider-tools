@@ -160,7 +160,7 @@ class PreparationTool[PreparedT]:
             ):
                 raise RuntimeError(
                     f"{previous_operation_observation.finished=}, {previous_operation_observation.outcome=}, "
-                    "but preparation should have finished by rejecting input or expiring before science"
+                    f"but preparation should have finished by rejecting input or expiring before science"
                 )
 
         try:

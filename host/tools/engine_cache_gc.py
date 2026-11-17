@@ -127,8 +127,8 @@ def unit_files(root, context, endpoint, config):
     service = ("[Unit]\nDescription=Unused BuildKit cache collection for one local engine\n\n"
                "[Service]\nType=oneshot\nTimeoutStartSec=360\nExecStart=:" + command + "\n")
 
-    timer = ("[Unit]\nDescription=Periodic unused BuildKit cache collection\n\n"
-             "[Timer]\nOnCalendar=hourly\nRandomizedDelaySec=15min\nPersistent=true\n"
+    timer = (f"[Unit]\nDescription=Periodic unused BuildKit cache collection\n\n"
+             f"[Timer]\nOnCalendar=hourly\nRandomizedDelaySec=15min\nPersistent=true\n"
              f"Unit={name}.service\n\n[Install]\nWantedBy=timers.target\n")
 
     return (name, service, timer)
@@ -210,7 +210,7 @@ def install(root, context, endpoint, path):
 
     print(
         f"Installed {unit_name}.timer. The timer reads native GC thresholds each run. "
-        "Native daemon policy applies at its next planned restart; no engine was restarted."
+        f"Native daemon policy applies at its next planned restart; no engine was restarted."
     )
 
 

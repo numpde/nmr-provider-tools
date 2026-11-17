@@ -56,7 +56,7 @@ def run(arguments):
         if command_result.returncode:
             raise RetirementRefused(
                 f"An image inspection/removal command failed (status {command_result.returncode}); "
-                "retain remaining images."
+                f"retain remaining images."
             )
 
         output.seek(0)
@@ -393,7 +393,7 @@ def main():
 
         print(
             f"Retired {retired_count} obsolete project images; current selections, "
-            "aliases and container references remain protected."
+            f"aliases and container references remain protected."
         )
 
         return 0

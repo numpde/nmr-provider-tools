@@ -30,7 +30,7 @@ class _Finding:
         return (
             f"{self.path}:{self.line}: repository root {self.target!r} is "
             f"inferred from source layout by {self.expression!r}; use Git "
-            "discovery or one pinned repository file"
+            f"discovery or one pinned repository file"
         )
 
 

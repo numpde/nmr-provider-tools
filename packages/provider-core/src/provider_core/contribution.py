@@ -41,7 +41,7 @@ def _identity(value: object, label: str) -> None:
     ):
         raise ValueError(
             f"{label} must be a nonempty identity without whitespace "
-            "or control characters"
+            f"or control characters"
         )
 
 

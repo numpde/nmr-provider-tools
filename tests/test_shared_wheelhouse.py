@@ -101,8 +101,8 @@ class WheelhouseTests(unittest.TestCase):
 
         with self.lock.open("a") as lock:
             lock.write(
-                '[[packages]]\nname = "zexample"\nversion = "1.0"\n'
-                '[[packages.wheels]]\n'
+                f'[[packages]]\nname = "zexample"\nversion = "1.0"\n'
+                f'[[packages.wheels]]\n'
                 f'url = "http://127.0.0.1:{self.server.server_port}/{second_name}"\n'
                 f'hashes = {{ sha256 = "{second_digest}" }}\n'
             )
@@ -180,9 +180,9 @@ class WheelhouseTests(unittest.TestCase):
 
     def write_lock(self, digest):
         self.lock.write_text(
-            'lock-version = "1.0"\ncreated-by = "test"\n'
-            '[[packages]]\nname = "example"\nversion = "1.0"\n'
-            '[[packages.wheels]]\n'
+            f'lock-version = "1.0"\ncreated-by = "test"\n'
+            f'[[packages]]\nname = "example"\nversion = "1.0"\n'
+            f'[[packages.wheels]]\n'
             f'url = "http://127.0.0.1:{self.server.server_port}/{self.name}"\n'
             f'hashes = {{ sha256 = "{digest}" }}\n'
         )
@@ -762,7 +762,7 @@ class WheelhouseTests(unittest.TestCase):
         (self.pool / native).write_bytes(b"conflicting bytes")
 
         self.lock.write_text(
-            '--index-url https://example.invalid/simple\nexample==1.0 \\\n'
+            f'--index-url https://example.invalid/simple\nexample==1.0 \\\n'
             f'    --hash=sha256:{cached_hash} \\\n    --hash=sha256:{native_hash}\n'
         )
 
@@ -954,9 +954,9 @@ class WheelhouseTests(unittest.TestCase):
 
     def test_source_must_be_explicitly_allowed(self):
         self.lock.write_text(
-            'lock-version = "1.0"\ncreated-by = "test"\n'
-            '[[packages]]\nname = "example"\nversion = "1.0"\n'
-            '[packages.sdist]\nurl = "https://example.invalid/example-1.0.tar.gz"\n'
+            f'lock-version = "1.0"\ncreated-by = "test"\n'
+            f'[[packages]]\nname = "example"\nversion = "1.0"\n'
+            f'[packages.sdist]\nurl = "https://example.invalid/example-1.0.tar.gz"\n'
             f'hashes = {{ sha256 = "{"0" * 64}" }}\n'
         )
 
@@ -966,9 +966,9 @@ class WheelhouseTests(unittest.TestCase):
     def test_direct_archives_obey_source_policy(self):
         def archive(name):
             self.lock.write_text(
-                'lock-version = "1.0"\ncreated-by = "test"\n'
-                '[[packages]]\nname = "example"\nversion = "1.0"\n'
-                '[packages.archive]\n'
+                f'lock-version = "1.0"\ncreated-by = "test"\n'
+                f'[[packages]]\nname = "example"\nversion = "1.0"\n'
+                f'[packages.archive]\n'
                 f'url = "https://example.invalid/{name}"\n'
                 f'hashes = {{ sha256 = "{"0" * 64}" }}\n'
             )

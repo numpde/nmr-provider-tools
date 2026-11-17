@@ -60,8 +60,8 @@ class _Finding:
     def diagnostic(self) -> str:
         return (
             f"{self.path}:{self.line}: {self.shape}: {self.expression!r}; "
-            "render prose values with debug f-string syntax and names that read "
-            "naturally; machine syntax requires a trailing # machine-string: <reason>"
+            f"render prose values with debug f-string syntax and names that read "
+            f"naturally; machine syntax requires a trailing # machine-string: <reason>"
         )
 
 

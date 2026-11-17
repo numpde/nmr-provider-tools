@@ -64,7 +64,7 @@ class SigningTests(unittest.TestCase):
 
                 parameters = (
                     f"({components});created=1700000000;expires=1700000300;"
-                    'nonce="AAAAAAAAAAAAAAAAAAAAAA";keyid="credential:test";tag="nmr-api-v1"'
+                    f'nonce="AAAAAAAAAAAAAAAAAAAAAA";keyid="credential:test";tag="nmr-api-v1"'
                 )
 
                 self.assertEqual(request.headers["Signature-Input"], "sig1=" + parameters)

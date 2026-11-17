@@ -163,8 +163,8 @@ class ErrorTransparencyPostureTests(unittest.TestCase):
             for line in _raw_cli_exception_text(path.read_text(encoding="utf-8")):
                 findings.append(
                     f"{path.relative_to(REPOSITORY_ROOT)}:{line}: CommandError "
-                    "formats a broad exception's raw text; project safe cause "
-                    "and context fields rather than losing the cause or exposing values."
+                    f"formats a broad exception's raw text; project safe cause "
+                    f"and context fields rather than losing the cause or exposing values."
                 )
 
         self.assertEqual([], findings, msg="\n".join(findings))
@@ -215,9 +215,9 @@ class ErrorTransparencyPostureTests(unittest.TestCase):
             for line in _opaque_oserror_translations(path.read_text(encoding="utf-8")):
                 findings.append(
                     f"{path.relative_to(REPOSITORY_ROOT)}:{line}: OSError "
-                    "becomes a fixed CommandError; default CLI output hides "
-                    "its chained cause. Project the safe filesystem reason "
-                    "or report it before raising; do not dump exception text."
+                    f"becomes a fixed CommandError; default CLI output hides "
+                    f"its chained cause. Project the safe filesystem reason "
+                    f"or report it before raising; do not dump exception text."
                 )
 
         self.assertEqual([], findings, msg="\n".join(findings))

@@ -34,7 +34,7 @@ class _Finding:
         diagnostic = (
             f"{self.path}:{self.line}: guard {self.rejected_condition!r} "
             f"{self.concern}; review whether {self.candidate_guard!r} makes "
-            "the accepted condition explicit"
+            f"the accepted condition explicit"
         )
 
         if self.caveat is not None:

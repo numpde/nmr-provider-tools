@@ -302,7 +302,7 @@ def behavioral_install_lock(runtime_lock, test_lock, destination):
 
     if overlapping_requirements:
         raise ValueError(
-            "Cannot install provider-core behavioral tests: test requirements "
+            f"Cannot install provider-core behavioral tests: test requirements "
             f"overlap runtime packages: {sorted(overlapping_requirements)!r}"
         )
 

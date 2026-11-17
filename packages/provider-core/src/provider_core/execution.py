@@ -129,7 +129,7 @@ class ConditionRecoveryExpired(TimeoutError):
     def __init__(self, window_seconds, *, phase, condition_code, cause):
         super().__init__(
             f"Cannot confirm the current analysis condition: its {window_seconds:g}-second retry window expired; "
-            "retain the original API evidence and settle work before recovery"
+            f"retain the original API evidence and settle work before recovery"
         )
 
         (self.window_seconds, self.phase, self.condition_code) = (window_seconds, phase, condition_code)
@@ -152,7 +152,7 @@ class ObservationGapExpired(TimeoutError):
 
         super().__init__(
             f"Cannot obtain a fresh Attempt observation within {gap_seconds:g} seconds {blocked}; "
-            "retain existing API owners and retire the original work before recovery"
+            f"retain existing API owners and retire the original work before recovery"
         )
 
         (self.gap_seconds, self._executor) = (gap_seconds, executor)

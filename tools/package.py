@@ -53,7 +53,7 @@ def qualify_wheelhouse_bundle(bundle, scratch):
     selection_lock = scratch / "pylock.toml"
 
     selection_lock.write_text(
-        'lock-version = "1.0"\ncreated-by = "release qualification"\n'
+        f'lock-version = "1.0"\ncreated-by = "release qualification"\n'
         f'[[packages]]\nname = "packaging"\nversion = "{packaging_version}"\n'
         f'[[packages.wheels]]\nurl = "https://example.invalid/{packaging_wheel_name}"\n'
         f'hashes = {{ sha256 = "{packaging_digest}" }}\n'
@@ -520,7 +520,7 @@ def qualify_installed(wheel, lock, source, pool, root, suites):
             raise SystemExit(
                 f"Installed provider-core {suite} release qualification failed "
                 f"(exit {test_process.returncode}). See the suite diagnostic above "
-                "and the retained release-test.log."
+                f"and the retained release-test.log."
             )
 
 

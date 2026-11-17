@@ -152,7 +152,7 @@ class ExampleTomlExplanationTests(unittest.TestCase):
             for line in unexplained_settings(path.read_text(encoding="utf-8")):
                 findings.append(
                     f"{path.relative_to(sources.ROOT)}:{line}: explain this setting in a comment "
-                    "directly above it or on the same line"
+                    f"directly above it or on the same line"
                 )
 
         self.assertEqual([], findings, msg="\n".join(findings))

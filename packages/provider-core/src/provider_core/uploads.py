@@ -948,7 +948,7 @@ class JobUploads:
         if seconds >= remaining:
             raise self._recovery_exhausted(
                 f"source recovery wait of {seconds:g} seconds cannot fit with only {remaining:g} seconds "
-                "remaining before the original deadline",
+                f"remaining before the original deadline",
                 failure,
             ) from None
 

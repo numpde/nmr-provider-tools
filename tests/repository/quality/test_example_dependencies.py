@@ -21,7 +21,7 @@ class ExampleDependencyTests(unittest.TestCase):
 
                 (example / "pyproject.toml").write_text(
                     data=(
-                    '[project]\nname = "test-example"\nversion = "0.1.0"\n'
+                    f'[project]\nname = "test-example"\nversion = "0.1.0"\n'
                     f'dependencies = ["{dependency}"]\n'
                 ),
                     encoding="utf-8"
@@ -46,7 +46,7 @@ class ExampleDependencyTests(unittest.TestCase):
 
                 (example / "pyproject.toml").write_text(
                     data=(
-                    '[project]\nname = "test-example"\nversion = "0.1.0"\n'
+                    f'[project]\nname = "test-example"\nversion = "0.1.0"\n'
                     f'dependencies = {dependencies}\n'
                 ),
                     encoding="utf-8"
@@ -104,7 +104,7 @@ class ExampleDependencyTests(unittest.TestCase):
 
                 (example / "pyproject.toml").write_text(
                     data=(
-                        '[project]\nname = "test-example"\nversion = "0.1.0"\n'
+                        f'[project]\nname = "test-example"\nversion = "0.1.0"\n'
                         f'dependencies = {dependencies}\n'
                     ),
                     encoding="utf-8",

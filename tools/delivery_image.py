@@ -36,7 +36,7 @@ def release_inputs(pin, runtime_lock):
 
     install_lock_bytes = (
         runtime_requirements.rstrip()
-        + "\n"
+        + f"\n"
         f"provider-core=={release_version} \\\n"
         f"    --hash=sha256:{wheel_digest}\n"  # machine-string: pip consumes package and hash syntax; expression labels would invalidate the requirement.
     ).encode()
@@ -74,7 +74,7 @@ def missing_wheels(release, pool):
             if digest(wheel_path) != expected_sha256:
                 raise ValueError(
                     f"Cannot reuse {wheel_name}: cached bytes differ from "
-                    "the pinned release; existing file retained."
+                    f"the pinned release; existing file retained."
                 )
         else:
             missing_wheel_ids.append((wheel_name, expected_sha256))

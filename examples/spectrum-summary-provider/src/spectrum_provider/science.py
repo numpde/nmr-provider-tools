@@ -43,7 +43,7 @@ class Spectrum:
 
         if (not positions) or (position_count != intensity_count):
             raise ValueError(
-                "A spectrum requires nonempty, equally sized positions and intensities; "
+                f"A spectrum requires nonempty, equally sized positions and intensities; "
                 f"received {position_count=} and {intensity_count=}"
             )
 
@@ -53,7 +53,7 @@ class Spectrum:
 
             if not (previous_position < current_position):
                 raise ValueError(
-                    "Spectrum positions must strictly increase; "
+                    f"Spectrum positions must strictly increase; "
                     f"{position_index=}; {previous_position=}; {current_position=}"
                 )
 

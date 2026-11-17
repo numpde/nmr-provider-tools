@@ -29,8 +29,8 @@ MAKE_EMPTY_CHECK_ASSIGNMENT_RE = re.compile(
 MAKE_ASSIGNMENT_OPERATOR_RE = r"(?::=|::=|:::=|\+=|\?=|!=|=)"
 
 MAKE_TARGET_SPECIFIC_VARIABLE_RE = re.compile(
-    r"^(?P<targets>[^#:=\s][^#:=]*?)\s*:\s*"
-    r"(?:(?:export|private|override)\s+)*"
+    fr"^(?P<targets>[^#:=\s][^#:=]*?)\s*:\s*"
+    fr"(?:(?:export|private|override)\s+)*"
     rf"(?P<name>[A-Za-z_][A-Za-z0-9_]*)\s*{MAKE_ASSIGNMENT_OPERATOR_RE}"
 )
 
