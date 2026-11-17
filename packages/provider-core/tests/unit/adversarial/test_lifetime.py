@@ -21,7 +21,8 @@ class ProviderLifetimeTests(unittest.IsolatedAsyncioTestCase):
         self.root = Path(self.directory.name)
 
     def contender(self, mode):
-        result = subprocess.run([
+        result = subprocess.run(
+            [
             sys.executable,
             "-I",
             "-B",
@@ -31,7 +32,8 @@ class ProviderLifetimeTests(unittest.IsolatedAsyncioTestCase):
         ],
             capture_output=True,
             text=True,
-            timeout=5)
+            timeout=5
+        )
 
         self.assertEqual(0, result.returncode, result.stderr)
 
@@ -55,7 +57,8 @@ class ProviderLifetimeTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(inode, (self.root / ".checkpoint-owner.lock").stat().st_ino)
 
     async def test_process_death_releases_the_same_lock_inode(self):
-        child = subprocess.Popen([
+        child = subprocess.Popen(
+            [
             sys.executable,
             "-I",
             "-B",
@@ -66,7 +69,8 @@ class ProviderLifetimeTests(unittest.IsolatedAsyncioTestCase):
             stdin=subprocess.PIPE,
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
-            text=True)
+            text=True
+        )
 
         try:
             self.assertTrue(select.select([child.stdout], [], [], 5)[0], "Lifetime child did not report readiness")

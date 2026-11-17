@@ -26,9 +26,11 @@ class ServiceProxyTests(unittest.TestCase):
             path = Path(directory) / "settings.toml"
             replacement = Path(directory) / "replacement.toml"
 
-            path.write_text('[api_proxy]\nmax_connections = 2\nlog_level = "INFO"\n'
-                            'allowed_authorities = ["api.example:443"]\n'
-                            '[api_proxy.route]\naddresses = ["api.example=192.0.2.1"]\n')
+            path.write_text(
+                '[api_proxy]\nmax_connections = 2\nlog_level = "INFO"\n'
+                'allowed_authorities = ["api.example:443"]\n'
+                '[api_proxy.route]\naddresses = ["api.example=192.0.2.1"]\n'
+            )
 
             live = provider_proxy.LiveProxyConfiguration(path, "mapped")
             initial = live.read()
@@ -40,9 +42,11 @@ class ServiceProxyTests(unittest.TestCase):
             self.assertTrue(server._slots.acquire())
             self.assertTrue(server._slots.acquire())
 
-            replacement.write_text('[api_proxy]\nmax_connections = 1\nmax_admission_delay_seconds = 3\nadmission_order = "fifo"\nlog_level = "DEBUG"\n'
-                                   'allowed_authorities = ["other.example:443"]\n'
-                                   '[api_proxy.route]\naddresses = ["other.example=192.0.2.2"]\n')
+            replacement.write_text(
+                '[api_proxy]\nmax_connections = 1\nmax_admission_delay_seconds = 3\nadmission_order = "fifo"\nlog_level = "DEBUG"\n'
+                'allowed_authorities = ["other.example:443"]\n'
+                '[api_proxy.route]\naddresses = ["other.example=192.0.2.2"]\n'
+            )
 
             replacement.replace(path)
 
@@ -64,16 +68,20 @@ class ServiceProxyTests(unittest.TestCase):
                 logger.return_value.warning.assert_called_once()
                 logger.return_value.warning.reset_mock()
 
-                path.write_text('[api_proxy]\nmax_connections = 0\nlog_level = "INFO"\n'
-                                'allowed_authorities = ["api.example:443"]\n')
+                path.write_text(
+                    '[api_proxy]\nmax_connections = 0\nlog_level = "INFO"\n'
+                    'allowed_authorities = ["api.example:443"]\n'
+                )
 
                 live.next_poll = 0
 
                 live.refresh(server)
                 self.assertIn("max_connections", str(logger.return_value.warning.call_args.args[1]))
 
-                path.write_text('[api_proxy]\nmax_connections = 2\nmax_admission_delay_seconds = '
-                                + '9' * 400 + '\nlog_level = "INFO"\nallowed_authorities = []\n')
+                path.write_text(
+                    '[api_proxy]\nmax_connections = 2\nmax_admission_delay_seconds = '
+                    + '9' * 400 + '\nlog_level = "INFO"\nallowed_authorities = []\n'
+                )
 
                 live.next_poll = 0
 
@@ -274,16 +282,20 @@ class ServiceProxyTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             path = Path(directory) / "settings.toml"
 
-            path.write_text('[api_proxy]\nmax_connections = 2\nlog_level = "INFO"\n'
-                            'allowed_authorities = []\n')
+            path.write_text(
+                '[api_proxy]\nmax_connections = 2\nlog_level = "INFO"\n'
+                'allowed_authorities = []\n'
+            )
 
             settings = provider_proxy.LiveProxyConfiguration(path, "external").read()
 
             with self.assertRaises(provider_proxy.ServiceRefused):
                 settings.policy.destination(b"CONNECT api.example:443 HTTP/1.1\r\n\r\n")
 
-            path.write_text('[api_proxy]\nmax_connections = 2\nlog_level = "INFO"\n'
-                            'allowed_authorities = []\n[api_proxy.route]\naddresses = ["invalid"]\n')
+            path.write_text(
+                '[api_proxy]\nmax_connections = 2\nlog_level = "INFO"\n'
+                'allowed_authorities = []\n[api_proxy.route]\naddresses = ["invalid"]\n'
+            )
 
             with self.assertRaises(provider_proxy.ServiceRefused):
                 provider_proxy.LiveProxyConfiguration(path, "external").read()
@@ -329,11 +341,13 @@ logging.getLogger('dependency').warning('dependency-warning')
 
         for level in ("INFO", "DEBUG", "WARNING"):
             with self.subTest(level=level):
-                result = subprocess.run([sys.executable, "-B", "-c", script, level],
-                                        capture_output=True,
-                                        text=True,
-                                        timeout=5,
-                                        check=False)
+                result = subprocess.run(
+                    [sys.executable, "-B", "-c", script, level],
+                    capture_output=True,
+                    text=True,
+                    timeout=5,
+                    check=False
+                )
 
                 self.assertEqual(result.returncode, 0, result.stderr)
                 self.assertEqual(result.stdout, "")
@@ -365,24 +379,26 @@ logging.getLogger('dependency').warning('dependency-warning')
         with tempfile.TemporaryDirectory() as directory:
             (path, ready) = (Path(directory) / "proxy.sock", Path(directory) / "ready")
 
-            command = [sys.executable,
-                       "-B",
-                       "-c",
-                       "from provider_core.provider_proxy import main; main()",
-                       "--interface",
-                       "lo",
-                       "--mode",
-                       "external",
-                       "--authority",
-                       "api.example:443",
-                       "--socket",
-                       str(path),
-                       "--ready-file",
-                       str(ready),
-                       "--status-directory",
-                       directory,
-                       "--log-level",
-                       "INFO"]
+            command = [
+                sys.executable,
+                "-B",
+                "-c",
+                "from provider_core.provider_proxy import main; main()",
+                "--interface",
+                "lo",
+                "--mode",
+                "external",
+                "--authority",
+                "api.example:443",
+                "--socket",
+                str(path),
+                "--ready-file",
+                str(ready),
+                "--status-directory",
+                directory,
+                "--log-level",
+                "INFO"
+            ]
 
             def stop(child):
                 if child.poll() is None:

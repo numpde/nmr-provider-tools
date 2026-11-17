@@ -25,17 +25,21 @@ class ChatCarrierTests(unittest.IsolatedAsyncioTestCase):
         message = {"role": "assistant", "content": "fixture reply"}
         body = json.dumps({"choices": [{"message": message, "finish_reason": "stop"}]}).encode()
 
-        async with TlsPeer("success",
-                           response_body=gzip.compress(body),
-                           response_headers=((b"Content-Encoding", b"gzip"),)) as peer:
+        async with TlsPeer(
+            "success",
+            response_body=gzip.compress(body),
+            response_headers=((b"Content-Encoding", b"gzip"),)
+        ) as peer:
             transport = HttpTransport(trust=peer.trust, exchange_seconds=1, retirement_seconds=0.5)
 
             endpoint = ChatEndpoint(
-                ChatEndpointSpec(configuration_id="compressed",
-                                 model="fixture",
-                                 url=peer.origin + "/chat",
-                                 api_key="PRIVATE_KEY",
-                                 reasoning_effort=None),
+                ChatEndpointSpec(
+                    configuration_id="compressed",
+                    model="fixture",
+                    url=peer.origin + "/chat",
+                    api_key="PRIVATE_KEY",
+                    reasoning_effort=None
+                ),
                 transport=transport,
                 request_bytes=4096,
                 response_bytes=4096,

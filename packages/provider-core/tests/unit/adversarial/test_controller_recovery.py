@@ -21,14 +21,17 @@ from tests.fakes.controller import SingleRetirementSession, cancel_task, lifecyc
 
 class ControllerRecoveryFailureTests(unittest.IsolatedAsyncioTestCase):
     async def test_permanent_refusal_or_unsettled_cleanup_never_retries(self):
-        for failure in (DeliveryRejected("Wrong relay acknowledgement"),
-                        DeliveryUnavailable("Local policy refused", status=403)):
+        for failure in (
+            DeliveryRejected("Wrong relay acknowledgement"),
+            DeliveryUnavailable("Local policy refused", status=403)
+        ):
             with self.subTest(kind=type(failure).__name__):
                 store = LiveAttemptProbe()
                 (session, delivery, retry) = (SingleRetirementSession(store), RecordingDelivery(), Mock())
                 delivery.submit = AsyncMock(side_effect=failure)
 
-                controller = live_controller(api(Transport(*lifecycle_replies()), scope().api_origin),
+                controller = live_controller(
+                    api(Transport(*lifecycle_replies()), scope().api_origin),
                     store,
                     AttemptClaims.live(),
                     session,
@@ -38,7 +41,8 @@ class ControllerRecoveryFailureTests(unittest.IsolatedAsyncioTestCase):
                     delivery_retry_max_seconds=0.002,
                     allowed_job_states=frozenset({"open"}),
                     poll_seconds=1,
-                    task_settle_seconds=0.1)
+                    task_settle_seconds=0.1
+                )
 
                 with self.assertRaises(ControllerFailed) as caught:
                     await controller.run(record())
@@ -56,7 +60,8 @@ class ControllerRecoveryFailureTests(unittest.IsolatedAsyncioTestCase):
         (original, output_failure) = (DeliveryFull("Relay queue full"), OSError("Authored recipient failure"))
         delivery.submit = AsyncMock(side_effect=original)
 
-        controller = live_controller(api(Transport(*lifecycle_replies()), scope().api_origin),
+        controller = live_controller(
+            api(Transport(*lifecycle_replies()), scope().api_origin),
             store,
             AttemptClaims.live(),
             session,
@@ -66,7 +71,8 @@ class ControllerRecoveryFailureTests(unittest.IsolatedAsyncioTestCase):
             delivery_retry_max_seconds=0.002,
             allowed_job_states=frozenset({"open"}),
             poll_seconds=1,
-            task_settle_seconds=0.1)
+            task_settle_seconds=0.1
+        )
 
         with self.assertRaises(ControllerFailed) as caught:
             await controller.run(record())
@@ -92,7 +98,8 @@ class ControllerRecoveryFailureTests(unittest.IsolatedAsyncioTestCase):
 
         delivery.submit = pressured
 
-        controller = live_controller(api(Transport(*lifecycle_replies()), scope().api_origin),
+        controller = live_controller(
+            api(Transport(*lifecycle_replies()), scope().api_origin),
             store,
             AttemptClaims.live(),
             session,
@@ -102,7 +109,8 @@ class ControllerRecoveryFailureTests(unittest.IsolatedAsyncioTestCase):
             delivery_retry_max_seconds=0.02,
             allowed_job_states=frozenset({"open"}),
             poll_seconds=1,
-            task_settle_seconds=0.1)
+            task_settle_seconds=0.1
+        )
 
         task = asyncio.create_task(controller.run(record()))
 
@@ -164,7 +172,8 @@ class ControllerRecoveryFailureTests(unittest.IsolatedAsyncioTestCase):
                 delivery.can_retry = Mock(side_effect=lambda _: disposition == "available")
                 retry = Mock()
 
-                controller = live_controller(api(Transport(*lifecycle_replies()), scope().api_origin),
+                controller = live_controller(
+                    api(Transport(*lifecycle_replies()), scope().api_origin),
                     store,
                     AttemptClaims.live(),
                     session,
@@ -174,7 +183,8 @@ class ControllerRecoveryFailureTests(unittest.IsolatedAsyncioTestCase):
                     delivery_retry_max_seconds=0.002,
                     allowed_job_states=frozenset({"open"}),
                     poll_seconds=1,
-                    task_settle_seconds=0.1)
+                    task_settle_seconds=0.1
+                )
 
                 task = asyncio.create_task(controller.run(record()))
 
@@ -208,20 +218,24 @@ class ControllerRecoveryFailureTests(unittest.IsolatedAsyncioTestCase):
         store = LiveAttemptProbe()
         (session, transport) = (SingleRetirementSession(store), Transport())
 
-        settings = dict(delivery=RecordingDelivery(),
+        settings = dict(
+            delivery=RecordingDelivery(),
             on_delivery_retry=Mock(),
             delivery_retry_initial_seconds=1,
             delivery_retry_max_seconds=2,
             allowed_job_states=frozenset({"open"}),
             poll_seconds=1,
-            task_settle_seconds=0.1)
+            task_settle_seconds=0.1
+        )
 
-        for (key, value, expected_error) in (("delivery_retry_initial_seconds", True, TypeError),
-                           ("delivery_retry_initial_seconds", 0, ValueError),
-                           ("delivery_retry_max_seconds", float("nan"), ValueError),
-                           ("delivery_retry_max_seconds", float("inf"), ValueError),
-                           ("delivery_retry_max_seconds", 0.5, ValueError),
-                           ("on_delivery_retry", None, ValueError)):
+        for (key, value, expected_error) in (
+            ("delivery_retry_initial_seconds", True, TypeError),
+            ("delivery_retry_initial_seconds", 0, ValueError),
+            ("delivery_retry_max_seconds", float("nan"), ValueError),
+            ("delivery_retry_max_seconds", float("inf"), ValueError),
+            ("delivery_retry_max_seconds", 0.5, ValueError),
+            ("on_delivery_retry", None, ValueError)
+        ):
             with self.subTest(key=key, value=value), self.assertRaises(expected_exception=expected_error):
                 live_controller(api(transport, scope().api_origin), store, AttemptClaims.live(), session, **(settings | {key: value}))
 

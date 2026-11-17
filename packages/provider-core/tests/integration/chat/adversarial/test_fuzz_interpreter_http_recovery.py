@@ -23,14 +23,16 @@ class RepeatedInterpreterTimeoutTests(unittest.TestCase):
                 report_path = root / "verdict.json"
 
                 fixture_process = subprocess.Popen(
-                    (sys.executable,
-                     "-I",
-                     "-B",
-                     str(fixture),
-                     "scenario",
-                     str(root / "http-fault.jsonl"),
-                     str(report_path),
-                     str(seed)),
+                    (
+                        sys.executable,
+                        "-I",
+                        "-B",
+                        str(fixture),
+                        "scenario",
+                        str(root / "http-fault.jsonl"),
+                        str(report_path),
+                        str(seed)
+                    ),
                     stdout=subprocess.PIPE,
                     stderr=subprocess.PIPE,
                     text=True,
@@ -88,7 +90,7 @@ class RepeatedInterpreterTimeoutTests(unittest.TestCase):
                     self.assertTrue(
                         {"read_cancelled", "cleanup_engaged", "term_ignored"} <= set(cycle["fault_events"]),
                         msg="Fault was not engaged before HTTP child exit; "
-                            "inspect the original model startup deadline: " + evidence,
+                        "inspect the original model startup deadline: " + evidence,
                     )
 
                     self.assertEqual([signal.SIGUSR1, signal.SIGTERM, signal.SIGKILL], cycle["signals_sent"], msg=evidence)
@@ -105,11 +107,13 @@ class RepeatedInterpreterTimeoutTests(unittest.TestCase):
                         self.assertTrue(cycle["original_result_pending"], msg=evidence)
                         self.assertTrue(cycle["delivery_original_request_owned"], msg=evidence)
 
-                    for fact in ("first_cause_is_timeout",
-                                 "original_first_cause_retained",
-                                 "original_interpreter_failure_retained",
-                                 "timeout_in_failure_graph",
-                                 "timeout_in_diagnostic"):
+                    for fact in (
+                        "first_cause_is_timeout",
+                        "original_first_cause_retained",
+                        "original_interpreter_failure_retained",
+                        "timeout_in_failure_graph",
+                        "timeout_in_diagnostic"
+                    ):
                         self.assertTrue(cycle[fact], msg=fact + ": " + evidence)
 
                     self.assertEqual(report["scientific_worker_before"]["pid"], cycle["scientific_worker"]["pid"], msg=evidence)
@@ -129,9 +133,11 @@ class RepeatedInterpreterTimeoutTests(unittest.TestCase):
                 self.assertEqual(["/ready", *(["/hang"] * 5), "/ready"], report["prose_request_paths"], msg=evidence)
                 self.assertTrue(report["original_result_bytes_sent_once"], msg=evidence)
 
-                self.assertEqual(report["original_result_acceptance"]["execution_attempt_ref"],
-                                 report["original_result_receipt_reference"],
-                                 msg=evidence)
+                self.assertEqual(
+                    report["original_result_acceptance"]["execution_attempt_ref"],
+                    report["original_result_receipt_reference"],
+                    msg=evidence
+                )
 
                 self.assertEqual(report["original_result_receipt_result"], report["original_result_receipt_verified"], msg=evidence)
                 self.assertTrue(report["delivery_request_bodies_match"], msg=evidence)
@@ -149,9 +155,11 @@ class RepeatedInterpreterTimeoutTests(unittest.TestCase):
                     if job["name"].startswith("timeout-"):
                         expected_science = 0
 
-                    self.assertEqual((1, 1, expected_science, expected_science),
-                                     (job["starts"], job["session_prepare_calls"], job["scientific_prepare_calls"], job["scientific_execute_calls"]),
-                                     msg=evidence)
+                    self.assertEqual(
+                        (1, 1, expected_science, expected_science),
+                        (job["starts"], job["session_prepare_calls"], job["scientific_prepare_calls"], job["scientific_execute_calls"]),
+                        msg=evidence
+                    )
 
                     self.assertTrue(job["shutdown_ready"], msg=evidence)
 

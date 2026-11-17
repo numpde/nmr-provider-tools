@@ -337,10 +337,12 @@ class ExecutionPermissionAdditionalTests(unittest.IsolatedAsyncioTestCase):
 
         recovery = ObservationRecovery(1, 0.1, Mock(), Mock())
 
-        (controller, session, delivery) = composed(DeadlineDispatch,
+        (controller, session, delivery) = composed(
+            DeadlineDispatch,
             transport,
             observation_recovery=recovery,
-            poll_seconds=0.001)
+            poll_seconds=0.001
+        )
 
         session.transport = transport
 

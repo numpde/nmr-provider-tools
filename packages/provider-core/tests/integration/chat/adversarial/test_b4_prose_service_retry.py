@@ -30,10 +30,16 @@ class ProseServiceRetryTests(unittest.IsolatedAsyncioTestCase):
             if restored.is_set():
                 (peer.response_status, peer.response_headers) = (200, None)
 
-                return json.dumps({"choices": [{
-                    "message": call("prepare", "prepare_scientific_input", {}),
-                    "finish_reason": "tool_calls",
-                }]}).encode()
+                return json.dumps(
+                    {
+                        "choices": [
+                            {
+                                "message": call("prepare", "prepare_scientific_input", {}),
+                                "finish_reason": "tool_calls",
+                            }
+                        ]
+                    }
+                ).encode()
 
             peer.response_status = 503
             peer.response_headers = ((b"Content-Type", b"application/json"), (b"Retry-After", b"2"))
@@ -51,28 +57,32 @@ class ProseServiceRetryTests(unittest.IsolatedAsyncioTestCase):
             restored.set()
 
         async with TlsPeer("success", response_factory=response) as peer:
-            service = ProseService(ChatEndpointFactory(
-                spec=ChatEndpointSpec(
-                    configuration_id="b4-prose-service",
-                    model="local-prose-test-model",
-                    url=peer.origin + "/chat",
-                    api_key="B4_TEST_CREDENTIAL",
-                    reasoning_effort=None,
-                ),
-                trust=peer.trust,
-                retirement_seconds=0.3,
-                request_bytes=32768,
-                response_bytes=8192,
-            ))
+            service = ProseService(
+                ChatEndpointFactory(
+                    spec=ChatEndpointSpec(
+                        configuration_id="b4-prose-service",
+                        model="local-prose-test-model",
+                        url=peer.origin + "/chat",
+                        api_key="B4_TEST_CREDENTIAL",
+                        reasoning_effort=None,
+                    ),
+                    trust=peer.trust,
+                    retirement_seconds=0.3,
+                    request_bytes=32768,
+                    response_bytes=8192,
+                )
+            )
 
             restoration = asyncio.create_task(restore_only_the_prose_service())
 
             async def interpret(job, seconds):
-                interpreter = Interpreter((service,),
-                                          interpretation_budget_seconds=seconds,
-                                          reject_combined_messages_and_tools_over_bytes=16384,
-                                          **interpreter_test_limits(),
-                                          secrets=("B4_TEST_CREDENTIAL",))
+                interpreter = Interpreter(
+                    (service,),
+                    interpretation_budget_seconds=seconds,
+                    reject_combined_messages_and_tools_over_bytes=16384,
+                    **interpreter_test_limits(),
+                    secrets=("B4_TEST_CREDENTIAL",)
+                )
 
                 interpreters.append(interpreter)
 
@@ -84,11 +94,15 @@ class ProseServiceRetryTests(unittest.IsolatedAsyncioTestCase):
 
                     return ToolFinished(job)
 
-                tools = [{"type": "function",
-                    "function": {
-                        "name": "prepare_scientific_input",
-                        "parameters": {"type": "object", "properties": {}},
-                }}]
+                tools = [
+                    {
+                        "type": "function",
+                        "function": {
+                            "name": "prepare_scientific_input",
+                            "parameters": {"type": "object", "properties": {}},
+                        }
+                    }
+                ]
 
                 try:
                     return (await interpreter.run([{"role": "user", "content": job}], tools, prepare)).value
@@ -108,8 +122,8 @@ class ProseServiceRetryTests(unittest.IsolatedAsyncioTestCase):
                             ["job:b4-first"],
                             [request["job"] for request in requests],
                             msg="The first Job's deadline elapsed before the local HTTPS "
-                                "service could supply Retry-After; no cross-Job delay "
-                                "was actually established: " + json.dumps(requests),
+                            "service could supply Retry-After; no cross-Job delay "
+                            "was actually established: " + json.dumps(requests),
                         )
 
                 try:
@@ -140,9 +154,11 @@ class ProseServiceRetryTests(unittest.IsolatedAsyncioTestCase):
                     msg="A later Job bypassed the prose service's two-second Retry-After: " + evidence,
                 )
 
-                self.assertEqual(["job:b4-first", "job:b4-third"],
-                                 [request["job"] for request in requests],
-                                 msg=evidence)
+                self.assertEqual(
+                    ["job:b4-first", "job:b4-third"],
+                    [request["job"] for request in requests],
+                    msg=evidence
+                )
             finally:
                 restoration.cancel()
                 await asyncio.gather(restoration, return_exceptions=True)

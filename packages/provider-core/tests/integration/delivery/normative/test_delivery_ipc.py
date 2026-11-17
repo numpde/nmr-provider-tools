@@ -87,12 +87,14 @@ class DeliveryIPCTests(unittest.IsolatedAsyncioTestCase):
         for index in range(MAX_PROVIDER_ITEMS):
             reference = "execution_attempt:sha256:" + f"{index:064x}"
 
-            item = DeliveryOutcome(self.endpoint.api_origin,
-                                   self.endpoint.provider_ref,
-                                   "job:" + "j" * 124,
-                                   reference,
-                                   TerminalOperation.FAIL,
-                                   fail_body(reference, "provider_interrupted", "fixture"))
+            item = DeliveryOutcome(
+                self.endpoint.api_origin,
+                self.endpoint.provider_ref,
+                "job:" + "j" * 124,
+                reference,
+                TerminalOperation.FAIL,
+                fail_body(reference, "provider_interrupted", "fixture")
+            )
 
             self.queue.enqueue(item)
             self.queue.hold(item, "🧪" * 512)
@@ -114,25 +116,29 @@ class DeliveryIPCTests(unittest.IsolatedAsyncioTestCase):
         for index in range(MAX_PROVIDER_ITEMS + 1):
             reference = "execution_attempt:sha256:" + f"{index:064x}"
 
-            item = DeliveryOutcome(self.endpoint.api_origin,
-                                   self.endpoint.provider_ref,
-                                   "job:legacy",
-                                   reference,
-                                   TerminalOperation.FAIL,
-                                   fail_body(reference, "provider_interrupted", "retained exact body"))
+            item = DeliveryOutcome(
+                self.endpoint.api_origin,
+                self.endpoint.provider_ref,
+                "job:legacy",
+                reference,
+                TerminalOperation.FAIL,
+                fail_body(reference, "provider_interrupted", "retained exact body")
+            )
 
             self.queue._db.execute(
                 "INSERT INTO outstanding VALUES(?,?,?,?,?,?,?,?,?,?,NULL)",
-                (item.api_origin,
-                 item.provider_ref,
-                 item.execution_attempt_ref,
-                 item.job_ref,
-                 item.operation.value,
-                 item.body,
-                 item.body_sha256,
-                 "pending",
-                 1.0,
-                 None),
+                (
+                    item.api_origin,
+                    item.provider_ref,
+                    item.execution_attempt_ref,
+                    item.job_ref,
+                    item.operation.value,
+                    item.body,
+                    item.body_sha256,
+                    "pending",
+                    1.0,
+                    None
+                ),
             )
 
             expected.append(item)

@@ -31,20 +31,30 @@ class InterpreterFaultSequenceTests(unittest.IsolatedAsyncioTestCase):
 
                 for (index, action) in enumerate(actions):
                     if randomizer.choice((False, True)):
-                        replies.append(ChatFailed("http_status",
-                                                  "Synthetic unavailable response.",
-                                                  response=SimpleNamespace(status=503, headers=((b"Retry-After", b"0"),))))
+                        replies.append(
+                            ChatFailed(
+                                "http_status",
+                                "Synthetic unavailable response.",
+                                response=SimpleNamespace(status=503, headers=((b"Retry-After", b"0"),))
+                            )
+                        )
 
                     # silent-defaults: allow-contract -- Rejection scenarios invoke preparation; inspection has no effect.
-                    replies.append(call(f"{visit}-{index}",
-                                        "inspect" if action == "inspect" else "prepare",
-                                        {"accepted": False}))
+                    replies.append(
+                        call(
+                            f"{visit}-{index}",
+                            "inspect" if action == "inspect" else "prepare",
+                            {"accepted": False}
+                        )
+                    )
 
                 expected_inspections += actions.count("inspect")
                 final = visit == visits - 1
 
-                replies.append(call(f"{visit}-finish", "prepare", {"accepted": True}) if final else
-                               ChatFailed("invalid_response", "Synthetic incomplete model reply."))
+                replies.append(
+                    call(f"{visit}-finish", "prepare", {"accepted": True}) if final else
+                    ChatFailed("invalid_response", "Synthetic incomplete model reply.")
+                )
 
                 trace.append((visit, tuple(actions), len(replies), final))
                 model = endpoint(f"model-{visit}", *replies)
@@ -53,8 +63,10 @@ class InterpreterFaultSequenceTests(unittest.IsolatedAsyncioTestCase):
                 # silent-defaults: allow-contract -- Freeze this generated visit and endpoint before the loop advances.
                 async def complete(*args, _visit=visit, _original=original, **kwargs):
                     if ("failed request", _visit) in events:
-                        previous_failure = max(index for (index, event) in enumerate(events)
-                                               if event == ("failed request", _visit))
+                        previous_failure = max(
+                            index for (index, event) in enumerate(events)
+                            if event == ("failed request", _visit)
+                        )
 
                         self.assertIn(("retire", _visit), events[previous_failure + 1:])
 

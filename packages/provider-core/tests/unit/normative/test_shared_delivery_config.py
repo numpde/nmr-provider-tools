@@ -27,8 +27,10 @@ class SharedDeliveryConfigurationTests(unittest.TestCase):
             root = Path(directory)
             config = root / "settings.toml"
 
-            config.write_text('[outbox]\nprovider_items = 2\nprovider_bytes = 8192\ntotal_items = 4\n'
-                              'total_bytes = 16384\nretry_initial_seconds = 1\nretry_max_seconds = 5\nlog_level = "INFO"\n')
+            config.write_text(
+                '[outbox]\nprovider_items = 2\nprovider_bytes = 8192\ntotal_items = 4\n'
+                'total_bytes = 16384\nretry_initial_seconds = 1\nretry_max_seconds = 5\nlog_level = "INFO"\n'
+            )
 
             queue = DeliveryQueue(root, limits=QueueLimits(2, 8192, 4, 16384))
             item = outcome()
@@ -39,16 +41,18 @@ class SharedDeliveryConfigurationTests(unittest.TestCase):
             queue.close()
             output = io.StringIO()
 
-            argv = ["delivery_discard",
-                    "--shared-config",
-                    str(config),
-                    "--state-directory",
-                    str(root),
-                    "--api-origin",
-                    item.api_origin,
-                    "--provider-ref",
-                    item.provider_ref,
-                    "--list-held"]
+            argv = [
+                "delivery_discard",
+                "--shared-config",
+                str(config),
+                "--state-directory",
+                str(root),
+                "--api-origin",
+                item.api_origin,
+                "--provider-ref",
+                item.provider_ref,
+                "--list-held"
+            ]
 
             with patch("sys.argv", argv), contextlib.redirect_stdout(output):
                 delivery_discard.main()
@@ -67,25 +71,29 @@ class SharedDeliveryConfigurationTests(unittest.TestCase):
             path = root / "settings.toml"
 
             def write(target, items, retry):
-                target.write_text(f'[outbox]\nprovider_items = {items}\nprovider_bytes = 8192\n'
-                                  f'total_items = 4\ntotal_bytes = 16384\nretry_initial_seconds = {retry}\n'
-                                  'retry_max_seconds = 10\nlog_level = "INFO"\n')
+                target.write_text(
+                    f'[outbox]\nprovider_items = {items}\nprovider_bytes = 8192\n'
+                    f'total_items = 4\ntotal_bytes = 16384\nretry_initial_seconds = {retry}\n'
+                    'retry_max_seconds = 10\nlog_level = "INFO"\n'
+                )
 
             write(path, 1, 1)
             live = SharedDeliveryConfiguration(path)
             settings = live.read()
             notices = Mock()
 
-            service = SharedDeliveryService(root / "state",
-                                            limits=settings.limits,
-                                            socket=SharedDeliverySocket(root / "delivery.sock", None),
-                                            proxy_socket=root / "proxy.sock",
-                                            ipc_io_timeout_seconds=1,
-                                            retry_initial_seconds=1,
-                                            retry_max_seconds=10,
-                                            on_notice=notices,
-                                            diagnostic_status=Mock(),
-                                            live_configuration=live)
+            service = SharedDeliveryService(
+                root / "state",
+                limits=settings.limits,
+                socket=SharedDeliverySocket(root / "delivery.sock", None),
+                proxy_socket=root / "proxy.sock",
+                ipc_io_timeout_seconds=1,
+                retry_initial_seconds=1,
+                retry_max_seconds=10,
+                on_notice=notices,
+                diagnostic_status=Mock(),
+                live_configuration=live
+            )
 
             service.queue = DeliveryQueue(root / "state", limits=settings.limits)
 
@@ -93,13 +101,15 @@ class SharedDeliveryConfigurationTests(unittest.TestCase):
             worker = SimpleNamespace(retry_initial_seconds=1, retry_max_seconds=10, policy_changed=asyncio.Event())
             service.workers[("https://api.example", "provider:example")] = worker
 
-            fields = {"origin": "https://api.example",
-                      "profile": "dev-local",
-                      "topology": "dev-local",
-                      "provider_ref": "provider:example",
-                      "exchange_seconds": 1,
-                      "retirement_seconds": 1,
-                      "credential_file": "/gone/key"}
+            fields = {
+                "origin": "https://api.example",
+                "profile": "dev-local",
+                "topology": "dev-local",
+                "provider_ref": "provider:example",
+                "exchange_seconds": 1,
+                "retirement_seconds": 1,
+                "credential_file": "/gone/key"
+            }
 
             (_, _, material) = api_settings_with_material(fields, Mock(return_value=encoded(document())))
             first = DeliveryHandoff(outcome(provider="provider:example"), material)

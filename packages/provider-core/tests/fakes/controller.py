@@ -9,14 +9,16 @@ from tests.fakes.job_input import response
 
 
 def lifecycle_replies():
-    return (reply(start_response()),
-            reply(observation()),
-            reply(response()),
-            reply(progress_response()),
-            reply(observation()),
-            reply(progress_response(phase="running")),
-            reply(observation()),
-            reply(observation()))
+    return (
+        reply(start_response()),
+        reply(observation()),
+        reply(response()),
+        reply(progress_response()),
+        reply(observation()),
+        reply(progress_response(phase="running")),
+        reply(observation()),
+        reply(observation())
+    )
 
 
 class SingleRetirementSession(Session):

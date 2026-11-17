@@ -27,12 +27,16 @@ class ResultConsumptionTests(unittest.IsolatedAsyncioTestCase):
         )
 
         if release is None:
-            release = SimpleNamespace(observe=AsyncMock(return_value=CleanupObservation(
-                revision=1,
-                settled=True,
-                allowance_expired=False,
-                failures=(),
-            )))
+            release = SimpleNamespace(
+                observe=AsyncMock(
+                    return_value=CleanupObservation(
+                        revision=1,
+                        settled=True,
+                        allowance_expired=False,
+                        failures=(),
+                    )
+                )
+            )
 
         operation = SimpleNamespace(
             read_result=AsyncMock(return_value=b"original result"),
@@ -171,12 +175,16 @@ class ResultConsumptionTests(unittest.IsolatedAsyncioTestCase):
     async def test_failed_release_reobserves_original_failure_without_reaccepting(self):
         cause = OSError("Result disposal failed")
 
-        release = SimpleNamespace(observe=AsyncMock(return_value=CleanupObservation(
-            revision=1,
-            settled=False,
-            allowance_expired=False,
-            failures=(Failure("cleanup", cause),),
-        )))
+        release = SimpleNamespace(
+            observe=AsyncMock(
+                return_value=CleanupObservation(
+                    revision=1,
+                    settled=False,
+                    allowance_expired=False,
+                    failures=(Failure("cleanup", cause),),
+                )
+            )
+        )
 
         receive = AsyncMock()
         owner = self.owner(receive, release=release)
@@ -406,12 +414,16 @@ class ResultConsumptionTests(unittest.IsolatedAsyncioTestCase):
         original = ValueError("Request bookkeeping failed")
         cleanup = OSError("Original result release failed")
 
-        release = SimpleNamespace(observe=AsyncMock(return_value=CleanupObservation(
-            revision=1,
-            settled=False,
-            allowance_expired=False,
-            failures=(Failure(phase="cleanup", cause=cleanup),),
-        )))
+        release = SimpleNamespace(
+            observe=AsyncMock(
+                return_value=CleanupObservation(
+                    revision=1,
+                    settled=False,
+                    allowance_expired=False,
+                    failures=(Failure(phase="cleanup", cause=cleanup),),
+                )
+            )
+        )
 
         receive = AsyncMock()
         owner = self.owner(receive, release=release)

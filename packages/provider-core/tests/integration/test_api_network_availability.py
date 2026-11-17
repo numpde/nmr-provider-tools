@@ -22,9 +22,11 @@ class ApiNetworkAvailabilityTests(unittest.IsolatedAsyncioTestCase):
     def api(self, origin, trust):
         transport = HttpTransport(trust=trust,exchange_seconds=1,retirement_seconds=0.2)
 
-        return ProviderAPI(SigningIdentity(origin,"credential:test",Ed25519PrivateKey.generate()),
-                           transport,
-                           expected_topology="dev-local")
+        return ProviderAPI(
+            SigningIdentity(origin,"credential:test",Ed25519PrivateKey.generate()),
+            transport,
+            expected_topology="dev-local"
+        )
 
     async def test_tls_handshake_eof_allows_same_api_to_recover_with_full_verification(self):
         async with TlsPeer("success",response_body=encoded(membership()),response_headers=response_headers()) as peer:
@@ -51,10 +53,16 @@ class ApiNetworkAvailabilityTests(unittest.IsolatedAsyncioTestCase):
 
             self.assertTrue(api.retirement_confirmed)
 
-            print(json.dumps({"primary":type(failure.cause.primary).__name__,
-                              "context":type(failure.cause.primary.__context__).__name__,
-                              "retry":api.can_retry_read(failure)}),
-                flush=True)
+            print(
+                json.dumps(
+                    {
+                        "primary":type(failure.cause.primary).__name__,
+                        "context":type(failure.cause.primary.__context__).__name__,
+                        "retry":api.can_retry_read(failure)
+                    }
+                ),
+                flush=True
+            )
 
             self.assertTrue(api.can_retry_read(failure))
             peer.server.close()
@@ -64,12 +72,14 @@ class ApiNetworkAvailabilityTests(unittest.IsolatedAsyncioTestCase):
             trust.load_cert_chain(Path(peer.scratch.name)/"cert.pem",Path(peer.scratch.name)/"key.pem")
             peer.closed=asyncio.Event()
 
-            peer.server=await asyncio.start_server(peer.handle,
-                                                   "127.0.0.1",
-                                                   port,
-                                                   ssl=trust,
-                                                   ssl_handshake_timeout=0.5,
-                                                   ssl_shutdown_timeout=0.5)
+            peer.server=await asyncio.start_server(
+                peer.handle,
+                "127.0.0.1",
+                port,
+                ssl=trust,
+                ssl_handshake_timeout=0.5,
+                ssl_shutdown_timeout=0.5
+            )
 
             result=await api.uploads("job:example")
 
@@ -99,9 +109,11 @@ class ApiNetworkAvailabilityTests(unittest.IsolatedAsyncioTestCase):
                 Path(proxy.path).unlink()
                 transport = HttpTransport(trust=peer.trust, exchange_seconds=1, retirement_seconds=.2, proxy_socket=proxy.path)
 
-                api = ProviderAPI(SigningIdentity(peer.origin, "credential:test", Ed25519PrivateKey.generate()),
-                                  transport,
-                                  expected_topology="dev-local")
+                api = ProviderAPI(
+                    SigningIdentity(peer.origin, "credential:test", Ed25519PrivateKey.generate()),
+                    transport,
+                    expected_topology="dev-local"
+                )
 
                 with patch("socket.getaddrinfo", side_effect=AssertionError("configured Unix route must not resolve TCP")):
                     with self.assertRaises(ApiFailure) as caught:
@@ -127,9 +139,11 @@ class ApiNetworkAvailabilityTests(unittest.IsolatedAsyncioTestCase):
         # unfinished TLS handshake. Explicitly own only that optional fault,
         # leaving every other asyncio ERROR visible to the shared test runner.
         with expect_optional_certificate_rejection_reset():
-            async with TlsPeer("success",
-                               response_body=encoded(membership()),
-                               response_headers=response_headers()) as peer:
+            async with TlsPeer(
+                "success",
+                response_body=encoded(membership()),
+                response_headers=response_headers()
+            ) as peer:
                 api = self.api(peer.origin, ssl.create_default_context())
 
                 with self.assertRaises(ApiFailure) as caught:

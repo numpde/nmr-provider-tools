@@ -92,16 +92,18 @@ class DeploymentBindingTests(unittest.TestCase):
             path.write_bytes(definition(2))
 
             result = subprocess.run(
-                [sys.executable,
-                 "-I",
-                 "-B",
-                 "-m",
-                 "provider_core.deployment_binding",
-                 "describe-binding",
-                 "--definition",
-                 str(path),
-                 "--binding",
-                 "fixture-1"],
+                [
+                    sys.executable,
+                    "-I",
+                    "-B",
+                    "-m",
+                    "provider_core.deployment_binding",
+                    "describe-binding",
+                    "--definition",
+                    str(path),
+                    "--binding",
+                    "fixture-1"
+                ],
                 capture_output=True,
                 text=True,
                 check=False,
@@ -110,13 +112,15 @@ class DeploymentBindingTests(unittest.TestCase):
 
         self.assertEqual(0, result.returncode, result.stderr)
 
-        self.assertEqual({
-            "ipc_volume": selected.ipc_volume,
-            "socket_path": "/run/delivery/delivery.sock",
-            "socket_group_id": 65532,
-            "input_paths": ["/synthetic/signing.json"],
-        },
-            json.loads(result.stdout))
+        self.assertEqual(
+            {
+                "ipc_volume": selected.ipc_volume,
+                "socket_path": "/run/delivery/delivery.sock",
+                "socket_group_id": 65532,
+                "input_paths": ["/synthetic/signing.json"],
+            },
+            json.loads(result.stdout)
+        )
 
     def test_selected_binding_derives_wire_identity_volume_and_group_without_opening_credentials(self):
         with patch("provider_core.deployment_binding.read_startup_file") as read:

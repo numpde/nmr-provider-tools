@@ -38,12 +38,14 @@ class AttemptInventoryFailureTests(unittest.IsolatedAsyncioTestCase):
     async def test_bad_wire_retains_private_evidence_and_no_mutation_uncertainty(self):
         raw = response()
 
-        malformed = (raw + b" " * 65536,
-                     b"\xff",
-                     b"{",
-                     raw.replace(b'"next_cursor": "YQ"', b'"next_cursor": "YQ", "next_cursor": null'),
-                     raw.replace(b'"in_progress"', b"NaN"),
-                     response(schema_id="private canary schema"))
+        malformed = (
+            raw + b" " * 65536,
+            b"\xff",
+            b"{",
+            raw.replace(b'"next_cursor": "YQ"', b'"next_cursor": "YQ", "next_cursor": null'),
+            raw.replace(b'"in_progress"', b"NaN"),
+            response(schema_id="private canary schema")
+        )
 
         for body in malformed:
             with self.subTest(size=len(body)):
@@ -60,13 +62,15 @@ class AttemptInventoryFailureTests(unittest.IsolatedAsyncioTestCase):
                     self.assertNotIn("private canary", rendered)
 
     def test_envelope_schema_cursor_fields_and_requested_count_are_admitted(self):
-        for (field, bad) in (("schema_id", "future.v2"),
-                           ("attempts", {}),
-                           ("next_cursor", "YR"),
-                           ("next_cursor", "YQ="),
-                           ("next_cursor", ""),
-                           ("next_cursor", []),
-                           ("extra", "private canary")):
+        for (field, bad) in (
+            ("schema_id", "future.v2"),
+            ("attempts", {}),
+            ("next_cursor", "YR"),
+            ("next_cursor", "YQ="),
+            ("next_cursor", ""),
+            ("next_cursor", []),
+            ("extra", "private canary")
+        ):
             document = page(**{field: bad})
 
             with self.subTest(field=field), self.assertRaises(ResponseRejected):
@@ -84,19 +88,21 @@ class AttemptInventoryFailureTests(unittest.IsolatedAsyncioTestCase):
             read_attempt_inventory(json.dumps(document).encode(), limit=2)
 
     def test_every_row_is_admitted_before_a_page_is_exposed(self):
-        for (field, bad) in (("analysis_kind_ref", "wrong kind"),
-                           ("execution_attempt_ref", "foreign"),
-                           ("job_ref", "foreign"),
-                           ("job_ref", []),
-                           ("provider_attempt_key", "private canary\n"),
-                           ("provider_attempt_key", ""),
-                           ("provider_attempt_key", "a" * 129),
-                           ("state", "succeeded"),
-                           ("state", {}),
-                           ("started_at", "2026-02-30T00:00:00Z"),
-                           ("started_at", "2026-10-18T00:00:00.000000Z"),
-                           ("started_at", "2026-10-18T00:00:00+00:00"),
-                           ("extra", "private canary")):
+        for (field, bad) in (
+            ("analysis_kind_ref", "wrong kind"),
+            ("execution_attempt_ref", "foreign"),
+            ("job_ref", "foreign"),
+            ("job_ref", []),
+            ("provider_attempt_key", "private canary\n"),
+            ("provider_attempt_key", ""),
+            ("provider_attempt_key", "a" * 129),
+            ("state", "succeeded"),
+            ("state", {}),
+            ("started_at", "2026-02-30T00:00:00Z"),
+            ("started_at", "2026-10-18T00:00:00.000000Z"),
+            ("started_at", "2026-10-18T00:00:00+00:00"),
+            ("extra", "private canary")
+        ):
             document = page()
 
             document["attempts"].append({**document["attempts"][0], field: bad})

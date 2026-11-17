@@ -32,12 +32,14 @@ class PublicationStorageStallTests(unittest.IsolatedAsyncioTestCase):
 
         self.addCleanup(self.queue.close)
 
-        self.inbox = DeliveryInbox(self.queue,
-                                   (),
-                                   request_seconds=1,
-                                   on_accepted=Mock(),
-                                   on_failure=Mock(),
-                                   binding_status=Mock())
+        self.inbox = DeliveryInbox(
+            self.queue,
+            (),
+            request_seconds=1,
+            on_accepted=Mock(),
+            on_failure=Mock(),
+            binding_status=Mock()
+        )
 
         self.addAsyncCleanup(self.inbox.close)
 
@@ -69,24 +71,28 @@ class PublicationStorageStallTests(unittest.IsolatedAsyncioTestCase):
             if facts["event"] == "delivery_published":
                 worker.request_stop()
 
-        async with api_tls_peer("success",
+        async with api_tls_peer(
+            "success",
             response_body=fail_response(
                 execution_attempt_ref=outcome().execution_attempt_ref,
                 failure_code="provider_interrupted",
                 failure_message="SCIENTIFIC_PAYLOAD_NEEDLE",
-        )) as peer:
+            )
+        ) as peer:
             item = replace(outcome(), api_origin=peer.origin)
 
             self.queue.enqueue(item)
             client = api(HttpTransport(trust=peer.trust, exchange_seconds=0.2, retirement_seconds=0.2), peer.origin)
             endpoint = DeliveryEndpoint(peer.origin, item.provider_ref, self.root / "unused-relay.sock")
 
-            worker = DeliveryWorker(self.inbox,
-                                    endpoint,
-                                    client,
-                                    retry_initial_seconds=0.04,
-                                    retry_max_seconds=0.08,
-                                    on_notice=notice)
+            worker = DeliveryWorker(
+                self.inbox,
+                endpoint,
+                client,
+                retry_initial_seconds=0.04,
+                retry_max_seconds=0.08,
+                on_notice=notice
+            )
 
             # Existing public grants define when an uninterrupted publication
             # wait becomes an operator concern; no new test-only policy exists.
@@ -119,18 +125,20 @@ class PublicationStorageStallTests(unittest.IsolatedAsyncioTestCase):
 
                         notice_evidence.append({"error": reason, **facts})
 
-                    evidence = json.dumps({
-                        "alert_seconds": alert_seconds,
-                        "observed_wait_seconds": loop.time() - started_at,
-                        "api_receipt_received": worker._api_receipt_received,
-                        "api_retirement_confirmed": client.retirement_confirmed,
-                        "original_storage_call_count": len(removal_calls),
-                        "storage_released": release_removal.is_set(),
-                        "original_report_retained": waiting == item,
-                        "request_count": len(peer.requests),
-                        "notices": notice_evidence,
-                    },
-                        sort_keys=True)
+                    evidence = json.dumps(
+                        {
+                            "alert_seconds": alert_seconds,
+                            "observed_wait_seconds": loop.time() - started_at,
+                            "api_receipt_received": worker._api_receipt_received,
+                            "api_retirement_confirmed": client.retirement_confirmed,
+                            "original_storage_call_count": len(removal_calls),
+                            "storage_released": release_removal.is_set(),
+                            "original_report_retained": waiting == item,
+                            "request_count": len(peer.requests),
+                            "notices": notice_evidence,
+                        },
+                        sort_keys=True
+                    )
 
                     self.assertFalse(original.done(), msg=evidence)
                     self.assertFalse(release_removal.is_set(), msg=evidence)
@@ -140,9 +148,11 @@ class PublicationStorageStallTests(unittest.IsolatedAsyncioTestCase):
                     self.assertTrue(worker._api_receipt_received, msg=evidence)
                     self.assertTrue(client.retirement_confirmed, msg=evidence)
 
-                    self.assertEqual(["delivery_stalled"],
-                                     [facts["event"] for (_, facts, _) in notices],
-                                     msg="No operator warning described the original publication blocked in storage: " + evidence)
+                    self.assertEqual(
+                        ["delivery_stalled"],
+                        [facts["event"] for (_, facts, _) in notices],
+                        msg="No operator warning described the original publication blocked in storage: " + evidence
+                    )
 
                     (failure, stalled, observed_at) = notices[0]
 
@@ -154,9 +164,11 @@ class PublicationStorageStallTests(unittest.IsolatedAsyncioTestCase):
                     self.assertIs(stalled["api_receipt_received"], True, msg=evidence)
                     self.assertGreaterEqual(stalled["publication_wait_seconds"], alert_seconds, msg=evidence)
 
-                    self.assertLessEqual(stalled["publication_wait_seconds"],
-                                         observed_at - started_at + 0.02,
-                                         msg=evidence)
+                    self.assertLessEqual(
+                        stalled["publication_wait_seconds"],
+                        observed_at - started_at + 0.02,
+                        msg=evidence
+                    )
 
                     # The original owner remains held; a second elapsed budget
                     # must neither repeat the alert nor resend its accepted report.
@@ -172,8 +184,10 @@ class PublicationStorageStallTests(unittest.IsolatedAsyncioTestCase):
                     worker.request_stop()
                     await asyncio.wait_for(asyncio.shield(original), 3)
 
-            self.assertEqual(["delivery_stalled", "delivery_published"],
-                             [facts["event"] for (_, facts, _) in notices])
+            self.assertEqual(
+                ["delivery_stalled", "delivery_published"],
+                [facts["event"] for (_, facts, _) in notices]
+            )
 
             (failure, published, _) = notices[-1]
 
@@ -231,24 +245,28 @@ class PublicationStorageStallTests(unittest.IsolatedAsyncioTestCase):
             if facts["event"] == "delivery_stalled":
                 warning_seen.set()
 
-        async with api_tls_peer("success",
+        async with api_tls_peer(
+            "success",
             response_body=fail_response(
                 execution_attempt_ref=outcome().execution_attempt_ref,
                 failure_code="provider_interrupted",
                 failure_message="SCIENTIFIC_PAYLOAD_NEEDLE",
-        )) as peer:
+            )
+        ) as peer:
             item = replace(outcome(), api_origin=peer.origin)
 
             self.queue.enqueue(item)
             client = api(HttpTransport(trust=peer.trust, exchange_seconds=0.2, retirement_seconds=0.2), peer.origin)
             endpoint = DeliveryEndpoint(peer.origin, item.provider_ref, self.root / "unused-relay.sock")
 
-            worker = DeliveryWorker(self.inbox,
-                                    endpoint,
-                                    client,
-                                    retry_initial_seconds=0.04,
-                                    retry_max_seconds=0.08,
-                                    on_notice=notice)
+            worker = DeliveryWorker(
+                self.inbox,
+                endpoint,
+                client,
+                retry_initial_seconds=0.04,
+                retry_max_seconds=0.08,
+                on_notice=notice
+            )
 
             alert_seconds = client.exchange_seconds + client.retirement_seconds + worker.retry_max_seconds
 
@@ -314,24 +332,28 @@ class PublicationStorageStallTests(unittest.IsolatedAsyncioTestCase):
             if facts["event"] == "delivery_published":
                 worker.request_stop()
 
-        async with api_tls_peer("success",
+        async with api_tls_peer(
+            "success",
             response_body=fail_response(
                 execution_attempt_ref=outcome().execution_attempt_ref,
                 failure_code="provider_interrupted",
                 failure_message="SCIENTIFIC_PAYLOAD_NEEDLE",
-        )) as peer:
+            )
+        ) as peer:
             item = replace(outcome(), api_origin=peer.origin)
 
             self.queue.enqueue(item)
             client = api(HttpTransport(trust=peer.trust, exchange_seconds=0.2, retirement_seconds=0.2), peer.origin)
             endpoint = DeliveryEndpoint(peer.origin, item.provider_ref, self.root / "unused-relay.sock")
 
-            worker = DeliveryWorker(self.inbox,
-                                    endpoint,
-                                    client,
-                                    retry_initial_seconds=0.04,
-                                    retry_max_seconds=0.08,
-                                    on_notice=notice)
+            worker = DeliveryWorker(
+                self.inbox,
+                endpoint,
+                client,
+                retry_initial_seconds=0.04,
+                retry_max_seconds=0.08,
+                on_notice=notice
+            )
 
             alert_seconds = client.exchange_seconds + client.retirement_seconds + worker.retry_max_seconds
 

@@ -89,10 +89,12 @@ async def scenario(marker, report, seed):
     published = set()
     (notices, cycles, jobs, first_http_stops, completion_receipts) = ([], [], [], {}, [])
 
-    result = {"seed": seed,
-              "acknowledgement_cycle": acknowledgement_cycle,
-              "acknowledgement_phase": acknowledgement_phase,
-              "cycles": cycles}
+    result = {
+        "seed": seed,
+        "acknowledgement_cycle": acknowledgement_cycle,
+        "acknowledgement_phase": acknowledgement_phase,
+        "cycles": cycles
+    }
 
     (maximum_attempts, repetitions) = (2, 5)
     claims = AttemptClaims.live(limits=LiveAttemptLimits(maximum_attempts=maximum_attempts))
@@ -118,9 +120,13 @@ async def scenario(marker, report, seed):
             if request.url.path.endswith("/progress"):
                 sent = json.loads(request.content)
 
-                return reply(progress_response(execution_attempt_ref=self.attempt_ref,
-                                               phase=sent["phase"],
-                                               condition_code=sent["condition_code"]))
+                return reply(
+                    progress_response(
+                        execution_attempt_ref=self.attempt_ref,
+                        phase=sent["phase"],
+                        condition_code=sent["condition_code"]
+                    )
+                )
 
             if request.method == "GET":
                 return reply(observation(job_ref=self.job_ref, execution_attempt_ref=self.attempt_ref))
@@ -136,11 +142,13 @@ async def scenario(marker, report, seed):
             self.http_endpoints = []
 
             factory = ChatEndpointFactory(
-                spec=ChatEndpointSpec(configuration_id="b3-prose-interpreter",
-                                      model="b3-fixture-prose-interpreter",
-                                      url=url,
-                                      api_key="PRIVATE_B3_FIXTURE_KEY",
-                                      reasoning_effort=None),
+                spec=ChatEndpointSpec(
+                    configuration_id="b3-prose-interpreter",
+                    model="b3-fixture-prose-interpreter",
+                    url=url,
+                    api_key="PRIVATE_B3_FIXTURE_KEY",
+                    reasoning_effort=None
+                ),
                 trust=trust,
                 retirement_seconds=0.3,
                 request_bytes=32768,
@@ -162,11 +170,13 @@ async def scenario(marker, report, seed):
             if url.endswith("/hang"):
                 timeout_seconds = 2.0
 
-            self.interpreter = Interpreter((capture_endpoint,),
-                                           interpretation_budget_seconds=timeout_seconds,
-                                           reject_combined_messages_and_tools_over_bytes=16384,
-                                           **interpreter_test_limits(),
-                                           secrets=("PRIVATE_B3_FIXTURE_KEY",))
+            self.interpreter = Interpreter(
+                (capture_endpoint,),
+                interpretation_budget_seconds=timeout_seconds,
+                reject_combined_messages_and_tools_over_bytes=16384,
+                **interpreter_test_limits(),
+                secrets=("PRIVATE_B3_FIXTURE_KEY",)
+            )
 
         async def prepare(self, acknowledged, instructions, *, report_condition):
             self.prepare_calls += 1
@@ -186,10 +196,15 @@ async def scenario(marker, report, seed):
 
                 return ToolFinished(self.handle)
 
-            tools = [{"type": "function",
-                "function": {
-                    "name": "prepare_scientific_input",
-                    "parameters": {"type": "object", "properties": {}}}}]
+            tools = [
+                {
+                    "type": "function",
+                    "function": {
+                        "name": "prepare_scientific_input",
+                        "parameters": {"type": "object", "properties": {}}
+                    }
+                }
+            ]
 
             try:
                 prepared = await self.interpreter.run([], tools, dispatch)
@@ -215,9 +230,11 @@ async def scenario(marker, report, seed):
             value = await self.scientific_worker.call("execute", self.job_ref)
             self.handle = None
 
-            return AnalysisSuccess("fixture.counted_science.v1",
-                                   json.dumps(value).encode(),
-                                   ProtectedEvidence("fixture.science.evidence.v1", b"one scientific execution"))
+            return AnalysisSuccess(
+                "fixture.counted_science.v1",
+                json.dumps(value).encode(),
+                ProtectedEvidence("fixture.science.evidence.v1", b"one scientific execution")
+            )
 
         async def retire(self):
             await self.interpreter.retire()
@@ -300,8 +317,16 @@ async def scenario(marker, report, seed):
 
         return original_stop(transport, exchange, cause, at=at)
 
-    response_body = json.dumps({"choices": [{"message": call("prepared", "prepare_scientific_input", {}),
-                                            "finish_reason": "tool_calls"}]}).encode()
+    response_body = json.dumps(
+        {
+            "choices": [
+                {
+                    "message": call("prepared", "prepare_scientific_input", {}),
+                    "finish_reason": "tool_calls"
+                }
+            ]
+        }
+    ).encode()
 
     with ExitStack() as patches:
         command = (sys.executable, "-I", "-B", str(Path(__file__).resolve()), "http-worker", str(marker))
@@ -316,28 +341,34 @@ async def scenario(marker, report, seed):
                 delivery_directory.mkdir(mode=0o700)
                 queue = DeliveryQueue(delivery_directory, limits=QueueLimits(16, 131072, 16, 131072))
 
-                inbox = DeliveryInbox(queue,
-                                      (),
-                                      request_seconds=1,
-                                      on_accepted=Mock(),
-                                      on_failure=Mock(),
-                                      binding_status=Mock())
+                inbox = DeliveryInbox(
+                    queue,
+                    (),
+                    request_seconds=1,
+                    on_accepted=Mock(),
+                    on_failure=Mock(),
+                    binding_status=Mock()
+                )
 
                 selected_scope = replace(scope(), api_origin=jobs_api_peer.origin)
 
-                endpoint = DeliveryEndpoint(selected_scope.api_origin,
-                                            selected_scope.provider_ref,
-                                            report.parent / "unused-relay.sock")
+                endpoint = DeliveryEndpoint(
+                    selected_scope.api_origin,
+                    selected_scope.provider_ref,
+                    report.parent / "unused-relay.sock"
+                )
 
                 delivery_transport = HttpTransport(trust=jobs_api_peer.trust, exchange_seconds=12, retirement_seconds=0.3)
                 delivery_api = api(delivery_transport, jobs_api_peer.origin)
 
-                publisher = DeliveryWorker(inbox,
-                                           endpoint,
-                                           delivery_api,
-                                           retry_initial_seconds=0.01,
-                                           retry_max_seconds=0.04,
-                                           on_notice=notice)
+                publisher = DeliveryWorker(
+                    inbox,
+                    endpoint,
+                    delivery_api,
+                    retry_initial_seconds=0.01,
+                    retry_max_seconds=0.04,
+                    on_notice=notice
+                )
 
                 original_complete = delivery_api.complete_attempt
 
@@ -357,10 +388,12 @@ async def scenario(marker, report, seed):
                     job_ref = "job:b3-" + name
                     base = record("b3:" + name)
 
-                    pending = StartPending(selected_scope,
-                                           base.analysis_kind_ref,
-                                           replace(base.input, job_ref=job_ref),
-                                           retained_start(job_ref=job_ref, provider_attempt_key="b3:" + name))
+                    pending = StartPending(
+                        selected_scope,
+                        base.analysis_kind_ref,
+                        replace(base.input, job_ref=job_ref),
+                        retained_start(job_ref=job_ref, provider_attempt_key="b3:" + name)
+                    )
 
                     session = ScientificSession(job_ref, prose_peer.origin + route, prose_peer.trust, scientific_worker)
                     control_transport = JobsControlTransport(job_ref)
@@ -434,13 +467,15 @@ async def scenario(marker, report, seed):
                     original_result = local_delivery.items[0]
                     pending_delivery_descriptors = _descriptors()
 
-                    result.update(provider_pid=os.getpid(),
-                                  maximum_attempts=maximum_attempts,
-                                  repetitions=repetitions,
-                                  scientific_worker_before=scientific_worker.initial,
-                                  idle_descriptors=idle_descriptors,
-                                  pending_delivery_descriptors=pending_delivery_descriptors,
-                                  original_result_acceptance=original_result.acceptance())
+                    result.update(
+                        provider_pid=os.getpid(),
+                        maximum_attempts=maximum_attempts,
+                        repetitions=repetitions,
+                        scientific_worker_before=scientific_worker.initial,
+                        idle_descriptors=idle_descriptors,
+                        pending_delivery_descriptors=pending_delivery_descriptors,
+                        original_result_acceptance=original_result.acceptance()
+                    )
 
                     release_task = asyncio.create_task(release_receipt_during_fault())
 
@@ -508,12 +543,14 @@ async def scenario(marker, report, seed):
                         final_descriptors=_descriptors(),
                         final_open_prose_connections=open_prose_connections,
                         final_open_jobs_api_connections=open_jobs_api_connections,
-                        jobs=[{"name": name,
-                               "session_prepare_calls": session.prepare_calls,
-                               "scientific_prepare_calls": session.scientific_prepare_calls,
-                               "scientific_execute_calls": session.execute_calls,
-                               "starts": sum(request.url.path.endswith("/start") for (request, _) in control.calls),
-                               "shutdown_ready": controller.shutdown_ready}
+                        jobs=[{
+                            "name": name,
+                            "session_prepare_calls": session.prepare_calls,
+                            "scientific_prepare_calls": session.scientific_prepare_calls,
+                            "scientific_execute_calls": session.execute_calls,
+                            "starts": sum(request.url.path.endswith("/start") for (request, _) in control.calls),
+                            "shutdown_ready": controller.shutdown_ready
+                        }
                               for (name, session, control, controller) in jobs],
                         prose_request_paths=[request.split(b" ")[1].decode() for request in prose_peer.requests],
                     )

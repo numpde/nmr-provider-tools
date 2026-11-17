@@ -20,11 +20,15 @@ class ProxyCapacityRecoveryTests(unittest.IsolatedAsyncioTestCase):
         kind = 'mol_from_1h_spectrum_formula'
 
         async def response(_request, _body):
-            return json.dumps({'schema_id': 'nmr.provider.jobs.list.response.v1',
-                'analysis_kind_ref': kind,
-                'has_provider_execution_attempt': False,
-                'next_cursor': None,
-                'jobs': []}).encode()
+            return json.dumps(
+                {
+                    'schema_id': 'nmr.provider.jobs.list.response.v1',
+                    'analysis_kind_ref': kind,
+                    'has_provider_execution_attempt': False,
+                    'next_cursor': None,
+                    'jobs': []
+                }
+            ).encode()
 
         async with api_tls_peer('success', response_factory=response) as peer:
             with tempfile.TemporaryDirectory() as directory:
@@ -40,9 +44,11 @@ class ProxyCapacityRecoveryTests(unittest.IsolatedAsyncioTestCase):
                         finally:
                             exited.set()
 
-                policy = ServicePolicy.admit('mapped',
-                                             [urlsplit(peer.origin).netloc],
-                                             ['127.0.0.1=127.0.0.1'])
+                policy = ServicePolicy.admit(
+                    'mapped',
+                    [urlsplit(peer.origin).netloc],
+                    ['127.0.0.1=127.0.0.1']
+                )
 
                 with ObservedProxy(root / 'proxy.sock', 'lo', policy, status_directory=root) as proxy:
                     proxy._slots.set_limit(1)
@@ -56,10 +62,12 @@ class ProxyCapacityRecoveryTests(unittest.IsolatedAsyncioTestCase):
 
                         self.assertTrue(await asyncio.to_thread(entered.wait, 2), 'First connection did not occupy the proxy')
 
-                        transport = HttpTransport(trust=peer.trust,
-                                                  exchange_seconds=2,
-                                                  retirement_seconds=1,
-                                                  proxy_socket=str(root / 'proxy.sock'))
+                        transport = HttpTransport(
+                            trust=peer.trust,
+                            exchange_seconds=2,
+                            retirement_seconds=1,
+                            proxy_socket=str(root / 'proxy.sock')
+                        )
 
                         client = api(transport, peer.origin)
 
@@ -76,22 +84,28 @@ class ProxyCapacityRecoveryTests(unittest.IsolatedAsyncioTestCase):
 
                         self.assertTrue(await asyncio.to_thread(exited.wait, 2), 'Original proxy connection did not retire')
 
-                        second = HttpTransport(trust=peer.trust,
-                                               exchange_seconds=2,
-                                               retirement_seconds=1,
-                                               proxy_socket=str(root / 'proxy.sock'))
+                        second = HttpTransport(
+                            trust=peer.trust,
+                            exchange_seconds=2,
+                            retirement_seconds=1,
+                            proxy_socket=str(root / 'proxy.sock')
+                        )
 
                         recovered = api(second, peer.origin)
 
-                        page = await recovered.jobs(analysis_kind_ref=kind,
-                                                    has_provider_execution_attempt=False,
-                                                    limit=1,
-                                                    cursor=None)
+                        page = await recovered.jobs(
+                            analysis_kind_ref=kind,
+                            has_provider_execution_attempt=False,
+                            limit=1,
+                            cursor=None
+                        )
 
                         self.assertEqual(page.jobs, ())
 
-                        self.assertTrue(retryable,
-                            'Temporary proxy capacity exhaustion was not retryable after exchange retirement')
+                        self.assertTrue(
+                            retryable,
+                            'Temporary proxy capacity exhaustion was not retryable after exchange retirement'
+                        )
                     finally:
                         cleanup_errors = []
 

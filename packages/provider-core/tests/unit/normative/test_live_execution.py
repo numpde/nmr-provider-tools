@@ -43,13 +43,15 @@ class LiveExecutionTests(unittest.IsolatedAsyncioTestCase):
         else:
             replies.append(reply(response()))
 
-        replies.extend([
+        replies.extend(
+            [
             reply(progress_response()),
             reply(observation()),
             reply(progress_response(phase="running")),
             reply(observation()),
             reply(observation()),
-        ])
+        ]
+        )
 
         transport = Transport(*replies)
         client = api(transport, scope().api_origin)
@@ -148,9 +150,11 @@ class LiveExecutionTests(unittest.IsolatedAsyncioTestCase):
             self.assertFalse(executor.retirement_confirmed)
             pending = record("key:other")
 
-            other = replace(pending,
-                            input=replace(pending.input, job_ref="job:other"),
-                            body=start_body("job:other", "key:other"))
+            other = replace(
+                pending,
+                input=replace(pending.input, job_ref="job:other"),
+                body=start_body("job:other", "key:other")
+            )
 
             self.assertTrue(claims.claim_live(other, lifecycle_owner=object()).active)
         finally:

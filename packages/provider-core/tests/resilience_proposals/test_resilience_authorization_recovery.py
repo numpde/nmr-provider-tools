@@ -59,9 +59,11 @@ class AuthorizationRecoveryTests(unittest.IsolatedAsyncioTestCase):
             peer.response_status = 200
             peer.response_headers = response_headers()
 
-            return fail_response(execution_attempt_ref=items[1].execution_attempt_ref,
-                                 failure_code="provider_interrupted",
-                                 failure_message="SCIENTIFIC_PAYLOAD_NEEDLE")
+            return fail_response(
+                execution_attempt_ref=items[1].execution_attempt_ref,
+                failure_code="provider_interrupted",
+                failure_message="SCIENTIFIC_PAYLOAD_NEEDLE"
+            )
 
         async with api_tls_peer("success", response_factory=reply) as peer:
             items = [replace(item, api_origin=peer.origin) for item in items]
@@ -71,18 +73,21 @@ class AuthorizationRecoveryTests(unittest.IsolatedAsyncioTestCase):
             for index in range(2):
                 credential = encoded(document(principal_ref="provider:test", credential_ref=f"credential:test-{index}"))
 
-                fields = {"origin": peer.origin,
-                          "profile": "dev-local",
-                          "topology": "dev-local",
-                          "provider_ref": "provider:test",
-                          "exchange_seconds": 2,
-                          "retirement_seconds": 1,
-                          "credential_file": "/gone/key",
-                          "ca_file": "/gone/ca"}
+                fields = {
+                    "origin": peer.origin,
+                    "profile": "dev-local",
+                    "topology": "dev-local",
+                    "provider_ref": "provider:test",
+                    "exchange_seconds": 2,
+                    "retirement_seconds": 1,
+                    "credential_file": "/gone/key",
+                    "ca_file": "/gone/ca"
+                }
 
                 (settings, _, material) = api_settings_with_material(
                     fields,
-                    lambda _path, **options: credential if options["label"] == "API signing credential" else ca)
+                    lambda _path, **options: credential if options["label"] == "API signing credential" else ca
+                )
 
                 keys.append(settings.identity.private_key)
                 materials.append(material)
@@ -111,15 +116,17 @@ class AuthorizationRecoveryTests(unittest.IsolatedAsyncioTestCase):
                         if facts["event"] == "delivery_published" and facts["execution_attempt_ref"] == items[1].execution_attempt_ref:
                             published.set()
 
-                    service = SharedDeliveryService(root / "state",
-                                                    limits=limits,
-                                                    socket=SharedDeliverySocket(root / "ipc/http.sock", None),
-                                                    proxy_socket=root / "proxy.sock",
-                                                    ipc_io_timeout_seconds=2,
-                                                    retry_initial_seconds=0.01,
-                                                    retry_max_seconds=0.02,
-                                                    on_notice=notice,
-                                                    diagnostic_status=Mock())
+                    service = SharedDeliveryService(
+                        root / "state",
+                        limits=limits,
+                        socket=SharedDeliverySocket(root / "ipc/http.sock", None),
+                        proxy_socket=root / "proxy.sock",
+                        ipc_io_timeout_seconds=2,
+                        retry_initial_seconds=0.01,
+                        retry_max_seconds=0.02,
+                        on_notice=notice,
+                        diagnostic_status=Mock()
+                    )
 
                     task = asyncio.create_task(service.run())
 
@@ -142,8 +149,10 @@ class AuthorizationRecoveryTests(unittest.IsolatedAsyncioTestCase):
 
                         self.assertEqual(service.queue.enqueue_handoff(original), original.acceptance())
 
-                        self.assertTrue(published.is_set(),
-                            "A repeatedly refused credential stranded the later independent outcome for the same provider")
+                        self.assertTrue(
+                            published.is_set(),
+                            "A repeatedly refused credential stranded the later independent outcome for the same provider"
+                        )
                     finally:
                         primary = sys.exception()
                         cleanup_failures = []

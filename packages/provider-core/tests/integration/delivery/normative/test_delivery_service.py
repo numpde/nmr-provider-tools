@@ -51,25 +51,29 @@ class DeliveryServiceTests(unittest.IsolatedAsyncioTestCase):
             if facts["event"] == "delivery_published":
                 self.published.set()
 
-        return (DeliveryService(
-            self.root / "state",
-            limits=self.limits,
-            bindings=(DeliveryBinding(endpoint, client),),
-            request_seconds=1,
-            retry_initial_seconds=0.01,
-            retry_max_seconds=0.02,
-            on_notice=notice,
-            diagnostic_status=healthy_diagnostics,
-        ),
-            endpoint)
+        return (
+            DeliveryService(
+                self.root / "state",
+                limits=self.limits,
+                bindings=(DeliveryBinding(endpoint, client),),
+                request_seconds=1,
+                retry_initial_seconds=0.01,
+                retry_max_seconds=0.02,
+                on_notice=notice,
+                diagnostic_status=healthy_diagnostics,
+            ),
+            endpoint
+        )
 
     async def test_producer_acknowledgement_and_api_receipt_have_distinct_connected_effects(self):
-        async with api_tls_peer("success",
+        async with api_tls_peer(
+            "success",
             response_body=fail_response(
                 execution_attempt_ref=outcome().execution_attempt_ref,
                 failure_code="provider_interrupted",
                 failure_message="SCIENTIFIC_PAYLOAD_NEEDLE"
-        )) as peer:
+            )
+        ) as peer:
             (service, endpoint) = self.service(peer)
             original = asyncio.create_task(service.run())
             client = DeliveryClient(endpoint, exchange_seconds=1, retirement_seconds=0.2)
@@ -248,12 +252,14 @@ class DeliveryServiceTests(unittest.IsolatedAsyncioTestCase):
             self.assertFalse(endpoint.socket_path.exists())
             self.assertEqual(peer.requests, [])
 
-            self.assertEqual(self.notices[0][1],
+            self.assertEqual(
+                self.notices[0][1],
                 {
                     "event": "delivery_binding_missing",
                     "api_origin": item.api_origin,
                     "provider_ref": item.provider_ref,
-            })
+                }
+            )
 
         reopened = DeliveryQueue(self.root / "state", limits=self.limits)
 
@@ -270,12 +276,14 @@ class DeliveryServiceTests(unittest.IsolatedAsyncioTestCase):
             def flush(self):
                 pass
 
-        async with api_tls_peer("success",
+        async with api_tls_peer(
+            "success",
             response_body=fail_response(
                 execution_attempt_ref=outcome().execution_attempt_ref,
                 failure_code="provider_interrupted",
                 failure_message="SCIENTIFIC_PAYLOAD_NEEDLE"
-        )) as peer:
+            )
+        ) as peer:
             notices = DeliveryNotices(BrokenStream(), secrets=())
 
             self.addCleanup(notices.close)

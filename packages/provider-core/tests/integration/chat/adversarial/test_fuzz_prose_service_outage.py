@@ -27,26 +27,30 @@ class ProseServiceOutageTests(unittest.IsolatedAsyncioTestCase):
         self.assertTrue(
             post_restoration,
             msg="No Job remained for the SDK driver to start after restoration; "
-                "the test cannot establish recovery from an empty backlog: " + evidence,
+            "the test cannot establish recovery from an empty backlog: " + evidence,
         )
 
         self.assertTrue(
             successful,
             msg="Jobs started after service restoration but none completed successfully "
-                "(check per-Job deadline, peer availability and diagnostic causes): " + evidence,
+            "(check per-Job deadline, peer availability and diagnostic causes): " + evidence,
         )
 
         first_success = min(successful, key=lambda job: job["finished_at"])
 
         self.assertGreaterEqual(first_success["finished_at"], result["restored_at"], msg=evidence)
 
-        self.assertLessEqual(result["publication_times"][first_success["attempt_ref"]] - result["restored_at"],
-                             result["recovery_seconds"],
-                             msg=evidence)
+        self.assertLessEqual(
+            result["publication_times"][first_success["attempt_ref"]] - result["restored_at"],
+            result["recovery_seconds"],
+            msg=evidence
+        )
 
-        self.assertLessEqual(len(unavailable_requests),
-                             result["request_ceiling"],
-                             msg="The unavailable prose service received more requests than the fixed policy permits: " + evidence)
+        self.assertLessEqual(
+            len(unavailable_requests),
+            result["request_ceiling"],
+            msg="The unavailable prose service received more requests than the fixed policy permits: " + evidence
+        )
 
         # One publisher owns the exact original report throughout the outage.
         release = next(event for event in result["trace"] if event["event"] == "original_jobs_api_receipt_released")
@@ -59,13 +63,17 @@ class ProseServiceOutageTests(unittest.IsolatedAsyncioTestCase):
         self.assertLess(healthy["at"], result["restored_at"], msg=evidence)
         self.assertTrue(result["original_report_bytes_sent_once"], msg=evidence)
 
-        self.assertEqual(result["original_report_acceptance"]["execution_attempt_ref"],
-                         result["original_report_receipt"]["execution_attempt_ref"],
-                         msg=evidence)
+        self.assertEqual(
+            result["original_report_acceptance"]["execution_attempt_ref"],
+            result["original_report_receipt"]["execution_attempt_ref"],
+            msg=evidence
+        )
 
-        self.assertEqual("analysis_result:sha256:" + result["original_report_sha256"],
-                         result["original_report_receipt"]["analysis_result_ref"],
-                         msg=evidence)
+        self.assertEqual(
+            "analysis_result:sha256:" + result["original_report_sha256"],
+            result["original_report_receipt"]["analysis_result_ref"],
+            msg=evidence
+        )
 
         self.assertTrue(result["all_report_bytes_preserved"], msg=evidence)
         self.assertEqual(len(jobs), result["submitted_reports"], msg=evidence)
@@ -90,9 +98,11 @@ class ProseServiceOutageTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(1, after["model_loads"], msg=evidence)
         executed = sum(not job["failed"] for job in jobs)
 
-        self.assertEqual((executed, executed, len(jobs)),
-                         (after["preparations"], after["executions"], after["retirements"]),
-                         msg=evidence)
+        self.assertEqual(
+            (executed, executed, len(jobs)),
+            (after["preparations"], after["executions"], after["retirements"]),
+            msg=evidence
+        )
 
         for job in jobs:
             science_count = 1
@@ -100,9 +110,11 @@ class ProseServiceOutageTests(unittest.IsolatedAsyncioTestCase):
             if job["failed"]:
                 science_count = 0
 
-            self.assertEqual((1, 1, science_count, science_count),
-                             (job["starts"], job["prepare_calls"], job["scientific_prepare_calls"], job["execute_calls"]),
-                             msg=evidence)
+            self.assertEqual(
+                (1, 1, science_count, science_count),
+                (job["starts"], job["prepare_calls"], job["scientific_prepare_calls"], job["execute_calls"]),
+                msg=evidence
+            )
 
             self.assertTrue(job["shutdown_ready"], msg=evidence)
 

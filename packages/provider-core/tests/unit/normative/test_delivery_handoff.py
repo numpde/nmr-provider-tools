@@ -20,13 +20,15 @@ class DeliveryHandoffTests(unittest.TestCase):
     def material(self):
         credential = encoded(document())
 
-        fields = {"origin": "https://api.example",
-                  "profile": "dev-local",
-                  "topology": "dev-local",
-                  "provider_ref": "provider:example",
-                  "exchange_seconds": 10,
-                  "retirement_seconds": 5,
-                  "credential_file": "/private/credential"}
+        fields = {
+            "origin": "https://api.example",
+            "profile": "dev-local",
+            "topology": "dev-local",
+            "provider_ref": "provider:example",
+            "exchange_seconds": 10,
+            "retirement_seconds": 5,
+            "credential_file": "/private/credential"
+        }
 
         (_, _, material) = api_settings_with_material(fields, Mock(return_value=credential))
 
@@ -96,8 +98,10 @@ class DeliveryHandoffTests(unittest.TestCase):
             path.chmod(0o600)
             db.execute("CREATE TABLE outstanding (api_origin TEXT NOT NULL, provider_ref TEXT NOT NULL, attempt_ref TEXT NOT NULL, job_ref TEXT NOT NULL, operation TEXT NOT NULL, body BLOB NOT NULL, digest TEXT NOT NULL, state TEXT NOT NULL, created_at REAL NOT NULL, held_reason TEXT, PRIMARY KEY(api_origin,provider_ref,attempt_ref))")
 
-            db.execute("INSERT INTO outstanding VALUES (?,?,?,?,?,?,?,'pending',1,NULL)",
-                       (*item.key, item.job_ref, item.operation.value, item.body, item.body_sha256))
+            db.execute(
+                "INSERT INTO outstanding VALUES (?,?,?,?,?,?,?,'pending',1,NULL)",
+                (*item.key, item.job_ref, item.operation.value, item.body, item.body_sha256)
+            )
 
             db.execute("PRAGMA user_version=1")
             db.commit()

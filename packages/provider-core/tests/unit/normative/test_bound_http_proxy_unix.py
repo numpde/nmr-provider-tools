@@ -124,14 +124,18 @@ class UnixProxyTests(unittest.TestCase):
 
     def test_unix_gateway_and_relay_publish_their_distinct_readiness(self):
         cases = (
-            (["--interface", "system", "--unix-socket", "/gateway/proxy.sock"],
-             "UnixProxyServer",
-             "/gateway/proxy.sock",
-             "/gateway/proxy.sock\n"),
-            (["--relay-socket", "/gateway/proxy.sock", "--port", "0"],
-             "UnixRelayServer",
-             ("127.0.0.1", 23456),
-             "23456\n"),
+            (
+                ["--interface", "system", "--unix-socket", "/gateway/proxy.sock"],
+                "UnixProxyServer",
+                "/gateway/proxy.sock",
+                "/gateway/proxy.sock\n"
+            ),
+            (
+                ["--relay-socket", "/gateway/proxy.sock", "--port", "0"],
+                "UnixRelayServer",
+                ("127.0.0.1", 23456),
+                "23456\n"
+            ),
         )
 
         for (arguments, owner, address, expected) in cases:

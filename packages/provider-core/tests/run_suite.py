@@ -204,11 +204,15 @@ class _FailureSummaryResult(unittest.TextTestResult):
     def addUnexpectedSuccess(self, test):
         super().addUnexpectedSuccess(test)
 
-        self.problems.append(("UNEXPECTED PASS",
-                              str(test),
-                              "(no traceback)",
-                              "UnexpectedSuccess",
-                              "A test marked as an expected failure passed."))
+        self.problems.append(
+            (
+                "UNEXPECTED PASS",
+                str(test),
+                "(no traceback)",
+                "UnexpectedSuccess",
+                "A test marked as an expected failure passed."
+            )
+        )
 
 
 def _print_failure_summary(result, selection, stream):

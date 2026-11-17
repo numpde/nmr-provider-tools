@@ -11,12 +11,14 @@ class RunnerEntrypointTests(unittest.TestCase):
         runner = Path(__file__).resolve().parents[2] / "run_suite.py"
 
         completed = subprocess.run(
-            [sys.executable,
-             "-I",
-             "-B",
-             str(runner),
-             "unit/normative",
-             "test_test_runner_summary.py"],
+            [
+                sys.executable,
+                "-I",
+                "-B",
+                str(runner),
+                "unit/normative",
+                "test_test_runner_summary.py"
+            ],
             capture_output=True,
             text=True,
             timeout=60,

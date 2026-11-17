@@ -13,24 +13,30 @@ from tests.fakes.uploads import UPLOAD_REF, encoded, membership
 
 
 def problem(status, kind, code):
-    return reply(encoded({
-        "type": "urn:nmr-api:problem:" + kind,
-        "title": "Private title",
-        "status": status,
-        "instance": "urn:nmr-api:request:test",
-        "request_id": "request:test",
-        "code": code,
-        "detail": "private-detail-canary",
-    }),
+    return reply(
+        encoded(
+            {
+                "type": "urn:nmr-api:problem:" + kind,
+                "title": "Private title",
+                "status": status,
+                "instance": "urn:nmr-api:request:test",
+                "request_id": "request:test",
+                "code": code,
+                "detail": "private-detail-canary",
+            }
+        ),
         status=status,
-        headers=response_headers(status=status, request_id=b"request:test"))
+        headers=response_headers(status=status, request_id=b"request:test")
+    )
 
 
 class GrantRenewalTests(unittest.IsolatedAsyncioTestCase):
     def api(self, transport):
-        return ProviderAPI(SigningIdentity("https://api.example", "credential:test", Ed25519PrivateKey.generate()),
-                           transport,
-                           expected_topology="dev-local")
+        return ProviderAPI(
+            SigningIdentity("https://api.example", "credential:test", Ed25519PrivateKey.generate()),
+            transport,
+            expected_topology="dev-local"
+        )
 
     async def failure(self, api):
         with self.assertRaises(ApiFailure) as caught:
@@ -43,10 +49,12 @@ class GrantRenewalTests(unittest.IsolatedAsyncioTestCase):
         return api.can_renew_read_grant(failure, job_ref=job, upload_ref=upload)
 
     async def test_only_pending_conflict_permits_fresh_issuance_without_implicit_retry(self):
-        for code in ("upload_read_not_finalized",
-                     "upload_read_removal_scheduled",
-                     "project_purge_in_progress",
-                     "operation_conflict"):
+        for code in (
+            "upload_read_not_finalized",
+            "upload_read_removal_scheduled",
+            "project_purge_in_progress",
+            "operation_conflict"
+        ):
             transport = Transport(problem(409, "operation-conflict", code))
             api = self.api(transport)
             failure = await self.failure(api)
@@ -119,10 +127,12 @@ class GrantRenewalTests(unittest.IsolatedAsyncioTestCase):
             replace(pending, headers=without_topology + ((b"nmr-api-topology", b"web"),)),
             replace(pending, headers=headers + ((b"nmr-api-topology", b"dev-local"),)),
             replace(pending, body=pending.body[:-1] + b',"code":"upload_read_not_finalized"}'),
-            io_failure("pending body was interrupted",
-                           stage="read",
-                           primary=httpcore.ReadTimeout(),
-                           response_head=HttpResponseHead(pending.status, headers)),
+            io_failure(
+                "pending body was interrupted",
+                stage="read",
+                primary=httpcore.ReadTimeout(),
+                response_head=HttpResponseHead(pending.status, headers)
+            ),
         )
 
         for (index, response) in enumerate(responses):

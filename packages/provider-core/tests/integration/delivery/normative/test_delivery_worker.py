@@ -59,12 +59,14 @@ class DeliveryWorkerTests(unittest.IsolatedAsyncioTestCase):
         return worker
 
     async def test_matching_signed_api_receipt_removes_payload_without_a_completed_archive(self):
-        async with api_tls_peer("success",
+        async with api_tls_peer(
+            "success",
             response_body=fail_response(
                 execution_attempt_ref=outcome().execution_attempt_ref,
                 failure_code="provider_interrupted",
                 failure_message="SCIENTIFIC_PAYLOAD_NEEDLE"
-        )) as peer:
+            )
+        ) as peer:
             item = replace(outcome(), api_origin=peer.origin)
 
             self.queue.enqueue(item)
@@ -78,14 +80,18 @@ class DeliveryWorkerTests(unittest.IsolatedAsyncioTestCase):
             self.assertTrue(worker.api.retirement_confirmed)
 
     async def test_lost_api_reply_keeps_exact_bytes_for_freshly_signed_replay(self):
-        async with api_tls_peer("success",
-            response_bodies=[None,
+        async with api_tls_peer(
+            "success",
+            response_bodies=[
+                None,
                 fail_response(
                     execution_attempt_ref=outcome().execution_attempt_ref,
                     failure_code="provider_interrupted",
                     failure_message="SCIENTIFIC_PAYLOAD_NEEDLE",
                     replayed=True
-        )]) as peer:
+                )
+            ]
+        ) as peer:
             item = replace(outcome(), api_origin=peer.origin)
 
             self.queue.enqueue(item)
@@ -120,9 +126,11 @@ class DeliveryWorkerTests(unittest.IsolatedAsyncioTestCase):
             peer.response_status = 200
             peer.response_headers = response_headers()
 
-            return fail_response(execution_attempt_ref=outcome().execution_attempt_ref,
-                                 failure_code="provider_interrupted",
-                                 failure_message="SCIENTIFIC_PAYLOAD_NEEDLE")
+            return fail_response(
+                execution_attempt_ref=outcome().execution_attempt_ref,
+                failure_code="provider_interrupted",
+                failure_message="SCIENTIFIC_PAYLOAD_NEEDLE"
+            )
 
         async with api_tls_peer("success", response_factory=response) as peer:
             item = replace(outcome(), api_origin=peer.origin)
@@ -146,16 +154,20 @@ class DeliveryWorkerTests(unittest.IsolatedAsyncioTestCase):
     async def test_retry_after_above_backoff_cap_preserves_other_binding_progress_and_prompt_stop(self):
         retry_seen = asyncio.Event()
 
-        async with api_tls_peer("success",
-                                response_status=429,
-                                response_body=b"rate limited",
-                                response_headers=((b"content-type", b"text/html"), (b"retry-after", b"120"))) as limited:
-            async with api_tls_peer("success",
+        async with api_tls_peer(
+            "success",
+            response_status=429,
+            response_body=b"rate limited",
+            response_headers=((b"content-type", b"text/html"), (b"retry-after", b"120"))
+        ) as limited:
+            async with api_tls_peer(
+                "success",
                 response_body=fail_response(
                     execution_attempt_ref=outcome().execution_attempt_ref,
                     failure_code="provider_interrupted",
                     failure_message="SCIENTIFIC_PAYLOAD_NEEDLE"
-            )) as healthy:
+                )
+            ) as healthy:
                 (first, second) = (replace(outcome(), api_origin=limited.origin), replace(outcome(), api_origin=healthy.origin))
 
                 self.queue.enqueue(first)
@@ -190,13 +202,17 @@ class DeliveryWorkerTests(unittest.IsolatedAsyncioTestCase):
     async def test_unmatched_receipt_holds_one_item_and_next_item_can_publish(self):
         second = outcome(suffix="1")
 
-        async with api_tls_peer("success",
-            response_bodies=[fail_response(failure_message="WRONG_RECEIPT"),
+        async with api_tls_peer(
+            "success",
+            response_bodies=[
+                fail_response(failure_message="WRONG_RECEIPT"),
                 fail_response(
                     execution_attempt_ref=second.execution_attempt_ref,
                     failure_code="provider_interrupted",
                     failure_message="SCIENTIFIC_PAYLOAD_NEEDLE"
-        )]) as peer:
+                )
+            ]
+        ) as peer:
             (first, second) = (replace(outcome(), api_origin=peer.origin), replace(second, api_origin=peer.origin))
 
             self.queue.enqueue(first)
@@ -213,13 +229,15 @@ class DeliveryWorkerTests(unittest.IsolatedAsyncioTestCase):
             self.assertEqual([facts["event"] for (_, facts) in self.notices], ["delivery_held", "delivery_published"])
 
     async def test_restart_publishes_committed_bytes_without_producer_state(self):
-        async with api_tls_peer("success",
+        async with api_tls_peer(
+            "success",
             response_body=fail_response(
                 execution_attempt_ref=outcome().execution_attempt_ref,
                 failure_code="provider_interrupted",
                 failure_message="SCIENTIFIC_PAYLOAD_NEEDLE",
                 replayed=True
-        )) as peer:
+            )
+        ) as peer:
             item = replace(outcome(), api_origin=peer.origin)
 
             self.queue.enqueue(item)
@@ -257,17 +275,21 @@ class DeliveryWorkerTests(unittest.IsolatedAsyncioTestCase):
         async def delayed_response(request, body):
             await release.wait()
 
-            return fail_response(execution_attempt_ref=outcome().execution_attempt_ref,
-                                 failure_code="provider_interrupted",
-                                 failure_message="SCIENTIFIC_PAYLOAD_NEEDLE")
+            return fail_response(
+                execution_attempt_ref=outcome().execution_attempt_ref,
+                failure_code="provider_interrupted",
+                failure_message="SCIENTIFIC_PAYLOAD_NEEDLE"
+            )
 
         async with api_tls_peer("success", response_factory=delayed_response) as slow:
-            async with api_tls_peer("success",
+            async with api_tls_peer(
+                "success",
                 response_body=fail_response(
                     execution_attempt_ref=outcome().execution_attempt_ref,
                     failure_code="provider_interrupted",
                     failure_message="SCIENTIFIC_PAYLOAD_NEEDLE"
-            )) as healthy:
+                )
+            ) as healthy:
                 (first, second) = (replace(outcome(), api_origin=slow.origin), replace(outcome(), api_origin=healthy.origin))
 
                 self.queue.enqueue(first)
@@ -306,12 +328,14 @@ class DeliveryWorkerTests(unittest.IsolatedAsyncioTestCase):
             self.assertFalse(owned_details(worker.failure)["api_receipt_received"])
 
     async def test_failed_deletion_retains_received_receipt_fact_and_does_not_resend(self):
-        async with api_tls_peer("success",
+        async with api_tls_peer(
+            "success",
             response_body=fail_response(
                 execution_attempt_ref=outcome().execution_attempt_ref,
                 failure_code="provider_interrupted",
                 failure_message="SCIENTIFIC_PAYLOAD_NEEDLE"
-        )) as peer:
+            )
+        ) as peer:
             item = replace(outcome(), api_origin=peer.origin)
 
             self.queue.enqueue(item)
@@ -328,12 +352,14 @@ class DeliveryWorkerTests(unittest.IsolatedAsyncioTestCase):
             self.assertEqual(self.queue.next_pending(item.api_origin, item.provider_ref), item)
 
     async def test_later_queue_read_does_not_inherit_previous_items_receipt(self):
-        async with api_tls_peer("success",
+        async with api_tls_peer(
+            "success",
             response_body=fail_response(
                 execution_attempt_ref=outcome().execution_attempt_ref,
                 failure_code="provider_interrupted",
                 failure_message="SCIENTIFIC_PAYLOAD_NEEDLE"
-        )) as peer:
+            )
+        ) as peer:
             item = replace(outcome(), api_origin=peer.origin)
 
             self.queue.enqueue(item)

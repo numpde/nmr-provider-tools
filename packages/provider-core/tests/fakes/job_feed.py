@@ -15,11 +15,13 @@ def job():
 
 
 def page():
-    return {"schema_id": "nmr.provider.jobs.list.response.v1",
-            "analysis_kind_ref": "nmr_predict",
-            "has_provider_execution_attempt": False,
-            "jobs": [job()],
-            "next_cursor": "YQ"}
+    return {
+        "schema_id": "nmr.provider.jobs.list.response.v1",
+        "analysis_kind_ref": "nmr_predict",
+        "has_provider_execution_attempt": False,
+        "jobs": [job()],
+        "next_cursor": "YQ"
+    }
 
 
 def response():

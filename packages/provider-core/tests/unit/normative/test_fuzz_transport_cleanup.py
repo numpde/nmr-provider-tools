@@ -39,12 +39,14 @@ class CleanupFaultSequenceTests(unittest.IsolatedAsyncioTestCase):
                 return_value=client,
             ):
                 # silent-defaults: allow-contract -- Caller-cancelled cases reserve time for explicit interruption to win.
-                task = asyncio.create_task(transport.exchange(
-                    httpx.Request("GET", "https://synthetic.example/cleanup"),
-                    maximum_bytes=32,
-                    owner=owner,
-                    not_after=asyncio.get_running_loop().time() + (2 if cancelled else 0.3),
-                ))
+                task = asyncio.create_task(
+                    transport.exchange(
+                        httpx.Request("GET", "https://synthetic.example/cleanup"),
+                        maximum_bytes=32,
+                        owner=owner,
+                        not_after=asyncio.get_running_loop().time() + (2 if cancelled else 0.3),
+                    )
+                )
 
                 try:
                     await asyncio.wait_for(client.sent.wait(), 1)
@@ -99,12 +101,14 @@ class CleanupFaultSequenceTests(unittest.IsolatedAsyncioTestCase):
                 "provider_core.transport.httpcore.AsyncConnectionPool",
                 return_value=client,
             ):
-                task = asyncio.create_task(transport.exchange(
-                    request,
-                    maximum_bytes=32,
-                    owner=owner,
-                    not_after=asyncio.get_running_loop().time() + 5,
-                ))
+                task = asyncio.create_task(
+                    transport.exchange(
+                        request,
+                        maximum_bytes=32,
+                        owner=owner,
+                        not_after=asyncio.get_running_loop().time() + 5,
+                    )
+                )
 
                 try:
                     await asyncio.wait_for(client.sent.wait(), 1)

@@ -41,7 +41,8 @@ class ControllerRecoveryTests(unittest.IsolatedAsyncioTestCase):
 
         transport = Transport(*lifecycle_replies())
 
-        controller = live_controller(api(transport, scope().api_origin),
+        controller = live_controller(
+            api(transport, scope().api_origin),
             store,
             AttemptClaims.live(),
             session,
@@ -51,7 +52,8 @@ class ControllerRecoveryTests(unittest.IsolatedAsyncioTestCase):
             delivery_retry_max_seconds=0.002,
             allowed_job_states=frozenset({"open"}),
             poll_seconds=1,
-            task_settle_seconds=0.1)
+            task_settle_seconds=0.1
+        )
 
         with patch.object(loop, "time", side_effect=lambda: real_time() + elapsed):
             accepted = await controller.run(record())
@@ -82,7 +84,8 @@ class ControllerRecoveryTests(unittest.IsolatedAsyncioTestCase):
         retry = Mock()
         transport = Transport(*lifecycle_replies())
 
-        controller = live_controller(api(transport, scope().api_origin),
+        controller = live_controller(
+            api(transport, scope().api_origin),
             store,
             AttemptClaims.live(),
             session,
@@ -92,7 +95,8 @@ class ControllerRecoveryTests(unittest.IsolatedAsyncioTestCase):
             delivery_retry_max_seconds=0.002,
             allowed_job_states=frozenset({"open"}),
             poll_seconds=1,
-            task_settle_seconds=0.1)
+            task_settle_seconds=0.1
+        )
 
         accepted = await controller.run(record())
 

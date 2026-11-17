@@ -22,10 +22,12 @@ class RevocationContinuationTests(unittest.IsolatedAsyncioTestCase):
         fixture = live_fixture.LiveControllerTests()
 
         return fixture.controller(
-            Transport(reply(start_response()),
-                      reply(observation()),
-                      reply(progress_response()),
-                      reply(observation(**stop))),
+            Transport(
+                reply(start_response()),
+                reply(observation()),
+                reply(progress_response()),
+                reply(observation(**stop))
+            ),
             claims=AttemptClaims.live(limits=LiveAttemptLimits(maximum_attempts=2)),
             session=session,
             poll_seconds=0.01,

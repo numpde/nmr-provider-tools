@@ -158,9 +158,11 @@ class ObservedCrashTests(unittest.IsolatedAsyncioTestCase):
             on_recovered=Mock(),
         )
 
-        controller = self.controller(session,
-                                     OutageDuringCrash(*self.transport("preparing").replies),
-                                     observation_recovery=recovery)
+        controller = self.controller(
+            session,
+            OutageDuringCrash(*self.transport("preparing").replies),
+            observation_recovery=recovery
+        )
 
         controller._poll_seconds = 0.01
         accepted = await controller.run(record())

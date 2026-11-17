@@ -69,11 +69,13 @@ class NativeInstallationTests(unittest.TestCase):
         async def run():
             model = endpoint("native", call("selected", "prepare", {}))
 
-            owner = Interpreter((lambda **grant: model,),
-                                interpretation_budget_seconds=30,
-                                reject_combined_messages_and_tools_over_bytes=16384,
-                                **interpreter_test_limits(),
-                                secrets=())
+            owner = Interpreter(
+                (lambda **grant: model,),
+                interpretation_budget_seconds=30,
+                reject_combined_messages_and_tools_over_bytes=16384,
+                **interpreter_test_limits(),
+                secrets=()
+            )
 
             async def dispatch(name, arguments, *, not_after):
                 return ToolFinished("accepted")
@@ -100,17 +102,19 @@ class NativeInstallationTests(unittest.TestCase):
         import provider_core.hosting
         import provider_core.embedded_host
 
-        self.assertFalse({
-            "provider_core.chat",
-            "provider_core.chat_process",
-            "provider_core.chat_tls",
-            "provider_core.chat_wire",
-            "provider_core.chat_worker",
-            "provider_core.api",
-            "provider_core.execution",
-            "provider_core.controller",
-        }.intersection(sys.modules),
-            msg="Native conversation imports must not acquire model HTTP/process dependencies")
+        self.assertFalse(
+            {
+                "provider_core.chat",
+                "provider_core.chat_process",
+                "provider_core.chat_tls",
+                "provider_core.chat_wire",
+                "provider_core.chat_worker",
+                "provider_core.api",
+                "provider_core.execution",
+                "provider_core.controller",
+            }.intersection(sys.modules),
+            msg="Native conversation imports must not acquire model HTTP/process dependencies"
+        )
 
         distribution = importlib.metadata.distribution("provider-core")
 

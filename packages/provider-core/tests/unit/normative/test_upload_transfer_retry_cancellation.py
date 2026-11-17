@@ -14,12 +14,14 @@ class UploadTransferCancellationTests(unittest.IsolatedAsyncioTestCase):
     async def test_local_abort_cancellation_remains_ineligible_after_settlement(self):
         (_, api, store, _) = file_sources()
 
-        transfer = UploadTransfer("job:example",
-                                  store=store,
-                                  store_origin="https://store.example",
-                                  remaining=lambda: 2,
-                                  before_request=lambda: None,
-                                  account=lambda _: None)
+        transfer = UploadTransfer(
+            "job:example",
+            store=store,
+            store_origin="https://store.example",
+            remaining=lambda: 2,
+            before_request=lambda: None,
+            account=lambda _: None
+        )
 
         (entered, release_file_close) = (asyncio.Event(), threading.Event())
         loop = asyncio.get_running_loop()

@@ -40,7 +40,8 @@ class RunnerRefusalTests(unittest.TestCase):
                 (session.generation, session.operation) = ("generation", "operation")
 
                 with sender:
-                    send_document(sender,
+                    send_document(
+                        sender,
                         {
                             "kind": "retired",
                             "generation": session.generation,
@@ -49,7 +50,8 @@ class RunnerRefusalTests(unittest.TestCase):
                             "scratch_released": True,
                             "reason": "exited",
                         },
-                        deadline=time.monotonic() + 1)
+                        deadline=time.monotonic() + 1
+                    )
 
                     with self.assertRaises(LifecycleRejected):
                         session.observe_retirement()
@@ -148,10 +150,12 @@ class RunnerRefusalTests(unittest.TestCase):
 
                     selected.symlink_to(status, target_is_directory=True)
 
-                options = SimpleNamespace(socket=endpoint / "runner.sock",
-                                          scratch=scratch,
-                                          status_directory=selected,
-                                          role="fixture")
+                options = SimpleNamespace(
+                    socket=endpoint / "runner.sock",
+                    scratch=scratch,
+                    status_directory=selected,
+                    role="fixture"
+                )
 
                 (read_fd, write_fd) = os.pipe2(os.O_CLOEXEC | os.O_NONBLOCK)
 
@@ -173,7 +177,8 @@ class RunnerRefusalTests(unittest.TestCase):
 
             for lifetime in ([], ["--operation-seconds", "1", "--owner-session-lifetime"]):
                 with self.subTest(lifetime=lifetime):
-                    result = subprocess.run([
+                    result = subprocess.run(
+                        [
                         sys.executable,
                         "-m",
                         "provider_core.runner",
@@ -200,7 +205,8 @@ class RunnerRefusalTests(unittest.TestCase):
                         "raise SystemExit(77)",
                     ],
                         capture_output=True,
-                        timeout=2)
+                        timeout=2
+                    )
 
                     self.assertEqual(2, result.returncode)
                     self.assertEqual([], list(root.iterdir()))
@@ -231,7 +237,8 @@ class RunnerRefusalTests(unittest.TestCase):
                     with peer:
                         send_greeting(peer, {"kind": "malformed"}, science, deadline=time.monotonic() + 1)
 
-                        send_document(peer,
+                        send_document(
+                            peer,
                             {
                                 "kind": "retired",
                                 "generation": None,
@@ -240,7 +247,8 @@ class RunnerRefusalTests(unittest.TestCase):
                                 "scratch_released": True,
                                 "reason": "exited",
                             },
-                            deadline=time.monotonic() + 1)
+                            deadline=time.monotonic() + 1
+                        )
 
                 with ThreadPoolExecutor(max_workers=1) as executor:
                     original = executor.submit(reply)
@@ -284,10 +292,12 @@ class RunnerRefusalTests(unittest.TestCase):
                 (science, remote) = socket.socketpair()
 
                 with peer, science, remote:
-                    peer.sendmsg([b"\0\0\0"],
+                    peer.sendmsg(
+                        [b"\0\0\0"],
                         [
                             (socket.SOL_SOCKET, socket.SCM_RIGHTS, array.array("i", [science.fileno()])),
-                    ])
+                    ]
+                    )
 
                     science.close()
 

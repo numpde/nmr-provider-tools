@@ -14,19 +14,23 @@ class MalformedProxyResponseTests(unittest.IsolatedAsyncioTestCase):
     async def test_unheaded_malformed_proxy_reply_remains_nonretryable(self):
         async with api_tls_peer('success') as peer:
             async with UnixProxy(peer.origin, 'malformed') as proxy:
-                transport = HttpTransport(trust=peer.trust,
-                                          exchange_seconds=2,
-                                          retirement_seconds=1,
-                                          proxy_socket=proxy.path)
+                transport = HttpTransport(
+                    trust=peer.trust,
+                    exchange_seconds=2,
+                    retirement_seconds=1,
+                    proxy_socket=proxy.path
+                )
 
                 client = api(transport, peer.origin)
 
                 try:
                     with self.assertRaises(ApiFailure) as caught:
-                        await client.jobs(analysis_kind_ref='mol_from_1h_spectrum_formula',
-                                          has_provider_execution_attempt=False,
-                                          limit=1,
-                                          cursor=None)
+                        await client.jobs(
+                            analysis_kind_ref='mol_from_1h_spectrum_formula',
+                            has_provider_execution_attempt=False,
+                            limit=1,
+                            cursor=None
+                        )
 
                     await client.retire()
                     self.assertTrue(client.retirement_confirmed)

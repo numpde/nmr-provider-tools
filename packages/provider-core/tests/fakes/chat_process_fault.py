@@ -240,9 +240,13 @@ async def scenario(marker, report):
             if path.endswith("/progress"):
                 sent = json.loads(request.content)
 
-                return reply(progress_response(execution_attempt_ref=self.reference,
-                                               phase=sent["phase"],
-                                               condition_code=sent["condition_code"]))
+                return reply(
+                    progress_response(
+                        execution_attempt_ref=self.reference,
+                        phase=sent["phase"],
+                        condition_code=sent["condition_code"]
+                    )
+                )
 
             if request.method == "GET":
                 return reply(observation(job_ref=self.job, execution_attempt_ref=self.reference))
@@ -258,11 +262,13 @@ async def scenario(marker, report):
             self.retired = False
 
             factory = ChatEndpointFactory(
-                spec=ChatEndpointSpec(configuration_id="recovery-fixture",
-                                      model="fixture",
-                                      url=endpoint,
-                                      api_key="PRIVATE_FIXTURE_KEY",
-                                      reasoning_effort=None),
+                spec=ChatEndpointSpec(
+                    configuration_id="recovery-fixture",
+                    model="fixture",
+                    url=endpoint,
+                    api_key="PRIVATE_FIXTURE_KEY",
+                    reasoning_effort=None
+                ),
                 trust=trust,
                 retirement_seconds=CLEANUP_SECONDS,
                 request_bytes=32768,
@@ -295,10 +301,15 @@ async def scenario(marker, report):
 
                 return ToolFinished(self.handle)
 
-            tools = [{"type": "function",
-                "function": {
-                    "name": "prepare",
-                    "parameters": {"type": "object", "properties": {}}}}]
+            tools = [
+                {
+                    "type": "function",
+                    "function": {
+                        "name": "prepare",
+                        "parameters": {"type": "object", "properties": {}}
+                    }
+                }
+            ]
 
             try:
                 result = await self.interpreter.run([], tools, dispatch)
@@ -328,9 +339,11 @@ async def scenario(marker, report):
             result = await self.worker.call("execute", self.job)
             self.handle = None
 
-            return AnalysisSuccess("fixture.result.v1",
-                                   json.dumps(result).encode(),
-                                   ProtectedEvidence("fixture.result.evidence.v1", b"one fixture execution"))
+            return AnalysisSuccess(
+                "fixture.result.v1",
+                json.dumps(result).encode(),
+                ProtectedEvidence("fixture.result.evidence.v1", b"one fixture execution")
+            )
 
         async def retire(self):
             self.retire_calls += 1
@@ -362,8 +375,16 @@ async def scenario(marker, report):
         # silent-defaults: allow-contract -- Only the designated hung request stalls; the surrounding Jobs exercise the same healthy endpoint.
         return "headers-stall" if path == "/hang" else "success"
 
-    body = json.dumps({"choices": [{"message": call("prepared", "prepare", {}),
-                                  "finish_reason": "tool_calls"}]}).encode()
+    body = json.dumps(
+        {
+            "choices": [
+                {
+                    "message": call("prepared", "prepare", {}),
+                    "finish_reason": "tool_calls"
+                }
+            ]
+        }
+    ).encode()
 
     with ExitStack() as stack:
         install_fault(stack, marker)
@@ -391,10 +412,12 @@ async def scenario(marker, report):
                         job = "job:" + name
                         base = record("recovery:" + name)
 
-                        pending = StartPending(scope(),
-                                               base.analysis_kind_ref,
-                                               replace(base.input, job_ref=job),
-                                               retained_start(job_ref=job, provider_attempt_key="recovery:" + name))
+                        pending = StartPending(
+                            scope(),
+                            base.analysis_kind_ref,
+                            replace(base.input, job_ref=job),
+                            retained_start(job_ref=job, provider_attempt_key="recovery:" + name)
+                        )
 
                         # silent-defaults: allow-contract -- The middle Job alone selects the injected fault; warmup and recovery use the healthy route.
                         session = Session(job, peer.origin + ("/hang" if name == "hung" else "/ready"), trust, worker)
@@ -488,11 +511,13 @@ async def scenario(marker, report):
                 "claim_count": len(claims.live_owners()),
                 "failure_types": sorted(failures),
                 "deliveries": [item.operation.value for controller in controllers for item in controller.delivery.items],
-                "fault": {"read_cancelled": any(event["kind"] == "read_cancelled" for event in events),
-                          "cleanup_engaged": bool(engaged),
-                          "pid": fault_pid,
-                          "term_ignored": any(event["kind"] == "term_ignored" for event in events),
-                          "owner_still_alive": alive},
+                "fault": {
+                    "read_cancelled": any(event["kind"] == "read_cancelled" for event in events),
+                    "cleanup_engaged": bool(engaged),
+                    "pid": fault_pid,
+                    "term_ignored": any(event["kind"] == "term_ignored" for event in events),
+                    "owner_still_alive": alive
+                },
             }
 
             # Snapshot the verdict while the provider and warm worker still live.

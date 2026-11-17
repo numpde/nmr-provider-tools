@@ -233,11 +233,13 @@ class CoreFailureProjectionTests(unittest.TestCase):
         active = acknowledge_start(record(), admission())
         (cause, interruption) = (OSError(), asyncio.CancelledError())
 
-        failure = ExecutionFailed(cause=cause,
-                                  outcome=None,
-                                  api_failure=None,
-                                  cleanup_failures=(),
-                                  attempt=active)
+        failure = ExecutionFailed(
+            cause=cause,
+            outcome=None,
+            api_failure=None,
+            cleanup_failures=(),
+            attempt=active
+        )
 
         self.assertFalse(owned_details(failure)["delivery_acceptance_received"])
         failure.delivery_acceptance = {"body_sha256": "sha256:" + "b" * 64}

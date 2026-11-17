@@ -87,11 +87,13 @@ class ObservationTests(unittest.IsolatedAsyncioTestCase):
         original = ValueError("Science failed")
         interruption = KeyboardInterrupt("Observation was interrupted")
 
-        failed = replace(self.observation,
+        failed = replace(
+            self.observation,
             failures=(
                 Failure(phase="science", cause=original),
                 Failure(phase="backend", cause=interruption),
-        ))
+        )
+        )
 
         with self.assertRaises(expected_exception=BaseExceptionGroup) as raised:
             failed.require_result()

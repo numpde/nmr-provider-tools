@@ -38,7 +38,8 @@ class BoundProxyTests(unittest.TestCase):
                 "api.example",
                 "wlan0",
                 deadline=30,
-                dns_servers=("192.0.2.53",))
+                dns_servers=("192.0.2.53",)
+            )
 
         self.assertEqual(addresses, ("192.0.2.1",))
         query.assert_called_once_with("api.example", "192.0.2.53", "wlan0", deadline=30)

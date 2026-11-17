@@ -34,23 +34,27 @@ class SharedDeliveryServiceTests(unittest.IsolatedAsyncioTestCase):
 
             peer.response_status = 200
 
-            return fail_response(execution_attempt_ref=item.execution_attempt_ref,
-                                 failure_code="provider_interrupted",
-                                 failure_message="SCIENTIFIC_PAYLOAD_NEEDLE")
+            return fail_response(
+                execution_attempt_ref=item.execution_attempt_ref,
+                failure_code="provider_interrupted",
+                failure_message="SCIENTIFIC_PAYLOAD_NEEDLE"
+            )
 
         async with api_tls_peer("success", response_factory=response) as peer:
             item = replace(item, api_origin=peer.origin)
             ca = (Path(peer.scratch.name) / "cert.pem").read_bytes()
             credential = encoded(document(principal_ref="provider:test"))
 
-            fields = {"origin": peer.origin,
-                      "profile": "dev-local",
-                      "topology": "dev-local",
-                      "provider_ref": "provider:test",
-                      "exchange_seconds": 2,
-                      "retirement_seconds": 1,
-                      "credential_file": "/gone/key",
-                      "ca_file": "/gone/ca"}
+            fields = {
+                "origin": peer.origin,
+                "profile": "dev-local",
+                "topology": "dev-local",
+                "provider_ref": "provider:test",
+                "exchange_seconds": 2,
+                "retirement_seconds": 1,
+                "credential_file": "/gone/key",
+                "ca_file": "/gone/ca"
+            }
 
             (_, _, material) = api_settings_with_material(
                 fields,
@@ -93,16 +97,18 @@ class SharedDeliveryServiceTests(unittest.IsolatedAsyncioTestCase):
                             if facts["event"] == "delivery_published":
                                 published.set()
 
-                    service = SharedDeliveryService(root / "state",
-                                                    limits=limits,
-                                                    socket=SharedDeliverySocket(root / "ipc/http.sock", None),
-                                                    proxy_socket=root / "proxy.sock",
-                                                    ipc_io_timeout_seconds=2,
-                                                    retry_initial_seconds=60,
-                                                    retry_max_seconds=60,
-                                                    on_notice=Notices(),
-                                                    diagnostic_status=Mock(),
-                                                    live_configuration=SharedDeliveryConfiguration(config))
+                    service = SharedDeliveryService(
+                        root / "state",
+                        limits=limits,
+                        socket=SharedDeliverySocket(root / "ipc/http.sock", None),
+                        proxy_socket=root / "proxy.sock",
+                        ipc_io_timeout_seconds=2,
+                        retry_initial_seconds=60,
+                        retry_max_seconds=60,
+                        on_notice=Notices(),
+                        diagnostic_status=Mock(),
+                        live_configuration=SharedDeliveryConfiguration(config)
+                    )
 
                     task = asyncio.create_task(service.run())
 
@@ -129,9 +135,11 @@ class SharedDeliveryServiceTests(unittest.IsolatedAsyncioTestCase):
         async def response(_request, _body):
             item = items[len(peer.requests) - 1]
 
-            return fail_response(execution_attempt_ref=item.execution_attempt_ref,
-                                 failure_code="provider_interrupted",
-                                 failure_message="SCIENTIFIC_PAYLOAD_NEEDLE")
+            return fail_response(
+                execution_attempt_ref=item.execution_attempt_ref,
+                failure_code="provider_interrupted",
+                failure_message="SCIENTIFIC_PAYLOAD_NEEDLE"
+            )
 
         async with api_tls_peer("success", response_factory=response) as peer:
             items = [replace(item, api_origin=peer.origin) for item in items]
@@ -141,14 +149,16 @@ class SharedDeliveryServiceTests(unittest.IsolatedAsyncioTestCase):
             for _ in items:
                 credential = encoded(document(principal_ref="provider:test"))
 
-                fields = {"origin": peer.origin,
-                          "profile": "dev-local",
-                          "topology": "dev-local",
-                          "provider_ref": "provider:test",
-                          "exchange_seconds": 2,
-                          "retirement_seconds": 1,
-                          "credential_file": "/gone/key",
-                          "ca_file": "/gone/ca"}
+                fields = {
+                    "origin": peer.origin,
+                    "profile": "dev-local",
+                    "topology": "dev-local",
+                    "provider_ref": "provider:test",
+                    "exchange_seconds": 2,
+                    "retirement_seconds": 1,
+                    "credential_file": "/gone/key",
+                    "ca_file": "/gone/ca"
+                }
 
                 (settings, _, material) = api_settings_with_material(
                     fields,
@@ -186,15 +196,17 @@ class SharedDeliveryServiceTests(unittest.IsolatedAsyncioTestCase):
                         if sum(event[1]["event"] == "delivery_published" for event in notices) == 2:
                             published.set()
 
-                    service = SharedDeliveryService(root / "state",
-                                                    limits=limits,
-                                                    socket=SharedDeliverySocket(root / "ipc/http.sock", None),
-                                                    proxy_socket=root / "proxy.sock",
-                                                    ipc_io_timeout_seconds=2,
-                                                    retry_initial_seconds=0.01,
-                                                    retry_max_seconds=0.02,
-                                                    on_notice=notice,
-                                                    diagnostic_status=Mock())
+                    service = SharedDeliveryService(
+                        root / "state",
+                        limits=limits,
+                        socket=SharedDeliverySocket(root / "ipc/http.sock", None),
+                        proxy_socket=root / "proxy.sock",
+                        ipc_io_timeout_seconds=2,
+                        retry_initial_seconds=0.01,
+                        retry_max_seconds=0.02,
+                        on_notice=notice,
+                        diagnostic_status=Mock()
+                    )
 
                     task = asyncio.create_task(service.run())
 

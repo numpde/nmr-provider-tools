@@ -39,11 +39,13 @@ class AttemptInventoryTests(unittest.IsolatedAsyncioTestCase):
     def test_mixed_analysis_kinds_and_order_survive_as_immutable_observations(self):
         first = attempt()
 
-        second = attempt(analysis_kind_ref="nmr_rank",
-                         job_ref="job:other",
-                         execution_attempt_ref="execution_attempt:sha256:" + "b" * 64,
-                         provider_attempt_key="other-start:02",
-                         started_at="2026-10-18T00:00:01Z")
+        second = attempt(
+            analysis_kind_ref="nmr_rank",
+            job_ref="job:other",
+            execution_attempt_ref="execution_attempt:sha256:" + "b" * 64,
+            provider_attempt_key="other-start:02",
+            started_at="2026-10-18T00:00:01Z"
+        )
 
         for order in ((first, second), (second, first)):
             with self.subTest(order=order[0]["job_ref"]):
@@ -51,10 +53,12 @@ class AttemptInventoryTests(unittest.IsolatedAsyncioTestCase):
 
                 self.assertIsInstance(page.attempts, tuple)
 
-                self.assertEqual([(item.analysis_kind_ref, item.execution_attempt_ref, item.job_ref, item.provider_attempt_key)
+                self.assertEqual(
+                    [(item.analysis_kind_ref, item.execution_attempt_ref, item.job_ref, item.provider_attempt_key)
                                   for item in page.attempts],
-                                 [(item["analysis_kind_ref"], item["execution_attempt_ref"], item["job_ref"], item["provider_attempt_key"])
-                                  for item in order])
+                    [(item["analysis_kind_ref"], item["execution_attempt_ref"], item["job_ref"], item["provider_attempt_key"])
+                                  for item in order]
+                )
 
     def test_empty_page_is_an_observation_without_an_absence_or_terminal_receipt(self):
         result = read_attempt_inventory(response(attempts=[], next_cursor=None), limit=1)

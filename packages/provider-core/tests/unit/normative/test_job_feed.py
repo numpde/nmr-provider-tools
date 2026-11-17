@@ -35,10 +35,12 @@ class JobFeedTests(unittest.IsolatedAsyncioTestCase):
     async def test_signed_query_is_explicit_and_page_does_not_auto_follow_cursor(self):
         transport = Transport(reply(response()))
 
-        result = await api(transport, "https://api.example").jobs(analysis_kind_ref="nmr_predict",
-                                                              has_provider_execution_attempt=False,
-                                                              limit=2,
-                                                              cursor="Yg")
+        result = await api(transport, "https://api.example").jobs(
+            analysis_kind_ref="nmr_predict",
+            has_provider_execution_attempt=False,
+            limit=2,
+            cursor="Yg"
+        )
 
         self.assertEqual(len(transport.calls), 1)
         (request, bound) = transport.calls[0]
@@ -60,10 +62,12 @@ class JobFeedTests(unittest.IsolatedAsyncioTestCase):
 
         document.update(jobs=[], next_cursor=None, has_provider_execution_attempt=True)
 
-        result = read_jobs_page(json.dumps(document).encode(),
-                                analysis_kind_ref="nmr_predict",
-                                has_provider_execution_attempt=True,
-                                limit=1)
+        result = read_jobs_page(
+            json.dumps(document).encode(),
+            analysis_kind_ref="nmr_predict",
+            has_provider_execution_attempt=True,
+            limit=1
+        )
 
         self.assertEqual(result.jobs, ())
         self.assertIsNone(result.next_cursor)

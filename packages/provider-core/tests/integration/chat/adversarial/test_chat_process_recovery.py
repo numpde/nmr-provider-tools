@@ -20,13 +20,15 @@ class ModelProcessRecoveryTests(unittest.TestCase):
             report_path = root / "verdict.json"
 
             process = subprocess.Popen(
-                (sys.executable,
-                 "-I",
-                 "-B",
-                 str(fixture),
-                 "scenario",
-                 str(root / "fault.jsonl"),
-                 str(report_path)),
+                (
+                    sys.executable,
+                    "-I",
+                    "-B",
+                    str(fixture),
+                    "scenario",
+                    str(root / "fault.jsonl"),
+                    str(report_path)
+                ),
                 stdout=subprocess.PIPE,
                 stderr=subprocess.PIPE,
                 text=True,

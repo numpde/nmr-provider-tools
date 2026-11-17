@@ -69,9 +69,12 @@ class _ControlledStart(ObservedAPI):
                 return reply(signature_window_problem(), status=401)
 
             if self.disposition == "accepted":
-                return reply(start_response(
-                    job_ref=self.job,
-                    execution_attempt_ref=self.reference))
+                return reply(
+                    start_response(
+                        job_ref=self.job,
+                        execution_attempt_ref=self.reference
+                    )
+                )
 
             raise AssertionError("START gate released without a selected API disposition")
 
@@ -115,18 +118,21 @@ class LifecycleOrders(RuleBasedStateMachine):
         self._observer = patch.object(
             AttemptExecutor,
             "_require_observed_active",
-            observed_check)
+            observed_check
+        )
 
         self._observer.start()
 
     async def _open(self):
         self.stack = AsyncExitStack()
 
-        self.claims = AttemptClaims.live(limits=LiveAttemptLimits(
-            maximum_attempts=2,
-            maximum_control_bytes=262144,
-            maximum_pending_terminal_bytes=4194304,
-        ))
+        self.claims = AttemptClaims.live(
+            limits=LiveAttemptLimits(
+                maximum_attempts=2,
+                maximum_control_bytes=262144,
+                maximum_pending_terminal_bytes=4194304,
+            )
+        )
 
         self.cases = {}
         self.replies = {}
@@ -134,14 +140,23 @@ class LifecycleOrders(RuleBasedStateMachine):
         async def model_reply(_request, _body, *, gate, identity):
             await gate.wait()
 
-            return json.dumps({"choices": [{"message": call(identity, "prepare", {}),
-                                            "finish_reason": "tool_calls"}]}).encode()
+            return json.dumps(
+                {
+                    "choices": [
+                        {
+                            "message": call(identity, "prepare", {}),
+                            "finish_reason": "tool_calls"
+                        }
+                    ]
+                }
+            ).encode()
 
         for name in ("a", "b"):
             released = asyncio.Event()
 
             peer = await self.stack.enter_async_context(
-                TlsPeer("success", response_factory=partial(model_reply, gate=released, identity=name)))
+                TlsPeer("success", response_factory=partial(model_reply, gate=released, identity=name))
+            )
 
             self.cases[name] = ReplyRun(
                 peer,
@@ -180,8 +195,10 @@ class LifecycleOrders(RuleBasedStateMachine):
 
         self._act("start", name, launch)
 
-    @rule(name=st.sampled_from(("a", "b")),
-          disposition=st.sampled_from(("accepted", "uncertain", "uncommitted")))
+    @rule(
+        name=st.sampled_from(("a", "b")),
+        disposition=st.sampled_from(("accepted", "uncertain", "uncommitted"))
+    )
     def decide_original_start(self, name, disposition):
         if name not in self.started:
             return
@@ -201,8 +218,10 @@ class LifecycleOrders(RuleBasedStateMachine):
 
         self._act("release_original_start_" + disposition, name, release)
 
-    @rule(name=st.sampled_from(("a", "b")),
-          stop=st.sampled_from(("cancelled", "expired")))
+    @rule(
+        name=st.sampled_from(("a", "b")),
+        stop=st.sampled_from(("cancelled", "expired"))
+    )
     def withdraw_permission(self, name, stop):
         if name not in self.started or self.cases[name].transport.stop:
             return
@@ -267,7 +286,8 @@ class LifecycleOrders(RuleBasedStateMachine):
             # The original owner reports a separate cleanup failure.
             # It cannot be interpreted as success or authorize another attempt.
             session.retirement_failure = RuntimeError(
-                "An original scientific resource did not retire")
+                "An original scientific resource did not retire"
+            )
 
             await self._progress()
 
@@ -286,8 +306,10 @@ class LifecycleOrders(RuleBasedStateMachine):
 
         self._act("confirm_session_retirement", name, release)
 
-    @rule(name=st.sampled_from(("a", "b")),
-          decision=st.sampled_from(("accepted", "full", "retryable", "lost", "rejected")))
+    @rule(
+        name=st.sampled_from(("a", "b")),
+        decision=st.sampled_from(("accepted", "full", "retryable", "lost", "rejected"))
+    )
     def resolve_local_delivery(self, name, decision):
         delivery = self.cases[name].delivery
 
@@ -396,7 +418,8 @@ class LifecycleOrders(RuleBasedStateMachine):
 
             assert self.claims.owns_job(
                 successor.pending.scope,
-                successor.pending.input.job_ref)
+                successor.pending.input.job_ref
+            )
 
         self._act("late_released_owner_observation", name, repeat)
 
@@ -423,10 +446,12 @@ class LifecycleOrders(RuleBasedStateMachine):
                     assert all(item is original_terminal for item in delivery.offers), (
                         "A delivery retry replaced the original logical terminal")
 
-                    assert all(item.key == original_terminal.key
-                               and item.body == original_terminal.body
-                               and item.body_sha256 == original_terminal.body_sha256
-                               for item in delivery.offers)
+                    assert all(
+                        item.key == original_terminal.key
+                        and item.body == original_terminal.body
+                        and item.body_sha256 == original_terminal.body_sha256
+                        for item in delivery.offers
+                    )
 
                     assert len(delivery.offers) <= delivery._answered + 1
 
@@ -508,7 +533,8 @@ class LifecycleOrders(RuleBasedStateMachine):
             if self.tasks:
                 await asyncio.wait_for(
                     asyncio.gather(*self.tasks.values(), return_exceptions=True),
-                    12)
+                    12
+                )
 
             await self.stack.aclose()
 

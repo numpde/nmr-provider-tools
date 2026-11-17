@@ -28,9 +28,11 @@ class UploadTransferRetryTests(unittest.IsolatedAsyncioTestCase):
             "job:example",
             store=store,
             store_origin="https://store.example",
-            **({"remaining": lambda: 2,
+            **({
+                "remaining": lambda: 2,
                 "before_request": lambda: None,
-                "account": lambda _count: None} | changes),
+                "account": lambda _count: None
+            } | changes),
         )
 
     async def failed(self, transfer, grant, client, *, directory):
@@ -110,10 +112,12 @@ class UploadTransferRetryTests(unittest.IsolatedAsyncioTestCase):
         transfer = self.transfer(store)
 
         with private_source_directory() as (_, directory):
-            failure = await self.failed(transfer,
-                                        api.grant,
-                                        Client(Stream([], failure=temporary_read_error()), headers=store_headers(b"geometry")),
-                                        directory=directory)
+            failure = await self.failed(
+                transfer,
+                api.grant,
+                Client(Stream([], failure=temporary_read_error()), headers=store_headers(b"geometry")),
+                directory=directory
+            )
 
             self.assertTrue(transfer.can_retry_transfer(failure))
 
@@ -140,8 +144,10 @@ class UploadTransferRetryTests(unittest.IsolatedAsyncioTestCase):
                     client = Client(Stream([], failure=stream_failure), status=status, headers=[])
                     failure = await self.failed(transfer, api.grant, client, directory=directory)
 
-                    self.assertEqual(transfer.can_retry_transfer(failure),
-                                     status in {401, 503, 507})
+                    self.assertEqual(
+                        transfer.can_retry_transfer(failure),
+                        status in {401, 503, 507}
+                    )
 
     async def test_protocol_truncation_requires_exact_valid_whole_file_head(self):
         for header in ("valid", "missing", "wrong-digest", "duplicate", "partial", "transfer-encoding"):
@@ -172,10 +178,12 @@ class UploadTransferRetryTests(unittest.IsolatedAsyncioTestCase):
                 (_, api, store, _) = file_sources()
                 transfer = self.transfer(store)
 
-                failure = await self.failed(transfer,
-                                            api.grant,
-                                            Client(Stream([], failure=temporary_read_error()), headers=headers),
-                                            directory=directory)
+                failure = await self.failed(
+                    transfer,
+                    api.grant,
+                    Client(Stream([], failure=temporary_read_error()), headers=headers),
+                    directory=directory
+                )
 
                 self.assertFalse(transfer.can_retry_transfer(failure))
 
@@ -192,8 +200,10 @@ class UploadTransferRetryTests(unittest.IsolatedAsyncioTestCase):
                 self.assertFalse(transfer.can_retry_transfer(failure))
 
     async def test_hash_failure_wrong_head_and_noncurrent_failure_never_qualify(self):
-        for (body, headers) in ((b"badbytes", store_headers(b"geometry")),
-                              (b"geometry", [])):
+        for (body, headers) in (
+            (b"badbytes", store_headers(b"geometry")),
+            (b"geometry", [])
+        ):
             with self.subTest(body=body), private_source_directory() as (_, directory):
                 (_, api, store, _) = file_sources()
                 transfer = self.transfer(store)
@@ -205,18 +215,24 @@ class UploadTransferRetryTests(unittest.IsolatedAsyncioTestCase):
             (_, api, store, _) = file_sources()
             transfer = self.transfer(store)
 
-            first = await self.failed(transfer,
+            first = await self.failed(
+                transfer,
                 api.grant,
-                Client(Stream([], failure=temporary_read_error()),
-                                      headers=store_headers(b"geometry")),
-                directory=directory)
+                Client(
+                    Stream([], failure=temporary_read_error()),
+                    headers=store_headers(b"geometry")
+                ),
+                directory=directory
+            )
 
             self.assertTrue(transfer.can_retry_transfer(first))
 
-            second = await self.failed(transfer,
-                                       replace(api.grant, content_hash="bad"),
-                                       Client(Stream([])),
-                                       directory=directory)
+            second = await self.failed(
+                transfer,
+                replace(api.grant, content_hash="bad"),
+                Client(Stream([])),
+                directory=directory
+            )
 
             self.assertFalse(transfer.can_retry_transfer(first))
             self.assertFalse(transfer.can_retry_transfer(second))
@@ -227,10 +243,12 @@ class UploadTransferRetryTests(unittest.IsolatedAsyncioTestCase):
 
         with private_source_directory() as (root, directory):
             with patch("provider_core.uploads.os.unlink", side_effect=OSError(errno.EACCES, "removal refused")):
-                failure = await self.failed(transfer,
-                                            api.grant,
-                                            Client(Stream([], failure=temporary_read_error()), headers=store_headers(b"geometry")),
-                                            directory=directory)
+                failure = await self.failed(
+                    transfer,
+                    api.grant,
+                    Client(Stream([], failure=temporary_read_error()), headers=store_headers(b"geometry")),
+                    directory=directory
+                )
 
             self.assertFalse(transfer.can_retry_transfer(failure))
             await transfer.settle_file()
@@ -253,10 +271,12 @@ class UploadTransferRetryTests(unittest.IsolatedAsyncioTestCase):
                 yield b"x"
 
         with private_source_directory() as (_, directory):
-            failure = await self.failed(transfer,
-                                        api.grant,
-                                        Client(DelayedFailure([]), headers=store_headers(b"geometry")),
-                                        directory=directory)
+            failure = await self.failed(
+                transfer,
+                api.grant,
+                Client(DelayedFailure([]), headers=store_headers(b"geometry")),
+                directory=directory
+            )
 
             self.assertFalse(transfer.can_retry_transfer(failure))
 

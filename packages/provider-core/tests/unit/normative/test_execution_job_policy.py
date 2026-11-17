@@ -24,8 +24,10 @@ class ExecutionJobPolicyTests(unittest.IsolatedAsyncioTestCase):
         (store, acknowledged, claim) = await live_attempt()
         session = PausedSession(store, phase)
 
-        client = api(Transport(reply(response()), reply(progress_response()), reply(progress_response(phase="running"))),
-                     store.scope.api_origin)
+        client = api(
+            Transport(reply(response()), reply(progress_response()), reply(progress_response(phase="running"))),
+            store.scope.api_origin
+        )
 
         observed = []
 
@@ -42,17 +44,19 @@ class ExecutionJobPolicyTests(unittest.IsolatedAsyncioTestCase):
 
         client.read_attempt = read_attempt
 
-        executor = live_executor(client,
-                                   store,
-                                   claim,
-                                   session,
-                                   delivery=RecordingDelivery(),
-                                   on_delivery_retry=Mock(),
-                                   delivery_retry_initial_seconds=0.01,
-                                   delivery_retry_max_seconds=0.04,
-                                   allowed_job_states=frozenset({"open", "closed"}),
-                                   poll_seconds=0.01,
-                                   task_settle_seconds=0.1)
+        executor = live_executor(
+            client,
+            store,
+            claim,
+            session,
+            delivery=RecordingDelivery(),
+            on_delivery_retry=Mock(),
+            delivery_retry_initial_seconds=0.01,
+            delivery_retry_max_seconds=0.04,
+            allowed_job_states=frozenset({"open", "closed"}),
+            poll_seconds=0.01,
+            task_settle_seconds=0.1
+        )
 
         try:
             terminal = await execute_with_watchdog(executor, acknowledged)

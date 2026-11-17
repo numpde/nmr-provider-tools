@@ -30,12 +30,14 @@ class UploadHeadAdmissionTests(unittest.IsolatedAsyncioTestCase):
         client = Client(ErrorBody([]), status=503, headers=[(b"content-type", b"application/json")])
         store = HttpTransport(trust=ssl.create_default_context(), exchange_seconds=1, retirement_seconds=0.1)
 
-        transfer = UploadTransfer("job:example",
-                                  store=store,
-                                  store_origin="https://store.example",
-                                  remaining=lambda:1,
-                                  before_request=lambda:None,
-                                  account=observed.append)
+        transfer = UploadTransfer(
+            "job:example",
+            store=store,
+            store_origin="https://store.example",
+            remaining=lambda:1,
+            before_request=lambda:None,
+            account=observed.append
+        )
 
         async def fresh():
             return grant

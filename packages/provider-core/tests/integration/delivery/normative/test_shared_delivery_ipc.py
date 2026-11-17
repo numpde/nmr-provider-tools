@@ -29,23 +29,27 @@ class SharedDeliveryIPCTests(unittest.IsolatedAsyncioTestCase):
         self.addCleanup(self.queue.close)
         self.socket = root / "ipc/http.sock"
 
-        self.inbox = SharedDeliveryInbox(self.queue,
-                                         SharedDeliverySocket(self.socket, None),
-                                         request_seconds=1,
-                                         on_accepted=Mock(),
-                                         on_failure=Mock())
+        self.inbox = SharedDeliveryInbox(
+            self.queue,
+            SharedDeliverySocket(self.socket, None),
+            request_seconds=1,
+            on_accepted=Mock(),
+            on_failure=Mock()
+        )
 
         await self.inbox.start()
         self.addAsyncCleanup(self.inbox.close)
 
     def client(self, provider):
-        fields = {"origin": "https://api.example",
-                  "profile": "dev-local",
-                  "topology": "dev-local",
-                  "provider_ref": provider,
-                  "exchange_seconds": 10,
-                  "retirement_seconds": 5,
-                  "credential_file": "/private/credential"}
+        fields = {
+            "origin": "https://api.example",
+            "profile": "dev-local",
+            "topology": "dev-local",
+            "provider_ref": provider,
+            "exchange_seconds": 10,
+            "retirement_seconds": 5,
+            "credential_file": "/private/credential"
+        }
 
         (_, _, material) = api_settings_with_material(fields, Mock(return_value=encoded(document(principal_ref=provider))))
         endpoint = DeliveryEndpoint("https://api.example", provider, self.socket)

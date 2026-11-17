@@ -45,11 +45,15 @@ def certificate_material():
         .sign(key, None)
     )
 
-    return (certificate.public_bytes(serialization.Encoding.PEM),
-            key.private_bytes(serialization.Encoding.PEM,
-                              serialization.PrivateFormat.PKCS8,
-                              serialization.NoEncryption()),
-            crl.public_bytes(serialization.Encoding.PEM))
+    return (
+        certificate.public_bytes(serialization.Encoding.PEM),
+        key.private_bytes(
+            serialization.Encoding.PEM,
+            serialization.PrivateFormat.PKCS8,
+            serialization.NoEncryption()
+        ),
+        crl.public_bytes(serialization.Encoding.PEM)
+    )
 
 
 def handshake(client_context, certificate, key, hostname):
@@ -128,14 +132,16 @@ class CapturedModelTrustTests(unittest.TestCase):
             with patch("provider_core.chat_tls.ssl.get_default_verify_paths", return_value=selected):
                 captured = https_trust(None, label="fixture")
 
-        for name in ("options",
-                     "minimum_version",
-                     "maximum_version",
-                     "verify_flags",
-                     "verify_mode",
-                     "check_hostname",
-                     "hostname_checks_common_name",
-                     "post_handshake_auth"):
+        for name in (
+            "options",
+            "minimum_version",
+            "maximum_version",
+            "verify_flags",
+            "verify_mode",
+            "check_hostname",
+            "hostname_checks_common_name",
+            "post_handshake_auth"
+        ):
             self.assertEqual(getattr(captured, name), getattr(legacy, name), msg=name)
 
         self.assertEqual(captured.get_ciphers(), legacy.get_ciphers())
@@ -157,14 +163,16 @@ class CapturedModelTrustTests(unittest.TestCase):
             explicit = https_trust(self.certificate, label="fixture")
 
         for context in (captured, restore_trust(capture_trust(captured))):
-            for name in ("options",
-                         "minimum_version",
-                         "maximum_version",
-                         "verify_flags",
-                         "verify_mode",
-                         "check_hostname",
-                         "hostname_checks_common_name",
-                         "post_handshake_auth"):
+            for name in (
+                "options",
+                "minimum_version",
+                "maximum_version",
+                "verify_flags",
+                "verify_mode",
+                "check_hostname",
+                "hostname_checks_common_name",
+                "post_handshake_auth"
+            ):
                 self.assertEqual(getattr(context, name), getattr(reference, name), msg=name)
 
             self.assertEqual(context.get_ciphers(), reference.get_ciphers())

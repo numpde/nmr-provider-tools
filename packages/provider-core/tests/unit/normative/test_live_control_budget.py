@@ -29,10 +29,12 @@ class LiveControlBudgetTests(unittest.IsolatedAsyncioTestCase):
         body = start_body(job, "k" * 128)
         body += b" " * (4096 - len(body))
 
-        largest_scope = replace(scope(),
-                                provider_ref=provider,
-                                consumer_id="\U0001f9ea" * 1024,
-                                generation_id="\U0001f9ea" * 1024)
+        largest_scope = replace(
+            scope(),
+            provider_ref=provider,
+            consumer_id="\U0001f9ea" * 1024,
+            generation_id="\U0001f9ea" * 1024
+        )
 
         pending = StartPending(largest_scope, kind, facts, body)
         padding = 65536 - len(_encode_pending(pending))
@@ -42,10 +44,12 @@ class LiveControlBudgetTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(4096, len(pending.body))
 
         admission = read_start(
-            start_response(job_ref=job,
-                           provider_ref=provider,
-                           analysis_kind_ref=kind,
-                           started_at="9999-12-31T23:59:59.999999Z"),
+            start_response(
+                job_ref=job,
+                provider_ref=provider,
+                analysis_kind_ref=kind,
+                started_at="9999-12-31T23:59:59.999999Z"
+            ),
             job_ref=job,
             provider_ref=provider,
             analysis_kind_ref=kind,

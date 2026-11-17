@@ -151,9 +151,13 @@ async def shutdown_scenario(schedule, seed, directory, facts):
             if request.url.path.endswith("/progress"):
                 progress = json.loads(request.content)
 
-                return reply(progress_response(execution_attempt_ref=self.attempt,
-                                               phase=progress["phase"],
-                                               condition_code=progress["condition_code"]))
+                return reply(
+                    progress_response(
+                        execution_attempt_ref=self.attempt,
+                        phase=progress["phase"],
+                        condition_code=progress["condition_code"]
+                    )
+                )
 
             if request.method == "GET":
                 return reply(observation(job_ref=self.job, execution_attempt_ref=self.attempt))
@@ -208,11 +212,15 @@ async def shutdown_scenario(schedule, seed, directory, facts):
 
                 raise AssertionError("The unanswered HTTPS request unexpectedly dispatched scientific work")
 
-            tools = [{"type": "function",
-                "function": {
-                    "name": "prepare",
-                    "parameters": {"type": "object", "properties": {}},
-            }}]
+            tools = [
+                {
+                    "type": "function",
+                    "function": {
+                        "name": "prepare",
+                        "parameters": {"type": "object", "properties": {}},
+                    }
+                }
+            ]
 
             return (await self.interpreter.run([], tools, dispatch)).value
 
@@ -372,9 +380,11 @@ async def shutdown_scenario(schedule, seed, directory, facts):
                 if isinstance(result, asyncio.CancelledError):
                     cancelled_observers += 1
 
-                note("join_observer_finished",
-                     observer_number=observer_number + 1,
-                     cancelled=isinstance(result, asyncio.CancelledError))
+                note(
+                    "join_observer_finished",
+                    observer_number=observer_number + 1,
+                    cancelled=isinstance(result, asyncio.CancelledError)
+                )
 
             await asyncio.wait_for(original_exchange.stop.wait(), 2)
             original_stop_time = original_exchange.stopped_at
@@ -399,10 +409,16 @@ async def shutdown_scenario(schedule, seed, directory, facts):
                 if not actual_child_exit.is_set() or allow_exit_observation.is_set():
                     raise AssertionError("No held original child-exit observation")
 
-                completion = json.dumps({
-                    "choices": [{"message": call("completed", "prepare", {}),
-                                 "finish_reason": "tool_calls"}]
-                }).encode()
+                completion = json.dumps(
+                    {
+                        "choices": [
+                            {
+                                "message": call("completed", "prepare", {}),
+                                "finish_reason": "tool_calls"
+                            }
+                        ]
+                    }
+                ).encode()
 
                 async with TlsPeer("success", response_body=completion) as independent_peer:
                     independent = ReplyRun(
@@ -416,7 +432,8 @@ async def shutdown_scenario(schedule, seed, directory, facts):
 
                     independent_result = await asyncio.wait_for(
                         independent.controller.run(independent.pending),
-                        6)
+                        6
+                    )
 
                     original_waiter = exit_observer_tasks[0]
 
@@ -439,13 +456,16 @@ async def shutdown_scenario(schedule, seed, directory, facts):
                         "original_job_owned": claims.owns_job(pending.scope, pending.input.job_ref),
                         "independent_job_released": not claims.owns_job(
                             independent.pending.scope,
-                            independent.pending.input.job_ref),
+                            independent.pending.input.job_ref
+                        ),
                         "live_claim_count": len(claims.live_owners()),
                     }
 
-                    note("independent_real_child_and_science_settled",
-                         pid=independent_children[0].pid,
-                         original_waiter_unfinished=not original_waiter.done())
+                    note(
+                        "independent_real_child_and_science_settled",
+                        pid=independent_children[0].pid,
+                        original_waiter_unfinished=not original_waiter.done()
+                    )
 
             if startup_held or exit_observation_held:
                 facts["held"] = {
@@ -480,14 +500,16 @@ async def shutdown_scenario(schedule, seed, directory, facts):
                         facts["held"]["replacement_job_refused"] = False
 
                 try:
-                    await asyncio.wait_for(http_transport.exchange_decoded(
-                        httpx.Request("POST", peer.origin + "/replacement", content=b"{}"),
-                        maximum_bytes=8192,
-                        error_maximum_bytes=8192,
-                        owner=object(),
-                        not_after=loop.time() + 30,
-                    ),
-                        1)
+                    await asyncio.wait_for(
+                        http_transport.exchange_decoded(
+                            httpx.Request("POST", peer.origin + "/replacement", content=b"{}"),
+                            maximum_bytes=8192,
+                            error_maximum_bytes=8192,
+                            owner=object(),
+                            not_after=loop.time() + 30,
+                        ),
+                        1
+                    )
                 except ExchangeFailed:
                     facts["held"]["replacement_http_request_refused"] = True
                 else:
@@ -538,43 +560,47 @@ async def shutdown_scenario(schedule, seed, directory, facts):
             if marker.exists():
                 faults = [json.loads(line) for line in marker.read_text().splitlines()]
 
-            facts.update({
-                "controller_failure_types": failure_types(result),
-                "settlement_failure_types": sorted({name for failure in settlement_failures
-                                                    for name in failure_types(failure)}),
-                "shutdown_ready": controller.shutdown_ready,
-                "work_settled": controller.work_settled,
-                "session_retired": session.retired,
-                "http_retirement_confirmed": http_transport.retirement_confirmed,
-                "original_driver_retained": controller._driver is original_driver,
-                "request_deadline_unchanged": original_exchange.deadline == original_deadline,
-                "stop_time_unchanged": original_exchange.stopped_at == original_stop_time,
-                "prepare_calls": session.prepare_calls,
-                "execute_calls": session.execute_calls,
-                "tool_dispatches": session.tool_dispatches,
-                "start_count": sum(request.url.path.endswith("/start") for (request, _) in jobs_api_replies.calls),
-                "http_request_count": len(peer.requests),
-                "child_count": len(children),
-                "child_pids": [child.pid for child in children],
-                "child_returncodes": [child.returncode for child in children],
-                "child_still_alive": [process_is_alive(child.pid) for child in children],
-                "child_stdin_closed": [child.stdin.is_closing() for child in children],
-                "exit_observer_count": len(exit_observer_tasks),
-                "exit_observer_cancelled": any(task.cancelled() for task in exit_observer_tasks),
-                "cancelled_join_observers": cancelled_observers,
-                "socket_closed_by_child": peer.closed.is_set(),
-                "unfinished_peer_connections": sum(not task.done() for task in peer.handlers),
-                "descriptors_before_launch": descriptors_before_launch,
-                "descriptors_after_cleanup": len(os.listdir("/proc/self/fd")),
-                "trust_directory_exists": trust_directory.exists(),
-                "claim_count_after_local_stop": len(claims.live_owners()),
-                "cleanup_seconds": cleanup_seconds,
-                "child_exit_seconds_after_stop": [at - original_stop_time for at in child_exit_times],
-                "observations_released_seconds_after_stop": release_time - original_stop_time,
-                "shutdown_seconds_after_releasing_observations": loop.time() - release_time,
-                "signal_delays": [(number, at - original_stop_time) for (number, at) in signals],
-                "http_fault_events": [event["kind"] for event in faults],
-            })
+            facts.update(
+                {
+                    "controller_failure_types": failure_types(result),
+                    "settlement_failure_types": sorted(
+                        {name for failure in settlement_failures
+                                                    for name in failure_types(failure)}
+                    ),
+                    "shutdown_ready": controller.shutdown_ready,
+                    "work_settled": controller.work_settled,
+                    "session_retired": session.retired,
+                    "http_retirement_confirmed": http_transport.retirement_confirmed,
+                    "original_driver_retained": controller._driver is original_driver,
+                    "request_deadline_unchanged": original_exchange.deadline == original_deadline,
+                    "stop_time_unchanged": original_exchange.stopped_at == original_stop_time,
+                    "prepare_calls": session.prepare_calls,
+                    "execute_calls": session.execute_calls,
+                    "tool_dispatches": session.tool_dispatches,
+                    "start_count": sum(request.url.path.endswith("/start") for (request, _) in jobs_api_replies.calls),
+                    "http_request_count": len(peer.requests),
+                    "child_count": len(children),
+                    "child_pids": [child.pid for child in children],
+                    "child_returncodes": [child.returncode for child in children],
+                    "child_still_alive": [process_is_alive(child.pid) for child in children],
+                    "child_stdin_closed": [child.stdin.is_closing() for child in children],
+                    "exit_observer_count": len(exit_observer_tasks),
+                    "exit_observer_cancelled": any(task.cancelled() for task in exit_observer_tasks),
+                    "cancelled_join_observers": cancelled_observers,
+                    "socket_closed_by_child": peer.closed.is_set(),
+                    "unfinished_peer_connections": sum(not task.done() for task in peer.handlers),
+                    "descriptors_before_launch": descriptors_before_launch,
+                    "descriptors_after_cleanup": len(os.listdir("/proc/self/fd")),
+                    "trust_directory_exists": trust_directory.exists(),
+                    "claim_count_after_local_stop": len(claims.live_owners()),
+                    "cleanup_seconds": cleanup_seconds,
+                    "child_exit_seconds_after_stop": [at - original_stop_time for at in child_exit_times],
+                    "observations_released_seconds_after_stop": release_time - original_stop_time,
+                    "shutdown_seconds_after_releasing_observations": loop.time() - release_time,
+                    "signal_delays": [(number, at - original_stop_time) for (number, at) in signals],
+                    "http_fault_events": [event["kind"] for event in faults],
+                }
+            )
         finally:
             allow_creation_return.set()
             allow_exit_observation.set()
@@ -617,10 +643,12 @@ async def main(report, mode, seed):
     except BaseException as failure:
         import traceback
 
-        verdict = {"fixture_failure": type(failure).__name__,
-                   "traceback": traceback.format_exc(),
-                   "current_scenario": current,
-                   "completed_scenarios": completed}
+        verdict = {
+            "fixture_failure": type(failure).__name__,
+            "traceback": traceback.format_exc(),
+            "current_scenario": current,
+            "completed_scenarios": completed
+        }
 
     temporary = report.with_suffix(".pending")
 

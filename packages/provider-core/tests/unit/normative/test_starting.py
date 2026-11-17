@@ -42,9 +42,11 @@ class StartingTests(unittest.IsolatedAsyncioTestCase):
         claims = AttemptClaims.live()
         pending = record()
 
-        other = replace(record("first"),
-                        input=replace(pending.input, job_ref="job:other"),
-                        body=start_body("job:other", "first"))
+        other = replace(
+            record("first"),
+            input=replace(pending.input, job_ref="job:other"),
+            body=start_body("job:other", "first")
+        )
 
         existing = claims.claim_live(other, lifecycle_owner=LiveAttemptProbe())
         owner = object()

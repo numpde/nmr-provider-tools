@@ -35,13 +35,17 @@ class HttpsAdmissionTests(unittest.TestCase):
                 roots.assert_not_called()
 
     def settings(self, read_file):
-        return https_settings({"ca_file": "/PRIVATE_PATH/ca.pem", "exchange_seconds": 10, "retirement_seconds": 5},
-                              "API",
-                              read_file)
+        return https_settings(
+            {"ca_file": "/PRIVATE_PATH/ca.pem", "exchange_seconds": 10, "retirement_seconds": 5},
+            "API",
+            read_file
+        )
 
     def test_encoding_and_certificate_failures_are_distinct_in_safe_rendered_evidence(self):
-        for (raw, reason, cause_type) in ((b"PRIVATE_CA\xff", "ASCII", UnicodeDecodeError),
-                                        (b"PRIVATE_CA", "OpenSSL", ssl.SSLError)):
+        for (raw, reason, cause_type) in (
+            (b"PRIVATE_CA\xff", "ASCII", UnicodeDecodeError),
+            (b"PRIVATE_CA", "OpenSSL", ssl.SSLError)
+        ):
             calls = []
 
             def read_file(path, *, maximum_bytes, label):

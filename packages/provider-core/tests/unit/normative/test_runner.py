@@ -14,12 +14,14 @@ class RunnerTests(unittest.TestCase):
     def test_protected_failure_projection_keeps_stopped_child_and_unreleased_scratch_facts(self):
         failure = LifecycleRejected("Child stopped; scratch remains held", returncode=-9, scratch_released=False)
 
-        self.assertEqual(owned_details(failure),
+        self.assertEqual(
+            owned_details(failure),
             {
                 "message": "Child stopped; scratch remains held",
                 "returncode": -9,
                 "scratch_released": False,
-        })
+            }
+        )
 
     def setUp(self):
         self.runner = RunningSupervisor()
@@ -101,8 +103,10 @@ class RunnerTests(unittest.TestCase):
         session.observe_retirement()
         original = session.original_exit
 
-        self.assertEqual((session.role, session.generation, session.operation, -9),
-                         (original.role, original.generation, original.operation, original.returncode))
+        self.assertEqual(
+            (session.role, session.generation, session.operation, -9),
+            (original.role, original.generation, original.operation, original.returncode)
+        )
 
         session.mark_interruption()
         self.assertIs(original, session.original_exit)

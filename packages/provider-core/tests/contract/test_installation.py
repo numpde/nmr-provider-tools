@@ -19,15 +19,17 @@ class InstallationContractTests(unittest.TestCase):
             path.chmod(0o600)
 
             result = subprocess.run(
-                [sys.executable,
-                 "-I",
-                 "-B",
-                 "-m",
-                 "provider_core.deployment_binding",
-                 "paths",
-                 "--definition",
-                 str(path),
-                 "--all"],
+                [
+                    sys.executable,
+                    "-I",
+                    "-B",
+                    "-m",
+                    "provider_core.deployment_binding",
+                    "paths",
+                    "--definition",
+                    str(path),
+                    "--all"
+                ],
                 capture_output=True,
                 text=True,
                 check=False,

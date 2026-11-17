@@ -26,12 +26,14 @@ class DeliveryQueueRefusalTests(unittest.TestCase):
         for index in range(MAX_PROVIDER_ITEMS + 1):
             reference = "execution_attempt:sha256:" + f"{index:064x}"
 
-            item = DeliveryOutcome("https://api.example",
-                                   "provider:test",
-                                   "job:queue",
-                                   reference,
-                                   TerminalOperation.FAIL,
-                                   fail_body(reference, "provider_interrupted", "legacy exact body"))
+            item = DeliveryOutcome(
+                "https://api.example",
+                "provider:test",
+                "job:queue",
+                reference,
+                TerminalOperation.FAIL,
+                fail_body(reference, "provider_interrupted", "legacy exact body")
+            )
 
             (state, reason) = ("held", "preserve this held obligation")
 
@@ -40,16 +42,18 @@ class DeliveryQueueRefusalTests(unittest.TestCase):
 
             queue._db.execute(
                 "INSERT INTO outstanding VALUES(?,?,?,?,?,?,?,?,?,?,NULL)",
-                (item.api_origin,
-                 item.provider_ref,
-                 item.execution_attempt_ref,
-                 item.job_ref,
-                 item.operation.value,
-                 item.body,
-                 item.body_sha256,
-                 state,
-                 1.0,
-                 reason),
+                (
+                    item.api_origin,
+                    item.provider_ref,
+                    item.execution_attempt_ref,
+                    item.job_ref,
+                    item.operation.value,
+                    item.body,
+                    item.body_sha256,
+                    state,
+                    1.0,
+                    reason
+                ),
             )
 
         queue._db.commit()

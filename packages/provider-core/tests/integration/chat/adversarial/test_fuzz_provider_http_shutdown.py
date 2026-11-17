@@ -80,13 +80,15 @@ class ProviderHttpShutdownTests(unittest.TestCase):
     def assert_original_http_child_retired(self, facts):
         evidence = json.dumps(facts, sort_keys=True)
 
-        for flag in ("shutdown_ready",
-                     "work_settled",
-                     "session_retired",
-                     "http_retirement_confirmed",
-                     "original_driver_retained",
-                     "request_deadline_unchanged",
-                     "stop_time_unchanged"):
+        for flag in (
+            "shutdown_ready",
+            "work_settled",
+            "session_retired",
+            "http_retirement_confirmed",
+            "original_driver_retained",
+            "request_deadline_unchanged",
+            "stop_time_unchanged"
+        ):
             self.assertTrue(facts[flag], msg=evidence)
 
         self.assertIn("ExecutionStopRequested", facts["controller_failure_types"], msg=evidence)
@@ -141,11 +143,13 @@ class ProviderHttpShutdownTests(unittest.TestCase):
         for flag in ("shutdown_ready", "session_retired", "http_retirement_confirmed"):
             self.assertFalse(held[flag], msg=evidence)
 
-        for flag in ("original_owner_retained",
-                     "original_exchange_retained",
-                     "replacement_job_refused",
-                     "replacement_http_request_refused",
-                     "trust_directory_exists"):
+        for flag in (
+            "original_owner_retained",
+            "original_exchange_retained",
+            "replacement_job_refused",
+            "replacement_http_request_refused",
+            "trust_directory_exists"
+        ):
             self.assertTrue(held[flag], msg=evidence)
 
         self.assertEqual(1, held["claim_count"], msg=evidence)
@@ -223,14 +227,16 @@ class ProviderHttpShutdownTests(unittest.TestCase):
 
         self.assertEqual("DeliveryAcceptedCheckpoint", independent["result_type"])
 
-        self.assertEqual((1, 1, 1, 1, 1),
+        self.assertEqual(
+            (1, 1, 1, 1, 1),
             (
                 independent["start_count"],
                 independent["preparations"],
                 independent["executions"],
                 independent["retirements"],
                 independent["local_terminal_acks"],
-        ))
+            )
+        )
 
         self.assertEqual(1, independent["http_requests"])
         self.assertTrue(independent["interpreter_retired"])

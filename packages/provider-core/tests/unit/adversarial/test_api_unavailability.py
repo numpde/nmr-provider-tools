@@ -45,19 +45,25 @@ def unavailable_problem(**changes):
 
 
 def body_timeout_problem(**changes):
-    return unavailable_problem(**({"type": "urn:nmr-api:problem:request-body-timeout",
-                                  "title": "Request body timeout",
-                                  "status": 408,
-                                  "code": "request_body_timeout"} | changes))
+    return unavailable_problem(
+        **({
+            "type": "urn:nmr-api:problem:request-body-timeout",
+            "title": "Request body timeout",
+            "status": 408,
+            "code": "request_body_timeout"
+        } | changes)
+    )
 
 
 class ApiAvailabilityTests(unittest.IsolatedAsyncioTestCase):
     async def failed_discovery(self, response):
         transport = Transport(response)
 
-        api = ProviderAPI(SigningIdentity("https://api.example", "credential:test", Ed25519PrivateKey.generate()),
-                          transport,
-                          expected_topology="dev-local")
+        api = ProviderAPI(
+            SigningIdentity("https://api.example", "credential:test", Ed25519PrivateKey.generate()),
+            transport,
+            expected_topology="dev-local"
+        )
 
         with self.assertRaises(ApiFailure) as caught:
             await api.jobs(analysis_kind_ref="nmr_predict", has_provider_execution_attempt=False, limit=1, cursor=None)
@@ -71,11 +77,17 @@ class ApiAvailabilityTests(unittest.IsolatedAsyncioTestCase):
             "signature_created_in_future",
         )]
 
-        responses += [reply(unavailable_problem(type="urn:nmr-api:problem:authorization-denied",
-                                                status=403,
-                                                code="authorization_denied"),
-            status=403),
-                      reply(b"rate limited", status=429, headers=((b"retry-after", b"10"),))]
+        responses += [
+            reply(
+                unavailable_problem(
+                    type="urn:nmr-api:problem:authorization-denied",
+                    status=403,
+                    code="authorization_denied"
+                ),
+                status=403
+            ),
+            reply(b"rate limited", status=429, headers=((b"retry-after", b"10"),))
+        ]
 
         for response in responses:
             with self.subTest(status=response.status):
@@ -97,9 +109,11 @@ class ApiAvailabilityTests(unittest.IsolatedAsyncioTestCase):
     async def test_discovery_permission_refuses_untrusted_refusals_and_unrelated_routes(self):
         for response in (
             reply(b"rate limited", status=429, headers=response_headers(status=429, topology=b"web")),
-            reply(signature_window_problem(code="authentication_failed"),
-                  status=401,
-                  headers=response_headers(status=401, request_id=b"request:other")),
+            reply(
+                signature_window_problem(code="authentication_failed"),
+                status=401,
+                headers=response_headers(status=401, request_id=b"request:other")
+            ),
             reply(signature_window_problem(code="unreviewed_code"), status=401),
             reply(b"denied", status=403),
             reply(b"not found", status=404),
@@ -138,33 +152,53 @@ class ApiAvailabilityTests(unittest.IsolatedAsyncioTestCase):
             (reply(body_timeout_problem(), status=408, headers=response_headers(status=408, topology=b"web")), False),
             (reply(b"timeout", status=408), False),
             (reply(signature_window_problem(), status=401), True),
-            (io_failure("Interrupted internal error",
-                            stage="read",
-                            primary=httpcore.ReadTimeout(),
-                            response_head=HttpResponseHead(500, response_headers(status=500))),
-                True),
-            (io_failure("Unclean internal error",
-                            stage="read",
-                            primary=httpcore.ReadTimeout(),
-                            response_head=HttpResponseHead(500, response_headers(status=500)),
-                            cleanup_failures=(OSError(),)),
-                False),
-            (io_failure("Cancelled internal error",
-                            stage="read",
-                            primary=httpcore.ReadTimeout(),
-                            response_head=HttpResponseHead(500, response_headers(status=500)),
-                            interruption=asyncio.CancelledError()),
-                False),
-            (io_failure("Interrupted rate limit",
-                            stage="read",
-                            primary=httpcore.ReadTimeout(),
-                            response_head=HttpResponseHead(429, response_headers(status=429))),
-                True),
-            (io_failure("Interrupted timeout refusal",
-                            stage="read",
-                            primary=httpcore.ReadTimeout(),
-                            response_head=HttpResponseHead(408, response_headers(status=408))),
-                False),
+            (
+                io_failure(
+                    "Interrupted internal error",
+                    stage="read",
+                    primary=httpcore.ReadTimeout(),
+                    response_head=HttpResponseHead(500, response_headers(status=500))
+                ),
+                True
+            ),
+            (
+                io_failure(
+                    "Unclean internal error",
+                    stage="read",
+                    primary=httpcore.ReadTimeout(),
+                    response_head=HttpResponseHead(500, response_headers(status=500)),
+                    cleanup_failures=(OSError(),)
+                ),
+                False
+            ),
+            (
+                io_failure(
+                    "Cancelled internal error",
+                    stage="read",
+                    primary=httpcore.ReadTimeout(),
+                    response_head=HttpResponseHead(500, response_headers(status=500)),
+                    interruption=asyncio.CancelledError()
+                ),
+                False
+            ),
+            (
+                io_failure(
+                    "Interrupted rate limit",
+                    stage="read",
+                    primary=httpcore.ReadTimeout(),
+                    response_head=HttpResponseHead(429, response_headers(status=429))
+                ),
+                True
+            ),
+            (
+                io_failure(
+                    "Interrupted timeout refusal",
+                    stage="read",
+                    primary=httpcore.ReadTimeout(),
+                    response_head=HttpResponseHead(408, response_headers(status=408))
+                ),
+                False
+            ),
         ):
             with self.subTest(response=type(response).__name__, expected=expected):
                 (api, transport, failure) = await self.failed_read(response)
@@ -179,10 +213,12 @@ class ApiAvailabilityTests(unittest.IsolatedAsyncioTestCase):
                 transport.replies = iter((response,))
 
                 with self.assertRaises(ApiFailure) as caught:
-                    await api.publish_hello(provider_ref="provider:test",
-                                            display_name="Test",
-                                            description="Test",
-                                            analysis_offerings=(AnalysisOffering("peaks_from_mol", "Test"),))
+                    await api.publish_hello(
+                        provider_ref="provider:test",
+                        display_name="Test",
+                        description="Test",
+                        analysis_offerings=(AnalysisOffering("peaks_from_mol", "Test"),)
+                    )
 
                 self.assertIs(api.can_refresh_hello(caught.exception), expected)
                 self.assertFalse(api.can_retry_read(caught.exception))
@@ -207,9 +243,11 @@ class ApiAvailabilityTests(unittest.IsolatedAsyncioTestCase):
                 self.assertFalse(failure.attempt_mutation_may_have_committed)
 
     async def test_terminal_refusals_retry_without_granting_other_operation_permissions(self):
-        denied = unavailable_problem(type="urn:nmr-api:problem:authorization-denied",
-                                     status=403,
-                                     code="authorization_denied")
+        denied = unavailable_problem(
+            type="urn:nmr-api:problem:authorization-denied",
+            status=403,
+            code="authorization_denied"
+        )
 
         responses = [reply(signature_window_problem(code=code), status=401) for code in (
             "authentication_failed",
@@ -217,10 +255,14 @@ class ApiAvailabilityTests(unittest.IsolatedAsyncioTestCase):
             "signature_created_in_future",
         )]
 
-        responses += [reply(denied, status=403),
-            reply(b"rate limited",
-                      status=429,
-                      headers=((b"content-type", b"text/html"),))]
+        responses += [
+            reply(denied, status=403),
+            reply(
+                b"rate limited",
+                status=429,
+                headers=((b"content-type", b"text/html"),)
+            )
+        ]
 
         for operation in ("start", "complete", "fail", "progress", "condition"):
             for response in responses:
@@ -241,13 +283,19 @@ class ApiAvailabilityTests(unittest.IsolatedAsyncioTestCase):
     async def test_terminal_retry_still_refuses_untrusted_or_unknown_authentication_evidence(self):
         for response in (
             reply(b"rate limited", status=429, headers=response_headers(status=429, topology=b"web")),
-            reply(b"rate limited",
+            reply(
+                b"rate limited",
                 status=429,
-                headers=((b"nmr-api-topology", b"dev-local"),
-                                                       (b"nmr-api-topology", b"dev-local"))),
-            reply(signature_window_problem(code="authentication_failed"),
-                  status=401,
-                  headers=response_headers(status=401, request_id=b"request:other")),
+                headers=(
+                    (b"nmr-api-topology", b"dev-local"),
+                    (b"nmr-api-topology", b"dev-local")
+                )
+            ),
+            reply(
+                signature_window_problem(code="authentication_failed"),
+                status=401,
+                headers=response_headers(status=401, request_id=b"request:other")
+            ),
             reply(signature_window_problem(code="unreviewed_code"), status=401),
             reply(b"denied", status=403),
         ):
@@ -272,23 +320,27 @@ class ApiAvailabilityTests(unittest.IsolatedAsyncioTestCase):
                 (b"\xff", None),
             ):
                 with self.subTest(value=value):
-                    failure = ApiFailure("publish result",
+                    failure = ApiFailure(
+                        "publish result",
                         "refused",
                         response=reply(
                             b"rate limited",
                             status=429,
                             headers=((b"retry-after", value),)
-                    ))
+                        )
+                    )
 
                     self.assertEqual(failure.retry_after_seconds, expected)
 
-            duplicate = ApiFailure("publish result",
+            duplicate = ApiFailure(
+                "publish result",
                 "refused",
                 response=reply(
                     b"rate limited",
                     status=429,
                     headers=((b"retry-after", b"120"), (b"retry-after", b"240"))
-            ))
+                )
+            )
 
             self.assertIsNone(duplicate.retry_after_seconds)
 
@@ -735,10 +787,12 @@ class ApiAvailabilityTests(unittest.IsolatedAsyncioTestCase):
                 self.assertIs(api.can_retry_read(failure), expected)
 
     async def test_untagged_native_lookalikes_never_grant_network_permission(self):
-        for original in (TimeoutError(),
-                         httpcore.ReadTimeout(),
-                         socket.gaierror(socket.EAI_AGAIN, "local"),
-                         ConnectionRefusedError(errno.ECONNREFUSED, "local")):
+        for original in (
+            TimeoutError(),
+            httpcore.ReadTimeout(),
+            socket.gaierror(socket.EAI_AGAIN, "local"),
+            ConnectionRefusedError(errno.ECONNREFUSED, "local")
+        ):
             with self.subTest(error=type(original).__name__):
                 (api, _, failure) = await self.failed_read(ExchangeFailed("Local failure", primary=original))
 

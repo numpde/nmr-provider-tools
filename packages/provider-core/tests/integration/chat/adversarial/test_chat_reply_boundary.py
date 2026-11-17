@@ -18,8 +18,16 @@ from tests.fakes.tls_peer import TlsPeer
 
 class ModelReplyBoundaryTests(unittest.IsolatedAsyncioTestCase):
     async def run_fault(self, mode):
-        body = json.dumps({"choices": [{"message": call("selected", "prepare", {}),
-                                       "finish_reason": "tool_calls"}]}).encode()
+        body = json.dumps(
+            {
+                "choices": [
+                    {
+                        "message": call("selected", "prepare", {}),
+                        "finish_reason": "tool_calls"
+                    }
+                ]
+            }
+        ).encode()
 
         (children, endpoints) = ([], [])
         launch = asyncio.create_subprocess_exec
@@ -38,11 +46,13 @@ class ModelReplyBoundaryTests(unittest.IsolatedAsyncioTestCase):
 
             async with TlsPeer("success", response_body=body) as peer:
                 factory = ChatEndpointFactory(
-                    spec=ChatEndpointSpec(configuration_id="reply-boundary",
-                                          model="fixture",
-                                          url=peer.origin + "/chat",
-                                          api_key="PRIVATE_FIXTURE_KEY",
-                                          reasoning_effort=None),
+                    spec=ChatEndpointSpec(
+                        configuration_id="reply-boundary",
+                        model="fixture",
+                        url=peer.origin + "/chat",
+                        api_key="PRIVATE_FIXTURE_KEY",
+                        reasoning_effort=None
+                    ),
                     trust=peer.trust,
                     retirement_seconds=0.6,
                     request_bytes=32768,
@@ -56,16 +66,23 @@ class ModelReplyBoundaryTests(unittest.IsolatedAsyncioTestCase):
 
                     return endpoint
 
-                interpreter = Interpreter((observe_endpoint,),
-                                          interpretation_budget_seconds=10,
-                                          reject_combined_messages_and_tools_over_bytes=16384,
-                                          **interpreter_test_limits(),
-                                          secrets=("PRIVATE_FIXTURE_KEY",))
+                interpreter = Interpreter(
+                    (observe_endpoint,),
+                    interpretation_budget_seconds=10,
+                    reject_combined_messages_and_tools_over_bytes=16384,
+                    **interpreter_test_limits(),
+                    secrets=("PRIVATE_FIXTURE_KEY",)
+                )
 
-                tools = [{"type": "function",
-                    "function": {
-                        "name": "prepare",
-                        "parameters": {"type": "object", "properties": {}}}}]
+                tools = [
+                    {
+                        "type": "function",
+                        "function": {
+                            "name": "prepare",
+                            "parameters": {"type": "object", "properties": {}}
+                        }
+                    }
+                ]
 
                 dispatch = AsyncMock(return_value=ToolFinished("prepared"))
                 deadline = asyncio.get_running_loop().time() + 3

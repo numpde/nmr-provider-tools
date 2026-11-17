@@ -76,14 +76,16 @@ class Science(Contribution):
 
 class PreparationToolTests(unittest.IsolatedAsyncioTestCase):
     async def asyncSetUp(self):
-        self.execution_host = await self.enterAsyncContext(InProcessExecutionHost(
-            input_bytes=4096,
-            result_bytes=8192,
-            state_values=2,
-            progress_records=1,
-            initialization_seconds=5,
-            retirement_seconds=5,
-        ))
+        self.execution_host = await self.enterAsyncContext(
+            InProcessExecutionHost(
+                input_bytes=4096,
+                result_bytes=8192,
+                state_values=2,
+                progress_records=1,
+                initialization_seconds=5,
+                retirement_seconds=5,
+            )
+        )
 
         self.science = Science()
         self.hosted_contribution = self.execution_host.adopt(contribution=self.science, requirements=frozenset())
@@ -355,11 +357,13 @@ class PreparationToolTests(unittest.IsolatedAsyncioTestCase):
 
         self.addAsyncCleanup(interpreter.retire)
 
-        task = asyncio.create_task(coro=interpreter.run(
-            messages=[],
-            tools=[self.preparation_tool.definition],
-            dispatch=self.preparation_tool.dispatch,
-        ))
+        task = asyncio.create_task(
+            coro=interpreter.run(
+                messages=[],
+                tools=[self.preparation_tool.definition],
+                dispatch=self.preparation_tool.dispatch,
+            )
+        )
 
         try:
             self.assertTrue(expr=await asyncio.to_thread(self.science.load_entered.wait, timeout=2))

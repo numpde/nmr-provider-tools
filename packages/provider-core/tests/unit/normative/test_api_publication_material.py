@@ -35,10 +35,12 @@ class PublicationMaterialTests(unittest.TestCase):
         self.assertEqual(retained.http.trust.verify_mode, ssl.CERT_REQUIRED)
         self.assertTrue(retained.http.trust.check_hostname)
 
-        reader.assert_called_once_with("/private/credential",
-                                       maximum_bytes=16384,
-                                       label="API signing credential",
-                                       secret=True)
+        reader.assert_called_once_with(
+            "/private/credential",
+            maximum_bytes=16384,
+            label="API signing credential",
+            secret=True
+        )
 
     def test_provider_captures_the_same_admitted_material_once(self):
         reader = Mock(return_value=self.credential)
@@ -73,9 +75,11 @@ class PublicationMaterialTests(unittest.TestCase):
     def test_wrong_identity_is_refused_before_ca_loading(self):
         reader = Mock(return_value=self.credential)
 
-        fields = self.fields | {"provider_ref": "provider:other",
-                                "credential_file": "/private/credential",
-                                "ca_file": "/private/ca"}
+        fields = self.fields | {
+            "provider_ref": "provider:other",
+            "credential_file": "/private/credential",
+            "ca_file": "/private/ca"
+        }
 
         with self.assertRaises(ApiConfigurationRejected):
             api_settings(fields, reader)
@@ -83,6 +87,8 @@ class PublicationMaterialTests(unittest.TestCase):
         reader.assert_called_once()
 
         with self.assertRaises(ApiConfigurationRejected):
-            api_settings_from_material(self.fields | {"provider_ref": "provider:other"},
-                                       credential_bytes=self.credential,
-                                       ca_bytes=b"invalid CA")
+            api_settings_from_material(
+                self.fields | {"provider_ref": "provider:other"},
+                credential_bytes=self.credential,
+                ca_bytes=b"invalid CA"
+            )

@@ -29,18 +29,21 @@ class SharedServiceCancellationTests(unittest.IsolatedAsyncioTestCase):
             ca = (Path(peer.scratch.name) / "cert.pem").read_bytes()
             credential = encoded(document(principal_ref=item.provider_ref))
 
-            fields = {"origin": peer.origin,
-                      "profile": "dev-local",
-                      "topology": "dev-local",
-                      "provider_ref": item.provider_ref,
-                      "exchange_seconds": 10,
-                      "retirement_seconds": 1,
-                      "credential_file": "/fixture/credential",
-                      "ca_file": "/fixture/ca"}
+            fields = {
+                "origin": peer.origin,
+                "profile": "dev-local",
+                "topology": "dev-local",
+                "provider_ref": item.provider_ref,
+                "exchange_seconds": 10,
+                "retirement_seconds": 1,
+                "credential_file": "/fixture/credential",
+                "ca_file": "/fixture/ca"
+            }
 
             (settings, _, material) = api_settings_with_material(
                 fields,
-                lambda _path, **options: credential if options["label"] == "API signing credential" else ca)
+                lambda _path, **options: credential if options["label"] == "API signing credential" else ca
+            )
 
             handoff = DeliveryHandoff(item, material)
 
@@ -64,7 +67,8 @@ class SharedServiceCancellationTests(unittest.IsolatedAsyncioTestCase):
                         retry_initial_seconds=0.01,
                         retry_max_seconds=0.02,
                         on_notice=Mock(),
-                        diagnostic_status=Mock())
+                        diagnostic_status=Mock()
+                    )
 
                     thread.start()
                     task = asyncio.create_task(service.run())
@@ -89,10 +93,12 @@ class SharedServiceCancellationTests(unittest.IsolatedAsyncioTestCase):
                         self.assertTrue(service.retirement_confirmed)
                         self.assertEqual(peer.request_bodies, [item.body])
 
-                        verify_signed_request(peer.requests[0],
-                                              item.body,
-                                              origin=peer.origin,
-                                              key=settings.identity.private_key)
+                        verify_signed_request(
+                            peer.requests[0],
+                            item.body,
+                            origin=peer.origin,
+                            key=settings.identity.private_key
+                        )
                     finally:
                         try:
                             if client is not None:

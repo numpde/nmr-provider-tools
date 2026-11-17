@@ -148,7 +148,8 @@ class ExecutionFailureTests(unittest.IsolatedAsyncioTestCase):
         transport = Transport(reply(observation()), ExchangeFailed("Authored input-response failure"))
         client = api(transport, store.scope.api_origin)
 
-        executor = live_executor(client,
+        executor = live_executor(
+            client,
             store,
             claim,
             session,
@@ -158,7 +159,8 @@ class ExecutionFailureTests(unittest.IsolatedAsyncioTestCase):
             delivery_retry_max_seconds=0.04,
             allowed_job_states=frozenset({"open"}),
             poll_seconds=1,
-            task_settle_seconds=1)
+            task_settle_seconds=1
+        )
 
         task = asyncio.create_task(executor.run(acknowledged))
 
@@ -343,7 +345,8 @@ class ExecutionFailureTests(unittest.IsolatedAsyncioTestCase):
         cleanup = RuntimeError("private retirement cause")
         session.retirement_failure = cleanup
 
-        executor = live_executor(api(normal_transport(), store.scope.api_origin),
+        executor = live_executor(
+            api(normal_transport(), store.scope.api_origin),
             store,
             claim,
             session,
@@ -353,7 +356,8 @@ class ExecutionFailureTests(unittest.IsolatedAsyncioTestCase):
             delivery_retry_max_seconds=0.04,
             allowed_job_states=frozenset({"open"}),
             poll_seconds=1,
-            task_settle_seconds=0.1)
+            task_settle_seconds=0.1
+        )
 
         with self.assertRaises(ExecutionFailed) as failed:
             await executor.run(acknowledged)

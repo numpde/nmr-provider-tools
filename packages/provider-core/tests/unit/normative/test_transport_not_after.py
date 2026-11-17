@@ -71,9 +71,11 @@ class TransportNotAfterTests(unittest.IsolatedAsyncioTestCase):
             side_effect=delayed_observer,
         ):
             with self.assertRaises(ExchangeFailed) as caught:
-                await transport.exchange(httpx.Request("GET", "https://model.example/turn"),
-                                         maximum_bytes=8,
-                                         not_after=cap)
+                await transport.exchange(
+                    httpx.Request("GET", "https://model.example/turn"),
+                    maximum_bytes=8,
+                    not_after=cap
+                )
 
         self.assertIsInstance(caught.exception.primary, TimeoutError)
         self.assertEqual(caught.exception.response_head.status, 200)
@@ -125,11 +127,13 @@ class TransportNotAfterTests(unittest.IsolatedAsyncioTestCase):
         with patch("provider_core.transport.httpcore.AsyncConnectionPool", return_value=client):
             try:
                 with self.assertRaises(ExchangeFailed) as caught:
-                    await transport.exchange(httpx.Request("GET", "https://model.example/turn"),
-                                             maximum_bytes=8,
-                                             owner=owner,
-                                             before_body=heads.append,
-                                             not_after=started+0.03)
+                    await transport.exchange(
+                        httpx.Request("GET", "https://model.example/turn"),
+                        maximum_bytes=8,
+                        owner=owner,
+                        before_body=heads.append,
+                        not_after=started+0.03
+                    )
 
                 self.assertGreaterEqual(loop.time()-started, 0.05)
                 self.assertLess(loop.time()-started, 0.5)
@@ -177,10 +181,12 @@ class TransportNotAfterTests(unittest.IsolatedAsyncioTestCase):
 
         async def call():
             try:
-                await transport.exchange(httpx.Request("GET", "https://model.example/turn"),
-                                         maximum_bytes=8,
-                                         owner=owner,
-                                         not_after=asyncio.get_running_loop().time()+0.04)
+                await transport.exchange(
+                    httpx.Request("GET", "https://model.example/turn"),
+                    maximum_bytes=8,
+                    owner=owner,
+                    not_after=asyncio.get_running_loop().time()+0.04
+                )
             except asyncio.CancelledError as cancellation:
                 cancellations.append(cancellation)
                 raise
@@ -228,9 +234,11 @@ class TransportNotAfterTests(unittest.IsolatedAsyncioTestCase):
             try:
                 with self.assertRaises((TimeoutError,ExchangeFailed)):
                     async with asyncio.timeout_at(started+0.02):
-                        await transport.exchange(httpx.Request("GET","https://model.example/turn"),
-                                                 maximum_bytes=8,
-                                                 not_after=started+0.02)
+                        await transport.exchange(
+                            httpx.Request("GET","https://model.example/turn"),
+                            maximum_bytes=8,
+                            not_after=started+0.02
+                        )
 
                 self.assertGreaterEqual(loop.time()-started,0.05)
                 self.assertLess(loop.time()-started,0.5)
@@ -276,9 +284,11 @@ class TransportNotAfterTests(unittest.IsolatedAsyncioTestCase):
         if not first_during_request:
             seconds = 0.01
 
-        transport = HttpTransport(trust=ssl.create_default_context(),
-                                  exchange_seconds=seconds,
-                                  retirement_seconds=0.08)
+        transport = HttpTransport(
+            trust=ssl.create_default_context(),
+            exchange_seconds=seconds,
+            retirement_seconds=0.08
+        )
 
         loop = asyncio.get_running_loop()
         owner = object()

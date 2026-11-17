@@ -22,9 +22,11 @@ class TransportFaultSequenceTests(unittest.IsolatedAsyncioTestCase):
             with self.subTest(seed=seed, phase=phase, inherited=inherited, mode=mode):
                 async with TlsPeer(phase) as peer:
                     # silent-defaults: allow-contract -- The scenario chooses which request deadline expires first.
-                    transport = HttpTransport(trust=peer.trust,
-                                              exchange_seconds=3 if inherited else 0.3,
-                                              retirement_seconds=0.5)
+                    transport = HttpTransport(
+                        trust=peer.trust,
+                        exchange_seconds=3 if inherited else 0.3,
+                        retirement_seconds=0.5
+                    )
 
                     owner = object()
                     request = httpx.Request("GET", peer.origin + "/fault-sequence")

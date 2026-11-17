@@ -15,13 +15,15 @@ from tests.fakes.delivery import outcome
 
 class DeliveryFaultSequenceTests(unittest.TestCase):
     def material(self, provider):
-        fields = {"origin": "https://api.example",
-                  "profile": "dev-local",
-                  "topology": "dev-local",
-                  "provider_ref": provider,
-                  "exchange_seconds": 10,
-                  "retirement_seconds": 5,
-                  "credential_file": "/synthetic/credential"}
+        fields = {
+            "origin": "https://api.example",
+            "profile": "dev-local",
+            "topology": "dev-local",
+            "provider_ref": provider,
+            "exchange_seconds": 10,
+            "retirement_seconds": 5,
+            "credential_file": "/synthetic/credential"
+        }
 
         (_, _, material) = api_settings_with_material(fields, Mock(return_value=encoded(document(principal_ref=provider))))
 
@@ -85,8 +87,10 @@ class DeliveryFaultSequenceTests(unittest.TestCase):
                                 queue.close()
                                 queue = DeliveryQueue(Path(directory), limits=limits)
                             elif action == "enqueue" or not expected:
-                                item = DeliveryHandoff(outcome(provider=provider, suffix=suffix, message=f"result-{seed}-{step}"),
-                                                       materials[provider][0])
+                                item = DeliveryHandoff(
+                                    outcome(provider=provider, suffix=suffix, message=f"result-{seed}-{step}"),
+                                    materials[provider][0]
+                                )
 
                                 occupied = item.outcome.key in expected
                                 provider_count = sum(old.outcome.provider_ref == provider for (old, _) in expected.values())
@@ -112,9 +116,11 @@ class DeliveryFaultSequenceTests(unittest.TestCase):
                                     with self.assertRaises(DeliveryConflict):
                                         queue.enqueue_handoff(changed)
 
-                                    changed_body = outcome(provider=item.outcome.provider_ref,
-                                                           suffix=item.outcome.execution_attempt_ref[-1],
-                                                           message="different bytes")
+                                    changed_body = outcome(
+                                        provider=item.outcome.provider_ref,
+                                        suffix=item.outcome.execution_attempt_ref[-1],
+                                        message="different bytes"
+                                    )
 
                                     with self.assertRaises(DeliveryConflict):
                                         queue.remove_published(changed_body)

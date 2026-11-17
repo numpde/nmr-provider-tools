@@ -27,8 +27,10 @@ class ResetPeer(TlsPeer):
         try:
             await reader.readuntil(b"\r\n\r\n")
 
-            writer.write(b"HTTP/1.1 200 OK\r\n" + b"".join(name+b": "+value+b"\r\n" for (name,value) in store_headers(BODY))
-                         + b"\r\ng")
+            writer.write(
+                b"HTTP/1.1 200 OK\r\n" + b"".join(name+b": "+value+b"\r\n" for (name,value) in store_headers(BODY))
+                + b"\r\ng"
+            )
 
             await writer.drain()
             await asyncio.sleep(0.02)
@@ -43,20 +45,24 @@ class UploadNetworkResetTests(unittest.IsolatedAsyncioTestCase):
     async def failure(self, peer, account):
         store = HttpTransport(trust=peer.trust, exchange_seconds=1, retirement_seconds=0.2)
 
-        transfer = UploadTransfer("job:example",
-                                  store=store,
-                                  store_origin=peer.origin,
-                                  remaining=lambda:1,
-                                  before_request=lambda:None,
-                                  account=account)
+        transfer = UploadTransfer(
+            "job:example",
+            store=store,
+            store_origin=peer.origin,
+            remaining=lambda:1,
+            before_request=lambda:None,
+            account=account
+        )
 
-        grant = ReadGrant("job:example",
-                          UPLOAD_REF,
-                          8,
-                          "sha256:"+sha256(BODY).hexdigest(),
-                          peer.origin+"/upload/v1/uploads/"+UPLOAD_REF+"/bytes",
-                          "protected-bearer",
-                          datetime.now(UTC)+timedelta(minutes=1))
+        grant = ReadGrant(
+            "job:example",
+            UPLOAD_REF,
+            8,
+            "sha256:"+sha256(BODY).hexdigest(),
+            peer.origin+"/upload/v1/uploads/"+UPLOAD_REF+"/bytes",
+            "protected-bearer",
+            datetime.now(UTC)+timedelta(minutes=1)
+        )
 
         async def fresh():
             return grant

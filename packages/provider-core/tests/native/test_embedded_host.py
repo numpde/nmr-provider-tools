@@ -282,11 +282,13 @@ class EmbeddedHostTests(unittest.IsolatedAsyncioTestCase):
         analysis = host.open_analysis("local-stop", allocation_names=("one",))
         (reservation,) = analysis.reservations
 
-        wrong_revision = replace(binding,
+        wrong_revision = replace(
+            binding,
             identity=replace(
                 binding.identity,
                 implementation="dummy.sum.another",
-        ))
+            )
+        )
 
         foreign = analysis.submit_call(
             wrong_revision.run,
@@ -833,10 +835,12 @@ class EmbeddedHostTests(unittest.IsolatedAsyncioTestCase):
             operation.release_result(replace(completed.result, result_id="another-result"))
 
         with self.assertRaises(ValueError):
-            operation.release_result(ResultRef(
-                operation=replace(operation.reference, operation_id="another-operation"),
-                result_id=completed.result.result_id,
-            ))
+            operation.release_result(
+                ResultRef(
+                    operation=replace(operation.reference, operation_id="another-operation"),
+                    result_id=completed.result.result_id,
+                )
+            )
 
         self.assertIs(
             ResultState.RELEASED,
@@ -968,12 +972,16 @@ class EmbeddedHostTests(unittest.IsolatedAsyncioTestCase):
         unsupported_bindings = (
             replace(original, identity=replace(original.identity, contract_version=2)),
             replace(original, isolation=IsolationRequirement.DEDICATED_PROCESS),
-            replace(original,
-                run=replace(original.run,
+            replace(
+                original,
+                run=replace(
+                    original.run,
                     description=replace(
                         original.run.description,
                         concurrency=ConcurrencyRequirement.PROCESS_SERIAL,
-            ))),
+                    )
+                )
+            ),
         )
 
         for (index, unsupported_binding) in enumerate(unsupported_bindings):

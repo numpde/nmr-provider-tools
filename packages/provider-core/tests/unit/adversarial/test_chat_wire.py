@@ -46,10 +46,12 @@ def observed_failure(primary, *, stage="read", **facts):
         "The original HTTP exchange failed.",
         primary=primary,
         network_failure=primary,
-        network_io=NetworkIOObservation(stage=stage,
-                                        error=primary,
-                                        cause=primary.__cause__,
-                                        context=primary.__context__),
+        network_io=NetworkIOObservation(
+            stage=stage,
+            error=primary,
+            cause=primary.__cause__,
+            context=primary.__context__
+        ),
         **facts,
     )
 
@@ -153,10 +155,12 @@ class ChatWireAvailabilityTests(unittest.TestCase):
                     "Cannot connect to the selected proxy.",
                     primary=primary,
                     network_failure=primary,
-                    network_io=NetworkIOObservation(stage="connect_unix",
-                                                    error=primary,
-                                                    unix_path=path,
-                                                    configured_unix_path="/private/model.sock"),
+                    network_io=NetworkIOObservation(
+                        stage="connect_unix",
+                        error=primary,
+                        unix_path=path,
+                        configured_unix_path="/private/model.sock"
+                    ),
                 )
 
                 expected = path == "/private/model.sock"
@@ -165,16 +169,20 @@ class ChatWireAvailabilityTests(unittest.TestCase):
                 self.assertEqual(expected, retry_allowed(transferred(original)))
 
     def test_one_nonavailability_group_member_prevents_retry(self):
-        for (last, expected) in ((ConnectionResetError(errno.ECONNRESET, "reset"), True),
-                               (ssl.SSLCertVerificationError(1, "untrusted certificate"), False)):
+        for (last, expected) in (
+            (ConnectionResetError(errno.ECONNRESET, "reset"), True),
+            (ssl.SSLCertVerificationError(1, "untrusted certificate"), False)
+        ):
             with self.subTest(expected_retry=expected):
                 primary = httpcore.ConnectError("both address attempts failed")
 
-                primary.__cause__ = ExceptionGroup("original connection attempts",
+                primary.__cause__ = ExceptionGroup(
+                    "original connection attempts",
                     (
                         ConnectionRefusedError(errno.ECONNREFUSED, "refused"),
                         last,
-                ))
+                    )
+                )
 
                 original = observed_failure(primary, stage="connect_tcp")
 

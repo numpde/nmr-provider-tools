@@ -265,11 +265,13 @@ class AsyncNativeWireTests(unittest.IsolatedAsyncioTestCase):
         self.listener.listen()
         self.listener.settimeout(2)
 
-        self.session = RunnerSession(self.path,
-                                     role="fixture",
-                                     expected_lock_identity=(0, 0),
-                                     startup_seconds=2,
-                                     retirement_seconds=0.3)
+        self.session = RunnerSession(
+            self.path,
+            role="fixture",
+            expected_lock_identity=(0, 0),
+            startup_seconds=2,
+            retirement_seconds=0.3
+        )
 
         self.addCleanup(self.session.close)
         self.owner = AsyncRunnerSession(self.session)
@@ -551,24 +553,32 @@ class AsyncNativeWireTests(unittest.IsolatedAsyncioTestCase):
             await asyncio.sleep(greeting_delay)
 
         with science:
-            send_greeting(self.peer,
-                          {"kind": "opened",
-                                     "role": "fixture",
-                                     "lock": [0, 0],
-                                     "generation": "1" * 32,
-                                     "operation": "2" * 32},
-                          science,
-                          deadline=time.monotonic() + 2)
+            send_greeting(
+                self.peer,
+                {
+                    "kind": "opened",
+                    "role": "fixture",
+                    "lock": [0, 0],
+                    "generation": "1" * 32,
+                    "operation": "2" * 32
+                },
+                science,
+                deadline=time.monotonic() + 2
+            )
 
         await opening
 
     def retirement_frame(self):
-        raw = json.dumps({"kind": "retired",
-                          "generation": "1" * 32,
-                          "operation": "2" * 32,
-                          "returncode": 0,
-                          "scratch_released": True,
-                          "reason": "exited"}).encode()
+        raw = json.dumps(
+            {
+                "kind": "retired",
+                "generation": "1" * 32,
+                "operation": "2" * 32,
+                "returncode": 0,
+                "scratch_released": True,
+                "reason": "exited"
+            }
+        ).encode()
 
         return struct.pack("!I", len(raw)) + raw
 
@@ -675,14 +685,18 @@ class AsyncNativeWireTests(unittest.IsolatedAsyncioTestCase):
         self.addCleanup(remote.close)
 
         with science:
-            send_greeting(peer,
-                          {"kind": "opened",
-                                "role": "fixture",
-                                "lock": [0, 0],
-                                "generation": "1" * 32,
-                                "operation": "2" * 32},
-                          science,
-                          deadline=time.monotonic() + 1)
+            send_greeting(
+                peer,
+                {
+                    "kind": "opened",
+                    "role": "fixture",
+                    "lock": [0, 0],
+                    "generation": "1" * 32,
+                    "operation": "2" * 32
+                },
+                science,
+                deadline=time.monotonic() + 1
+            )
 
         await self.owner.connect(wait_seconds=1)
         self.assertIs(original, self.owner.setup)

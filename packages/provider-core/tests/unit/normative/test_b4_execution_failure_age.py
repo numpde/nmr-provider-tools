@@ -85,9 +85,11 @@ class ExecutionFailureAgeTests(unittest.IsolatedAsyncioTestCase):
             self.assertEqual(ATTEMPT_REF, snapshot["execution_attempt_ref"], msg=evidence)
             self.assertTrue(snapshot["delivery_acceptance_received"], msg=evidence)
 
-            self.assertIn("failure_age_seconds",
-                          snapshot,
-                          msg="The diagnostic identifies the Job and Attempt but not the age of its original lifecycle failure: " + evidence)
+            self.assertIn(
+                "failure_age_seconds",
+                snapshot,
+                msg="The diagnostic identifies the Job and Attempt but not the age of its original lifecycle failure: " + evidence
+            )
 
             self.assertGreaterEqual(snapshot["failure_age_seconds"], 0, msg=evidence)
 

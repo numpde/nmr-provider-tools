@@ -348,14 +348,16 @@ class AdoptionTests(unittest.IsolatedAsyncioTestCase):
             with self.assertRaises(expected_exception=ValueError):
                 analysis.submit_method(method=method,  scientific_input=Numbers(values=(1,)), states={}, reservation=reservation, policy=operation_policy)
 
-        refused = analysis.submit(invocation=Invocation(
-            operation_id="portable",
-            target=first.reference(method=first.contribution.calculate),
-            payload=first.call(method=first.contribution.calculate).input_codec.encode(value=Numbers(values=(1,))),
-            states={},
-            reservation=reservation,
-            policy=operation_policy,
-        ))
+        refused = analysis.submit(
+            invocation=Invocation(
+                operation_id="portable",
+                target=first.reference(method=first.contribution.calculate),
+                payload=first.call(method=first.contribution.calculate).input_codec.encode(value=Numbers(values=(1,))),
+                states={},
+                reservation=reservation,
+                policy=operation_policy,
+            )
+        )
 
         self.assertIsInstance(obj=refused, cls=NotAdmitted)
         self.assertEqual(first=0, second=second.contribution.calls)
@@ -614,14 +616,16 @@ class AdoptionTests(unittest.IsolatedAsyncioTestCase):
             self.assertTrue(expr=await asyncio.to_thread(entered.wait, 2))
             deadline = asyncio.get_running_loop().time() + 0.05
 
-            waiting = execution.submit(invocation=Invocation(
-                target=hosted.reference(method=instance.calculate),
-                payload=hosted.call(method=instance.calculate).input_codec.encode(value=Numbers(values=(2,))),
-                states={},
-                reservation=reservation,
-                policy=deadline_policy(),
-                start_not_after=deadline,
-            ))
+            waiting = execution.submit(
+                invocation=Invocation(
+                    target=hosted.reference(method=instance.calculate),
+                    payload=hosted.call(method=instance.calculate).input_codec.encode(value=Numbers(values=(2,))),
+                    states={},
+                    reservation=reservation,
+                    policy=deadline_policy(),
+                    start_not_after=deadline,
+                )
+            )
 
             await asyncio.sleep(delay=max(0, deadline - asyncio.get_running_loop().time()) + 0.01)
         finally:

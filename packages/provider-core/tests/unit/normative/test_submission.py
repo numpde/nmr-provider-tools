@@ -43,14 +43,16 @@ class Science(Contribution):
 
 class SubmissionTests(unittest.IsolatedAsyncioTestCase):
     async def asyncSetUp(self):
-        self.execution_host = await self.enterAsyncContext(InProcessExecutionHost(
-            input_bytes=4096,
-            result_bytes=4096,
-            state_values=1,
-            progress_records=1,
-            initialization_seconds=5,
-            retirement_seconds=5,
-        ))
+        self.execution_host = await self.enterAsyncContext(
+            InProcessExecutionHost(
+                input_bytes=4096,
+                result_bytes=4096,
+                state_values=1,
+                progress_records=1,
+                initialization_seconds=5,
+                retirement_seconds=5,
+            )
+        )
 
         self.science = Science()
         self.hosted_contribution = self.execution_host.adopt(contribution=self.science, requirements=frozenset())

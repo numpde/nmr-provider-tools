@@ -22,10 +22,12 @@ class JobDiscoveryIntegrationTests(unittest.IsolatedAsyncioTestCase):
         payload = b"selected second Job instructions"
         original = feed_page()["jobs"][0]
 
-        other = {**original,
-                 "job_ref": "job:second",
-                 "input_byte_length": len(payload),
-                 "input_fingerprint": "sha256:" + hashlib.sha256(payload).hexdigest()}
+        other = {
+            **original,
+            "job_ref": "job:second",
+            "input_byte_length": len(payload),
+            "input_fingerprint": "sha256:" + hashlib.sha256(payload).hexdigest()
+        }
 
         for order in ((original, other), (other, original)):
             document = feed_page()
@@ -66,12 +68,14 @@ class JobDiscoveryIntegrationTests(unittest.IsolatedAsyncioTestCase):
             self.assertEqual(verified.specification_bytes, b"private instructions")
             self.assertEqual(len(peer.requests), 2)
 
-            for (request, expected_target) in zip(peer.requests,
+            for (request, expected_target) in zip(
+                peer.requests,
                 (
                     b"/provider/v1/jobs?analysis_kind_ref=nmr_predict&has_provider_execution_attempt=false&limit=1",
                     b"/provider/v1/jobs/job:example/input?analysis_kind_ref=nmr_predict",
                 ),
-                strict=True):
+                strict=True
+            ):
                 self.assertEqual(request.split(b"\r\n")[0], b"GET " + expected_target + b" HTTP/1.1")
 
                 headers = {name.lower(): value.strip() for line in request.split(b"\r\n")[1:] if b":" in line
@@ -79,11 +83,15 @@ class JobDiscoveryIntegrationTests(unittest.IsolatedAsyncioTestCase):
 
                 (path, query) = expected_target.split(b"?", 1)
 
-                base = b"\n".join([b'"@method": GET',
-                                    b'"@authority": ' + peer.origin.removeprefix("https://").encode(),
-                                    b'"@path": ' + path,
-                                    b'"@query": ?' + query,
-                                    b'"@signature-params": ' + headers[b"signature-input"].split(b"=", 1)[1]])
+                base = b"\n".join(
+                    [
+                        b'"@method": GET',
+                        b'"@authority": ' + peer.origin.removeprefix("https://").encode(),
+                        b'"@path": ' + path,
+                        b'"@query": ?' + query,
+                        b'"@signature-params": ' + headers[b"signature-input"].split(b"=", 1)[1]
+                    ]
+                )
 
                 key.public_key().verify(parse(headers[b"signature"], tltype="dictionary")["sig1"][0], base)
                 self.assertNotIn(b"content-digest", headers)
@@ -103,11 +111,15 @@ class JobDiscoveryIntegrationTests(unittest.IsolatedAsyncioTestCase):
 
             owner = object()
 
-            task = asyncio.create_task(client.jobs(analysis_kind_ref="nmr_predict",
-                                                   has_provider_execution_attempt=False,
-                                                   limit=1,
-                                                   cursor=None,
-                                                   owner=owner))
+            task = asyncio.create_task(
+                client.jobs(
+                    analysis_kind_ref="nmr_predict",
+                    has_provider_execution_attempt=False,
+                    limit=1,
+                    cursor=None,
+                    owner=owner
+                )
+            )
 
             await asyncio.wait_for(peer.received.wait(), 1)
             task.cancel()

@@ -210,7 +210,8 @@ class RunnerStartupTests(unittest.TestCase):
                 original.result(timeout=1)
                 self.assertTrue(session.control_connected)
 
-                send_document(peer,
+                send_document(
+                    peer,
                     {
                         "kind": "retired",
                         "generation": self.greeting["generation"],
@@ -219,7 +220,8 @@ class RunnerStartupTests(unittest.TestCase):
                         "scratch_released": True,
                         "reason": "owner_lost",
                     },
-                    deadline=time.monotonic() + 1)
+                    deadline=time.monotonic() + 1
+                )
 
                 session.retire()
 
@@ -239,10 +241,12 @@ class RunnerStartupTests(unittest.TestCase):
             with peer, science, remote:
                 peer.settimeout(1)
 
-                peer.sendmsg([b"\0" + frame[:2]],
+                peer.sendmsg(
+                    [b"\0" + frame[:2]],
                     [
                         (socket.SOL_SOCKET, socket.SCM_RIGHTS, array.array("i", [science.fileno()])),
-                ])
+                ]
+                )
 
                 science.close()
                 session.request_stop()
@@ -256,7 +260,8 @@ class RunnerStartupTests(unittest.TestCase):
                 original.result(timeout=1)
                 self.assertEqual(self.greeting["operation"], session.operation)
 
-                send_document(peer,
+                send_document(
+                    peer,
                     {
                         "kind": "retired",
                         "generation": session.generation,
@@ -265,7 +270,8 @@ class RunnerStartupTests(unittest.TestCase):
                         "scratch_released": True,
                         "reason": "owner_lost",
                     },
-                    deadline=time.monotonic() + 1)
+                    deadline=time.monotonic() + 1
+                )
 
                 session.retire()
                 self.assertEqual(0, session.retirement.returncode)

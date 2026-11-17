@@ -91,8 +91,10 @@ class ChatProcessProjectionTests(unittest.TestCase):
 
         self.assertNotIn("PRIVATE_CHILD", repr(evidence))
 
-        child_evidence = next(item["failure"] for item in evidence["relationships"]
-                              if item["relationship"] == "model HTTP child evidence")
+        child_evidence = next(
+            item["failure"] for item in evidence["relationships"]
+            if item["relationship"] == "model HTTP child evidence"
+        )
 
         self.assertEqual(503, child_evidence["status"])
         self.assertIsNone(child_evidence["request_id"])

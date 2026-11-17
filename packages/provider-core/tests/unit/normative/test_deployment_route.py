@@ -31,13 +31,15 @@ class DeploymentRouteTests(unittest.TestCase):
         return parse_deployment_bindings(raw).selected("fixture-0")
 
     def render(self, binding, **changes):
-        arguments = {"image": "sha256:" + "a" * 64,
-                     "interpreter": "/opt/provider/bin/python",
-                     "namespace": "provider-one",
-                     "uid": 65532,
-                     "gid": 65532,
-                     "storage": NamedRouteVolume(),
-                     "input_sources": {}}
+        arguments = {
+            "image": "sha256:" + "a" * 64,
+            "interpreter": "/opt/provider/bin/python",
+            "namespace": "provider-one",
+            "uid": 65532,
+            "gid": 65532,
+            "storage": NamedRouteVolume(),
+            "input_sources": {}
+        }
 
         arguments.update(changes)
 
@@ -116,8 +118,10 @@ class DeploymentRouteTests(unittest.TestCase):
                 self.assertEqual("provider-one", proxy["labels"]["org.nmr-provider-tools.route"])
 
                 for service in projection.compose["services"].values():
-                    self.assertEqual(proxy["labels"]["org.nmr-provider-tools.binding"],
-                                     service["labels"]["org.nmr-provider-tools.binding"])
+                    self.assertEqual(
+                        proxy["labels"]["org.nmr-provider-tools.binding"],
+                        service["labels"]["org.nmr-provider-tools.binding"]
+                    )
 
                     if service is not proxy:
                         self.assertEqual("initializer", service["labels"]["org.nmr-provider-tools.route-role"])
@@ -128,8 +132,10 @@ class DeploymentRouteTests(unittest.TestCase):
                 sources = {}
 
                 if mode == "external":
-                    sources = {"/synthetic/resolver": "/frozen/api-resolv.conf",
-                               "/synthetic/signing.json": "/frozen/signing.json"}
+                    sources = {
+                        "/synthetic/resolver": "/frozen/api-resolv.conf",
+                        "/synthetic/signing.json": "/frozen/signing.json"
+                    }
 
                 projection = self.render(self.binding(mode), input_sources=sources)
                 proxy = self.proxy(projection)
@@ -185,17 +191,19 @@ class DeploymentRouteTests(unittest.TestCase):
         self.assertNotIn("ports", proxy)
 
     def test_invalid_identity_image_namespace_storage_and_relocation_refuse(self):
-        for changes in ({"uid": 0},
-                        {"gid": True},
-                        {"image": "mutable:latest"},
-                        {"service_name": "API"},
-                        {"service_name": ""},
-                        {"namespace": "UPPER"},
-                        {"interpreter": "python"},
-                        {"storage": None},
-                        {"storage": RouteDirectory(Path("/runtime/../private"))},
-                        {"input_sources": {"/not-granted": "/captured"}},
-                        {"input_sources": {"/synthetic/signing.json": "/captured,unsafe"}}):
+        for changes in (
+            {"uid": 0},
+            {"gid": True},
+            {"image": "mutable:latest"},
+            {"service_name": "API"},
+            {"service_name": ""},
+            {"namespace": "UPPER"},
+            {"interpreter": "python"},
+            {"storage": None},
+            {"storage": RouteDirectory(Path("/runtime/../private"))},
+            {"input_sources": {"/not-granted": "/captured"}},
+            {"input_sources": {"/synthetic/signing.json": "/captured,unsafe"}}
+        ):
             with self.subTest(changes=changes):
                 with self.assertRaises(RouteProjectionRejected):
                     self.render(self.binding("mapped"), **changes)
@@ -218,8 +226,10 @@ class DeploymentRouteTests(unittest.TestCase):
                 if type(storage) is NamedRouteVolume:
                     self.assertEqual({"api", "api-init"}, set(prior.compose["services"]))
 
-                    self.assertEqual({"api-init": {"condition": "service_completed_successfully"}},
-                                     prior.compose["services"]["api"]["depends_on"])
+                    self.assertEqual(
+                        {"api-init": {"condition": "service_completed_successfully"}},
+                        prior.compose["services"]["api"]["depends_on"]
+                    )
 
                     self.assertNotEqual(prior.client_mount["source"], changed.client_mount["source"])
                 else:
@@ -233,30 +243,32 @@ class DeploymentRouteTests(unittest.TestCase):
             source.chmod(0o600)
 
             result = subprocess.run(
-                [sys.executable,
-                 "-I",
-                 "-B",
-                 "-m",
-                 "provider_core.deployment_route",
-                 "render",
-                 "--definition",
-                 str(source),
-                 "--binding",
-                 "fixture-0",
-                 "--service-name",
-                 "api",
-                 "--image",
-                 "sha256:" + "a" * 64,
-                 "--interpreter",
-                 "/opt/provider/bin/python",
-                 "--namespace",
-                 "fixture",
-                 "--uid",
-                 "65532",
-                 "--gid",
-                 "65532",
-                 "--directory",
-                 "/runtime/private-api"],
+                [
+                    sys.executable,
+                    "-I",
+                    "-B",
+                    "-m",
+                    "provider_core.deployment_route",
+                    "render",
+                    "--definition",
+                    str(source),
+                    "--binding",
+                    "fixture-0",
+                    "--service-name",
+                    "api",
+                    "--image",
+                    "sha256:" + "a" * 64,
+                    "--interpreter",
+                    "/opt/provider/bin/python",
+                    "--namespace",
+                    "fixture",
+                    "--uid",
+                    "65532",
+                    "--gid",
+                    "65532",
+                    "--directory",
+                    "/runtime/private-api"
+                ],
                 capture_output=True,
                 text=True,
                 check=False,
@@ -286,7 +298,8 @@ class DeploymentRouteTests(unittest.TestCase):
                 return_value=SimpleNamespace(
                     st_uid=65532,
                     st_gid=65532,
-                    st_mode=observed.st_mode)
+                    st_mode=observed.st_mode
+                )
             ):
                 initialize_route(65532, 65532, root)
 

@@ -23,10 +23,16 @@ from tests.integration.chat.adversarial.test_model_reply_permission import (
 
 
 def model_reply():
-    return json.dumps({"choices": [{
-        "message": call("complete", "prepare", {}),
-        "finish_reason": "tool_calls",
-    }]}).encode()
+    return json.dumps(
+        {
+            "choices": [
+                {
+                    "message": call("complete", "prepare", {}),
+                    "finish_reason": "tool_calls",
+                }
+            ]
+        }
+    ).encode()
 
 
 class DeliveryLifecycleInterleavings(unittest.IsolatedAsyncioTestCase):
@@ -70,11 +76,13 @@ class DeliveryLifecycleInterleavings(unittest.IsolatedAsyncioTestCase):
 
                 self.assertIs(type(original.controller.operation._checkpoint), TerminalSelectedCheckpoint)
 
-                self.assertEqual((1, 1),
+                self.assertEqual(
+                    (1, 1),
                     (
                         original.session.science.preparations,
                         original.session.science.executions,
-                ))
+                    )
+                )
 
                 self.assertFalse(delivery.accepted.is_set())
                 self.assertFalse(original.controller.shutdown_ready)
@@ -112,15 +120,18 @@ class DeliveryLifecycleInterleavings(unittest.IsolatedAsyncioTestCase):
                 # science, and releases its own claim while A still owns cleanup.
                 accepted = await asyncio.wait_for(
                     successor.controller.run(successor.pending),
-                    6)
+                    6
+                )
 
                 self.assertIs(type(accepted), DeliveryAcceptedCheckpoint)
 
-                self.assertEqual((1, 1),
+                self.assertEqual(
+                    (1, 1),
                     (
                         successor.session.science.preparations,
                         successor.session.science.executions,
-                ))
+                    )
+                )
 
                 self.assertEqual(1, successor.start_count)
                 self.assertEqual(1, len(successor.controller.delivery.items))
@@ -131,7 +142,8 @@ class DeliveryLifecycleInterleavings(unittest.IsolatedAsyncioTestCase):
 
                 (original_result,) = await asyncio.wait_for(
                     asyncio.gather(driver, return_exceptions=True),
-                    8)
+                    8
+                )
 
                 if isinstance(original_result, ControllerFailed):
                     # The original retirement may have exceeded the SDK's
@@ -158,7 +170,8 @@ class DeliveryLifecycleInterleavings(unittest.IsolatedAsyncioTestCase):
 
                 await asyncio.wait_for(
                     asyncio.gather(driver, return_exceptions=True),
-                    8)
+                    8
+                )
 
     async def test_retryable_local_refusal_resends_only_the_original_terminal(self):
         for first_response in ("full", "retryable"):
@@ -189,8 +202,10 @@ class DeliveryLifecycleInterleavings(unittest.IsolatedAsyncioTestCase):
 
                         self.assertIs(first, second, "Retry replaced the immutable selected terminal")
 
-                        self.assertEqual((first.key, first.body_sha256, first.body),
-                                         (second.key, second.body_sha256, second.body))
+                        self.assertEqual(
+                            (first.key, first.body_sha256, first.body),
+                            (second.key, second.body_sha256, second.body)
+                        )
 
                         self.assertEqual([], delivery.items)
                         self.assertEqual((run.controller,), claims.live_owners())
@@ -203,12 +218,14 @@ class DeliveryLifecycleInterleavings(unittest.IsolatedAsyncioTestCase):
                         self.assertIs(delivery.items[0], first)
                         self.assertEqual(2, len(delivery.offers))
 
-                        self.assertEqual((1, 1, 1),
+                        self.assertEqual(
+                            (1, 1, 1),
                             (
                                 run.start_count,
                                 run.session.science.preparations,
                                 run.session.science.executions,
-                        ))
+                            )
+                        )
 
                         self.assertTrue(run.controller.shutdown_ready)
                         self.assertEqual((), claims.live_owners())
@@ -220,7 +237,8 @@ class DeliveryLifecycleInterleavings(unittest.IsolatedAsyncioTestCase):
 
                         await asyncio.wait_for(
                             asyncio.gather(driver, return_exceptions=True),
-                            8)
+                            8
+                        )
 
     async def test_lost_or_invalid_ack_does_not_release_or_replay_terminal(self):
         for disposition in ("lost", "rejected"):
@@ -262,12 +280,14 @@ class DeliveryLifecycleInterleavings(unittest.IsolatedAsyncioTestCase):
                         self.assertFalse(run.controller.shutdown_ready)
                         self.assertEqual((run.controller,), claims.live_owners())
 
-                        self.assertEqual((1, 1, 1),
+                        self.assertEqual(
+                            (1, 1, 1),
                             (
                                 run.start_count,
                                 run.session.science.preparations,
                                 run.session.science.executions,
-                        ))
+                            )
+                        )
 
                         with self.assertRaises(ControllerFailed):
                             await asyncio.wait_for(run.controller.settle(), 6)
@@ -282,4 +302,5 @@ class DeliveryLifecycleInterleavings(unittest.IsolatedAsyncioTestCase):
 
                         await asyncio.wait_for(
                             asyncio.gather(driver, return_exceptions=True),
-                            8)
+                            8
+                        )

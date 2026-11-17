@@ -141,12 +141,14 @@ class DeliveryProcessTests(unittest.IsolatedAsyncioTestCase):
                     await _reap_daemon(process)
 
     async def test_installed_command_delivers_once_through_proxy_then_sigterm_retires_it(self):
-        async with api_tls_peer("success",
+        async with api_tls_peer(
+            "success",
             response_body=fail_response(
                 execution_attempt_ref=outcome().execution_attempt_ref,
                 failure_code="provider_interrupted",
                 failure_message="SCIENTIFIC_PAYLOAD_NEEDLE"
-        )) as peer:
+            )
+        ) as peer:
             async with UnixProxy(peer.origin, "tunnel") as proxy:
                 with tempfile.TemporaryDirectory() as directory:
                     root = Path(directory)
@@ -275,29 +277,37 @@ class DeliveryProcessTests(unittest.IsolatedAsyncioTestCase):
 
                 return None  # Full body received; lose only this API acknowledgement.
 
-            return complete_response(execution_attempt_ref=item.execution_attempt_ref,
-                                     result_schema_id="fixture.result",
-                                     replayed=True)
+            return complete_response(
+                execution_attempt_ref=item.execution_attempt_ref,
+                result_schema_id="fixture.result",
+                replayed=True
+            )
 
         async with api_tls_peer("success", response_factory=accept_then_lose) as peer:
             async with UnixProxy(peer.origin, "tunnel") as proxy:
                 with tempfile.TemporaryDirectory() as directory:
-                    (files, endpoint, credential) = _configured_binding(Path(directory) / "binding",
+                    (files, endpoint, credential) = _configured_binding(
+                        Path(directory) / "binding",
                         peer,
                         proxy,
-                        provider="provider:example")
+                        provider="provider:example"
+                    )
 
                     # The minimum jittered retry wait is 15s, longer than bounded
                     # receipt observation and original-process reaping below.
-                    files.write(files.path.read_bytes().replace(b"retry_initial_seconds = 0.01", b"retry_initial_seconds = 30")
-                        .replace(b"retry_max_seconds = 0.1", b"retry_max_seconds = 30"))
+                    files.write(
+                        files.path.read_bytes().replace(b"retry_initial_seconds = 0.01", b"retry_initial_seconds = 30")
+                        .replace(b"retry_max_seconds = 0.1", b"retry_max_seconds = 30")
+                    )
 
                     configured = files.path.read_bytes()
                     item = replace(outcome(provider=endpoint.provider_ref), api_origin=peer.origin)
 
-                    item = replace(item,
-                                   operation=TerminalOperation.COMPLETE,
-                                   body=complete_body(item.execution_attempt_ref, "fixture.result", b"result bytes") + b"\n")
+                    item = replace(
+                        item,
+                        operation=TerminalOperation.COMPLETE,
+                        body=complete_body(item.execution_attempt_ref, "fixture.result", b"result bytes") + b"\n"
+                    )
 
                     client = DeliveryClient(endpoint, exchange_seconds=1, retirement_seconds=0.2)
                     first = second = None
@@ -364,20 +374,26 @@ class DeliveryProcessTests(unittest.IsolatedAsyncioTestCase):
                 peer_a.response_status = 503
                 peer_a.response_headers = response_headers(status=503, request_id=b"request:api-a-outage")
 
-                return json.dumps({"type": "urn:nmr-api:problem:service-unavailable",
-                    "title": "Service unavailable",
-                    "status": 503,
-                    "instance": "urn:nmr-api:request:api-a-outage",
-                    "request_id": "request:api-a-outage",
-                    "code": "service_unavailable"}).encode()
+                return json.dumps(
+                    {
+                        "type": "urn:nmr-api:problem:service-unavailable",
+                        "title": "Service unavailable",
+                        "status": 503,
+                        "instance": "urn:nmr-api:request:api-a-outage",
+                        "request_id": "request:api-a-outage",
+                        "code": "service_unavailable"
+                    }
+                ).encode()
 
             peer_a.response_status = 200
             peer_a.response_headers = response_headers()
             effects["a"] += 1
 
-            return fail_response(execution_attempt_ref=first.execution_attempt_ref,
+            return fail_response(
+                execution_attempt_ref=first.execution_attempt_ref,
                 failure_code="provider_interrupted",
-                failure_message="PRIVATE_BINDING_A_PAYLOAD")
+                failure_message="PRIVATE_BINDING_A_PAYLOAD"
+            )
 
         async def api_b(request, body):
             self.assertEqual(request.split(b"\r\n", 1)[0], b"POST /provider/v1/execution-attempts/fail HTTP/1.1")
@@ -385,9 +401,11 @@ class DeliveryProcessTests(unittest.IsolatedAsyncioTestCase):
             verify_signed_request(request, body, origin=peer_b.origin, key=credential_b.private_key)
             effects["b"] += 1
 
-            return fail_response(execution_attempt_ref=second.execution_attempt_ref,
+            return fail_response(
+                execution_attempt_ref=second.execution_attempt_ref,
                 failure_code="provider_interrupted",
-                failure_message="PRIVATE_BINDING_B_PAYLOAD")
+                failure_message="PRIVATE_BINDING_B_PAYLOAD"
+            )
 
         async with api_tls_peer("success", response_factory=api_a) as peer_a, api_tls_peer("success", response_factory=api_b) as peer_b:
             async with UnixProxy(peer_a.origin, "tunnel") as proxy_a, UnixProxy(peer_b.origin, "tunnel") as proxy_b:
@@ -396,8 +414,10 @@ class DeliveryProcessTests(unittest.IsolatedAsyncioTestCase):
                     (files, endpoint_a, credential_a) = _configured_binding(root / "first", peer_a, proxy_a, provider="provider:example")
                     (other, endpoint_b, credential_b) = _configured_binding(root / "second", peer_b, proxy_b, provider="provider:other")
 
-                    self.assertNotEqual(credential_a.private_key.public_key().public_bytes_raw(),
-                                        credential_b.private_key.public_key().public_bytes_raw())
+                    self.assertNotEqual(
+                        credential_a.private_key.public_key().public_bytes_raw(),
+                        credential_b.private_key.public_key().public_bytes_raw()
+                    )
 
                     files.write(files.path.read_bytes() + b"[[bindings]]" + other.path.read_bytes().split(b"[[bindings]]", 1)[1])
                     first = replace(outcome(provider=endpoint_a.provider_ref, message="PRIVATE_BINDING_A_PAYLOAD"), api_origin=peer_a.origin)

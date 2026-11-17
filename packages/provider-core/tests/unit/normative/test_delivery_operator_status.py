@@ -43,8 +43,10 @@ class QueueObservationTests(unittest.TestCase):
             self.assertNotIn("provider:example", json.dumps(summary))
             self.assertNotIn(first.outcome.job_ref, json.dumps(summary))
 
-            queue._db.set_authorizer(lambda action, arg1, arg2, _db, _trigger:
-                sqlite3.SQLITE_DENY if action == sqlite3.SQLITE_FUNCTION and arg2 == "sum" else sqlite3.SQLITE_OK)
+            queue._db.set_authorizer(
+                lambda action, arg1, arg2, _db, _trigger:
+                sqlite3.SQLITE_DENY if action == sqlite3.SQLITE_FUNCTION and arg2 == "sum" else sqlite3.SQLITE_OK
+            )
 
             (observed_bindings, observed_summary, failure) = queue.pending_overview()
 
@@ -96,24 +98,28 @@ class ServiceObservationTests(unittest.IsolatedAsyncioTestCase):
 
             notices.set_level("WARNING")
 
-            service = SharedDeliveryService(root / "state",
-                                            limits=QueueLimits(4, 16384, 8, 32768),
-                                            socket=SharedDeliverySocket(root / "ipc/http.sock", None),
-                                            proxy_socket=root / "absent.sock",
-                                            ipc_io_timeout_seconds=1,
-                                            retry_initial_seconds=1,
-                                            retry_max_seconds=1,
-                                            on_notice=notices,
-                                            diagnostic_status=notices.status,
-                                            status_directory=root / "status")
+            service = SharedDeliveryService(
+                root / "state",
+                limits=QueueLimits(4, 16384, 8, 32768),
+                socket=SharedDeliverySocket(root / "ipc/http.sock", None),
+                proxy_socket=root / "absent.sock",
+                ipc_io_timeout_seconds=1,
+                retry_initial_seconds=1,
+                retry_max_seconds=1,
+                on_notice=notices,
+                diagnostic_status=notices.status,
+                status_directory=root / "status"
+            )
 
             task = asyncio.create_task(service.run())
 
             try:
                 await asyncio.wait_for(service.ready.wait(), 2)
 
-                service.queue._db.set_authorizer(lambda action, arg1, arg2, _db, _trigger:
-                    sqlite3.SQLITE_DENY if action == sqlite3.SQLITE_FUNCTION and arg2 == "sum" else sqlite3.SQLITE_OK)
+                service.queue._db.set_authorizer(
+                    lambda action, arg1, arg2, _db, _trigger:
+                    sqlite3.SQLITE_DENY if action == sqlite3.SQLITE_FUNCTION and arg2 == "sum" else sqlite3.SQLITE_OK
+                )
 
                 service.overview_at = 0
 
@@ -134,10 +140,12 @@ class ServiceObservationTests(unittest.IsolatedAsyncioTestCase):
                 item = outcome(provider="provider:example")
                 material = DeliveryHandoffTests().material()
 
-                client = SharedDeliveryClient(DeliveryEndpoint(item.api_origin, item.provider_ref, root / "ipc/http.sock"),
-                                              material,
-                                              exchange_seconds=1,
-                                              retirement_seconds=1)
+                client = SharedDeliveryClient(
+                    DeliveryEndpoint(item.api_origin, item.provider_ref, root / "ipc/http.sock"),
+                    material,
+                    exchange_seconds=1,
+                    retirement_seconds=1
+                )
 
                 self.assertEqual(await client.submit(item), DeliveryHandoff(item, material).acceptance())
                 await client.retire()
@@ -155,16 +163,18 @@ class ServiceObservationTests(unittest.IsolatedAsyncioTestCase):
 
             notice = Mock()
 
-            service = SharedDeliveryService(root / "state",
-                                            limits=QueueLimits(4, 16384, 8, 32768),
-                                            socket=SharedDeliverySocket(root / "ipc/http.sock", None),
-                                            proxy_socket=root / "absent.sock",
-                                            ipc_io_timeout_seconds=1,
-                                            retry_initial_seconds=1,
-                                            retry_max_seconds=1,
-                                            on_notice=notice,
-                                            diagnostic_status=Mock(),
-                                            status_directory=root / "status")
+            service = SharedDeliveryService(
+                root / "state",
+                limits=QueueLimits(4, 16384, 8, 32768),
+                socket=SharedDeliverySocket(root / "ipc/http.sock", None),
+                proxy_socket=root / "absent.sock",
+                ipc_io_timeout_seconds=1,
+                retry_initial_seconds=1,
+                retry_max_seconds=1,
+                on_notice=notice,
+                diagnostic_status=Mock(),
+                status_directory=root / "status"
+            )
 
             task = asyncio.create_task(service.run())
 
@@ -200,10 +210,12 @@ class ServiceObservationTests(unittest.IsolatedAsyncioTestCase):
                     material = DeliveryHandoffTests().material()
                     item = outcome(provider="provider:example")
 
-                    client = SharedDeliveryClient(DeliveryEndpoint(item.api_origin, item.provider_ref, root / "ipc/http.sock"),
-                                                  material,
-                                                  exchange_seconds=1,
-                                                  retirement_seconds=1)
+                    client = SharedDeliveryClient(
+                        DeliveryEndpoint(item.api_origin, item.provider_ref, root / "ipc/http.sock"),
+                        material,
+                        exchange_seconds=1,
+                        retirement_seconds=1
+                    )
 
                     self.assertEqual(await client.submit(item), DeliveryHandoff(item, material).acceptance())
                     await client.retire()

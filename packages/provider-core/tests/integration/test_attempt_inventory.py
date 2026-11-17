@@ -18,17 +18,21 @@ class AttemptInventoryIntegrationTests(unittest.IsolatedAsyncioTestCase):
     async def test_reordered_mixed_kind_inventory_binds_separate_current_read_to_selected_attempt(self):
         first = attempt()
 
-        selected = attempt(analysis_kind_ref="nmr_rank",
-                           job_ref="job:selected",
-                           execution_attempt_ref="execution_attempt:sha256:" + "b" * 64,
-                           provider_attempt_key="other-start:02")
+        selected = attempt(
+            analysis_kind_ref="nmr_rank",
+            job_ref="job:selected",
+            execution_attempt_ref="execution_attempt:sha256:" + "b" * 64,
+            provider_attempt_key="other-start:02"
+        )
 
         for order in ((first, selected), (selected, first)):
             key = Ed25519PrivateKey.generate()
 
-            readback = observation(execution_attempt_ref=selected["execution_attempt_ref"],
-                                   job_ref=selected["job_ref"],
-                                   job_state="closed")
+            readback = observation(
+                execution_attempt_ref=selected["execution_attempt_ref"],
+                job_ref=selected["job_ref"],
+                job_state="closed"
+            )
 
             async with api_tls_peer("success", response_bodies=[response(attempts=order), readback]) as peer:
                 transport = HttpTransport(trust=peer.trust, exchange_seconds=1, retirement_seconds=0.5)
@@ -45,15 +49,19 @@ class AttemptInventoryIntegrationTests(unittest.IsolatedAsyncioTestCase):
                 item = next(item for item in page.attempts if item.job_ref == selected["job_ref"])
                 current = await client.read_attempt(item.execution_attempt_ref, job_ref=item.job_ref)
 
-                self.assertEqual((current.execution_attempt_ref, current.job_ref, current.state, current.job_state),
-                                 (selected["execution_attempt_ref"], selected["job_ref"], "in_progress", "closed"))
+                self.assertEqual(
+                    (current.execution_attempt_ref, current.job_ref, current.state, current.job_state),
+                    (selected["execution_attempt_ref"], selected["job_ref"], "in_progress", "closed")
+                )
 
-                for (request, target) in zip(peer.requests,
+                for (request, target) in zip(
+                    peer.requests,
                     (
                         b"/provider/v1/execution-attempts?state=in_progress&limit=2",
                         b"/provider/v1/execution-attempts/" + selected["execution_attempt_ref"].encode(),
                     ),
-                    strict=True):
+                    strict=True
+                ):
                     self.assertEqual(request.split(b"\r\n")[0], b"GET " + target + b" HTTP/1.1")
 
                     headers = {name.lower(): value.strip() for line in request.split(b"\r\n")[1:] if b":" in line
@@ -61,11 +69,15 @@ class AttemptInventoryIntegrationTests(unittest.IsolatedAsyncioTestCase):
 
                     (path, _, query) = target.partition(b"?")
 
-                    base = b"\n".join([b'"@method": GET',
-                                        b'"@authority": ' + peer.origin.removeprefix("https://").encode(),
-                                        b'"@path": ' + path,
-                                        b'"@query": ?' + query,
-                                        b'"@signature-params": ' + headers[b"signature-input"].split(b"=", 1)[1]])
+                    base = b"\n".join(
+                        [
+                            b'"@method": GET',
+                            b'"@authority": ' + peer.origin.removeprefix("https://").encode(),
+                            b'"@path": ' + path,
+                            b'"@query": ?' + query,
+                            b'"@signature-params": ' + headers[b"signature-input"].split(b"=", 1)[1]
+                        ]
+                    )
 
                     key.public_key().verify(parse(headers[b"signature"], tltype="dictionary")["sig1"][0], base)
                     self.assertNotIn(b"content-digest", headers)
