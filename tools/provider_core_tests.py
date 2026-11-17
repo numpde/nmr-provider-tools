@@ -316,6 +316,7 @@ def run_suite(suite: str, patterns: tuple[str, ...]) -> None:
                 namespace = "example_" + name.replace("-", "_")
 
                 example_tree = test_tree / "tests/integration" / namespace
+
                 example_tree.mkdir()
                 (example_tree / "__init__.py").touch()
                 shutil.copytree(source / "tests", example_tree / "tests")

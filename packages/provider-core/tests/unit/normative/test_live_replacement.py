@@ -21,6 +21,7 @@ class LiveReplacementTests(unittest.IsolatedAsyncioTestCase):
             initialization_seconds=5,
             retirement_seconds=5,
         ))
+
         self.policy = OperationPolicy(
             queue_stop_request_seconds=5,
             execution_stop_request_seconds=5,
@@ -28,11 +29,15 @@ class LiveReplacementTests(unittest.IsolatedAsyncioTestCase):
             reject_encoded_input_over_bytes=4096,
             reject_encoded_result_over_bytes=4096,
         )
+
         self.healthy = LoadingContribution()
-        self.healthy.release.set()
         self.failed = LoadingContribution()
+
         self.failed.failure = OSError("Model could not load")
+
+        self.healthy.release.set()
         self.failed.release.set()
+
         self.healthy_offering = self.host.adopt(contribution=self.healthy, requirements=frozenset())
         self.failed_offering = self.host.adopt(contribution=self.failed, requirements=frozenset())
 
@@ -49,31 +54,38 @@ class LiveReplacementTests(unittest.IsolatedAsyncioTestCase):
             reservation_ref=analysis.reservation(allocation=offering.allocation),
             operation_policy=self.policy,
         )
+
         admission = submission.submit()
 
         self.assertNotIsInstance(obj=admission, cls=NotAdmitted)
         observation = await submission.wait()
+
         observation.require_result()
 
         await settle_cleanup(control=submission.operation.release_result(result=observation.result))
 
     async def test_replace_failed_model_after_healthy_request_completed(self):
         healthy_analysis = self.host.open_analysis(allocations=frozenset({self.healthy_offering.allocation}))
+
         await self.calculate(analysis=healthy_analysis, offering=self.healthy_offering)
         await settle_cleanup(control=healthy_analysis.close())
         await settle_cleanup(control=self.host.retire_allocation(self.failed_offering.allocation))
         self.assertTrue(expr=self.failed.closed)
 
         replacement = LoadingContribution()
+
         replacement.release.set()
         replacement_offering = self.host.adopt(contribution=replacement, requirements=frozenset())
+
         await self.host.initialize(allocation=replacement_offering.allocation)
 
         replacement_analysis = self.host.open_analysis(allocations=frozenset({replacement_offering.allocation}))
+
         await self.calculate(analysis=replacement_analysis, offering=replacement_offering)
         await settle_cleanup(control=replacement_analysis.close())
 
         healthy_analysis = self.host.open_analysis(allocations=frozenset({self.healthy_offering.allocation}))
+
         await self.calculate(analysis=healthy_analysis, offering=self.healthy_offering)
         await settle_cleanup(control=healthy_analysis.close())
 
@@ -85,15 +97,19 @@ class LiveReplacementTests(unittest.IsolatedAsyncioTestCase):
 
     async def test_replace_failed_model_while_healthy_request_remains_open(self):
         healthy_analysis = self.host.open_analysis(allocations=frozenset({self.healthy_offering.allocation}))
+
         await self.calculate(analysis=healthy_analysis, offering=self.healthy_offering)
         await settle_cleanup(control=self.host.retire_allocation(self.failed_offering.allocation))
 
         replacement = LoadingContribution()
+
         replacement.release.set()
         replacement_offering = self.host.adopt(contribution=replacement, requirements=frozenset())
+
         await self.host.initialize(allocation=replacement_offering.allocation)
 
         replacement_analysis = self.host.open_analysis(allocations=frozenset({replacement_offering.allocation}))
+
         await self.calculate(analysis=replacement_analysis, offering=replacement_offering)
         await self.calculate(analysis=healthy_analysis, offering=self.healthy_offering)
         await settle_cleanup(control=replacement_analysis.close())
@@ -104,6 +120,7 @@ class LiveReplacementTests(unittest.IsolatedAsyncioTestCase):
 
     async def test_successful_retirements_do_not_accumulate_in_host_inventory(self):
         healthy_analysis = self.host.open_analysis(allocations=frozenset({self.healthy_offering.allocation}))
+
         await settle_cleanup(control=healthy_analysis.close())
         await settle_cleanup(control=self.host.retire_allocation(self.failed_offering.allocation))
         retired_allocations = {self.failed_offering.allocation}
@@ -111,8 +128,10 @@ class LiveReplacementTests(unittest.IsolatedAsyncioTestCase):
         for _ in range(5):
             self.assertEqual(first=frozenset({self.healthy_offering.allocation}), second=self.host.allocations)
             replacement = LoadingContribution()
+
             replacement.release.set()
             offering = self.host.adopt(contribution=replacement, requirements=frozenset())
+
             self.assertNotIn(member=offering.allocation, container=retired_allocations)
             await self.host.initialize(allocation=offering.allocation)
             await settle_cleanup(control=self.host.retire_allocation(offering.allocation))
@@ -126,6 +145,7 @@ class LiveReplacementTests(unittest.IsolatedAsyncioTestCase):
 
     async def test_host_shutdown_owns_new_allocations_and_refuses_later_adoption(self):
         analysis = self.host.open_analysis(allocations=frozenset({self.healthy_offering.allocation}))
+
         await self.calculate(analysis=analysis, offering=self.healthy_offering)
         await settle_cleanup(control=analysis.close())
 
@@ -165,6 +185,7 @@ class LiveReplacementTests(unittest.IsolatedAsyncioTestCase):
                 super().close()
 
         analysis = self.host.open_analysis(allocations=frozenset({self.healthy_offering.allocation}))
+
         await settle_cleanup(control=analysis.close())
         original = HeldClose()
         offering = self.host.adopt(contribution=original, requirements=frozenset())
@@ -202,6 +223,7 @@ class LiveReplacementTests(unittest.IsolatedAsyncioTestCase):
         try:
             healthy = host.adopt(contribution=LoadingContribution(), requirements=frozenset())
             analysis = host.open_analysis(allocations=frozenset({healthy.allocation}))
+
             await settle_cleanup(control=analysis.close())
             failed = host.adopt(contribution=FailedClose(), requirements=frozenset())
             retirement = host.retire_allocation(failed.allocation)
@@ -217,6 +239,7 @@ class LiveReplacementTests(unittest.IsolatedAsyncioTestCase):
                 host.open_analysis(allocations=frozenset({failed.allocation}))
         finally:
             shutdown = host.retire()
+
             await shutdown.task
 
         self.assertIs(expr1=original_failure, expr2=shutdown.failures[0].cause.exceptions[0])

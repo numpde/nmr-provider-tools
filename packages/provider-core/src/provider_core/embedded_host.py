@@ -428,6 +428,7 @@ class InProcessExecutionHost:
             raise BaseExceptionGroup("Allocation initialization or cleanup failed.", failures)
 
         resident.retired = True
+
         del self.residents[resident.name]
 
     def retire(self):

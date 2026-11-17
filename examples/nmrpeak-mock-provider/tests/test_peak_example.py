@@ -394,6 +394,7 @@ class PeakExampleTests(unittest.IsolatedAsyncioTestCase):
 
     async def test_checkpoint_mismatch_stops_loading_before_model_deserialization(self):
         self.configure_science(variant="hf", checkpoint_sha256="0" * 64)
+
         with self.assertRaisesRegex(expected_exception=ValueError, expected_regex="actual_sha256="):
             async with self.open_offerings():
                 self.fail(msg="A mismatched checkpoint must prevent provider startup")

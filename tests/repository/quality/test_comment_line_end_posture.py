@@ -14,11 +14,13 @@ from .sources import ROOT, python_sources
 
 def _hanging_words(*, source: str) -> list[int]:
     source_lines = source.splitlines()
+
     comments = [
         token
         for token in tokenize.generate_tokens(readline=io.StringIO(source).readline)
         if token.type == tokenize.COMMENT and not source_lines[token.start[0] - 1][:token.start[1]].strip()
     ]
+
     findings = []
 
     for (comment, following_comment) in zip(comments, comments[1:]):

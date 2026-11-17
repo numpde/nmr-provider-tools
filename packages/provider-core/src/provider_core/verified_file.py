@@ -18,6 +18,7 @@ def open_verified_file(*, source_file_path: Path, expected_sha256: str) -> Itera
     The file must remain unchanged through verification and consumption.
     Keeping it open does not prevent another process from modifying its bytes.
     """
+
     with source_file_path.open(mode="rb") as source_file:
         actual_sha256 = file_digest(source_file, "sha256").hexdigest()
 

@@ -260,6 +260,7 @@ class SourceUpdateTests(unittest.TestCase):
 
     def test_verify_cli_preserves_payload_mismatch_evidence(self):
         acquisition_file = self.source / "acquisition_tool/old.py"
+
         acquisition_file.write_bytes(b"changed")
 
         command_result = subprocess.run(

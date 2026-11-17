@@ -31,21 +31,26 @@ class ExampleInitializationTests(unittest.IsolatedAsyncioTestCase):
         with TemporaryDirectory() as directory:
             checkpoint = Path(directory) / "checkpoint.json"
             checkpoint_bytes = b'{"candidates": ["CCO"]}'
+
             checkpoint.write_bytes(checkpoint_bytes)
+
             peak_settings = Settings(
                 checkpoint_sha256=sha256(checkpoint_bytes).hexdigest(),
                 maximum_input_tokens=100,
                 beam_size=1,
                 maximum_candidate_characters=100,
             )
+
             weighted_configuration = WeightedSumConfig(
                 settings=WeightedSumSettings(scale=1, offset=0),
                 coefficients=CoefficientSet(weights=np.array(object=[1], dtype=float)),
             )
+
             reference_configuration = ReferenceConfig(
                 settings=MatchSettings(minimum_score=0.5),
                 references=ReferenceSet(entries=(Reference(label="sample", values=(1,)),)),
             )
+
             contribution_factories = (
                 Sum,
                 lambda: WeightedSum(configuration=weighted_configuration),
@@ -83,6 +88,7 @@ class ExampleInitializationTests(unittest.IsolatedAsyncioTestCase):
                             self.assertEqual(first=[contribution], second=initialization_calls)
 
                         retirement = await observe_cleanup(control=host.retire())
+
                         self.assertTrue(expr=retirement.settled)
 
                     failed_contribution = create_contribution()

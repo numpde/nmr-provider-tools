@@ -28,6 +28,7 @@ class LoadingContribution(Contribution):
 
     def initialize(self, *, assets: AssetAccess) -> None:
         self.loads += 1
+
         self.entered.set()
 
         if not self.release.wait(timeout=5):
@@ -58,6 +59,7 @@ class EagerInitializationTests(unittest.IsolatedAsyncioTestCase):
     async def test_success_is_reused_without_a_second_load(self):
         async with self.host(seconds=5) as host:
             contribution = LoadingContribution()
+
             contribution.release.set()
             offering = host.adopt(contribution=contribution, requirements=frozenset())
 
@@ -128,6 +130,7 @@ class EagerInitializationTests(unittest.IsolatedAsyncioTestCase):
         async with self.host(seconds=5) as host:
             blocked = LoadingContribution()
             healthy = LoadingContribution()
+
             healthy.release.set()
             blocked_offering = host.adopt(contribution=blocked, requirements=frozenset())
             healthy_offering = host.adopt(contribution=healthy, requirements=frozenset())
@@ -138,6 +141,7 @@ class EagerInitializationTests(unittest.IsolatedAsyncioTestCase):
                 await host.initialize(allocation=healthy_offering.allocation)
                 self.assertFalse(expr=blocked_waiter.done())
                 analysis = host.open_analysis(allocations=frozenset({healthy_offering.allocation}))
+
                 await analysis.close().task
             finally:
                 blocked.release.set()
@@ -156,6 +160,7 @@ class EagerInitializationTests(unittest.IsolatedAsyncioTestCase):
             self.assertTrue(expr=await asyncio.to_thread(contribution.entered.wait, timeout=2))
             first = host.retire_allocation(offering.allocation)
             second = host.retire_allocation(offering.allocation)
+
             self.assertIs(expr1=first, expr2=second)
             await asyncio.sleep(delay=0)
             self.assertFalse(expr=first.task.done())
@@ -173,6 +178,7 @@ class EagerInitializationTests(unittest.IsolatedAsyncioTestCase):
         async with self.host(seconds=5) as host:
             contribution = LoadingContribution()
             contribution.failure = TimeoutError("Model service timed out")
+
             contribution.release.set()
             offering = host.adopt(contribution=contribution, requirements=frozenset())
 
@@ -215,9 +221,11 @@ class EagerInitializationTests(unittest.IsolatedAsyncioTestCase):
         host = self.host(seconds=5)
         healthy = LoadingContribution()
         failed = FailingClose()
+
         host.adopt(contribution=failed, requirements=frozenset())
         host.adopt(contribution=healthy, requirements=frozenset())
         retirement = host.retire()
+
         await retirement.task
 
         self.assertTrue(expr=healthy.closed)
@@ -372,6 +380,7 @@ class EagerInitializationTests(unittest.IsolatedAsyncioTestCase):
                 self.assertEqual(first=1, second=contribution.loads)
                 self.assertFalse(expr=contribution.closed)
                 retirement = host.retire()
+
                 await asyncio.sleep(delay=0)
                 self.assertFalse(expr=retirement.task.done())
             finally:
@@ -383,6 +392,7 @@ class EagerInitializationTests(unittest.IsolatedAsyncioTestCase):
         async with self.host(seconds=5) as host:
             contribution = LoadingContribution()
             contribution.failure = OSError("Model loading failed")
+
             contribution.release.set()
             offering = host.adopt(contribution=contribution, requirements=frozenset())
 
@@ -400,8 +410,10 @@ class EagerInitializationTests(unittest.IsolatedAsyncioTestCase):
         async with self.host(seconds=5) as host:
             failed = LoadingContribution()
             failed.failure = OSError("Model loading failed")
+
             failed.release.set()
             healthy = LoadingContribution()
+
             healthy.release.set()
             failed_offering = host.adopt(contribution=failed, requirements=frozenset())
             healthy_offering = host.adopt(contribution=healthy, requirements=frozenset())
@@ -412,6 +424,7 @@ class EagerInitializationTests(unittest.IsolatedAsyncioTestCase):
             self.assertIs(expr1=failed.failure, expr2=raised.exception)
             await host.initialize(allocation=healthy_offering.allocation)
             analysis = host.open_analysis(allocations=frozenset({healthy_offering.allocation}))
+
             await analysis.close().task
 
             self.assertEqual(first=1, second=healthy.loads)
@@ -420,6 +433,7 @@ class EagerInitializationTests(unittest.IsolatedAsyncioTestCase):
         async with self.host(seconds=5) as host:
             failed = LoadingContribution()
             failed.failure = OSError("Model loading failed")
+
             failed.release.set()
             failed_offering = host.adopt(contribution=failed, requirements=frozenset())
 
@@ -428,8 +442,10 @@ class EagerInitializationTests(unittest.IsolatedAsyncioTestCase):
 
             await host.retire_allocation(failed_offering.allocation).task
             replacement = LoadingContribution()
+
             replacement.release.set()
             replacement_offering = host.adopt(contribution=replacement, requirements=frozenset())
+
             await host.initialize(allocation=replacement_offering.allocation)
 
             self.assertTrue(expr=failed.closed)
@@ -451,6 +467,7 @@ class EagerInitializationTests(unittest.IsolatedAsyncioTestCase):
 
             contribution.release.set()
             retirement = host.retire_allocation(offering.allocation)
+
             await retirement.task
 
             self.assertIs(expr1=contribution.failure, expr2=retirement.failures[0].cause)
@@ -497,6 +514,7 @@ class EagerInitializationTests(unittest.IsolatedAsyncioTestCase):
 
             contribution.release.set()
             retirement = host.retire_allocation(offering.allocation)
+
             await retirement.task
 
             self.assertIs(expr1=contribution.failure, expr2=retirement.failures[0].cause)
@@ -518,6 +536,7 @@ class EagerInitializationTests(unittest.IsolatedAsyncioTestCase):
 
             contribution.release.set()
             retirement = host.retire_allocation(offering.allocation)
+
             await retirement.task
 
             self.assertIs(expr1=contribution.failure, expr2=retirement.failures[0].cause)
@@ -539,6 +558,7 @@ class EagerInitializationTests(unittest.IsolatedAsyncioTestCase):
         host = self.host(seconds=5)
         contribution = LoadingContribution()
         contribution.failure = OSError("Model loading failed at the deadline")
+
         contribution.release.set()
         offering = host.adopt(contribution=contribution, requirements=frozenset())
 
@@ -548,6 +568,7 @@ class EagerInitializationTests(unittest.IsolatedAsyncioTestCase):
 
         self.assertIs(expr1=host_timeout, expr2=raised.exception)
         retirement = host.retire_allocation(offering.allocation)
+
         await retirement.task
 
         self.assertIs(expr1=contribution.failure, expr2=retirement.failures[0].cause)
@@ -572,6 +593,7 @@ class EagerInitializationTests(unittest.IsolatedAsyncioTestCase):
 
             contribution.release.set()
             retirement = host.retire_allocation(offering.allocation)
+
             await retirement.task
             failures = retirement.failures[0].cause.exceptions
 
