@@ -16,11 +16,13 @@ class ScriptedEndpoint:
 
         encoded = json.dumps(obj=proposals, sort_keys=True).encode(encoding="utf-8")
 
-        self.identity = json.dumps(obj={
-            "configuration_id": "recorded-nmrpeak-interpreter",
-            "model": "recorded-tool-responses",
-            "configuration_sha256": sha256(string=encoded).hexdigest(),
-        }).encode(encoding="utf-8")
+        self.identity = json.dumps(
+            obj={
+                "configuration_id": "recorded-nmrpeak-interpreter",
+                "model": "recorded-tool-responses",
+                "configuration_sha256": sha256(string=encoded).hexdigest(),
+            }
+        ).encode(encoding="utf-8")
 
     async def complete(self, messages: list[dict], tools: list[dict], *, not_after: float) -> dict:
         index = len(self.requests)
@@ -31,15 +33,19 @@ class ScriptedEndpoint:
         if index >= len(self.proposals):
             raise RuntimeError("The recorded interpreter has no further response")
 
-        return {"role": "assistant",
-            "tool_calls": [{
-                "id": str(index),
-                "type": "function",
-                "function": {
-                    "name": "prepare",
-                    "arguments": json.dumps(obj=self.proposals[index]),
-                },
-        }]}
+        return {
+            "role": "assistant",
+            "tool_calls": [
+                {
+                    "id": str(index),
+                    "type": "function",
+                    "function": {
+                        "name": "prepare",
+                        "arguments": json.dumps(obj=self.proposals[index]),
+                    },
+                }
+            ]
+        }
 
     async def retire(self) -> None:
         self.retirement_confirmed = True

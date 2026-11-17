@@ -42,10 +42,12 @@ class Provider:
         spectrum_payload = baseline_call_binding.input_codec.encode(value=spectrum)
 
         analysis_executor = self.execution_host.open_analysis(
-            allocations=frozenset({
-                self.baseline_corrector.allocation,
-                self.peak_detector.allocation,
-            }),
+            allocations=frozenset(
+                {
+                    self.baseline_corrector.allocation,
+                    self.peak_detector.allocation,
+                }
+            ),
         )
 
         return PeakWorkflow(

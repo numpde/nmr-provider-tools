@@ -37,13 +37,17 @@ from .fakes import RecordingReceiver, ScriptedEndpointFactory
 
 
 def candidate(*, carbon):
-    document = {"formula": "C2H6O",
-        "proton_peaks": [{
-            "centroid": "1.2",
-            "integral": 3,
-            "multiplicity": "triplet",
-            "couplings": ["7"],
-    }]}
+    document = {
+        "formula": "C2H6O",
+        "proton_peaks": [
+            {
+                "centroid": "1.2",
+                "integral": 3,
+                "multiplicity": "triplet",
+                "couplings": ["7"],
+            }
+        ]
+    }
 
     if carbon:
         document["carbon_peaks"] = ["18", "58"]
@@ -73,11 +77,13 @@ class PeakExampleTests(unittest.IsolatedAsyncioTestCase):
                 dst=directory / name,
             )
 
-        self.enterContext(patch.object(
-            target=provider_setup,
-            attribute="PROVIDER_CONFIG_PATH",
-            new=self.configuration,
-        ))
+        self.enterContext(
+            patch.object(
+                target=provider_setup,
+                attribute="PROVIDER_CONFIG_PATH",
+                new=self.configuration,
+            )
+        )
 
     def configure_science(self, *, variant: str, **changes) -> None:
         """Change raw external deployment input; real startup still owns admission."""
@@ -274,11 +280,13 @@ class PeakExampleTests(unittest.IsolatedAsyncioTestCase):
             async with proton_formula_predictor.open_prediction(receive=RecordingReceiver()) as prediction_workflow:
                 deadline = asyncio.get_running_loop().time() + 1
 
-                task = asyncio.create_task(coro=prediction_workflow.preparation_tool.dispatch(
-                    name=prediction_workflow.preparation_tool.name,
-                    arguments=candidate(carbon=False),
-                    not_after=deadline,
-                ))
+                task = asyncio.create_task(
+                    coro=prediction_workflow.preparation_tool.dispatch(
+                        name=prediction_workflow.preparation_tool.name,
+                        arguments=candidate(carbon=False),
+                        not_after=deadline,
+                    )
+                )
 
                 try:
                     async with asyncio.timeout(10):

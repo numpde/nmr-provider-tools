@@ -8,10 +8,14 @@ from reference_provider import science
 
 class ReferenceScienceTests(unittest.TestCase):
     def index(self):
-        return science.build_index(science.ReferenceSet(entries=(
+        return science.build_index(
+            science.ReferenceSet(
+                entries=(
             science.Reference(label="pattern-a", values=(3, 4, 0)),
             science.Reference(label="pattern-b", values=(0, 0, 1)),
-        )))
+        )
+            )
+        )
 
     def test_index_retains_normalized_sparse_postings_and_matches_repeated_queries(self):
         index = self.index()
@@ -27,10 +31,12 @@ class ReferenceScienceTests(unittest.TestCase):
                 self.assertAlmostEqual(1.0, report.score)
 
     def test_equal_scores_choose_the_smallest_label_independent_of_asset_order(self):
-        references = science.ReferenceSet(entries=(
+        references = science.ReferenceSet(
+            entries=(
             science.Reference(label="z", values=(1, 0)),
             science.Reference(label="a", values=(1, 0)),
-        ))
+        )
+        )
 
         report = science.match(
             science.build_index(references),
@@ -41,9 +47,13 @@ class ReferenceScienceTests(unittest.TestCase):
         self.assertEqual("a", report.label)
 
     def test_query_rejections_distinguish_dimensions_zero_overlap_and_threshold(self):
-        index = science.build_index(science.ReferenceSet(entries=(
+        index = science.build_index(
+            science.ReferenceSet(
+                entries=(
             science.Reference(label="axis", values=(1, 0)),
-        )))
+        )
+            )
+        )
 
         for (values, minimum, code) in (
             ((1,), 0, "wrong_dimensions"),

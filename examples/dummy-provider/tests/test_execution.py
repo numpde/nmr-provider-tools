@@ -83,10 +83,12 @@ class DummyInstalledExecutionTests(unittest.IsolatedAsyncioTestCase):
         self.addAsyncCleanup(self.retire_host, host)
 
         hosted = host.adopt(
-            contribution=WeightedSum(configuration=WeightedSumConfig(
-                settings=science.WeightedSumSettings(scale=2, offset=1),
-                coefficients=science.CoefficientSet(weights=np.array(object=[1, 2, 3], dtype=float)),
-            )),
+            contribution=WeightedSum(
+                configuration=WeightedSumConfig(
+                    settings=science.WeightedSumSettings(scale=2, offset=1),
+                    coefficients=science.CoefficientSet(weights=np.array(object=[1, 2, 3], dtype=float)),
+                )
+            ),
             requirements=read_resource_requirements(),
         )
 
@@ -156,10 +158,12 @@ class DummyInstalledExecutionTests(unittest.IsolatedAsyncioTestCase):
         self.addAsyncCleanup(self.retire_host, host)
 
         weighted_binding = host.adopt(
-            contribution=WeightedSum(configuration=WeightedSumConfig(
-                settings=science.WeightedSumSettings(scale=2, offset=1),
-                coefficients=science.CoefficientSet(weights=np.array(object=[1, 2, 3], dtype=float)),
-            )),
+            contribution=WeightedSum(
+                configuration=WeightedSumConfig(
+                    settings=science.WeightedSumSettings(scale=2, offset=1),
+                    coefficients=science.CoefficientSet(weights=np.array(object=[1, 2, 3], dtype=float)),
+                )
+            ),
             requirements=read_resource_requirements(),
         )
 
@@ -182,7 +186,7 @@ class DummyInstalledExecutionTests(unittest.IsolatedAsyncioTestCase):
 
         rejected = analysis.submit_method(
             method=weighted_binding.contribution.prepare,
-             scientific_input=science.PreparationInput(samples=np.array(object=[], dtype=float)),
+            scientific_input=science.PreparationInput(samples=np.array(object=[], dtype=float)),
             states={},
             reservation=reservation,
             policy=operation_policy,

@@ -364,12 +364,16 @@ class SpectrumWorkflowTests(unittest.IsolatedAsyncioTestCase):
         (workflow, _, codec) = await self.workflow(result_bytes=8192)
         cause = OSError("Intermediate result release failed")
 
-        release = SimpleNamespace(observe=AsyncMock(return_value=CleanupObservation(
-            revision=1,
-            settled=False,
-            allowance_expired=False,
-            failures=(Failure("release", cause),),
-        )))
+        release = SimpleNamespace(
+            observe=AsyncMock(
+                return_value=CleanupObservation(
+                    revision=1,
+                    settled=False,
+                    allowance_expired=False,
+                    failures=(Failure("release", cause),),
+                )
+            )
+        )
 
         async with asyncio.timeout(10):
             with patch.object(workflow.baseline_submission.operation, "release_result", return_value=release):

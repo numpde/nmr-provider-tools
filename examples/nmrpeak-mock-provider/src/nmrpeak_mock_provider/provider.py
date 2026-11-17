@@ -135,10 +135,12 @@ async def open_offerings(
                     create_model=create_model,
                 )
 
-                offerings.add(execution_host.adopt(
-                    contribution=predictor,
-                    requirements=resource_requirements,
-                ))
+                offerings.add(
+                    execution_host.adopt(
+                        contribution=predictor,
+                        requirements=resource_requirements,
+                    )
+                )
 
         for offering in offerings:
             try:
