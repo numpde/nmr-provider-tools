@@ -77,10 +77,10 @@ ifeq ($(origin TEST_PATTERN),command line)
 override TEST_PATTERN_INPUT := $(value TEST_PATTERN)
 export TEST_PATTERN_INPUT
 ifneq ($(words $(MAKECMDGOALS)),1)
-$(error TEST_PATTERN requires exactly one unit, contract or integration provider-core target)
+$(error TEST_PATTERN requires exactly one repository, repository-quality or unit, contract or integration provider-core target)
 endif
-ifeq ($(filter $(MAKECMDGOALS),tests/unit/provider-core tests/contract/provider-core tests/integration/provider-core),)
-$(error TEST_PATTERN requires exactly one unit, contract or integration provider-core target)
+ifeq ($(filter $(MAKECMDGOALS),tests/repository tests/repository/quality tests/unit/provider-core tests/contract/provider-core tests/integration/provider-core),)
+$(error TEST_PATTERN requires exactly one repository, repository-quality or unit, contract or integration provider-core target)
 endif
 endif
 
@@ -308,8 +308,8 @@ help:
 	  'make packages/images/retire DOCKER_CONTEXT=<context> Retire exact obsolete project images, preserving current selections and borrowers.' \
 	  'make engine/cache/gc/install DOCKER_CONTEXT=<context> ENGINE_CONFIG=/absolute/daemon.json Install per-engine cache GC without restarting Docker.' \
 	  'make engine/cache/gc DOCKER_CONTEXT=<context> ENGINE_CONFIG=/absolute/daemon.json Apply the native cache thresholds now.' \
-	  'make tests/repository            Run repository conventions and detector fixtures offline.' \
-	  'make tests/repository/quality    Run code and operator convention checks offline.' \
+	  'make tests/repository [TEST_PATTERN=test_<name>.py] Run repository conventions and detector fixtures offline.' \
+	  'make tests/repository/quality [TEST_PATTERN=test_<name>.py] Run code and operator convention checks offline.' \
   'make tests/repository/installer  Verify the pinned installer and checker bootstrap offline.' \
 	  'make tests/repository/bytecode   Check maintained Python launches suppress source bytecode.' \
 	  'make checks/python-cache/clean    Explicitly remove generated first-party .pyc/.pyo files and empty __pycache__ directories.' \

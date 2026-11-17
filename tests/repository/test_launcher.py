@@ -21,6 +21,40 @@ from tests.repository.quality.sources import ROOT
 
 
 class LauncherTests(unittest.TestCase):
+    def test_quality_filter_selects_a_test_and_rejects_invalid_selection(self):
+        environment = os.environ | {"NMR_SELECTED_DOCKER_ENDPOINT": "unix:///tmp/test.sock"}
+        command = ["bash", "host/tools/repository.sh", "--print", "tests/repository/quality"]
+
+        for (origin, pattern, expected) in (
+            ("undefined", "test_statement_spacing_posture.py", "test*.py"),
+            ("command line", "test_statement_spacing_posture.py", "test_statement_spacing_posture.py"),
+            ("command line", "test_python_empty_defaults.py", "test_python_empty_defaults.py"),
+        ):
+            with self.subTest(origin=origin, pattern=pattern):
+                environment.update(TEST_PATTERN_INPUT_ORIGIN=origin, TEST_PATTERN_INPUT=pattern)
+                result = subprocess.run(command, cwd=ROOT, env=environment, capture_output=True, text=True, check=False)
+
+                self.assertEqual(0, result.returncode, msg=result.stderr)
+                arguments = shlex.split(result.stdout)
+
+                self.assertEqual(expected, arguments[arguments.index("-p") + 1])
+
+        for pattern in ("test_missing_quality_file.py", "../test_escape.py", "test_*.py", ""):
+            with self.subTest(pattern=pattern):
+                environment.update(TEST_PATTERN_INPUT_ORIGIN="command line", TEST_PATTERN_INPUT=pattern)
+                result = subprocess.run(command, cwd=ROOT, env=environment, capture_output=True, text=True, check=False)
+
+                self.assertNotEqual(0, result.returncode)
+                self.assertIn("Cannot select repository test", result.stderr)
+                self.assertEqual("", result.stdout)
+
+        environment.update(TEST_PATTERN_INPUT_ORIGIN="command line", TEST_PATTERN_INPUT="test_makefile.py")
+        command[-1] = "tests/repository/runtime"
+        result = subprocess.run(command, cwd=ROOT, env=environment, capture_output=True, text=True, check=False)
+
+        self.assertNotEqual(0, result.returncode)
+        self.assertIn("requires tests/repository or tests/repository/quality", result.stderr)
+
     def test_preview_ignores_ambient_engine_and_make_overrides(self):
         environment = os.environ | {
             "DOCKER_HOST": "tcp://unreviewed.invalid:2375",

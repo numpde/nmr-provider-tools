@@ -28,6 +28,21 @@ case "$1" in
     tests/repository/runtime) suite=tests/repository/test_container_port_runtime.py ;;
     *) printf 'Cannot select repository checks: unknown target %q. Use make help.\n' "$1" >&2; exit 2 ;;
 esac
+if [[ ${TEST_PATTERN_INPUT_ORIGIN-} == 'command line' ]]; then
+    if [[ $1 != tests/repository && $1 != tests/repository/quality ]]; then
+        printf '%s\n' 'Cannot select repository test: TEST_PATTERN requires tests/repository or tests/repository/quality.' >&2
+        exit 2
+    fi
+    if [[ ! ${TEST_PATTERN_INPUT-} =~ ^test_[A-Za-z0-9_]+\.py$ ]]; then
+        printf '%s\n' 'Cannot select repository test: TEST_PATTERN must be one test_<name>.py filename.' >&2
+        exit 2
+    fi
+    pattern=$TEST_PATTERN_INPUT
+    if [[ -z $(find "$suite" -type f -name "$pattern" -print -quit) ]]; then
+        printf 'Cannot select repository test %q: no matching test file exists in %s.\n' "$pattern" "$suite" >&2
+        exit 2
+    fi
+fi
 if [[ $root =~ [[:cntrl:],] ]]; then
     printf '%s\n' 'Cannot mount repository source: its physical path contains a control character or comma.' >&2
     exit 2

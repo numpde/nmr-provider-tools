@@ -157,6 +157,18 @@ class MakeRecipeOwnershipTests(unittest.TestCase):
         if self.make is None:
             self.fail("make must be installed in the repository-check image")
 
+    def test_make_limits_test_pattern_to_supported_targets(self) -> None:
+        environment = os.environ | {"PATH": f"{REPOSITORY_ROOT / 'tests/repository/fixtures/docker-context'}:{os.environ['PATH']}"}
+
+        for (target, succeeds) in (("tests/repository/quality", True), ("tests/repository", True), ("tests", False)):
+            with self.subTest(target=target):
+                result = subprocess.run(
+                    [self.make, "--dry-run", target, "DOCKER_CONTEXT=default", "TEST_PATTERN=test_makefile.py"],
+                    cwd=REPOSITORY_ROOT, env=environment, capture_output=True, text=True, check=False,
+                )
+
+                self.assertEqual(succeeds, result.returncode == 0, msg=result.stderr)
+
     def test_recipe_macros_ignore_makeflags_assignments(self) -> None:
         makefile = (REPOSITORY_ROOT / "Makefile").read_text(encoding="utf-8")
 
