@@ -3,6 +3,8 @@
 The rule covers calls, signatures, literals, imports and subscriptions uniformly.
 Single-line bracket groups stay compact. Nested groups own their own commas;
 lambda parameter commas and string contents are not outer item separators.
+Multiline dictionary and set literals also put their entries below the opening
+brace and start the closing brace on its own line.
 """
 
 from tools.container_guard import require_container
@@ -10,6 +12,7 @@ from tools.container_guard import require_container
 require_container()
 
 from dataclasses import dataclass, field
+import ast
 import io
 import tokenize
 import unittest
@@ -112,7 +115,78 @@ def shared_item_lines(*, source: str) -> list[tuple[int, int, int]]:
     return sorted(findings)
 
 
+def multiline_brace_findings(*, source: str) -> list[tuple[int, str]]:
+    """Check literal braces using AST spans, including dictionary unpacking.
+
+    AST columns count UTF-8 bytes, so inspect encoded lines when locating the
+    delimiters. Comprehensions have their own check; braces inside strings are
+    not dictionary or set nodes.
+    """
+    lines = source.encode(encoding="utf-8").splitlines()
+    findings = []
+
+    for expression in ast.walk(node=ast.parse(source=source)):
+        if not isinstance(expression, (ast.Dict, ast.Set)) or expression.lineno == expression.end_lineno:
+            continue
+
+        after_opening = lines[expression.lineno - 1][expression.col_offset + 1:]
+
+        if after_opening.split(b"#", maxsplit=1)[0].strip():
+            findings.append((expression.lineno, "put literal entries below the opening brace"))
+
+        before_closing = lines[expression.end_lineno - 1][:expression.end_col_offset - 1]
+
+        if before_closing.strip():
+            findings.append((expression.end_lineno, "start the closing literal brace on its own line"))
+
+    return sorted(findings)
+
+
 class MultilineBracketPostureTests(unittest.TestCase):
+    def test_multiline_dictionary_unpacking_cannot_share_brace_lines(self):
+        source = (
+            'notice = {**facts("delivery_published"),\n'
+            '          "replayed": receipt.replayed,\n'
+            '          "recovered": retried or alerted}\n'
+        )
+
+        self.assertEqual(
+            first=[
+                (1, "put literal entries below the opening brace"),
+                (3, "start the closing literal brace on its own line"),
+            ],
+            second=multiline_brace_findings(source=source),
+        )
+
+    def test_multiline_braces_allow_comments_and_surrounding_call_delimiters(self):
+        source = (
+            'publish({  # Retain the request identity\n'
+            '    **facts("delivery_published"),\n'
+            '    "replayed": receipt.replayed,\n'
+            '})\n'
+            'values = {\n'
+            '    first,\n'
+            '    second,\n'
+            '}\n'
+            'compact = {"key": "{not a literal}"}\n'
+        )
+
+        self.assertEqual(first=[], second=multiline_brace_findings(source=source))
+
+    def test_multiline_set_and_nested_dictionary_braces_use_utf8_positions(self):
+        source = 'café = {first,\n    second}\nnested = {\n    "clé": {"value": 1,\n        "other": 2},\n}\n'
+
+        self.assertEqual(first=[1, 2, 4, 5], second=[line for line, _ in multiline_brace_findings(source=source)])
+
+    def test_authored_multiline_braces_keep_entries_between_delimiters(self):
+        findings = [
+            f"{path.relative_to(ROOT)}:{line}: {message}"
+            for path in python_sources(production_only=False)
+            for line, message in multiline_brace_findings(source=path.read_text(encoding="utf-8"))
+        ]
+
+        self.assertEqual(first=[], second=findings, msg="\n".join(findings))
+
     def test_shared_call_arguments_are_flagged(self):
         source = (
             "with open_checkpoint(\n"
