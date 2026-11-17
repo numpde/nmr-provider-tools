@@ -5,7 +5,6 @@ from tools.container_guard import require_container
 require_container()
 
 import ast
-import re
 import unittest
 
 from .sources import ROOT, python_sources
@@ -22,9 +21,11 @@ def redundant_negated_call_lines(*, source: str) -> list[int]:
         if not isinstance(expression.operand, ast.Call):
             continue
 
-        spelling = ast.get_source_segment(source=source, node=expression)
-
-        if re.match(pattern=r"not\s*\(", string=spelling):
+        # Outer grouping extends the negation past the end of the call
+        if (expression.end_lineno, expression.end_col_offset) != (
+            expression.operand.end_lineno,
+            expression.operand.end_col_offset,
+        ):
             findings.append(expression.lineno)
 
     return sorted(set(findings))
@@ -36,6 +37,8 @@ class NegatedCallParenthesesPostureTests(unittest.TestCase):
         self.assertEqual(first=[], second=redundant_negated_call_lines(source="if not ready(): raise ValueError"))
         self.assertEqual(first=[], second=redundant_negated_call_lines(source="if not (ready() and enabled): raise ValueError"))
         self.assertEqual(first=[1], second=redundant_negated_call_lines(source="if not (ready()) or enabled: pass"))
+        self.assertEqual(first=[], second=redundant_negated_call_lines(source="if not (root / name).exists(): pass"))
+        self.assertEqual(first=[1], second=redundant_negated_call_lines(source="if not ((root / name).exists()): pass"))
 
     def test_authored_python_omits_redundant_negated_call_parentheses(self) -> None:
         findings = [
