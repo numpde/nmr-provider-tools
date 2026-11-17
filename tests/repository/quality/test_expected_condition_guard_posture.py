@@ -1,15 +1,7 @@
-"""Spell negative raising guards as ``if not (expected_condition): raise ...``.
+"""Write direct raising guards as a negated acceptance condition.
 
-This standalone spelling check covers conditions whose body directly raises:
-an outer not needs encompassing parentheses around compound operands; direct call
-predicates may omit that extra grouping. Single is-not/not-in comparisons
-should negate their accepted identity/membership condition. It does not infer
-accepted predicates for arbitrary equality, ordering or boolean expressions.
-Exception type, exception construction and chaining do not restrict the rule.
-For a disjunction of failure conditions, an explicit ``not`` must not be mixed
-with an unnegated operand; write all failures as negations or negate the complete
-accepted condition. Gated ``and`` conditions remain outside this spelling rule.
-The existing validation checker reviews range and value logic independently.
+Require one outer not. Parenthesize its complete operand unless it is a direct
+call. Nested conditions own their own raises.
 """
 
 from tools.container_guard import require_container
@@ -66,20 +58,12 @@ def guard_findings(*, source: str) -> list[tuple[int, str]]:
 
         condition = statement.test
 
-        if isinstance(condition, ast.BoolOp) and isinstance(condition.op, ast.Or):
-            negated = [isinstance(operand, ast.UnaryOp) and isinstance(operand.op, ast.Not) for operand in condition.values]
-
-            if any(negated) and (not all(negated)):
-                findings.append((statement.lineno, "use consistently negated failure conditions or negate the complete expected condition"))
-
-        if isinstance(condition, ast.UnaryOp) and isinstance(condition.op, ast.Not):
-            if not isinstance(condition.operand, ast.Call) and not _parenthesized_not(expression=ast.get_source_segment(source=source, node=condition)):
-                findings.append((statement.lineno, "parenthesize the complete expected condition after not"))
-        elif isinstance(condition, ast.Compare) and len(condition.ops) == 1:
-            if isinstance(condition.ops[0], ast.IsNot):
-                findings.append((statement.lineno, "write the identity guard as if not (... is ...): raise ..."))
-            elif isinstance(condition.ops[0], ast.NotIn):
-                findings.append((statement.lineno, "write the membership guard as if not (... in ...): raise ..."))
+        if not isinstance(condition, ast.UnaryOp) or not isinstance(condition.op, ast.Not):
+            findings.append((statement.lineno, "write the raising guard as if not (expected_condition): raise ..."))
+        elif not isinstance(condition.operand, ast.Call) and not _parenthesized_not(
+            expression=ast.get_source_segment(source=source, node=condition),
+        ):
+            findings.append((statement.lineno, "parenthesize the complete expected condition after not"))
 
     return sorted(findings)
 
@@ -99,10 +83,9 @@ class ExpectedConditionGuardPostureTests(unittest.TestCase):
 
                 self.assertEqual(first=1, second=len(guard_findings(source=source)))
 
-    def test_consistent_negations_and_gated_conditions_are_allowed(self):
+    def test_compound_guards_require_one_outer_negation(self):
         for condition in (
             "(not tokens) or (not (token_count <= limit))",
-            "not (tokens and (token_count <= limit))",
             "enabled and not available",
             "invalid or missing",
         ):
@@ -112,7 +95,7 @@ class ExpectedConditionGuardPostureTests(unittest.TestCase):
                     f"    raise ValueError()\n"
                 )
 
-                self.assertEqual(first=[], second=guard_findings(source=source))
+                self.assertEqual(first=1, second=len(guard_findings(source=source)))
 
     def test_mixed_disjunction_without_direct_raise_is_outside_rule(self):
         source = (
@@ -146,19 +129,15 @@ class ExpectedConditionGuardPostureTests(unittest.TestCase):
         self.assertEqual(first=1, second=len(guard_findings(source=source)))
 
     def test_parentheses_enclose_the_complete_expected_condition(self):
-        for condition in ["not (first) and second", "not (first) or second"]:
-            # Boolean tests belong to the existing value-logic check, not this
-            # spelling check. An actual outer not has its own AST boundary.
-            source = f"if {condition}:\n    raise ValueError()\n"
+        for condition in ("not (first) and second", "not (first) or second", "not (first) == second"):
+            with self.subTest(condition=condition):
+                source = f"if {condition}:\n    raise ValueError()\n"
 
-            self.assertEqual(first=[], second=guard_findings(source=source))
-
-        source = "if not (first) == second:\n    raise ValueError()\n"
-
-        self.assertEqual(first=1, second=len(guard_findings(source=source)))
+                self.assertEqual(first=1, second=len(guard_findings(source=source)))
 
     def test_canonical_conditions_are_accepted(self):
         conditions = [
+            "not (tokens and (token_count <= limit))",
             "not (1 <= count <= limit)",
             "not (type(candidate) is str)",
             "not (candidate in supported)",
@@ -197,18 +176,18 @@ class ExpectedConditionGuardPostureTests(unittest.TestCase):
         sources = [
             "if not permitted:\n    return value\n",
             "if value is not None:\n    use(value)\n",
-            "if value not in allowed:\n    if failed:\n        raise Error()\n",
+            "if value not in allowed:\n    if not (acceptable):\n        raise Error()\n",
         ]
 
         for source in sources:
             with self.subTest(source=source):
                 self.assertEqual(first=[], second=guard_findings(source=source))
 
-    def test_unreviewed_comparison_complements_are_not_assumed(self):
+    def test_positive_guards_are_reported_without_suggesting_an_inversion(self):
         for condition in ["left != right", "value < bound", "value > bound", "first is not second is not third", "invalid or missing"]:
             source = f"if {condition}:\n    raise ValueError()\n"
 
-            self.assertEqual(first=[], second=guard_findings(source=source))
+            self.assertEqual(first=1, second=len(guard_findings(source=source)))
 
     def test_identity_inversion_does_not_invoke_custom_equality(self):
         class NonComparable:
@@ -256,7 +235,7 @@ class ExpectedConditionGuardPostureTests(unittest.TestCase):
             self.assertEqual(first=original_calls, second=observed_calls)
             self.assertEqual(first=[("contains", subject), "truth"], second=observed_calls)
 
-    def test_all_authored_negative_raising_guards_use_expected_conditions(self):
+    def test_all_authored_raising_guards_use_expected_conditions(self):
         findings = []
 
         for path in python_sources(production_only=False):
