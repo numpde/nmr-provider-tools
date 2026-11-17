@@ -234,16 +234,17 @@ def _print_failure_summary(result, selection, stream):
 
 
 def main():
-    prefix = Path(sys.prefix).resolve()
-    origin = Path(provider_core.__file__).resolve()
+    installed_environment = Path(sys.prefix).resolve()
+    imported_package_path = Path(provider_core.__file__).resolve()
 
-    if not (origin.is_relative_to(prefix)):
-        raise RuntimeError("provider_core was not imported from the isolated installed environment")
+    if not imported_package_path.is_relative_to(installed_environment):
+        raise RuntimeError(f"{imported_package_path=} should be under {installed_environment=}")
 
     distribution = importlib.metadata.distribution("provider-core")
+    distribution_package_path = Path(distribution.locate_file("provider_core")).resolve()
 
-    if not (Path(distribution.locate_file("provider_core")).resolve().is_relative_to(prefix)):
-        raise RuntimeError("provider-core distribution metadata refers outside the installed environment")
+    if not distribution_package_path.is_relative_to(installed_environment):
+        raise RuntimeError(f"{distribution_package_path=} should be under {installed_environment=}")
 
     root = Path(__file__).parent
     selection = sys.argv[1]
