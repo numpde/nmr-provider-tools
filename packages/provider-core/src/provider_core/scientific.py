@@ -240,8 +240,8 @@ def operation(
     def decorate(function: Callable) -> Callable:
         # Python supplies the decorated function positionally; the method itself
         # remains unchanged, including its keyword-only scientific signature.
-        if not (inspect.isfunction(object=function)):
-            raise TypeError("An operation must decorate an ordinary instance method")
+        if not inspect.isfunction(object=function):
+            raise TypeError("An ordinary instance method expected")
 
         if "__scientific_operation__" in function.__dict__:
             raise ValueError("An operation may be declared only once")
@@ -360,7 +360,7 @@ def _schema(*, annotation: object, seen: frozenset[type]) -> object:
 
 def _codec(*, value_type: type, supplied: PayloadCodec | None) -> PayloadCodec:
     if supplied is not None:
-        if not (isinstance(supplied, (expected_type := PayloadCodec))):
+        if not isinstance(supplied, (expected_type := PayloadCodec)):
             raise TypeError(f"{type(supplied)=} ≠ {expected_type=}")
 
         if not (supplied.value_type is value_type):
@@ -374,12 +374,16 @@ def _codec(*, value_type: type, supplied: PayloadCodec | None) -> PayloadCodec:
     )
 
 
-def _synchronous(*, function: Callable, label: str) -> None:
-    if not (inspect.isfunction(object=function)):
-        raise TypeError(f"{label} must be an ordinary instance method")
+def assert_synchronous(function: Callable) -> None:
+    if not inspect.isfunction(object=function):
+        raise TypeError(f"{function=} must be an ordinary instance method")
 
-    if inspect.iscoroutinefunction(obj=function) or inspect.isgeneratorfunction(obj=function) or inspect.isasyncgenfunction(obj=function):
-        raise TypeError(f"{label} must be synchronous and cannot yield")
+    if not (
+        (not inspect.iscoroutinefunction(obj=function)) and
+        (not inspect.isgeneratorfunction(obj=function)) and
+        (not inspect.isasyncgenfunction(obj=function))
+    ):
+        raise TypeError(f"{function=} must be synchronous and cannot yield")
 
 
 @dataclass(frozen=True, slots=True, kw_only=True)
@@ -396,7 +400,7 @@ class _LifecycleMethod:
 def _lifecycle(*, owner: type, name: str, keywords: dict[str, type]) -> _LifecycleMethod:
     function = inspect.getattr_static(obj=owner, attr=name)
 
-    _synchronous(function=function, label=f"{owner.__qualname__}.{name}")
+    assert_synchronous(function)
     parameters = tuple(inspect.signature(obj=function).parameters.values())
 
     if not parameters or parameters[0].kind is not inspect.Parameter.POSITIONAL_OR_KEYWORD:
@@ -432,7 +436,7 @@ def _compile_method(
     function: Callable,
     resources: frozenset[ResourceRequirement],
 ) -> CallBinding:
-    _synchronous(function=function, label=f"Operation {name!r}")
+    assert_synchronous(function)
     declaration = function.__scientific_operation__
     parameters = tuple(inspect.signature(obj=function).parameters.values())
 
@@ -590,7 +594,7 @@ class HostedContribution:
     _analysis_close: _LifecycleMethod | None = field(init=False, repr=False, compare=False)
 
     def __post_init__(self, host: str, allocation_name: str) -> None:
-        if not (isinstance((actual_contribution := self.contribution), (expected_type := Contribution))):
+        if not isinstance((actual_contribution := self.contribution), (expected_type := Contribution)):
             raise TypeError(f"{type(actual_contribution)=} ≠ {expected_type=}")
 
         contribution_type = type(self.contribution)
@@ -605,11 +609,11 @@ class HostedContribution:
         object.__setattr__(self, "_analysis_close", None)
 
         if analysis_type is not None:
-            if not (isinstance(analysis_type, (expected_type := type))):
+            if not isinstance(analysis_type, (expected_type := type)):
                 raise TypeError(f"{type(analysis_type)=} ≠ {expected_type=}")
 
-            if not (issubclass(analysis_type, Analysis)):
-                raise TypeError("analysis_type must inherit Analysis")
+            if not issubclass(analysis_type, (expected_parent := Analysis)):
+                raise TypeError(f"{analysis_type=} should be a subclass of {expected_parent=}")
 
             if analysis_type.__init__ is not Analysis.__init__ or analysis_type.__new__ is not object.__new__:
                 raise TypeError("Analysis construction is SDK-owned; acquire resources in initialize")

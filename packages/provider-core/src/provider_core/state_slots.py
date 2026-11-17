@@ -41,7 +41,7 @@ class StateType[T]:
     value_type: type[T]
 
     def __post_init__(self) -> None:
-        if not (isinstance((actual_value_type := self.value_type), (expected_type := type))):
+        if not isinstance((actual_value_type := self.value_type), (expected_type := type)):
             raise TypeError(f"{type(actual_value_type)=} ≠ {expected_type=}")
 
         if self.name is None:
@@ -87,11 +87,11 @@ class StateOutputSlot[T]:
         if self.name is not None:
             StateOutput(name=self.name, kind=self.kind.name)
 
-        if not (isinstance((actual_value_type := self.kind.value_type), (expected_type := type))):
+        if not isinstance((actual_value_type := self.kind.value_type), (expected_type := type)):
             raise TypeError(f"{type(actual_value_type)=} ≠ {expected_type=}")
 
-        if not (callable(self.dispose)):
-            raise TypeError("An output slot needs a concrete scientific type and disposer")
+        if not callable(self.dispose):
+            raise TypeError(f"{self.dispose=} should be callable")
 
     def __set_name__(self, owner: type, name: str) -> None:
         """Bind an omitted port name to its unambiguous Python attribute."""
@@ -125,8 +125,8 @@ class StateOutputSlot[T]:
         """
         target = ref(call)
 
-        if not (any(slot is self for slot in call._output_slots)):
-            raise ValueError("Output slot is not declared by this exact call")
+        if not any(slot is self for slot in call._output_slots):
+            raise ValueError(f"One of {call._output_slots=} should be {self=}")
 
         observation = await operation.observe(after=None, wait_seconds=0)
 
@@ -204,7 +204,7 @@ class StateInputSlot[T]:
 def state_references(*, states: Mapping[StateInputSlot, StateHandle]) -> dict[str, StateRef]:
     """Project typed provider ports and handles into portable invocation references."""
 
-    if not (isinstance(states, (expected_type := Mapping))):
+    if not isinstance(states, (expected_type := Mapping)):
         raise TypeError(f"{type(states)=} ≠ {expected_type=}")
 
     references = {}
@@ -217,10 +217,10 @@ def state_references(*, states: Mapping[StateInputSlot, StateHandle]) -> dict[st
             raise TypeError(f"{type(state_handle)=} ≠ {expected_type=}")
 
         if (state_handle.kind != state_port.kind) or (state_handle.reference.kind != state_port.kind.name):
-            raise ValueError("State handle has a different scientific kind or Python type")
+            raise ValueError("State handle has a different scientific kind or Python type")  # todo
 
         if state_port.name in references:
-            raise ValueError(f"State ports have the same {state_port.name=}")
+            raise ValueError(f"Some state ports in {...} have the same {state_port.name=}")  # todo
 
         references[state_port.name] = state_handle.reference
 
@@ -236,11 +236,11 @@ class SlotStateBinding[T]:
     assemble: Callable[[Mapping[str, object]], T]
 
     def __post_init__(self) -> None:
-        if not (isinstance((actual_value_type := self.value_type), (expected_type := type))):
+        if not isinstance((actual_value_type := self.value_type), (expected_type := type)):
             raise TypeError(f"{type(actual_value_type)=} ≠ {expected_type=}")
 
-        if not (callable(self.assemble)):
-            raise TypeError("A scientific state binding needs a concrete type and assembler")
+        if not callable(self.assemble):
+            raise TypeError(f"{self.assemble=} should be callable")
 
         if not (type((actual_inputs := self.inputs)) is (expected_type := tuple)):
             raise TypeError(f"{type(actual_inputs)=} ≠ {expected_type=}")

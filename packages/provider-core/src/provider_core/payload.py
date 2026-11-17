@@ -137,11 +137,11 @@ def _resolved_hints(value_type: type[object]) -> dict[str, object]:
 
 
 def _dataclass_fields(value_type: type[object]):
-    if not (isinstance(value_type, (expected_type := type))):
+    if not isinstance(value_type, (expected_type := type)):
         raise TypeError(f"{type(value_type)=} ≠ {expected_type=}")
 
-    if not (is_dataclass(value_type)):
-        raise TypeError("Portable values must be dataclass types")
+    if not is_dataclass(value_type):
+        raise TypeError(f"{value_type=}; expected a dataclass type")
 
     parameters = value_type.__dataclass_params__
 
@@ -286,7 +286,7 @@ def _decode_value(value: object, annotation: object, *, path: str) -> object:
         if not (type(value) in (expected_types := (int, float))):
             raise PayloadRejected("invalid_type", f"{path=}; {type(value)=} ≠ {expected_types=}")
 
-        if not (math.isfinite(value)):
+        if not math.isfinite(value):
             raise PayloadRejected(
                 "invalid_type",
                 f"{path} must be a finite number",
@@ -312,7 +312,7 @@ def _decode_value(value: object, annotation: object, *, path: str) -> object:
 
         expected_types = [type(item) for item in arguments]
 
-        if not (any(type(value) is expected_type for expected_type in expected_types)):
+        if not any(type(value) is expected_type for expected_type in expected_types):
             raise PayloadRejected("invalid_value", f"{path=}; {type(value)=} ≠ {expected_types=}")
 
         return value
@@ -446,7 +446,7 @@ def _encode_value(value: object, annotation: object, *, path: str) -> object:
         if not (type(value) in (expected_types := (int, float))):
             raise TypeError(f"{path=}; {type(value)=} ≠ {expected_types=}")
 
-        if not (math.isfinite(value)):
+        if not math.isfinite(value):
             raise TypeError(f"{path} must be a finite float-compatible number")
 
         return float(value)
@@ -466,7 +466,7 @@ def _encode_value(value: object, annotation: object, *, path: str) -> object:
 
         expected_types = [type(item) for item in arguments]
 
-        if not (any(type(value) is expected_type for expected_type in expected_types)):
+        if not any(type(value) is expected_type for expected_type in expected_types):
             raise TypeError(f"{path=}; {type(value)=} ≠ {expected_types=}")
 
         return value
@@ -615,7 +615,7 @@ class DataclassStateBinding[T]:
         return tuple(field.name for field in fields(self.value_type))
 
     def bind(self, values: Mapping[str, object]) -> T:
-        if not (isinstance(values, (expected_values_type := Mapping))):
+        if not isinstance(values, (expected_values_type := Mapping)):
             raise TypeError(f"{type(values)=} ≠ {expected_values_type=}")
 
         if set(values) != set(self.names):
