@@ -9,7 +9,6 @@ from provider_core.container_guard import require_container
 require_container()
 
 import asyncio
-import math
 from dataclasses import dataclass
 
 from provider_core.api import ProviderAPI
@@ -17,6 +16,7 @@ from provider_core.delivery_client import DeliveryEndpoint, DeliveryUnavailable
 from provider_core.delivery_ipc import DeliveryInbox
 from provider_core.delivery_store import MAX_BINDINGS, DeliveryQueue
 from provider_core.delivery_worker import DeliveryWorker, require_delivery_retry_settings
+from provider_core.tools import require_positive_number
 
 @dataclass(frozen=True, slots=True)
 class DeliveryBinding:
@@ -44,14 +44,7 @@ class DeliveryService:
         if not (len(bindings) * limits.provider_items <= limits.total_items and len(bindings) * limits.provider_bytes <= limits.total_bytes):
             raise ValueError("The host delivery budget must cover the configured provider shares; reduce their allowances or increase the host budget.")
 
-        if not (type(request_seconds) in (expected_type := (int, float))):
-            raise TypeError(f"{type(request_seconds)=} ≠ {expected_type=}")
-
-        if not (math.isfinite(request_seconds)):
-            raise ValueError("Delivery IPC request deadline must be finite positive seconds.")
-
-        if not (0 < request_seconds):
-            raise ValueError("Delivery IPC request deadline must be finite positive seconds.")
+        require_positive_number(request_seconds)
 
         require_delivery_retry_settings(retry_initial_seconds, retry_max_seconds)
         (self.directory, self.limits, self.bindings) = (directory, limits, bindings)

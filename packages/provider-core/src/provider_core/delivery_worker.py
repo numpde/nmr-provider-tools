@@ -5,78 +5,110 @@ This owner supplies pacing and pending-only storage; it never runs science or
 manufactures producer Attempt records to reuse the old file-store publisher.
 """
 
+from __future__ import annotations
+
 from provider_core.container_guard import require_container
 
 require_container()
 
 import asyncio
-import math
 import random
+from collections.abc import Callable
+from typing import TYPE_CHECKING
 
-from provider_core.api import ApiFailure
+from provider_core.api import ApiFailure, ProviderAPI
 from provider_core.attempt_record import TerminalOperation
 from provider_core.response_json import ResponseRejected
+from provider_core.tools import require_positive_number
+
+if TYPE_CHECKING:
+    from provider_core.delivery_client import DeliveryEndpoint
+    from provider_core.delivery_ipc import DeliveryInbox
+    from provider_core.delivery_store import DeliveryOutcome
 
 
 class DeliveryWorkerFailed(RuntimeError):
     """Retain independent API/storage and retirement causes for the operator."""
 
-    def __init__(self, *, cause, api_failure, cleanup_failures, api_receipt_received):
+    def __init__(
+        self,
+        *,
+        cause: BaseException | None,
+        api_failure: ApiFailure | None,
+        cleanup_failures: tuple[BaseException, ...],
+        api_receipt_received: bool,
+    ) -> None:
+        """Keep publication and cleanup failures separate, including receipt state.
+
+        A received API receipt does not prove that local queue removal completed.
+        The retained causes let the operator distinguish those outcomes.
+        """
         super().__init__("Delivery stopped for this provider binding; preserve its pending queue and settle the retained failure before restarting delivery.")
         (self.cause, self.api_failure) = (cause, api_failure)
         self.cleanup_failures = cleanup_failures
         self.api_receipt_received = api_receipt_received
 
 
-def require_delivery_retry_settings(initial_seconds, maximum_seconds):
-    """Share admission before service startup and standalone worker construction."""
+def require_delivery_retry_settings(initial_seconds: float, maximum_seconds: float) -> None:
+    """Require finite positive retry delays, with initial no greater than maximum.
 
-    if not (type(initial_seconds) in (expected_type := (int, float))):
-        raise TypeError(f"{type(initial_seconds)=} ≠ {expected_type=}")
+    Services and standalone workers use the same admission before publication.
+    Wrong numeric types raise TypeError; invalid values or ordering raise ValueError.
+    """
 
-    if not (math.isfinite(initial_seconds)):
-        raise ValueError("Delivery retry delays must be finite positive seconds, with initial delay no greater than maximum.")
-
-    if not (0 < initial_seconds):
-        raise ValueError("Delivery retry delays must be finite positive seconds, with initial delay no greater than maximum.")
-
-    if not (type(maximum_seconds) in (expected_type := (int, float))):
-        raise TypeError(f"{type(maximum_seconds)=} ≠ {expected_type=}")
-
-    if not (math.isfinite(maximum_seconds)):
-        raise ValueError("Delivery retry delays must be finite positive seconds, with initial delay no greater than maximum.")
-
-    if not (0 < maximum_seconds):
-        raise ValueError("Delivery retry delays must be finite positive seconds, with initial delay no greater than maximum.")
+    require_positive_number(initial_seconds)
+    require_positive_number(maximum_seconds)
 
     if not (initial_seconds <= maximum_seconds):
-        raise ValueError("Delivery retry delays must be finite positive seconds, with initial delay no greater than maximum.")
+        raise ValueError(f"{initial_seconds=} exceeds {maximum_seconds=}")
 
 
 class DeliveryWorker:
     """One serial API owner per binding; other providers have their own worker."""
 
-    def __init__(self, inbox, endpoint, api, *, retry_initial_seconds, retry_max_seconds, on_notice):
+    def __init__(
+        self,
+        inbox: DeliveryInbox,
+        endpoint: DeliveryEndpoint,
+        api: ProviderAPI,
+        *,
+        retry_initial_seconds: float,
+        retry_max_seconds: float,
+        on_notice: Callable[[BaseException | None, dict[str, object]], None],
+    ) -> None:
+        """Configure publication for one binding without starting its worker.
+
+        The API origin must match the endpoint. Retry delays are finite positive
+        seconds, with the initial delay no greater than the maximum. on_notice
+        is called synchronously with a failure or None and the publication facts.
+        """
         if api.origin != endpoint.api_origin:
-            raise ValueError("Delivery signing origin differs from its configured binding.")
+            raise ValueError(f"{api.origin=} should match {endpoint.api_origin=}")
 
         require_delivery_retry_settings(retry_initial_seconds, retry_max_seconds)
+
         (self.inbox, self.endpoint, self.api) = (inbox, endpoint, api)
         (self.retry_initial_seconds, self.retry_max_seconds) = (retry_initial_seconds, retry_max_seconds)
         self.on_notice = on_notice
 
         (self.changed, self.stopping, self.policy_changed) = (asyncio.Event(), asyncio.Event(), asyncio.Event())
         (self.paused, self._running) = (False, False)
-        (self.failure, self._api_receipt_received) = (None, False)
+        self.failure: DeliveryWorkerFailed | None = None
+        self._api_receipt_received = False
 
-    def wake(self):
+    def wake(self) -> None:
+        """Prompt the worker to check for pending items without bypassing backoff."""
         self.changed.set()
 
-    def request_stop(self):
+    def request_stop(self) -> None:
+        """Wake the worker to stop without cancelling its current API or storage call.
+
+        run() retires the API before it exits; unpublished requests remain queued.
+        """
         self.stopping.set()
         self.changed.set()
 
-    def status(self):
+    def status(self) -> dict[str, str]:
         """Local publisher state, independent of inbox or remote API readiness."""
 
         if self.failure is not None:
@@ -93,11 +125,17 @@ class DeliveryWorker:
 
         return {"state": "starting", "message": "The local publisher has not started yet."}
 
-    def _facts(self, event, item):
+    def _facts(self, event: str, item: DeliveryOutcome) -> dict[str, str]:
+        """Identify the retained request in a publisher notice."""
         return {"event": event, **item.acceptance()}
 
-    async def _backoff(self, delay, minimum, seconds):
-        """Apply changed retry policy to the next attempt without waking for arrivals."""
+    async def _backoff(self, delay: float, minimum: float, seconds: float) -> None:
+        """Wait until the retry deadline or shutdown, applying changed retry policy.
+
+        A policy change recalculates jitter from delay and adds the server's
+        minimum wait. The deadline stays anchored to this wait's original start;
+        newly queued items do not shorten it.
+        """
         loop = asyncio.get_running_loop()
         (started, deadline) = (loop.time(), loop.time() + seconds)
 
@@ -121,14 +159,22 @@ class DeliveryWorker:
                 delay = min(max(delay, self.retry_initial_seconds), self.retry_max_seconds)
                 deadline = started + random.uniform(delay / 2, delay) + minimum
 
-    async def _deliver(self, item):
+    async def _deliver(self, item: DeliveryOutcome) -> None:
+        """Publish one retained request using only API-authorized exact retries.
+
+        A verified receipt permits local queue removal. An item-specific refusal
+        holds the request; a binding-wide refusal pauses this worker. Shutdown
+        leaves unpublished work queued, and a stall notice does not cancel it.
+        """
         loop = asyncio.get_running_loop()
         publication_started = loop.time()
         retried = alerted = False
 
-        def facts(event):
-            # This owner's wait excludes earlier queue residence. Neither age
-            # nor a different row's publication settles this retained report.
+        def facts(event: str) -> dict[str, object]:
+            """Measure this request's publication wait in seconds, excluding queue residence.
+
+            Another request's progress does not settle this retained report.
+            """
             return {**self._facts(event, item),
                     "publication_wait_seconds": loop.time() - publication_started}
 
@@ -137,7 +183,8 @@ class DeliveryWorker:
         # resends an accepted report, or renews when another retry starts.
         alert_seconds = self.api.exchange_seconds + self.api.retirement_seconds + self.retry_max_seconds
 
-        def stalled():
+        def stalled() -> None:
+            """Report stalled publication without cancelling its API or storage work."""
             nonlocal alerted
             alerted = True
 
@@ -221,13 +268,21 @@ class DeliveryWorker:
         finally:
             alarm.cancel()
 
-    async def run(self):
+    async def run(self) -> None:
+        """Drain this binding serially and attempt API retirement before exiting.
+
+        Idle workers wait for wake() or request_stop(). Publication and retirement
+        failures are retained together in DeliveryWorkerFailed and reported through
+        on_notice. Cancellation is re-raised after retirement with that failure as
+        its cause, so cleanup diagnostics survive the cancelled caller.
+        """
         if self._running:
             raise ValueError("A delivery binding already has its serial API worker.")
 
         self._running = True
 
-        (operation_failure, cleanup_failures) = (None, ())
+        operation_failure: BaseException | None = None
+        cleanup_failures: tuple[BaseException, ...] = ()
 
         try:
             while not self.stopping.is_set() and not self.paused:
