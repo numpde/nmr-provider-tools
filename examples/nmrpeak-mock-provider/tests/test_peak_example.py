@@ -256,17 +256,19 @@ class PeakExampleTests(unittest.IsolatedAsyncioTestCase):
                 self.assertIsNotNone(obj=proton_formula_predictor.hosted_predictor.contribution.model)
 
     async def test_interpreter_deadline_waits_for_original_tokenization_to_settle(self):
-        entered = Event()
-        release = Event()
+        tokenization_started = Event()
+        release_tokenization = Event()
 
-        class HeldModel(Model):
+        class ModelWithPausedTokenization(Model):
             def tokenize(self, *, candidate):
-                entered.set()
-                release.wait(timeout=5)
+                tokenization_started.set()
+
+                if not (tokenization_released := release_tokenization.wait(timeout=(release_timeout_seconds := 5))):
+                    raise TimeoutError(f"{tokenization_released=} after waiting {release_timeout_seconds=}")
 
                 return super().tokenize(candidate=candidate)
 
-        async with self.open_offerings(create_model=HeldModel) as offerings:
+        async with self.open_offerings(create_model=ModelWithPausedTokenization) as offerings:
             (proton_formula_predictor,) = [offering for offering in offerings if isinstance(offering.hosted_predictor.contribution, Hf)]
 
             async with proton_formula_predictor.open_prediction(receive=RecordingReceiver()) as prediction_workflow:
@@ -280,10 +282,10 @@ class PeakExampleTests(unittest.IsolatedAsyncioTestCase):
 
                 try:
                     async with asyncio.timeout(10):
-                        self.assertTrue(expr=await asyncio.to_thread(entered.wait, timeout=2))
+                        self.assertTrue(expr=await asyncio.to_thread(tokenization_started.wait, timeout=2))
                         await asyncio.sleep(delay=max(0, deadline - asyncio.get_running_loop().time()) + 0.01)
                         self.assertFalse(expr=task.done())
-                        release.set()
+                        release_tokenization.set()
 
                         await task
 
@@ -293,7 +295,7 @@ class PeakExampleTests(unittest.IsolatedAsyncioTestCase):
                     self.assertTrue(expr=observed.finished)
                     self.assertIsNotNone(obj=prediction_workflow.preparation_tool.prepared_state_handle)
                 finally:
-                    release.set()
+                    release_tokenization.set()
                     await asyncio.gather(task, return_exceptions=True)
 
     async def test_hf_input_rejects_carbon_fields_before_scientific_validation(self):
