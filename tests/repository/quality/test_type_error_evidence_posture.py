@@ -1,8 +1,11 @@
-"""Require the rejected subject's actual type in direct type-guard failures.
+"""Require checked values and expectations in direct type-guard failures.
 
 This shares the type-rejection scanner's syntactic scope: builtin predicates,
 negative comparisons and their recognized Boolean inverses, with direct raises.
 Aliases, shadowed builtins, helper predicates and message variables need review.
+Direct subclass guards report the class itself and its checked parent, with no
+prescribed binding names or prose. Their scanner covers single-raise bodies so
+intervening assignments cannot change the evidence before it is rendered.
 """
 
 from __future__ import annotations
@@ -206,7 +209,135 @@ def _expectation_findings(*, path: Path, source: str) -> list[str]:
     return findings
 
 
+def _subclass_findings(*, path: Path, source: str) -> list[str]:
+    """Check both operands of direct subclass rejection without inferring prose."""
+    findings = []
+
+    for statement in ast.walk(node=ast.parse(source=source, filename=str(path))):
+        if not isinstance(statement, ast.If) or len(statement.body) != 1:
+            continue
+
+        condition = statement.test
+
+        if not isinstance(condition, ast.UnaryOp) or not isinstance(condition.op, ast.Not):
+            continue
+
+        predicate = condition.operand
+
+        if not (
+            isinstance(predicate, ast.Call)
+            and _builtin(expression=predicate.func, name="issubclass")
+            and len(predicate.args) == 2
+            and not predicate.keywords
+        ):
+            continue
+
+        rejection = statement.body[0]
+
+        if not isinstance(rejection, ast.Raise) or rejection.exc is None:
+            continue
+
+        exception = rejection.exc.func if isinstance(rejection.exc, ast.Call) else rejection.exc
+
+        if not _builtin(expression=exception, name="TypeError"):
+            continue
+
+        message = rejection.exc.args[0] if isinstance(rejection.exc, ast.Call) and rejection.exc.args else None
+        evidenced = {
+            _subject_key(expression=field.value)
+            for field in message.values
+            if isinstance(field, ast.FormattedValue) and _is_debug_expression(source=source, formatted=field)
+        } if isinstance(message, ast.JoinedStr) else set()
+
+        missing = [
+            ast.unparse(ast_obj=diagnostic_subject(subject=operand))
+            for operand in predicate.args
+            if _subject_key(expression=operand) not in evidenced
+        ]
+
+        # The parent is evaluated after the candidate; rebinding a name used to
+        # render the candidate would show a different value from the one checked
+        candidate = diagnostic_subject(subject=predicate.args[0])
+        candidate_names = {node.id for node in ast.walk(node=candidate) if isinstance(node, ast.Name)}
+
+        if any(isinstance(node, ast.NamedExpr) and node.target.id in candidate_names for node in ast.walk(node=predicate.args[1])):
+            findings.append(f"{path}:{rejection.lineno}: subclass parent binding overwrites the checked candidate; preserve its value for the diagnostic")
+            continue
+
+        if missing:
+            findings.append(
+                f"{path}:{rejection.lineno}: subclass rejection lacks debug f-string evidence for "
+                f"{', '.join(missing)}; report the checked class and parent, following their bindings"
+            )
+
+    return sorted(findings)
+
+
 class TypeErrorEvidencePostureTests(unittest.TestCase):
+    def test_subclass_evidence_follows_both_bindings_without_requiring_names_or_prose(self):
+        for candidate, parent, message in (
+            ("candidate", "Parent", 'f"{candidate=} {Parent=}"'),
+            ("candidate", "(expected_parent := Parent)", 'f"{candidate=} should be a subclass of {expected_parent=}"'),
+            ("candidate", "(should_have_parent := Parent)", 'f"{candidate=} {should_have_parent=}"'),
+            ("(actual := owner.candidate)", "(base := owner.parent)", 'f"{actual=} {base=}"'),
+            ("owner.candidate", "owner.parent", 'f"{owner.candidate=} {owner.parent=}"'),
+            ("candidate", "(bases := (Left, Right))", 'f"{bases=} {candidate=}"'),
+        ):
+            with self.subTest(candidate=candidate, parent=parent):
+                source = f"if not builtins.issubclass({candidate}, {parent}):\n    raise builtins.TypeError({message})\n"
+
+                self.assertEqual(first=[], second=_subclass_findings(path=Path("example.py"), source=source))
+
+    def test_subclass_evidence_rejects_missing_or_different_operands(self):
+        for message in (
+            '"candidate should inherit Parent"',
+            'f"{candidate=}"',
+            'f"{base=}"',
+            'f"{other=} {base=}"',
+            'f"{candidate=} {Parent=}"',
+            'f"{type(candidate)=} {base=}"',
+            'f"{candidate} {base=}"',
+            'f"{candidate=} {base}"',
+            'f"{{candidate=}} {base=}"',
+            'f"{candidate:{base=}}"',
+            'message',
+        ):
+            with self.subTest(message=message):
+                source = f"if not issubclass(candidate, (base := Parent)):\n    raise TypeError({message})\n"
+
+                self.assertTrue(expr=_subclass_findings(path=Path("example.py"), source=source))
+
+    def test_subclass_evidence_scope_is_direct_rejection_only(self):
+        for source in (
+            "if issubclass(candidate, Parent):\n    raise TypeError('unsupported')\n",
+            "if not issubclass(candidate, Parent) or other:\n    raise TypeError('bad')\n",
+            "if not issubclass(candidate, Parent):\n    raise ValueError('bad')\n",
+            "if not issubclass(candidate, Parent):\n    raise failure\n",
+            "if not issubclass(candidate, Parent):\n    raise\n",
+            "if not custom.issubclass(candidate, Parent):\n    raise TypeError('bad')\n",
+            "if not issubclass(candidate, Parent):\n    if enabled:\n        raise TypeError('bad')\n",
+        ):
+            with self.subTest(source=source):
+                self.assertEqual(first=[], second=_subclass_findings(path=Path("example.py"), source=source))
+
+    def test_subclass_parent_binding_cannot_replace_the_candidate_evidence(self):
+        for candidate, parent, message in (
+            ("candidate", "(candidate := Parent)", 'f"{candidate=}"'),
+            ("(actual := candidate)", "(actual := Parent)", 'f"{actual=}"'),
+        ):
+            with self.subTest(candidate=candidate, parent=parent):
+                source = f"if not issubclass({candidate}, {parent}):\n    raise TypeError({message})\n"
+
+                self.assertTrue(expr=_subclass_findings(path=Path("example.py"), source=source))
+
+    def test_subclass_evidence_diagnostic_identifies_both_missing_operands(self):
+        source = "if not issubclass(candidate, (base := Parent)):\n    raise TypeError\n"
+        findings = _subclass_findings(path=Path("example.py"), source=source)
+
+        self.assertEqual(first=1, second=len(findings))
+        self.assertIn(member="example.py:2", container=findings[0])
+        self.assertIn(member="candidate, base", container=findings[0])
+
     def test_bound_type_and_inequality_fields_are_required_together(self):
         source = 'if not (type(values) is (expected_type := tuple)):\n    raise TypeError(f"{type(values)=} ≠ {expected_type=}")\n'
 
@@ -380,6 +511,15 @@ class TypeErrorEvidencePostureTests(unittest.TestCase):
             finding
             for path in python_sources(production_only=True)
             for finding in _expectation_findings(path=path.relative_to(REPOSITORY_ROOT), source=path.read_text(encoding="utf-8"))
+        ]
+
+        self.assertEqual(first=[], second=findings, msg="\n".join(findings))
+
+    def test_production_subclass_rejections_report_both_checked_operands(self):
+        findings = [
+            finding
+            for path in python_sources(production_only=True)
+            for finding in _subclass_findings(path=path.relative_to(REPOSITORY_ROOT), source=path.read_text(encoding="utf-8"))
         ]
 
         self.assertEqual(first=[], second=findings, msg="\n".join(findings))
