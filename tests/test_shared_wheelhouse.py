@@ -453,7 +453,7 @@ class WheelhouseTests(unittest.TestCase):
         def slow_download(*args):
             started.set()
 
-            if not (resume.wait(5)):
+            if not resume.wait(5):
                 raise TimeoutError("test did not resume download")
 
             original_download(*args)

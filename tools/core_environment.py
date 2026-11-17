@@ -324,7 +324,8 @@ def source_inventory(source):
 
     for path in sorted(source.rglob("*")):
         if path.is_symlink():
-            raise ValueError("Cannot capture package inventory: source links are not release inputs.")
+            # todo: better msg
+            raise ValueError(f"Cannot capture package inventory: source links are not release inputs.")
 
         if path.is_file():
             inventory[path.relative_to(source).as_posix()] = {
@@ -332,8 +333,9 @@ def source_inventory(source):
                 "size": path.stat().st_size,
                 "mode": path.stat().st_mode & 0o777,
             }
-        elif not (path.is_dir()):
-            raise ValueError("Cannot capture package inventory: source must contain regular files and directories.")
+        elif not path.is_dir():
+            # todo: better msg
+            raise ValueError(f"Cannot capture package inventory: source must contain regular files and directories.")
 
     return inventory
 

@@ -19,8 +19,9 @@ pool = Path("/wheelhouse")
 (release, _) = release_inputs(Path("/release.json"), Path("/core-runtime.lock"))
 tool = read_json(Path("/wheelhouse-tool-release.json"))
 
-if not (tool_present(pool, tool)):
-    raise FileNotFoundError("The pinned wheelhouse tool is missing from the pool.")
+if not tool_present(pool, tool):
+    wheelhouse_tool_path = pool / tool["name"]
+    raise FileNotFoundError(f"{wheelhouse_tool_path=} should exist")
 
 name = f"provider_core-{release['version']}-py3-none-any.whl"
 url = f"https://github.com/numpde/nmr-provider-tools/releases/download/v{release['version']}/{name}"

@@ -38,31 +38,23 @@ def _discover_projects(*, project_root: Path) -> list[tuple[Path, str, str]]:
         distribution_name = project["name"]
         distribution_version = project["version"]
 
-        if not (isinstance(distribution_name, (expected_type := str))):
-            raise TypeError(
-                f"{metadata.parent.name=}; {type(distribution_name)=} ≠ {expected_type=}"
-            )
+        if not isinstance(distribution_name, (expected_type := str)):
+            raise TypeError(f"{metadata.parent.name=}; {type(distribution_name)=} ≠ {expected_type=}")
 
-        if re.fullmatch(
-            r"[a-z0-9]+(?:-[a-z0-9]+)*",
-            distribution_name
-        ) is None:
-            raise ValueError(
-                f"Cannot install project {metadata.parent.name!r}: distribution "
-                "name must use lowercase letters, digits and single hyphens."
-            )
+        if not re.fullmatch(pattern := r"[a-z0-9]+(?:-[a-z0-9]+)*", distribution_name):
+            raise ValueError(f"{metadata.parent.name!r}: {distribution_name=} does not follow {pattern=}")
 
+        # todo: separate
         if distribution_name == "provider-core" or distribution_name in names:
             raise ValueError(
                 f"Cannot install project {distribution_name!r}: distribution "
                 "names must be unique and must not shadow provider-core."
             )
 
-        if not (isinstance(distribution_version, (expected_type := str))):
-            raise TypeError(
-                f"{distribution_name=}; {type(distribution_version)=} ≠ {expected_type=}"
-            )
+        if not isinstance(distribution_version, (expected_type := str)):
+            raise TypeError(f"{distribution_name=}; {type(distribution_version)=} ≠ {expected_type=}")
 
+        # todo: format like elsewhere
         if re.fullmatch(
             r"(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)",
             distribution_version,
@@ -87,7 +79,7 @@ def _discover_mocks(*, mocks_root: Path) -> list[tuple[Path, str, str]]:
     for (source, distribution_name, _) in projects:
         project = tomllib.loads((source / "pyproject.toml").read_text())["project"]
 
-        if not (distribution_name.startswith("mock-")):
+        if not distribution_name.startswith("mock-"):
             raise ValueError(f"A scientific stand-in distribution must start with mock-; {distribution_name=}")
 
         if not (project["dependencies"] == []):

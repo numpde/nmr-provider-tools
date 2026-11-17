@@ -42,10 +42,8 @@ def declaration(path):
     with regular_file(path) as stream:
         document = json.load(stream, object_pairs_hook=unique_fields)
 
-    if not (isinstance(document, (expected_type := dict))):
-        raise TypeError(
-            f"{type(document)=} ≠ {expected_type=}"
-        )
+    if not isinstance(document, (expected_type := dict)):
+        raise TypeError(f"{type(document)=} ≠ {expected_type=}")
 
     if set(document) != {"platform", "packages"}:
         raise ValueError("Cannot admit checker dependencies: expected platform and packages fields.")
@@ -53,10 +51,8 @@ def declaration(path):
     if document["platform"] != "linux/amd64":
         raise ValueError("Cannot admit checker dependencies: expected Linux/amd64 package list.")
 
-    if not (isinstance((document_packages := document["packages"]), (expected_type := list))):
-        raise TypeError(
-            f"{type(document_packages)=} ≠ {expected_type=}"
-        )
+    if not isinstance((document_packages := document["packages"]), (expected_type := list)):
+        raise TypeError(f"{type(document_packages)=} ≠ {expected_type=}")
 
     packages = document["packages"]
 
@@ -65,27 +61,25 @@ def declaration(path):
 
     package = packages[0]
 
-    if not (isinstance(package, (expected_type := dict))):
-        raise TypeError(
-            f"{type(package)=} ≠ {expected_type=}"
-        )
+    if not isinstance(package, (expected_type := dict)):
+        raise TypeError(f"{type(package)=} ≠ {expected_type=}")
 
     if set(package) != {"name", "version", "file", "url", "size", "sha256"}:
         raise ValueError("Cannot admit checker dependency: package identity fields differ.")
 
-    if not (isinstance((package_name := package['name']), (expected_package_name_type := str))):
+    if not isinstance((package_name := package['name']), (expected_package_name_type := str)):
         raise TypeError(f"Cannot admit checker dependency: {type(package_name)=} ≠ {expected_package_name_type=}")
 
-    if not (isinstance((package_version := package['version']), (expected_package_version_type := str))):
+    if not isinstance((package_version := package['version']), (expected_package_version_type := str)):
         raise TypeError(f"Cannot admit checker dependency: {type(package_version)=} ≠ {expected_package_version_type=}")
 
-    if not (isinstance((package_file := package['file']), (expected_package_file_type := str))):
+    if not isinstance((package_file := package['file']), (expected_package_file_type := str)):
         raise TypeError(f"Cannot admit checker dependency: {type(package_file)=} ≠ {expected_package_file_type=}")
 
-    if not (isinstance((package_url := package['url']), (expected_package_url_type := str))):
+    if not isinstance((package_url := package['url']), (expected_package_url_type := str)):
         raise TypeError(f"Cannot admit checker dependency: {type(package_url)=} ≠ {expected_package_url_type=}")
 
-    if not (isinstance((package_sha256 := package['sha256']), (expected_package_sha256_type := str))):
+    if not isinstance((package_sha256 := package['sha256']), (expected_package_sha256_type := str)):
         raise TypeError(f"Cannot admit checker dependency: {type(package_sha256)=} ≠ {expected_package_sha256_type=}")
 
     if package["name"] != "make" or re.fullmatch(r"[A-Za-z0-9.+:~_-]+", package["version"]) is None:

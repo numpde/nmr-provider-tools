@@ -345,7 +345,7 @@ printf 'retired\\n' > "$PROBE_REPORT.retired"
         with subprocess.Popen(command, env=environment, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True) as process:
             deadline = time.monotonic() + 10
 
-            while not (self.directory / "ready").exists() and time.monotonic() < deadline:
+            while (not (self.directory / "ready").exists()) and (time.monotonic() < deadline):
                 time.sleep(0.01)
 
             self.assertTrue((self.directory / "ready").exists())
