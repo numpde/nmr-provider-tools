@@ -159,8 +159,8 @@ def _findings(*, path: Path, source: str) -> list[_Finding]:
 
     parents = {child: parent for parent in ast.walk(node=tree) for child in ast.iter_child_nodes(node=parent)}
 
-    # Constants directly inside JoinedStr are synthesized string pieces, not
-    # independent source literals. A pragma belongs to their complete f-string.
+    # Constants directly inside JoinedStr are synthesized string pieces,
+    # not independent source literals. A pragma belongs to their complete f-string.
     literals = [
         node
         for node in ast.walk(node=tree)

@@ -469,8 +469,8 @@ def wheel_payload(wheel, expected, version):
 
 
 def qualify_installed(wheel, lock, source, pool, root, suites):
-    # The wheel and runtime-install lock remain exactly as issued. Behavioral
-    # tests get the source archive's own test lock; contract/native proofs do not.
+    # The wheel and runtime-install lock remain exactly as issued.
+    # Behavioral tests get the source archive's own test lock; contract/native proofs do not.
     runtime_python = install_environment(
         root / "runtime",
         lock,

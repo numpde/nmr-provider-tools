@@ -264,8 +264,8 @@ class LifecycleOrders(RuleBasedStateMachine):
             return
 
         async def inject():
-            # The original owner reports a separate cleanup failure. It
-            # cannot be interpreted as success or authorize another attempt.
+            # The original owner reports a separate cleanup failure.
+            # It cannot be interpreted as success or authorize another attempt.
             session.retirement_failure = RuntimeError(
                 "An original scientific resource did not retire")
 

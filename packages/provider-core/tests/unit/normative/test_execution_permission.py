@@ -331,8 +331,8 @@ class ExecutionPermissionAdditionalTests(unittest.IsolatedAsyncioTestCase):
     async def test_expired_actual_observation_window_blocks_dispatch_before_timer_callback(self):
         transport = LiveConditionTransport()
 
-        # First three reads are admission/preparation/entry observations; the
-        # fourth is the actual monitor read while execute awaits dispatch.
+        # First three reads are admission/preparation/entry observations;
+        # the fourth is the actual monitor read while execute awaits dispatch.
         transport.block_read = 4
 
         recovery = ObservationRecovery(1, 0.1, Mock(), Mock())

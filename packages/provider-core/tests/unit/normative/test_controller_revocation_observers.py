@@ -126,8 +126,8 @@ class RevocationObserverTests(unittest.IsolatedAsyncioTestCase):
             await asyncio.sleep(0)
             external = asyncio.create_task(controller.settle())
 
-            # Exceed the existing 0.05-second observation allowance. External
-            # shutdown observation must join the pending owner, not retry it.
+            # Exceed the existing 0.05-second observation allowance.
+            # External shutdown observation must join the pending owner, not retry it.
             await asyncio.sleep(0.08)
 
             self.assertFalse(

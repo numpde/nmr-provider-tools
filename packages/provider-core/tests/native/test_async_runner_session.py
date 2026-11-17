@@ -305,8 +305,8 @@ class AsyncNativeWireTests(unittest.IsolatedAsyncioTestCase):
                 finally:
                     release.set()
 
-                # No observer remains when the native function throws. Its
-                # physical Future must retain the cause without a Task raising it.
+                # No observer remains when the native function throws.
+                # Its physical Future must retain the cause without a Task raising it.
                 async with asyncio.timeout(1):
                     while not self.owner.reader.done():
                         await asyncio.sleep(0)

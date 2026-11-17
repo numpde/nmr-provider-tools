@@ -389,8 +389,8 @@ class ToolConversation:
             try:
                 arguments = self._arguments(call["function"]["arguments"])
             except ToolRejected as rejection:
-                # Invalid argument text may contain encoded credentials. Keep
-                # its call identity and safe correction, not that raw text.
+                # Invalid argument text may contain encoded credentials.
+                # Keep its call identity and safe correction, not that raw text.
                 call["function"]["arguments"] = "{}"
 
                 self._correct_turn(calls, rejection)

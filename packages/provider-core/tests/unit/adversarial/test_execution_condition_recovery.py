@@ -145,8 +145,8 @@ class ConditionRecoveryFailureTests(unittest.IsolatedAsyncioTestCase):
                 transport.followup_observation = reply(b"PRIVATE monitor unavailable", status=503)
 
         def retry_read(_attempt, _failure, _seconds):
-            # A distinct GET outage replaces the shared API failure. Its
-            # subsequent successful read clears that active outage field.
+            # A distinct GET outage replaces the shared API failure.
+            # Its subsequent successful read clears that active outage field.
             transport.followup_observation = None
 
         def recovered_read(_attempt, _failure):
@@ -176,8 +176,8 @@ class ConditionRecoveryFailureTests(unittest.IsolatedAsyncioTestCase):
 
         async def condition_backoff(seconds):
             # Keep the second condition wait pending while the independent
-            # monitor recovers. This checks separate evidence owners, not
-            # scheduler order between two legitimately paced API operations.
+            # monitor recovers. This checks separate evidence owners,
+            # not scheduler order between two legitimately paced API operations.
             if asyncio.current_task() is executor._task and len(failures) >= 2:
                 await asyncio.Event().wait()
             else:

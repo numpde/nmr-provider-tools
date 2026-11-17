@@ -234,8 +234,8 @@ def select_images(images, protected, current):
                 and type(recorded_recipe) is str
                 and _HASH.fullmatch(recorded_recipe)
             ):
-                # Older outputs without full ownership remain untouched; they
-                # do not prevent retirement of other positively owned images.
+                # Older outputs without full ownership remain untouched;
+                # they do not prevent retirement of other positively owned images.
                 continue
 
             if recorded_recipe == current_recipe:

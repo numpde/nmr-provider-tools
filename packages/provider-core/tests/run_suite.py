@@ -21,8 +21,8 @@ if __name__ == "__main__":
     sys.modules["tests.run_suite"] = sys.modules[__name__]
 
 
-# Observe the asyncio logger for the complete unittest runner lifetime, not
-# merely between startTest and stopTest. IsolatedAsyncioTestCase closes its loop
+# Observe the asyncio logger for the complete unittest runner lifetime,
+# not merely between startTest and stopTest. IsolatedAsyncioTestCase closes its loop
 # AFTER stopTest, and errors during that shutdown must still fail the test.
 # Nested runners take precedence so the outer suite never double-counts a fault.
 _ACTIVE_ASYNCIO_OBSERVERS = []

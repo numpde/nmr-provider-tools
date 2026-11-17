@@ -119,8 +119,8 @@ class ProseServiceOutageTests(unittest.IsolatedAsyncioTestCase):
                 evidence = json.dumps(result, sort_keys=True)
 
                 # The peer seeing a request does not establish that the client
-                # received its complete 503 and Retry-After. In particular, an
-                # exchange that times out before the HTTP response is available
+                # received its complete 503 and Retry-After. In particular,
+                # an exchange that times out before the HTTP response is available
                 # correctly uses the SDK's shorter fallback. Only a confirmed
                 # client-side 503 with Retry-After binds subsequent requests.
                 for observation in result["retry_observations"]:

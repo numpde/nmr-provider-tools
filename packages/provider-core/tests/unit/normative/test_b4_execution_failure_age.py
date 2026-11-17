@@ -97,6 +97,6 @@ class ExecutionFailureAgeTests(unittest.IsolatedAsyncioTestCase):
         self.assertAlmostEqual(elapsed, observed_age, delta=0.01, msg=evidence)
         self.assertGreater(second_evidence["failure_age_seconds"], first_evidence["failure_age_seconds"], msg=evidence)
 
-        # Retained evidence still describes the old failure after release. Its
-        # increasing age does not claim that the scientific resource is held.
+        # Retained evidence still describes the old failure after release.
+        # Its increasing age does not claim that the scientific resource is held.
         self.assertGreaterEqual(released_evidence["failure_age_seconds"], second_evidence["failure_age_seconds"], msg=evidence)

@@ -5,8 +5,8 @@ from tools.container_guard import require_container
 require_container()
 
 # Port source: https://github.com/numpde/nmr-api-v1/blob/dbd81a81ee92bd04d3223f4389a26891181cc0cd/tests/repository/test_makefile.py
-# All MakeSourceInspectionTests and MakeHelpTests retained. DeploymentDiagnostics
-# owns API Compose topology, which is absent here. Recipe override ownership
+# All MakeSourceInspectionTests and MakeHelpTests retained.
+# DeploymentDiagnostics owns API Compose topology, which is absent here. Recipe override ownership
 # maps the source credential publication/default-goal probes to local targets.
 import os
 

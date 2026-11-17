@@ -50,8 +50,8 @@ class ProviderHttpShutdownTests(unittest.TestCase):
 
                     time.sleep(0.01)
             finally:
-                # The verdict has already sampled actual SDK cleanup. Killing
-                # this disposable group afterwards cannot satisfy the assertions.
+                # The verdict has already sampled actual SDK cleanup.
+                # Killing this disposable group afterwards cannot satisfy the assertions.
                 try:
                     os.killpg(process.pid, signal.SIGTERM)
                 # silent-defaults: allow-contract -- An already exited process has no remaining process group to terminate; cleanup continues to reap.
@@ -252,6 +252,6 @@ class ProviderHttpShutdownTests(unittest.TestCase):
 
         self.assertEqual(1, independent["live_claim_count"])
 
-        # The same original wait/exit owner, not B's independent child, must
-        # subsequently retire. Its passive local-stop claim stays excluded.
+        # The same original wait/exit owner, not B's independent child,
+        # must subsequently retire. Its passive local-stop claim stays excluded.
         self.assert_original_http_child_retired(facts)

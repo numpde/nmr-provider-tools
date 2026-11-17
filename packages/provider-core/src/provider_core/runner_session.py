@@ -206,8 +206,8 @@ class RunnerSession:
                             retirement.returncode,
                         )
             except Exception as cause:
-                # A partial frame cannot restart at its remaining bytes. Retain
-                # this owner until the binding's proof session settles it.
+                # A partial frame cannot restart at its remaining bytes.
+                # Retain this owner until the binding's proof session settles it.
                 self._observation_failure = cause
 
                 raise

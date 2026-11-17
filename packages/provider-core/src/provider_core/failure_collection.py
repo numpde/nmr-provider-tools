@@ -45,8 +45,8 @@ class FailureCollector:
             yield
         except BaseException as cause:
             if isinstance(cause, BaseExceptionGroup):
-                # Filtering can rebuild a group even if every leaf matches. Keep
-                # the original group whenever no recorded cause overlaps it.
+                # Filtering can rebuild a group even if every leaf matches.
+                # Keep the original group whenever no recorded cause overlaps it.
                 if any(id(leaf) in self._seen for leaf in _leaves(cause=cause)):
                     # Python 3.12 needs a function rather than a bound method.
                     def unrecorded_leaf(candidate: BaseException) -> bool:

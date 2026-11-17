@@ -149,8 +149,8 @@ async def run_outage(directory, *, mode, backlog, seed):
     random_order = random.Random(seed)
 
     # All model requests include fresh Python startup, TLS and tool decoding.
-    # The unavailable peer must outlast the affected original deadline; the
-    # independent healthy route must have enough allowance to finish science.
+    # The unavailable peer must outlast the affected original deadline;
+    # the independent healthy route must have enough allowance to finish science.
     # Keep the worst-case permitted request count strictly below the smallest
     # 12-Job backlog, so a recovered Job must still be unstarted when service
     # restoration occurs. Retry-After keeps its own stronger one-second floor.

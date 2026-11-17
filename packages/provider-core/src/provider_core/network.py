@@ -66,8 +66,8 @@ def _availability(cause, remaining, observation, *, timeout_cancellation=False):
 
     timeout = type(cause) in (TimeoutError, httpcore.ConnectTimeout, httpcore.ReadTimeout, httpcore.WriteTimeout)
 
-    # Terminal native types do not borrow incidental handler context. Explicit
-    # causes still matter: a timeout or EOF cannot hide an independent defect.
+    # Terminal native types do not borrow incidental handler context.
+    # Explicit causes still matter: a timeout or EOF cannot hide an independent defect.
     # Every DNS errno describes resolver availability; exact ConnectionError is
     # the native connection family, not permission for arbitrary subclasses.
     if timeout or type(cause) in (
@@ -124,8 +124,8 @@ def _availability(cause, remaining, observation, *, timeout_cancellation=False):
 
     context = observation.context if cause is observation.error else cause.__context__
 
-    # AnyIO's grouped address failure uses an explicit OSError cause. An
-    # errno-less local setup error cannot borrow incidental handler context.
+    # AnyIO's grouped address failure uses an explicit OSError cause.
+    # An errno-less local setup error cannot borrow incidental handler context.
     preceding = explicit if explicit is not None or type(cause) is OSError else context
 
     if preceding is not None:
@@ -360,8 +360,8 @@ class _OwnedStream(httpcore.AsyncNetworkStream):
                         and type(failure.__cause__) is ssl.SSLEOFError
                     )
 
-                    # Only a successful raw close releases this owner; an
-                    # EOF-shaped raw-close failure above must still fail.
+                    # Only a successful raw close releases this owner;
+                    # an EOF-shaped raw-close failure above must still fail.
                     if not peer_eof or failure is self._raw_close_failure:
                         raise
 

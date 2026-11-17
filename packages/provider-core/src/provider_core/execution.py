@@ -254,8 +254,8 @@ class _ConditionReporter:
         self.require_active()
 
         if self.reporting:
-            # Sequential calls are part of AnalysisSession's contract. Poison
-            # both callers before any old condition can be retried or accepted.
+            # Sequential calls are part of AnalysisSession's contract.
+            # Poison both callers before any old condition can be retried or accepted.
             self.failure = ExecutionRefused("Cannot report concurrent analysis conditions; await the current report first")
 
             self.executor._remember(self.failure)
@@ -266,8 +266,8 @@ class _ConditionReporter:
         try:
             await contain_task_exit(self.executor._report_condition, self, condition_code)
         except (Exception, BaseExceptionGroup, asyncio.CancelledError) as cause:
-            # Waiting for the API lock is part of the awaited report too. Keep
-            # its first failure even when a binding catches the interruption.
+            # Waiting for the API lock is part of the awaited report too.
+            # Keep its first failure even when a binding catches the interruption.
             if self.active and self.failure is None:
                 self.failure = cause
 
@@ -589,8 +589,8 @@ class AttemptExecutor:
             try:
                 await self._retire_after_failure()
             except asyncio.CancelledError:
-                # Cleanup has already retained its own cancellation. Preserve
-                # the original caller interruption and every independent cause.
+                # Cleanup has already retained its own cancellation.
+                # Preserve the original caller interruption and every independent cause.
                 self._link_interruption(cause)
 
                 raise cause from self.last_failure
@@ -654,8 +654,8 @@ class AttemptExecutor:
             await self._observe_active()
             await self._monitor("running", self._execute_session, prepared)
 
-        # Both original tasks start before either is observed. Relay
-        # backpressure cannot defer native cleanup.
+        # Both original tasks start before either is observed.
+        # Relay backpressure cannot defer native cleanup.
         self._begin_retirement()
 
         self._handoff_wait = asyncio.create_task(contain_task_exit(self._handoff))
@@ -939,8 +939,8 @@ class AttemptExecutor:
                     if policy is None:
                         raise
 
-                    # Monitor reads may replace the shared API failure; retain
-                    # this unresolved report's latest send independently.
+                    # Monitor reads may replace the shared API failure;
+                    # retain this unresolved report's latest send independently.
                     self._latest_condition_failure = failure
 
                     if deadline is None:
@@ -1336,8 +1336,8 @@ class AttemptExecutor:
 
             return
 
-        # Observed-crash reporting must survive a failed logging sink. Other
-        # outcomes keep their published fail-stop observer handling.
+        # Observed-crash reporting must survive a failed logging sink.
+        # Other outcomes keep their published fail-stop observer handling.
         # Keep one original sink failure, not an unbounded retry-error history.
         try:
             self._on_delivery_retry(self._record, failure, seconds)

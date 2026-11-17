@@ -947,8 +947,8 @@ def _retryable(failure: ChatFailed) -> bool:
     if status is not None and not 200 <= status < 300:
         return status in _RETRYABLE_STATUSES
 
-    # Native-only consumers do not import optional HTTP libraries. Availability
-    # classification needs them only when an actual HTTP exchange has failed.
+    # Native-only consumers do not import optional HTTP libraries.
+    # Availability classification needs them only when an actual HTTP exchange has failed.
     from provider_core.network import network_availability
 
     return network_availability(
@@ -1085,8 +1085,8 @@ class _ModelVisit:
 
             raise
         finally:
-            # A positive native crash must reach its provider promptly. That
-            # caller retains this visit through Interpreter and owns retirement.
+            # A positive native crash must reach its provider promptly.
+            # That caller retains this visit through Interpreter and owns retirement.
             if self.provider_failure is None:
                 primary = self.conversation.last_failure
 

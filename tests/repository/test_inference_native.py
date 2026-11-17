@@ -2039,8 +2039,8 @@ class StdioNativeTests(unittest.TestCase):
                     try:
                         process.send_signal(signum)
 
-                        # Keep both consumers unread until owner exit. communicate
-                        # would drain a full stderr pipe and conceal owner writes.
+                        # Keep both consumers unread until owner exit.
+                        # communicate would drain a full stderr pipe and conceal owner writes.
                         self.assertEqual(128 + signum, process.wait(timeout=4))
 
                         self.assertEqual("true\n", (self.root / "retired").read_text())

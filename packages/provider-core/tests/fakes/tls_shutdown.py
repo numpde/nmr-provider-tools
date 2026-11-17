@@ -169,8 +169,8 @@ class ShutdownPeer:
             await asyncio.wait_for(asyncio.shield(self.server), 4)
         finally:
             try:
-                # Test faults may deny the application its close proof. The
-                # fixture still owns the real descriptors after assertions.
+                # Test faults may deny the application its close proof.
+                # The fixture still owns the real descriptors after assertions.
                 for close in self.raw_closers:
                     await close()
             finally:

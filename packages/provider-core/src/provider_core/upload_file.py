@@ -156,8 +156,8 @@ def read_upload_file(receipt, *, directory_fd, maximum_bytes):
             if type(primary) is UploadFileReadFailed:
                 primary.cleanup_failures = (*primary.cleanup_failures, cleanup)
             elif isinstance(primary, asyncio.CancelledError):
-                # Preserve the actual cancellation and its previous cause, as
-                # JobUploads._link_file_interruption does for acquired-file I/O.
+                # Preserve the actual cancellation and its previous cause,
+                # as JobUploads._link_file_interruption does for acquired-file I/O.
                 retained = UploadFileReadFailed(
                     "source reading was interrupted before confirmed file closure",
                     cause=primary.__cause__,

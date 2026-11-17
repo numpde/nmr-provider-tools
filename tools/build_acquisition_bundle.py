@@ -126,8 +126,8 @@ def contents(pool, source, core_wheel, pin, *, revision, wheelhouse_bundle):
 
     dependencies[installer["name"]] = installer["sha256"]
 
-    # Select the same built tool artifact that the SDK issuer records. Its
-    # version is not inferred from the owner version or an older consumer pin.
+    # Select the same built tool artifact that the SDK issuer records.
+    # Its version is not inferred from the owner version or an older consumer pin.
     if re.fullmatch(r"wheelhouse-tool-[0-9]+\.[0-9]+\.[0-9]+\.pyz", wheelhouse_bundle.name) is None:
         raise ValueError("Cannot build acquisition manifest: require one built wheelhouse tool artifact.")
 

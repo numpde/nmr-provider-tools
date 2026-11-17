@@ -79,8 +79,8 @@ class ApiFailure(RuntimeError):
         self.attempt_mutation_may_have_committed = False
 
     def _received_head(self):
-        # Transport retirement can add late headers to the original cause. Read
-        # diagnostic facts from that owner; never copy them into stale API state.
+        # Transport retirement can add late headers to the original cause.
+        # Read diagnostic facts from that owner; never copy them into stale API state.
         if self.response is not None:
             return self.response
 
@@ -693,8 +693,8 @@ class ProviderAPI:
         return response.status in (502, 503, 504) and self._gateway_environment_matches(response)
 
     def _gateway_environment_matches(self, response):
-        # A proxy may omit API headers or use HTML during maintenance. Retrying
-        # an operation grants no interpretation of that body; an explicit environment
+        # A proxy may omit API headers or use HTML during maintenance.
+        # Retrying an operation grants no interpretation of that body; an explicit environment
         # mismatch must not be hidden by the gateway status.
         markers = [value for (name, value) in response.headers if name.lower() == b"nmr-api-topology"]
 
@@ -731,8 +731,8 @@ class ProviderAPI:
             except ResponseRejected as cause:
                 raise self._remember_failure(ApiFailure(operation, str(cause), response=response, cause=cause)) from None
         except (ApiFailure, asyncio.CancelledError):
-            # This effect differs from Attempt replay and grant issuance. Keep
-            # their flags unchanged while preserving Hello's uncertainty safely.
+            # This effect differs from Attempt replay and grant issuance.
+            # Keep their flags unchanged while preserving Hello's uncertainty safely.
             self.last_failure.add_note(
                 "Hello acceptance is unconfirmed; the directory snapshot may already have changed. "
                 "No retry was attempted. Send only the current complete announcement if still intended."

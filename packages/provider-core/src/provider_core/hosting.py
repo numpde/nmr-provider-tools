@@ -627,8 +627,8 @@ async def _join_settlement[ResultT](*, task: asyncio.Task[ResultT]) -> ResultT:
         try:
             result = await asyncio.shield(task)
         except asyncio.CancelledError as cause:
-            # A caller interruption can race with child completion. Retain
-            # it before observing the child's terminal result on the next
+            # A caller interruption can race with child completion.
+            # Retain it before observing the child's terminal result on the next
             # pass; the owned task's cancellation instead ends settlement.
             if waiter.cancelling() > cancellations_before_wait:
                 interruptions.append(cause)

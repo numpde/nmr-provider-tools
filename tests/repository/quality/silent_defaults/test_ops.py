@@ -71,9 +71,9 @@ def ops_files() -> list[Path]:
 def shell_exported_names(source: str) -> set[str] | None:
     """Find literal publication candidates, or retain raw coverage when uncertain."""
 
-    # The pinned Dapp detector matches assignments, not shell publication. In
-    # Host Docker-client directories are private lifecycle state; exported
-    # environment variables are separate observations.
+    # The pinned Dapp detector matches assignments, not shell publication.
+    # Host Docker-client directories are private lifecycle state;
+    # exported environment variables are separate observations.
     # Collect names across the source: even a blank corrected before export is
     # still flagged. This is conservative static policy, not execution tracing.
     # Dynamic exports, options and other publication forms retain raw findings.

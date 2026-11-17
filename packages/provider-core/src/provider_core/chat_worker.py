@@ -221,8 +221,8 @@ async def _exchange(document, cancellation):
             if transport is not None and not transport.retirement_confirmed:
                 # This observes the original exchange and its fixed cleanup
                 # deadline. It never creates a second HTTP attempt or budget.
-                # A retirement failure propagates to main's nonzero exit; the
-                # parent retains the original failure frame as child evidence.
+                # A retirement failure propagates to main's nonzero exit;
+                # the parent retains the original failure frame as child evidence.
                 # asyncio.run still owns any pending task until parent TERM/KILL.
                 await transport.retire(owner=owner)
         finally:

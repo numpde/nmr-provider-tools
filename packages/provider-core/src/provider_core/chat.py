@@ -343,8 +343,8 @@ class ChatEndpoint:
 
             failure.interruption_cause = interruption.__cause__
 
-            # Transport retains this same cancellation as its primary. The
-            # protected renderer preserves that reference cycle with node IDs.
+            # Transport retains this same cancellation as its primary.
+            # The protected renderer preserves that reference cycle with node IDs.
             raise interruption from failure
         except ExchangeFailed as cause:
             raise ChatFailed(

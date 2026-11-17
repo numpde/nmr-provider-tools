@@ -439,8 +439,8 @@ class HttpTransport:
                 extensions["timeout"]["connect"] = min(self._connect_seconds, self._exchange_seconds)
 
             async def observe_setup(name, info):
-                # The original request starts only after DNS, TCP/Unix, proxy
-                # CONNECT and TLS. Disable the aggregate setup timer here so a
+                # The original request starts only after DNS, TCP/Unix,
+                # proxy CONNECT and TLS. Disable the aggregate setup timer here so a
                 # connected model can use the full response window. CONNECT's
                 # synthesized request is a different object (httpcore 1.0.9).
                 if name == "http11.send_request_headers.started" and info["request"] is wire_request:
@@ -569,8 +569,8 @@ class HttpTransport:
                     outcome.cleanup_failures.append(failure)
 
             if file_body is not None:
-                # Stop network I/O first, then observe the same disk future. A
-                # blocked write keeps _perform and this transport's owner alive.
+                # Stop network I/O first, then observe the same disk future.
+                # A blocked write keeps _perform and this transport's owner alive.
                 while file_body.pending:
                     try:
                         await file_body.settle()

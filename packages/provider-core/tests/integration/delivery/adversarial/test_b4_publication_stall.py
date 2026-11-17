@@ -49,8 +49,8 @@ class PublicationStorageStallTests(unittest.IsolatedAsyncioTestCase):
         original_remove = self.queue.remove_published
 
         def held_remove(item):
-            # DeliveryInbox still owns this exact offloaded operation. Returning
-            # the matching API receipt is what authorizes entering this method.
+            # DeliveryInbox still owns this exact offloaded operation.
+            # Returning the matching API receipt is what authorizes entering this method.
             removal_calls.append(item)
 
             loop.call_soon_threadsafe(removal_started.set)

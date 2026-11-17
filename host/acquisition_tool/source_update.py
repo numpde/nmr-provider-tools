@@ -396,8 +396,8 @@ def _exchange_directories(first, second):
 
 
 def _publish(source, stage):
-    # Everything is verified before this single publication operation. Code
-    # and its manifest change together; the consumer's pin is never rewritten.
+    # Everything is verified before this single publication operation.
+    # Code and its manifest change together; the consumer's pin is never rewritten.
     try:
         _exchange_directories(source, stage)
     except BaseException as error:

@@ -44,8 +44,8 @@ def _manager_output(command):
             "Cannot capture acquisition DNS: the host network manager did not answer within three seconds."
         ) from cause
 
-    # An absent service or unmanaged link supplies no configuration. Consult
-    # the other configured source, never an invented public resolver.
+    # An absent service or unmanaged link supplies no configuration.
+    # Consult the other configured source, never an invented public resolver.
     if result.returncode != 0:
         return ""
 
