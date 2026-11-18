@@ -8,8 +8,8 @@ import asyncio
 import errno
 import hashlib
 import re
+import pathlib
 from dataclasses import dataclass
-from pathlib import Path
 
 import httpcore
 import httpx
@@ -57,7 +57,7 @@ class DeliveryUnavailable(RuntimeError):
 class DeliveryEndpoint:
     api_origin: str
     provider_ref: str
-    socket_path: Path
+    socket_path: pathlib.Path
 
     # Direct same-UID embeddings may retain private IPC; deployed shared bindings explicitly grant a socket group.
     socket_group_id: int | None = None

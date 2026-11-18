@@ -298,16 +298,16 @@ class DeliveryWorker:
 
                 self.changed.clear()
 
-                item = await self.inbox.storage(
+                pending_outcome = await self.inbox.storage(
                     self.inbox.queue.next_pending,
                     self.endpoint.api_origin,
                     self.endpoint.provider_ref
                 )
 
-                if item is None:
+                if pending_outcome is None:
                     await self.changed.wait()
                 else:
-                    await self._deliver(item)
+                    await self._deliver(pending_outcome)
         except BaseException as cause:
             operation_failure = cause
         finally:

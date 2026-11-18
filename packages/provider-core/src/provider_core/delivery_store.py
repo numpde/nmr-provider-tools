@@ -421,14 +421,14 @@ class DeliveryQueue:
                 return None
 
             try:
-                item = DeliveryOutcome(api_origin, provider_ref, row[0], row[1], TerminalOperation(row[2]), row[3])
+                delivery_outcome = DeliveryOutcome(api_origin, provider_ref, row[0], row[1], TerminalOperation(row[2]), row[3])
 
-                if item.body_sha256 != row[4]:
+                if delivery_outcome.body_sha256 != row[4]:
                     raise ValueError("Stored delivery body does not match its retained SHA-256.")
             except (TypeError, ValueError) as cause:
                 raise DeliveryStorageFailed("Cannot publish corrupted delivery storage; preserve the row for operator reconciliation.", cause=cause) from None
 
-            return item
+            return delivery_outcome
 
     def outstanding_bindings(self):
         """Derive current obligations from rows; keep no separate binding registry."""

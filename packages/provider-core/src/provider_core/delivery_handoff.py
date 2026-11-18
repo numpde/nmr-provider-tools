@@ -161,7 +161,7 @@ def read_delivery_handoff(raw):
             ca
         )
 
-        item = DeliveryOutcome(
+        delivery_outcome = DeliveryOutcome(
             outcome["api_origin"],
             outcome["provider_ref"],
             outcome["job_ref"],
@@ -170,7 +170,7 @@ def read_delivery_handoff(raw):
             _decoded(outcome["body"])
         )
 
-        return DeliveryHandoff(item, material)
+        return DeliveryHandoff(delivery_outcome, material)
     except DeliveryHandoffRejected:
         raise
     except (ResponseRejected, KeyError, TypeError, ValueError, OverflowError):

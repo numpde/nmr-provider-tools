@@ -249,7 +249,7 @@ class DeliveryInbox:
 
         if request.method == b"POST" and len(parts) == 4 and parts[1] == "submit":
             try:
-                item = DeliveryOutcome(
+                delivery_outcome = DeliveryOutcome(
                     endpoint.api_origin,
                     endpoint.provider_ref,
                     headers.get(b"nmr-job-ref"),
@@ -260,7 +260,7 @@ class DeliveryInbox:
             except (TypeError, ValueError):
                 raise DeliveryRequestRejected("Delivery refused an invalid terminal operation, identity or request body; correct the producer request.") from None
 
-            accepted = await self.storage(self.queue.enqueue, item)
+            accepted = await self.storage(self.queue.enqueue, delivery_outcome)
 
             self.on_accepted(endpoint)
 

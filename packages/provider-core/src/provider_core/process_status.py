@@ -14,13 +14,13 @@ import json
 import os
 import stat
 import time
-from pathlib import Path
+import pathlib
 
 from provider_core.tools import require_nonnegative_number
 
 
 def _start_ticks(pid):
-    raw = Path(f"/proc/{pid}/stat").read_text()
+    raw = pathlib.Path(f"/proc/{pid}/stat").read_text()
     fields = raw[raw.rfind(")") + 2:].split()
 
     if fields[0] in ("Z", "X"):
@@ -53,12 +53,12 @@ class ProcessStatus:
                 and (details == self.details or (details is not None and self.details is not None))):
             return
 
-        value = dict(role=self.role, pid=self.pid, start_ticks=self.start_ticks, updated_monotonic=now, phase=phase)
+        status_record = dict(role=self.role, pid=self.pid, start_ticks=self.start_ticks, updated_monotonic=now, phase=phase)
 
         if details is not None:
-            value["details"] = details
+            status_record["details"] = details
 
-        content = json.dumps(value, allow_nan=False, separators=(",", ":")).encode()
+        content = json.dumps(status_record, allow_nan=False, separators=(",", ":")).encode()
         pending = self.directory / ".status.pending"
         descriptor = os.open(pending, os.O_WRONLY | os.O_CREAT | os.O_NOFOLLOW | os.O_CLOEXEC, 0o600)
 
@@ -87,61 +87,61 @@ def read_status(path, role):
         if not (len(raw) <= 4096):
             raise ValueError("Process status exceeds its fixed byte limit.")
 
-        value = json.loads(raw)
+        status_record = json.loads(raw)
     finally:
         os.close(descriptor)
 
     fields = { "role", "pid", "start_ticks", "updated_monotonic", "phase" }
 
-    if not (type(value) is (expected_type := dict)):
+    if not (type(status_record) is (expected_type := dict)):
         raise TypeError(
-            f"{type(value)=} ≠ {expected_type=}",
+            f"{type(status_record)=} ≠ {expected_type=}",
         )
 
-    if not (set(value) in (fields, fields | { "details" })):
+    if not (set(status_record) in (fields, fields | { "details" })):
         raise ValueError("Process status has an unsupported shape.")
 
-    if "details" in value and type((value_details := value["details"])) is not (expected_value_details_type := dict):
+    if "details" in status_record and type((value_details := status_record["details"])) is not (expected_value_details_type := dict):
         raise TypeError(f"{type(value_details)=} ≠ {expected_value_details_type=}")
 
-    if value["role"] != role:
+    if status_record["role"] != role:
         raise ValueError("Process status has a different role or invalid process identity.")
 
-    if not (type((value_pid := value['pid'])) is (expected_value_pid_type := int)):
+    if not (type((value_pid := status_record['pid'])) is (expected_value_pid_type := int)):
         raise TypeError(f"{type(value_pid)=} ≠ {expected_value_pid_type=}")
 
-    if not (0 < value['pid']):
+    if not (0 < status_record['pid']):
         raise ValueError("Process status has a different role or invalid process identity.")
 
-    if not (type((value_start_ticks := value['start_ticks'])) is (expected_value_start_ticks_type := int)):
+    if not (type((value_start_ticks := status_record['start_ticks'])) is (expected_value_start_ticks_type := int)):
         raise TypeError(f"{type(value_start_ticks)=} ≠ {expected_value_start_ticks_type=}")
 
-    if not (0 < value['start_ticks']):
+    if not (0 < status_record['start_ticks']):
         raise ValueError("Process status has a different role or invalid process identity.")
 
-    status_updated_at = value["updated_monotonic"]
+    status_updated_at = status_record["updated_monotonic"]
 
     require_nonnegative_number(status_updated_at)
 
-    if not (_start_ticks(value["pid"]) == value["start_ticks"]):
+    if not (_start_ticks(status_record["pid"]) == status_record["start_ticks"]):
         raise ValueError("Process status belongs to a different process identity.")
 
-    if not (value["phase"] in (phases := ("ready", "working", "starting", "stopping", "held", "api-unconfirmed"))):
-        raise ValueError(f"{value['phase']=} ∉ {phases=}.")
+    if not (status_record["phase"] in (phases := ("ready", "working", "starting", "stopping", "held", "api-unconfirmed"))):
+        raise ValueError(f"{status_record['phase']=} ∉ {phases=}.")
 
-    return value
+    return status_record
 
 
 def check_status(path, role):
-    value = read_status(path, role)
+    status_record = read_status(path, role)
 
-    if not (0 <= time.monotonic() - value["updated_monotonic"] <= 30):
+    if not (0 <= time.monotonic() - status_record["updated_monotonic"] <= 30):
         raise ValueError("Process status observation expired or has an invalid timestamp.")
 
-    if not (value["phase"] in ("ready", "working")):
-        raise ValueError(f"Process is not ready: {value['phase']}.")
+    if not (status_record["phase"] in ("ready", "working")):
+        raise ValueError(f"Process is not ready: {status_record['phase']}.")
 
-    return value
+    return status_record
 
 
 def main():
@@ -149,7 +149,7 @@ def main():
         description="Check current private process readiness without opening an operation socket.",
     )
 
-    parser.add_argument("path", type=Path)
+    parser.add_argument("path", type=pathlib.Path)
     parser.add_argument("role")
     display = parser.add_mutually_exclusive_group()
 
@@ -159,22 +159,22 @@ def main():
 
     try:
         if options.describe:
-            value = read_status(options.path, options.role)
-            age = time.monotonic() - value["updated_monotonic"]
+            status_record = read_status(options.path, options.role)
+            age = time.monotonic() - status_record["updated_monotonic"]
 
             if not (0 <= age):
                 raise ValueError("Process status observation has a future timestamp.")
 
-            print(f"{value['phase']}|{int(age * 1000)}|{value['pid']}|{value['start_ticks']}")
+            print(f"{status_record['phase']}|{int(age * 1000)}|{status_record['pid']}|{status_record['start_ticks']}")
         else:
-            value = check_status(options.path, options.role)
+            status_record = check_status(options.path, options.role)
 
             if options.details:
-                if not ("details" in value):
+                if not ("details" in status_record):
                     raise ValueError("Process has not published operator details.")
 
-                age = time.monotonic() - value["updated_monotonic"]
-                details = dict(value["details"])
+                age = time.monotonic() - status_record["updated_monotonic"]
+                details = dict(status_record["details"])
 
                 if "queue_observation_age_seconds" in details:
                     details["queue_observation_age_seconds"] += age

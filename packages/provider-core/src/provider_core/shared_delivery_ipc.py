@@ -4,8 +4,8 @@ from provider_core.container_guard import require_container
 
 require_container()
 
+import pathlib
 from dataclasses import dataclass
-from pathlib import Path
 
 from provider_core.delivery_handoff import DeliveryHandoffRejected, MAX_HANDOFF_BYTES, read_delivery_handoff
 from provider_core.delivery_ipc import DeliveryInbox, DeliveryRequestRejected
@@ -14,7 +14,7 @@ from provider_core.transport import require_unix_socket_path
 
 @dataclass(frozen=True, slots=True)
 class SharedDeliverySocket:
-    socket_path: Path
+    socket_path: pathlib.Path
     socket_group_id: int | None
     api_origin = None
     provider_ref = None

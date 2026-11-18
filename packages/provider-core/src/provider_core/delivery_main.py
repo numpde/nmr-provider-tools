@@ -14,7 +14,7 @@ import asyncio
 import os
 import signal
 import sys
-from pathlib import Path
+import pathlib
 
 from provider_core.delivery_config import DeliveryConfigurationRejected, load_delivery_service
 from provider_core.delivery_logging import DeliveryNotices
@@ -24,7 +24,7 @@ from provider_core.shared_delivery_service import SharedDeliveryService
 from provider_core.transport import require_unix_socket_path
 
 
-async def _run(service, notices):
+async def _serve_delivery(service, notices):
     loop = asyncio.get_running_loop()
 
     for signum in (signal.SIGINT, signal.SIGTERM):
@@ -42,14 +42,14 @@ def main():
     parser = argparse.ArgumentParser(description="Deliver queued NMR API outcomes without rerunning analyses.")
     configuration = parser.add_mutually_exclusive_group(required=True)
 
-    configuration.add_argument("--config", type=Path, help="Frozen deployment-generated delivery configuration.")
-    configuration.add_argument("--shared-config", type=Path, help="Shared operator configuration, reloaded while running.")
-    parser.add_argument("--state-directory", type=Path)
-    parser.add_argument("--socket", type=Path)
+    configuration.add_argument("--config", type=pathlib.Path, help="Frozen deployment-generated delivery configuration.")
+    configuration.add_argument("--shared-config", type=pathlib.Path, help="Shared operator configuration, reloaded while running.")
+    parser.add_argument("--state-directory", type=pathlib.Path)
+    parser.add_argument("--socket", type=pathlib.Path)
     parser.add_argument("--socket-group-id", type=int)
-    parser.add_argument("--proxy-socket", type=Path)
+    parser.add_argument("--proxy-socket", type=pathlib.Path)
     parser.add_argument("--request-seconds", type=float)
-    parser.add_argument("--status-directory", type=Path)
+    parser.add_argument("--status-directory", type=pathlib.Path)
     options = parser.parse_args()
 
     if options.shared_config is not None and (
@@ -85,7 +85,7 @@ def main():
                 status_directory=options.status_directory
             )
 
-        asyncio.run(_run(service, notices))
+        asyncio.run(_serve_delivery(service, notices))
 
         return 0
     # silent-defaults: allow-exception-outcome -- This process boundary reports the retained failure and exits nonzero

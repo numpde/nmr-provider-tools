@@ -8,8 +8,8 @@ import argparse
 import json
 import re
 import tomllib
+import pathlib
 from dataclasses import dataclass
-from pathlib import Path
 
 from provider_core.delivery_client import DeliveryEndpoint
 from provider_core.startup_file import read_startup_file
@@ -30,11 +30,11 @@ class SharedGrants:
 
     @property
     def proxy_socket(self):
-        return Path("/run/nmr-api-proxy/proxy.sock")
+        return pathlib.Path("/run/nmr-api-proxy/proxy.sock")
 
     @property
     def outbox_socket(self):
-        return Path("/run/nmr-api-outbox/http.sock")
+        return pathlib.Path("/run/nmr-api-outbox/http.sock")
 
     def endpoint(self, origin, provider_ref):
         return DeliveryEndpoint(origin, provider_ref, self.outbox_socket, socket_group_id=self.gid)
@@ -93,7 +93,7 @@ def shared_grants(path):
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
 
-    parser.add_argument("--config", type=Path, required=True)
+    parser.add_argument("--config", type=pathlib.Path, required=True)
     options = parser.parse_args()
 
     print(json.dumps(shared_grants(options.config).compose(), sort_keys=True))

@@ -8,7 +8,7 @@ import subprocess
 import sys
 import tempfile
 import unittest
-from pathlib import Path
+import pathlib
 from types import SimpleNamespace
 from unittest.mock import patch
 
@@ -80,7 +80,7 @@ class DeploymentRouteTests(unittest.TestCase):
             self.assertEqual({"condition": "service_healthy"}, next(iter(projection.client_depends_on.values())))
 
     def test_caller_prepared_bind_has_no_root_initializer_or_managed_volume(self):
-        projection = self.render(self.binding("mapped"), storage=RouteDirectory(Path("/runtime/private-api")))
+        projection = self.render(self.binding("mapped"), storage=RouteDirectory(pathlib.Path("/runtime/private-api")))
         proxy = self.proxy(projection)
 
         self.assertEqual(1, len(projection.compose["services"]))
@@ -109,7 +109,7 @@ class DeploymentRouteTests(unittest.TestCase):
         self.assertEqual(legacy.client_socket, first.client_socket)
 
     def test_stable_route_role_labels_describe_actual_proxy_and_initializer(self):
-        for storage in (NamedRouteVolume(), RouteDirectory(Path("/runtime/private-api"))):
+        for storage in (NamedRouteVolume(), RouteDirectory(pathlib.Path("/runtime/private-api"))):
             with self.subTest(storage=type(storage).__name__):
                 projection = self.render(self.binding("mapped"), storage=storage)
                 proxy = self.proxy(projection)
@@ -200,7 +200,7 @@ class DeploymentRouteTests(unittest.TestCase):
             {"namespace": "UPPER"},
             {"interpreter": "python"},
             {"storage": None},
-            {"storage": RouteDirectory(Path("/runtime/../private"))},
+            {"storage": RouteDirectory(pathlib.Path("/runtime/../private"))},
             {"input_sources": {"/not-granted": "/captured"}},
             {"input_sources": {"/synthetic/signing.json": "/captured,unsafe"}}
         ):
@@ -212,7 +212,7 @@ class DeploymentRouteTests(unittest.TestCase):
         first = self.binding("local")
         second = parse_deployment_bindings(definition(2)).selected("fixture-1")
 
-        for storage in (NamedRouteVolume(), RouteDirectory(Path("/runtime/private-api"))):
+        for storage in (NamedRouteVolume(), RouteDirectory(pathlib.Path("/runtime/private-api"))):
             with self.subTest(storage=type(storage).__name__):
                 prior = self.render(first, service_name="api", storage=storage)
                 changed = self.render(second, service_name="api", storage=storage)
@@ -237,12 +237,12 @@ class DeploymentRouteTests(unittest.TestCase):
 
     def test_cli_projects_selected_route_without_secret_file_access(self):
         with tempfile.TemporaryDirectory() as directory:
-            source = Path(directory) / "binding.toml"
+            source = pathlib.Path(directory) / "binding.toml"
 
             source.write_bytes(definition(1))
             source.chmod(0o600)
 
-            result = subprocess.run(
+            completed_process = subprocess.run(
                 [
                     sys.executable,
                     "-I",
@@ -275,9 +275,9 @@ class DeploymentRouteTests(unittest.TestCase):
                 timeout=5,
             )
 
-        self.assertEqual(0, result.returncode, result.stderr)
-        self.assertEqual("", result.stderr)
-        projected = json.loads(result.stdout)
+        self.assertEqual(0, completed_process.returncode, completed_process.stderr)
+        self.assertEqual("", completed_process.stderr)
+        projected = json.loads(completed_process.stdout)
 
         self.assertEqual({"compose", "client_socket", "client_mount", "client_depends_on"}, set(projected))
         self.assertEqual("/runtime/private-api", projected["client_mount"]["source"])
@@ -285,7 +285,7 @@ class DeploymentRouteTests(unittest.TestCase):
 
     def test_initializer_preserves_exact_nonempty_private_root_without_opening_it(self):
         with tempfile.TemporaryDirectory() as directory:
-            root = Path(directory)
+            root = pathlib.Path(directory)
 
             root.chmod(0o700)
             (root / "retained").write_bytes(b"retained")
@@ -294,7 +294,7 @@ class DeploymentRouteTests(unittest.TestCase):
             with patch("provider_core.deployment_route.os.geteuid", return_value=0), patch(
                 "provider_core.deployment_route.os.fchown"
             ) as chown, patch("provider_core.deployment_route.os.open", wraps=os.open) as opened, patch(
-                "provider_core.deployment_route.Path.lstat",
+                "provider_core.deployment_route.pathlib.Path.lstat",
                 return_value=SimpleNamespace(
                     st_uid=65532,
                     st_gid=65532,
@@ -309,7 +309,7 @@ class DeploymentRouteTests(unittest.TestCase):
 
     def test_initializer_mutates_only_empty_root_owned_directory(self):
         with tempfile.TemporaryDirectory() as directory:
-            root = Path(directory)
+            root = pathlib.Path(directory)
 
             root.chmod(0o755)
             root_status = SimpleNamespace(st_uid=0, st_gid=0, st_mode=stat.S_IFDIR | 0o755)
@@ -336,7 +336,7 @@ class DeploymentRouteTests(unittest.TestCase):
 
     def test_initializer_rejects_symlink_without_changing_its_target(self):
         with tempfile.TemporaryDirectory() as directory:
-            root = Path(directory)
+            root = pathlib.Path(directory)
             target = root / "target"
 
             target.mkdir(mode=0o755)
@@ -352,7 +352,7 @@ class DeploymentRouteTests(unittest.TestCase):
 
     def test_initializer_keeps_admission_and_close_failure(self):
         with tempfile.TemporaryDirectory() as directory:
-            root = Path(directory)
+            root = pathlib.Path(directory)
 
             root.chmod(0o755)
             primary = OSError(errno.EIO, "private stat failure")

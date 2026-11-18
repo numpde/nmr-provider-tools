@@ -13,7 +13,7 @@ import json
 import os
 import sys
 import tomllib
-from pathlib import Path
+import pathlib
 
 from provider_core.delivery_store import DeliveryQueue, QueueLimits
 from provider_core.diagnostics import failure_evidence
@@ -27,9 +27,9 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     configuration = parser.add_mutually_exclusive_group(required=True)
 
-    configuration.add_argument("--config", type=Path)
-    configuration.add_argument("--shared-config", type=Path)
-    parser.add_argument("--state-directory", type=Path)
+    configuration.add_argument("--config", type=pathlib.Path)
+    configuration.add_argument("--shared-config", type=pathlib.Path)
+    parser.add_argument("--state-directory", type=pathlib.Path)
     parser.add_argument("--api-origin", required=True)
     parser.add_argument("--provider-ref", required=True)
     action = parser.add_mutually_exclusive_group(required=True)
@@ -72,7 +72,7 @@ def main():
             parser.error("Cannot inspect or discard held results: the supplied API/provider pair must match exactly one configured binding.")
 
         limits = QueueLimits(**document["limits"])
-        state = Path(document["state_directory"])
+        state = pathlib.Path(document["state_directory"])
 
     queue = DeliveryQueue(state, limits=limits)
 

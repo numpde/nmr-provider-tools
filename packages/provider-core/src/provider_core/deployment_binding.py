@@ -16,8 +16,8 @@ import json
 import re
 import sys
 import tomllib
+import pathlib
 from dataclasses import dataclass
-from pathlib import Path
 from urllib.parse import urlsplit
 
 from provider_core.api_config import ApiConfigurationRejected, require_api_fields
@@ -48,7 +48,7 @@ def _absolute_path(value, label):
     if any(character in value for character in ("\0", "\n", "\r", ",")):
         raise BindingDefinitionRejected(f"Cannot admit delivery bindings: {label} requires an absolute path without mount delimiters.")
 
-    path = Path(value)
+    path = pathlib.Path(value)
 
     if path.anchor != "/" or ".." in path.parts or str(path) != value or not path.name:
         raise BindingDefinitionRejected(f"Cannot admit delivery bindings: {label} must be an absolute normalized path.")
@@ -61,7 +61,7 @@ class DeploymentBinding:
     name: str
     project: str
     socket_group_id: int
-    socket_path: Path
+    socket_path: pathlib.Path
     api: dict
     route: dict
 
@@ -240,7 +240,7 @@ def _parse_deployment_bindings(raw):
 
         binding = DeploymentBinding(name, project, gid, _absolute_path(row["socket_path"], "provider socket"), dict(row["api"]), {})
 
-        if binding.socket_path.parent == Path("/"):
+        if binding.socket_path.parent == pathlib.Path("/"):
             raise BindingDefinitionRejected("Cannot admit provider socket: select a socket leaf inside its own directory below the filesystem root.")
 
         endpoint = binding.endpoint
@@ -322,7 +322,7 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
 
     parser.add_argument("action", choices=("paths", "describe-binding"))
-    parser.add_argument("--definition", type=Path, required=True)
+    parser.add_argument("--definition", type=pathlib.Path, required=True)
     selection = parser.add_mutually_exclusive_group(required=True)
 
     selection.add_argument("--binding")

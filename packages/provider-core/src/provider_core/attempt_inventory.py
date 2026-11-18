@@ -76,14 +76,14 @@ def read_attempt_inventory(raw, *, limit):
         raise ResponseRejected(str(cause)) from None
 
     # repo-check: allow-tuple-generator -- The admitted AttemptPage retains an immutable ordered collection.
-    return AttemptInventoryPage(tuple(_read_item(item) for item in attempts), document["next_cursor"])
+    return AttemptInventoryPage(tuple(_read_attempt(attempt) for attempt in attempts), document["next_cursor"])
 
 
-def _read_item(item):
-    if not (type(item) is (expected_type := dict)):
-        raise ResponseRejected(f"{type(item)=} ≠ {expected_type=}")
+def _read_attempt(attempt):
+    if not (type(attempt) is (expected_type := dict)):
+        raise ResponseRejected(f"{type(attempt)=} ≠ {expected_type=}")
 
-    if set(item) != {
+    if set(attempt) != {
         "analysis_kind_ref",
         "execution_attempt_ref",
         "job_ref",
@@ -94,21 +94,21 @@ def _read_item(item):
         raise ResponseRejected("Inventory Attempt fields do not match the supported item schema")
 
     try:
-        require_analysis_kind(item["analysis_kind_ref"])
-        require_attempt_ref(item["execution_attempt_ref"])
-        require_job_ref(item["job_ref"])
-        require_provider_attempt_key(item["provider_attempt_key"])
+        require_analysis_kind(attempt["analysis_kind_ref"])
+        require_attempt_ref(attempt["execution_attempt_ref"])
+        require_job_ref(attempt["job_ref"])
+        require_provider_attempt_key(attempt["provider_attempt_key"])
     except (TypeError, ValueError) as cause:
         raise ResponseRejected(str(cause)) from None
 
-    if item["state"] != "in_progress":
+    if attempt["state"] != "in_progress":
         raise ResponseRejected("Inventory Attempt state must be in_progress")
 
     return InventoryAttempt(
-        item["analysis_kind_ref"],
-        item["execution_attempt_ref"],
-        item["job_ref"],
-        item["provider_attempt_key"],
-        item["state"],
-        read_timestamp(item["started_at"])
+        attempt["analysis_kind_ref"],
+        attempt["execution_attempt_ref"],
+        attempt["job_ref"],
+        attempt["provider_attempt_key"],
+        attempt["state"],
+        read_timestamp(attempt["started_at"])
     )

@@ -105,16 +105,16 @@ def read_jobs_page(raw, *, analysis_kind_ref, has_provider_execution_attempt, li
         analysis_kind_ref,
         has_provider_execution_attempt,
                    # repo-check: allow-tuple-generator -- The admitted JobPage retains server order in one immutable collection.
-        tuple(_read_job(item, analysis_kind_ref) for item in jobs),
+        tuple(_read_job(job, analysis_kind_ref) for job in jobs),
         document["next_cursor"]
     )
 
 
-def _read_job(item, analysis_kind_ref):
-    if not (type(item) is (expected_type := dict)):
-        raise ResponseRejected(f"{type(item)=} ≠ {expected_type=}")
+def _read_job(job, analysis_kind_ref):
+    if not (type(job) is (expected_type := dict)):
+        raise ResponseRejected(f"{type(job)=} ≠ {expected_type=}")
 
-    if (set(item) != {
+    if (set(job) != {
         "job_ref",
         "analysis_kind_ref",
         "input_fingerprint",
@@ -124,12 +124,12 @@ def _read_job(item, analysis_kind_ref):
     }):
         raise ResponseRejected("Discovered Job fields do not match the supported item schema")
 
-    if item["analysis_kind_ref"] != analysis_kind_ref:
+    if job["analysis_kind_ref"] != analysis_kind_ref:
         raise ResponseRejected("Discovered Job analysis kind differs from the requested page")
 
     try:
-        identity = FeedInputFacts(item["job_ref"], item["input_schema_id"], item["input_fingerprint"], item["input_byte_length"])
+        identity = FeedInputFacts(job["job_ref"], job["input_schema_id"], job["input_fingerprint"], job["input_byte_length"])
     except JobInputRejected as cause:
         raise ResponseRejected(str(cause)) from None
 
-    return DiscoveredJob(identity, analysis_kind_ref, read_timestamp(item["created_at"]))
+    return DiscoveredJob(identity, analysis_kind_ref, read_timestamp(job["created_at"]))

@@ -19,9 +19,9 @@ import ssl
 import stat
 import sys
 import traceback
+import pathlib
 from builtins import BaseExceptionGroup
 from collections import deque
-from pathlib import Path
 
 from provider_core.failure_projection import owned_details as core_owned_details
 from provider_core.failure_projection import owned_relationships as core_owned_relationships
@@ -109,7 +109,7 @@ def failure_evidence(error, *, secrets, describe_owner=describe_core_failure, ow
         for (frame, line) in traceback.walk_tb(current.__traceback__):
             frames.append(
                 {
-                    "file": text(Path(frame.f_code.co_filename).name, 128),
+                    "file": text(pathlib.Path(frame.f_code.co_filename).name, 128),
                     "line": line,
                     "function": text(frame.f_code.co_name, 128),
                 }

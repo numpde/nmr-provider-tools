@@ -18,7 +18,7 @@ import re
 import stat
 import sys
 from dataclasses import asdict, dataclass
-from pathlib import Path
+import pathlib
 from urllib.parse import urlsplit
 
 from provider_core.deployment_binding import BindingDefinitionRejected, DeploymentBinding, input_paths, load_deployment_bindings
@@ -34,7 +34,7 @@ class NamedRouteVolume:
 class RouteDirectory:
     """Grant a private directory already prepared by the caller's host owner."""
 
-    path: Path
+    path: pathlib.Path
 
 
 @dataclass(frozen=True, slots=True)
@@ -47,14 +47,14 @@ class ApiRouteProjection:
     client_depends_on: dict
 
 
-def _path(value):
-    path = Path(value)
+def _require_route_path(route_path):
+    absolute_route_path = pathlib.Path(route_path)
 
-    if (path.anchor != "/" or ".." in path.parts or str(path) != str(value)
-            or path == Path("/") or any(ord(character) < 32 or ord(character) == 127 or character == "," for character in str(path))):
+    if (absolute_route_path.anchor != "/" or ".." in absolute_route_path.parts or str(absolute_route_path) != str(route_path)
+            or absolute_route_path == pathlib.Path("/") or any(ord(character) < 32 or ord(character) == 127 or character == "," for character in str(absolute_route_path))):
         raise RouteProjectionRejected("Cannot grant API route input: require a normalized absolute path below root without control characters or mount delimiters.")
 
-    return str(path)
+    return str(absolute_route_path)
 
 
 def _identity(uid, gid):
@@ -84,7 +84,7 @@ def _volume(name, target, *, readonly):
 def _bind(source, target, *, readonly):
     return {
         "type": "bind",
-        "source": _path(source),
+        "source": _require_route_path(source),
         "target": target,
         "read_only": readonly,
         "bind": {"create_host_path": False}
@@ -249,7 +249,7 @@ def render_api_route(binding, *, image, interpreter, namespace, uid, gid, storag
             raise RouteProjectionRejected("Cannot render API route: an explicit service name requires lowercase letters, digits, hyphens or underscores.")
 
     _identity(uid, gid)
-    interpreter = _path(interpreter)
+    interpreter = _require_route_path(interpreter)
 
     if not (type(input_sources) is (expected_input_sources_type := dict)):
         raise RouteProjectionRejected(f"Cannot relocate API route inputs: {type(input_sources)=} ≠ {expected_input_sources_type=}")
@@ -258,7 +258,7 @@ def render_api_route(binding, *, image, interpreter, namespace, uid, gid, storag
         raise RouteProjectionRejected("Cannot relocate API route inputs: only files granted by the selected binding may be mapped.")
 
     for target in input_sources.values():
-        _path(target)
+        _require_route_path(target)
 
     key = binding.ipc_volume.removeprefix(binding.project + "-ipc-")
     role = "api-" + key[:16]
@@ -316,7 +316,7 @@ def initialize_route(uid, gid, path, *, shared_group=False):
     if os.geteuid() != 0:
         raise RouteProjectionRejected("Cannot initialize API route volume: root with CHOWN and explicit target identity is required.")
 
-    path = Path(_path(path))
+    path = pathlib.Path(_require_route_path(path))
 
     # silent-defaults: allow-contract -- Directory access follows the explicitly selected shared or private grant.
     mode = 0o710 if shared_group else 0o700
@@ -359,7 +359,7 @@ def main():
     commands = parser.add_subparsers(dest="action", required=True)
     renderer = commands.add_parser("render")
 
-    renderer.add_argument("--definition", type=Path, required=True)
+    renderer.add_argument("--definition", type=pathlib.Path, required=True)
     renderer.add_argument("--binding", required=True)
     renderer.add_argument("--service-name")
 
@@ -377,13 +377,13 @@ def main():
     storage = renderer.add_mutually_exclusive_group(required=True)
 
     storage.add_argument("--named-volume", action="store_true")
-    storage.add_argument("--directory", type=Path)
+    storage.add_argument("--directory", type=pathlib.Path)
     renderer.add_argument("--input-source", nargs=2, action="append")
     options = parser.parse_args()
 
     try:
         if options.action == "initialize":
-            initialize_route(options.uid, options.gid, Path("/route"), shared_group=options.shared_group)
+            initialize_route(options.uid, options.gid, pathlib.Path("/route"), shared_group=options.shared_group)
         else:
             selected = load_deployment_bindings(options.definition).selected(options.binding)
             sources = {}
