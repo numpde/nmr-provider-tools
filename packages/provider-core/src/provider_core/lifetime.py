@@ -9,6 +9,8 @@ import os
 import pathlib
 import stat
 
+from provider_core.type_requirements import require_instance
+
 
 class LifetimeRefused(RuntimeError):
     """No lifetime was acquired; preserve the existing owner."""
@@ -25,10 +27,7 @@ class ProviderLifetime:
     """
 
     def __init__(self, root):
-        if not isinstance(root, (expected_type := pathlib.Path)):
-            raise TypeError(
-                f"{type(root)=} ≠ {expected_type=}"
-            )
+        require_instance(root, pathlib.Path)
 
         if not root.is_absolute():
             raise ValueError(f"{root=}; expected an absolute path")

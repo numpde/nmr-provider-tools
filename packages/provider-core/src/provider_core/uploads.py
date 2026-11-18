@@ -41,6 +41,7 @@ from provider_core.upload_file import (
     VerifiedUploadFile,
     read_upload_file,
 )
+from provider_core.type_requirements import require_type, require_instance
 
 
 @dataclass(frozen=True, slots=True)
@@ -54,10 +55,7 @@ class UploadLimits:
 
     def __post_init__(self):
         for value in (self.per_source_bytes, self.total_bytes, self.requests):
-            if not (type(value) is (expected_type := int)):
-                raise TypeError(
-                    f"{type(value)=} ≠ {expected_type=}"
-                )
+            require_type(value, int)
 
             if not (0 < value):
                 raise ValueError("Cannot configure Upload acquisition: byte and request limits must be positive integers")
@@ -86,10 +84,7 @@ class UploadRecovery:
     on_retry: object = field(repr=False)
 
     def __post_init__(self):
-        if not (type((actual_maximum_attempts := self.maximum_attempts)) is (expected_type := int)):
-            raise TypeError(
-                f"{type(actual_maximum_attempts)=} ≠ {expected_type=}"
-            )
+        require_type(self.maximum_attempts, int)
 
         if not (0 < self.maximum_attempts):
             raise ValueError("Upload recovery requires a positive integer attempt limit including the initial attempt")
@@ -100,10 +95,7 @@ class UploadRecovery:
         if not (self.initial_seconds <= self.maximum_seconds):
             raise ValueError("Upload recovery initial wait cannot exceed its maximum wait")
 
-        if not isinstance((actual_stopping := self.stopping), (expected_stopping_type := asyncio.Event)):
-            raise TypeError(
-                f"{type(actual_stopping)=} ≠ {expected_stopping_type=}"
-            )
+        require_instance(self.stopping, asyncio.Event)
 
         if not callable(self.on_retry):
             raise TypeError(f"{self.on_retry=} should be callable")
@@ -112,8 +104,7 @@ class UploadRecovery:
 def require_store_origin(value):
     """Require an explicit canonical origin before any bearer can be attached."""
 
-    if not (type(value) is (expected_type := str)):
-        raise TypeError(f"{type(value)=} ≠ {expected_type=}")
+    require_type(value, str)
 
     if any(ord(c) <= 32 or ord(c) >= 127 for c in value):
         raise ValueError("Cannot configure Upload store: origin must be visible ASCII HTTPS text")
@@ -719,10 +710,7 @@ class JobUploads:
     def __init__(self, job_ref, *, api, store, store_origin, limits, recovery=None):
         require_job_ref(job_ref)
 
-        if not (type(limits) is (expected_type := UploadLimits)):
-            raise TypeError(
-                f"{type(limits)=} ≠ {expected_type=}"
-            )
+        require_type(limits, UploadLimits)
 
         if recovery is not None and type(recovery) is not (expected_recovery_type := UploadRecovery):
             raise TypeError(

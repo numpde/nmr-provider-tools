@@ -10,6 +10,7 @@ from dataclasses import dataclass
 from provider_core.delivery_handoff import DeliveryHandoffRejected, MAX_HANDOFF_BYTES, read_delivery_handoff
 from provider_core.delivery_ipc import DeliveryInbox, DeliveryRequestRejected
 from provider_core.transport import require_unix_socket_path
+from provider_core.type_requirements import require_type
 
 
 @dataclass(frozen=True, slots=True)
@@ -23,8 +24,7 @@ class SharedDeliverySocket:
         require_unix_socket_path(str(self.socket_path))
 
         if self.socket_group_id is not None:
-            if not (type((actual_socket_group_id := self.socket_group_id)) is (expected_type := int)):
-                raise TypeError(f"{type(actual_socket_group_id)=} ≠ {expected_type=}")
+            require_type(self.socket_group_id, int)
 
             if not (1 <= self.socket_group_id <= 4294967294):
                 raise ValueError("Delivery socket group must be an explicit nonzero GID.")

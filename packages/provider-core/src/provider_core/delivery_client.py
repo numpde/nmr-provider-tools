@@ -22,6 +22,7 @@ from provider_core.signing import _https_origin
 from provider_core.transport import ExchangeFailed, require_unix_socket_path, temporary_io_failure
 from provider_core.unix_http import DELIVERY_ORIGIN, UnixHttpTransport
 from provider_core.upload_response import require_job_ref
+from provider_core.type_requirements import require_type
 
 # Bound complete local-delivery status and acknowledgement responses.
 # repo-check: allow-module-constant
@@ -70,8 +71,7 @@ class DeliveryEndpoint:
         require_unix_socket_path(str(self.socket_path))
 
         if self.socket_group_id is not None:
-            if not (type((actual_socket_group_id := self.socket_group_id)) is (expected_type := int)):
-                raise TypeError(f"{type(actual_socket_group_id)=} ≠ {expected_type=}")
+            require_type(self.socket_group_id, int)
 
             if not (1 <= self.socket_group_id <= 4294967294):
                 raise ValueError("Delivery socket group must be an explicit nonzero GID.")

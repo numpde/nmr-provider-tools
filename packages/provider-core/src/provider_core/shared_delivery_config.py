@@ -11,6 +11,7 @@ from dataclasses import dataclass
 
 from provider_core.delivery_store import QueueLimits
 from provider_core.delivery_worker import require_delivery_retry_settings
+from provider_core.type_requirements import require_type
 
 
 @dataclass(frozen=True, slots=True)
@@ -51,8 +52,7 @@ class SharedDeliveryConfiguration:
             document = tomllib.loads(raw.decode("utf-8"))
             table = document["outbox"]
 
-            if not (type(table) is (expected_type := dict)):
-                raise TypeError(f"{type(table)=} ≠ {expected_type=}")
+            require_type(table, dict)
 
             limits = QueueLimits(table["provider_items"], table["provider_bytes"], table["total_items"], table["total_bytes"])
             (initial, maximum, level) = (table["retry_initial_seconds"], table["retry_max_seconds"], table["log_level"])

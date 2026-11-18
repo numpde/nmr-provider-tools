@@ -19,6 +19,7 @@ from datetime import datetime
 
 from provider_core.attempt_request import require_analysis_kind
 from provider_core.response_json import ResponseRejected, read_document, read_timestamp
+from provider_core.type_requirements import require_type
 
 # The pinned Hello response owns this byte ceiling.
 # repo-check: allow-module-constant
@@ -66,10 +67,7 @@ def hello_body(*, display_name, description, analysis_offerings):
     _require_text(display_name, "display name", 128)
     _require_text(description, "description", 1024)
 
-    if not (type(analysis_offerings) is (expected_type := tuple)):
-        raise TypeError(
-            f"{type(analysis_offerings)=} ≠ {expected_type=}"
-        )
+    require_type(analysis_offerings, tuple)
 
     if not (len(analysis_offerings) <= 64):
         raise ValueError("Cannot announce provider: analysis offerings must be a tuple of at most 64 entries")
@@ -77,10 +75,7 @@ def hello_body(*, display_name, description, analysis_offerings):
     (offerings, kinds) = ([], set())
 
     for offering in analysis_offerings:
-        if not (type(offering) is (expected_type := AnalysisOffering)):
-            raise TypeError(
-                f"{type(offering)=} ≠ {expected_type=}"
-            )
+        require_type(offering, AnalysisOffering)
 
         if offering.analysis_kind_ref in kinds:
             raise ValueError("Cannot announce provider: analysis kinds must not repeat")

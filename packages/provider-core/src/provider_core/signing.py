@@ -19,14 +19,13 @@ import httpx
 from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
 from http_sf import ser
 
+from provider_core.type_requirements import require_type
+
 
 def _https_origin(value):
     """Admit one HTTPS origin; never reinterpret credentials or a URL path."""
 
-    if not (type(value) is (expected_type := str)):
-        raise TypeError(
-            f"{type(value)=} ≠ {expected_type=}"
-        )
+    require_type(value, str)
 
     if not (value) or any(ord(c) <= 32 or ord(c) >= 127 for c in value):
         raise ValueError("Cannot configure signing: supply one ASCII HTTPS origin without whitespace")
@@ -98,10 +97,7 @@ class SigningIdentity:
 def require_credential_ref(value):
     """Admit the reference grammar shared by issued artifacts and signed requests."""
 
-    if not (type(value) is (expected_type := str)):
-        raise TypeError(
-            f"{type(value)=} ≠ {expected_type=}"
-        )
+    require_type(value, str)
 
     if not (len(value) <= 128 and re.fullmatch('credential:[A-Za-z0-9_.-]+(?::[A-Za-z0-9_.-]+)*', value) is not None):
         raise ValueError("Cannot configure signing: credential reference must use bounded credential:name segments")
@@ -110,14 +106,12 @@ def require_credential_ref(value):
 def _request_target(method, path, query):
     """Reject ambiguous target forms before a client can normalize signed bytes."""
 
-    if not (type(method) is (expected_type := str)):
-        raise TypeError(f"{type(method)=} ≠ {expected_type=}")
+    require_type(method, str)
 
     if not re.fullmatch((expected_pattern := r"[A-Z]+"), method):
         raise ValueError(f"{method=} should match {expected_pattern=}")
 
-    if not (type(path) is (expected_type := str)):
-        raise TypeError(f"{type(path)=} ≠ {expected_type=}")
+    require_type(path, str)
 
     parsed_path = urlsplit(path).path
 
@@ -153,18 +147,12 @@ def signed_request(identity, *, method, path, query, body, created, nonce):
             f"{type(body)=} ≠ {expected_body_type=}"
         )
 
-    if not (type(created) is (expected_type := int)):
-        raise TypeError(
-            f"{type(created)=} ≠ {expected_type=}"
-        )
+    require_type(created, int)
 
     if not (0 <= created <= 999999999999699):
         raise ValueError("Cannot sign request: timestamp and 300-second expiry must fit structured-field integers")
 
-    if not (type(nonce) is (expected_type := bytes)):
-        raise TypeError(
-            f"{type(nonce)=} ≠ {expected_type=}"
-        )
+    require_type(nonce, bytes)
 
     if len(nonce) != 16:
         raise ValueError("Cannot sign request: nonce must contain exactly 16 random bytes")

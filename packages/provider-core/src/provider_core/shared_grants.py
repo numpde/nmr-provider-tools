@@ -13,6 +13,7 @@ from dataclasses import dataclass
 
 from provider_core.delivery_client import DeliveryEndpoint
 from provider_core.startup_file import read_startup_file
+from provider_core.type_requirements import require_type
 
 
 @dataclass(frozen=True, slots=True)
@@ -73,14 +74,12 @@ def shared_grants(path):
         document = tomllib.loads(read_startup_file(path, maximum_bytes=65536).decode("utf-8"))
         (project, gid) = (document["deployment"]["project"], document["deployment"]["gid"])
 
-        if not (type(project) is (expected_type := str)):
-            raise TypeError(f"{type(project)=} ≠ {expected_type=}")
+        require_type(project, str)
 
         if not (re.fullmatch(r"[a-z0-9][a-z0-9_-]{0,48}", project) is not None):
             raise ValueError
 
-        if not (type(gid) is (expected_type := int)):
-            raise TypeError(f"{type(gid)=} ≠ {expected_type=}")
+        require_type(gid, int)
 
         if not (0 < gid <= 4294967294):
             raise ValueError

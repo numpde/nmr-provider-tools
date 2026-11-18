@@ -14,6 +14,8 @@ import base64
 import binascii
 import re
 
+from provider_core.type_requirements import require_type
+
 # The API profile caps a discovery page at this item count.
 # repo-check: allow-module-constant
 MAX_PAGE_ITEMS = 100
@@ -23,10 +25,7 @@ def require_cursor(value):
     if value is None:
         return
 
-    if not (type(value) is (expected_type := str)):
-        raise TypeError(
-            f"{type(value)=} ≠ {expected_type=}"
-        )
+    require_type(value, str)
 
     if re.fullmatch(r"[A-Za-z0-9_-]+", value) is None:
         raise ValueError("Cursor must be canonical unpadded base64url text or None for the first page")
@@ -41,10 +40,7 @@ def require_cursor(value):
 
 
 def paging_query(*, limit, cursor):
-    if not (type(limit) is (expected_type := int)):
-        raise TypeError(
-            f"{type(limit)=} ≠ {expected_type=}"
-        )
+    require_type(limit, int)
 
     if not (1 <= limit <= MAX_PAGE_ITEMS):
         raise ValueError("Page limit must be an integer from 1 through 100")

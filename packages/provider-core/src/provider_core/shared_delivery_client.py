@@ -7,14 +7,12 @@ require_container()
 from provider_core.delivery_client import DeliveryClient, DeliveryRejected
 from provider_core.delivery_handoff import DeliveryHandoff
 from provider_core.api_config import ApiPublicationMaterial
+from provider_core.type_requirements import require_type
 
 
 class SharedDeliveryClient:
     def __init__(self, endpoint, publication, *, exchange_seconds, retirement_seconds):
-        if not (type(publication) is (expected_type := ApiPublicationMaterial)):
-            raise TypeError(
-                f"{type(publication)=} ≠ {expected_type=}"
-            )
+        require_type(publication, ApiPublicationMaterial)
 
         if (endpoint.api_origin, endpoint.provider_ref) != (publication.origin, publication.provider_ref):
             raise ValueError("Delivery endpoint and publication material require the same API and provider identity.")

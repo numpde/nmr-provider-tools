@@ -18,6 +18,7 @@ from dataclasses import dataclass
 from provider_core.attempt_record import RecoveryScope, StartPending, _encode_pending
 from provider_core.attempt_response import require_attempt_ref
 from provider_core.upload_response import require_job_ref
+from provider_core.type_requirements import require_type
 
 
 class OwnershipRefused(RuntimeError):
@@ -45,30 +46,24 @@ class LiveAttemptLimits:
             self.maximum_pending_terminal_bytes,
         )
 
-        if not (type(maximum_attempts) is (expected_type := int)):
-            raise TypeError(f"{type(maximum_attempts)=} ≠ {expected_type=}")
+        require_type(maximum_attempts, int)
 
         if not (0 < maximum_attempts):
             raise ValueError("Live Attempt limits require positive integer allowances")
 
-        if not (type(maximum_control_bytes) is (expected_type := int)):
-            raise TypeError(f"{type(maximum_control_bytes)=} ≠ {expected_type=}")
+        require_type(maximum_control_bytes, int)
 
         if not (0 < maximum_control_bytes):
             raise ValueError("Live Attempt limits require positive integer allowances")
 
-        if not (type(maximum_pending_terminal_bytes) is (expected_type := int)):
-            raise TypeError(f"{type(maximum_pending_terminal_bytes)=} ≠ {expected_type=}")
+        require_type(maximum_pending_terminal_bytes, int)
 
         if not (0 < maximum_pending_terminal_bytes):
             raise ValueError("Live Attempt limits require positive integer allowances")
 
 
 def _identity(scope, reference):
-    if not (type(scope) is (expected_type := RecoveryScope)):
-        raise TypeError(
-            f"{type(scope)=} ≠ {expected_type=}"
-        )
+    require_type(scope, RecoveryScope)
 
     require_attempt_ref(reference)
 
@@ -77,10 +72,7 @@ def _identity(scope, reference):
 
 
 def _start_identity(pending):
-    if not (type(pending) is (expected_type := StartPending)):
-        raise TypeError(
-            f"{type(pending)=} ≠ {expected_type=}"
-        )
+    require_type(pending, StartPending)
 
     # nmr-api-v1 6a163b7a9cc1e2c7485b681c0b2b969c7c20e6c8,
     # nmr_api/operations/execution_attempt_start.py:396-412 reserves keys
@@ -92,10 +84,7 @@ def _start_identity(pending):
 
 class AttemptClaims:
     def __init__(self, *, limits):
-        if not (type(limits) is (expected_type := LiveAttemptLimits)):
-            raise TypeError(
-                f"{type(limits)=} ≠ {expected_type=}"
-            )
+        require_type(limits, LiveAttemptLimits)
 
         self._claims = {}
         self._loop = None
@@ -108,18 +97,12 @@ class AttemptClaims:
 
     # silent-defaults: allow-contract -- Note 010 reserves the existing 2 MiB wire ceiling unless the live owner declares a smaller sufficient allowance.
     def claim_live(self, pending, *, lifecycle_owner, maximum_terminal_bytes=2097152):
-        if not (type(pending) is (expected_type := StartPending)):
-            raise TypeError(
-                f"{type(pending)=} ≠ {expected_type=}"
-            )
+        require_type(pending, StartPending)
 
         if lifecycle_owner is None:
             raise ValueError("Live selection requires an admitted pending START and its exact lifecycle owner")
 
-        if not (type(maximum_terminal_bytes) is (expected_type := int)):
-            raise TypeError(
-                f"{type(maximum_terminal_bytes)=} ≠ {expected_type=}"
-            )
+        require_type(maximum_terminal_bytes, int)
 
         if not (16384 <= maximum_terminal_bytes <= 2097152):
             raise ValueError("Live terminal allowance must cover 16384 through 2097152 encoded request bytes")
@@ -166,10 +149,7 @@ class AttemptClaims:
         """Exclude a held Job across lanes without copying its lifecycle state."""
         self._require_live_view()
 
-        if not (type(scope) is (expected_type := RecoveryScope)):
-            raise TypeError(
-                f"{type(scope)=} ≠ {expected_type=}"
-            )
+        require_type(scope, RecoveryScope)
 
         require_job_ref(job_ref)
 
