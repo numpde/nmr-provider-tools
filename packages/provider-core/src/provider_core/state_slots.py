@@ -26,6 +26,7 @@ from provider_core.contribution import (
 )
 
 from provider_core.hosting import Operation, OperationRef, StateRef
+from provider_core.type_requirements import require_instance, require_type
 
 
 @dataclass(frozen=True, slots=True)
@@ -41,8 +42,7 @@ class StateType[T]:
     value_type: type[T]
 
     def __post_init__(self) -> None:
-        if not isinstance((actual_value_type := self.value_type), (expected_type := type)):
-            raise TypeError(f"{type(actual_value_type)=} ≠ {expected_type=}")
+        require_instance(self.value_type, type)
 
         if self.name is None:
             object.__setattr__(self, "name", self.value_type.__module__ + "." + self.value_type.__qualname__)
@@ -87,8 +87,7 @@ class StateOutputSlot[T]:
         if self.name is not None:
             StateOutput(name=self.name, kind=self.kind.name)
 
-        if not isinstance((actual_value_type := self.kind.value_type), (expected_type := type)):
-            raise TypeError(f"{type(actual_value_type)=} ≠ {expected_type=}")
+        require_instance(self.kind.value_type, type)
 
         if not callable(self.dispose):
             raise TypeError(f"{self.dispose=} should be callable")
@@ -204,17 +203,14 @@ class StateInputSlot[T]:
 def state_references(*, states: Mapping[StateInputSlot, StateHandle]) -> dict[str, StateRef]:
     """Project typed provider ports and handles into portable invocation references."""
 
-    if not isinstance(states, (expected_type := Mapping)):
-        raise TypeError(f"{type(states)=} ≠ {expected_type=}")
+    require_instance(states, Mapping)
 
     references = {}
 
     for (state_port, state_handle) in states.items():
-        if not (type(state_port) is (expected_type := StateInputSlot)):
-            raise TypeError(f"{type(state_port)=} ≠ {expected_type=}")
+        require_type(state_port, StateInputSlot)
 
-        if not (type(state_handle) is (expected_type := StateHandle)):
-            raise TypeError(f"{type(state_handle)=} ≠ {expected_type=}")
+        require_type(state_handle, StateHandle)
 
         if (state_handle.kind != state_port.kind) or (state_handle.reference.kind != state_port.kind.name):
             raise ValueError("State handle has a different scientific kind or Python type")  # todo
@@ -236,18 +232,15 @@ class SlotStateBinding[T]:
     assemble: Callable[[Mapping[str, object]], T]
 
     def __post_init__(self) -> None:
-        if not isinstance((actual_value_type := self.value_type), (expected_type := type)):
-            raise TypeError(f"{type(actual_value_type)=} ≠ {expected_type=}")
+        require_instance(self.value_type, type)
 
         if not callable(self.assemble):
             raise TypeError(f"{self.assemble=} should be callable")
 
-        if not (type((actual_inputs := self.inputs)) is (expected_type := tuple)):
-            raise TypeError(f"{type(actual_inputs)=} ≠ {expected_type=}")
+        require_type(self.inputs, tuple)
 
         for state_input_slot in self.inputs:
-            if not (type(state_input_slot) is (expected_type := StateInputSlot)):
-                raise TypeError(f"{type(state_input_slot)=} ≠ {expected_type=}")
+            require_type(state_input_slot, StateInputSlot)
 
         if len(set(self.names)) != len(self.inputs):
             raise ValueError("Consumer input slot names must be unique")
@@ -283,7 +276,6 @@ class SlotStateBinding[T]:
 
         state = self.assemble(values)
 
-        if not (type(state) is (expected_type := self.value_type)):
-            raise TypeError(f"{type(state)=} ≠ {expected_type=}")
+        require_type(state, self.value_type)
 
         return state
