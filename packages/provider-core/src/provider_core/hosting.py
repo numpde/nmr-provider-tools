@@ -31,6 +31,7 @@ from provider_core.contribution import (
 
 from provider_core.task_boundary import contain_task_exit
 from provider_core.tools import require_positive_number
+from provider_core.type_requirements import require_instance, require_type
 
 
 def _identity(value, label):
@@ -83,8 +84,7 @@ class BackendCapabilities:
         if any(version <= 0 for version in self.contract_versions):
             raise ValueError(f"Backend contract versions must be positive; {self.contract_versions=}")
 
-        if not (type((actual_progress := self.progress)) is (expected_progress_type := bool)):
-            raise TypeError(f"{type(actual_progress)=} ≠ {expected_progress_type=}")
+        require_type(self.progress, bool)
 
 
 @dataclass(frozen=True, slots=True)
@@ -129,10 +129,7 @@ class OperationRef:
         _identity(self.host, "Host identity")
         _identity(self.analysis, "Analysis identity")
 
-        if not (type((actual_operation_id := self.operation_id)) is (expected_type := str)):
-            raise TypeError(
-                f"{type(actual_operation_id)=} ≠ {expected_type=}"
-            )
+        require_type(self.operation_id, str)
 
         if not (0 < len(self.operation_id) <= 160):
             raise ValueError("Operation identity must contain 1 through 160 characters")
@@ -158,10 +155,7 @@ class StateRef:
         _identity(self.state_id, "State identity")
         _identity(self.kind, "Scientific state kind")
 
-        if not (type((actual_producer := self.producer)) is (expected_type := OperationRef)):
-            raise TypeError(
-                f"{type(actual_producer)=} ≠ {expected_type=}"
-            )
+        require_type(self.producer, OperationRef)
 
         if (self.producer.host, self.producer.analysis) != (self.host, self.analysis):
             raise ValueError("State producer must belong to the same host and analysis")
@@ -173,10 +167,7 @@ class ResultRef:
     result_id: str
 
     def __post_init__(self):
-        if not (type((actual_operation := self.operation)) is (expected_type := OperationRef)):
-            raise TypeError(
-                f"{type(actual_operation)=} ≠ {expected_type=}"
-            )
+        require_type(self.operation, OperationRef)
 
         _identity(self.result_id, "Result identity")
 
@@ -191,10 +182,7 @@ class StateResult:
     def __post_init__(self):
         _identity(self.name, "State output name")
 
-        if not (type((actual_reference := self.reference)) is (expected_type := StateRef)):
-            raise TypeError(
-                f"{type(actual_reference)=} ≠ {expected_type=}"
-            )
+        require_type(self.reference, StateRef)
 
 
 @dataclass(frozen=True, slots=True)
@@ -242,14 +230,12 @@ class OperationPolicy:
             self.reject_encoded_result_over_bytes,
         )
 
-        if not (type(reject_encoded_input_over_bytes) is (expected_type := int)):
-            raise TypeError(f"{type(reject_encoded_input_over_bytes)=} ≠ {expected_type=}")
+        require_type(reject_encoded_input_over_bytes, int)
 
         if not (0 < reject_encoded_input_over_bytes):
             raise ValueError("Input and result allowances must be positive byte counts.")
 
-        if not (type(reject_encoded_result_over_bytes) is (expected_type := int)):
-            raise TypeError(f"{type(reject_encoded_result_over_bytes)=} ≠ {expected_type=}")
+        require_type(reject_encoded_result_over_bytes, int)
 
         if not (0 < reject_encoded_result_over_bytes):
             raise ValueError("Input and result allowances must be positive byte counts.")
@@ -284,54 +270,44 @@ class Invocation:
 
     def __post_init__(self):
         if self.start_not_after is not None:
-            if not (type((actual_start_not_after := self.start_not_after)) in (expected_type := (int, float))):
-                raise TypeError(f"{type(actual_start_not_after)=} ∉ {expected_type=}")
+            require_type(self.start_not_after, (int, float))
 
             if not math.isfinite(self.start_not_after):
                 raise ValueError(f"Cannot set a start deadline with {self.start_not_after=}; expected a finite execution-clock value")
 
-        if not (type((actual_operation_id := self.operation_id)) is (expected_type := str)):
-            raise TypeError(
-                f"{type(actual_operation_id)=} ≠ {expected_type=}"
-            )
+        require_type(self.operation_id, str)
 
         if not (0 < len(self.operation_id) <= 160):
             raise ValueError("An invocation needs an operation ID of 1 through 160 characters.")
 
         target_call_ref = self.target
 
-        if not (type(target_call_ref) is (expected_type := CallRef)):
-            raise TypeError(f"{type(target_call_ref)=} ≠ {expected_type=}")
+        require_type(target_call_ref, CallRef)
 
         payload = self.payload
 
-        if not (type(payload) is (expected_type := bytes)):
-            raise TypeError(f"{type(payload)=} ≠ {expected_type=}")
+        require_type(payload, bytes)
 
         state_arguments = self.states
 
-        if not isinstance(state_arguments, (expected_type := Mapping)):
-            raise TypeError(f"{type(state_arguments)=} ≠ {expected_type=}")
+        require_instance(state_arguments, Mapping)
 
         state_arguments = dict(state_arguments)
 
         for (state_name, state_reference) in state_arguments.items():
             _identity(state_name, "State argument name")
 
-            if not (type(state_reference) is (expected_type := StateRef)):
-                raise TypeError(f"{type(state_reference)=} ≠ {expected_type=}")
+            require_type(state_reference, StateRef)
 
         object.__setattr__(self, "states", MappingProxyType(state_arguments))
 
         reservation_ref = self.reservation
 
-        if not (type(reservation_ref) is (expected_type := ReservationRef)):
-            raise TypeError(f"{type(reservation_ref)=} ≠ {expected_type=}")
+        require_type(reservation_ref, ReservationRef)
 
         operation_policy = self.policy
 
-        if not (type(operation_policy) is (expected_type := OperationPolicy)):
-            raise TypeError(f"{type(operation_policy)=} ≠ {expected_type=}")
+        require_type(operation_policy, OperationPolicy)
 
 
 class AdmissionCode(Enum):
@@ -351,15 +327,9 @@ class NotAdmitted:
     message: str
 
     def __post_init__(self):
-        if not (type((actual_code := self.code)) is (expected_type := AdmissionCode)):
-            raise TypeError(
-                f"{type(actual_code)=} ≠ {expected_type=}"
-            )
+        require_type(self.code, AdmissionCode)
 
-        if not (type((actual_message := self.message)) is (expected_type := str)):
-            raise TypeError(
-                f"{type(actual_message)=} ≠ {expected_type=}"
-            )
+        require_type(self.message, str)
 
         if not (self.message):
             raise ValueError("Non-admission requires an explanatory message")
