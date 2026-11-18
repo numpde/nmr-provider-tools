@@ -369,14 +369,14 @@ class OpsSilentDefaultsTest(unittest.TestCase):
 
         # Synthetic positive ownership keeps this detector exercised before
         # selecting a production value. It grants no additional image default.
-        allowed = {("ENV", "containers/checker/Dockerfile", "MARKER", "1")}
+        allowed = {("ENV", "operations/checker/image/Dockerfile", "MARKER", "1")}
 
-        self.assertEqual([], docker_default_findings_for_source("ENV MARKER=1\n", "containers/checker/Dockerfile", allowed))
+        self.assertEqual([], docker_default_findings_for_source("ENV MARKER=1\n", "operations/checker/image/Dockerfile", allowed))
 
         changes = (
-            ("ENV MARKER=changed-1", "containers/checker/Dockerfile", "changed", "ENV"),
+            ("ENV MARKER=changed-1", "operations/checker/image/Dockerfile", "changed", "ENV"),
             ("ENV MARKER=1", "containers/unreviewed/Dockerfile", "unreviewed", "ENV"),
-            ("ARG MARKER=1", "containers/checker/Dockerfile", "unreviewed", "ARG"),
+            ("ARG MARKER=1", "operations/checker/image/Dockerfile", "unreviewed", "ARG"),
         )
 
         for (source, path, classification, instruction) in changes:

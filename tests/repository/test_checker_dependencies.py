@@ -12,7 +12,7 @@ import unittest
 import pathlib
 from unittest.mock import patch
 
-from tools import checker_dependencies as dependencies
+from operations.checker.image import dependencies
 
 
 class CheckerDependencyTests(unittest.TestCase):

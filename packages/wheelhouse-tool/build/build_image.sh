@@ -8,7 +8,7 @@ source "$root/host/tools/wheelhouse_path.sh"
 select_wheelhouse
 require_wheelhouse_pool
 source "$root/operations/docker/container_operation.sh"
-source "$root/host/tools/checker_inputs.sh"
+source "$root/operations/checker/image_identity.sh"
 operation_begin
 checker_admit_tools
 image=nmr-provider-tools/wheelhouse-tool:local

@@ -4,7 +4,7 @@ set -euo pipefail
 root=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/../.." && pwd -P)
 source "$root/operations/docker/base_image.sh"
 source "$root/operations/docker/container_operation.sh"
-source "$root/host/tools/checker_inputs.sh"
+source "$root/operations/checker/image_identity.sh"
 uid=$(id -u) gid=$(id -g)
 operation_begin
 checker_admit_tools

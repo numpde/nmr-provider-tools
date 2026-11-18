@@ -2,8 +2,8 @@
 # Runtime tests are mounted. Only actual image construction inputs bind its tag.
 source "$root/operations/docker/image_fingerprint.sh"
 checker_input_paths=(
-    operations/docker/base_image.sh tools/checker_dependencies.py tools/container_guard.py tools/artifacts.py
-    requirements/checker-dependencies.json containers/checker/Dockerfile
+    operations/docker/base_image.sh operations/checker/image/dependencies.py tools/container_guard.py tools/artifacts.py
+    requirements/checker-dependencies.json operations/checker/image/Dockerfile
     tools/installer.py requirements/installer-release.json
 )
 

@@ -236,7 +236,7 @@ class LauncherTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             root = pathlib.Path(directory)
 
-            for name in ("tools", "host", "requirements", "containers"):
+            for name in ("tools", "host", "requirements", "operations"):
                 shutil.copytree(ROOT / name, root / name)
 
             (root / "future-source").mkdir()
@@ -274,7 +274,7 @@ class LauncherTests(unittest.TestCase):
             launcher.write_bytes((ROOT / "host/tools/repository.sh").read_bytes())
 
             for (target, message) in (
-                ("tests/repository", "checker_inputs.sh"),
+                ("tests/repository", "operations/checker/image_identity.sh"),
                 ("unreviewed", "unknown target"),
             ):
                 completed_process = subprocess.run(

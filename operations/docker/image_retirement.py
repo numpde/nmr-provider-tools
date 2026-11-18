@@ -88,7 +88,7 @@ def current_inputs(root):
             "-o",
             "pipefail",
             "-c",
-            'root=$1; source "$root/host/tools/checker_inputs.sh"; checker_fingerprint checker; '
+            'root=$1; source "$root/operations/checker/image_identity.sh"; checker_fingerprint checker; '
             'source "$root/operations/delivery/image_identity.sh"; delivery_recipe_identity; checker_fingerprint bootstrap',
             "bash",
             str(root),

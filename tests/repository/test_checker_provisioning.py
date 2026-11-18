@@ -74,11 +74,11 @@ class CheckerProvisioningTests(unittest.TestCase):
                 self.assertIn(diagnostic, result.stderr)
 
     def test_fingerprint_binds_source_bytes_and_modes_and_refuses_missing_inputs(self):
-        source = 'root=$1; source "$root/host/tools/checker_inputs.sh"; checker_fingerprint checker'
+        source = 'root=$1; source "$root/operations/checker/image_identity.sh"; checker_fingerprint checker'
         first = self.shell(source)
 
         self.assertEqual(0, first.returncode, msg=first.stderr)
-        target = self.root / "containers/checker/Dockerfile"
+        target = self.root / "operations/checker/image/Dockerfile"
 
         target.write_text(target.read_text() + "# changed input\n")
         second = self.shell(source)
@@ -92,7 +92,7 @@ class CheckerProvisioningTests(unittest.TestCase):
     def test_failed_fingerprint_producer_cannot_publish_partial_digest(self):
         result = self.shell(
             '''root=$1
-source "$root/host/tools/checker_inputs.sh"
+source "$root/operations/checker/image_identity.sh"
 sha256sum() {
     if [[ $# != 0 && $2 == operations/docker/base_image.sh ]]; then return 7; fi
     command sha256sum "$@"
@@ -112,7 +112,7 @@ cp() {
     command cp "$@"
 }
 export -f cp
-bash "$root/host/tools/checker.sh" bootstrap-build
+bash "$root/operations/checker/prepare.sh" bootstrap-build
 '''
         )
 
@@ -124,7 +124,7 @@ bash "$root/host/tools/checker.sh" bootstrap-build
             with self.subTest(scenario=scenario):
                 result = self.shell(
                     '''root=$1
-source "$root/host/tools/checker_inputs.sh"
+source "$root/operations/checker/image_identity.sh"
 operation_directory=$root
 operation_diagnostic=
 identifier=sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
@@ -174,6 +174,6 @@ if checker_admit_image "$fingerprint" checker; then [[ $checker_image == "$ident
         )
 
         self.assertLess(
-            completed_process.stdout.index("bash host/tools/checker.sh prepare"),
+            completed_process.stdout.index("bash operations/checker/prepare.sh prepare"),
             completed_process.stdout.index("bash packages/provider-core/sdk_build/provider_core.sh download")
         )

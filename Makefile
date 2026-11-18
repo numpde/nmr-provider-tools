@@ -397,23 +397,23 @@ tests/integration/provider-core/delivery:
 	bash packages/provider-core/sdk_build/provider_core.sh integration/delivery
 
 checks/base-image/download:
-	bash host/tools/checker.sh base-download
+	bash operations/checker/prepare.sh base-download
 
 .PHONY: checks/bootstrap/build
 checks/bootstrap/build:
-	bash host/tools/checker.sh bootstrap-build
+	bash operations/checker/prepare.sh bootstrap-build
 
 checks/dependencies/download: checks/bootstrap/build
-	bash host/tools/checker.sh download
+	bash operations/checker/prepare.sh download
 
 checks/dependencies/check:
-	bash host/tools/checker.sh check
+	bash operations/checker/prepare.sh check
 
 checks/image/build: checks/bootstrap/build
-	bash host/tools/checker.sh build
+	bash operations/checker/prepare.sh build
 
 checks/prepare:
-	bash host/tools/checker.sh prepare
+	bash operations/checker/prepare.sh prepare
 
 checks/python-cache/clean:
 	bash host/tools/python_cache_clean.sh

@@ -14,7 +14,7 @@ uid=$(id -u) gid=$(id -g)
     printf '%s\n' 'Cannot prepare shared delivery: use a nonzero caller and a mountable repository path.' >&2; exit 2
 }
 source "$root/operations/docker/container_operation.sh"
-source "$root/host/tools/checker_inputs.sh"
+source "$root/operations/checker/image_identity.sh"
 operation_begin
 cache=$(bash "$root/operations/delivery/check_cache.sh" "$wheelhouse_directory")
 if [[ $cache == missing ]]; then

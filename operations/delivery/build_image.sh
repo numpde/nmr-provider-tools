@@ -12,7 +12,7 @@ if [[ $uid == 0 || $gid == 0 || $root =~ [[:cntrl:],] ]]; then
     printf '%s\n' 'Cannot build shared delivery: use a nonzero caller and repository path without mount delimiters.' >&2; exit 2
 fi
 source "$root/operations/docker/container_operation.sh"
-source "$root/host/tools/checker_inputs.sh"
+source "$root/operations/checker/image_identity.sh"
 source "$root/operations/delivery/image_identity.sh"
 recipe=$(delivery_recipe_identity)
 operation_begin

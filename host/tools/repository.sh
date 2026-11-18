@@ -53,7 +53,7 @@ if [[ $uid == 0 || $gid == 0 ]]; then
     printf '%s\n' 'Cannot start repository checks as UID or GID zero; use a non-root caller.' >&2
     exit 2
 fi
-source "$root/host/tools/checker_inputs.sh"
+source "$root/operations/checker/image_identity.sh"
 fingerprint=$(checker_fingerprint checker)
 image="nmr-provider-tools/checker:$fingerprint"
 mounts=()

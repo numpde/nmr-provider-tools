@@ -35,7 +35,7 @@ if [[ -v FUZZ_PROFILE_INPUT_ORIGIN && $FUZZ_PROFILE_INPUT_ORIGIN == 'command lin
 fi
 source "$root/operations/docker/base_image.sh"
 arguments=()
-source "$root/host/tools/checker_inputs.sh"
+source "$root/operations/checker/image_identity.sh"
 tool_image=$(checker_image_tag checker "$(checker_fingerprint checker)")
 source "$root/host/tools/wheelhouse_path.sh"
 select_wheelhouse

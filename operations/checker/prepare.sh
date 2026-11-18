@@ -30,7 +30,7 @@ elif [[ $action != bootstrap-build ]]; then
 fi
 source "$root/operations/docker/container_operation.sh"
 operation_begin
-source "$root/host/tools/checker_inputs.sh"
+source "$root/operations/checker/image_identity.sh"
 bootstrap_fingerprint=$(checker_fingerprint bootstrap)
 worker=(--pull never --read-only --cap-drop ALL --security-opt no-new-privileges:true
     --workdir /opt/provider-tools --env NMR_PROVIDER_TOOLS_IN_CONTAINER=1
@@ -43,7 +43,7 @@ if [[ $action == check ]]; then
     checker_admit_image "$bootstrap_fingerprint" bootstrap
     operation_run 60 --network none --user "$uid:$gid" "${worker[@]}" \
         --mount "type=bind,src=$wheelhouse_directory,dst=/wheelhouse,readonly" \
-        --entrypoint python3 "$checker_image" -B -m tools.checker_dependencies check \
+        --entrypoint python3 "$checker_image" -B -m operations.checker.image.dependencies check \
         --declaration "$declaration" --directory /wheelhouse --installer "$installer"
     exit
 fi
@@ -75,7 +75,7 @@ build_checker_target() {
     operation_call "offline $target image build" 900 stdio "${engine[@]}" build --builder default --platform linux/amd64 \
         --network none --pull=false --target "$target" --build-arg "BASE_IMAGE=$build_base_image" \
         --label "org.nmr-provider-tools.inputs=$fingerprint" --iidfile "$receipt" \
-        --file "$context/containers/checker/Dockerfile" "$context"
+        --file "$context/operations/checker/image/Dockerfile" "$context"
     retain_operation=false
     if [[ -f $receipt && ! -L $receipt && $(stat -c %s -- "$receipt") -le 72 ]]; then
         if IFS= read -r -N 71 image < "$receipt"; then :; else image=; fi
@@ -116,7 +116,7 @@ if [[ $action == download || $action == prepare ]]; then
     operation_reserve_acquisition_receipt
     if controller_native 'checker acquisition' untimed stdio bash "$root/operations/docker/docker.sh" run --image "$bootstrap_image" --retired-receipt "$operation_acquisition_receipt" -- \
         "${worker[@]}" --mount "type=bind,src=$wheelhouse_directory,dst=/wheelhouse" \
-        --entrypoint python3 -- -B -m tools.checker_dependencies download \
+        --entrypoint python3 -- -B -m operations.checker.image.dependencies download \
         --declaration "$declaration" --directory /wheelhouse --installer "$installer"; then :; else
         acquisition_status=$?
         printf '%s' "$inference_diagnostic" >&2
@@ -131,7 +131,7 @@ worker_uid=$operation_host_uid worker_gid=$operation_host_gid
 operation_run 60 "${worker[@]}" --network none --user "$worker_uid:$worker_gid" \
     --mount "type=bind,src=$wheelhouse_directory,dst=/wheelhouse,readonly" \
     --mount "type=bind,src=$context/dependencies,dst=/capture" \
-    --entrypoint python3 "$bootstrap_image" -B -m tools.checker_dependencies capture \
+    --entrypoint python3 "$bootstrap_image" -B -m operations.checker.image.dependencies capture \
     --declaration "$declaration" --directory /wheelhouse --destination /capture --installer "$installer"
 
 build_checker_target checker "$captured"

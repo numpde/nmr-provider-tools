@@ -76,6 +76,7 @@ def unguarded_sources(root):
     """Include new production modules and fixture source without scanning upstream."""
     sources = set(source_files(root=root, patterns=(
         "tools/**/*.py",
+        "operations/checker/image/dependencies.py",
         "operations/delivery/build_inputs.py",
         "operations/release/qualify.py",
         "packages/provider-core/sdk_build/*.py",
@@ -155,7 +156,11 @@ def boundary_imports(root):
                 continue
 
             # These operations run in the checker container
-            if path in (root / "operations/delivery/build_inputs.py", root / "operations/release/qualify.py"):
+            if path in (
+                root / "operations/checker/image/dependencies.py",
+                root / "operations/delivery/build_inputs.py",
+                root / "operations/release/qualify.py",
+            ):
                 continue
 
             for statement in ast.walk(ast.parse(path.read_text())):
