@@ -20,6 +20,7 @@ from provider_core.hosting import (
     NotAdmitted,
     Observation,
     OperationRef,
+    OperationPolicy,
     Outcome,
     ResourceState,
     ResultRef,
@@ -76,6 +77,23 @@ class HeldObserver:
 
 
 class HostingObservationTests(unittest.IsolatedAsyncioTestCase):
+    def test_reference_admission_preserves_exact_types(self):
+        with self.assertRaises(TypeError):
+            OperationRef(host="host", analysis="analysis", operation_id=True)
+
+        with self.assertRaises(TypeError):
+            ResultRef(operation=object(), result_id="result")
+
+    def test_policy_byte_allowances_reject_bool(self):
+        with self.assertRaises(TypeError):
+            OperationPolicy(
+                queue_stop_request_seconds=1,
+                execution_stop_request_seconds=1,
+                cleanup_overdue_flag_seconds=1,
+                reject_encoded_input_over_bytes=True,
+                reject_encoded_result_over_bytes=1024,
+            )
+
     def test_non_admission_describes_its_code_and_reason(self):
         refusal = NotAdmitted(code=AdmissionCode.CAPACITY, message="No execution capacity is available")
 
