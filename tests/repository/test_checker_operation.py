@@ -11,7 +11,7 @@ import subprocess
 import tempfile
 import time
 import unittest
-from pathlib import Path
+import pathlib
 
 from tests.repository.quality.sources import ROOT
 
@@ -21,7 +21,7 @@ class CheckerOperationTests(unittest.TestCase):
         temporary = tempfile.TemporaryDirectory()
 
         self.addCleanup(temporary.cleanup)
-        self.directory = Path(temporary.name)
+        self.directory = pathlib.Path(temporary.name)
         self.engine = self.directory / "engine.sh"
 
         self.engine.write_text(
@@ -95,10 +95,10 @@ if checker_run "$budget" inert-image; then exit 0; else exit "$?"; fi
         return (["bash", "-c", script, "bash", str(ROOT)], self.environment | {"PROBE_SCENARIO": scenario})
 
     def owned_paths(self):
-        paths = [Path(line) for line in (self.directory / "report").read_text().splitlines()]
+        paths = [pathlib.Path(line) for line in (self.directory / "report").read_text().splitlines()]
 
         for path in paths:
-            self.assertEqual(Path("/tmp"), path.parent)
+            self.assertEqual(pathlib.Path("/tmp"), path.parent)
             self.addCleanup(shutil.rmtree, path, ignore_errors=True)
 
         return paths
@@ -183,9 +183,9 @@ exit "$status"
         return subprocess.run(command, env=environment, capture_output=True, text=True, timeout=15, check=False)
 
     def test_shared_identity_owner_receives_selected_endpoint_policy_and_map_order(self):
-        result = self.run_identity_probe("identity-success")
+        probe_process = self.run_identity_probe("identity-success")
 
-        self.assertEqual(0, result.returncode, msg=result.stderr)
+        self.assertEqual(0, probe_process.returncode, msg=probe_process.stderr)
         self.assertEqual(["verify", "source", "project", "native"], (self.directory / "identity-events").read_text().splitlines())
 
         self.assertEqual(
@@ -218,12 +218,12 @@ exit "$status"
         )
 
         self.assertEqual(["0", "17", "29", "true"], (self.directory / "identity-result").read_text().splitlines())
-        self.assertTrue(all(not path.exists() for path in self.owned_paths()))
+        self.assertTrue(all(not owned_path.exists() for owned_path in self.owned_paths()))
 
     def assert_identity_receipt_blocks_dispatch(self, scenario):
-        result = self.run_identity_probe(scenario)
+        probe_process = self.run_identity_probe(scenario)
 
-        self.assertEqual(2, result.returncode, msg=result.stderr)
+        self.assertEqual(2, probe_process.returncode, msg=probe_process.stderr)
         self.assertEqual(["verify", "source", "project"], (self.directory / "identity-events").read_text().splitlines())
 
         self.assertEqual(
@@ -231,8 +231,8 @@ exit "$status"
             (self.directory / "identity-result").read_text().splitlines(),
         )
 
-        self.assertTrue(all(path.is_dir() for path in self.owned_paths()))
-        self.assertIn("acquisition retirement is unconfirmed", result.stderr)
+        self.assertTrue(all(owned_path.is_dir() for owned_path in self.owned_paths()))
+        self.assertIn("acquisition retirement is unconfirmed", probe_process.stderr)
 
     def test_missing_identity_receipt_blocks_dispatch_and_retains_inputs(self):
         self.assert_identity_receipt_blocks_dispatch("missing-receipt")
@@ -241,16 +241,16 @@ exit "$status"
         self.assert_identity_receipt_blocks_dispatch("malformed-receipt")
 
     def assert_settled_identity_failure(self, scenario, status):
-        result = self.run_identity_probe(scenario)
+        probe_process = self.run_identity_probe(scenario)
 
-        self.assertEqual(status, result.returncode, msg=result.stderr)
+        self.assertEqual(status, probe_process.returncode, msg=probe_process.stderr)
 
         self.assertEqual(
             [str(status), "old-uid", "old-gid", "true"],
             (self.directory / "identity-result").read_text().splitlines(),
         )
 
-        self.assertTrue(all(not path.exists() for path in self.owned_paths()))
+        self.assertTrue(all(not owned_path.exists() for owned_path in self.owned_paths()))
 
     def test_settled_identity_failure_preserves_status_and_prior_ids(self):
         self.assert_settled_identity_failure("identity-failure", 23)
@@ -259,19 +259,19 @@ exit "$status"
         self.assert_settled_identity_failure("identity-signal", 143)
 
     def test_identity_verification_failure_stops_before_sourcing_or_probe(self):
-        result = self.run_identity_probe("verification-failure")
+        probe_process = self.run_identity_probe("verification-failure")
 
-        self.assertEqual(31, result.returncode, msg=result.stderr)
+        self.assertEqual(31, probe_process.returncode, msg=probe_process.stderr)
         self.assertEqual(["verify"], (self.directory / "identity-events").read_text().splitlines())
         self.assertEqual(["31", "old-uid", "old-gid", "true"], (self.directory / "identity-result").read_text().splitlines())
-        self.assertTrue(all(not path.exists() for path in self.owned_paths()))
+        self.assertTrue(all(not owned_path.exists() for owned_path in self.owned_paths()))
 
     def test_success_removes_owned_containers_before_temporary_inputs(self):
-        result = self.run_probe("success")
+        probe_process = self.run_probe("success")
 
-        self.assertEqual(0, result.returncode, msg=result.stderr)
+        self.assertEqual(0, probe_process.returncode, msg=probe_process.stderr)
         self.assertEqual(["create", "start", "ps", "rm", "ps"], (self.directory / "calls").read_text().splitlines())
-        self.assertTrue(all(not path.exists() for path in self.owned_paths()))
+        self.assertTrue(all(not owned_path.exists() for owned_path in self.owned_paths()))
 
     def test_successful_build_retires_images_only_after_cleanup_and_lock_release(self):
         shadow = self.directory / "checkout"
@@ -297,69 +297,69 @@ printf 'retired\\n' > "$PROBE_REPORT.retired"
         (command, environment) = self.invocation("success")
         command[-1] = str(shadow)
         command[2] = command[2].replace('budget=10', 'image_retire_after_success=true\nbudget=10')
-        result = subprocess.run(command, env=environment, capture_output=True, text=True, timeout=15, check=False)
+        completed_process = subprocess.run(command, env=environment, capture_output=True, text=True, timeout=15, check=False)
 
-        self.assertEqual(0, result.returncode, msg=result.stderr)
-        self.assertEqual("retired\n", Path(self.environment["PROBE_REPORT"] + ".retired").read_text())
-        self.assertTrue(all(not path.exists() for path in self.owned_paths()))
+        self.assertEqual(0, completed_process.returncode, msg=completed_process.stderr)
+        self.assertEqual("retired\n", pathlib.Path(self.environment["PROBE_REPORT"] + ".retired").read_text())
+        self.assertTrue(all(not owned_path.exists() for owned_path in self.owned_paths()))
 
     def test_false_success_removal_and_failed_enumeration_retain_inputs(self):
         for scenario in ("residue", "enumeration-failure", "malformed-list"):
             with self.subTest(scenario=scenario):
-                result = self.run_probe(scenario)
+                probe_process = self.run_probe(scenario)
 
-                self.assertEqual(2, result.returncode, msg=result.stderr)
-                self.assertTrue(all(path.is_dir() for path in self.owned_paths()))
-                self.assertIn("Retained operation", result.stderr)
+                self.assertEqual(2, probe_process.returncode, msg=probe_process.stderr)
+                self.assertTrue(all(owned_path.is_dir() for owned_path in self.owned_paths()))
+                self.assertIn("Retained operation", probe_process.stderr)
 
     def test_primary_failure_survives_cleanup_failure(self):
-        result = self.run_probe("primary-failure")
+        probe_process = self.run_probe("primary-failure")
 
-        self.assertEqual(23, result.returncode, msg=result.stderr)
-        self.assertTrue(all(path.is_dir() for path in self.owned_paths()))
+        self.assertEqual(23, probe_process.returncode, msg=probe_process.stderr)
+        self.assertTrue(all(owned_path.is_dir() for owned_path in self.owned_paths()))
 
     def test_failed_create_is_never_started_and_retains_even_after_empty_listing(self):
-        result = self.run_probe("uncertain-create")
+        probe_process = self.run_probe("uncertain-create")
 
-        self.assertEqual(7, result.returncode, msg=result.stderr)
+        self.assertEqual(7, probe_process.returncode, msg=probe_process.stderr)
         self.assertNotIn("start", (self.directory / "calls").read_text().splitlines())
-        self.assertTrue(all(path.is_dir() for path in self.owned_paths()))
+        self.assertTrue(all(owned_path.is_dir() for owned_path in self.owned_paths()))
 
     def test_unknown_local_retirement_forbids_next_dispatch_and_cleanup(self):
-        result = self.run_probe("unknown-retirement")
+        probe_process = self.run_probe("unknown-retirement")
 
-        self.assertEqual(2, result.returncode, msg=result.stderr)
+        self.assertEqual(2, probe_process.returncode, msg=probe_process.stderr)
         self.assertFalse((self.directory / "calls").exists())
-        self.assertTrue(all(path.is_dir() for path in self.owned_paths()))
+        self.assertTrue(all(owned_path.is_dir() for owned_path in self.owned_paths()))
 
     def test_settled_failed_stream_releases_temporary_inputs(self):
-        result = self.run_probe("settled-stream-failure")
+        probe_process = self.run_probe("settled-stream-failure")
 
-        self.assertEqual(23, result.returncode, msg=result.stderr)
-        self.assertEqual("captured build input\n", Path(self.environment["PROBE_REPORT"] + ".stream").read_text())
+        self.assertEqual(23, probe_process.returncode, msg=probe_process.stderr)
+        self.assertEqual("captured build input\n", pathlib.Path(self.environment["PROBE_REPORT"] + ".stream").read_text())
         self.assertEqual(["ps", "ps"], (self.directory / "calls").read_text().splitlines())
-        self.assertTrue(all(not path.exists() for path in self.owned_paths()))
+        self.assertTrue(all(not owned_path.exists() for owned_path in self.owned_paths()))
 
     def test_attachment_deadline_retires_client_and_container_before_releasing_inputs(self):
-        result = self.run_probe("attachment-timeout")
+        probe_process = self.run_probe("attachment-timeout")
 
-        self.assertEqual(124, result.returncode, msg=result.stderr)
+        self.assertEqual(124, probe_process.returncode, msg=probe_process.stderr)
         self.assertIn("rm", (self.directory / "calls").read_text().splitlines())
-        self.assertTrue(all(not path.exists() for path in self.owned_paths()))
+        self.assertTrue(all(not owned_path.exists() for owned_path in self.owned_paths()))
 
     def test_repeated_signals_do_not_interrupt_teardown(self):
         (command, environment) = self.invocation("repeated-signals")
 
-        with subprocess.Popen(command, env=environment, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True) as process:
+        with subprocess.Popen(command, env=environment, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True) as child_process:
             deadline = time.monotonic() + 10
 
             while (not (self.directory / "ready").exists()) and (time.monotonic() < deadline):
                 time.sleep(0.01)
 
             self.assertTrue((self.directory / "ready").exists())
-            process.send_signal(signal.SIGTERM)
-            process.send_signal(signal.SIGHUP)
-            (_, diagnostic) = process.communicate(timeout=10)
+            child_process.send_signal(signal.SIGTERM)
+            child_process.send_signal(signal.SIGHUP)
+            (_, diagnostic) = child_process.communicate(timeout=10)
 
-        self.assertEqual(0, process.returncode, msg=diagnostic)
-        self.assertTrue(all(not path.exists() for path in self.owned_paths()))
+        self.assertEqual(0, child_process.returncode, msg=diagnostic)
+        self.assertTrue(all(not owned_path.exists() for owned_path in self.owned_paths()))

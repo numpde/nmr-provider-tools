@@ -4,7 +4,7 @@ require_container()
 
 import json
 import os
-from pathlib import Path
+import pathlib
 import shutil
 import subprocess
 import tempfile
@@ -19,13 +19,13 @@ from tests.repository.quality.sources import ROOT
 class EngineCacheGCTests(unittest.TestCase):
     def test_native_policy_rejects_wrong_types_separately_from_threshold_values(self):
         with tempfile.TemporaryDirectory() as directory:
-            path = Path(directory) / "daemon.json"
+            daemon_config_path = pathlib.Path(directory) / "daemon.json"
 
             for document in ([], None, True):
-                path.write_text(json.dumps(document))
+                daemon_config_path.write_text(json.dumps(document))
 
                 with self.subTest(document=document), self.assertRaises(TypeError):
-                    native_config(path)
+                    native_config(daemon_config_path)
 
         for builder in ([], None, True):
             with self.subTest(builder=builder), self.assertRaises(TypeError):
@@ -61,9 +61,9 @@ class EngineCacheGCTests(unittest.TestCase):
         self.assertIsNone(limits(updated))
 
     def test_timer_identity_is_per_endpoint_and_arguments_remain_literal(self):
-        one = unit_files(Path('/checkout with space%/'), "science", "unix:///tmp/science.sock", Path('/config/$literal/daemon.json'))
-        other_context = unit_files(Path('/other/checkout'), "alias", "unix:///tmp/science.sock", Path('/other/daemon.json'))
-        other_engine = unit_files(Path('/checkout'), "other", "unix:///tmp/other.sock", Path('/config/daemon.json'))
+        one = unit_files(pathlib.Path('/checkout with space%/'), "science", "unix:///tmp/science.sock", pathlib.Path('/config/$literal/daemon.json'))
+        other_context = unit_files(pathlib.Path('/other/checkout'), "alias", "unix:///tmp/science.sock", pathlib.Path('/other/daemon.json'))
+        other_engine = unit_files(pathlib.Path('/checkout'), "other", "unix:///tmp/other.sock", pathlib.Path('/config/daemon.json'))
 
         self.assertEqual(one[0], other_context[0])
         self.assertNotEqual(one[0], other_engine[0])
@@ -74,7 +74,7 @@ class EngineCacheGCTests(unittest.TestCase):
 
     def test_invalid_dockerd_candidate_never_replaces_native_json_or_installs_timer(self):
         with tempfile.TemporaryDirectory() as directory:
-            root = Path(directory)
+            root = pathlib.Path(directory)
             config = root / "daemon.json"
 
             config.write_text('{"data-root":"/keep"}\n')
@@ -90,7 +90,7 @@ class EngineCacheGCTests(unittest.TestCase):
 
     def test_timer_failure_reports_saved_native_policy(self):
         with tempfile.TemporaryDirectory() as directory:
-            root = Path(directory)
+            root = pathlib.Path(directory)
             config = root / "daemon.json"
 
             config.write_text("{}\n")
@@ -107,7 +107,7 @@ class EngineCacheGCTests(unittest.TestCase):
 
     def test_periodic_command_uses_native_limits_and_isolated_selected_engine(self):
         with tempfile.TemporaryDirectory() as directory:
-            root = Path(directory)
+            root = pathlib.Path(directory)
 
             (root / "host/tools").mkdir(parents=True)
 
@@ -121,7 +121,7 @@ class EngineCacheGCTests(unittest.TestCase):
             config.write_text(json.dumps(document))
             probe = root / "probe.json"
 
-            result = subprocess.run(
+            completed_process = subprocess.run(
                 [
                     "bash",
                     str(root / "host/tools/engine_cache_gc.sh"),
@@ -142,7 +142,7 @@ class EngineCacheGCTests(unittest.TestCase):
                 check=False
             )
 
-            self.assertEqual(0, result.returncode, msg=result.stderr)
+            self.assertEqual(0, completed_process.returncode, msg=completed_process.stderr)
             observed = json.loads(probe.read_text())
             argv = observed["argv"]
 
@@ -153,4 +153,4 @@ class EngineCacheGCTests(unittest.TestCase):
             self.assertEqual("20GB", argv[argv.index("--min-free-space") + 1])
             self.assertNotIn("DOCKER_HOST", observed["env"])
             self.assertNotIn("HTTP_PROXY", observed["env"])
-            self.assertFalse(Path(argv[argv.index("--config") + 1]).exists())
+            self.assertFalse(pathlib.Path(argv[argv.index("--config") + 1]).exists())

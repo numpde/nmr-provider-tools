@@ -3,7 +3,7 @@
 import hashlib
 import json
 import os
-from pathlib import Path
+import pathlib
 import stat
 import subprocess
 import sys
@@ -20,17 +20,17 @@ DEFAULTS = {
 }
 
 
-def native_config(path):
+def native_config(daemon_config_path):
     if (
-        not path.is_absolute()
-        or path.resolve() != path
-        or path.is_symlink()
-        or not path.is_file()
-        or path.stat().st_uid != os.getuid()
+        not daemon_config_path.is_absolute()
+        or daemon_config_path.resolve() != daemon_config_path
+        or daemon_config_path.is_symlink()
+        or not daemon_config_path.is_file()
+        or daemon_config_path.stat().st_uid != os.getuid()
     ):
         raise ValueError("Select the canonical caller-owned native daemon.json file.")
 
-    configuration_bytes = path.read_bytes()
+    configuration_bytes = daemon_config_path.read_bytes()
     document = json.loads(configuration_bytes)
 
     if not (type(document) is (expected_type := dict)):
@@ -97,13 +97,13 @@ def limits(document):
     return thresholds
 
 
-def argument(value):
-    if not value or any(ord(c) < 32 or ord(c) == 127 for c in value):
+def argument(command_argument):
+    if not command_argument or any(ord(c) < 32 or ord(c) == 127 for c in command_argument):
         raise ValueError("Timer arguments cannot contain empty values or control characters.")
 
     # Systemd specifiers remain literal. ExecStart's ':' prefix below disables
     # environment substitution; no shell interprets these captured arguments.
-    return '"' + value.replace('\\', '\\\\').replace('"', '\\"').replace('%', '%%') + '"'
+    return '"' + command_argument.replace('\\', '\\\\').replace('"', '\\"').replace('%', '%%') + '"'
 
 
 def unit_files(root, context, endpoint, config):
@@ -113,8 +113,8 @@ def unit_files(root, context, endpoint, config):
     name = "engine-cache-gc-" + hashlib.sha256(endpoint.encode()).hexdigest()[:16]
 
     command = " ".join(
-        argument(value)
-        for value in (
+        argument(command_argument)
+        for command_argument in (
             "/bin/bash",
             str(root / "host/tools/engine_cache_gc.sh"),
             "run",
@@ -134,22 +134,22 @@ def unit_files(root, context, endpoint, config):
     return (name, service, timer)
 
 
-def install(root, context, endpoint, path):
-    (original_bytes, document) = native_config(path)
+def install(root, context, endpoint, daemon_config_path):
+    (original_bytes, document) = native_config(daemon_config_path)
     proposed_configuration = configured(document)
-    (unit_name, service_document, timer_document) = unit_files(root, context, endpoint, path)
+    (unit_name, service_document, timer_document) = unit_files(root, context, endpoint, daemon_config_path)
 
     (temporary_fd, temporary_name) = tempfile.mkstemp(
         prefix=".daemon-gc-",
         suffix=".json",
-        dir=path.parent,
+        dir=daemon_config_path.parent,
     )
 
-    temporary_path = Path(temporary_name)
+    temporary_path = pathlib.Path(temporary_name)
 
     try:
         with os.fdopen(temporary_fd, "w", encoding="utf-8") as output:
-            os.fchmod(output.fileno(), stat.S_IMODE(path.stat().st_mode))
+            os.fchmod(output.fileno(), stat.S_IMODE(daemon_config_path.stat().st_mode))
             json.dump(proposed_configuration, output, indent=2)
             output.write("\n")
             output.flush()
@@ -170,13 +170,13 @@ def install(root, context, endpoint, path):
                 "the original file is unchanged."
             )
 
-        if path.read_bytes() != original_bytes:
+        if daemon_config_path.read_bytes() != original_bytes:
             raise ValueError(
                 "Native engine configuration changed during validation; "
                 "retry against the current file."
             )
 
-        temporary_path.replace(path)
+        temporary_path.replace(daemon_config_path)
     finally:
         temporary_path.unlink(missing_ok=True)
 
@@ -189,7 +189,7 @@ def install(root, context, endpoint, path):
             timeout=10,
         ).stdout.strip()
 
-        unit_directory = Path(configuration_directory) / "systemd/user"
+        unit_directory = pathlib.Path(configuration_directory) / "systemd/user"
 
         unit_directory.mkdir(parents=True, exist_ok=True)
         (unit_directory / (unit_name + ".service")).write_text(service_document)
@@ -217,17 +217,17 @@ def install(root, context, endpoint, path):
 def main():
     try:
         if sys.argv[1:2] == ["policy"] and len(sys.argv) == 3:
-            (_, document) = native_config(Path(sys.argv[2]))
-            values = limits(document)
+            (_, document) = native_config(pathlib.Path(sys.argv[2]))
+            thresholds = limits(document)
 
-            if values is None:
+            if thresholds is None:
                 print("disabled")
             else:
-                print("\n".join(values))
+                print("\n".join(thresholds))
         elif sys.argv[1:2] == ["install"] and len(sys.argv) == 6:
             (root, context, endpoint, config) = sys.argv[2:]
 
-            install(Path(root), context, endpoint, Path(config))
+            install(pathlib.Path(root), context, endpoint, pathlib.Path(config))
         else:
             raise ValueError("Use the maintained cache-GC installation target.")
 

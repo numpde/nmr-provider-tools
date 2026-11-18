@@ -4,7 +4,7 @@ from tools.container_guard import require_container
 require_container()
 
 import os
-from pathlib import Path
+import pathlib
 import subprocess
 import tempfile
 import unittest
@@ -16,7 +16,7 @@ class OrderedRetirementTests(unittest.TestCase):
     # silent-defaults: allow-contract -- Ordered-cleanup fixtures start without unexpected borrowers, pending operations or prior errors unless a test injects one.
     def exercise(self, fail, *, unexpected=False, pending=False, primary=0):
         with tempfile.TemporaryDirectory() as temporary:
-            directory = Path(temporary)
+            directory = pathlib.Path(temporary)
 
             script = r'''set -eu
 root=$1
@@ -83,7 +83,7 @@ checker_finish
                 "PRIMARY": str(primary)
             }
 
-            result = subprocess.run(
+            completed_process = subprocess.run(
                 ["bash", "-c", script, "bash", str(ROOT), str(directory / "operation")],
                 env=env,
                 capture_output=True,
@@ -96,7 +96,7 @@ checker_finish
             if (directory / "calls").exists():
                 calls = (directory / "calls").read_text().splitlines()
 
-            return (result, calls)
+            return (completed_process, calls)
 
     def test_removes_in_dependency_order(self):
         (result, calls) = self.exercise(False)

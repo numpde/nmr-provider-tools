@@ -2,8 +2,8 @@
 from tools.container_guard import require_container
 require_container()
 
+import pathlib
 from copy import deepcopy
-from pathlib import Path
 import json
 import tempfile
 import unittest
@@ -93,7 +93,7 @@ class ImageRetirementTests(unittest.TestCase):
         engine = Engine(image())
 
         with tempfile.TemporaryDirectory() as directory:
-            count = retire(Path(directory), engine, lambda: CURRENT, operations=Path(directory))
+            count = retire(pathlib.Path(directory), engine, lambda: CURRENT, operations=pathlib.Path(directory))
 
         self.assertEqual(count, 1)
         self.assertEqual(engine.removals, [("image", "rm", "--no-prune", IDENTIFIER)])
@@ -103,14 +103,14 @@ class ImageRetirementTests(unittest.TestCase):
             with self.subTest(borrowed=borrowed), tempfile.TemporaryDirectory() as directory:
                 engine = Engine(image(), borrower=borrowed)
 
-                self.assertEqual(0, retire(Path(directory), engine, lambda: CURRENT, staged=staged, operations=Path(directory)))
+                self.assertEqual(0, retire(pathlib.Path(directory), engine, lambda: CURRENT, staged=staged, operations=pathlib.Path(directory)))
                 self.assertEqual([], engine.removals)
 
     def test_changed_alias_or_new_container_prevents_removal(self):
         with tempfile.TemporaryDirectory() as directory:
             engine = Engine(image(), changed=True)
 
-            self.assertEqual(0, retire(Path(directory), engine, lambda: CURRENT, operations=Path(directory)))
+            self.assertEqual(0, retire(pathlib.Path(directory), engine, lambda: CURRENT, operations=pathlib.Path(directory)))
             self.assertEqual([], engine.removals)
 
         engine = Engine(image())
@@ -123,7 +123,7 @@ class ImageRetirementTests(unittest.TestCase):
             return original(*arguments)
 
         with tempfile.TemporaryDirectory() as directory:
-            self.assertEqual(0, retire(Path(directory), borrowed_later, lambda: CURRENT, operations=Path(directory)))
+            self.assertEqual(0, retire(pathlib.Path(directory), borrowed_later, lambda: CURRENT, operations=pathlib.Path(directory)))
             self.assertEqual([], engine.removals)
 
     def test_current_inputs_and_unknown_aliases_remain(self):
@@ -170,7 +170,7 @@ class ImageRetirementTests(unittest.TestCase):
             engine = Engine(image(), malformed=True)
 
             with self.assertRaises(ValueError):
-                retire(Path(directory), engine, lambda: CURRENT, operations=Path(directory))
+                retire(pathlib.Path(directory), engine, lambda: CURRENT, operations=pathlib.Path(directory))
 
             self.assertEqual([], engine.removals)
 
@@ -181,13 +181,13 @@ class ImageRetirementTests(unittest.TestCase):
             engine = Engine(image())
 
             with self.assertRaises(RetirementRefused):
-                retire(Path(directory), engine, lambda: next(identities), operations=Path(directory))
+                retire(pathlib.Path(directory), engine, lambda: next(identities), operations=pathlib.Path(directory))
 
             self.assertEqual([], engine.removals)
 
     def test_known_retained_build_receipt_protects_exact_image(self):
         with tempfile.TemporaryDirectory() as directory:
-            root = Path(directory)
+            root = pathlib.Path(directory)
             operation = root / "nmr-provider-tools.abcdefgh"
 
             operation.mkdir()

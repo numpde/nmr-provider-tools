@@ -9,7 +9,7 @@ selection. Only known retained build IID receipts are read from /tmp.
 """
 
 import json
-from pathlib import Path
+import pathlib
 import re
 import resource
 import subprocess
@@ -28,14 +28,14 @@ _ID = re.compile(r"sha256:[0-9a-f]{64}")
 _HASH = re.compile(r"[0-9a-f]{64}")
 
 # repo-check: allow-module-constant
-_LABEL = "org.nmr-provider-tools."
+_IMAGE_LABEL_PREFIX = "org.nmr-provider-tools."
 
 # repo-check: allow-module-constant
 _IMAGE_JSON = ('{"Id":{{json .Id}},"Labels":{{json .Config.Labels}},'
                '"RepoTags":{{json .RepoTags}},"RepoDigests":{{json .RepoDigests}}}')
 
 
-def run(arguments):
+def capture_command_output(arguments):
     # Private receipts never become public config or daemon diagnostics.
     with tempfile.TemporaryFile() as output, tempfile.TemporaryFile() as error:
         try:
@@ -70,18 +70,18 @@ def run(arguments):
 
 # silent-defaults: allow-contract -- The image-ID parser defaults to tagged images; container-mode IDs are a separately selected caller contract.
 def ids(raw, *, container=False):
-    values = raw.splitlines()
+    reported_ids = raw.splitlines()
     pattern = re.compile(r"[0-9a-f]{64}") if container else _ID
 
-    if any(pattern.fullmatch(value) is None for value in values):
+    if any(pattern.fullmatch(reported_id) is None for reported_id in reported_ids):
         raise RetirementRefused("Docker returned an incomplete immutable-ID inventory.")
 
-    return sorted(set(values))
+    return sorted(set(reported_ids))
 
 
 def current_inputs(root):
     # Call the existing input owners rather than copy their fingerprint recipe.
-    selected_inputs = run(
+    selected_inputs = capture_command_output(
         [
             "bash",
             "-eu",
@@ -108,9 +108,9 @@ def retained_image_ids(directory):
     protected_image_ids = set()
 
     for receipt in (
-        path
+        receipt_path
         for name in ("built-image", "built-bootstrap", "built-checker")
-        for path in directory.glob("nmr-provider-tools.*/" + name)
+        for receipt_path in directory.glob("nmr-provider-tools.*/" + name)
     ):
         if receipt.is_symlink() or receipt.parent.is_symlink():
             continue
@@ -221,12 +221,12 @@ def select_images(images, protected, current):
             continue
 
         (role, recorded_inputs) = (
-            image_labels.get(_LABEL + "role"),
-            image_labels.get(_LABEL + "inputs"),
+            image_labels.get(_IMAGE_LABEL_PREFIX + "role"),
+            image_labels.get(_IMAGE_LABEL_PREFIX + "inputs"),
         )
 
         if role == "delivery":
-            recorded_recipe = image_labels.get(_LABEL + "recipe")
+            recorded_recipe = image_labels.get(_IMAGE_LABEL_PREFIX + "recipe")
 
             if not (
                 type(recorded_inputs) is str
@@ -269,7 +269,7 @@ def select_images(images, protected, current):
 
 
 # silent-defaults: allow-contract -- Staged images are absent as an immutable tuple unless explicitly retained; the fixed /tmp root holds checker operation receipts for current image borrowers.
-def retire(root, docker, current, *, staged=(), operations=Path("/tmp")):
+def retire(root, docker, current, *, staged=(), operations=pathlib.Path("/tmp")):
     selected_inputs = current()
     protected_images = set(staged) | retained_image_ids(operations)
 
@@ -304,7 +304,7 @@ def retire(root, docker, current, *, staged=(), operations=Path("/tmp")):
 
     owned_image_ids = set()
 
-    for label in ("inputs", "role"):
+    for label_suffix in ("inputs", "role"):
         owned_image_ids.update(
             ids(
                 docker(
@@ -314,7 +314,7 @@ def retire(root, docker, current, *, staged=(), operations=Path("/tmp")):
                     "--quiet",
                     "--no-trunc",
                     "--filter",
-                    "label=" + _LABEL + label,
+                    "label=" + _IMAGE_LABEL_PREFIX + label_suffix,
                 )
             )
         )
@@ -385,9 +385,9 @@ def main():
             staged_images = (staged,)
 
         retired_count = retire(
-            Path(root),
-            lambda *arguments: run([*engine, *arguments]),
-            lambda: current_inputs(Path(root)),
+            pathlib.Path(root),
+            lambda *arguments: capture_command_output([*engine, *arguments]),
+            lambda: current_inputs(pathlib.Path(root)),
             staged=staged_images,
         )
 

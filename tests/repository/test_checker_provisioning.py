@@ -11,7 +11,7 @@ import shutil
 import subprocess
 import tempfile
 import unittest
-from pathlib import Path
+import pathlib
 
 from tests.repository.quality.sources import ROOT
 
@@ -21,7 +21,7 @@ class CheckerProvisioningTests(unittest.TestCase):
         temporary = tempfile.TemporaryDirectory()
 
         self.addCleanup(temporary.cleanup)
-        self.root = Path(temporary.name)
+        self.root = pathlib.Path(temporary.name)
 
         for name in ("tools", "requirements", "containers"):
             shutil.copytree(ROOT / name, self.root / name)
@@ -156,7 +156,7 @@ if checker_admit_image "$fingerprint" checker; then [[ $checker_image == "$ident
         self.assertEqual(record["name"].split("-")[1], importlib.metadata.version("pip"))
 
     def test_sdk_acquisition_prepares_the_stdlib_bootstrap_before_installer_workers(self):
-        result = subprocess.run(
+        completed_process = subprocess.run(
             [
                 "make",
                 "--no-print-directory",
@@ -174,6 +174,6 @@ if checker_admit_image "$fingerprint" checker; then [[ $checker_image == "$ident
         )
 
         self.assertLess(
-            result.stdout.index("bash host/tools/checker.sh prepare"),
-            result.stdout.index("bash host/tools/provider_core.sh download")
+            completed_process.stdout.index("bash host/tools/checker.sh prepare"),
+            completed_process.stdout.index("bash host/tools/provider_core.sh download")
         )
