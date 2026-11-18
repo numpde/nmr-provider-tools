@@ -39,8 +39,12 @@ def acquisition_lock(pool):
     # Keep downloads serialized without excluding readers of published files.
     directory = os.open(pool, os.O_RDONLY | os.O_DIRECTORY)
     try:
-        descriptor = os.open(".wheelhouse-acquire.lock", os.O_RDONLY | os.O_CREAT | os.O_NOFOLLOW | os.O_NONBLOCK,
-                             0o644, dir_fd=directory)
+        descriptor = os.open(
+            ".wheelhouse-acquire.lock",
+            os.O_RDONLY | os.O_CREAT | os.O_NOFOLLOW | os.O_NONBLOCK,
+            0o644,
+            dir_fd=directory,
+        )
         try:
             if not stat.S_ISREG(os.fstat(descriptor).st_mode):
                 raise ValueError("Cannot acquire wheelhouse lock: expected a regular file.")

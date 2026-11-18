@@ -78,8 +78,12 @@ def stream_context(pool, source, selections, output, source_allowlist=None):
             raise ValueError(f"Cannot stream {name}: allowlist entries must be regular files.")
         source_paths[name] = path
     for name in source_paths:
-        if any(parent.as_posix() in source_paths and not source_paths[parent.as_posix()].is_dir()
-               for parent in PurePosixPath(name).parents):
+        if any(
+            (
+                parent.as_posix() in source_paths and not source_paths[parent.as_posix()].is_dir()
+                for parent in PurePosixPath(name).parents
+            ),
+        ):
             raise ValueError(f"Cannot stream {name}: a source file occupies its parent path.")
     artifacts = {}
     for selection in selections:
@@ -104,8 +108,15 @@ def stream_context(pool, source, selections, output, source_allowlist=None):
                 preferred = selection["prefer_sdist"]
             if "require_sdist" in selection:
                 required = selection["require_sdist"]
-            inputs = [(name, digest) for (name, digest, *_) in selected(
-                lock, preferred, required, source_lock=source_lock)]
+            inputs = [
+                (name, digest)
+                for (name, digest, *_) in selected(
+                    lock,
+                    preferred,
+                    required,
+                    source_lock=source_lock,
+                )
+            ]
         else:
             inputs = [(selection["filename"], selection["sha256"])]
         for (name, digest) in inputs:
@@ -115,8 +126,13 @@ def stream_context(pool, source, selections, output, source_allowlist=None):
                 raise ValueError("Cannot stream build inputs: expected a filename and SHA-256 hash.")
             destination = str(directory / name)
             if (destination in source_paths or any(name.startswith(destination + "/") for name in source_paths)
-                    or any(parent.as_posix() in source_paths and not source_paths[parent.as_posix()].is_dir()
-                           for parent in PurePosixPath(destination).parents if str(parent) != ".")):
+                    or any(
+                        (
+                            parent.as_posix() in source_paths and not source_paths[parent.as_posix()].is_dir()
+                            for parent in PurePosixPath(destination).parents
+                            if str(parent) != "."
+                        ),
+                    )):
                 raise ValueError(f"Cannot stream {destination}: it collides with the curated source context.")
             if destination in artifacts and artifacts[destination] != (name, digest):
                 raise ValueError(f"Cannot stream {destination}: selections conflict.")

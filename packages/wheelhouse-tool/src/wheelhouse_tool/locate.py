@@ -116,8 +116,16 @@ def locate(path, index=None, allowed_sources=(), required_sources=(), direct_sou
             if (distribution != name or checksum not in hashes or name in required_sources or not tags.intersection(sys_tags())
                     or (supplied and not requirement.specifier.contains(version, prereleases=True))):
                 raise ValueError(f"Cannot locate {name}: direct artifact differs from its locked identity.")
-            packages.append({"name": name, "version": str(version), "archive": {
-                "url": urllib.parse.urlunsplit(url._replace(fragment="")), "hashes": {"sha256": checksum}}})
+            packages.append(
+                {
+                    "name": name,
+                    "version": str(version),
+                    "archive": {
+                        "url": urllib.parse.urlunsplit(url._replace(fragment="")),
+                        "hashes": {"sha256": checksum},
+                    },
+                },
+            )
             continue
         if index is None:
             raise ValueError(f"Cannot locate {name}: the pinned lock needs an HTTPS package index.")

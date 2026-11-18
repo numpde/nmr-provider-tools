@@ -48,14 +48,16 @@ def python_sources(*, production_only):
 
     patterns = [f"{name}/**/*.py" for name in (*roots, *OPTIONAL_PYTHON_ROOTS)]
 
-    patterns.extend((
-        "packages/*/src/**/*.py",
-        "packages/*/build/**/*.py",
-        "packages/provider-core/sdk_build/**/*.py",
-        "packages/acquisition/acquisition_tool/**/*.py",
-        "examples/*/src/**/*.py",
-        "mocks/*/src/**/*.py",
-    ))
+    patterns.extend(
+        (
+            "packages/*/src/**/*.py",
+            "packages/*/build/**/*.py",
+            "packages/provider-core/sdk_build/**/*.py",
+            "packages/acquisition/acquisition_tool/**/*.py",
+            "examples/*/src/**/*.py",
+            "mocks/*/src/**/*.py",
+        ),
+    )
 
     if not production_only:
         patterns.extend(("packages/*/tests/**/*.py", "examples/*/tests/**/*.py", "mocks/*/tests/**/*.py"))
