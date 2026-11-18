@@ -74,22 +74,15 @@ def has_early_guard(source, *, package_marker=False, guard_module="tools.contain
 
 def unguarded_sources(root):
     """Include new production modules and fixture source without scanning upstream."""
-    sources = set(source_files(root=root, patterns=("tools/**/*.py", "tests/repository/**/*.py", "src/**/*.py")))
+    sources = set(source_files(root=root, patterns=("tools/**/*.py", "operations/delivery/build_inputs.py", "tests/repository/**/*.py", "src/**/*.py")))
     core_root = root / "packages/provider-core/src/provider_core"
-    portable_roots = (core_root, root / "containers/delivery", root / "tests/deployment")
+    portable_roots = (core_root, root / "operations/delivery/image", root / "tests/deployment")
 
     portable_sources = {
         path
-        for path in source_files(root=root, patterns=("packages/provider-core/src/provider_core/**/*.py", "containers/delivery/**/*.py", "tests/deployment/**/*.py"))
+        for path in source_files(root=root, patterns=("packages/provider-core/src/provider_core/**/*.py", "operations/delivery/image/**/*.py", "tests/deployment/**/*.py"))
         if any(path.is_relative_to(directory) for directory in portable_roots)
     }
-
-    # This finite tool is installed into the shared image, which deliberately
-    # has no repository tools package. Its guard belongs to the installed core.
-    installed_entrypoint = root / "tools/delivery_deployment.py"
-
-    if installed_entrypoint.is_file():
-        portable_sources.add(installed_entrypoint)
 
     sources.difference_update(portable_sources)
 
@@ -150,6 +143,10 @@ def boundary_imports(root):
     ):
         for path in source_files(root=root, patterns=(f"{directory.relative_to(root)}/**/*.py",)):
             if not path.is_relative_to(directory):
+                continue
+
+            # The checker container prepares delivery image inputs
+            if path == root / "operations/delivery/build_inputs.py":
                 continue
 
             for statement in ast.walk(ast.parse(path.read_text())):
@@ -224,7 +221,7 @@ class ConventionDetectionTests(unittest.TestCase):
     def test_installed_delivery_sources_keep_exact_guard_ownership(self):
         with tempfile.TemporaryDirectory() as directory:
             root = pathlib.Path(directory)
-            portable = ("tools/delivery_deployment.py", "containers/delivery/check_runtime.py", "tests/deployment/test_freezer.py")
+            portable = ("operations/delivery/image/delivery_deployment.py", "operations/delivery/image/check_runtime.py", "tests/deployment/test_freezer.py")
 
             for name in portable:
                 path = root / name
@@ -234,7 +231,7 @@ class ConventionDetectionTests(unittest.TestCase):
 
             ordinary = root / "tools/nested/worker.py"
 
-            ordinary.parent.mkdir()
+            ordinary.parent.mkdir(parents=True)
             core_guard = "from provider_core.container_guard import require_container\nrequire_container()\n"
 
             ordinary.write_text(core_guard)

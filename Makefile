@@ -349,7 +349,7 @@ tests/wheelhouse:
 	bash packages/wheelhouse-tool/build/build_image.sh test
 
 tests/delivery/publisher:
-	bash host/tools/delivery_publisher_check.sh
+	bash operations/delivery/check_publisher.sh
 
 wheelhouse/lock/locate:
 	@bash packages/wheelhouse-tool/operations/locate.sh
@@ -361,19 +361,19 @@ packages/provider-core/check:
 	bash host/tools/provider_core.sh check
 
 tests/deployment/route:
-	bash host/tools/delivery_route_tests.sh
+	bash operations/delivery/test_routes.sh
 
 tests/deployment/route/literal:
-	bash host/tools/delivery_route_tests.sh --literal-ip
+	bash operations/delivery/test_routes.sh --literal-ip
 
 tests/deployment:
-	bash host/tools/delivery_tests.sh
+	bash operations/delivery/test_deployment.sh
 
 delivery/prepare: checks/prepare
-	bash host/tools/delivery_prepare.sh
+	bash operations/delivery/prepare.sh
 
 delivery/image/build:
-	bash host/tools/delivery_image.sh
+	bash operations/delivery/build_image.sh
 
 package/build:
 	bash host/tools/provider_core.sh build
@@ -486,33 +486,33 @@ tests/repository/command:
 	bash host/tools/repository.sh --print tests/repository
 
 delivery/deployment/up:
-	bash host/tools/delivery.sh up
+	bash operations/delivery/deploy.sh up
 
 delivery/deployment/update:
-	bash host/tools/delivery_prepare.sh
-	bash host/tools/delivery.sh up
+	bash operations/delivery/prepare.sh
+	bash operations/delivery/deploy.sh up
 
 delivery/deployment/proxy/restart:
-	bash host/tools/delivery.sh proxy-restart
+	bash operations/delivery/deploy.sh proxy-restart
 
 delivery/deployment/down:
-	bash host/tools/delivery.sh down
+	bash operations/delivery/deploy.sh down
 
 delivery/deployment/status:
-	bash host/tools/delivery.sh status
+	bash operations/delivery/deploy.sh status
 
 delivery/deployment/logs:
-	bash host/tools/delivery.sh logs
+	bash operations/delivery/deploy.sh logs
 
 delivery/deployment/held:
-	bash host/tools/delivery.sh held
+	bash operations/delivery/deploy.sh held
 
 delivery/deployment/discard:
-	bash host/tools/delivery.sh discard
+	bash operations/delivery/deploy.sh discard
 
 delivery/deployment/retire-old:
 	[[ $${PROJECT_INPUT_ORIGIN} == 'command line' && $${SHARED_RUNTIME_IMAGE_INPUT_ORIGIN} == 'command line' ]] || { printf '%s\n' 'Select PROJECT and SHARED_RUNTIME_IMAGE on the Make command line.' >&2; exit 2; }
-	bash host/tools/delivery_retire_old.sh "$$PROJECT_INPUT" "$$SHARED_RUNTIME_IMAGE_INPUT"
+	bash operations/delivery/retire_old.sh "$$PROJECT_INPUT" "$$SHARED_RUNTIME_IMAGE_INPUT"
 
 publish/prepare:
 	bash host/tools/publish.sh prepare

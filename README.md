@@ -120,6 +120,10 @@ container-only `tools` package.
 `operations/docker/` owns local Docker context selection, client setup, image
 lifecycle and engine cache maintenance.
 
+`operations/delivery/` builds the shared delivery image and manages its
+deployment. Its `image/` directory contains the Dockerfile, the deployment
+entry point installed in the image and the runtime check used during its build.
+
 `packages/wheelhouse-tool/` owns the wheelhouse CLI, its image and bundle
 builders, and its operator launchers. Its Python import name is `wheelhouse_tool`.
 

@@ -39,6 +39,7 @@ SHELL_SURFACE_GLOBS = (
     "tools/**/*.sh",
     "operations/**/*.py",
     "operations/**/*.sh",
+    "operations/**/Dockerfile*",
     "src/**/*.py",
     "packages/*/src/**/*.py",
     "packages/*/build/**/*.py",

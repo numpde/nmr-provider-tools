@@ -11,7 +11,8 @@ import unittest
 import pathlib
 from unittest.mock import patch
 
-from tools import core_environment, delivery_image
+from operations.delivery import build_inputs as delivery_image
+from tools import core_environment
 from tests.repository.quality.sources import ROOT
 
 
@@ -78,7 +79,7 @@ class DeliveryReleaseTests(unittest.TestCase):
 
         with tempfile.TemporaryDirectory() as temporary:
             destination = pathlib.Path(temporary)
-            dockerfile = destination / "containers/delivery/Dockerfile"
+            dockerfile = destination / "operations/delivery/image/Dockerfile"
 
             dockerfile.parent.mkdir(parents=True)
             dockerfile.write_text("FROM scratch AS wheel_inputs\n# selected-wheel-inputs\n")

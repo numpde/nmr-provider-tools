@@ -89,7 +89,7 @@ def current_inputs(root):
             "pipefail",
             "-c",
             'root=$1; source "$root/host/tools/checker_inputs.sh"; checker_fingerprint checker; '
-            'source "$root/host/tools/delivery_identity.sh"; delivery_recipe_identity; checker_fingerprint bootstrap',
+            'source "$root/operations/delivery/image_identity.sh"; delivery_recipe_identity; checker_fingerprint bootstrap',
             "bash",
             str(root),
         ]

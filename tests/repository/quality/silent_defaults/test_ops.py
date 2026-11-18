@@ -38,8 +38,8 @@ ALLOWED_MAKE_DEFAULTS = {}
 # The installed runtime supplies its operational guard marker and forbids
 # bytecode writes on its read-only filesystem. Neither selects operator input.
 ALLOWED_DOCKER_DEFAULTS = {
-    ("ENV", "containers/delivery/Dockerfile", "PROVIDER_CORE_IN_CONTAINER", "1"),
-    ("ENV", "containers/delivery/Dockerfile", "PYTHONDONTWRITEBYTECODE", "1"),
+    ("ENV", "operations/delivery/image/Dockerfile", "PROVIDER_CORE_IN_CONTAINER", "1"),
+    ("ENV", "operations/delivery/image/Dockerfile", "PYTHONDONTWRITEBYTECODE", "1"),
 }
 
 ALLOWED_SHELL_DEFAULTS = set()
@@ -58,6 +58,7 @@ def ops_files() -> list[pathlib.Path]:
             "host/**/*.py",
             "operations/**/*.py",
             "operations/**/*.sh",
+            "operations/**/Dockerfile*",
             "packages/*/build/**/*.py",
             "packages/*/build/**/*.sh",
             "packages/*/build/**/Dockerfile*",

@@ -21,7 +21,9 @@ class DeliveryRetireOldTests(unittest.TestCase):
             tools = root / 'host/tools'
 
             tools.mkdir(parents=True)
-            shutil.copyfile(ROOT / 'host/tools/delivery_retire_old.sh', tools / 'delivery_retire_old.sh')
+            retirement_script = root / 'operations/delivery/retire_old.sh'
+            retirement_script.parent.mkdir(parents=True)
+            shutil.copyfile(ROOT / 'operations/delivery/retire_old.sh', retirement_script)
             (root / 'volumes').write_text(''.join(name + '\n' for name in names))
 
             (tools / 'checker_operation.sh').write_text(
@@ -84,7 +86,7 @@ checker_call() {
             }
 
             completed_process = subprocess.run(
-                ['bash', str(tools / 'delivery_retire_old.sh'), environment['PROBE_PROJECT'], environment['PROBE_IMAGE']],
+                ['bash', str(retirement_script), environment['PROBE_PROJECT'], environment['PROBE_IMAGE']],
                 env=environment,
                 text=True,
                 capture_output=True,

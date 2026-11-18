@@ -1,6 +1,6 @@
 """Project one selected API route into private proxy and client grants.
 
-The proxy recipe moves tools/delivery_deployment.py::_proxy. Binding admission
+The proxy recipe moves operations/delivery/image/delivery_deployment.py::_proxy. Binding admission
 owns API and route semantics; this module grants the chosen image, identity and
 storage to that fixed proxy. Credential capture and scientific routes stay with
 their existing owners. Rendering does not read the granted input files.
