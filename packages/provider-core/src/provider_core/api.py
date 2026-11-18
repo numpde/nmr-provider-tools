@@ -49,6 +49,7 @@ from provider_core.response_json import ResponseRejected
 from provider_core.signing import signed_request
 from provider_core.tools import duplicate_json_fields
 from provider_core.transport import ExchangeFailed, response_request_id
+from provider_core.type_requirements import require_type
 from provider_core.network import network_availability
 
 from provider_core.upload_response import (
@@ -144,10 +145,7 @@ def require_api_topology(value):
     credential profile 'run' is not the response topology 'web'. No default.
     """
 
-    if not (type(value) is (expected_type := str)):
-        raise TypeError(
-            f"{type(value)=} ≠ {expected_type=}"
-        )
+    require_type(value, str)
 
     if not (value in {"dev-local", "dev", "web"}):
         raise ValueError("Cannot configure Provider API: expected topology must be dev-local, dev or web")
@@ -792,15 +790,9 @@ class ProviderAPI:
         these observations from its authenticated feed before calling this method.
         """
 
-        if not (type(feed) is (expected_type := FeedInputFacts)):
-            raise TypeError(
-                f"{type(feed)=} ≠ {expected_type=}"
-            )
+        require_type(feed, FeedInputFacts)
 
-        if not (type(analysis_kind_ref) is (expected_type := str)):
-            raise TypeError(
-                f"{type(analysis_kind_ref)=} ≠ {expected_type=}"
-            )
+        require_type(analysis_kind_ref, str)
 
         if not (len(analysis_kind_ref) <= 128 and re.fullmatch('[a-z][a-z0-9]*(?:_[a-z0-9]+)*', analysis_kind_ref) is not None):
             raise ValueError(
