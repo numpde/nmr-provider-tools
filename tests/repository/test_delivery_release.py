@@ -100,7 +100,7 @@ class DeliveryReleaseTests(unittest.TestCase):
                 delivery_image.capture_image_inputs(None, None, self.pool, destination)
 
             self.assertEqual(
-                {"provider-core-install.lock", "provider-core-wheel-inputs.json", "provider-core-stream.json", "containers", "requirements"},
+                {"provider-core-install.lock", "provider-core-wheel-inputs.json", "provider-core-stream.json", "operations", "requirements"},
                 {path.name for path in destination.iterdir()},
             )
 
