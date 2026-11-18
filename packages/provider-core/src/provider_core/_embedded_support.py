@@ -134,7 +134,7 @@ class _Cleanup(_Changes):
         self.task = None
 
     def start(self, action):
-        self.task = self.loop.create_task(self._run(action))
+        self.task = self.loop.create_task(self._run_bounded_action(action))
 
     def _expire(self):
         # Observers can see allowance_expired; the cleanup task keeps running.
@@ -142,7 +142,7 @@ class _Cleanup(_Changes):
 
         self.changed()
 
-    async def _run(self, action):
+    async def _run_bounded_action(self, action):
         expiration_timer = self.loop.call_later(self.seconds, self._expire)
 
         try:

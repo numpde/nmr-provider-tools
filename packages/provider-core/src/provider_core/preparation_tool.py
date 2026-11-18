@@ -116,7 +116,7 @@ class PreparationTool[PreparedT]:
             raise RuntimeError(f"{self._proposal_lock=} should be unlocked")
 
         async with self._proposal_lock:
-            return await self._prepare(name=name, arguments=arguments, not_after=not_after)
+            return await self._submit_proposal(name=name, arguments=arguments, not_after=not_after)
 
     async def resume(self) -> ToolFinished:
         """Finish the original preparation after an interrupted wait or lost reply."""
@@ -141,7 +141,7 @@ class PreparationTool[PreparedT]:
 
         return failure.phase == "start" and isinstance(failure.cause, StartDeadlineExpired)
 
-    async def _prepare(self, *, name: str, arguments: dict, not_after: float) -> ToolFinished:
+    async def _submit_proposal(self, *, name: str, arguments: dict, not_after: float) -> ToolFinished:
         if not (self.prepared_state_handle is None):
             raise RuntimeError(f"{self.prepared_state_handle=} should be unset before proposing new input")
 

@@ -672,7 +672,7 @@ class AttemptExecutor:
         try:
             try:
                 reporter.require_execution()
-                result = await contain_task_exit(operation, *args, report_condition=reporter)
+                phase_outcome = await contain_task_exit(operation, *args, report_condition=reporter)
             except (Exception, BaseExceptionGroup, asyncio.CancelledError) as cause:
                 if reporter.failure is not None and cause is not reporter.failure:
                     if reporter.failure is self._observed_stop:
@@ -695,12 +695,12 @@ class AttemptExecutor:
                 if not (type(cause) is ObservedWorkerCrash):
                     raise
 
-                result = self._admit_worker_crash(cause, reporter)
+                phase_outcome = self._admit_worker_crash(cause, reporter)
 
             if not (reporter.failure is None):
                 raise reporter.failure
 
-            return result
+            return phase_outcome
         except asyncio.CancelledError as interruption:
             # Task.result() can consume the original cancellation. Capture it
             # in its coroutine, before either independent join observes it.

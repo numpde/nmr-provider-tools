@@ -14,10 +14,10 @@ require_container()
 import hashlib
 import inspect
 import json
+import pathlib
 from collections.abc import Callable, Mapping
 from enum import Enum
 from dataclasses import InitVar, dataclass, field, fields, is_dataclass, replace
-from pathlib import Path
 from threading import Lock
 from types import NoneType
 from typing import Any, ClassVar, Protocol, get_args, get_origin, get_type_hints
@@ -65,13 +65,13 @@ class AssetAccess(Protocol):
     A returned path is a lookup result; filesystem isolation is deployment-owned.
     """
 
-    def path(self, *, asset: AssetRef) -> Path: ...
+    def path(self, *, asset: AssetRef) -> pathlib.Path: ...
 
 
 class NoAssets:
     """An allocation with no file assets cannot resolve a content reference."""
 
-    def path(self, *, asset: AssetRef) -> Path:
+    def path(self, *, asset: AssetRef) -> pathlib.Path:
         raise LookupError(f"This allocation grants no asset {asset.digest}")
 
 

@@ -22,7 +22,7 @@ import stat
 import subprocess
 import time
 import uuid
-from pathlib import Path
+import pathlib
 
 from provider_core.runner_protocol import RetirementUnconfirmed, send_document, send_greeting
 from provider_core.tools import require_positive_number
@@ -324,7 +324,7 @@ def serve(options, argv, shutdown):
         scratch_fd = _private_directory(options.scratch)
         status_fd = _private_directory(options.status_directory)
         (lease, lock_identity) = _lease(parent)
-        status = ProcessStatus(Path(f"/proc/self/fd/{status_fd}"), options.role)
+        status = ProcessStatus(pathlib.Path(f"/proc/self/fd/{status_fd}"), options.role)
 
         status.refresh("starting")
 
@@ -407,9 +407,9 @@ def main(arguments=None):
     parser = argparse.ArgumentParser(description="Serve fixed native children on a private lifecycle socket.")
 
     parser.add_argument("--role", required=True)
-    parser.add_argument("--socket", type=Path, required=True)
-    parser.add_argument("--scratch", type=Path, required=True)
-    parser.add_argument("--status-directory", type=Path, required=True)
+    parser.add_argument("--socket", type=pathlib.Path, required=True)
+    parser.add_argument("--scratch", type=pathlib.Path, required=True)
+    parser.add_argument("--status-directory", type=pathlib.Path, required=True)
     lifetime = parser.add_mutually_exclusive_group(required=True)
 
     lifetime.add_argument("--operation-seconds", type=float)

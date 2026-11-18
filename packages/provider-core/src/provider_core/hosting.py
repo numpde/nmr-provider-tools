@@ -615,7 +615,7 @@ async def _join_settlement[ResultT](*, task: asyncio.Task[ResultT]) -> ResultT:
         cancellations_before_wait = waiter.cancelling()
 
         try:
-            result = await asyncio.shield(task)
+            cleanup_result = await asyncio.shield(task)
         except asyncio.CancelledError as cause:
             # A caller interruption can race with child completion.
             # Retain it before observing the child's terminal result on the next
@@ -646,7 +646,7 @@ async def _join_settlement[ResultT](*, task: asyncio.Task[ResultT]) -> ResultT:
             if interruptions:
                 raise BaseExceptionGroup("Shutdown observation was interrupted.", interruptions)
 
-            return result
+            return cleanup_result
 
 
 def _raise_context_failure(*, original: BaseException | None, cleanup: BaseException) -> Never:
@@ -690,7 +690,7 @@ class ResultConsumption:
     entering the context does not start acceptance or release an unused result.
     """
 
-    __slots__ = ("_operation", "_result", "_receive", "_acceptance", "_release")
+    __slots__ = ("_operation", "_result_ref", "_receive", "_acceptance", "_release")
 
     def __init__(
         self,
@@ -700,7 +700,7 @@ class ResultConsumption:
         receive: Callable[[bytes], Awaitable[None]],
     ) -> None:
         self._operation = operation
-        self._result = result
+        self._result_ref = result
         self._receive = receive
         self._acceptance: asyncio.Task[None] | None = None
         self._release: ResultRelease | None = None
@@ -724,7 +724,7 @@ class ResultConsumption:
 
     @property
     def result(self) -> ResultRef:
-        return self._result
+        return self._result_ref
 
     @property
     def acceptance(self) -> asyncio.Task[None] | None:

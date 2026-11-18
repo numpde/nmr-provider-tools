@@ -113,7 +113,7 @@ class _Operation(_Changes):
         )
 
         try:
-            self.original = self.science.resident.executor.submit(self._run)
+            self.original = self.science.resident.executor.submit(self._execute_science)
         except BaseException as cause:
             self.original = Future()
 
@@ -187,7 +187,7 @@ class _Operation(_Changes):
         else:
             permit.set_result(None)
 
-    def _run(self):
+    def _execute_science(self):
         phase = "start"
 
         try:
@@ -355,9 +355,9 @@ class _Operation(_Changes):
         contract_failures = []
 
         consumed_state_names = {
-            item.name
-            for item in self.call.description.state_inputs
-            if item.use is StateUse.CONSUME
+            state_input.name
+            for state_input in self.call.description.state_inputs
+            if state_input.use is StateUse.CONSUME
         }
 
         for returned_state in scientific_return.states:
@@ -409,13 +409,13 @@ class _Operation(_Changes):
         self.state_allowance += additional_state_reservations
 
         expected_state_kinds = {
-            item.name: item.kind
-            for item in self.call.description.state_outputs
+            state_output.name: state_output.kind
+            for state_output in self.call.description.state_outputs
         }
 
         actual_state_kinds = {
-            item.name: item.kind
-            for item in scientific_return.states
+            returned_state.name: returned_state.kind
+            for returned_state in scientific_return.states
         }
 
         if actual_state_kinds != expected_state_kinds:

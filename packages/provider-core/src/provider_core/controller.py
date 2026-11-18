@@ -581,15 +581,18 @@ class AttemptController:
         self._start_deferred = None
 
         try:
-            result = await contain_task_exit(self._run_effects, pending)
+            execution_outcome = await contain_task_exit(self._run_effects, pending)
 
-            if (type(result) is StartDeferred and result.may_have_committed) or type(result) is ActiveStartReplayHeld:
-                return result
+            if (
+                (type(execution_outcome) is StartDeferred and execution_outcome.may_have_committed) or
+                (type(execution_outcome) is ActiveStartReplayHeld)
+            ):
+                return execution_outcome
 
             self._claim.release(owner=self)
             self._lifetime = _Lifetime.RELEASED
 
-            return result
+            return execution_outcome
         except asyncio.CancelledError as cause:
             self._remember(cause)
 
@@ -881,7 +884,7 @@ class AttemptController:
 
         self._lifetime = _Lifetime.SETTLING
 
-        result = None
+        settlement_result = None
         failures = []
 
         try:
@@ -895,10 +898,10 @@ class AttemptController:
 
             for operation in operations:
                 try:
-                    value = await contain_task_exit(operation)
+                    cleanup_result = await contain_task_exit(operation)
 
-                    if value is not None:
-                        result = value
+                    if cleanup_result is not None:
+                        settlement_result = cleanup_result
                 except (Exception, BaseExceptionGroup, asyncio.CancelledError) as cause:
                     failures.append(cause)
                     self._remember(cause, cleanup=True)
@@ -939,7 +942,7 @@ class AttemptController:
                     and self.api.retirement_confirmed
                     and self.delivery.retirement_confirmed
                 ):
-                    return result
+                    return settlement_result
 
                 try:
                     self._claim.release(owner=self)
@@ -949,7 +952,7 @@ class AttemptController:
 
             self._lifetime = _Lifetime.RELEASED
 
-            return result
+            return settlement_result
         finally:
             if self._lifetime is _Lifetime.SETTLING:
                 self._lifetime = _Lifetime.HELD

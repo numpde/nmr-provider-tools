@@ -6,7 +6,7 @@ require_container()
 
 import fcntl
 import os
-from pathlib import Path
+import pathlib
 import stat
 
 
@@ -25,7 +25,7 @@ class ProviderLifetime:
     """
 
     def __init__(self, root):
-        if not isinstance(root, (expected_type := Path)):
+        if not isinstance(root, (expected_type := pathlib.Path)):
             raise TypeError(
                 f"{type(root)=} ≠ {expected_type=}"
             )
