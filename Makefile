@@ -340,7 +340,7 @@ help:
 	  ''
 
 packages/provider-core/download: checks/prepare
-	bash host/tools/provider_core.sh download
+	bash packages/provider-core/sdk_build/provider_core.sh download
 
 wheelhouse/image/build:
 	bash packages/wheelhouse-tool/build/build_image.sh build
@@ -358,7 +358,7 @@ wheelhouse/lock/acquire:
 	@bash packages/wheelhouse-tool/operations/acquire.sh
 
 packages/provider-core/check:
-	bash host/tools/provider_core.sh check
+	bash packages/provider-core/sdk_build/provider_core.sh check
 
 tests/deployment/route:
 	bash operations/delivery/test_routes.sh
@@ -376,25 +376,25 @@ delivery/image/build:
 	bash operations/delivery/build_image.sh
 
 package/build:
-	bash host/tools/provider_core.sh build
+	bash packages/provider-core/sdk_build/provider_core.sh build
 
 tests/package:
-	bash host/tools/provider_core.sh package
+	bash packages/provider-core/sdk_build/provider_core.sh package
 
 tests/unit/provider-core:
-	bash host/tools/provider_core.sh unit
+	bash packages/provider-core/sdk_build/provider_core.sh unit
 
 tests/fuzz/provider-core:
-	bash host/tools/provider_core.sh fuzz
+	bash packages/provider-core/sdk_build/provider_core.sh fuzz
 
 tests/contract/provider-core:
-	bash host/tools/provider_core.sh contract
+	bash packages/provider-core/sdk_build/provider_core.sh contract
 
 tests/integration/provider-core:
-	bash host/tools/provider_core.sh integration
+	bash packages/provider-core/sdk_build/provider_core.sh integration
 
 tests/integration/provider-core/delivery:
-	bash host/tools/provider_core.sh integration/delivery
+	bash packages/provider-core/sdk_build/provider_core.sh integration/delivery
 
 checks/base-image/download:
 	bash host/tools/checker.sh base-download
@@ -515,10 +515,10 @@ delivery/deployment/retire-old:
 	bash operations/delivery/retire_old.sh "$$PROJECT_INPUT" "$$SHARED_RUNTIME_IMAGE_INPUT"
 
 publish/prepare:
-	bash host/tools/publish.sh prepare
+	bash operations/release/publish.sh prepare
 
 publish/release:
-	bash host/tools/publish.sh release
+	bash operations/release/publish.sh release
 
 engine/cache/gc/install:
 	bash operations/docker/engine_cache_gc.sh install

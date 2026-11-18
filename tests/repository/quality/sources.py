@@ -51,6 +51,7 @@ def python_sources(*, production_only):
     patterns.extend((
         "packages/*/src/**/*.py",
         "packages/*/build/**/*.py",
+        "packages/provider-core/sdk_build/**/*.py",
         "packages/acquisition/acquisition_tool/**/*.py",
         "examples/*/src/**/*.py",
         "mocks/*/src/**/*.py",

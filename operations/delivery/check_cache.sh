@@ -12,6 +12,7 @@ checker_run 120 --pull never --network none --read-only --user "$uid:$gid" --cap
     --tmpfs /tmp:rw,nosuid,nodev,noexec,size=128m --workdir /workspace \
     --env NMR_PROVIDER_TOOLS_IN_CONTAINER=1 --env PYTHONDONTWRITEBYTECODE=1 --env PYTHONPATH=/workspace \
     --mount "type=bind,src=$root/tools,dst=/workspace/tools,readonly" \
+    --mount "type=bind,src=$root/packages/provider-core/sdk_build/provider_core_acquire.py,dst=/workspace/sdk_build/provider_core_acquire.py,readonly" \
     --mount "type=bind,src=$root/operations/delivery/build_inputs.py,dst=/workspace/operations/delivery/build_inputs.py,readonly" \
     --mount "type=bind,src=$root/requirements/provider-core.lock,dst=/core-runtime.lock,readonly" \
     --mount "type=bind,src=$root/requirements/delivery-release.json,dst=/release.json,readonly" \

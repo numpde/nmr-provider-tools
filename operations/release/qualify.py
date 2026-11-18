@@ -26,7 +26,7 @@ from pathlib import PurePosixPath
 from tools.artifacts import regular_file
 from build_bundle import build as build_wheelhouse_bundle
 from build_acquisition_bundle import build as build_acquisition_bundle
-from tools.core_environment import behavioral_install_lock, build_candidate, install_environment, wheelhouse_source_inventory
+from sdk_build.core_environment import behavioral_install_lock, build_candidate, install_environment, wheelhouse_source_inventory
 from tools.wheelhouse import digest, requirements
 
 
@@ -303,7 +303,7 @@ def qualify_acquisition_bundle(bundle, scratch, expected_source_files):
         check=True
     )
 
-    cold_import_check = pathlib.Path(__file__).resolve().parent.parent / "packages/acquisition/build/acquisition_import_check.py"
+    cold_import_check = pathlib.Path(__file__).resolve().parents[2] / "packages/acquisition/build/acquisition_import_check.py"
 
     subprocess.run(
         ["python3", "-I", "-S", "-B", str(cold_import_check), str(destination)],

@@ -15,7 +15,8 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from threading import Event, Thread
 from unittest.mock import patch
 
-from tools import provider_core_acquire, wheelhouse
+from sdk_build import provider_core_acquire
+from tools import wheelhouse
 
 
 class WheelhouseTests(unittest.TestCase):

@@ -74,7 +74,16 @@ def has_early_guard(source, *, package_marker=False, guard_module="tools.contain
 
 def unguarded_sources(root):
     """Include new production modules and fixture source without scanning upstream."""
-    sources = set(source_files(root=root, patterns=("tools/**/*.py", "operations/delivery/build_inputs.py", "tests/repository/**/*.py", "src/**/*.py")))
+    sources = set(source_files(root=root, patterns=(
+        "tools/**/*.py",
+        "operations/delivery/build_inputs.py",
+        "operations/release/qualify.py",
+        "packages/provider-core/sdk_build/*.py",
+        "tests/repository/**/*.py",
+        "src/**/*.py",
+    )))
+    # The isolated setuptools interpreter only receives the staged source and backend
+    sources.discard(root / "packages/provider-core/sdk_build/build_sdist.py")
     core_root = root / "packages/provider-core/src/provider_core"
     portable_roots = (core_root, root / "operations/delivery/image", root / "tests/deployment")
 
@@ -145,8 +154,8 @@ def boundary_imports(root):
             if not path.is_relative_to(directory):
                 continue
 
-            # The checker container prepares delivery image inputs
-            if path == root / "operations/delivery/build_inputs.py":
+            # These operations run in the checker container
+            if path in (root / "operations/delivery/build_inputs.py", root / "operations/release/qualify.py"):
                 continue
 
             for statement in ast.walk(ast.parse(path.read_text())):

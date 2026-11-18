@@ -17,7 +17,7 @@ import pathlib
 
 from tools.artifacts import regular_file, require_download_proxy
 from tools.installer import release as installer_release
-from tools.provider_core_acquire import acquire_tool, tool_present
+from sdk_build.provider_core_acquire import acquire_tool, tool_present
 from tools.wheelhouse import digest, pool_lock, read_json, requirements, select_wheels
 
 

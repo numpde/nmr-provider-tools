@@ -127,10 +127,12 @@ entry point installed in the image and the runtime check used during its build.
 `packages/wheelhouse-tool/` owns the wheelhouse CLI, its image and bundle
 builders, and its operator launchers. Its Python import name is `wheelhouse_tool`.
 
-`tools/` contains contained Python modules; operational entrypoints use the
-container guard. `containers/isolated/` contains build/qualification helpers
-invoked through isolated Python subprocesses; `containers/acquisition/` owns
-the container-side acquisition proxy source. The installed `provider_core`
+`packages/provider-core/sdk_build/` acquires SDK dependencies, builds distributions
+and runs tests against the installed SDK. `operations/release/` qualifies the
+resulting release artifacts and publishes them to GitHub.
+
+`tools/` contains shared Python modules for container operations.
+`containers/acquisition/` owns the container-side acquisition proxy source. The installed `provider_core`
 package contains both portable scientific contracts and guarded operational
 modules. The `bootstrap/acquisition/` tree is a pinned release snapshot; its
 internal `tools/` and `acquisition_tool/` paths are deliberately unchanged.

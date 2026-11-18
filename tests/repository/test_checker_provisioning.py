@@ -175,5 +175,5 @@ if checker_admit_image "$fingerprint" checker; then [[ $checker_image == "$ident
 
         self.assertLess(
             completed_process.stdout.index("bash host/tools/checker.sh prepare"),
-            completed_process.stdout.index("bash host/tools/provider_core.sh download")
+            completed_process.stdout.index("bash packages/provider-core/sdk_build/provider_core.sh download")
         )

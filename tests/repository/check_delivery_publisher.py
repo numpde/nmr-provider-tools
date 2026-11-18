@@ -11,7 +11,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from threading import Thread
 
 from operations.delivery.build_inputs import publish_release_wheels, release_inputs
-from tools.provider_core_acquire import tool_present
+from sdk_build.provider_core_acquire import tool_present
 from tools.wheelhouse import read_json
 
 

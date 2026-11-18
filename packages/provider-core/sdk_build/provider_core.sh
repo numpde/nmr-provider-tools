@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Explicit wheel acquisition, installed tests and committed-source package builds.
 set -euo pipefail
-root=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/../.." && pwd -P)
+root=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/../../.." && pwd -P)
 printing=false
 if [[ $# -gt 0 && $1 == --print ]]; then printing=true; shift; fi
 if [[ $# != 1 ]]; then printf '%s\n' 'Supply one provider-core target from make help.' >&2; exit 2; fi
@@ -53,6 +53,7 @@ worker=(--pull never --read-only "${worker_identity[@]}" --cap-drop ALL --securi
     --env NMR_PROVIDER_TOOLS_IN_CONTAINER=1 --env PROVIDER_CORE_IN_CONTAINER=1
     --env PYTHONDONTWRITEBYTECODE=1 --env PYTHONPATH=/workspace:/workspace/wheelhouse-build:/workspace/packages/acquisition/build
     --mount "type=bind,src=$root/tools,dst=/workspace/tools,readonly"
+    --mount "type=bind,src=$root/packages/provider-core/sdk_build,dst=/workspace/sdk_build,readonly"
     --mount "type=bind,src=$root/packages/wheelhouse-tool/src/wheelhouse_tool,dst=/workspace/wheelhouse_tool,readonly"
     --mount "type=bind,src=$root/packages/wheelhouse-tool/build,dst=/workspace/wheelhouse-build,readonly"
     --mount "type=bind,src=$root/packages/acquisition,dst=/workspace/packages/acquisition,readonly"
@@ -97,7 +98,7 @@ if [[ $action == download ]]; then
         done
         checker_run 120 "${worker[@]}" --network none --user "$checker_host_uid:$checker_host_gid" \
             --mount "type=bind,src=$wheelhouse_directory,dst=/wheelhouse,readonly" \
-            --entrypoint python3 "$tool_image" -B -m tools.provider_core_acquire check > "$operation_directory/pool-state"
+            --entrypoint python3 "$tool_image" -B -m sdk_build.provider_core_acquire check > "$operation_directory/pool-state"
         checker_metadata "$operation_directory/pool-check-exit" inspect --format '{{.State.Running}} {{.State.ExitCode}}' "$operation_container"
         cmp -s "$operation_directory/pool-check-exit" <(printf 'false 0\n') || {
             operation_diagnostic+=$'Cannot acquire dependencies: the pool check did not retire successfully.\n'; exit 2;
@@ -116,11 +117,11 @@ if [[ $action == download ]]; then
         acquisition_receipt_options=(--retired-receipt "$operation_acquisition_receipt")
     fi
     "${network[@]}" run --image "$tool_image" "${acquisition_receipt_options[@]}" -- "${worker[@]}" --mount "type=bind,src=$wheelhouse_directory,dst=/wheelhouse" \
-        --entrypoint python3 -- -B -m tools.provider_core_acquire
+        --entrypoint python3 -- -B -m sdk_build.provider_core_acquire
     if ! "$printing"; then
         checker_run 120 "${worker[@]}" --network none --user "$checker_host_uid:$checker_host_gid" \
             --mount "type=bind,src=$wheelhouse_directory,dst=/wheelhouse,readonly" \
-            --entrypoint python3 "$tool_image" -B -m tools.provider_core_acquire verify > /dev/null
+            --entrypoint python3 "$tool_image" -B -m sdk_build.provider_core_acquire verify > /dev/null
         checker_metadata "$operation_directory/final-check-exit" inspect --format '{{.State.Running}} {{.State.ExitCode}}' "$operation_container"
         cmp -s "$operation_directory/final-check-exit" <(printf 'false 0\n') || {
             operation_diagnostic+=$'Cannot confirm dependency acquisition: the final pool check did not retire successfully.\n'; exit 2;
@@ -132,7 +133,7 @@ require_wheelhouse_pool
 case "$action" in
     check)
         arguments=("${worker[@]}" --network none --mount "type=bind,src=$wheelhouse_directory,dst=/wheelhouse,readonly"
-            --entrypoint python3 "$tool_image" -B -m tools.provider_core_acquire verify)
+            --entrypoint python3 "$tool_image" -B -m sdk_build.provider_core_acquire verify)
         budget=60
         ;;
     unit|contract|integration|integration/delivery|fuzz)
@@ -152,10 +153,9 @@ case "$action" in
         fi
         arguments=("${worker[@]}" --network none --init --tmpfs /runtime:rw,nosuid,nodev,exec,size=256m,mode=1777
             --mount "type=bind,src=$root/packages/provider-core,dst=/package,readonly"
-            --mount "type=bind,src=$root/containers/isolated,dst=/workspace/containers/isolated,readonly"
             "${example_mount[@]}"
             --mount "type=bind,src=$wheelhouse_directory,dst=/wheelhouse,readonly"
-            --entrypoint python3 "$tool_image" -B -m tools.provider_core_tests "$action" --pattern "$pattern")
+            --entrypoint python3 "$tool_image" -B -m sdk_build.provider_core_tests "$action" --pattern "$pattern")
         budget=untimed
         ;;
     package)
@@ -179,7 +179,7 @@ case "$action" in
             --mount "type=bind,src=$root/host,dst=/workspace/host,readonly"
             --mount "type=bind,src=$root/operations,dst=/workspace/operations,readonly"
             --mount "type=bind,src=$root/requirements/installer-release.json,dst=/workspace/requirements/installer-release.json,readonly"
-            --entrypoint python3 "$tool_image" -B -m tools.package --artifacts /artifacts --revision "$revision")
+            --entrypoint python3 "$tool_image" -B -m operations.release.qualify --artifacts /artifacts --revision "$revision")
         budget=untimed
         ;;
     build)
@@ -234,12 +234,14 @@ fi
 if [[ $action == package ]]; then
     mkdir -- "$operation_directory/source"
     checker_call 'committed qualification source capture' 30 stdio git -C "$root" -c tar.umask=0022 archive --format=tar \
-        --output="$operation_directory/source.tar" "$revision" tools packages/wheelhouse-tool packages/acquisition host operations containers requirements
+        --output="$operation_directory/source.tar" "$revision" tools packages/provider-core/sdk_build packages/wheelhouse-tool packages/acquisition host operations containers requirements
     tar --same-permissions -xf "$operation_directory/source.tar" -C "$operation_directory/source"
     for index in "${!arguments[@]}"; do
         case "${arguments[index]}" in
             "type=bind,src=$root/requirements/installer-release.json,dst=/workspace/requirements/installer-release.json,readonly")
                 arguments[index]="type=bind,src=$operation_directory/source/requirements/installer-release.json,dst=/workspace/requirements/installer-release.json,readonly" ;;
+            "type=bind,src=$root/packages/provider-core/sdk_build,dst=/workspace/sdk_build,readonly")
+                arguments[index]="type=bind,src=$operation_directory/source/packages/provider-core/sdk_build,dst=/workspace/sdk_build,readonly" ;;
             "type=bind,src=$root/tools,dst=/workspace/tools,readonly")
                 arguments[index]="type=bind,src=$operation_directory/source/tools,dst=/workspace/tools,readonly" ;;
             "type=bind,src=$root/packages/acquisition,dst=/workspace/packages/acquisition,readonly")
@@ -270,11 +272,14 @@ if [[ $action == build ]]; then
     checker_call 'committed core source capture' 30 stdio git -C "$root" -c tar.umask=0022 archive --format=tar \
         --output="$operation_directory/source.tar" "$revision" packages/provider-core packages/acquisition requirements tools packages/wheelhouse-tool host operations containers
     tar --same-permissions -xf "$operation_directory/source.tar" -C "$operation_directory/source"
+    # Keep build programs outside the package tree recorded in the release inventory
+    mv -- "$operation_directory/source/packages/provider-core/sdk_build" "$operation_directory/sdk_build"
     arguments=(--pull never --network none --read-only --user "$checker_host_uid:$checker_host_gid" --cap-drop ALL --security-opt no-new-privileges:true
         --cpus 2 --memory 1g --memory-swap 1g --pids-limit 128 --tmpfs /tmp:rw,nosuid,nodev,noexec,size=256m
         --workdir /workspace --env NMR_PROVIDER_TOOLS_IN_CONTAINER=1 --env PROVIDER_CORE_IN_CONTAINER=1
         --env PYTHONDONTWRITEBYTECODE=1 --env PYTHONPATH=/workspace:/workspace/wheelhouse-build:/workspace/packages/acquisition/build
         --mount "type=bind,src=$operation_directory/source/tools,dst=/workspace/tools,readonly"
+        --mount "type=bind,src=$operation_directory/sdk_build,dst=/workspace/sdk_build,readonly"
         --mount "type=bind,src=$operation_directory/source/packages/wheelhouse-tool/src/wheelhouse_tool,dst=/workspace/wheelhouse_tool,readonly"
         --mount "type=bind,src=$operation_directory/source/packages/wheelhouse-tool/build,dst=/workspace/wheelhouse-build,readonly"
         --mount "type=bind,src=$operation_directory/source/packages/acquisition,dst=/workspace/packages/acquisition,readonly"
@@ -286,7 +291,7 @@ if [[ $action == build ]]; then
         --mount "type=bind,src=$operation_directory/source/requirements/installer-release.json,dst=/workspace/requirements/installer-release.json,readonly"
         --mount "type=bind,src=$release_output,dst=/output"
         --mount "type=bind,src=$wheelhouse_directory,dst=/wheelhouse,readonly"
-        --entrypoint python3 "$tool_image" -B -m tools.core_environment release --pool /wheelhouse
+        --entrypoint python3 "$tool_image" -B -m sdk_build.core_environment release --pool /wheelhouse
         --source /package --runtime-lock /requirements/provider-core.lock --build-lock /requirements/provider-core-build.lock
         --output /output --revision "$revision")
     budget=900

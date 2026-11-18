@@ -8,7 +8,7 @@ import pathlib
 import unittest
 from unittest.mock import patch
 
-from tools import provider_core_tests
+from sdk_build import provider_core_tests
 
 
 class ProviderCoreTestSelectionTests(unittest.TestCase):

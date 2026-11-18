@@ -17,7 +17,7 @@ import pathlib
 from contextlib import redirect_stdout
 from unittest.mock import call, patch
 
-from tools.package import (
+from operations.release.qualify import (
     artifact_names,
     check,
     qualify_acquisition_bundle,
@@ -26,7 +26,7 @@ from tools.package import (
     wheel_payload,
 )
 
-from tools.core_environment import behavioral_install_lock, build_source_wheel, normalize_sdist
+from sdk_build.core_environment import behavioral_install_lock, build_source_wheel, normalize_sdist
 from tools.wheelhouse import digest
 from tests.repository.quality.sources import ROOT, source_files
 
@@ -104,7 +104,7 @@ class PackageArtifactTests(unittest.TestCase):
                     },
                 }
 
-                with patch("tools.package.subprocess.run") as commands:
+                with patch("operations.release.qualify.subprocess.run") as commands:
                     with self.assertRaises(ValueError):
                         qualify_acquisition_bundle(archive_path, scratch, expected)
 
@@ -141,7 +141,7 @@ class PackageArtifactTests(unittest.TestCase):
                     for (name, payload) in zip(names, payloads, strict=True)
                 }
 
-                with patch("tools.package.subprocess.run") as commands:
+                with patch("operations.release.qualify.subprocess.run") as commands:
                     with self.assertRaises(ValueError):
                         qualify_acquisition_bundle(archive_path, scratch, expected)
 
@@ -170,7 +170,7 @@ class PackageArtifactTests(unittest.TestCase):
             for (name, payload, _, mode) in members
         }
 
-        with patch("tools.package.subprocess.run") as commands:
+        with patch("operations.release.qualify.subprocess.run") as commands:
             qualify_acquisition_bundle(archive_path, scratch, expected)
 
         extracted = scratch / "acquisition-source"
@@ -222,7 +222,7 @@ class PackageArtifactTests(unittest.TestCase):
             },
         }
 
-        with patch("tools.package.subprocess.run") as commands:
+        with patch("operations.release.qualify.subprocess.run") as commands:
             with self.assertRaises(ValueError):
                 qualify_acquisition_bundle(archive_path, scratch, expected)
 
@@ -395,8 +395,8 @@ class PackageArtifactTests(unittest.TestCase):
             (staged_source / "build/lib/dummy_provider").mkdir(parents=True)
 
         with (
-            patch("tools.core_environment.pip_command", return_value=["python", "-m", "pip"]),
-            patch("tools.core_environment.subprocess.run", side_effect=simulate_backend) as runner,
+            patch("sdk_build.core_environment.pip_command", return_value=["python", "-m", "pip"]),
+            patch("sdk_build.core_environment.subprocess.run", side_effect=simulate_backend) as runner,
         ):
             actual = build_source_wheel(
                 source=source,
@@ -431,8 +431,8 @@ class PackageArtifactTests(unittest.TestCase):
         staged_source = self.root / "staged"
 
         with (
-            patch("tools.core_environment.pip_command", return_value=["python", "-m", "pip"]),
-            patch("tools.core_environment.subprocess.run"),
+            patch("sdk_build.core_environment.pip_command", return_value=["python", "-m", "pip"]),
+            patch("sdk_build.core_environment.subprocess.run"),
         ):
             build_source_wheel(
                 source=source,
@@ -454,7 +454,7 @@ class PackageArtifactTests(unittest.TestCase):
         source.mkdir()
         (source / "pyproject.toml").write_text("[project]\\nname='fixture'\\n")
 
-        with patch("tools.core_environment.subprocess.run") as runner:
+        with patch("sdk_build.core_environment.subprocess.run") as runner:
             with self.assertRaisesRegex(ValueError, "outside the input tree"):
                 build_source_wheel(
                     source=source,
@@ -481,12 +481,9 @@ class PackageArtifactTests(unittest.TestCase):
         wheel_calls = []
         shared_callers = []
 
-        paths = source_files(root=ROOT, patterns=("tools/*.py",))
+        paths = source_files(root=ROOT, patterns=("tools/*.py", "packages/provider-core/sdk_build/*.py"))
 
         for path in paths:
-            if path.parent != ROOT / "tools":
-                continue
-
             module = ast.parse(path.read_text(), filename=str(path))
 
             for function in (node for node in ast.walk(module) if isinstance(node, ast.FunctionDef)):

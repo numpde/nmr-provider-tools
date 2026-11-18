@@ -26,7 +26,7 @@ class PublicationTests(unittest.TestCase):
         self.addCleanup(temporary.cleanup)
         self.root = pathlib.Path(temporary.name)
 
-        for name in ("host/tools/publish.sh", "host/tools/inference_native.sh", "host/tools/wheelhouse_path.sh"):
+        for name in ("operations/release/publish.sh", "host/tools/inference_native.sh", "host/tools/wheelhouse_path.sh"):
             target = self.root / name
 
             target.parent.mkdir(parents=True, exist_ok=True)
@@ -35,7 +35,8 @@ class PublicationTests(unittest.TestCase):
         (self.root / "operations/docker").mkdir(parents=True)
         (self.root / "operations/docker/docker_context.sh").write_text("select_docker_context() { :; }\n")
 
-        (self.root / "host/tools/provider_core.sh").write_text(
+        (self.root / "packages/provider-core/sdk_build").mkdir(parents=True)
+        (self.root / "packages/provider-core/sdk_build/provider_core.sh").write_text(
             '#!/usr/bin/env bash\nset -euo pipefail\n'
             'if [[ $1 == build ]]; then\n'
             '  make --no-print-directory package/build "WHEELHOUSE=$WHEELHOUSE_INPUT" "OUTPUT=$OUTPUT_INPUT"\n'
@@ -84,7 +85,7 @@ class PublicationTests(unittest.TestCase):
             selected_environment.update(environment)
 
         return subprocess.run(
-            ["bash", str(self.root / "host/tools/publish.sh"), action],
+            ["bash", str(self.root / "operations/release/publish.sh"), action],
             cwd=self.root,
             env={
                 "PATH": str(self.bin) + os.pathsep + os.defpath,

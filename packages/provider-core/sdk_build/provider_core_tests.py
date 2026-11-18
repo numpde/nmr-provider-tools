@@ -17,7 +17,7 @@ import tempfile
 import tomllib
 import pathlib
 
-from tools.core_environment import (
+from sdk_build.core_environment import (
     behavioral_install_lock,
     build_candidate,
     build_source_wheel,

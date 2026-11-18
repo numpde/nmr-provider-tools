@@ -11,9 +11,9 @@ uid=$(id -u) gid=$(id -g)
 if [[ $uid == 0 || $gid == 0 || $root =~ [[:cntrl:],] ]]; then
     printf '%s\n' 'Cannot build shared delivery: use a nonzero caller and repository path without mount delimiters.' >&2; exit 2
 fi
-inputs=(operations/docker/base_image.sh tools/container_guard.py tools/artifacts.py tools/wheelhouse.py tools/core_environment.py
+inputs=(operations/docker/base_image.sh tools/container_guard.py tools/artifacts.py tools/wheelhouse.py packages/provider-core/sdk_build/core_environment.py
     tools/installer.py requirements/installer-release.json
-    operations/delivery/build_inputs.py operations/delivery/image/delivery_deployment.py tools/provider_core_acquire.py host/tools/build_stream_inputs.py
+    operations/delivery/build_inputs.py operations/delivery/image/delivery_deployment.py packages/provider-core/sdk_build/provider_core_acquire.py host/tools/build_stream_inputs.py
     requirements/provider-core.lock requirements/delivery-release.json requirements/wheelhouse-tool-release.json
     operations/delivery/image/Dockerfile operations/delivery/image/check_runtime.py)
 source "$root/host/tools/checker_operation.sh"
@@ -49,6 +49,7 @@ checker_run 120 --pull never --network none --read-only --user "$checker_host_ui
     --cpus 2 --memory 512m --memory-swap 512m --pids-limit 64 --tmpfs /tmp:rw,nosuid,nodev,noexec,size=128m \
     --workdir /workspace --env NMR_PROVIDER_TOOLS_IN_CONTAINER=1 --env PYTHONDONTWRITEBYTECODE=1 --env PYTHONPATH=/workspace \
     --mount "type=bind,src=$context/tools,dst=/workspace/tools,readonly" \
+    --mount "type=bind,src=$context/packages/provider-core/sdk_build/provider_core_acquire.py,dst=/workspace/sdk_build/provider_core_acquire.py,readonly" \
     --mount "type=bind,src=$context/operations/delivery/build_inputs.py,dst=/workspace/operations/delivery/build_inputs.py,readonly" \
     --mount "type=bind,src=$context/requirements/provider-core.lock,dst=/core-runtime.lock,readonly" \
     --mount "type=bind,src=$context/requirements/delivery-release.json,dst=/release.json,readonly" \

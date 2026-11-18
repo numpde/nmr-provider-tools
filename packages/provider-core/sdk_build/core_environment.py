@@ -180,7 +180,7 @@ def _build_candidate(source, runtime_lock, build_lock, pool, output, lock_fd):
             output=output,
         )
 
-        sdist_builder = pathlib.Path(__file__).resolve().parent.parent / "containers/isolated/build_sdist.py"
+        sdist_builder = pathlib.Path(__file__).with_name("build_sdist.py")
 
         subprocess.run(
             [

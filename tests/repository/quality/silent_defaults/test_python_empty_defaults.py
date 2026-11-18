@@ -21,6 +21,7 @@ PYTHON_SURFACE_GLOBS = (
     "src/**/*.py",
     "packages/*/src/**/*.py",
     "packages/*/build/**/*.py",
+    "packages/provider-core/sdk_build/**/*.py",
     "packages/acquisition/acquisition_tool/**/*.py",
 )
 

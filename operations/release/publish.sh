@@ -133,7 +133,7 @@ if [[ $action == prepare ]]; then
     select_docker_context
     mkdir -m 700 -- "$scratch/artifacts"
     cp -- "${notes[0]}" "$scratch/release-notes.md"
-    if nested 'release package build' env WHEELHOUSE_INPUT_ORIGIN='command line' WHEELHOUSE_INPUT="$wheelhouse_directory" OUTPUT_INPUT_ORIGIN='command line' OUTPUT_INPUT="$scratch/artifacts" bash "$root/host/tools/provider_core.sh" build > "$scratch/release-build.log" 2>&1; then
+    if nested 'release package build' env WHEELHOUSE_INPUT_ORIGIN='command line' WHEELHOUSE_INPUT="$wheelhouse_directory" OUTPUT_INPUT_ORIGIN='command line' OUTPUT_INPUT="$scratch/artifacts" bash "$root/packages/provider-core/sdk_build/provider_core.sh" build > "$scratch/release-build.log" 2>&1; then
         :
     else
         status=$?
@@ -141,7 +141,7 @@ if [[ $action == prepare ]]; then
         exit "$status"
     fi
     [[ -f $scratch/artifacts/$wheel && -f $scratch/artifacts/$sdist ]] || fail 'TAG must match the built package version.'
-    if nested 'exact release artifact qualification' env WHEELHOUSE_INPUT_ORIGIN='command line' WHEELHOUSE_INPUT="$wheelhouse_directory" ARTIFACTS_INPUT_ORIGIN='command line' ARTIFACTS_INPUT="$scratch/artifacts" bash "$root/host/tools/provider_core.sh" package > "$scratch/release-test.log" 2>&1; then
+    if nested 'exact release artifact qualification' env WHEELHOUSE_INPUT_ORIGIN='command line' WHEELHOUSE_INPUT="$wheelhouse_directory" ARTIFACTS_INPUT_ORIGIN='command line' ARTIFACTS_INPUT="$scratch/artifacts" bash "$root/packages/provider-core/sdk_build/provider_core.sh" package > "$scratch/release-test.log" 2>&1; then
         :
     else
         status=$?

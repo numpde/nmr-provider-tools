@@ -8,7 +8,7 @@ import pathlib
 from tempfile import TemporaryDirectory
 import unittest
 
-from tools.provider_core_tests import _discover_examples, _discover_mocks
+from sdk_build.provider_core_tests import _discover_examples, _discover_mocks
 
 
 class ExampleDependencyTests(unittest.TestCase):

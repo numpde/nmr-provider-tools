@@ -12,7 +12,7 @@ import pathlib
 from unittest.mock import patch
 
 from operations.delivery import build_inputs as delivery_image
-from tools import core_environment
+from sdk_build import core_environment
 from tests.repository.quality.sources import ROOT
 
 

@@ -14,7 +14,7 @@ import zipfile
 import pathlib
 
 from build_bundle import build
-from tools.core_environment import wheelhouse_source_inventory
+from sdk_build.core_environment import wheelhouse_source_inventory
 from tools.installer import create_environment, pip_command
 
 
