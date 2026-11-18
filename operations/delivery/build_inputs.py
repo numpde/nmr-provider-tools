@@ -92,29 +92,21 @@ def publish_release_wheels(tool, pool, artifacts):
         acquisition_lock = pathlib.Path(temporary) / "pylock.delivery.toml"
 
         with acquisition_lock.open("x", encoding="utf-8") as stream:
-            stream.write(
-                'lock-version = "1.0"\n'
-                'created-by = "nmr-provider-tools delivery"\n'
-            )
+            print('lock-version = "1.0"', file=stream)
+            print('created-by = "nmr-provider-tools delivery"', file=stream)
 
             for (wheel_name, checksum, url) in artifacts:
                 (distribution, version, _, _) = parse_wheel_filename(wheel_name)
 
-                stream.write("[[packages]]\n")
+                print("[[packages]]", file=stream)
+                print(f"name = {json.dumps(str(distribution))}", file=stream)
+                print(f"version = {json.dumps(str(version))}", file=stream)
 
-                stream.write(
-                    f"name = {json.dumps(str(distribution))}\n"
-                    f"version = {json.dumps(str(version))}\n"
-                )
+                print("[packages.archive]", file=stream)
+                print(f"url = {json.dumps(url)}", file=stream)
 
-                stream.write(
-                    "[packages.archive]\n"
-                    f"url = {json.dumps(url)}\n"
-                )
-                stream.write(
-                    "[packages.archive.hashes]\n"
-                    f"sha256 = {json.dumps(checksum)}\n"
-                )
+                print("[packages.archive.hashes]", file=stream)
+                print(f"sha256 = {json.dumps(checksum)}", file=stream)
 
         subprocess.run(
             [
@@ -205,7 +197,7 @@ def _capture_image_inputs(pin, runtime_lock, pool, destination, lock_fd):
 
     with wheel_input_record.open("x", encoding="utf-8") as target:
         json.dump(selected_wheels, target, sort_keys=True)
-        target.write("\n")
+        print(file=target)
 
     wheel_input_record.chmod(0o644)
 
@@ -246,7 +238,7 @@ def _capture_image_inputs(pin, runtime_lock, pool, destination, lock_fd):
             sort_keys=True,
         )
 
-        target.write("\n")
+        print(file=target)
 
     stream_manifest.chmod(0o644)
 

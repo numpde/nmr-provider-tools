@@ -166,7 +166,7 @@ def install(root, context, endpoint, daemon_config_path):
         with os.fdopen(temporary_fd, "w", encoding="utf-8") as output:
             os.fchmod(output.fileno(), stat.S_IMODE(daemon_config_path.stat().st_mode))
             json.dump(proposed_configuration, output, indent=2)
-            output.write("\n")
+            print(file=output)
             output.flush()
             os.fsync(output.fileno())
 

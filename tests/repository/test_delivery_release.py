@@ -81,6 +81,33 @@ class DeliveryReleaseTests(unittest.TestCase):
         self.assertEqual(self.wheel.name, publish.call_args.args[2][0][0])
         self.assertEqual(self.digest, publish.call_args.args[2][0][1])
 
+    def test_publisher_receives_the_exact_toml_lock(self):
+        wheel_url = "https://example.invalid/provider_core-1.2.3-py3-none-any.whl"
+        expected_lock = (
+            'lock-version = "1.0"\n'
+            'created-by = "nmr-provider-tools delivery"\n'
+            '[[packages]]\n'
+            'name = "provider-core"\n'
+            'version = "1.2.3"\n'
+            '[packages.archive]\n'
+            f'url = "{wheel_url}"\n'
+            '[packages.archive.hashes]\n'
+            f'sha256 = "{self.digest}"\n'
+        ).encode("utf-8")
+
+        def inspect_lock(command, *, check):
+            generated_lock = pathlib.Path(command[command.index("--lock") + 1])
+            self.assertEqual(first=expected_lock, second=generated_lock.read_bytes())
+
+        with patch.object(delivery_image.subprocess, "run", side_effect=inspect_lock) as publish:
+            delivery_image.publish_release_wheels(
+                self.pool / "tool.pyz",
+                self.pool,
+                [(self.wheel.name, self.digest, wheel_url)],
+            )
+
+        publish.assert_called_once()
+
     def test_publisher_failure_is_reported(self):
         with patch.object(delivery_image, "require_download_proxy"), patch.object(
             delivery_image,

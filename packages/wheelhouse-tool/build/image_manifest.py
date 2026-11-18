@@ -20,7 +20,7 @@ def main():
             sort_keys=True
         )
 
-        stream.write("\n")
+        print(file=stream)
 
 
 if __name__ == "__main__":
