@@ -22,6 +22,7 @@ from types import NoneType
 from typing import Any, Protocol, get_args, get_origin, get_type_hints, runtime_checkable
 
 from provider_core.contribution_errors import ScientificRejection
+from provider_core.type_requirements import require_type
 
 from provider_core.payload import (
     DataclassStateBinding,
@@ -299,8 +300,7 @@ class AssetDescription:
         _identity(self.media_type, "Asset media type")
         _digest(self.digest, "Asset digest")
 
-        if not (type((actual_size_bytes := self.size_bytes)) is (expected_type := int)):
-            raise TypeError(f"{type(actual_size_bytes)=} ≠ {expected_type=}")
+        require_type(self.size_bytes, int)
 
         if not (0 < self.size_bytes):
             raise ValueError("Asset byte count must be a positive integer")
@@ -330,8 +330,7 @@ class ConfiguredIdentity:
         if not self.implementation.isascii():
             raise ValueError("Implementation identity must be ASCII")
 
-        if not (type((actual_contract_version := self.contract_version)) is (expected_type := int)):
-            raise TypeError(f"{type(actual_contract_version)=} ≠ {expected_type=}")
+        require_type(self.contract_version, int)
 
         if not (0 < self.contract_version):
             raise ValueError("Contract version must be a positive integer")
@@ -388,8 +387,7 @@ class ResourceRequirement:
         _identity(self.kind, "Resource kind")
         _identity(self.unit, "Resource unit")
 
-        if not (type((actual_amount := self.amount)) is (expected_type := int)):
-            raise TypeError(f"{type(actual_amount)=} ≠ {expected_type=}")
+        require_type(self.amount, int)
 
         if not (0 < self.amount):
             raise ValueError("Resource amount must be a positive integer")
@@ -397,8 +395,7 @@ class ResourceRequirement:
         if self.selector is not None:
             _identity(self.selector, "Resource selector")
 
-        if not (type((actual_exclusive := self.exclusive)) is (expected_type := bool)):
-            raise TypeError(f"{type(actual_exclusive)=} ≠ {expected_type=}")
+        require_type(self.exclusive, bool)
 
     @property
     def identity(self) -> tuple[str, str, str | None]:
@@ -408,12 +405,10 @@ class ResourceRequirement:
 def _require_resource_requirements(resource_requirements: object) -> None:
     """Require unordered immutable needs with one quantity per resource identity."""
 
-    if not (type(resource_requirements) is (expected_type := frozenset)):
-        raise TypeError(f"{type(resource_requirements)=} ≠ {expected_type=}")
+    require_type(resource_requirements, frozenset)
 
     for resource_requirement in resource_requirements:
-        if not (type(resource_requirement) is (expected_type := ResourceRequirement)):
-            raise TypeError(f"{type(resource_requirement)=} ≠ {expected_type=}")
+        require_type(resource_requirement, ResourceRequirement)
 
     _unique(
         values=resource_requirements,
@@ -432,8 +427,7 @@ class StateParameter:
         _identity(self.name, "State parameter name")
         _identity(self.kind, "Scientific state kind")
 
-        if not (type((actual_use := self.use)) is (expected_type := StateUse)):
-            raise TypeError(f"{type(actual_use)=} ≠ {expected_type=}")
+        require_type(self.use, StateUse)
 
 
 @runtime_checkable
@@ -476,11 +470,9 @@ class ProgressEvent:
             raise ValueError("Progress completed and total must be supplied together")
 
         if self.completed is not None:
-            if not (type((actual_completed := self.completed)) is (expected_type := int)):
-                raise TypeError(f"{type(actual_completed)=} ≠ {expected_type=}")
+            require_type(self.completed, int)
 
-            if not (type((actual_total := self.total)) is (expected_type := int)):
-                raise TypeError(f"{type(actual_total)=} ≠ {expected_type=}")
+            require_type(self.total, int)
 
             if not (0 <= self.completed <= self.total and 0 < self.total):
                 raise ValueError("Progress counts must satisfy 0 <= completed <= total and total > 0")
@@ -550,14 +542,11 @@ class CallDescription:
         _unique(self.state_outputs, lambda value: value.name, "State outputs")
         _require_resource_requirements(resource_requirements=self.resources)
 
-        if not (type((actual_concurrency := self.concurrency)) is (expected_type := ConcurrencyRequirement)):
-            raise TypeError(f"{type(actual_concurrency)=} ≠ {expected_type=}")
+        require_type(self.concurrency, ConcurrencyRequirement)
 
-        if not (type((actual_interruption := self.interruption)) is (expected_type := InterruptionSupport)):
-            raise TypeError(f"{type(actual_interruption)=} ≠ {expected_type=}")
+        require_type(self.interruption, InterruptionSupport)
 
-        if not (type((actual_progress := self.progress)) is (expected_type := bool)):
-            raise TypeError(f"{type(actual_progress)=} ≠ {expected_type=}")
+        require_type(self.progress, bool)
 
 
 @dataclass(frozen=True, slots=True)
@@ -575,8 +564,7 @@ class ImplementationDescription:
         _identity(self.binding_id, "Binding identity")
         _binding_revision(self.binding_revision)
 
-        if not (type((actual_contract_version := self.contract_version)) is (expected_type := int)):
-            raise TypeError(f"{type(actual_contract_version)=} ≠ {expected_type=}")
+        require_type(self.contract_version, int)
 
         if not (1 <= self.contract_version):
             raise ValueError("Contract version must be a positive integer")
@@ -599,8 +587,7 @@ class ImplementationDescription:
         _unique(self.calls, lambda value: value.name, "Call descriptions")
         _require_resource_requirements(resource_requirements=self.resident_resources)
 
-        if not (type((actual_isolation := self.isolation)) is (expected_type := IsolationRequirement)):
-            raise TypeError(f"{type(actual_isolation)=} ≠ {expected_type=}")
+        require_type(self.isolation, IsolationRequirement)
 
 
 @dataclass(frozen=True, slots=True)
