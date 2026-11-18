@@ -272,7 +272,7 @@ help:
 	  '== Provider-core package and installed tests ==' \
 	  'make packages/provider-core/download WHEELHOUSE=<cache-dir> NETWORK_INTERFACE=<system|interface> Acquire checker/bootstrap tools, then locked SDK wheels.' \
 	  'make packages/provider-core/check WHEELHOUSE=<cache-dir> Verify locked wheels offline.' \
-	  'make tests/unit/provider-core WHEELHOUSE=<cache-dir> [TEST_PATTERN=test_<name>.py] Build and test the isolated installed core.' \
+	  'make tests/unit/provider-core WHEELHOUSE=<cache-dir> [TEST_PATTERN=test_<name>.py] Run one unit file when selected; otherwise run all unit and native tests.' \
 	  'make tests/fuzz/provider-core WHEELHOUSE=<cache-dir> [FUZZ_PROFILE=extended] Run shrinking lifecycle sequences.' \
 	  'make tests/contract/provider-core WHEELHOUSE=<cache-dir> Qualify installed package contracts.' \
 	  'make tests/integration/provider-core WHEELHOUSE=<cache-dir> Run contained package integrations.' \
