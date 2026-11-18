@@ -332,6 +332,21 @@ class MultilineBracketPostureTests(unittest.TestCase):
 
         self.assertEqual(first=[], second=shared_item_lines(source=source))
 
+    def test_path_patterns_inside_a_multiline_keyword_tuple_need_separate_lines(self):
+        source = (
+            "source_files(\n"
+            "    root=root,\n"
+            "    patterns=(\n"
+            '        "packages/**/*.py", "operations/**/*.py",\n'
+            '        "tests/**/*.py",\n'
+            "    ),\n"
+            ")\n"
+        )
+        separated = source.replace(', "operations/', ',\n        "operations/')
+
+        self.assertEqual(first=[(4, 28, 8)], second=shared_item_lines(source=source))
+        self.assertEqual(first=[], second=shared_item_lines(source=separated))
+
     def test_nested_multiline_group_and_outer_arguments_are_both_checked(self):
         source = "value = call(\n    pair=(\n        first, second,\n    ), option=True,\n)\n"
 

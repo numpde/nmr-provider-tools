@@ -76,7 +76,8 @@ def unguarded_sources(root):
     """Include new production modules and fixture source without scanning upstream."""
     sources = set(
         source_files(
-            root=root, patterns=(
+            root=root,
+            patterns=(
                 "tools/**/*.py",
                 "operations/checker/image/dependencies.py",
                 "operations/delivery/build_inputs.py",
@@ -95,8 +96,10 @@ def unguarded_sources(root):
     portable_sources = {
         path
         for path in source_files(
-            root=root, patterns=(
-                "packages/provider-core/src/provider_core/**/*.py", "operations/delivery/image/**/*.py",
+            root=root,
+            patterns=(
+                "packages/provider-core/src/provider_core/**/*.py",
+                "operations/delivery/image/**/*.py",
                 "tests/deployment/**/*.py",
             ),
         )
@@ -249,7 +252,8 @@ class ConventionDetectionTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             root = pathlib.Path(directory)
             portable = (
-                "operations/delivery/image/delivery_deployment.py", "operations/delivery/image/check_runtime.py",
+                "operations/delivery/image/delivery_deployment.py",
+                "operations/delivery/image/check_runtime.py",
                 "tests/deployment/test_freezer.py",
             )
 
