@@ -241,8 +241,11 @@ class _Operation(_Changes):
 
             require_type(result_payload, bytes)
 
-            if not (len(result_payload) <= self.invocation.policy.reject_encoded_result_over_bytes):
-                raise ValueError("Encoded scientific result exceeds its declared byte allowance.")
+            encoded_result_bytes = len(result_payload)
+            maximum_encoded_result_bytes = self.invocation.policy.reject_encoded_result_over_bytes
+
+            if not (encoded_result_bytes <= maximum_encoded_result_bytes):
+                raise ValueError(f"{encoded_result_bytes=} should be at most {maximum_encoded_result_bytes=}")
 
             self.payload = result_payload
             self.result = ResultRef(self.reference, uuid4().hex)

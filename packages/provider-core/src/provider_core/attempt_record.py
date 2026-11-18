@@ -213,7 +213,9 @@ def _encode_pending(record):
         separators=(",", ":"),
     ).encode("utf-8")
 
-    if not (len(raw) <= MAX_PENDING_RECORD_BYTES):
-        raise ValueError(f"Cannot encode pending start: record requires {len(raw)} bytes, exceeding the {MAX_PENDING_RECORD_BYTES}-byte limit")
+    pending_start_bytes = len(raw)
+
+    if not (pending_start_bytes <= MAX_PENDING_RECORD_BYTES):
+        raise ValueError(f"{pending_start_bytes=} should be at most {MAX_PENDING_RECORD_BYTES=}")
 
     return raw

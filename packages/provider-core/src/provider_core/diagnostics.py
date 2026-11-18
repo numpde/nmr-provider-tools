@@ -207,10 +207,11 @@ def write_notice(content):
     descriptor = sys.stderr.fileno()
 
     if stat.S_ISFIFO(os.fstat(descriptor).st_mode):
-        maximum = os.fpathconf(descriptor, "PC_PIPE_BUF")
+        atomic_write_limit_bytes = os.fpathconf(descriptor, "PC_PIPE_BUF")
+        notice_bytes = len(content)
 
-        if len(content) > maximum:
-            raise DiagnosticOutputRefused(f"Cannot emit complete API availability notice: {len(content)} bytes exceed the pipe's {maximum}-byte atomic-write limit.")
+        if not (notice_bytes <= atomic_write_limit_bytes):
+            raise DiagnosticOutputRefused(f"{notice_bytes=} should be at most {atomic_write_limit_bytes=} for an atomic pipe write")
 
     write_stderr(content)
 
