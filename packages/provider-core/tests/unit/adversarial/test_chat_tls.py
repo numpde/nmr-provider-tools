@@ -31,17 +31,25 @@ def certificate_material():
     now = datetime.now(UTC)
 
     certificate = (
-        x509.CertificateBuilder().subject_name(name).issuer_name(name)
-        .public_key(key.public_key()).serial_number(x509.random_serial_number())
-        .not_valid_before(now - timedelta(minutes=1)).not_valid_after(now + timedelta(hours=1))
+        x509
+        .CertificateBuilder()
+        .subject_name(name)
+        .issuer_name(name)
+        .public_key(key.public_key())
+        .serial_number(x509.random_serial_number())
+        .not_valid_before(now - timedelta(minutes=1))
+        .not_valid_after(now + timedelta(hours=1))
         .add_extension(x509.BasicConstraints(ca=False, path_length=None), critical=True)
         .add_extension(x509.SubjectAlternativeName([x509.DNSName("model.fixture")]), critical=False)
         .sign(key, None)
     )
 
     crl = (
-        x509.CertificateRevocationListBuilder().issuer_name(name)
-        .last_update(now - timedelta(minutes=1)).next_update(now + timedelta(hours=1))
+        x509
+        .CertificateRevocationListBuilder()
+        .issuer_name(name)
+        .last_update(now - timedelta(minutes=1))
+        .next_update(now + timedelta(hours=1))
         .sign(key, None)
     )
 

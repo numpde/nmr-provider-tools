@@ -82,11 +82,15 @@ class RunnerSummaryTests(unittest.TestCase):
     def test_unexpected_asyncio_loop_error_is_attributed_and_fails(self):
         class Cases(unittest.IsolatedAsyncioTestCase):
             async def test_reset(self):
-                asyncio.get_running_loop().call_exception_handler(
-                    {
-                        "message": "Error on transport creation for incoming connection",
-                        "exception": ConnectionResetError(),
-                    }
+                (
+                    asyncio
+                    .get_running_loop()
+                    .call_exception_handler(
+                        {
+                            "message": "Error on transport creation for incoming connection",
+                            "exception": ConnectionResetError(),
+                        },
+                    )
                 )
 
         (result, output) = self.render((Cases("test_reset"),))
@@ -107,11 +111,15 @@ class RunnerSummaryTests(unittest.TestCase):
                     try:
                         await asyncio.Event().wait()
                     finally:
-                        asyncio.get_running_loop().call_exception_handler(
-                            {
-                                "message": "Loop shutdown released a broken transport",
-                                "exception": ConnectionResetError("late reset"),
-                            }
+                        (
+                            asyncio
+                            .get_running_loop()
+                            .call_exception_handler(
+                                {
+                                    "message": "Loop shutdown released a broken transport",
+                                    "exception": ConnectionResetError("late reset"),
+                                },
+                            )
                         )
 
                 asyncio.create_task(pending())
@@ -128,11 +136,15 @@ class RunnerSummaryTests(unittest.TestCase):
         class Cases(unittest.IsolatedAsyncioTestCase):
             async def test_expected(self):
                 with self.assertLogs("asyncio", level="ERROR") as captured:
-                    asyncio.get_running_loop().call_exception_handler(
-                        {
-                            "message": "Expected injected reset",
-                            "exception": ConnectionResetError("intentionally unfinished TLS"),
-                        }
+                    (
+                        asyncio
+                        .get_running_loop()
+                        .call_exception_handler(
+                            {
+                                "message": "Expected injected reset",
+                                "exception": ConnectionResetError("intentionally unfinished TLS"),
+                            },
+                        )
                     )
 
                 self.assertEqual(1, len(captured.records))
@@ -159,14 +171,18 @@ class RunnerSummaryTests(unittest.TestCase):
     def test_asyncio_error_keeps_detailed_loop_context_outside_the_short_index(self):
         class Cases(unittest.TestCase):
             def test_context(self):
-                logging.getLogger("asyncio").error(
-                    chr(10).join(
-                        (
-                            "Error on transport creation for incoming connection",
-                            "handle_traceback: deliberate test frame",
-                            "protocol: test peer",
-                            "transport: test SSL transport",
-                        )
+                (
+                    logging
+                    .getLogger("asyncio")
+                    .error(
+                        chr(10).join(
+                            (
+                                "Error on transport creation for incoming connection",
+                                "handle_traceback: deliberate test frame",
+                                "protocol: test peer",
+                                "transport: test SSL transport",
+                            ),
+                        ),
                     )
                 )
 
@@ -199,11 +215,15 @@ class RunnerSummaryTests(unittest.TestCase):
         def run_inner():
             class Inner(unittest.IsolatedAsyncioTestCase):
                 async def test_error(self):
-                    asyncio.get_running_loop().call_exception_handler(
-                        {
-                            "message": "One nested loop error",
-                            "exception": RuntimeError("inner"),
-                        }
+                    (
+                        asyncio
+                        .get_running_loop()
+                        .call_exception_handler(
+                            {
+                                "message": "One nested loop error",
+                                "exception": RuntimeError("inner"),
+                            },
+                        )
                     )
 
             return self.render((Inner("test_error"),))

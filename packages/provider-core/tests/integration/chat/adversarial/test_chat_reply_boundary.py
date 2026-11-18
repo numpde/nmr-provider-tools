@@ -18,16 +18,20 @@ from tests.fakes.tls_peer import TlsPeer
 
 class ModelReplyBoundaryTests(unittest.IsolatedAsyncioTestCase):
     async def run_fault(self, mode):
-        body = json.dumps(
-            {
-                "choices": [
-                    {
-                        "message": call("selected", "prepare", {}),
-                        "finish_reason": "tool_calls"
-                    }
-                ]
-            }
-        ).encode()
+        body = (
+            json
+            .dumps(
+                {
+                    "choices": [
+                        {
+                            "message": call("selected", "prepare", {}),
+                            "finish_reason": "tool_calls"
+                        }
+                    ]
+                },
+            )
+            .encode()
+        )
 
         (children, endpoints) = ([], [])
         launch = asyncio.create_subprocess_exec

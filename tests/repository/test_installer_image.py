@@ -124,10 +124,12 @@ def build_wheel(wheel_directory, config_settings=None, metadata_directory=None):
         python = installer.create_environment(self.root / "consumer")
 
         site = pathlib.Path(
-            subprocess.check_output(
+            subprocess
+            .check_output(
                 [str(python), "-I", "-B", "-c", "import sysconfig; print(sysconfig.get_path('purelib'))"],
                 text=True,
-            ).strip()
+            )
+            .strip(),
         )
 
         for (source, issued) in INSTALLER_SOURCES:

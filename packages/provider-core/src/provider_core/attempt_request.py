@@ -34,14 +34,18 @@ def start_body(job_ref, provider_attempt_key):
     require_job_ref(job_ref)
     require_provider_attempt_key(provider_attempt_key)
 
-    return json.dumps(
-        {
-            "schema_id": "nmr.provider.execution_attempt_start_request.v1",
-            "job_ref": job_ref,
-            "provider_attempt_key": provider_attempt_key,
-        },
-        separators=(",", ":"),
-    ).encode("utf-8")
+    return (
+        json
+        .dumps(
+            {
+                "schema_id": "nmr.provider.execution_attempt_start_request.v1",
+                "job_ref": job_ref,
+                "provider_attempt_key": provider_attempt_key,
+            },
+            separators=(",", ":"),
+        )
+        .encode("utf-8")
+    )
 
 
 def require_start_body(body, *, job_ref):
@@ -91,14 +95,18 @@ def progress_body(phase, condition_code):
         if re.fullmatch(r"[a-z][a-z0-9]*(?:_[a-z0-9]+)*", condition_code) is None:
             raise ValueError("Cannot report Attempt progress: condition code must be null or a lower snake-case public code of at most 128 characters")
 
-    return json.dumps(
-        {
-            "schema_id": "nmr.provider.execution_attempt_progress_request.v1",
-            "phase": phase,
-            "condition_code": condition_code,
-        },
-        separators=(",", ":"),
-    ).encode("utf-8")
+    return (
+        json
+        .dumps(
+            {
+                "schema_id": "nmr.provider.execution_attempt_progress_request.v1",
+                "phase": phase,
+                "condition_code": condition_code,
+            },
+            separators=(",", ":"),
+        )
+        .encode("utf-8")
+    )
 
 
 def require_provider_ref(value):
@@ -137,15 +145,19 @@ def complete_body(execution_attempt_ref, result_schema_id, result):
     if not (1 <= len(result) <= 786432):
         raise ValueError("Cannot publish Attempt result: content must be immutable bytes with length 1 through 786432")
 
-    return json.dumps(
-        {
-            "schema_id": "nmr.provider.execution_attempt_complete_request.v1",
-            "execution_attempt_ref": execution_attempt_ref,
-            "result_schema_id": result_schema_id,
-            "canonical_result_base64": b64encode(result).decode("ascii"),
-        },
-        separators=(",", ":"),
-    ).encode("utf-8")
+    return (
+        json
+        .dumps(
+            {
+                "schema_id": "nmr.provider.execution_attempt_complete_request.v1",
+                "execution_attempt_ref": execution_attempt_ref,
+                "result_schema_id": result_schema_id,
+                "canonical_result_base64": b64encode(result).decode("ascii"),
+            },
+            separators=(",", ":"),
+        )
+        .encode("utf-8")
+    )
 
 
 def fail_body(execution_attempt_ref, failure_code, failure_message):
@@ -159,15 +171,19 @@ def fail_body(execution_attempt_ref, failure_code, failure_message):
     _failure_code(failure_code)
     _scalar_text(failure_message, "failure message")
 
-    return json.dumps(
-        {
-            "schema_id": "nmr.provider.execution_attempt_fail_request.v1",
-            "execution_attempt_ref": execution_attempt_ref,
-            "failure_code": failure_code,
-            "failure_message": failure_message,
-        },
-        separators=(",", ":"),
-    ).encode("utf-8")
+    return (
+        json
+        .dumps(
+            {
+                "schema_id": "nmr.provider.execution_attempt_fail_request.v1",
+                "execution_attempt_ref": execution_attempt_ref,
+                "failure_code": failure_code,
+                "failure_message": failure_message,
+            },
+            separators=(",", ":"),
+        )
+        .encode("utf-8")
+    )
 
 
 def _outcome_document(body, operation, limit, execution_attempt_ref, fields):

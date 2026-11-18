@@ -317,16 +317,20 @@ async def scenario(marker, report, seed):
 
         return original_stop(transport, exchange, cause, at=at)
 
-    response_body = json.dumps(
-        {
-            "choices": [
-                {
-                    "message": call("prepared", "prepare_scientific_input", {}),
-                    "finish_reason": "tool_calls"
-                }
-            ]
-        }
-    ).encode()
+    response_body = (
+        json
+        .dumps(
+            {
+                "choices": [
+                    {
+                        "message": call("prepared", "prepare_scientific_input", {}),
+                        "finish_reason": "tool_calls"
+                    }
+                ]
+            },
+        )
+        .encode()
+    )
 
     with ExitStack() as patches:
         command = (sys.executable, "-I", "-B", str(pathlib.Path(__file__).resolve()), "http-worker", str(marker))

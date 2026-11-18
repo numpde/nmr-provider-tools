@@ -103,8 +103,12 @@ class MagnetSession:
         self.retired = True
 
     def _encode_prediction_report(self, key, model_input, result):
-        return json.dumps(
-            {"schema_id": RESULT_SCHEMA_ID, "provider_attempt_key": key, "model_input": model_input, "prediction": result},
-            sort_keys=True,
-            separators=(",", ":"),
-        ).encode()
+        return (
+            json
+            .dumps(
+                {"schema_id": RESULT_SCHEMA_ID, "provider_attempt_key": key, "model_input": model_input, "prediction": result},
+                sort_keys=True,
+                separators=(",", ":"),
+            )
+            .encode()
+        )

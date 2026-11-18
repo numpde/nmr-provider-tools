@@ -51,13 +51,17 @@ def publication_bytes(material):
         "ca": None if material.ca_bytes is None else _encoded(material.ca_bytes)
     }
 
-    return json.dumps(
-        document,
-        sort_keys=True,
-        separators=(",", ":"),
-        ensure_ascii=True,
-        allow_nan=False
-    ).encode("ascii")
+    return (
+        json
+        .dumps(
+            document,
+            sort_keys=True,
+            separators=(",", ":"),
+            ensure_ascii=True,
+            allow_nan=False,
+        )
+        .encode("ascii")
+    )
 
 
 @dataclass(frozen=True, slots=True, repr=False)

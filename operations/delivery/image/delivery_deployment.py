@@ -698,11 +698,13 @@ def main():
         print(json.dumps(compose_plan, sort_keys=True, indent=2).replace("$", "$$"))
     elif options.command == "render-shared":
         print(
-            json.dumps(
+            json
+            .dumps(
                 render_shared(options.definition, options.source, options.image),
                 sort_keys=True,
                 indent=2,
-            ).replace("$", "$$")
+            )
+            .replace("$", "$$"),
         )
     elif options.command == "initialize":
         initialize(options.uid, options.gid, options.queue, options.ipc)

@@ -1478,11 +1478,15 @@ class CapturedNativeTests(unittest.TestCase):
     def test_corrupt_ready_receipt_retains_uncertain_state_without_dispatch(self):
         receipt = self.root / "drain"
 
-        source = self.helper.read_text().replace(
-            "    drain=$!\n",
-            '    drain=$!\n'
-            '    printf "%s\\n" "$drain" > "$NATIVE_DRAIN"\n',
-            1,
+        source = (
+            self.helper
+            .read_text()
+            .replace(
+                "    drain=$!\n",
+                '    drain=$!\n'
+                '    printf "%s\\n" "$drain" > "$NATIVE_DRAIN"\n',
+                1,
+            )
         )
 
         self.helper.write_text(source)

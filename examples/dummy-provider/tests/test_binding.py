@@ -64,9 +64,11 @@ class DummyBindingTests(unittest.IsolatedAsyncioTestCase):
         installed_distribution = metadata.distribution("dummy-provider-example")
         installed_package = pathlib.Path(resources.files("dummy_provider")).resolve()
 
-        distribution_package = pathlib.Path(
-            installed_distribution.locate_file("dummy_provider")
-        ).resolve()
+        distribution_package = (
+            pathlib
+            .Path(installed_distribution.locate_file("dummy_provider"))
+            .resolve()
+        )
 
         python_package_roots = {
             distribution_file.parts[0]

@@ -227,10 +227,14 @@ class TransportFailureTests(unittest.IsolatedAsyncioTestCase):
                 patch("provider_core.transport.httpcore.AsyncConnectionPool") as factory,
             ):
                 with self.assertRaises(error_type):
-                    await self.transport().exchange_file(
-                        httpx.Request("GET", "https://api.example/input"),
-                        output_fd=descriptor,
-                        maximum_bytes=4
+                    await (
+                        self
+                        .transport()
+                        .exchange_file(
+                            httpx.Request("GET", "https://api.example/input"),
+                            output_fd=descriptor,
+                            maximum_bytes=4,
+                        )
                     )
 
                 factory.assert_not_called()
@@ -718,10 +722,14 @@ class TransportFailureTests(unittest.IsolatedAsyncioTestCase):
             patch("provider_core.transport.httpcore.AsyncConnectionPool", return_value=client),
             self.assertRaises(ExchangeFailed),
         ):
-            await self.transport().exchange(
-                httpx.Request("GET", "https://api.example"),
-                maximum_bytes=4,
-                account_bytes=received.append
+            await (
+                self
+                .transport()
+                .exchange(
+                    httpx.Request("GET", "https://api.example"),
+                    maximum_bytes=4,
+                    account_bytes=received.append,
+                )
             )
 
         self.assertEqual(received, [3, 2])

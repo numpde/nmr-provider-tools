@@ -81,16 +81,20 @@ def hello_body(*, display_name, description, analysis_offerings):
         kinds.add(offering.analysis_kind_ref)
         offerings.append({"analysis_kind_ref": offering.analysis_kind_ref, "description": offering.description})
 
-    body = json.dumps(
-        {
-            "schema_id": "nmr.provider.hello_request.v1",
-            "display_name": display_name,
-            "description": description,
-            "analysis_offerings": offerings,
-        },
-        ensure_ascii=False,
-        separators=(",", ":"),
-    ).encode("utf-8")
+    body = (
+        json
+        .dumps(
+            {
+                "schema_id": "nmr.provider.hello_request.v1",
+                "display_name": display_name,
+                "description": description,
+                "analysis_offerings": offerings,
+            },
+            ensure_ascii=False,
+            separators=(",", ":"),
+        )
+        .encode("utf-8")
+    )
 
     if not (len(body) <= 512 * 1024):
         raise ValueError("Cannot announce provider: encoded Hello exceeds the 524288-byte route limit")

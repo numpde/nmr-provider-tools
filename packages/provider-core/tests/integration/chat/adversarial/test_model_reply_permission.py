@@ -351,16 +351,20 @@ async def reply_run(claims, job, *, session_type=InterpretedSession):
     async def response_body(request, body):
         await release_reply.wait()
 
-        return json.dumps(
-            {
-                "choices": [
-                    {
-                        "message": call("prepared", "prepare", {}),
-                        "finish_reason": "tool_calls"
-                    }
-                ]
-            }
-        ).encode()
+        return (
+            json
+            .dumps(
+                {
+                    "choices": [
+                        {
+                            "message": call("prepared", "prepare", {}),
+                            "finish_reason": "tool_calls"
+                        }
+                    ]
+                },
+            )
+            .encode()
+        )
 
     async with TlsPeer("success", response_factory=response_body) as peer:
         running = ReplyRun(peer, claims, job, session_type)
@@ -742,27 +746,35 @@ class ComposedLifecycleOwnershipTests(unittest.IsolatedAsyncioTestCase):
         async def held_reply(_request, _body):
             await release_reply.wait()
 
-            return json.dumps(
+            return (
+                json
+                .dumps(
+                    {
+                        "choices": [
+                            {
+                                "message": call("held", "prepare", {}),
+                                "finish_reason": "tool_calls"
+                            }
+                        ]
+                    },
+                )
+                .encode()
+            )
+
+        successful_reply = (
+            json
+            .dumps(
                 {
                     "choices": [
                         {
-                            "message": call("held", "prepare", {}),
+                            "message": call("ready", "prepare", {}),
                             "finish_reason": "tool_calls"
                         }
                     ]
-                }
-            ).encode()
-
-        successful_reply = json.dumps(
-            {
-                "choices": [
-                    {
-                        "message": call("ready", "prepare", {}),
-                        "finish_reason": "tool_calls"
-                    }
-                ]
-            }
-        ).encode()
+                },
+            )
+            .encode()
+        )
 
         async with (TlsPeer("success", response_factory=held_reply) as stalled_peer,
                     TlsPeer("success", response_body=successful_reply) as healthy_peer):
@@ -878,16 +890,20 @@ class ComposedLifecycleOwnershipTests(unittest.IsolatedAsyncioTestCase):
     async def test_retired_science_with_unknown_outcome_remains_claimed(self):
         claims = AttemptClaims.live(limits=LiveAttemptLimits(maximum_attempts=1))
 
-        reply_body = json.dumps(
-            {
-                "choices": [
-                    {
-                        "message": call("unknown", "prepare", {}),
-                        "finish_reason": "tool_calls"
-                    }
-                ]
-            }
-        ).encode()
+        reply_body = (
+            json
+            .dumps(
+                {
+                    "choices": [
+                        {
+                            "message": call("unknown", "prepare", {}),
+                            "finish_reason": "tool_calls"
+                        }
+                    ]
+                },
+            )
+            .encode()
+        )
 
         async with TlsPeer("success", response_body=reply_body) as peer:
             original = ReplyRun(peer, claims, "job:unknown", UnresolvedOutcomeSession)

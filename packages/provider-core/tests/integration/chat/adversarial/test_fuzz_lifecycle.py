@@ -140,16 +140,20 @@ class LifecycleOrders(RuleBasedStateMachine):
         async def model_reply(_request, _body, *, gate, identity):
             await gate.wait()
 
-            return json.dumps(
-                {
-                    "choices": [
-                        {
-                            "message": call(identity, "prepare", { }),
-                            "finish_reason": "tool_calls",
-                        },
-                    ],
-                },
-            ).encode()
+            return (
+                json
+                .dumps(
+                    {
+                        "choices": [
+                            {
+                                "message": call(identity, "prepare", { }),
+                                "finish_reason": "tool_calls",
+                            },
+                        ],
+                    },
+                )
+                .encode()
+            )
 
         for name in ("a", "b"):
             released = asyncio.Event()

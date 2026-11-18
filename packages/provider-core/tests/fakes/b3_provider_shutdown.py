@@ -409,16 +409,20 @@ async def shutdown_scenario(schedule, seed, directory, facts):
                 if not actual_child_exit.is_set() or allow_exit_observation.is_set():
                     raise AssertionError("No held original child-exit observation")
 
-                completion = json.dumps(
-                    {
-                        "choices": [
-                            {
-                                "message": call("completed", "prepare", {}),
-                                "finish_reason": "tool_calls"
-                            }
-                        ]
-                    }
-                ).encode()
+                completion = (
+                    json
+                    .dumps(
+                        {
+                            "choices": [
+                                {
+                                    "message": call("completed", "prepare", {}),
+                                    "finish_reason": "tool_calls"
+                                }
+                            ]
+                        },
+                    )
+                    .encode()
+                )
 
                 async with TlsPeer("success", response_body=completion) as independent_peer:
                     independent = ReplyRun(

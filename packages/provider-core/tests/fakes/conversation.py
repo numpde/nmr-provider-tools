@@ -35,13 +35,17 @@ def call(identifier, name, arguments):
 
 def endpoint(identifier, *replies):
     return SimpleNamespace(
-        identity=json.dumps(
-            {
-                "configuration_id": identifier,
-                "model": "fixture",
-                "configuration_sha256": "a" * 64,
-            }
-        ).encode(),
+        identity=(
+            json
+            .dumps(
+                {
+                    "configuration_id": identifier,
+                    "model": "fixture",
+                    "configuration_sha256": "a" * 64,
+                },
+            )
+            .encode()
+        ),
         complete=AsyncMock(side_effect=replies),
         retire=AsyncMock(),
         retirement_confirmed=True,

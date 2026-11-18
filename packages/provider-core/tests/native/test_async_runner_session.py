@@ -569,16 +569,20 @@ class AsyncNativeWireTests(unittest.IsolatedAsyncioTestCase):
         await opening
 
     def retirement_frame(self):
-        raw = json.dumps(
-            {
-                "kind": "retired",
-                "generation": "1" * 32,
-                "operation": "2" * 32,
-                "returncode": 0,
-                "scratch_released": True,
-                "reason": "exited"
-            }
-        ).encode()
+        raw = (
+            json
+            .dumps(
+                {
+                    "kind": "retired",
+                    "generation": "1" * 32,
+                    "operation": "2" * 32,
+                    "returncode": 0,
+                    "scratch_released": True,
+                    "reason": "exited"
+                },
+            )
+            .encode()
+        )
 
         return struct.pack("!I", len(raw)) + raw
 

@@ -28,16 +28,20 @@ from tests.fakes.tls_peer import TlsPeer
 
 
 def completion():
-    return json.dumps(
-        {
-            "choices": [
-                {
-                    "message": call("selected", "prepare", {"format": "text"}),
-                    "finish_reason": "tool_calls",
-                }
-            ]
-        }
-    ).encode()
+    return (
+        json
+        .dumps(
+            {
+                "choices": [
+                    {
+                        "message": call("selected", "prepare", {"format": "text"}),
+                        "finish_reason": "tool_calls",
+                    }
+                ]
+            },
+        )
+        .encode()
+    )
 
 
 @asynccontextmanager

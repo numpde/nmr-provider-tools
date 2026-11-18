@@ -202,16 +202,20 @@ async def run_outage(directory, *, mode, backlog, seed):
         async with worker_lock:
             return await scientific_worker.call(operation, job)
 
-    successful_reply = json.dumps(
-        {
-            "choices": [
-                {
-                    "message": call("prepare", "prepare_scientific_input", {}),
-                    "finish_reason": "tool_calls",
-                }
-            ]
-        }
-    ).encode()
+    successful_reply = (
+        json
+        .dumps(
+            {
+                "choices": [
+                    {
+                        "message": call("prepare", "prepare_scientific_input", {}),
+                        "finish_reason": "tool_calls",
+                    }
+                ]
+            },
+        )
+        .encode()
+    )
 
     def failed_service_mode(_request, body):
         nonlocal peak_prose_connections

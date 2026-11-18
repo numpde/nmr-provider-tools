@@ -298,8 +298,10 @@ class DeliveryProcessTests(unittest.IsolatedAsyncioTestCase):
                     # The minimum jittered retry wait is 15s, longer than bounded
                     # receipt observation and original-process reaping below.
                     files.write(
-                        files.path.read_bytes().replace(b"retry_initial_seconds = 0.01", b"retry_initial_seconds = 30")
-                        .replace(b"retry_max_seconds = 0.1", b"retry_max_seconds = 30")
+                        files.path
+                        .read_bytes()
+                        .replace(b"retry_initial_seconds = 0.01", b"retry_initial_seconds = 30")
+                        .replace(b"retry_max_seconds = 0.1", b"retry_max_seconds = 30"),
                     )
 
                     configured = files.path.read_bytes()
@@ -376,16 +378,20 @@ class DeliveryProcessTests(unittest.IsolatedAsyncioTestCase):
                 peer_a.response_status = 503
                 peer_a.response_headers = response_headers(status=503, request_id=b"request:api-a-outage")
 
-                return json.dumps(
-                    {
-                        "type": "urn:nmr-api:problem:service-unavailable",
-                        "title": "Service unavailable",
-                        "status": 503,
-                        "instance": "urn:nmr-api:request:api-a-outage",
-                        "request_id": "request:api-a-outage",
-                        "code": "service_unavailable"
-                    }
-                ).encode()
+                return (
+                    json
+                    .dumps(
+                        {
+                            "type": "urn:nmr-api:problem:service-unavailable",
+                            "title": "Service unavailable",
+                            "status": 503,
+                            "instance": "urn:nmr-api:request:api-a-outage",
+                            "request_id": "request:api-a-outage",
+                            "code": "service_unavailable"
+                        },
+                    )
+                    .encode()
+                )
 
             peer_a.response_status = 200
             peer_a.response_headers = response_headers()

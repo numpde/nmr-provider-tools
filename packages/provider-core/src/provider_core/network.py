@@ -369,9 +369,13 @@ class _OwnedStream(httpcore.AsyncNetworkStream):
                     if not peer_eof or failure is self._raw_close_failure:
                         raise
 
-                    logging.getLogger("provider_core.transport").warning(
-                        "TLS peer omitted close_notify; local socket closure confirmed",
-                        exc_info=failure,
+                    (
+                        logging
+                        .getLogger("provider_core.transport")
+                        .warning(
+                            "TLS peer omitted close_notify; local socket closure confirmed",
+                            exc_info=failure,
+                        )
                     )
 
             self._owners.discard(self)

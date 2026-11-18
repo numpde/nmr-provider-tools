@@ -54,9 +54,13 @@ class DeploymentBindingTests(unittest.TestCase):
 
         self.assertEqual("mapped", parse_deployment_bindings(literal).bindings[0].route["mode"])
 
-        external = literal.replace(b'mode = "mapped"', b'mode = "external"').replace(
-            b'addresses = ["127.0.0.1=127.0.0.1"]',
-            b'resolver_file = "/synthetic/resolver"',
+        external = (
+            literal
+            .replace(b'mode = "mapped"', b'mode = "external"')
+            .replace(
+                b'addresses = ["127.0.0.1=127.0.0.1"]',
+                b'resolver_file = "/synthetic/resolver"',
+            )
         )
 
         self.assertEqual("external", parse_deployment_bindings(external).bindings[0].route["mode"])
@@ -79,9 +83,13 @@ class DeploymentBindingTests(unittest.TestCase):
         peer = definition(1).replace(b"api.example=127.0.0.1", b"api.example=0.0.0.0")
         literal = definition(1).replace(b"api.example", b"0.0.0.0").replace(b"=127.0.0.1", b"=0.0.0.0")
 
-        external = literal.replace(b'mode = "mapped"', b'mode = "external"').replace(
-            b'addresses = ["0.0.0.0=0.0.0.0"]',
-            b'resolver_file = "/synthetic/resolver"',
+        external = (
+            literal
+            .replace(b'mode = "mapped"', b'mode = "external"')
+            .replace(
+                b'addresses = ["0.0.0.0=0.0.0.0"]',
+                b'resolver_file = "/synthetic/resolver"',
+            )
         )
 
         for raw in (peer, literal, external):

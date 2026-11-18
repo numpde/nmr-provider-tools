@@ -30,16 +30,20 @@ class ProseServiceRetryTests(unittest.IsolatedAsyncioTestCase):
             if restored.is_set():
                 (peer.response_status, peer.response_headers) = (200, None)
 
-                return json.dumps(
-                    {
-                        "choices": [
-                            {
-                                "message": call("prepare", "prepare_scientific_input", {}),
-                                "finish_reason": "tool_calls",
-                            }
-                        ]
-                    }
-                ).encode()
+                return (
+                    json
+                    .dumps(
+                        {
+                            "choices": [
+                                {
+                                    "message": call("prepare", "prepare_scientific_input", {}),
+                                    "finish_reason": "tool_calls",
+                                }
+                            ]
+                        },
+                    )
+                    .encode()
+                )
 
             peer.response_status = 503
             peer.response_headers = ((b"Content-Type", b"application/json"), (b"Retry-After", b"2"))

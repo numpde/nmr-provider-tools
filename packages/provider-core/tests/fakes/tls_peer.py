@@ -123,7 +123,8 @@ class TlsPeer:
         now = datetime.now(UTC)
 
         certificate = (
-            x509.CertificateBuilder()
+            x509
+            .CertificateBuilder()
             .subject_name(name)
             .issuer_name(name)
             .public_key(key.public_key())

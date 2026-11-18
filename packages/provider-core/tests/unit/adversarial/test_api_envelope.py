@@ -104,17 +104,21 @@ class ApiEnvelopeTests(unittest.IsolatedAsyncioTestCase):
         self.assertIs(failure.cause, cause)
 
     async def test_reviewed_refusal_requires_environment_and_matching_header_body_correlation(self):
-        body = json.dumps(
-            {
-                "type": "urn:nmr-api:problem:authentication-failed",
-                "title": "PRIVATE",
-                "status": 401,
-                "instance": "urn:nmr-api:request:example",
-                "request_id": "request:body",
-                "code": "signature_expired",
-                "detail": "PRIVATE",
-            }
-        ).encode()
+        body = (
+            json
+            .dumps(
+                {
+                    "type": "urn:nmr-api:problem:authentication-failed",
+                    "title": "PRIVATE",
+                    "status": 401,
+                    "instance": "urn:nmr-api:request:example",
+                    "request_id": "request:body",
+                    "code": "signature_expired",
+                    "detail": "PRIVATE",
+                },
+            )
+            .encode()
+        )
 
         for (topology, request_id, known) in (
             (b"dev-local", b"request:body", True),

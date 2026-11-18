@@ -37,12 +37,16 @@ class PinnedApiRelease:
         self.assertEqual(manifest["release_ref"], RELEASE_REF)
         self.assertEqual(manifest["source_revision"], SOURCE_REVISION)
 
-        material = json.dumps(
-            {"artifacts": manifest["artifacts"], "contract_id": manifest["contract_id"]},
-            ensure_ascii=False,
-            sort_keys=True,
-            separators=(",", ":"),
-        ).encode()
+        material = (
+            json
+            .dumps(
+                {"artifacts": manifest["artifacts"], "contract_id": manifest["contract_id"]},
+                ensure_ascii=False,
+                sort_keys=True,
+                separators=(",", ":"),
+            )
+            .encode()
+        )
 
         self.assertEqual("sha256:" + hashlib.sha256(material).hexdigest(), RELEASE_REF)
         expected = {"manifest.json", *(entry["path"] for entry in manifest["artifacts"])}

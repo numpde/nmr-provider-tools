@@ -375,16 +375,20 @@ async def scenario(marker, report):
         # silent-defaults: allow-contract -- Only the designated hung request stalls; the surrounding Jobs exercise the same healthy endpoint.
         return "headers-stall" if path == "/hang" else "success"
 
-    body = json.dumps(
-        {
-            "choices": [
-                {
-                    "message": call("prepared", "prepare", {}),
-                    "finish_reason": "tool_calls"
-                }
-            ]
-        }
-    ).encode()
+    body = (
+        json
+        .dumps(
+            {
+                "choices": [
+                    {
+                        "message": call("prepared", "prepare", {}),
+                        "finish_reason": "tool_calls"
+                    }
+                ]
+            },
+        )
+        .encode()
+    )
 
     with ExitStack() as stack:
         install_fault(stack, marker)

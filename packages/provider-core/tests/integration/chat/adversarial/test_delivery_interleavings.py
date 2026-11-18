@@ -23,16 +23,20 @@ from tests.integration.chat.adversarial.test_model_reply_permission import (
 
 
 def model_reply():
-    return json.dumps(
-        {
-            "choices": [
-                {
-                    "message": call("complete", "prepare", {}),
-                    "finish_reason": "tool_calls",
-                }
-            ]
-        }
-    ).encode()
+    return (
+        json
+        .dumps(
+            {
+                "choices": [
+                    {
+                        "message": call("complete", "prepare", {}),
+                        "finish_reason": "tool_calls",
+                    }
+                ]
+            },
+        )
+        .encode()
+    )
 
 
 class DeliveryLifecycleInterleavings(unittest.IsolatedAsyncioTestCase):

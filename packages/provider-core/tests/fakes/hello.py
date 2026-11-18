@@ -6,14 +6,18 @@ from provider_core.hello import AnalysisOffering
 
 
 def receipt(**changes):
-    return json.dumps(
-        {
-            "schema_id": "nmr.provider.hello_response.v1",
-            "provider_ref": "provider:example",
-            "accepted_at": "2026-10-20T10:00:00.123456Z",
-            **changes,
-        }
-    ).encode()
+    return (
+        json
+        .dumps(
+            {
+                "schema_id": "nmr.provider.hello_response.v1",
+                "provider_ref": "provider:example",
+                "accepted_at": "2026-10-20T10:00:00.123456Z",
+                **changes,
+            },
+        )
+        .encode()
+    )
 
 
 def announcement(**changes):

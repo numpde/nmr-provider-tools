@@ -201,17 +201,21 @@ def mark_execution_entered(record, prepared_identity):
 
 
 def _encode_pending(record):
-    raw = json.dumps(
-        {
-            "schema_id": "provider_core.start_pending.v1",
-            "scope": asdict(record.scope),
-            "analysis_kind_ref": record.analysis_kind_ref,
-            "input": asdict(record.input),
-            "start_body": b64encode(record.body).decode("ascii"),
-        },
-        sort_keys=True,
-        separators=(",", ":"),
-    ).encode("utf-8")
+    raw = (
+        json
+        .dumps(
+            {
+                "schema_id": "provider_core.start_pending.v1",
+                "scope": asdict(record.scope),
+                "analysis_kind_ref": record.analysis_kind_ref,
+                "input": asdict(record.input),
+                "start_body": b64encode(record.body).decode("ascii"),
+            },
+            sort_keys=True,
+            separators=(",", ":"),
+        )
+        .encode("utf-8")
+    )
 
     pending_start_bytes = len(raw)
 

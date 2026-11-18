@@ -15,17 +15,21 @@ from provider_core.transport import ExchangeFailed, HttpResponse
 def signature_window_problem(request_id="request:test", *, code="authentication_window_closed"):
     """Complete correlated refusal; arbitrary server prose must stay private."""
 
-    return json.dumps(
-        {
-            "type": "urn:nmr-api:problem:authentication-failed",
-            "title": "Authentication failed",
-            "status": 401,
-            "instance": "urn:nmr-api:request:test",
-            "request_id": request_id,
-            "code": code,
-            "detail": "PRIVATE_SERVER_DETAIL",
-        }
-    ).encode()
+    return (
+        json
+        .dumps(
+            {
+                "type": "urn:nmr-api:problem:authentication-failed",
+                "title": "Authentication failed",
+                "status": 401,
+                "instance": "urn:nmr-api:request:test",
+                "request_id": request_id,
+                "code": code,
+                "detail": "PRIVATE_SERVER_DETAIL",
+            },
+        )
+        .encode()
+    )
 
 
 class Transport:

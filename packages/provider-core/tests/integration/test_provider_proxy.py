@@ -28,15 +28,19 @@ class ActualServiceProxyTests(unittest.IsolatedAsyncioTestCase):
         kind = "mol_from_1h_spectrum_formula"
 
         async def response(_request, _body):
-            return json.dumps(
-                {
-                    "schema_id": "nmr.provider.jobs.list.response.v1",
-                    "analysis_kind_ref": kind,
-                    "has_provider_execution_attempt": False,
-                    "next_cursor": None,
-                    "jobs": []
-                }
-            ).encode()
+            return (
+                json
+                .dumps(
+                    {
+                        "schema_id": "nmr.provider.jobs.list.response.v1",
+                        "analysis_kind_ref": kind,
+                        "has_provider_execution_attempt": False,
+                        "next_cursor": None,
+                        "jobs": []
+                    },
+                )
+                .encode()
+            )
 
         async with api_tls_peer("success", response_factory=response) as peer:
             with tempfile.TemporaryDirectory() as directory:

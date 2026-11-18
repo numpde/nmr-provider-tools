@@ -836,12 +836,14 @@ class InterpreterTests(unittest.IsolatedAsyncioTestCase):
                 (final_messages, final_tools) = second.complete.await_args.args
 
                 size = len(
-                    json.dumps(
+                    json
+                    .dumps(
                         {"messages": final_messages, "tools": final_tools},
                         ensure_ascii=True,
                         sort_keys=True,
-                        separators=(",", ":")
-                    ).encode("ascii")
+                        separators=(",", ":"),
+                    )
+                    .encode("ascii"),
                 )
 
                 self.assertLessEqual(size, 32768)

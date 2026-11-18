@@ -591,13 +591,17 @@ class JsonDataclassCodec[T]:
             path="$",
         )
 
-        return json.dumps(
-            document,
-            ensure_ascii=True,
-            allow_nan=False,
-            sort_keys=True,
-            separators=(",", ":"),
-        ).encode("ascii")
+        return (
+            json
+            .dumps(
+                document,
+                ensure_ascii=True,
+                allow_nan=False,
+                sort_keys=True,
+                separators=(",", ":"),
+            )
+            .encode("ascii")
+        )
 
 
 @dataclass(frozen=True, slots=True, kw_only=True)

@@ -290,16 +290,18 @@ class LiveProxyConfiguration:
         try:
             settings = self.read()
         except ServiceRefused as error:
-            logging.getLogger("provider_core.proxy").warning(
-                "Cannot reload proxy settings: %s Retaining the current settings.",
-                error
+            (
+                logging
+                .getLogger("provider_core.proxy")
+                .warning("Cannot reload proxy settings: %s Retaining the current settings.", error)
             )
 
             return
         except (OSError, UnicodeError, ValueError) as error:
-            logging.getLogger("provider_core.proxy").warning(
-                "Cannot reload proxy settings; retaining current settings",
-                exc_info=error,
+            (
+                logging
+                .getLogger("provider_core.proxy")
+                .warning("Cannot reload proxy settings; retaining current settings", exc_info=error)
             )
 
             return

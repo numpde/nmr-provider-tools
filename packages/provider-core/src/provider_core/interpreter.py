@@ -496,13 +496,17 @@ def _now() -> float:
 
 
 def _encode(value: object) -> bytes:
-    return json.dumps(
-        value,
-        ensure_ascii=True,
-        allow_nan=False,
-        sort_keys=True,
-        separators=(",", ":")
-    ).encode("ascii")
+    return (
+        json
+        .dumps(
+            value,
+            ensure_ascii=True,
+            allow_nan=False,
+            sort_keys=True,
+            separators=(",", ":"),
+        )
+        .encode("ascii")
+    )
 
 
 def _no_secrets(value: object, secrets: tuple[str, ...]) -> None:

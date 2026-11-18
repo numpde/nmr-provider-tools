@@ -186,12 +186,16 @@ def qualify_wheelhouse_bundle(bundle, scratch):
         text=True,  # Read the hash as text
     ).stdout.strip()
 
-    canonical_manifest = json.dumps(
-        json.loads(report_conversion.stdout),
-        sort_keys=True,
-        separators=(",", ":"),
-        ensure_ascii=True,
-    ).encode()
+    canonical_manifest = (
+        json
+        .dumps(
+            json.loads(report_conversion.stdout),
+            sort_keys=True,
+            separators=(",", ":"),
+            ensure_ascii=True,
+        )
+        .encode()
+    )
 
     if manifest_identity != hashlib.sha256(canonical_manifest).hexdigest():
         raise ValueError("Cannot qualify wheelhouse bundle: selection identity differs from the selected artifact.")

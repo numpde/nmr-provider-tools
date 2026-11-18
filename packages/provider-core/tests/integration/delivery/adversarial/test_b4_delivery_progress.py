@@ -87,16 +87,20 @@ class DeliveryProgressNoticeTests(unittest.IsolatedAsyncioTestCase):
         peer.response_status = 503
         peer.response_headers = response_headers(status=503, request_id=b"request:b4-publication-outage")
 
-        return json.dumps(
-            {
-                "type": "urn:nmr-api:problem:service-unavailable",
-                "title": "Service unavailable",
-                "status": 503,
-                "instance": "urn:nmr-api:request:b4-publication-outage",
-                "request_id": "request:b4-publication-outage",
-                "code": "service_unavailable",
-            }
-        ).encode()
+        return (
+            json
+            .dumps(
+                {
+                    "type": "urn:nmr-api:problem:service-unavailable",
+                    "title": "Service unavailable",
+                    "status": 503,
+                    "instance": "urn:nmr-api:request:b4-publication-outage",
+                    "request_id": "request:b4-publication-outage",
+                    "code": "service_unavailable",
+                },
+            )
+            .encode()
+        )
 
     async def test_retry_warnings_report_elapsed_wait_and_matching_receipt_reports_recovery(self):
         loop = asyncio.get_running_loop()

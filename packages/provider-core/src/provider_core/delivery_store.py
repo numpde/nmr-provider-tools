@@ -296,10 +296,14 @@ class DeliveryQueue:
         with self._transaction("enqueue into"):
             limits = self.limits
 
-            existing = self._db.execute(
-                "SELECT job_ref,operation,body,publication FROM outstanding WHERE api_origin=? AND provider_ref=? AND attempt_ref=?",
-                item.key
-            ).fetchone()
+            existing = (
+                self._db
+                .execute(
+                    "SELECT job_ref,operation,body,publication FROM outstanding WHERE api_origin=? AND provider_ref=? AND attempt_ref=?",
+                    item.key,
+                )
+                .fetchone()
+            )
 
             if existing is not None:
                 if existing != (item.job_ref, item.operation.value, item.body, publication):
@@ -333,10 +337,14 @@ class DeliveryQueue:
             if item is None:
                 return None
 
-            publication = self._db.execute(
-                "SELECT publication FROM outstanding WHERE api_origin=? AND provider_ref=? AND attempt_ref=?",
-                item.key
-            ).fetchone()[0]
+            publication = (
+                self._db
+                .execute(
+                    "SELECT publication FROM outstanding WHERE api_origin=? AND provider_ref=? AND attempt_ref=?",
+                    item.key,
+                )
+                .fetchone()[0]
+            )
 
             if publication is None:
                 raise DeliveryStorageFailed("Cannot publish a legacy delivery without its original publication material; preserve and hold the row for reconciliation.")
@@ -397,10 +405,14 @@ class DeliveryQueue:
 
     def next_pending(self, api_origin, provider_ref):
         with self._access("read"):
-            row = self._db.execute(
-                "SELECT job_ref,attempt_ref,operation,body,digest FROM outstanding WHERE api_origin=? AND provider_ref=? AND state='pending' ORDER BY created_at,attempt_ref LIMIT 1",
-                (api_origin, provider_ref),
-            ).fetchone()
+            row = (
+                self._db
+                .execute(
+                    "SELECT job_ref,attempt_ref,operation,body,digest FROM outstanding WHERE api_origin=? AND provider_ref=? AND state='pending' ORDER BY created_at,attempt_ref LIMIT 1",
+                    (api_origin, provider_ref),
+                )
+                .fetchone()
+            )
 
             if row is None:
                 return None
@@ -433,14 +445,18 @@ class DeliveryQueue:
             (overview, failure) = (None, None)
 
             try:
-                (pending, held, bodies, material, oldest) = self._db.execute(
-                    """
+                (pending, held, bodies, material, oldest) = (
+                    self._db
+                    .execute(
+                        """
                     SELECT COALESCE(SUM(state='pending'),0), COALESCE(SUM(state='held'),0),
                            COALESCE(SUM(length(body)),0), COALESCE(SUM(length(publication)),0),
                            MIN(CASE WHEN state='pending' THEN created_at END)
                     FROM outstanding
-                """
-                ).fetchone()
+                """,
+                    )
+                    .fetchone()
+                )
 
                 overview = {
                     "pending": pending,

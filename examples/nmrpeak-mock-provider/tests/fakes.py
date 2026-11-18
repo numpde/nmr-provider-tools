@@ -16,13 +16,17 @@ class ScriptedEndpoint:
 
         encoded = json.dumps(obj=proposals, sort_keys=True).encode(encoding="utf-8")
 
-        self.identity = json.dumps(
-            obj={
-                "configuration_id": "recorded-nmrpeak-interpreter",
-                "model": "recorded-tool-responses",
-                "configuration_sha256": sha256(string=encoded).hexdigest(),
-            }
-        ).encode(encoding="utf-8")
+        self.identity = (
+            json
+            .dumps(
+                obj={
+                    "configuration_id": "recorded-nmrpeak-interpreter",
+                    "model": "recorded-tool-responses",
+                    "configuration_sha256": sha256(string=encoded).hexdigest(),
+                },
+            )
+            .encode(encoding="utf-8")
+        )
 
     async def complete(self, messages: list[dict], tools: list[dict], *, not_after: float) -> dict:
         index = len(self.requests)

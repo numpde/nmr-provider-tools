@@ -20,9 +20,11 @@ def document(*, key=None, **changes):
         "principal_ref": "provider:example",
         "credential_ref": "credential:example",
         "algorithm": "ed25519",
-        "public_key_spki_der_b64": base64.b64encode(
-            key.public_key().public_bytes(Encoding.DER, PublicFormat.SubjectPublicKeyInfo)
-        ).decode(),
+        "public_key_spki_der_b64": (
+            base64
+            .b64encode(key.public_key().public_bytes(Encoding.DER, PublicFormat.SubjectPublicKeyInfo))
+            .decode()
+        ),
         "private_key_pkcs8_pem": key.private_bytes(Encoding.PEM, PrivateFormat.PKCS8, NoEncryption()).decode(),
     } | changes
 

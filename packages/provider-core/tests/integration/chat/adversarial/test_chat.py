@@ -73,17 +73,21 @@ class ChatCarrierRejectionTests(unittest.IsolatedAsyncioTestCase):
             'C 0 0 0; api_key=PRIVATE_KEY'
         )
 
-        body = json.dumps(
-            {
-                "error": {
-                    "message": "Unsupported tool_choice. Echo: " + prompt + "; escaped: " + json.dumps(prompt)[1:-1],
-                    "type": "invalid_request_error",
-                    "code": "unsupported_parameter",
-                    "param": "tool_choice",
-                    "request": "PRIVATE_UNRELATED_BODY",
-                }
-            }
-        ).encode()
+        body = (
+            json
+            .dumps(
+                {
+                    "error": {
+                        "message": "Unsupported tool_choice. Echo: " + prompt + "; escaped: " + json.dumps(prompt)[1:-1],
+                        "type": "invalid_request_error",
+                        "code": "unsupported_parameter",
+                        "param": "tool_choice",
+                        "request": "PRIVATE_UNRELATED_BODY",
+                    }
+                },
+            )
+            .encode()
+        )
 
         response = HttpResponse(400, ((b"content-type", b"application/json"),), body)
         transport = SimpleNamespace(exchange_decoded=AsyncMock(return_value=response), retire=AsyncMock(), retirement_confirmed=True)
