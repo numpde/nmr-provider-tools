@@ -21,7 +21,7 @@ from enum import StrEnum
 from types import NoneType
 from typing import Any, Protocol, get_args, get_origin, get_type_hints, runtime_checkable
 
-from provider_core.contribution_errors import ScientificRejection
+from provider_core.contribution_errors import ScientificRejection as ScientificRejection
 from provider_core.type_requirements import require_instance, require_type
 
 from provider_core.payload import (

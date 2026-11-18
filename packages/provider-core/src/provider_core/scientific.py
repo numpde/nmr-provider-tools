@@ -20,7 +20,7 @@ from enum import Enum
 from dataclasses import InitVar, dataclass, field, fields, is_dataclass, replace
 from threading import Lock
 from types import NoneType
-from typing import Any, ClassVar, Protocol, get_args, get_origin, get_type_hints
+from typing import ClassVar, Protocol, get_args, get_origin, get_type_hints
 
 from provider_core.contribution import (
     CallBinding,
@@ -31,11 +31,11 @@ from provider_core.contribution import (
     InterruptionSupport,
     IsolationRequirement,
     NoInput,
-    ProgressEvent,
+    ProgressEvent as ProgressEvent,
     ResourceRequirement,
     ScientificControl,
     ScientificReturn,
-    StateUse,
+    StateUse as StateUse,
     _MethodCall,
     _ScientificCallShape,
     _require_state_kinds,
@@ -46,7 +46,8 @@ from provider_core.contribution import (
 
 from provider_core.payload import JsonDataclassCodec, PayloadCodec
 from provider_core.hosting import AllocationRef
-from provider_core.state_slots import StateInputSlot, StateType, StateOutputSlot
+from provider_core.state_slots import StateInputSlot, StateOutputSlot
+from provider_core.state_slots import StateType as StateType
 from provider_core.type_requirements import require_instance, require_subclass, require_type
 
 
