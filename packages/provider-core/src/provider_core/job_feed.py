@@ -19,6 +19,7 @@ from provider_core.attempt_request import require_analysis_kind
 from provider_core.job_input import FeedInputFacts, JobInputRejected
 from provider_core.paging import MAX_PAGE_ITEMS, paging_query, require_cursor
 from provider_core.response_json import ResponseRejected, read_document, read_timestamp
+from provider_core.type_requirements import require_type
 
 # The pinned discovery response owns this page byte ceiling.
 # repo-check: allow-module-constant
@@ -44,10 +45,7 @@ def jobs_query(*, analysis_kind_ref, has_provider_execution_attempt, limit, curs
     """Encode explicit selection choices once for the signed request target."""
     require_analysis_kind(analysis_kind_ref)
 
-    if not (type(has_provider_execution_attempt) is (expected_type := bool)):
-        raise TypeError(
-            f"{type(has_provider_execution_attempt)=} ≠ {expected_type=}"
-        )
+    require_type(has_provider_execution_attempt, bool)
 
     # silent-defaults: allow-contract -- Encode the caller-selected boolean as the protocol-required lowercase wire value.
     view = "true" if has_provider_execution_attempt else "false"
