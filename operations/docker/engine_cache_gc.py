@@ -124,12 +124,29 @@ def unit_files(root, context, endpoint, config):
         )
     )
 
-    service = ("[Unit]\nDescription=Unused BuildKit cache collection for one local engine\n\n"
-               "[Service]\nType=oneshot\nTimeoutStartSec=360\nExecStart=:" + command + "\n")
+    service = (
+        "[Unit]\n"
+        "Description=Unused BuildKit cache collection for one local engine\n"
+        "\n"
+        "[Service]\n"
+        "Type=oneshot\n"
+        "TimeoutStartSec=360\n"
+        "ExecStart=:" + command + "\n"
+    )
 
-    timer = (f"[Unit]\nDescription=Periodic unused BuildKit cache collection\n\n"
-             f"[Timer]\nOnCalendar=hourly\nRandomizedDelaySec=15min\nPersistent=true\n"
-             f"Unit={name}.service\n\n[Install]\nWantedBy=timers.target\n")
+    timer = (
+        "[Unit]\n"
+        "Description=Periodic unused BuildKit cache collection\n"
+        "\n"
+        "[Timer]\n"
+        "OnCalendar=hourly\n"
+        "RandomizedDelaySec=15min\n"
+        "Persistent=true\n"
+        f"Unit={name}.service\n"
+        "\n"
+        "[Install]\n"
+        "WantedBy=timers.target\n"
+    )
 
     return (name, service, timer)
 

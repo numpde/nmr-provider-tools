@@ -101,7 +101,9 @@ class WheelhouseTests(unittest.TestCase):
 
         with self.lock.open("a") as lock:
             lock.write(
-                f'[[packages]]\nname = "zexample"\nversion = "1.0"\n'
+                '[[packages]]\n'
+                'name = "zexample"\n'
+                'version = "1.0"\n'
                 f'[[packages.wheels]]\n'
                 f'url = "http://127.0.0.1:{self.server.server_port}/{second_name}"\n'
                 f'hashes = {{ sha256 = "{second_digest}" }}\n'
@@ -180,8 +182,11 @@ class WheelhouseTests(unittest.TestCase):
 
     def write_lock(self, digest):
         self.lock.write_text(
-            f'lock-version = "1.0"\ncreated-by = "test"\n'
-            f'[[packages]]\nname = "example"\nversion = "1.0"\n'
+            'lock-version = "1.0"\n'
+            'created-by = "test"\n'
+            '[[packages]]\n'
+            'name = "example"\n'
+            'version = "1.0"\n'
             f'[[packages.wheels]]\n'
             f'url = "http://127.0.0.1:{self.server.server_port}/{self.name}"\n'
             f'hashes = {{ sha256 = "{digest}" }}\n'
@@ -428,7 +433,11 @@ class WheelhouseTests(unittest.TestCase):
     def test_index_metadata_retries_transient_failure(self):
         digest = 'a' * 64
 
-        self.lock.write_text('--index-url https://example.invalid/simple\nexample==1.0 \\\n    --hash=sha256:' + digest + '\n')
+        self.lock.write_text(
+            '--index-url https://example.invalid/simple\n'
+            'example==1.0 \\\n'
+            '    --hash=sha256:' + digest + '\n'
+        )
 
         metadata = {
             'name': 'example',
@@ -663,7 +672,8 @@ class WheelhouseTests(unittest.TestCase):
             "https://host/pool/a.whl",
             "file:///pool/a%2Fb.whl",
             "file:///pool/a%FF.whl",
-            "file:///pool/a\n.whl",
+            "file:///pool/a\n"
+            ".whl",
             "file:///pool/a%zz.whl",
             "file:///pool/a%0A.whl",
             "file:///pool/a.whl?query"
@@ -708,7 +718,8 @@ class WheelhouseTests(unittest.TestCase):
 
         self.lock.write_text(
             '--index-url https://example.invalid/simple\n'
-            'example==1.0 \\\n    --hash=sha256:' + digest + '\n'
+            'example==1.0 \\\n'
+            '    --hash=sha256:' + digest + '\n'
             'torch @ https://example.invalid/torch-2.3.0%2Bcpu-cp312-cp312-linux_x86_64.whl#sha256=' + direct + ' \\\n'
             '    --hash=sha256:' + direct + '\n'
         )
@@ -762,8 +773,10 @@ class WheelhouseTests(unittest.TestCase):
         (self.pool / native).write_bytes(b"conflicting bytes")
 
         self.lock.write_text(
-            f'--index-url https://example.invalid/simple\nexample==1.0 \\\n'
-            f'    --hash=sha256:{cached_hash} \\\n    --hash=sha256:{native_hash}\n'
+            '--index-url https://example.invalid/simple\n'
+            'example==1.0 \\\n'
+            f'    --hash=sha256:{cached_hash} \\\n'
+            f'    --hash=sha256:{native_hash}\n'
         )
 
         metadata = {
@@ -794,7 +807,11 @@ class WheelhouseTests(unittest.TestCase):
     def test_locator_accepts_existing_direct_source_only_when_it_matches_the_pin(self):
         digest = "a" * 64
 
-        self.lock.write_text('--index-url https://example.invalid/simple\ntorch==2.3.0+cpu \\\n    --hash=sha256:' + digest + '\n')
+        self.lock.write_text(
+            '--index-url https://example.invalid/simple\n'
+            'torch==2.3.0+cpu \\\n'
+            '    --hash=sha256:' + digest + '\n'
+        )
         url = "https://example.invalid/torch-2.3.0%2Bcpu-cp312-cp312-linux_x86_64.whl#sha256=" + digest
         projected = tomllib.loads(locate(self.lock, direct_sources=[url]))
 
@@ -816,7 +833,8 @@ class WheelhouseTests(unittest.TestCase):
         )}
 
         self.lock.write_text(
-            '--index-url https://example.invalid/simple\nexample==1.0 \\\n' +
+            '--index-url https://example.invalid/simple\n'
+            'example==1.0 \\\n' +
             ''.join('    --hash=sha256:' + digest + ' \\\n' for digest in hashes.values())
         )
 
@@ -895,13 +913,21 @@ class WheelhouseTests(unittest.TestCase):
         digest = "a" * 64
         url = "https://example.invalid/torch-2.3.0%2Bcpu-cp312-cp312-linux_x86_64.whl#sha256=" + digest
 
-        self.lock.write_text("torch @ " + url + " \\\n    --hash=sha256:" + digest + "\n")
+        self.lock.write_text(
+            "torch @ " + url +
+            " \\\n"
+            "    --hash=sha256:" + digest + "\n"
+        )
         self.assertEqual("torch", tomllib.loads(locate(self.lock))["packages"][0]["name"])
 
         with self.assertRaisesRegex(ValueError, "differs from its locked identity"):
             locate(self.lock, required_sources=["torch"])
 
-        self.lock.write_text('--index-url https://example.invalid/simple\nexample==1.0 \\\n    --hash=sha256:' + digest + '\n')
+        self.lock.write_text(
+            '--index-url https://example.invalid/simple\n'
+            'example==1.0 \\\n'
+            '    --hash=sha256:' + digest + '\n'
+        )
 
         metadata = {
             "name": "example",
@@ -954,9 +980,13 @@ class WheelhouseTests(unittest.TestCase):
 
     def test_source_must_be_explicitly_allowed(self):
         self.lock.write_text(
-            f'lock-version = "1.0"\ncreated-by = "test"\n'
-            f'[[packages]]\nname = "example"\nversion = "1.0"\n'
-            f'[packages.sdist]\nurl = "https://example.invalid/example-1.0.tar.gz"\n'
+            'lock-version = "1.0"\n'
+            'created-by = "test"\n'
+            '[[packages]]\n'
+            'name = "example"\n'
+            'version = "1.0"\n'
+            '[packages.sdist]\n'
+            'url = "https://example.invalid/example-1.0.tar.gz"\n'
             f'hashes = {{ sha256 = "{"0" * 64}" }}\n'
         )
 
@@ -966,8 +996,11 @@ class WheelhouseTests(unittest.TestCase):
     def test_direct_archives_obey_source_policy(self):
         def archive(name):
             self.lock.write_text(
-                f'lock-version = "1.0"\ncreated-by = "test"\n'
-                f'[[packages]]\nname = "example"\nversion = "1.0"\n'
+                'lock-version = "1.0"\n'
+            'created-by = "test"\n'
+                '[[packages]]\n'
+            'name = "example"\n'
+            'version = "1.0"\n'
                 f'[packages.archive]\n'
                 f'url = "https://example.invalid/{name}"\n'
                 f'hashes = {{ sha256 = "{"0" * 64}" }}\n'

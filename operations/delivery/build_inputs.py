@@ -89,7 +89,10 @@ def publish_release_wheels(tool, pool, artifacts):
         acquisition_lock = pathlib.Path(temporary) / "pylock.delivery.toml"
 
         with acquisition_lock.open("x", encoding="utf-8") as stream:
-            stream.write('lock-version = "1.0"\ncreated-by = "nmr-provider-tools delivery"\n')
+            stream.write(
+                'lock-version = "1.0"\n'
+                'created-by = "nmr-provider-tools delivery"\n'
+            )
 
             for (wheel_name, checksum, url) in artifacts:
                 (distribution, version, _, _) = parse_wheel_filename(wheel_name)
@@ -101,8 +104,14 @@ def publish_release_wheels(tool, pool, artifacts):
                     f"version = {json.dumps(str(version))}\n"
                 )
 
-                stream.write(f"[packages.archive]\nurl = {json.dumps(url)}\n")
-                stream.write(f"[packages.archive.hashes]\nsha256 = {json.dumps(checksum)}\n")
+                stream.write(
+                    "[packages.archive]\n"
+                    f"url = {json.dumps(url)}\n"
+                )
+                stream.write(
+                    "[packages.archive.hashes]\n"
+                    f"sha256 = {json.dumps(checksum)}\n"
+                )
 
         subprocess.run(
             [
@@ -205,7 +214,10 @@ def _capture_image_inputs(pin, runtime_lock, pool, destination, lock_fd):
     )
 
     installer = installer_release(destination / "requirements/installer-release.json")
-    copy_instructions += "\nCOPY " + json.dumps(["installer/" + installer["name"], "/installer/" + installer["name"]])
+    copy_instructions += (
+        "\n"
+        "COPY " + json.dumps(["installer/" + installer["name"], "/installer/" + installer["name"]])
+    )
     selected_dockerfile = destination / "operations/delivery/image/Dockerfile.selected"
 
     with selected_dockerfile.open("x") as target:

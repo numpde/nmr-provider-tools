@@ -25,12 +25,28 @@ class SharedDeploymentTests(unittest.TestCase):
             proxy_uid = uid + 1
 
             settings_path.write_text(
-                f'[deployment]\nproject = "joint"\nuid = {uid}\nproxy_uid = {proxy_uid}\n'
-                f'gid = {gid}\nrequest_seconds = 10\n[api_proxy]\nmax_connections = 32\n'
-                f'log_level = "INFO"\nallowed_authorities = ["api.example:443"]\n'
-                f'[api_proxy.route]\nmode = "mapped"\ninterface = "lo"\naddresses = ["api.example=127.0.0.1"]\n'
-                f'[outbox]\nprovider_items = 8\nprovider_bytes = 8192\ntotal_items = 32\n'
-                f'total_bytes = 32768\nretry_initial_seconds = 1\nretry_max_seconds = 30\nlog_level = "INFO"\n'
+                '[deployment]\n'
+                'project = "joint"\n'
+                f'uid = {uid}\n'
+                f'proxy_uid = {proxy_uid}\n'
+                f'gid = {gid}\n'
+                'request_seconds = 10\n'
+                '[api_proxy]\n'
+                'max_connections = 32\n'
+                'log_level = "INFO"\n'
+                'allowed_authorities = ["api.example:443"]\n'
+                '[api_proxy.route]\n'
+                'mode = "mapped"\n'
+                'interface = "lo"\n'
+                'addresses = ["api.example=127.0.0.1"]\n'
+                '[outbox]\n'
+                'provider_items = 8\n'
+                'provider_bytes = 8192\n'
+                'total_items = 32\n'
+                'total_bytes = 32768\n'
+                'retry_initial_seconds = 1\n'
+                'retry_max_seconds = 30\n'
+                'log_level = "INFO"\n'
             )
 
             settings_path.chmod(0o600)

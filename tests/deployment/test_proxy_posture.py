@@ -73,24 +73,45 @@ class ImageBuildProxyInputTests(unittest.TestCase):
     def test_connect_ports_are_admitted_before_socket_use(self):
         for port in ("0", "65536", "-1", "not-a-port"):
             with self.subTest(port=port), self.assertRaises(ValueError):
-                _PROXY.parse_destination(f"CONNECT example.invalid:{port} HTTP/1.1\r\n\r\n".encode())
+                _PROXY.parse_destination((
+                    f"CONNECT example.invalid:{port} HTTP/1.1\r\n"
+                    "\r\n"
+                ).encode())
 
         self.assertEqual(
             ("CONNECT", "example.invalid", 443),
-            _PROXY.parse_destination(b"CONNECT example.invalid:443 HTTP/1.1\r\n\r\n")[:3]
+            _PROXY.parse_destination(
+                b"CONNECT example.invalid:443 HTTP/1.1\r\n"
+                b"\r\n"
+            )[:3]
         )
 
     def test_complete_headers_preserve_the_received_remainder(self):
         client = Mock()
-        client.recv.return_value = b"GET http://example.invalid/ HTTP/1.1\r\n\r\nbody"
+        client.recv.return_value = (
+            b"GET http://example.invalid/ HTTP/1.1\r\n"
+            b"\r\n"
+            b"body"
+        )
 
         with patch.object(_PROXY.time, "monotonic", return_value=0):
-            self.assertEqual((b"GET http://example.invalid/ HTTP/1.1\r\n\r\n", b"body"), _PROXY.receive_headers(client))
+            self.assertEqual(
+                (
+                    b"GET http://example.invalid/ HTTP/1.1\r\n"
+                    b"\r\n",
+                    b"body",
+                ),
+                _PROXY.receive_headers(client),
+            )
 
         client.settimeout.assert_called_once_with(30)
 
     def test_header_drip_and_late_complete_fragment_do_not_reset_deadline(self):
-        for final in (None, b"\r\n\r\n"):
+        for final in (
+            None,
+            b"\r\n"
+            b"\r\n",
+        ):
             with self.subTest(final_complete=final is not None):
                 self._assert_header_deadline(final)
 
@@ -115,7 +136,10 @@ class ImageBuildProxyInputTests(unittest.TestCase):
         self.assertEqual([call.args[0] for call in client.settimeout.call_args_list], [30, 16, 2])
 
     def test_header_limit_accepts_exact_boundary_and_rejects_one_byte_more(self):
-        header_end = b"\r\n\r\n"
+        header_end = (
+            b"\r\n"
+            b"\r\n"
+        )
         exact = Mock()
         raw = b"x" * (_PROXY.MAX_HEADER_BYTES - len(header_end)) + header_end
         exact.recv.side_effect = [raw[index : index + 8192] for index in range(0, len(raw), 8192)]
@@ -133,7 +157,10 @@ class ImageBuildProxyInputTests(unittest.TestCase):
         self.assertEqual(9, oversized.recv.call_count)
 
     def test_header_limit_excludes_a_coalesced_body_remainder(self):
-        header = b"x" * (_PROXY.MAX_HEADER_BYTES - 4) + b"\r\n\r\n"
+        header = b"x" * (_PROXY.MAX_HEADER_BYTES - 4) + (
+            b"\r\n"
+            b"\r\n"
+        )
         (prefix, body) = (header[:-1], b"body")
         chunks = [prefix[index : index + 8192] for index in range(0, len(prefix), 8192)]
         client = Mock()
@@ -571,7 +598,11 @@ class ImageBuildProxyWorkerTests(unittest.TestCase):
         ):
             _PROXY.ProxyHandler(request, ("127.0.0.1", 1), SimpleNamespace(outbound_interface="eth0", dns_servers=None))
 
-        request.sendall.assert_called_once_with(b"HTTP/1.1 502 Bad Gateway\r\nConnection: close\r\n\r\n")
+        request.sendall.assert_called_once_with(
+            b"HTTP/1.1 502 Bad Gateway\r\n"
+            b"Connection: close\r\n"
+            b"\r\n"
+        )
         self.assertIn("request admission", stderr.getvalue())
         self.assertIn("ValueError", stderr.getvalue())
         self.assertNotIn(_PRIVATE, stderr.getvalue())
@@ -582,7 +613,15 @@ class ImageBuildProxyWorkerTests(unittest.TestCase):
         (stderr, stdout) = (io.StringIO(), io.StringIO())
 
         with (
-            patch.object(_PROXY, "receive_headers", return_value=(b"CONNECT example.invalid:443 HTTP/1.1\r\n\r\n", b"")),
+            patch.object(
+                _PROXY,
+                "receive_headers",
+                return_value=(
+                    b"CONNECT example.invalid:443 HTTP/1.1\r\n"
+                    b"\r\n",
+                    b"",
+                ),
+            ),
             patch.object(_PROXY, "connect_bound", return_value=connection),
             patch.object(_PROXY, "relay", side_effect=OSError(_PRIVATE)),
             redirect_stderr(stderr),
@@ -590,7 +629,10 @@ class ImageBuildProxyWorkerTests(unittest.TestCase):
         ):
             _PROXY.ProxyHandler(request, ("127.0.0.1", 1), SimpleNamespace(outbound_interface="eth0", dns_servers=None))
 
-        request.sendall.assert_called_once_with(b"HTTP/1.1 200 Connection Established\r\n\r\n")
+        request.sendall.assert_called_once_with(
+            b"HTTP/1.1 200 Connection Established\r\n"
+            b"\r\n"
+        )
         self.assertNotIn(_PRIVATE, stderr.getvalue() + stdout.getvalue())
 
     def test_initial_forwarding_write_failure_does_not_append_http_failure(self):
@@ -601,9 +643,15 @@ class ImageBuildProxyWorkerTests(unittest.TestCase):
 
                 # silent-defaults: allow-contract -- The HTTP-header failure uses GET; the two CONNECT write failures use tunnel admission bytes; proof=tests/deployment/test_proxy_posture.py::ImageBuildProxyWorkerTests.test_initial_forwarding_write_failure_does_not_append_http_failure
                 header = (
-                    b"GET http://example.invalid/ HTTP/1.1\r\n\r\n"
+                    (
+                        b"GET http://example.invalid/ HTTP/1.1\r\n"
+                        b"\r\n"
+                    )
                     if phase == "http_header"
-                    else b"CONNECT example.invalid:443 HTTP/1.1\r\n\r\n"
+                    else (
+                        b"CONNECT example.invalid:443 HTTP/1.1\r\n"
+                        b"\r\n"
+                    )
                 )
 
                 # silent-defaults: allow-contract -- Only the CONNECT-remainder scenario supplies body bytes so that its initial forwarding write is exercised; proof=tests/deployment/test_proxy_posture.py::ImageBuildProxyWorkerTests.test_initial_forwarding_write_failure_does_not_append_http_failure
@@ -625,7 +673,10 @@ class ImageBuildProxyWorkerTests(unittest.TestCase):
                 if phase == "http_header":
                     request.sendall.assert_not_called()
                 else:
-                    request.sendall.assert_called_once_with(b"HTTP/1.1 200 Connection Established\r\n\r\n")
+                    request.sendall.assert_called_once_with(
+                        b"HTTP/1.1 200 Connection Established\r\n"
+                        b"\r\n"
+                    )
 
                 relay.assert_not_called()
                 self.assertNotIn(_PRIVATE, stderr.getvalue() + stdout.getvalue())

@@ -22,10 +22,17 @@ class Origin(http.server.BaseHTTPRequestHandler):
 def exchange(proxy_port, origin_port, tunnel):
     with socket.create_connection(("127.0.0.1", proxy_port), timeout=3) as client:
         if tunnel:
-            client.sendall(f"CONNECT 127.0.0.2:{origin_port} HTTP/1.1\r\nHost: fixture\r\n\r\n".encode())
+            client.sendall((
+                f"CONNECT 127.0.0.2:{origin_port} HTTP/1.1\r\n"
+                "Host: fixture\r\n"
+                "\r\n"
+            ).encode())
             response = b""
 
-            while b"\r\n\r\n" not in response:
+            while (
+                b"\r\n"
+                b"\r\n"
+            ) not in response:
                 block = client.recv(4096)
 
                 if not (block):
@@ -38,9 +45,19 @@ def exchange(proxy_port, origin_port, tunnel):
             if not connect_status_line.startswith(expected_status_prefix := b"HTTP/1.1 200 "):
                 raise RuntimeError(f"{connect_status_line=} should start with {expected_status_prefix=}")
 
-            client.sendall(b"GET /proof HTTP/1.1\r\nHost: fixture\r\nConnection: close\r\n\r\n")
+            client.sendall(
+                b"GET /proof HTTP/1.1\r\n"
+                b"Host: fixture\r\n"
+                b"Connection: close\r\n"
+                b"\r\n"
+            )
         else:
-            client.sendall(f"GET http://127.0.0.2:{origin_port}/proof HTTP/1.1\r\nHost: fixture\r\nConnection: close\r\n\r\n".encode())
+            client.sendall((
+                f"GET http://127.0.0.2:{origin_port}/proof HTTP/1.1\r\n"
+                "Host: fixture\r\n"
+                "Connection: close\r\n"
+                "\r\n"
+            ).encode())
 
         client.shutdown(socket.SHUT_WR)
         origin_response = b""
@@ -51,7 +68,11 @@ def exchange(proxy_port, origin_port, tunnel):
             if len(origin_response) > 65536:
                 raise RuntimeError("origin response exceeded its bound")
 
-        if not origin_response.endswith(expected_suffix := b"\r\n\r\nproof"):
+        if not origin_response.endswith(expected_suffix := (
+            b"\r\n"
+            b"\r\n"
+            b"proof"
+        )):
             origin_response_suffix = origin_response[-len(expected_suffix):]
             raise RuntimeError(f"{origin_response_suffix=} should be {expected_suffix=}")
 

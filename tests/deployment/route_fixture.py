@@ -247,10 +247,19 @@ def shared_group_socket(mode, path, owner_uid, access_gid):
             if mode != "allowed":
                 raise AssertionError("A nonmember connected to the shared proxy socket")
 
-            channel.sendall(b"CONNECT witness.invalid:1 HTTP/1.1\r\n\r\n")
+            channel.sendall(
+                b"CONNECT witness.invalid:1 HTTP/1.1\r\n"
+                b"\r\n"
+            )
             response = bytearray()
 
-            while b"\r\n\r\n" not in response and len(response) < 4096:
+            while (
+                (
+                    b"\r\n"
+                    b"\r\n"
+                ) not in response and
+                len(response) < 4096
+            ):
                 chunk = channel.recv(4096 - len(response))
 
                 if not chunk:
