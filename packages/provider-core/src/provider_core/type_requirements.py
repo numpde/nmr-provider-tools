@@ -102,7 +102,15 @@ def _raise_mismatch(expr: object, T: type | tuple[type, ...], relation: str) -> 
         del frame
         del caller
 
-    raise TypeError(f"{source_expr or repr(expr)}: expected {expected}, got {actual}")
+    if source_expr is not None:
+        subject = source_expr
+    else:
+        try:
+            subject = repr(expr)
+        except Exception:
+            subject = f"<{actual}>"
+
+    raise TypeError(f"{subject}: expected {expected}, got {actual}")
 
 
 def require_type(expr: object, T: type | tuple[type, ...]) -> None:
