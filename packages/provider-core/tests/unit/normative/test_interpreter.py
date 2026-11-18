@@ -41,8 +41,8 @@ def factory(model):
 
 # silent-defaults: allow-contract -- This unit helper intentionally supplies a fixed 240-second model allowance and one-megabyte context unless a test overrides either.
 def interpreter(*models, timeout=240, context=1024 * 1024):
-    # repo-check: allow-tuple-generator -- Interpreter accepts only a captured immutable endpoint tuple, not a generator of mutable mock factories.
     return Interpreter(
+        # repo-check: allow-tuple-generator -- Interpreter requires a fixed factory order and count for fallback and time allocation
         tuple(factory(model) for model in models),
         interpretation_budget_seconds=timeout,
         reject_combined_messages_and_tools_over_bytes=context,
