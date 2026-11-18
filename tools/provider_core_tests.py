@@ -335,7 +335,8 @@ def run_suite(suite: str, patterns: tuple[str, ...]) -> None:
                 patterns=patterns,
             )
 
-        if suite == "unit":
+        # A named unit test file is a focused run, not a full native qualification.
+        if suite == "unit" and patterns == ("test*.py",):
             native_lock = candidate_output / candidate_wheel.name.replace(
                 "-py3-none-any.whl",
                 "-native-install.lock",
