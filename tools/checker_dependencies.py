@@ -19,23 +19,19 @@ import shutil
 import subprocess
 import tempfile
 import urllib.request
-from pathlib import Path
+import pathlib
 from urllib.parse import urlsplit
 
 from tools.artifacts import fsync_directory, regular_file, require_download_proxy
+from tools.installer import duplicate_json_fields
 from tools.installer import install as install_pip, release as installer_release
 
 
-def unique_fields(pairs):
-    document = {}
+def unique_fields(field_pairs):
+    if extra_field_occurrences := duplicate_json_fields(field_pairs):
+        raise ValueError(f"Checker dependency fields should be unique, but {extra_field_occurrences=}")
 
-    for (name, value) in pairs:
-        if name in document:
-            raise ValueError(f"Cannot admit checker dependencies: duplicate JSON field {name!r}.")
-
-        document[name] = value
-
-    return document
+    return dict(field_pairs)
 
 
 def declaration(path):
@@ -205,7 +201,7 @@ def download(packages, pool):
             target.flush()
             os.fchmod(target.fileno(), 0o644)
             os.fsync(target.fileno())
-            publish(package, Path(target.name), destination)
+            publish(package, pathlib.Path(target.name), destination)
 
         fsync_directory(pool)
 
@@ -230,10 +226,10 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
 
     parser.add_argument("action", choices=("check", "capture", "download", "install"))
-    parser.add_argument("--declaration", type=Path, required=True)
-    parser.add_argument("--directory", type=Path, required=True)
-    parser.add_argument("--destination", type=Path)
-    parser.add_argument("--installer", type=Path)
+    parser.add_argument("--declaration", type=pathlib.Path, required=True)
+    parser.add_argument("--directory", type=pathlib.Path, required=True)
+    parser.add_argument("--destination", type=pathlib.Path)
+    parser.add_argument("--installer", type=pathlib.Path)
     args = parser.parse_args()
     packages = declaration(args.declaration)
     artifacts = list(packages)

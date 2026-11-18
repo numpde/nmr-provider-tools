@@ -13,7 +13,7 @@ from collections import Counter
 import hashlib
 import json
 import os
-from pathlib import Path
+import pathlib
 import re
 import stat
 import subprocess
@@ -21,13 +21,19 @@ import sys
 import tempfile
 
 
+def duplicate_json_fields(field_pairs: list[tuple[str, object]]) -> Counter[str]:
+    """Count occurrences beyond the first for each repeated JSON field."""
+    field_counts = Counter(field_name for (field_name, _) in field_pairs)
+
+    return field_counts - Counter(field_counts.keys())
+
+
 def unique_fields(field_pairs):
     """Reject duplicate JSON object keys before constructing the dictionary."""
-    field_counts = Counter(key for (key, _) in field_pairs)
-    duplicate_fields = field_counts - Counter(field_counts.keys())
+    duplicate_fields = sorted(duplicate_json_fields(field_pairs))
 
     if duplicate_fields:
-        raise ValueError(f"Cannot start the installer: release record contains {duplicate_fields=}")
+        raise ValueError(f"Installer release record should have unique JSON fields, but {duplicate_fields=}")
 
     return dict(field_pairs)
 
@@ -94,29 +100,36 @@ def wheel_bytes(wheel, record):
 
 def checked_bytes(source, record):
     """Bound the read and authenticate its bytes before pip can execute them."""
-    data = source.read(record["size"] + 1)
+    wheel_name = record["name"]
+    expected_size = record["size"]
+    captured_bytes = source.read(expected_size + 1)
+    captured_size = len(captured_bytes)
 
-    if len(data) != record["size"] or hashlib.sha256(data).hexdigest() != record["sha256"]:
-        raise ValueError(
-            "Cannot start the installer: wheel size or SHA-256 differs from the SDK release."
-        )
+    if captured_size != expected_size:
+        raise ValueError(f"{wheel_name=}, {captured_size=} ≠ {expected_size=}")
 
-    return data
+    wheel_sha256 = hashlib.sha256(captured_bytes).hexdigest()
+    expected_sha256 = record["sha256"]
+
+    if wheel_sha256 != expected_sha256:
+        raise ValueError(f"{wheel_name=}, {wheel_sha256=} ≠ {expected_sha256=}")
+
+    return captured_bytes
 
 
 def capture(wheel, record, destination):
     """Admit a private copy, so shared-cache replacement cannot rebind imports."""
-    data = wheel_bytes(wheel, record)
+    captured_bytes = wheel_bytes(wheel, record)
 
     with destination.open("xb") as target:
-        target.write(data)
+        target.write(captured_bytes)
 
 
 def install(pool, record):
     """Bootstrap from authenticated bytes, without executing the inherited pip."""
 
     with tempfile.TemporaryDirectory(prefix="provider-installer-") as temporary:
-        captured = Path(temporary) / record["name"]
+        captured = pathlib.Path(temporary) / record["name"]
 
         capture(pool / record["name"], record, captured)
 
@@ -150,12 +163,12 @@ def create_environment(destination):
     Subsequent operations use the target's own pip so its process can retain
     borrowed shared-pool lock descriptors without an intermediate dispatcher.
     """
-    image = Path("/opt/provider-tools/installer")
+    image = pathlib.Path("/opt/provider-tools/installer")
     record = release(image / "release.json")
     python = destination / "bin/python"
 
     with tempfile.TemporaryDirectory(prefix="provider-installer-") as temporary:
-        captured = Path(temporary) / record["name"]
+        captured = pathlib.Path(temporary) / record["name"]
 
         capture(image / "wheels" / record["name"], record, captured)
         subprocess.run([sys.executable, "-I", "-B", "-m", "venv", "--without-pip", str(destination)], check=True)
@@ -186,8 +199,8 @@ def create_environment(destination):
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description=__doc__)
 
-    parser.add_argument("--record", type=Path, required=True)
-    parser.add_argument("--pool", type=Path, required=True)
+    parser.add_argument("--record", type=pathlib.Path, required=True)
+    parser.add_argument("--pool", type=pathlib.Path, required=True)
     args = parser.parse_args()
 
     install(args.pool, release(args.record))

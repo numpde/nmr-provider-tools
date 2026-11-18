@@ -9,7 +9,7 @@ import json
 import os
 import tempfile
 import unittest
-from pathlib import Path
+import pathlib
 from unittest.mock import patch
 
 from tools import checker_dependencies as dependencies
@@ -20,7 +20,7 @@ class CheckerDependencyTests(unittest.TestCase):
         temporary = tempfile.TemporaryDirectory()
 
         self.addCleanup(temporary.cleanup)
-        self.root = Path(temporary.name)
+        self.root = pathlib.Path(temporary.name)
         self.pool = self.root / "pool"
 
         self.pool.mkdir()
@@ -48,8 +48,10 @@ class CheckerDependencyTests(unittest.TestCase):
         self.assertEqual([self.package], dependencies.declaration(self.manifest))
         self.manifest.write_text('{"platform":"linux/amd64","platform":"linux/amd64","packages":[]}')
 
-        with self.assertRaisesRegex(ValueError, "duplicate JSON field"):
+        with self.assertRaises(ValueError) as caught:
             dependencies.declaration(self.manifest)
+
+        self.assertIn("'platform': 1", str(caught.exception))
 
         for (changes, error_type) in (
             ({"name": "ruff"}, ValueError),

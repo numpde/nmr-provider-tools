@@ -7,7 +7,7 @@ require_container()
 import hashlib
 import json
 import os
-from pathlib import Path
+import pathlib
 import subprocess
 import tempfile
 import unittest
@@ -24,7 +24,7 @@ class InstallerImageTests(unittest.TestCase):
         temporary = tempfile.TemporaryDirectory()
 
         self.addCleanup(temporary.cleanup)
-        self.root = Path(temporary.name)
+        self.root = pathlib.Path(temporary.name)
         self.record = installer.release(ROOT / "requirements/installer-release.json")
 
     def test_real_backend_build_and_locked_install_use_the_target_installer(self):
@@ -96,7 +96,7 @@ def build_wheel(wheel_directory, config_settings=None, metadata_directory=None):
             text=True
         )
 
-        result = subprocess.run(
+        completed_process = subprocess.run(
             [
                 str(python),
                 "-I",
@@ -111,16 +111,16 @@ def build_wheel(wheel_directory, config_settings=None, metadata_directory=None):
             text=True
         )
 
-        (version, installed, prefix) = json.loads(result.stdout)
+        (version, installed, prefix) = json.loads(completed_process.stdout)
 
         self.assertEqual(self.record["name"].split("-")[1], version)
-        self.assertEqual(environment, Path(prefix))
-        self.assertTrue(Path(installed).is_relative_to(environment))
+        self.assertEqual(environment, pathlib.Path(prefix))
+        self.assertTrue(pathlib.Path(installed).is_relative_to(environment))
 
     def test_issued_helper_uses_its_guard_with_a_conflicting_consumer_tools_package(self):
         python = installer.create_environment(self.root / "consumer")
 
-        site = Path(
+        site = pathlib.Path(
             subprocess.check_output(
                 [str(python), "-I", "-B", "-c", "import sysconfig; print(sysconfig.get_path('purelib'))"],
                 text=True,
@@ -155,23 +155,42 @@ def build_wheel(wheel_directory, config_settings=None, metadata_directory=None):
         self.assertIn("Cannot run repository Python without its container launcher", refused.stderr)
 
     def test_bad_wheel_bytes_or_symlinks_never_start_installation(self):
-        wheel = self.root / self.record["name"]
+        verified_bytes = b"verified"
+        expected_size = len(verified_bytes)
+        expected_sha256 = hashlib.sha256(verified_bytes).hexdigest()
+        record = self.record | {"size": expected_size, "sha256": expected_sha256}
+        wheel = self.root / record["name"]
 
-        for data in (b"", b"damaged", b"x" * (self.record["size"] + 1)):
-            with self.subTest(size=len(data)), patch("tools.installer.subprocess.run") as dispatch:
-                wheel.write_bytes(data)
+        for damaged_bytes in (b"", b"x" * (expected_size + 2)):
+            with self.subTest(size=len(damaged_bytes)), patch("tools.installer.subprocess.run") as dispatch:
+                wheel.write_bytes(damaged_bytes)
 
-                with self.assertRaisesRegex(ValueError, "wheel size or SHA-256 differs"):
-                    installer.install(self.root, self.record)
+                with self.assertRaises(ValueError) as caught:
+                    installer.install(self.root, record)
 
+                captured_size = min(len(damaged_bytes), expected_size + 1)
+                self.assertIn(wheel.name, str(caught.exception))
+                self.assertIn(f"{captured_size=} ≠ {expected_size=}", str(caught.exception))
                 dispatch.assert_not_called()
+
+        damaged_bytes = b"x" * expected_size
+        wheel.write_bytes(damaged_bytes)
+
+        with patch("tools.installer.subprocess.run") as dispatch:
+            with self.assertRaises(ValueError) as caught:
+                installer.install(self.root, record)
+
+            self.assertIn(wheel.name, str(caught.exception))
+            self.assertIn(hashlib.sha256(damaged_bytes).hexdigest(), str(caught.exception))
+            self.assertIn(expected_sha256, str(caught.exception))
+            dispatch.assert_not_called()
 
         wheel.unlink()
         wheel.symlink_to(ROOT / "requirements/installer-release.json")
 
         with patch("tools.installer.subprocess.run") as dispatch:
             with self.assertRaises(OSError):
-                installer.install(self.root, self.record)
+                installer.install(self.root, record)
 
             dispatch.assert_not_called()
 
@@ -198,8 +217,10 @@ def build_wheel(wheel_directory, config_settings=None, metadata_directory=None):
 
         path.write_text('{"name":"first","name":"second"}')
 
-        with self.assertRaisesRegex(ValueError, "duplicate field"):
+        with self.assertRaises(ValueError) as caught:
             installer.release(path)
+
+        self.assertIn("'name'", str(caught.exception))
 
     def test_release_distinguishes_field_types_from_unsupported_values(self):
         for changes in ({"name": []}, {"sha256": 1}, {"size": True}, {"url": None}):
