@@ -52,9 +52,10 @@ def bare_tuples(*, source: str) -> list[ast.Tuple]:
     return [
         node
         for node in ast.walk(node=tree)
-        if isinstance(node, ast.Tuple)
-        and id(node) not in subscription_lists
-        and not _has_outer_parentheses(expression=ast.get_source_segment(source=source, node=node))
+        if
+        isinstance(node, ast.Tuple) and
+        (id(node) not in subscription_lists) and
+        not _has_outer_parentheses(expression=ast.get_source_segment(source=source, node=node))
     ]
 
 

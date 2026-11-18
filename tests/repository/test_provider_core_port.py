@@ -42,8 +42,10 @@ class ProviderCorePortTests(unittest.TestCase):
 
                 present = {
                     f"{owner.name}.{method.name}" for owner in ast.walk(tree) if isinstance(owner, ast.ClassDef)
-                    for method in owner.body if isinstance(method, (ast.FunctionDef, ast.AsyncFunctionDef))
-                    and method.name.startswith("test_")
+                    for method in owner.body
+                    if
+                    isinstance(method, (ast.FunctionDef, ast.AsyncFunctionDef)) and
+                    method.name.startswith("test_")
                 }
 
                 expected = set(entry["test_methods"])

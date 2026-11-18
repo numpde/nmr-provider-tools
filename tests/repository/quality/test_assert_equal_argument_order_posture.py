@@ -80,10 +80,11 @@ def _findings(source_path: pathlib.Path, source: str) -> list[_Finding]:
         [
             _Finding(source_path=source_path, line=call.lineno)
             for call in ast.walk(tree)
-            if isinstance(call, ast.Call)
-            and _is_assert_equal(call)
-            and isinstance(call.args[0], (ast.Attribute, ast.Call, ast.Subscript))
-            and _is_literal(call.args[1])
+            if
+            isinstance(call, ast.Call) and
+            _is_assert_equal(call) and
+            isinstance(call.args[0], (ast.Attribute, ast.Call, ast.Subscript)) and
+            _is_literal(call.args[1])
         ],
         key=lambda finding: finding.line,
     )
@@ -104,11 +105,13 @@ def _message_positions() -> dict[str, int]:
         positional_parameters = [
             parameter
             for parameter in inspect.signature(method).parameters.values()
-            if parameter.name != "self"
-            and parameter.kind
-            in (
-                inspect.Parameter.POSITIONAL_ONLY,
-                inspect.Parameter.POSITIONAL_OR_KEYWORD,
+            if
+            (parameter.name != "self") and
+            (
+                parameter.kind in (
+                    inspect.Parameter.POSITIONAL_ONLY,
+                    inspect.Parameter.POSITIONAL_OR_KEYWORD,
+                )
             )
         ]
 

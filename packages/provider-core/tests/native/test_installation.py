@@ -139,8 +139,9 @@ class NativeInstallationTests(unittest.TestCase):
         unexpected_examples = [
             path
             for path in packaged_python
-            if path[:2] == ("provider_core", "examples")
-            or path[0] == "dummy_provider"
+            if
+            (path[:2] == ("provider_core", "examples")) or
+            (path[0] == "dummy_provider")
         ]
 
         self.assertEqual([], unexpected_examples)

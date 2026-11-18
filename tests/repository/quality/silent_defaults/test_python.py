@@ -812,12 +812,13 @@ def python_operator_default_findings(path: pathlib.Path) -> list[str]:
     findings.extend(
         _default_finding(path, source, node, label)
         for (node, label) in candidates
-        if node not in accepted
-        and not (
-            label == "python silent default"
-            and isinstance(node, ast.BoolOp)
-            and isinstance(node.op, ast.Or)
-            and _is_comparison_predicate(node)
+        if
+        (node not in accepted) and
+        not (
+            (label == "python silent default") and
+            isinstance(node, ast.BoolOp) and
+            isinstance(node.op, ast.Or) and
+            _is_comparison_predicate(node)
         )
     )
 

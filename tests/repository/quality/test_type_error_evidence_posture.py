@@ -179,18 +179,20 @@ def _expectation_findings(*, source_path: pathlib.Path, source: str) -> list[str
         membership_expectations = {
             _expectation_name(expression=node.comparators[0])
             for node in ast.walk(node=statement.test)
-            if isinstance(node, ast.Compare)
-            and len(node.ops) == 1
-            and isinstance(node.ops[0], (ast.In, ast.NotIn))
-            and _type_call(expression=unwrap_binding(expression=node.left))
+            if
+            isinstance(node, ast.Compare) and
+            (len(node.ops) == 1) and
+            isinstance(node.ops[0], (ast.In, ast.NotIn)) and
+            _type_call(expression=unwrap_binding(expression=node.left))
         }
         membership_expectations.update(
             _expectation_name(expression=node.args[1])
             for node in ast.walk(node=statement.test)
-            if isinstance(node, ast.Call)
-            and _builtin(expression=node.func, name="isinstance")
-            and len(node.args) == 2
-            and isinstance(unwrap_binding(expression=node.args[1]), ast.Tuple)
+            if
+            isinstance(node, ast.Call) and
+            _builtin(expression=node.func, name="isinstance") and
+            (len(node.args) == 2) and
+            isinstance(unwrap_binding(expression=node.args[1]), ast.Tuple)
         )
 
         bound_expectations = [

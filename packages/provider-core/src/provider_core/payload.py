@@ -408,9 +408,10 @@ def _decode_dataclass(value: object, value_type: type[T], *, path: str) -> T:
     missing_fields = {
         name
         for (name, field) in fields_by_name.items()
-        if name not in value
-        and field.default is MISSING
-        and field.default_factory is MISSING
+        if
+        (name not in value) and
+        (field.default is MISSING) and
+        (field.default_factory is MISSING)
     }
 
     if missing_fields:
