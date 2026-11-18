@@ -65,7 +65,16 @@ class HelloTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual([item["description"] for item in json.loads(body)["analysis_offerings"]], ["🧪" * 1024] * 64)
 
     def test_api_permitted_whitespace_is_preserved(self):
-        body = hello_body(display_name=" \t", description="line\nnext", analysis_offerings=())
+        body = hello_body(
+            display_name=" \t",
+            description="line\n"
+            "next",
+            analysis_offerings=(),
+        )
 
         self.assertEqual(json.loads(body)["display_name"], " \t")
-        self.assertEqual(json.loads(body)["description"], "line\nnext")
+        self.assertEqual(
+            json.loads(body)["description"],
+            "line\n"
+            "next",
+        )

@@ -35,7 +35,12 @@ class SigningRejectionTests(unittest.TestCase):
 
         for changes in (
             {"method": "get"},
-            {"method": "GET\r\nInjected: yes"},
+            {
+                "method": (
+                    "GET\r\n"
+                    "Injected: yes"
+                )
+            },
             {"path": "//other.example/input"},
             {"path": "/a/../input"},
             {"path": "/input?x"},

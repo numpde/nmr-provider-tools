@@ -27,9 +27,12 @@ class ServiceProxyTests(unittest.TestCase):
             replacement = pathlib.Path(directory) / "replacement.toml"
 
             settings_path.write_text(
-                '[api_proxy]\nmax_connections = 2\nlog_level = "INFO"\n'
+                '[api_proxy]\n'
+                'max_connections = 2\n'
+                'log_level = "INFO"\n'
                 'allowed_authorities = ["api.example:443"]\n'
-                '[api_proxy.route]\naddresses = ["api.example=192.0.2.1"]\n'
+                '[api_proxy.route]\n'
+                'addresses = ["api.example=192.0.2.1"]\n'
             )
 
             live = provider_proxy.LiveProxyConfiguration(settings_path, "mapped")
@@ -43,9 +46,14 @@ class ServiceProxyTests(unittest.TestCase):
             self.assertTrue(server._slots.acquire())
 
             replacement.write_text(
-                '[api_proxy]\nmax_connections = 1\nmax_admission_delay_seconds = 3\nadmission_order = "fifo"\nlog_level = "DEBUG"\n'
+                '[api_proxy]\n'
+                'max_connections = 1\n'
+                'max_admission_delay_seconds = 3\n'
+                'admission_order = "fifo"\n'
+                'log_level = "DEBUG"\n'
                 'allowed_authorities = ["other.example:443"]\n'
-                '[api_proxy.route]\naddresses = ["other.example=192.0.2.2"]\n'
+                '[api_proxy.route]\n'
+                'addresses = ["other.example=192.0.2.2"]\n'
             )
 
             replacement.replace(settings_path)
@@ -69,7 +77,9 @@ class ServiceProxyTests(unittest.TestCase):
                 logger.return_value.warning.reset_mock()
 
                 settings_path.write_text(
-                    '[api_proxy]\nmax_connections = 0\nlog_level = "INFO"\n'
+                    '[api_proxy]\n'
+                    'max_connections = 0\n'
+                    'log_level = "INFO"\n'
                     'allowed_authorities = ["api.example:443"]\n'
                 )
 
@@ -79,8 +89,14 @@ class ServiceProxyTests(unittest.TestCase):
                 self.assertIn("max_connections", str(logger.return_value.warning.call_args.args[1]))
 
                 settings_path.write_text(
-                    '[api_proxy]\nmax_connections = 2\nmax_admission_delay_seconds = '
-                    + '9' * 400 + '\nlog_level = "INFO"\nallowed_authorities = []\n'
+                    '[api_proxy]\n'
+                    'max_connections = 2\n'
+                    'max_admission_delay_seconds = '
+                    + '9' * 400 + (
+                        '\n'
+                        'log_level = "INFO"\n'
+                        'allowed_authorities = []\n'
+                    )
                 )
 
                 live.next_poll = 0
@@ -88,7 +104,12 @@ class ServiceProxyTests(unittest.TestCase):
                 live.refresh(server)
                 self.assertEqual(server.max_admission_delay_seconds, 3)
                 self.assertIn("max_admission_delay_seconds", str(logger.return_value.warning.call_args.args[1]))
-                settings_path.write_text('[api_proxy]\nmax_connections = ' + '[' * 2000 + '1' + ']' * 2000)
+                settings_path.write_text(
+                    (
+                        '[api_proxy]\n'
+                        'max_connections = '
+                    ) + '[' * 2000 + '1' + ']' * 2000,
+                )
                 live.next_poll = 0
 
                 live.refresh(server)
@@ -283,18 +304,27 @@ class ServiceProxyTests(unittest.TestCase):
             settings_path = pathlib.Path(directory) / "settings.toml"
 
             settings_path.write_text(
-                '[api_proxy]\nmax_connections = 2\nlog_level = "INFO"\n'
+                '[api_proxy]\n'
+                'max_connections = 2\n'
+                'log_level = "INFO"\n'
                 'allowed_authorities = []\n'
             )
 
             settings = provider_proxy.LiveProxyConfiguration(settings_path, "external").read()
 
             with self.assertRaises(provider_proxy.ServiceRefused):
-                settings.policy.destination(b"CONNECT api.example:443 HTTP/1.1\r\n\r\n")
+                settings.policy.destination(
+                    b"CONNECT api.example:443 HTTP/1.1\r\n"
+                    b"\r\n",
+                )
 
             settings_path.write_text(
-                '[api_proxy]\nmax_connections = 2\nlog_level = "INFO"\n'
-                'allowed_authorities = []\n[api_proxy.route]\naddresses = ["invalid"]\n'
+                '[api_proxy]\n'
+                'max_connections = 2\n'
+                'log_level = "INFO"\n'
+                'allowed_authorities = []\n'
+                '[api_proxy.route]\n'
+                'addresses = ["invalid"]\n'
             )
 
             with self.assertRaises(provider_proxy.ServiceRefused):
@@ -306,7 +336,10 @@ class ServiceProxyTests(unittest.TestCase):
         handler = object.__new__(ServiceProxyHandler)
         handler.server = SimpleNamespace(policy=old, outbound_interface="lo")
 
-        handler.destination(b"CONNECT api.example:443 HTTP/1.1\r\n\r\n")
+        handler.destination(
+            b"CONNECT api.example:443 HTTP/1.1\r\n"
+            b"\r\n",
+        )
         handler.server.policy = new
 
         with patch.object(bound_http_proxy, "connect_bound") as connect:
@@ -317,9 +350,15 @@ class ServiceProxyTests(unittest.TestCase):
         later.server = handler.server
 
         with self.assertRaises(provider_proxy.ServiceRefused):
-            later.destination(b"CONNECT api.example:443 HTTP/1.1\r\n\r\n")
+            later.destination(
+                b"CONNECT api.example:443 HTTP/1.1\r\n"
+                b"\r\n",
+            )
 
-        later.destination(b"CONNECT other.example:443 HTTP/1.1\r\n\r\n")
+        later.destination(
+            b"CONNECT other.example:443 HTTP/1.1\r\n"
+            b"\r\n",
+        )
 
         with patch.object(bound_http_proxy, "connect_bound") as connect:
             later.connect("other.example", 443)
@@ -417,7 +456,10 @@ logging.getLogger('dependency').warning('dependency-warning')
                             with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as client:
                                 client.settimeout(1)
                                 client.connect(str(path))
-                                client.sendall(b"CONNECT denied.example:443 HTTP/1.1\r\n\r\n")
+                                client.sendall(
+                                    b"CONNECT denied.example:443 HTTP/1.1\r\n"
+                                    b"\r\n",
+                                )
                                 self.assertIn(b"403 Forbidden", client.recv(1024))
 
                             self.assertIsNone(child.poll())
@@ -457,7 +499,10 @@ logging.getLogger('dependency').warning('dependency-warning')
         policy = ServicePolicy.admit("mapped", ["nmr.localhost:10443"], ["nmr.localhost=172.17.0.1"])
 
         self.assertEqual(
-            policy.destination(b"CONNECT nmr.localhost:10443 HTTP/1.1\r\n\r\n")[:3],
+            policy.destination(
+                b"CONNECT nmr.localhost:10443 HTTP/1.1\r\n"
+                b"\r\n",
+            )[:3],
             ("CONNECT", "nmr.localhost", 10443),
         )
 
@@ -506,7 +551,9 @@ logging.getLogger('dependency').warning('dependency-warning')
             settings = root / "settings.toml"
 
             settings.write_text(
-                '[api_proxy]\nmax_connections=2\nlog_level="INFO"\n'
+                '[api_proxy]\n'
+                'max_connections=2\n'
+                'log_level="INFO"\n'
                 'allowed_authorities=["api.example:443"]\n'
             )
 
@@ -539,7 +586,13 @@ logging.getLogger('dependency').warning('dependency-warning')
             self.assertIs(policy.connect("api.example", 443, "eth0"), sentinel)
 
         connect.assert_called_once_with("192.0.2.8", 443, "eth0")
-        self.assertEqual(policy.destination(b"CONNECT api.example:8443 HTTP/1.1\r\n\r\n")[:3], ("CONNECT", "api.example", 8443))
+        self.assertEqual(
+            policy.destination(
+                b"CONNECT api.example:8443 HTTP/1.1\r\n"
+                b"\r\n",
+            )[:3],
+            ("CONNECT", "api.example", 8443),
+        )
 
     def test_external_route_preserves_the_admitted_host_for_bound_resolution(self):
         policy = ServicePolicy.admit("external", ["model.example:443"], [])
@@ -567,8 +620,16 @@ logging.getLogger('dependency').warning('dependency-warning')
                             client.settimeout(2)
                             peer.settimeout(2)
                             client.connect(str(proxy_socket_path))
-                            client.sendall(b"CONNECT api.example:443 HTTP/1.1\r\n\r\nopaque-prefix")
-                            self.assertEqual(client.recv(4096), b"HTTP/1.1 200 Connection Established\r\n\r\n")
+                            client.sendall(
+                                b"CONNECT api.example:443 HTTP/1.1\r\n"
+                                b"\r\n"
+                                b"opaque-prefix",
+                            )
+                            self.assertEqual(
+                                client.recv(4096),
+                                b"HTTP/1.1 200 Connection Established\r\n"
+                                b"\r\n",
+                            )
                             self.assertEqual(peer.recv(4096), b"opaque-prefix")
                             client.shutdown(socket.SHUT_WR)
                             self.assertEqual(peer.recv(4096), b"")

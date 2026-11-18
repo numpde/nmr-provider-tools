@@ -151,9 +151,9 @@ def _build_candidate(source, runtime_lock, build_lock, pool, output, lock_fd):
             )
 
         if not (re.fullmatch(
-                r"(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)",
-                release_version,
-            ) is not None):
+            r"(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)",
+            release_version,
+        ) is not None):
             raise ValueError(
                 "Cannot build provider-core release: metadata must identify "
                 "provider-core and a three-part release version."
@@ -215,7 +215,11 @@ def _build_candidate(source, runtime_lock, build_lock, pool, output, lock_fd):
 
         install_lock.write_text(
             runtime_lock_text.rstrip()
-            + f"\nprovider-core=={release_version} \\\n    --hash=sha256:{digest(wheel)}\n"
+            + (
+                "\n"
+                f"provider-core=={release_version} \\\n"
+                f"    --hash=sha256:{digest(wheel)}\n"
+            )
         )
 
         expected_requirements = requirements(locks["runtime"]) | {
@@ -233,7 +237,8 @@ def _build_candidate(source, runtime_lock, build_lock, pool, output, lock_fd):
         native_lock = output / f"provider_core-{release_version}-native-install.lock"
 
         native_lock.write_text(
-            f"provider-core=={release_version} \\\n    --hash=sha256:{digest(wheel)}\n"
+            f"provider-core=={release_version} \\\n"
+            f"    --hash=sha256:{digest(wheel)}\n"
         )
 
         if requirements(native_lock) != {("provider-core", release_version): {digest(wheel)}}:

@@ -25,11 +25,17 @@ class ResetPeer(TlsPeer):
         self.handlers.add(asyncio.current_task())
 
         try:
-            await reader.readuntil(b"\r\n\r\n")
+            await reader.readuntil(
+                b"\r\n"
+                b"\r\n",
+            )
 
             writer.write(
                 b"HTTP/1.1 200 OK\r\n" + b"".join(name+b": "+value+b"\r\n" for (name,value) in store_headers(BODY))
-                + b"\r\ng"
+                + (
+                    b"\r\n"
+                    b"g"
+                )
             )
 
             await writer.drain()

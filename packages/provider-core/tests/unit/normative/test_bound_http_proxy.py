@@ -117,7 +117,11 @@ class BoundProxyTests(unittest.TestCase):
                         self.assertEqual("", errors.getvalue())
 
                 connect.assert_not_called()
-                request.sendall.assert_called_once_with(b"HTTP/1.1 502 Bad Gateway\r\nConnection: close\r\n\r\n")
+                request.sendall.assert_called_once_with(
+                    b"HTTP/1.1 502 Bad Gateway\r\n"
+                    b"Connection: close\r\n"
+                    b"\r\n"
+                )
 
     def test_dns_name_depth_starts_at_zero_and_bounds_compression(self):
         encoded_name = b"\x03WWW\x07Example\x03COM\0"
@@ -145,21 +149,38 @@ class BoundProxyTests(unittest.TestCase):
 
     def test_header_limit_accepts_exact_boundary_and_rejects_one_extra_byte(self):
         limit = bound_http_proxy.MAX_HEADER_BYTES
-        header = b"x" * (limit - 4) + b"\r\n\r\n"
+        header = b"x" * (limit - 4) + (
+            b"\r\n"
+            b"\r\n"
+        )
         client = MagicMock()
         client.recv.side_effect = [header[index : index + 8192] for index in range(0, len(header), 8192)]
 
         self.assertEqual(bound_http_proxy.receive_headers(client), (header, b""))
 
-        for oversized in (b"x" * (limit - 3) + b"\r\n\r\n", b"x" * (limit + 1)):
-            with self.subTest(terminated=oversized.endswith(b"\r\n\r\n")):
+        for oversized in (
+            b"x" * (limit - 3) + (
+                b"\r\n"
+                b"\r\n"
+            ),
+            b"x" * (limit + 1)
+        ):
+            with self.subTest(
+                terminated=oversized.endswith(
+                    b"\r\n"
+                    b"\r\n"
+                )
+            ):
                 client.recv.side_effect = [oversized[index : index + 8192] for index in range(0, len(oversized), 8192)]
 
                 with self.assertRaisesRegex(ValueError, "headers"):
                     bound_http_proxy.receive_headers(client)
 
     def test_exact_limit_header_keeps_body_coalesced_with_its_final_fragment(self):
-        header = b"x" * (bound_http_proxy.MAX_HEADER_BYTES - 4) + b"\r\n\r\n"
+        header = b"x" * (bound_http_proxy.MAX_HEADER_BYTES - 4) + (
+            b"\r\n"
+            b"\r\n"
+        )
         body = b"body received with the terminator"
         prefix = header[:-1]
         client = MagicMock()
@@ -168,7 +189,10 @@ class BoundProxyTests(unittest.TestCase):
         self.assertEqual(bound_http_proxy.receive_headers(client), (header, body))
 
     def test_tiny_header_fragments_preserve_body_and_early_eof_rejects(self):
-        header = b"GET http://example.invalid/ HTTP/1.1\r\n\r\n"
+        header = (
+            b"GET http://example.invalid/ HTTP/1.1\r\n"
+            b"\r\n"
+        )
         body = b"body"
         client = MagicMock()
         client.recv.side_effect = [*[bytes([byte]) for byte in header[:-1]], header[-1:] + body]
@@ -185,7 +209,10 @@ class BoundProxyTests(unittest.TestCase):
         for port in ("0", "65536", "-1", private):
             for target in ("CONNECT example.invalid:" + port, "GET http://example.invalid:" + port + "/"):
                 with self.subTest(target=target), patch.object(bound_http_proxy, "connect_bound") as connect:
-                    header = (target + " HTTP/1.1\r\n\r\n").encode("ascii")
+                    header = (target + (
+                        " HTTP/1.1\r\n"
+                        "\r\n"
+                    )).encode("ascii")
 
                     with self.assertRaisesRegex(ValueError, "port.*1 to 65535") as rejected:
                         bound_http_proxy.parse_destination(header)
@@ -199,7 +226,11 @@ class BoundProxyTests(unittest.TestCase):
                         bound_http_proxy.ProxyHandler(request, ("127.0.0.1", 1), SimpleNamespace(outbound_interface="lo", dns_servers=None))
 
                     connect.assert_not_called()
-                    request.sendall.assert_called_once_with(b"HTTP/1.1 502 Bad Gateway\r\nConnection: close\r\n\r\n")
+                    request.sendall.assert_called_once_with(
+                        b"HTTP/1.1 502 Bad Gateway\r\n"
+                        b"Connection: close\r\n"
+                        b"\r\n"
+                    )
                     self.assertIn("request admission", errors.getvalue())
                     self.assertIn("ValueError", errors.getvalue())
                     self.assertNotIn(private, errors.getvalue())
@@ -220,7 +251,11 @@ class BoundProxyTests(unittest.TestCase):
                     bound_http_proxy.ProxyHandler(request, ("127.0.0.1", 1), SimpleNamespace(outbound_interface="lo", dns_servers=None))
 
                 connect.assert_not_called()
-                request.sendall.assert_called_once_with(b"HTTP/1.1 502 Bad Gateway\r\nConnection: close\r\n\r\n")
+                request.sendall.assert_called_once_with(
+                    b"HTTP/1.1 502 Bad Gateway\r\n"
+                    b"Connection: close\r\n"
+                    b"\r\n"
+                )
                 self.assertIn("request admission", errors.getvalue())
                 self.assertIn(type(failure).__name__, errors.getvalue())
                 self.assertNotIn(private, errors.getvalue())
@@ -235,9 +270,13 @@ class BoundProxyTests(unittest.TestCase):
 
                 # silent-defaults: allow-contract -- The failure-phase table selects HTTP header forwarding or the CONNECT handshake; each case checks which write can occur before failure; proof=tests/repository/test_bound_http_proxy.py::BoundProxyTests.test_forwarding_attempt_failure_never_appends_an_http_status
                 header = (
-                    b"GET http://example.invalid/ HTTP/1.1\r\n\r\n"
+                    b"GET http://example.invalid/ HTTP/1.1\r\n"
+                    b"\r\n"
                     if phase == "http_header"
-                    else b"CONNECT example.invalid:443 HTTP/1.1\r\n\r\n"
+                    else (
+                        b"CONNECT example.invalid:443 HTTP/1.1\r\n"
+                        b"\r\n"
+                    )
                 )
 
                 # silent-defaults: allow-contract -- Only the CONNECT remainder case supplies coalesced body bytes; the other failure phases deliberately have no remainder; proof=tests/repository/test_bound_http_proxy.py::BoundProxyTests.test_forwarding_attempt_failure_never_appends_an_http_status
@@ -261,7 +300,10 @@ class BoundProxyTests(unittest.TestCase):
                 if phase == "http_header":
                     request.sendall.assert_not_called()
                 else:
-                    request.sendall.assert_called_once_with(b"HTTP/1.1 200 Connection Established\r\n\r\n")
+                    request.sendall.assert_called_once_with(
+                        b"HTTP/1.1 200 Connection Established\r\n"
+                        b"\r\n"
+                    )
 
                 if phase == "relay":
                     relay.assert_called_once_with(request, outbound)
@@ -279,18 +321,32 @@ class BoundProxyTests(unittest.TestCase):
                 ("GET", "http://example.invalid:" + str(port) + "/path?query=1"),
             ):
                 with self.subTest(method=method, port=port):
-                    header = f"{method} {target} HTTP/1.1\r\n\r\n".encode("ascii")
+                    header = (
+                        f"{method} {target} HTTP/1.1\r\n"
+                        "\r\n"
+                    ).encode("ascii")
                     result = bound_http_proxy.parse_destination(header)
 
                     self.assertEqual(result[:3], (method, "example.invalid", port))
 
                     # silent-defaults: allow-contract -- CONNECT preserves request bytes while HTTP forwards the origin-form target; the expected wire bytes are checked separately from parsed host and port; proof=tests/repository/test_bound_http_proxy.py::BoundProxyTests.test_destination_port_boundaries_and_scheme_defaults_are_preserved
-                    self.assertEqual(result[3], header if method == "CONNECT" else b"GET /path?query=1 HTTP/1.1\r\n\r\n")
+                    self.assertEqual(
+                        result[3],
+                        header if method == "CONNECT" else (
+                            b"GET /path?query=1 HTTP/1.1\r\n"
+                            b"\r\n"
+                        )
+                    )
 
         for (scheme, port) in (("http", 80), ("https", 443)):
             with self.subTest(scheme=scheme):
                 self.assertEqual(
-                    bound_http_proxy.parse_destination(f"GET {scheme}://example.invalid/ HTTP/1.1\r\n\r\n".encode("ascii"))[2],
+                    bound_http_proxy.parse_destination(
+                        (
+                            f"GET {scheme}://example.invalid/ HTTP/1.1\r\n"
+                            "\r\n"
+                        ).encode("ascii")
+                    )[2],
                     port,
                 )
 
@@ -299,13 +355,19 @@ class BoundProxyTests(unittest.TestCase):
         # https://www.rfc-editor.org/rfc/rfc9112.html#section-3.2.1
         for (suffix, origin) in (("", "/"), ("?q=one%20two", "/?q=one%20two")):
             with self.subTest(suffix=suffix):
-                header = f"GET http://example.invalid{suffix} HTTP/1.1\r\nHost: example.invalid\r\n\r\n".encode("ascii")
+                header = (
+                    f"GET http://example.invalid{suffix} HTTP/1.1\r\n"
+                    "Host: example.invalid\r\n"
+                    "\r\n"
+                ).encode("ascii")
                 (method, host, port, forwarded) = bound_http_proxy.parse_destination(header)
 
                 self.assertEqual(("GET", "example.invalid", 80), (method, host, port))
 
                 self.assertEqual(
-                    f"GET {origin} HTTP/1.1\r\nHost: example.invalid\r\n\r\n".encode("ascii"),
+                    f"GET {origin} HTTP/1.1\r\n"
+                    "Host: example.invalid\r\n"
+                    "\r\n".encode("ascii"),
                     forwarded,
                 )
 
@@ -325,7 +387,10 @@ class BoundProxyTests(unittest.TestCase):
         # silent-defaults: allow-contract -- The GET and CONNECT cases choose their respective request-target forms before observing both peers' first-write timeout settings; proof=tests/repository/test_bound_http_proxy.py::BoundProxyTests.test_forwarding_owns_write_budget_after_header_deadline_nearly_expires
         target = "http://example.invalid/" if method == "GET" else "example.invalid:443"
 
-        header = f"{method} {target} HTTP/1.1\r\n\r\n".encode("ascii")
+        header = (
+            f"{method} {target} HTTP/1.1\r\n"
+            "\r\n"
+        ).encode("ascii")
         fragments = iter(((29, header[:-1]), (29.9, header[-1:])))
 
         def receive(_size):

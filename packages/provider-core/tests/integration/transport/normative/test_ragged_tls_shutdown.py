@@ -57,25 +57,75 @@ class CompleteResponseShutdownTests(unittest.IsolatedAsyncioTestCase):
         await self.assert_complete(fixed_response(b"fragmented"), b"fragmented", fragment_size=1)
 
     async def test_chunked_entity_with_terminal_chunk(self):
-        await self.assert_complete(b"HTTP/1.1 200 OK\r\nTransfer-Encoding: chunked\r\n\r\n4\r\ndata\r\n0\r\n\r\n", b"data")
+        await self.assert_complete(
+            b"HTTP/1.1 200 OK\r\n"
+            b"Transfer-Encoding: chunked\r\n"
+            b"\r\n"
+            b"4\r\n"
+            b"data\r\n"
+            b"0\r\n"
+            b"\r\n",
+            b"data",
+        )
 
     async def test_chunk_extensions_do_not_change_entity(self):
-        await self.assert_complete(b"HTTP/1.1 200 OK\r\nTransfer-Encoding: chunked\r\n\r\n4;key=value\r\ndata\r\n0\r\n\r\n", b"data")
+        await self.assert_complete(
+            b"HTTP/1.1 200 OK\r\n"
+            b"Transfer-Encoding: chunked\r\n"
+            b"\r\n"
+            b"4;key=value\r\n"
+            b"data\r\n"
+            b"0\r\n"
+            b"\r\n",
+            b"data",
+        )
 
     async def test_chunk_trailers_are_consumed_before_completion(self):
-        await self.assert_complete(b"HTTP/1.1 200 OK\r\nTransfer-Encoding: chunked\r\n\r\n4\r\ndata\r\n0\r\nX-Probe: done\r\n\r\n", b"data")
+        await self.assert_complete(
+            b"HTTP/1.1 200 OK\r\n"
+            b"Transfer-Encoding: chunked\r\n"
+            b"\r\n"
+            b"4\r\n"
+            b"data\r\n"
+            b"0\r\n"
+            b"X-Probe: done\r\n"
+            b"\r\n",
+            b"data",
+        )
 
     async def test_empty_chunked_entity(self):
-        await self.assert_complete(b"HTTP/1.1 200 OK\r\nTransfer-Encoding: chunked\r\n\r\n0\r\n\r\n", b"")
+        await self.assert_complete(
+            b"HTTP/1.1 200 OK\r\n"
+            b"Transfer-Encoding: chunked\r\n"
+            b"\r\n"
+            b"0\r\n"
+            b"\r\n",
+            b"",
+        )
 
     async def test_head_has_no_entity_despite_content_length(self):
-        await self.assert_complete(b"HTTP/1.1 200 OK\r\nContent-Length: 999\r\n\r\n", b"", method="HEAD")
+        await self.assert_complete(
+            b"HTTP/1.1 200 OK\r\n"
+            b"Content-Length: 999\r\n"
+            b"\r\n",
+            b"",
+            method="HEAD",
+        )
 
     async def test_204_has_no_entity(self):
-        await self.assert_complete(b"HTTP/1.1 204 No Content\r\n\r\n", b"")
+        await self.assert_complete(
+            b"HTTP/1.1 204 No Content\r\n"
+            b"\r\n",
+            b"",
+        )
 
     async def test_304_has_no_entity_despite_content_length(self):
-        await self.assert_complete(b"HTTP/1.1 304 Not Modified\r\nContent-Length: 999\r\n\r\n", b"")
+        await self.assert_complete(
+            b"HTTP/1.1 304 Not Modified\r\n"
+            b"Content-Length: 999\r\n"
+            b"\r\n",
+            b"",
+        )
 
     async def test_http_rejection_remains_a_completed_response(self):
         await self.assert_complete(fixed_response(b"denied", status=b"401 Unauthorized"), b"denied")

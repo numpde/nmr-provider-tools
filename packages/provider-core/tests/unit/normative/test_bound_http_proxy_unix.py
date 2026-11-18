@@ -50,7 +50,13 @@ class HTTPResponse(socketserver.BaseRequestHandler):
         (header, _) = bound_http_proxy.receive_headers(self.request)
 
         self.server.headers.append(header)
-        self.request.sendall(b"HTTP/1.1 200 OK\r\nContent-Length: 2\r\nConnection: close\r\n\r\nok")
+        self.request.sendall(
+            b"HTTP/1.1 200 OK\r\n"
+            b"Content-Length: 2\r\n"
+            b"Connection: close\r\n"
+            b"\r\n"
+            b"ok",
+        )
 
 
 class EchoResponse(socketserver.BaseRequestHandler):
@@ -74,12 +80,33 @@ class UnixProxyTests(unittest.TestCase):
 
                     with serving(bound_http_proxy.UnixRelayServer(("127.0.0.1", 0), gateway_socket_path)) as relay:
                         with socket.create_connection(relay.server_address, timeout=2) as client:
-                            client.sendall(f"GET http://127.0.0.1:{origin.server_address[1]}/proof HTTP/1.1\r\nHost: fixture\r\n\r\n".encode())
+                            client.sendall(
+                                (
+                                    f"GET http://127.0.0.1:{origin.server_address[1]}/proof HTTP/1.1\r\n"
+                                    "Host: fixture\r\n"
+                                    "\r\n"
+                                ).encode(),
+                            )
                             client.shutdown(socket.SHUT_WR)
                             response = read_all(client)
 
-                self.assertTrue(response.endswith(b"\r\n\r\nok"))
-                self.assertEqual([b"GET /proof HTTP/1.1\r\nHost: fixture\r\n\r\n"], origin.headers)
+                self.assertTrue(
+                    response.endswith(
+                        b"\r\n"
+                        b"\r\n"
+                        b"ok",
+                    ),
+                )
+                self.assertEqual(
+                    [
+                        (
+                            b"GET /proof HTTP/1.1\r\n"
+                            b"Host: fixture\r\n"
+                            b"\r\n"
+                        )
+                    ],
+                    origin.headers,
+                )
 
     def test_connect_tunnel_crosses_relay_without_a_second_success_reply(self):
         with tempfile.TemporaryDirectory() as temporary:
@@ -89,11 +116,23 @@ class UnixProxyTests(unittest.TestCase):
                 with serving(bound_http_proxy.UnixProxyServer(gateway_socket_path, "system")):
                     with serving(bound_http_proxy.UnixRelayServer(("127.0.0.1", 0), gateway_socket_path)) as relay:
                         with socket.create_connection(relay.server_address, timeout=2) as client:
-                            client.sendall(f"CONNECT 127.0.0.1:{origin.server_address[1]} HTTP/1.1\r\nHost: fixture\r\n\r\nping".encode())
+                            client.sendall(
+                                (
+                                    f"CONNECT 127.0.0.1:{origin.server_address[1]} HTTP/1.1\r\n"
+                                    "Host: fixture\r\n"
+                                    "\r\n"
+                                    "ping"
+                                ).encode(),
+                            )
                             client.shutdown(socket.SHUT_WR)
                             response = read_all(client)
 
-            self.assertEqual(b"HTTP/1.1 200 Connection Established\r\n\r\nping", response)
+            self.assertEqual(
+                b"HTTP/1.1 200 Connection Established\r\n"
+                b"\r\n"
+                b"ping",
+                response,
+            )
 
     def test_missing_unix_gateway_fails_closed_without_destination_connection(self):
         with tempfile.TemporaryDirectory() as temporary:
@@ -107,7 +146,12 @@ class UnixProxyTests(unittest.TestCase):
 
                 connect.assert_not_called()
 
-            self.assertEqual(b"HTTP/1.1 502 Bad Gateway\r\nConnection: close\r\n\r\n", response)
+            self.assertEqual(
+                b"HTTP/1.1 502 Bad Gateway\r\n"
+                b"Connection: close\r\n"
+                b"\r\n",
+                response,
+            )
             self.assertIn("FileNotFoundError", errors.getvalue())
             self.assertNotIn(str(missing_socket_path), errors.getvalue())
 

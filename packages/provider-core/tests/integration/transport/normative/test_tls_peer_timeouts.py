@@ -36,9 +36,20 @@ class TlsPeerTimeoutTests(unittest.IsolatedAsyncioTestCase):
                     2.5,
                 )
 
-                writer.write(b"GET /delayed HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\n\r\n")
+                writer.write(
+                    b"GET /delayed HTTP/1.1\r\n"
+                    b"Host: localhost\r\n"
+                    b"Connection: close\r\n"
+                    b"\r\n",
+                )
                 await writer.drain()
-                head = await asyncio.wait_for(reader.readuntil(b"\r\n\r\n"), 2)
+                head = await asyncio.wait_for(
+                    reader.readuntil(
+                        b"\r\n"
+                        b"\r\n",
+                    ),
+                    2,
+                )
                 body = await asyncio.wait_for(reader.readexactly(4), 2)
 
                 self.assertIn(b"HTTP/1.1 200 OK", head)

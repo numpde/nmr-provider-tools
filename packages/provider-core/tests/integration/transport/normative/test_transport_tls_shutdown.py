@@ -69,7 +69,10 @@ class TlsShutdownTests(unittest.IsolatedAsyncioTestCase):
                     ) as connection:
                         request = bytearray()
 
-                        while not request.endswith(b"\r\n\r\n"):
+                        while not request.endswith(
+                            b"\r\n"
+                            b"\r\n",
+                        ):
                             chunk = connection.recv(1)
 
                             if not chunk or len(request) >= 16384:
@@ -77,7 +80,12 @@ class TlsShutdownTests(unittest.IsolatedAsyncioTestCase):
 
                             request.extend(chunk)
 
-                        connection.sendall(b"HTTP/1.1 200 OK\r\nContent-Length: 4\r\n\r\ndata")
+                        connection.sendall(
+                            b"HTTP/1.1 200 OK\r\n"
+                            b"Content-Length: 4\r\n"
+                            b"\r\n"
+                            b"data",
+                        )
 
                         # Read after the complete response: a missing client
                         # goodbye raises SSLEOFError even though HTTP succeeded.

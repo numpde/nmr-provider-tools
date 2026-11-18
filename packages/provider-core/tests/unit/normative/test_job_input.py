@@ -9,7 +9,15 @@ from tests.fakes.job_input import facts, response
 
 class JobInputTests(unittest.TestCase):
     def test_original_utf8_bytes_are_preserved_without_normalization(self):
-        for payload in (b"x", b" \r\nprivate\x00instructions\t", "Café Cafe\u0301".encode(), b"x" * 65536):
+        for payload in (
+            b"x",
+            (
+                b" \r\n"
+                b"private\x00instructions\t"
+            ),
+            "Café Cafe\u0301".encode(),
+            b"x" * 65536
+        ):
             with self.subTest(length=len(payload)):
                 verified = verify_job_input(response(payload), feed=facts(payload))
 

@@ -51,7 +51,10 @@ class TextCorrectionTests(unittest.IsolatedAsyncioTestCase):
                 await conversation.retire()
 
     async def test_caller_rejection_preserves_safe_arguments_and_exact_diagnostic_then_instruction(self):
-        diagnostic = "Cannot prepare input: shift_lo='5.801' (type=str).\nChoose a finite number."
+        diagnostic = (
+            "Cannot prepare input: shift_lo='5.801' (type=str).\n"
+            "Choose a finite number."
+        )
         rejection = ToolRejected(diagnostic)
         rejection.__cause__ = ValueError("PRIVATE scientific admission cause")
         value = {"z": 1, "a": "5.801"}

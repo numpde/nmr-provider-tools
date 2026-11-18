@@ -24,9 +24,19 @@ class AttemptOutcomeFailureTests(unittest.IsolatedAsyncioTestCase):
 
     def body(self, completing):
         return (
-            complete_body(ATTEMPT_REF, " result\n雪 ", b"result bytes")
+            complete_body(
+                ATTEMPT_REF,
+                " result\n"
+                "雪 ",
+                b"result bytes",
+            )
             if completing
-            else fail_body(ATTEMPT_REF, "input_rejected", " Explain\n雪\x01 ")
+            else fail_body(
+                ATTEMPT_REF,
+                "input_rejected",
+                " Explain\n"
+                "雪\x01 ",
+            )
         )
 
     async def send(self, api, completing, body):

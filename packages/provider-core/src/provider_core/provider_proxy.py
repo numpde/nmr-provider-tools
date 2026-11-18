@@ -322,7 +322,11 @@ class ServiceProxyHandler(bound_http_proxy.ProxyHandler):
 
     def admission_reply(self, error):
         if isinstance(error, ServiceRefused):
-            return b"HTTP/1.1 403 Forbidden\r\nConnection: close\r\n\r\n"
+            return (
+                b"HTTP/1.1 403 Forbidden\r\n"
+                b"Connection: close\r\n"
+                b"\r\n"
+            )
 
         return super().admission_reply(error)
 

@@ -145,37 +145,101 @@ class RejectedResponseShutdownTests(unittest.IsolatedAsyncioTestCase):
                 self.assertEqual(1, len(peer.requests))
 
     async def test_content_length_body_is_short(self):
-        await self.assert_rejected(b"HTTP/1.1 200 OK\r\nContent-Length: 5\r\n\r\ndata")
+        await self.assert_rejected(
+            b"HTTP/1.1 200 OK\r\n"
+            b"Content-Length: 5\r\n"
+            b"\r\n"
+            b"data",
+        )
 
     async def test_content_length_body_is_entirely_absent(self):
-        await self.assert_rejected(b"HTTP/1.1 200 OK\r\nContent-Length: 1\r\n\r\n")
+        await self.assert_rejected(
+            b"HTTP/1.1 200 OK\r\n"
+            b"Content-Length: 1\r\n"
+            b"\r\n",
+        )
 
     async def test_chunk_payload_is_short(self):
-        await self.assert_rejected(b"HTTP/1.1 200 OK\r\nTransfer-Encoding: chunked\r\n\r\n5\r\ndata")
+        await self.assert_rejected(
+            b"HTTP/1.1 200 OK\r\n"
+            b"Transfer-Encoding: chunked\r\n"
+            b"\r\n"
+            b"5\r\n"
+            b"data",
+        )
 
     async def test_chunked_body_has_no_terminal_chunk(self):
-        await self.assert_rejected(b"HTTP/1.1 200 OK\r\nTransfer-Encoding: chunked\r\n\r\n4\r\ndata\r\n")
+        await self.assert_rejected(
+            b"HTTP/1.1 200 OK\r\n"
+            b"Transfer-Encoding: chunked\r\n"
+            b"\r\n"
+            b"4\r\n"
+            b"data\r\n",
+        )
 
     async def test_chunk_trailers_are_unterminated(self):
-        await self.assert_rejected(b"HTTP/1.1 200 OK\r\nTransfer-Encoding: chunked\r\n\r\n0\r\nX-Probe: missing-end\r\n")
+        await self.assert_rejected(
+            b"HTTP/1.1 200 OK\r\n"
+            b"Transfer-Encoding: chunked\r\n"
+            b"\r\n"
+            b"0\r\n"
+            b"X-Probe: missing-end\r\n",
+        )
 
     async def test_chunk_size_is_malformed(self):
-        await self.assert_rejected(b"HTTP/1.1 200 OK\r\nTransfer-Encoding: chunked\r\n\r\nZZ\r\n", primary=httpcore.RemoteProtocolError)
+        await self.assert_rejected(
+            b"HTTP/1.1 200 OK\r\n"
+            b"Transfer-Encoding: chunked\r\n"
+            b"\r\n"
+            b"ZZ\r\n",
+            primary=httpcore.RemoteProtocolError,
+        )
 
     async def test_chunk_payload_terminator_is_malformed(self):
-        await self.assert_rejected(b"HTTP/1.1 200 OK\r\nTransfer-Encoding: chunked\r\n\r\n1\r\nxXX", primary=httpcore.RemoteProtocolError)
+        await self.assert_rejected(
+            b"HTTP/1.1 200 OK\r\n"
+            b"Transfer-Encoding: chunked\r\n"
+            b"\r\n"
+            b"1\r\n"
+            b"xXX",
+            primary=httpcore.RemoteProtocolError,
+        )
 
     async def test_conflicting_content_lengths(self):
-        await self.assert_rejected(b"HTTP/1.1 200 OK\r\nContent-Length: 1\r\nContent-Length: 2\r\n\r\nx", primary=httpcore.RemoteProtocolError)
+        await self.assert_rejected(
+            b"HTTP/1.1 200 OK\r\n"
+            b"Content-Length: 1\r\n"
+            b"Content-Length: 2\r\n"
+            b"\r\n"
+            b"x",
+            primary=httpcore.RemoteProtocolError,
+        )
 
     async def test_non_numeric_content_length(self):
-        await self.assert_rejected(b"HTTP/1.1 200 OK\r\nContent-Length: nope\r\n\r\n", primary=httpcore.RemoteProtocolError)
+        await self.assert_rejected(
+            b"HTTP/1.1 200 OK\r\n"
+            b"Content-Length: nope\r\n"
+            b"\r\n",
+            primary=httpcore.RemoteProtocolError,
+        )
 
     async def test_malformed_header_precedes_unread_entity(self):
-        await self.assert_rejected(b"HTTP/1.1 200 OK\r\nbad header: x\r\nContent-Length: 4\r\n\r\ndata", primary=httpcore.RemoteProtocolError)
+        await self.assert_rejected(
+            b"HTTP/1.1 200 OK\r\n"
+            b"bad header: x\r\n"
+            b"Content-Length: 4\r\n"
+            b"\r\n"
+            b"data",
+            primary=httpcore.RemoteProtocolError,
+        )
 
     async def test_close_delimited_entity_requires_authenticated_eof(self):
-        await self.assert_rejected(b"HTTP/1.1 200 OK\r\nConnection: close\r\n\r\nambiguous")
+        await self.assert_rejected(
+            b"HTTP/1.1 200 OK\r\n"
+            b"Connection: close\r\n"
+            b"\r\n"
+            b"ambiguous",
+        )
 
     async def test_completed_entity_exceeds_byte_limit(self):
         await self.assert_rejected(fixed_response(b"12345"), maximum_bytes=4)

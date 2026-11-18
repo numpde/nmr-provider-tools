@@ -40,7 +40,12 @@ class UnixProxy:
         pumps = []
 
         try:
-            self.headers.append(await reader.readuntil(b"\r\n\r\n"))
+            self.headers.append(
+                await reader.readuntil(
+                    b"\r\n"
+                    b"\r\n",
+                ),
+            )
             self.received.set()
 
             if self.mode == "stall":
@@ -49,10 +54,17 @@ class UnixProxy:
                 return
 
             if self.mode in ("refuse", "malformed"):
-                reply = f"HTTP/1.1 {self.refusal_status} PRIVATE_PROXY_REASON\r\nContent-Length: 0\r\n\r\n".encode()
+                reply = (
+                    f"HTTP/1.1 {self.refusal_status} PRIVATE_PROXY_REASON\r\n"
+                    "Content-Length: 0\r\n"
+                    "\r\n"
+                ).encode()
 
                 if self.mode == "malformed":
-                    reply = b"not HTTP\r\n\r\n"
+                    reply = (
+                        b"not HTTP\r\n"
+                        b"\r\n"
+                    )
 
                 writer.write(reply)
                 await writer.drain()
@@ -64,7 +76,10 @@ class UnixProxy:
 
             (incoming, outbound) = await asyncio.open_connection("127.0.0.1", self.origin.port)
 
-            writer.write(b"HTTP/1.1 200 Connection Established\r\n\r\n")
+            writer.write(
+                b"HTTP/1.1 200 Connection Established\r\n"
+                b"\r\n",
+            )
             await writer.drain()
 
             async def copy(source, target):

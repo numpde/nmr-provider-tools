@@ -32,16 +32,30 @@ class GeneratedTruncationTests(unittest.TestCase):
     @given(body=st.binary(min_size=1, max_size=256), tunnel=st.booleans(), data=st.data())
     def test_generated_content_length_truncation_is_rejected(self, body, tunnel, data):
         cut = data.draw(st.integers(0, len(body) - 1), label="received entity bytes")
-        wire = b"HTTP/1.1 200 OK\r\nContent-Length: " + str(len(body)).encode() + b"\r\n\r\n" + body[:cut]
+        wire = (
+            b"HTTP/1.1 200 OK\r\n"
+            b"Content-Length: "
+        ) + str(len(body)).encode() + (
+            b"\r\n"
+            b"\r\n"
+        ) + body[:cut]
 
         asyncio.run(self.assert_rejected(wire, tunnel, decoded=False))
 
     @settings(max_examples=32, deadline=None, database=None)
     @given(body=st.binary(min_size=1, max_size=128), tunnel=st.booleans(), data=st.data())
     def test_generated_chunked_truncation_is_rejected(self, body, tunnel, data):
-        framed = format(len(body), "x").encode() + b"\r\n" + body + b"\r\n0\r\n\r\n"
+        framed = format(len(body), "x").encode() + b"\r\n" + body + (
+            b"\r\n"
+            b"0\r\n"
+            b"\r\n"
+        )
         cut = data.draw(st.integers(0, len(framed) - 1), label="received chunk framing bytes")
-        wire = b"HTTP/1.1 200 OK\r\nTransfer-Encoding: chunked\r\n\r\n" + framed[:cut]
+        wire = (
+            b"HTTP/1.1 200 OK\r\n"
+            b"Transfer-Encoding: chunked\r\n"
+            b"\r\n"
+        ) + framed[:cut]
 
         asyncio.run(self.assert_rejected(wire, tunnel, decoded=False))
 

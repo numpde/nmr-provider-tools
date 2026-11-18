@@ -15,7 +15,12 @@ class InstallationContractTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             binding_path = pathlib.Path(directory) / "binding.toml"
 
-            binding_path.write_text('["PRIVATE_BINDING_KEY_CANARY"]\nx=1\n["PRIVATE_BINDING_KEY_CANARY"]\nx=2\n')
+            binding_path.write_text(
+                '["PRIVATE_BINDING_KEY_CANARY"]\n'
+                'x=1\n'
+                '["PRIVATE_BINDING_KEY_CANARY"]\n'
+                'x=2\n',
+            )
             binding_path.chmod(0o600)
 
             completed_process = subprocess.run(

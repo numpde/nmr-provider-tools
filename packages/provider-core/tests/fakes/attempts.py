@@ -71,7 +71,10 @@ def complete_response(**changes):
             "schema_id": "nmr.provider.execution_attempt_complete_response.v1",
             "execution_attempt_ref": ATTEMPT_REF,
             "analysis_result_ref": "analysis_result:sha256:" + "b" * 64,
-            "result_schema_id": " result\n雪 ",
+            "result_schema_id": (
+                " result\n"
+                "雪 "
+            ),
             "result_fingerprint": "sha256:" + sha256(b"result bytes").hexdigest(),
             "result_byte_length": len(b"result bytes"),
             "committed_at": "2026-10-18T00:00:00Z",
@@ -87,7 +90,10 @@ def fail_response(**changes):
             "schema_id": "nmr.provider.execution_attempt_fail_response.v1",
             "execution_attempt_ref": ATTEMPT_REF,
             "failure_code": "input_rejected",
-            "failure_message": " Explain\n雪\x01 ",
+            "failure_message": (
+                " Explain\n"
+                "雪\x01 "
+            ),
             "committed_at": "2026-10-18T00:00:00Z",
             "replayed": False,
         }

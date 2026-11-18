@@ -29,7 +29,14 @@ class GeneratedShutdownTests(unittest.TestCase):
     def test_terminal_chunk_preserves_generated_octets(self, chunks, tunnel, fragment_size):
         body = b"".join(chunks)
         framed = b"".join(format(len(chunk), "x").encode() + b"\r\n" + chunk + b"\r\n" for chunk in chunks)
-        wire = b"HTTP/1.1 200 OK\r\nTransfer-Encoding: chunked\r\n\r\n" + framed + b"0\r\n\r\n"
+        wire = (
+            b"HTTP/1.1 200 OK\r\n"
+            b"Transfer-Encoding: chunked\r\n"
+            b"\r\n"
+        ) + framed + (
+            b"0\r\n"
+            b"\r\n"
+        )
 
         async def probe():
             async with ShutdownPeer([wire], tunnel=tunnel, fragment_size=fragment_size) as peer:

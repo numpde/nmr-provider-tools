@@ -9,7 +9,10 @@ CONTENT_HASH = "sha256:" + "b" * 64
 def member(**changes):
     return {
         "upload_ref": UPLOAD_REF,
-        "description": "Two conformers\n雪",
+        "description": (
+            "Two conformers\n"
+            "雪"
+        ),
         "byte_length": 7,
         "content_hash": CONTENT_HASH,
     } | changes

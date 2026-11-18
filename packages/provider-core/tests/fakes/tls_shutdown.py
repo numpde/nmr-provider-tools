@@ -135,7 +135,10 @@ class ShutdownPeer:
                 with trust.wrap_socket(raw, server_side=True) as connection:
                     request = bytearray()
 
-                    while not request.endswith(b"\r\n\r\n"):
+                    while not request.endswith(
+                        b"\r\n"
+                        b"\r\n",
+                    ):
                         chunk = connection.recv(1)
 
                         if not chunk or len(request) >= 16384:
@@ -179,4 +182,11 @@ class ShutdownPeer:
 
 # silent-defaults: allow-contract -- The ordinary synthetic reply is HTTP 200 without additional headers; each scenario may select its status and headers.
 def fixed_response(body, *, status=b"200 OK", headers=b""):
-    return b"HTTP/1.1 " + status + b"\r\n" + headers + b"Content-Length: " + str(len(body)).encode() + b"\r\n\r\n" + body
+    return (
+        b"HTTP/1.1 " + status + b"\r\n"
+        + headers
+        + b"Content-Length: " + str(len(body)).encode()
+        + b"\r\n"
+        b"\r\n"
+        + body
+    )

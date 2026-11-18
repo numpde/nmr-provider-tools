@@ -92,7 +92,10 @@ class _AsyncioDiagnosticObserver(logging.Handler):
             context = original_context[:context_limit]
 
             if len(original_context) > context_limit:
-                context += "\n... further asyncio context truncated"
+                context += (
+                    "\n"
+                    "... further asyncio context truncated"
+                )
 
             diagnostic.add_note("Original asyncio event context:\n" + context)
 

@@ -28,8 +28,14 @@ class SharedDeliveryConfigurationTests(unittest.TestCase):
             config = root / "settings.toml"
 
             config.write_text(
-                '[outbox]\nprovider_items = 2\nprovider_bytes = 8192\ntotal_items = 4\n'
-                'total_bytes = 16384\nretry_initial_seconds = 1\nretry_max_seconds = 5\nlog_level = "INFO"\n'
+                '[outbox]\n'
+                'provider_items = 2\n'
+                'provider_bytes = 8192\n'
+                'total_items = 4\n'
+                'total_bytes = 16384\n'
+                'retry_initial_seconds = 1\n'
+                'retry_max_seconds = 5\n'
+                'log_level = "INFO"\n'
             )
 
             queue = DeliveryQueue(root, limits=QueueLimits(2, 8192, 4, 16384))
@@ -72,9 +78,14 @@ class SharedDeliveryConfigurationTests(unittest.TestCase):
 
             def write(target, items, retry):
                 target.write_text(
-                    f'[outbox]\nprovider_items = {items}\nprovider_bytes = 8192\n'
-                    f'total_items = 4\ntotal_bytes = 16384\nretry_initial_seconds = {retry}\n'
-                    f'retry_max_seconds = 10\nlog_level = "INFO"\n'
+                    '[outbox]\n'
+                    f'provider_items = {items}\n'
+                    'provider_bytes = 8192\n'
+                    'total_items = 4\n'
+                    'total_bytes = 16384\n'
+                    f'retry_initial_seconds = {retry}\n'
+                    'retry_max_seconds = 10\n'
+                    'log_level = "INFO"\n'
                 )
 
             write(settings_path, 1, 1)

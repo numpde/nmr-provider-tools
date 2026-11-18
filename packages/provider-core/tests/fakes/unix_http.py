@@ -25,7 +25,10 @@ class UnixHTTPPeer:
         self.tasks.add(asyncio.current_task())
 
         try:
-            head = await reader.readuntil(b"\r\n\r\n")
+            head = await reader.readuntil(
+                b"\r\n"
+                b"\r\n",
+            )
             fields = dict(line.split(b": ", 1) for line in head.split(b"\r\n")[1:] if line)
 
             # silent-defaults: allow-contract -- Absent Content-Length means the fixture request has no framed body.
@@ -34,7 +37,12 @@ class UnixHTTPPeer:
             body = await reader.readexactly(length)
 
             self.requests.append((head, body))
-            writer.write(b"HTTP/1.1 200 OK\r\nContent-Length: 2\r\nConnection: close\r\n\r\n")
+            writer.write(
+                b"HTTP/1.1 200 OK\r\n"
+                b"Content-Length: 2\r\n"
+                b"Connection: close\r\n"
+                b"\r\n",
+            )
             await writer.drain()
             self.head_sent.set()
 

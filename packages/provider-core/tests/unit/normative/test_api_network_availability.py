@@ -249,7 +249,11 @@ class ApiNetworkAvailabilityTests(unittest.IsolatedAsyncioTestCase):
 
     async def test_same_read_timeout_from_actual_stream_and_local_account_have_distinct_permission(self):
         original = httpcore.ReadTimeout("same exact object")
-        head = b"HTTP/1.1 200 OK\r\n" + b"".join(k+b": "+v+b"\r\n" for (k,v) in response_headers()) + b"Content-Length: 2\r\n\r\nx"
+        head = b"HTTP/1.1 200 OK\r\n" + b"".join(k+b": "+v+b"\r\n" for (k,v) in response_headers()) + (
+            b"Content-Length: 2\r\n"
+            b"\r\n"
+            b"x"
+        )
 
         for local in (False, True):
             with self.subTest(local=local):
@@ -340,7 +344,16 @@ class ApiNetworkAvailabilityTests(unittest.IsolatedAsyncioTestCase):
                     headers = response_headers(status=status, topology=topology)
 
                     # silent-defaults: allow-contract -- The matrix deliberately contrasts malformed chunk syntax with actual truncated-body EOF.
-                    framing = b"Transfer-Encoding: chunked\r\n\r\nnothex\r\nx" if malformed else b"Content-Length: 2\r\n\r\nx"
+                    framing = (
+                        b"Transfer-Encoding: chunked\r\n"
+                        b"\r\n"
+                        b"nothex\r\n"
+                        b"x"
+                    ) if malformed else (
+                        b"Content-Length: 2\r\n"
+                        b"\r\n"
+                        b"x"
+                    )
 
                     stream = RawStream(chunks=[f"HTTP/1.1 {status} controlled\r\n".encode() + b"".join(k+b": "+v+b"\r\n" for (k,v) in headers) + framing])
                     transport = self.transport()

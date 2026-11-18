@@ -105,8 +105,10 @@ class DeliveryProcessTests(unittest.IsolatedAsyncioTestCase):
                 config = root / "PRIVATE_CONFIG.toml"
 
                 config.write_text(
-                    f'schema_id = "{schema}"\nbindings = []\nstate_directory = "{queue}"\n'
-                    f'private_canary = "PRIVATE_CONFIGURATION_VALUE"\n'
+                    f'schema_id = "{schema}"\n'
+                    'bindings = []\n'
+                    f'state_directory = "{queue}"\n'
+                    'private_canary = "PRIVATE_CONFIGURATION_VALUE"\n'
                 )
 
                 config.chmod(0o600)

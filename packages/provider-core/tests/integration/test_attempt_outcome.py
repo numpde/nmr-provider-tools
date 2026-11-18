@@ -19,7 +19,14 @@ class AttemptOutcomeIntegrationTests(unittest.IsolatedAsyncioTestCase):
     async def test_lost_acknowledgement_followed_by_explicit_exact_body_resend(self):
         for (completing, result_bytes, message) in (
             (True, b"result bytes", ""),
-            (False, b"", " Explain\n雪\x01 "),
+            (
+                False,
+                b"",
+                (
+                    " Explain\n"
+                    "雪\x01 "
+                )
+            ),
             (True, b"x" * 786432, ""),
             (False, b"", "\U0001f600" * 1024),
         ):
@@ -34,7 +41,12 @@ class AttemptOutcomeIntegrationTests(unittest.IsolatedAsyncioTestCase):
             )
 
             body = (
-                complete_body(ATTEMPT_REF, " result\n雪 ", result_bytes)
+                complete_body(
+                    ATTEMPT_REF,
+                    " result\n"
+                    "雪 ",
+                    result_bytes,
+                )
                 if completing
                 else fail_body(ATTEMPT_REF, "input_rejected", message)
             )
@@ -98,9 +110,19 @@ class AttemptOutcomeIntegrationTests(unittest.IsolatedAsyncioTestCase):
     async def test_cancellation_after_terminal_dispatch_keeps_owned_evidence(self):
         for completing in (True, False):
             body = (
-                complete_body(ATTEMPT_REF, " result\n雪 ", b"result bytes")
+                complete_body(
+                    ATTEMPT_REF,
+                    " result\n"
+                    "雪 ",
+                    b"result bytes",
+                )
                 if completing
-                else fail_body(ATTEMPT_REF, "input_rejected", " Explain\n雪\x01 ")
+                else fail_body(
+                    ATTEMPT_REF,
+                    "input_rejected",
+                    " Explain\n"
+                    "雪\x01 ",
+                )
             )
 
             async with api_tls_peer("headers-stall") as peer:

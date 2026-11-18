@@ -333,8 +333,20 @@ class TransportDecodedTests(unittest.IsolatedAsyncioTestCase):
 
         async def serve(reader, writer):
             try:
-                await reader.readuntil(b'\r\n\r\n')
-                writer.write(b'HTTP/1.1 200 OK\r\nContent-Encoding: gzip\r\nContent-Length: '+str(len(wire)).encode()+b'\r\nConnection: close\r\n\r\n'+wire)
+                await reader.readuntil(
+                    b'\r\n'
+                    b'\r\n',
+                )
+                writer.write(
+                    b'HTTP/1.1 200 OK\r\n'
+                    b'Content-Encoding: gzip\r\n'
+                    b'Content-Length: '
+                    + str(len(wire)).encode()
+                    + b'\r\n'
+                    b'Connection: close\r\n'
+                    b'\r\n'
+                    + wire,
+                )
                 await writer.drain()
             finally:
                 writer.close()

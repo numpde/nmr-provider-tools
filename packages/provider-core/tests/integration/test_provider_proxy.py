@@ -116,11 +116,22 @@ class ActualServiceProxyTests(unittest.IsolatedAsyncioTestCase):
                         (reader, writer) = await asyncio.open_unix_connection(server.server_address)
                         started = asyncio.get_running_loop().time()
 
-                        writer.write(f"CONNECT api.example:{port} HTTP/1.1\r\n\r\n".encode())
+                        writer.write(
+                            (
+                                f"CONNECT api.example:{port} HTTP/1.1\r\n"
+                                "\r\n"
+                            ).encode(),
+                        )
                         await writer.drain()
                         await asyncio.sleep(0.05)
                         server._slots.release()
-                        response = await asyncio.wait_for(reader.readuntil(b"\r\n\r\n"), 2)
+                        response = await asyncio.wait_for(
+                            reader.readuntil(
+                                b"\r\n"
+                                b"\r\n",
+                            ),
+                            2,
+                        )
 
                         self.assertIn(b"200", response)
                         self.assertGreaterEqual(asyncio.get_running_loop().time() - started, 0.28)
@@ -157,9 +168,14 @@ class ActualServiceProxyTests(unittest.IsolatedAsyncioTestCase):
             replacement = root / "replacement.toml"
 
             def configuration(host):
-                return (f'[api_proxy]\nmax_connections = 4\nlog_level = "INFO"\n'
-                        f'allowed_authorities = ["{host}:{port}"]\n'
-                        f'[api_proxy.route]\naddresses = ["{host}=127.0.0.1"]\n')
+                return ((
+                    '[api_proxy]\n'
+                    'max_connections = 4\n'
+                    'log_level = "INFO"\n'
+                    f'allowed_authorities = ["{host}:{port}"]\n'
+                    '[api_proxy.route]\n'
+                    f'addresses = ["{host}=127.0.0.1"]\n'
+                ))
 
             settings_path.write_text(configuration("first.example"))
             live = LiveProxyConfiguration(settings_path, "mapped")
@@ -182,9 +198,23 @@ class ActualServiceProxyTests(unittest.IsolatedAsyncioTestCase):
                     (reader, writer) = await asyncio.open_unix_connection(server.server_address)
 
                     writers.append(writer)
-                    writer.write(f"CONNECT first.example:{port} HTTP/1.1\r\n\r\n".encode())
+                    writer.write(
+                        (
+                            f"CONNECT first.example:{port} HTTP/1.1\r\n"
+                            "\r\n"
+                        ).encode(),
+                    )
                     await writer.drain()
-                    self.assertIn(b"200", await asyncio.wait_for(reader.readuntil(b"\r\n\r\n"), 2))
+                    self.assertIn(
+                        b"200",
+                        await asyncio.wait_for(
+                            reader.readuntil(
+                                b"\r\n"
+                                b"\r\n",
+                            ),
+                            2,
+                        ),
+                    )
                     replacement.write_text(configuration("second.example"))
                     replacement.replace(settings_path)
                     live.next_poll = 0
@@ -200,15 +230,43 @@ class ActualServiceProxyTests(unittest.IsolatedAsyncioTestCase):
                     (refused_reader, refused_writer) = await asyncio.open_unix_connection(server.server_address)
 
                     writers.append(refused_writer)
-                    refused_writer.write(f"CONNECT first.example:{port} HTTP/1.1\r\n\r\n".encode())
+                    refused_writer.write(
+                        (
+                            f"CONNECT first.example:{port} HTTP/1.1\r\n"
+                            "\r\n"
+                        ).encode(),
+                    )
                     await refused_writer.drain()
-                    self.assertIn(b"403", await asyncio.wait_for(refused_reader.readuntil(b"\r\n\r\n"), 2))
+                    self.assertIn(
+                        b"403",
+                        await asyncio.wait_for(
+                            refused_reader.readuntil(
+                                b"\r\n"
+                                b"\r\n",
+                            ),
+                            2,
+                        ),
+                    )
                     (new_reader, new_writer) = await asyncio.open_unix_connection(server.server_address)
 
                     writers.append(new_writer)
-                    new_writer.write(f"CONNECT second.example:{port} HTTP/1.1\r\n\r\n".encode())
+                    new_writer.write(
+                        (
+                            f"CONNECT second.example:{port} HTTP/1.1\r\n"
+                            "\r\n"
+                        ).encode(),
+                    )
                     await new_writer.drain()
-                    self.assertIn(b"200", await asyncio.wait_for(new_reader.readuntil(b"\r\n\r\n"), 2))
+                    self.assertIn(
+                        b"200",
+                        await asyncio.wait_for(
+                            new_reader.readuntil(
+                                b"\r\n"
+                                b"\r\n",
+                            ),
+                            2,
+                        ),
+                    )
                 finally:
                     for writer in writers:
                         writer.close()

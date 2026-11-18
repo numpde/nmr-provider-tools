@@ -23,7 +23,11 @@ class UploadApiTests(unittest.IsolatedAsyncioTestCase):
         observed = await api.uploads("job:example")
 
         self.assertEqual(observed.job_ref, "job:example")
-        self.assertEqual(observed.members[0].description, "Two conformers\n雪")
+        self.assertEqual(
+            observed.members[0].description,
+            "Two conformers\n"
+            "雪",
+        )
         self.assertIsNone(observed.members[0].content_hash)
         access = await api.read_grant("job:example", UPLOAD_REF)
 

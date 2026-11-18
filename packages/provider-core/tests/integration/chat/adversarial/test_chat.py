@@ -68,7 +68,10 @@ class ChatCarrierRejectionTests(unittest.IsolatedAsyncioTestCase):
             await asyncio.wait_for(peer.closed.wait(), 1)
 
     async def test_http_rejection_keeps_error_fields_without_complete_prompt_or_key_echoes(self):
-        prompt = 'PRIVATE_INPUT quoted "source"\nC 0 0 0; api_key=PRIVATE_KEY'
+        prompt = (
+            'PRIVATE_INPUT quoted "source"\n'
+            'C 0 0 0; api_key=PRIVATE_KEY'
+        )
 
         body = json.dumps(
             {

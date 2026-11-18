@@ -106,7 +106,15 @@ class ApiReadFailureTests(unittest.IsolatedAsyncioTestCase):
             ({"status": 404}, False),
             ({"code": "private-code-canary"}, False),
             ({"type": "urn:foreign"}, False),
-            ({"request_id": "bad\nrequest"}, False),
+            (
+                {
+                    "request_id": (
+                        "bad\n"
+                        "request"
+                    )
+                },
+                False
+            ),
         ):
             body = json.dumps(document | changes).encode()
             transport = Transport(reply(body, status=401, headers=response_headers(status=401, request_id=b"request:test")))

@@ -45,7 +45,14 @@ class ServiceProxyRefusalTests(unittest.TestCase):
                     patch.object(
                         bound_http_proxy,
                         "receive_headers",
-                        return_value=(b"CONNECT private.example:443 HTTP/1.1\r\nAuthorization: PRIVATE_KEY\r\n\r\n", b""),
+                        return_value=(
+                            (
+                                b"CONNECT private.example:443 HTTP/1.1\r\n"
+                                b"Authorization: PRIVATE_KEY\r\n"
+                                b"\r\n"
+                            ),
+                            b""
+                        ),
                     ),
                     patch.object(bound_http_proxy, "_dns_servers", return_value=("192.0.2.53",)),
                     patch.object(bound_http_proxy.secrets, "randbits", return_value=transaction),
@@ -61,7 +68,11 @@ class ServiceProxyRefusalTests(unittest.TestCase):
                     self.assertNotIn(private, output.getvalue())
 
                 self.assertIn("192.0.2.53", output.getvalue())
-                request.sendall.assert_called_once_with(b"HTTP/1.1 502 Bad Gateway\r\nConnection: close\r\n\r\n")
+                request.sendall.assert_called_once_with(
+                    b"HTTP/1.1 502 Bad Gateway\r\n"
+                    b"Connection: close\r\n"
+                    b"\r\n",
+                )
                 channels.assert_called_once_with(socket.AF_INET, socket.SOCK_DGRAM)
                 udp.send.assert_called_once()
                 udp.__exit__.assert_called_once()
@@ -70,13 +81,21 @@ class ServiceProxyRefusalTests(unittest.TestCase):
         policy = ServicePolicy.admit("external", ["api.example:443"], [])
 
         for header in (
-            b"CONNECT private.example:443 HTTP/1.1\r\nAuthorization: PRIVATE\r\n\r\n",
-            b"CONNECT api.example:80 HTTP/1.1\r\n\r\n",
-            b"GET https://api.example HTTP/1.1\r\n\r\n",
-            b"CONNECT user:PRIVATE@api.example:443 HTTP/1.1\r\n\r\n",
-            b"CONNECT api.example:0 HTTP/1.1\r\n\r\n",
-            b"CONNECT [::1]:443 HTTP/1.1\r\n\r\n",
-            b"CONNECT PRIVATE\xff HTTP/1.1\r\n\r\n",
+            b"CONNECT private.example:443 HTTP/1.1\r\n"
+            b"Authorization: PRIVATE\r\n"
+            b"\r\n",
+            b"CONNECT api.example:80 HTTP/1.1\r\n"
+            b"\r\n",
+            b"GET https://api.example HTTP/1.1\r\n"
+            b"\r\n",
+            b"CONNECT user:PRIVATE@api.example:443 HTTP/1.1\r\n"
+            b"\r\n",
+            b"CONNECT api.example:0 HTTP/1.1\r\n"
+            b"\r\n",
+            b"CONNECT [::1]:443 HTTP/1.1\r\n"
+            b"\r\n",
+            b"CONNECT PRIVATE\xff HTTP/1.1\r\n"
+            b"\r\n",
         ):
             request = MagicMock()
             errors = io.StringIO()
@@ -302,7 +321,13 @@ class ServiceProxyRefusalTests(unittest.TestCase):
                 patch.object(
                     bound_http_proxy,
                     "receive_headers",
-                    return_value=(b"CONNECT api.example:443 HTTP/1.1\r\n\r\n", b"")
+                    return_value=(
+                        (
+                            b"CONNECT api.example:443 HTTP/1.1\r\n"
+                            b"\r\n"
+                        ),
+                        b""
+                    )
                 ),
                 patch.object(bound_http_proxy, "connect_bound", side_effect=failure),
                 capture_proxy_logs(errors),

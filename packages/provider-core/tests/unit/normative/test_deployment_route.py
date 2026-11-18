@@ -22,7 +22,13 @@ class DeploymentRouteTests(unittest.TestCase):
         raw = definition(1)
 
         if mode == "local":
-            raw = raw.replace(b'mode = "mapped"', b'mode = "local"\nnetwork_id = "' + b"b" * 64 + b'"')
+            raw = raw.replace(
+                b'mode = "mapped"',
+                (
+                    b'mode = "local"\n'
+                    b'network_id = "'
+                ) + b"b" * 64 + b'"',
+            )
             raw = raw.replace(b"api.example=127.0.0.1", b"api.example=172.18.0.5")
         elif mode == "external":
             raw = raw.replace(b'mode = "mapped"', b'mode = "external"')

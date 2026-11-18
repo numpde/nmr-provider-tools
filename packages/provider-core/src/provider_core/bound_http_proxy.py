@@ -121,7 +121,10 @@ def receive_headers(client: socket.socket) -> tuple[bytes, bytes]:
             raise ConnectionError("client closed before sending headers")
 
         data.extend(chunk)
-        terminator = data.find(b"\r\n\r\n")
+        terminator = data.find(
+            b"\r\n"
+            b"\r\n",
+        )
 
         # Coalesced body bytes belong to forwarding, not header admission.
         # https://github.com/numpde/magnet-deploy/blob/2d4ee50b0359e71900fce9289ea01f46d0f41249/repository_checks/test_image_build_proxy.py#L88
@@ -557,7 +560,11 @@ class ProxyHandler(socketserver.BaseRequestHandler):
     def admission_reply(self, _error):
         """Keep the acquisition listener's existing fixed failure response."""
 
-        return b"HTTP/1.1 502 Bad Gateway\r\nConnection: close\r\n\r\n"
+        return (
+            b"HTTP/1.1 502 Bad Gateway\r\n"
+            b"Connection: close\r\n"
+            b"\r\n"
+        )
 
     def report_failure(self, phase, error):
         """Report the original cause; the log formatter scrubs credentials."""
@@ -598,7 +605,10 @@ class ProxyHandler(socketserver.BaseRequestHandler):
                 if method == "CONNECT":
                     phase = "forwarding CONNECT acknowledgement to client"
 
-                    self.request.sendall(b"HTTP/1.1 200 Connection Established\r\n\r\n")
+                    self.request.sendall(
+                        b"HTTP/1.1 200 Connection Established\r\n"
+                        b"\r\n",
+                    )
                 else:
                     phase = "forwarding request headers to upstream"
 
@@ -748,7 +758,11 @@ class UnixRelayHandler(socketserver.BaseRequestHandler):
             if phase == "gateway connection":
                 try:
                     self.request.settimeout(1)
-                    self.request.sendall(b"HTTP/1.1 502 Bad Gateway\r\nConnection: close\r\n\r\n")
+                    self.request.sendall(
+                        b"HTTP/1.1 502 Bad Gateway\r\n"
+                        b"Connection: close\r\n"
+                        b"\r\n",
+                    )
                 except OSError as reply_error:
                     log_failure("Proxy relay admission failure reply", reply_error)
 

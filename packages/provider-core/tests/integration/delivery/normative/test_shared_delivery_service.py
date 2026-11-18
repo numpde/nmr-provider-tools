@@ -69,8 +69,16 @@ class SharedDeliveryServiceTests(unittest.IsolatedAsyncioTestCase):
                 config = root / "settings.toml"
 
                 def settings(delay):
-                    return (f'[outbox]\nprovider_items = 4\nprovider_bytes = 16384\ntotal_items = 8\n'
-                            f'total_bytes = 32768\nretry_initial_seconds = {delay}\nretry_max_seconds = {delay}\nlog_level = "INFO"\n')
+                    return ((
+                        '[outbox]\n'
+                        'provider_items = 4\n'
+                        'provider_bytes = 16384\n'
+                        'total_items = 8\n'
+                        'total_bytes = 32768\n'
+                        f'retry_initial_seconds = {delay}\n'
+                        f'retry_max_seconds = {delay}\n'
+                        'log_level = "INFO"\n'
+                    ))
 
                 config.write_text(settings(60))
                 limits = QueueLimits(4, 16384, 8, 32768)

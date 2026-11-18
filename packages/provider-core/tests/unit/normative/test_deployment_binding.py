@@ -60,7 +60,13 @@ class DeploymentBindingTests(unittest.TestCase):
         )
 
         self.assertEqual("external", parse_deployment_bindings(external).bindings[0].route["mode"])
-        local = raw.replace(b'mode = "mapped"', b'mode = "local"\nnetwork_id = "' + b"b" * 64 + b'"')
+        local = raw.replace(
+            b'mode = "mapped"',
+            (
+                b'mode = "local"\n'
+                b'network_id = "'
+            ) + b"b" * 64 + b'"',
+        )
 
         with self.assertRaisesRegex(BindingDefinitionRejected, "loopback belongs to this proxy"):
             parse_deployment_bindings(local)

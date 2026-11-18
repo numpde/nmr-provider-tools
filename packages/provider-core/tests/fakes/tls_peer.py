@@ -188,7 +188,10 @@ class TlsPeer:
 
                 return
 
-            request = await reader.readuntil(b"\r\n\r\n")
+            request = await reader.readuntil(
+                b"\r\n"
+                b"\r\n",
+            )
 
             self.requests.append(request)
 
@@ -235,11 +238,19 @@ class TlsPeer:
                     + b"".join(name + b": " + value + b"\r\n" for (name, value) in headers)
                     + b"Content-Length: "
                     + str(len(body)).encode("ascii")
-                    + b"\r\n\r\n"
+                    + (
+                        b"\r\n"
+                        b"\r\n"
+                    )
                     + body
                 )
             elif mode == "redirect":
-                writer.write(b"HTTP/1.1 302 Found\r\nLocation: https://elsewhere.invalid\r\nContent-Length: 0\r\n\r\n")
+                writer.write(
+                    b"HTTP/1.1 302 Found\r\n"
+                    b"Location: https://elsewhere.invalid\r\n"
+                    b"Content-Length: 0\r\n"
+                    b"\r\n",
+                )
             elif mode in {"body-stall", "trickle", "disconnect"}:
                 # silent-defaults: allow-contract -- No supplied response-header override means this fixture adds no extra headers.
                 headers = () if self.response_headers is None else self.response_headers
@@ -247,7 +258,11 @@ class TlsPeer:
                 writer.write(
                     b"HTTP/1.1 200 OK\r\n"
                     + b"".join(name + b": " + value + b"\r\n" for (name, value) in headers)
-                    + b"Content-Length: 100\r\n\r\nx"
+                    + (
+                        b"Content-Length: 100\r\n"
+                        b"\r\n"
+                        b"x"
+                    )
                 )
             elif mode != "headers-stall":
                 raise ValueError("Unknown test peer mode")

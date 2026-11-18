@@ -16,8 +16,26 @@ from tests.fakes.attempts import ATTEMPT_REF, complete_response, fail_response
 class AttemptOutcomeTests(unittest.IsolatedAsyncioTestCase):
     async def test_terminal_replay_preserves_exact_request_bytes_and_acknowledged_content(self):
         for (method, body, response) in (
-            ("complete_attempt", complete_body(ATTEMPT_REF, " result\n雪 ", b"result bytes"), complete_response),
-            ("fail_attempt", fail_body(ATTEMPT_REF, "input_rejected", " Explain\n雪\x01 "), fail_response),
+            (
+                "complete_attempt",
+                complete_body(
+                    ATTEMPT_REF,
+                    " result\n"
+                    "雪 ",
+                    b"result bytes",
+                ),
+                complete_response
+            ),
+            (
+                "fail_attempt",
+                fail_body(
+                    ATTEMPT_REF,
+                    "input_rejected",
+                    " Explain\n"
+                    "雪\x01 ",
+                ),
+                fail_response
+            ),
         ):
             retained = json.dumps(json.loads(body), indent=2).encode() + b"\n"
             transport = Transport(reply(response()), reply(response(replayed=True)))
@@ -36,12 +54,20 @@ class AttemptOutcomeTests(unittest.IsolatedAsyncioTestCase):
                 self.assertEqual(result.committed_at.isoformat(), "2026-10-18T00:00:00+00:00")
 
             if method == "complete_attempt":
-                self.assertEqual(result.result_schema_id, " result\n雪 ")
+                self.assertEqual(
+                    result.result_schema_id,
+                    " result\n"
+                    "雪 ",
+                )
                 self.assertEqual(result.result_byte_length, len(b"result bytes"))
                 self.assertEqual(result.analysis_result_ref, "analysis_result:sha256:" + "b" * 64)
                 self.assertNotIn("雪", repr(result))
             else:
-                self.assertEqual(result.failure_message, " Explain\n雪\x01 ")
+                self.assertEqual(
+                    result.failure_message,
+                    " Explain\n"
+                    "雪\x01 ",
+                )
                 self.assertNotIn("Explain", repr(result))
 
             (first, second) = (call[0] for call in transport.calls)
@@ -82,6 +108,14 @@ class AttemptOutcomeTests(unittest.IsolatedAsyncioTestCase):
             expected_topology="dev-local",
         )
 
-        completion_receipt = await api.complete_attempt(complete_body(ATTEMPT_REF, " result\n雪 ", data), execution_attempt_ref=ATTEMPT_REF)
+        completion_receipt = await api.complete_attempt(
+            complete_body(
+                ATTEMPT_REF,
+                " result\n"
+                "雪 ",
+                data,
+            ),
+            execution_attempt_ref=ATTEMPT_REF,
+        )
 
         self.assertEqual(completion_receipt.result_byte_length, len(data))
