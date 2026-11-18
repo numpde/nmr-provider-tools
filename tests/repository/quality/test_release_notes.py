@@ -7,7 +7,7 @@ require_container()
 import re
 import tempfile
 import unittest
-from pathlib import Path
+import pathlib
 
 from . import sources
 
@@ -52,7 +52,7 @@ def wrapped_lines(source: str) -> list[int]:
     return findings
 
 
-def scan_release_notes(root: Path) -> list[str]:
+def scan_release_notes(root: pathlib.Path) -> list[str]:
     """Return file:line diagnostics for every matching release note."""
 
     return [
@@ -106,7 +106,7 @@ class ReleaseNotesTests(unittest.TestCase):
 
     def test_discovers_new_versioned_notes_and_reports_file_and_line(self):
         with tempfile.TemporaryDirectory() as directory:
-            root = Path(directory)
+            root = pathlib.Path(directory)
 
             (root / "notes").mkdir()
 

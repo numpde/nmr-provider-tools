@@ -11,7 +11,7 @@ require_container()
 import tomllib
 import tempfile
 import unittest
-from pathlib import Path
+import pathlib
 from tomllib import TOMLDecodeError
 from unittest.mock import patch
 
@@ -132,7 +132,7 @@ class ExampleTomlExplanationTests(unittest.TestCase):
 
     def test_new_nested_example_files_are_checked_with_file_and_line_diagnostics(self):
         with tempfile.TemporaryDirectory() as directory:
-            root = Path(directory)
+            root = pathlib.Path(directory)
             example = root / "nested/new.example.toml"
 
             example.parent.mkdir()

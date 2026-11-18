@@ -162,7 +162,7 @@ class MakeRecipeOwnershipTests(unittest.TestCase):
 
         for (target, succeeds) in (("tests/repository/quality", True), ("tests/repository", True), ("tests", False)):
             with self.subTest(target=target):
-                result = subprocess.run(
+                completed_process = subprocess.run(
                     [self.make, "--dry-run", target, "DOCKER_CONTEXT=default", "TEST_PATTERN=test_makefile.py"],
                     cwd=REPOSITORY_ROOT,
                     env=environment,
@@ -171,7 +171,7 @@ class MakeRecipeOwnershipTests(unittest.TestCase):
                     check=False,
                 )
 
-                self.assertEqual(succeeds, result.returncode == 0, msg=result.stderr)
+                self.assertEqual(succeeds, completed_process.returncode == 0, msg=completed_process.stderr)
 
     def test_recipe_macros_ignore_makeflags_assignments(self) -> None:
         makefile = (REPOSITORY_ROOT / "Makefile").read_text(encoding="utf-8")

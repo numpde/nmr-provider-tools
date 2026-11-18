@@ -16,7 +16,7 @@ require_container()
 import re
 import tempfile
 import unittest
-from pathlib import Path
+import pathlib
 from unittest.mock import patch
 
 from .sources import REPOSITORY_ROOT
@@ -31,7 +31,7 @@ ACTION_USES_LINE = re.compile(r"(?m)^[ \t]+uses:[ \t]+(?P<target>\S+)")
 PINNED_EXTERNAL_USES = re.compile(r"^[^@\s]+@[0-9a-f]{40}$")
 
 
-def workflow_files() -> list[Path]:
+def workflow_files() -> list[pathlib.Path]:
     return sorted(
         [
             *WORKFLOW_ROOT.glob("*.yml"),
@@ -40,7 +40,7 @@ def workflow_files() -> list[Path]:
     )
 
 
-def read_workflow(path: Path) -> str:
+def read_workflow(path: pathlib.Path) -> str:
     return path.read_text(encoding="utf-8")
 
 
@@ -65,13 +65,13 @@ class WorkflowPostureTests(unittest.TestCase):
     def test_workflow_inventory_matches_reviewed_ci_scope(self) -> None:
         self.assertEqual(
             sorted(REVIEWED_WORKFLOWS),
-            [path.name for path in workflow_files()],
+            [workflow_path.name for workflow_path in workflow_files()],
             msg="workflow inventory differs from the reviewed CI scope",
         )
 
     def test_unreviewed_workflow_cannot_expand_deferred_ci_scope(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
-            root = Path(directory)
+            root = pathlib.Path(directory)
 
             (root / "unreviewed.yml").write_text("name: unreviewed\n", encoding="utf-8")
 
@@ -79,31 +79,31 @@ class WorkflowPostureTests(unittest.TestCase):
                 self.test_workflow_inventory_matches_reviewed_ci_scope()
 
     def test_external_workflow_actions_are_commit_pinned(self) -> None:
-        for path in workflow_files():
-            workflow = read_workflow(path)
+        for workflow_path in workflow_files():
+            workflow = read_workflow(workflow_path)
 
-            with self.subTest(workflow=path.name):
+            with self.subTest(workflow=workflow_path.name):
                 self.assertEqual([], unpinned_external_uses(workflow))
 
     def test_workflows_do_not_define_silent_dispatch_defaults(self) -> None:
-        for path in workflow_files():
-            workflow = read_workflow(path)
+        for workflow_path in workflow_files():
+            workflow = read_workflow(workflow_path)
 
-            with self.subTest(workflow=path.name):
+            with self.subTest(workflow=workflow_path.name):
                 self.assertNotRegex(workflow, r"(?m)^\s+default:\s*")
 
     def test_workflows_do_not_define_blank_environment_entries(self) -> None:
-        for path in workflow_files():
-            workflow = read_workflow(path)
+        for workflow_path in workflow_files():
+            workflow = read_workflow(workflow_path)
 
-            with self.subTest(workflow=path.name):
+            with self.subTest(workflow=workflow_path.name):
                 self.assertNotRegex(workflow, r"(?m)^\s+[A-Z][A-Z0-9_]*:\s*$")
 
     def test_workflows_pin_github_hosted_runner_images(self) -> None:
-        for path in workflow_files():
-            workflow = read_workflow(path)
+        for workflow_path in workflow_files():
+            workflow = read_workflow(workflow_path)
 
-            with self.subTest(workflow=path.name):
+            with self.subTest(workflow=workflow_path.name):
                 self.assertNotIn("ubuntu-latest", workflow)
                 self.assertRegex(workflow, r"(?m)^\s+runs-on:\s+ubuntu-24\.04$")
 

@@ -59,7 +59,7 @@ class DockerContextPostureTests(unittest.TestCase):
 
         paths = source_files(root=ROOT, patterns=patterns)
 
-        failures = [f"{path.relative_to(ROOT)}:{line}" for path in paths
-                    for line in implicit_defaults(path.read_text(encoding="utf-8"))]
+        failures = [f"{source_path.relative_to(ROOT)}:{line}" for source_path in paths
+                    for line in implicit_defaults(source_path.read_text(encoding="utf-8"))]
 
         self.assertEqual([], failures)

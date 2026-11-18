@@ -17,7 +17,7 @@ import re
 import subprocess
 import tempfile
 import unittest
-from pathlib import Path
+import pathlib
 from unittest.mock import patch
 
 from .sources import is_skipped, iter_repo_text_files, read_text, repo_path
@@ -216,20 +216,20 @@ class RepositoryHygieneTest(unittest.TestCase):
                 self.assertEqual("\t@echo $@", self.make_target_recipe(makefile, target))
 
         with tempfile.TemporaryDirectory() as directory:
-            path = Path(directory) / "Makefile"
+            makefile_path = pathlib.Path(directory) / "Makefile"
 
-            path.write_text(makefile)
+            makefile_path.write_text(makefile)
 
-            result = subprocess.run(
-                ["make", "--no-print-directory", "--dry-run", "-f", str(path), "first/one", "second/two"],
+            completed_process = subprocess.run(
+                ["make", "--no-print-directory", "--dry-run", "-f", str(makefile_path), "first/one", "second/two"],
                 cwd=directory,
                 capture_output=True,
                 text=True,
                 check=False,
             )
 
-        self.assertEqual(0, result.returncode, msg=result.stderr)
-        self.assertEqual(["echo input", "echo first/one", "echo second/two"], result.stdout.splitlines())
+        self.assertEqual(0, completed_process.returncode, msg=completed_process.stderr)
+        self.assertEqual(["echo input", "echo first/one", "echo second/two"], completed_process.stdout.splitlines())
 
     def test_target_parser_excludes_assignments_and_recipe_text(self):
         makefile = (

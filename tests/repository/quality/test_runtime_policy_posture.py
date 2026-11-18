@@ -11,9 +11,9 @@ require_container()
 import ast
 import textwrap
 import unittest
+import pathlib
 from collections.abc import Iterable
 from dataclasses import dataclass
-from pathlib import Path
 
 from .sources import REPOSITORY_ROOT, python_sources
 
@@ -22,13 +22,13 @@ _ESCAPE = "# repo-check: allow-module-constant"
 
 @dataclass(frozen=True, slots=True)
 class _Finding:
-    path: Path
+    source_path: pathlib.Path
     line: int
     name: str
 
     def diagnostic(self) -> str:
         return (
-            f"{self.path}:{self.line}: module-scope uppercase direct-name value "
+            f"{self.source_path}:{self.line}: module-scope uppercase direct-name value "
             f"assignment {self.name}; review whether it belongs in a settings "
             f"snapshot; a retained single-name assignment must place "
             f"{_ESCAPE!r} immediately above it"
@@ -94,12 +94,12 @@ def _has_escape(binding: ast.Assign | ast.AnnAssign, source_lines: list[str]) ->
     return len(indentation) == binding.col_offset and preceding_line.strip() == _ESCAPE
 
 
-def _findings(path: Path, source: str) -> list[_Finding]:
-    tree = ast.parse(source, filename=str(path))
+def _findings(source_path: pathlib.Path, source: str) -> list[_Finding]:
+    tree = ast.parse(source, filename=str(source_path))
     source_lines = source.splitlines()
 
     return [
-        _Finding(path=path, line=binding.lineno, name=name)
+        _Finding(source_path=source_path, line=binding.lineno, name=name)
         for binding in _module_bindings(tree)
         if not _has_escape(binding, source_lines)
         for name in _binding_names(binding)
@@ -107,17 +107,17 @@ def _findings(path: Path, source: str) -> list[_Finding]:
     ]
 
 
-def _scan(paths: Iterable[Path]) -> list[_Finding]:
+def _scan(paths: Iterable[pathlib.Path]) -> list[_Finding]:
     return sorted(
         [
             finding
-            for path in paths
+            for source_path in paths
             for finding in _findings(
-                path.relative_to(REPOSITORY_ROOT),
-                path.read_text(encoding="utf-8"),
+                source_path.relative_to(REPOSITORY_ROOT),
+                source_path.read_text(encoding="utf-8"),
             )
         ],
-        key=lambda finding: (finding.path, finding.line, finding.name),
+        key=lambda finding: (finding.source_path, finding.line, finding.name),
     )
 
 
@@ -146,7 +146,7 @@ class RuntimePolicyPostureTests(unittest.TestCase):
 
         self.assertEqual(
             ["DIRECT", "ANNOTATED", "CONDITIONAL"],
-            [finding.name for finding in _findings(Path("example.py"), source)],
+            [finding.name for finding in _findings(pathlib.Path("example.py"), source)],
         )
 
     def test_exact_local_escape_suppresses_single_name_assignment(self) -> None:
@@ -160,7 +160,7 @@ class RuntimePolicyPostureTests(unittest.TestCase):
 
         self.assertEqual(
             ["RUNTIME_LIMIT"],
-            [finding.name for finding in _findings(Path("example.py"), source)],
+            [finding.name for finding in _findings(pathlib.Path("example.py"), source)],
         )
 
     def test_escape_near_matches_remain_findings(self) -> None:
@@ -191,12 +191,12 @@ class RuntimePolicyPostureTests(unittest.TestCase):
             with self.subTest(name=name):
                 self.assertEqual(
                     expected_names,
-                    [finding.name for finding in _findings(Path("example.py"), source)],
+                    [finding.name for finding in _findings(pathlib.Path("example.py"), source)],
                 )
 
     def test_diagnostic_does_not_disclose_assigned_values(self) -> None:
         finding = _findings(
-            Path("example.py"),
+            pathlib.Path("example.py"),
             'SECRET_KEY = "fixture-secret"\n',
         )[0]
 

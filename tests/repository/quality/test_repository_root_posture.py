@@ -12,23 +12,23 @@ import ast
 import textwrap
 import unittest
 from dataclasses import dataclass
-from pathlib import Path
+import pathlib
 
 from .sources import REPOSITORY_ROOT, python_sources
 
-_CHECK_PATH = Path(__file__).resolve()
+_CHECK_PATH = pathlib.Path(__file__).resolve()
 
 
 @dataclass(frozen=True, slots=True)
 class _Finding:
-    path: Path
+    source_path: pathlib.Path
     line: int
     target: str
     expression: str
 
     def diagnostic(self) -> str:
         return (
-            f"{self.path}:{self.line}: repository root {self.target!r} is "
+            f"{self.source_path}:{self.line}: repository root {self.target!r} is "
             f"inferred from source layout by {self.expression!r}; use Git "
             f"discovery or one pinned repository file"
         )
@@ -137,7 +137,7 @@ def _root_target_uses_source_layout(name: str, depth: int) -> bool:
 
 def _findings_in_body(
     *,
-    path: Path,
+    source_path: pathlib.Path,
     statements: list[ast.stmt],
     inherited_source_location_depths: dict[str, int] | None = None,
 ) -> tuple[_Finding, ...]:
@@ -150,7 +150,7 @@ def _findings_in_body(
         if isinstance(statement, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)):
             findings.extend(
                 _findings_in_body(
-                    path=path,
+                    source_path=source_path,
                     statements=statement.body,
                     inherited_source_location_depths=source_location_depths,
                 )
@@ -170,7 +170,7 @@ def _findings_in_body(
         if source_location_depth is not None:
             findings.extend(
                 _Finding(
-                    path=path,
+                    source_path=source_path,
                     line=statement.lineno,
                     target=name,
                     expression=ast.unparse(value),
@@ -189,24 +189,24 @@ def _findings_in_body(
     return tuple(findings)
 
 
-def _findings(path: Path, source: str) -> tuple[_Finding, ...]:
-    tree = ast.parse(source, filename=str(path))
+def _findings(source_path: pathlib.Path, source: str) -> tuple[_Finding, ...]:
+    tree = ast.parse(source, filename=str(source_path))
 
-    return _findings_in_body(path=path, statements=tree.body)
+    return _findings_in_body(source_path=source_path, statements=tree.body)
 
 
-def _scan(paths: tuple[Path, ...]) -> tuple[_Finding, ...]:
+def _scan(paths: tuple[pathlib.Path, ...]) -> tuple[_Finding, ...]:
     return tuple(
         sorted(
             (
                 finding
-                for path in paths
+                for source_path in paths
                 for finding in _findings(
-                    path.relative_to(REPOSITORY_ROOT),
-                    path.read_text(encoding="utf-8"),
+                    source_path.relative_to(REPOSITORY_ROOT),
+                    source_path.read_text(encoding="utf-8"),
                 )
             ),
-            key=lambda finding: (finding.path, finding.line),
+            key=lambda finding: (finding.source_path, finding.line),
         )
     )
 
@@ -233,7 +233,7 @@ class RepositoryRootPostureTests(unittest.TestCase):
             """
         )
 
-        findings = _findings(Path("example.py"), source)
+        findings = _findings(pathlib.Path("example.py"), source)
 
         self.assertEqual(
             [
@@ -261,7 +261,7 @@ class RepositoryRootPostureTests(unittest.TestCase):
             """
         )
 
-        self.assertEqual((), _findings(Path("example.py"), source))
+        self.assertEqual((), _findings(pathlib.Path("example.py"), source))
 
     def test_check_uses_no_source_layout_repository_root_inference(self) -> None:
         self.assertEqual((), _scan((_CHECK_PATH,)))
