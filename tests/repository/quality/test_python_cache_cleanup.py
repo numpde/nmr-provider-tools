@@ -96,7 +96,7 @@ class PythonCacheCleanupTests(unittest.TestCase):
         self.assertNotIn("Select a local Docker context", completed_process.stderr)
 
         self.assertIn(
-            "tests/repository/quality:\n\tbash host/tools/repository.sh tests/repository/quality",
+            "tests/repository/quality:\n\tbash tests/repository/run.sh tests/repository/quality",
             (ROOT / "Makefile").read_text(encoding="utf-8"),
         )
 

@@ -23,7 +23,7 @@ from tests.repository.quality.sources import ROOT
 class LauncherTests(unittest.TestCase):
     def test_quality_filter_selects_a_test_and_rejects_invalid_selection(self):
         environment = os.environ | {"NMR_SELECTED_DOCKER_ENDPOINT": "unix:///tmp/test.sock"}
-        command = ["bash", "host/tools/repository.sh", "--print", "tests/repository/quality"]
+        command = ["bash", "tests/repository/run.sh", "--print", "tests/repository/quality"]
 
         for (origin, pattern, expected) in (
             ("undefined", "test_statement_spacing_posture.py", "test*.py"),
@@ -243,9 +243,10 @@ class LauncherTests(unittest.TestCase):
             (root / ".work").mkdir()
             (root / ".aws").mkdir()
             (root / "release-artifacts").mkdir()
-            launcher = root / "host/tools/repository.sh"
+            launcher = root / "tests/repository/run.sh"
+            launcher.parent.mkdir(parents=True)
 
-            launcher.write_bytes((ROOT / "host/tools/repository.sh").read_bytes())
+            launcher.write_bytes((ROOT / "tests/repository/run.sh").read_bytes())
             environment = os.environ | {"NMR_SELECTED_DOCKER_ENDPOINT": "unix:///var/run/docker.sock"}
             command = ["bash", str(launcher), "--print", "tests/repository"]
             completed_process = subprocess.run(command, env=environment, capture_output=True, text=True, check=False)
@@ -268,10 +269,10 @@ class LauncherTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             root = pathlib.Path(directory)
 
-            (root / "host/tools").mkdir(parents=True)
-            launcher = root / "host/tools/repository.sh"
+            launcher = root / "tests/repository/run.sh"
+            launcher.parent.mkdir(parents=True)
 
-            launcher.write_bytes((ROOT / "host/tools/repository.sh").read_bytes())
+            launcher.write_bytes((ROOT / "tests/repository/run.sh").read_bytes())
 
             for (target, message) in (
                 ("tests/repository", "operations/checker/image_identity.sh"),

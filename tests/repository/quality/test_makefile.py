@@ -194,7 +194,7 @@ class MakeRecipeOwnershipTests(unittest.TestCase):
         self.assertNotIn("malicious", result.stdout)
 
         self.assertIn(
-            "host/tools/repository.sh",
+            "tests/repository/run.sh",
             result.stdout,
         )
 
@@ -205,7 +205,7 @@ class MakeRecipeOwnershipTests(unittest.TestCase):
 
         self.assertEqual(0, default_goal.returncode, msg=default_goal.stderr)
         self.assertIn("make tests", default_goal.stdout)
-        self.assertNotIn("bash host/tools/repository.sh tests/repository", default_goal.stdout)
+        self.assertNotIn("bash tests/repository/run.sh tests/repository", default_goal.stdout)
 
     def _dry_run(
         self,

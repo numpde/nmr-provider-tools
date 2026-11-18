@@ -118,7 +118,12 @@ owner and resolver/identity sources. Host Python does not depend on the
 container-only `tools` package.
 
 `operations/docker/` owns local Docker context selection, client setup, image
-lifecycle and engine cache maintenance.
+lifecycle and engine cache maintenance. Its container runner handles cleanup
+for SDK builds, delivery deployments and repository checks.
+
+`operations/checker/` prepares the checker image from its Dockerfile and
+declared dependencies. The repository test launcher and the live checker
+provisioning check live alongside their suites in `tests/repository/`.
 
 `operations/delivery/` builds the shared delivery image and manages its
 deployment. Its `image/` directory contains the Dockerfile, the deployment

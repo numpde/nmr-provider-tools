@@ -17,12 +17,12 @@
   {
     "target": "tests/repository/test_conventions.py",
     "method": "test_batch_worker_target_invokes_only_the_fixed_qualification_case",
-    "disposition": "NMRNet scientific target and its multi-script launcher fixture are donor-specific; checker grants and real launcher rejection are tested against tools/repository.sh."
+    "disposition": "NMRNet scientific target and its multi-script launcher fixture are donor-specific; checker grants and real launcher rejection are tested against tests/repository/run.sh."
   },
   {
     "target": "tests/repository/test_conventions.py",
     "method": "test_repository_lane_grants_only_reviewed_sources_including_future_package",
-    "disposition": "NMRNet scientific target and its multi-script launcher fixture are donor-specific; checker grants and real launcher rejection are tested against tools/repository.sh."
+    "disposition": "NMRNet scientific target and its multi-script launcher fixture are donor-specific; checker grants and real launcher rejection are tested against tests/repository/run.sh."
   },
   {
     "target": "tests/repository/quality/test_source_inventory.py",

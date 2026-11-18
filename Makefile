@@ -423,7 +423,7 @@ tests/acquisition/identity:
 
 .PHONY: tests/acquisition/owner
 tests/acquisition/owner:
-	@bash host/tools/repository.sh tests/acquisition/owner
+	@bash tests/repository/run.sh tests/acquisition/owner
 
 tests: tests/repository tests/unit/provider-core tests/contract/provider-core tests/integration/provider-core tests/deployment
 
@@ -435,14 +435,14 @@ tests/acquisition/network:
 	bash host/tools/acquisition_network_test.sh
 
 tests/repository:
-	bash host/tools/repository.sh tests/repository
+	bash tests/repository/run.sh tests/repository
 
 tests/repository/quality:
-	bash host/tools/repository.sh tests/repository/quality
+	bash tests/repository/run.sh tests/repository/quality
 
 .PHONY: tests/repository/bytecode
 tests/repository/bytecode:
-	@bash host/tools/repository.sh tests/repository/bytecode
+	@bash tests/repository/run.sh tests/repository/bytecode
 
 .PHONY: provider-tools/verify-checked-in-source-hashes provider-tools/update-checked-in-source-from-pinned-release provider-tools/import-checked-in-source
 provider-tools/verify-checked-in-source-hashes:
@@ -456,23 +456,23 @@ provider-tools/import-checked-in-source:
 	@python3 -I -S -B bootstrap/acquisition/acquisition_tool/source_update.py import --source-dir bootstrap/acquisition --pin-file requirements/provider-tools-source.json --archive "$${SOURCE_ARCHIVE_INPUT}"
 
 tests/repository/provisioning:
-	bash host/tools/repository.sh tests/repository/provisioning
+	bash tests/repository/run.sh tests/repository/provisioning
 
 tests/repository/release:
-	bash host/tools/repository.sh tests/repository/release
+	bash tests/repository/run.sh tests/repository/release
 
 .PHONY: tests/repository/installer
 tests/repository/installer:
-	bash host/tools/repository.sh tests/repository/installer
+	bash tests/repository/run.sh tests/repository/installer
 
 tests/repository/network:
-	bash host/tools/repository.sh tests/repository/network
+	bash tests/repository/run.sh tests/repository/network
 
 tests/repository/network/identity:
-	bash host/tools/repository.sh tests/repository/network/identity
+	bash tests/repository/run.sh tests/repository/network/identity
 
 tests/repository/runtime:
-	bash host/tools/repository.sh tests/repository/runtime
+	bash tests/repository/run.sh tests/repository/runtime
 
 .PHONY: tests/repository/context
 tests/repository/context:
@@ -480,10 +480,10 @@ tests/repository/context:
 
 .PHONY: tests/repository/provisioning/live
 tests/repository/provisioning/live:
-	bash host/tools/checker_provisioning_test.sh
+	bash tests/repository/provisioning_live.sh
 
 tests/repository/command:
-	bash host/tools/repository.sh --print tests/repository
+	bash tests/repository/run.sh --print tests/repository
 
 delivery/deployment/up:
 	bash operations/delivery/deploy.sh up
@@ -532,4 +532,4 @@ packages/images/retire:
 
 .PHONY: tests/acquisition/compose
 tests/acquisition/compose:
-	@bash host/tools/repository.sh tests/acquisition/compose
+	@bash tests/repository/run.sh tests/acquisition/compose
