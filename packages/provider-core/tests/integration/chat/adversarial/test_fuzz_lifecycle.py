@@ -386,11 +386,16 @@ class LifecycleOrders(RuleBasedStateMachine):
                 or not self.tasks[name].done()):
             return
 
-        peers = [case for (other, case) in self.cases.items() if other != name
-                 and case.controller in self.claims.live_owners()
-                 and case.session.science.pending is not None
-                 and not case.session.science.pending.done()
-                 and not case.session.science.release.is_set()]
+        peers = [
+            case
+            for (other, case) in self.cases.items()
+            if
+            (other != name) and
+            (case.controller in self.claims.live_owners()) and
+            (case.session.science.pending is not None) and
+            not case.session.science.pending.done() and
+            not case.session.science.release.is_set()
+        ]
 
         if not peers:
             return
@@ -447,10 +452,12 @@ class LifecycleOrders(RuleBasedStateMachine):
                         "A delivery retry replaced the original logical terminal")
 
                     assert all(
-                        item.key == original_terminal.key
-                        and item.body == original_terminal.body
-                        and item.body_sha256 == original_terminal.body_sha256
-                        for item in delivery.offers
+                        (
+                            item.key == original_terminal.key
+                            and item.body == original_terminal.body
+                            and item.body_sha256 == original_terminal.body_sha256
+                            for item in delivery.offers
+                        ),
                     )
 
                     assert len(delivery.offers) <= delivery._answered + 1
