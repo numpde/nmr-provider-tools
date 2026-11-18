@@ -5,13 +5,13 @@ from tools.container_guard import require_container
 require_container()
 
 import json
+import pathlib
 import subprocess
 import sys
 import tempfile
 import tomllib
 import urllib.parse
 import urllib.request
-from pathlib import Path
 
 from tools.artifacts import require_download_proxy
 from tools.wheelhouse import digest, pool_lock, publish_file, requirements, select_wheels
@@ -36,9 +36,9 @@ def cache_state(pool, locks):
             found = set()
             conflicting = {}
 
-            for path in pool.glob("*.whl"):
+            for wheel_path in pool.glob("*.whl"):
                 try:
-                    (name, version, _, tags) = parse_wheel_filename(path.name)
+                    (name, version, _, tags) = parse_wheel_filename(wheel_path.name)
                 except InvalidWheelFilename:
                     continue
 
@@ -49,15 +49,19 @@ def cache_state(pool, locks):
                     if identity[0] != name or not specifier.contains(version, prereleases=True):
                         continue
 
-                    if digest(path) not in expected[identity]:
-                        conflicting[identity] = path.name
+                    wheel_sha256 = digest(wheel_path)
+
+                    if wheel_sha256 not in expected[identity]:
+                        conflicting[identity] = (wheel_path, wheel_sha256)
                     else:
                         found.add(identity)
 
             if unavailable := set(conflicting) - found:
-                name = conflicting[next(iter(unavailable))]
+                identity = next(iter(unavailable))
+                (wheel_path, wheel_sha256) = conflicting[identity]
+                expected_sha256s = sorted(expected[identity])
 
-                raise ValueError(f"Cannot reuse {name}: cached bytes differ from the lock.")
+                raise ValueError(f"{wheel_path=}, {wheel_sha256=} ∉ {expected_sha256s=}")
 
             if found != set(expected):
                 missing = True
@@ -71,13 +75,16 @@ def cache_state(pool, locks):
 
 
 def tool_present(pool, pin):
-    path = pool / pin["name"]
+    tool_path = pool / pin["name"]
 
-    if not path.exists() and not path.is_symlink():
+    if not tool_path.exists() and not tool_path.is_symlink():
         return False
 
-    if digest(path) != pin["sha256"]:
-        raise ValueError("Cannot reuse the wheelhouse tool: its bytes differ from the pinned release.")
+    tool_sha256 = digest(tool_path)
+    expected_sha256 = pin["sha256"]
+
+    if tool_sha256 != expected_sha256:
+        raise ValueError(f"{tool_path=}, {tool_sha256=} ≠ {expected_sha256=}")
 
     return True
 
@@ -85,27 +92,30 @@ def tool_present(pool, pin):
 def bootstrap_present(pool, lock):
     (package,) = tomllib.loads(lock.read_text())["packages"]
     (wheel,) = package["wheels"]
-    path = pool / Path(urllib.parse.urlsplit(wheel["url"]).path).name
+    wheel_path = pool / pathlib.Path(urllib.parse.urlsplit(wheel["url"]).path).name
 
-    if not path.exists() and not path.is_symlink():
+    if not wheel_path.exists() and not wheel_path.is_symlink():
         return False
 
-    if digest(path) != wheel["hashes"]["sha256"]:
-        raise ValueError("Cannot reuse the acquisition identity wheel: its bytes differ from the bootstrap pin.")
+    wheel_sha256 = digest(wheel_path)
+    bootstrap_sha256 = wheel["hashes"]["sha256"]
+
+    if wheel_sha256 != bootstrap_sha256:
+        raise ValueError(f"{wheel_path=}, {wheel_sha256=} ≠ {bootstrap_sha256=}")
 
     return True
 
 
 def acquire_tool(pool, pin):
-    path = pool / pin["name"]
+    tool_path = pool / pin["name"]
 
     with pool_lock(pool, exclusive=False):
         if tool_present(pool, pin):
-            return path
+            return tool_path
 
     with pool_lock(pool, exclusive=True):
         if tool_present(pool, pin):
-            return path
+            return tool_path
 
         require_download_proxy()
 
@@ -116,18 +126,21 @@ def acquire_tool(pool, pin):
 
             temporary.flush()
 
-            if digest(Path(temporary.name)) != pin["sha256"]:
-                raise ValueError("Cannot acquire the wheelhouse tool: its bytes differ from the pinned release.")
+            download_sha256 = digest(pathlib.Path(temporary.name))
+            expected_sha256 = pin["sha256"]
 
-            publish_file(Path(temporary.name), path, pin["sha256"])
+            if download_sha256 != expected_sha256:
+                raise ValueError(f"{tool_path=}, {download_sha256=} ≠ {expected_sha256=}")
 
-    return path
+            publish_file(pathlib.Path(temporary.name), tool_path, expected_sha256)
+
+    return tool_path
 
 
 def main():
-    pool = Path("/wheelhouse")
-    locks = (Path("/core-runtime.lock"), Path("/core-build.lock"), Path("/core-test.lock"), Path("/wheelhouse-tool.lock"))
-    bootstrap = Path("/acquisition-bootstrap.pylock.toml")
+    pool = pathlib.Path("/wheelhouse")
+    locks = (pathlib.Path("/core-runtime.lock"), pathlib.Path("/core-build.lock"), pathlib.Path("/core-test.lock"), pathlib.Path("/wheelhouse-tool.lock"))
+    bootstrap = pathlib.Path("/acquisition-bootstrap.pylock.toml")
 
     if sys.argv[1:] in (["check"], ["verify"]):
         state = cache_state(pool, locks)
@@ -136,13 +149,16 @@ def main():
             state = "missing"
 
         if sys.argv[1:] == ["verify"] and state != "complete":
-            raise ValueError("Cannot use provider-core build inputs: acquire the missing locked dependencies first.")
+            raise ValueError(
+                "Provider-core build dependencies are missing. "
+                "Run make packages/provider-core/download for this wheelhouse."
+            )
 
         print(state)
 
         return
 
-    pin = json.loads(Path("/wheelhouse-tool-release.json").read_text())
+    pin = json.loads(pathlib.Path("/wheelhouse-tool-release.json").read_text())
     tool = acquire_tool(pool, pin)
 
     if sys.argv[1:] == ["tool"]:
@@ -150,7 +166,7 @@ def main():
 
     with tempfile.TemporaryDirectory(prefix="provider-core-locks-") as temporary:
         for (number, lock) in enumerate(locks):
-            projection = Path(temporary) / f"pylock.{number}.toml"
+            projection = pathlib.Path(temporary) / f"pylock.{number}.toml"
             command = [sys.executable, "-I", "-B", str(tool)]
 
             with projection.open("xb") as output:

@@ -10,8 +10,8 @@ import shutil
 import tempfile
 import unittest
 import zipfile
+import pathlib
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
-from pathlib import Path
 from threading import Event, Thread
 from unittest.mock import patch
 
@@ -23,7 +23,7 @@ class WheelhouseTests(unittest.TestCase):
         temporary = tempfile.TemporaryDirectory()
 
         self.addCleanup(temporary.cleanup)
-        self.root = Path(temporary.name)
+        self.root = pathlib.Path(temporary.name)
         self.pool = self.root / "shared pool"
 
         self.pool.mkdir()
@@ -46,40 +46,53 @@ class WheelhouseTests(unittest.TestCase):
     # silent-defaults: allow-contract -- The synthetic wheel builder defaults to version 1.0, while version-identity tests may select another explicit pin.
     def make_wheel(self, name, version="1.0"):
         distribution = name.replace("-", "_")
-        path = self.index / f"{distribution}-{version}-py3-none-any.whl"
+        wheel_path = self.index / f"{distribution}-{version}-py3-none-any.whl"
 
-        with zipfile.ZipFile(path, "w") as archive:
+        with zipfile.ZipFile(wheel_path, "w") as archive:
             prefix = f"{distribution}-{version}.dist-info"
 
             archive.writestr(f"{prefix}/METADATA", f"Metadata-Version: 2.1\nName: {name}\nVersion: {version}\n")
             archive.writestr(f"{prefix}/WHEEL", "Wheel-Version: 1.0\nRoot-Is-Purelib: true\nTag: py3-none-any\n")
             archive.writestr(f"{prefix}/RECORD", "")
 
-        return path
+        return wheel_path
 
     def test_provider_core_cache_check_distinguishes_missing_and_corrupt(self):
-        self.assertEqual("missing", provider_core_acquire.cache_state(self.pool, [self.lock]))
-        shutil.copyfile(self.missing, self.pool / self.missing.name)
-        self.assertEqual("complete", provider_core_acquire.cache_state(self.pool, [self.lock]))
-        (self.pool / self.missing.name).write_bytes(b"corrupt")
+        cached_wheel = self.pool / self.missing.name
+        locked_sha256 = wheelhouse.digest(self.missing)
 
-        with self.assertRaisesRegex(ValueError, "cached bytes differ"):
+        self.assertEqual("missing", provider_core_acquire.cache_state(self.pool, [self.lock]))
+        shutil.copyfile(self.missing, cached_wheel)
+        self.assertEqual("complete", provider_core_acquire.cache_state(self.pool, [self.lock]))
+        cached_wheel.write_bytes(b"corrupt")
+
+        with self.assertRaises(ValueError) as caught:
             provider_core_acquire.cache_state(self.pool, [self.lock])
+
+        self.assertIn(cached_wheel.name, str(caught.exception))
+        self.assertIn(wheelhouse.digest(cached_wheel), str(caught.exception))
+        self.assertIn(locked_sha256, str(caught.exception))
 
     def test_provider_core_cache_check_reuses_admitted_local_version(self):
         wheel = self.make_wheel("pool-local", "1.0+cpu")
+        cached_wheel = self.pool / wheel.name
+        locked_sha256 = wheelhouse.digest(wheel)
 
-        shutil.copyfile(wheel, self.pool / wheel.name)
-        self.lock.write_text(f"pool-local==1.0 \\\n    --hash=sha256:{wheelhouse.digest(wheel)}\n")
+        shutil.copyfile(wheel, cached_wheel)
+        self.lock.write_text(f"pool-local==1.0 \\\n    --hash=sha256:{locked_sha256}\n")
         self.assertEqual("complete", provider_core_acquire.cache_state(self.pool, [self.lock]))
 
         self.lock.write_text(self.lock.read_text().replace("==1.0 ", "==1.0+other "))
         self.assertEqual("missing", provider_core_acquire.cache_state(self.pool, [self.lock]))
         self.lock.write_text(self.lock.read_text().replace("==1.0+other ", "==1.0 "))
-        (self.pool / wheel.name).write_bytes(b"corrupt")
+        cached_wheel.write_bytes(b"corrupt")
 
-        with self.assertRaisesRegex(ValueError, "cached bytes differ"):
+        with self.assertRaises(ValueError) as caught:
             provider_core_acquire.cache_state(self.pool, [self.lock])
+
+        self.assertIn(cached_wheel.name, str(caught.exception))
+        self.assertIn(wheelhouse.digest(cached_wheel), str(caught.exception))
+        self.assertIn(locked_sha256, str(caught.exception))
 
         alternate = self.make_wheel("pool-local", "1.0+z")
 
@@ -106,8 +119,12 @@ class WheelhouseTests(unittest.TestCase):
         self.assertTrue(provider_core_acquire.bootstrap_present(self.pool, lock))
         (self.pool / self.missing.name).write_bytes(b"corrupt bootstrap")
 
-        with self.assertRaisesRegex(ValueError, "bootstrap pin"):
+        with self.assertRaises(ValueError) as caught:
             provider_core_acquire.bootstrap_present(self.pool, lock)
+
+        self.assertIn(self.missing.name, str(caught.exception))
+        self.assertIn(wheelhouse.digest(self.pool / self.missing.name), str(caught.exception))
+        self.assertIn(wheelhouse.digest(self.missing), str(caught.exception))
 
     def test_pinned_tool_bootstrap_downloads_once_and_reuses(self):
         content = b"synthetic tool release"
