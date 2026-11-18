@@ -220,10 +220,16 @@ class RepositoryConventionTests(unittest.TestCase):
 
 
 class ConventionDetectionTests(unittest.TestCase):
-    GUARD = "from tools.container_guard import require_container\nrequire_container()\n"
+    GUARD = (
+        "from tools.container_guard import require_container\n"
+        "require_container()\n"
+    )
 
     def test_sibling_guard_must_resolve_to_the_actual_owner(self):
-        source = "from .container_guard import require_container\nrequire_container()\n"
+        source = (
+            "from .container_guard import require_container\n"
+            "require_container()\n"
+        )
 
         self.assertTrue(has_early_guard(source, package="tools"))
         self.assertFalse(has_early_guard(source))
@@ -247,7 +253,9 @@ class ConventionDetectionTests(unittest.TestCase):
             worker.write_text(self.GUARD + "import json\n")
             self.assertEqual([str(worker.relative_to(root))], unguarded_sources(root))
             worker.write_text(
-                "from provider_core.container_guard import require_container\nrequire_container()\nimport json\n",
+                "from provider_core.container_guard import require_container\n"
+                "require_container()\n"
+                "import json\n",
             )
             self.assertEqual([], unguarded_sources(root))
 
@@ -269,7 +277,10 @@ class ConventionDetectionTests(unittest.TestCase):
             ordinary = root / "tools/nested/worker.py"
 
             ordinary.parent.mkdir(parents=True)
-            core_guard = "from provider_core.container_guard import require_container\nrequire_container()\n"
+            core_guard = (
+                "from provider_core.container_guard import require_container\n"
+                "require_container()\n"
+            )
 
             ordinary.write_text(core_guard)
             self.assertEqual(set(portable) | { str(ordinary.relative_to(root)) }, set(unguarded_sources(root)))
@@ -297,14 +308,23 @@ class ConventionDetectionTests(unittest.TestCase):
                 "import pickle\n",
                 "import pickle\n" + self.GUARD,
                 "from .__future__ import annotations\n" + self.GUARD,
-                "if True:\n    from tools.container_guard import require_container\n    require_container()\n",
-                "from tools.container_guard import require_container\nrequire_container = lambda: None\nrequire_container()\n",
+                "if True:\n"
+                "    from tools.container_guard import require_container\n"
+                "    require_container()\n",
+                "from tools.container_guard import require_container\n"
+                "require_container = lambda: None\n"
+                "require_container()\n",
         ):
             with self.subTest(source=source):
                 self.assertFalse(has_early_guard(source))
 
     def test_canonical_guard_allows_module_documentation_and_future_import(self):
-        source = '"""Worker responsibility."""\nfrom __future__ import annotations\n' + self.GUARD + "import pickle\n"
+        source = (
+            '"""Worker responsibility."""\n'
+            "from __future__ import annotations\n"
+            + self.GUARD
+            + "import pickle\n"
+        )
 
         self.assertTrue(has_early_guard(source))
 
@@ -351,7 +371,11 @@ class ConventionDetectionTests(unittest.TestCase):
 
     def test_target_parser_ignores_recipes_and_assignments(self):
         targets = make_targets(
-            ".PHONY: test test/unit\nROOT := /workspace\ntest: test/unit test/repository\n\techo unexpected: text\ntest/unit test/repository:\n",
+            ".PHONY: test test/unit\n"
+            "ROOT := /workspace\n"
+            "test: test/unit test/repository\n"
+            "\techo unexpected: text\n"
+            "test/unit test/repository:\n",
         )
 
         self.assertEqual({ "test": ["test/unit", "test/repository"], "test/unit": [], "test/repository": [] }, targets)
