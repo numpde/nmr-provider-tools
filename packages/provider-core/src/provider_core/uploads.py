@@ -222,15 +222,15 @@ class _UploadFile:
         self.created = False
 
     async def create(self, seconds):
-        await self._run("create", self._create, seconds)
+        await self._start_file_io("create", self._create, seconds)
 
     async def close(self, seconds):
-        await self._run("close", self._close, seconds)
+        await self._start_file_io("close", self._close, seconds)
 
     async def remove(self, seconds):
-        await self._run("remove", self._remove, seconds)
+        await self._start_file_io("remove", self._remove, seconds)
 
-    async def _run(self, operation, function, seconds):
+    async def _start_file_io(self, operation, function, seconds):
         worker = self._executor.submit(function)
         waiter = asyncio.wrap_future(worker)
 
@@ -291,7 +291,7 @@ class UploadTransfer:
 
         (self._remaining, self._before_request, self._account_bytes) = (remaining, before_request, account)
         self._exchange_owner = self if exchange_owner is None else exchange_owner
-        self._file = None
+        self._pending_upload_file = None
         self._active = False
 
         self._reset_failure()
@@ -361,7 +361,7 @@ class UploadTransfer:
     def file_cleanup_pending(self):
         """Report whether this owner still retains an unresolved private file."""
 
-        return self._file is not None
+        return self._pending_upload_file is not None
 
     def _remaining_seconds(self):
         seconds = self._remaining()
@@ -376,7 +376,7 @@ class UploadTransfer:
         if self._active:
             raise UploadFailed("another source transfer is active")
 
-        if not (self._file is None):
+        if not (self._pending_upload_file is None):
             raise UploadFailed("a private source file remains owned; settle its original I/O and cleanup before more source work")
 
         if not (self._store.retirement_confirmed):
@@ -414,7 +414,7 @@ class UploadTransfer:
             except (TypeError, ValueError) as cause:
                 raise UploadFailed("private-file cleanup requires explicit finite positive retirement seconds") from cause
 
-            file = self._file = _UploadFile(directory_fd, retirement_seconds)
+            file = self._pending_upload_file = _UploadFile(directory_fd, retirement_seconds)
 
             try:
                 await file.create(self._remaining_seconds())
@@ -454,7 +454,7 @@ class UploadTransfer:
                 result = VerifiedUploadFile(self.job_ref, grant.upload_ref, grant.byte_length, grant.content_hash, file.name)
 
                 file.shutdown()
-                self._file = None
+                self._pending_upload_file = None
 
                 return result
             except BaseException as failure:
@@ -520,14 +520,14 @@ class UploadTransfer:
 
         # A pending wait supplies no new filesystem result. Keep the concrete
         # cleanup cause already retained, without accumulating polling history.
-        if not self.last_failure.cleanup_failures or self._file.pending is None:
+        if not self.last_failure.cleanup_failures or self._pending_upload_file.pending is None:
             self.last_failure.cleanup_failures = (failure,)
 
-        if self._file.close_uncertain and self._file.pending is None:
-            self._file.shutdown()
+        if self._pending_upload_file.close_uncertain and self._pending_upload_file.pending is None:
+            self._pending_upload_file.shutdown()
 
     async def _abort_file(self):
-        file = self._file
+        file = self._pending_upload_file
         deadline = time.monotonic() + file.retirement_seconds
 
         def remaining():
@@ -563,7 +563,7 @@ class UploadTransfer:
             await file.remove(remaining())
 
         file.shutdown()
-        self._file = None
+        self._pending_upload_file = None
 
     async def settle_file(self):
         """Confirm abort cleanup only, without resuming a grant or download.
@@ -576,7 +576,7 @@ class UploadTransfer:
         if self._active:
             raise UploadFailed("another source operation is active")
 
-        if self._file is None:
+        if self._pending_upload_file is None:
             raise UploadFailed("no unresolved private source file is available to settle")
 
         if not (self._store.retirement_confirmed):
@@ -585,7 +585,7 @@ class UploadTransfer:
                 cause=self.last_failure,
             )
 
-        if self._file.close_uncertain and self._file.pending is None:
+        if self._pending_upload_file.close_uncertain and self._pending_upload_file.pending is None:
             raise UploadFailed(
                 "private-file descriptor closure is unconfirmed; retire the enclosing process",
                 cause=self.last_failure
@@ -810,7 +810,7 @@ class JobUploads:
         if self._active:
             raise UploadFailed("another source operation is active")
 
-        if not (self._transfer_owner._file is None):
+        if not (self._transfer_owner._pending_upload_file is None):
             raise UploadFailed("a private source file remains owned; settle its original I/O and cleanup before more source work")
 
         if not (self._store.retirement_confirmed):
@@ -1124,7 +1124,7 @@ class JobUploads:
         if self._snapshot is None:
             raise UploadInputRejected("inspect the current Job Uploads before selecting a source")
 
-        selected = next((item for item in self._snapshot.members if item.upload_ref == upload_ref), None)
+        selected = next((upload for upload in self._snapshot.members if upload.upload_ref == upload_ref), None)
 
         if selected is None:
             raise UploadInputRejected("selected Upload is not in the inspected Job membership; inspect and select again")

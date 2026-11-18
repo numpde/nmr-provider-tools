@@ -65,7 +65,7 @@ class _Exchange:
     io: asyncio.Task | None = None
     exit: asyncio.Task | None = None
     cleanup_task: asyncio.Task | None = None
-    process: object = None
+    child_process: object = None
     trust_directory: object = None
     response: object = None
     child_reply: object = None
@@ -188,10 +188,10 @@ class SupervisedChatTransport:
         if isinstance(exchange.child_reply, ExchangeFailed) and exchange.child_reply is not failure:
             failure.child_failure = exchange.child_reply
 
-        process = exchange.process
+        child_process = exchange.child_process
 
-        if process is not None:
-            facts = ChatProcessResult(process.pid, process.returncode, tuple(exchange.signals))
+        if child_process is not None:
+            facts = ChatProcessResult(child_process.pid, child_process.returncode, tuple(exchange.signals))
             failure.process = self.last_process_result = facts
 
         self.last_failure = failure
@@ -243,7 +243,7 @@ class SupervisedChatTransport:
         self._active = exchange
 
         try:
-            exchange.task = _owned(self._run(exchange, document, maximum_bytes, error_maximum_bytes))
+            exchange.task = _owned(self._exchange_with_child(exchange, document, maximum_bytes, error_maximum_bytes))
         except BaseException:
             self._active = None
 
@@ -266,22 +266,22 @@ class SupervisedChatTransport:
         return exchange.response
 
     async def _io(self, exchange, raw, maximum_bytes, error_maximum_bytes):
-        process = exchange.process
+        child_process = exchange.child_process
 
-        process.stdin.write(framed(raw))
-        await process.stdin.drain()
-        process.stdin.close()
+        child_process.stdin.write(framed(raw))
+        await child_process.stdin.drain()
+        child_process.stdin.close()
         limit = METADATA_BYTES + 4 * ((max(maximum_bytes, error_maximum_bytes) + 2) // 3)
-        document = await read_message(process.stdout, limit)
+        document = await read_message(child_process.stdout, limit)
         reply = read_reply(document, maximum_bytes=maximum_bytes, error_maximum_bytes=error_maximum_bytes)
         exchange.child_reply = reply
 
-        if await process.stdout.read(1):
+        if await child_process.stdout.read(1):
             raise ValueError("Interpreter child returned more than one reply")
 
         await asyncio.shield(exchange.exit)
 
-        if process.returncode != 0:
+        if child_process.returncode != 0:
             raise RuntimeError("Interpreter HTTP child exited unsuccessfully")
 
         return reply
@@ -309,7 +309,7 @@ class SupervisedChatTransport:
             stop.cancel()
             await asyncio.gather(stop, return_exceptions=True)
 
-    async def _run(self, exchange, document, maximum_bytes, error_maximum_bytes):
+    async def _exchange_with_child(self, exchange, document, maximum_bytes, error_maximum_bytes):
         try:
             if exchange.stopped_at is not None:
                 return
@@ -349,9 +349,9 @@ class SupervisedChatTransport:
 
             # A cancelled observer cannot discard a startup that may create a
             # child later. This retained task adopts and retires that exact PID.
-            exchange.process = await asyncio.shield(exchange.launch)
+            exchange.child_process = await asyncio.shield(exchange.launch)
 
-            exchange.exit = _owned(exchange.process.wait())
+            exchange.exit = _owned(exchange.child_process.wait())
 
             if exchange.stopped_at is None:
                 exchange.io = _owned(self._io(exchange, raw, maximum_bytes, error_maximum_bytes))
@@ -399,30 +399,30 @@ class SupervisedChatTransport:
                 self._active = None
 
     async def _finish(self, exchange):
-        if exchange.process is None and exchange.launch is not None:
+        if exchange.child_process is None and exchange.launch is not None:
             try:
-                exchange.process = await asyncio.shield(exchange.launch)
+                exchange.child_process = await asyncio.shield(exchange.launch)
             except asyncio.CancelledError:
                 # A cancelled launcher supplied no confirmed process outcome.
                 # Keep the original obligation instead of guessing it created none.
                 raise RuntimeError("Interpreter child startup cancellation has no confirmed process outcome") from None
             except Exception:
                 # A completed, failed subprocess creation acquired no returned
-                # process. _run retains that exact startup exception already.
-                exchange.process = None
+                # process. _exchange_with_child retains that exact startup exception already.
+                exchange.child_process = None
             else:
-                exchange.exit = _owned(exchange.process.wait())
+                exchange.exit = _owned(exchange.child_process.wait())
 
-        process = exchange.process
+        child_process = exchange.child_process
 
-        if process is not None:
-            if process.returncode is None:
+        if child_process is not None:
+            if child_process.returncode is None:
                 if exchange.stopped_at is None:
                     self._stop(exchange, RuntimeError("Interpreter HTTP owner stopped before child retirement"))
 
                 await self._retire_process(exchange)
 
-            self._close_pipes(process)
+            self._close_pipes(child_process)
 
             if exchange.io is not None and not exchange.io.done():
                 exchange.io.cancel()
@@ -431,29 +431,29 @@ class SupervisedChatTransport:
                 await asyncio.gather(exchange.io, return_exceptions=True)
 
             await asyncio.shield(exchange.exit)
-            self.last_process_result = ChatProcessResult(process.pid, process.returncode, tuple(exchange.signals))
+            self.last_process_result = ChatProcessResult(child_process.pid, child_process.returncode, tuple(exchange.signals))
 
         if exchange.trust_directory is not None:
             exchange.trust_directory.cleanup()
 
         exchange.retired = True
 
-    def _close_pipes(self, process):
+    def _close_pipes(self, child_process):
         # Process exposes no reader close operation. Close only its owned pipe
         # transports; closing the process transport itself could kill it early.
         for descriptor in (0, 1):
-            pipe = process._transport.get_pipe_transport(descriptor)
+            pipe = child_process._transport.get_pipe_transport(descriptor)
 
             if pipe is not None:
                 pipe.close()
 
     async def _retire_process(self, exchange):
-        process = exchange.process
+        child_process = exchange.child_process
 
         # All stages share one original allowance. Its final third includes
         # kill/exit observation, so every repeated retire observes the same cap.
         for (fraction, number) in ((0, signal.SIGUSR1), (1 / 3, signal.SIGTERM), (2 / 3, signal.SIGKILL)):
-            if process.returncode is not None:
+            if child_process.returncode is not None:
                 break
 
             remaining = exchange.stopped_at + fraction * self._retirement_seconds - asyncio.get_running_loop().time()
@@ -461,11 +461,11 @@ class SupervisedChatTransport:
             if remaining > 0:
                 await asyncio.wait({exchange.exit}, timeout=remaining)
 
-            if process.returncode is not None:
+            if child_process.returncode is not None:
                 break
 
             try:
-                process.send_signal(number)
+                child_process.send_signal(number)
                 exchange.signals.append(int(number))
             # silent-defaults: allow-contract -- A missing PID does not confirm retirement; the original exit watcher remains mandatory below.
             except ProcessLookupError:
@@ -474,7 +474,7 @@ class SupervisedChatTransport:
             except OSError as cause:
                 exchange.cleanup_failures.append(cause)
 
-        self._close_pipes(process)
+        self._close_pipes(child_process)
 
         # If exit cannot be confirmed inside the allowance, _observe returns a
         # held failure while this same task continues to own the process.

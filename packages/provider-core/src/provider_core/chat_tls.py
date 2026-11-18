@@ -12,7 +12,7 @@ require_container()
 
 import base64
 import os
-from pathlib import Path
+import pathlib
 import re
 import ssl
 import tempfile
@@ -78,7 +78,7 @@ def _file_materials(cafile, capath):
         # authority to wrong hash names and suffixes beyond native lookup gaps.
         entries = []
 
-        for entry in Path(capath).iterdir():
+        for entry in pathlib.Path(capath).iterdir():
             if _HASHED_TRUST_FILE.fullmatch(entry.name) is not None:
                 entries.append(entry)
 
@@ -145,7 +145,7 @@ def _load_material(context, kind, raw, directory):
         # The caller owns this directory until the context or HTTP child has
         # retired. SIGKILL cannot strand files: child grants are removed by the
         # parent only after it confirms process and IPC retirement.
-        captured = Path(tempfile.mkdtemp(prefix="capath-", dir=directory))
+        captured = pathlib.Path(tempfile.mkdtemp(prefix="capath-", dir=directory))
 
         for (name, content) in raw:
             with (captured / name).open("xb") as stream:
@@ -498,7 +498,7 @@ def restore_trust(snapshot, *, directory=None):
     context = _SSL_CONTEXT(ssl.PROTOCOL_TLS_CLIENT)
     owned_directory = None
 
-    if any(kind == "capath" for (kind, _value) in materials):
+    if any(kind == "capath" for (kind, _certificate_bytes) in materials):
         if directory is None:
             owned_directory = tempfile.TemporaryDirectory(prefix="provider-model-trust-")
             directory = owned_directory.name
@@ -509,7 +509,7 @@ def restore_trust(snapshot, *, directory=None):
             if not (type(directory) is (expected_type := str)):
                 raise _refuse(f"{type(directory)=} ≠ {expected_type=}")
 
-            if not (Path(directory).is_absolute() and Path(directory).is_dir()):
+            if not (pathlib.Path(directory).is_absolute() and pathlib.Path(directory).is_dir()):
                 raise _refuse("the captured trust directory grant is invalid")
 
     for (kind, raw) in materials:

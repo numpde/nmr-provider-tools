@@ -294,7 +294,7 @@ class ToolConversation:
         self._used = True
 
         try:
-            return await self._run(messages, tools, dispatch)
+            return await self._conduct_conversation(messages, tools, dispatch)
         except BaseException as failure:
             # Retirement must retain the failed operation even when a later,
             # independent endpoint cleanup also fails.
@@ -321,7 +321,7 @@ class ToolConversation:
 
             raise
 
-    async def _run(self, messages, tools, dispatch):
+    async def _conduct_conversation(self, messages, tools, dispatch):
         self._require_no_secrets(messages)
         self._require_no_secrets(tools)
 

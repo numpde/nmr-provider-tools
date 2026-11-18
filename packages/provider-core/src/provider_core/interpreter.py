@@ -352,12 +352,12 @@ class Interpreter:
         if type(outcome) is not ConversationResult:
             return None
 
-        return self._result(outcome)
+        return self._interpretation_result(outcome)
 
-    def _result(self, result: ConversationResult) -> InterpretationResult:
+    def _interpretation_result(self, conversation_result: ConversationResult) -> InterpretationResult:
         return InterpretationResult(
             model_visit=self._visits[-1].number,
-            value=result.value,
+            value=conversation_result.value,
             # repo-check: allow-tuple-generator -- A completed interpretation must retain an immutable observation sequence in its result.
             observations=tuple(visit.conversation.observation for visit in self._visits),
             failures=self._failures(),
@@ -459,7 +459,7 @@ class Interpreter:
                 if type(outcome) is ConversationHandoff:
                     continue
 
-                return self._result(outcome)
+                return self._interpretation_result(outcome)
 
             raise InterpretationFailed(self._failures(), self.correction_failures)
         except BaseException as failure:

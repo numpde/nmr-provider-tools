@@ -259,12 +259,12 @@ class _NetworkByteStream(anyio.abc.ByteStream):
 
     # silent-defaults: allow-contract -- AnyIO ByteReceiveStream.receive specifies this optional 64 KiB bound; TLS callers may omit it.
     async def receive(self, max_bytes=65536):
-        data = await self.stream.read(max_bytes)
+        received_bytes = await self.stream.read(max_bytes)
 
-        if not (data):
+        if not (received_bytes):
             raise anyio.EndOfStream
 
-        return data
+        return received_bytes
 
     async def send(self, item):
         await self.stream.write(item)
@@ -286,16 +286,16 @@ class _OwnedStream(httpcore.AsyncNetworkStream):
 
     async def read(self, max_bytes, timeout=None):
         with self._network.io("read"):
-            data = await self._stream.read(max_bytes, timeout)
+            received_bytes = await self._stream.read(max_bytes, timeout)
 
-        if max_bytes > 0 and data == b"":
+        if max_bytes > 0 and received_bytes == b"":
             facts = self._network.observation
             facts.eof = True
 
             if facts.error is None:
                 facts.stage = "read"
 
-        return data
+        return received_bytes
 
     async def write(self, buffer, timeout=None):
         with self._network.io("write"):

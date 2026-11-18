@@ -29,7 +29,7 @@ import sys
 import tempfile
 import threading
 import time
-from pathlib import Path
+import pathlib
 from urllib.parse import urlsplit
 
 from provider_core.diagnostic_text import CredentialRedactingFormatter
@@ -262,13 +262,13 @@ def _read_dns_name(message: bytes, offset: int, depth: int = 0) -> tuple[str, in
         raise DNSNameRejected("DNS name contains a non-ASCII label") from cause
 
 
-def _dns_servers(resolver_file: Path | None = None) -> tuple[str, ...]:
+def _dns_servers(resolver_file: pathlib.Path | None = None) -> tuple[str, ...]:
     """Read explicit captured resolvers, or existing service resolver configuration."""
 
     if resolver_file is not None:
         paths = (resolver_file,)
     else:
-        paths = (Path("/run/systemd/resolve/resolv.conf"), Path("/etc/resolv.conf"))
+        paths = (pathlib.Path("/run/systemd/resolve/resolv.conf"), pathlib.Path("/etc/resolv.conf"))
 
     for path in paths:
         try:
@@ -720,7 +720,7 @@ class UnixProxyServer(ProxyServer):
 
     address_family = socket.AF_UNIX
 
-    def __init__(self, address: Path, interface: str, *, dns_servers=None):
+    def __init__(self, address: pathlib.Path, interface: str, *, dns_servers=None):
         super().__init__(str(address), interface, dns_servers=dns_servers)
 
     def server_bind(self):
@@ -728,7 +728,7 @@ class UnixProxyServer(ProxyServer):
         # and removes it only after every container borrower has retired.
         super().server_bind()
 
-        Path(self.server_address).chmod(0o600)
+        pathlib.Path(self.server_address).chmod(0o600)
 
 
 class UnixRelayHandler(socketserver.BaseRequestHandler):
@@ -760,7 +760,7 @@ class UnixRelayServer(ProxyServer):
 
     request_handler = UnixRelayHandler
 
-    def __init__(self, address: tuple[str, int], gateway_socket: Path):
+    def __init__(self, address: tuple[str, int], gateway_socket: pathlib.Path):
         self.gateway_socket = str(gateway_socket)
 
         super().__init__(address, "system")
@@ -811,7 +811,7 @@ def publish_readiness(ready_file, content):
         raise SystemExit(f"Cannot start proxy: readiness publication failed ({type(error).__name__}).") from None
     finally:
         try:
-            Path(temporary).unlink()
+            pathlib.Path(temporary).unlink()
         except OSError:
             # Upstream can report creation failure after link succeeded.
             # The complete receipt remains usable; only private staging-alias
@@ -840,16 +840,16 @@ def main() -> None:
     upstream = parser.add_mutually_exclusive_group(required=True)
 
     upstream.add_argument("--interface")
-    upstream.add_argument("--relay-socket", type=Path, help="Private Unix gateway for a loopback-only relay.")
+    upstream.add_argument("--relay-socket", type=pathlib.Path, help="Private Unix gateway for a loopback-only relay.")
     listener = parser.add_mutually_exclusive_group(required=True)
 
     listener.add_argument("--port", type=int, help="Listener port; 0 asks the kernel to choose a free port.")
-    listener.add_argument("--unix-socket", type=Path, help="Private Unix listener; an existing path is never replaced.")
-    parser.add_argument("--ready-file", type=Path, required=True)
+    listener.add_argument("--unix-socket", type=pathlib.Path, help="Private Unix listener; an existing path is never replaced.")
+    parser.add_argument("--ready-file", type=pathlib.Path, required=True)
 
     parser.add_argument(
         "--resolver-file",
-        type=Path,
+        type=pathlib.Path,
         help="Captured DNS configuration; no fallback to host or container resolvers."
     )
 

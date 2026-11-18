@@ -51,17 +51,17 @@ class _Budget:
     def __init__(self, maximum_bytes):
         self.remaining = maximum_bytes
 
-    def accept(self, data):
-        if len(data) > self.remaining:
+    def accept(self, decoded_bytes):
+        if len(decoded_bytes) > self.remaining:
             raise DecodedBodyRejected("size_limit")
 
-        self.remaining -= len(data)
+        self.remaining -= len(decoded_bytes)
 
-        return data
+        return decoded_bytes
 
-    def decompress(self, decoder, data):
+    def decompress(self, decoder, encoded_bytes):
         try:
-            output = decoder.decompress(data, self.remaining + 1)
+            output = decoder.decompress(encoded_bytes, self.remaining + 1)
         except zlib.error as cause:
             raise DecodedBodyRejected("invalid_encoding") from cause
 
@@ -72,8 +72,8 @@ class _Identity:
     def __init__(self, maximum_bytes):
         self._budget = _Budget(maximum_bytes)
 
-    def feed(self, data):
-        return self._budget.accept(data)
+    def feed(self, chunk_bytes):
+        return self._budget.accept(chunk_bytes)
 
     def finish(self):
         return None
@@ -85,21 +85,21 @@ class _Gzip:
         self._decoder = None
         self._members = 0
 
-    def feed(self, data):
+    def feed(self, encoded_bytes):
         output = []
 
-        while data:
+        while encoded_bytes:
             if self._decoder is None:
                 self._decoder = zlib.decompressobj(zlib.MAX_WBITS | 16)
 
-            output.append(self._budget.decompress(self._decoder, data))
+            output.append(self._budget.decompress(self._decoder, encoded_bytes))
 
             if not self._decoder.eof:
                 break
 
             # A non-rejected call has not reached the output sentinel. At EOF,
             # only unused_data remains, and belongs to another complete member.
-            data = self._decoder.unused_data
+            encoded_bytes = self._decoder.unused_data
 
             self._decoder = None
 
@@ -118,25 +118,25 @@ class _Deflate:
         self._prefix = b""
         self._decoder = None
 
-    def feed(self, data):
+    def feed(self, encoded_bytes):
         if self._decoder is None:
-            data = self._prefix + data
+            encoded_bytes = self._prefix + encoded_bytes
 
-            if len(data) < 2:
-                self._prefix = data
+            if len(encoded_bytes) < 2:
+                self._prefix = encoded_bytes
 
                 return b""
 
             self._prefix = b""
 
-            (first, second) = (data[0], data[1])
+            (first, second) = (encoded_bytes[0], encoded_bytes[1])
 
             wrapped = (first & 15 == 8 and first >> 4 <= 7
                        and ((first << 8) | second) % 31 == 0)
 
             self._decoder = zlib.decompressobj(zlib.MAX_WBITS if wrapped else -zlib.MAX_WBITS)
 
-        output = self._budget.decompress(self._decoder, data)
+        output = self._budget.decompress(self._decoder, encoded_bytes)
 
         if self._decoder.unused_data:
             raise DecodedBodyRejected("invalid_encoding")
@@ -151,9 +151,9 @@ class _Deflate:
 def _codings(headers):
     codings = []
 
-    for (name, value) in headers:
+    for (name, header_value) in headers:
         if name.lower() == b"content-encoding":
-            for coding in value.split(b",", _MAX_CODINGS):
+            for coding in header_value.split(b",", _MAX_CODINGS):
                 coding = coding.strip(b" \t").lower()
 
                 if len(codings) == _MAX_CODINGS or coding not in (b"identity", b"gzip", b"deflate"):

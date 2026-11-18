@@ -26,10 +26,10 @@ import stat
 import sys
 import time
 import tomllib
+import pathlib
 from collections import deque
 from contextlib import contextmanager
 from dataclasses import dataclass
-from pathlib import Path
 
 from provider_core import bound_http_proxy
 from provider_core.diagnostic_text import CredentialRedactingFormatter
@@ -550,7 +550,7 @@ def socket_grant(path, ready, *, socket_group_id=None):
         except UnicodeError as error:
             raise ServiceRefused("Cannot start service proxy: its Unix path must be valid UTF-8.") from error
 
-        yield Path("/proc/self/fd") / str(descriptor)
+        yield pathlib.Path("/proc/self/fd") / str(descriptor)
     finally:
         if descriptor is not None:
             os.close(descriptor)
@@ -563,11 +563,11 @@ def main():
     parser.add_argument("--mode", choices=("local", "mapped", "external"), required=True)
     parser.add_argument("--authority", action="append")
     parser.add_argument("--address", action="append")
-    parser.add_argument("--socket", type=Path, required=True)
-    parser.add_argument("--ready-file", type=Path, required=True)
-    parser.add_argument("--status-directory", type=Path, required=True)
+    parser.add_argument("--socket", type=pathlib.Path, required=True)
+    parser.add_argument("--ready-file", type=pathlib.Path, required=True)
+    parser.add_argument("--status-directory", type=pathlib.Path, required=True)
     parser.add_argument("--log-level", choices=("INFO", "DEBUG", "WARNING"))
-    parser.add_argument("--live-config", type=Path)
+    parser.add_argument("--live-config", type=pathlib.Path)
     parser.add_argument("--socket-group-id", type=int)
     args = parser.parse_args()
 

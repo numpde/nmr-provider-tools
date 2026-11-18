@@ -185,17 +185,17 @@ class _FileBody:
         return self._pending is not None
 
     async def validate(self):
-        await self._run(_require_output_file, self._descriptor)
+        await self._run_file_io(_require_output_file, self._descriptor)
 
     async def write(self, chunk):
         for offset in range(0, len(chunk), 65536):
-            await self._run(_write_file_chunk, self._descriptor, memoryview(chunk)[offset : offset + 65536])
+            await self._run_file_io(_write_file_chunk, self._descriptor, memoryview(chunk)[offset : offset + 65536])
 
         self.byte_length += len(chunk)
 
         self.digest.update(chunk)
 
-    async def _run(self, operation, *args):
+    async def _run_file_io(self, operation, *args):
         # Register the original future before yielding. File admission and each
         # bounded write finish before network work can advance to its next phase.
         worker = self._executor.submit(operation, *args)

@@ -4,15 +4,15 @@ from provider_core.container_guard import require_container
 
 require_container()
 
+import pathlib
 from collections.abc import Iterator
 from contextlib import contextmanager
 from hashlib import file_digest
-from pathlib import Path
 from typing import BinaryIO
 
 
 @contextmanager
-def open_verified_file(*, source_file_path: Path, expected_sha256: str) -> Iterator[BinaryIO]:
+def open_verified_file(*, source_file_path: pathlib.Path, expected_sha256: str) -> Iterator[BinaryIO]:
     """Verify and rewind a file, then keep it open for the consumer's context.
 
     The file must remain unchanged through verification and consumption.
