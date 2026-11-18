@@ -22,7 +22,7 @@ from types import NoneType
 from typing import Any, Protocol, get_args, get_origin, get_type_hints, runtime_checkable
 
 from provider_core.contribution_errors import ScientificRejection
-from provider_core.type_requirements import require_type
+from provider_core.type_requirements import require_instance, require_type
 
 from provider_core.payload import (
     DataclassStateBinding,
@@ -55,8 +55,7 @@ def _digest(value: object, label: str) -> None:
 
 
 def _binding_revision(value: object) -> None:
-    if not (type(value) is (expected_type := str)):
-        raise TypeError(f"{type(value)=} ≠ {expected_type=}")
+    require_type(value, str)
 
     if re.fullmatch(pattern=r"(?:sha256:|configured-v[23]:sha256:)[0-9a-f]{64}\Z", string=value) is None:
         raise ValueError("Binding revision must be a lowercase sha256, configured-v2:sha256 or configured-v3:sha256 digest")
@@ -220,17 +219,13 @@ def _scientific_call_shape(
 
     (instance_type, analysis_type, input_type, state_type) = get_args(context_type)
 
-    if not isinstance(instance_type, (expected_instance_type_type := type)):
-        raise TypeError(f"{type(instance_type)=} ≠ {expected_instance_type_type=}")
+    require_instance(instance_type, type)
 
-    if not isinstance(analysis_type, (expected_analysis_type_type := type)):
-        raise TypeError(f"{type(analysis_type)=} ≠ {expected_analysis_type_type=}")
+    require_instance(analysis_type, type)
 
-    if not isinstance(input_type, (expected_input_type_type := type)):
-        raise TypeError(f"{type(input_type)=} ≠ {expected_input_type_type=}")
+    require_instance(input_type, type)
 
-    if not isinstance(state_type, (expected_state_type_type := type)):
-        raise TypeError(f"{type(state_type)=} ≠ {expected_state_type_type=}")
+    require_instance(state_type, type)
 
     return_annotation = resolved_annotations.get("return")
 
@@ -239,8 +234,7 @@ def _scientific_call_shape(
 
     (output_type,) = get_args(return_annotation)
 
-    if not isinstance(output_type, (expected_type := type)):
-        raise TypeError(f"{type(output_type)=} ≠ {expected_type=}")
+    require_instance(output_type, type)
 
     return _ScientificCallShape(
         instance=instance_type,
@@ -757,8 +751,7 @@ class CallBinding[InputT, StateT, OutputT]:
     _output_slots: tuple[StateOutputBinding[Any], ...] = field(default=(), repr=False)
 
     def __post_init__(self) -> None:
-        if not (type((actual_description := self.description)) is (expected_description_type := CallDescription)):
-            raise TypeError(f"{type(actual_description)=} ≠ {expected_description_type=}")
+        require_type(self.description, CallDescription)
 
         for (codec, label) in (
             (self.input_codec, "Input codec"),
@@ -773,8 +766,7 @@ class CallBinding[InputT, StateT, OutputT]:
         if self.result_codec.format != self.description.result_format:
             raise ValueError("Result codec format differs from the call description")
 
-        if not isinstance((actual_state_binding := self.state_binding), (expected_state_binding_type := StateBinding)):
-            raise TypeError(f"{type(actual_state_binding)=} ≠ {expected_state_binding_type=}")
+        require_instance(self.state_binding, StateBinding)
 
         # repo-check: allow-tuple-generator -- StateBinding.names requires an immutable ordered tuple matching the declared state fields.
         declared_state_names = tuple(
@@ -786,8 +778,7 @@ class CallBinding[InputT, StateT, OutputT]:
             raise ValueError("State binding fields differ from the call's declared state inputs")
 
         if self.description.state_inputs:
-            if not isinstance((actual_state_binding := self.state_binding), (expected_state_binding_type := DeclaredStateBinding)):
-                raise TypeError(f"{type(actual_state_binding)=} ≠ {expected_state_binding_type=}")
+            require_instance(self.state_binding, DeclaredStateBinding)
 
             if self.state_binding.parameters != self.description.state_inputs:
                 raise ValueError("State binding kind/use differs from the call's declared inputs")
@@ -803,11 +794,9 @@ class CallBinding[InputT, StateT, OutputT]:
         output_descriptions = []
 
         for slot in self._output_slots:
-            if not isinstance(slot, (expected_slot_type := StateOutputBinding)):
-                raise TypeError(f"{type(slot)=} ≠ {expected_slot_type=}")
+            require_instance(slot, StateOutputBinding)
 
-            if not isinstance((actual_value_type := slot.value_type), (expected_value_type_type := type)):
-                raise TypeError(f"{type(actual_value_type)=} ≠ {expected_value_type_type=}")
+            require_instance(slot.value_type, type)
 
             output_descriptions.append(slot.description)
 
@@ -1036,8 +1025,7 @@ class ImplementationBinding[InstanceT, AnalysisT]:
             self.analysis.dispose(analysis)
 
     def __post_init__(self) -> None:
-        if not (type((actual_identity := self.identity)) is (expected_type := ConfiguredIdentity)):
-            raise TypeError(f"{type(actual_identity)=} ≠ {expected_type=}")
+        require_type(self.identity, ConfiguredIdentity)
 
         if self.instance is not None and type((actual_instance := self.instance)) is not (expected_instance_type := InstanceHooks):
             raise TypeError(f"{type(actual_instance)=} ≠ {expected_instance_type=}")
