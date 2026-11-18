@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Build and test the shared tool without installing provider-core.
 set -euo pipefail
-root=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/../.." && pwd -P)
+root=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/../../.." && pwd -P)
 action=${1:?Select build or test}
 source "$root/host/tools/base_image.sh"
 source "$root/host/tools/wheelhouse_path.sh"
@@ -17,9 +17,9 @@ case "$action" in
             printf '%s\n' 'Cannot build the wheelhouse tool: host Python 3.11 or newer is required.' >&2; exit 2
         fi
         checker_host_identity "$checker_image" /usr/local/bin/python3 "$(id -u)" "$(id -g)"
-        sources=(containers/wheelhouse/Dockerfile requirements/wheelhouse-tool.lock requirements/wheelhouse-tool-release.json
+        sources=(packages/wheelhouse-tool/build/Dockerfile requirements/wheelhouse-tool.lock requirements/wheelhouse-tool-release.json
             tools/installer.py tools/container_guard.py requirements/installer-release.json)
-        for path in "$root"/wheelhouse_tool/*.py; do sources+=("${path#"$root"/}"); done
+        for path in "$root"/packages/wheelhouse-tool/src/wheelhouse_tool/*.py; do sources+=("${path#"$root"/}"); done
         tool_pin=$(python3 -I -S -B "$root/host/tools/build_stream_inputs.py" "$root" \
             "$operation_directory/source-allowlist.json" "${sources[@]}")
         read -r tool_name tool_hash <<< "$tool_pin"
@@ -46,7 +46,7 @@ case "$action" in
         cmp -s "$operation_directory/selection-exit" <(printf 'false 0\n') || {
             printf '%s\n' 'Cannot build the wheelhouse tool: the selection worker did not complete.' >&2; exit 2;
         }
-        python3 -I -S -B "$root/host/tools/wheelhouse_image_manifest.py" "$operation_directory/selection.json" "$operation_directory/manifest.json" "$root/requirements/installer-release.json"
+        python3 -I -S -B "$root/packages/wheelhouse-tool/build/image_manifest.py" "$operation_directory/selection.json" "$operation_directory/manifest.json" "$root/requirements/installer-release.json"
         # BuildKit receives a stream, not host mounts. Once the pipeline is
         # joined it no longer reads scratch; checker_call retains unjoined work.
         checker_call 'offline wheelhouse tool build' 900 stdio bash -o pipefail -c '
@@ -56,7 +56,7 @@ case "$action" in
         ' bash "$wheelhouse_directory/$tool_name" "$wheelhouse_directory" "$operation_directory/source-allowlist.json" \
             "$operation_directory/manifest.json" "${engine[@]}" build --builder default --network none --pull=false \
             --label org.nmr-provider-tools.role=wheelhouse-tool \
-            --build-arg "BASE_IMAGE=$base_image" --file containers/wheelhouse/Dockerfile \
+            --build-arg "BASE_IMAGE=$base_image" --file packages/wheelhouse-tool/build/Dockerfile \
             --iidfile "$operation_directory/built-image" -
         built_image=
         if [[ -f $operation_directory/built-image && ! -L $operation_directory/built-image && $(stat -c %s -- "$operation_directory/built-image") -le 72 ]]; then
@@ -73,7 +73,7 @@ case "$action" in
         checker_run 180 --pull never --network none --read-only --cap-drop ALL \
             --security-opt no-new-privileges:true --pids-limit 128 --memory 512m \
             --tmpfs /tmp:rw,nosuid,nodev,noexec,size=128m \
-            --mount "type=bind,src=$root/wheelhouse_tool,dst=/opt/wheelhouse_tool,readonly" \
+            --mount "type=bind,src=$root/packages/wheelhouse-tool/src/wheelhouse_tool,dst=/opt/wheelhouse_tool,readonly" \
             --mount "type=bind,src=$root/tests/test_shared_wheelhouse.py,dst=/tests/test_shared_wheelhouse.py,readonly" \
             --entrypoint python "$image" -B -m unittest discover -s /tests -p test_shared_wheelhouse.py -v
         ;;

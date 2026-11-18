@@ -13,7 +13,7 @@ import unittest
 import zipfile
 import pathlib
 
-from tools.build_wheelhouse_bundle import build
+from build_bundle import build
 from tools.core_environment import wheelhouse_source_inventory
 from tools.installer import create_environment, pip_command
 

@@ -115,7 +115,7 @@ def main():
     parser.add_argument("--lock", type=pathlib.Path, required=True)
     args = parser.parse_args()
 
-    build(args.pool, args.output, pathlib.Path(__file__).resolve().parent.parent, args.lock)
+    build(args.pool, args.output, pathlib.Path(__file__).resolve().parent.parent / "src", args.lock)
 
 
 if __name__ == "__main__":

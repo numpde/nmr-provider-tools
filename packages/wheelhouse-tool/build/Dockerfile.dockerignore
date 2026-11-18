@@ -1,0 +1,6 @@
+**
+!packages/
+!packages/wheelhouse-tool/
+!packages/wheelhouse-tool/src/
+!packages/wheelhouse-tool/src/wheelhouse_tool/
+!packages/wheelhouse-tool/src/wheelhouse_tool/*.py

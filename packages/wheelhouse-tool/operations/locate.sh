@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Project a flat locked closure using the interface-bound metadata proxy.
 set -euo pipefail
-root=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/../.." && pwd -P)
+root=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/../../.." && pwd -P)
 [[ -v LOCK_INPUT_ORIGIN && $LOCK_INPUT_ORIGIN == 'command line' && -v LOCK_INPUT && -n $LOCK_INPUT ]] || {
     printf '%s\n' 'Supply LOCK as a target-specific pinned requirements file.' >&2; exit 2;
 }
@@ -27,7 +27,7 @@ for source in "${required[@]}"; do arguments+=(--require-source "$source"); done
 command=(bash "$root/host/tools/docker.sh" run --image nmr-provider-tools/wheelhouse-tool:local -- --pull never --read-only \
     --cap-drop ALL --security-opt no-new-privileges:true --pids-limit 128 --memory 512m \
     --tmpfs /tmp:rw,nosuid,nodev,noexec,size=128m --workdir /opt \
-    --mount "type=bind,src=$root/wheelhouse_tool,dst=/opt/wheelhouse_tool,readonly" \
+    --mount "type=bind,src=$root/packages/wheelhouse-tool/src/wheelhouse_tool,dst=/opt/wheelhouse_tool,readonly" \
     --mount "type=bind,src=$lock,dst=/input/requirements.lock,readonly" \
     "${pool_mount[@]}" \
     --entrypoint python -- -B -m wheelhouse_tool.locate "${arguments[@]}")

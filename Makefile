@@ -343,19 +343,19 @@ packages/provider-core/download: checks/prepare
 	bash host/tools/provider_core.sh download
 
 wheelhouse/image/build:
-	bash host/tools/wheelhouse_image.sh build
+	bash packages/wheelhouse-tool/build/build_image.sh build
 
 tests/wheelhouse:
-	bash host/tools/wheelhouse_image.sh test
+	bash packages/wheelhouse-tool/build/build_image.sh test
 
 tests/delivery/publisher:
 	bash host/tools/delivery_publisher_check.sh
 
 wheelhouse/lock/locate:
-	@bash host/tools/wheelhouse_locate.sh
+	@bash packages/wheelhouse-tool/operations/locate.sh
 
 wheelhouse/lock/acquire:
-	@bash host/tools/wheelhouse_acquire.sh
+	@bash packages/wheelhouse-tool/operations/acquire.sh
 
 packages/provider-core/check:
 	bash host/tools/provider_core.sh check
