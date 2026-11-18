@@ -16,6 +16,8 @@ require_container()
 import sys
 import zlib
 
+from provider_core.type_requirements import require_type
+
 
 # Closed diagnostic reasons belong to the supported codec profile.
 # repo-check: allow-module-constant
@@ -34,10 +36,7 @@ class DecodedBodyRejected(ValueError):
     """A closed safe reason; native codec evidence remains the protected cause."""
 
     def __init__(self, reason):
-        if not (type(reason) is (expected_type := str)):
-            raise TypeError(
-                f"{type(reason)=} ≠ {expected_type=}"
-            )
+        require_type(reason, str)
 
         if not (reason in _MESSAGES):
             raise ValueError("Unknown decoded-body rejection reason")
@@ -168,10 +167,7 @@ def _codings(headers):
 def require_decoded_limit(maximum_bytes):
     """Admit the sentinel allowance before the transport dispatches any I/O."""
 
-    if not (type(maximum_bytes) is (expected_type := int)):
-        raise TypeError(
-            f"{type(maximum_bytes)=} ≠ {expected_type=}"
-        )
+    require_type(maximum_bytes, int)
 
     if not (0 < maximum_bytes < sys.maxsize):
         raise ValueError("HTTP content decoding requires a positive integer below the native allocation limit")
