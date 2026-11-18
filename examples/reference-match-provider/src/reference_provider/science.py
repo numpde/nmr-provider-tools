@@ -24,12 +24,12 @@ class VectorInput:
         if not (self.values):
             raise ValueError("A matching vector requires at least one channel value")
 
-        values = []
+        finite_channels = []
 
-        for value in self.values:
-            values.append(_finite(value))
+        for channel in self.values:
+            finite_channels.append(_finite(channel))
 
-        object.__setattr__(self, "values", tuple(values))
+        object.__setattr__(self, "values", tuple(finite_channels))
 
 
 @dataclass(frozen=True, slots=True, kw_only=True)
@@ -100,22 +100,22 @@ class MatchReport:
     score: float
 
 
-def _normalize(values: tuple[float, ...]) -> tuple[float, ...]:
-    scale = max(values)
+def _normalize(channel_weights: tuple[float, ...]) -> tuple[float, ...]:
+    scale = max(channel_weights)
 
     if scale == 0:
         raise ScientificRejection("zero_vector", "Cosine matching requires a nonzero vector")
 
     scaled = []
 
-    for value in values:
-        scaled.append(value / scale)
+    for channel_weight in channel_weights:
+        scaled.append(channel_weight / scale)
 
     length = math.hypot(*scaled)
     normalized = []
 
-    for value in scaled:
-        normalized.append(value / length)
+    for scaled_weight in scaled:
+        normalized.append(scaled_weight / length)
 
     return tuple(normalized)
 

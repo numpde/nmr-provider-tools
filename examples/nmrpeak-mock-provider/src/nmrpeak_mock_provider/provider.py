@@ -13,7 +13,7 @@ from dataclasses import dataclass
 # Bind deployment options now; construct a fresh Interpreter for each request.
 from functools import partial
 
-from pathlib import Path
+import pathlib
 import tomllib
 
 from provider_core.embedded_host import InProcessExecutionHost
@@ -29,7 +29,7 @@ from .science import Model, Settings
 
 # Read the selected deployment configuration from the application's working directory.
 # repo-check: allow-module-constant
-PROVIDER_CONFIG_PATH = Path("config/deployments/localhost/provider.toml")
+PROVIDER_CONFIG_PATH = pathlib.Path("config/deployments/localhost/provider.toml")
 
 
 @dataclass(frozen=True, slots=True, kw_only=True, eq=False)

@@ -14,7 +14,7 @@ from copy import deepcopy
 from functools import partial
 from importlib import metadata, resources
 import json
-from pathlib import Path
+import pathlib
 import shutil
 from tempfile import TemporaryDirectory
 from threading import Event
@@ -68,12 +68,12 @@ class PeakExampleTests(unittest.IsolatedAsyncioTestCase):
             secrets=(),
         )
 
-        directory = Path(self.enterContext(TemporaryDirectory()))
+        directory = pathlib.Path(self.enterContext(TemporaryDirectory()))
         self.configuration = directory / "config/deployments/localhost/provider.toml"
 
         for name in ("config", "models"):
             shutil.copytree(
-                src=Path(__file__).parent.parent / name,
+                src=pathlib.Path(__file__).parent.parent / name,
                 dst=directory / name,
             )
 
@@ -94,10 +94,10 @@ class PeakExampleTests(unittest.IsolatedAsyncioTestCase):
         self.configuration.write_text(data=tomli_w.dumps(document), encoding="utf-8")
 
     async def test_external_deployment_settings_change_scientific_results(self):
-        package = Path(str(resources.files(anchor="nmrpeak_mock_provider")))
+        package = pathlib.Path(str(resources.files(anchor="nmrpeak_mock_provider")))
         distribution = metadata.distribution(distribution_name="nmrpeak-mock-provider-example")
 
-        self.assertEqual(first=package, second=Path(distribution.locate_file(path="nmrpeak_mock_provider")))
+        self.assertEqual(first=package, second=pathlib.Path(distribution.locate_file(path="nmrpeak_mock_provider")))
 
         for beam_size in (1, 2):
             with self.subTest(beam_size=beam_size):
@@ -151,10 +151,10 @@ class PeakExampleTests(unittest.IsolatedAsyncioTestCase):
                     # Each model needs independent nested settings before beam_size changes.
                     configured = deepcopy(x=document["science"][family][0])
 
-                    entries = selected[family]
-                    configured["settings"]["beam_size"] = len(entries) + 1
+                    family_configurations = selected[family]
+                    configured["settings"]["beam_size"] = len(family_configurations) + 1
 
-                    entries.append(configured)
+                    family_configurations.append(configured)
 
                 document["science"] = selected
 

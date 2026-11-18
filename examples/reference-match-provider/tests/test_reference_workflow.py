@@ -7,7 +7,7 @@ require_container()
 import asyncio
 import io
 import json
-from pathlib import Path
+import pathlib
 import subprocess
 import sys
 import shutil
@@ -35,11 +35,11 @@ from reference_provider import provider as provider_setup
 
 class ReferenceWorkflowTests(unittest.IsolatedAsyncioTestCase):
     async def asyncSetUp(self):
-        directory = Path(self.enterContext(TemporaryDirectory()))
+        directory = pathlib.Path(self.enterContext(TemporaryDirectory()))
         self.configuration = directory / "provider.toml"
 
         shutil.copyfile(
-            src=Path(__file__).parent.parent / "config/deployments/localhost/provider.toml",
+            src=pathlib.Path(__file__).parent.parent / "config/deployments/localhost/provider.toml",
             dst=self.configuration,
         )
 
@@ -58,7 +58,7 @@ class ReferenceWorkflowTests(unittest.IsolatedAsyncioTestCase):
             library = binding.contribution
 
             async with asyncio.timeout(15):
-                for (values, expected) in (
+                for (query_channels, expected) in (
                     ((3, 4, 0, 0), "pattern-a"),
                     ((0, 0, 1, 1), "pattern-b"),
                 ):
@@ -67,7 +67,7 @@ class ReferenceWorkflowTests(unittest.IsolatedAsyncioTestCase):
 
                     operation = analysis.submit_method(
                         method=binding.contribution.match,
-                        scientific_input=science.VectorInput(values=values),
+                        scientific_input=science.VectorInput(values=query_channels),
                         states={},
                         reservation=reservation,
                         policy=operation_policy,
@@ -92,14 +92,14 @@ class ReferenceWorkflowTests(unittest.IsolatedAsyncioTestCase):
 
                 self.assertIs(first_index, match.call_args_list[1].kwargs["index"])
 
-                for (operation, result, payload) in operations:
-                    self.assertEqual(payload, await operation.read_result(result))
+                for (operation, result_ref, payload) in operations:
+                    self.assertEqual(payload, await operation.read_result(result_ref))
                     received = []
 
-                    async def receive(value):
-                        received.append(value)
+                    async def receive(report_payload):
+                        received.append(report_payload)
 
-                    consumption = ResultConsumption(operation=operation, result=result, receive=receive)
+                    consumption = ResultConsumption(operation=operation, result=result_ref, receive=receive)
 
                     await consumption.consume()
                     self.assertEqual([payload], received)
@@ -170,18 +170,18 @@ class ReferenceWorkflowTests(unittest.IsolatedAsyncioTestCase):
 class ReferenceCommandTests(unittest.TestCase):
     def test_installed_command_reuses_the_library_outside_its_source_tree(self):
         with TemporaryDirectory() as directory:
-            shutil.copytree(src=Path(__file__).parent.parent / "config", dst=Path(directory) / "config")
+            shutil.copytree(src=pathlib.Path(__file__).parent.parent / "config", dst=pathlib.Path(directory) / "config")
 
-            result = subprocess.run(
+            command_result = subprocess.run(
                 [sys.executable, "-I", "-B", "-m", "reference_provider"],
-                cwd=Path(directory),
+                cwd=pathlib.Path(directory),
                 capture_output=True,
                 text=True,
                 timeout=30,
             )
 
-        self.assertEqual(0, result.returncode, result.stderr)
-        reports = [json.loads(line) for line in result.stdout.splitlines()]
+        self.assertEqual(0, command_result.returncode, command_result.stderr)
+        reports = [json.loads(line) for line in command_result.stdout.splitlines()]
 
         self.assertEqual(["pattern-a", "pattern-b"], [report["label"] for report in reports])
 

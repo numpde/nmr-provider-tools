@@ -47,12 +47,12 @@ class Settings:
     maximum_candidate_characters: int
 
     def __post_init__(self) -> None:
-        for value in (self.maximum_input_tokens, self.beam_size, self.maximum_candidate_characters):
-            if not (type(value) is (expected_type := int)):
-                raise TypeError(f"{type(value)=} ≠ {expected_type=}")
+        for model_limit in (self.maximum_input_tokens, self.beam_size, self.maximum_candidate_characters):
+            if not (type(model_limit) is (expected_type := int)):
+                raise TypeError(f"{type(model_limit)=} ≠ {expected_type=}")
 
-            if not (0 < value):
-                raise ValueError(f"Model limits must be positive; received {value=}")
+            if not (0 < model_limit):
+                raise ValueError(f"{model_limit=} should be positive")
 
 
 @dataclass(frozen=True, slots=True, kw_only=True)

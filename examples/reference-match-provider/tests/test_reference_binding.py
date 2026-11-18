@@ -5,7 +5,7 @@ from provider_core.container_guard import require_container
 require_container()
 
 from importlib import metadata, resources
-from pathlib import Path
+import pathlib
 import sys
 import shutil
 from tempfile import TemporaryDirectory
@@ -19,11 +19,11 @@ from reference_provider import provider as provider_setup
 
 class ReferenceBindingTests(unittest.IsolatedAsyncioTestCase):
     async def asyncSetUp(self):
-        directory = Path(self.enterContext(TemporaryDirectory()))
+        directory = pathlib.Path(self.enterContext(TemporaryDirectory()))
         self.configuration = directory / "provider.toml"
 
         shutil.copyfile(
-            src=Path(__file__).parent.parent / "config/deployments/localhost/provider.toml",
+            src=pathlib.Path(__file__).parent.parent / "config/deployments/localhost/provider.toml",
             dst=self.configuration,
         )
 
@@ -36,14 +36,14 @@ class ReferenceBindingTests(unittest.IsolatedAsyncioTestCase):
 
     async def test_installed_distribution_contains_the_scientific_package(self):
         distribution = metadata.distribution("reference-match-provider-example")
-        package = Path(resources.files("reference_provider")).resolve()
+        package = pathlib.Path(resources.files("reference_provider")).resolve()
 
-        self.assertEqual(package, Path(distribution.locate_file("reference_provider")).resolve())
-        self.assertTrue(package.is_relative_to(Path(sys.prefix).resolve()))
+        self.assertEqual(package, pathlib.Path(distribution.locate_file("reference_provider")).resolve())
+        self.assertTrue(package.is_relative_to(pathlib.Path(sys.prefix).resolve()))
 
         for name in ("science.py", "binding.py", "provider.py"):
             self.assertTrue(package.joinpath(name).is_file())
-            self.assertIn(f"reference_provider/{name}", {str(path) for path in distribution.files})
+            self.assertIn(f"reference_provider/{name}", {str(distribution_file) for distribution_file in distribution.files})
 
     async def test_one_typed_query_call_has_no_analysis_or_state_lifetime(self):
         binding = await self.binding()

@@ -42,13 +42,13 @@ async def run_demo() -> None:
         with failure_collector.capture():
             hosted_matcher = provider.matcher
 
-            for values in ((3, 4, 0, 0), (0, 0, 1, 1)):
+            for query_channels in ((3, 4, 0, 0), (0, 0, 1, 1)):
                 analysis_executor = execution_host.open_analysis(allocations=frozenset({hosted_matcher.allocation}))
                 (reservation_ref,) = analysis_executor.reservations
 
                 match_operation = analysis_executor.submit_method(
                     method=hosted_matcher.contribution.match,
-                    scientific_input=VectorInput(values=values),
+                    scientific_input=VectorInput(values=query_channels),
                     states={},
                     reservation=reservation_ref,
                     policy=operation_policy,

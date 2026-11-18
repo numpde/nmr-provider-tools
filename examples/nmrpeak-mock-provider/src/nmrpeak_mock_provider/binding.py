@@ -5,7 +5,7 @@ cleanup can close them even when initialization fails.
 """
 
 from collections.abc import Callable
-from pathlib import Path
+import pathlib
 
 import provider_core.scientific as sdk
 from provider_core.verified_file import open_verified_file
@@ -24,7 +24,7 @@ class PeakContribution(sdk.Contribution):
         self,
         *,
         configuration: science.Settings,
-        checkpoint_path: Path,
+        checkpoint_path: pathlib.Path,
         create_model: Callable[[], science.Model],
     ) -> None:
         """Retain inputs without opening the checkpoint or creating the model."""
