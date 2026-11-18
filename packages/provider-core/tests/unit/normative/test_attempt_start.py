@@ -26,17 +26,17 @@ class AttemptStartTests(unittest.IsolatedAsyncioTestCase):
             )
 
             for replayed in (False, True):
-                result = await api.start_attempt(
+                attempt_admission = await api.start_attempt(
                     body,
                     job_ref="job:example",
                     analysis_kind_ref="nmr_predict",
                     provider_ref="provider:example"
                 )
 
-                self.assertEqual(result.replayed, replayed)
+                self.assertEqual(attempt_admission.replayed, replayed)
 
-            self.assertEqual(result.state, state)
-            self.assertEqual(result.started_at.isoformat(), "2026-10-18T00:00:00+00:00")
+            self.assertEqual(attempt_admission.state, state)
+            self.assertEqual(attempt_admission.started_at.isoformat(), "2026-10-18T00:00:00+00:00")
             (first, second) = (item[0] for item in transport.calls)
 
             self.assertEqual(first.content, body)

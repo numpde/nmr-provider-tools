@@ -82,6 +82,6 @@ class AttemptOutcomeTests(unittest.IsolatedAsyncioTestCase):
             expected_topology="dev-local",
         )
 
-        result = await api.complete_attempt(complete_body(ATTEMPT_REF, " result\n雪 ", data), execution_attempt_ref=ATTEMPT_REF)
+        completion_receipt = await api.complete_attempt(complete_body(ATTEMPT_REF, " result\n雪 ", data), execution_attempt_ref=ATTEMPT_REF)
 
-        self.assertEqual(result.result_byte_length, len(data))
+        self.assertEqual(completion_receipt.result_byte_length, len(data))

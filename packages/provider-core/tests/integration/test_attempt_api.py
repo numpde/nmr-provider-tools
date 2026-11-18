@@ -23,9 +23,9 @@ class AttemptReadIntegrationTests(unittest.IsolatedAsyncioTestCase):
                 expected_topology="dev-local",
             )
 
-            result = await api.read_attempt(ATTEMPT_REF, job_ref="job:example")
+            attempt_observation = await api.read_attempt(ATTEMPT_REF, job_ref="job:example")
 
-            self.assertEqual((result.state, result.job_state), ("in_progress", "closed"))
+            self.assertEqual((attempt_observation.state, attempt_observation.job_state), ("in_progress", "closed"))
             await asyncio.wait_for(peer.closed.wait(), 1)
             self.assertEqual(len(peer.requests), 1)
 

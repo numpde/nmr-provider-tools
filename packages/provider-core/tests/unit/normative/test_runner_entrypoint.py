@@ -3,12 +3,12 @@
 import subprocess
 import sys
 import unittest
-from pathlib import Path
+import pathlib
 
 
 class RunnerEntrypointTests(unittest.TestCase):
     def test_nested_asyncio_errors_are_owned_once_via_installed_entrypoint(self):
-        runner = Path(__file__).resolve().parents[2] / "run_suite.py"
+        runner = pathlib.Path(__file__).resolve().parents[2] / "run_suite.py"
 
         completed = subprocess.run(
             [

@@ -8,8 +8,8 @@ import asyncio
 from concurrent.futures import Future
 import subprocess
 import sys
-from pathlib import Path
-sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
+import pathlib
+sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[2]))
 
 
 def failure_graph(error):

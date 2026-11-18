@@ -23,7 +23,7 @@ class AttemptStartIntegrationTests(unittest.IsolatedAsyncioTestCase):
             body = retained_start()
 
             for _ in range(2):
-                result = await api.start_attempt(
+                attempt_admission = await api.start_attempt(
                     body,
                     job_ref="job:example",
                     analysis_kind_ref="nmr_predict",
@@ -33,7 +33,7 @@ class AttemptStartIntegrationTests(unittest.IsolatedAsyncioTestCase):
                 await asyncio.wait_for(peer.closed.wait(), 1)
                 peer.closed.clear()
 
-            self.assertEqual((result.state, result.replayed), ("expired", True))
+            self.assertEqual((attempt_admission.state, attempt_admission.replayed), ("expired", True))
             self.assertEqual(peer.request_bodies, [body, body])
             signatures = []
 

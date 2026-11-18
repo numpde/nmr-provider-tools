@@ -25,14 +25,14 @@ class AttemptProgressTests(unittest.IsolatedAsyncioTestCase):
                 )
 
                 for _ in range(2):
-                    result = await api.progress_attempt(ATTEMPT_REF, phase=phase, condition_code=condition)
+                    progress_receipt = await api.progress_attempt(ATTEMPT_REF, phase=phase, condition_code=condition)
 
                     self.assertEqual(
-                        (result.execution_attempt_ref, result.phase, result.condition_code),
+                        (progress_receipt.execution_attempt_ref, progress_receipt.phase, progress_receipt.condition_code),
                         (ATTEMPT_REF, phase, condition)
                     )
 
-                    self.assertEqual(result.updated_at.isoformat(), "2026-10-18T00:00:00.123456+00:00")
+                    self.assertEqual(progress_receipt.updated_at.isoformat(), "2026-10-18T00:00:00.123456+00:00")
 
                 (request, limit) = transport.calls[0]
 

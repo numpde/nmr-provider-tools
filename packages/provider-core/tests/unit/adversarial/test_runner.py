@@ -4,7 +4,7 @@ import os
 import array
 from concurrent.futures import ThreadPoolExecutor
 import fcntl
-from pathlib import Path
+import pathlib
 import signal
 import socket
 import subprocess
@@ -134,7 +134,7 @@ class RunnerRefusalTests(unittest.TestCase):
     def test_status_directory_is_private_and_canonical_before_any_status_write(self):
         for (condition, failure_type) in (("mode", PermissionError), ("symlink", ValueError)):
             with self.subTest(condition=condition), tempfile.TemporaryDirectory() as temporary:
-                root = Path(temporary)
+                root = pathlib.Path(temporary)
                 (endpoint, scratch, status) = (root / name for name in ("endpoint", "scratch", "status"))
 
                 for directory in (endpoint, scratch, status):
@@ -173,11 +173,11 @@ class RunnerRefusalTests(unittest.TestCase):
 
     def test_cli_requires_exactly_one_explicit_operation_lifetime(self):
         with tempfile.TemporaryDirectory() as temporary:
-            root = Path(temporary)
+            root = pathlib.Path(temporary)
 
             for lifetime in ([], ["--operation-seconds", "1", "--owner-session-lifetime"]):
                 with self.subTest(lifetime=lifetime):
-                    result = subprocess.run(
+                    completed_process = subprocess.run(
                         [
                         sys.executable,
                         "-m",
@@ -208,12 +208,12 @@ class RunnerRefusalTests(unittest.TestCase):
                         timeout=2
                     )
 
-                    self.assertEqual(2, result.returncode)
+                    self.assertEqual(2, completed_process.returncode)
                     self.assertEqual([], list(root.iterdir()))
 
     def test_failed_greeting_cannot_admit_a_retirement_with_null_operation_identity(self):
         with tempfile.TemporaryDirectory() as temporary, socket.socket(socket.AF_UNIX) as listener:
-            path = str(Path(temporary) / "runner.sock")
+            path = str(pathlib.Path(temporary) / "runner.sock")
 
             listener.bind(path)
             listener.listen()
@@ -270,7 +270,7 @@ class RunnerRefusalTests(unittest.TestCase):
 
     def test_partial_greeting_timeout_closes_its_descriptor_and_blocks_another_frame_read(self):
         with tempfile.TemporaryDirectory() as temporary, socket.socket(socket.AF_UNIX) as listener:
-            path = str(Path(temporary) / "runner.sock")
+            path = str(pathlib.Path(temporary) / "runner.sock")
 
             listener.bind(path)
             listener.listen()

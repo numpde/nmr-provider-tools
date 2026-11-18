@@ -6,8 +6,8 @@ import hashlib
 import json
 import tempfile
 import unittest
+import pathlib
 from dataclasses import replace
-from pathlib import Path
 from unittest.mock import Mock
 
 from provider_core.delivery_client import DeliveryClient, DeliveryEndpoint
@@ -55,7 +55,7 @@ class ExecutionIntegrationTests(unittest.IsolatedAsyncioTestCase):
             claim = AttemptClaims.live().claim_live(pending, lifecycle_owner=store)
 
             with tempfile.TemporaryDirectory() as directory:
-                root = Path(directory)
+                root = pathlib.Path(directory)
 
                 for name in ("delivery", "ipc"):
                     (root / name).mkdir(mode=0o700)

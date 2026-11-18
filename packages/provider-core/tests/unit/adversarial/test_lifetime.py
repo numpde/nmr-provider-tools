@@ -2,7 +2,7 @@
 
 import errno
 import os
-from pathlib import Path
+import pathlib
 import select
 import subprocess
 import sys
@@ -18,15 +18,15 @@ class ProviderLifetimeTests(unittest.IsolatedAsyncioTestCase):
         self.directory = tempfile.TemporaryDirectory()
 
         self.addCleanup(self.directory.cleanup)
-        self.root = Path(self.directory.name)
+        self.root = pathlib.Path(self.directory.name)
 
     def contender(self, mode):
-        result = subprocess.run(
+        completed_process = subprocess.run(
             [
             sys.executable,
             "-I",
             "-B",
-            str(Path(__file__).parents[2] / "fakes/lifetime_contender.py"),
+            str(pathlib.Path(__file__).parents[2] / "fakes/lifetime_contender.py"),
             mode,
             str(self.root),
         ],
@@ -35,9 +35,9 @@ class ProviderLifetimeTests(unittest.IsolatedAsyncioTestCase):
             timeout=5
         )
 
-        self.assertEqual(0, result.returncode, result.stderr)
+        self.assertEqual(0, completed_process.returncode, completed_process.stderr)
 
-        return result.stdout.strip()
+        return completed_process.stdout.strip()
 
     async def test_live_lock_excludes_another_owner_without_creating_database(self):
         lifetime = ProviderLifetime(self.root).open()
@@ -62,7 +62,7 @@ class ProviderLifetimeTests(unittest.IsolatedAsyncioTestCase):
             sys.executable,
             "-I",
             "-B",
-            str(Path(__file__).parents[2] / "fakes/lifetime_contender.py"),
+            str(pathlib.Path(__file__).parents[2] / "fakes/lifetime_contender.py"),
             "hold",
             str(self.root),
         ],

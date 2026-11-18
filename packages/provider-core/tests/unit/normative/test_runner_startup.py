@@ -4,7 +4,7 @@ import array
 from concurrent.futures import ThreadPoolExecutor
 import errno
 import json
-from pathlib import Path
+import pathlib
 import socket
 import struct
 import tempfile
@@ -23,7 +23,7 @@ class RunnerStartupTests(unittest.TestCase):
         temporary = tempfile.TemporaryDirectory()
 
         self.addCleanup(temporary.cleanup)
-        self.path = Path(temporary.name) / "runner.sock"
+        self.path = pathlib.Path(temporary.name) / "runner.sock"
         self.listener = socket.socket(socket.AF_UNIX)
 
         self.addCleanup(self.listener.close)

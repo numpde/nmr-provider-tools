@@ -26,9 +26,9 @@ class AttemptProgressIntegrationTests(unittest.IsolatedAsyncioTestCase):
                 expected_topology="dev-local",
             )
 
-            result = await api.progress_attempt(ATTEMPT_REF, phase="running", condition_code=None)
+            progress_receipt = await api.progress_attempt(ATTEMPT_REF, phase="running", condition_code=None)
 
-            self.assertEqual(result.phase, "running")
+            self.assertEqual(progress_receipt.phase, "running")
             await asyncio.wait_for(peer.closed.wait(), 1)
             self.assertEqual(len(peer.requests), 1)
 

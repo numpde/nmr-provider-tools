@@ -3,12 +3,12 @@
 import subprocess
 import sys
 import unittest
-from pathlib import Path
+import pathlib
 
 
 class TaskBoundaryCandidateTests(unittest.TestCase):
     def test_scripted_fatal_native_observers_allow_owned_cleanup(self):
-        witness = Path(__file__).resolve().parents[2] / "fakes/task_boundary_witness.py"
+        witness = pathlib.Path(__file__).resolve().parents[2] / "fakes/task_boundary_witness.py"
 
         for owner in ("executor", "controller"):
             for failure in ("system-exit", "keyboard-interrupt", "ordinary", "cancel"):
@@ -25,7 +25,7 @@ class TaskBoundaryCandidateTests(unittest.TestCase):
                     self.assertIn("independent cleanup, no terminal submission", completed.stdout)
 
     def test_fatal_owned_ports_preserve_cleanup_and_report_duties(self):
-        witness = Path(__file__).resolve().parents[2] / "fakes/task_boundary_witness.py"
+        witness = pathlib.Path(__file__).resolve().parents[2] / "fakes/task_boundary_witness.py"
 
         for stage in ("retirement", "handoff", "condition"):
             for failure in ("system-exit", "keyboard-interrupt"):
@@ -42,7 +42,7 @@ class TaskBoundaryCandidateTests(unittest.TestCase):
                     self.assertIn("exact fatal retained, independent cleanup", completed.stdout)
 
     def test_fatal_cleanup_preserves_primary_and_cancellation_priority(self):
-        witness = Path(__file__).resolve().parents[2] / "fakes/task_boundary_witness.py"
+        witness = pathlib.Path(__file__).resolve().parents[2] / "fakes/task_boundary_witness.py"
 
         for owner in ("executor", "controller"):
             for primary in ("cancel", "ordinary", "system-exit"):
@@ -63,7 +63,7 @@ class TaskBoundaryCandidateTests(unittest.TestCase):
 
 
     def test_outward_evidence_retains_original_causes_and_independent_cleanup(self):
-        witness = Path(__file__).resolve().parents[2] / "fakes/task_boundary_witness.py"
+        witness = pathlib.Path(__file__).resolve().parents[2] / "fakes/task_boundary_witness.py"
 
         cases = (
             ("graph-run", "fresh"),

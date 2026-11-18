@@ -4,7 +4,7 @@ import subprocess
 import sys
 import tempfile
 import time
-from pathlib import Path
+import pathlib
 
 from provider_core.runner_session import RunnerSession
 
@@ -57,7 +57,7 @@ class RunningSupervisor:
         self.role = role
         self._closed = False
         self.temporary = tempfile.TemporaryDirectory(prefix="runner-")
-        self.root = Path(self.temporary.name)
+        self.root = pathlib.Path(self.temporary.name)
         self.endpoint = self.root / "endpoint"
         self.scratch = self.root / "scratch"
 

@@ -1,7 +1,7 @@
 """Recording analysis and relay ports for live lifecycle tests."""
 
 import asyncio
-from pathlib import Path
+import pathlib
 
 from provider_core.delivery_client import DeliveryEndpoint, DeliveryRejected, DeliveryUnavailable
 from provider_core.delivery_store import DeliveryFull
@@ -23,7 +23,7 @@ class RecordingDelivery:
     """Record exact bodies at the receiving boundary, outside producer ownership."""
 
     def __init__(self):
-        self.endpoint = DeliveryEndpoint(scope().api_origin, scope().provider_ref, Path("/tmp/relay.sock"))
+        self.endpoint = DeliveryEndpoint(scope().api_origin, scope().provider_ref, pathlib.Path("/tmp/relay.sock"))
         self.items = []
         self.retirement_confirmed = True
         self.last_failure = None

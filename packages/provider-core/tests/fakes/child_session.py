@@ -12,8 +12,8 @@ scientific validation. Real process trees, grants and warm reuse stay unqualifie
 import asyncio
 import json
 import sys
+import pathlib
 from contextlib import suppress
-from pathlib import Path
 
 from provider_core.analysis import AnalysisFailure, AnalysisSuccess, PreparedAnalysis
 from provider_core.attempt_record import ProtectedEvidence
@@ -41,7 +41,7 @@ class ScriptedChild:
             sys.executable,
             "-I",
             "-B",
-            str(Path(__file__).with_name("child_peer.py")),
+            str(pathlib.Path(__file__).with_name("child_peer.py")),
             mode,
             stdin=asyncio.subprocess.PIPE,
             stdout=asyncio.subprocess.PIPE,

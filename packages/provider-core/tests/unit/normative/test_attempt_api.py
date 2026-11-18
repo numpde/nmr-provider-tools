@@ -23,10 +23,10 @@ class AttemptReadTests(unittest.IsolatedAsyncioTestCase):
                         expected_topology="dev-local",
                     )
 
-                    result = await api.read_attempt(ATTEMPT_REF, job_ref="job:example")
+                    attempt_observation = await api.read_attempt(ATTEMPT_REF, job_ref="job:example")
 
                     self.assertEqual(
-                        (result.execution_attempt_ref, result.job_ref, result.state, result.job_state),
+                        (attempt_observation.execution_attempt_ref, attempt_observation.job_ref, attempt_observation.state, attempt_observation.job_state),
                         (ATTEMPT_REF, "job:example", state, job_state),
                     )
 

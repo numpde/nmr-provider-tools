@@ -15,9 +15,9 @@ import itertools
 import json
 import tempfile
 import unittest
+import pathlib
 from contextlib import AsyncExitStack
 from dataclasses import replace
-from pathlib import Path
 from unittest.mock import patch
 
 from provider_core.attempt_record import TerminalOperation
@@ -42,7 +42,7 @@ class ChildRetirementTests(unittest.IsolatedAsyncioTestCase):
             executor = self._executor(store, claim, session)
 
             with self.assertRaises(ExecutionFailed) as failed:
-                await self._run(cleanup, executor, acknowledged)
+                await self._run_owned_executor(cleanup, executor, acknowledged)
 
             self.assertIsInstance(failed.exception.cause, ChildChannelClosed)
             process = session.child.process
@@ -133,7 +133,7 @@ class ChildRetirementTests(unittest.IsolatedAsyncioTestCase):
                     executor = self._executor(store, claim, session, preparation_only=True)
 
                     with self.assertRaises(ExecutionFailed) as failed:
-                        await self._run(cleanup, executor, acknowledged)
+                        await self._run_owned_executor(cleanup, executor, acknowledged)
 
                     self.assertIsInstance(failed.exception.cause, ValueError)
                     self.assertIsNone(session.child.process)
@@ -168,13 +168,13 @@ class ChildRetirementTests(unittest.IsolatedAsyncioTestCase):
 
         cleanup.push_async_callback(session.stop_child)
 
-        return (store, acknowledged, claim, session, Path(root, receipt.name), source_api)
+        return (store, acknowledged, claim, session, pathlib.Path(root, receipt.name), source_api)
 
     async def test_ordered_success_retains_result_and_reaps_child_before_returning_publication(self):
         async with AsyncExitStack() as cleanup:
             (store, acknowledged, claim, session) = await self._resources(cleanup, "success")
             executor = self._executor(store, claim, session)
-            terminal = await self._run(cleanup, executor, acknowledged)
+            terminal = await self._run_owned_executor(cleanup, executor, acknowledged)
 
             self.assertIs(type(terminal), DeliveryAcceptedCheckpoint)
             self.assertIs(terminal.selection.operation, TerminalOperation.COMPLETE)
@@ -197,7 +197,7 @@ class ChildRetirementTests(unittest.IsolatedAsyncioTestCase):
         async with AsyncExitStack() as cleanup:
             (store, acknowledged, claim, session) = await self._resources(cleanup, "reject")
             executor = self._executor(store, claim, session, preparation_only=True)
-            terminal = await self._run(cleanup, executor, acknowledged)
+            terminal = await self._run_owned_executor(cleanup, executor, acknowledged)
 
             self.assertIs(terminal.selection.operation, TerminalOperation.FAIL)
             self.assertIs(type(terminal.selection.attempt), AcknowledgedCheckpoint)
@@ -236,7 +236,7 @@ class ChildRetirementTests(unittest.IsolatedAsyncioTestCase):
             executor = self._executor(store, claim, session)
 
             with self.assertRaises(ExecutionFailed) as failed:
-                await self._run(cleanup, executor, acknowledged)
+                await self._run_owned_executor(cleanup, executor, acknowledged)
 
             original_process = session.child.process
 
@@ -285,7 +285,7 @@ class ChildRetirementTests(unittest.IsolatedAsyncioTestCase):
 
         await asyncio.gather(task, return_exceptions=True)
 
-    async def _run(self, cleanup, executor, acknowledged):
+    async def _run_owned_executor(self, cleanup, executor, acknowledged):
         task = asyncio.create_task(executor.run(acknowledged))
 
         cleanup.push_async_callback(self._cancel_executor, task)

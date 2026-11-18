@@ -1,13 +1,13 @@
 """A separate installed-package process contends for the actual lifetime lock."""
 
-from pathlib import Path
+import pathlib
 import sys
 
 from provider_core.lifetime import ProviderLifetime
 
 
 def main():
-    (mode, root) = (sys.argv[1], Path(sys.argv[2]))
+    (mode, root) = (sys.argv[1], pathlib.Path(sys.argv[2]))
     lifetime = ProviderLifetime(root)
 
     try:
