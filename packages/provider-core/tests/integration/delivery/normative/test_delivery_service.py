@@ -7,8 +7,8 @@ import json
 import tempfile
 import threading
 import unittest
+import pathlib
 from dataclasses import replace
-from pathlib import Path
 from unittest.mock import patch
 
 from provider_core.delivery_client import DeliveryClient, DeliveryEndpoint, DeliveryUnavailable
@@ -29,7 +29,7 @@ class DeliveryServiceTests(unittest.IsolatedAsyncioTestCase):
         self.scratch = tempfile.TemporaryDirectory()
 
         self.addCleanup(self.scratch.cleanup)
-        self.root = Path(self.scratch.name)
+        self.root = pathlib.Path(self.scratch.name)
 
         (self.root / "state").mkdir(mode=0o700)
         (self.root / "ipc").mkdir(mode=0o700)
@@ -80,11 +80,11 @@ class DeliveryServiceTests(unittest.IsolatedAsyncioTestCase):
 
             try:
                 await asyncio.wait_for(service.ready.wait(), 1)
-                item = replace(outcome(), api_origin=peer.origin)
+                delivery_outcome = replace(outcome(), api_origin=peer.origin)
 
-                self.assertEqual(await client.submit(item), item.acceptance())
+                self.assertEqual(await client.submit(delivery_outcome), delivery_outcome.acceptance())
                 await asyncio.wait_for(self.published.wait(), 2)
-                self.assertEqual(peer.request_bodies, [item.body])
+                self.assertEqual(peer.request_bodies, [delivery_outcome.body])
             finally:
                 service.request_stop()
                 await asyncio.wait_for(original, 2)
@@ -106,7 +106,7 @@ class DeliveryServiceTests(unittest.IsolatedAsyncioTestCase):
 
             await asyncio.wait_for(service.ready.wait(), 1)
             client = DeliveryClient(endpoint, exchange_seconds=1, retirement_seconds=0.2)
-            item = replace(outcome(), api_origin=peer.origin)
+            delivery_outcome = replace(outcome(), api_origin=peer.origin)
             (started, release_commit) = (threading.Event(), threading.Event())
             enqueue = service.queue.enqueue
 
@@ -119,7 +119,7 @@ class DeliveryServiceTests(unittest.IsolatedAsyncioTestCase):
                 return enqueue(value)
 
             service.queue.enqueue = delayed_enqueue
-            submit = asyncio.create_task(client.submit(item))
+            submit = asyncio.create_task(client.submit(delivery_outcome))
 
             self.assertTrue(await asyncio.to_thread(started.wait, 1))
             service.request_stop()
@@ -142,7 +142,7 @@ class DeliveryServiceTests(unittest.IsolatedAsyncioTestCase):
             finally:
                 release_commit.set()
 
-            self.assertEqual(await submit, item.acceptance())
+            self.assertEqual(await submit, delivery_outcome.acceptance())
             await asyncio.wait_for(closing, 2)
             await client.retire()
             self.assertTrue(service.retirement_confirmed)
@@ -150,7 +150,7 @@ class DeliveryServiceTests(unittest.IsolatedAsyncioTestCase):
             reopened = DeliveryQueue(self.root / "state", limits=self.limits)
 
             try:
-                self.assertEqual(reopened.next_pending(item.api_origin, item.provider_ref), item)
+                self.assertEqual(reopened.next_pending(delivery_outcome.api_origin, delivery_outcome.provider_ref), delivery_outcome)
             finally:
                 reopened.close()
 
@@ -218,9 +218,9 @@ class DeliveryServiceTests(unittest.IsolatedAsyncioTestCase):
                 original = asyncio.create_task(service.run())
 
                 await asyncio.wait_for(entered.wait(), 1)
-                item = replace(outcome(), api_origin=peer.origin)
+                delivery_outcome = replace(outcome(), api_origin=peer.origin)
 
-                service.queue.enqueue(item)
+                service.queue.enqueue(delivery_outcome)
                 closing = asyncio.create_task(service.close())
 
                 await asyncio.sleep(0)
@@ -236,10 +236,10 @@ class DeliveryServiceTests(unittest.IsolatedAsyncioTestCase):
             self.assertEqual(peer.requests, [])
 
     async def test_changed_binding_refuses_startup_without_retargeting_original_pending_bytes(self):
-        item = outcome()
+        delivery_outcome = outcome()
         previous = DeliveryQueue(self.root / "state", limits=self.limits)
 
-        previous.enqueue(item)
+        previous.enqueue(delivery_outcome)
         previous.close()
 
         async with api_tls_peer("success") as peer:
@@ -256,15 +256,15 @@ class DeliveryServiceTests(unittest.IsolatedAsyncioTestCase):
                 self.notices[0][1],
                 {
                     "event": "delivery_binding_missing",
-                    "api_origin": item.api_origin,
-                    "provider_ref": item.provider_ref,
+                    "api_origin": delivery_outcome.api_origin,
+                    "provider_ref": delivery_outcome.provider_ref,
                 }
             )
 
         reopened = DeliveryQueue(self.root / "state", limits=self.limits)
 
         try:
-            self.assertEqual(reopened.next_pending(item.api_origin, item.provider_ref), item)
+            self.assertEqual(reopened.next_pending(delivery_outcome.api_origin, delivery_outcome.provider_ref), delivery_outcome)
         finally:
             reopened.close()
 
@@ -294,9 +294,9 @@ class DeliveryServiceTests(unittest.IsolatedAsyncioTestCase):
 
             try:
                 await asyncio.wait_for(service.ready.wait(), 1)
-                item = replace(outcome(), api_origin=peer.origin)
+                delivery_outcome = replace(outcome(), api_origin=peer.origin)
 
-                await client.submit(item)
+                await client.submit(delivery_outcome)
 
                 async with asyncio.timeout(2):
                     while True:
@@ -309,7 +309,7 @@ class DeliveryServiceTests(unittest.IsolatedAsyncioTestCase):
                         await asyncio.sleep(0.01)
 
                 self.assertEqual(pending["items"], [])
-                self.assertEqual(peer.request_bodies, [item.body])
+                self.assertEqual(peer.request_bodies, [delivery_outcome.body])
                 self.assertEqual(diagnostics["last_failure_errno"], errno.EPIPE)
                 self.assertNotIn("PRIVATE", json.dumps(pending))
             finally:

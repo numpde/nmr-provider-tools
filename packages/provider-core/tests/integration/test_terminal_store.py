@@ -6,7 +6,7 @@ fixture proves local outstanding-body retention, not remote publication.
 
 import tempfile
 import unittest
-from pathlib import Path
+import pathlib
 
 from provider_core.attempt_record import TerminalOperation
 from provider_core.attempt_request import complete_body, fail_body
@@ -32,26 +32,26 @@ class TerminalQueueTests(unittest.TestCase):
 
                 self.assertEqual(len(body), 16384)
 
-            item = DeliveryOutcome(scope().api_origin, scope().provider_ref, "job:example", ATTEMPT_REF, operation, body)
+            delivery_outcome = DeliveryOutcome(scope().api_origin, scope().provider_ref, "job:example", ATTEMPT_REF, operation, body)
 
             with tempfile.TemporaryDirectory() as directory:
-                root = Path(directory)
+                root = pathlib.Path(directory)
                 queue = DeliveryQueue(root, limits=QueueLimits(1, 2097152, 1, 2097152))
 
                 try:
-                    accepted = queue.enqueue(item)
+                    accepted = queue.enqueue(delivery_outcome)
 
-                    self.assertEqual(accepted, item.acceptance())
+                    self.assertEqual(accepted, delivery_outcome.acceptance())
                 finally:
                     queue.close()
 
                 queue = DeliveryQueue(root, limits=QueueLimits(1, 2097152, 1, 2097152))
 
                 try:
-                    self.assertEqual(queue.next_pending(item.api_origin, item.provider_ref), item)
-                    self.assertEqual(queue.enqueue(item), accepted)
-                    (row,) = queue.inventory(item.api_origin, item.provider_ref)
+                    self.assertEqual(queue.next_pending(delivery_outcome.api_origin, delivery_outcome.provider_ref), delivery_outcome)
+                    self.assertEqual(queue.enqueue(delivery_outcome), accepted)
+                    (row,) = queue.inventory(delivery_outcome.api_origin, delivery_outcome.provider_ref)
 
-                    self.assertEqual((row["body_sha256"], row["body_bytes"]), (item.body_sha256, len(body)))
+                    self.assertEqual((row["body_sha256"], row["body_bytes"]), (delivery_outcome.body_sha256, len(body)))
                 finally:
                     queue.close()

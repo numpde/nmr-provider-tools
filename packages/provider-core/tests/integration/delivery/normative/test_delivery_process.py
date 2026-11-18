@@ -7,9 +7,9 @@ import signal
 import sys
 import tempfile
 import unittest
+import pathlib
 from contextlib import suppress
 from dataclasses import replace
-from pathlib import Path
 
 from provider_core.attempt_record import TerminalOperation
 from provider_core.attempt_request import complete_body
@@ -66,7 +66,7 @@ def _configured_binding(root, peer, proxy, *, provider):
     raw = files.raw.replace(b"https://api.example", peer.origin.encode())
     raw = raw.replace(b'provider_ref = "provider:example"', ("provider_ref = " + json.dumps(provider)).encode())
     raw = raw.replace(json.dumps(str(root / "api/http.sock")).encode(), json.dumps(proxy.path).encode())
-    raw += b"ca_file = " + json.dumps(str(Path(peer.scratch.name) / "cert.pem")).encode() + b"\n"
+    raw += b"ca_file = " + json.dumps(str(pathlib.Path(peer.scratch.name) / "cert.pem")).encode() + b"\n"
 
     files.write(raw)
 
@@ -100,7 +100,7 @@ class DeliveryProcessTests(unittest.IsolatedAsyncioTestCase):
             ("provider-core.delivery.v1", "Cannot inspect or discard held results: the supplied API/provider pair must match exactly one configured binding."),
         ):
             with self.subTest(schema=schema), tempfile.TemporaryDirectory() as directory:
-                root = Path(directory)
+                root = pathlib.Path(directory)
                 queue = root / "PRIVATE_QUEUE"
                 config = root / "PRIVATE_CONFIG.toml"
 
@@ -111,7 +111,7 @@ class DeliveryProcessTests(unittest.IsolatedAsyncioTestCase):
 
                 config.chmod(0o600)
 
-                process = await asyncio.create_subprocess_exec(
+                child_process = await asyncio.create_subprocess_exec(
                     sys.executable,
                     "-I",
                     "-B",
@@ -129,16 +129,16 @@ class DeliveryProcessTests(unittest.IsolatedAsyncioTestCase):
                 )
 
                 try:
-                    (stdout, stderr) = await asyncio.wait_for(process.communicate(), 3)
+                    (stdout, stderr) = await asyncio.wait_for(child_process.communicate(), 3)
 
-                    self.assertEqual(process.returncode, 2)
+                    self.assertEqual(child_process.returncode, 2)
                     self.assertEqual(stdout, b"")
                     self.assertIn(expected.encode(), stderr)
                     self.assertNotIn(b"PRIVATE", stderr)
                     self.assertNotIn(str(root).encode(), stderr)
                     self.assertFalse(queue.exists())
                 finally:
-                    await _reap_daemon(process)
+                    await _reap_daemon(child_process)
 
     async def test_installed_command_delivers_once_through_proxy_then_sigterm_retires_it(self):
         async with api_tls_peer(
@@ -151,14 +151,14 @@ class DeliveryProcessTests(unittest.IsolatedAsyncioTestCase):
         ) as peer:
             async with UnixProxy(peer.origin, "tunnel") as proxy:
                 with tempfile.TemporaryDirectory() as directory:
-                    root = Path(directory)
+                    root = pathlib.Path(directory)
                     files = DeliveryConfigFiles(root)
 
                     (root / "state").mkdir(mode=0o700)
                     (root / "ipc").mkdir(mode=0o710)
                     raw = files.raw.replace(b"https://api.example", peer.origin.encode())
                     raw = raw.replace(json.dumps(str(root / "api/http.sock")).encode(), json.dumps(proxy.path).encode())
-                    raw += b"ca_file = " + json.dumps(str(Path(peer.scratch.name) / "cert.pem")).encode() + b"\n"
+                    raw += b"ca_file = " + json.dumps(str(pathlib.Path(peer.scratch.name) / "cert.pem")).encode() + b"\n"
 
                     files.write(raw)
 
@@ -196,12 +196,12 @@ class DeliveryProcessTests(unittest.IsolatedAsyncioTestCase):
                         self.assertEqual((root / "ipc").stat().st_gid, os.getgid())
                         self.assertEqual(endpoint.socket_path.stat().st_mode & 0o777, 0o660)
                         self.assertEqual(endpoint.socket_path.stat().st_gid, os.getgid())
-                        item = replace(outcome(provider="provider:example"), api_origin=peer.origin)
+                        delivery_outcome = replace(outcome(provider="provider:example"), api_origin=peer.origin)
 
-                        self.assertEqual(await client.submit(item), item.acceptance())
+                        self.assertEqual(await client.submit(delivery_outcome), delivery_outcome.acceptance())
                         await receive("delivery_published")
                         self.assertEqual((await client.pending())["items"], [])
-                        self.assertEqual(peer.request_bodies, [item.body])
+                        self.assertEqual(peer.request_bodies, [delivery_outcome.body])
                         self.assertEqual(len(proxy.headers), 1)
                         process.send_signal(signal.SIGTERM)
                         stopped = await receive("delivery_stopped")
@@ -213,7 +213,7 @@ class DeliveryProcessTests(unittest.IsolatedAsyncioTestCase):
                         reopened = DeliveryQueue(root / "state", limits=QueueLimits(4, 16384, 8, 32768))
 
                         try:
-                            self.assertEqual(reopened.inventory(item.api_origin, item.provider_ref), [])
+                            self.assertEqual(reopened.inventory(delivery_outcome.api_origin, delivery_outcome.provider_ref), [])
                         finally:
                             reopened.close()
                     finally:
@@ -228,7 +228,7 @@ class DeliveryProcessTests(unittest.IsolatedAsyncioTestCase):
 
             files.write(b"PRIVATE_CANARY malformed TOML")
 
-            process = await asyncio.create_subprocess_exec(
+            child_process = await asyncio.create_subprocess_exec(
                 sys.executable,
                 "-I",
                 "-B",
@@ -241,18 +241,18 @@ class DeliveryProcessTests(unittest.IsolatedAsyncioTestCase):
             )
 
             try:
-                (stdout, stderr) = await asyncio.wait_for(process.communicate(), 3)
+                (stdout, stderr) = await asyncio.wait_for(child_process.communicate(), 3)
 
-                self.assertEqual(process.returncode, 2)
+                self.assertEqual(child_process.returncode, 2)
                 self.assertEqual(stdout, b"")
                 report = json.loads(stderr)
 
                 self.assertEqual(report["event"], "delivery_failed")
                 self.assertIn("UTF-8 TOML", json.dumps(report))
                 self.assertNotIn("PRIVATE", stderr.decode())
-                self.assertFalse((Path(directory) / "state").exists())
+                self.assertFalse((pathlib.Path(directory) / "state").exists())
             finally:
-                await _reap_daemon(process)
+                await _reap_daemon(child_process)
 
     async def test_lost_api_ack_then_actual_daemon_restart_replays_one_queued_outcome(self):
         """One scripted API effect survives a lost receipt; no producer is rerun.
@@ -287,7 +287,7 @@ class DeliveryProcessTests(unittest.IsolatedAsyncioTestCase):
             async with UnixProxy(peer.origin, "tunnel") as proxy:
                 with tempfile.TemporaryDirectory() as directory:
                     (files, endpoint, credential) = _configured_binding(
-                        Path(directory) / "binding",
+                        pathlib.Path(directory) / "binding",
                         peer,
                         proxy,
                         provider="provider:example"
@@ -410,7 +410,7 @@ class DeliveryProcessTests(unittest.IsolatedAsyncioTestCase):
         async with api_tls_peer("success", response_factory=api_a) as peer_a, api_tls_peer("success", response_factory=api_b) as peer_b:
             async with UnixProxy(peer_a.origin, "tunnel") as proxy_a, UnixProxy(peer_b.origin, "tunnel") as proxy_b:
                 with tempfile.TemporaryDirectory() as directory:
-                    root = Path(directory)
+                    root = pathlib.Path(directory)
                     (files, endpoint_a, credential_a) = _configured_binding(root / "first", peer_a, proxy_a, provider="provider:example")
                     (other, endpoint_b, credential_b) = _configured_binding(root / "second", peer_b, proxy_b, provider="provider:other")
 

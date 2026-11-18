@@ -6,7 +6,7 @@ import asyncio
 import contextlib
 import io
 import json
-from pathlib import Path
+import pathlib
 from types import SimpleNamespace
 from unittest.mock import Mock, patch
 
@@ -24,7 +24,7 @@ from tests.fakes.delivery import outcome
 class SharedDeliveryConfigurationTests(unittest.TestCase):
     def test_operator_can_inspect_held_legacy_rows_using_shared_settings(self):
         with tempfile.TemporaryDirectory() as directory:
-            root = Path(directory)
+            root = pathlib.Path(directory)
             config = root / "settings.toml"
 
             config.write_text(
@@ -33,9 +33,9 @@ class SharedDeliveryConfigurationTests(unittest.TestCase):
             )
 
             queue = DeliveryQueue(root, limits=QueueLimits(2, 8192, 4, 16384))
-            item = outcome()
+            delivery_outcome = outcome()
 
-            queue.enqueue(item)
+            queue.enqueue(delivery_outcome)
             queue.hold_legacy_rows()
             queue.enqueue(outcome(suffix="1"))
             queue.close()
@@ -48,9 +48,9 @@ class SharedDeliveryConfigurationTests(unittest.TestCase):
                 "--state-directory",
                 str(root),
                 "--api-origin",
-                item.api_origin,
+                delivery_outcome.api_origin,
                 "--provider-ref",
-                item.provider_ref,
+                delivery_outcome.provider_ref,
                 "--list-held"
             ]
 
@@ -59,16 +59,16 @@ class SharedDeliveryConfigurationTests(unittest.TestCase):
 
             result = json.loads(output.getvalue())
 
-            self.assertEqual(result["held"][0]["execution_attempt_ref"], item.execution_attempt_ref)
+            self.assertEqual(result["held"][0]["execution_attempt_ref"], delivery_outcome.execution_attempt_ref)
             self.assertEqual(result["pending"][0]["execution_attempt_ref"], outcome(suffix="1").execution_attempt_ref)
             self.assertNotIn("SCIENTIFIC_PAYLOAD_NEEDLE", output.getvalue())
 
     def test_atomic_reload_changes_admission_and_worker_retry_retains_last_good(self):
         with tempfile.TemporaryDirectory() as directory:
-            root = Path(directory)
+            root = pathlib.Path(directory)
 
             (root / "state").mkdir(mode=0o700)
-            path = root / "settings.toml"
+            settings_path = root / "settings.toml"
 
             def write(target, items, retry):
                 target.write_text(
@@ -77,8 +77,8 @@ class SharedDeliveryConfigurationTests(unittest.TestCase):
                     f'retry_max_seconds = 10\nlog_level = "INFO"\n'
                 )
 
-            write(path, 1, 1)
-            live = SharedDeliveryConfiguration(path)
+            write(settings_path, 1, 1)
+            live = SharedDeliveryConfiguration(settings_path)
             settings = live.read()
             notices = Mock()
 
@@ -123,11 +123,11 @@ class SharedDeliveryConfigurationTests(unittest.TestCase):
             replacement = root / "replacement.toml"
 
             write(replacement, 2, 3)
-            replacement.replace(path)
+            replacement.replace(settings_path)
             service._reload()
             self.assertEqual(worker.retry_initial_seconds, 3)
             self.assertEqual(service.queue.enqueue_handoff(second), second.acceptance())
-            path.write_text("[outbox\n")
+            settings_path.write_text("[outbox\n")
             service.next_reload = 0
 
             service._reload()

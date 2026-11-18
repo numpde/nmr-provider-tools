@@ -2,7 +2,7 @@
 
 import tempfile
 import unittest
-from pathlib import Path
+import pathlib
 from unittest.mock import Mock
 
 from provider_core.delivery_config import load_delivery_service
@@ -22,5 +22,5 @@ class DeliveryConfigurationTests(unittest.TestCase):
             self.assertEqual(binding.api.identity.credential_ref, "credential:example")
             self.assertEqual(binding.api.expected_topology, "dev-local")
             self.assertIsNone(service.queue)
-            self.assertFalse((Path(directory) / "state").exists())
+            self.assertFalse((pathlib.Path(directory) / "state").exists())
             self.assertFalse(binding.endpoint.socket_path.exists())

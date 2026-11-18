@@ -5,7 +5,7 @@ import errno
 import os
 import sqlite3
 import unittest
-from pathlib import Path
+import pathlib
 from unittest.mock import patch
 
 from provider_core.delivery_store import MAX_PROVIDER_ITEMS, DeliveryConflict, DeliveryInventoryUnavailable, DeliveryOutcome, DeliveryQueue, DeliveryStorageFailed, QueueLimits
@@ -26,7 +26,7 @@ class DeliveryQueueRefusalTests(unittest.TestCase):
         for index in range(MAX_PROVIDER_ITEMS + 1):
             reference = "execution_attempt:sha256:" + f"{index:064x}"
 
-            item = DeliveryOutcome(
+            delivery_outcome = DeliveryOutcome(
                 "https://api.example",
                 "provider:test",
                 "job:queue",
@@ -43,13 +43,13 @@ class DeliveryQueueRefusalTests(unittest.TestCase):
             queue._db.execute(
                 "INSERT INTO outstanding VALUES(?,?,?,?,?,?,?,?,?,?,NULL)",
                 (
-                    item.api_origin,
-                    item.provider_ref,
-                    item.execution_attempt_ref,
-                    item.job_ref,
-                    item.operation.value,
-                    item.body,
-                    item.body_sha256,
+                    delivery_outcome.api_origin,
+                    delivery_outcome.provider_ref,
+                    delivery_outcome.execution_attempt_ref,
+                    delivery_outcome.job_ref,
+                    delivery_outcome.operation.value,
+                    delivery_outcome.body,
+                    delivery_outcome.body_sha256,
                     state,
                     1.0,
                     reason
@@ -89,7 +89,7 @@ class DeliveryQueueRefusalTests(unittest.TestCase):
         self.directory = tempfile.TemporaryDirectory()
 
         self.addCleanup(self.directory.cleanup)
-        self.root = Path(self.directory.name)
+        self.root = pathlib.Path(self.directory.name)
         self.limits = QueueLimits(provider_items=1, provider_bytes=4096, total_items=2, total_bytes=8192)
 
     def open(self):
@@ -114,38 +114,38 @@ class DeliveryQueueRefusalTests(unittest.TestCase):
         self.assertEqual(queue.next_pending(original.api_origin, original.provider_ref), original)
 
     def test_corrupt_database_is_not_replaced(self):
-        path = self.root / "delivery.sqlite3"
+        database_path = self.root / "delivery.sqlite3"
 
-        path.write_bytes(b"not a SQLite database")
-        path.chmod(0o600)
+        database_path.write_bytes(b"not a SQLite database")
+        database_path.chmod(0o600)
 
         with self.assertRaises(DeliveryStorageFailed):
             self.open()
 
-        self.assertEqual(path.read_bytes(), b"not a SQLite database")
+        self.assertEqual(database_path.read_bytes(), b"not a SQLite database")
 
     def test_one_service_owns_the_database(self):
         first = self.open()
-        item = outcome()
+        delivery_outcome = outcome()
 
-        first.enqueue(item)
+        first.enqueue(delivery_outcome)
 
         with self.assertRaises(DeliveryStorageFailed):
             self.open()
 
-        self.assertEqual(first.next_pending(item.api_origin, item.provider_ref), item)
+        self.assertEqual(first.next_pending(delivery_outcome.api_origin, delivery_outcome.provider_ref), delivery_outcome)
 
     def test_body_cannot_claim_another_attempt(self):
-        item = outcome()
+        delivery_outcome = outcome()
 
         with self.assertRaises(ValueError):
             DeliveryOutcome(
-                item.api_origin,
-                item.provider_ref,
-                item.job_ref,
-                item.execution_attempt_ref[:-1] + "1",
-                item.operation,
-                item.body,
+                delivery_outcome.api_origin,
+                delivery_outcome.provider_ref,
+                delivery_outcome.job_ref,
+                delivery_outcome.execution_attempt_ref[:-1] + "1",
+                delivery_outcome.operation,
+                delivery_outcome.body,
             )
 
     def test_missing_volume_directory_keeps_operation_and_original_cause(self):

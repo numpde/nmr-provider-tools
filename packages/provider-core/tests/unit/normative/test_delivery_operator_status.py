@@ -6,7 +6,7 @@ import json
 import sqlite3
 import tempfile
 import unittest
-from pathlib import Path
+import pathlib
 from unittest.mock import Mock, patch
 
 from provider_core.delivery_handoff import DeliveryHandoff
@@ -24,7 +24,7 @@ from tests.unit.normative.test_delivery_handoff import DeliveryHandoffTests
 class QueueObservationTests(unittest.TestCase):
     def test_aggregate_and_observation_failure_leave_the_queue_usable(self):
         with tempfile.TemporaryDirectory() as directory:
-            queue = DeliveryQueue(Path(directory), limits=QueueLimits(4, 16384, 8, 32768))
+            queue = DeliveryQueue(pathlib.Path(directory), limits=QueueLimits(4, 16384, 8, 32768))
             material = DeliveryHandoffTests().material()
             first = DeliveryHandoff(outcome(provider="provider:example"), material)
             second = DeliveryHandoff(outcome(provider="provider:example", suffix="1"), material)
@@ -88,7 +88,7 @@ class QueueObservationTests(unittest.TestCase):
 class ServiceObservationTests(unittest.IsolatedAsyncioTestCase):
     async def test_aggregate_failure_is_reported_without_stopping_intake(self):
         with tempfile.TemporaryDirectory() as directory:
-            root = Path(directory)
+            root = pathlib.Path(directory)
 
             for name in ("state", "ipc", "status"):
                 (root / name).mkdir(mode=0o700)
@@ -137,17 +137,17 @@ class ServiceObservationTests(unittest.IsolatedAsyncioTestCase):
                 self.assertFalse(service.inbox.failed.is_set())
                 self.assertIsNone(service.overview)
                 service.queue._db.set_authorizer(None)
-                item = outcome(provider="provider:example")
+                delivery_outcome = outcome(provider="provider:example")
                 material = DeliveryHandoffTests().material()
 
                 client = SharedDeliveryClient(
-                    DeliveryEndpoint(item.api_origin, item.provider_ref, root / "ipc/http.sock"),
+                    DeliveryEndpoint(delivery_outcome.api_origin, delivery_outcome.provider_ref, root / "ipc/http.sock"),
                     material,
                     exchange_seconds=1,
                     retirement_seconds=1
                 )
 
-                self.assertEqual(await client.submit(item), DeliveryHandoff(item, material).acceptance())
+                self.assertEqual(await client.submit(delivery_outcome), DeliveryHandoff(delivery_outcome, material).acceptance())
                 await client.retire()
             finally:
                 service.request_stop()
@@ -156,7 +156,7 @@ class ServiceObservationTests(unittest.IsolatedAsyncioTestCase):
 
     async def test_snapshot_write_failure_does_not_stop_the_queue_owner(self):
         with tempfile.TemporaryDirectory() as directory:
-            root = Path(directory)
+            root = pathlib.Path(directory)
 
             for name in ("state", "ipc", "status"):
                 (root / name).mkdir(mode=0o700)
@@ -208,18 +208,18 @@ class ServiceObservationTests(unittest.IsolatedAsyncioTestCase):
                     self.assertFalse(service.inbox.failed.is_set())
                     self.assertEqual((root / "status/status.json").read_bytes(), before)
                     material = DeliveryHandoffTests().material()
-                    item = outcome(provider="provider:example")
+                    delivery_outcome = outcome(provider="provider:example")
 
                     client = SharedDeliveryClient(
-                        DeliveryEndpoint(item.api_origin, item.provider_ref, root / "ipc/http.sock"),
+                        DeliveryEndpoint(delivery_outcome.api_origin, delivery_outcome.provider_ref, root / "ipc/http.sock"),
                         material,
                         exchange_seconds=1,
                         retirement_seconds=1
                     )
 
-                    self.assertEqual(await client.submit(item), DeliveryHandoff(item, material).acceptance())
+                    self.assertEqual(await client.submit(delivery_outcome), DeliveryHandoff(delivery_outcome, material).acceptance())
                     await client.retire()
-                    self.assertEqual(service.queue.next_pending_handoff(item.api_origin, item.provider_ref).outcome, item)
+                    self.assertEqual(service.queue.next_pending_handoff(delivery_outcome.api_origin, delivery_outcome.provider_ref).outcome, delivery_outcome)
             finally:
                 service.request_stop()
                 await asyncio.wait_for(task, 5)

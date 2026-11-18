@@ -4,8 +4,8 @@ import asyncio
 import tempfile
 import threading
 import unittest
+import pathlib
 from dataclasses import replace
-from pathlib import Path
 from unittest.mock import Mock
 from urllib.parse import urlsplit
 
@@ -25,15 +25,15 @@ from tests.fakes.delivery import outcome
 class SharedServiceCancellationTests(unittest.IsolatedAsyncioTestCase):
     async def test_cancelled_publisher_fails_service_and_retains_the_queued_handoff(self):
         async with api_tls_peer("headers-stall") as peer:
-            item = replace(outcome(), api_origin=peer.origin)
-            ca = (Path(peer.scratch.name) / "cert.pem").read_bytes()
-            credential = encoded(document(principal_ref=item.provider_ref))
+            delivery_outcome = replace(outcome(), api_origin=peer.origin)
+            ca = (pathlib.Path(peer.scratch.name) / "cert.pem").read_bytes()
+            credential = encoded(document(principal_ref=delivery_outcome.provider_ref))
 
             fields = {
                 "origin": peer.origin,
                 "profile": "dev-local",
                 "topology": "dev-local",
-                "provider_ref": item.provider_ref,
+                "provider_ref": delivery_outcome.provider_ref,
                 "exchange_seconds": 10,
                 "retirement_seconds": 1,
                 "credential_file": "/fixture/credential",
@@ -42,13 +42,13 @@ class SharedServiceCancellationTests(unittest.IsolatedAsyncioTestCase):
 
             (settings, _, material) = api_settings_with_material(
                 fields,
-                lambda _path, **options: credential if options["label"] == "API signing credential" else ca
+                lambda _credential_or_ca_path, **options: credential if options["label"] == "API signing credential" else ca
             )
 
-            handoff = DeliveryHandoff(item, material)
+            handoff = DeliveryHandoff(delivery_outcome, material)
 
             with tempfile.TemporaryDirectory() as directory:
-                root = Path(directory)
+                root = pathlib.Path(directory)
 
                 (root / "state").mkdir(mode=0o700)
                 (root / "ipc").mkdir(mode=0o700)
@@ -76,26 +76,26 @@ class SharedServiceCancellationTests(unittest.IsolatedAsyncioTestCase):
 
                     try:
                         await asyncio.wait_for(service.ready.wait(), 5)
-                        endpoint = DeliveryEndpoint(peer.origin, item.provider_ref, root / "ipc/socket")
+                        endpoint = DeliveryEndpoint(peer.origin, delivery_outcome.provider_ref, root / "ipc/socket")
                         client = SharedDeliveryClient(endpoint, material, exchange_seconds=2, retirement_seconds=1)
 
-                        self.assertEqual(await client.submit(item), handoff.acceptance())
+                        self.assertEqual(await client.submit(delivery_outcome), handoff.acceptance())
                         await asyncio.wait_for(peer.received.wait(), 5)
-                        worker = service.workers[item.key[:2]]
+                        worker = service.workers[delivery_outcome.key[:2]]
                         api = worker.api
 
-                        service._worker_tasks[item.key[:2]].cancel()
+                        service._worker_tasks[delivery_outcome.key[:2]].cancel()
 
                         with self.assertRaisesRegex(RuntimeError, "worker was cancelled"):
                             await asyncio.wait_for(task, 5)
 
                         self.assertTrue(api.retirement_confirmed)
                         self.assertTrue(service.retirement_confirmed)
-                        self.assertEqual(peer.request_bodies, [item.body])
+                        self.assertEqual(peer.request_bodies, [delivery_outcome.body])
 
                         verify_signed_request(
                             peer.requests[0],
-                            item.body,
+                            delivery_outcome.body,
                             origin=peer.origin,
                             key=settings.identity.private_key
                         )
@@ -116,9 +116,9 @@ class SharedServiceCancellationTests(unittest.IsolatedAsyncioTestCase):
                 queue = DeliveryQueue(root / "state", limits=limits)
 
                 try:
-                    retained = queue.next_pending_handoff(item.api_origin, item.provider_ref)
+                    retained = queue.next_pending_handoff(delivery_outcome.api_origin, delivery_outcome.provider_ref)
 
-                    self.assertEqual(retained.outcome, item)
+                    self.assertEqual(retained.outcome, delivery_outcome)
                     self.assertEqual(retained.publication_bytes(), handoff.publication_bytes())
                 finally:
                     queue.close()

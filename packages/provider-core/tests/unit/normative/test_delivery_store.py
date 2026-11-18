@@ -3,7 +3,7 @@
 import hashlib
 import tempfile
 import unittest
-from pathlib import Path
+import pathlib
 
 from provider_core.delivery_store import DeliveryConflict, DeliveryFull, DeliveryQueue, DeliveryStorageFailed, QueueLimits
 from tests.fakes.delivery import outcome
@@ -14,7 +14,7 @@ class DeliveryQueueTests(unittest.TestCase):
         self.directory = tempfile.TemporaryDirectory()
 
         self.addCleanup(self.directory.cleanup)
-        self.root = Path(self.directory.name)
+        self.root = pathlib.Path(self.directory.name)
         self.limits = QueueLimits(provider_items=1, provider_bytes=4096, total_items=2, total_bytes=8192)
 
     def open(self):
@@ -25,30 +25,30 @@ class DeliveryQueueTests(unittest.TestCase):
         return queue
 
     def test_restart_and_duplicate_keep_the_exact_original_body(self):
-        item = outcome()
+        delivery_outcome = outcome()
         queue = self.open()
-        accepted = queue.enqueue(item)
+        accepted = queue.enqueue(delivery_outcome)
 
-        self.assertEqual(accepted["body_sha256"], "sha256:" + hashlib.sha256(item.body).hexdigest())
-        self.assertEqual(queue.enqueue(item), accepted)
+        self.assertEqual(accepted["body_sha256"], "sha256:" + hashlib.sha256(delivery_outcome.body).hexdigest())
+        self.assertEqual(queue.enqueue(delivery_outcome), accepted)
         queue.close()
         queue = self.open()
 
-        self.assertEqual(queue.next_pending(item.api_origin, item.provider_ref), item)
-        facts = queue.inventory(item.api_origin, item.provider_ref)
+        self.assertEqual(queue.next_pending(delivery_outcome.api_origin, delivery_outcome.provider_ref), delivery_outcome)
+        facts = queue.inventory(delivery_outcome.api_origin, delivery_outcome.provider_ref)
 
         self.assertEqual(len(facts), 1)
         self.assertNotIn("body", facts[0])
-        self.assertEqual(facts[0]["body_bytes"], len(item.body))
+        self.assertEqual(facts[0]["body_bytes"], len(delivery_outcome.body))
 
     def test_publication_removes_the_row_and_deleted_database_payload(self):
         queue = self.open()
-        item = outcome()
+        delivery_outcome = outcome()
 
-        queue.enqueue(item)
-        queue.remove_published(item)
-        self.assertEqual(queue.inventory(item.api_origin, item.provider_ref), [])
-        self.assertIsNone(queue.next_pending(item.api_origin, item.provider_ref))
+        queue.enqueue(delivery_outcome)
+        queue.remove_published(delivery_outcome)
+        self.assertEqual(queue.inventory(delivery_outcome.api_origin, delivery_outcome.provider_ref), [])
+        self.assertIsNone(queue.next_pending(delivery_outcome.api_origin, delivery_outcome.provider_ref))
         queue.close()
         self.assertNotIn(b"SCIENTIFIC_PAYLOAD_NEEDLE", (self.root / "delivery.sqlite3").read_bytes())
         self.assertFalse((self.root / "delivery.sqlite3-journal").exists())

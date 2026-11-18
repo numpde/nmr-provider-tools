@@ -3,7 +3,7 @@
 import asyncio
 from dataclasses import replace
 import json
-from pathlib import Path
+import pathlib
 import ssl
 import tempfile
 import unittest
@@ -25,7 +25,7 @@ class DeliveryProgressNoticeTests(unittest.IsolatedAsyncioTestCase):
         scratch = tempfile.TemporaryDirectory()
 
         self.addCleanup(scratch.cleanup)
-        self.root = Path(scratch.name)
+        self.root = pathlib.Path(scratch.name)
 
         (self.root / "state").mkdir(mode=0o700)
         self.queue = DeliveryQueue(self.root / "state", limits=QueueLimits(4, 16384, 8, 32768))
@@ -270,9 +270,9 @@ class DeliveryProgressNoticeTests(unittest.IsolatedAsyncioTestCase):
 
         try:
             async with api_tls_peer("success") as peer, api_tls_peer("success") as other_trust:
-                item = replace(outcome(), api_origin=peer.origin)
+                delivery_outcome = replace(outcome(), api_origin=peer.origin)
 
-                self.queue.enqueue(item)
+                self.queue.enqueue(delivery_outcome)
 
                 worker = self.worker(
                     peer,
@@ -287,8 +287,8 @@ class DeliveryProgressNoticeTests(unittest.IsolatedAsyncioTestCase):
                 self.assertTrue(worker.paused, msg=evidence)
                 self.assertEqual(["delivery_binding_paused"], [facts["event"] for (_, facts, _) in self.notices], msg=evidence)
                 self.assertEqual([], peer.requests, msg=evidence)
-                self.assertEqual(item, self.queue.next_pending(item.api_origin, item.provider_ref), msg=evidence)
-                self.assertEqual(item.execution_attempt_ref, self.notices[0][1]["execution_attempt_ref"], msg=evidence)
+                self.assertEqual(delivery_outcome, self.queue.next_pending(delivery_outcome.api_origin, delivery_outcome.provider_ref), msg=evidence)
+                self.assertEqual(delivery_outcome.execution_attempt_ref, self.notices[0][1]["execution_attempt_ref"], msg=evidence)
                 self.assertTrue("recovered" not in self.notices[0][1] or self.notices[0][1]["recovered"] is False, msg=evidence)
         finally:
             loop.set_exception_handler(previous_handler)

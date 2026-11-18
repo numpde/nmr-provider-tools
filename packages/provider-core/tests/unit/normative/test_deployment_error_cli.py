@@ -5,7 +5,7 @@ import subprocess
 import sys
 import tempfile
 import unittest
-from pathlib import Path
+import pathlib
 
 from provider_core.deployment_binding import BindingDefinitionRejected
 from provider_core.deployment_errors import BindingDefinitionRejected as CanonicalBindingRefusal
@@ -30,14 +30,14 @@ class DeploymentErrorCliTests(unittest.TestCase):
         )
 
         with tempfile.TemporaryDirectory() as directory:
-            path = Path(directory) / "binding.toml"
+            binding_path = pathlib.Path(directory) / "binding.toml"
 
             for specimen in specimens:
                 with self.subTest(specimen=specimen):
-                    path.write_bytes(specimen)
-                    path.chmod(0o600)
+                    binding_path.write_bytes(specimen)
+                    binding_path.chmod(0o600)
 
-                    result = subprocess.run(
+                    completed_process = subprocess.run(
                         [
                             sys.executable,
                             "-I",
@@ -46,7 +46,7 @@ class DeploymentErrorCliTests(unittest.TestCase):
                             "provider_core.deployment_binding",
                             "paths",
                             "--definition",
-                            str(path),
+                            str(binding_path),
                             "--all"
                         ],
                         capture_output=True,
@@ -55,22 +55,22 @@ class DeploymentErrorCliTests(unittest.TestCase):
                         timeout=10,
                     )
 
-                    self.assertEqual(result.returncode, 2)
-                    report = json.loads(result.stderr)
+                    self.assertEqual(completed_process.returncode, 2)
+                    report = json.loads(completed_process.stderr)
 
                     self.assertEqual(report["failure"]["exception_type"], "BindingDefinitionRejected")
                     self.assertTrue(report["failure"]["message"])
-                    self.assertNotIn("PRIVATE_INPUT_CANARY", result.stderr)
-                    self.assertEqual(result.stdout, "")
+                    self.assertNotIn("PRIVATE_INPUT_CANARY", completed_process.stderr)
+                    self.assertEqual(completed_process.stdout, "")
 
     def test_route_cli_uses_canonical_refusal_after_module_execution(self):
         with tempfile.TemporaryDirectory() as directory:
-            path = Path(directory) / "binding.toml"
+            binding_path = pathlib.Path(directory) / "binding.toml"
 
-            path.write_bytes(definition(1))
-            path.chmod(0o600)
+            binding_path.write_bytes(definition(1))
+            binding_path.chmod(0o600)
 
-            result = subprocess.run(
+            completed_process = subprocess.run(
                 [
                     sys.executable,
                     "-I",
@@ -79,7 +79,7 @@ class DeploymentErrorCliTests(unittest.TestCase):
                     "provider_core.deployment_route",
                     "render",
                     "--definition",
-                    str(path),
+                    str(binding_path),
                     "--binding",
                     "fixture-0",
                     "--image",
@@ -100,10 +100,10 @@ class DeploymentErrorCliTests(unittest.TestCase):
                 timeout=10,
             )
 
-            self.assertEqual(result.returncode, 2)
-            report = json.loads(result.stderr)
+            self.assertEqual(completed_process.returncode, 2)
+            report = json.loads(completed_process.stderr)
 
             self.assertEqual(report["failure"]["exception_type"], "RouteProjectionRejected")
             self.assertIn("immutable full image ID", report["failure"]["message"])
-            self.assertNotIn("PRIVATE_INPUT_CANARY", result.stderr)
-            self.assertEqual(result.stdout, "")
+            self.assertNotIn("PRIVATE_INPUT_CANARY", completed_process.stderr)
+            self.assertEqual(completed_process.stdout, "")

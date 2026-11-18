@@ -3,8 +3,8 @@
 import asyncio
 import tempfile
 import unittest
+import pathlib
 from dataclasses import replace
-from pathlib import Path
 from unittest.mock import Mock, patch
 
 from provider_core.delivery_client import DeliveryEndpoint
@@ -25,7 +25,7 @@ class DeliveryWorkerTests(unittest.IsolatedAsyncioTestCase):
         self.scratch = tempfile.TemporaryDirectory()
 
         self.addCleanup(self.scratch.cleanup)
-        self.root = Path(self.scratch.name)
+        self.root = pathlib.Path(self.scratch.name)
 
         (self.root / "state").mkdir(mode=0o700)
         self.queue = DeliveryQueue(self.root / "state", limits=QueueLimits(4, 16384, 8, 32768))
@@ -67,15 +67,15 @@ class DeliveryWorkerTests(unittest.IsolatedAsyncioTestCase):
                 failure_message="SCIENTIFIC_PAYLOAD_NEEDLE"
             )
         ) as peer:
-            item = replace(outcome(), api_origin=peer.origin)
+            delivery_outcome = replace(outcome(), api_origin=peer.origin)
 
-            self.queue.enqueue(item)
+            self.queue.enqueue(delivery_outcome)
             worker = self.worker(peer)
 
             await asyncio.wait_for(worker.run(), 2)
-            self.assertEqual(peer.request_bodies, [item.body])
-            verify_signed_request(peer.requests[0], item.body, origin=peer.origin, key=worker.api.identity.private_key)
-            self.assertEqual(self.queue.inventory(item.api_origin, item.provider_ref), [])
+            self.assertEqual(peer.request_bodies, [delivery_outcome.body])
+            verify_signed_request(peer.requests[0], delivery_outcome.body, origin=peer.origin, key=worker.api.identity.private_key)
+            self.assertEqual(self.queue.inventory(delivery_outcome.api_origin, delivery_outcome.provider_ref), [])
             self.assertNotIn(b"SCIENTIFIC_PAYLOAD_NEEDLE", (self.root / "state/delivery.sqlite3").read_bytes())
             self.assertTrue(worker.api.retirement_confirmed)
 
@@ -92,22 +92,22 @@ class DeliveryWorkerTests(unittest.IsolatedAsyncioTestCase):
                 )
             ]
         ) as peer:
-            item = replace(outcome(), api_origin=peer.origin)
+            delivery_outcome = replace(outcome(), api_origin=peer.origin)
 
-            self.queue.enqueue(item)
+            self.queue.enqueue(delivery_outcome)
             worker = self.worker(peer)
 
             await asyncio.wait_for(worker.run(), 2)
-            self.assertEqual(peer.request_bodies, [item.body, item.body])
+            self.assertEqual(peer.request_bodies, [delivery_outcome.body, delivery_outcome.body])
 
             for request in peer.requests:
-                verify_signed_request(request, item.body, origin=peer.origin, key=worker.api.identity.private_key)
+                verify_signed_request(request, delivery_outcome.body, origin=peer.origin, key=worker.api.identity.private_key)
 
             signatures = [request.split(b"Signature-Input: ")[1].split(b"\r\n")[0] for request in peer.requests]
 
             self.assertNotEqual(signatures[0], signatures[1])
             self.assertEqual([facts["event"] for (_, facts) in self.notices], ["delivery_retry", "delivery_published"])
-            self.assertEqual(self.queue.inventory(item.api_origin, item.provider_ref), [])
+            self.assertEqual(self.queue.inventory(delivery_outcome.api_origin, delivery_outcome.provider_ref), [])
 
     async def test_api_rate_limit_and_authentication_refusals_recover_without_restart(self):
         async def response(_request, _body):
@@ -133,23 +133,23 @@ class DeliveryWorkerTests(unittest.IsolatedAsyncioTestCase):
             )
 
         async with api_tls_peer("success", response_factory=response) as peer:
-            item = replace(outcome(), api_origin=peer.origin)
+            delivery_outcome = replace(outcome(), api_origin=peer.origin)
 
-            self.queue.enqueue(item)
+            self.queue.enqueue(delivery_outcome)
             worker = self.worker(peer)
 
             await asyncio.wait_for(worker.run(), 2)
-            self.assertEqual(peer.request_bodies, [item.body] * 3)
+            self.assertEqual(peer.request_bodies, [delivery_outcome.body] * 3)
 
             for request in peer.requests:
-                verify_signed_request(request, item.body, origin=peer.origin, key=worker.api.identity.private_key)
+                verify_signed_request(request, delivery_outcome.body, origin=peer.origin, key=worker.api.identity.private_key)
 
             signatures = [request.split(b"Signature-Input: ")[1].split(b"\r\n")[0] for request in peer.requests]
 
             self.assertEqual(len(set(signatures)), 3)
             self.assertEqual([error.status for (error, facts) in self.notices if facts["event"] == "delivery_retry"], [429, 401])
             self.assertFalse(worker.paused)
-            self.assertEqual(self.queue.inventory(item.api_origin, item.provider_ref), [])
+            self.assertEqual(self.queue.inventory(delivery_outcome.api_origin, delivery_outcome.provider_ref), [])
 
     async def test_retry_after_above_backoff_cap_preserves_other_binding_progress_and_prompt_stop(self):
         retry_seen = asyncio.Event()
@@ -238,9 +238,9 @@ class DeliveryWorkerTests(unittest.IsolatedAsyncioTestCase):
                 replayed=True
             )
         ) as peer:
-            item = replace(outcome(), api_origin=peer.origin)
+            delivery_outcome = replace(outcome(), api_origin=peer.origin)
 
-            self.queue.enqueue(item)
+            self.queue.enqueue(delivery_outcome)
             self.queue.close()
             self.queue = DeliveryQueue(self.root / "state", limits=QueueLimits(4, 16384, 8, 32768))
 
@@ -248,8 +248,8 @@ class DeliveryWorkerTests(unittest.IsolatedAsyncioTestCase):
             self.inbox.queue = self.queue
 
             await asyncio.wait_for(self.worker(peer).run(), 2)
-            self.assertEqual(peer.request_bodies, [item.body])
-            self.assertEqual(self.queue.inventory(item.api_origin, item.provider_ref), [])
+            self.assertEqual(peer.request_bodies, [delivery_outcome.body])
+            self.assertEqual(self.queue.inventory(delivery_outcome.api_origin, delivery_outcome.provider_ref), [])
 
     async def test_topology_failure_pauses_binding_without_holding_its_pending_items(self):
         # silent-defaults: allow-contract -- Change only the topology header to exercise the wrong-environment refusal.
@@ -309,9 +309,9 @@ class DeliveryWorkerTests(unittest.IsolatedAsyncioTestCase):
 
     async def test_cancelled_send_preserves_original_queue_and_uncertain_api_effect(self):
         async with api_tls_peer("headers-stall") as peer:
-            item = replace(outcome(), api_origin=peer.origin)
+            delivery_outcome = replace(outcome(), api_origin=peer.origin)
 
-            self.queue.enqueue(item)
+            self.queue.enqueue(delivery_outcome)
             worker = self.worker(peer)
             original = asyncio.create_task(worker.run())
 
@@ -321,8 +321,8 @@ class DeliveryWorkerTests(unittest.IsolatedAsyncioTestCase):
             with self.assertRaises(asyncio.CancelledError):
                 await original
 
-            self.assertEqual(peer.request_bodies, [item.body])
-            self.assertEqual(self.queue.next_pending(item.api_origin, item.provider_ref), item)
+            self.assertEqual(peer.request_bodies, [delivery_outcome.body])
+            self.assertEqual(self.queue.next_pending(delivery_outcome.api_origin, delivery_outcome.provider_ref), delivery_outcome)
             self.assertTrue(worker.api.retirement_confirmed)
             self.assertTrue(worker.failure.api_failure.attempt_mutation_may_have_committed)
             self.assertFalse(owned_details(worker.failure)["api_receipt_received"])
@@ -336,9 +336,9 @@ class DeliveryWorkerTests(unittest.IsolatedAsyncioTestCase):
                 failure_message="SCIENTIFIC_PAYLOAD_NEEDLE"
             )
         ) as peer:
-            item = replace(outcome(), api_origin=peer.origin)
+            delivery_outcome = replace(outcome(), api_origin=peer.origin)
 
-            self.queue.enqueue(item)
+            self.queue.enqueue(delivery_outcome)
             worker = self.worker(peer)
             failure = DeliveryStorageFailed("Synthetic storage write refusal.")
 
@@ -348,8 +348,8 @@ class DeliveryWorkerTests(unittest.IsolatedAsyncioTestCase):
 
             self.assertIs(stopped.exception.cause, failure)
             self.assertTrue(owned_details(stopped.exception)["api_receipt_received"])
-            self.assertEqual(peer.request_bodies, [item.body])
-            self.assertEqual(self.queue.next_pending(item.api_origin, item.provider_ref), item)
+            self.assertEqual(peer.request_bodies, [delivery_outcome.body])
+            self.assertEqual(self.queue.next_pending(delivery_outcome.api_origin, delivery_outcome.provider_ref), delivery_outcome)
 
     async def test_later_queue_read_does_not_inherit_previous_items_receipt(self):
         async with api_tls_peer(
@@ -360,20 +360,20 @@ class DeliveryWorkerTests(unittest.IsolatedAsyncioTestCase):
                 failure_message="SCIENTIFIC_PAYLOAD_NEEDLE"
             )
         ) as peer:
-            item = replace(outcome(), api_origin=peer.origin)
+            delivery_outcome = replace(outcome(), api_origin=peer.origin)
 
-            self.queue.enqueue(item)
+            self.queue.enqueue(delivery_outcome)
             worker = self.worker(peer, stop_on="delivery_worker_failed")
             failure = DeliveryStorageFailed("Synthetic next-item read refusal.")
 
-            with patch.object(self.queue, "next_pending", side_effect=[item, failure]):
+            with patch.object(self.queue, "next_pending", side_effect=[delivery_outcome, failure]):
                 with self.assertRaises(DeliveryWorkerFailed) as stopped:
                     await asyncio.wait_for(worker.run(), 2)
 
             self.assertIs(stopped.exception.cause, failure)
             self.assertFalse(owned_details(stopped.exception)["api_receipt_received"])
-            self.assertEqual(peer.request_bodies, [item.body])
-            self.assertEqual(self.queue.inventory(item.api_origin, item.provider_ref), [])
+            self.assertEqual(peer.request_bodies, [delivery_outcome.body])
+            self.assertEqual(self.queue.inventory(delivery_outcome.api_origin, delivery_outcome.provider_ref), [])
 
     async def test_cancellation_during_final_retirement_keeps_cancellation_and_cleanup_evidence(self):
         async with api_tls_peer("success") as peer:

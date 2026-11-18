@@ -4,7 +4,7 @@ import asyncio
 import errno
 import ssl
 import unittest
-from pathlib import Path
+import pathlib
 
 import httpcore
 
@@ -15,7 +15,7 @@ from provider_core.transport import ExchangeFailed
 class DeliveryAvailabilityTests(unittest.TestCase):
     def setUp(self):
         self.client = DeliveryClient(
-            DeliveryEndpoint("https://api.example", "provider:example", Path("/tmp/delivery-test.sock")),
+            DeliveryEndpoint("https://api.example", "provider:example", pathlib.Path("/tmp/delivery-test.sock")),
             exchange_seconds=1,
             retirement_seconds=1,
         )

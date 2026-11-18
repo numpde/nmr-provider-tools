@@ -4,7 +4,7 @@ import asyncio
 from dataclasses import replace
 import io
 import json
-from pathlib import Path
+import pathlib
 import tempfile
 from threading import Event
 import unittest
@@ -25,7 +25,7 @@ from tests.fakes.delivery import outcome
 class PublicationStorageStallTests(unittest.IsolatedAsyncioTestCase):
     async def asyncSetUp(self):
         directory = self.enterContext(tempfile.TemporaryDirectory())
-        self.root = Path(directory)
+        self.root = pathlib.Path(directory)
 
         (self.root / "state").mkdir(mode=0o700)
         self.queue = DeliveryQueue(self.root / "state", limits=QueueLimits(4, 16384, 8, 32768))
@@ -79,11 +79,11 @@ class PublicationStorageStallTests(unittest.IsolatedAsyncioTestCase):
                 failure_message="SCIENTIFIC_PAYLOAD_NEEDLE",
             )
         ) as peer:
-            item = replace(outcome(), api_origin=peer.origin)
+            delivery_outcome = replace(outcome(), api_origin=peer.origin)
 
-            self.queue.enqueue(item)
+            self.queue.enqueue(delivery_outcome)
             client = api(HttpTransport(trust=peer.trust, exchange_seconds=0.2, retirement_seconds=0.2), peer.origin)
-            endpoint = DeliveryEndpoint(peer.origin, item.provider_ref, self.root / "unused-relay.sock")
+            endpoint = DeliveryEndpoint(peer.origin, delivery_outcome.provider_ref, self.root / "unused-relay.sock")
 
             worker = DeliveryWorker(
                 self.inbox,
@@ -367,6 +367,6 @@ class PublicationStorageStallTests(unittest.IsolatedAsyncioTestCase):
             await asyncio.sleep(alert_seconds + 0.02)
 
             self.assertEqual(["delivery_published"], [facts["event"] for (_, facts) in notices])
-            self.assertEqual([item.body], peer.request_bodies)
-            self.assertEqual([], self.queue.inventory(item.api_origin, item.provider_ref))
+            self.assertEqual([delivery_outcome.body], peer.request_bodies)
+            self.assertEqual([], self.queue.inventory(delivery_outcome.api_origin, delivery_outcome.provider_ref))
             self.assertTrue(client.retirement_confirmed)

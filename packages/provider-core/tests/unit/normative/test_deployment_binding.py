@@ -5,7 +5,7 @@ import subprocess
 import sys
 import tempfile
 import unittest
-from pathlib import Path
+import pathlib
 from unittest.mock import patch
 
 from provider_core.deployment_binding import BindingDefinitionRejected, parse_deployment_bindings
@@ -87,11 +87,11 @@ class DeploymentBindingTests(unittest.TestCase):
         selected = parse_deployment_bindings(definition(2)).selected("fixture-1")
 
         with tempfile.TemporaryDirectory() as directory:
-            path = Path(directory) / "definition.toml"
+            definition_path = pathlib.Path(directory) / "definition.toml"
 
-            path.write_bytes(definition(2))
+            definition_path.write_bytes(definition(2))
 
-            result = subprocess.run(
+            completed_process = subprocess.run(
                 [
                     sys.executable,
                     "-I",
@@ -100,7 +100,7 @@ class DeploymentBindingTests(unittest.TestCase):
                     "provider_core.deployment_binding",
                     "describe-binding",
                     "--definition",
-                    str(path),
+                    str(definition_path),
                     "--binding",
                     "fixture-1"
                 ],
@@ -110,7 +110,7 @@ class DeploymentBindingTests(unittest.TestCase):
                 timeout=5,
             )
 
-        self.assertEqual(0, result.returncode, result.stderr)
+        self.assertEqual(0, completed_process.returncode, completed_process.stderr)
 
         self.assertEqual(
             {
@@ -119,7 +119,7 @@ class DeploymentBindingTests(unittest.TestCase):
                 "socket_group_id": 65532,
                 "input_paths": ["/synthetic/signing.json"],
             },
-            json.loads(result.stdout)
+            json.loads(completed_process.stdout)
         )
 
     def test_selected_binding_derives_wire_identity_volume_and_group_without_opening_credentials(self):
@@ -132,7 +132,7 @@ class DeploymentBindingTests(unittest.TestCase):
         self.assertEqual("https://api.example", selected.endpoint.api_origin)
         self.assertEqual("provider:fixture-1", selected.endpoint.provider_ref)
         self.assertEqual(65532, selected.endpoint.socket_group_id)
-        self.assertEqual(Path("/run/delivery/delivery.sock"), selected.endpoint.socket_path)
+        self.assertEqual(pathlib.Path("/run/delivery/delivery.sock"), selected.endpoint.socket_path)
         self.assertNotEqual(host.selected("fixture-0").ipc_volume, selected.ipc_volume)
         self.assertTrue(selected.ipc_volume.startswith("nmr-api-delivery-ipc-"))
 

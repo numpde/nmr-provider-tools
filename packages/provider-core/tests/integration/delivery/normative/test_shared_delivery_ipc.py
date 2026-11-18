@@ -2,7 +2,7 @@
 
 import tempfile
 import unittest
-from pathlib import Path
+import pathlib
 from unittest.mock import Mock
 
 from provider_core.api_config import api_settings_with_material
@@ -20,7 +20,7 @@ class SharedDeliveryIPCTests(unittest.IsolatedAsyncioTestCase):
         self.scratch = tempfile.TemporaryDirectory()
 
         self.addCleanup(self.scratch.cleanup)
-        root = Path(self.scratch.name)
+        root = pathlib.Path(self.scratch.name)
 
         (root / "ipc").mkdir(mode=0o700)
         (root / "state").mkdir(mode=0o700)
@@ -84,18 +84,18 @@ class SharedDeliveryIPCTests(unittest.IsolatedAsyncioTestCase):
 
     async def test_failed_publisher_wake_preserves_acknowledged_commit_and_fails_service(self):
         client = self.client("provider:first")
-        item = outcome(provider="provider:first")
+        delivery_outcome = outcome(provider="provider:first")
         self.inbox.on_accepted = Mock(side_effect=OSError("wake failed"))
 
-        self.assertEqual(await client.submit(item), DeliveryHandoff(item, client.publication).acceptance())
+        self.assertEqual(await client.submit(delivery_outcome), DeliveryHandoff(delivery_outcome, client.publication).acceptance())
         self.assertTrue(self.inbox.failed.is_set())
         self.assertIsInstance(self.inbox.failure, OSError)
-        self.assertEqual(self.queue.next_pending_handoff(item.api_origin, item.provider_ref).outcome, item)
+        self.assertEqual(self.queue.next_pending_handoff(delivery_outcome.api_origin, delivery_outcome.provider_ref).outcome, delivery_outcome)
 
     async def test_lost_ack_replays_the_same_retained_result_and_material(self):
         client = self.client("provider:first")
-        item = outcome(provider="provider:first")
-        expected = DeliveryHandoff(item, client.publication)
+        delivery_outcome = outcome(provider="provider:first")
+        expected = DeliveryHandoff(delivery_outcome, client.publication)
         respond = self.inbox._respond
         dropped = False
 
@@ -115,15 +115,15 @@ class SharedDeliveryIPCTests(unittest.IsolatedAsyncioTestCase):
         self.inbox._respond = lose_first
 
         with self.assertRaises(DeliveryUnavailable):
-            await client.submit(item)
+            await client.submit(delivery_outcome)
 
         await client.retire()
-        self.assertEqual(expected.acceptance(), await client.submit(item))
-        retained = self.queue.next_pending_handoff(item.api_origin, item.provider_ref)
+        self.assertEqual(expected.acceptance(), await client.submit(delivery_outcome))
+        retained = self.queue.next_pending_handoff(delivery_outcome.api_origin, delivery_outcome.provider_ref)
 
-        self.assertEqual(item, retained.outcome)
+        self.assertEqual(delivery_outcome, retained.outcome)
         self.assertEqual(client.publication, retained.publication)
-        self.assertEqual(1, len(self.queue.inventory(item.api_origin, item.provider_ref)))
+        self.assertEqual(1, len(self.queue.inventory(delivery_outcome.api_origin, delivery_outcome.provider_ref)))
 
     async def test_full_queue_refuses_new_handoff_but_accepts_identical_replay(self):
         client = self.client("provider:first")

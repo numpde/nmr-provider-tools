@@ -2,7 +2,7 @@
 
 import tempfile
 import unittest
-from pathlib import Path
+import pathlib
 from unittest.mock import Mock
 
 from provider_core.delivery_config import DeliveryConfigurationRejected, load_delivery_service
@@ -33,7 +33,7 @@ class DeliveryConfigurationRefusalTests(unittest.TestCase):
                         load_delivery_service(files.path, on_notice=Mock(), diagnostic_status=healthy_diagnostics)
 
                     self.assertNotIn("PRIVATE", str(refused.exception))
-                    self.assertFalse((Path(directory) / "state").exists())
+                    self.assertFalse((pathlib.Path(directory) / "state").exists())
 
     def test_secret_grant_stays_private_without_permission_workarounds(self):
         with tempfile.TemporaryDirectory() as directory:
@@ -49,4 +49,4 @@ class DeliveryConfigurationRefusalTests(unittest.TestCase):
                 with self.subTest(mode=oct(mode)), self.assertRaisesRegex(DeliveryConfigurationRejected, "0400 or 0600"):
                     load_delivery_service(files.path, on_notice=Mock(), diagnostic_status=healthy_diagnostics)
 
-            self.assertFalse((Path(directory) / "state").exists())
+            self.assertFalse((pathlib.Path(directory) / "state").exists())

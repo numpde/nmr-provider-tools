@@ -3,7 +3,7 @@
 import random
 import tempfile
 import unittest
-from pathlib import Path
+import pathlib
 from unittest.mock import Mock
 
 from provider_core.api_config import api_settings_with_material
@@ -67,7 +67,7 @@ class DeliveryFaultSequenceTests(unittest.TestCase):
             (randomizer, expected, trace) = (random.Random(seed), {}, [])
 
             with tempfile.TemporaryDirectory() as directory:
-                queue = DeliveryQueue(Path(directory), limits=limits)
+                queue = DeliveryQueue(pathlib.Path(directory), limits=limits)
 
                 try:
                     for step in range(64):
@@ -85,7 +85,7 @@ class DeliveryFaultSequenceTests(unittest.TestCase):
                         with self.subTest(seed=seed, step=step, trace=tuple(trace)):
                             if action == "reopen":
                                 queue.close()
-                                queue = DeliveryQueue(Path(directory), limits=limits)
+                                queue = DeliveryQueue(pathlib.Path(directory), limits=limits)
                             elif action == "enqueue" or not expected:
                                 item = DeliveryHandoff(
                                     outcome(provider=provider, suffix=suffix, message=f"result-{seed}-{step}"),
@@ -134,7 +134,7 @@ class DeliveryFaultSequenceTests(unittest.TestCase):
                             self.check_outstanding(queue, expected, providers)
 
                     queue.close()
-                    queue = DeliveryQueue(Path(directory), limits=limits)
+                    queue = DeliveryQueue(pathlib.Path(directory), limits=limits)
 
                     with self.subTest(seed=seed, phase="final restart", trace=tuple(trace)):
                         self.check_outstanding(queue, expected, providers)
