@@ -2,11 +2,11 @@
 
 from __future__ import annotations
 
-from collections.abc import Mapping
-
 from provider_core.container_guard import require_container
 
 require_container()
+
+from collections.abc import Mapping
 
 from provider_core.contribution import CallBinding, NoInput, ref
 
