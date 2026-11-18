@@ -16,6 +16,7 @@ from typing import Protocol
 from provider_core.attempt_record import AcknowledgedAttempt, ProtectedEvidence
 from provider_core.job_input import VerifiedJobInput
 from provider_core.runner_session import RunnerSession
+from provider_core.type_requirements import require_instance, require_type
 
 
 class ReportCondition(Protocol):
@@ -66,26 +67,17 @@ class ObservedWorkerCrash(RuntimeError):
     """
 
     def __init__(self, acknowledged, *, phase, owner, runner, evidence, cause):
-        if not (type(acknowledged) is (expected_type := AcknowledgedAttempt)):
-            raise TypeError(
-                f"{type(acknowledged)=} ≠ {expected_type=}"
-            )
+        require_type(acknowledged, AcknowledgedAttempt)
 
         if phase not in ("preparing", "running") or owner is None:
             raise ValueError("Observed crash requires its actual admission, scientific owner, phase, native session and bounded evidence")
 
-        if not (type(runner) is (expected_runner_type := RunnerSession)):
-            raise TypeError(
-                f"{type(runner)=} ≠ {expected_runner_type=}"
-            )
+        require_type(runner, RunnerSession)
 
-        if not (type(evidence) is (expected_evidence_type := ProtectedEvidence)):
-            raise TypeError(
-                f"{type(evidence)=} ≠ {expected_evidence_type=}"
-            )
+        require_type(evidence, ProtectedEvidence)
 
-        if cause is not None and not isinstance(cause, (expected_cause_type := BaseException)):
-            raise TypeError(f"{type(cause)=} ≠ {expected_cause_type=}")
+        if cause is not None:
+            require_instance(cause, BaseException)
 
         original = runner.original_exit
 
@@ -130,10 +122,7 @@ class PreparedAnalysis:
     identity: ProtectedEvidence = field(repr=False)
 
     def __post_init__(self):
-        if not (type((actual_identity := self.identity)) is (expected_type := ProtectedEvidence)):
-            raise TypeError(
-                f"{type(actual_identity)=} ≠ {expected_type=}"
-            )
+        require_type(self.identity, ProtectedEvidence)
 
 
 class AnalysisSession(Protocol):
