@@ -1,7 +1,8 @@
 """Make multiline and/or expressions read as a vertical list of conditions.
 
-Group each operand with parentheses. Direct calls and attribute reads can
-stand on their own. The operator ends the preceding operand's line.
+Group each operand with parentheses. Direct calls, directly negated calls
+and attribute reads can stand on their own. The operator ends the preceding
+operand's line.
 """
 
 from tools.container_guard import require_container
@@ -34,7 +35,17 @@ def multiline_boolean_findings(*, source: str) -> list[tuple[int, str]]:
 
             grouped = before.endswith(b"(") and after.startswith(b")")
 
-            if not grouped and not isinstance(operand, (ast.Call, ast.Attribute)):
+            negated_call = (
+                isinstance(operand, ast.UnaryOp) and
+                isinstance(operand.op, ast.Not) and
+                isinstance(operand.operand, ast.Call)
+            )
+
+            if not (
+                (grouped) or
+                (negated_call) or
+                isinstance(operand, (ast.Call, ast.Attribute))
+            ):
                 findings.append((operand.lineno, "group each multiline Boolean operand"))
                 continue
 
@@ -115,6 +126,22 @@ class MultilineBooleanPostureTests(unittest.TestCase):
                 )
             ),
         )
+
+    def test_directly_negated_call_in_a_multiline_filter(self) -> None:
+        source = (
+            "unguarded = [\n"
+            "    path\n"
+            "    for path in paths\n"
+            "    if\n"
+            "    (path != excluded) and\n"
+            "    not has_early_guard(\n"
+            "        path.read_text(),\n"
+            "        package_marker=path.name == '__init__.py',\n"
+            "    )\n"
+            "]\n"
+        )
+
+        self.assertEqual(first=[], second=multiline_boolean_findings(source=source))
 
     def test_authored_python_uses_multiline_boolean_layout(self) -> None:
         findings = [
