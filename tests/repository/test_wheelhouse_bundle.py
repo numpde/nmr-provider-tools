@@ -11,7 +11,7 @@ import subprocess
 import tempfile
 import unittest
 import zipfile
-from pathlib import Path
+import pathlib
 
 from tools.build_wheelhouse_bundle import build
 from tools.core_environment import wheelhouse_source_inventory
@@ -21,7 +21,7 @@ from tools.installer import create_environment, pip_command
 class WheelhouseBundleTests(unittest.TestCase):
     def test_target_pip_does_not_expose_other_checker_packages(self):
         with tempfile.TemporaryDirectory() as temporary:
-            root = Path(temporary)
+            root = pathlib.Path(temporary)
             canary = root / "checker-site/checker_only_canary-1.0.dist-info"
 
             canary.mkdir(parents=True)
@@ -29,7 +29,7 @@ class WheelhouseBundleTests(unittest.TestCase):
             environment = root / "target"
             command = pip_command(create_environment(environment))
 
-            result = subprocess.run(
+            completed_process = subprocess.run(
                 [*command, "list", "--format=json"],
                 env=os.environ | {"PYTHONPATH": str(root / "checker-site")},
                 check=True,
@@ -37,11 +37,11 @@ class WheelhouseBundleTests(unittest.TestCase):
                 text=True
             )
 
-            self.assertNotIn("checker-only-canary", {item["name"] for item in json.loads(result.stdout)})
+            self.assertNotIn("checker-only-canary", {item["name"] for item in json.loads(completed_process.stdout)})
 
     def test_bundle_rebuild_is_stable_and_refuses_wrong_dependency_bytes(self):
         with tempfile.TemporaryDirectory() as temporary:
-            root = Path(temporary)
+            root = pathlib.Path(temporary)
 
             (root / "wheelhouse_tool").mkdir()
 

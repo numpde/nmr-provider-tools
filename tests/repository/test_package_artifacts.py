@@ -13,8 +13,8 @@ import tarfile
 import tempfile
 import unittest
 import zipfile
+import pathlib
 from contextlib import redirect_stdout
-from pathlib import Path
 from unittest.mock import call, patch
 
 from tools.package import (
@@ -36,7 +36,7 @@ class PackageArtifactTests(unittest.TestCase):
         temporary = tempfile.TemporaryDirectory()
 
         self.addCleanup(temporary.cleanup)
-        self.root = Path(temporary.name)
+        self.root = pathlib.Path(temporary.name)
 
     def _acquisition_archive(self, path, members):
         with tarfile.open(path, "w:gz") as archive:
@@ -55,29 +55,29 @@ class PackageArtifactTests(unittest.TestCase):
     def test_source_normalization_cleans_scratch_and_preserves_failed_input(self):
         for kind in (tarfile.REGTYPE, tarfile.SYMTYPE):
             with self.subTest(kind=kind):
-                path = self.root / "source.tar.gz"
+                source_archive_path = self.root / "source.tar.gz"
 
-                with tarfile.open(path, "w:gz") as archive:
+                with tarfile.open(source_archive_path, "w:gz") as archive:
                     member = tarfile.TarInfo("package/member")
                     member.type = kind
                     member.uid = 123
 
                     archive.addfile(member, io.BytesIO())
 
-                original = path.read_bytes()
+                original = source_archive_path.read_bytes()
 
                 if kind == tarfile.SYMTYPE:
                     with self.assertRaisesRegex(ValueError, "unsupported link"):
-                        normalize_sdist(path)
+                        normalize_sdist(source_archive_path)
 
-                    self.assertEqual(original, path.read_bytes())
+                    self.assertEqual(original, source_archive_path.read_bytes())
                 else:
-                    normalize_sdist(path)
+                    normalize_sdist(source_archive_path)
 
-                    with tarfile.open(path, "r:gz") as archive:
+                    with tarfile.open(source_archive_path, "r:gz") as archive:
                         self.assertEqual(0, archive.getmembers()[0].uid)
 
-                self.assertEqual([path], list(self.root.iterdir()))
+                self.assertEqual([source_archive_path], list(self.root.iterdir()))
 
     def test_acquisition_sources_are_admitted_before_extraction(self):
         cases = (
@@ -267,9 +267,9 @@ class PackageArtifactTests(unittest.TestCase):
             ("provider_core-0.2.0/duplicate", "duplicate")
         ):
             with self.subTest(name=name, kind=kind):
-                path = self.root / "source.tar.gz"
+                source_archive_path = self.root / "source.tar.gz"
 
-                with tarfile.open(path, "w:gz") as archive:
+                with tarfile.open(source_archive_path, "w:gz") as archive:
                     member = tarfile.TarInfo(name)
                     member.mode = 0o644
 
@@ -283,7 +283,7 @@ class PackageArtifactTests(unittest.TestCase):
                 destination = self.root / "extracted"
 
                 with self.assertRaisesRegex(ValueError, "source archive"):
-                    unpack_source(path, destination, "0.2.0")
+                    unpack_source(source_archive_path, destination, "0.2.0")
 
                 self.assertFalse(destination.exists())
 
@@ -324,7 +324,7 @@ class PackageArtifactTests(unittest.TestCase):
             source_payload(source, inventory)
 
     def test_wheel_payload_detects_missing_extra_or_changed_runtime_files(self):
-        path = self.root / "core.whl"
+        wheel_path = self.root / "core.whl"
         expected = {"provider_core/__init__.py": b"owned\n", "provider_core/delivery_client.py": b"client\n"}
 
         for payload in (
@@ -333,12 +333,12 @@ class PackageArtifactTests(unittest.TestCase):
             expected | {"provider_core/delivery_client.py": b"changed"}
         ):
             with self.subTest(payload=payload):
-                with zipfile.ZipFile(path, "w") as archive:
+                with zipfile.ZipFile(wheel_path, "w") as archive:
                     for (name, value) in payload.items():
                         archive.writestr(name, value)
 
                 with self.assertRaisesRegex(ValueError, "wheel"):
-                    wheel_payload(path, expected, "0.2.0")
+                    wheel_payload(wheel_path, expected, "0.2.0")
 
     def test_behavioral_test_closure_keeps_runtime_lock_pure(self):
         runtime = self.root / "runtime.lock"
@@ -401,7 +401,7 @@ class PackageArtifactTests(unittest.TestCase):
             actual = build_source_wheel(
                 source=source,
                 staged_source=staged_source,
-                python=Path("/runtime/example-builder/environment/bin/python"),
+                python=pathlib.Path("/runtime/example-builder/environment/bin/python"),
                 output=output,
             )
 
@@ -437,7 +437,7 @@ class PackageArtifactTests(unittest.TestCase):
             build_source_wheel(
                 source=source,
                 staged_source=staged_source,
-                python=Path("/runtime/builder/bin/python"),
+                python=pathlib.Path("/runtime/builder/bin/python"),
                 output=self.root,
             )
 
@@ -459,7 +459,7 @@ class PackageArtifactTests(unittest.TestCase):
                 build_source_wheel(
                     source=source,
                     staged_source=source / "build",
-                    python=Path("/runtime/builder/bin/python"),
+                    python=pathlib.Path("/runtime/builder/bin/python"),
                     output=self.root,
                 )
 
@@ -469,7 +469,7 @@ class PackageArtifactTests(unittest.TestCase):
                 build_source_wheel(
                     source=source,
                     staged_source=self.root / "staged",
-                    python=Path("/runtime/builder/bin/python"),
+                    python=pathlib.Path("/runtime/builder/bin/python"),
                     output=self.root,
                 )
 

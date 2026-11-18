@@ -20,7 +20,8 @@ import tarfile
 import tempfile
 import tomllib
 import zipfile
-from pathlib import Path, PurePosixPath
+import pathlib
+from pathlib import PurePosixPath
 
 from tools.artifacts import regular_file
 from tools.build_wheelhouse_bundle import build as build_wheelhouse_bundle
@@ -36,7 +37,7 @@ def artifact_names(version):
 
 
 def qualify_wheelhouse_bundle(bundle, scratch):
-    locked_requirements = requirements(Path("/wheelhouse-tool.lock"))
+    locked_requirements = requirements(pathlib.Path("/wheelhouse-tool.lock"))
 
     (packaging_version, accepted_hashes) = next(
         (version, hashes)
@@ -45,7 +46,7 @@ def qualify_wheelhouse_bundle(bundle, scratch):
     )
 
     packaging_wheel_name = f"packaging-{packaging_version}-py3-none-any.whl"
-    packaging_digest = digest(Path("/wheelhouse") / packaging_wheel_name)
+    packaging_digest = digest(pathlib.Path("/wheelhouse") / packaging_wheel_name)
 
     if not (packaging_digest in accepted_hashes):
         raise ValueError("Cannot qualify wheelhouse bundle: cached packaging wheel differs from its lock.")
@@ -302,7 +303,7 @@ def qualify_acquisition_bundle(bundle, scratch, expected_source_files):
         check=True
     )
 
-    cold_import_check = Path(__file__).resolve().parent.parent / "containers/isolated/acquisition_import_check.py"
+    cold_import_check = pathlib.Path(__file__).resolve().parent.parent / "containers/isolated/acquisition_import_check.py"
 
     subprocess.run(
         ["python3", "-I", "-S", "-B", str(cold_import_check), str(destination)],
@@ -526,10 +527,10 @@ def qualify_installed(wheel, lock, source, pool, root, suites):
 
 def check(artifacts, revision):
     with tempfile.TemporaryDirectory(prefix="package-proof-") as temporary:
-        scratch = Path(temporary)
+        scratch = pathlib.Path(temporary)
 
-        for path in artifacts.iterdir():
-            with regular_file(path):
+        for artifact in artifacts.iterdir():
+            with regular_file(artifact):
                 pass
 
         captured_wheels = list(artifacts.glob("*.whl"))
@@ -548,7 +549,7 @@ def check(artifacts, revision):
         release_version = wheel_filename[1]
         artifact_prefix = f"provider_core-{release_version}"
 
-        if {path.name for path in artifacts.iterdir()} != artifact_names(release_version):
+        if {artifact.name for artifact in artifacts.iterdir()} != artifact_names(release_version):
             raise ValueError("Cannot qualify package: expect exactly the declared release artifacts.")
 
         checksum_manifest_path = artifacts / (artifact_prefix + "-sha256.json")
@@ -556,9 +557,9 @@ def check(artifacts, revision):
         recorded_hashes = json.loads(checksum_manifest_path.read_text())
 
         observed_hashes = {
-            path.name: digest(path)
-            for path in artifacts.iterdir()
-            if not path.name.endswith("-sha256.json")
+            artifact.name: digest(artifact)
+            for artifact in artifacts.iterdir()
+            if not artifact.name.endswith("-sha256.json")
         }
 
         if recorded_hashes != observed_hashes:
@@ -569,8 +570,8 @@ def check(artifacts, revision):
         if (
             release_record["source_revision"] != revision
             or release_record["files"] != {
-                name: value
-                for (name, value) in observed_hashes.items()
+                name: checksum
+                for (name, checksum) in observed_hashes.items()
                 if not name.endswith("-release.json")
             }
         ):
@@ -579,17 +580,17 @@ def check(artifacts, revision):
                 "identities differ from this release."
             )
 
-        if release_record["tool_source_files"] != wheelhouse_source_inventory(Path("/workspace/wheelhouse_tool")):
+        if release_record["tool_source_files"] != wheelhouse_source_inventory(pathlib.Path("/workspace/wheelhouse_tool")):
             raise ValueError("Cannot qualify package: wheelhouse tool source differs from the release inputs.")
 
         wheelhouse_bundle = artifacts / f"wheelhouse-tool-{release_version}.pyz"
         rebuilt_wheelhouse_bundle = scratch / wheelhouse_bundle.name
 
         build_wheelhouse_bundle(
-            Path("/wheelhouse"),
+            pathlib.Path("/wheelhouse"),
             rebuilt_wheelhouse_bundle,
-            Path("/workspace"),
-            Path("/wheelhouse-tool.lock"),
+            pathlib.Path("/workspace"),
+            pathlib.Path("/wheelhouse-tool.lock"),
         )
 
         if wheelhouse_bundle.read_bytes() != rebuilt_wheelhouse_bundle.read_bytes():
@@ -601,11 +602,11 @@ def check(artifacts, revision):
         rebuilt_acquisition_bundle = scratch / acquisition_bundle.name
 
         acquisition_record = build_acquisition_bundle(
-            Path("/wheelhouse"),
+            pathlib.Path("/wheelhouse"),
             rebuilt_acquisition_bundle,
-            Path("/workspace"),
+            pathlib.Path("/workspace"),
             captured_wheels[0],
-            Path("/acquisition-bootstrap.pylock.toml"),
+            pathlib.Path("/acquisition-bootstrap.pylock.toml"),
             revision=revision,
             wheelhouse_bundle=wheelhouse_bundle,
         )
@@ -641,7 +642,7 @@ def check(artifacts, revision):
 
         runtime_install_lock = artifacts / (artifact_prefix + "-install.lock")
 
-        if requirements(runtime_install_lock) != requirements(Path("/core-runtime.lock")) | {
+        if requirements(runtime_install_lock) != requirements(pathlib.Path("/core-runtime.lock")) | {
             ("provider-core", release_version): {digest(captured_wheels[0])}
         }:
             raise ValueError(
@@ -665,9 +666,9 @@ def check(artifacts, revision):
 
         (rebuilt_wheel, rebuilt_lock, rebuilt_dependency_inputs) = build_candidate(
             extracted_source,
-            Path("/core-runtime.lock"),
-            Path("/core-build.lock"),
-            Path("/wheelhouse"),
+            pathlib.Path("/core-runtime.lock"),
+            pathlib.Path("/core-build.lock"),
+            pathlib.Path("/wheelhouse"),
             rebuild_output,
         )
 
@@ -680,7 +681,7 @@ def check(artifacts, revision):
                 "inputs differ from the original wheel."
             )
 
-        runtime_root = Path("/runtime/package-proof")
+        runtime_root = pathlib.Path("/runtime/package-proof")
 
         runtime_root.mkdir()
 
@@ -688,7 +689,7 @@ def check(artifacts, revision):
             captured_wheels[0],
             runtime_install_lock,
             extracted_source,
-            Path("/wheelhouse"),
+            pathlib.Path("/wheelhouse"),
             runtime_root / "original",
             ("unit", "contract", "integration"),
         )
@@ -697,7 +698,7 @@ def check(artifacts, revision):
             rebuilt_wheel,
             rebuilt_lock,
             extracted_source,
-            Path("/wheelhouse"),
+            pathlib.Path("/wheelhouse"),
             runtime_root / "rebuilt",
             ("contract",),
         )
@@ -706,7 +707,7 @@ def check(artifacts, revision):
             captured_wheels[0],
             native_install_lock,
             extracted_source,
-            Path("/wheelhouse"),
+            pathlib.Path("/wheelhouse"),
             runtime_root / "native",
             ("native",),
         )
@@ -714,9 +715,9 @@ def check(artifacts, revision):
         if (
             digest(checksum_manifest_path) != original_manifest_digest
             or {
-                path.name: digest(path)
-                for path in artifacts.iterdir()
-                if not path.name.endswith("-sha256.json")
+                artifact.name: digest(artifact)
+                for artifact in artifacts.iterdir()
+                if not artifact.name.endswith("-sha256.json")
             } != observed_hashes
         ):
             raise ValueError("Cannot qualify package: release artifacts changed during qualification.")
@@ -730,7 +731,7 @@ def check(artifacts, revision):
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description=__doc__)
 
-    parser.add_argument("--artifacts", type=Path, required=True)
+    parser.add_argument("--artifacts", type=pathlib.Path, required=True)
     parser.add_argument("--revision", required=True)
     args = parser.parse_args()
 

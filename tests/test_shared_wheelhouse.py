@@ -17,9 +17,9 @@ import tomllib
 import traceback
 import unittest
 import urllib.error
+import pathlib
 from functools import partial
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
-from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import Mock, patch
 
@@ -150,7 +150,7 @@ class WheelhouseTests(unittest.TestCase):
         temporary = tempfile.TemporaryDirectory()
 
         self.addCleanup(temporary.cleanup)
-        self.root = Path(temporary.name)
+        self.root = pathlib.Path(temporary.name)
         self.pool = self.root / "pool"
 
         self.pool.mkdir()
@@ -945,7 +945,7 @@ class WheelhouseTests(unittest.TestCase):
             tool.run("check", self.lock, self.pool, require_sdist=["example"])
 
     def test_local_lock_preserves_the_selected_hash_and_uses_a_local_path(self):
-        projected = tomllib.loads(tool.local_lock(self.lock, Path("/wheels")))
+        projected = tomllib.loads(tool.local_lock(self.lock, pathlib.Path("/wheels")))
         artifact = projected["packages"][0]["wheels"][0]
 
         self.assertEqual("/wheels/" + self.name, artifact["path"])

@@ -20,8 +20,8 @@ import sys
 import tempfile
 import urllib.parse
 import urllib.request
+import pathlib
 from contextlib import contextmanager
-from pathlib import Path
 
 from tools.artifacts import fsync_directory, regular_file
 from tools.installer import pip_command
@@ -113,13 +113,13 @@ def select_wheels(lock, pool, extra_pools=(), required_files=None, lock_fd=None)
         raise ValueError("Cannot select wheels: every supplied wheel directory must exist.")
 
     with tempfile.TemporaryDirectory(prefix="wheel-selection-") as temporary:
-        frozen = Path(temporary) / "requirements.lock"
+        frozen = pathlib.Path(temporary) / "requirements.lock"
 
         with regular_file(lock) as source, frozen.open("xb") as target:
             shutil.copyfileobj(source, target, CHUNK_BYTES)
 
         requirements(frozen)
-        report = Path(temporary) / "report.json"
+        report = pathlib.Path(temporary) / "report.json"
         borrowed_descriptors = ()
 
         if lock_fd is not None:
@@ -161,9 +161,9 @@ def wheel_inputs_from_report(lock, pool, report, extra_pools=(), required_files=
 
     files = {}
 
-    for item in selected["install"]:
-        location = urllib.parse.urlsplit(item["download_info"]["url"])
-        candidate = Path(urllib.request.url2pathname(location.path))
+    for installed_distribution in selected["install"]:
+        location = urllib.parse.urlsplit(installed_distribution["download_info"]["url"])
+        candidate = pathlib.Path(urllib.request.url2pathname(location.path))
 
         if (
             location.scheme != "file"
@@ -180,7 +180,7 @@ def wheel_inputs_from_report(lock, pool, report, extra_pools=(), required_files=
             pass
 
         # Pip owns lock resolution and checks the selected file against the lock.
-        files[candidate.name] = item["download_info"]["archive_info"]["hashes"]["sha256"]
+        files[candidate.name] = installed_distribution["download_info"]["archive_info"]["hashes"]["sha256"]
 
     if required_files and not set(required_files).issubset(files):
         raise ValueError("Cannot select wheels: a required release artifact was not selected.")
@@ -215,8 +215,8 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
 
     parser.add_argument("action", choices=("check",))
-    parser.add_argument("--pool", type=Path, required=True)
-    parser.add_argument("--lock", type=Path, action="append", required=True)
+    parser.add_argument("--pool", type=pathlib.Path, required=True)
+    parser.add_argument("--lock", type=pathlib.Path, action="append", required=True)
     args = parser.parse_args()
 
     for lock in args.lock:

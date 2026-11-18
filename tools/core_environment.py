@@ -21,7 +21,7 @@ import sys
 import tarfile
 import tempfile
 import tomllib
-from pathlib import Path
+import pathlib
 
 from tools.artifacts import fsync_directory, regular_file
 from tools.installer import create_environment, pip_command
@@ -30,11 +30,11 @@ from tools.wheelhouse import digest, pool_read_lock, read_json, requirements, se
 
 def build_source_wheel(
     *,
-    source: Path,
-    staged_source: Path,
-    python: Path,
-    output: Path,
-) -> Path:
+    source: pathlib.Path,
+    staged_source: pathlib.Path,
+    python: pathlib.Path,
+    output: pathlib.Path,
+) -> pathlib.Path:
     """Build from writable scratch, never from a read-only source mount.
 
     The caller owns staged_source's temporary parent and its cleanup. Returning
@@ -44,7 +44,7 @@ def build_source_wheel(
     if not source.is_dir() or source.is_symlink():
         raise ValueError("Cannot build wheel: source must be a real directory.")
 
-    if any(path.is_symlink() for path in source.rglob("*")):
+    if any(source_entry.is_symlink() for source_entry in source.rglob("*")):
         raise ValueError("Cannot build wheel: source must not contain symlinks.")
 
     if staged_source.resolve().is_relative_to(source.resolve()):
@@ -124,7 +124,7 @@ def _build_candidate(source, runtime_lock, build_lock, pool, output, lock_fd):
         raise ValueError("Cannot build provider-core: output must be a private empty directory.")
 
     with tempfile.TemporaryDirectory(prefix="core-build-") as temporary:
-        scratch = Path(temporary)
+        scratch = pathlib.Path(temporary)
         identities = {}
         locks = {}
 
@@ -180,7 +180,7 @@ def _build_candidate(source, runtime_lock, build_lock, pool, output, lock_fd):
             output=output,
         )
 
-        sdist_builder = Path(__file__).resolve().parent.parent / "containers/isolated/build_sdist.py"
+        sdist_builder = pathlib.Path(__file__).resolve().parent.parent / "containers/isolated/build_sdist.py"
 
         subprocess.run(
             [
@@ -199,7 +199,7 @@ def _build_candidate(source, runtime_lock, build_lock, pool, output, lock_fd):
         sdist = output / f"provider_core-{release_version}.tar.gz"
 
         if set(output.iterdir()) != {wheel, sdist} or any(
-            not path.is_file() or path.is_symlink() for path in (wheel, sdist)
+            not distribution.is_file() or distribution.is_symlink() for distribution in (wheel, sdist)
         ):
             raise ValueError(
                 "Cannot publish provider-core: build must produce exactly "
@@ -272,7 +272,7 @@ def _install_environment(root, lock, pool, expected_inputs, extra_pools, require
             python=environment_python,
             lock=lock,
             wheels=pool,
-            report=Path(report.name),
+            report=pathlib.Path(report.name),
             extra_pools=extra_pools,
             required_files=required_files,
             lock_fd=lock_fd,
@@ -322,18 +322,18 @@ def behavioral_install_lock(runtime_lock, test_lock, destination):
 def source_inventory(source):
     inventory = {}
 
-    for path in sorted(source.rglob("*")):
-        if path.is_symlink():
+    for source_entry in sorted(source.rglob("*")):
+        if source_entry.is_symlink():
             # todo: better msg
             raise ValueError(f"Cannot capture package inventory: source links are not release inputs.")
 
-        if path.is_file():
-            inventory[path.relative_to(source).as_posix()] = {
-                "sha256": digest(path),
-                "size": path.stat().st_size,
-                "mode": path.stat().st_mode & 0o777,
+        if source_entry.is_file():
+            inventory[source_entry.relative_to(source).as_posix()] = {
+                "sha256": digest(source_entry),
+                "size": source_entry.stat().st_size,
+                "mode": source_entry.stat().st_mode & 0o777,
             }
-        elif not path.is_dir():
+        elif not source_entry.is_dir():
             # todo: better msg
             raise ValueError(f"Cannot capture package inventory: source must contain regular files and directories.")
 
@@ -358,12 +358,12 @@ def normalize_sdist(path):
 
     # Keep replacement on the same filesystem, with automatic failure cleanup.
     with tempfile.TemporaryDirectory(prefix="sdist-normalize-", dir=path.parent) as temporary:
-        normalized_path = Path(temporary) / "archive.tar.gz"
+        normalized_path = pathlib.Path(temporary) / "archive.tar.gz"
 
         with tarfile.open(path, "r:gz") as source_archive, normalized_path.open("xb") as output:
             with gzip.GzipFile(fileobj=output, mode="wb", filename="", mtime=315532800) as compressed:
                 with tarfile.open(fileobj=compressed, mode="w") as normalized_archive:
-                    for member in sorted(source_archive.getmembers(), key=lambda item: item.name):
+                    for member in sorted(source_archive.getmembers(), key=lambda member: member.name):
                         if not (member.isfile() or member.isdir()):
                             raise ValueError(
                                 "Cannot admit source distribution: archive contains "
@@ -391,7 +391,7 @@ def release(source, runtime_lock, build_lock, pool, output, revision):
     if re.fullmatch(r"[0-9a-f]{40}", revision) is None:
         raise ValueError("Cannot build release artifacts: source revision must identify the captured Git commit.")
 
-    dependency_files(pool, Path("/requirements/wheelhouse-tool.lock"))
+    dependency_files(pool, pathlib.Path("/requirements/wheelhouse-tool.lock"))
     source_files = source_inventory(source)
 
     (wheel, install_lock, dependency_inputs) = build_candidate(
@@ -411,8 +411,8 @@ def release(source, runtime_lock, build_lock, pool, output, revision):
     build_wheelhouse_bundle(
         pool=pool,
         output=wheelhouse_bundle,
-        source=Path("/workspace"),
-        lock=Path("/requirements/wheelhouse-tool.lock"),
+        source=pathlib.Path("/workspace"),
+        lock=pathlib.Path("/requirements/wheelhouse-tool.lock"),
     )
 
     acquisition_bundle = output / ("acquisition-owner-" + artifact_prefix.removeprefix("provider_core-") + ".tar.gz")
@@ -420,9 +420,9 @@ def release(source, runtime_lock, build_lock, pool, output, revision):
     acquisition_record = build_acquisition_bundle(
         pool=pool,
         output=acquisition_bundle,
-        source=Path("/workspace"),
+        source=pathlib.Path("/workspace"),
         core_wheel=wheel,
-        pin=Path("/requirements/acquisition-bootstrap.pylock.toml"),
+        pin=pathlib.Path("/requirements/acquisition-bootstrap.pylock.toml"),
         revision=revision,
         wheelhouse_bundle=wheelhouse_bundle,
     )
@@ -436,10 +436,10 @@ def release(source, runtime_lock, build_lock, pool, output, revision):
                 "source_revision": revision,
                 "dependency_inputs": dependency_inputs,
                 "source_files": source_files,
-                "tool_source_files": wheelhouse_source_inventory(Path("/workspace/wheelhouse_tool")),
+                "tool_source_files": wheelhouse_source_inventory(pathlib.Path("/workspace/wheelhouse_tool")),
                 "acquisition_source_files": acquisition_record["source_files"],
                 "acquisition_dependency_inputs": acquisition_record["dependency_inputs"],
-                "files": {path.name: digest(path) for path in release_files},
+                "files": {artifact.name: digest(artifact) for artifact in release_files},
             },
             sort_keys=True,
             indent=2,
@@ -450,14 +450,14 @@ def release(source, runtime_lock, build_lock, pool, output, revision):
 
     checksum_manifest.write_text(
         json.dumps(
-            {path.name: digest(path) for path in (*release_files, release_record)},
+            {artifact.name: digest(artifact) for artifact in (*release_files, release_record)},
             sort_keys=True,
             indent=2,
         ) + "\n"
     )
 
-    for path in (*release_files, release_record, checksum_manifest):
-        with regular_file(path) as stream:
+    for artifact in (*release_files, release_record, checksum_manifest):
+        with regular_file(artifact) as stream:
             os.fchmod(stream.fileno(), 0o644)
             os.fsync(stream.fileno())
 
@@ -469,15 +469,15 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
 
     parser.add_argument("action", choices=("release", "install"))
-    parser.add_argument("--pool", type=Path, required=True)
-    parser.add_argument("--root", type=Path)
-    parser.add_argument("--lock", type=Path)
-    parser.add_argument("--source", type=Path)
-    parser.add_argument("--runtime-lock", type=Path)
-    parser.add_argument("--build-lock", type=Path)
-    parser.add_argument("--output", type=Path)
+    parser.add_argument("--pool", type=pathlib.Path, required=True)
+    parser.add_argument("--root", type=pathlib.Path)
+    parser.add_argument("--lock", type=pathlib.Path)
+    parser.add_argument("--source", type=pathlib.Path)
+    parser.add_argument("--runtime-lock", type=pathlib.Path)
+    parser.add_argument("--build-lock", type=pathlib.Path)
+    parser.add_argument("--output", type=pathlib.Path)
     parser.add_argument("--revision")
-    parser.add_argument("--expected-inputs", type=Path)
+    parser.add_argument("--expected-inputs", type=pathlib.Path)
     args = parser.parse_args()
 
     if args.action == "install":
@@ -491,7 +491,7 @@ def main():
 
         install_environment(args.root, args.lock, args.pool, expected_inputs)
     else:
-        if any(value is None for value in (args.source, args.runtime_lock, args.build_lock, args.output, args.revision)):
+        if any(argument is None for argument in (args.source, args.runtime_lock, args.build_lock, args.output, args.revision)):
             parser.error("release requires --source, --runtime-lock, --build-lock, --output and --revision")
 
         release(args.source, args.runtime_lock, args.build_lock, args.pool, args.output, args.revision)

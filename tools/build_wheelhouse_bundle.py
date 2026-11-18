@@ -10,7 +10,7 @@ import io
 import os
 import tempfile
 import zipfile
-from pathlib import Path
+import pathlib
 
 from tools.wheelhouse import requirements
 
@@ -110,12 +110,12 @@ def build(pool, output, source, lock):
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
 
-    parser.add_argument("--pool", type=Path, required=True)
-    parser.add_argument("--output", type=Path, required=True)
-    parser.add_argument("--lock", type=Path, required=True)
+    parser.add_argument("--pool", type=pathlib.Path, required=True)
+    parser.add_argument("--output", type=pathlib.Path, required=True)
+    parser.add_argument("--lock", type=pathlib.Path, required=True)
     args = parser.parse_args()
 
-    build(args.pool, args.output, Path(__file__).resolve().parent.parent, args.lock)
+    build(args.pool, args.output, pathlib.Path(__file__).resolve().parent.parent, args.lock)
 
 
 if __name__ == "__main__":

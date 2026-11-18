@@ -15,7 +15,7 @@ import shutil
 import subprocess
 import tempfile
 import tomllib
-from pathlib import Path
+import pathlib
 
 from tools.core_environment import (
     behavioral_install_lock,
@@ -29,7 +29,7 @@ from tools.installer import pip_command
 from tools.wheelhouse import digest, requirements
 
 
-def _discover_projects(*, project_root: Path) -> list[tuple[Path, str, str]]:
+def _discover_projects(*, project_root: pathlib.Path) -> list[tuple[pathlib.Path, str, str]]:
     projects = []
     names = set()
 
@@ -73,7 +73,7 @@ def _discover_projects(*, project_root: Path) -> list[tuple[Path, str, str]]:
     return projects
 
 
-def _discover_mocks(*, mocks_root: Path) -> list[tuple[Path, str, str]]:
+def _discover_mocks(*, mocks_root: pathlib.Path) -> list[tuple[pathlib.Path, str, str]]:
     projects = _discover_projects(project_root=mocks_root)
 
     for (source, distribution_name, _) in projects:
@@ -92,11 +92,11 @@ def _discover_mocks(*, mocks_root: Path) -> list[tuple[Path, str, str]]:
 
 
 def _discover_examples(
-    examples: Path,
+    examples: pathlib.Path,
     core_version: str,
     *,
     mock_dependencies: frozenset[str],
-) -> list[tuple[Path, str, str]]:
+) -> list[tuple[pathlib.Path, str, str]]:
     projects = _discover_projects(project_root=examples)
     mock_names = {dependency.split("==")[0] for dependency in mock_dependencies}
 
@@ -137,13 +137,13 @@ def _discover_examples(
 
 def _build_and_install_project(
     *,
-    root: Path,
-    source: Path,
+    root: pathlib.Path,
+    source: pathlib.Path,
     distribution_name: str,
     distribution_version: str,
-    builder_python: Path,
-    python: Path,
-    pool: Path,
+    builder_python: pathlib.Path,
+    python: pathlib.Path,
+    pool: pathlib.Path,
 ) -> None:
     project_output = root / "release"
 
@@ -194,8 +194,8 @@ def _build_and_install_project(
 
 def _run_installed_suite(
     *,
-    python: Path,
-    run: Path,
+    python: pathlib.Path,
+    run: pathlib.Path,
     selection: str,
     patterns: tuple[str, ...],
 ) -> None:
@@ -222,16 +222,16 @@ def _run_installed_suite(
 
 def run_suite(suite: str, patterns: tuple[str, ...]) -> None:
     with tempfile.TemporaryDirectory(prefix="core-tests-") as temporary:
-        scratch = Path(temporary)
-        wheelhouse = Path("/wheelhouse")
+        scratch = pathlib.Path(temporary)
+        wheelhouse = pathlib.Path("/wheelhouse")
         candidate_output = scratch / "release"
 
         candidate_output.mkdir()
 
         (candidate_wheel, candidate_lock, _) = build_candidate(
-            Path("/package"),
-            Path("/core-runtime.lock"),
-            Path("/core-build.lock"),
+            pathlib.Path("/package"),
+            pathlib.Path("/core-runtime.lock"),
+            pathlib.Path("/core-build.lock"),
             wheelhouse,
             candidate_output,
         )
@@ -243,12 +243,12 @@ def run_suite(suite: str, patterns: tuple[str, ...]) -> None:
         if suite in ("unit", "integration", "integration/delivery", "fuzz"):
             install_lock = behavioral_install_lock(
                 candidate_lock,
-                Path("/package/tests/requirements.lock"),
+                pathlib.Path("/package/tests/requirements.lock"),
                 scratch / "behavioral-install.lock",
             )
 
         runtime_python = install_environment(
-            Path("/runtime"),
+            pathlib.Path("/runtime"),
             install_lock,
             wheelhouse,
             extra_pools=(candidate_output,),
@@ -257,20 +257,20 @@ def run_suite(suite: str, patterns: tuple[str, ...]) -> None:
 
         test_tree = scratch / "run"
 
-        shutil.copytree(Path("/package/tests"), test_tree / "tests")
+        shutil.copytree(pathlib.Path("/package/tests"), test_tree / "tests")
 
         if suite == "integration":
             core_version = tomllib.loads(
-                (Path("/package") / "pyproject.toml").read_text()
+                (pathlib.Path("/package") / "pyproject.toml").read_text()
             )["project"]["version"]
 
             builder_python = install_environment(
-                Path("/runtime/example-builder"),
-                Path("/core-build.lock"),
+                pathlib.Path("/runtime/example-builder"),
+                pathlib.Path("/core-build.lock"),
                 wheelhouse,
             )
 
-            scientific_mocks = _discover_mocks(mocks_root=Path("/mocks"))
+            scientific_mocks = _discover_mocks(mocks_root=pathlib.Path("/mocks"))
             mock_dependencies = frozenset(f"{name}=={version}" for (_, name, version) in scientific_mocks)
 
             for (source, name, version) in scientific_mocks:
@@ -289,7 +289,7 @@ def run_suite(suite: str, patterns: tuple[str, ...]) -> None:
                 shutil.copytree(source / "tests", test_tree / "tests/integration" / namespace)
 
             examples = _discover_examples(
-                examples=Path("/examples"),
+                examples=pathlib.Path("/examples"),
                 core_version=core_version,
                 mock_dependencies=mock_dependencies,
             )
@@ -342,7 +342,7 @@ def run_suite(suite: str, patterns: tuple[str, ...]) -> None:
             )
 
             native_python = install_environment(
-                Path("/runtime/native-proof"),
+                pathlib.Path("/runtime/native-proof"),
                 native_lock,
                 wheelhouse,
                 extra_pools=(candidate_output,),
