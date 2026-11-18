@@ -58,7 +58,7 @@ class DummyScienceTests(unittest.TestCase):
                 candidate=science.PreparationInput(samples=np.array(object=[1], dtype=float)),
             )
 
-        self.assertEqual("wrong_count", rejection.exception.code)
+        self.assertIs(science.ScientificInputRejected.Code.WRONG_COUNT, rejection.exception.code)
 
         corrected_preparation = science.prepare(
             analysis=analysis,

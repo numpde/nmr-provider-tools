@@ -38,7 +38,7 @@ class TypeExpectationTests(unittest.TestCase):
         with self.assertRaises(expected_exception=PayloadRejected) as rejected:
             codec.decode(payload=b'{"selection":1}')
 
-        self.assertEqual(first="invalid_value", second=rejected.exception.code)
+        self.assertIs(PayloadRejected.Code.INVALID_VALUE, rejected.exception.code)
         self.assertIn(member="$.selection", container=str(rejected.exception))
         self.assertIn(member="type(value)=<class 'int'> ≠ expected_types=[<class 'bool'>, <class 'str'>]", container=str(rejected.exception))
 
@@ -54,7 +54,7 @@ class TypeExpectationTests(unittest.TestCase):
         with self.assertRaises(expected_exception=PayloadRejected) as rejected:
             codec.decode(payload=b'{"selection":3}')
 
-        self.assertEqual(first="invalid_value", second=rejected.exception.code)
+        self.assertIs(PayloadRejected.Code.INVALID_VALUE, rejected.exception.code)
         self.assertNotIn(member="≠", container=str(rejected.exception))
 
         with self.assertRaises(expected_exception=TypeError) as rejected:
@@ -77,7 +77,7 @@ class TypeExpectationTests(unittest.TestCase):
         with self.assertRaises(expected_exception=PayloadRejected) as rejected:
             codec.decode(payload=b'{"number":true}')
 
-        self.assertEqual(first="invalid_type", second=rejected.exception.code)
+        self.assertIs(PayloadRejected.Code.INVALID_TYPE, rejected.exception.code)
         self.assertIn(member="type(value)=<class 'bool'> ≠ expected_types=(<class 'int'>, <class 'float'>)", container=str(rejected.exception))
 
         with self.assertRaises(expected_exception=TypeError):
@@ -87,7 +87,7 @@ class TypeExpectationTests(unittest.TestCase):
         with self.assertRaises(expected_exception=PayloadRejected) as rejected:
             payload._decode_value(value=float("inf"), annotation=float, path="$.number")
 
-        self.assertEqual(first="invalid_type", second=rejected.exception.code)
+        self.assertIs(PayloadRejected.Code.INVALID_TYPE, rejected.exception.code)
         self.assertNotIn(member="≠", container=str(rejected.exception))
 
         with self.assertRaises(expected_exception=TypeError) as rejected:

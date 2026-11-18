@@ -5,7 +5,7 @@ from provider_core.container_guard import require_container
 require_container()
 
 from importlib import metadata, resources
-from pathlib import Path
+import pathlib
 import os
 import subprocess
 import sys
@@ -27,11 +27,11 @@ from dummy_provider.binding import Sum, WeightedSum, WeightedSumConfig, read_res
 
 class DummyBindingTests(unittest.IsolatedAsyncioTestCase):
     async def asyncSetUp(self):
-        directory = Path(self.enterContext(TemporaryDirectory()))
+        directory = pathlib.Path(self.enterContext(TemporaryDirectory()))
         self.configuration = directory / "provider.toml"
 
         shutil.copyfile(
-            src=Path(__file__).parent.parent / "config/deployments/localhost/provider.toml",
+            src=pathlib.Path(__file__).parent.parent / "config/deployments/localhost/provider.toml",
             dst=self.configuration,
         )
 
@@ -62,20 +62,20 @@ class DummyBindingTests(unittest.IsolatedAsyncioTestCase):
 
     async def test_installed_distribution_contains_the_scientific_package(self) -> None:
         installed_distribution = metadata.distribution("dummy-provider-example")
-        installed_package = Path(resources.files("dummy_provider")).resolve()
+        installed_package = pathlib.Path(resources.files("dummy_provider")).resolve()
 
-        distribution_package = Path(
+        distribution_package = pathlib.Path(
             installed_distribution.locate_file("dummy_provider")
         ).resolve()
 
         python_package_roots = {
-            path.parts[0]
-            for path in installed_distribution.files
-            if path.suffix == ".py"
+            distribution_file.parts[0]
+            for distribution_file in installed_distribution.files
+            if distribution_file.suffix == ".py"
         }
 
         self.assertEqual(installed_package, distribution_package)
-        self.assertTrue(installed_package.is_relative_to(Path(sys.prefix).resolve()))
+        self.assertTrue(installed_package.is_relative_to(pathlib.Path(sys.prefix).resolve()))
         self.assertEqual({"dummy_provider"}, python_package_roots)
         self.assertTrue((installed_package / "science.py").is_file())
         self.assertTrue((installed_package / "binding.py").is_file())
@@ -163,7 +163,7 @@ class DummyBindingTests(unittest.IsolatedAsyncioTestCase):
         )
 
         with TemporaryDirectory() as directory:
-            root = Path(directory)
+            root = pathlib.Path(directory)
             resource_file = root / "provider.toml"
 
             resource_file.write_text(configured, encoding="utf-8")

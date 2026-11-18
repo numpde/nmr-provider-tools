@@ -14,7 +14,7 @@ import json
 import math
 from collections.abc import Mapping
 from dataclasses import MISSING, dataclass, fields, is_dataclass
-from enum import Enum
+from enum import Enum, auto
 from functools import cache
 from types import NoneType, UnionType
 
@@ -29,11 +29,27 @@ from typing import (
     runtime_checkable,
 )
 
-from provider_core.contribution_errors import CallRejected
+from provider_core.contribution_errors import CallRejected, ErrorCode
+from provider_core.tools import duplicate_json_fields
 
 
 class PayloadRejected(CallRejected):
     """The payload does not match its declared portable representation."""
+
+    class Code(ErrorCode):
+        INVALID_JSON = auto()
+        DUPLICATE_FIELD = auto()
+        INVALID_TYPE = auto()
+        INVALID_VALUE = auto()
+        INVALID_LENGTH = auto()
+        UNEXPECTED_FIELD = auto()
+        MISSING_FIELD = auto()
+
+    def __init__(self, message: str, *, code: PayloadRejected.Code) -> None:
+        if not isinstance(code, (expected_type := self.Code)):
+            raise TypeError(f"{type(code)=} ≠ {expected_type=}")
+
+        super().__init__(code=code, message=message)
 
 
 @runtime_checkable
@@ -75,26 +91,15 @@ def _require_format(value: object) -> None:
         raise ValueError("A payload format must be a nonempty identity without whitespace")
 
 
-def _reject_constant(value: str) -> None:
-    raise PayloadRejected(
-        "invalid_json",
-        f"JSON constant {value!r} is not permitted",
-    )
+def _reject_constant(nonfinite_token: str) -> None:
+    raise PayloadRejected(f"JSON has {nonfinite_token=}", code=PayloadRejected.Code.INVALID_JSON)
 
 
-def _object(pairs: list[tuple[str, object]]) -> dict[str, object]:
-    result: dict[str, object] = {}
+def _unique_fields(field_pairs: list[tuple[str, object]]) -> dict[str, object]:
+    if duplicate_fields := duplicate_json_fields(field_pairs):
+        raise PayloadRejected(f"JSON has {duplicate_fields=}", code=PayloadRejected.Code.DUPLICATE_FIELD)
 
-    for (name, value) in pairs:
-        if name in result:
-            raise PayloadRejected(
-                "duplicate_field",
-                f"JSON field {name!r} appears more than once",
-            )
-
-        result[name] = value
-
-    return result
+    return dict(field_pairs)
 
 
 def _read_json(payload: bytes) -> object:
@@ -104,15 +109,23 @@ def _read_json(payload: bytes) -> object:
     try:
         return json.loads(
             payload.decode("utf-8"),
-            object_pairs_hook=_object,
+            object_pairs_hook=_unique_fields,
             parse_constant=_reject_constant,
         )
-    except PayloadRejected:
-        raise
-    except (UnicodeDecodeError, json.JSONDecodeError) as error:
+    except UnicodeDecodeError as error:
+        invalid_utf8_byte_offset = error.start
+
         raise PayloadRejected(
-            "invalid_json",
-            "Payload must be one complete UTF-8 JSON value",
+            f"Payload has {invalid_utf8_byte_offset=}",
+            code=PayloadRejected.Code.INVALID_JSON,
+        ) from error
+    except json.JSONDecodeError as error:
+        line_number = error.lineno
+        column_number = error.colno
+
+        raise PayloadRejected(
+            f"Payload JSON is invalid at {line_number=}, {column_number=}",
+            code=PayloadRejected.Code.INVALID_JSON,
         ) from error
 
 
@@ -266,37 +279,40 @@ def _validate_dataclass(
 def _decode_value(value: object, annotation: object, *, path: str) -> object:
     if annotation is str:
         if not (type(value) is (expected_type := str)):
-            raise PayloadRejected("invalid_type", f"{path=}; {type(value)=} ≠ {expected_type=}")
+            raise PayloadRejected(f"{path=}; {type(value)=} ≠ {expected_type=}", code=PayloadRejected.Code.INVALID_TYPE)
 
         return value
 
     if annotation is bool:
         if not (type(value) is (expected_type := bool)):
-            raise PayloadRejected("invalid_type", f"{path=}; {type(value)=} ≠ {expected_type=}")
+            raise PayloadRejected(f"{path=}; {type(value)=} ≠ {expected_type=}", code=PayloadRejected.Code.INVALID_TYPE)
 
         return value
 
     if annotation is int:
         if not (type(value) is (expected_type := int)):
-            raise PayloadRejected("invalid_type", f"{path=}; {type(value)=} ≠ {expected_type=}")
+            raise PayloadRejected(f"{path=}; {type(value)=} ≠ {expected_type=}", code=PayloadRejected.Code.INVALID_TYPE)
 
         return value
 
     if annotation is float:
         if not (type(value) in (expected_types := (int, float))):
-            raise PayloadRejected("invalid_type", f"{path=}; {type(value)=} ≠ {expected_types=}")
+            raise PayloadRejected(
+                f"{path=}; {type(value)=} ≠ {expected_types=}",
+                code=PayloadRejected.Code.INVALID_TYPE,
+            )
 
         if not math.isfinite(value):
             raise PayloadRejected(
-                "invalid_type",
                 f"{path} must be a finite number",
+                code=PayloadRejected.Code.INVALID_TYPE,
             )
 
         return float(value)
 
     if annotation is NoneType:
         if not (type(value) is (expected_type := NoneType)):
-            raise PayloadRejected("invalid_type", f"{path=}; {type(value)=} ≠ {expected_type=}")
+            raise PayloadRejected(f"{path=}; {type(value)=} ≠ {expected_type=}", code=PayloadRejected.Code.INVALID_TYPE)
 
         return None
 
@@ -306,20 +322,23 @@ def _decode_value(value: object, annotation: object, *, path: str) -> object:
     if origin is Literal:
         if not (value in arguments):
             raise PayloadRejected(
-                "invalid_value",
                 f"{path} is not one of the declared literal values",
+                code=PayloadRejected.Code.INVALID_VALUE,
             )
 
         expected_types = [type(item) for item in arguments]
 
         if not any(type(value) is expected_type for expected_type in expected_types):
-            raise PayloadRejected("invalid_value", f"{path=}; {type(value)=} ≠ {expected_types=}")
+            raise PayloadRejected(
+                f"{path=}; {type(value)=} ≠ {expected_types=}",
+                code=PayloadRejected.Code.INVALID_VALUE,
+            )
 
         return value
 
     if origin is tuple:
         if not (type(value) is (expected_type := list)):
-            raise PayloadRejected("invalid_type", f"{path=}; {type(value)=} ≠ {expected_type=}")
+            raise PayloadRejected(f"{path=}; {type(value)=} ≠ {expected_type=}", code=PayloadRejected.Code.INVALID_TYPE)
 
         if len(arguments) == 2 and arguments[1] is Ellipsis:
             # repo-check: allow-tuple-generator -- Decode the provider's variadic tuple annotation into the immutable type its scientific callable requires.
@@ -334,8 +353,8 @@ def _decode_value(value: object, annotation: object, *, path: str) -> object:
 
         if len(value) != len(arguments):
             raise PayloadRejected(
-                "invalid_length",
                 f"{path} must contain exactly {len(arguments)} items",
+                code=PayloadRejected.Code.INVALID_LENGTH,
             )
 
         # repo-check: allow-tuple-generator -- A fixed tuple annotation requires an immutable positional result with the declared element types.
@@ -365,8 +384,8 @@ def _decode_value(value: object, annotation: object, *, path: str) -> object:
             return annotation(value)
         except (TypeError, ValueError) as error:
             raise PayloadRejected(
-                "invalid_value",
                 f"{path} is not a declared enum value",
+                code=PayloadRejected.Code.INVALID_VALUE,
             ) from error
 
     if isinstance(annotation, type) and is_dataclass(annotation):
@@ -377,7 +396,7 @@ def _decode_value(value: object, annotation: object, *, path: str) -> object:
 
 def _decode_dataclass(value: object, value_type: type[T], *, path: str) -> T:
     if not (type(value) is (expected_type := dict)):
-        raise PayloadRejected("invalid_type", f"{path=}; {type(value)=} ≠ {expected_type=}")
+        raise PayloadRejected(f"{path=}; {type(value)=} ≠ {expected_type=}", code=PayloadRejected.Code.INVALID_TYPE)
 
     (declared_fields, annotations) = _dataclass_fields(value_type)
     fields_by_name = {field.name: field for field in declared_fields}
@@ -385,8 +404,8 @@ def _decode_dataclass(value: object, value_type: type[T], *, path: str) -> T:
 
     if unexpected_fields:
         raise PayloadRejected(
-            "unexpected_field",
             f"{path} contains unexpected fields: {sorted(unexpected_fields)!r}",
+            code=PayloadRejected.Code.UNEXPECTED_FIELD,
         )
 
     missing_fields = {
@@ -399,8 +418,8 @@ def _decode_dataclass(value: object, value_type: type[T], *, path: str) -> T:
 
     if missing_fields:
         raise PayloadRejected(
-            "missing_field",
             f"{path} is missing required fields: {sorted(missing_fields)!r}",
+            code=PayloadRejected.Code.MISSING_FIELD,
         )
 
     decoded_arguments = {
@@ -418,8 +437,8 @@ def _decode_dataclass(value: object, value_type: type[T], *, path: str) -> T:
         raise
     except (TypeError, ValueError) as error:
         raise PayloadRejected(
-            "invalid_value",
             f"{path} could not construct {value_type.__qualname__}",
+            code=PayloadRejected.Code.INVALID_VALUE,
         ) from error
 
 

@@ -3,21 +3,32 @@
 from __future__ import annotations
 
 import re
+from enum import Enum, StrEnum
+
+
+class ErrorCode(Enum):
+    """Give auto() members their lowercase names as values."""
+
+    @staticmethod
+    def _generate_next_value_(name, _start, _count, _last_values):
+        return name.lower()
 
 
 class CallRejected(Exception):
     """A reviewed refusal before a scientific result is established."""
 
-    code: str
+    code: str | ErrorCode
     message: str
 
-    def __init__(self, code: str, message: str) -> None:
-        if not (type(code) is (expected_type := str)):
+    def __init__(self, code: str | ErrorCode, message: str) -> None:
+        if not (type(code) is str or isinstance(code, (StrEnum, ErrorCode))):
             raise TypeError(
-                f"{type(code)=} ≠ {expected_type=}"
+                f"{type(code)=} should be str, StrEnum, or ErrorCode"
             )
 
-        if re.fullmatch(r"[a-z][a-z0-9_]{0,63}\Z", code) is None:
+        code_text = code.value if isinstance(code, ErrorCode) else code
+
+        if re.fullmatch(r"[a-z][a-z0-9_]{0,63}\Z", code_text) is None:
             raise ValueError("A rejection code must match [a-z][a-z0-9_]{0,63}")
 
         if not (type(message) is (expected_type := str)):

@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from pathlib import Path
+import pathlib
 import tomllib
 
 import provider_core.scientific as sdk
@@ -19,23 +19,23 @@ class WeightedSumConfig:
 
 
 class WeightedAnalysis(sdk.Analysis["WeightedSum"]):
-    _value: science.WeightedSumAnalysis | None = None
+    _scientific_session: science.WeightedSumAnalysis | None = None
 
     @property
-    def value(self) -> science.WeightedSumAnalysis:
-        if self._value is None:
-            raise RuntimeError("Initialize the weighted analysis before using its scientific session")
+    def scientific_session(self) -> science.WeightedSumAnalysis:
+        if not (self._scientific_session is not None):
+            raise RuntimeError(f"{self._scientific_session=} should be set before using the weighted analysis")
 
-        return self._value
+        return self._scientific_session
 
     def initialize(self) -> None:
-        self._value = science.create_analysis(model=self.contribution.model)
+        self._scientific_session = science.create_analysis(model=self.contribution.model)
 
-        science.initialize_analysis(analysis=self.value)
+        science.initialize_analysis(analysis=self.scientific_session)
 
     def close(self) -> None:
-        if self._value is not None:
-            science.dispose_analysis(analysis=self._value)
+        if self._scientific_session is not None:
+            science.dispose_analysis(analysis=self._scientific_session)
 
 
 class WeightedSum(sdk.Contribution):
@@ -80,7 +80,7 @@ class WeightedSum(sdk.Contribution):
         analysis: WeightedAnalysis,
         candidate: science.PreparationInput,
     ) -> sdk.ScientificReturn[science.PreparationResult]:
-        prepared = science.prepare(analysis=analysis.value, candidate=candidate)
+        prepared = science.prepare(analysis=analysis.scientific_session, candidate=candidate)
 
         return sdk.ScientificReturn(
             value=science.PreparationResult(count=prepared.sample_count),
@@ -98,7 +98,7 @@ class WeightedSum(sdk.Contribution):
         control.report_progress(event=sdk.ProgressEvent(stage="calculation", completed=0, total=1))
 
         prediction_result = science.calculate(
-            analysis=analysis.value,
+            analysis=analysis.scientific_session,
             state=science.CalculationState(prepared=candidate),
         )
 
@@ -118,7 +118,7 @@ class Sum(sdk.Contribution):
 
 # This component example's caller supplies the host and operation policy.
 # repo-check: allow-module-constant
-PROVIDER_CONFIG_PATH = Path("config/deployments/localhost/provider.toml")
+PROVIDER_CONFIG_PATH = pathlib.Path("config/deployments/localhost/provider.toml")
 
 
 def read_resource_requirements() -> frozenset[sdk.ResourceRequirement]:

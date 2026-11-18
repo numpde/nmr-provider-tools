@@ -199,8 +199,14 @@ class TypedContributionTests(unittest.TestCase):
     def test_payload_codec_rejects_invalid_wire_shapes(self):
         codec = sum_binding().run.input_codec
 
+        with self.assertRaises(PayloadRejected) as caught:
+            codec.decode(b'{"values":[1],"values":[2],"values":[3]}')
+
+        self.assertIs(PayloadRejected.Code.DUPLICATE_FIELD, caught.exception.code)
+        self.assertEqual("duplicate_field", caught.exception.code.value)
+        self.assertIn("'values': 2", str(caught.exception))
+
         invalid_payloads = (
-            b'{"values":[1],"values":[2]}',
             b'{"values":[true]}',
             b'{"values":[NaN]}',
             b'{"values":[1],"extra":2}',
@@ -242,7 +248,7 @@ class TypedContributionTests(unittest.TestCase):
                 _Control(),
             )
 
-        self.assertEqual("empty_input", preparation_rejection.exception.code)
+        self.assertIs(science.ScientificInputRejected.Code.EMPTY_INPUT, preparation_rejection.exception.code)
 
         sum_call = sum_binding().run
         sum_input = sum_call.decode_input(b'{"values":[]}')
@@ -256,7 +262,7 @@ class TypedContributionTests(unittest.TestCase):
                 _Control(),
             )
 
-        self.assertEqual("empty_input", sum_rejection.exception.code)
+        self.assertIs(science.ScientificInputRejected.Code.EMPTY_INPUT, sum_rejection.exception.code)
 
     def test_nonfinite_values_are_rejected_during_portable_construction(self):
         for value in (math.nan, math.inf, -math.inf, True):

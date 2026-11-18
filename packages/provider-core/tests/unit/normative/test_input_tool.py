@@ -192,7 +192,7 @@ class ScientificInputToolDefinitionTests(unittest.IsolatedAsyncioTestCase):
         with self.assertRaises(expected_exception=PayloadRejected) as raised:
             self.tool_definition.decode(name=self.tool_definition.name, arguments={"value": {}})
 
-        self.assertEqual(first="unexpected_field", second=raised.exception.code)
+        self.assertIs(PayloadRejected.Code.UNEXPECTED_FIELD, raised.exception.code)
 
     def test_custom_codec_does_not_acquire_guessed_json_semantics(self):
         original = self.call_binding.input_codec

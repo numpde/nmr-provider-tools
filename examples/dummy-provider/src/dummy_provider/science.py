@@ -9,14 +9,26 @@ use identity equality because array comparisons are elementwise.
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+from enum import auto
 
 import mock_numpy as np
 
-from provider_core.contribution_errors import ScientificRejection
+from provider_core.contribution_errors import ErrorCode, ScientificRejection
 
 
 class ScientificInputRejected(ScientificRejection):
     """The portable input is valid but scientifically unacceptable."""
+
+    class Code(ErrorCode):
+        EMPTY_INPUT = auto()
+        ALREADY_PREPARED = auto()
+        WRONG_COUNT = auto()
+
+    def __init__(self, message: str, *, code: ScientificInputRejected.Code) -> None:
+        if not isinstance(code, (expected_type := self.Code)):
+            raise TypeError(f"{type(code)=} ≠ {expected_type=}")
+
+        super().__init__(code=code, message=message)
 
 
 @dataclass(frozen=True, slots=True, kw_only=True)
@@ -243,14 +255,14 @@ def prepare(
 
     if not (candidate.samples.size > 0):
         raise ScientificInputRejected(
-            "empty_input",
             "Preparation input must contain at least one sample",
+            code=ScientificInputRejected.Code.EMPTY_INPUT,
         )
 
     if not (analysis.accepted_preparation is None):
         raise ScientificInputRejected(
-            "already_prepared",
             "Calculate or discard the accepted preparation before preparing another",
+            code=ScientificInputRejected.Code.ALREADY_PREPARED,
         )
 
     loaded_coefficients = analysis.model.loaded_coefficients
@@ -263,8 +275,8 @@ def prepare(
 
     if actual_sample_count != expected_sample_count:
         raise ScientificInputRejected(
-            "wrong_count",
             f"{actual_sample_count = }, {expected_sample_count = }",
+            code=ScientificInputRejected.Code.WRONG_COUNT,
         )
 
     prepared_samples = PreparedSamples(analysis=analysis, samples=candidate.samples)
@@ -308,8 +320,8 @@ def sum_values(summation: SumInput) -> SumResult:
 
     if not (summation.samples.size > 0):
         raise ScientificInputRejected(
-            "empty_input",
             "Sum input must contain at least one sample",
+            code=ScientificInputRejected.Code.EMPTY_INPUT,
         )
 
     # Floating accumulation preserves the example's real-valued calculation;

@@ -7,7 +7,7 @@ from provider_core.container_guard import require_container
 require_container()
 
 import asyncio
-from pathlib import Path
+import pathlib
 import shutil
 from tempfile import TemporaryDirectory
 import unittest
@@ -35,11 +35,11 @@ from provider_core.hosting import (
 
 class DummyInstalledExecutionTests(unittest.IsolatedAsyncioTestCase):
     async def asyncSetUp(self):
-        directory = Path(self.enterContext(TemporaryDirectory()))
+        directory = pathlib.Path(self.enterContext(TemporaryDirectory()))
         configuration = directory / "provider.toml"
 
         shutil.copyfile(
-            src=Path(__file__).parent.parent / "config/deployments/localhost/provider.toml",
+            src=pathlib.Path(__file__).parent.parent / "config/deployments/localhost/provider.toml",
             dst=configuration,
         )
 
@@ -107,7 +107,7 @@ class DummyInstalledExecutionTests(unittest.IsolatedAsyncioTestCase):
         with (
             patch("dummy_provider.science.load_model", side_effect=partially_load),
             patch("dummy_provider.science.dispose_model", wraps=science.dispose_model) as dispose,
-            patch("dummy_provider.science.prepare", wraps=science.prepare) as prepare,
+            patch("dummy_provider.science.prepare", wraps=science.prepare) as prepare_samples_mock,
         ):
             analysis = host.open_analysis(allocations=frozenset({hosted.allocation}))
             (reservation,) = analysis.reservations
@@ -129,8 +129,8 @@ class DummyInstalledExecutionTests(unittest.IsolatedAsyncioTestCase):
             async with asyncio.timeout(10):
                 observation = await observe_completion(operation=operation)
 
-                self.assertTrue(any(item.cause is failure for item in observation.failures))
-                prepare.assert_not_called()
+                self.assertTrue(any(observed_failure.cause is failure for observed_failure in observation.failures))
+                prepare_samples_mock.assert_not_called()
                 (model,) = loaded_models
 
                 self.assertIs(model, contribution.model)
@@ -197,7 +197,7 @@ class DummyInstalledExecutionTests(unittest.IsolatedAsyncioTestCase):
         self.assertIs(Outcome.REJECTED, rejection.outcome)
         original_session = analysis.science[weighted_binding.allocation.allocation].value
 
-        self.assertTrue(original_session.value.is_open)
+        self.assertTrue(original_session.scientific_session.is_open)
 
         preparation_operation = analysis.submit_method(
             method=weighted_binding.contribution.prepare,
