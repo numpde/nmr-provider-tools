@@ -307,7 +307,7 @@ class TypeErrorEvidencePostureTests(unittest.TestCase):
         self.assertTrue(expr=_expectation_findings(source_path=pathlib.Path("example.py"), source=source))
 
     def test_subclass_evidence_follows_both_bindings_without_requiring_names_or_prose(self):
-        for candidate, parent, message in (
+        for (candidate, parent, message) in (
             ("candidate", "Parent", 'f"{candidate=} {Parent=}"'),
             ("candidate", "(expected_parent := Parent)", 'f"{candidate=} should be a subclass of {expected_parent=}"'),
             ("candidate", "(should_have_parent := Parent)", 'f"{candidate=} {should_have_parent=}"'),
@@ -353,7 +353,7 @@ class TypeErrorEvidencePostureTests(unittest.TestCase):
                 self.assertEqual(first=[], second=_subclass_findings(source_path=pathlib.Path("example.py"), source=source))
 
     def test_subclass_parent_binding_cannot_replace_the_candidate_evidence(self):
-        for candidate, parent, message in (
+        for (candidate, parent, message) in (
             ("candidate", "(candidate := Parent)", 'f"{candidate=}"'),
             ("(actual := candidate)", "(actual := Parent)", 'f"{actual=}"'),
         ):

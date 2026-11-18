@@ -253,7 +253,7 @@ def error_code_findings(*, sources: dict[pathlib.Path, str]) -> list[tuple[pathl
             if qualified_name not in exception_parameters:
                 continue
 
-            positional, _ = exception_parameters[qualified_name]
+            (positional, _) = exception_parameters[qualified_name]
             positional_codes = [argument for (parameter, argument) in zip(positional, call.args) if parameter.arg in code_arguments]
 
             if len(call.args) > 1 or positional_codes:

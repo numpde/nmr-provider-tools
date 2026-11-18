@@ -57,7 +57,7 @@ def read_requirements(path, configured_index=None):
                 if len(specifiers) != 1 or specifiers[0].operator != "==" or "*" in specifiers[0].version:
                     raise ValueError("Cannot locate artifacts: every package must have an exact version.")
             records.append((requirement, set()))
-    if not records or any(not hashes for _, hashes in records):
+    if not records or any(not hashes for (_, hashes) in records):
         raise ValueError("Cannot locate artifacts: every package needs an existing SHA-256 lock hash.")
     parsed_index_input = index
     if parsed_index_input is None:
@@ -68,12 +68,12 @@ def read_requirements(path, configured_index=None):
     index_base = None
     if index:
         index_base = index.rstrip("/")
-    return records, index_base, hashlib.sha256(source).hexdigest()
+    return (records, index_base, hashlib.sha256(source).hexdigest())
 
 
 # silent-defaults: allow-contract -- The caller selects an optional HTTPS index and source preferences; absent preferences are immutable empty tuples, not inferred sources.
 def locate(path, index=None, allowed_sources=(), required_sources=(), direct_sources=(), pool=None):
-    records, index, source_sha256 = read_requirements(path, index)
+    (records, index, source_sha256) = read_requirements(path, index)
     packages = []
     required_sources = {canonicalize_name(name) for name in required_sources}
     allowed_sources = {canonicalize_name(name) for name in allowed_sources} | required_sources
@@ -81,7 +81,7 @@ def locate(path, index=None, allowed_sources=(), required_sources=(), direct_sou
     for source in direct_sources:
         parsed = urllib.parse.urlsplit(source)
         filename = urllib.parse.unquote(parsed.path.rsplit("/", 1)[-1])
-        distribution, version, _, _ = parse_wheel_filename(filename)
+        (distribution, version, _, _) = parse_wheel_filename(filename)
         values = urllib.parse.parse_qs(parsed.fragment).get("sha256")
         checksum = None
         if values:
@@ -92,7 +92,7 @@ def locate(path, index=None, allowed_sources=(), required_sources=(), direct_sou
             raise ValueError(f"Cannot locate {distribution}: more than one direct source was supplied.")
         direct[distribution] = (source, version, checksum)
     python_version = Version(default_environment()["python_full_version"])
-    for requirement, hashes in records:
+    for (requirement, hashes) in records:
         name = canonicalize_name(requirement.name)
         supplied = None
         if name in direct:
@@ -105,7 +105,7 @@ def locate(path, index=None, allowed_sources=(), required_sources=(), direct_sou
                 raise ValueError(f"Cannot locate {name}: direct artifact must use HTTPS without credentials.")
             filename = urllib.parse.unquote(url.path.rsplit("/", 1)[-1])
             try:
-                distribution, version, _, tags = parse_wheel_filename(filename)
+                (distribution, version, _, tags) = parse_wheel_filename(filename)
             except InvalidWheelFilename as error:
                 raise ValueError(f"Cannot locate {name}: direct artifact is not a named wheel.") from error
             fragment = urllib.parse.parse_qs(url.fragment)
@@ -134,7 +134,7 @@ def locate(path, index=None, allowed_sources=(), required_sources=(), direct_sou
             raise ValueError(f"Cannot locate {name}: index metadata is invalid.") from None
         if canonicalize_name(project["name"]) != name:
             raise ValueError(f"Cannot locate {name}: index returned a different project.")
-        wheels, sources = [], []
+        (wheels, sources) = ([], [])
         files = []
         if "files" in project:
             files = project["files"]
@@ -152,13 +152,13 @@ def locate(path, index=None, allowed_sources=(), required_sources=(), direct_sou
             if requires and not SpecifierSet(requires).contains(python_version, prereleases=True):
                 continue
             try:
-                distribution, artifact_version, _, tags = parse_wheel_filename(filename)
+                (distribution, artifact_version, _, tags) = parse_wheel_filename(filename)
                 kind = "wheel"
                 if not tags.intersection(sys_tags()):
                     continue
             except InvalidWheelFilename:
                 try:
-                    distribution, artifact_version = parse_sdist_filename(filename)
+                    (distribution, artifact_version) = parse_sdist_filename(filename)
                     kind = "source"
                 except InvalidSdistFilename:
                     continue
@@ -198,7 +198,7 @@ def locate(path, index=None, allowed_sources=(), required_sources=(), direct_sou
             sources = [item for item in sources if item[3] == version]
         package = {"name": name, "version": str(version)}
         if wheels:
-            package["wheels"] = [item for _, item, _, _ in wheels]
+            package["wheels"] = [item for (_, item, _, _) in wheels]
         if name in allowed_sources and sources:
             package["sdist"] = sources[0][1]
         if name in required_sources and "sdist" not in package:

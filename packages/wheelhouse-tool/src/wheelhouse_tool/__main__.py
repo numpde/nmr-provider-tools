@@ -82,10 +82,10 @@ def selected(lock, prefer_sdist, require_sdist=(), document=None, source_lock=No
             raise ValueError("Cannot use projected lock: supply the matching source requirements lock.")
         from wheelhouse_tool.locate import read_requirements
 
-        records, _, actual_digest = read_requirements(source_lock)
+        (records, _, actual_digest) = read_requirements(source_lock)
         if actual_digest != source_digest:
             raise ValueError("Cannot use projected lock: supply the matching source requirements lock.")
-        source_requirements = {canonicalize_name(requirement.name): (requirement, hashes) for requirement, hashes in records}
+        source_requirements = {canonicalize_name(requirement.name): (requirement, hashes) for (requirement, hashes) in records}
         if len(source_requirements) != len(records):
             raise ValueError("Cannot use projected lock: the source lock repeats a package.")
     required = {canonicalize_name(name) for name in require_sdist}
@@ -93,7 +93,7 @@ def selected(lock, prefer_sdist, require_sdist=(), document=None, source_lock=No
     artifacts = []
     seen = {}
     found_required = set()
-    for package, artifact in document.select(prefer_sdist_predicate=lambda name: name in preferences):
+    for (package, artifact) in document.select(prefer_sdist_predicate=lambda name: name in preferences):
         if not isinstance(artifact, (PackageWheel, PackageSdist, PackageArchive)) or artifact.url is None:
             raise ValueError(f"Cannot acquire {package.name}: expected a URL for a locked artifact.")
         url = urllib.parse.urlsplit(artifact.url)
@@ -113,7 +113,7 @@ def selected(lock, prefer_sdist, require_sdist=(), document=None, source_lock=No
         source = isinstance(artifact, PackageSdist) or (isinstance(artifact, PackageArchive) and not name.endswith(".whl"))
         if isinstance(artifact, PackageArchive) and not source:
             try:
-                wheel_name, wheel_version, _build, wheel_tags = parse_wheel_filename(name)
+                (wheel_name, wheel_version, _build, wheel_tags) = parse_wheel_filename(name)
             except InvalidWheelFilename as error:
                 raise ValueError(f"Cannot acquire {package.name}: direct wheel filename is invalid.") from error
             if wheel_name != package.name or (package.version is not None and wheel_version != package.version):
@@ -122,7 +122,7 @@ def selected(lock, prefer_sdist, require_sdist=(), document=None, source_lock=No
                 raise ValueError(f"Cannot acquire {package.name}: direct wheel is incompatible with this target.")
         if source and isinstance(artifact, PackageArchive):
             try:
-                source_name, source_version = parse_sdist_filename(name)
+                (source_name, source_version) = parse_sdist_filename(name)
             except InvalidSdistFilename as error:
                 raise ValueError(f"Cannot acquire {package.name}: direct source archive has no standard distribution filename.") from error
             if source_name != package.name or (package.version is not None and source_version != package.version):
@@ -143,7 +143,7 @@ def selected(lock, prefer_sdist, require_sdist=(), document=None, source_lock=No
         artifacts.append((name, digest, artifact.url, package, artifact))
     if missing := required - found_required:
         raise ValueError(f"Cannot acquire source distribution: {', '.join(sorted(missing))} is not selected by the lock.")
-    if source_requirements is not None and {package.name for _, _, _, package, _ in artifacts} != set(source_requirements):
+    if source_requirements is not None and {package.name for (_, _, _, package, _) in artifacts} != set(source_requirements):
         raise ValueError("Cannot use projected lock: its selected packages differ from the source lock.")
     return artifacts
 
@@ -263,13 +263,13 @@ def run(action, lock, pool, prefer_sdist=(), require_sdist=(), artifacts=None):
 
 
 def _run(action, pool, artifacts, directory_fd):
-    for name, digest, url, _package, _artifact in artifacts:
+    for (name, digest, url, _package, _artifact) in artifacts:
         if not inspect_artifact(pool, name, digest, directory_fd):
             if action == "check":
                 raise FileNotFoundError(f"Cannot use {name}: the artifact is missing from the wheelhouse.")
             download(pool, name, digest, url, directory_fd)
     return {"artifacts": [{"package": str(package.name), "filename": name, "sha256": digest}
-                          for name, digest, _, package, _ in artifacts]}
+                          for (name, digest, _, package, _) in artifacts]}
 
 
 # silent-defaults: allow-contract -- Source distribution preferences default to immutable empty tuples; optional captured document/artifact arguments are absent as None.
@@ -282,7 +282,7 @@ def local_lock(lock, local_root, prefer_sdist=(), require_sdist=(), document=Non
     if artifacts is None:
         artifacts = selected(lock, prefer_sdist, require_sdist, document)
     packages = []
-    for name, _digest, _url, package, artifact in artifacts:
+    for (name, _digest, _url, package, artifact) in artifacts:
         local = replace(artifact, url=None, path=str(local_root / name))
         if isinstance(local, PackageWheel):
             package = replace(package, wheels=[local], sdist=None)
@@ -321,7 +321,7 @@ def main():
         artifacts = selected(args.lock, prefer_sdist, require_sdist, document, args.source_lock)
         if args.action == "select":
             result = {"artifacts": [{"package": str(package.name), "filename": name, "sha256": digest}
-                                    for name, digest, _, package, _ in artifacts]}
+                                    for (name, digest, _, package, _) in artifacts]}
         else:
             if args.pool is None:
                 raise ValueError("Cannot inspect wheelhouse: supply --pool.")

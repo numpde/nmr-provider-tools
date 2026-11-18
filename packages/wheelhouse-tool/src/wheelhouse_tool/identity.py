@@ -13,7 +13,7 @@ def selection_identity(entries):
     for entry in entries:
         if set(entry) != {"directory", "filename", "sha256"}:
             raise ValueError("Cannot identify selection: each entry must explicitly identify one artifact.")
-        directory, name, checksum = entry["directory"], entry["filename"], entry["sha256"]
+        (directory, name, checksum) = (entry["directory"], entry["filename"], entry["sha256"])
         path = PurePosixPath(directory)
         if (path.is_absolute() or str(path) != directory or not path.parts or ".." in path.parts
                 or not name or name in (".", "..") or "/" in name or "\\" in name
@@ -25,7 +25,7 @@ def selection_identity(entries):
             raise ValueError("Cannot identify selection: artifact entries conflict.")
         selected[key] = checksum
     canonical = [{"directory": directory, "filename": name, "sha256": checksum}
-                 for (directory, name), checksum in sorted(selected.items())]
+                 for ((directory, name), checksum) in sorted(selected.items())]
     encoded = json.dumps(canonical, sort_keys=True, separators=(",", ":"), ensure_ascii=True).encode()
     return hashlib.sha256(encoded).hexdigest()
 

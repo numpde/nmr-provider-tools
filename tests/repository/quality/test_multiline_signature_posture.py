@@ -27,7 +27,7 @@ def multiline_signature_findings(*, source: str) -> list[tuple[int, str]]:
     stack = []
     closing = {}
 
-    for index, token in enumerate(tokens):
+    for (index, token) in enumerate(tokens):
         if token.type != tokenize.OP:
             continue
 
@@ -38,7 +38,7 @@ def multiline_signature_findings(*, source: str) -> list[tuple[int, str]]:
 
     lists = {}
 
-    for index, token in enumerate(tokens):
+    for (index, token) in enumerate(tokens):
         if token.type != tokenize.NAME or token.string != "def":
             continue
 
@@ -55,11 +55,9 @@ def multiline_signature_findings(*, source: str) -> list[tuple[int, str]]:
     # Match that position rather than guessing where a complex callee ends.
     opening_by_call_end = {
         (line, len(lines[line - 1][:column].encode("utf-8"))): opening_index
-        for opening_index,
-        closing_index in closing.items()
+        for (opening_index, closing_index) in closing.items()
         if tokens[closing_index].string == ")"
-        for line,
-        column in (tokens[closing_index].end,)
+        for (line, column) in (tokens[closing_index].end,)
     }
 
     for expression in ast.walk(ast.parse(source)):
@@ -71,7 +69,7 @@ def multiline_signature_findings(*, source: str) -> list[tuple[int, str]]:
 
     findings = []
 
-    for opening_index, (kind, items) in lists.items():
+    for (opening_index, (kind, items)) in lists.items():
         opening = tokens[opening_index]
         ending = tokens[closing[opening_index]]
 
@@ -159,8 +157,7 @@ class MultilineSignaturePostureTests(unittest.TestCase):
         findings = [
             f"{source_path.relative_to(ROOT)}:{line}: {message}"
             for source_path in python_sources(production_only=False)
-            for line,
-            message in multiline_signature_findings(source=source_path.read_text(encoding="utf-8"))
+            for (line, message) in multiline_signature_findings(source=source_path.read_text(encoding="utf-8"))
         ]
 
         self.assertEqual(first=[], second=findings, msg="\n".join(findings))

@@ -208,7 +208,7 @@ class MultilineBracketPostureTests(unittest.TestCase):
     def test_multiline_set_and_nested_dictionary_braces_use_utf8_positions(self):
         source = 'café = {first,\n    second}\nnested = {\n    "clé": {"value": 1,\n        "other": 2},\n}\n'
 
-        self.assertEqual(first=[1, 2, 4, 5], second=[line for line, _ in multiline_literal_findings(source=source)])
+        self.assertEqual(first=[1, 2, 4, 5], second=[line for (line, _) in multiline_literal_findings(source=source)])
 
     def test_multiline_list_and_parenthesized_tuple_report_both_delimiters(self):
         source = 'items = [first,\n    second]\nvalues = (first,\n    "café")\n'
@@ -232,8 +232,7 @@ class MultilineBracketPostureTests(unittest.TestCase):
         findings = [
             f"{source_path.relative_to(ROOT)}:{line}: {message}"
             for source_path in python_sources(production_only=False)
-            for line,
-            message in multiline_literal_findings(source=source_path.read_text(encoding="utf-8"))
+            for (line, message) in multiline_literal_findings(source=source_path.read_text(encoding="utf-8"))
         ]
 
         self.assertEqual(first=[], second=findings, msg="\n".join(findings))
