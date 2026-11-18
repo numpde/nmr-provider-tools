@@ -8,6 +8,7 @@ inference, offerings, model configuration and their execution policy.
 
 - [Scientific contributions](#scientific-contributions)
 - [Scientific input tools](#scientific-input-tools)
+- [Type requirements](#type-requirements)
 - [Attempts and capacity](#attempts-and-capacity)
 - [Crashes and recovery](#crashes-and-recovery)
 - [Shared result delivery](#shared-result-delivery)
@@ -113,6 +114,26 @@ The collector owns no resources, callbacks or tasks. Capturing cancellation does
 not settle interrupted work: use the existing receiver, cleanup and host owners
 for that. Providers still choose ordering, including Reference's delivery of a
 prior usable report before observing a later failed analysis's cleanup.
+
+## Type requirements
+
+`provider_core.type_requirements` provides three explicit checks for ordinary
+Python type contracts:
+
+```python
+from provider_core.type_requirements import require_instance, require_subclass, require_type
+
+require_type(value, int)                # type(value) is int, not bool
+require_instance(value, (int, float))   # isinstance(value, (int, float))
+require_subclass(candidate, Base)       # candidate is a class and issubclass(candidate, Base)
+```
+
+Each accepts a class or nonempty tuple of classes, returns `None` on success,
+and raises `TypeError` on failure. The failure reports the caller's argument
+expression when source is available; otherwise it uses `repr(value)`.
+Source text and fallback values are not redacted. Use these helpers for
+ordinary type requirements, not for protocol-specific rejection classes,
+field-labeled errors or other domain validation.
 
 ## Scientific input tools
 
