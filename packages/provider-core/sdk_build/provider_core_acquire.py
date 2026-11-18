@@ -169,49 +169,54 @@ def main():
     with tempfile.TemporaryDirectory(prefix="provider-core-locks-") as temporary:
         for (number, lock) in enumerate(locks):
             projection = pathlib.Path(temporary) / f"pylock.{number}.toml"
-            command = [sys.executable, "-I", "-B", str(tool)]
+            command = [
+                sys.executable,  # Use the worker's Python interpreter
+                "-I",  # Ignore PYTHON* settings and the user site
+                "-B",  # Suppress bytecode writes
+                str(tool),  # Run the pinned wheelhouse zipapp
+            ]
 
             with projection.open("xb") as output:
                 subprocess.run(
                     command + [
-                        "locate",
-                        "--lock",
-                        str(lock),
-                        "--index-url",
-                        "https://pypi.org/simple",
-                        "--pool",
-                        str(pool)
+                        "locate",  # Resolve artifact URLs for the pinned hashes
+                        "--lock",  # Read the source requirements lock
+                        str(lock),  # Use the current lock in the acquisition batch
+                        "--index-url",  # Select the package index explicitly
+                        "https://pypi.org/simple",  # Use the public PyPI simple index
+                        "--pool",  # Consult the shared artifact cache
+                        str(pool),  # Look for existing artifacts in this directory
                     ],
-                    stdout=output,
-                    check=True
+                    stdout=output,  # Keep the projected lock for acquisition
+                    check=True,  # Stop when source lookup fails
                 )
 
             subprocess.run(
                 command + [
-                    "acquire",
-                    "--lock",
-                    str(projection),
-                    "--source-lock",
-                    str(lock),
-                    "--pool",
-                    str(pool)
+                    "acquire",  # Fetch missing artifacts and verify cached copies
+                    "--lock",  # Select artifacts from the projected lock
+                    str(projection),  # Supply the URLs resolved by locate
+                    "--source-lock",  # Verify the projection against its source lock
+                    str(lock),  # Supply the original requirements and hashes
+                    "--pool",  # Select the shared artifact cache
+                    str(pool),  # Publish complete artifacts in this directory
                 ],
-                check=True
+                check=True,  # Stop if the selected artifacts cannot be admitted
             )
 
     subprocess.run(
         [
-            sys.executable,
-            "-I",
-            "-B",
-            str(tool),
-            "acquire",
-            "--lock",
-            str(bootstrap),
-            "--pool",
-            str(pool)
+            sys.executable,  # Use the worker's Python interpreter
+            "-I",  # Ignore PYTHON* settings and the user site
+            "-B",  # Suppress bytecode writes
+            str(tool),  # Run the pinned wheelhouse zipapp
+            "acquire",  # Fetch missing artifacts and verify cached copies
+            "--lock",  # Select artifacts from an explicit lock
+            str(bootstrap),  # Use the separately pinned acquisition dependency
+            "--pool",  # Select the shared artifact cache
+            str(pool),  # Reuse or publish artifacts in this directory
         ],
-        check=True
+        check=True,  # Propagate bootstrap dependency acquisition failure
     )
 
 

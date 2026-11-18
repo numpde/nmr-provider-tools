@@ -127,25 +127,25 @@ def select_wheels(lock, pool, extra_pools=(), required_files=None, lock_fd=None)
 
         subprocess.run(
             [
-                *pip_command(sys.executable),
-                "install",
-                "--dry-run",
-                "--ignore-installed",
-                "--quiet",
-                "--disable-pip-version-check",
-                "--no-cache-dir",
-                "--no-index",
-                "--no-deps",
-                "--require-hashes",
-                "--only-binary=:all:",
-                *[argument for directory in pools for argument in ("--find-links", str(directory))],
-                "--report",
-                str(report),
-                "-r",
-                str(frozen),
+                *pip_command(sys.executable),  # Use the worker's pinned pip in isolation
+                "install",  # Invoke pip's install resolver
+                "--dry-run",  # Select artifacts without installing them
+                "--ignore-installed",  # Resolve the full lock even if packages are already installed
+                "--quiet",  # Suppress routine resolver output
+                "--disable-pip-version-check",  # Skip the pip update probe
+                "--no-cache-dir",  # Select files from the supplied pools
+                "--no-index",  # Resolve without contacting package indexes
+                "--no-deps",  # Resolve only the explicitly locked closure
+                "--require-hashes",  # Check every selected artifact against the lock
+                "--only-binary=:all:",  # Accept wheels only
+                *[argument for directory in pools for argument in ("--find-links", str(directory))],  # Search each admitted local pool
+                "--report",  # Record the exact artifact selections
+                str(report),  # Keep the selection report in private scratch
+                "-r",  # Read versions and hashes from the lock
+                str(frozen),  # Use the validated snapshot of the lock
             ],
-            check=True,
-            pass_fds=borrowed_descriptors,
+            check=True,  # Stop if resolution fails
+            pass_fds=borrowed_descriptors,  # Keep shared pool protection alive in pip
         )
 
         return wheel_inputs_from_report(frozen, pool, report, extra_pools, required_files)

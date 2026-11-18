@@ -67,19 +67,19 @@ def build_source_wheel(
 
     subprocess.run(
         [
-            *pip_command(python),
-            "wheel",
-            "--disable-pip-version-check",
-            "--no-cache-dir",
-            "--no-index",
-            "--no-deps",
-            "--no-build-isolation",
-            "--wheel-dir",
-            str(output),
-            str(staged_source),
+            *pip_command(python),  # Use the builder's pinned pip in isolation
+            "wheel",  # Build a distribution without installing it
+            "--disable-pip-version-check",  # Skip the pip update probe
+            "--no-cache-dir",  # Avoid reading or populating pip's cache
+            "--no-index",  # Skip package index lookup
+            "--no-deps",  # Build only the requested project
+            "--no-build-isolation",  # Use the already installed build dependencies
+            "--wheel-dir",  # Select the wheel output directory
+            str(output),  # Publish the wheel to the caller's output directory
+            str(staged_source),  # Allow backend writes in scratch
         ],
-        check=True,
-        env=os.environ | {"SOURCE_DATE_EPOCH": "315532800"},
+        check=True,  # Stop if the wheel build fails
+        env=os.environ | {"SOURCE_DATE_EPOCH": "315532800"},  # Fix wheel timestamps across rebuilds
     )
 
     return staged_source
@@ -94,28 +94,28 @@ def install_locked(python, lock, wheels, report, extra_pools=(), required_files=
 
     subprocess.run(
         [
-            *pip_command(python),
-            "install",
-            "--ignore-installed",
-            "--disable-pip-version-check",
-            "--no-cache-dir",
-            "--no-index",
-            "--no-deps",
-            "--only-binary=:all:",
-            "--require-hashes",
-            "--no-compile",
-            "--report",
-            str(report),
+            *pip_command(python),  # Run the target's pinned pip in isolation
+            "install",  # Materialize the locked environment
+            "--ignore-installed",  # Require fresh selection of every locked artifact
+            "--disable-pip-version-check",  # Skip the pip update probe
+            "--no-cache-dir",  # Use the supplied wheels instead of pip's cache
+            "--no-index",  # Resolve only from local sources
+            "--no-deps",  # Install only the explicitly locked closure
+            "--only-binary=:all:",  # Reject source distributions
+            "--require-hashes",  # Verify the lock hashes before installation
+            "--no-compile",  # Leave Python bytecode unmaterialized
+            "--report",  # Record which artifacts pip actually installed
+            str(report),  # Write the evidence to the caller's report
             *[
                 argument
                 for directory in (wheels, *extra_pools)
                 for argument in ("--find-links", str(directory))
-            ],
-            "-r",
-            str(lock),
+            ],  # Give pip a find-links entry for each admitted local pool
+            "-r",  # Read exact versions and hashes from the lock
+            str(lock),  # Select the lock for this environment
         ],
-        check=True,
-        pass_fds=borrowed_descriptors,
+        check=True,  # Reject an incomplete installation
+        pass_fds=borrowed_descriptors,  # Keep shared pool protection alive in pip
     )
 
     return wheel_inputs_from_report(lock, wheels, report, extra_pools, required_files)
@@ -191,15 +191,15 @@ def _build_candidate(source, runtime_lock, build_lock, pool, output, lock_fd):
 
         subprocess.run(
             [
-                str(builder_python),
-                "-I",
-                "-B",
-                str(sdist_builder),
-                str(output),
+                str(builder_python),  # Use the environment with the pinned backend
+                "-I",  # Ignore PYTHON* settings and the user site
+                "-B",  # Suppress bytecode writes
+                str(sdist_builder),  # Invoke the source distribution backend
+                str(output),  # Write the archive alongside the candidate wheel
             ],
-            cwd=staged_package,
-            env=os.environ | {"SOURCE_DATE_EPOCH": "315532800"},
-            check=True,
+            cwd=staged_package,  # Give the backend the staged project
+            env=os.environ | {"SOURCE_DATE_EPOCH": "315532800"},  # Fix build timestamps
+            check=True,  # Stop if the source distribution build fails
         )
 
         wheel = output / f"provider_core-{release_version}-py3-none-any.whl"

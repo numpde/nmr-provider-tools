@@ -201,15 +201,15 @@ def _run_installed_suite(
 ) -> None:
     test_process = subprocess.run(
         [
-            str(python),
-            "-I",
-            "-B",
-            str(run / "tests/run_suite.py"),
-            selection,
-            *patterns,
+            str(python),  # Use the SDK's installed test environment
+            "-I",  # Ignore PYTHON* settings and the user site
+            "-B",  # Suppress bytecode writes
+            str(run / "tests/run_suite.py"),  # Discover tests from the staged suite
+            selection,  # Choose the unit, contract, integration, or native suite
+            *patterns,  # Apply the caller's filename selection
         ],
-        cwd=run,
-        check=False,
+        cwd=run,  # Run against the staged suite rather than the checkout
+        check=False,  # Translate the suite's return code into its named failure
     )
 
     if test_process.returncode:

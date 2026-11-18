@@ -110,17 +110,17 @@ def publish_release_wheels(tool, pool, artifacts):
 
         subprocess.run(
             [
-                sys.executable,
-                "-I",
-                "-B",
-                str(tool),
-                "acquire",
-                "--lock",
-                str(acquisition_lock),
-                "--pool",
-                str(pool),
+                sys.executable,  # Use the worker's Python interpreter
+                "-I",  # Ignore PYTHON* settings and the user site
+                "-B",  # Suppress bytecode writes
+                str(tool),  # Run the pinned wheelhouse zipapp
+                "acquire",  # Fetch missing artifacts and verify cached copies
+                "--lock",  # Select artifacts from an explicit lock
+                str(acquisition_lock),  # Use the generated delivery lock
+                "--pool",  # Select the shared artifact cache
+                str(pool),  # Reuse or publish artifacts in this directory
             ],
-            check=True,
+            check=True,  # Propagate publisher failure
         )
 
 
