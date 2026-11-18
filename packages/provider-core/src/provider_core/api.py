@@ -47,6 +47,7 @@ from provider_core.job_feed import PAGE_RESPONSE_BYTES, jobs_query, read_jobs_pa
 from provider_core.job_input import MAX_RESPONSE_BYTES, FeedInputFacts, JobInputRejected, verify_job_input
 from provider_core.response_json import ResponseRejected
 from provider_core.signing import signed_request
+from provider_core.tools import duplicate_json_fields
 from provider_core.transport import ExchangeFailed, response_request_id
 from provider_core.network import network_availability
 
@@ -243,19 +244,14 @@ _PROBLEM_REASONS = {
 }
 
 
-def _unique_problem_fields(pairs):
-    document = {}
+def _unique_problem_fields(field_pairs):
+    if duplicate_json_fields(field_pairs):
+        raise ValueError("Duplicate problem field")
 
-    for (key, value) in pairs:
-        if key in document:
-            raise ValueError("Duplicate problem field")
-
-        document[key] = value
-
-    return document
+    return dict(field_pairs)
 
 
-def _reject_problem_constant(_value):
+def _reject_problem_constant(_nonfinite_token):
     raise ValueError("Nonfinite problem number")
 
 
@@ -970,7 +966,7 @@ class ProviderAPI:
         Uncertainty never authorizes replacing it with another result or failure.
         """
         require_attempt_ref(execution_attempt_ref)
-        (result_schema_id, result) = read_complete_body(body, execution_attempt_ref=execution_attempt_ref)
+        (result_schema_id, submitted_result) = read_complete_body(body, execution_attempt_ref=execution_attempt_ref)
 
         response = await self._exchange(
             "complete Execution Attempt",
@@ -988,7 +984,7 @@ class ProviderAPI:
                 response.body,
                 execution_attempt_ref=execution_attempt_ref,
                 result_schema_id=result_schema_id,
-                result=result
+                result=submitted_result
             )
         except ResponseRejected as cause:
             raise self._remember_failure(

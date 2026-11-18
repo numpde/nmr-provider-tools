@@ -16,7 +16,7 @@ import ast
 import re
 import tempfile
 import unittest
-from pathlib import Path
+import pathlib
 
 from tests.repository.quality.sources import ROOT, source_files
 
@@ -96,9 +96,9 @@ def unguarded_sources(root):
     # The shared guard must be importable before its caller checks the marker.
     sources.discard(root / "tools" / "container_guard.py")
 
-    # The scientific rejection contract is portable: it must be importable by
-    # scientific code before any container execution boundary exists.
+    # Scientific code imports rejection types and pure validators before launch
     portable_sources.discard(core_root / "contribution_errors.py")
+    portable_sources.discard(core_root / "tools.py")
 
     failures = [
         str(path.relative_to(root))
@@ -207,7 +207,7 @@ class ConventionDetectionTests(unittest.TestCase):
 
     def test_installed_core_requires_its_own_portable_guard(self):
         with tempfile.TemporaryDirectory() as directory:
-            root = Path(directory)
+            root = pathlib.Path(directory)
             worker = root / "packages/provider-core/src/provider_core/worker.py"
 
             worker.parent.mkdir(parents=True)
@@ -218,7 +218,7 @@ class ConventionDetectionTests(unittest.TestCase):
 
     def test_installed_delivery_sources_keep_exact_guard_ownership(self):
         with tempfile.TemporaryDirectory() as directory:
-            root = Path(directory)
+            root = pathlib.Path(directory)
             portable = ("tools/delivery_deployment.py", "containers/delivery/check_runtime.py", "tests/deployment/test_freezer.py")
 
             for name in portable:
@@ -243,7 +243,7 @@ class ConventionDetectionTests(unittest.TestCase):
 
     def test_boundary_imports_detect_crossing_in_either_direction(self):
         with tempfile.TemporaryDirectory() as directory:
-            root = Path(directory)
+            root = pathlib.Path(directory)
             host = root / "host/tasks.py"
             contained = root / "tools/tasks.py"
 
@@ -279,7 +279,7 @@ class ConventionDetectionTests(unittest.TestCase):
 
     def test_new_nested_workers_and_future_package_enter_inventory(self):
         with tempfile.TemporaryDirectory() as directory:
-            root = Path(directory)
+            root = pathlib.Path(directory)
 
             for name in (
                 "tools/container_guard.py",

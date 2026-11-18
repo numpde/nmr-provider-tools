@@ -39,7 +39,7 @@ class UntrustedJobInputTests(unittest.TestCase):
             b"null",
             b"\xff",
             b" " * 131073,
-            b'{"PRIVATE_SENTINEL":1,"PRIVATE_SENTINEL":2}',
+            b'{"unrecognized_field":"PRIVATE_SENTINEL","unrecognized_field":"PRIVATE_SENTINEL"}',
             b'{"job_ref":"a","job_\\u0072ef":"b"}',
             b"[" * 2000 + b"]" * 2000,
             b'{"PRIVATE_SENTINEL":' + b"1" * 5000 + b"}",

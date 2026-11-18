@@ -1,19 +1,23 @@
-"""Small primitives shared by provider-core's independent runtime components."""
-
-from provider_core.container_guard import require_container
-
-require_container()
+"""Pure helpers shared by scientific code and provider-core runtime components."""
 
 import math
-from pathlib import Path
+import pathlib
+from collections import Counter
 
 
-def require_absolute_path(path: str | Path) -> Path:
+def duplicate_json_fields(field_pairs: list[tuple[str, object]]) -> Counter[str]:
+    """Count occurrences beyond the first for each repeated JSON field."""
+    field_counts = Counter(field_name for (field_name, _) in field_pairs)
+
+    return field_counts - Counter(field_counts.keys())
+
+
+def require_absolute_path(path: str | pathlib.Path) -> pathlib.Path:
     """Return an absolute NUL-free path without resolving it or accessing files."""
-    if not isinstance(path, (expected_types := (str, Path))):
+    if not isinstance(path, (expected_types := (str, pathlib.Path))):
         raise TypeError(f"{type(path)=} ∉ {expected_types=}")
 
-    path = Path(path)
+    path = pathlib.Path(path)
 
     if "\0" in str(path):
         raise ValueError(f"{path=} should not contain NUL characters")
@@ -24,13 +28,20 @@ def require_absolute_path(path: str | Path) -> Path:
     return path
 
 
-def require_positive_number(number):
-    """Return a finite positive int or float, excluding booleans."""
+def require_finite_number(number: object) -> int | float:
+    """Return a finite int or float, excluding booleans."""
     if not (type(number) in (expected_types := (int, float))):
         raise TypeError(f"{type(number)=} ∉ {expected_types=}")
 
     if not math.isfinite(number):
         raise ValueError(f"{number=} should be finite")
+
+    return number
+
+
+def require_positive_number(number):
+    """Return a finite positive int or float, excluding booleans."""
+    require_finite_number(number)
 
     if not (0 < number):
         raise ValueError(f"{number=} should be positive")
@@ -40,11 +51,7 @@ def require_positive_number(number):
 
 def require_nonnegative_number(number):
     """Return a finite nonnegative int or float, excluding booleans."""
-    if not (type(number) in (expected_types := (int, float))):
-        raise TypeError(f"{type(number)=} ∉ {expected_types=}")
-
-    if not math.isfinite(number):
-        raise ValueError(f"{number=} should be finite")
+    require_finite_number(number)
 
     if not (0 <= number):
         raise ValueError(f"{number=} should be nonnegative")

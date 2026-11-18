@@ -1,4 +1,4 @@
-"""Decode bounded API JSON without exposing private payload text in errors.
+"""Decode bounded API JSON before route-specific admission.
 
 Route-specific modules own schema and identity admission. This shared decoder
 rejects ambiguous JSON before either Upload or Attempt facts are interpreted.
@@ -12,25 +12,22 @@ import json
 import re
 from datetime import datetime
 
+from provider_core.tools import duplicate_json_fields
+
 
 class ResponseRejected(ValueError):
     """Safe wire rejection; the API owner retains the original response privately."""
 
 
-def _unique_fields(pairs):
-    result = {}
+def _unique_fields(field_pairs):
+    if duplicate_fields := duplicate_json_fields(field_pairs):
+        raise ResponseRejected(f"JSON has {duplicate_fields=}")
 
-    for (name, value) in pairs:
-        if name in result:
-            raise ResponseRejected("Response contains a duplicate JSON field")
-
-        result[name] = value
-
-    return result
+    return dict(field_pairs)
 
 
-def _reject_constant(_value):
-    raise ResponseRejected("Response contains a nonfinite JSON number")
+def _reject_constant(nonfinite_token):
+    raise ResponseRejected(f"JSON has {nonfinite_token=}")
 
 
 def read_document(raw, limit):

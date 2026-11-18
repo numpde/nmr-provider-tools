@@ -17,6 +17,8 @@ import json
 import re
 from dataclasses import dataclass, field
 
+from provider_core.tools import duplicate_json_fields
+
 # The admitted input profile has this fixed protocol identity.
 # repo-check: allow-module-constant
 INPUT_SCHEMA = "nmr.job.specification.text.v1"
@@ -104,20 +106,15 @@ class VerifiedJobInput:
         return self.specification_bytes.decode("utf-8")
 
 
-def _unique_fields(pairs):
-    document = {}
+def _unique_fields(field_pairs):
+    if duplicate_fields := duplicate_json_fields(field_pairs):
+        raise JobInputRejected(f"Job input has {duplicate_fields=}")
 
-    for (key, value) in pairs:
-        if key in document:
-            raise JobInputRejected("Cannot verify Job input: response contains a duplicate JSON field.")
-
-        document[key] = value
-
-    return document
+    return dict(field_pairs)
 
 
-def _reject_constant(_value):
-    raise JobInputRejected("Cannot verify Job input: response contains a nonfinite JSON number.")
+def _reject_constant(nonfinite_token):
+    raise JobInputRejected(f"Job input has {nonfinite_token=}")
 
 
 def _read_response(response_bytes):
