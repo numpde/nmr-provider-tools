@@ -19,6 +19,18 @@ import unittest
 
 
 class AcquisitionScopeTests(unittest.TestCase):
+    def stage_acquisition_source(self, directory):
+        repository = pathlib.Path(__file__).resolve().parents[2]
+        bundle = directory / 'acquisition'
+
+        shutil.copytree(repository / 'packages/acquisition/acquisition_tool', bundle / 'acquisition_tool')
+        shutil.copytree(repository / 'packages/acquisition/compose', bundle / 'compose')
+        (bundle / 'tools').mkdir()
+        shutil.copyfile(repository / 'host/tools/inference_native.sh', bundle / 'tools/inference_native.sh')
+        shutil.copyfile(repository / 'operations/docker/docker_client.sh', bundle / 'tools/docker_client.sh')
+
+        return bundle
+
     def run_mapping(self, body):
         temporary = tempfile.TemporaryDirectory()
 
@@ -45,7 +57,7 @@ source "$ACQUISITION_SOURCE_ROOT/acquisition_tool/owner.sh"
             'IDENTITY_OUTPUT': '17 19 23 29\n',
             'IDENTITY_STATUS': '0',
             'IDENTITY_DIAGNOSTIC': '',
-            'ACQUISITION_SOURCE_ROOT': str(pathlib.Path(__file__).resolve().parents[2] / 'packages/acquisition'),
+            'ACQUISITION_SOURCE_ROOT': str(self.stage_acquisition_source(directory=root)),
         }
 
         process = subprocess.Popen(
@@ -400,7 +412,7 @@ acquisition_scope --endpoint unix:///outer.sock --bootstrap-image fixture:bootst
         script = r'''
 set -uo pipefail
 if [[ ${OWNER_ERREXIT:-0} == 1 ]]; then set -e; fi
-source packages/acquisition/acquisition_tool/owner.sh
+source "$ACQUISITION_SOURCE_ROOT/acquisition_tool/owner.sh"
 # Replace only the public mapping port: the scope, workers, native client
 # supervisor, signal handlers and engine retirement remain real.
 acquisition_map_owner() { printf -v "$1" '%s' 0; printf -v "$2" '%s' 0; printf '%s\n' "$3" >> "$STATE/map-images"; }
@@ -444,6 +456,7 @@ acquisition_scope --endpoint unix:///var/run/docker.sock --bootstrap-image fixtu
             'HOLD_COMPOSE_WORKER': '0',
             'STATE': str(root),
             'ENGINE_STATE': str(root),
+            'ACQUISITION_SOURCE_ROOT': str(self.stage_acquisition_source(directory=root)),
             **injected
         }
 
