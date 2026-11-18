@@ -56,11 +56,11 @@ def _require_mount_path(mount_path):
     except (TypeError, ValueError) as cause:
         raise DeliveryDeploymentRejected("Cannot admit a delivery input path") from cause
 
-    if (
-        absolute_mount_path.resolve() != absolute_mount_path
-        or any(character in str(absolute_mount_path) for character in ("\n", "\r", ","))
-    ):
-        raise DeliveryDeploymentRejected("Delivery inputs require canonical absolute paths without mount delimiters.")
+    if not (absolute_mount_path.resolve() == absolute_mount_path):
+        raise DeliveryDeploymentRejected("The delivery mount path should be canonical with symlinks resolved")
+
+    if not all(character not in str(absolute_mount_path) for character in ("\n", "\r", ",")):
+        raise DeliveryDeploymentRejected("The delivery mount path should contain no commas or line breaks")
 
     return absolute_mount_path
 
@@ -193,8 +193,13 @@ def daemon_configuration(definition):
 
 
 def render(definition, source, image, checksum):
-    if definition.uid != os.geteuid() or re.fullmatch(r"sha256:[0-9a-f]{64}", image) is None:
-        raise DeliveryDeploymentRejected("Delivery rendering requires its installing nonzero UID and an immutable image ID.")
+    installer_uid = os.geteuid()
+
+    if not (definition.uid == installer_uid):
+        raise DeliveryDeploymentRejected(f"{definition.uid=} should match {installer_uid=}")
+
+    if re.fullmatch(r"sha256:[0-9a-f]{64}", image) is None:
+        raise DeliveryDeploymentRejected("The delivery image ID should be sha256: followed by 64 lowercase hex digits")
 
     source = _require_mount_path(source)
     listeners = admit_listeners(definition)
@@ -249,8 +254,10 @@ def render(definition, source, image, checksum):
             input_sources={},
         )
 
-        if set(services) & set(api_route.compose["services"]):
-            raise DeliveryDeploymentRejected("Delivery proxy identities collide; no ambiguous recipe was published.")
+        duplicate_proxy_services = services.keys() & api_route.compose["services"].keys()
+
+        if duplicate_proxy_services:
+            raise DeliveryDeploymentRejected(f"Delivery proxy service names should be unique, but {duplicate_proxy_services=}")
 
         for proxy in api_route.compose["services"].values():
             proxy["labels"]["org.nmr-provider-tools.delivery"] = definition.project

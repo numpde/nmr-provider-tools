@@ -50,18 +50,20 @@ INSTALLER_SOURCES = (
 )
 
 
-def _add(files, name, member_bytes):
-    member_path = PurePosixPath(name)
+def _add(files, member_name, member_bytes):
+    member_path = PurePosixPath(member_name)
 
-    if (
-        member_path.is_absolute()
-        or ".." in member_path.parts
-        or member_path.as_posix() != name
-        or name in files
+    if not (
+        (not member_path.is_absolute()) and
+        (".." not in member_path.parts) and
+        (member_path.as_posix() == member_name)
     ):
-        raise ValueError("Cannot build acquisition source bundle: duplicate or unsupported member path.")
+        raise ValueError(f"{member_name=} should be a canonical relative path within the acquisition archive")
 
-    files[name] = member_bytes
+    if not (member_name not in files):
+        raise ValueError(f"{member_name=} should appear only once in the acquisition archive")
+
+    files[member_name] = member_bytes
 
 
 def dependency_files(pool, pin):

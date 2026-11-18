@@ -245,7 +245,7 @@ class WheelhouseTests(unittest.TestCase):
 
         write_report(self.pool / self.cached.name)
 
-        with self.assertRaisesRegex(ValueError, "required release artifact"):
+        with self.assertRaisesRegex(ValueError, r"selected_artifact=.* should match required_release_artifact="):
             wheelhouse.wheel_inputs_from_report(self.lock, self.pool, report, (candidate_dir,), {candidate.name: candidate})
 
         write_report(candidate)

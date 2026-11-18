@@ -274,12 +274,17 @@ def qualify_acquisition_bundle(bundle, scratch, expected_source_files):
 
             verified_sources[member_name] = member_bytes
 
-    if set(verified_sources) != set(expected_source_files):
-        raise ValueError("Cannot qualify acquisition source bundle: incomplete source inventory.")
+    if not (verified_sources.keys() == expected_source_files.keys()):
+        missing_members = sorted(expected_source_files.keys() - verified_sources.keys(), key=repr)
+        unexpected_members = sorted(verified_sources.keys() - expected_source_files.keys())
+        raise ValueError(f"Acquisition archive members should match the source inventory, but {missing_members=} and {unexpected_members=}")
 
-    for name in verified_sources:
-        if any(parent.as_posix() in verified_sources for parent in PurePosixPath(name).parents):
-            raise ValueError("Cannot qualify acquisition source bundle: member conflicts with its parent path.")
+    for member_name in verified_sources:
+        for parent_path in PurePosixPath(member_name).parents:
+            parent_name = parent_path.as_posix()
+
+            if not (parent_name not in verified_sources):
+                raise ValueError(f"{parent_name=} should be a directory for {member_name=}, but it is an archive file")
 
     destination = scratch / "acquisition-source"
 

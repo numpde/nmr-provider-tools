@@ -173,8 +173,12 @@ def wheel_inputs_from_report(lock, pool, report, extra_pools=(), required_files=
         ):
             raise ValueError("Cannot select wheels: pip selected a file outside the supplied flat pool.")
 
-        if required_files and candidate.name in required_files and candidate.resolve() != required_files[candidate.name].resolve():
-            raise ValueError(f"Cannot select {candidate.name}: pip did not select the required release artifact.")
+        if required_files and candidate.name in required_files:
+            selected_artifact = candidate.resolve()
+            required_release_artifact = required_files[candidate.name].resolve()
+
+            if not (selected_artifact == required_release_artifact):
+                raise ValueError(f"{selected_artifact=} should match {required_release_artifact=}")
 
         with regular_file(candidate):
             pass
@@ -188,7 +192,7 @@ def wheel_inputs_from_report(lock, pool, report, extra_pools=(), required_files=
     return {"lock_sha256": digest(lock), "files": files}
 
 
-def publish_file(path, destination, checksum):
+def publish_file(path, destination, expected_sha256):
     """Add one complete file without replacing a peer's existing inode or bytes."""
 
     with regular_file(path) as stream:
@@ -199,10 +203,11 @@ def publish_file(path, destination, checksum):
         os.link(path, destination, follow_symlinks=False)
     except FileExistsError as conflict:
         try:
-            observed = digest(destination)
+            existing_sha256 = digest(destination)
 
-            if observed != checksum:
-                raise ValueError(f"Cannot reuse {destination.name!r}: expected SHA-256 {checksum}, found {observed}; the existing file is preserved.")
+            if not (existing_sha256 == expected_sha256):
+                artifact_name = destination.name
+                raise ValueError(f"For {artifact_name=}, {existing_sha256=} should match {expected_sha256=}. The existing file was retained.")
         except (OSError, ValueError) as invalid_winner:
             raise conflict from invalid_winner
 
