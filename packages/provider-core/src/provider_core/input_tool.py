@@ -15,6 +15,7 @@ import json
 from provider_core.contribution import CallBinding
 from provider_core.conversation import ToolRejected
 from provider_core.payload import JsonDataclassCodec
+from provider_core.type_requirements import require_type
 
 
 @dataclass(frozen=True, slots=True, kw_only=True)
@@ -31,10 +32,7 @@ class ScientificInputToolDefinition:
     description: str
 
     def __post_init__(self) -> None:
-        if not (type((actual_input_codec := self.call_binding.input_codec)) is (expected_type := JsonDataclassCodec)):
-            raise TypeError(
-                f"{type(actual_input_codec)=} ≠ {expected_type=}"
-            )
+        require_type(self.call_binding.input_codec, JsonDataclassCodec)
 
     @property
     def name(self) -> str:
