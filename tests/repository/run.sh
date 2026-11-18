@@ -28,12 +28,12 @@ case "$1" in
     tests/repository/runtime) suite=tests/repository/test_container_port_runtime.py ;;
     *) printf 'Cannot select repository checks: unknown target %q. Use make help.\n' "$1" >&2; exit 2 ;;
 esac
-if [[ ${TEST_PATTERN_INPUT_ORIGIN-} == 'command line' ]]; then
+if [[ -v TEST_PATTERN_INPUT_ORIGIN && $TEST_PATTERN_INPUT_ORIGIN == 'command line' ]]; then
     if [[ $1 != tests/repository && $1 != tests/repository/quality ]]; then
         printf '%s\n' 'Cannot select repository test: TEST_PATTERN requires tests/repository or tests/repository/quality.' >&2
         exit 2
     fi
-    if [[ ! ${TEST_PATTERN_INPUT-} =~ ^test_[A-Za-z0-9_]+\.py$ ]]; then
+    if [[ ! -v TEST_PATTERN_INPUT || ! $TEST_PATTERN_INPUT =~ ^test_[A-Za-z0-9_]+\.py$ ]]; then
         printf '%s\n' 'Cannot select repository test: TEST_PATTERN must be one test_<name>.py filename.' >&2
         exit 2
     fi

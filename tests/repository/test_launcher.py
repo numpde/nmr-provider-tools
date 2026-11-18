@@ -224,13 +224,13 @@ class LauncherTests(unittest.TestCase):
                     finally:
                         os.close(terminal)
 
-                    self.assertIsNotNone(status, "Make query blocked on operator input")
+                    self.assertIsNotNone(status, msg="Make query blocked on operator input")
                     self.assertTrue(os.WIFEXITED(status), msg=output[-2000:].decode(errors="replace"))
                     self.assertIn(os.WEXITSTATUS(status), (0, 1), msg=output[-2000:].decode(errors="replace"))
                     self.assertNotIn(b"Select a local Docker context", output)
                     self.assertNotIn(b"WHEELHOUSE (", output)
                     self.assertNotIn(b"Select NETWORK_INTERFACE", output)
-                    self.assertFalse(log.exists(), "Make query inspected Docker")
+                    self.assertFalse(log.exists(), msg="Make query inspected Docker")
 
     def test_preview_discovers_new_public_roots_and_rejects_hidden_links(self):
         with tempfile.TemporaryDirectory() as directory:
