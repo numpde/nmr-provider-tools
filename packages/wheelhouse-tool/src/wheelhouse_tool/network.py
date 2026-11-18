@@ -65,8 +65,15 @@ def retry_delay(error, attempt):
                 # proxy 429/503 cannot be retried without ignoring Retry-After.
                 if int(tunnel[1]) not in (408, 500, 502, 504):
                     return None
-            elif reason.errno not in (errno.ECONNRESET, errno.ECONNREFUSED, errno.ECONNABORTED,
-                                      errno.ETIMEDOUT, errno.EHOSTUNREACH, errno.ENETUNREACH, errno.EPIPE):
+            elif reason.errno not in (
+                errno.ECONNRESET,
+                errno.ECONNREFUSED,
+                errno.ECONNABORTED,
+                errno.ETIMEDOUT,
+                errno.EHOSTUNREACH,
+                errno.ENETUNREACH,
+                errno.EPIPE,
+            ):
                 return None
         else:
             return None

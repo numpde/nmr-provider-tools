@@ -272,8 +272,12 @@ def _run(action, pool, artifacts, directory_fd):
             if action == "check":
                 raise FileNotFoundError(f"Cannot use {name}: the artifact is missing from the wheelhouse.")
             download(pool, name, digest, url, directory_fd)
-    return {"artifacts": [{"package": str(package.name), "filename": name, "sha256": digest}
-                          for (name, digest, _, package, _) in artifacts]}
+    return {
+        "artifacts": [
+            {"package": str(package.name), "filename": name, "sha256": digest}
+            for (name, digest, _, package, _) in artifacts
+        ],
+    }
 
 
 # silent-defaults: allow-contract -- Source distribution preferences default to immutable empty tuples; optional captured document/artifact arguments are absent as None.
@@ -324,8 +328,12 @@ def main():
         document = read_lock(args.lock)
         artifacts = selected(args.lock, prefer_sdist, require_sdist, document, args.source_lock)
         if args.action == "select":
-            result = {"artifacts": [{"package": str(package.name), "filename": name, "sha256": digest}
-                                    for (name, digest, _, package, _) in artifacts]}
+            result = {
+                "artifacts": [
+                    {"package": str(package.name), "filename": name, "sha256": digest}
+                    for (name, digest, _, package, _) in artifacts
+                ],
+            }
         else:
             if args.pool is None:
                 raise ValueError("Cannot inspect wheelhouse: supply --pool.")

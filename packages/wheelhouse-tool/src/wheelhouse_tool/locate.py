@@ -218,8 +218,12 @@ def locate(path, index=None, allowed_sources=(), required_sources=(), direct_sou
         raise ValueError("Cannot locate artifacts: a supplied direct source is not in the lock.")
     if required_sources - {package["name"] for package in packages}:
         raise ValueError("Cannot locate artifacts: a required source package is not in the lock.")
-    document = {"lock-version": "1.0", "created-by": "nmr-provider-tools metadata projection", "packages": packages,
-                "tool": {"nmr-provider-tools": {"source-lock-sha256": source_sha256}}}
+    document = {
+        "lock-version": "1.0",
+        "created-by": "nmr-provider-tools metadata projection",
+        "packages": packages,
+        "tool": {"nmr-provider-tools": {"source-lock-sha256": source_sha256}},
+    }
     list(Pylock.from_dict(document).select(prefer_sdist_predicate=lambda name: name in allowed_sources))
     return tomli_w.dumps(document)
 
