@@ -241,8 +241,8 @@ class DeliveryWorker:
                     # to this row. Trust, routing, topology and unknown refusals
                     # pause the binding, rather than holding every pending item.
                     item_refusal = (
-                        failure.status == 409 and failure.problem_code is not None
-                        or failure.status == 200 and type(failure.cause) is ResponseRejected
+                        (failure.status == 409 and failure.problem_code is not None) or
+                        (failure.status == 200 and type(failure.cause) is ResponseRejected)
                     )
 
                     if not item_refusal:

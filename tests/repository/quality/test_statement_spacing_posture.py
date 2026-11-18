@@ -91,13 +91,13 @@ def missing_blank_lines(*, source: str) -> list[int]:
                 start = _attached_start(statement=statement, comment_columns=comment_columns)
 
                 if not (
-                    isinstance(statement, ast.Return)
-                    or ends_attribute_group
-                    or ends_assignment_group
-                    or previous_start < _statement_start(statement=previous)
-                    or start < _statement_start(statement=statement)
-                    or _multiline(statement=previous)
-                    or _multiline(statement=statement)
+                    isinstance(statement, ast.Return) or
+                    (ends_attribute_group) or
+                    (ends_assignment_group) or
+                    (previous_start < _statement_start(statement=previous)) or
+                    (start < _statement_start(statement=statement)) or
+                    _multiline(statement=previous) or
+                    _multiline(statement=statement)
                 ):
                     continue
 

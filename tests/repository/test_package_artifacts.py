@@ -515,9 +515,9 @@ class PackageArtifactTests(unittest.TestCase):
                         shared_callers.append((path.name, function.name))
 
                     if (
-                        isinstance(call.func, ast.Attribute)
-                        and call.func.attr == "run"
-                        and any(
+                        isinstance(call.func, ast.Attribute) and
+                        (call.func.attr == "run") and
+                        any(
                             isinstance(item, ast.Constant) and item.value == "wheel"
                             for item in ast.walk(call)
                         )

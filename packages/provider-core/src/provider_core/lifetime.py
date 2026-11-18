@@ -46,8 +46,12 @@ class ProviderLifetime:
 
         facts = self._root.lstat()
 
-        if (self._root.resolve() != self._root or not stat.S_ISDIR(facts.st_mode)
-                or facts.st_uid != os.geteuid() or stat.S_IMODE(facts.st_mode) != 0o700):
+        if (
+            (self._root.resolve() != self._root) or
+            (not stat.S_ISDIR(facts.st_mode)) or
+            (facts.st_uid != os.geteuid()) or
+            (stat.S_IMODE(facts.st_mode) != 0o700)
+        ):
             raise LifetimeRefused("Provider lifetime directory must be canonical, caller-owned and mode 0700.")
 
         self._descriptor = os.open(
@@ -59,8 +63,11 @@ class ProviderLifetime:
         try:
             facts = os.fstat(self._descriptor)
 
-            if (not stat.S_ISREG(facts.st_mode) or facts.st_uid != os.geteuid()
-                    or stat.S_IMODE(facts.st_mode) != 0o600):
+            if (
+                (not stat.S_ISREG(facts.st_mode)) or
+                (facts.st_uid != os.geteuid()) or
+                (stat.S_IMODE(facts.st_mode) != 0o600)
+            ):
                 raise LifetimeRefused("Provider lifetime lock must be a caller-owned mode 0600 regular file.")
 
             fcntl.flock(self._descriptor, fcntl.LOCK_EX | fcntl.LOCK_NB)

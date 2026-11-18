@@ -31,10 +31,10 @@ def has_early_guard(source, *, package_marker=False, guard_module="tools.contain
     statements = ast.parse(source).body
 
     if (
-            statements
-            and isinstance(statements[0], ast.Expr)
-            and isinstance(statements[0].value, ast.Constant)
-            and isinstance(statements[0].value.value, str)
+        (statements) and
+        isinstance(statements[0], ast.Expr) and
+        isinstance(statements[0].value, ast.Constant) and
+        isinstance(statements[0].value.value, str)
     ):
         statements = statements[1:]
 
@@ -42,10 +42,10 @@ def has_early_guard(source, *, package_marker=False, guard_module="tools.contain
         return True
 
     while (
-            statements
-            and isinstance(statements[0], ast.ImportFrom)
-            and statements[0].level == 0
-            and statements[0].module == "__future__"
+        (statements) and
+        isinstance(statements[0], ast.ImportFrom) and
+        (statements[0].level == 0) and
+        (statements[0].module == "__future__")
     ):
         statements = statements[1:]
 
@@ -55,20 +55,18 @@ def has_early_guard(source, *, package_marker=False, guard_module="tools.contain
     (imported, called) = statements[:2]
 
     return (
-            isinstance(imported, ast.ImportFrom)
-            and (
-                    (imported.level == 0 and imported.module == guard_module)
-                    or (imported.level == 1 and package is not None and f"{package}.{imported.module}" == guard_module)
-            )
-            and len(imported.names) == 1
-            and imported.names[0].name == "require_container"
-            and imported.names[0].asname is None
-            and isinstance(called, ast.Expr)
-            and isinstance(called.value, ast.Call)
-            and isinstance(called.value.func, ast.Name)
-            and called.value.func.id == "require_container"
-            and not called.value.args
-            and not called.value.keywords
+        isinstance(imported, ast.ImportFrom) and
+        ((imported.level == 0 and imported.module == guard_module) or
+         (imported.level == 1 and package is not None and f"{package}.{imported.module}" == guard_module)) and
+        (len(imported.names) == 1) and
+        (imported.names[0].name == "require_container") and
+        (imported.names[0].asname is None) and
+        isinstance(called, ast.Expr) and
+        isinstance(called.value, ast.Call) and
+        isinstance(called.value.func, ast.Name) and
+        (called.value.func.id == "require_container") and
+        (not called.value.args) and
+        (not called.value.keywords)
     )
 
 

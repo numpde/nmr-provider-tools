@@ -60,9 +60,13 @@ def _socket_grant(path, socket_group_id):
 
     parent = path.parent.lstat()
 
-    if (path.parent.resolve() != path.parent or not stat.S_ISDIR(parent.st_mode)
-            or parent.st_uid != os.geteuid() or stat.S_IMODE(parent.st_mode) not in parent_modes
-            or (shared and parent.st_gid != socket_group_id)):
+    if (
+        (path.parent.resolve() != path.parent) or
+        (not stat.S_ISDIR(parent.st_mode)) or
+        (parent.st_uid != os.geteuid()) or
+        (stat.S_IMODE(parent.st_mode) not in parent_modes) or
+        (shared and parent.st_gid != socket_group_id)
+    ):
         # silent-defaults: allow-contract -- Parent permission requirements follow the explicit shared-group or same-UID socket grant.
         required_parent_mode = "mode 0710 or 02710 with the configured socket GID; " if shared else "mode 0700; "
 
@@ -89,8 +93,12 @@ def _socket_grant(path, socket_group_id):
             old = None
 
         if old is not None:
-            if (not stat.S_ISSOCK(old.st_mode) or old.st_uid != os.geteuid() or stat.S_IMODE(old.st_mode) != socket_mode
-                    or (shared and old.st_gid != socket_group_id)):
+            if (
+                (not stat.S_ISSOCK(old.st_mode)) or
+                (old.st_uid != os.geteuid()) or
+                (stat.S_IMODE(old.st_mode) != socket_mode) or
+                (shared and old.st_gid != socket_group_id)
+            ):
                 raise DeliveryUnavailable("Cannot replace delivery IPC: the prior leaf is not its private socket. Leave it unchanged for inspection.")
 
             path.unlink()

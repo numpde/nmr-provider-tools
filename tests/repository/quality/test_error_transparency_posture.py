@@ -49,9 +49,9 @@ def _opaque_oserror_translations(source: str) -> list[int]:
             continue
 
         if (
-            len(replacement.args) == 1
-            and all(keyword.arg == "returncode" for keyword in replacement.keywords)
-            and _message_without_cause(replacement.args[0], handler.name)
+            (len(replacement.args) == 1) and
+            all(keyword.arg == "returncode" for keyword in replacement.keywords) and
+            _message_without_cause(replacement.args[0], handler.name)
         ):
             findings.append(handler.lineno)
 
@@ -99,10 +99,10 @@ def _raw_cli_exception_text(source: str) -> list[int]:
                 if isinstance(node, ast.FormattedValue):
                     value = node.value
                 elif (
-                    isinstance(node, ast.Call)
-                    and isinstance(node.func, ast.Name)
-                    and node.func.id in {"str", "repr"}
-                    and len(node.args) == 1
+                    isinstance(node, ast.Call) and
+                    isinstance(node.func, ast.Name) and
+                    (node.func.id in {"str", "repr"}) and
+                    (len(node.args) == 1)
                 ):
                     value = node.args[0]
                 else:

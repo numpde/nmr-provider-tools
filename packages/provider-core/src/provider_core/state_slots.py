@@ -144,12 +144,12 @@ class StateOutputSlot[T]:
                 reference = output.reference
 
                 if (
-                    reference.host != observation.operation.host
-                    or reference.analysis != observation.operation.analysis
-                    or reference.binding_id != target.binding_id
-                    or reference.binding_revision != target.binding_revision
-                    or reference.kind != self.kind.name
-                    or reference.producer != operation.reference
+                    (reference.host != observation.operation.host) or
+                    (reference.analysis != observation.operation.analysis) or
+                    (reference.binding_id != target.binding_id) or
+                    (reference.binding_revision != target.binding_revision) or
+                    (reference.kind != self.kind.name) or
+                    (reference.producer != operation.reference)
                 ):
                     raise ValueError("State output provenance differs from its producer observation")
 

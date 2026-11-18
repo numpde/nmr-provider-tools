@@ -601,8 +601,9 @@ class _History:
 
             return
 
-        while self._records and (
-            self._bytes + len(data) > self._max_bytes or len(self._records) >= self._max_records
+        while (
+            self._records and
+            (self._bytes + len(data) > self._max_bytes or len(self._records) >= self._max_records)
         ):
             (_, oldest) = self._records.popitem(last=False)
             self._bytes -= len(oldest.data)

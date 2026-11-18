@@ -109,18 +109,18 @@ def source_files(
         candidate
         for candidate in candidates
         if
-        not candidate.name.endswith(".py.fixture") and
-        not _is_skipped_relative(repo_relative_path=candidate.relative_to(root)) and
-        not any(
+        (not candidate.name.endswith(".py.fixture")) and
+        (not _is_skipped_relative(repo_relative_path=candidate.relative_to(root))) and
+        (not any(
             (
                 (root / ancestor).is_symlink()
                 for ancestor in (candidate.relative_to(root), *candidate.relative_to(root).parents)
             ),
-        ) and
+        )) and
         candidate.is_file() and
-        not exclude_parts.intersection(candidate.relative_to(root).parts) and
+        (not exclude_parts.intersection(candidate.relative_to(root).parts)) and
         (candidate.relative_to(root) not in exclude_repo_paths) and
-        not any(candidate.relative_to(root).is_relative_to(subtree) for subtree in exclude_subtrees)
+        (not any(candidate.relative_to(root).is_relative_to(subtree) for subtree in exclude_subtrees))
     )
 
 

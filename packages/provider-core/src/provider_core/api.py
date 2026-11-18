@@ -405,9 +405,10 @@ class ProviderAPI:
         """
 
         return (
-            (self._retryable_failure(failure) or self._settled_status_failure(failure, 500)
-             or self._settled_status_failure(failure, 429))
-            and failure.request_method == "GET"
+            (self._retryable_failure(failure) or
+             self._settled_status_failure(failure, 500) or
+             self._settled_status_failure(failure, 429)) and
+            (failure.request_method == "GET")
         )
 
     def can_renew_read_grant(self, failure, *, job_ref, upload_ref):
@@ -420,17 +421,19 @@ class ProviderAPI:
         require_upload_ref(upload_ref)
 
         if (
-            type(failure) is not ApiFailure or failure is not self.last_failure
-            or not self.retirement_confirmed or failure.request_method != "POST"
-            or failure.request_target != (
-                f"/provider/v1/jobs/{job_ref}/uploads/{upload_ref}/read-capability".encode("ascii")
-            )
+            (type(failure) is not ApiFailure) or
+            (failure is not self.last_failure) or
+            (not self.retirement_confirmed) or
+            (failure.request_method != "POST") or
+            (failure.request_target != f"/provider/v1/jobs/{job_ref}/uploads/{upload_ref}/read-capability".encode("ascii"))
         ):
             return False
 
-        return self._retryable_failure(failure) or (
-            failure.response is not None and failure.status == 409
-            and failure.problem_code == "upload_read_not_finalized"
+        return (
+            self._retryable_failure(failure) or
+            ((failure.response is not None) and
+             (failure.status == 409) and
+             (failure.problem_code == "upload_read_not_finalized"))
         )
 
     def can_retry_job_discovery(self, failure):
@@ -443,9 +446,12 @@ class ProviderAPI:
         """
 
         if (
-            type(failure) is not ApiFailure or failure is not self.last_failure or not self.retirement_confirmed
-            or failure.request_method != "GET" or failure.request_target is None
-            or failure.request_target.partition(b"?")[0] != b"/provider/v1/jobs"
+            (type(failure) is not ApiFailure) or
+            (failure is not self.last_failure) or
+            (not self.retirement_confirmed) or
+            (failure.request_method != "GET") or
+            (failure.request_target is None) or
+            (failure.request_target.partition(b"?")[0] != b"/provider/v1/jobs")
         ):
             return False
 
@@ -464,10 +470,11 @@ class ProviderAPI:
         """
 
         return (
-            (self._retryable_failure(failure) or self._settled_status_failure(failure, 500)
-             or self._settled_status_failure(failure, 429))
-            and failure.request_method == "POST"
-            and failure.request_target == b"/provider/v1/hello"
+            (self._retryable_failure(failure) or
+             self._settled_status_failure(failure, 500) or
+             self._settled_status_failure(failure, 429)) and
+            (failure.request_method == "POST") and
+            (failure.request_target == b"/provider/v1/hello")
         )
 
     def can_refresh_signature(self, failure):
@@ -489,14 +496,12 @@ class ProviderAPI:
         """
 
         return (
-            type(failure) is ApiFailure
-            and failure is self.last_failure
-            and self.retirement_confirmed
-            and failure.response is not None
-            and (
-                failure.status == 401 and failure.problem_code in {"authentication_window_closed", "signature_expired"}
-                or failure.status == 408 and failure.problem_code == "request_body_timeout"
-            )
+            (type(failure) is ApiFailure) and
+            (failure is self.last_failure) and
+            self.retirement_confirmed and
+            (failure.response is not None) and
+            ((failure.status == 401 and failure.problem_code in {"authentication_window_closed", "signature_expired"}) or
+             (failure.status == 408 and failure.problem_code == "request_body_timeout"))
         )
 
     def can_replay_start(self, failure):
@@ -510,9 +515,9 @@ class ProviderAPI:
         """
 
         return (
-            self._recoverable_attempt_failure(failure)
-            and failure.request_method == "POST"
-            and failure.request_target == b"/provider/v1/execution-attempts/start"
+            self._recoverable_attempt_failure(failure) and
+            (failure.request_method == "POST") and
+            (failure.request_target == b"/provider/v1/execution-attempts/start")
         )
 
     def can_defer_phase_progress(self, failure, *, execution_attempt_ref):
@@ -544,9 +549,9 @@ class ProviderAPI:
         require_attempt_ref(execution_attempt_ref)
 
         return (
-            self._recoverable_attempt_failure(failure)
-            and failure.request_method == "PUT"
-            and failure.request_target == f"/provider/v1/execution-attempts/{execution_attempt_ref}/progress".encode("ascii")
+            self._recoverable_attempt_failure(failure) and
+            (failure.request_method == "PUT") and
+            (failure.request_target == f"/provider/v1/execution-attempts/{execution_attempt_ref}/progress".encode("ascii"))
         )
 
     def can_replay_terminal(self, failure):
@@ -567,9 +572,12 @@ class ProviderAPI:
         if type(failure) is not ApiFailure or failure is not self.last_failure or not self.retirement_confirmed:
             return False
 
-        if failure.request_method != "POST" or failure.request_target not in (
-            b"/provider/v1/execution-attempts/complete",
-            b"/provider/v1/execution-attempts/fail",
+        if (
+            (failure.request_method != "POST") or
+            (failure.request_target not in (
+                b"/provider/v1/execution-attempts/complete",
+                b"/provider/v1/execution-attempts/fail",
+            ))
         ):
             return False
 
@@ -591,11 +599,13 @@ class ProviderAPI:
             # An interrupted body still needs settled, clean transport evidence.
             exchange = failure.cause
 
-            return failure.response is not None or (
-                type(exchange) is ExchangeFailed and not exchange.cleanup_failures
-                and not isinstance(exchange.interruption, asyncio.CancelledError)
-                and exchange.caller_interruption is None
-                and network_availability(exchange.primary, exchange.network_io, network_failure=exchange.network_failure)
+            return (
+                (failure.response is not None) or
+                ((type(exchange) is ExchangeFailed) and
+                 (not exchange.cleanup_failures) and
+                 (not isinstance(exchange.interruption, asyncio.CancelledError)) and
+                 (exchange.caller_interruption is None) and
+                 network_availability(exchange.primary, exchange.network_io, network_failure=exchange.network_failure))
             )
 
         return False
@@ -605,15 +615,17 @@ class ProviderAPI:
 
         # These refusals can persist. Each operation owns whether another
         # request is safe; this evidence does not establish absence of effects.
-        return failure.response is not None and (
-            failure.status == 401 and failure.problem_code in {
-                "authentication_failed",
-                "authentication_nonce_reused",
-                "authentication_window_closed",
-                "signature_expired",
-                "signature_created_in_future",
-            }
-            or failure.status == 403 and failure.problem_code == "authorization_denied"
+        return (
+            (failure.response is not None) and
+            (((failure.status == 401) and
+              (failure.problem_code in {
+                  "authentication_failed",
+                  "authentication_nonce_reused",
+                  "authentication_window_closed",
+                  "signature_expired",
+                  "signature_created_in_future",
+              })) or
+             (failure.status == 403 and failure.problem_code == "authorization_denied"))
         )
 
     def _recoverable_attempt_failure(self, failure):
@@ -633,10 +645,10 @@ class ProviderAPI:
         exchange = failure.cause
 
         if (
-            type(exchange) is not ExchangeFailed
-            or exchange.cleanup_failures
-            or isinstance(exchange.interruption, asyncio.CancelledError)
-            or exchange.caller_interruption is not None
+            (type(exchange) is not ExchangeFailed) or
+            exchange.cleanup_failures or
+            isinstance(exchange.interruption, asyncio.CancelledError) or
+            (exchange.caller_interruption is not None)
         ):
             return False
 
@@ -654,10 +666,10 @@ class ProviderAPI:
         exchange = failure.cause
 
         if (
-            type(exchange) is not ExchangeFailed
-            or exchange.cleanup_failures
-            or isinstance(exchange.interruption, asyncio.CancelledError)
-            or exchange.caller_interruption is not None
+            (type(exchange) is not ExchangeFailed) or
+            exchange.cleanup_failures or
+            isinstance(exchange.interruption, asyncio.CancelledError) or
+            (exchange.caller_interruption is not None)
         ):
             return False
 
@@ -1025,13 +1037,15 @@ class ProviderAPI:
         # These two grant-specific 409 branches precede issuance in operations/
         # provider_job_upload_read_capability.py; errors.py explicitly promises
         # no new link. Generic 403/404/409 statuses make no such assertion.
-        no_domain_change = failure.problem_code is not None and (
-            failure.status == 401
-            or (failure.status == 408 and failure.problem_code == "request_body_timeout")
+        no_domain_change = (
+            (failure.problem_code is not None) and
+            ((failure.status == 401) or
+             (failure.status == 408 and failure.problem_code == "request_body_timeout"))
         )
 
-        refused = no_domain_change or (
-            failure.status == 409 and failure.problem_code in {"upload_read_not_finalized", "project_purge_in_progress"}
+        refused = (
+            (no_domain_change) or
+            (failure.status == 409 and failure.problem_code in {"upload_read_not_finalized", "project_purge_in_progress"})
         )
 
         if issuance and not refused:
@@ -1045,19 +1059,21 @@ class ProviderAPI:
         # start refusals. operations/errors.py also explicitly establishes no
         # progress change for the two progress conflicts. These facts describe
         # this send, never an earlier lost response.
-        attempt_refused = no_domain_change or (
-            failure.status == 409 and failure.problem_code in {
-                "provider_attempt_key_conflict",
-                "job_provider_attempt_limit_reached",
-                "job_attempt_limit_reached",
-                "execution_attempt_progress_terminal",
-                "execution_attempt_progress_regression",
-                "execution_attempt_outcome_expired",
-                "execution_attempt_completion_after_failure",
-                "execution_attempt_failure_after_success",
-                "execution_attempt_completion_replay_mismatch",
-                "execution_attempt_failure_replay_mismatch",
-            }
+        attempt_refused = (
+            (no_domain_change) or
+            ((failure.status == 409) and
+             (failure.problem_code in {
+                 "provider_attempt_key_conflict",
+                 "job_provider_attempt_limit_reached",
+                 "job_attempt_limit_reached",
+                 "execution_attempt_progress_terminal",
+                 "execution_attempt_progress_regression",
+                 "execution_attempt_outcome_expired",
+                 "execution_attempt_completion_after_failure",
+                 "execution_attempt_failure_after_success",
+                 "execution_attempt_completion_replay_mismatch",
+                 "execution_attempt_failure_replay_mismatch",
+             }))
         )
 
         if attempt_mutation and not attempt_refused:

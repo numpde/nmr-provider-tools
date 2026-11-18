@@ -175,9 +175,9 @@ def error_code_findings(*, sources: dict[pathlib.Path, str]) -> list[tuple[pathl
         bases = [_qualified_name(base, aliases_by_source[source_path]) for base in declaration.bases]
 
         if (
-            bases == ["enum.Enum"]
-            and not any(initializer is not None for (_, initializer) in _class_assignments(declaration))
-            and _lowercases_member_name(_method(declaration, "_generate_next_value_"))
+            (bases == ["enum.Enum"]) and
+            (not any(initializer is not None for (_, initializer) in _class_assignments(declaration))) and
+            _lowercases_member_name(_method(declaration, "_generate_next_value_"))
         ):
             error_code_parents.add(qualified_name)
         else:

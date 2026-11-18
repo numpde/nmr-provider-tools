@@ -130,8 +130,11 @@ class _Deflate:
 
             (first, second) = (encoded_bytes[0], encoded_bytes[1])
 
-            wrapped = (first & 15 == 8 and first >> 4 <= 7
-                       and ((first << 8) | second) % 31 == 0)
+            wrapped = (
+                (first & 15 == 8) and
+                (first >> 4 <= 7) and
+                (((first << 8) | second) % 31 == 0)
+            )
 
             self._decoder = zlib.decompressobj(zlib.MAX_WBITS if wrapped else -zlib.MAX_WBITS)
 

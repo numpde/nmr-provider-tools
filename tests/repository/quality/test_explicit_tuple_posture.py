@@ -55,7 +55,7 @@ def bare_tuples(*, source: str) -> list[ast.Tuple]:
         if
         isinstance(node, ast.Tuple) and
         (id(node) not in subscription_lists) and
-        not _has_outer_parentheses(expression=ast.get_source_segment(source=source, node=node))
+        (not _has_outer_parentheses(expression=ast.get_source_segment(source=source, node=node)))
     ]
 
 

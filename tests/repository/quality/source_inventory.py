@@ -23,10 +23,10 @@ def _validated_subtree(subtree: str) -> PurePosixPath:
     candidate = PurePosixPath(subtree)
 
     if (
-        not subtree
-        or candidate.is_absolute()
-        or candidate.as_posix() != subtree
-        or any(part in {"", ".", ".."} for part in candidate.parts)
+        (not subtree) or
+        candidate.is_absolute() or
+        (candidate.as_posix() != subtree) or
+        any(part in {"", ".", ".."} for part in candidate.parts)
     ):
         raise ValueError("subtree must be a normalized relative POSIX path")
 

@@ -372,8 +372,10 @@ class AttemptExecutor:
         if preverified_input is not None and type(preverified_input) is not (expected_preverified_input_type := VerifiedJobInput):
             raise TypeError(f"{type(preverified_input)=} ≠ {expected_preverified_input_type=}")
 
-        if ((delivery.endpoint.api_origin, delivery.endpoint.provider_ref)
-                != (scope.api_origin, scope.provider_ref) or not callable(on_delivery_retry)):
+        if (
+            ((delivery.endpoint.api_origin, delivery.endpoint.provider_ref) != (scope.api_origin, scope.provider_ref)) or
+            (not callable(on_delivery_retry))
+        ):
             raise ValueError("Execution requires the scoped delivery binding and its protected retry observer.")
 
         require_execution_settings(
@@ -455,14 +457,14 @@ class AttemptExecutor:
         """Confirm original task/I/O/native cleanup, independently of retained reports."""
 
         return (
-            not self._observing
-            and self._retirement is _Retirement.CONFIRMED
-            and self._task is None
-            and self._observation_wait is None
-            and self._handoff_wait is None
-            and self._retirement_task is None
-            and self.delivery.retirement_confirmed
-            and self.api.pending_owner is not self
+            (not self._observing) and
+            (self._retirement is _Retirement.CONFIRMED) and
+            (self._task is None) and
+            (self._observation_wait is None) and
+            (self._handoff_wait is None) and
+            (self._retirement_task is None) and
+            self.delivery.retirement_confirmed and
+            (self.api.pending_owner is not self)
 
         )
 
@@ -490,15 +492,22 @@ class AttemptExecutor:
         """
         stop = self._server_revocation
 
-        if (stop is not None and self.last_failure is not None and self.last_failure.cause is stop
-                and type(self._checkpoint) is AcknowledgedCheckpoint
-                and self._outcome is None and self._delivery_outcome is None
-                and all(
+        if (
+            (stop is not None) and
+            (self.last_failure is not None) and
+            (self.last_failure.cause is stop) and
+            (type(self._checkpoint) is AcknowledgedCheckpoint) and
+            (self._outcome is None) and
+            (self._delivery_outcome is None) and
+            all(
+                (
                     error is stop or (type(error) is _SettlementPending and error.executor is self)
                     for error in self.last_failure.cleanup_failures
-                )
-                and (self._operation_interruption is None
-                     or (self._cancel_requested and independent_interruption_failure(self._operation_interruption) is None))):
+                ),
+            ) and
+            ((self._operation_interruption is None) or
+             (self._cancel_requested and independent_interruption_failure(self._operation_interruption) is None))
+        ):
             return stop.observation
 
         return None
@@ -699,9 +708,9 @@ class AttemptExecutor:
             self._refresh_failure()
 
             if (
-                self.last_failure is not None
-                and isinstance(self.last_failure.cause, asyncio.CancelledError)
-                and self._interruption_has_evidence()
+                (self.last_failure is not None) and
+                isinstance(self.last_failure.cause, asyncio.CancelledError) and
+                self._interruption_has_evidence()
             ):
                 self._link_interruption(self.last_failure.cause)
 
@@ -745,8 +754,10 @@ class AttemptExecutor:
             != (crash.runner.role, crash.runner.generation, crash.runner.operation)):
             raise ExecutionRefused("Cannot report this crash: its original Attempt, active phase or native worker association does not match this owner")
 
-        if (self._observation_deadline is not None
-                and asyncio.get_running_loop().time() >= self._observation_deadline):
+        if (
+            (self._observation_deadline is not None) and
+            (asyncio.get_running_loop().time() >= self._observation_deadline)
+        ):
             raise ExecutionRefused("Cannot report this crash: its original Attempt, active phase or native worker association does not match this owner")
 
         outcome = crash.public_failure()
@@ -762,9 +773,13 @@ class AttemptExecutor:
         task = self._task
 
         return (
-            self._observed_crash is not None and self._observed_crash.phase == phase
-            and task is not None and task.done() and not task.cancelled()
-            and task.exception() is None and task.result() is self._outcome
+            (self._observed_crash is not None) and
+            (self._observed_crash.phase == phase) and
+            (task is not None) and
+            task.done() and
+            (not task.cancelled()) and
+            (task.exception() is None) and
+            (task.result() is self._outcome)
         )
 
     async def _monitor(self, phase, operation, *args):
@@ -788,8 +803,10 @@ class AttemptExecutor:
                     except (ApiFailure, ObservationGapExpired, ExchangeFailed, ObservedWorkerCrash) as failure:
                         # A GET outage cannot veto an already admitted local crash.
                         # Real server-stop evidence and earlier report failures still veto.
-                        if (not self._admitted_crash_result(phase)
-                                or (isinstance(failure, ObservedWorkerCrash) and failure is not self._observed_crash)):
+                        if (
+                            (not self._admitted_crash_result(phase)) or
+                            (isinstance(failure, ObservedWorkerCrash) and failure is not self._observed_crash)
+                        ):
                             raise
 
                         self._require_live_permission()
@@ -1262,8 +1279,10 @@ class AttemptExecutor:
             except (DeliveryUnavailable, DeliveryFull) as failure:
                 await self.delivery.retire()
 
-                if (self._handoff_stopping.is_set()
-                        or (type(failure) is not DeliveryFull and not self.delivery.can_retry(failure))):
+                if (
+                    self._handoff_stopping.is_set() or
+                    (type(failure) is not DeliveryFull and not self.delivery.can_retry(failure))
+                ):
                     raise
 
                 seconds = random.uniform(delay / 2, delay)
@@ -1475,8 +1494,8 @@ class AttemptExecutor:
                 message = "Observed outcome requires explicit disposition; the claim remains held"
 
                 if (
-                    type(self._outcome) in (AnalysisSuccess, AnalysisFailure)
-                    and _suppression_reason(self.last_failure.cause) is not None
+                    (type(self._outcome) in (AnalysisSuccess, AnalysisFailure)) and
+                    (_suppression_reason(self.last_failure.cause) is not None)
                 ):
                     message = "Returned analysis was not selected for delivery; settle original work before recording its suppression disposition; scientific bytes will not survive restart"
 
@@ -1519,11 +1538,10 @@ class AttemptExecutor:
             raise ExecutionRefused(f"Cannot record suppression: {type(actual_checkpoint)=} ≠ {expected_type=}")
 
         if (
-            self._task is not None
-            or self._observation_wait is not None
-            or self._handoff_wait is not None
-            or self.api.pending_owner is self
-
+            (self._task is not None) or
+            (self._observation_wait is not None) or
+            (self._handoff_wait is not None) or
+            (self.api.pending_owner is self)
         ):
             raise ExecutionRefused("Cannot record suppression while original work or I/O is unresolved; settle it first")
 
@@ -1553,8 +1571,8 @@ class AttemptExecutor:
 
     def _finish_if_settled(self):
         if (
-            self.work_settled
-            and not self._outcome_unretained()
+            self.work_settled and
+            (not self._outcome_unretained())
         ):
             self.claim.finish(self)
             self._active = False
@@ -1574,13 +1592,13 @@ class AttemptExecutor:
 
     def _interruption_has_evidence(self):
         return (
-            self._api_failure is not None
-            or self._condition_failure is not None
-            or self._latest_condition_failure is not None
-            or self._condition_receipt is not None
-            or self.delivery.last_failure is not None
-            or bool(self.last_failure.cleanup_failures)
-            or (self._operation_interruption is not None and self._operation_interruption.__cause__ is not None)
+            (self._api_failure is not None) or
+            (self._condition_failure is not None) or
+            (self._latest_condition_failure is not None) or
+            (self._condition_receipt is not None) or
+            (self.delivery.last_failure is not None) or
+            bool(self.last_failure.cleanup_failures) or
+            (self._operation_interruption is not None and self._operation_interruption.__cause__ is not None)
         )
 
     def _link_interruption(self, interruption):

@@ -424,8 +424,11 @@ class HttpTransport:
                 if name == "http11.send_request_headers.started" and info["request"] is wire_request:
                     setup.reschedule(None)
 
-                if (self._proxy_socket is not None and name == "http11.receive_response_headers.complete"
-                        and outcome.proxy_connect_status is None):
+                if (
+                    (self._proxy_socket is not None) and
+                    (name == "http11.receive_response_headers.complete") and
+                    (outcome.proxy_connect_status is None)
+                ):
                     outcome.proxy_connect_status = info["return_value"][1]
 
             extensions["trace"] = observe_setup
@@ -850,9 +853,9 @@ class HttpTransport:
             # Late retirement augments the retained exchange evidence; a pending
             # task or its expected cancellation must not erase the original cause.
             if (
-                observed.primary is not None
-                and not isinstance(observed.primary, asyncio.CancelledError)
-                and self.last_failure.primary is not observed.primary
+                (observed.primary is not None) and
+                (not isinstance(observed.primary, asyncio.CancelledError)) and
+                (self.last_failure.primary is not observed.primary)
             ):
                 self.last_failure.interruption = self.last_failure.primary
                 self.last_failure.primary = observed.primary

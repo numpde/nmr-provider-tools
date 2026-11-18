@@ -35,6 +35,11 @@ class UnixHttpTransport(HttpTransport):
         return httpcore.AsyncConnectionPool(uds=self._socket_path, **options)
 
     def _require_destination(self, request):
-        if (request.url.scheme != "http" or request.url.raw_host != b"delivery.invalid"
-                or request.url.port is not None or request.url.username or request.url.password):
+        if (
+            (request.url.scheme != "http") or
+            (request.url.raw_host != b"delivery.invalid") or
+            (request.url.port is not None) or
+            request.url.username or
+            request.url.password
+        ):
             raise ValueError("Delivery HTTP requests must use the fixed local origin; only the configured Unix socket selects a destination.")

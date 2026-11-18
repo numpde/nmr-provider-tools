@@ -155,11 +155,9 @@ class PreparationTool[PreparedT]:
             previous_operation_observation = await self.operation.observe(after=None, wait_seconds=0)
 
             if not (
-                previous_operation_observation.finished
-                and (
-                    (previous_operation_observation.outcome is Outcome.REJECTED) or
-                    self._start_expired(operation_observation=previous_operation_observation)
-                )
+                previous_operation_observation.finished and
+                ((previous_operation_observation.outcome is Outcome.REJECTED) or
+                 self._start_expired(operation_observation=previous_operation_observation))
             ):
                 raise RuntimeError(
                     f"{previous_operation_observation.finished=}, {previous_operation_observation.outcome=}, "

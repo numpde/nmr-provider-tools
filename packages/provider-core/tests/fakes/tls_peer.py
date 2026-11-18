@@ -32,15 +32,14 @@ class _OptionalCertificateRejectionReset(logging.Filter):
         # certificate rejection. Unrelated or repeated errors still reach the
         # installed runner's strict asyncio ERROR observer.
         if (
-            not self.records
-            and record.name == "asyncio"
-            and record.levelno == logging.ERROR
-            and pathlib.Path(record.pathname).parent.name == "asyncio"
-            and pathlib.Path(record.pathname).name == "base_events.py"
-            and record.getMessage().split("\n", 1)[0]
-            == "Error on transport creation for incoming connection"
-            and record.exc_info is not None
-            and type(record.exc_info[1]) is ConnectionResetError
+            (not self.records) and
+            (record.name == "asyncio") and
+            (record.levelno == logging.ERROR) and
+            (pathlib.Path(record.pathname).parent.name == "asyncio") and
+            (pathlib.Path(record.pathname).name == "base_events.py") and
+            (record.getMessage().split("\n", 1)[0] == "Error on transport creation for incoming connection") and
+            (record.exc_info is not None) and
+            (type(record.exc_info[1]) is ConnectionResetError)
         ):
             self.records.append(record)
 

@@ -655,10 +655,13 @@ return 2
                             except (FileNotFoundError, ProcessLookupError):
                                 continue
 
-                            if (len(argv) == 9 and argv[:5] == [b'python3', b'-I', b'-S', b'-B', b'-c']
-                                    and argv[-3:] == [b'scope reporter barrier\n', b'', b'']
-                                    and channel in {'pipe_write', 'anon_pipe_write'}
-                                    and session == caller_process.pid):
+                            if (
+                                (len(argv) == 9) and
+                                (argv[:5] == [b'python3', b'-I', b'-S', b'-B', b'-c']) and
+                                (argv[-3:] == [b'scope reporter barrier\n', b'', b'']) and
+                                (channel in {'pipe_write', 'anon_pipe_write'}) and
+                                (session == caller_process.pid)
+                            ):
                                 reporter = pid
 
                     if reporter is None:

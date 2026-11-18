@@ -25,9 +25,9 @@ def release_inputs(pin, runtime_lock):
     release = read_json(pin)
     (release_version, wheel_digest) = (release["version"], release["wheel_sha256"])
 
-    if not re.fullmatch(r"[0-9]+\.[0-9]+\.[0-9]+", release_version) or not re.fullmatch(
-        r"[0-9a-f]{64}",
-        wheel_digest
+    if (
+        (not re.fullmatch(r"[0-9]+\.[0-9]+\.[0-9]+", release_version)) or
+        (not re.fullmatch(r"[0-9a-f]{64}", wheel_digest))
     ):
         raise ValueError("Cannot use delivery release: invalid pinned version or wheel hash.")
 
@@ -63,9 +63,9 @@ def missing_wheels(release, pool):
     missing_wheel_ids = []
 
     for (wheel_name, expected_sha256) in release_wheels(release).items():
-        if not re.fullmatch(r"[A-Za-z0-9_.+!-]+\.whl", wheel_name) or not re.fullmatch(
-            r"[0-9a-f]{64}",
-            expected_sha256
+        if (
+            (not re.fullmatch(r"[A-Za-z0-9_.+!-]+\.whl", wheel_name)) or
+            (not re.fullmatch(r"[0-9a-f]{64}", expected_sha256))
         ):
             raise ValueError("Cannot use delivery release: malformed pinned wheel identity.")
 
@@ -260,8 +260,9 @@ if __name__ == "__main__":
         (release, _) = release_inputs(args.pin, args.runtime_lock)
 
         with pool_lock(args.pool):
-            if missing_wheels(release, args.pool) or (
-                args.tool_pin and not tool_present(args.pool, read_json(args.tool_pin))
+            if (
+                missing_wheels(release, args.pool) or
+                (args.tool_pin and not tool_present(args.pool, read_json(args.tool_pin)))
             ):
                 print("missing")
             else:

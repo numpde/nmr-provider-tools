@@ -294,8 +294,11 @@ class DeliveryClient:
 
         exchange = failure.cause
 
-        if (type(exchange) is not ExchangeFailed or exchange.cleanup_failures
-                or isinstance(exchange.interruption, asyncio.CancelledError)):
+        if (
+            (type(exchange) is not ExchangeFailed) or
+            exchange.cleanup_failures or
+            isinstance(exchange.interruption, asyncio.CancelledError)
+        ):
             return False
 
         primary = exchange.primary
@@ -312,8 +315,8 @@ class DeliveryClient:
                 connect_cause = primary.__context__
 
         return (
-            temporary_io_failure(primary, 8, network_failure=exchange.network_failure)
-            or (type(connect_cause) is FileNotFoundError and connect_cause.errno == errno.ENOENT)
-            or (type(primary) is httpcore.RemoteProtocolError
-                and (exchange.response_head is None or exchange.response_head.status in (200, 503)))
+            temporary_io_failure(primary, 8, network_failure=exchange.network_failure) or
+            (type(connect_cause) is FileNotFoundError and connect_cause.errno == errno.ENOENT) or
+            ((type(primary) is httpcore.RemoteProtocolError) and
+             (exchange.response_head is None or exchange.response_head.status in (200, 503)))
         )

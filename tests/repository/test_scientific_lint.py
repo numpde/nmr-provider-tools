@@ -32,10 +32,10 @@ def late_module_imports(source, *, package=None):
 
     for (index, statement) in enumerate(statements):
         if (
-            index == 0
-            and isinstance(statement, ast.Expr)
-            and isinstance(statement.value, ast.Constant)
-            and isinstance(statement.value.value, str)
+            (index == 0) and
+            isinstance(statement, ast.Expr) and
+            isinstance(statement.value, ast.Constant) and
+            isinstance(statement.value.value, str)
         ):
             continue
 
@@ -46,12 +46,12 @@ def late_module_imports(source, *, package=None):
             continue
 
         if (
-            guarded
-            and isinstance(statement, ast.Expr)
-            and isinstance(statement.value, ast.Call)
-            and isinstance(statement.value.func, ast.Name)
-            and statement.value.func.id == "require_container"
-            and not imports_ended
+            (guarded) and
+            isinstance(statement, ast.Expr) and
+            isinstance(statement.value, ast.Call) and
+            isinstance(statement.value.func, ast.Name) and
+            (statement.value.func.id == "require_container") and
+            (not imports_ended)
         ):
             guarded = False
 

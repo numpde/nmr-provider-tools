@@ -128,10 +128,9 @@ class AttemptClaims:
         limits = self._limits
 
         if (
-            len(existing) + 1 > limits.maximum_attempts
-            or (len(existing) + 1) * 131072 > limits.maximum_control_bytes
-            or sum(claim._pending_terminal_bytes for claim in existing) + terminal_bytes
-            > limits.maximum_pending_terminal_bytes
+            (len(existing) + 1 > limits.maximum_attempts) or
+            ((len(existing) + 1) * 131072 > limits.maximum_control_bytes) or
+            (sum(claim._pending_terminal_bytes for claim in existing) + terminal_bytes > limits.maximum_pending_terminal_bytes)
         ):
             raise LiveCapacityFull(
                 "Cannot select another live Attempt: its entry, 131072-byte control allowance or terminal allowance "

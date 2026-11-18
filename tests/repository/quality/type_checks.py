@@ -53,9 +53,9 @@ def _predicates(*, expression: ast.expr, rejecting: bool, comprehension_names: f
             return [TypePredicate(subject=expression.args[0], expected=expression.args[1], comprehension_names=comprehension_names)]
 
         if (
-            len(expression.args) == 1
-            and isinstance(expression.args[0], ast.GeneratorExp)
-            and any(_builtin(expression=expression.func, name=name) for name in ("any", "all"))
+            (len(expression.args) == 1) and
+            isinstance(expression.args[0], ast.GeneratorExp) and
+            any(_builtin(expression=expression.func, name=name) for name in ("any", "all"))
         ):
             generator = expression.args[0]
 

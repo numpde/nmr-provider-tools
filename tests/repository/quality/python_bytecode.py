@@ -199,8 +199,12 @@ def shell_findings(source_path, source):
             if not arguments or arguments[0] == ")":
                 continue
 
-            if (index > 0 and not entrypoint and not arguments[0].startswith("-")
-                    and not arguments[0].rstrip(")").endswith((".py", ".pyz"))):
+            if (
+                (index > 0) and
+                (not entrypoint) and
+                (not arguments[0].startswith("-")) and
+                (not arguments[0].rstrip(")").endswith((".py", ".pyz")))
+            ):
                 continue  # E.g. helper(image, python3, uid, gid), not a launch.
 
             prefix = tokens[:index]

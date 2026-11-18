@@ -65,11 +65,11 @@ def _is_literal(expression: ast.expr) -> bool:
 
 def _is_assert_equal(call: ast.Call) -> bool:
     return (
-        isinstance(call.func, ast.Attribute)
-        and isinstance(call.func.value, ast.Name)
-        and call.func.value.id == "self"
-        and call.func.attr == "assertEqual"
-        and len(call.args) >= 2
+        isinstance(call.func, ast.Attribute) and
+        isinstance(call.func.value, ast.Name) and
+        (call.func.value.id == "self") and
+        (call.func.attr == "assertEqual") and
+        (len(call.args) >= 2)
     )
 
 
@@ -107,12 +107,10 @@ def _message_positions() -> dict[str, int]:
             for parameter in inspect.signature(method).parameters.values()
             if
             (parameter.name != "self") and
-            (
-                parameter.kind in (
-                    inspect.Parameter.POSITIONAL_ONLY,
-                    inspect.Parameter.POSITIONAL_OR_KEYWORD,
-                )
-            )
+            (parameter.kind in (
+                inspect.Parameter.POSITIONAL_ONLY,
+                inspect.Parameter.POSITIONAL_OR_KEYWORD,
+            ))
         ]
 
         for (position, parameter) in enumerate(positional_parameters):
@@ -136,10 +134,10 @@ def _positional_message_findings(
 
     for call in ast.walk(tree):
         if not (
-            isinstance(call, ast.Call)
-            and isinstance(call.func, ast.Attribute)
-            and isinstance(call.func.value, ast.Name)
-            and call.func.value.id == "self"
+            isinstance(call, ast.Call) and
+            isinstance(call.func, ast.Attribute) and
+            isinstance(call.func.value, ast.Name) and
+            (call.func.value.id == "self")
         ):
             continue
 

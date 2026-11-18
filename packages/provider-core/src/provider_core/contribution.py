@@ -37,8 +37,8 @@ def _identity(value: object, label: str) -> None:
         raise TypeError(f"{label=}; {type(value)=} ≠ {expected_type=}")
 
     if not (
-        value
-        and all(character.isprintable() and not character.isspace() for character in value)
+        (value) and
+        all(character.isprintable() and not character.isspace() for character in value)
     ):
         raise ValueError(
             f"{label} must be a nonempty identity without whitespace "
@@ -124,15 +124,18 @@ def _positional_parameters(
 
     parameters = tuple(signature.parameters.values())
 
-    if len(parameters) != count or any(
-        (
-            parameter.kind
-            not in (
-                inspect.Parameter.POSITIONAL_ONLY,
-                inspect.Parameter.POSITIONAL_OR_KEYWORD,
-            )
-            for parameter in parameters
-        ),
+    if (
+        (len(parameters) != count) or
+        any(
+            (
+                parameter.kind
+                not in (
+                    inspect.Parameter.POSITIONAL_ONLY,
+                    inspect.Parameter.POSITIONAL_OR_KEYWORD,
+                )
+                for parameter in parameters
+            ),
+        )
     ):
         raise TypeError(f"{label} must accept exactly {count} positional parameters")
 
@@ -566,8 +569,8 @@ class ImplementationDescription:
             raise ValueError("Contract version must be a positive integer")
 
         if (
-            self.configuration is not None
-            and type((actual_configuration := self.configuration)) is not (expected_configuration_type := ConfigurationDescription)
+            (self.configuration is not None) and
+            (type((actual_configuration := self.configuration)) is not (expected_configuration_type := ConfigurationDescription))
         ):
             raise TypeError(f"{type(actual_configuration)=} ≠ {expected_configuration_type=}")
 

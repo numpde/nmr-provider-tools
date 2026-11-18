@@ -125,9 +125,9 @@ def detect_peaks(spectrum: Spectrum, settings: PeakSettings) -> PeakReport:
         height = spectrum.intensities[index]
 
         if (
-            height >= settings.minimum_height
-            and height > spectrum.intensities[index - 1]
-            and height > spectrum.intensities[index + 1]
+            (height >= settings.minimum_height) and
+            (height > spectrum.intensities[index - 1]) and
+            (height > spectrum.intensities[index + 1])
         ):
             peaks.append(Peak(position=spectrum.positions[index], height=height))
 

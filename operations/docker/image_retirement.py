@@ -126,9 +126,9 @@ def retained_image_ids(directory):
 
         image_id = receipt_bytes.rstrip(b"\n").decode("ascii", errors="replace")
 
-        if _ID.fullmatch(image_id) and receipt_bytes in (
-            image_id.encode(),
-            (image_id + "\n").encode(),
+        if (
+            _ID.fullmatch(image_id) and
+            (receipt_bytes in (image_id.encode(), (image_id + "\n").encode()))
         ):
             protected_image_ids.add(image_id)
 
@@ -233,10 +233,10 @@ def select_images(images, protected, current):
             recorded_recipe = image_labels.get(_IMAGE_LABEL_PREFIX + "recipe")
 
             if not (
-                type(recorded_inputs) is str
-                and _HASH.fullmatch(recorded_inputs)
-                and type(recorded_recipe) is str
-                and _HASH.fullmatch(recorded_recipe)
+                (type(recorded_inputs) is str) and
+                _HASH.fullmatch(recorded_inputs) and
+                (type(recorded_recipe) is str) and
+                _HASH.fullmatch(recorded_recipe)
             ):
                 # Older outputs without full ownership remain untouched;
                 # they do not prevent retirement of other positively owned images.

@@ -72,8 +72,10 @@ def declaration(path):
 
     filename = f"make_{package['version'].split(':', 1)[-1]}_amd64.deb"
 
-    if package["file"] != filename or package[
-        "url"] != f"https://deb.debian.org/debian/pool/main/m/make-dfsg/{filename}":
+    if (
+        (package["file"] != filename) or
+        (package["url"] != f"https://deb.debian.org/debian/pool/main/m/make-dfsg/{filename}")
+    ):
         raise ValueError("Cannot admit checker dependency: URL must name the declared Debian Make artifact.")
 
     require_type(package["size"], int)

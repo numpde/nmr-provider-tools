@@ -22,11 +22,11 @@ DEFAULTS = {
 
 def native_config(daemon_config_path):
     if (
-        not daemon_config_path.is_absolute()
-        or daemon_config_path.resolve() != daemon_config_path
-        or daemon_config_path.is_symlink()
-        or not daemon_config_path.is_file()
-        or daemon_config_path.stat().st_uid != os.getuid()
+        (not daemon_config_path.is_absolute()) or
+        (daemon_config_path.resolve() != daemon_config_path) or
+        daemon_config_path.is_symlink() or
+        (not daemon_config_path.is_file()) or
+        (daemon_config_path.stat().st_uid != os.getuid())
     ):
         raise ValueError("Select the canonical caller-owned native daemon.json file.")
 
@@ -85,8 +85,9 @@ def limits(document):
         if not (type(threshold) in (expected_threshold_type := (str, int))):
             raise TypeError(f"{type(threshold)=} ≠ {expected_threshold_type=}")
 
-        if type(threshold) is str and (
-            not threshold or any(character.isspace() or ord(character) < 32 for character in threshold)
+        if (
+            (type(threshold) is str) and
+            (not threshold or any(character.isspace() or ord(character) < 32 for character in threshold))
         ):
             raise ValueError(f"Native builder.gc.{setting} requires its literal space threshold.")
 

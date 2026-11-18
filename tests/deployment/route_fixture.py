@@ -256,11 +256,11 @@ def shared_group_socket(mode, path, owner_uid, access_gid):
             response = bytearray()
 
             while (
-                (
+                ((
                     b"\r\n"
                     b"\r\n"
-                ) not in response and
-                len(response) < 4096
+                ) not in response) and
+                (len(response) < 4096)
             ):
                 chunk = channel.recv(4096 - len(response))
 

@@ -222,8 +222,10 @@ class AttemptController:
 
         require_delivery_retry_settings(delivery_retry_initial_seconds, delivery_retry_max_seconds)
 
-        if ((delivery.endpoint.api_origin, delivery.endpoint.provider_ref)
-                != (scope.api_origin, scope.provider_ref) or not callable(on_delivery_retry)):
+        if (
+            ((delivery.endpoint.api_origin, delivery.endpoint.provider_ref) != (scope.api_origin, scope.provider_ref)) or
+            (not callable(on_delivery_retry))
+        ):
             raise ValueError("Attempt controller requires its scoped delivery client and protected retry observer.")
 
         require_observation_recovery(observation_recovery)
@@ -273,17 +275,20 @@ class AttemptController:
     def work_settled(self):
         """Confirm cleanup without granting permission to forget a held Job."""
 
-        if (self._lifetime in (_Lifetime.NEW, _Lifetime.RUNNING, _Lifetime.SETTLING)
-                or not self.api.retirement_confirmed or not self.delivery.retirement_confirmed
-                or (self._revocation_settlement is not None and not self._revocation_settlement.done())
-                ):
+        if (
+            (self._lifetime in (_Lifetime.NEW, _Lifetime.RUNNING, _Lifetime.SETTLING)) or
+            (not self.api.retirement_confirmed) or
+            (not self.delivery.retirement_confirmed) or
+            (self._revocation_settlement is not None and not self._revocation_settlement.done())
+        ):
             return False
 
         if isinstance(self._operation, AttemptExecutor):
             return self._operation.work_settled
 
-        return self._retired_by_controller and (
-            self._claim is None or not self._claim.active or self._claim.operation_owner is None
+        return (
+            self._retired_by_controller and
+            (self._claim is None or not self._claim.active or self._claim.operation_owner is None)
         )
 
     @property
@@ -295,8 +300,9 @@ class AttemptController:
         just because its I/O stopped. Composition must also settle its other owners.
         """
 
-        return self.work_settled and (
-            not isinstance(self._operation, AttemptExecutor) or self._operation.shutdown_ready
+        return (
+            self.work_settled and
+            (not isinstance(self._operation, AttemptExecutor) or self._operation.shutdown_ready)
         )
 
     async def settle_revocation(self, failure):
@@ -311,17 +317,23 @@ class AttemptController:
         """
         executor = self._operation
 
-        if (type(failure) is not ControllerFailed or failure is not self.last_failure
-                or type(executor) is not AttemptExecutor
-                or failure.cause is not executor.last_failure
-                or executor.claim is not self._claim
-                or executor._acknowledged is not self._acknowledged):
+        if (
+            (type(failure) is not ControllerFailed) or
+            (failure is not self.last_failure) or
+            (type(executor) is not AttemptExecutor) or
+            (failure.cause is not executor.last_failure) or
+            (executor.claim is not self._claim) or
+            (executor._acknowledged is not self._acknowledged)
+        ):
             return None
 
         if self._revocation_settlement is None:
-            if (self._lifetime not in (_Lifetime.HELD, _Lifetime.RELEASED)
-                    or failure.cleanup_failures or failure.interruption_cause is not None
-                    or executor._revocation() is None):
+            if (
+                (self._lifetime not in (_Lifetime.HELD, _Lifetime.RELEASED)) or
+                failure.cleanup_failures or
+                (failure.interruption_cause is not None) or
+                (executor._revocation() is None)
+            ):
                 return None
 
             if self._lifetime is _Lifetime.RELEASED:
@@ -400,23 +412,29 @@ class AttemptController:
         if type(reason) is UploadRecoveryExhausted and (reason.cleanup_failures or reason.interruption is not None):
             raise failure
 
-        if (failure.cleanup_failures or execution.cleanup_failures
-                or execution.api_failure is not admitted_api_failure
-                or execution.condition_failure is not None
-                or execution.latest_condition_failure is not None
-                or execution.delivery_failure is not None
-                or failure.interruption_cause is not None
-                or execution.interruption_cause is not None
-                or execution.operation_interruption is not None
-                or execution.handoff_interruption is not None
-                or not self.shutdown_ready):
+        if (
+            failure.cleanup_failures or
+            execution.cleanup_failures or
+            (execution.api_failure is not admitted_api_failure) or
+            (execution.condition_failure is not None) or
+            (execution.latest_condition_failure is not None) or
+            (execution.delivery_failure is not None) or
+            (failure.interruption_cause is not None) or
+            (execution.interruption_cause is not None) or
+            (execution.operation_interruption is not None) or
+            (execution.handoff_interruption is not None) or
+            (not self.shutdown_ready)
+        ):
             # Positive later retirement does not erase a recorded independent
             # failure. Preserve that original graph rather than manufacture a
             # claim-release refusal and call it a cleanup failure.
             raise failure
 
-        if (type(reason) is ObservationGapExpired and admitted_api_failure is not None
-                and not self.api.can_retry_read(admitted_api_failure)):
+        if (
+            (type(reason) is ObservationGapExpired) and
+            (admitted_api_failure is not None) and
+            (not self.api.can_retry_read(admitted_api_failure))
+        ):
             # Gap expiry can interrupt read retirement before its recovery loop
             # consults API admission. The original API owner also rejects nested
             # transport cleanup/interruption and non-recoverable read failures.
@@ -605,8 +623,12 @@ class AttemptController:
             if not (cleanup_fatal is None):
                 raise BaseExceptionGroup("Attempt cleanup raised a process-control exception", (cleanup_fatal, self.last_failure)) from None
 
-            if (isinstance(self._operation, AttemptExecutor) and cause is self._operation.last_failure
-                    and self._operation.settled_revocation is not None and self.api.retirement_confirmed):
+            if (
+                isinstance(self._operation, AttemptExecutor) and
+                (cause is self._operation.last_failure) and
+                (self._operation.settled_revocation is not None) and
+                self.api.retirement_confirmed
+            ):
                 self._claim.release(owner=self)
                 self._lifetime = _Lifetime.RELEASED
 
@@ -687,11 +709,11 @@ class AttemptController:
 
     def require_execution_ready(self, claim, executor, acknowledged):
         if (
-            self._lifetime is not _Lifetime.RUNNING
-            or claim is not self._claim
-            or claim.lifecycle_owner is not self
-            or executor is not self._operation
-            or acknowledged is not self._acknowledged
+            (self._lifetime is not _Lifetime.RUNNING) or
+            (claim is not self._claim) or
+            (claim.lifecycle_owner is not self) or
+            (executor is not self._operation) or
+            (acknowledged is not self._acknowledged)
         ):
             raise ControllerRefused("Cannot begin live execution without this running controller's original admission and executor")
 
@@ -703,9 +725,11 @@ class AttemptController:
 
     def require_claim_release_ready(self, claim):
         if (
-            claim is not self._claim or claim.lifecycle_owner is not self
-            or claim.operation_owner is not None or not self.api.retirement_confirmed
-            or not self.delivery.retirement_confirmed
+            (claim is not self._claim) or
+            (claim.lifecycle_owner is not self) or
+            (claim.operation_owner is not None) or
+            (not self.api.retirement_confirmed) or
+            (not self.delivery.retirement_confirmed)
         ):
             raise ControllerRefused("Cannot release live ownership while original I/O or borrowers remain")
 
@@ -724,8 +748,10 @@ class AttemptController:
             if not (executor.retirement_confirmed):
                 raise ControllerRefused("Cannot release live ownership before the executor settles cleanup and records a delivery, suppression or server revocation disposition")
 
-            if (type((actual_checkpoint := executor._checkpoint)) not in (expected_type := (DeliveryAcceptedCheckpoint, SuppressedCheckpoint))
-                    and executor.settled_revocation is None):
+            if (
+                (type((actual_checkpoint := executor._checkpoint)) not in (expected_type := (DeliveryAcceptedCheckpoint, SuppressedCheckpoint))) and
+                (executor.settled_revocation is None)
+            ):
                 raise ControllerRefused(f"{type(actual_checkpoint)=} ≠ {expected_type=}")
 
             return
@@ -763,9 +789,11 @@ class AttemptController:
                 acknowledged = await send(pending)
             except StartFailed as failure:
                 if (
-                    type(failure) is not StartFailed or failure.api_failure is None
-                    or failure.cause is not failure.api_failure or failure.acknowledgement is not None
-                    or failure.settlement_failures
+                    (type(failure) is not StartFailed) or
+                    (failure.api_failure is None) or
+                    (failure.cause is not failure.api_failure) or
+                    (failure.acknowledgement is not None) or
+                    failure.settlement_failures
                 ):
                     raise
 
@@ -791,8 +819,11 @@ class AttemptController:
                     if retry_after is not None:
                         retry_at = loop.time() + retry_after
 
-                if (self._admission_stopping_requested() or replays >= policy.maximum_replays
-                        or not self.api.can_replay_start(latest_failure)):
+                if (
+                    self._admission_stopping_requested() or
+                    (replays >= policy.maximum_replays) or
+                    (not self.api.can_replay_start(latest_failure))
+                ):
                     return self._defer_start(pending, latest_failure, possible_commit)
 
                 if first_failure is None:
@@ -920,13 +951,13 @@ class AttemptController:
 
             if self._claim is not None:
                 if (
-                    not isinstance(self._operation, AttemptExecutor)
-                    and ((self._start_deferred is not None and self._start_deferred.may_have_committed)
-                         or (self._acknowledged is not None and self._acknowledged.admission.state == "in_progress"))
-                    and self._claim.operation_owner is None
-                    and self._retired_by_controller
-                    and self.api.retirement_confirmed
-                    and self.delivery.retirement_confirmed
+                    (not isinstance(self._operation, AttemptExecutor)) and
+                    ((self._start_deferred is not None and self._start_deferred.may_have_committed) or
+                     (self._acknowledged is not None and self._acknowledged.admission.state == "in_progress")) and
+                    (self._claim.operation_owner is None) and
+                    self._retired_by_controller and
+                    self.api.retirement_confirmed and
+                    self.delivery.retirement_confirmed
                 ):
                     return settlement_result
 

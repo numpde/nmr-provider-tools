@@ -84,8 +84,8 @@ def _require_format(value: object) -> None:
     require_type(value, str)
 
     if not (
-        value
-        and all(character.isprintable() and not character.isspace() for character in value)
+        (value) and
+        all(character.isprintable() and not character.isspace() for character in value)
     ):
         raise ValueError("A payload format must be a nonempty identity without whitespace")
 

@@ -37,8 +37,12 @@ class DeliveryService:
         sockets = {binding.endpoint.socket_path for binding in bindings}
         directories = {binding.endpoint.socket_path.parent for binding in bindings}
 
-        if (len(keys) != len(bindings) or len(sockets) != len(bindings) or len(directories) != len(bindings)
-                or len({id(binding.api) for binding in bindings}) != len(bindings)):
+        if (
+            (len(keys) != len(bindings)) or
+            (len(sockets) != len(bindings)) or
+            (len(directories) != len(bindings)) or
+            (len({id(binding.api) for binding in bindings}) != len(bindings))
+        ):
             raise ValueError("Each delivery binding requires its own identity, socket and API exchange owner.")
 
         if not (len(bindings) * limits.provider_items <= limits.total_items and len(bindings) * limits.provider_bytes <= limits.total_bytes):

@@ -38,11 +38,11 @@ def require_download_proxy():
     proxy = os.environ.get("HTTPS_PROXY")
 
     if not (
-        proxy is not None
-        and (match := re.fullmatch(r"http://127\.0\.0\.1:([0-9]+)", proxy)) is not None
-        and 1 <= int(match[1]) <= 65535
-        and all(os.environ.get(name) == proxy for name in ("HTTP_PROXY", "http_proxy", "https_proxy"))
-        and all(os.environ.get(name) in (None, "") for name in ("NO_PROXY", "no_proxy", "ALL_PROXY", "all_proxy"))
+        (proxy is not None) and
+        ((match := re.fullmatch(r"http://127\.0\.0\.1:([0-9]+)", proxy)) is not None) and
+        (1 <= int(match[1]) <= 65535) and
+        all(os.environ.get(name) == proxy for name in ("HTTP_PROXY", "http_proxy", "https_proxy")) and
+        all(os.environ.get(name) in (None, "") for name in ("NO_PROXY", "no_proxy", "ALL_PROXY", "all_proxy"))
     ):
         raise ValueError("Cannot acquire artifacts: launcher-owned loopback proxy configuration is required.")
 

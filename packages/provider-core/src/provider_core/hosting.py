@@ -425,10 +425,10 @@ class Observation:
             raise BaseExceptionGroup("Scientific execution reported independent failures", causes)
 
         if not (
-            self.finished
-            and self.outcome is Outcome.SUCCEEDED
-            and self.result_state is ResultState.AVAILABLE
-            and self.result is not None
+            self.finished and
+            (self.outcome is Outcome.SUCCEEDED) and
+            (self.result_state is ResultState.AVAILABLE) and
+            (self.result is not None)
         ):
             raise RuntimeError(
                 f"Cannot use the result of {self.operation=}; "

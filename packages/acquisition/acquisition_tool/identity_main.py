@@ -33,8 +33,12 @@ def _inputs(args):
     )
 
     if args.maps is None:
-        if (args.host_uid is None or args.host_gid is None or args.userns is not None
-                or any(policy_setting is not None for policy_setting in policy)):
+        if (
+            (args.host_uid is None) or
+            (args.host_gid is None) or
+            (args.userns is not None) or
+            any(policy_setting is not None for policy_setting in policy)
+        ):
             raise ValueError("Supply both host-owner IDs, or use --map with explicit probe policy.")
 
         request = ProbeRequest(args.endpoint, args.image, "/usr/local/bin/python3", 0, 0)
@@ -129,8 +133,9 @@ def main(argv=None):
         problems = (failure.problem, *failure.retirement.problems)
 
         # Container retirement does not erase an unresolved native Docker client.
-        retired = failure.retirement.state in (ResourceState.NOT_CREATED, ResourceState.RETIRED) and all(
-            problem.category != "client_cleanup" for problem in problems
+        retired = (
+            (failure.retirement.state in (ResourceState.NOT_CREATED, ResourceState.RETIRED)) and
+            all(problem.category != "client_cleanup" for problem in problems)
         )
 
         sys.stderr.write(f"Cannot map engine identity: {failure.problem.message}\n")

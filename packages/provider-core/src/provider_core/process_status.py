@@ -49,8 +49,11 @@ class ProcessStatus:
     def refresh(self, phase, *, details=None):
         now = time.monotonic()
 
-        if (phase == self.phase and now - self.updated < 5
-                and (details == self.details or (details is not None and self.details is not None))):
+        if (
+            (phase == self.phase) and
+            (now - self.updated < 5) and
+            (details == self.details or (details is not None and self.details is not None))
+        ):
             return
 
         status_record = dict(role=self.role, pid=self.pid, start_ticks=self.start_ticks, updated_monotonic=now, phase=phase)

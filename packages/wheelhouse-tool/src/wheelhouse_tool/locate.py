@@ -150,8 +150,13 @@ def locate(path, index=None, allowed_sources=(), required_sources=(), direct_sou
             if fragment_values:
                 checksum = fragment_values[0]
 
-            if (distribution != name or checksum not in hashes or name in required_sources or not tags.intersection(sys_tags())
-                    or (supplied and not requirement.specifier.contains(version, prereleases=True))):
+            if (
+                (distribution != name) or
+                (checksum not in hashes) or
+                (name in required_sources) or
+                (not tags.intersection(sys_tags())) or
+                (supplied and not requirement.specifier.contains(version, prereleases=True))
+            ):
                 raise ValueError(f"Cannot locate {name}: direct artifact differs from its locked identity.")
 
             packages.append(
@@ -232,8 +237,12 @@ def locate(path, index=None, allowed_sources=(), required_sources=(), direct_sou
             url = urllib.parse.urljoin(project_url, artifact["url"])
             parsed = urllib.parse.urlsplit(url)
 
-            if (parsed.scheme != "https" or parsed.username is not None or parsed.query
-                    or urllib.parse.unquote(parsed.path.rsplit("/", 1)[-1]) != filename):
+            if (
+                (parsed.scheme != "https") or
+                (parsed.username is not None) or
+                parsed.query or
+                (urllib.parse.unquote(parsed.path.rsplit("/", 1)[-1]) != filename)
+            ):
                 raise ValueError(f"Cannot locate {name}: index returned an inconsistent artifact URL.")
 
             item = {"url": url, "hashes": {"sha256": checksum}}

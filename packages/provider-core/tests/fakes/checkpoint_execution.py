@@ -123,5 +123,9 @@ class CausalDelivery(RecordingDelivery):
     def can_retry(self, failure):
         # Follow the real client: only the exact owned, retired, retryable 503
         # failure authorizes another unchanged submission.
-        return (failure is self.last_failure and type(failure) is DeliveryUnavailable
-                and failure.status == 503 and self.retirement_confirmed)
+        return (
+            (failure is self.last_failure) and
+            (type(failure) is DeliveryUnavailable) and
+            (failure.status == 503) and
+            self.retirement_confirmed
+        )

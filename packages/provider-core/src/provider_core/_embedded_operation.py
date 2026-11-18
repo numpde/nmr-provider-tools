@@ -478,9 +478,9 @@ class _Operation(_Changes):
         require_type(result, ResultRef)
 
         if not (
-            result == self.result
-            and self.finished
-            and self.result_state is ResultState.AVAILABLE
+            (result == self.result) and
+            self.finished and
+            (self.result_state is ResultState.AVAILABLE)
         ):
             raise ValueError("Result reference does not name this operation's available result.")
 
@@ -527,10 +527,10 @@ class _Operation(_Changes):
         """Drop the host index only after execution and its owned values settle."""
 
         if (
-            self.finished
-            and (self.raw is None or self.value_disposed)
-            and self.result_state is not ResultState.AVAILABLE
-            and self.disposal_failure is None
+            self.finished and
+            (self.raw is None or self.value_disposed) and
+            (self.result_state is not ResultState.AVAILABLE) and
+            (self.disposal_failure is None)
         ):
             key = (self.analysis.identity, self.invocation.operation_id)
 
@@ -538,9 +538,9 @@ class _Operation(_Changes):
                 del self.analysis.host.operations[key]
 
             if (
-                not self.retain_identity
-                and self.state_allowance == 0
-                and self.analysis.operations.get(self.invocation.operation_id) is self
+                (not self.retain_identity) and
+                (self.state_allowance == 0) and
+                (self.analysis.operations.get(self.invocation.operation_id) is self)
             ):
                 del self.analysis.operations[self.invocation.operation_id]
 
@@ -560,8 +560,8 @@ class _Operation(_Changes):
                 raise TypeError(f"{type(actual_raw)=} ≠ {expected_type=}")
 
             if (
-                type(self.raw) is ScientificReturn
-                and self.raw.dispose_value is not None
+                (type(self.raw) is ScientificReturn) and
+                (self.raw.dispose_value is not None)
             ):
                 self.raw.dispose_value(self.raw.value)
         except BaseException as cause:

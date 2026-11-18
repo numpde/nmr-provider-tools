@@ -28,10 +28,13 @@ from tests.unit.normative.test_upload_transfer_retry import temporary_read_error
 class UploadRecoveryCleanupTests(unittest.IsolatedAsyncioTestCase):
     # silent-defaults: allow-contract -- Ordinary cleanup fixtures have one second; the retained-API witness supplies its shorter actual budget.
     def owner(self, *, seconds=1, api_transport=None):
-        api_transport = api_transport or HttpTransport(
-            trust=ssl.create_default_context(),
-            exchange_seconds=1,
-            retirement_seconds=0.03
+        api_transport = (
+            (api_transport) or
+            HttpTransport(
+                trust=ssl.create_default_context(),
+                exchange_seconds=1,
+                retirement_seconds=0.03
+            )
         )
 
         store = HttpTransport(trust=ssl.create_default_context(), exchange_seconds=1, retirement_seconds=0.03)

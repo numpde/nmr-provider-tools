@@ -146,10 +146,10 @@ def _expectation_name(*, expression: ast.expr) -> str | None:
 def _has_type_pair(*, source: str, message: ast.JoinedStr, subject: ast.expr, expected_name: str, membership: bool) -> bool:
     for (index, value) in enumerate(message.values):
         if not (
-            isinstance(value, ast.FormattedValue)
-            and _type_call(expression=value.value)
-            and _subject_key(expression=value.value.args[0]) == _subject_key(expression=subject)
-            and _is_debug_expression(source=source, formatted=value)
+            isinstance(value, ast.FormattedValue) and
+            _type_call(expression=value.value) and
+            (_subject_key(expression=value.value.args[0]) == _subject_key(expression=subject)) and
+            _is_debug_expression(source=source, formatted=value)
         ):
             continue
 
@@ -245,10 +245,10 @@ def _subclass_findings(*, source_path: pathlib.Path, source: str) -> list[str]:
         predicate = condition.operand
 
         if not (
-            isinstance(predicate, ast.Call)
-            and _builtin(expression=predicate.func, name="issubclass")
-            and len(predicate.args) == 2
-            and not predicate.keywords
+            isinstance(predicate, ast.Call) and
+            _builtin(expression=predicate.func, name="issubclass") and
+            (len(predicate.args) == 2) and
+            (not predicate.keywords)
         ):
             continue
 

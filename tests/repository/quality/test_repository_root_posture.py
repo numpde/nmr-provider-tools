@@ -83,11 +83,11 @@ def _source_location_depth(
             origin_depths.append(0)
 
         if (
-            isinstance(node, ast.Call)
-            and isinstance(node.func, ast.Attribute)
-            and isinstance(node.func.value, ast.Name)
-            and node.func.value.id == "inspect"
-            and node.func.attr == "getfile"
+            isinstance(node, ast.Call) and
+            isinstance(node.func, ast.Attribute) and
+            isinstance(node.func.value, ast.Name) and
+            (node.func.value.id == "inspect") and
+            (node.func.attr == "getfile")
         ):
             origin_depths.append(0)
 
@@ -101,12 +101,13 @@ def _upward_steps(expression: ast.expr) -> int:
     steps = 0
 
     for node in ast.walk(expression):
-        if isinstance(node, ast.Subscript) and (
-            isinstance(node.value, ast.Attribute)
-            and node.value.attr == "parents"
-            and isinstance(node.slice, ast.Constant)
-            and type(node.slice.value) is int
-            and node.slice.value >= 0
+        if (
+            isinstance(node, ast.Subscript) and
+            (isinstance(node.value, ast.Attribute) and
+             (node.value.attr == "parents") and
+             isinstance(node.slice, ast.Constant) and
+             (type(node.slice.value) is int) and
+             (node.slice.value >= 0))
         ):
             steps = max(steps, node.slice.value + 1)
 

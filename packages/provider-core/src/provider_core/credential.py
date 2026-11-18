@@ -87,9 +87,9 @@ def parse_provider_credential(raw):
         raise CredentialRejected("use the original canonical JSON document followed by one newline.")
 
     if (
-        document["schema_id"] != "nmr.provider.private_signing_credential.v1"
-        or document["algorithm"] != "ed25519"
-        or document["profile"] not in ("dev-local", "dev", "run")
+        (document["schema_id"] != "nmr.provider.private_signing_credential.v1") or
+        (document["algorithm"] != "ed25519") or
+        (document["profile"] not in ("dev-local", "dev", "run"))
     ):
         raise CredentialRejected("require the provider v1 artifact, Ed25519 and profile dev-local, dev or run.")
 

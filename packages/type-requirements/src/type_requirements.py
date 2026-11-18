@@ -21,11 +21,14 @@ def _argument_source(caller) -> str | None:
     """Return the caller's expr source when the original file is available."""
     position = inspect.getframeinfo(caller).positions
 
-    if position is None or None in (
-        position.lineno,
-        position.col_offset,
-        position.end_lineno,
-        position.end_col_offset,
+    if (
+        (position is None) or
+        (None in (
+            position.lineno,
+            position.col_offset,
+            position.end_lineno,
+            position.end_col_offset,
+        ))
     ):
         return None
 

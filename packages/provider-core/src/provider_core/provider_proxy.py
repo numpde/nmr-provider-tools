@@ -497,11 +497,11 @@ def socket_grant(path, ready, *, socket_group_id=None):
             parent_modes = (0o710, 0o2710) if shared else (0o700,)
 
             if (
-                path.parent.resolve() != path.parent
-                or not stat.S_ISDIR(parent.st_mode)
-                or parent.st_uid != os.geteuid()
-                or stat.S_IMODE(parent.st_mode) not in parent_modes
-                or (shared and parent.st_gid != socket_group_id)
+                (path.parent.resolve() != path.parent) or
+                (not stat.S_ISDIR(parent.st_mode)) or
+                (parent.st_uid != os.geteuid()) or
+                (stat.S_IMODE(parent.st_mode) not in parent_modes) or
+                (shared and parent.st_gid != socket_group_id)
             ):
                 raise ServiceRefused("Cannot start service proxy: its directory must be caller-owned with the required private or shared-group mode, and free of symlinks.")
 
@@ -527,9 +527,12 @@ def socket_grant(path, ready, *, socket_group_id=None):
                 # silent-defaults: allow-contract -- Only the explicitly shared socket is group writable; readiness remains private.
                 mode = 0o660 if shared and leaf == path else 0o600
 
-                if (not required(observed.st_mode) or observed.st_uid != os.geteuid()
-                        or stat.S_IMODE(observed.st_mode) != mode
-                        or (shared and leaf == path and observed.st_gid != socket_group_id)):
+                if (
+                    (not required(observed.st_mode)) or
+                    (observed.st_uid != os.geteuid()) or
+                    (stat.S_IMODE(observed.st_mode) != mode) or
+                    (shared and leaf == path and observed.st_gid != socket_group_id)
+                ):
                     raise ServiceRefused("Cannot start service proxy: prior route leaves have an unexpected type, owner or mode; preserve them for inspection.")
 
                 if leaf == ready:

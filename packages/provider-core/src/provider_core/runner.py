@@ -79,9 +79,10 @@ def _unlink_socket(parent, name, identity=None):
         return
 
     if (
-        not stat.S_ISSOCK(observed.st_mode) or observed.st_uid != os.geteuid()
-        or stat.S_IMODE(observed.st_mode) != 0o600
-        or identity is not None and (observed.st_dev, observed.st_ino) != identity
+        (not stat.S_ISSOCK(observed.st_mode)) or
+        (observed.st_uid != os.geteuid()) or
+        (stat.S_IMODE(observed.st_mode) != 0o600) or
+        (identity is not None and (observed.st_dev, observed.st_ino) != identity)
     ):
         raise PermissionError("Runner endpoint changed or is not a private owned socket; preserve it.")
 

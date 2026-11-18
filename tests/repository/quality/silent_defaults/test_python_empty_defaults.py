@@ -55,16 +55,17 @@ def _python_operator_files() -> list[pathlib.Path]:
 
 def _is_os_environ(node: ast.AST) -> bool:
     return (
-        isinstance(node, ast.Attribute)
-        and node.attr == "environ"
-        and isinstance(node.value, ast.Name)
-        and node.value.id in ENV_MODULE_NAMES
+        isinstance(node, ast.Attribute) and
+        (node.attr == "environ") and
+        isinstance(node.value, ast.Name) and
+        (node.value.id in ENV_MODULE_NAMES)
     )
 
 
 def _is_env_mapping(node: ast.AST) -> bool:
-    return (isinstance(node, ast.Name) and any(fragment in node.id.lower() for fragment in ENV_NAME_FRAGMENTS)) or _is_os_environ(
-        node
+    return (
+        (isinstance(node, ast.Name) and any(fragment in node.id.lower() for fragment in ENV_NAME_FRAGMENTS)) or
+        _is_os_environ(node)
     )
 
 
@@ -142,8 +143,9 @@ def _is_env_validation_predicate(node: ast.AST) -> bool:
 
 
 def _is_env_or_default_expression(node: ast.BoolOp) -> bool:
-    return any(_contains_env_access(value) for value in node.values) and any(
-        not _is_env_validation_predicate(value) for value in node.values
+    return (
+        any(_contains_env_access(value) for value in node.values) and
+        any(not _is_env_validation_predicate(value) for value in node.values)
     )
 
 
@@ -278,16 +280,19 @@ def _is_env_default_if_statement(node: ast.AST) -> bool:
     body_values = _assigned_values_by_target(node.body)
     else_values = _assigned_values_by_target(node.orelse)
 
-    return _has_same_target_fallback_assignment(
-        body_values,
-        else_values,
-        primary_predicate=_contains_env_access,
-        fallback_predicate=_is_non_empty_default_value,
-    ) or _has_same_target_fallback_assignment(
-        else_values,
-        body_values,
-        primary_predicate=_contains_env_access,
-        fallback_predicate=_is_non_empty_default_value,
+    return (
+        _has_same_target_fallback_assignment(
+            body_values,
+            else_values,
+            primary_predicate=_contains_env_access,
+            fallback_predicate=_is_non_empty_default_value,
+        ) or
+        _has_same_target_fallback_assignment(
+            else_values,
+            body_values,
+            primary_predicate=_contains_env_access,
+            fallback_predicate=_is_non_empty_default_value,
+        )
     )
 
 
@@ -360,8 +365,9 @@ def _is_args_attribute_or_default_expression(node: ast.AST) -> bool:
     if not isinstance(node, ast.BoolOp) or not isinstance(node.op, ast.Or):
         return False
 
-    return _contains_args_attribute_access(node.values[0]) and any(
-        _is_literal_non_absence_default(value) for value in node.values[1:]
+    return (
+        _contains_args_attribute_access(node.values[0]) and
+        any(_is_literal_non_absence_default(value) for value in node.values[1:])
     )
 
 
@@ -431,16 +437,19 @@ def _is_args_default_if_statement(node: ast.AST) -> bool:
     body_values = _assigned_values_by_target(node.body)
     else_values = _assigned_values_by_target(node.orelse)
 
-    return _has_same_target_fallback_assignment(
-        body_values,
-        else_values,
-        primary_predicate=_contains_raw_args_access,
-        fallback_predicate=_is_not_absence_literal,
-    ) or _has_same_target_fallback_assignment(
-        else_values,
-        body_values,
-        primary_predicate=_contains_raw_args_access,
-        fallback_predicate=_is_not_absence_literal,
+    return (
+        _has_same_target_fallback_assignment(
+            body_values,
+            else_values,
+            primary_predicate=_contains_raw_args_access,
+            fallback_predicate=_is_not_absence_literal,
+        ) or
+        _has_same_target_fallback_assignment(
+            else_values,
+            body_values,
+            primary_predicate=_contains_raw_args_access,
+            fallback_predicate=_is_not_absence_literal,
+        )
     )
 
 
@@ -540,18 +549,20 @@ def _has_env_default_expression(source: str) -> bool:
     tree = ast.parse(source, filename="<inline>")
 
     return any(
-        (isinstance(node, ast.Call) and _is_explicit_env_default_call(node))
-        or _is_argparse_default_call(node)
-        or _is_argparse_optional_positional(node)
-        or (isinstance(node, ast.BoolOp) and isinstance(node.op, ast.Or) and _is_env_or_default_expression(node))
-        or _is_env_default_if_expression(node)
-        or _is_env_default_if_statement(node)
-        or _is_env_default_keyerror_handler(node)
-        or _is_args_default_assignment(node)
-        or _is_args_attribute_or_default_expression(node)
-        or _is_args_default_if_expression(node)
-        or _is_args_default_if_statement(node)
-        for node in ast.walk(tree)
+        (
+            (isinstance(node, ast.Call) and _is_explicit_env_default_call(node)) or
+            _is_argparse_default_call(node) or
+            _is_argparse_optional_positional(node) or
+            (isinstance(node, ast.BoolOp) and isinstance(node.op, ast.Or) and _is_env_or_default_expression(node)) or
+            _is_env_default_if_expression(node) or
+            _is_env_default_if_statement(node) or
+            _is_env_default_keyerror_handler(node) or
+            _is_args_default_assignment(node) or
+            _is_args_attribute_or_default_expression(node) or
+            _is_args_default_if_expression(node) or
+            _is_args_default_if_statement(node)
+            for node in ast.walk(tree)
+        ),
     )
 
 

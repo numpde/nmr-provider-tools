@@ -62,8 +62,9 @@ def _availability(cause, remaining, observation, *, timeout_cancellation=False):
         )
 
     if type(cause) is asyncio.CancelledError:
-        return timeout_cancellation and (
-            explicit is None or _availability(explicit, remaining - 1, observation, timeout_cancellation=True)
+        return (
+            (timeout_cancellation) and
+            (explicit is None or _availability(explicit, remaining - 1, observation, timeout_cancellation=True))
         )
 
     timeout = type(cause) in (TimeoutError, httpcore.ConnectTimeout, httpcore.ReadTimeout, httpcore.WriteTimeout)
@@ -72,21 +73,27 @@ def _availability(cause, remaining, observation, *, timeout_cancellation=False):
     # Explicit causes still matter: a timeout or EOF cannot hide an independent defect.
     # Every DNS errno describes resolver availability; exact ConnectionError is
     # the native connection family, not permission for arbitrary subclasses.
-    if timeout or type(cause) in (
-        socket.gaierror,
-        ConnectionError,
-        ConnectionRefusedError,
-        ConnectionResetError,
-        ConnectionAbortedError,
-        BrokenPipeError,
-        ssl.SSLEOFError,
-        ssl.SSLZeroReturnError,
+    if (
+        (timeout) or
+        (type(cause) in (
+            socket.gaierror,
+            ConnectionError,
+            ConnectionRefusedError,
+            ConnectionResetError,
+            ConnectionAbortedError,
+            BrokenPipeError,
+            ssl.SSLEOFError,
+            ssl.SSLZeroReturnError,
+        ))
     ):
-        return explicit is None or _availability(
-            explicit,
-            remaining - 1,
-            observation,
-            timeout_cancellation=timeout_cancellation or timeout
+        return (
+            (explicit is None) or
+            _availability(
+                explicit,
+                remaining - 1,
+                observation,
+                timeout_cancellation=timeout_cancellation or timeout
+            )
         )
 
     if isinstance(cause, ssl.SSLError):
@@ -94,27 +101,33 @@ def _availability(cause, remaining, observation, *, timeout_cancellation=False):
 
     if type(cause) in (OSError, FileNotFoundError):
         if cause.errno is not None:
-            available = cause.errno in {
-                errno.ECONNREFUSED,
-                errno.ECONNRESET,
-                errno.ECONNABORTED,
-                errno.ETIMEDOUT,
-                errno.ENETDOWN,
-                errno.ENETUNREACH,
-                errno.EHOSTUNREACH,
-                errno.EPIPE,
-            } or (
-                cause.errno == errno.ENOENT and observation.stage == "connect_unix"
-                and observation.unix_path is not None
-                and observation.unix_path == observation.configured_unix_path
+            available = (
+                (cause.errno in {
+                    errno.ECONNREFUSED,
+                    errno.ECONNRESET,
+                    errno.ECONNABORTED,
+                    errno.ETIMEDOUT,
+                    errno.ENETDOWN,
+                    errno.ENETUNREACH,
+                    errno.EHOSTUNREACH,
+                    errno.EPIPE,
+                }) or
+                ((cause.errno == errno.ENOENT) and
+                 (observation.stage == "connect_unix") and
+                 (observation.unix_path is not None) and
+                 (observation.unix_path == observation.configured_unix_path))
             )
 
-            return available and (explicit is None or _availability(
-                explicit,
-                remaining - 1,
-                observation,
-                timeout_cancellation=timeout_cancellation
-            ))
+            return (
+                (available) and
+                ((explicit is None) or
+                 _availability(
+                     explicit,
+                     remaining - 1,
+                     observation,
+                     timeout_cancellation=timeout_cancellation
+                 ))
+            )
     elif type(cause) not in (
         httpcore.ConnectError,
         httpcore.ReadError,
@@ -149,8 +162,9 @@ def network_availability(primary, observation, *, network_failure):
 
     if observation.deadline_cancelled and type(primary) is TimeoutError:
         return (
-            observation.error is network_failure and isinstance(observation.error, asyncio.CancelledError)
-            and _availability(observation.error, 8, observation, timeout_cancellation=True)
+            (observation.error is network_failure) and
+            isinstance(observation.error, asyncio.CancelledError) and
+            _availability(observation.error, 8, observation, timeout_cancellation=True)
         )
 
     if primary is not network_failure:
@@ -359,9 +373,9 @@ class _OwnedStream(httpcore.AsyncNetworkStream):
 
                     await self._close_raw()
 
-                    peer_eof = type(failure) is ssl.SSLEOFError or (
-                        type(failure) is anyio.BrokenResourceError
-                        and type(failure.__cause__) is ssl.SSLEOFError
+                    peer_eof = (
+                        (type(failure) is ssl.SSLEOFError) or
+                        (type(failure) is anyio.BrokenResourceError and type(failure.__cause__) is ssl.SSLEOFError)
                     )
 
                     # Only a successful raw close releases this owner;

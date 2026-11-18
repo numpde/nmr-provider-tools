@@ -62,8 +62,9 @@ def guard_findings(*, source: str) -> list[tuple[int, str]]:
 
         if not isinstance(condition, ast.UnaryOp) or not isinstance(condition.op, ast.Not):
             findings.append((statement.lineno, "write the raising guard as if not (expected_condition): raise ..."))
-        elif not isinstance(condition.operand, ast.Call) and not _parenthesized_not(
-            expression=ast.get_source_segment(source=source, node=condition),
+        elif (
+            (not isinstance(condition.operand, ast.Call)) and
+            (not _parenthesized_not(expression=ast.get_source_segment(source=source, node=condition)))
         ):
             findings.append((statement.lineno, "parenthesize the complete expected condition after not"))
 

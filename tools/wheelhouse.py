@@ -166,10 +166,10 @@ def wheel_inputs_from_report(lock, pool, report, extra_pools=(), required_files=
         candidate = pathlib.Path(urllib.request.url2pathname(location.path))
 
         if (
-            location.scheme != "file"
-            or location.netloc
-            or candidate.parent.resolve() not in {directory.resolve() for directory in (pool, *extra_pools)}
-            or candidate.suffix != ".whl"
+            (location.scheme != "file") or
+            location.netloc or
+            (candidate.parent.resolve() not in {directory.resolve() for directory in (pool, *extra_pools)}) or
+            (candidate.suffix != ".whl")
         ):
             raise ValueError("Cannot select wheels: pip selected a file outside the supplied flat pool.")
 

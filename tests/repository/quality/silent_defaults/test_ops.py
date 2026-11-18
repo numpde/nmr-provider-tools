@@ -122,10 +122,10 @@ def shell_exported_names(source: str) -> set[str] | None:
                     break
 
                 if (
-                    (builtin == "set" and re.fullmatch(r"[+-][A-Za-z]*a[A-Za-z]*", token))
-                    or token == "allexport"
-                    or "$" in token
-                    or "`" in token
+                    (builtin == "set" and re.fullmatch(r"[+-][A-Za-z]*a[A-Za-z]*", token)) or
+                    (token == "allexport") or
+                    ("$" in token) or
+                    ("`" in token)
                 ):
                     return None
 
@@ -268,9 +268,9 @@ class OpsSilentDefaultsTest(unittest.TestCase):
                 assignment_match = ENV_ASSIGNMENT_RE.match(line.strip())
 
                 if (
-                    assignment_match
-                    and assignment_match.group("value").strip() in {"", '""', "''"}
-                    and (exported_names is None or assignment_match.group("name") in exported_names)
+                    (assignment_match) and
+                    (assignment_match.group("value").strip() in {"", '""', "''"}) and
+                    (exported_names is None or assignment_match.group("name") in exported_names)
                 ):
                     findings.append(
                         f"{path.relative_to(ROOT)}:{line_number}: blank env assignment: "

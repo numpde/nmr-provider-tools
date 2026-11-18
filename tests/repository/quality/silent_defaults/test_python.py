@@ -95,10 +95,10 @@ def is_env_validation_predicate(node: ast.AST) -> bool:
 
 def is_env_or_default_expression(node: ast.AST) -> bool:
     return (
-        isinstance(node, ast.BoolOp)
-        and isinstance(node.op, ast.Or)
-        and any(contains_env_access(value) for value in node.values)
-        and any(not is_env_validation_predicate(value) for value in node.values)
+        isinstance(node, ast.BoolOp) and
+        isinstance(node.op, ast.Or) and
+        any(contains_env_access(value) for value in node.values) and
+        any(not is_env_validation_predicate(value) for value in node.values)
     )
 
 
@@ -116,26 +116,26 @@ def is_non_empty_default_value(node: ast.AST) -> bool:
 
 def is_env_default_if_expression(node: ast.AST) -> bool:
     return (
-        isinstance(node, ast.IfExp)
-        and not is_absence_literal(node.orelse)
-        and (contains_env_access(node.body) or contains_env_access(node.test))
+        isinstance(node, ast.IfExp) and
+        (not is_absence_literal(node.orelse)) and
+        (contains_env_access(node.body) or contains_env_access(node.test))
     )
 
 
 def is_generic_or_default_expression(node: ast.AST) -> bool:
     return (
-        isinstance(node, ast.BoolOp)
-        and isinstance(node.op, ast.Or)
-        and not contains_env_access(node)
-        and any(is_default_literal(value) for value in node.values)
+        isinstance(node, ast.BoolOp) and
+        isinstance(node.op, ast.Or) and
+        (not contains_env_access(node)) and
+        any(is_default_literal(value) for value in node.values)
     )
 
 
 def is_generic_default_if_expression(node: ast.AST) -> bool:
     return (
-        isinstance(node, ast.IfExp)
-        and not contains_env_access(node)
-        and (is_default_literal(node.body) or is_default_literal(node.orelse))
+        isinstance(node, ast.IfExp) and
+        (not contains_env_access(node)) and
+        (is_default_literal(node.body) or is_default_literal(node.orelse))
     )
 
 
@@ -176,16 +176,19 @@ def is_env_default_if_statement(node: ast.AST) -> bool:
     body_values = assigned_values_by_target(node.body)
     else_values = assigned_values_by_target(node.orelse)
 
-    return has_same_target_fallback_assignment(
-        body_values,
-        else_values,
-        primary_predicate=contains_env_access,
-        fallback_predicate=is_non_empty_default_value,
-    ) or has_same_target_fallback_assignment(
-        else_values,
-        body_values,
-        primary_predicate=contains_env_access,
-        fallback_predicate=is_non_empty_default_value,
+    return (
+        has_same_target_fallback_assignment(
+            body_values,
+            else_values,
+            primary_predicate=contains_env_access,
+            fallback_predicate=is_non_empty_default_value,
+        ) or
+        has_same_target_fallback_assignment(
+            else_values,
+            body_values,
+            primary_predicate=contains_env_access,
+            fallback_predicate=is_non_empty_default_value,
+        )
     )
 
 
@@ -284,13 +287,13 @@ def is_args_default_assignment(node: ast.AST) -> bool:
 
 def is_args_default_if_expression(node: ast.AST) -> bool:
     return (
-        isinstance(node, ast.IfExp)
-        and isinstance(node.test, ast.Name)
-        and node.test.id == "args"
-        and isinstance(node.body, ast.Subscript)
-        and isinstance(node.body.value, ast.Name)
-        and node.body.value.id == "args"
-        and not is_absence_literal(node.orelse)
+        isinstance(node, ast.IfExp) and
+        isinstance(node.test, ast.Name) and
+        (node.test.id == "args") and
+        isinstance(node.body, ast.Subscript) and
+        isinstance(node.body.value, ast.Name) and
+        (node.body.value.id == "args") and
+        (not is_absence_literal(node.orelse))
     )
 
 
@@ -308,34 +311,37 @@ def is_args_default_if_statement(node: ast.AST) -> bool:
     body_values = assigned_values_by_target(node.body)
     else_values = assigned_values_by_target(node.orelse)
 
-    return has_same_target_fallback_assignment(
-        body_values,
-        else_values,
-        primary_predicate=contains_raw_args_access,
-        fallback_predicate=lambda node: not is_absence_literal(node),
-    ) or has_same_target_fallback_assignment(
-        else_values,
-        body_values,
-        primary_predicate=contains_raw_args_access,
-        fallback_predicate=lambda node: not is_absence_literal(node),
+    return (
+        has_same_target_fallback_assignment(
+            body_values,
+            else_values,
+            primary_predicate=contains_raw_args_access,
+            fallback_predicate=lambda node: not is_absence_literal(node),
+        ) or
+        has_same_target_fallback_assignment(
+            else_values,
+            body_values,
+            primary_predicate=contains_raw_args_access,
+            fallback_predicate=lambda node: not is_absence_literal(node),
+        )
     )
 
 
 def is_silent_default(node: ast.AST) -> bool:
     return (
-        is_explicit_defaulting_call(node)
-        or is_explicit_mapping_default_call(node)
-        or is_argparse_default(node)
-        or is_argparse_optional_positional(node)
-        or is_env_or_default_expression(node)
-        or is_env_default_if_expression(node)
-        or is_generic_or_default_expression(node)
-        or is_generic_default_if_expression(node)
-        or is_env_default_if_statement(node)
-        or is_env_default_keyerror_handler(node)
-        or is_args_default_assignment(node)
-        or is_args_default_if_expression(node)
-        or is_args_default_if_statement(node)
+        is_explicit_defaulting_call(node) or
+        is_explicit_mapping_default_call(node) or
+        is_argparse_default(node) or
+        is_argparse_optional_positional(node) or
+        is_env_or_default_expression(node) or
+        is_env_default_if_expression(node) or
+        is_generic_or_default_expression(node) or
+        is_generic_default_if_expression(node) or
+        is_env_default_if_statement(node) or
+        is_env_default_keyerror_handler(node) or
+        is_args_default_assignment(node) or
+        is_args_default_if_expression(node) or
+        is_args_default_if_statement(node)
     )
 
 
@@ -438,15 +444,15 @@ def _discarded_env_pop_contract(statement: ast.stmt) -> bool:
     call = statement.value
 
     return (
-        isinstance(call.func, ast.Attribute)
-        and call.func.attr == "pop"
-        and is_env_mapping(call.func.value)
-        and len(call.args) == 2
-        and not call.keywords
-        and isinstance(call.args[0], ast.Constant)
-        and isinstance(call.args[0].value, str)
-        and isinstance(call.args[1], ast.Constant)
-        and call.args[1].value is None
+        isinstance(call.func, ast.Attribute) and
+        (call.func.attr == "pop") and
+        is_env_mapping(call.func.value) and
+        (len(call.args) == 2) and
+        (not call.keywords) and
+        isinstance(call.args[0], ast.Constant) and
+        isinstance(call.args[0].value, str) and
+        isinstance(call.args[1], ast.Constant) and
+        (call.args[1].value is None)
     )
 
 
@@ -476,27 +482,29 @@ def _typed_pass_contract(handler: ast.ExceptHandler, protected: ast.Try) -> bool
     # A Pass mentions no input itself; inspect what its protected suite can
     # swallow. Reviewers judge type semantics; aliases are not resolved here.
     return not any(
-        contains_env_access(statement)
-        or contains_raw_args_access(statement)
-        or any(
-            args_attribute_name(child) is not None
-            or (
-                isinstance(child, ast.Call)
-                and isinstance(child.func, ast.Attribute)
-                and (child.func.attr in ARGPARSE_CALL_NAMES or child.func.attr in {"parse_args", "parse_known_args"})
+        (
+            contains_env_access(statement) or
+            contains_raw_args_access(statement) or
+            any(
+                (
+                    (args_attribute_name(child) is not None) or
+                    (isinstance(child, ast.Call) and
+                     isinstance(child.func, ast.Attribute) and
+                     (child.func.attr in ARGPARSE_CALL_NAMES or child.func.attr in {"parse_args", "parse_known_args"}))
+                    for child in ast.walk(statement)
+                ),
             )
-            for child in ast.walk(statement)
-        )
-        for statement in protected.body
+            for statement in protected.body
+        ),
     )
 
 
 def _contract_candidate(node: ast.AST, label: str, *, protected: ast.Try | None = None) -> bool:
     # An annotation records a reviewed consumer contract, not inferred safety.
     if (
-        contains_env_access(node)
-        or contains_raw_args_access(node)
-        or any(args_attribute_name(child) is not None for child in ast.walk(node))
+        contains_env_access(node) or
+        contains_raw_args_access(node) or
+        any(args_attribute_name(child) is not None for child in ast.walk(node))
     ):
         return False
 
@@ -575,8 +583,10 @@ def _exception_outcome_contract(handler, protected):
 
     if any(
         (
-            contains_env_access(statement) or contains_raw_args_access(statement)
-            or any(args_attribute_name(node) is not None for node in ast.walk(statement)) for statement in protected.body
+            contains_env_access(statement) or
+            contains_raw_args_access(statement) or
+            any(args_attribute_name(node) is not None for node in ast.walk(statement))
+            for statement in protected.body
         ),
     ):
         return False
@@ -588,9 +598,13 @@ def _exception_outcome_contract(handler, protected):
     refusal = isinstance(value, ast.Constant) and value.value is False
 
     unavailable = (
-        isinstance(value, ast.Dict) and len(value.keys) == 1 and isinstance(value.keys[0], ast.Constant)
-        and value.keys[0].value == "detail_unavailable" and isinstance(value.values[0], ast.Constant)
-        and isinstance(value.values[0].value, str) and bool(value.values[0].value.strip())
+        isinstance(value, ast.Dict) and
+        (len(value.keys) == 1) and
+        isinstance(value.keys[0], ast.Constant) and
+        (value.keys[0].value == "detail_unavailable") and
+        isinstance(value.values[0], ast.Constant) and
+        isinstance(value.values[0].value, str) and
+        bool(value.values[0].value.strip())
     )
 
     return refusal or unavailable or isinstance(value, ast.Name)
@@ -651,8 +665,11 @@ def python_operator_default_findings(path: pathlib.Path) -> list[str]:
     lambda_bodies = [node.body for node in ast.walk(tree) if isinstance(node, ast.Lambda)]
 
     for token in tokenize.generate_tokens(io.StringIO(source).readline):
-        if token.type != tokenize.COMMENT or not token.string.startswith(
-            ("# silent-defaults: allow-contract", "# silent-defaults: allow-pop-default", "# silent-defaults: allow-lambda-body", "# silent-defaults: allow-exception-outcome")
+        if (
+            (token.type != tokenize.COMMENT) or
+            (not token.string.startswith(
+                ("# silent-defaults: allow-contract", "# silent-defaults: allow-pop-default", "# silent-defaults: allow-lambda-body", "# silent-defaults: allow-exception-outcome")
+            ))
         ):
             continue
 
@@ -665,9 +682,14 @@ def python_operator_default_findings(path: pathlib.Path) -> list[str]:
         protected = None
 
         if prefix == "# silent-defaults: allow-exception-outcome":
-            if (separator and not token.line[:token.start[1]].strip() and len(following_handlers) == 1
-                    and following_handlers[0][0].col_offset == token.start[1] and reason.strip()
-                    and _exception_outcome_contract(*following_handlers[0])):
+            if (
+                (separator) and
+                (not token.line[:token.start[1]].strip()) and
+                (len(following_handlers) == 1) and
+                (following_handlers[0][0].col_offset == token.start[1]) and
+                reason.strip() and
+                _exception_outcome_contract(*following_handlers[0])
+            ):
                 accepted.add(following_handlers[0][0])
             else:
                 findings.append(f"{path.relative_to(ROOT)}:{token.start[0]}: exception-outcome annotation requires an explanation and an immediate bounded failure outcome")
@@ -681,10 +703,10 @@ def python_operator_default_findings(path: pathlib.Path) -> list[str]:
             selected = [(node, label) for (node, label) in candidates if len(following) == 1 and node in ast.walk(following[0])]
 
             boundary = (
-                len(following) == 1
-                and (following[0], "python silent default") in selected
-                and all(label == "python silent default" for (_, label) in selected)
-                and not any(
+                (len(following) == 1) and
+                ((following[0], "python silent default") in selected) and
+                all(label == "python silent default" for (_, label) in selected) and
+                not any(
                     isinstance(child, ast.Lambda) or is_argparse_default(child) or is_argparse_optional_positional(child)
                     for child in ast.walk(following[0])
                 )
@@ -719,11 +741,11 @@ def python_operator_default_findings(path: pathlib.Path) -> list[str]:
             outermost = [node for (node, _) in selected if all(other in ast.walk(node) for (other, _) in selected)]
 
             boundary = (
-                len(following_entries) == 1
-                and all(isinstance(key, ast.Constant) for key in following_entries[0][2].keys)
-                and len(outermost) == 1
-                and all(label == "python silent default" for (_, label) in selected)
-                and not any(
+                (len(following_entries) == 1) and
+                all(isinstance(key, ast.Constant) for key in following_entries[0][2].keys) and
+                (len(outermost) == 1) and
+                all(label == "python silent default" for (_, label) in selected) and
+                not any(
                     isinstance(child, ast.Lambda) for (_key, value, _owner) in following_entries for child in ast.walk(value)
                 )
             )
@@ -737,18 +759,19 @@ def python_operator_default_findings(path: pathlib.Path) -> list[str]:
             outermost = [node for (node, _) in selected if all(other in ast.walk(node) for (other, _) in selected)]
 
             boundary = (
-                expression.end_lineno == next_line
-                and len(outermost) == 1
-                and all(label == "python silent default" for (_, label) in selected)
-                and not any(isinstance(child, ast.Lambda) for child in ast.walk(expression))
+                (expression.end_lineno == next_line) and
+                (len(outermost) == 1) and
+                all(label == "python silent default" for (_, label) in selected) and
+                (not any(isinstance(child, ast.Lambda) for child in ast.walk(expression)))
             )
         elif len(following) == 1 and isinstance(following[0], ast.FunctionDef | ast.AsyncFunctionDef):
             defaults = function_default_nodes(following[0])
             selected = [(node, label) for (node, label) in candidates if any(node in ast.walk(default) for default in defaults)]
             boundary = bool(defaults)
-        elif len(following) == 1 and (
-            isinstance(following[0], ast.With | ast.Assign | ast.Return)
-            or (isinstance(following[0], ast.Expr) and isinstance(following[0].value, ast.Call))
+        elif (
+            (len(following) == 1) and
+            (isinstance(following[0], ast.With | ast.Assign | ast.Return) or
+             (isinstance(following[0], ast.Expr) and isinstance(following[0].value, ast.Call)))
         ):
             statement = following[0]
 
@@ -765,9 +788,9 @@ def python_operator_default_findings(path: pathlib.Path) -> list[str]:
             outermost = [node for (node, _) in selected if all(other in ast.walk(node) for (other, _) in selected)]
 
             boundary = (
-                len(outermost) == 1
-                and all(label == "python silent default" for (_, label) in selected)
-                and not any(isinstance(child, ast.Lambda) for expression in expressions for child in ast.walk(expression))
+                (len(outermost) == 1) and
+                all(label == "python silent default" for (_, label) in selected) and
+                (not any(isinstance(child, ast.Lambda) for expression in expressions for child in ast.walk(expression)))
             )
         else:
             selected = [(node, label) for (node, label) in candidates if node.lineno == next_line]
@@ -777,34 +800,29 @@ def python_operator_default_findings(path: pathlib.Path) -> list[str]:
             outermost = [node for (node, _) in selected if all(other in ast.walk(node) for (other, _) in selected)]
 
             boundary = (
-                len(following) == 1
-                and (
-                    following[0].end_lineno == next_line
-                    or (isinstance(following[0], ast.If) and following[0].test.end_lineno == next_line)
-                )
-                and len(outermost) == 1
-                and all(node.end_lineno == next_line for (node, _) in selected)
+                (len(following) == 1) and
+                ((following[0].end_lineno == next_line) or
+                 (isinstance(following[0], ast.If) and following[0].test.end_lineno == next_line)) and
+                (len(outermost) == 1) and
+                all(node.end_lineno == next_line for (node, _) in selected)
             )
 
         if (
-            prefix
-            in {
+            (prefix in {
                 "# silent-defaults: allow-contract",
                 "# silent-defaults: allow-pop-default",
                 "# silent-defaults: allow-lambda-body",
-            }
-            and separator
-            and reason.strip()
-            and not token.line[: token.start[1]].strip()
-            and len(following) == 1
-            and following[0].col_offset == token.start[1]
-            and boundary
+            }) and
+            (separator) and
+            reason.strip() and
+            (not token.line[: token.start[1]].strip()) and
+            (len(following) == 1) and
+            (following[0].col_offset == token.start[1]) and
+            (boundary) and
             # Only the pop-specific boundary admits this discarded ENV access;
             # every ordinary contract keeps the shared operator/header guards.
-            and (
-                prefix == "# silent-defaults: allow-pop-default"
-                or all(_contract_candidate(node, label, protected=protected) for (node, label) in selected)
-            )
+            ((prefix == "# silent-defaults: allow-pop-default") or
+             all(_contract_candidate(node, label, protected=protected) for (node, label) in selected))
         ):
             accepted.update(node for (node, _) in selected)
         else:
@@ -820,12 +838,12 @@ def python_operator_default_findings(path: pathlib.Path) -> list[str]:
         for (node, label) in candidates
         if
         (node not in accepted) and
-        not (
+        (not (
             (label == "python silent default") and
             isinstance(node, ast.BoolOp) and
             isinstance(node.op, ast.Or) and
             _is_comparison_predicate(node)
-        )
+        ))
     )
 
     return findings

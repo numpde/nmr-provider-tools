@@ -39,16 +39,16 @@ def _https_origin(value):
     host = parsed.hostname
 
     if (
-        parsed.scheme != "https"
-        or not host
-        or parsed.username is not None
-        or parsed.password is not None
-        or parsed.path not in {"", "/"}
-        or "?" in value
-        or "#" in value
-        or parsed.netloc.endswith(":")
-        or "%" in host
-        or (port is not None and port <= 0)
+        (parsed.scheme != "https") or
+        (not host) or
+        (parsed.username is not None) or
+        (parsed.password is not None) or
+        (parsed.path not in {"", "/"}) or
+        ("?" in value) or
+        ("#" in value) or
+        parsed.netloc.endswith(":") or
+        ("%" in host) or
+        (port is not None and port <= 0)
     ):
         raise ValueError("Cannot configure signing: HTTPS origin must contain only a host and optional port")
 

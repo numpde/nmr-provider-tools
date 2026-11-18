@@ -175,9 +175,13 @@ class DeliveryQueue:
         try:
             facts = directory.lstat()
 
-            if (not directory.is_absolute() or directory.resolve() != directory
-                    or not stat.S_ISDIR(facts.st_mode) or facts.st_uid != os.geteuid()
-                    or stat.S_IMODE(facts.st_mode) != 0o700):
+            if (
+                (not directory.is_absolute()) or
+                (directory.resolve() != directory) or
+                (not stat.S_ISDIR(facts.st_mode)) or
+                (facts.st_uid != os.geteuid()) or
+                (stat.S_IMODE(facts.st_mode) != 0o700)
+            ):
                 raise DeliveryStorageFailed("Cannot open delivery storage: its directory must be canonical, caller-owned and mode 0700.")
 
             self._lock = self._private_file(directory / ".owner.lock")
@@ -209,8 +213,11 @@ class DeliveryQueue:
             except OSError as cause:
                 raise DeliveryStorageFailed(f"Cannot inspect private delivery file {path.name} before acquiring it.", cause=cause) from None
 
-            if (not stat.S_ISREG(facts.st_mode) or facts.st_uid != os.geteuid()
-                    or stat.S_IMODE(facts.st_mode) != 0o600):
+            if (
+                (not stat.S_ISREG(facts.st_mode)) or
+                (facts.st_uid != os.geteuid()) or
+                (stat.S_IMODE(facts.st_mode) != 0o600)
+            ):
                 raise DeliveryStorageFailed(
                     f"Cannot open private delivery file {path.name}: require a caller-owned mode 0600 regular file; "
                     f"observed uid {facts.st_uid}, mode {stat.S_IMODE(facts.st_mode):04o}, caller uid {os.geteuid()}."

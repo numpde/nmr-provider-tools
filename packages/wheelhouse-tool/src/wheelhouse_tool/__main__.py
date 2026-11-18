@@ -407,8 +407,13 @@ def main():
         if args.local_lock is not None and (args.local_root is None or not args.local_root.is_absolute()):
             raise ValueError("Cannot write a local lock: supply an absolute --local-root.")
 
-        if args.local_lock is not None and not (args.local_lock.name == "pylock.toml" or
-                                               args.local_lock.name.startswith("pylock.") and args.local_lock.name.endswith(".toml")):
+        if (
+            (args.local_lock is not None) and
+            (not (
+                (args.local_lock.name == "pylock.toml") or
+                (args.local_lock.name.startswith("pylock.") and args.local_lock.name.endswith(".toml"))
+            ))
+        ):
             raise ValueError("Cannot write a local lock: use pylock.toml or pylock.NAME.toml so installers recognize it.")
 
         document = read_lock(args.lock)

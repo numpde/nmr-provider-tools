@@ -78,7 +78,7 @@ def _interpolation_findings(*, source_path: pathlib.Path, source: str, joined: a
         for value in joined.values
         if
         isinstance(value, ast.FormattedValue) and
-        not _is_debug_expression(source=source, formatted=value)
+        (not _is_debug_expression(source=source, formatted=value))
     ]
 
 
@@ -167,11 +167,9 @@ def _findings(*, source_path: pathlib.Path, source: str) -> list[_Finding]:
         for node in ast.walk(node=tree)
         if
         (isinstance(node, ast.JoinedStr) and (id(node) not in format_specs)) or
-        (
-            isinstance(node, ast.Constant) and
-            isinstance(node.value, str) and
-            not isinstance(parents.get(node), ast.JoinedStr)
-        )
+        (isinstance(node, ast.Constant) and
+         isinstance(node.value, str) and
+         (not isinstance(parents.get(node), ast.JoinedStr)))
     ]
 
     (exempt_literals, findings) = _machine_string_exemptions(source_path=source_path, source=source, literals=literals)

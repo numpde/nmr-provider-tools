@@ -116,14 +116,14 @@ def require_store_origin(value):
         raise ValueError("Cannot configure Upload store: origin is not a valid HTTPS URL") from None
 
     if (
-        url.scheme != "https"
-        or not url.host
-        or url.userinfo
-        or url.query
-        or url.fragment
-        or url.raw_path != b"/"
-        or str(url) != value
-        or value.endswith("/")
+        (url.scheme != "https") or
+        (not url.host) or
+        url.userinfo or
+        url.query or
+        url.fragment or
+        (url.raw_path != b"/") or
+        (str(url) != value) or
+        value.endswith("/")
     ):
         raise ValueError("Cannot configure Upload store: supply a canonical HTTPS origin without credentials, path, query or fragment")
 
@@ -301,29 +301,36 @@ class UploadTransfer:
         """
 
         if (
-            failure is not self.last_failure
-            or not isinstance(failure, UploadFailed)
-            or failure.interruption is not None
-            or self._interrupted
-            or self._active
-            or not self._store.retirement_confirmed
-            or self.file_cleanup_pending
-            or self._transfer_grant is None
+            (failure is not self.last_failure) or
+            (not isinstance(failure, UploadFailed)) or
+            (failure.interruption is not None) or
+            self._interrupted or
+            self._active or
+            (not self._store.retirement_confirmed) or
+            self.file_cleanup_pending or
+            (self._transfer_grant is None)
         ):
             return False
 
         outcome = self._store_outcome
 
         if isinstance(outcome, ExchangeFailed):
-            if (failure.cause is not outcome or outcome is not self._store.last_failure
-                    or outcome.cleanup_failures or outcome.interruption is not None):
+            if (
+                (failure.cause is not outcome) or
+                (outcome is not self._store.last_failure) or
+                outcome.cleanup_failures or
+                (outcome.interruption is not None)
+            ):
                 return False
 
             head = outcome.response_head
 
             if self._header_failure is not None and outcome.primary is self._header_failure:
-                return (head is not None and self._header_failure.response is head
-                        and head.status in {401, 503, 507})
+                return (
+                    (head is not None) and
+                    (self._header_failure.response is head) and
+                    (head.status in {401, 503, 507})
+                )
 
             if outcome.primary is not outcome.network_failure:
                 return False
@@ -757,8 +764,11 @@ class JobUploads:
         if self._recovery_failure is None:
             self._recovery_failure = failure
 
-        if (type(failure) is ApiFailure and failure.issuance_may_have_committed
-                and self._uncertain_issuance is None):
+        if (
+            (type(failure) is ApiFailure) and
+            failure.issuance_may_have_committed and
+            (self._uncertain_issuance is None)
+        ):
             self._uncertain_issuance = failure
 
             if self._recovery_failure is not failure:
@@ -810,8 +820,11 @@ class JobUploads:
             self._remember_recovery_failure(failure)
             self._snapshot = None
 
-            if (isinstance(failure, BaseExceptionGroup) and isinstance(self.last_failure, UploadFailed)
-                    and any(cause is self.last_failure for cause in failure.exceptions)):
+            if (
+                isinstance(failure, BaseExceptionGroup) and
+                isinstance(self.last_failure, UploadFailed) and
+                any(cause is self.last_failure for cause in failure.exceptions)
+            ):
                 self._retain_grant_issuance(self.last_failure)
             elif self._grant_issued:
                 # Successful issuance remains true even if later local checks,
@@ -946,9 +959,11 @@ class JobUploads:
             except (Exception, BaseExceptionGroup, asyncio.CancelledError) as cleanup:
                 failures.append(cleanup)
 
-        if not failures and (
-            not self._api.retirement_confirmed or not self._store.retirement_confirmed
-            or self._transfer_owner.file_cleanup_pending
+        if (
+            (not failures) and
+            ((not self._api.retirement_confirmed) or
+             (not self._store.retirement_confirmed) or
+             self._transfer_owner.file_cleanup_pending)
         ):
             failures.append(UploadFailed("original source exchange or private file retirement remains unconfirmed"))
 
@@ -1012,14 +1027,14 @@ class JobUploads:
                     api_failure = failure.cause
 
                 api_permitted = (
-                    type(api_failure) is ApiFailure and (
-                        self._api.can_retry_read(api_failure)
-                        or selected is not None and self._api.can_renew_read_grant(
-                            api_failure,
-                            job_ref=self.job_ref,
-                            upload_ref=selected.upload_ref,
-                        )
-                    )
+                    (type(api_failure) is ApiFailure) and
+                    (self._api.can_retry_read(api_failure) or
+                     ((selected is not None) and
+                      self._api.can_renew_read_grant(
+                          api_failure,
+                          job_ref=self.job_ref,
+                          upload_ref=selected.upload_ref,
+                      )))
                 )
 
                 if not (api_permitted or self._transfer_owner.can_retry_transfer(failure)):
@@ -1134,10 +1149,10 @@ class JobUploads:
         self._grant_issued = True
 
         if (
-            grant.job_ref != self.job_ref
-            or grant.upload_ref != selected.upload_ref
-            or grant.byte_length != selected.byte_length
-            or (selected.content_hash is not None and grant.content_hash != selected.content_hash)
+            (grant.job_ref != self.job_ref) or
+            (grant.upload_ref != selected.upload_ref) or
+            (grant.byte_length != selected.byte_length) or
+            (selected.content_hash is not None and grant.content_hash != selected.content_hash)
         ):
             raise UploadFailed("download grant differs from the selected Upload identity or byte facts")
 

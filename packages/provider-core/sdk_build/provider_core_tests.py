@@ -160,9 +160,9 @@ def _build_and_install_project(
     project_wheel = project_output / f"{wheel_distribution_name}-{distribution_version}-py3-none-any.whl"
 
     if (
-        set(project_output.iterdir()) != {project_wheel}
-        or not project_wheel.is_file()
-        or project_wheel.is_symlink()
+        (set(project_output.iterdir()) != {project_wheel}) or
+        (not project_wheel.is_file()) or
+        project_wheel.is_symlink()
     ):
         raise ValueError(f"Project {distribution_name!r} did not produce its one expected wheel.")
 

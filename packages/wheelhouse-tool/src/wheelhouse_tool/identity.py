@@ -18,10 +18,18 @@ def selection_identity(entries):
         (directory, name, checksum) = (entry["directory"], entry["filename"], entry["sha256"])
         path = PurePosixPath(directory)
 
-        if (path.is_absolute() or str(path) != directory or not path.parts or ".." in path.parts
-                or not name or name in (".", "..") or "/" in name or "\\" in name
-                or any(ord(character) < 32 or ord(character) == 127 for character in directory + name)
-                or not re.fullmatch(r"[0-9a-f]{64}", checksum)):
+        if (
+            path.is_absolute() or
+            (str(path) != directory) or
+            (not path.parts) or
+            (".." in path.parts) or
+            (not name) or
+            (name in (".", "..")) or
+            ("/" in name) or
+            ("\\" in name) or
+            any(ord(character) < 32 or ord(character) == 127 for character in directory + name) or
+            (not re.fullmatch(r"[0-9a-f]{64}", checksum))
+        ):
             raise ValueError("Cannot identify selection: expected relative directories, filenames and SHA-256 hashes.")
 
         key = (directory, name)

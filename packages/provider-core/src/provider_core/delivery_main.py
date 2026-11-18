@@ -52,10 +52,16 @@ def main():
     parser.add_argument("--status-directory", type=pathlib.Path)
     options = parser.parse_args()
 
-    if options.shared_config is not None and (
-        not options.shared_config.is_absolute() or options.state_directory is None or not options.state_directory.is_absolute()
-        or options.socket is None or options.proxy_socket is None or options.request_seconds is None
-        or options.status_directory is None or not options.status_directory.is_absolute()
+    if (
+        (options.shared_config is not None) and
+        ((not options.shared_config.is_absolute()) or
+         (options.state_directory is None) or
+         (not options.state_directory.is_absolute()) or
+         (options.socket is None) or
+         (options.proxy_socket is None) or
+         (options.request_seconds is None) or
+         (options.status_directory is None) or
+         (not options.status_directory.is_absolute()))
     ):
         parser.error("shared delivery requires absolute configuration, state and status directories, both socket paths and request deadline")
 

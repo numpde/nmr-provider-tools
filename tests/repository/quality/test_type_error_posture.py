@@ -40,20 +40,21 @@ class _Finding:
 
 
 def _builtin(*, expression: ast.expr, name: str) -> bool:
-    return (isinstance(expression, ast.Name) and expression.id == name) or (
-        isinstance(expression, ast.Attribute)
-        and isinstance(expression.value, ast.Name)
-        and expression.value.id == "builtins"
-        and expression.attr == name
+    return (
+        (isinstance(expression, ast.Name) and expression.id == name) or
+        (isinstance(expression, ast.Attribute) and
+         isinstance(expression.value, ast.Name) and
+         (expression.value.id == "builtins") and
+         (expression.attr == name))
     )
 
 
 def _type_call(*, expression: ast.expr) -> bool:
     return (
-        isinstance(expression, ast.Call)
-        and _builtin(expression=expression.func, name="type")
-        and len(expression.args) == 1
-        and not expression.keywords
+        isinstance(expression, ast.Call) and
+        _builtin(expression=expression.func, name="type") and
+        (len(expression.args) == 1) and
+        (not expression.keywords)
     )
 
 
@@ -68,8 +69,9 @@ def _type_rejection_operands(*, expression: ast.expr, rejecting: bool) -> list[a
         return _type_rejection_operands(expression=expression.operand, rejecting=not rejecting)
 
     if isinstance(expression, ast.BoolOp):
-        if (rejecting and isinstance(expression.op, ast.Or)) or (
-            not rejecting and isinstance(expression.op, ast.And)
+        if (
+            (rejecting and isinstance(expression.op, ast.Or)) or
+            (not rejecting and isinstance(expression.op, ast.And))
         ):
             operands = []
 
@@ -82,20 +84,20 @@ def _type_rejection_operands(*, expression: ast.expr, rejecting: bool) -> list[a
 
     if isinstance(expression, ast.Call):
         if (
-            not rejecting
-            and _builtin(expression=expression.func, name="isinstance")
-            and len(expression.args) == 2
-            and not expression.keywords
+            (not rejecting) and
+            _builtin(expression=expression.func, name="isinstance") and
+            (len(expression.args) == 2) and
+            (not expression.keywords)
         ):
             return [expression.args[0]]
 
         return []
 
     if not (
-        isinstance(expression, ast.Compare)
-        and len(expression.ops) == 1
-        and len(expression.comparators) == 1
-        and (_type_call(expression=expression.left) or _type_call(expression=expression.comparators[0]))
+        isinstance(expression, ast.Compare) and
+        (len(expression.ops) == 1) and
+        (len(expression.comparators) == 1) and
+        (_type_call(expression=expression.left) or _type_call(expression=expression.comparators[0]))
     ):
         return []
 
@@ -107,8 +109,9 @@ def _type_rejection_operands(*, expression: ast.expr, rejecting: bool) -> list[a
 
         return []
 
-    if (rejecting and isinstance(operator, (ast.IsNot, ast.NotEq))) or (
-        not rejecting and isinstance(operator, (ast.Is, ast.Eq))
+    if (
+        (rejecting and isinstance(operator, (ast.IsNot, ast.NotEq))) or
+        (not rejecting and isinstance(operator, (ast.Is, ast.Eq)))
     ):
         return [
             operand.args[0]
@@ -151,20 +154,21 @@ def _value_predicate(*, expression: ast.expr) -> bool:
         return False
 
     if (
-        any(_builtin(expression=expression.func, name=name) for name in ("any", "all"))
-        and len(expression.args) == 1
-        and not expression.keywords
-        and isinstance(expression.args[0], ast.GeneratorExp)
+        any(_builtin(expression=expression.func, name=name) for name in ("any", "all")) and
+        (len(expression.args) == 1) and
+        (not expression.keywords) and
+        isinstance(expression.args[0], ast.GeneratorExp)
     ):
         generator = expression.args[0]
 
         return _value_predicate(expression=generator.elt)
 
-    return _builtin(expression=expression.func, name="len") or (
-        isinstance(expression.func, ast.Attribute)
-        and isinstance(expression.func.value, ast.Name)
-        and expression.func.value.id == "re"
-        and expression.func.attr in {"fullmatch", "match", "search"}
+    return (
+        _builtin(expression=expression.func, name="len") or
+        (isinstance(expression.func, ast.Attribute) and
+         isinstance(expression.func.value, ast.Name) and
+         (expression.func.value.id == "re") and
+         (expression.func.attr in {"fullmatch", "match", "search"}))
     )
 
 

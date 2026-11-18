@@ -286,9 +286,11 @@ def new_https_trust(raw):
 
         context.set_ciphers(_cipher_expression(reference))
 
-        if (any(getattr(context, name) != getattr(reference, name) for name in _FIELDS)
-                or context.get_ciphers() != reference.get_ciphers()
-                or context.security_level != reference.security_level):
+        if (
+            any(getattr(context, name) != getattr(reference, name) for name in _FIELDS) or
+            (context.get_ciphers() != reference.get_ciphers()) or
+            (context.security_level != reference.security_level)
+        ):
             raise _refuse("the runtime's default TLS policy cannot be reproduced exactly")
     else:
         context.load_verify_locations(cadata=raw.decode("ascii"))
@@ -330,12 +332,20 @@ def capture_trust(context):
     if not (context._chat_opaque is None):
         raise _refuse(context._chat_opaque)
 
-    if (context.protocol != ssl.PROTOCOL_TLS_CLIENT or context.verify_mode != ssl.CERT_REQUIRED
-            or not context.check_hostname):
+    if (
+        (context.protocol != ssl.PROTOCOL_TLS_CLIENT) or
+        (context.verify_mode != ssl.CERT_REQUIRED) or
+        (not context.check_hostname)
+    ):
         raise _refuse("certificate and hostname verification must remain enabled")
 
-    if (context.sni_callback is not None or context._msg_callback is not None or context.keylog_filename is not None
-            or context.sslsocket_class is not ssl.SSLSocket or context.sslobject_class is not ssl.SSLObject):
+    if (
+        (context.sni_callback is not None) or
+        (context._msg_callback is not None) or
+        (context.keylog_filename is not None) or
+        (context.sslsocket_class is not ssl.SSLSocket) or
+        (context.sslobject_class is not ssl.SSLObject)
+    ):
         raise _refuse("TLS callbacks, key logging or custom socket classes are not transferable")
 
     facts = _facts(context)
@@ -526,8 +536,10 @@ def restore_trust(snapshot, *, directory=None):
     if curve is not None:
         context.set_ecdh_curve(curve)
 
-    if (_facts(context) != snapshot["facts"]
-            or any(getattr(context, name) != settings[name] for name in _FIELDS)):
+    if (
+        (_facts(context) != snapshot["facts"]) or
+        any(getattr(context, name) != settings[name] for name in _FIELDS)
+    ):
         raise _refuse("the original TLS authority or cipher settings cannot be reproduced exactly")
 
     return context

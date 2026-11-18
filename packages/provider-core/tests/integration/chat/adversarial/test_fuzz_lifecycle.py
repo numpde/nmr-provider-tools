@@ -281,9 +281,11 @@ class LifecycleOrders(RuleBasedStateMachine):
     def inject_independent_retirement_failure(self, name):
         session = self.cases[name].session
 
-        if (session.release_retirement.is_set()
-                or session.retirement_completed
-                or session.retirement_failure is not None):
+        if (
+            session.release_retirement.is_set() or
+            session.retirement_completed or
+            (session.retirement_failure is not None)
+        ):
             return
 
         async def inject():
@@ -401,8 +403,8 @@ class LifecycleOrders(RuleBasedStateMachine):
             (other != name) and
             (case.controller in self.claims.live_owners()) and
             (case.session.science.pending is not None) and
-            not case.session.science.pending.done() and
-            not case.session.science.release.is_set()
+            (not case.session.science.pending.done()) and
+            (not case.session.science.release.is_set())
         ]
 
         if not peers:
@@ -461,9 +463,9 @@ class LifecycleOrders(RuleBasedStateMachine):
 
                     assert all(
                         (
-                            item.key == original_terminal.key
-                            and item.body == original_terminal.body
-                            and item.body_sha256 == original_terminal.body_sha256
+                            (item.key == original_terminal.key) and
+                            (item.body == original_terminal.body) and
+                            (item.body_sha256 == original_terminal.body_sha256)
                             for item in delivery.offers
                         ),
                     )
@@ -480,8 +482,10 @@ class LifecycleOrders(RuleBasedStateMachine):
                         assert case.controller._claim._pending_terminal_bytes == 0, (
                             "The exact relay acknowledgement did not free terminal capacity")
 
-                assert (session.accepted_handle is None
-                        or session.accepted_handle is science.handle)
+                assert (
+                    (session.accepted_handle is None) or
+                    (session.accepted_handle is science.handle)
+                )
 
                 if session.execution_entered.is_set():
                     # The SDK accepted the one original handle before calling
@@ -513,8 +517,11 @@ class LifecycleOrders(RuleBasedStateMachine):
                 if session.retiring.is_set() and not session.retirement_completed and case.start_count:
                     assert owned, "Retirement is pending but its original claim was released"
 
-                if (session.retirement_failure is not None and session.retiring.is_set()
-                        and session.release_retirement.is_set()):
+                if (
+                    (session.retirement_failure is not None) and
+                    session.retiring.is_set() and
+                    session.release_retirement.is_set()
+                ):
                     assert owned, "Independent retirement failure released the original claim"
 
                 if not owned and case.start_count:

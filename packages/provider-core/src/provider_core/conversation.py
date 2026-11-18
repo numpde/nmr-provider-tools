@@ -131,10 +131,10 @@ def independent_interruption_failure(failure):
         exchange = cause.cause
 
         if (
-            type(exchange) is ExchangeFailed
-            and exchange.primary is failure
-            and not exchange.cleanup_failures
-            and (exchange.response_head is None or exchange.response_head.status == 200)
+            (type(exchange) is ExchangeFailed) and
+            (exchange.primary is failure) and
+            (not exchange.cleanup_failures) and
+            (exchange.response_head is None or exchange.response_head.status == 200)
         ):
             return None
 
@@ -461,8 +461,11 @@ class ToolConversation:
 
         calls = message.get("tool_calls")
 
-        if (calls is None and self._text_correction is not None
-                and self._text_correction.user_content is not None):
+        if (
+            (calls is None) and
+            (self._text_correction is not None) and
+            (self._text_correction.user_content is not None)
+        ):
             return (canonical, [])
 
         if not (type(calls) is (expected_type := list)):
@@ -484,10 +487,10 @@ class ToolConversation:
                 raise ConversationFailed(f"{type(call_id)=} ≠ {expected_type=}")
 
             if (
-                re.fullmatch(r"[!-~]{1,128}", call_id) is None
-                or call_id in self._seen_ids
-                or call_id in identifiers
-                or call.get("type") != "function"
+                (re.fullmatch(r"[!-~]{1,128}", call_id) is None) or
+                (call_id in self._seen_ids) or
+                (call_id in identifiers) or
+                (call.get("type") != "function")
             ):
                 raise ConversationFailed("Cannot interpret model action: tool identity, function or argument carrier is malformed or repeated.")
 

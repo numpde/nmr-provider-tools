@@ -71,10 +71,10 @@ def _findings(*, source: str) -> list[_Finding]:
         elif isinstance(syntax_node, ast.Name) and isinstance(syntax_node.ctx, ast.Store):
             bindings.append((syntax_node.lineno, syntax_node.id))
         elif (
-            isinstance(syntax_node, ast.Attribute)
-            and isinstance(syntax_node.ctx, ast.Store)
-            and isinstance(syntax_node.value, ast.Name)
-            and syntax_node.value.id in {"self", "cls"}
+            isinstance(syntax_node, ast.Attribute) and
+            isinstance(syntax_node.ctx, ast.Store) and
+            isinstance(syntax_node.value, ast.Name) and
+            (syntax_node.value.id in {"self", "cls"})
         ):
             bindings.append((syntax_node.lineno, syntax_node.attr))
         elif isinstance(syntax_node, ast.ExceptHandler) and syntax_node.name is not None:

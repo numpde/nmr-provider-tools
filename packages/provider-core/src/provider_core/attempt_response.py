@@ -222,8 +222,8 @@ def _outcome_response(raw, operation, execution_attempt_ref, fields):
         raise ResponseRejected("Response fields do not match the supported Attempt outcome schema")
 
     if (
-        document["schema_id"] != f"nmr.provider.execution_attempt_{operation}_response.v1"
-        or document["execution_attempt_ref"] != execution_attempt_ref
+        (document["schema_id"] != f"nmr.provider.execution_attempt_{operation}_response.v1") or
+        (document["execution_attempt_ref"] != execution_attempt_ref)
     ):
         raise ResponseRejected("Outcome response schema or Attempt identity differs from the publication")
 

@@ -310,9 +310,9 @@ class InProcessExecutionHost:
         require_type(allocation_names, tuple)
 
         if not (
-            0 < len(analysis_id) <= 160
-            and allocation_names
-            and len(set(allocation_names)) == len(allocation_names)
+            (0 < len(analysis_id) <= 160) and
+            (allocation_names) and
+            (len(set(allocation_names)) == len(allocation_names))
         ):
             raise ValueError("An analysis needs a name and distinct explicit allocation names.")
 
@@ -326,11 +326,11 @@ class InProcessExecutionHost:
 
         if any(
             (
-                resident.analysis is not None
-                or (resident.initialization is not None and not resident.initialization.done())
-                or resident.failure is not None
-                or resident.retirement is not None
-                or resident.retired
+                (resident.analysis is not None) or
+                (resident.initialization is not None and not resident.initialization.done()) or
+                (resident.failure is not None) or
+                (resident.retirement is not None) or
+                resident.retired
                 for resident in selected_residents
             ),
         ):
@@ -614,8 +614,8 @@ class InProcessAnalysisExecutor:
 
         if existing_operation is not None:
             if (
-                existing_operation.analysis is not self
-                or existing_operation.invocation != invocation
+                (existing_operation.analysis is not self) or
+                (existing_operation.invocation != invocation)
             ):
                 raise RequestConflict("This operation ID already identifies different work.")
 
@@ -650,9 +650,9 @@ class InProcessAnalysisExecutor:
         returned_state_count = len(selected_call.description.state_outputs)
 
         if not (
-            host.input_used + len(invocation.payload) <= host.input_bytes
-            and host.result_reserved + invocation.policy.reject_encoded_result_over_bytes <= host.result_bytes
-            and host.state_reserved + returned_state_count <= host.state_values
+            (host.input_used + len(invocation.payload) <= host.input_bytes) and
+            (host.result_reserved + invocation.policy.reject_encoded_result_over_bytes <= host.result_bytes) and
+            (host.state_reserved + returned_state_count <= host.state_values)
         ):
             return NotAdmitted(
                 code=AdmissionCode.CAPACITY,
@@ -717,8 +717,8 @@ class InProcessAnalysisExecutor:
         scientific_analysis = self.science[reservation.allocation]
 
         if (
-            scientific_analysis.failure is not None
-            or scientific_analysis.resident.failure is not None
+            (scientific_analysis.failure is not None) or
+            (scientific_analysis.resident.failure is not None)
         ):
             return NotAdmitted(
                 code=AdmissionCode.UNAVAILABLE,
@@ -766,14 +766,14 @@ class InProcessAnalysisExecutor:
             owner = self.states.get(reference)
 
             if (
-                owner is None
-                or reference.allocation != invocation.reservation.allocation
-                or reference.binding_id != invocation.target.binding_id
-                or reference.binding_revision != invocation.target.binding_revision
-                or reference.kind != declared_parameters[name].kind
-                or type(owner.returned.value) is not call.state_binding.input_types[name]
-                or not owner.available
-                or owner.claim is not None
+                (owner is None) or
+                (reference.allocation != invocation.reservation.allocation) or
+                (reference.binding_id != invocation.target.binding_id) or
+                (reference.binding_revision != invocation.target.binding_revision) or
+                (reference.kind != declared_parameters[name].kind) or
+                (type(owner.returned.value) is not call.state_binding.input_types[name]) or
+                (not owner.available) or
+                (owner.claim is not None)
             ):
                 return NotAdmitted(
                     code=AdmissionCode.INVALID_REFERENCE,

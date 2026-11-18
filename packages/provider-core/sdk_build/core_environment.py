@@ -206,11 +206,14 @@ def _build_candidate(source, runtime_lock, build_lock, pool, output, lock_fd):
         wheel = output / f"provider_core-{release_version}-py3-none-any.whl"
         sdist = output / f"provider_core-{release_version}.tar.gz"
 
-        if set(output.iterdir()) != {wheel, sdist} or any(
-            (
-                not distribution.is_file() or distribution.is_symlink()
-                for distribution in (wheel, sdist)
-            ),
+        if (
+            (set(output.iterdir()) != {wheel, sdist}) or
+            any(
+                (
+                    not distribution.is_file() or distribution.is_symlink()
+                    for distribution in (wheel, sdist)
+                ),
+            )
         ):
             raise ValueError(
                 "Cannot publish provider-core: build must produce exactly "

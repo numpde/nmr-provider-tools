@@ -256,12 +256,12 @@ def qualify_acquisition_bundle(bundle, scratch, expected_source_files):
             member_path = PurePosixPath(member_name)
 
             if (
-                not member_name
-                or not member_path.parts
-                or member_path.is_absolute()
-                or ".." in member_path.parts
-                or member_path.as_posix() != member_name
-                or not member.isfile()
+                (not member_name) or
+                (not member_path.parts) or
+                member_path.is_absolute() or
+                (".." in member_path.parts) or
+                (member_path.as_posix() != member_name) or
+                (not member.isfile())
             ):
                 raise ValueError(f"{member_name=} should be a regular file at a canonical relative path within the acquisition archive")
 
@@ -386,14 +386,14 @@ def unpack_source(archive, destination, version):
             member_path = PurePosixPath(member.name)
 
             if (
-                member.name in member_names
-                or not member.name
-                or member_path.is_absolute()
-                or ".." in member_path.parts
-                or member_path.as_posix() != member.name
-                or member_path.parts[0] != root_name
-                or not (member.isfile() or member.isdir())
-                or member.mode & 0o022
+                (member.name in member_names) or
+                (not member.name) or
+                member_path.is_absolute() or
+                (".." in member_path.parts) or
+                (member_path.as_posix() != member.name) or
+                (member_path.parts[0] != root_name) or
+                (not (member.isfile() or member.isdir())) or
+                (member.mode & 0o022)
             ):
                 raise ValueError(
                     "Cannot qualify package: source archive has duplicate, "
@@ -427,8 +427,15 @@ def source_payload(source, inventory):
     for (name, facts) in inventory.items():
         member_path = PurePosixPath(name)
 
-        if member_path.is_absolute() or ".." in member_path.parts or member_path.as_posix() != name or not (name in {"README.md", "MANIFEST.in", "pyproject.toml"}
-                or name.startswith(("src/provider_core/", "tests/"))):
+        if (
+            member_path.is_absolute() or
+            (".." in member_path.parts) or
+            (member_path.as_posix() != name) or
+            (not (
+                (name in {"README.md", "MANIFEST.in", "pyproject.toml"}) or
+                name.startswith(("src/provider_core/", "tests/"))
+            ))
+        ):
             raise ValueError(
                 "Cannot qualify package: the recorded source inventory "
                 "has unsupported entries."
@@ -445,10 +452,10 @@ def source_payload(source, inventory):
         source_file = source / name
 
         if (
-            not source_file.is_file()
-            or digest(source_file) != facts["sha256"]
-            or source_file.stat().st_size != facts["size"]
-            or source_file.stat().st_mode & 0o777 != facts["mode"]
+            (not source_file.is_file()) or
+            (digest(source_file) != facts["sha256"]) or
+            (source_file.stat().st_size != facts["size"]) or
+            (source_file.stat().st_mode & 0o777 != facts["mode"])
         ):
             raise ValueError(
                 "Cannot qualify package: source distribution differs from "
@@ -490,11 +497,14 @@ def wheel_payload(wheel, expected, version):
         archive_members = archive.namelist()
         metadata_prefix = f"provider_core-{version}.dist-info/"
 
-        if len(archive_members) != len(set(archive_members)) or any(
-            (
-                not name.startswith(metadata_prefix) and name not in expected
-                for name in archive_members
-            ),
+        if (
+            (len(archive_members) != len(set(archive_members))) or
+            any(
+                (
+                    not name.startswith(metadata_prefix) and name not in expected
+                    for name in archive_members
+                ),
+            )
         ):
             raise ValueError("Cannot qualify package: wheel contains duplicate or unexpected payload files.")
 
@@ -617,12 +627,14 @@ def check(artifacts, revision):
         release_record = json.loads((artifacts / (artifact_prefix + "-release.json")).read_text())
 
         if (
-            release_record["source_revision"] != revision
-            or release_record["files"] != {
-                name: checksum
-                for (name, checksum) in observed_hashes.items()
-                if not name.endswith("-release.json")
-            }
+            (release_record["source_revision"] != revision) or
+            (release_record["files"] != (
+                {
+                    name: checksum
+                    for (name, checksum) in observed_hashes.items()
+                    if not name.endswith("-release.json")
+                }
+            ))
         ):
             raise ValueError(
                 "Cannot qualify package: source revision or recorded artifact "
@@ -665,9 +677,9 @@ def check(artifacts, revision):
         )
 
         if (
-            acquisition_bundle.read_bytes() != rebuilt_acquisition_bundle.read_bytes()
-            or release_record["acquisition_source_files"] != acquisition_record["source_files"]
-            or release_record["acquisition_dependency_inputs"] != acquisition_record["dependency_inputs"]
+            (acquisition_bundle.read_bytes() != rebuilt_acquisition_bundle.read_bytes()) or
+            (release_record["acquisition_source_files"] != acquisition_record["source_files"]) or
+            (release_record["acquisition_dependency_inputs"] != acquisition_record["dependency_inputs"])
         ):
             raise ValueError(
                 "Cannot qualify acquisition source bundle: bytes or provenance "
@@ -685,8 +697,8 @@ def check(artifacts, revision):
         source_project = tomllib.loads((extracted_source / "pyproject.toml").read_text())
 
         if (
-            source_project["project"]["name"] != "provider-core"
-            or source_project["project"]["version"] != release_version
+            (source_project["project"]["name"] != "provider-core") or
+            (source_project["project"]["version"] != release_version)
         ):
             raise ValueError("Cannot qualify package: source project and version differ from the release artifacts.")
 
@@ -730,8 +742,8 @@ def check(artifacts, revision):
         )
 
         if (
-            rebuilt_dependency_inputs != release_record["dependency_inputs"]
-            or wheel_payload(rebuilt_wheel, source_python_files, release_version) != original_wheel_metadata
+            (rebuilt_dependency_inputs != release_record["dependency_inputs"]) or
+            (wheel_payload(rebuilt_wheel, source_python_files, release_version) != original_wheel_metadata)
         ):
             raise ValueError(
                 "Cannot qualify package: source rebuild metadata or dependency "
@@ -770,13 +782,13 @@ def check(artifacts, revision):
         )
 
         if (
-            digest(checksum_manifest_path) != original_manifest_digest
-            or {
+            (digest(checksum_manifest_path) != original_manifest_digest) or
+            ({
                 artifact.name: digest(artifact)
                 for artifact in artifacts.iterdir()
                 if not artifact.name.endswith("-sha256.json")
-            }
-            != observed_hashes
+             }
+             != observed_hashes)
         ):
             raise ValueError("Cannot qualify package: release artifacts changed during qualification.")
 

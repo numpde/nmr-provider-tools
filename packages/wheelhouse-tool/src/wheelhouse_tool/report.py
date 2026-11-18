@@ -31,8 +31,13 @@ def manifest(report, pool, directory, allowed_sources):
 
         url = urllib.parse.urlsplit(raw_url)
 
-        if (url.scheme != "file" or url.netloc or url.query or url.fragment
-                or re.search(r"%(?![0-9a-fA-F]{2})", url.path)):
+        if (
+            (url.scheme != "file") or
+            url.netloc or
+            url.query or
+            url.fragment or
+            re.search(r"%(?![0-9a-fA-F]{2})", url.path)
+        ):
             raise ValueError("Cannot use pip report: selected artifact is not a local pool file.")
 
         try:
@@ -43,9 +48,15 @@ def manifest(report, pool, directory, allowed_sources):
         candidate = PurePosixPath(path)
         name = candidate.name
 
-        if (candidate.parent != root or str(candidate) != path or not name or name in (".", "..") or "\\" in name
-                or any(ord(character) < 32 or ord(character) == 127 for character in name)
-                or (not name.endswith(".whl") and name not in allowed_sources)):
+        if (
+            (candidate.parent != root) or
+            (str(candidate) != path) or
+            (not name) or
+            (name in (".", "..")) or
+            ("\\" in name) or
+            any(ord(character) < 32 or ord(character) == 127 for character in name) or
+            (not name.endswith(".whl") and name not in allowed_sources)
+        ):
             raise ValueError("Cannot use pip report: selected artifact is outside the pool or not authorized.")
 
         checksum = download["archive_info"]["hashes"]["sha256"]

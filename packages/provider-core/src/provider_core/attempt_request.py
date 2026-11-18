@@ -198,8 +198,8 @@ def _outcome_document(body, operation, limit, execution_attempt_ref, fields):
         raise ValueError("Cannot publish Attempt outcome: retained fields do not match the terminal request schema")
 
     if (
-        document["schema_id"] != f"nmr.provider.execution_attempt_{operation}_request.v1"
-        or document["execution_attempt_ref"] != execution_attempt_ref
+        (document["schema_id"] != f"nmr.provider.execution_attempt_{operation}_request.v1") or
+        (document["execution_attempt_ref"] != execution_attempt_ref)
     ):
         raise ValueError("Cannot publish Attempt outcome: retained schema or Attempt differs from the intended publication")
 

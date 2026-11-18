@@ -277,8 +277,12 @@ class ObservationGap:
         (done, pending) = await self.wait(tasks, *args, **kwargs)
         task = getattr(self.controller.operation, "_observation_wait", None)
 
-        if (not self.verified.is_set() and task in done and not task.cancelled()
-                and isinstance(task.exception(), ExecutionStopped)):
+        if (
+            (not self.verified.is_set()) and
+            (task in done) and
+            (not task.cancelled()) and
+            isinstance(task.exception(), ExecutionStopped)
+        ):
             self.stop = task.exception()
 
             self.verified.set()
@@ -406,8 +410,11 @@ def failure_contains(root, expected):
         if error is expected:
             return True
 
-        return (visit(error.__cause__) or visit(error.__context__)
-                or any(visit(child) for (_, child) in owned_relationships(error)))
+        return (
+            visit(error.__cause__) or
+            visit(error.__context__) or
+            any(visit(child) for (_, child) in owned_relationships(error))
+        )
 
     return visit(root)
 

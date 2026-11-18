@@ -49,8 +49,9 @@ def _direct_value_error(statement: ast.stmt) -> bool:
 
     exception = statement.exc
 
-    return (isinstance(exception, ast.Name) and exception.id == "ValueError") or (
-        isinstance(exception, ast.Call) and isinstance(exception.func, ast.Name) and exception.func.id == "ValueError"
+    return (
+        (isinstance(exception, ast.Name) and exception.id == "ValueError") or
+        (isinstance(exception, ast.Call) and isinstance(exception.func, ast.Name) and exception.func.id == "ValueError")
     )
 
 
@@ -89,13 +90,13 @@ def _rejected_ordering_finding(
     # enumeration of rejected values merely because it is often equivalent for
     # the types currently admitted at the boundary.
     if not (
-        not statement.orelse
-        and len(statement.body) == 1
-        and _direct_value_error(statement.body[0])
-        and isinstance(statement.test, ast.Compare)
-        and len(statement.test.ops) == 1
-        and isinstance(statement.test.ops[0], _ORDERED_REJECTION_OPERATORS)
-        and len(statement.test.comparators) == 1
+        (not statement.orelse) and
+        (len(statement.body) == 1) and
+        _direct_value_error(statement.body[0]) and
+        isinstance(statement.test, ast.Compare) and
+        (len(statement.test.ops) == 1) and
+        isinstance(statement.test.ops[0], _ORDERED_REJECTION_OPERATORS) and
+        (len(statement.test.comparators) == 1)
     ):
         return None
 
@@ -115,18 +116,20 @@ def _split_range_finding(
     statement: ast.If,
 ) -> _Finding | None:
     if not (
-        not statement.orelse
-        and len(statement.body) == 1
-        and _direct_value_error(statement.body[0])
-        and isinstance(statement.test, ast.BoolOp)
-        and isinstance(statement.test.op, ast.Or)
-        and len(statement.test.values) == 2
-        and all(
-            isinstance(comparison, ast.Compare)
-            and len(comparison.ops) == 1
-            and isinstance(comparison.ops[0], _ORDERED_REJECTION_OPERATORS)
-            and len(comparison.comparators) == 1
-            for comparison in statement.test.values
+        (not statement.orelse) and
+        (len(statement.body) == 1) and
+        _direct_value_error(statement.body[0]) and
+        isinstance(statement.test, ast.BoolOp) and
+        isinstance(statement.test.op, ast.Or) and
+        (len(statement.test.values) == 2) and
+        all(
+            (
+                isinstance(comparison, ast.Compare) and
+                (len(comparison.ops) == 1) and
+                isinstance(comparison.ops[0], _ORDERED_REJECTION_OPERATORS) and
+                (len(comparison.comparators) == 1)
+                for comparison in statement.test.values
+            ),
         )
     ):
         return None
@@ -134,9 +137,9 @@ def _split_range_finding(
     (lower_rejection, upper_rejection) = statement.test.values
 
     if not (
-        isinstance(lower_rejection.ops[0], (ast.Lt, ast.LtE))
-        and isinstance(upper_rejection.ops[0], (ast.Gt, ast.GtE))
-        and ast.dump(lower_rejection.left) == ast.dump(upper_rejection.left)
+        isinstance(lower_rejection.ops[0], (ast.Lt, ast.LtE)) and
+        isinstance(upper_rejection.ops[0], (ast.Gt, ast.GtE)) and
+        (ast.dump(lower_rejection.left) == ast.dump(upper_rejection.left))
     ):
         return None
 
@@ -211,16 +214,18 @@ def _mixed_ordering_finding(
     statement: ast.If,
 ) -> _Finding | None:
     if not (
-        not statement.orelse
-        and len(statement.body) == 1
-        and _direct_value_error(statement.body[0])
-        and isinstance(statement.test, ast.BoolOp)
-        and isinstance(statement.test.op, (ast.Or, ast.And))
-        and any(
-            isinstance(value, ast.Compare) and len(value.ops) == 1 and isinstance(value.ops[0], _ORDERED_REJECTION_OPERATORS)
-            for value in statement.test.values
-        )
-        and _split_range_finding(source_path=source_path, statement=statement) is None
+        (not statement.orelse) and
+        (len(statement.body) == 1) and
+        _direct_value_error(statement.body[0]) and
+        isinstance(statement.test, ast.BoolOp) and
+        isinstance(statement.test.op, (ast.Or, ast.And)) and
+        any(
+            (
+                isinstance(value, ast.Compare) and len(value.ops) == 1 and isinstance(value.ops[0], _ORDERED_REJECTION_OPERATORS)
+                for value in statement.test.values
+            ),
+        ) and
+        (_split_range_finding(source_path=source_path, statement=statement) is None)
     ):
         return None
 
@@ -252,12 +257,12 @@ def _mixed_ordering_finding(
 
 def _none_rejected_subject(node: ast.expr) -> ast.expr | None:
     if (
-        isinstance(node, ast.Compare)
-        and len(node.ops) == 1
-        and isinstance(node.ops[0], ast.Is)
-        and len(node.comparators) == 1
-        and isinstance(node.comparators[0], ast.Constant)
-        and node.comparators[0].value is None
+        isinstance(node, ast.Compare) and
+        (len(node.ops) == 1) and
+        isinstance(node.ops[0], ast.Is) and
+        (len(node.comparators) == 1) and
+        isinstance(node.comparators[0], ast.Constant) and
+        (node.comparators[0].value is None)
     ):
         return node.left
 
@@ -280,8 +285,9 @@ def _negated_predicate_subject(node: ast.expr) -> ast.expr | None:
 
 
 def _returns_none(statement: ast.stmt) -> bool:
-    return isinstance(statement, ast.Return) and (
-        statement.value is None or (isinstance(statement.value, ast.Constant) and statement.value.value is None)
+    return (
+        isinstance(statement, ast.Return) and
+        (statement.value is None or (isinstance(statement.value, ast.Constant) and statement.value.value is None))
     )
 
 
@@ -291,12 +297,12 @@ def _inverse_optional_predicate_finding(
     statement: ast.If,
 ) -> _Finding | None:
     if not (
-        not statement.orelse
-        and len(statement.body) == 1
-        and _returns_none(statement.body[0])
-        and isinstance(statement.test, ast.BoolOp)
-        and isinstance(statement.test.op, ast.Or)
-        and len(statement.test.values) == 2
+        (not statement.orelse) and
+        (len(statement.body) == 1) and
+        _returns_none(statement.body[0]) and
+        isinstance(statement.test, ast.BoolOp) and
+        isinstance(statement.test.op, ast.Or) and
+        (len(statement.test.values) == 2)
     ):
         return None
 
@@ -304,9 +310,9 @@ def _inverse_optional_predicate_finding(
     predicate_subject = _negated_predicate_subject(statement.test.values[1])
 
     if not (
-        rejected_subject is not None
-        and predicate_subject is not None
-        and ast.dump(rejected_subject) == ast.dump(predicate_subject)
+        (rejected_subject is not None) and
+        (predicate_subject is not None) and
+        (ast.dump(rejected_subject) == ast.dump(predicate_subject))
     ):
         return None
 

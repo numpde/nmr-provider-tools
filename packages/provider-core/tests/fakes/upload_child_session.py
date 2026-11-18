@@ -60,9 +60,9 @@ class UploadChildSession(ChildSession):
             reply = await self.child.receive()
 
         if (
-            reply.get("state") != "prepared"
-            or reply.get("source_fingerprint") != instructions.identity.input_fingerprint
-            or reply.get("content_hash") != self.source.content_hash
+            (reply.get("state") != "prepared") or
+            (reply.get("source_fingerprint") != instructions.identity.input_fingerprint) or
+            (reply.get("content_hash") != self.source.content_hash)
         ):
             raise ValueError("Upload child did not acknowledge its exact admitted input and verified source")
 

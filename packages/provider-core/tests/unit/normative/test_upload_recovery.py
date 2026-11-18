@@ -64,10 +64,13 @@ def store_reply(*, failure=None):
 class UploadRecoveryTests(unittest.IsolatedAsyncioTestCase):
     # silent-defaults: allow-contract -- This fixture grants eight requests, a 100-byte total and two seconds unless a specific budget witness overrides them.
     def owner(self, *, recovery=None, requests=8, total=100, seconds=2, api_transport=None):
-        api_transport = api_transport or HttpTransport(
-            trust=ssl.create_default_context(),
-            exchange_seconds=1,
-            retirement_seconds=0.1
+        api_transport = (
+            (api_transport) or
+            HttpTransport(
+                trust=ssl.create_default_context(),
+                exchange_seconds=1,
+                retirement_seconds=0.1
+            )
         )
 
         store = HttpTransport(trust=ssl.create_default_context(), exchange_seconds=1, retirement_seconds=0.1)

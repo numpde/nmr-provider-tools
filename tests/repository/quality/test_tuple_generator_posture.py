@@ -74,8 +74,8 @@ def _findings(source_path: pathlib.Path, source: str) -> list[_Finding]:
             (node.func.id == "tuple") and
             (len(node.args) == 1) and
             isinstance(node.args[0], (ast.GeneratorExp, ast.ListComp)) and
-            not node.keywords and
-            not _has_documented_escape(node, source_lines)
+            (not node.keywords) and
+            (not _has_documented_escape(node, source_lines))
         ],
         key=lambda finding: finding.line,
     )
