@@ -51,8 +51,11 @@ worker=(--pull never --read-only "${worker_identity[@]}" --cap-drop ALL --securi
     --cpus 2 --memory 1g --memory-swap 1g --pids-limit 128
     --tmpfs /tmp:rw,nosuid,nodev,noexec,size=256m --workdir /workspace
     --env NMR_PROVIDER_TOOLS_IN_CONTAINER=1 --env PROVIDER_CORE_IN_CONTAINER=1
-    --env PYTHONDONTWRITEBYTECODE=1 --env PYTHONPATH=/workspace
+    --env PYTHONDONTWRITEBYTECODE=1 --env PYTHONPATH=/workspace:/workspace/wheelhouse-build:/workspace/packages/acquisition/build
     --mount "type=bind,src=$root/tools,dst=/workspace/tools,readonly"
+    --mount "type=bind,src=$root/packages/wheelhouse-tool/src/wheelhouse_tool,dst=/workspace/wheelhouse_tool,readonly"
+    --mount "type=bind,src=$root/packages/wheelhouse-tool/build,dst=/workspace/wheelhouse-build,readonly"
+    --mount "type=bind,src=$root/packages/acquisition,dst=/workspace/packages/acquisition,readonly"
     --mount "type=bind,src=$root/requirements/provider-core.lock,dst=/core-runtime.lock,readonly"
     --mount "type=bind,src=$root/requirements/provider-core-build.lock,dst=/core-build.lock,readonly"
     --mount "type=bind,src=$root/packages/provider-core/tests/requirements.lock,dst=/core-test.lock,readonly"
@@ -172,9 +175,7 @@ case "$action" in
         arguments=("${worker[@]}" --network none --init --tmpfs /runtime:rw,nosuid,nodev,exec,size=256m,mode=1777
             --mount "type=bind,src=$artifacts,dst=/artifacts,readonly"
             --mount "type=bind,src=$wheelhouse_directory,dst=/wheelhouse,readonly"
-            --mount "type=bind,src=$root/wheelhouse_tool,dst=/workspace/wheelhouse_tool,readonly"
             --mount "type=bind,src=$root/containers,dst=/workspace/containers,readonly"
-            --mount "type=bind,src=$root/compose,dst=/workspace/compose,readonly"
             --mount "type=bind,src=$root/host,dst=/workspace/host,readonly"
             --mount "type=bind,src=$root/requirements/installer-release.json,dst=/workspace/requirements/installer-release.json,readonly"
             --entrypoint python3 "$tool_image" -B -m tools.package --artifacts /artifacts --revision "$revision")
@@ -232,7 +233,7 @@ fi
 if [[ $action == package ]]; then
     mkdir -- "$operation_directory/source"
     checker_call 'committed qualification source capture' 30 stdio git -C "$root" -c tar.umask=0022 archive --format=tar \
-        --output="$operation_directory/source.tar" "$revision" tools wheelhouse_tool host containers compose requirements
+        --output="$operation_directory/source.tar" "$revision" tools packages/wheelhouse-tool packages/acquisition host containers requirements
     tar --same-permissions -xf "$operation_directory/source.tar" -C "$operation_directory/source"
     for index in "${!arguments[@]}"; do
         case "${arguments[index]}" in
@@ -240,16 +241,18 @@ if [[ $action == package ]]; then
                 arguments[index]="type=bind,src=$operation_directory/source/requirements/installer-release.json,dst=/workspace/requirements/installer-release.json,readonly" ;;
             "type=bind,src=$root/tools,dst=/workspace/tools,readonly")
                 arguments[index]="type=bind,src=$operation_directory/source/tools,dst=/workspace/tools,readonly" ;;
-            "type=bind,src=$root/compose,dst=/workspace/compose,readonly")
-                arguments[index]="type=bind,src=$operation_directory/source/compose,dst=/workspace/compose,readonly" ;;
+            "type=bind,src=$root/packages/acquisition,dst=/workspace/packages/acquisition,readonly")
+                arguments[index]="type=bind,src=$operation_directory/source/packages/acquisition,dst=/workspace/packages/acquisition,readonly" ;;
             "type=bind,src=$root/host,dst=/workspace/host,readonly")
                 arguments[index]="type=bind,src=$operation_directory/source/host,dst=/workspace/host,readonly" ;;
             "type=bind,src=$root/containers,dst=/workspace/containers,readonly")
                 arguments[index]="type=bind,src=$operation_directory/source/containers,dst=/workspace/containers,readonly" ;;
             "type=bind,src=$root/requirements/acquisition-bootstrap.pylock.toml,dst=/acquisition-bootstrap.pylock.toml,readonly")
                 arguments[index]="type=bind,src=$operation_directory/source/requirements/acquisition-bootstrap.pylock.toml,dst=/acquisition-bootstrap.pylock.toml,readonly" ;;
-            "type=bind,src=$root/wheelhouse_tool,dst=/workspace/wheelhouse_tool,readonly")
-                arguments[index]="type=bind,src=$operation_directory/source/wheelhouse_tool,dst=/workspace/wheelhouse_tool,readonly" ;;
+            "type=bind,src=$root/packages/wheelhouse-tool/src/wheelhouse_tool,dst=/workspace/wheelhouse_tool,readonly")
+                arguments[index]="type=bind,src=$operation_directory/source/packages/wheelhouse-tool/src/wheelhouse_tool,dst=/workspace/wheelhouse_tool,readonly" ;;
+            "type=bind,src=$root/packages/wheelhouse-tool/build,dst=/workspace/wheelhouse-build,readonly")
+                arguments[index]="type=bind,src=$operation_directory/source/packages/wheelhouse-tool/build,dst=/workspace/wheelhouse-build,readonly" ;;
             "type=bind,src=$root/requirements/provider-core.lock,dst=/core-runtime.lock,readonly")
                 arguments[index]="type=bind,src=$operation_directory/source/requirements/provider-core.lock,dst=/core-runtime.lock,readonly" ;;
             "type=bind,src=$root/requirements/provider-core-build.lock,dst=/core-build.lock,readonly")
@@ -262,15 +265,16 @@ fi
 if [[ $action == build ]]; then
     mkdir -- "$operation_directory/source"
     checker_call 'committed core source capture' 30 stdio git -C "$root" -c tar.umask=0022 archive --format=tar \
-        --output="$operation_directory/source.tar" "$revision" packages/provider-core requirements tools wheelhouse_tool host containers compose
+        --output="$operation_directory/source.tar" "$revision" packages/provider-core packages/acquisition requirements tools packages/wheelhouse-tool host containers
     tar --same-permissions -xf "$operation_directory/source.tar" -C "$operation_directory/source"
     arguments=(--pull never --network none --read-only --user "$checker_host_uid:$checker_host_gid" --cap-drop ALL --security-opt no-new-privileges:true
         --cpus 2 --memory 1g --memory-swap 1g --pids-limit 128 --tmpfs /tmp:rw,nosuid,nodev,noexec,size=256m
         --workdir /workspace --env NMR_PROVIDER_TOOLS_IN_CONTAINER=1 --env PROVIDER_CORE_IN_CONTAINER=1
-        --env PYTHONDONTWRITEBYTECODE=1 --env PYTHONPATH=/workspace
+        --env PYTHONDONTWRITEBYTECODE=1 --env PYTHONPATH=/workspace:/workspace/wheelhouse-build:/workspace/packages/acquisition/build
         --mount "type=bind,src=$operation_directory/source/tools,dst=/workspace/tools,readonly"
-        --mount "type=bind,src=$operation_directory/source/wheelhouse_tool,dst=/workspace/wheelhouse_tool,readonly"
-        --mount "type=bind,src=$operation_directory/source/compose,dst=/workspace/compose,readonly"
+        --mount "type=bind,src=$operation_directory/source/packages/wheelhouse-tool/src/wheelhouse_tool,dst=/workspace/wheelhouse_tool,readonly"
+        --mount "type=bind,src=$operation_directory/source/packages/wheelhouse-tool/build,dst=/workspace/wheelhouse-build,readonly"
+        --mount "type=bind,src=$operation_directory/source/packages/acquisition,dst=/workspace/packages/acquisition,readonly"
         --mount "type=bind,src=$operation_directory/source/host,dst=/workspace/host,readonly"
         --mount "type=bind,src=$operation_directory/source/containers,dst=/workspace/containers,readonly"
         --mount "type=bind,src=$operation_directory/source/packages/provider-core,dst=/package,readonly"

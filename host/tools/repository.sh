@@ -87,7 +87,7 @@ arguments=(--init --pull=never --network=none --read-only
     --pids-limit=64 --memory=512m --memory-swap=512m --cpus=2
     --user "$uid:$gid" --tmpfs /tmp:rw,noexec,nosuid,nodev,size=67108864
     --workdir /workspace --env HOME=/tmp --env PYTHONDONTWRITEBYTECODE=1
-    --env PYTHONPATH=/workspace --env NMR_PROVIDER_TOOLS_IN_CONTAINER=1
+    --env PYTHONPATH=/workspace:/workspace/packages/wheelhouse-tool/src:/workspace/packages/wheelhouse-tool/build:/workspace/packages/acquisition:/workspace/packages/acquisition/build --env NMR_PROVIDER_TOOLS_IN_CONTAINER=1
     --env "NMR_PROVIDER_TOOLS_EXPECTED_UID=$uid" --env "NMR_PROVIDER_TOOLS_EXPECTED_GID=$gid"
     "${mounts[@]}"
     --mount "type=bind,src=$metadata,dst=/repository-source-inventory/root-entries,readonly"

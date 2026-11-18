@@ -31,7 +31,7 @@ resolvers. The `system` route uses global configuration directly. DNS queries
 and destination connections remain bound to the selected route, with no
 hard-coded public fallback. Configuration changes apply to the next operation.
 
-The shared source bundle includes `host/acquisition_tool/dns.py` for host-owned build
+The shared source bundle includes `packages/acquisition/acquisition_tool/dns.py` for host-owned build
 launchers. Invoke it with `--interface <name> --output <private-scratch>/resolv.conf`,
 then give that file to the proxy with `--resolver-file`. Keep it until the proxy
 has retired. Containers receive the captured file, not host manager sockets or
@@ -113,9 +113,12 @@ interfaces refer to that host.
 ## Authored execution boundaries
 
 `host/tools/` contains the Bash orchestrators and the Python helpers they invoke
-on the operator's host. `host/acquisition_tool/` owns the authored acquisition
+on the operator's host. `packages/acquisition/acquisition_tool/` owns the authored acquisition
 owner and resolver/identity sources. Host Python does not depend on the
 container-only `tools` package.
+
+`packages/wheelhouse-tool/` owns the wheelhouse CLI, its image and bundle
+builders, and its operator launchers. Its Python import name is `wheelhouse_tool`.
 
 `tools/` contains contained Python modules; operational entrypoints use the
 container guard. `containers/isolated/` contains build/qualification helpers

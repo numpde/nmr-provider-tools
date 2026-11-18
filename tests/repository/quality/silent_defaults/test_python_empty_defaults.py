@@ -19,6 +19,8 @@ PYTHON_SURFACE_GLOBS = (
     "containers/**/*.py",
     "src/**/*.py",
     "packages/*/src/**/*.py",
+    "packages/*/build/**/*.py",
+    "packages/acquisition/acquisition_tool/**/*.py",
 )
 
 PYTHON_SCAN_EXCLUDED_PARTS = frozenset(

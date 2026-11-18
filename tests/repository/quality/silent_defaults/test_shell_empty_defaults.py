@@ -39,6 +39,13 @@ SHELL_SURFACE_GLOBS = (
     "tools/**/*.sh",
     "src/**/*.py",
     "packages/*/src/**/*.py",
+    "packages/*/build/**/*.py",
+    "packages/*/build/**/*.sh",
+    "packages/*/build/**/Dockerfile*",
+    "packages/*/operations/**/*.sh",
+    "packages/acquisition/acquisition_tool/**/*.py",
+    "packages/acquisition/acquisition_tool/**/*.sh",
+    "packages/*/compose/**/*.yml",
 )
 
 

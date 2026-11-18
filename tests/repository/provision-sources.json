@@ -58,7 +58,7 @@
     },
     {
       "source": "tools/wheelhouse_path.sh",
-      "target": "tools/wheelhouse_path.sh",
+      "target": "host/tools/wheelhouse_path.sh",
       "sha256": "f1e5508d6498a67215e08722e18928dbba8f059ee3968137702b81336224d423",
       "adaptation": "Operator aliases renamed. Missing forwarded values still fail as empty input. Unused wheel-population helper functions are omitted; directory selection and explicit-origin admission are retained.",
       "repository": "https://github.com/numpde/pay-to-play",

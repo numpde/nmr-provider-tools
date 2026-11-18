@@ -341,7 +341,7 @@ def source_inventory(source):
 
 
 def wheelhouse_source_inventory(source):
-    from tools.build_wheelhouse_bundle import SOURCE_MODULES
+    from build_bundle import SOURCE_MODULES
 
     return {
         name: {
@@ -385,8 +385,8 @@ def normalize_sdist(path):
 
 
 def release(source, runtime_lock, build_lock, pool, output, revision):
-    from tools.build_wheelhouse_bundle import build as build_wheelhouse_bundle, dependency_files
-    from tools.build_acquisition_bundle import build as build_acquisition_bundle
+    from build_bundle import build as build_wheelhouse_bundle, dependency_files
+    from build_acquisition_bundle import build as build_acquisition_bundle
 
     if re.fullmatch(r"[0-9a-f]{40}", revision) is None:
         raise ValueError("Cannot build release artifacts: source revision must identify the captured Git commit.")

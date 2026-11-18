@@ -13,6 +13,8 @@ from ._repo_surfaces import INTERPOLATION_DEFAULT_RE, surface_files, surface_lin
 COMPOSE_SURFACE_GLOBS = (
     "compose/*.yml",
     "compose/*.yaml",
+    "packages/*/compose/*.yml",
+    "packages/*/compose/*.yaml",
     "tools/**/compose*.yml",
     "tools/**/compose*.yaml",
 )
