@@ -9,7 +9,7 @@ import os
 import sys
 import tempfile
 import unittest
-from pathlib import Path
+import pathlib
 
 from provider_core.upload_file import VerifiedUploadFile, UploadFileReadFailed, read_upload_file
 from tests.fakes.runner import RunningSupervisor, worker_pid
@@ -120,7 +120,7 @@ class NativeInstallationTests(unittest.TestCase):
 
         self.assertTrue(distribution.requires)
         self.assertTrue(all('; extra == "api"' in requirement for requirement in distribution.requires))
-        installer = json.loads(Path("/opt/provider-tools/installer/release.json").read_text())
+        installer = json.loads(pathlib.Path("/opt/provider-tools/installer/release.json").read_text())
 
         self.assertEqual(f"pip-{importlib.metadata.version('pip')}-py3-none-any.whl", installer["name"])
         self.assertEqual({"provider-core", "pip"}, {item.metadata["Name"] for item in importlib.metadata.distributions()})
@@ -162,7 +162,7 @@ class NativeInstallationTests(unittest.TestCase):
         data = b"scientific input"
 
         with tempfile.TemporaryDirectory() as directory:
-            path = Path(directory) / "source"
+            path = pathlib.Path(directory) / "source"
 
             path.write_bytes(data)
             descriptor = os.open(directory, os.O_RDONLY | os.O_DIRECTORY)

@@ -9,7 +9,7 @@ import logging
 import sys
 import traceback
 import unittest
-from pathlib import Path
+import pathlib
 
 import provider_core
 
@@ -169,7 +169,7 @@ class _FailureSummaryResult(unittest.TextTestResult):
         frames = traceback.extract_tb(tb)
 
         for frame in reversed(frames):
-            components = Path(frame.filename).parts
+            components = pathlib.Path(frame.filename).parts
 
             if "tests" in components:
                 location = "/".join(components[components.index("tests"):]) + f":{frame.lineno}"
@@ -178,7 +178,7 @@ class _FailureSummaryResult(unittest.TextTestResult):
 
         if location == "(no traceback)" and frames:
             frame = frames[-1]
-            location = f"{Path(frame.filename).name}:{frame.lineno}"
+            location = f"{pathlib.Path(frame.filename).name}:{frame.lineno}"
 
         self.problems.append((kind, str(test), location, exception_type.__name__, reason))
 
@@ -238,19 +238,19 @@ def _print_failure_summary(result, selection, stream):
 
 
 def main():
-    installed_environment = Path(sys.prefix).resolve()
-    imported_package_path = Path(provider_core.__file__).resolve()
+    installed_environment = pathlib.Path(sys.prefix).resolve()
+    imported_package_path = pathlib.Path(provider_core.__file__).resolve()
 
     if not imported_package_path.is_relative_to(installed_environment):
         raise RuntimeError(f"{imported_package_path=} should be under {installed_environment=}")
 
     distribution = importlib.metadata.distribution("provider-core")
-    distribution_package_path = Path(distribution.locate_file("provider_core")).resolve()
+    distribution_package_path = pathlib.Path(distribution.locate_file("provider_core")).resolve()
 
     if not distribution_package_path.is_relative_to(installed_environment):
         raise RuntimeError(f"{distribution_package_path=} should be under {installed_environment=}")
 
-    root = Path(__file__).parent
+    root = pathlib.Path(__file__).parent
     selection = sys.argv[1]
 
     if not (selection in {

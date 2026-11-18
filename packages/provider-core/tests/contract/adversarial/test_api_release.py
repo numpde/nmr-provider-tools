@@ -6,7 +6,7 @@ import re
 import shutil
 import tempfile
 import unittest
-from pathlib import Path
+import pathlib
 
 from provider_core.api import ApiFailure
 from provider_core.job_input import JobInputRejected, verify_job_input
@@ -37,7 +37,7 @@ class ReleasedApiRefusalTests(PinnedApiRelease, unittest.IsolatedAsyncioTestCase
     def test_changed_or_incomplete_release_is_not_a_compatible_fixture(self):
         for mutation in ("artifact", "manifest", "missing", "extra", "symlink"):
             with self.subTest(mutation=mutation), tempfile.TemporaryDirectory() as directory:
-                root = Path(directory) / "release"
+                root = pathlib.Path(directory) / "release"
 
                 shutil.copytree(RELEASE_ROOT, root)
                 path = root / "schemas/hello_response.v1.schema.json"
@@ -53,7 +53,7 @@ class ReleasedApiRefusalTests(PinnedApiRelease, unittest.IsolatedAsyncioTestCase
                 elif mutation == "extra":
                     (root / "unlisted.json").write_bytes(b"{}")
                 else:
-                    outside = Path(directory) / "unchanged-schema.json"
+                    outside = pathlib.Path(directory) / "unchanged-schema.json"
 
                     path.rename(outside)
                     path.symlink_to(outside)

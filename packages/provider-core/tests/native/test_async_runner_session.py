@@ -4,7 +4,7 @@ import asyncio
 from concurrent.futures import Future, ThreadPoolExecutor
 import json
 import os
-from pathlib import Path
+import pathlib
 import signal
 import socket
 import struct
@@ -259,7 +259,7 @@ class AsyncNativeWireTests(unittest.IsolatedAsyncioTestCase):
         self.listener = socket.socket(socket.AF_UNIX)
 
         self.addCleanup(self.listener.close)
-        self.path = str(Path(self.temporary.name) / "runner.sock")
+        self.path = str(pathlib.Path(self.temporary.name) / "runner.sock")
 
         self.listener.bind(self.path)
         self.listener.listen()

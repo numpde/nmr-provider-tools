@@ -9,7 +9,7 @@ import importlib
 import importlib.abc
 import sys
 import tempfile
-from pathlib import Path
+import pathlib
 from unittest.mock import Mock
 
 
@@ -56,7 +56,7 @@ async def prove_handoff():
     requests = importlib.import_module("provider_core.attempt_request")
 
     with tempfile.TemporaryDirectory() as temporary:
-        root = Path(temporary)
+        root = pathlib.Path(temporary)
 
         (root / "ipc").mkdir(mode=0o700)
         (root / "state").mkdir(mode=0o700)
@@ -79,12 +79,12 @@ async def prove_handoff():
         try:
             reference = "execution_attempt:sha256:" + "a" * 64
             body = requests.fail_body(reference, "provider_interrupted", "Synthetic client-only qualification") + b"\n"
-            item = store.DeliveryOutcome("https://api.example", "provider:test", "job:queue", reference, attempt.TerminalOperation.FAIL, body)
+            delivery_outcome = store.DeliveryOutcome("https://api.example", "provider:test", "job:queue", reference, attempt.TerminalOperation.FAIL, body)
 
-            assert await client.submit(item) == item.acceptance()
-            assert queue.next_pending(item.api_origin, item.provider_ref) == item
-            assert await client.submit(item) == item.acceptance()
-            assert len(queue.inventory(item.api_origin, item.provider_ref)) == 1
+            assert await client.submit(delivery_outcome) == delivery_outcome.acceptance()
+            assert queue.next_pending(delivery_outcome.api_origin, delivery_outcome.provider_ref) == delivery_outcome
+            assert await client.submit(delivery_outcome) == delivery_outcome.acceptance()
+            assert len(queue.inventory(delivery_outcome.api_origin, delivery_outcome.provider_ref)) == 1
             assert client.retirement_confirmed
         finally:
             await client.retire()

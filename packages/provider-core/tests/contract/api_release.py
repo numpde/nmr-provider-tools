@@ -7,9 +7,9 @@ No release loader, schema engine or sibling import enters provider-core runtime.
 
 import hashlib
 import json
-from pathlib import Path
+import pathlib
 
-RELEASE_ROOT = Path(__file__).parents[1] / "fixtures/nmr_api_v1"
+RELEASE_ROOT = pathlib.Path(__file__).parents[1] / "fixtures/nmr_api_v1"
 RELEASE_REF = "sha256:719055db7751605c0e5325ca23bcbe66cde631376d4b2b99523c8e4db75f0d01"
 SOURCE_REVISION = "12a53e720fc87e1a4144c76203f8853d5afaf753"
 MANIFEST_SHA256 = "dda8dc36db963f85ec9105567342dae4ba680476c7ab1114bd1e33acba65474b"

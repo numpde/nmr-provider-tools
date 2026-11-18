@@ -4,8 +4,8 @@ from provider_core.container_guard import require_container
 
 require_container()
 
+import pathlib
 from hashlib import sha256
-from pathlib import Path
 from tempfile import TemporaryDirectory
 import unittest
 from unittest.mock import patch
@@ -29,7 +29,7 @@ from spectrum_provider.science import BaselineSettings, PeakSettings
 class ExampleInitializationTests(unittest.IsolatedAsyncioTestCase):
     async def test_each_contribution_initializes_once_and_cleans_up_after_failure(self):
         with TemporaryDirectory() as directory:
-            checkpoint = Path(directory) / "checkpoint.json"
+            checkpoint = pathlib.Path(directory) / "checkpoint.json"
             checkpoint_bytes = b'{"candidates": ["CCO"]}'
 
             checkpoint.write_bytes(checkpoint_bytes)
