@@ -592,8 +592,15 @@ class EmbeddedHostTests(unittest.IsolatedAsyncioTestCase):
         (observed, _) = await self.success(operation, binding.prepare.result_codec)
         slot = binding.prepared_output
 
-        with self.assertRaisesRegex(ValueError, "not declared by this exact call"):
-            await slot.reference(binding.calculate, operation)
+        wrong_producer = SimpleNamespace(
+            reference=operation.reference,
+            observe=AsyncMock(),
+        )
+
+        with self.assertRaises(ValueError):
+            await slot.reference(binding.calculate, wrong_producer)
+
+        wrong_producer.observe.assert_not_awaited()
 
         changed_identity = replace(binding.identity, implementation="dummy.weighted-sum.v3")
         other_operation = replace(operation.reference, operation_id="another-prepare")
