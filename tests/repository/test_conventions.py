@@ -88,6 +88,7 @@ def unguarded_sources(root):
             ),
         ),
     )
+
     # The isolated setuptools interpreter only receives the staged source and backend
     sources.discard(root / "packages/provider-core/sdk_build/build_sdist.py")
     core_root = root / "packages/provider-core/src/provider_core"
@@ -126,11 +127,13 @@ def unguarded_sources(root):
     ]
 
     failures.extend(
+        # This is a generator:
         (
             str(path.relative_to(root))
             for path in sorted(portable_sources)
-            if path != core_root / "container_guard.py"
-            and not has_early_guard(
+            if
+            (path != core_root / "container_guard.py") and
+            not has_early_guard(
                 path.read_text(),
                 package_marker=path.name in { "__init__.py", "__init__.py.fixture" },
                 guard_module="provider_core.container_guard",

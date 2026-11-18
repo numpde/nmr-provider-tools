@@ -72,8 +72,8 @@ class _ControlledStart(ObservedAPI):
                 return reply(
                     start_response(
                         job_ref=self.job,
-                        execution_attempt_ref=self.reference
-                    )
+                        execution_attempt_ref=self.reference,
+                    ),
                 )
 
             raise AssertionError("START gate released without a selected API disposition")
@@ -90,7 +90,7 @@ class LifecycleOrders(RuleBasedStateMachine):
         self.trace = []
         self.started = set()
         self.local_stops = set()
-        self.verified_stops = {}
+        self.verified_stops = { }
 
         try:
             self.runner.run(self._open())
@@ -118,7 +118,7 @@ class LifecycleOrders(RuleBasedStateMachine):
         self._observer = patch.object(
             AttemptExecutor,
             "_require_observed_active",
-            observed_check
+            observed_check,
         )
 
         self._observer.start()
@@ -131,11 +131,11 @@ class LifecycleOrders(RuleBasedStateMachine):
                 maximum_attempts=2,
                 maximum_control_bytes=262144,
                 maximum_pending_terminal_bytes=4194304,
-            )
+            ),
         )
 
-        self.cases = {}
-        self.replies = {}
+        self.cases = { }
+        self.replies = { }
 
         async def model_reply(_request, _body, *, gate, identity):
             await gate.wait()
@@ -144,18 +144,18 @@ class LifecycleOrders(RuleBasedStateMachine):
                 {
                     "choices": [
                         {
-                            "message": call(identity, "prepare", {}),
-                            "finish_reason": "tool_calls"
-                        }
-                    ]
-                }
+                            "message": call(identity, "prepare", { }),
+                            "finish_reason": "tool_calls",
+                        },
+                    ],
+                },
             ).encode()
 
         for name in ("a", "b"):
             released = asyncio.Event()
 
             peer = await self.stack.enter_async_context(
-                TlsPeer("success", response_factory=partial(model_reply, gate=released, identity=name))
+                TlsPeer("success", response_factory=partial(model_reply, gate=released, identity=name)),
             )
 
             self.cases[name] = ReplyRun(
@@ -170,7 +170,7 @@ class LifecycleOrders(RuleBasedStateMachine):
 
             self.replies[name] = released
 
-        self.tasks = {}
+        self.tasks = { }
 
     async def _progress(self):
         # Allow ready callbacks to run; no elapsed delay controls the fault.
@@ -197,7 +197,7 @@ class LifecycleOrders(RuleBasedStateMachine):
 
     @rule(
         name=st.sampled_from(("a", "b")),
-        disposition=st.sampled_from(("accepted", "uncertain", "uncommitted"))
+        disposition=st.sampled_from(("accepted", "uncertain", "uncommitted")),
     )
     def decide_original_start(self, name, disposition):
         if name not in self.started:
@@ -220,7 +220,7 @@ class LifecycleOrders(RuleBasedStateMachine):
 
     @rule(
         name=st.sampled_from(("a", "b")),
-        stop=st.sampled_from(("cancelled", "expired"))
+        stop=st.sampled_from(("cancelled", "expired")),
     )
     def withdraw_permission(self, name, stop):
         if name not in self.started or self.cases[name].transport.stop:
@@ -228,8 +228,8 @@ class LifecycleOrders(RuleBasedStateMachine):
 
         async def revoke():
             self.cases[name].transport.stop = {
-                "cancelled": {"job_state": "cancelled"},
-                "expired": {"state": "expired"},
+                "cancelled": { "job_state": "cancelled" },
+                "expired": { "state": "expired" },
             }[stop]
 
             await self._progress()
@@ -286,7 +286,7 @@ class LifecycleOrders(RuleBasedStateMachine):
             # The original owner reports a separate cleanup failure.
             # It cannot be interpreted as success or authorize another attempt.
             session.retirement_failure = RuntimeError(
-                "An original scientific resource did not retire"
+                "An original scientific resource did not retire",
             )
 
             await self._progress()
@@ -308,7 +308,7 @@ class LifecycleOrders(RuleBasedStateMachine):
 
     @rule(
         name=st.sampled_from(("a", "b")),
-        decision=st.sampled_from(("accepted", "full", "retryable", "lost", "rejected"))
+        decision=st.sampled_from(("accepted", "full", "retryable", "lost", "rejected")),
     )
     def resolve_local_delivery(self, name, decision):
         delivery = self.cases[name].delivery
@@ -427,7 +427,7 @@ class LifecycleOrders(RuleBasedStateMachine):
 
             assert self.claims.owns_job(
                 successor.pending.scope,
-                successor.pending.input.job_ref
+                successor.pending.input.job_ref,
             )
 
         self._act("late_released_owner_observation", name, repeat)
@@ -544,7 +544,7 @@ class LifecycleOrders(RuleBasedStateMachine):
             if self.tasks:
                 await asyncio.wait_for(
                     asyncio.gather(*self.tasks.values(), return_exceptions=True),
-                    12
+                    12,
                 )
 
             await self.stack.aclose()
