@@ -31,6 +31,7 @@ from provider_core.attempt_response import (
 from provider_core.job_input import FeedInputFacts
 from provider_core.response_json import ResponseRejected
 from provider_core.signing import _https_origin
+from provider_core.type_requirements import require_type
 
 # Pending starts only: 4096 request bytes become at most 5464 base64 characters;
 # two scope identities of 1024 scalars each need at most 24576 JSON escape bytes.
@@ -64,10 +65,7 @@ class RecoveryScope:
         require_provider_ref(self.provider_ref)
 
         for value in (self.consumer_id, self.generation_id):
-            if not (type(value) is (expected_type := str)):
-                raise TypeError(
-                    f"{type(value)=} ≠ {expected_type=}"
-                )
+            require_type(value, str)
 
             if not (1 <= len(value) <= 1024) or any(c == "\x00" or 0xD800 <= ord(c) <= 0xDFFF for c in value):
                 raise ValueError(
@@ -85,15 +83,9 @@ class StartPending:
     body: bytes = field(repr=False)
 
     def __post_init__(self):
-        if not (type((actual_scope := self.scope)) is (expected_type := RecoveryScope)):
-            raise TypeError(
-                f"{type(actual_scope)=} ≠ {expected_type=}"
-            )
+        require_type(self.scope, RecoveryScope)
 
-        if not (type((actual_input := self.input)) is (expected_type := FeedInputFacts)):
-            raise TypeError(
-                f"{type(actual_input)=} ≠ {expected_type=}"
-            )
+        require_type(self.input, FeedInputFacts)
 
         require_analysis_kind(self.analysis_kind_ref)
         require_start_body(self.body, job_ref=self.input.job_ref)
@@ -105,17 +97,11 @@ class LocalExecutionPhase(Enum):
 
 
 def _admission_bytes(admission):
-    if not (type(admission) is (expected_type := AttemptAdmission)):
-        raise TypeError(
-            f"{type(admission)=} ≠ {expected_type=}"
-        )
+    require_type(admission, AttemptAdmission)
 
     timestamp = admission.started_at
 
-    if not (type(timestamp) is (expected_type := datetime)):
-        raise TypeError(
-            f"{type(timestamp)=} ≠ {expected_type=}"
-        )
+    require_type(timestamp, datetime)
 
     if timestamp.utcoffset() != timedelta(0):
         raise ValueError("Cannot retain acknowledgement: its start timestamp must be UTC")
@@ -143,15 +129,9 @@ class AcknowledgedAttempt:
     prepared_identity: "ProtectedEvidence | None" = field(default=None, repr=False)
 
     def __post_init__(self):
-        if not (type((actual_start := self.start)) is (expected_type := StartPending)):
-            raise TypeError(
-                f"{type(actual_start)=} ≠ {expected_type=}"
-            )
+        require_type(self.start, StartPending)
 
-        if not (type((actual_local_phase := self.local_phase)) is (expected_type := LocalExecutionPhase)):
-            raise TypeError(
-                f"{type(actual_local_phase)=} ≠ {expected_type=}"
-            )
+        require_type(self.local_phase, LocalExecutionPhase)
 
         if self.prepared_identity is not None:
             if not (type((actual_prepared_identity := self.prepared_identity)) is (expected_prepared_identity_type := ProtectedEvidence)):
@@ -193,10 +173,7 @@ class ProtectedEvidence:
     def __post_init__(self):
         _scalar_text(self.schema_id, "evidence schema identity")
 
-        if not (type((actual_content := self.content)) is (expected_type := bytes)):
-            raise TypeError(
-                f"{type(actual_content)=} ≠ {expected_type=}"
-            )
+        require_type(self.content, bytes)
 
         if not (1 <= len(self.content) <= MAX_EVIDENCE_BYTES):
             raise ValueError(
@@ -217,18 +194,12 @@ def acknowledge_start(start, admission):
 def mark_execution_entered(record, prepared_identity):
     """Record intent before invoking a prepared handle; never infer actual execution."""
 
-    if not (type(record) is (expected_type := AcknowledgedAttempt)):
-        raise TypeError(
-            f"{type(record)=} ≠ {expected_type=}"
-        )
+    require_type(record, AcknowledgedAttempt)
 
     if not (record.local_phase is LocalExecutionPhase.NOT_ENTERED):
         raise ValueError("Cannot enter execution: an acknowledged Attempt that has not entered is required")
 
-    if not (type(prepared_identity) is (expected_type := ProtectedEvidence)):
-        raise TypeError(
-            f"{type(prepared_identity)=} ≠ {expected_type=}"
-        )
+    require_type(prepared_identity, ProtectedEvidence)
 
     return replace(record, local_phase=LocalExecutionPhase.EXECUTION_ENTERED, prepared_identity=prepared_identity)
 
