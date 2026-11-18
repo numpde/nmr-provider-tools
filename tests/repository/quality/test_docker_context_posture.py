@@ -27,8 +27,11 @@ _PATTERNS = (
 
 
 def implicit_defaults(source):
-    return [number for (number, line) in enumerate(source.splitlines(), 1)
-            if not line.lstrip().startswith("#") and any(pattern.search(line) for pattern in _PATTERNS)]
+    return [
+        number
+        for (number, line) in enumerate(source.splitlines(), 1)
+        if not line.lstrip().startswith("#") and any(pattern.search(line) for pattern in _PATTERNS)
+    ]
 
 
 class DockerContextPostureTests(unittest.TestCase):
@@ -59,7 +62,10 @@ class DockerContextPostureTests(unittest.TestCase):
 
         paths = source_files(root=ROOT, patterns=patterns)
 
-        failures = [f"{source_path.relative_to(ROOT)}:{line}" for source_path in paths
-                    for line in implicit_defaults(source_path.read_text(encoding="utf-8"))]
+        failures = [
+            f"{source_path.relative_to(ROOT)}:{line}"
+            for source_path in paths
+            for line in implicit_defaults(source_path.read_text(encoding="utf-8"))
+        ]
 
         self.assertEqual([], failures)

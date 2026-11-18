@@ -23,11 +23,13 @@ def _raising_guard(*, statement: ast.If) -> bool:
 
 
 def _parenthesized_not(*, expression: str) -> bool:
-    tokens = [
-        token
-        for token in tokenize.generate_tokens(readline=io.StringIO(initial_value=expression).readline)
-        if token.type not in {tokenize.NL, tokenize.NEWLINE, tokenize.COMMENT, tokenize.INDENT, tokenize.DEDENT, tokenize.ENDMARKER}
-    ][1:]
+    tokens = (
+        [
+            token
+            for token in tokenize.generate_tokens(readline=io.StringIO(initial_value=expression).readline)
+            if token.type not in {tokenize.NL, tokenize.NEWLINE, tokenize.COMMENT, tokenize.INDENT, tokenize.DEDENT, tokenize.ENDMARKER}
+        ]
+    )[1:]
 
     if tokens[0].string != "(":
         return False

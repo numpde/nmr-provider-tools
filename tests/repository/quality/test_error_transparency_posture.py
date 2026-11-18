@@ -80,7 +80,9 @@ def _raw_cli_exception_text(source: str) -> list[int]:
             continue
 
         if not any(
-            isinstance(node, ast.Name) and node.id in {"OSError", "Exception", "BaseException"} for node in ast.walk(handler.type)
+            (
+                isinstance(node, ast.Name) and node.id in {"OSError", "Exception", "BaseException"} for node in ast.walk(handler.type)
+            ),
         ):
             continue
 

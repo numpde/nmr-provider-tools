@@ -20,9 +20,11 @@ def ungrouped_negated_boolean_lines(*, source: str) -> list[int]:
             continue
 
         if not any(
-            (isinstance(operand, ast.UnaryOp) and isinstance(operand.op, ast.Not))
-            or (isinstance(operand, ast.Compare) and any(isinstance(operator, (ast.NotIn, ast.IsNot)) for operator in operand.ops))
-            for operand in expression.values
+            (
+                (isinstance(operand, ast.UnaryOp) and isinstance(operand.op, ast.Not))
+                or (isinstance(operand, ast.Compare) and any(isinstance(operator, (ast.NotIn, ast.IsNot)) for operator in operand.ops))
+                for operand in expression.values
+            ),
         ):
             continue
 

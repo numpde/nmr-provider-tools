@@ -304,11 +304,14 @@ class PackageArtifactTests(unittest.TestCase):
         for name in ("README.md", "MANIFEST.in", "pyproject.toml", "src/provider_core/__init__.py", "tests/test_contract.py"):
             (source / name).write_text("authored\n")
 
-        inventory = {path.relative_to(source).as_posix(): {
-            "sha256": digest(path),
-            "size": path.stat().st_size,
-            "mode": path.stat().st_mode & 0o777
-        } for path in source.rglob("*") if path.is_file()}
+        inventory = {
+            path.relative_to(source).as_posix(): {
+                "sha256": digest(path),
+                "size": path.stat().st_size,
+                "mode": path.stat().st_mode & 0o777
+            }
+            for path in source.rglob("*") if path.is_file()
+        }
 
         metadata = source / "src/provider_core.egg-info"
 

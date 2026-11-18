@@ -121,8 +121,11 @@ class LauncherTests(unittest.TestCase):
     def test_interactive_menu_offers_only_local_contexts(self):
         fixture = ROOT / "tests/repository/fixtures/docker-context"
 
-        environment = {key: value for (key, value) in os.environ.items()
-                       if key not in {"DOCKER_CONTEXT_INPUT_ORIGIN", "DOCKER_CONTEXT_INPUT", "NMR_SELECTED_DOCKER_CONTEXT", "NMR_SELECTED_DOCKER_ENDPOINT"}}
+        environment = {
+            key: value
+            for (key, value) in os.environ.items()
+            if key not in {"DOCKER_CONTEXT_INPUT_ORIGIN", "DOCKER_CONTEXT_INPUT", "NMR_SELECTED_DOCKER_CONTEXT", "NMR_SELECTED_DOCKER_ENDPOINT"}
+        }
 
         environment["PATH"] = f"{fixture}:{os.environ['PATH']}"
         (pid, terminal) = pty.fork()
@@ -187,8 +190,11 @@ class LauncherTests(unittest.TestCase):
 
         with tempfile.TemporaryDirectory() as directory:
             log = pathlib.Path(directory) / "context-inspections"
-            environment = {key: value for (key, value) in os.environ.items()
-                           if key not in {"MAKEFLAGS", "MFLAGS", "MAKEOVERRIDES", "GNUMAKEFLAGS", "MAKELEVEL"}}
+            environment = {
+                key: value
+                for (key, value) in os.environ.items()
+                if key not in {"MAKEFLAGS", "MFLAGS", "MAKEOVERRIDES", "GNUMAKEFLAGS", "MAKELEVEL"}
+            }
             environment.update(PATH=f"{fixture}:{os.environ['PATH']}", FAKE_CONTEXT_LOG=str(log))
 
             for options in (("-rR", "-qp"), ("--question",), ("--dry-run",)):

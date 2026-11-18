@@ -78,8 +78,10 @@ class WheelhouseBundleTests(unittest.TestCase):
             )
 
             with zipfile.ZipFile(first) as archive:
-                payload = {name.removeprefix("wheelhouse_tool/"): archive.read(name)
-                           for name in archive.namelist() if name.startswith("wheelhouse_tool/")}
+                payload = {
+                    name.removeprefix("wheelhouse_tool/"): archive.read(name)
+                    for name in archive.namelist() if name.startswith("wheelhouse_tool/")
+                }
                 payload["type_requirements.py"] = archive.read("type_requirements.py")
 
             self.assertEqual(set(inventory), set(payload))

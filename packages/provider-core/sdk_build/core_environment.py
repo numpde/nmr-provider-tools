@@ -106,11 +106,12 @@ def install_locked(python, lock, wheels, report, extra_pools=(), required_files=
             "--no-compile",  # Leave Python bytecode unmaterialized
             "--report",  # Record which artifacts pip actually installed
             str(report),  # Write the evidence to the caller's report
+            # Give pip a find-links entry for each admitted local pool
             *[
                 argument
                 for directory in (wheels, *extra_pools)
                 for argument in ("--find-links", str(directory))
-            ],  # Give pip a find-links entry for each admitted local pool
+            ],
             "-r",  # Read exact versions and hashes from the lock
             str(lock),  # Select the lock for this environment
         ],

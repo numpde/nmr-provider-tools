@@ -262,11 +262,14 @@ def _subclass_findings(*, source_path: pathlib.Path, source: str) -> list[str]:
             continue
 
         message = rejection.exc.args[0] if isinstance(rejection.exc, ast.Call) and rejection.exc.args else None
-        evidenced = {
-            _subject_key(expression=field.value)
-            for field in message.values
-            if isinstance(field, ast.FormattedValue) and _is_debug_expression(source=source, formatted=field)
-        } if isinstance(message, ast.JoinedStr) else set()
+        evidenced = (
+            {
+                _subject_key(expression=field.value)
+                for field in message.values
+                if isinstance(field, ast.FormattedValue) and _is_debug_expression(source=source, formatted=field)
+            }
+            if isinstance(message, ast.JoinedStr) else set()
+        )
 
         missing = [
             ast.unparse(ast_obj=diagnostic_subject(subject=operand))

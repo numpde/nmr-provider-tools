@@ -532,21 +532,23 @@ def _exception_outcome_contract(handler, protected):
         return False
 
     if any(
-        isinstance(
-            node,
-            (
-                ast.FunctionDef,
-                ast.AsyncFunctionDef,
-                ast.Lambda,
-                ast.Try,
-                ast.With,
-                ast.AsyncWith,
-                ast.For,
-                ast.AsyncFor,
-                ast.While
+        (
+            isinstance(
+                node,
+                (
+                    ast.FunctionDef,
+                    ast.AsyncFunctionDef,
+                    ast.Lambda,
+                    ast.Try,
+                    ast.With,
+                    ast.AsyncWith,
+                    ast.For,
+                    ast.AsyncFor,
+                    ast.While
+                )
             )
-        )
-        for statement in handler.body for node in ast.walk(statement)
+            for statement in handler.body for node in ast.walk(statement)
+        ),
     ):
         return False
 
@@ -564,14 +566,18 @@ def _exception_outcome_contract(handler, protected):
     declared = handler.type.elts if isinstance(handler.type, ast.Tuple) else [handler.type]
 
     if any(
-        not isinstance(node, ast.Name) or node.id in {"Exception", "BaseException", "ExceptionGroup", "BaseExceptionGroup"}
-        for node in declared
+        (
+            not isinstance(node, ast.Name) or node.id in {"Exception", "BaseException", "ExceptionGroup", "BaseExceptionGroup"}
+            for node in declared
+        ),
     ):
         return False
 
     if any(
-        contains_env_access(statement) or contains_raw_args_access(statement)
-        or any(args_attribute_name(node) is not None for node in ast.walk(statement)) for statement in protected.body
+        (
+            contains_env_access(statement) or contains_raw_args_access(statement)
+            or any(args_attribute_name(node) is not None for node in ast.walk(statement)) for statement in protected.body
+        ),
     ):
         return False
 
