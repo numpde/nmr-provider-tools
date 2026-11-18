@@ -4,10 +4,13 @@
 # Only the NMR_ACQ_* topology parameters below are interpolated by this owner.
 
 _acq_compose_command() {
+    local compose_interface=$_acq_route
+    # Compose interpolates the gateway command even when only the offline worker runs
+    if [[ -z $compose_interface ]]; then compose_interface=system; fi
     _acq_compose=(env
         "NMR_ACQ_BOOTSTRAP_IMAGE=$_acq_bootstrap_image"
         "NMR_ACQ_USER=$_acq_scope_uid:$_acq_scope_gid"
-        "NMR_ACQ_INTERFACE=${_acq_route:-system}"
+        "NMR_ACQ_INTERFACE=$compose_interface"
         "NMR_ACQ_BUNDLE=$_acq_bundle" "NMR_ACQ_SCRATCH=$_acq_compose_directory"
         "NMR_ACQ_PORT=$_acq_compose_port"
         "${_acq_engine[@]}" compose --project-name "$_acq_compose_project"
@@ -56,7 +59,7 @@ acquisition_compose_worker() {
 }
 
 _acq_compose_worker() {
-    [[ $# == 4 && ${_acq_active:-false} == true && $_acq_compose_state == idle ]] || return 2
+    [[ $# == 4 && -v _acq_active && $_acq_active == true && $_acq_compose_state == idle ]] || return 2
     local _acq_mode=$1 _acq_result_name=$2 _acq_caller=$3 _acq_service=$4
     [[ $_acq_mode == online || $_acq_mode == offline ]] || return 2
     [[ $_acq_service == worker-"$_acq_mode" && $_acq_caller == /* && -f $_acq_caller && ! -L $_acq_caller ]] || return 2
