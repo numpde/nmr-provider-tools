@@ -324,15 +324,29 @@ class PackageArtifactTests(unittest.TestCase):
             (source / name).write_text("")
 
         self.assertEqual({"provider_core/__init__.py": b"authored\n"}, source_payload(source, inventory))
-        (source / "tests/test_contract.py").write_text("changed\n")
 
-        with self.assertRaisesRegex(ValueError, "pre-build source inventory"):
+        source_member = "tests/test_contract.py"
+        source_file = source / source_member
+
+        source_file.write_text("changed\n")
+
+        with self.assertRaises(ValueError) as captured:
             source_payload(source, inventory)
 
-        (source / "tests/test_contract.py").unlink()
+        source_sha256 = digest(source_file)
+        expected_sha256 = inventory[source_member]["sha256"]
 
-        with self.assertRaisesRegex(ValueError, "pre-build source inventory"):
+        self.assertIn(source_member, str(captured.exception))
+        self.assertIn(f"{source_sha256=}", str(captured.exception))
+        self.assertIn(f"{expected_sha256=}", str(captured.exception))
+
+        source_file.unlink()
+
+        with self.assertRaises(ValueError) as captured:
             source_payload(source, inventory)
+
+        self.assertIn(source_member, str(captured.exception))
+        self.assertIn("regular file", str(captured.exception))
 
     def test_wheel_payload_detects_missing_extra_or_changed_runtime_files(self):
         wheel_path = self.root / "core.whl"

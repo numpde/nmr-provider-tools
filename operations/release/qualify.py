@@ -451,16 +451,27 @@ def source_payload(source, inventory):
 
         source_file = source / name
 
-        if (
-            (not source_file.is_file()) or
-            (digest(source_file) != facts["sha256"]) or
-            (source_file.stat().st_size != facts["size"]) or
-            (source_file.stat().st_mode & 0o777 != facts["mode"])
-        ):
-            raise ValueError(
-                "Cannot qualify package: source distribution differs from "
-                "its pre-build source inventory."
-            )
+        if not source_file.is_file():
+            raise ValueError(f"The source distribution should contain {name!r} as a regular file")
+
+        source_sha256 = digest(source_file)
+        expected_sha256 = facts["sha256"]
+
+        if not (source_sha256 == expected_sha256):
+            raise ValueError(f"For source member {name!r}, {source_sha256=} should match {expected_sha256=}")
+
+        source_stat = source_file.stat()
+        source_size_bytes = source_stat.st_size
+        expected_size_bytes = facts["size"]
+
+        if not (source_size_bytes == expected_size_bytes):
+            raise ValueError(f"For source member {name!r}, {source_size_bytes=} should match {expected_size_bytes=}")
+
+        source_mode = source_stat.st_mode & 0o777
+        expected_mode = facts["mode"]
+
+        if not (source_mode == expected_mode):
+            raise ValueError(f"For source member {name!r}, {source_mode=} should match {expected_mode=}")
 
     generated_metadata_files = {"PKG-INFO", "setup.cfg"} | {
         "src/provider_core.egg-info/" + name
