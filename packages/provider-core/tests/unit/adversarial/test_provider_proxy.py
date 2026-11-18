@@ -10,7 +10,7 @@ import socket
 import struct
 import tempfile
 import unittest
-from pathlib import Path
+import pathlib
 from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
 
@@ -144,7 +144,7 @@ class ServiceProxyRefusalTests(unittest.TestCase):
 
     def test_socket_and_readiness_grants_refuse_existing_leaves_or_public_parent(self):
         with tempfile.TemporaryDirectory() as directory:
-            root = Path(directory)
+            root = pathlib.Path(directory)
             (socket_path, ready) = (root / "proxy.sock", root / "ready")
 
             with socket_grant(socket_path, ready):
@@ -174,14 +174,14 @@ class ServiceProxyRefusalTests(unittest.TestCase):
         policy = ServicePolicy.admit("external", ["api.example:443"], [])
 
         with tempfile.TemporaryDirectory() as directory:
-            path = Path(directory) / "proxy.sock"
+            proxy_socket_path = pathlib.Path(directory) / "proxy.sock"
 
-            path.write_text("prior evidence")
+            proxy_socket_path.write_text("prior evidence")
 
             with self.assertRaises(OSError):
-                ServiceProxyServer(path, "lo", policy, status_directory=Path(directory))
+                ServiceProxyServer(proxy_socket_path, "lo", policy, status_directory=pathlib.Path(directory))
 
-            self.assertEqual(path.read_text(), "prior evidence")
+            self.assertEqual(proxy_socket_path.read_text(), "prior evidence")
 
     def test_failure_after_private_bind_restores_umask_and_closes_before_activation(self):
         policy = ServicePolicy.admit("external", ["api.example:443"], [])
@@ -199,11 +199,11 @@ class ServiceProxyRefusalTests(unittest.TestCase):
 
         def bind_then_fail(server):
             bind(server)
-            self.assertEqual(Path(server.server_address).stat().st_mode & 0o777, 0o600)
+            self.assertEqual(pathlib.Path(server.server_address).stat().st_mode & 0o777, 0o600)
             raise PermissionError(13, "PRIVATE")
 
         with tempfile.TemporaryDirectory() as directory:
-            path = Path(directory) / "proxy.sock"
+            proxy_socket_path = pathlib.Path(directory) / "proxy.sock"
             previous = os.umask(0)
 
             try:
@@ -213,18 +213,18 @@ class ServiceProxyRefusalTests(unittest.TestCase):
                     patch.object(ServiceProxyServer, "server_activate") as activate,
                     self.assertRaises(PermissionError),
                 ):
-                    ServiceProxyServer(path, "lo", policy, status_directory=Path(directory))
+                    ServiceProxyServer(proxy_socket_path, "lo", policy, status_directory=pathlib.Path(directory))
             finally:
                 restored = os.umask(previous)
 
             self.assertEqual(restored, 0)
             activate.assert_not_called()
             self.assertEqual([channel.fileno() for channel in acquired], [-1])
-            self.assertTrue(path.exists(), "Retain the created leaf for host inspection.")
+            self.assertTrue(proxy_socket_path.exists(), "Retain the created leaf for host inspection.")
 
     def test_invalid_interface_has_an_owned_diagnostic_before_socket_or_readiness(self):
         with tempfile.TemporaryDirectory() as directory:
-            (path, ready) = (Path(directory) / "proxy.sock", Path(directory) / "ready")
+            (path, ready) = (pathlib.Path(directory) / "proxy.sock", pathlib.Path(directory) / "ready")
 
             argv = [
                 "provider_proxy",
@@ -267,10 +267,10 @@ class ServiceProxyRefusalTests(unittest.TestCase):
 
     def test_filesystem_refusal_retains_safe_errno_and_private_cause(self):
         with tempfile.TemporaryDirectory() as directory:
-            (path, ready) = (Path(directory) / "proxy.sock", Path(directory) / "ready")
+            (path, ready) = (pathlib.Path(directory) / "proxy.sock", pathlib.Path(directory) / "ready")
             primary = PermissionError(13, "PRIVATE_PATH")
 
-            with patch.object(Path, "lstat", side_effect=primary), self.assertRaises(ServiceRefused) as caught, socket_grant(path, ready):
+            with patch.object(pathlib.Path, "lstat", side_effect=primary), self.assertRaises(ServiceRefused) as caught, socket_grant(path, ready):
                 pass
 
             self.assertIs(caught.exception.__cause__, primary)

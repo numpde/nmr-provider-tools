@@ -2,7 +2,7 @@
 
 import asyncio
 import tempfile
-from pathlib import Path
+import pathlib
 
 
 class UnixHTTPPeer:
@@ -16,7 +16,7 @@ class UnixHTTPPeer:
 
     async def __aenter__(self):
         self.scratch = tempfile.TemporaryDirectory()
-        self.path = str(Path(self.scratch.name) / "http.sock")
+        self.path = str(pathlib.Path(self.scratch.name) / "http.sock")
         self.server = await asyncio.start_unix_server(self.handle, self.path)
 
         return self

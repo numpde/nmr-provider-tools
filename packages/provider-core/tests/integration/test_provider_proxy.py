@@ -9,7 +9,7 @@ import json
 import tempfile
 import threading
 import unittest
-from pathlib import Path
+import pathlib
 from unittest.mock import patch
 from urllib.parse import urlsplit
 
@@ -40,7 +40,7 @@ class ActualServiceProxyTests(unittest.IsolatedAsyncioTestCase):
 
         async with api_tls_peer("success", response_factory=response) as peer:
             with tempfile.TemporaryDirectory() as directory:
-                root = Path(directory)
+                root = pathlib.Path(directory)
                 policy = ServicePolicy.admit("mapped", [urlsplit(peer.origin).netloc], ["127.0.0.1=127.0.0.1"])
 
                 with ServiceProxyServer(root / "proxy.sock", "lo", policy, status_directory=root, shared_socket=True) as server:
@@ -100,7 +100,7 @@ class ActualServiceProxyTests(unittest.IsolatedAsyncioTestCase):
 
         try:
             with tempfile.TemporaryDirectory() as directory:
-                root = Path(directory)
+                root = pathlib.Path(directory)
 
                 with ServiceProxyServer(root / "proxy.sock", "lo", policy, status_directory=root, shared_socket=True) as server:
                     server._slots.set_limit(1)
@@ -152,7 +152,7 @@ class ActualServiceProxyTests(unittest.IsolatedAsyncioTestCase):
         port = peer.sockets[0].getsockname()[1]
 
         with tempfile.TemporaryDirectory() as directory:
-            root = Path(directory)
+            root = pathlib.Path(directory)
             settings_path = root / "settings.toml"
             replacement = root / "replacement.toml"
 
@@ -240,7 +240,7 @@ class ActualServiceProxyTests(unittest.IsolatedAsyncioTestCase):
 
             with (
                 tempfile.TemporaryDirectory() as directory,
-                ObservedProxy(Path(directory) / "proxy.sock", "lo", policy, status_directory=Path(directory)) as server,
+                ObservedProxy(pathlib.Path(directory) / "proxy.sock", "lo", policy, status_directory=pathlib.Path(directory)) as server,
             ):
                 listener = threading.Thread(target=server.serve_forever, kwargs={"poll_interval": 0.01})
 

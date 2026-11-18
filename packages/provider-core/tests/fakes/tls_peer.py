@@ -6,10 +6,10 @@ import ipaddress
 import logging
 import ssl
 import tempfile
+import pathlib
 from builtins import BaseExceptionGroup
 from datetime import UTC, datetime, timedelta
 from http import HTTPStatus
-from pathlib import Path
 
 from cryptography import x509
 from cryptography.hazmat.primitives import serialization
@@ -35,8 +35,8 @@ class _OptionalCertificateRejectionReset(logging.Filter):
             not self.records
             and record.name == "asyncio"
             and record.levelno == logging.ERROR
-            and Path(record.pathname).parent.name == "asyncio"
-            and Path(record.pathname).name == "base_events.py"
+            and pathlib.Path(record.pathname).parent.name == "asyncio"
+            and pathlib.Path(record.pathname).name == "base_events.py"
             and record.getMessage().split("\n", 1)[0]
             == "Error on transport creation for incoming connection"
             and record.exc_info is not None
@@ -117,7 +117,7 @@ class TlsPeer:
     async def __aenter__(self):
         self.scratch = tempfile.TemporaryDirectory()
 
-        root = Path(self.scratch.name)
+        root = pathlib.Path(self.scratch.name)
         key = Ed25519PrivateKey.generate()
         name = x509.Name([x509.NameAttribute(NameOID.COMMON_NAME, "provider-core test peer")])
         now = datetime.now(UTC)

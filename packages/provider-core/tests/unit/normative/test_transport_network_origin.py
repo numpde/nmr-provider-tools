@@ -5,7 +5,7 @@ import socket
 import ssl
 import tempfile
 import unittest
-from pathlib import Path
+import pathlib
 from unittest.mock import patch
 
 import httpcore
@@ -21,17 +21,17 @@ from tests.fakes.transport import Client, Stream
 class TransportNetworkOriginTests(unittest.IsolatedAsyncioTestCase):
     async def test_real_unix_proxy_refusal_permits_fresh_hello_after_retirement(self):
         with tempfile.TemporaryDirectory() as directory:
-            path = Path(directory) / "proxy.sock"
+            proxy_socket_path = pathlib.Path(directory) / "proxy.sock"
 
             with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as listener:
-                listener.bind(str(path))
-                path.chmod(0o600)
+                listener.bind(str(proxy_socket_path))
+                proxy_socket_path.chmod(0o600)
 
             transport = HttpTransport(
                 trust=ssl.create_default_context(),
                 exchange_seconds=1,
                 retirement_seconds=1,
-                proxy_socket=str(path)
+                proxy_socket=str(proxy_socket_path)
             )
 
             client = api(transport, "https://api.example")

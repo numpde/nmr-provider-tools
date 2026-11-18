@@ -8,7 +8,7 @@ import io
 import socket
 import tempfile
 import unittest
-from pathlib import Path
+import pathlib
 from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
 
@@ -19,16 +19,16 @@ from tests.fakes.proxy_logs import capture_proxy_logs
 class BoundProxyTests(unittest.TestCase):
     def test_explicit_resolver_file_cannot_fall_back_to_global_configuration(self):
         with tempfile.TemporaryDirectory() as directory:
-            path = Path(directory) / "resolv.conf"
+            resolver_path = pathlib.Path(directory) / "resolv.conf"
 
             for content in ("", "nameserver 127.0.0.53\n", "nameserver invalid\n"):
-                path.write_text(content)
+                resolver_path.write_text(content)
 
                 with self.subTest(content=content), self.assertRaises(bound_http_proxy.ProxyResolutionFailed):
-                    bound_http_proxy._dns_servers(path)
+                    bound_http_proxy._dns_servers(resolver_path)
 
-            path.write_text("nameserver 192.0.2.53\n")
-            self.assertEqual(bound_http_proxy._dns_servers(path), ("192.0.2.53",))
+            resolver_path.write_text("nameserver 192.0.2.53\n")
+            self.assertEqual(bound_http_proxy._dns_servers(resolver_path), ("192.0.2.53",))
 
     def test_captured_resolvers_remain_bound_without_rereading_configuration(self):
         with patch.object(bound_http_proxy, "_dns_servers") as discover, \
@@ -333,7 +333,7 @@ class BoundProxyTests(unittest.TestCase):
 
             return fragment
 
-        def sent(_data):
+        def sent(_request_bytes):
             observed.append((request.settimeout.call_args.args[0], outbound.settimeout.call_args.args[0]))
 
         request.recv.side_effect = receive
@@ -380,7 +380,7 @@ class BoundProxyTests(unittest.TestCase):
         """The local no-transfer binding probe must succeed before readiness."""
 
         with tempfile.TemporaryDirectory() as temporary:
-            ready = Path(temporary) / "proxy.port"
+            ready = pathlib.Path(temporary) / "proxy.port"
             probe = MagicMock()
             probe.__enter__.return_value = probe
             probe.setsockopt.side_effect = PermissionError("scripted binding failure")
@@ -404,7 +404,7 @@ class BoundProxyTests(unittest.TestCase):
 
     def test_omitted_listener_port_rejects_before_interface_socket_and_readiness(self):
         with tempfile.TemporaryDirectory() as temporary:
-            ready = Path(temporary) / "proxy.port"
+            ready = pathlib.Path(temporary) / "proxy.port"
             stderr = io.StringIO()
 
             with (
@@ -427,7 +427,7 @@ class BoundProxyTests(unittest.TestCase):
     def test_explicit_listener_ports_reach_the_bind_and_publish_its_actual_port(self):
         for (requested, observed) in ((0, 23456), (12345, 12345)):
             with self.subTest(port=requested), tempfile.TemporaryDirectory() as temporary:
-                ready = Path(temporary) / "proxy.port"
+                ready = pathlib.Path(temporary) / "proxy.port"
                 listener = MagicMock()
                 listener.server_address = ("127.0.0.1", observed)
 

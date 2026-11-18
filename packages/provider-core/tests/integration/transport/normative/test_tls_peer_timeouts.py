@@ -5,7 +5,7 @@ change the SDK client's own connect, exchange or child-retirement budget.
 """
 
 import asyncio
-from pathlib import Path
+import pathlib
 import ssl
 import unittest
 from unittest.mock import patch
@@ -20,7 +20,7 @@ class TlsPeerTimeoutTests(unittest.IsolatedAsyncioTestCase):
         # is invoked until that handshake has completed.
         async with TlsPeer("success") as peer:
             context = ssl.create_default_context(
-                cafile=str(Path(peer.scratch.name) / "cert.pem"),
+                cafile=str(pathlib.Path(peer.scratch.name) / "cert.pem"),
             )
 
             (reader, writer) = await asyncio.open_connection(

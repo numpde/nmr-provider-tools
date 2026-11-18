@@ -9,8 +9,8 @@ import tempfile
 import sys
 import threading
 import unittest
+import pathlib
 from dataclasses import replace
-from pathlib import Path
 from unittest.mock import Mock
 from urllib.parse import urlsplit
 
@@ -67,7 +67,7 @@ class AuthorizationRecoveryTests(unittest.IsolatedAsyncioTestCase):
 
         async with api_tls_peer("success", response_factory=reply) as peer:
             items = [replace(item, api_origin=peer.origin) for item in items]
-            ca = (Path(peer.scratch.name) / "cert.pem").read_bytes()
+            ca = (pathlib.Path(peer.scratch.name) / "cert.pem").read_bytes()
             materials = []
 
             for index in range(2):
@@ -86,14 +86,14 @@ class AuthorizationRecoveryTests(unittest.IsolatedAsyncioTestCase):
 
                 (settings, _, material) = api_settings_with_material(
                     fields,
-                    lambda _path, **options: credential if options["label"] == "API signing credential" else ca
+                    lambda _credential_or_ca_path, **options: credential if options["label"] == "API signing credential" else ca
                 )
 
                 keys.append(settings.identity.private_key)
                 materials.append(material)
 
             with tempfile.TemporaryDirectory() as directory:
-                root = Path(directory)
+                root = pathlib.Path(directory)
 
                 (root / "state").mkdir(mode=0o700)
                 (root / "ipc").mkdir(mode=0o700)

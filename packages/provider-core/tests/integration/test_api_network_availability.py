@@ -2,7 +2,7 @@
 
 import asyncio
 import json
-from pathlib import Path
+import pathlib
 import socket
 import ssl
 import unittest
@@ -69,7 +69,7 @@ class ApiNetworkAvailabilityTests(unittest.IsolatedAsyncioTestCase):
             await peer.server.wait_closed()
             trust=ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
 
-            trust.load_cert_chain(Path(peer.scratch.name)/"cert.pem",Path(peer.scratch.name)/"key.pem")
+            trust.load_cert_chain(pathlib.Path(peer.scratch.name)/"cert.pem",pathlib.Path(peer.scratch.name)/"key.pem")
             peer.closed=asyncio.Event()
 
             peer.server=await asyncio.start_server(
@@ -81,9 +81,9 @@ class ApiNetworkAvailabilityTests(unittest.IsolatedAsyncioTestCase):
                 ssl_shutdown_timeout=0.5
             )
 
-            result=await api.uploads("job:example")
+            upload_membership=await api.uploads("job:example")
 
-            self.assertEqual(result.job_ref,"job:example")
+            self.assertEqual(upload_membership.job_ref,"job:example")
             self.assertEqual(len(peer.requests),1)
             await asyncio.wait_for(peer.closed.wait(),1)
 
@@ -106,7 +106,7 @@ class ApiNetworkAvailabilityTests(unittest.IsolatedAsyncioTestCase):
             async with UnixProxy(peer.origin, "tunnel") as proxy:
                 proxy.server.close()
                 await proxy.server.wait_closed()
-                Path(proxy.path).unlink()
+                pathlib.Path(proxy.path).unlink()
                 transport = HttpTransport(trust=peer.trust, exchange_seconds=1, retirement_seconds=.2, proxy_socket=proxy.path)
 
                 api = ProviderAPI(
@@ -126,9 +126,9 @@ class ApiNetworkAvailabilityTests(unittest.IsolatedAsyncioTestCase):
                     self.assertEqual(failure.cause.network_io.unix_path, proxy.path)
                     self.assertTrue(api.can_retry_read(failure))
                     proxy.server = await asyncio.start_unix_server(proxy.handle, proxy.path, limit=16384)
-                    result = await api.uploads("job:example")
+                    upload_membership = await api.uploads("job:example")
 
-                    self.assertEqual(result.job_ref, "job:example")
+                    self.assertEqual(upload_membership.job_ref, "job:example")
                     self.assertEqual(len(proxy.headers), 1)
                     self.assertEqual(len(peer.requests), 1)
                     await asyncio.wait_for(peer.closed.wait(), 1)

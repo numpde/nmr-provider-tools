@@ -5,7 +5,7 @@ import json
 import tempfile
 import threading
 import unittest
-from pathlib import Path
+import pathlib
 from urllib.parse import urlsplit
 
 from provider_core.api import ApiFailure
@@ -32,7 +32,7 @@ class ProxyCapacityRecoveryTests(unittest.IsolatedAsyncioTestCase):
 
         async with api_tls_peer('success', response_factory=response) as peer:
             with tempfile.TemporaryDirectory() as directory:
-                root = Path(directory)
+                root = pathlib.Path(directory)
                 (entered, exited) = (threading.Event(), threading.Event())
 
                 class ObservedProxy(ServiceProxyServer):

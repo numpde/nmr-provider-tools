@@ -7,8 +7,8 @@ recorded; TLS and application bytes pass unchanged between real stream peers.
 import asyncio
 import errno
 import tempfile
+import pathlib
 from builtins import BaseExceptionGroup
-from pathlib import Path
 from urllib.parse import urlsplit
 
 
@@ -24,7 +24,7 @@ class UnixProxy:
 
     async def __aenter__(self):
         self.scratch = tempfile.TemporaryDirectory()
-        self.path = str(Path(self.scratch.name) / "proxy.sock")
+        self.path = str(pathlib.Path(self.scratch.name) / "proxy.sock")
 
         try:
             self.server = await asyncio.start_unix_server(self.handle, self.path, limit=16384)

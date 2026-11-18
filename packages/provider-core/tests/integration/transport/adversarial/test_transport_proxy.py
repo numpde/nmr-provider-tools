@@ -4,7 +4,7 @@ import asyncio
 import ssl
 import tempfile
 import unittest
-from pathlib import Path
+import pathlib
 from unittest.mock import AsyncMock, patch
 
 import httpcore
@@ -69,7 +69,7 @@ class UnixTunnelFailureTests(unittest.IsolatedAsyncioTestCase):
                     trust=peer.trust,
                     exchange_seconds=1,
                     retirement_seconds=0.3,
-                    proxy_socket=str(Path(directory) / "missing.sock"),
+                    proxy_socket=str(pathlib.Path(directory) / "missing.sock"),
                 )
 
                 with (
