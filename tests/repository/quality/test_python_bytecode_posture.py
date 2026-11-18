@@ -2,7 +2,7 @@
 from tools.container_guard import require_container
 require_container()
 
-from pathlib import Path
+import pathlib
 import tempfile
 import unittest
 
@@ -23,9 +23,9 @@ class PythonBytecodePostureTests(unittest.TestCase):
             "export PYTHONDONTWRITEBYTECODE=1\npython3 -E identity.py"
         ):
             with self.subTest(source=source):
-                self.assertEqual(1, len(findings(Path("launcher.sh"), source)))
+                self.assertEqual(1, len(findings(pathlib.Path("launcher.sh"), source)))
 
-        self.assertEqual(1, len(findings(Path("Makefile"), "run:\n\t@python3 -I helper.py\n")))
+        self.assertEqual(1, len(findings(pathlib.Path("Makefile"), "run:\n\t@python3 -I helper.py\n")))
 
     def test_effective_literal_environment_and_flags_are_accepted(self):
         for source in (
@@ -37,13 +37,13 @@ class PythonBytecodePostureTests(unittest.TestCase):
             "docker run --env PYTHONDONTWRITEBYTECODE=1 --entrypoint python3 image helper.py"
         ):
             with self.subTest(source=source):
-                self.assertEqual([], findings(Path("launcher.sh"), source))
+                self.assertEqual([], findings(pathlib.Path("launcher.sh"), source))
 
         self.assertEqual(
             1,
             len(
                 findings(
-                    Path("launcher.sh"),
+                    pathlib.Path("launcher.sh"),
                     "env PYTHONDONTWRITEBYTECODE=1 -u PYTHONDONTWRITEBYTECODE python3 helper.py"
                 )
             )
@@ -53,7 +53,7 @@ class PythonBytecodePostureTests(unittest.TestCase):
             1,
             len(
                 findings(
-                    Path("launcher.sh"),
+                    pathlib.Path("launcher.sh"),
                     "PYTHONDONTWRITEBYTECODE=1 docker run --entrypoint python3 image helper.py"
                 )
             )
@@ -71,13 +71,13 @@ class PythonBytecodePostureTests(unittest.TestCase):
             'python3 "${arguments[@]}"'
         ):
             with self.subTest(source=source):
-                self.assertEqual([], findings(Path("launcher.sh"), source))
+                self.assertEqual([], findings(pathlib.Path("launcher.sh"), source))
 
         self.assertEqual(
             1,
             len(
                 findings(
-                    Path("launcher.sh"),
+                    pathlib.Path("launcher.sh"),
                     'run "${worker[@]}" --entrypoint python3 "$image" -I -S identity.py'
                 )
             )
@@ -100,14 +100,14 @@ class PythonBytecodePostureTests(unittest.TestCase):
         ]
 
         for source in bad:
-            self.assertEqual(1, len(findings(Path("driver.py"), source)), msg=source)
+            self.assertEqual(1, len(findings(pathlib.Path("driver.py"), source)), msg=source)
 
         for source in good:
-            self.assertEqual([], findings(Path("driver.py"), source), msg=source)
+            self.assertEqual([], findings(pathlib.Path("driver.py"), source), msg=source)
 
     def test_inventory_is_automatic_and_diagnostics_do_not_echo_payload(self):
         with tempfile.TemporaryDirectory() as directory:
-            root = Path(directory)
+            root = pathlib.Path(directory)
 
             for name in (
                 "host/tools/run.sh",
@@ -130,13 +130,13 @@ class PythonBytecodePostureTests(unittest.TestCase):
                 {path.relative_to(root).as_posix() for path in production_files(root)}
             )
 
-        (issue,) = findings(Path("safe.sh"), "python3 -I secret-private-path.py")
+        (issue,) = findings(pathlib.Path("safe.sh"), "python3 -I secret-private-path.py")
 
         self.assertNotIn("secret-private-path", issue.diagnostic())
         self.assertIn("safe.sh:1:", issue.diagnostic())
 
     def test_python_fixture_uses_python_launch_analysis(self):
-        (issue,) = findings(Path("tests/fixtures/run.py.fixture"), 'subprocess.run(["python3", "worker.py"])')
+        (issue,) = findings(pathlib.Path("tests/fixtures/run.py.fixture"), 'subprocess.run(["python3", "worker.py"])')
 
         self.assertEqual(first=1, second=issue.line)
 

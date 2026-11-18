@@ -7,7 +7,7 @@ require_container()
 import subprocess
 import tempfile
 import unittest
-from pathlib import Path
+import pathlib
 
 from .sources import ROOT
 
@@ -25,8 +25,8 @@ class PythonCacheCleanupTests(unittest.TestCase):
 
     def test_clean_only_bytecode_inside_first_party_roots(self):
         with tempfile.TemporaryDirectory() as directory:
-            root = Path(directory) / "checkout"
-            outside = Path(directory) / "outside"
+            root = pathlib.Path(directory) / "checkout"
+            outside = pathlib.Path(directory) / "outside"
 
             outside.mkdir()
             (outside / "unrelated.pyc").write_bytes(b"outside")
@@ -67,10 +67,10 @@ class PythonCacheCleanupTests(unittest.TestCase):
 
     def test_rejects_symlinked_source_root_without_deleting_target(self):
         with tempfile.TemporaryDirectory() as directory:
-            root = Path(directory) / "checkout"
+            root = pathlib.Path(directory) / "checkout"
 
             root.mkdir()
-            target = Path(directory) / "outside"
+            target = pathlib.Path(directory) / "outside"
 
             target.mkdir()
             (target / "retained.pyc").write_bytes(b"untouched")
@@ -83,7 +83,7 @@ class PythonCacheCleanupTests(unittest.TestCase):
             self.assertTrue((target / "retained.pyc").exists())
 
     def test_public_cleanup_target_does_not_require_a_docker_context(self):
-        result = subprocess.run(
+        completed_process = subprocess.run(
             ["make", "--no-print-directory", "--dry-run", "checks/python-cache/clean"],
             cwd=ROOT,
             capture_output=True,
@@ -91,9 +91,9 @@ class PythonCacheCleanupTests(unittest.TestCase):
             check=False,
         )
 
-        self.assertEqual(0, result.returncode, msg=result.stderr)
-        self.assertIn("host/tools/python_cache_clean.sh", result.stdout)
-        self.assertNotIn("Select a local Docker context", result.stderr)
+        self.assertEqual(0, completed_process.returncode, msg=completed_process.stderr)
+        self.assertIn("host/tools/python_cache_clean.sh", completed_process.stdout)
+        self.assertNotIn("Select a local Docker context", completed_process.stderr)
 
         self.assertIn(
             "tests/repository/quality:\n\tbash host/tools/repository.sh tests/repository/quality",

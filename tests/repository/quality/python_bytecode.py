@@ -11,8 +11,8 @@ from tools.container_guard import require_container
 require_container()
 
 import ast
+import pathlib
 from dataclasses import dataclass
-from pathlib import Path
 import re
 import shlex
 import sys
@@ -22,11 +22,11 @@ from .sources import is_python_source, source_files
 
 @dataclass(frozen=True)
 class Finding:
-    path: Path
+    source_path: pathlib.Path
     line: int
 
     def diagnostic(self):
-        return f"{self.path}:{self.line}: put -B before the Python payload; -I/-E ignore PYTHONDONTWRITEBYTECODE."
+        return f"{self.source_path}:{self.line}: put -B before the Python payload; -I/-E ignore PYTHONDONTWRITEBYTECODE."
 
 
 _COMPILERS = {"pip", "venv", "ensurepip", "build", "setuptools", "compileall", "py_compile"}
@@ -71,8 +71,8 @@ def production_files(root):
     )
 
 
-def _python(value):
-    return type(value) is str and _PYTHON.fullmatch(value.rsplit("$(", 1)[-1].lstrip("(").rsplit("/", 1)[-1]) is not None
+def _python(executable_word):
+    return type(executable_word) is str and _PYTHON.fullmatch(executable_word.rsplit("$(", 1)[-1].lstrip("(").rsplit("/", 1)[-1]) is not None
 
 
 def _inline_imports(source):
@@ -98,42 +98,42 @@ def _needs_flag(arguments, env_enabled=False):
     index = 0
 
     while index < len(arguments):
-        item = arguments[index]
+        argument = arguments[index]
 
-        if item is None or "[@]" in item or item in {"$@", "$*"}:
+        if argument is None or "[@]" in argument or argument in {"$@", "$*"}:
             return False  # Unknown argv expansion cannot be classified literally.
 
-        if item in {"-m", "-c"}:
+        if argument in {"-m", "-c"}:
             if index + 1 == len(arguments) or arguments[index + 1] is None:
                 return False
 
             payload = arguments[index + 1]
 
-            if item == "-m" and payload.split(".")[0] in _COMPILERS:
+            if argument == "-m" and payload.split(".")[0] in _COMPILERS:
                 return False
 
-            if item == "-c" and not _inline_imports(payload):
+            if argument == "-c" and not _inline_imports(payload):
                 return False
 
             return not disabled and (isolated or not env_enabled)
 
-        if item == "-":
+        if argument == "-":
             return False  # Heredoc/stdin programs are a documented boundary.
 
-        if item == "--":
+        if argument == "--":
             return index + 1 < len(arguments) and not disabled and (isolated or not env_enabled)
 
-        if item.startswith("-"):
-            if item in {"-W", "-X"}:
+        if argument.startswith("-"):
+            if argument in {"-W", "-X"}:
                 index += 2
 
                 continue
 
-            if not re.fullmatch(r"-[BEISOPqsubvix]+", item):
+            if not re.fullmatch(r"-[BEISOPqsubvix]+", argument):
                 return False  # Unknown switches are not assumed to be payload.
 
-            disabled |= "B" in item[1:]
-            isolated |= "I" in item[1:] or "E" in item[1:]
+            disabled |= "B" in argument[1:]
+            isolated |= "I" in argument[1:] or "E" in argument[1:]
         else:
             return not disabled and (isolated or not env_enabled)
 
@@ -159,9 +159,9 @@ def _logical_lines(source):
         yield (first, pending)
 
 
-def shell_findings(path, source):
+def shell_findings(source_path, source):
     findings = []
-    (global_env, preface) = (False, path.name not in {"Makefile", "GNUmakefile"} and path.suffix != ".mk")
+    (global_env, preface) = (False, source_path.name not in {"Makefile", "GNUmakefile"} and source_path.suffix != ".mk")
 
     for (number, line) in _logical_lines(source):
         if preface and re.fullmatch(r"export PYTHONDONTWRITEBYTECODE=['\"]?1['\"]?", line):
@@ -206,29 +206,29 @@ def shell_findings(path, source):
             prefix = tokens[:index]
             enabled = global_env and not entrypoint
 
-            for (position, value) in enumerate(prefix):
-                if value in {"-i", "--ignore-environment", "--unset=" + _ENV}:
+            for (position, prefix_argument) in enumerate(prefix):
+                if prefix_argument in {"-i", "--ignore-environment", "--unset=" + _ENV}:
                     enabled = False
-                elif value == "-u" and position + 1 < len(prefix) and prefix[position + 1] == _ENV:
+                elif prefix_argument == "-u" and position + 1 < len(prefix) and prefix[position + 1] == _ENV:
                     enabled = False
-                elif value.startswith(_ENV + "="):
+                elif prefix_argument.startswith(_ENV + "="):
                     if entrypoint and position > 0 and prefix[position - 1] in {"--env", "-e"}:
-                        enabled = value == _ENV + "=1"
+                        enabled = prefix_argument == _ENV + "=1"
                     elif not entrypoint and (position == 0 or prefix[position - 1] != "--env"):
-                        enabled = value == _ENV + "=1"
+                        enabled = prefix_argument == _ENV + "=1"
 
             isolated = _needs_flag(arguments, True)
 
-            if entrypoint and any("[@]" in value for value in prefix) and not isolated:
+            if entrypoint and any("[@]" in prefix_argument for prefix_argument in prefix) and not isolated:
                 continue  # Shared creation/env argv is not visible at this site.
 
             if _needs_flag(arguments, enabled):
-                findings.append(Finding(path, number))
+                findings.append(Finding(source_path, number))
 
     return sorted(set(findings), key=lambda finding: finding.line)
 
 
-def _value(node):
+def _literal_text(node):
     if isinstance(node, ast.Constant) and type(node.value) is str:
         return node.value
 
@@ -243,20 +243,20 @@ def _env_enabled(node):
         return _env_enabled(node.right)  # Only a literal right-hand override wins.
 
     if isinstance(node, ast.Dict):
-        for (key, value) in reversed(list(zip(node.keys, node.values))):
+        for (key, setting_expression) in reversed(list(zip(node.keys, node.values))):
             if key is None:
                 return False  # A later dictionary expansion may override it.
 
-            if _value(key) == _ENV:
-                return _value(value) == "1"
+            if _literal_text(key) == _ENV:
+                return _literal_text(setting_expression) == "1"
 
     return False
 
 
-def python_findings(path, source):
+def python_findings(source_path, source):
     findings = []
 
-    for node in ast.walk(ast.parse(source, filename=str(path))):
+    for node in ast.walk(ast.parse(source, filename=str(source_path))):
         if not isinstance(node, ast.Call) or not node.args:
             continue
 
@@ -273,21 +273,21 @@ def python_findings(path, source):
 
         argv = node.args[0]
 
-        if not isinstance(argv, (ast.List, ast.Tuple)) or not argv.elts or not _python(_value(argv.elts[0])):
+        if not isinstance(argv, (ast.List, ast.Tuple)) or not argv.elts or not _python(_literal_text(argv.elts[0])):
             continue
 
-        values = [_value(value) for value in argv.elts[1:]]
+        command_arguments = [_literal_text(argument) for argument in argv.elts[1:]]
         enabled = any(keyword.arg == "env" and _env_enabled(keyword.value) for keyword in node.keywords)
 
-        if _needs_flag(values, enabled):
-            findings.append(Finding(path, node.lineno))
+        if _needs_flag(command_arguments, enabled):
+            findings.append(Finding(source_path, node.lineno))
 
     return findings
 
 
-def findings(path, source):
-    return python_findings(path, source) if is_python_source(path=path) else shell_findings(path, source)
+def findings(source_path, source):
+    return python_findings(source_path, source) if is_python_source(source_path=source_path) else shell_findings(source_path, source)
 
 
 def scan(root):
-    return [finding for path in production_files(root) for finding in findings(path.relative_to(root), path.read_text())]
+    return [finding for source_path in production_files(root) for finding in findings(source_path.relative_to(root), source_path.read_text())]

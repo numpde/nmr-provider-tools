@@ -11,9 +11,9 @@ from tools.container_guard import require_container
 
 require_container()
 
-from pathlib import Path
+import pathlib
 
-ROOT = Path("/workspace")
+ROOT = pathlib.Path("/workspace")
 REPOSITORY_ROOT = ROOT
 PYTHON_ROOTS = ("host", "tools", "tests")
 OPTIONAL_PYTHON_ROOTS = ("src",)
@@ -56,16 +56,16 @@ def python_sources(*, production_only):
     return source_files(root=ROOT, patterns=patterns)
 
 
-def repo_path(path):
-    return ROOT / path
+def repo_path(repo_relative_path):
+    return ROOT / repo_relative_path
 
 
-def is_skipped(path):
-    return _is_skipped_relative(relative_path=path.relative_to(ROOT))
+def is_skipped(source_path):
+    return _is_skipped_relative(repo_relative_path=source_path.relative_to(ROOT))
 
 
-def _is_skipped_relative(*, relative_path: Path) -> bool:
-    parts = relative_path.parts
+def _is_skipped_relative(*, repo_relative_path: pathlib.Path) -> bool:
+    parts = repo_relative_path.parts
 
     if parts and parts[0] in {"release-artifacts", "bootstrap"}:
         return True
@@ -73,44 +73,44 @@ def _is_skipped_relative(*, relative_path: Path) -> bool:
     return any(part in SKIP_DIRS for part in parts)
 
 
-def is_python_source(*, path: Path) -> bool:
+def is_python_source(*, source_path: pathlib.Path) -> bool:
     """Recognize Python modules and samples for direct detector dispatch."""
 
-    return path.name.endswith((".py", ".py.fixture"))
+    return source_path.name.endswith((".py", ".py.fixture"))
 
 
 # silent-defaults: allow-contract -- Empty rule-specific exclusions scan every selected public source; private exclusions and fixture-sample exclusions always apply; proof=tests/repository/quality/test_source_inventory.py::SourceInventoryUnitTests.test_python_fixtures_are_excluded_from_regular_source_checks
 def source_files(
     *,
-    root: Path,
+    root: pathlib.Path,
     patterns,
     exclude_parts=frozenset(),
     exclude_repo_paths=frozenset(),
     exclude_subtrees=(),
-) -> list[Path]:
+) -> list[pathlib.Path]:
     """Discover regular source files within the caller's selected scope.
 
     Fixture samples remain available to dedicated scenario tests through direct
     reads. Private exclusions apply throughout; symlink files and ancestors
     cannot redirect a public name into private data.
     """
-    paths = {path for pattern in patterns for path in root.glob(pattern)}
+    candidates = {candidate for pattern in patterns for candidate in root.glob(pattern)}
 
     return sorted(
-        path
-        for path in paths
-        if not path.name.endswith(".py.fixture")
-        and not _is_skipped_relative(relative_path=path.relative_to(root))
-        and not any((root / ancestor).is_symlink() for ancestor in (path.relative_to(root), *path.relative_to(root).parents))
-        and path.is_file()
-        and not exclude_parts.intersection(path.relative_to(root).parts)
-        and path.relative_to(root) not in exclude_repo_paths
-        and not any(path.relative_to(root).is_relative_to(subtree) for subtree in exclude_subtrees)
+        candidate
+        for candidate in candidates
+        if not candidate.name.endswith(".py.fixture")
+        and not _is_skipped_relative(repo_relative_path=candidate.relative_to(root))
+        and not any((root / ancestor).is_symlink() for ancestor in (candidate.relative_to(root), *candidate.relative_to(root).parents))
+        and candidate.is_file()
+        and not exclude_parts.intersection(candidate.relative_to(root).parts)
+        and candidate.relative_to(root) not in exclude_repo_paths
+        and not any(candidate.relative_to(root).is_relative_to(subtree) for subtree in exclude_subtrees)
     )
 
 
-def read_text(path):
-    return path.read_text(encoding="utf-8")
+def read_text(text_path):
+    return text_path.read_text(encoding="utf-8")
 
 
 def iter_repo_text_files():
@@ -118,7 +118,7 @@ def iter_repo_text_files():
     names = {"Makefile", "Dockerfile", "Dockerfile.lock", ".dockerignore", ".gitignore"}
 
     return sorted(
-        path
-        for path in source_files(root=ROOT, patterns=("**/*",))
-        if path.suffix in suffixes or path.name in names or is_python_source(path=path)
+        source_path
+        for source_path in source_files(root=ROOT, patterns=("**/*",))
+        if source_path.suffix in suffixes or source_path.name in names or is_python_source(source_path=source_path)
     )

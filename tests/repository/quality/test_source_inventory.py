@@ -20,7 +20,7 @@ import shlex
 import subprocess
 import tempfile
 import unittest
-from pathlib import Path
+import pathlib
 from unittest.mock import patch
 
 from . import sources
@@ -33,7 +33,7 @@ def has_external_frontend(source):
     return re.search(r"(?im)^\s*#\s*syntax\s*=", source) is not None
 
 
-ROOT_ENTRY_MANIFEST = Path("/repository-source-inventory/root-entries")
+ROOT_ENTRY_MANIFEST = pathlib.Path("/repository-source-inventory/root-entries")
 
 # The coordinator explicitly keeps checkout control, credentials and writable
 # acquisition/runtime state outside source-check authority. Capturing their
@@ -91,7 +91,7 @@ def root_entry_visibility_findings(manifest, root):
 class SourceInventoryUnitTests(unittest.TestCase):
     def test_python_fixtures_are_excluded_from_regular_source_checks(self):
         with tempfile.TemporaryDirectory() as directory:
-            root = Path(directory)
+            root = pathlib.Path(directory)
 
             fixture_names = (
                 "host/example.py.fixture",
@@ -132,13 +132,13 @@ class SourceInventoryUnitTests(unittest.TestCase):
                 self.assertEqual(first=[], second=sources.source_files(root=root, patterns=("linked/*",)))
                 self.assertEqual(first=[], second=sources.source_files(root=root, patterns=("**/*",)))
                 self.assertEqual(first=[], second=sources.source_files(root=root, patterns=("**/*.py.fixture",)))
-                self.assertTrue(sources.is_python_source(path=root / fixture_names[0]))
+                self.assertTrue(sources.is_python_source(source_path=root / fixture_names[0]))
                 self.assertEqual("pass\n", sources.read_text(root / fixture_names[0]))
 
                 ordinary_source = root / "host/ordinary.py"
 
                 ordinary_source.write_text("pass\n", encoding="utf-8")
-                self.assertTrue(sources.is_python_source(path=ordinary_source))
+                self.assertTrue(sources.is_python_source(source_path=ordinary_source))
                 self.assertEqual(first=[ordinary_source], second=sources.source_files(root=root, patterns=("host/*.py",)))
                 self.assertEqual(first=[ordinary_source], second=sources.source_files(root=root, patterns=("**/*",)))
 
@@ -148,14 +148,14 @@ class SourceInventoryUnitTests(unittest.TestCase):
                         root=root,
                         patterns=("host/*.py",),
                         exclude_parts=frozenset({"host", "tests"}),
-                        exclude_repo_paths=frozenset({Path("host/ordinary.py")}),
-                        exclude_subtrees=(Path("host"),),
+                        exclude_repo_paths=frozenset({pathlib.Path("host/ordinary.py")}),
+                        exclude_subtrees=(pathlib.Path("host"),),
                     ),
                 )
 
     def test_release_outputs_are_private_only_at_checkout_root(self):
         with tempfile.TemporaryDirectory() as directory:
-            root = Path(directory)
+            root = pathlib.Path(directory)
             private = root / "release-artifacts/private.txt"
             authored = root / "tools/release-artifacts/authored.sh"
 
@@ -171,7 +171,7 @@ class SourceInventoryUnitTests(unittest.TestCase):
 
     def test_python_source_selection_respects_explicit_scope(self):
         with tempfile.TemporaryDirectory() as directory:
-            root = Path(directory)
+            root = pathlib.Path(directory)
 
             for name in (
                 "host/scripts/operation.py",
@@ -232,7 +232,7 @@ class SourceInventoryUnitTests(unittest.TestCase):
 
     def test_root_visibility_reports_new_source_caches_and_hidden_links(self):
         with tempfile.TemporaryDirectory() as directory:
-            root = Path(directory)
+            root = pathlib.Path(directory)
 
             (root / "tools").mkdir()
             (root / "stale.txt").write_text("fixture")
@@ -251,7 +251,7 @@ class SourceInventoryUnitTests(unittest.TestCase):
 
     def test_root_visibility_rejects_malformed_duplicate_and_mismatched_records(self):
         with tempfile.TemporaryDirectory() as directory:
-            root = Path(directory)
+            root = pathlib.Path(directory)
 
             for manifest in ("f\tname", "f\t../escape\0", "f\tname\0f\tname\0", "f\t\0"):
                 with self.subTest(manifest=manifest), self.assertRaises(ValueError):
@@ -266,7 +266,7 @@ class SourceInventoryUnitTests(unittest.TestCase):
 
     def test_discovery_is_recursive_and_inventory_delta_is_directional(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
-            root = Path(directory)
+            root = pathlib.Path(directory)
 
             (root / "compose" / "nested").mkdir(parents=True)
             (root / "compose" / "base.yml").write_text("services: {}\n")
@@ -306,7 +306,7 @@ class SourceInventoryUnitTests(unittest.TestCase):
 
     def test_discovery_rejects_file_and_directory_symlinks(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
-            root = Path(directory)
+            root = pathlib.Path(directory)
             compose = root / "compose"
 
             compose.mkdir()
@@ -315,14 +315,14 @@ class SourceInventoryUnitTests(unittest.TestCase):
             target.write_text("services: {}\n")
             (compose / "linked.yml").symlink_to(target)
 
-            with self.assertRaisesRegex(
-                SourceInventoryError,
-                "compose/linked.yml must not be a symlink",
-            ):
+            with self.assertRaises(SourceInventoryError) as caught:
                 discover_source_files(root=root, subtree="compose")
 
+            self.assertIn("compose/linked.yml", str(caught.exception))
+            self.assertIn("must not be a symlink", str(caught.exception))
+
         with tempfile.TemporaryDirectory() as directory:
-            root = Path(directory)
+            root = pathlib.Path(directory)
             compose = root / "compose"
 
             compose.mkdir()
@@ -331,15 +331,15 @@ class SourceInventoryUnitTests(unittest.TestCase):
             target.mkdir()
             (compose / "linked").symlink_to(target, target_is_directory=True)
 
-            with self.assertRaisesRegex(
-                SourceInventoryError,
-                "compose/linked must not be a symlink",
-            ):
+            with self.assertRaises(SourceInventoryError) as caught:
                 discover_source_files(root=root, subtree="compose")
+
+            self.assertIn("compose/linked", str(caught.exception))
+            self.assertIn("must not be a symlink", str(caught.exception))
 
     def test_discovery_rejects_invalid_or_missing_source_roots(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
-            root = Path(directory)
+            root = pathlib.Path(directory)
 
             for subtree in ("", "/compose", "compose/", "compose/../other"):
                 with self.subTest(subtree=subtree), self.assertRaises((TypeError, ValueError)):
@@ -365,14 +365,14 @@ class SourceInventoryRepositoryTests(unittest.TestCase):
                 self.assertTrue(discover_source_files(root=ROOT, subtree=subtree))
 
     def test_repository_checker_grants_complete_read_only_source_trees(self):
-        result = subprocess.run(
+        completed_process = subprocess.run(
             ["env", "NMR_SELECTED_DOCKER_ENDPOINT=unix:///var/run/docker.sock", "DOCKER_CONTEXT_INPUT_ORIGIN=command line", "DOCKER_CONTEXT_INPUT=default", "bash", str(ROOT / "host/tools/repository.sh"), "--print", "tests/repository"],
             text=True,
             capture_output=True,
             check=True
         )
 
-        arguments = shlex.split(result.stdout)
+        arguments = shlex.split(completed_process.stdout)
         mounts = [arguments[index + 1] for (index, value) in enumerate(arguments) if value == "--mount"]
 
         for subtree in ("host", "tools", "tests", "requirements", "containers", "notes"):

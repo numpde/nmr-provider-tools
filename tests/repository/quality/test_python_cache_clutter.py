@@ -14,7 +14,7 @@ from tools.container_guard import require_container
 require_container()
 
 import unittest
-from pathlib import Path
+import pathlib
 
 from .sources import REPOSITORY_ROOT
 
@@ -28,7 +28,7 @@ PYTHON_TOOL_CACHE_DIRS = (
 
 
 def _python_cache_artifacts() -> list[str]:
-    artifacts: list[Path] = []
+    artifacts: list[pathlib.Path] = []
 
     for cache_name in PYTHON_TOOL_CACHE_DIRS:
         cache_path = REPOSITORY_ROOT / cache_name

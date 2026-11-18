@@ -8,7 +8,8 @@ from tools.container_guard import require_container
 
 require_container()
 
-from pathlib import Path, PurePosixPath
+import pathlib
+from pathlib import PurePosixPath
 
 
 class SourceInventoryError(AssertionError):
@@ -32,7 +33,7 @@ def _validated_subtree(subtree: str) -> PurePosixPath:
     return candidate
 
 
-def discover_source_files(*, root: Path, subtree: str) -> tuple[str, ...]:
+def discover_source_files(*, root: pathlib.Path, subtree: str) -> tuple[str, ...]:
     """Return every regular file below ``subtree`` in deterministic order.
 
     The local checker reads the reviewed source trees through read-only mounts.
@@ -42,7 +43,7 @@ def discover_source_files(*, root: Path, subtree: str) -> tuple[str, ...]:
     Committed immutable context proof belongs to the scientific source checks.
     """
 
-    if not isinstance(root, expected_type := Path):
+    if not isinstance(root, expected_type := pathlib.Path):
         raise TypeError(f"{root=} does not have {expected_type=}")
 
     subtree_path = _validated_subtree(subtree)
@@ -56,21 +57,21 @@ def discover_source_files(*, root: Path, subtree: str) -> tuple[str, ...]:
 
     discovered: list[str] = []
 
-    for path in sorted(base.rglob("*"), key=lambda item: item.as_posix()):
-        relative = path.relative_to(root).as_posix()
+    for source_path in sorted(base.rglob("*"), key=lambda source_path: source_path.as_posix()):
+        repo_relative_path = source_path.relative_to(root).as_posix()
 
         # todo: double check logic
 
-        if path.is_symlink():
-            raise SourceInventoryError(f"{relative=} must not be a symlink")
+        if source_path.is_symlink():
+            raise SourceInventoryError(f"{repo_relative_path=} must not be a symlink")
 
-        if path.is_dir():
+        if source_path.is_dir():
             continue
 
-        if not path.is_file():
-            raise SourceInventoryError(f"{relative=} must be a regular file")
+        if not source_path.is_file():
+            raise SourceInventoryError(f"{repo_relative_path=} must be a regular file")
 
-        discovered.append(relative)
+        discovered.append(repo_relative_path)
 
     return tuple(discovered)
 
