@@ -220,18 +220,29 @@ class WheelhouseTests(unittest.TestCase):
         path.write_bytes(b"different")
         inode = path.stat().st_ino
 
-        with self.assertRaisesRegex(ValueError, "existing file is preserved"):
+        with self.assertRaises(ValueError) as captured:
             tool.run("acquire", self.lock, self.pool)
 
+        cached_sha256 = hashlib.sha256(b"different").hexdigest()
+        expected_sha256 = hashlib.sha256(self.content).hexdigest()
+
+        self.assertIn(f"{cached_sha256=}", str(captured.exception))
+        self.assertIn(f"{expected_sha256=}", str(captured.exception))
+        self.assertIn("retained", str(captured.exception))
         self.assertEqual((b"different", inode), (path.read_bytes(), path.stat().st_ino))
         self.assertEqual([], self.requests)
 
     def test_invalid_download_leaves_no_final_or_temporary_file(self):
-        self.write_lock("0" * 64)
+        expected_sha256 = "0" * 64
+        downloaded_sha256 = hashlib.sha256(self.content).hexdigest()
 
-        with self.assertRaisesRegex(ValueError, "downloaded bytes differ"):
+        self.write_lock(expected_sha256)
+
+        with self.assertRaises(ValueError) as captured:
             tool.run("acquire", self.lock, self.pool)
 
+        self.assertIn(f"{downloaded_sha256=}", str(captured.exception))
+        self.assertIn(f"{expected_sha256=}", str(captured.exception))
         self.assertEqual([".wheelhouse-acquire.lock"], [path.name for path in self.pool.iterdir()])
 
     def test_download_failure_reports_safe_network_evidence(self):
@@ -378,12 +389,18 @@ class WheelhouseTests(unittest.TestCase):
         self.assertEqual(self.content, (self.pool / self.name).read_bytes())
 
     def test_cleanup_failure_preserves_hash_mismatch(self):
-        self.write_lock('0' * 64)
+        expected_sha256 = "0" * 64
+        downloaded_sha256 = hashlib.sha256(self.content).hexdigest()
+
+        self.write_lock(expected_sha256)
 
         with patch.object(tool.os, 'unlink', side_effect=PermissionError('private')):
-            with self.assertRaisesRegex(OSError, 'downloaded bytes differ from the lock'):
+            with self.assertRaises(OSError) as captured:
                 tool.run('acquire', self.lock, self.pool)
 
+        self.assertIn(f"{downloaded_sha256=}", str(captured.exception))
+        self.assertIn(f"{expected_sha256=}", str(captured.exception))
+        self.assertIn("could not remove the temporary file", str(captured.exception))
         self.assertFalse((self.pool / self.name).exists())
 
     def test_cleanup_failure_preserves_local_write_failure(self):
@@ -405,7 +422,7 @@ class WheelhouseTests(unittest.TestCase):
 
         for (contents, expected) in (
             (self.content, 'a competing final file was verified'),
-            (b'conflict', 'the competing final file differs from the lock')
+            (b'conflict', 'a competing file failed verification')
         ):
             with self.subTest(expected=expected):
                 destination.write_bytes(contents)
@@ -585,8 +602,15 @@ class WheelhouseTests(unittest.TestCase):
 
         source.mkdir()
 
-        with self.assertRaisesRegex(ValueError, "bytes differ"):
+        with self.assertRaises(ValueError) as captured:
             stream_context(self.pool, source, [{"lock": str(self.lock), "directory": "wheels"}], io.BytesIO())
+
+        artifact_sha256 = hashlib.sha256(b"wrong").hexdigest()
+        expected_sha256 = hashlib.sha256(self.content).hexdigest()
+
+        self.assertIn(self.name, str(captured.exception))
+        self.assertIn(f"{artifact_sha256=}", str(captured.exception))
+        self.assertIn(f"{expected_sha256=}", str(captured.exception))
 
         (source / "link").symlink_to(self.root)
 
@@ -625,8 +649,15 @@ class WheelhouseTests(unittest.TestCase):
 
         entry["destination"] = "a/file"
 
-        with self.assertRaisesRegex(ValueError, "source bytes differ"):
+        with self.assertRaises(ValueError) as captured:
             stream_context(self.pool, None, [], io.BytesIO(), [entry])
+
+        source_sha256 = hashlib.sha256(self.lock.read_bytes()).hexdigest()
+        expected_sha256 = entry["sha256"]
+
+        self.assertIn("a/file", str(captured.exception))
+        self.assertIn(f"{source_sha256=}", str(captured.exception))
+        self.assertIn(f"{expected_sha256=}", str(captured.exception))
 
         alias = self.root / "alias"
 

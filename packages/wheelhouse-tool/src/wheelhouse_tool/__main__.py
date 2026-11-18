@@ -65,8 +65,12 @@ def sha256(path, directory_fd=None):
     descriptor = os.open(path, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK, dir_fd=directory_fd)
 
     with os.fdopen(descriptor, "rb") as stream:
-        if not stat.S_ISREG(os.fstat(stream.fileno()).st_mode):
-            raise ValueError(f"Cannot use {Path(path).name}: expected a regular file.")
+        file_mode = os.fstat(stream.fileno()).st_mode
+
+        if not stat.S_ISREG(file_mode):
+            artifact_name = Path(path).name
+
+            raise ValueError(f"{artifact_name=} should name a regular file, but {file_mode=:#o}")
 
         return hashlib.file_digest(stream, "sha256").hexdigest()
 
@@ -193,15 +197,18 @@ def selected(lock, prefer_sdist, require_sdist=(), document=None, source_lock=No
     return artifacts
 
 
-def inspect_artifact(pool, name, digest, directory_fd=None):
+def inspect_artifact(pool, artifact_name, expected_sha256, directory_fd=None):
     try:
-        actual = sha256(name if directory_fd is not None else pool / name, directory_fd)
+        cached_sha256 = sha256(artifact_name if directory_fd is not None else pool / artifact_name, directory_fd)
     # silent-defaults: allow-exception-outcome -- Missing cached wheel bytes establish a checked negative presence result; hash mismatch remains an error.
     except FileNotFoundError:
         return False
 
-    if actual != digest:
-        raise ValueError(f"Cannot use {name}: cached bytes differ from the lock; the existing file is preserved.")
+    if not (cached_sha256 == expected_sha256):
+        raise ValueError(
+            f"For {artifact_name=}, {cached_sha256=} should match {expected_sha256=}. "
+            f"The existing file was retained."
+        )
 
     return True
 
@@ -210,7 +217,7 @@ def download(pool, name, digest, url, directory_fd):
     retry(lambda: download_once(pool, name, digest, url, directory_fd), f"Cannot acquire {name}")
 
 
-def download_once(pool, name, digest, url, directory_fd):
+def download_once(pool, artifact_name, expected_sha256, url, directory_fd):
     temporary = f".wheelhouse-{secrets.token_hex(16)}.part"
     descriptor = os.open(temporary, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600, dir_fd=directory_fd)
     published = False
@@ -223,7 +230,7 @@ def download_once(pool, name, digest, url, directory_fd):
             try:
                 source = request(lambda: urllib.request.urlopen(url, timeout=60))
             except ValueError:
-                raise ValueError(f"Cannot acquire {name}: the download request is invalid.") from None
+                raise ValueError(f"Cannot acquire {artifact_name=}. The download request is invalid.") from None
 
             with source:
                 checksum = hashlib.sha256()
@@ -250,28 +257,30 @@ def download_once(pool, name, digest, url, directory_fd):
                 if (length is not None) and (received < length):
                     raise RequestFailure(http.client.IncompleteRead(b"", length - received)) from None
 
-            if checksum.hexdigest() != digest:
+            downloaded_sha256 = checksum.hexdigest()
+
+            if not (downloaded_sha256 == expected_sha256):
                 hash_mismatch = True
 
-                raise ValueError(f"Cannot acquire {name}: downloaded bytes differ from the lock.")
+                raise ValueError(f"For {artifact_name=}, {downloaded_sha256=} should match {expected_sha256=}")
 
             target.flush()
             os.fchmod(target.fileno(), 0o644)
             os.fsync(target.fileno())
 
         try:
-            os.link(temporary, name, src_dir_fd=directory_fd, dst_dir_fd=directory_fd, follow_symlinks=False)
+            os.link(temporary, artifact_name, src_dir_fd=directory_fd, dst_dir_fd=directory_fd, follow_symlinks=False)
             published = True
         except FileExistsError:
             try:
-                present = inspect_artifact(pool, name, digest, directory_fd)
+                present = inspect_artifact(pool, artifact_name, expected_sha256, directory_fd)
             except ValueError:
                 winner_conflict = True
 
                 raise
 
             if not present:
-                raise FileNotFoundError(f"Cannot acquire {name}: the competing file disappeared.")
+                raise FileNotFoundError(f"Cannot acquire {artifact_name=}. The competing file disappeared.")
 
             winner_verified = True
 
@@ -303,10 +312,10 @@ def download_once(pool, name, digest, url, directory_fd):
                 details.append(f"a local file operation failed{number}")
 
             if hash_mismatch:
-                details.append("downloaded bytes differ from the lock")
+                details.append(f"{downloaded_sha256=} should match {expected_sha256=}")
 
             if winner_conflict:
-                details.append("the competing final file differs from the lock")
+                details.append(f"a competing file failed verification ({pending})")
 
             if published:
                 details.append("the verified final file was published")
@@ -314,7 +323,7 @@ def download_once(pool, name, digest, url, directory_fd):
                 details.append("a competing final file was verified")
 
             details.append("could not remove the temporary file from the wheelhouse")
-            raise OSError(f"Cannot finish acquiring {name}: {'; '.join(details)}.") from None
+            raise OSError(f"Cannot finish acquiring {artifact_name=}: {'; '.join(details)}.") from None
 
 
 # silent-defaults: allow-contract -- Explicit absence of source preferences is represented by immutable empty tuples; artifacts=None requests exact lock selection.

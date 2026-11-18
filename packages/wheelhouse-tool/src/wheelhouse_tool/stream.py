@@ -219,8 +219,11 @@ def stream_context(pool, source, selections, output, source_allowlist=None):
                     if not stat.S_ISREG(metadata.st_mode):
                         raise ValueError(f"Cannot stream {name}: expected a regular source file.")
 
-                    if name in source_modes and bool(metadata.st_mode & 0o111) != source_modes[name]:
-                        raise ValueError(f"Cannot stream {name}: source executable mode differs from the captured input.")
+                    if (
+                        (name in source_modes) and
+                        ((source_is_executable := bool(metadata.st_mode & 0o111)) != (expected_executable := source_modes[name]))
+                    ):
+                        raise ValueError(f"For source {name!r}, {source_is_executable=} should match {expected_executable=}")
 
                     if metadata.st_mode & 0o111:
                         info.mode = 0o755
@@ -232,10 +235,13 @@ def stream_context(pool, source, selections, output, source_allowlist=None):
 
                     tar.addfile(info, reader)
 
-                    if name in source_hashes and reader.digest.hexdigest() != source_hashes[name]:
-                        raise ValueError(f"Cannot stream {name}: source bytes differ from the captured input.")
+                    if (
+                        (name in source_hashes) and
+                        ((source_sha256 := reader.digest.hexdigest()) != (expected_sha256 := source_hashes[name]))
+                    ):
+                        raise ValueError(f"For source {name!r}, {source_sha256=} should match {expected_sha256=}")
 
-        for (destination, (name, expected)) in sorted(artifacts.items()):
+        for (destination, (name, expected_sha256)) in sorted(artifacts.items()):
             descriptor = os.open(name, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK, dir_fd=directory_fd)
 
             with os.fdopen(descriptor, "rb") as file:
@@ -251,8 +257,10 @@ def stream_context(pool, source, selections, output, source_allowlist=None):
 
                 tar.addfile(info, reader)
 
-                if reader.digest.hexdigest() != expected:
-                    raise ValueError(f"Cannot stream {name}: bytes differ from the lock.")
+                artifact_sha256 = reader.digest.hexdigest()
+
+                if not (artifact_sha256 == expected_sha256):
+                    raise ValueError(f"For artifact {name!r}, {artifact_sha256=} should match {expected_sha256=}")
 
         tar.close()
         output.flush()
