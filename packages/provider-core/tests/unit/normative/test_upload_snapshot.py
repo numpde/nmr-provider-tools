@@ -3,7 +3,7 @@
 import json
 import os
 import unittest
-from pathlib import Path
+import pathlib
 from unittest.mock import patch
 
 from provider_core.uploads import VerifiedUpload, read_upload_file
@@ -48,7 +48,7 @@ class UploadSnapshotTests(unittest.IsolatedAsyncioTestCase):
             )
 
             self.assertEqual(api.calls, requests)
-            self.assertTrue(Path(root, receipt.name).exists())
+            self.assertTrue(pathlib.Path(root, receipt.name).exists())
 
     def test_empty_and_multichunk_files_obey_explicit_read_bounds(self):
         for content in (b"", b"a" * (2 * 65536 + 7)):
@@ -84,6 +84,6 @@ class UploadSnapshotTests(unittest.IsolatedAsyncioTestCase):
             receipt = snapshot_source(root, content)
             snapshot = read_upload_file(receipt, directory_fd=directory, maximum_bytes=100)
 
-            Path(root, receipt.name).write_bytes(b"changed after verification")
+            pathlib.Path(root, receipt.name).write_bytes(b"changed after verification")
             self.assertEqual(json.loads(snapshot.data), {"atom_order": ["H", "C"]})
             self.assertEqual(snapshot.data, content)

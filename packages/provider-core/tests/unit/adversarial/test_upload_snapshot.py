@@ -5,8 +5,8 @@ import errno
 import os
 import traceback
 import unittest
+import pathlib
 from dataclasses import replace
-from pathlib import Path
 from unittest.mock import Mock, patch
 
 from provider_core.uploads import UploadFileReadFailed, read_upload_file
@@ -34,18 +34,18 @@ class UploadSnapshotTests(unittest.TestCase):
 
                     opened.assert_not_called()
 
-            self.assertEqual(Path(root, receipt.name).read_bytes(), b"original")
+            self.assertEqual(pathlib.Path(root, receipt.name).read_bytes(), b"original")
 
     def test_symlink_directory_and_fifo_never_return_a_snapshot(self):
         for kind in ("symlink", "directory", "fifo"):
             with self.subTest(kind=kind), private_source_directory() as (root, directory):
                 receipt = snapshot_source(root, b"original")
-                path = Path(root, receipt.name)
+                path = pathlib.Path(root, receipt.name)
 
                 path.unlink()
 
                 if kind == "symlink":
-                    target = Path(root, "target")
+                    target = pathlib.Path(root, "target")
 
                     target.write_bytes(b"original")
                     path.symlink_to(target)
@@ -63,7 +63,7 @@ class UploadSnapshotTests(unittest.TestCase):
     def test_replacement_after_open_reads_the_original_object_once(self):
         with private_source_directory() as (root, directory):
             receipt = snapshot_source(root, b"original")
-            path = Path(root, receipt.name)
+            path = pathlib.Path(root, receipt.name)
             opened = os.open
             descriptors = []
 
@@ -71,7 +71,7 @@ class UploadSnapshotTests(unittest.TestCase):
                 descriptor = opened(name, flags, dir_fd=dir_fd)
 
                 descriptors.append(descriptor)
-                path.replace(Path(root, "retired-original"))
+                path.replace(pathlib.Path(root, "retired-original"))
                 path.write_bytes(b"replaced")
 
                 return descriptor
@@ -92,7 +92,7 @@ class UploadSnapshotTests(unittest.TestCase):
         with private_source_directory() as (root, directory):
             receipt = snapshot_source(root, b"original")
 
-            Path(root, receipt.name).write_bytes(b"replaced")
+            pathlib.Path(root, receipt.name).write_bytes(b"replaced")
             parser = Mock()
 
             with observe_source_files(directory) as calls, self.assertRaisesRegex(UploadFileReadFailed, "SHA-256"):
@@ -116,7 +116,7 @@ class UploadSnapshotTests(unittest.TestCase):
                 observed.append(len(chunk))
 
                 if len(observed) == 1:
-                    Path(root, receipt.name).write_bytes(b"c" * len(original))
+                    pathlib.Path(root, receipt.name).write_bytes(b"c" * len(original))
 
                 return chunk
 
@@ -143,7 +143,7 @@ class UploadSnapshotTests(unittest.TestCase):
             def mutate_after_stat(descriptor):
                 result = fstat(descriptor)
 
-                Path(root, receipt.name).write_bytes(changed)
+                pathlib.Path(root, receipt.name).write_bytes(changed)
 
                 return result
 
@@ -190,7 +190,7 @@ class UploadSnapshotTests(unittest.TestCase):
             self.assertIs(close_failure.cause, cleanup)
             self.assertIn("retire", str(close_failure).lower())
             self.assertEqual(len(calls), 1)
-            self.assertEqual(Path(root, receipt.name).read_bytes(), b"original")
+            self.assertEqual(pathlib.Path(root, receipt.name).read_bytes(), b"original")
             self.assertNotIn("PRIVATE", str(caught.exception) + str(close_failure))
             self.assertNotIn("PRIVATE", "".join(traceback.format_exception(caught.exception)))
 

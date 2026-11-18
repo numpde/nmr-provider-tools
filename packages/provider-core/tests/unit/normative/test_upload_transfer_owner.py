@@ -4,9 +4,9 @@ import asyncio
 import os
 import threading
 import unittest
+import pathlib
 from dataclasses import replace
 from datetime import datetime
-from pathlib import Path
 from unittest.mock import patch
 
 from provider_core.uploads import UploadFailed, UploadTransfer, VerifiedUploadFile
@@ -46,7 +46,7 @@ class UploadTransferOwnerTests(unittest.IsolatedAsyncioTestCase):
             self.assertIs(transfer.last_failure.cause, original)
             self.assertIsInstance(transfer.last_failure.interruption, TimeoutError)
             self.assertFalse(transfer.last_failure.grant_issued)
-            self.assertEqual(list(Path(root).iterdir()), [])
+            self.assertEqual(list(pathlib.Path(root).iterdir()), [])
 
     async def test_buffered_download_rejects_malformed_grant_before_sending_bearer(self):
         (owner, api, store) = sources()
@@ -89,7 +89,7 @@ class UploadTransferOwnerTests(unittest.IsolatedAsyncioTestCase):
                     await transfer.acquire_file(grant, directory_fd=directory, retirement_seconds=0.1)
 
                 self.assertEqual(client.calls, [])
-                self.assertEqual(list(Path(root).iterdir()), [])
+                self.assertEqual(list(pathlib.Path(root).iterdir()), [])
 
     async def test_direct_request_budget_failure_stops_before_store_and_removes_file(self):
         (_, api, store, client) = file_sources()
@@ -119,7 +119,7 @@ class UploadTransferOwnerTests(unittest.IsolatedAsyncioTestCase):
 
             self.assertIs(caught.exception.cause, original)
             self.assertEqual(client.calls, [])
-            self.assertEqual(list(Path(root).iterdir()), [])
+            self.assertEqual(list(pathlib.Path(root).iterdir()), [])
 
     async def test_direct_store_exchange_is_bounded_by_remaining_deadline(self):
         (_, api, store, _) = file_sources()
@@ -148,7 +148,7 @@ class UploadTransferOwnerTests(unittest.IsolatedAsyncioTestCase):
 
             self.assertIsNotNone(caught.exception.cause)
             self.assertFalse(caught.exception.grant_issued)
-            self.assertEqual(list(Path(root).iterdir()), [])
+            self.assertEqual(list(pathlib.Path(root).iterdir()), [])
 
     async def test_direct_accounting_failure_preserves_cause_and_cleans_file(self):
         (_, api, store, client) = file_sources()
@@ -178,7 +178,7 @@ class UploadTransferOwnerTests(unittest.IsolatedAsyncioTestCase):
 
             self.assertIs(caught.exception.cause.primary, original)
             self.assertFalse(caught.exception.grant_issued)
-            self.assertEqual(list(Path(root).iterdir()), [])
+            self.assertEqual(list(pathlib.Path(root).iterdir()), [])
 
     async def test_direct_pending_store_write_retains_original_owner_until_retirement(self):
         (_, api, store, client) = file_sources()
@@ -225,14 +225,14 @@ class UploadTransferOwnerTests(unittest.IsolatedAsyncioTestCase):
                 with self.assertRaises(UploadFailed):
                     await transfer.settle_file()
 
-                self.assertEqual(len(list(Path(root).iterdir())), 1)
+                self.assertEqual(len(list(pathlib.Path(root).iterdir())), 1)
             finally:
                 release_store_write.set()
                 await asyncio.gather(task, return_exceptions=True)
                 await store.retire(owner=transfer)
                 await transfer.settle_file()
 
-            self.assertEqual(list(Path(root).iterdir()), [])
+            self.assertEqual(list(pathlib.Path(root).iterdir()), [])
 
     async def test_grant_factory_failure_preserves_cause_and_removes_opened_file(self):
         (_, api, store, _) = file_sources()
@@ -256,7 +256,7 @@ class UploadTransferOwnerTests(unittest.IsolatedAsyncioTestCase):
 
             self.assertIs(caught.exception.cause, original)
             self.assertFalse(caught.exception.grant_issued)
-            self.assertEqual(list(Path(root).iterdir()), [])
+            self.assertEqual(list(pathlib.Path(root).iterdir()), [])
             self.assertEqual(api.calls, [])
 
     async def test_direct_owner_creates_before_grant_and_verifies_without_membership_reads(self):
@@ -278,14 +278,14 @@ class UploadTransferOwnerTests(unittest.IsolatedAsyncioTestCase):
             return_value=client
         ):
             async def grant():
-                self.assertEqual(len(list(Path(root).iterdir())), 1)
+                self.assertEqual(len(list(pathlib.Path(root).iterdir())), 1)
 
                 return api.grant
 
             receipt = await transfer.acquire_file(grant, directory_fd=directory, retirement_seconds=0.1)
 
             self.assertIs(type(receipt), VerifiedUploadFile)
-            self.assertEqual(Path(root, receipt.name).read_bytes(), b"geometry")
+            self.assertEqual(pathlib.Path(root, receipt.name).read_bytes(), b"geometry")
             self.assertEqual(charged, [8])
             self.assertEqual(api.calls, [])
             self.assertTrue(store.retirement_confirmed)
@@ -315,5 +315,5 @@ class UploadTransferOwnerTests(unittest.IsolatedAsyncioTestCase):
                 await transfer.acquire_file(grant, directory_fd=directory, retirement_seconds=0.1)
 
             self.assertFalse(caught.exception.grant_issued)
-            self.assertEqual(list(Path(root).iterdir()), [])
+            self.assertEqual(list(pathlib.Path(root).iterdir()), [])
             self.assertEqual(api.calls, [])

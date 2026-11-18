@@ -3,7 +3,7 @@
 import asyncio
 import ssl
 import unittest
-from pathlib import Path
+import pathlib
 from unittest.mock import patch
 
 from provider_core.transport import ExchangeFailed, HttpTransport
@@ -57,7 +57,7 @@ class JobUploadsRetryDelegationTests(unittest.IsolatedAsyncioTestCase):
                 self.assertEqual(owner.received_bytes, 1)
                 self.assertEqual(owner.requests_started, 7)
                 self.assertEqual(len(client.calls), 1)
-                self.assertEqual(list(Path(root).iterdir()), [])
+                self.assertEqual(list(pathlib.Path(root).iterdir()), [])
 
 
 class UploadRetryInterruptionTests(unittest.IsolatedAsyncioTestCase):

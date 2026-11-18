@@ -14,12 +14,12 @@ import json
 import stat
 import struct
 import zlib
+import pathlib
 from contextlib import contextmanager
 from dataclasses import dataclass
 from hashlib import sha256
 from io import BytesIO
 from lzma import LZMAError
-from pathlib import Path
 from zipfile import BadZipFile, ZipExtFile, ZipFile, ZipInfo, is_zipfile
 
 from provider_core.uploads import UploadFileReadFailed, VerifiedUploadFile, read_upload_file
@@ -137,7 +137,7 @@ class SourceAccess:
     def __init__(
         self,
         files: dict[str, VerifiedUploadFile],
-        directory: Path,
+        directory: pathlib.Path,
         *,
         directory_fd: int,
         max_upload_bytes: int,

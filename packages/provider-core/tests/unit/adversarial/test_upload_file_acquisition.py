@@ -5,7 +5,7 @@ import errno
 import os
 import threading
 import unittest
-from pathlib import Path
+import pathlib
 from unittest.mock import patch
 
 from provider_core.uploads import UploadFailed, UploadInputRejected
@@ -49,7 +49,7 @@ class UploadFileAcquisitionTests(unittest.IsolatedAsyncioTestCase):
             try:
                 await asyncio.wait_for(entered.wait(), 1)
                 self.assertEqual(len(calls.names), 1)
-                self.assertEqual(len(list(Path(root).iterdir())), 1)
+                self.assertEqual(len(list(pathlib.Path(root).iterdir())), 1)
                 task.cancel("creation interrupted after open")
 
                 with self.assertRaises(asyncio.CancelledError) as caught:
@@ -72,7 +72,7 @@ class UploadFileAcquisitionTests(unittest.IsolatedAsyncioTestCase):
             self.assertIs(retained.interruption, caught.exception)
             self.assertEqual(len(calls.closed), 1)
             self.assertEqual(len(calls.removed), 1)
-            self.assertEqual(list(Path(root).iterdir()), [])
+            self.assertEqual(list(pathlib.Path(root).iterdir()), [])
             self.assertEqual(api.calls, ["membership"])
 
     async def test_expired_create_can_finish_cleanup_within_grace_without_claiming_pending_io(self):
@@ -112,7 +112,7 @@ class UploadFileAcquisitionTests(unittest.IsolatedAsyncioTestCase):
                     self.assertNotIn("remains owned", str(caught.exception))
                     self.assertEqual(len(calls.closed), 1)
                     self.assertEqual(len(calls.removed), 1)
-                    self.assertEqual(list(Path(root).iterdir()), [])
+                    self.assertEqual(list(pathlib.Path(root).iterdir()), [])
                     self.assertEqual(api.calls, ["membership"])
 
                     with self.assertRaisesRegex(UploadFailed, "total deadline expired"):
@@ -187,7 +187,7 @@ class UploadFileAcquisitionTests(unittest.IsolatedAsyncioTestCase):
 
                 self.assertEqual(create.call_count, 1)
                 self.assertEqual(api.calls, ["membership"])
-                self.assertEqual(list(Path(root).iterdir()), [])
+                self.assertEqual(list(pathlib.Path(root).iterdir()), [])
                 self.assertIs(owner.last_failure, retained)
 
                 if late_failure is None:
@@ -247,7 +247,7 @@ class UploadFileAcquisitionTests(unittest.IsolatedAsyncioTestCase):
 
                     await owner.settle_file()
 
-                self.assertEqual(list(Path(root).iterdir()), [])
+                self.assertEqual(list(pathlib.Path(root).iterdir()), [])
 
     async def test_cancelled_final_close_never_hands_off_and_settles_once(self):
         await self._held_close(cancel=True, late_failure=None)
@@ -338,7 +338,7 @@ class UploadFileAcquisitionTests(unittest.IsolatedAsyncioTestCase):
 
                 if late_failure is None:
                     self.assertEqual(len(calls.removed), 1)
-                    self.assertEqual(list(Path(root).iterdir()), [])
+                    self.assertEqual(list(pathlib.Path(root).iterdir()), [])
                 else:
                     retained = owner.last_failure
 
@@ -378,7 +378,7 @@ class UploadFileAcquisitionTests(unittest.IsolatedAsyncioTestCase):
                 self.assertIs(caught.exception.cause, close_failure)
                 self.assertEqual(len(calls.closed), 1)
                 descriptor = calls.descriptors[0]
-                replacement = os.open(Path(root, "replacement"), os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+                replacement = os.open(pathlib.Path(root, "replacement"), os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
 
                 if replacement != descriptor:
                     os.dup2(replacement, descriptor)
@@ -391,7 +391,7 @@ class UploadFileAcquisitionTests(unittest.IsolatedAsyncioTestCase):
                     self.assertEqual(len(calls.closed), 1)
                     self.assertEqual(calls.removed, [])
                     os.write(descriptor, b"still belongs to the replacement")
-                    self.assertEqual(Path(root, "replacement").read_bytes(), b"still belongs to the replacement")
+                    self.assertEqual(pathlib.Path(root, "replacement").read_bytes(), b"still belongs to the replacement")
                 finally:
                     calls._close(descriptor)
 
@@ -436,7 +436,7 @@ class UploadFileAcquisitionTests(unittest.IsolatedAsyncioTestCase):
                     self.assertIs(caught.exception.__cause__, original)
                     self.assertEqual(len(calls.closed), 1)
                     self.assertEqual(calls.removed, [])
-                    self.assertEqual(len(list(Path(root).iterdir())), 1)
+                    self.assertEqual(len(list(pathlib.Path(root).iterdir())), 1)
 
                     with self.assertRaises(UploadFailed):
                         await owner.inspect()
@@ -453,7 +453,7 @@ class UploadFileAcquisitionTests(unittest.IsolatedAsyncioTestCase):
 
                 self.assertEqual(unlink.call_count, 1)
                 self.assertEqual(len(calls.removed), 1)
-                self.assertEqual(list(Path(root).iterdir()), [])
+                self.assertEqual(list(pathlib.Path(root).iterdir()), [])
                 self.assertEqual(api.calls.count("grant"), 1)
 
     async def test_pending_store_write_blocks_file_cleanup_until_exact_transport_retirement(self):
@@ -522,7 +522,7 @@ class UploadFileAcquisitionTests(unittest.IsolatedAsyncioTestCase):
             self.assertTrue(store.retirement_confirmed)
             self.assertEqual(len(calls.closed), 1)
             self.assertEqual(len(calls.removed), 1)
-            self.assertEqual(list(Path(root).iterdir()), [])
+            self.assertEqual(list(pathlib.Path(root).iterdir()), [])
             self.assertEqual(writing.call_count, 1)
             self.assertEqual(api.calls.count("grant"), 1)
 
@@ -555,8 +555,8 @@ class UploadFileAcquisitionTests(unittest.IsolatedAsyncioTestCase):
             retained = owner.last_failure
 
             self.assertEqual(len(calls.closed), 1)
-            source = Path(root, calls.names[0])
-            replacement = Path(root, "replacement")
+            source = pathlib.Path(root, calls.names[0])
+            replacement = pathlib.Path(root, "replacement")
 
             replacement.write_bytes(b"replacement must survive")
 
@@ -605,7 +605,7 @@ class UploadFileAcquisitionTests(unittest.IsolatedAsyncioTestCase):
             self.assertEqual(api.calls, ["membership"])
             self.assertEqual(len(calls.closed), 1)
             self.assertEqual(calls.removed, [])
-            Path(root, calls.names[0]).unlink()
+            pathlib.Path(root, calls.names[0]).unlink()
             await owner.settle_file()
 
     async def test_polling_pending_removal_does_not_erase_a_concrete_cleanup_cause(self):
@@ -663,7 +663,7 @@ class UploadFileAcquisitionTests(unittest.IsolatedAsyncioTestCase):
 
                 self.assertEqual(unlink.call_count, 1)
                 self.assertEqual(len(calls.removed), 1)
-                self.assertEqual(list(Path(root).iterdir()), [])
+                self.assertEqual(list(pathlib.Path(root).iterdir()), [])
 
     async def test_nonprivate_destination_refuses_before_refresh_or_grant(self):
         (owner, api, _, _) = file_sources()
@@ -679,7 +679,7 @@ class UploadFileAcquisitionTests(unittest.IsolatedAsyncioTestCase):
             with self.assertRaises(UploadFailed):
                 await owner.acquire_file(UPLOAD_REF, directory_fd=directory, retirement_seconds=0.1)
 
-            self.assertEqual(list(Path(root).iterdir()), [])
+            self.assertEqual(list(pathlib.Path(root).iterdir()), [])
             self.assertEqual(api.calls, ["membership"])
             client.assert_not_called()
             os.fchmod(directory, 0o700)
@@ -708,7 +708,7 @@ class UploadFileAcquisitionTests(unittest.IsolatedAsyncioTestCase):
                 ):
                     await owner.acquire_file(UPLOAD_REF, directory_fd=directory, retirement_seconds=0.1)
 
-                self.assertEqual(list(Path(root).iterdir()), [])
+                self.assertEqual(list(pathlib.Path(root).iterdir()), [])
                 self.assertEqual(len(calls.closed), 1)
                 self.assertEqual((owner.received_bytes, owner.requests_started), (8, 4))
                 self.assertEqual(api.calls.count("grant"), 1)
@@ -728,7 +728,7 @@ class UploadFileAcquisitionTests(unittest.IsolatedAsyncioTestCase):
                 with self.assertRaises(UploadFailed):
                     await owner.acquire_file(UPLOAD_REF, directory_fd=directory, retirement_seconds=0.1)
 
-                self.assertEqual(list(Path(root).iterdir()), [])
+                self.assertEqual(list(pathlib.Path(root).iterdir()), [])
                 self.assertEqual(owner.received_bytes, len(body))
                 self.assertEqual(api.calls.count("grant"), 1)
 
@@ -741,7 +741,7 @@ class UploadFileAcquisitionTests(unittest.IsolatedAsyncioTestCase):
             with self.assertRaises(UploadInputRejected):
                 await owner.acquire_file(UPLOAD_REF, directory_fd=directory, retirement_seconds=0.1)
 
-            self.assertEqual(list(Path(root).iterdir()), [])
+            self.assertEqual(list(pathlib.Path(root).iterdir()), [])
             self.assertEqual(api.calls, ["membership"])
 
     async def test_failed_file_transfer_spends_the_byte_path_budget_and_removes_unverified_file(self):
@@ -759,7 +759,7 @@ class UploadFileAcquisitionTests(unittest.IsolatedAsyncioTestCase):
 
             self.assertTrue(caught.exception.grant_issued)
             self.assertEqual(owner.received_bytes, 8)
-            self.assertEqual(list(Path(root).iterdir()), [])
+            self.assertEqual(list(pathlib.Path(root).iterdir()), [])
             await owner.inspect()
 
             with self.assertRaises(UploadFailed) as caught:
@@ -782,7 +782,7 @@ class UploadFileAcquisitionTests(unittest.IsolatedAsyncioTestCase):
             with self.assertRaisesRegex(UploadFailed, "SHA-256"):
                 await owner.acquire_file(UPLOAD_REF, directory_fd=directory, retirement_seconds=0.1)
 
-            self.assertEqual(list(Path(root).iterdir()), [])
+            self.assertEqual(list(pathlib.Path(root).iterdir()), [])
             self.assertEqual(owner.received_bytes, 8)
 
     async def test_failed_byte_transfer_cannot_regain_budget_by_switching_to_file_output(self):
@@ -805,6 +805,6 @@ class UploadFileAcquisitionTests(unittest.IsolatedAsyncioTestCase):
 
             self.assertNotIsInstance(caught.exception, UploadInputRejected)
             self.assertEqual(owner.received_bytes, 8)
-            self.assertEqual(list(Path(root).iterdir()), [])
+            self.assertEqual(list(pathlib.Path(root).iterdir()), [])
             self.assertEqual(api.calls.count("grant"), 1)
             self.assertEqual(clients.call_count, 1)

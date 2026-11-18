@@ -4,7 +4,7 @@ import hashlib
 import os
 import stat
 import unittest
-from pathlib import Path
+import pathlib
 from unittest.mock import patch
 
 from provider_core.uploads import VerifiedUploadFile
@@ -28,7 +28,7 @@ class UploadFileAcquisitionTests(unittest.IsolatedAsyncioTestCase):
             self.assertIs(type(result), VerifiedUploadFile)
             self.assertEqual((result.job_ref, result.upload_ref, result.byte_length), ("job:example", UPLOAD_REF, 8))
             self.assertEqual(result.content_hash, "sha256:" + hashlib.sha256(b"geometry").hexdigest())
-            path = Path(root) / result.name
+            path = pathlib.Path(root) / result.name
 
             self.assertEqual(path.read_bytes(), b"geometry")
             self.assertEqual(stat.S_IMODE(path.stat().st_mode), 0o600)
@@ -56,7 +56,7 @@ class UploadFileAcquisitionTests(unittest.IsolatedAsyncioTestCase):
             await owner.inspect()
             result_bytes = await owner.acquire(UPLOAD_REF)
 
-            self.assertEqual(Path(root, result.name).read_bytes(), result_bytes.data)
+            self.assertEqual(pathlib.Path(root, result.name).read_bytes(), result_bytes.data)
             self.assertEqual((owner.received_bytes, owner.requests_started), (16, 8))
             self.assertEqual(api.calls.count("grant"), 2)
             self.assertEqual(clients.call_count, 2)
@@ -77,4 +77,4 @@ class UploadFileAcquisitionTests(unittest.IsolatedAsyncioTestCase):
             finally:
                 os.umask(previous)
 
-            self.assertEqual(stat.S_IMODE(Path(root, result.name).stat().st_mode), 0o600)
+            self.assertEqual(stat.S_IMODE(pathlib.Path(root, result.name).stat().st_mode), 0o600)

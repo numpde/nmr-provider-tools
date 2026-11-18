@@ -4,9 +4,9 @@ import asyncio
 import hashlib
 import stat
 import unittest
+import pathlib
 from dataclasses import replace
 from datetime import UTC, datetime
-from pathlib import Path
 from unittest.mock import patch
 
 from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
@@ -74,8 +74,8 @@ class UploadAcquisitionIntegrationTests(unittest.IsolatedAsyncioTestCase):
                         with private_source_directory() as (root, directory):
                             verified = await owner.acquire_file(UPLOAD_REF, directory_fd=directory, retirement_seconds=0.3)
 
-                            self.assertEqual(Path(root, verified.name).read_bytes(), body)
-                            self.assertEqual(stat.S_IMODE(Path(root, verified.name).stat().st_mode), 0o600)
+                            self.assertEqual(pathlib.Path(root, verified.name).read_bytes(), body)
+                            self.assertEqual(stat.S_IMODE(pathlib.Path(root, verified.name).stat().st_mode), 0o600)
                     else:
                         verified = await owner.acquire(UPLOAD_REF)
 

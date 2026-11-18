@@ -5,9 +5,9 @@ import stat
 import struct
 import unittest
 import warnings
+import pathlib
 from dataclasses import replace
 from io import BytesIO
-from pathlib import Path
 from unittest.mock import Mock, patch
 from zipfile import ZIP_BZIP2, ZIP_LZMA, ZipExtFile, ZipFile, ZipInfo
 
@@ -25,7 +25,7 @@ class SecsSourceReceivingTests(unittest.TestCase):
 
         with private_source_directory() as (root, directory):
             receipt = snapshot_source(root, body)
-            access = SourceAccess({UPLOAD_REF: receipt}, Path(root), directory_fd=directory, max_upload_bytes=len(body))
+            access = SourceAccess({UPLOAD_REF: receipt}, pathlib.Path(root), directory_fd=directory, max_upload_bytes=len(body))
 
             with (
                 patch("tests.fakes.secs_sources.read_upload_file", wraps=read_upload_file) as snapshots,
@@ -45,13 +45,13 @@ class SecsSourceReceivingTests(unittest.TestCase):
     def test_direct_scope_uses_one_verified_copy_even_after_same_size_path_replacement(self):
         with private_source_directory() as (root, directory):
             receipt = snapshot_source(root, b"original")
-            access = SourceAccess({UPLOAD_REF: receipt}, Path(root), directory_fd=directory, max_upload_bytes=8)
+            access = SourceAccess({UPLOAD_REF: receipt}, pathlib.Path(root), directory_fd=directory, max_upload_bytes=8)
 
             with (
                 patch("tests.fakes.secs_sources.read_upload_file", wraps=read_upload_file) as snapshots,
                 access.scope_reader(SourceRef(UPLOAD_REF)) as reader,
             ):
-                Path(root, receipt.name).write_bytes(b"replaced")
+                pathlib.Path(root, receipt.name).write_bytes(b"replaced")
                 self.assertEqual(reader.read(SourceRef(UPLOAD_REF)).contents, b"original")
 
             snapshots.assert_called_once()
@@ -61,12 +61,12 @@ class SecsSourceReceivingTests(unittest.TestCase):
 
         with private_source_directory() as (root, directory):
             receipt = snapshot_source(root, original)
-            access = SourceAccess({UPLOAD_REF: receipt}, Path(root), directory_fd=directory, max_upload_bytes=len(original))
+            access = SourceAccess({UPLOAD_REF: receipt}, pathlib.Path(root), directory_fd=directory, max_upload_bytes=len(original))
 
             def change_after_snapshot(*arguments, **options):
                 snapshot = read_upload_file(*arguments, **options)
 
-                Path(root, receipt.name).write_bytes(b"x" * len(original))
+                pathlib.Path(root, receipt.name).write_bytes(b"x" * len(original))
 
                 return snapshot
 
@@ -84,9 +84,9 @@ class SecsSourceReceivingTests(unittest.TestCase):
 
         with private_source_directory() as (root, directory):
             receipt = snapshot_source(root, body)
-            access = SourceAccess({UPLOAD_REF: receipt}, Path(root), directory_fd=directory, max_upload_bytes=len(body))
+            access = SourceAccess({UPLOAD_REF: receipt}, pathlib.Path(root), directory_fd=directory, max_upload_bytes=len(body))
 
-            Path(root, receipt.name).write_bytes(b"x" * len(body))
+            pathlib.Path(root, receipt.name).write_bytes(b"x" * len(body))
 
             with (
                 patch("tests.fakes.secs_sources.is_zipfile") as sniff,
@@ -105,7 +105,7 @@ class SecsSourceReceivingTests(unittest.TestCase):
 
             access = SourceAccess(
                 {UPLOAD_REF: replace(receipt, upload_ref=other)},
-                Path(root),
+                pathlib.Path(root),
                 directory_fd=directory,
                 max_upload_bytes=8
             )
@@ -127,7 +127,7 @@ class SecsSourceReceivingTests(unittest.TestCase):
 
             access = SourceAccess(
                 {UPLOAD_REF: receipt},
-                Path(root),
+                pathlib.Path(root),
                 directory_fd=directory,
                 max_upload_bytes=len(body),
                 max_scope_bytes=10
@@ -152,7 +152,7 @@ class SecsSourceReceivingTests(unittest.TestCase):
 
             member_limited = SourceAccess(
                 {UPLOAD_REF: receipt},
-                Path(root),
+                pathlib.Path(root),
                 directory_fd=directory,
                 max_upload_bytes=len(body),
                 max_member_bytes=5
@@ -163,7 +163,7 @@ class SecsSourceReceivingTests(unittest.TestCase):
 
             scope_limited = SourceAccess(
                 {UPLOAD_REF: receipt},
-                Path(root),
+                pathlib.Path(root),
                 directory_fd=directory,
                 max_upload_bytes=len(body),
                 max_scope_bytes=9
@@ -178,7 +178,7 @@ class SecsSourceReceivingTests(unittest.TestCase):
 
         with private_source_directory() as (root, directory):
             receipt = snapshot_source(root, body)
-            access = SourceAccess({UPLOAD_REF: receipt}, Path(root), directory_fd=directory, max_upload_bytes=len(body))
+            access = SourceAccess({UPLOAD_REF: receipt}, pathlib.Path(root), directory_fd=directory, max_upload_bytes=len(body))
 
             with patch("tests.fakes.secs_sources.ZipFile") as archive, self.assertRaisesRegex(InputReadError, "4096"):
                 access.read(SourceRef(UPLOAD_REF, "chosen"))
@@ -192,7 +192,7 @@ class SecsSourceReceivingTests(unittest.TestCase):
             with self.subTest(reason=reason), private_source_directory() as (root, directory):
                 body = struct.pack("<4s4H2LH", b"PK\x05\x06", disk, disk, count, count, 0, 0, 0)
                 receipt = snapshot_source(root, body)
-                access = SourceAccess({UPLOAD_REF: receipt}, Path(root), directory_fd=directory, max_upload_bytes=len(body))
+                access = SourceAccess({UPLOAD_REF: receipt}, pathlib.Path(root), directory_fd=directory, max_upload_bytes=len(body))
 
                 with patch("tests.fakes.secs_sources.ZipFile") as archive, self.assertRaisesRegex(InputReadError, reason):
                     access.read(SourceRef(UPLOAD_REF, "chosen"))
@@ -207,7 +207,7 @@ class SecsSourceReceivingTests(unittest.TestCase):
 
         with private_source_directory() as (root, directory):
             receipt = snapshot_source(root, body)
-            access = SourceAccess({UPLOAD_REF: receipt}, Path(root), directory_fd=directory, max_upload_bytes=len(body))
+            access = SourceAccess({UPLOAD_REF: receipt}, pathlib.Path(root), directory_fd=directory, max_upload_bytes=len(body))
 
             with self.assertRaisesRegex(InputReadError, "262144-byte inspection limit"):
                 access.scope(SourceRef(UPLOAD_REF))
@@ -230,7 +230,7 @@ class SecsSourceReceivingTests(unittest.TestCase):
         ):
             with self.subTest(member=name), private_source_directory() as (root, directory):
                 receipt = snapshot_source(root, body)
-                access = SourceAccess({UPLOAD_REF: receipt}, Path(root), directory_fd=directory, max_upload_bytes=len(body))
+                access = SourceAccess({UPLOAD_REF: receipt}, pathlib.Path(root), directory_fd=directory, max_upload_bytes=len(body))
 
                 with self.assertRaises(InputReadError):
                     access.read(SourceRef(UPLOAD_REF, name))
@@ -244,7 +244,7 @@ class SecsSourceReceivingTests(unittest.TestCase):
 
         with private_source_directory() as (root, directory):
             receipt = snapshot_source(root, bytes(body))
-            access = SourceAccess({UPLOAD_REF: receipt}, Path(root), directory_fd=directory, max_upload_bytes=len(body))
+            access = SourceAccess({UPLOAD_REF: receipt}, pathlib.Path(root), directory_fd=directory, max_upload_bytes=len(body))
 
             with patch.object(ZipFile, "open") as decoder, self.assertRaisesRegex(InputReadError, "encrypted"):
                 access.read(SourceRef(UPLOAD_REF, "encrypted"))
@@ -258,7 +258,7 @@ class SecsSourceReceivingTests(unittest.TestCase):
                 start = raw.index("é.jdx".encode(), raw.index(header))
                 raw[start] = 0xFF
                 receipt = snapshot_source(root, bytes(raw))
-                access = SourceAccess({UPLOAD_REF: receipt}, Path(root), directory_fd=directory, max_upload_bytes=len(raw))
+                access = SourceAccess({UPLOAD_REF: receipt}, pathlib.Path(root), directory_fd=directory, max_upload_bytes=len(raw))
 
                 with self.assertRaises(InputReadError):
                     access.read(SourceRef(UPLOAD_REF, "é.jdx"))
@@ -268,7 +268,7 @@ class SecsSourceReceivingTests(unittest.TestCase):
 
         with private_source_directory() as (root, directory):
             receipt = snapshot_source(root, body)
-            access = SourceAccess({UPLOAD_REF: receipt}, Path(root), directory_fd=directory, max_upload_bytes=len(body))
+            access = SourceAccess({UPLOAD_REF: receipt}, pathlib.Path(root), directory_fd=directory, max_upload_bytes=len(body))
             views = []
 
             def observe_view(contents):
@@ -306,7 +306,7 @@ class SecsSourceReceivingTests(unittest.TestCase):
                 payload = 30 + int.from_bytes(raw[26:28], "little") + int.from_bytes(raw[28:30], "little")
                 raw[payload + offset] ^= 255
                 receipt = snapshot_source(root, bytes(raw))
-                access = SourceAccess({UPLOAD_REF: receipt}, Path(root), directory_fd=directory, max_upload_bytes=len(raw))
+                access = SourceAccess({UPLOAD_REF: receipt}, pathlib.Path(root), directory_fd=directory, max_upload_bytes=len(raw))
 
                 with self.assertRaises(InputReadError):
                     access.read(SourceRef(UPLOAD_REF, "spectrum.jdx"))
@@ -327,7 +327,7 @@ class SecsSourceReceivingTests(unittest.TestCase):
 
             access = SourceAccess(
                 {UPLOAD_REF: receipt},
-                Path(root),
+                pathlib.Path(root),
                 directory_fd=directory,
                 max_upload_bytes=len(raw),
                 max_scope_bytes=10

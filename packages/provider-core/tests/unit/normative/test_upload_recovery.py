@@ -7,7 +7,7 @@ import random
 import ssl
 import time
 import unittest
-from pathlib import Path
+import pathlib
 from unittest.mock import patch
 
 import httpcore
@@ -134,7 +134,7 @@ class UploadRecoveryTests(unittest.IsolatedAsyncioTestCase):
 
                 def notice(failure, seconds):
                     self.assertTrue(all(client.closed for client in clients[:4]))
-                    self.assertEqual(list(Path(root).iterdir()), [])
+                    self.assertEqual(list(pathlib.Path(root).iterdir()), [])
                     notices.append(failure)
 
                 (owner, _, store) = self.owner(recovery=self.policy(on_retry=notice))
@@ -154,7 +154,7 @@ class UploadRecoveryTests(unittest.IsolatedAsyncioTestCase):
                     if file:
                         result = await owner.acquire_file(UPLOAD_REF, directory_fd=directory, retirement_seconds=0.1)
 
-                        self.assertEqual(Path(root, result.name).read_bytes(), BODY)
+                        self.assertEqual(pathlib.Path(root, result.name).read_bytes(), BODY)
                         os.unlink(result.name, dir_fd=directory)
                     else:
                         self.assertEqual((await owner.acquire(UPLOAD_REF)).data, BODY)
@@ -492,8 +492,8 @@ class UploadRecoveryTests(unittest.IsolatedAsyncioTestCase):
             await owner.inspect()
             receipt = await owner.acquire_file(UPLOAD_REF, directory_fd=directory, retirement_seconds=0.1)
 
-            self.assertEqual(Path(root, receipt.name).read_bytes(), BODY)
-            self.assertEqual(len(list(Path(root).iterdir())), 1)
+            self.assertEqual(pathlib.Path(root, receipt.name).read_bytes(), BODY)
+            self.assertEqual(len(list(pathlib.Path(root).iterdir())), 1)
             self.assertIs(owner.recovery_failure, notices[0].cause)
             self.assertEqual(owner.recovery_failure.problem_code, "upload_read_not_finalized")
             self.assertIsNone(owner.last_failure)

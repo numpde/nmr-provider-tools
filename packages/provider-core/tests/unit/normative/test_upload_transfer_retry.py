@@ -4,8 +4,8 @@ import asyncio
 import errno
 import os
 import unittest
+import pathlib
 from dataclasses import replace
-from pathlib import Path
 from unittest.mock import patch
 
 import httpcore
@@ -85,7 +85,7 @@ class UploadTransferRetryTests(unittest.IsolatedAsyncioTestCase):
 
                 self.assertEqual(transfer.can_retry_transfer(caught.exception), origin == "network")
                 self.assertFalse(caught.exception.grant_issued)
-                self.assertEqual(list(Path(root).iterdir()), [])
+                self.assertEqual(list(pathlib.Path(root).iterdir()), [])
 
                 if origin in {"network", "account", "write"}:
                     self.assertIs(caught.exception.cause.primary, original)
@@ -253,7 +253,7 @@ class UploadTransferRetryTests(unittest.IsolatedAsyncioTestCase):
             self.assertFalse(transfer.can_retry_transfer(failure))
             await transfer.settle_file()
             self.assertTrue(transfer.can_retry_transfer(failure))
-            self.assertEqual(list(Path(root).iterdir()), [])
+            self.assertEqual(list(pathlib.Path(root).iterdir()), [])
 
     async def test_source_deadline_never_gains_permission_from_temporary_store_failure(self):
         (_, api, store, _) = file_sources()
@@ -339,4 +339,4 @@ class UploadTransferRetryTests(unittest.IsolatedAsyncioTestCase):
                     self.assertIs(failure.cause.primary, original)
                     self.assertIs(failure.cause.network_failure, original)
 
-                self.assertEqual(list(Path(root).iterdir()), [])
+                self.assertEqual(list(pathlib.Path(root).iterdir()), [])

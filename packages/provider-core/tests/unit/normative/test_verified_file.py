@@ -1,8 +1,8 @@
 """Verify the file handed to a consumer and retain its original handle."""
 
+import pathlib
 from hashlib import sha256
 from io import BytesIO
-from pathlib import Path
 import unittest
 from unittest.mock import patch
 
@@ -15,8 +15,8 @@ class VerifiedFileTests(unittest.TestCase):
         opened_file = BytesIO(contents)
         expected_sha256 = sha256(contents).hexdigest()
 
-        with patch.object(target=Path, attribute="open", return_value=opened_file):
-            with open_verified_file(source_file_path=Path("model.bin"), expected_sha256=expected_sha256) as verified_file:
+        with patch.object(target=pathlib.Path, attribute="open", return_value=opened_file):
+            with open_verified_file(source_file_path=pathlib.Path("model.bin"), expected_sha256=expected_sha256) as verified_file:
                 self.assertIs(expr1=opened_file, expr2=verified_file)
                 self.assertEqual(first=contents, second=verified_file.read())
 
@@ -27,9 +27,9 @@ class VerifiedFileTests(unittest.TestCase):
         opened_file = BytesIO(contents)
         expected_sha256 = "0" * 64
 
-        with patch.object(target=Path, attribute="open", return_value=opened_file):
+        with patch.object(target=pathlib.Path, attribute="open", return_value=opened_file):
             with self.assertRaises(expected_exception=ValueError) as failure:
-                with open_verified_file(source_file_path=Path("model.bin"), expected_sha256=expected_sha256):
+                with open_verified_file(source_file_path=pathlib.Path("model.bin"), expected_sha256=expected_sha256):
                     self.fail("A mismatched file must not be handed to the consumer")
 
         self.assertTrue(expr=opened_file.closed)
@@ -41,9 +41,9 @@ class VerifiedFileTests(unittest.TestCase):
         opened_file = BytesIO(contents)
         failure = OSError("Model loading failed")
 
-        with patch.object(target=Path, attribute="open", return_value=opened_file):
+        with patch.object(target=pathlib.Path, attribute="open", return_value=opened_file):
             with self.assertRaises(expected_exception=OSError) as raised:
-                with open_verified_file(source_file_path=Path("model.bin"), expected_sha256=sha256(contents).hexdigest()):
+                with open_verified_file(source_file_path=pathlib.Path("model.bin"), expected_sha256=sha256(contents).hexdigest()):
                     raise failure
 
         self.assertIs(expr1=failure, expr2=raised.exception)

@@ -5,9 +5,9 @@ import hashlib
 import os
 import ssl
 import tempfile
+import pathlib
 from contextlib import contextmanager
 from datetime import UTC, datetime, timedelta
-from pathlib import Path
 from unittest.mock import patch
 
 from provider_core.transport import HttpResponse, HttpResponseHead, HttpTransport
@@ -112,7 +112,7 @@ def private_source_directory():
 
 
 def snapshot_source(root, data):
-    path = Path(root) / "source"
+    path = pathlib.Path(root) / "source"
 
     path.write_bytes(data)
 

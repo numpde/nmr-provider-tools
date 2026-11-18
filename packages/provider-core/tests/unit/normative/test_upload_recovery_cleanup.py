@@ -6,7 +6,7 @@ import os
 import ssl
 import threading
 import unittest
-from pathlib import Path
+import pathlib
 from unittest.mock import patch
 
 import httpcore
@@ -116,7 +116,7 @@ class UploadRecoveryCleanupTests(unittest.IsolatedAsyncioTestCase):
                 self.assertEqual(calls, [owner])
                 self.assertFalse(api.retirement_confirmed)
                 self.assertFalse(owner._transfer_owner.file_cleanup_pending)
-                self.assertEqual(list(Path(root).iterdir()), [])
+                self.assertEqual(list(pathlib.Path(root).iterdir()), [])
                 self.assertIs(caught.exception, owner.last_failure)
                 self.assertIn(api_transport.last_failure, caught.exception.cleanup_failures)
                 self.assertEqual(notices, [])
@@ -199,7 +199,7 @@ class UploadRecoveryCleanupTests(unittest.IsolatedAsyncioTestCase):
                                 await task
 
                         self.assertEqual(calls, [owner])
-                        self.assertEqual(list(Path(root).iterdir()), [])
+                        self.assertEqual(list(pathlib.Path(root).iterdir()), [])
                         self.assertFalse(owner._transfer_owner.file_cleanup_pending)
                         record = owner.last_failure
 
