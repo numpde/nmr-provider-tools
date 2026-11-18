@@ -14,7 +14,8 @@ import hashlib
 import io
 import json
 import os
-from pathlib import Path, PurePosixPath
+import pathlib
+from pathlib import PurePosixPath
 import re
 import shutil
 import stat
@@ -41,8 +42,8 @@ class AcquisitionManifest(TypedDict):
     dependency_inputs: dict[str, str]
 
 
-def _version(value):
-    return type(value) is str and re.fullmatch(r"(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)", value)
+def _version(release_version):
+    return type(release_version) is str and re.fullmatch(r"(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)", release_version)
 
 
 def is_checksum(candidate_checksum):
@@ -51,8 +52,8 @@ def is_checksum(candidate_checksum):
 
 def read_pin(release_pin_path):
     """Read the consumer's expected release; downloads never rewrite this pin."""
-    (data, _) = _regular_bytes(Path(release_pin_path))
-    pin = json.loads(data)
+    (pin_bytes, _) = _regular_bytes(pathlib.Path(release_pin_path))
+    pin = json.loads(pin_bytes)
 
     if not (type(pin) is (expected_type := dict)):
         raise TypeError(f"{release_pin_path=}; {type(pin)=} ≠ {expected_type=}")
@@ -78,24 +79,24 @@ def _relative_name(acquisition_path):
     if (not acquisition_path) or ("\0" in acquisition_path):
         raise ValueError(f"Acquisition path must be nonempty and contain no nulls: {acquisition_path=}")
 
-    path = PurePosixPath(acquisition_path)
+    posix_path = PurePosixPath(acquisition_path)
 
     is_canonical_relative_path = (
-        bool(path.parts) and
-        (not path.is_absolute()) and
-        (".." not in path.parts) and
-        (path.as_posix() == acquisition_path)
+        bool(posix_path.parts) and
+        (not posix_path.is_absolute()) and
+        (".." not in posix_path.parts) and
+        (posix_path.as_posix() == acquisition_path)
     )
 
     if not is_canonical_relative_path:
         raise ValueError(f"Acquisition path is not canonical and relative: {acquisition_path=}")
 
-    return path
+    return posix_path
 
 
-def read_manifest(data: str | bytes | bytearray) -> AcquisitionManifest:
+def read_manifest(manifest_json: str | bytes | bytearray) -> AcquisitionManifest:
     """Admit the recorded inventory, excluding only the manifest's own bytes."""
-    manifest = json.loads(data)
+    manifest = json.loads(manifest_json)
 
     if not (type(manifest) is (expected_type := dict)):
         raise TypeError(f"{type(manifest)=} ≠ {expected_type=}")
@@ -124,22 +125,22 @@ def read_manifest(data: str | bytes | bytearray) -> AcquisitionManifest:
     if not re.fullmatch(r"[0-9a-f]{40}", manifest_source_revision):
         raise ValueError(f"Acquisition manifest revision must be 40 lowercase hexadecimal characters: {manifest_source_revision=}")
 
-    entries = manifest["payload_files"]
+    payload_files = manifest["payload_files"]
 
-    if not (type(entries) is (expected_type := dict)):
-        raise TypeError(f"{type(entries)=} ≠ {expected_type=}")
+    if not (type(payload_files) is (expected_type := dict)):
+        raise TypeError(f"{type(payload_files)=} ≠ {expected_type=}")
 
-    if not entries:
+    if not payload_files:
         raise ValueError("Acquisition manifest payload inventory must not be empty")
 
-    if "acquisition-manifest.json" in entries:
+    if "acquisition-manifest.json" in payload_files:
         raise ValueError("Acquisition manifest payload inventory must not include the manifest itself")
 
-    for (acquisition_rel_path, entry) in entries.items():
+    for (acquisition_rel_path, entry) in payload_files.items():
         inventory_path = _relative_name(acquisition_rel_path)
 
         for parent in inventory_path.parents:
-            if parent.as_posix() in entries:
+            if parent.as_posix() in payload_files:
                 raise ValueError(f"Acquisition {acquisition_rel_path=} has an inventoried {parent=}")
 
         if not (type(entry) is (expected_type := dict)):
@@ -226,13 +227,13 @@ def verify(source_dir):
     release before updating the old snapshot. Git review remains the trust
     boundary for coordinated changes to metadata, payload or this updater.
     """
-    source = Path(source_dir).absolute()
+    source = pathlib.Path(source_dir).absolute()
 
     if source.resolve() != source or source.is_symlink() or not source.is_dir():
         raise ValueError(f"Cannot verify acquisition source {source}: require a real directory without symlink parents.")
 
     manifest_path = source / "acquisition-manifest.json"
-    (data, metadata) = _regular_bytes(manifest_path)
+    (manifest_bytes, metadata) = _regular_bytes(manifest_path)
     manifest_execute_bits = metadata.st_mode & 0o111
 
     if manifest_execute_bits:
@@ -243,11 +244,11 @@ def verify(source_dir):
     if manifest_link_count != 1:
         raise ValueError(f"Acquisition {manifest_path=}: {manifest_link_count=} ≠ 1")
 
-    manifest = read_manifest(data)
-    entries = manifest["payload_files"]
+    manifest = read_manifest(manifest_bytes)
+    payload_files = manifest["payload_files"]
 
     expected_dirs = {
-        parent.as_posix() for name in entries
+        parent.as_posix() for name in payload_files
         for parent in PurePosixPath(name).parents if parent != PurePosixPath(".")
     }
 
@@ -255,7 +256,7 @@ def verify(source_dir):
 
     for (root, directories, files) in os.walk(source, followlinks=False, onerror=_raise_walk_error):
         for name in directories:
-            acquisition_directory = Path(root) / name
+            acquisition_directory = pathlib.Path(root) / name
 
             if acquisition_directory.is_symlink():
                 raise ValueError(f"Acquisition directory is a symlink: {acquisition_directory=}")
@@ -266,14 +267,14 @@ def verify(source_dir):
                 raise ValueError(f"Acquisition source has an unrecorded {acquisition_rel_directory=}")
 
         for name in files:
-            acquisition_file_path = Path(root) / name
+            acquisition_file_path = pathlib.Path(root) / name
             acquisition_rel_path = acquisition_file_path.relative_to(source).as_posix()
 
             if acquisition_rel_path == "acquisition-manifest.json":
                 actual.add(acquisition_rel_path)
                 continue
 
-            if not (acquisition_rel_path in entries):
+            if not (acquisition_rel_path in payload_files):
                 raise ValueError(f"Acquisition source contains an unrecorded file: {acquisition_rel_path=}")
 
             (content, metadata) = _regular_bytes(acquisition_file_path)
@@ -283,12 +284,12 @@ def verify(source_dir):
             if acquisition_link_count != 1:
                 raise ValueError(f"Acquisition {acquisition_rel_path=}: {acquisition_link_count=} ≠ 1")
 
-            _check_bytes(acquisition_rel_path, content, entries[acquisition_rel_path])
+            _check_bytes(acquisition_rel_path, content, payload_files[acquisition_rel_path])
 
             # Git records executable bits, not checkout read/write permissions.
             actual_execute_bits = metadata.st_mode & 0o111
 
-            release_execute_bits = entries[acquisition_rel_path]["mode"] & 0o111
+            release_execute_bits = payload_files[acquisition_rel_path]["mode"] & 0o111
 
             if actual_execute_bits != release_execute_bits:
                 raise ValueError(
@@ -297,7 +298,7 @@ def verify(source_dir):
 
             actual.add(acquisition_rel_path)
 
-    unobserved_files = sorted((set(entries) | {"acquisition-manifest.json"}) - actual)
+    unobserved_files = sorted((set(payload_files) | {"acquisition-manifest.json"}) - actual)
 
     if unobserved_files:
         raise ValueError(f"Acquisition source did not contain {unobserved_files=}")
@@ -350,9 +351,9 @@ def _admit_archive(
         payload = {member.name: archive.extractfile(member).read() for member in members}
         manifest = read_manifest(payload["acquisition-manifest.json"])
 
-        entries = manifest["payload_files"]
+        payload_files = manifest["payload_files"]
 
-        expected_members = set(entries) | {"acquisition-manifest.json"}
+        expected_members = set(payload_files) | {"acquisition-manifest.json"}
         missing_members = sorted(expected_members - set(payload))
 
         if missing_members:
@@ -367,7 +368,7 @@ def _admit_archive(
             if member.name == "acquisition-manifest.json":
                 continue
 
-            entry = entries[member.name]
+            entry = payload_files[member.name]
             expected_size = entry["size"]
             expected_mode = entry["mode"]
 
@@ -412,14 +413,14 @@ def _publish(source, stage):
 
 
 def _import_verified_old(source, pin, archive):
-    (archive_bytes, _metadata) = _regular_bytes(Path(archive))
+    (archive_bytes, _metadata) = _regular_bytes(pathlib.Path(archive))
 
     (payload, manifest) = _admit_archive(
         archive_bytes=archive_bytes,
         expected_archive_sha256=pin["archive_sha256"],
     )
 
-    stage = Path(tempfile.mkdtemp(prefix=".acquisition-next-", dir=source.parent))
+    stage = pathlib.Path(tempfile.mkdtemp(prefix=".acquisition-next-", dir=source.parent))
 
     try:
         manifest_path = stage / "acquisition-manifest.json"
@@ -430,17 +431,17 @@ def _import_verified_old(source, pin, archive):
         manifest_path.chmod(0o644)
 
         for (name, entry) in manifest["payload_files"].items():
-            path = stage / name
+            staged_file = stage / name
 
-            path.parent.mkdir(parents=True, exist_ok=True)
+            staged_file.parent.mkdir(parents=True, exist_ok=True)
 
-            with path.open("xb") as stream:
+            with staged_file.open("xb") as stream:
                 stream.write(payload[name])
 
-            path.chmod(entry["mode"])
+            staged_file.chmod(entry["mode"])
 
         for (root, _directories, _files) in os.walk(stage):
-            Path(root).chmod(0o755)
+            pathlib.Path(root).chmod(0o755)
 
         verify(stage)
 
@@ -462,7 +463,7 @@ def _import_verified_old(source, pin, archive):
 
 def import_archive(source_dir, pin_file, archive):
     """Replace clean old source from an authenticated local archive, offline."""
-    source = Path(source_dir).absolute()
+    source = pathlib.Path(source_dir).absolute()
 
     verify(source)
 
@@ -471,7 +472,7 @@ def import_archive(source_dir, pin_file, archive):
 
 def update(source_dir, pin_file):
     """Download the one pinned GitHub asset and use the same import boundary."""
-    source = Path(source_dir).absolute()
+    source = pathlib.Path(source_dir).absolute()
 
     verify(source)
     pin = read_pin(pin_file)
@@ -496,7 +497,7 @@ def update(source_dir, pin_file):
                 check=True
             )
 
-            manifest = _import_verified_old(source, pin, Path(temporary) / name)
+            manifest = _import_verified_old(source, pin, pathlib.Path(temporary) / name)
             published = True
     except BaseException as error:
         if published:
@@ -515,13 +516,13 @@ def main():
     for operation in ("verify", "update", "import"):
         command = commands.add_parser(operation)
 
-        command.add_argument("--source-dir", type=Path, required=True)
+        command.add_argument("--source-dir", type=pathlib.Path, required=True)
 
         if operation != "verify":
-            command.add_argument("--pin-file", type=Path, required=True)
+            command.add_argument("--pin-file", type=pathlib.Path, required=True)
 
         if operation == "import":
-            command.add_argument("--archive", type=Path, required=True)
+            command.add_argument("--archive", type=pathlib.Path, required=True)
 
     args = parser.parse_args()
 

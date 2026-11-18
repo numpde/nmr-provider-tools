@@ -3,21 +3,21 @@
 import argparse
 import ipaddress
 import os
+import pathlib
 import socket
 import subprocess
-from pathlib import Path
 
 
 class ResolverCaptureFailed(OSError):
     """A safe explanation of why the scope has no usable resolver capture."""
 
 
-def _addresses(values):
+def _addresses(resolver_tokens):
     servers = []
 
-    for value in values:
+    for resolver_token in resolver_tokens:
         try:
-            address = ipaddress.IPv4Address(value)
+            address = ipaddress.IPv4Address(resolver_token)
         except ipaddress.AddressValueError:
             continue
 
@@ -29,7 +29,7 @@ def _addresses(values):
 
 def _manager_output(command):
     try:
-        result = subprocess.run(
+        manager_command = subprocess.run(
             command,
             capture_output=True,
             text=True,
@@ -46,10 +46,10 @@ def _manager_output(command):
 
     # An absent service or unmanaged link supplies no configuration.
     # Consult the other configured source, never an invented public resolver.
-    if result.returncode != 0:
+    if manager_command.returncode != 0:
         return ""
 
-    return result.stdout
+    return manager_command.stdout
 
 
 def capture_dns_servers(interface):
@@ -74,14 +74,14 @@ def capture_dns_servers(interface):
         if servers:
             return servers
 
-    for path in (Path("/run/systemd/resolve/resolv.conf"), Path("/etc/resolv.conf")):
+    for resolver_file in (pathlib.Path("/run/systemd/resolve/resolv.conf"), pathlib.Path("/etc/resolv.conf")):
         try:
-            lines = path.read_text(encoding="ascii").splitlines()
+            lines = resolver_file.read_text(encoding="ascii").splitlines()
         except OSError:
             continue
 
-        values = [fields[1] for line in lines if len(fields := line.split()) == 2 and fields[0] == "nameserver"]
-        servers = _addresses(values)
+        resolver_tokens = [fields[1] for line in lines if len(fields := line.split()) == 2 and fields[0] == "nameserver"]
+        servers = _addresses(resolver_tokens)
 
         if servers:
             return servers
@@ -93,7 +93,7 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
 
     parser.add_argument("--interface", required=True)
-    parser.add_argument("--output", required=True, type=Path)
+    parser.add_argument("--output", required=True, type=pathlib.Path)
     args = parser.parse_args()
 
     try:

@@ -2,7 +2,7 @@
 import http.server
 import json
 import os
-from pathlib import Path
+import pathlib
 import socket
 import sys
 from urllib.parse import urlsplit
@@ -70,7 +70,7 @@ def denied(family, address):
 
 
 def check_routes():
-    routes = Path("/proc/net/route").read_text().splitlines()[1:]
+    routes = pathlib.Path("/proc/net/route").read_text().splitlines()[1:]
 
     if any(
         len(parts) >= 8 and parts[1] == "00000000" and parts[7] == "00000000"
@@ -78,7 +78,7 @@ def check_routes():
     ):
         raise RuntimeError("IPv4 default route exists")
 
-    path = Path("/proc/net/ipv6_route")
+    path = pathlib.Path("/proc/net/ipv6_route")
 
     if path.exists():
         for line in path.read_text().splitlines():
@@ -94,7 +94,7 @@ def check_routes():
 
 if sys.argv[1] == "origin":
     with http.server.HTTPServer(("127.0.0.2", 0), Origin) as server:
-        Path(sys.argv[2]).write_text(str(server.server_port) + "\n")
+        pathlib.Path(sys.argv[2]).write_text(str(server.server_port) + "\n")
         server.serve_forever()
 elif sys.argv[1] == "session-offline":
     check_routes()

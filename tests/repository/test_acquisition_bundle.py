@@ -14,7 +14,7 @@ import sys
 import tarfile
 import tempfile
 import unittest
-from pathlib import Path
+import pathlib
 import zipfile
 
 from tools.build_acquisition_bundle import build, INSTALLER_SOURCES, PROXY_FILES, SOURCE_FILES
@@ -25,7 +25,7 @@ from tests.repository.quality.sources import ROOT
 class AcquisitionBundleTests(unittest.TestCase):
     def test_missing_pinned_identity_wheel_names_its_acquisition_action(self):
         with tempfile.TemporaryDirectory() as directory:
-            result = subprocess.run(
+            completed_process = subprocess.run(
                 ["bash", str(ROOT / "host/tools/acquisition_identity_test.sh")],
                 env=os.environ | {
                     "NMR_SELECTED_DOCKER_ENDPOINT": "unix:///fixture.sock",
@@ -38,12 +38,12 @@ class AcquisitionBundleTests(unittest.TestCase):
                 check=False
             )
 
-            self.assertNotEqual(0, result.returncode)
-            self.assertEqual("", result.stdout)
-            self.assertIn("Cannot test acquisition identity:", result.stderr)
-            self.assertIn("is missing from WHEELHOUSE", result.stderr)
-            self.assertIn("make packages/provider-core/download", result.stderr)
-            self.assertNotIn("Traceback", result.stderr)
+            self.assertNotEqual(0, completed_process.returncode)
+            self.assertEqual("", completed_process.stdout)
+            self.assertIn("Cannot test acquisition identity:", completed_process.stderr)
+            self.assertIn("is missing from WHEELHOUSE", completed_process.stderr)
+            self.assertIn("make packages/provider-core/download", completed_process.stderr)
+            self.assertNotIn("Traceback", completed_process.stderr)
 
     def fixture(self, root):
         source = root / "source"
@@ -105,7 +105,7 @@ class AcquisitionBundleTests(unittest.TestCase):
 
     def test_rebuild_has_identical_bytes_and_normalized_source_provenance(self):
         with tempfile.TemporaryDirectory() as temporary:
-            root = Path(temporary)
+            root = pathlib.Path(temporary)
             (source, wheel, identity, pin) = self.fixture(root)
             (first, second) = (root / "first.tar.gz", root / "second.tar.gz")
             record = self.build(root, first, source, wheel, pin)
@@ -153,7 +153,7 @@ class AcquisitionBundleTests(unittest.TestCase):
 
     def test_missing_owner_source_or_changed_identity_wheel_never_publishes_output(self):
         with tempfile.TemporaryDirectory() as temporary:
-            root = Path(temporary)
+            root = pathlib.Path(temporary)
             (source, wheel, identity, pin) = self.fixture(root)
             output = root / "bundle.tar.gz"
 
@@ -174,7 +174,7 @@ class AcquisitionBundleTests(unittest.TestCase):
 
     def test_dependency_payload_addition_needs_no_consumer_inventory_edit(self):
         with tempfile.TemporaryDirectory() as temporary:
-            root = Path(temporary)
+            root = pathlib.Path(temporary)
             (source, wheel, identity, pin) = self.fixture(root)
 
             with zipfile.ZipFile(identity, "a") as dependency:
@@ -206,7 +206,7 @@ class AcquisitionBundleTests(unittest.TestCase):
 
     def test_current_bootstrap_imports_a_new_bundle_with_the_authored_updater(self):
         with tempfile.TemporaryDirectory() as temporary:
-            root = Path(temporary)
+            root = pathlib.Path(temporary)
             (source, wheel, _identity, pin) = self.fixture(root)
             authored_updater = ROOT / "host/acquisition_tool/source_update.py"
 

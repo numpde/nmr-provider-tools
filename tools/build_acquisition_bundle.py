@@ -10,7 +10,8 @@ import io
 import json
 import os
 import re
-from pathlib import Path, PurePosixPath
+import pathlib
+from pathlib import PurePosixPath
 import tarfile
 import tempfile
 import tomllib
@@ -48,7 +49,7 @@ INSTALLER_SOURCES = (
 )
 
 
-def _add(files, name, data):
+def _add(files, name, member_bytes):
     member_path = PurePosixPath(name)
 
     if (
@@ -61,7 +62,7 @@ def _add(files, name, data):
             "Cannot build acquisition source bundle: duplicate or unsupported member path."
         )
 
-    files[name] = data
+    files[name] = member_bytes
 
 
 def dependency_files(pool, pin):
@@ -152,11 +153,11 @@ def contents(pool, source, core_wheel, pin, *, revision, wheelhouse_bundle):
 
     payload_inventory = {
         name: {
-            "sha256": hashlib.sha256(data).hexdigest(),
-            "size": len(data),
+            "sha256": hashlib.sha256(member_bytes).hexdigest(),
+            "size": len(member_bytes),
             "mode": 0o644,
         }
-        for (name, data) in sorted(files.items())
+        for (name, member_bytes) in sorted(files.items())
     }
 
     manifest = (json.dumps(
@@ -202,15 +203,15 @@ def build(pool, output, source, core_wheel, pin, *, revision, wheelhouse_bundle)
     ) as temporary:
         with gzip.GzipFile(fileobj=temporary, mode="wb", filename="", mtime=315532800) as compressed:
             with tarfile.open(fileobj=compressed, mode="w", format=tarfile.USTAR_FORMAT) as archive:
-                for (name, data) in sorted(files.items()):
+                for (name, member_bytes) in sorted(files.items()):
                     member = tarfile.TarInfo(name)
-                    member.size = len(data)
+                    member.size = len(member_bytes)
                     member.mode = 0o644
                     member.mtime = 315532800
                     member.uid = member.gid = 0
                     member.uname = member.gname = ""
 
-                    archive.addfile(member, io.BytesIO(data))
+                    archive.addfile(member, io.BytesIO(member_bytes))
 
         temporary.flush()
         os.fchmod(temporary.fileno(), 0o644)

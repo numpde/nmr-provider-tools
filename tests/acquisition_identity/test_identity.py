@@ -4,7 +4,7 @@ from contextlib import redirect_stderr, redirect_stdout
 import io
 import json
 import os
-from pathlib import Path
+import pathlib
 import shutil
 import signal
 import subprocess
@@ -21,13 +21,13 @@ from linux_idmap.probe import ProbeFailure, ProbeResources, ProbeResult, Problem
 class IdentityTests(unittest.TestCase):
     def test_isolated_wrapper_uses_its_bundle_and_preserves_arguments_streams_and_status(self):
         with tempfile.TemporaryDirectory() as directory:
-            root = Path(directory)
+            root = pathlib.Path(directory)
             package = root / "bundle/acquisition_tool"
 
             package.mkdir(parents=True)
 
             for name in ("__init__.py", "identity.py"):
-                shutil.copyfile(Path(identity.__file__).with_name(name), package / name)
+                shutil.copyfile(pathlib.Path(identity.__file__).with_name(name), package / name)
 
             (package / "identity_main.py").write_text(
                 'import json, sys\n'
@@ -44,7 +44,7 @@ class IdentityTests(unittest.TestCase):
             entrypoint = package / "identity.py"
             arguments = ["--image", "fixture image", "$(touch sentinel)"]
 
-            result = subprocess.run(
+            completed_process = subprocess.run(
                 [sys.executable, "-I", "-S", "-B", str(entrypoint), *arguments],
                 env=os.environ | {"PYTHONPATH": str(poison.parent)},
                 capture_output=True,
@@ -52,15 +52,15 @@ class IdentityTests(unittest.TestCase):
                 check=False,
             )
 
-            self.assertEqual(17, result.returncode, msg=result.stderr)
-            self.assertEqual([str(entrypoint), *arguments], json.loads(result.stdout))
-            self.assertEqual("probe diagnostic\n", result.stderr)
+            self.assertEqual(17, completed_process.returncode, msg=completed_process.stderr)
+            self.assertEqual([str(entrypoint), *arguments], json.loads(completed_process.stdout))
+            self.assertEqual("probe diagnostic\n", completed_process.stderr)
 
     def setUp(self):
         temporary = tempfile.TemporaryDirectory()
 
         self.addCleanup(temporary.cleanup)
-        self.receipt = Path(temporary.name) / "retired"
+        self.receipt = pathlib.Path(temporary.name) / "retired"
 
         self.argv = [
             "--endpoint",

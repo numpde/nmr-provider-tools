@@ -3,8 +3,8 @@
 import argparse
 import signal
 import sys
+import pathlib
 from dataclasses import replace
-from pathlib import Path
 
 from linux_idmap import Identifier
 from linux_idmap.probe import ProbeFailure, ProbeRequest, ProbeResources, ResourceState, StepError, probe_identity
@@ -34,7 +34,7 @@ def _inputs(args):
 
     if args.maps is None:
         if (args.host_uid is None or args.host_gid is None or args.userns is not None
-                or any(value is not None for value in policy)):
+                or any(policy_setting is not None for policy_setting in policy)):
             raise ValueError("Supply both host-owner IDs, or use --map with explicit probe policy.")
 
         request = ProbeRequest(args.endpoint, args.image, "/usr/local/bin/python3", 0, 0)
@@ -50,7 +50,7 @@ def _inputs(args):
     if args.host_uid is not None or args.host_gid is not None:
         raise ValueError("Do not combine host-owner IDs with --map projections.")
 
-    if any(value is None for value in policy):
+    if any(policy_setting is None for policy_setting in policy):
         raise ValueError("Mapping projections require an explicit interpreter, probe UID/GID and all three resource ceilings.")
 
     if not (len(args.maps) <= 512):
@@ -80,7 +80,7 @@ def _inputs(args):
 
 
 def _project(observation, projections):
-    values = []
+    translated_ids = []
 
     for (axis, direction, identifier) in projections:
         if axis == "uid":
@@ -89,11 +89,11 @@ def _project(observation, projections):
             mapping = observation.gid_map
 
         if direction == "forward":
-            values.append(mapping.translate(identifier))
+            translated_ids.append(mapping.translate(identifier))
         else:
-            values.append(mapping.translate_inverse(identifier))
+            translated_ids.append(mapping.translate_inverse(identifier))
 
-    return values
+    return translated_ids
 
 
 def main(argv=None):
@@ -111,7 +111,7 @@ def main(argv=None):
     parser.add_argument("--memory-bytes", type=int)
     parser.add_argument("--pids-limit", type=int)
     parser.add_argument("--nano-cpus", type=int)
-    parser.add_argument("--retired-receipt", required=True, type=Path)
+    parser.add_argument("--retired-receipt", required=True, type=pathlib.Path)
     args = parser.parse_args(argv)
     cancellation = Cancellation()
     previous = {number: signal.signal(number, cancellation.request) for number in (signal.SIGHUP, signal.SIGINT, signal.SIGTERM)}
@@ -124,7 +124,7 @@ def main(argv=None):
         retired = False
         observation = probe_identity(request, cancel=cancellation)
         retired = True
-        values = _project(observation, projections)
+        translated_ids = _project(observation, projections)
     except ProbeFailure as failure:
         problems = (failure.problem, *failure.retirement.problems)
 
@@ -164,7 +164,7 @@ def main(argv=None):
 
     # Receipt and restored caller handlers precede any usable projection output.
     if status == 0 and not cancellation.is_set():
-        sys.stdout.write(" ".join(map(str, values)) + "\n")
+        sys.stdout.write(" ".join(map(str, translated_ids)) + "\n")
 
     return 128 + cancellation.signal if cancellation.is_set() else status
 

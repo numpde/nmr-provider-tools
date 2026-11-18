@@ -8,7 +8,7 @@ import hashlib
 import io
 import json
 import os
-from pathlib import Path
+import pathlib
 import subprocess
 import sys
 import tarfile
@@ -120,7 +120,7 @@ class SourceUpdateTests(unittest.TestCase):
         temporary = tempfile.TemporaryDirectory()
 
         self.addCleanup(temporary.cleanup)
-        self.root = Path(temporary.name)
+        self.root = pathlib.Path(temporary.name)
         self.source = self.root / "source"
 
         self.source.mkdir()
@@ -440,11 +440,11 @@ class SourceUpdateTests(unittest.TestCase):
         self.assert_old_source()
 
     def test_git_checkout_modes_preserve_only_the_executable_contract(self):
-        path = self.source / "acquisition_tool/old.py"
+        old_source_path = self.source / "acquisition_tool/old.py"
 
-        path.chmod(0o664)
+        old_source_path.chmod(0o664)
         updates.verify(self.source)
-        path.chmod(0o755)
+        old_source_path.chmod(0o755)
 
         with self.assertRaisesRegex(ValueError, "actual_execute_bits=111.*release_execute_bits=000"):
             updates.verify(self.source)
@@ -525,7 +525,7 @@ class SourceUpdateTests(unittest.TestCase):
         verify = updates.verify
 
         def reject_stage(path):
-            if Path(path).name.startswith(".acquisition-next-"):
+            if pathlib.Path(path).name.startswith(".acquisition-next-"):
                 raise primary
 
             return verify(path)
@@ -544,7 +544,7 @@ class SourceUpdateTests(unittest.TestCase):
         self.assertTrue(check)
         self.assertEqual(["gh", "release", "download", "v2.0.0", "--repo", "numpde/nmr-provider-tools"], arguments[:6])
         self.assertEqual(["--pattern", "acquisition-owner-2.0.0.tar.gz"], arguments[-2:])
-        destination = Path(arguments[arguments.index("--dir") + 1])
+        destination = pathlib.Path(arguments[arguments.index("--dir") + 1])
 
         (destination / arguments[-1]).write_bytes(self.archive.read_bytes())
         self.download_directory = destination
