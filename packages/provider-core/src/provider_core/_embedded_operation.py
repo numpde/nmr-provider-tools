@@ -154,9 +154,7 @@ class _Operation(_Changes):
 
         try:
             if self.analysis.closed or self.stop_requested:
-                raise PermissionError(
-                    "This operation was stopped before its next scientific entry."
-                )
+                raise PermissionError("This operation was stopped before its next scientific entry.")
 
             _require_start_deadline(
                 start_not_after=self.invocation.start_not_after,
@@ -244,9 +242,7 @@ class _Operation(_Changes):
             require_type(result_payload, bytes)
 
             if not (len(result_payload) <= self.invocation.policy.reject_encoded_result_over_bytes):
-                raise ValueError(
-                    "Encoded scientific result exceeds its declared byte allowance."
-                )
+                raise ValueError("Encoded scientific result exceeds its declared byte allowance.")
 
             self.payload = result_payload
             self.result = ResultRef(self.reference, uuid4().hex)
@@ -483,17 +479,13 @@ class _Operation(_Changes):
             and self.finished
             and self.result_state is ResultState.AVAILABLE
         ):
-            raise ValueError(
-                "Result reference does not name this operation's available result."
-            )
+            raise ValueError("Result reference does not name this operation's available result.")
 
     async def read_result(self, result):
         self._require_result(result)
 
         if not (self.release is None):
-            raise ValueError(
-                "Release of this exact result has already been authorized."
-            )
+            raise ValueError("Release of this exact result has already been authorized.")
 
         return self.payload
 
@@ -562,9 +554,7 @@ class _Operation(_Changes):
 
         try:
             if self.raw is not None and type((actual_raw := self.raw)) is not (expected_type := ScientificReturn):
-                raise TypeError(
-                    f"{type(actual_raw)=} ≠ {expected_type=}"
-                )
+                raise TypeError(f"{type(actual_raw)=} ≠ {expected_type=}")
 
             if (
                 type(self.raw) is ScientificReturn

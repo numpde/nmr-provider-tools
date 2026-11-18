@@ -69,9 +69,7 @@ def limits(document):
         raise TypeError(f"{type(gc_settings)=} ≠ {expected_type=}")
 
     if not (type((gc_settings_enabled := gc_settings.get("enabled"))) is (expected_type := bool)):
-        raise TypeError(
-            f"{type(gc_settings_enabled)=} ≠ {expected_type=}"
-        )
+        raise TypeError(f"{type(gc_settings_enabled)=} ≠ {expected_type=}")
 
     if not gc_settings["enabled"]:
         return None

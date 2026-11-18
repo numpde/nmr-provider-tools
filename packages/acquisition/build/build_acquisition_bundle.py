@@ -59,9 +59,7 @@ def _add(files, name, member_bytes):
         or member_path.as_posix() != name
         or name in files
     ):
-        raise ValueError(
-            "Cannot build acquisition source bundle: duplicate or unsupported member path."
-        )
+        raise ValueError("Cannot build acquisition source bundle: duplicate or unsupported member path.")
 
     files[name] = member_bytes
 
@@ -71,9 +69,7 @@ def dependency_files(pool, pin):
     (wheel,) = package["wheels"]
 
     if package["name"] != "linux-idmap":
-        raise ValueError(
-            "Cannot build acquisition source bundle: require the qualified linux-idmap pin."
-        )
+        raise ValueError("Cannot build acquisition source bundle: require the qualified linux-idmap pin.")
 
     wheel_name = PurePosixPath(urlsplit(wheel["url"]).path).name
 
@@ -87,9 +83,7 @@ def dependency_files(pool, pin):
     observed_sha256 = hashlib.sha256(wheel_bytes).hexdigest()
 
     if observed_sha256 != wheel["hashes"]["sha256"]:
-        raise ValueError(
-            "Cannot build acquisition source bundle: identity wheel differs from its pinned hash."
-        )
+        raise ValueError("Cannot build acquisition source bundle: identity wheel differs from its pinned hash.")
 
     files = {}
 

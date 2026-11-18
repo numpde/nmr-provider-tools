@@ -94,9 +94,7 @@ def read_status(path, role):
     fields = { "role", "pid", "start_ticks", "updated_monotonic", "phase" }
 
     if not (type(status_record) is (expected_type := dict)):
-        raise TypeError(
-            f"{type(status_record)=} ≠ {expected_type=}",
-        )
+        raise TypeError(f"{type(status_record)=} ≠ {expected_type=}")
 
     if not (set(status_record) in (fields, fields | { "details" })):
         raise ValueError("Process status has an unsupported shape.")

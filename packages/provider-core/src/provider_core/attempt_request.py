@@ -26,9 +26,7 @@ def require_provider_attempt_key(value):
     require_type(value, str)
 
     if re.fullmatch(r"[A-Za-z0-9._:-]{1,128}", value) is None:
-        raise ValueError(
-            "Provider attempt key must contain 1 through 128 ASCII letters, digits, dots, underscores, colons or hyphens"
-        )
+        raise ValueError("Provider attempt key must contain 1 through 128 ASCII letters, digits, dots, underscores, colons or hyphens")
 
 
 def start_body(job_ref, provider_attempt_key):
@@ -85,19 +83,13 @@ def progress_body(phase, condition_code):
 
     if condition_code is not None:
         if not (type(condition_code) is (expected_type := str)):
-            raise TypeError(
-                f"Cannot report Attempt progress: {type(condition_code)=} ≠ {expected_type=}"
-            )
+            raise TypeError(f"Cannot report Attempt progress: {type(condition_code)=} ≠ {expected_type=}")
 
         if not (len(condition_code) <= 128):
-            raise ValueError(
-                "Cannot report Attempt progress: condition code must be null or a lower snake-case public code of at most 128 characters"
-            )
+            raise ValueError("Cannot report Attempt progress: condition code must be null or a lower snake-case public code of at most 128 characters")
 
         if re.fullmatch(r"[a-z][a-z0-9]*(?:_[a-z0-9]+)*", condition_code) is None:
-            raise ValueError(
-                "Cannot report Attempt progress: condition code must be null or a lower snake-case public code of at most 128 characters"
-            )
+            raise ValueError("Cannot report Attempt progress: condition code must be null or a lower snake-case public code of at most 128 characters")
 
     return json.dumps(
         {
@@ -113,16 +105,12 @@ def require_provider_ref(value):
     require_type(value, str)
 
     if re.fullmatch(r"provider:[A-Za-z0-9_.-]{1,119}", value) is None:
-        raise ValueError(
-            "Provider reference must be provider: followed by 1 through 119 letters, digits, underscores, dots or hyphens"
-        )
+        raise ValueError("Provider reference must be provider: followed by 1 through 119 letters, digits, underscores, dots or hyphens")
 
 
 def _scalar_text(value, label):
     if not (type(value) is (expected_type := str)):
-        raise TypeError(
-            f"{label=}; {type(value)=} ≠ {expected_type=}"
-        )
+        raise TypeError(f"{label=}; {type(value)=} ≠ {expected_type=}")
 
     if not (1 <= len(value) <= 1024) or any(c == "\x00" or 0xD800 <= ord(c) <= 0xDFFF for c in value):
         raise ValueError(f"Cannot publish Attempt outcome: {label} must contain 1 through 1024 Unicode scalar values without NUL")

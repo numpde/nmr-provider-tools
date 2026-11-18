@@ -68,9 +68,7 @@ class RecoveryScope:
             require_type(value, str)
 
             if not (1 <= len(value) <= 1024) or any(c == "\x00" or 0xD800 <= ord(c) <= 0xDFFF for c in value):
-                raise ValueError(
-                    "Cannot bind recovery scope: consumer and generation identities require 1 through 1024 Unicode scalar values without NUL"
-                )
+                raise ValueError("Cannot bind recovery scope: consumer and generation identities require 1 through 1024 Unicode scalar values without NUL")
 
 
 @dataclass(frozen=True, slots=True)
@@ -176,9 +174,7 @@ class ProtectedEvidence:
         require_type(self.content, bytes)
 
         if not (1 <= len(self.content) <= MAX_EVIDENCE_BYTES):
-            raise ValueError(
-                "Cannot retain required evidence: immutable content must contain 1 through 262144 bytes; evidence is never truncated"
-            )
+            raise ValueError("Cannot retain required evidence: immutable content must contain 1 through 262144 bytes; evidence is never truncated")
 
 
 class SuppressionReason(Enum):
@@ -218,8 +214,6 @@ def _encode_pending(record):
     ).encode("utf-8")
 
     if not (len(raw) <= MAX_PENDING_RECORD_BYTES):
-        raise ValueError(
-            f"Cannot encode pending start: record requires {len(raw)} bytes, exceeding the {MAX_PENDING_RECORD_BYTES}-byte limit"
-        )
+        raise ValueError(f"Cannot encode pending start: record requires {len(raw)} bytes, exceeding the {MAX_PENDING_RECORD_BYTES}-byte limit")
 
     return raw

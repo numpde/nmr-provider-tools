@@ -124,9 +124,7 @@ def require_store_origin(value):
         or str(url) != value
         or value.endswith("/")
     ):
-        raise ValueError(
-            "Cannot configure Upload store: supply a canonical HTTPS origin without credentials, path, query or fragment"
-        )
+        raise ValueError("Cannot configure Upload store: supply a canonical HTTPS origin without credentials, path, query or fragment")
 
     return value
 
@@ -202,9 +200,7 @@ class _UploadFile:
             return
 
         if self.identity is None:
-            raise UploadFailed(
-                "original private-file identity could not be confirmed; preserve the entry and inspect the source directory"
-            )
+            raise UploadFailed("original private-file identity could not be confirmed; preserve the entry and inspect the source directory")
 
         if (metadata.st_dev, metadata.st_ino) != self.identity:
             raise UploadFailed("private source file entry changed; preserve the replacement and inspect the source directory")
@@ -621,9 +617,7 @@ class UploadTransfer:
             raise UploadFailed("download grant does not name the configured store and exact Upload path")
 
         if grant.expires_at <= datetime.now(UTC):
-            raise UploadFailed(
-                "download grant expired before transfer; inspect sources before explicitly requesting fresh access"
-            )
+            raise UploadFailed("download grant expired before transfer; inspect sources before explicitly requesting fresh access")
 
         if not grant.capability or any(ord(c) <= 32 or ord(c) >= 127 for c in grant.capability):
             raise UploadFailed("download bearer cannot be represented as a single HTTP authorization value")
@@ -713,9 +707,7 @@ class JobUploads:
         require_type(limits, UploadLimits)
 
         if recovery is not None and type(recovery) is not (expected_recovery_type := UploadRecovery):
-            raise TypeError(
-                f"{type(recovery)=} ≠ {expected_recovery_type=}"
-            )
+            raise TypeError(f"{type(recovery)=} ≠ {expected_recovery_type=}")
 
         self.job_ref = job_ref
         self._api = api
@@ -918,9 +910,7 @@ class JobUploads:
             available = self._limits.requests - self._requests
 
             if available < minimum_requests:
-                raise UploadFailed(
-                    f"the next source attempt requires {minimum_requests} requests but only {available} remain"
-                )
+                raise UploadFailed(f"the next source attempt requires {minimum_requests} requests but only {available} remain")
         except UploadFailed as budget:
             raise self._recovery_exhausted("source recovery exhausted its original budgets: " + budget.reason, failure) from None
 

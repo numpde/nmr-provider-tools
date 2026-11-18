@@ -67,9 +67,7 @@ def authority_parts(authority):
     (host, separator, port_text) = authority.rpartition(":")
 
     if not separator or not re.fullmatch(r"[a-z0-9][a-z0-9.-]*", host):
-        raise ServiceRefused(
-            "Cannot admit service proxy authority: require a canonical DNS name or IPv4 address and explicit port."
-        )
+        raise ServiceRefused("Cannot admit service proxy authority: require a canonical DNS name or IPv4 address and explicit port.")
 
     try:
         bound_http_proxy._dns_name(host)
@@ -146,9 +144,7 @@ class ServicePolicy:
             raise ServiceRefused("Cannot admit service proxy request: the CONNECT authority is malformed.") from None
 
         if not ((host, port) in self.authorities):
-            raise ServiceRefused(
-                "Cannot admit service proxy request: this destination is outside the configured authority grant."
-            )
+            raise ServiceRefused("Cannot admit service proxy request: this destination is outside the configured authority grant.")
 
         return destination
 
@@ -473,9 +469,7 @@ def socket_grant(path, ready, *, socket_group_id=None):
         raise ServiceRefused("Cannot admit service proxy paths") from cause
 
     if path == ready or path.parent != ready.parent:
-        raise ServiceRefused(
-            "Cannot start service proxy: socket and readiness require distinct absolute paths in one private directory."
-        )
+        raise ServiceRefused("Cannot start service proxy: socket and readiness require distinct absolute paths in one private directory.")
 
     descriptor = None
 
@@ -507,9 +501,7 @@ def socket_grant(path, ready, *, socket_group_id=None):
                 or stat.S_IMODE(parent.st_mode) not in parent_modes
                 or (shared and parent.st_gid != socket_group_id)
             ):
-                raise ServiceRefused(
-                    "Cannot start service proxy: its directory must be caller-owned with the required private or shared-group mode, and free of symlinks."
-                )
+                raise ServiceRefused("Cannot start service proxy: its directory must be caller-owned with the required private or shared-group mode, and free of symlinks.")
 
             descriptor = os.open(path.parent, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW | os.O_CLOEXEC)
             held = os.fstat(descriptor)

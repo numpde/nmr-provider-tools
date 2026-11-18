@@ -76,17 +76,13 @@ class _Cancellation:
 
 def _request(document):
     if not (type(document) is (expected_type := dict)):
-        raise TypeError(
-            f"{type(document)=} ≠ {expected_type=}"
-        )
+        raise TypeError(f"{type(document)=} ≠ {expected_type=}")
 
     if document.keys() != _REQUEST_FIELDS:
         raise ValueError("Interpreter child request has an unknown schema")
 
     if not (type((document_version := document["version"])) is (expected_type := int)):
-        raise TypeError(
-            f"{type(document_version)=} ≠ {expected_type=}"
-        )
+        raise TypeError(f"{type(document_version)=} ≠ {expected_type=}")
 
     if document["version"] != 1 or document["kind"] != "request":
         raise ValueError("Interpreter child request has an unknown schema")
@@ -95,9 +91,7 @@ def _request(document):
         value = document[field]
 
         if not (type(value) is (expected_type := str)):
-            raise TypeError(
-                f"{type(value)=} ≠ {expected_type=}"
-            )
+            raise TypeError(f"{type(value)=} ≠ {expected_type=}")
 
         if not (0 < len(value) <= METADATA_BYTES):
             raise ValueError("Interpreter child request metadata exceeds its admitted limit")
@@ -105,9 +99,7 @@ def _request(document):
     pairs = document["headers"]
 
     if not (type(pairs) is (expected_type := list)):
-        raise TypeError(
-            f"{type(pairs)=} ≠ {expected_type=}"
-        )
+        raise TypeError(f"{type(pairs)=} ≠ {expected_type=}")
 
     if not (len(pairs) <= 65536):
         raise ValueError("Interpreter child headers exceed their admitted limit")
@@ -117,9 +109,7 @@ def _request(document):
 
     for pair in pairs:
         if not (type(pair) is (expected_type := list)):
-            raise TypeError(
-                f"{type(pair)=} ≠ {expected_type=}"
-            )
+            raise TypeError(f"{type(pair)=} ≠ {expected_type=}")
 
         if len(pair) != 2:
             raise ValueError("Interpreter child header is malformed")
@@ -134,9 +124,7 @@ def _request(document):
     limit = document["request_bytes"]
 
     if not (type(limit) is (expected_type := int)):
-        raise TypeError(
-            f"{type(limit)=} ≠ {expected_type=}"
-        )
+        raise TypeError(f"{type(limit)=} ≠ {expected_type=}")
 
     if not (0 <= limit):
         raise ValueError("Interpreter child request byte allowance is invalid")

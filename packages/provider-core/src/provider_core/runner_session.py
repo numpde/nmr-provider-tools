@@ -224,39 +224,25 @@ class RunnerSession:
         reply = receive_document(self.control, deadline=deadline)
 
         if set(reply) != {"kind", "generation", "operation", "returncode", "scratch_released", "reason"}:
-            raise LifecycleRejected(
-                "Runner retirement must match this operation and include its exit status, scratch state and supported reason."
-            )
+            raise LifecycleRejected("Runner retirement must match this operation and include its exit status, scratch state and supported reason.")
 
         if reply["kind"] != "retired":
-            raise LifecycleRejected(
-                "Runner retirement must match this operation and include its exit status, scratch state and supported reason."
-            )
+            raise LifecycleRejected("Runner retirement must match this operation and include its exit status, scratch state and supported reason.")
 
         if reply["generation"] != self.generation:
-            raise LifecycleRejected(
-                "Runner retirement must match this operation and include its exit status, scratch state and supported reason."
-            )
+            raise LifecycleRejected("Runner retirement must match this operation and include its exit status, scratch state and supported reason.")
 
         if reply["operation"] != self.operation:
-            raise LifecycleRejected(
-                "Runner retirement must match this operation and include its exit status, scratch state and supported reason."
-            )
+            raise LifecycleRejected("Runner retirement must match this operation and include its exit status, scratch state and supported reason.")
 
         if not (type((reply_returncode := reply["returncode"])) is (expected_type := int)):
-            raise LifecycleRejected(
-                f"{type(reply_returncode)=} ≠ {expected_type=}"
-            )
+            raise LifecycleRejected(f"{type(reply_returncode)=} ≠ {expected_type=}")
 
         if not (type((reply_scratch_released := reply["scratch_released"])) is (expected_type := bool)):
-            raise LifecycleRejected(
-                f"{type(reply_scratch_released)=} ≠ {expected_type=}"
-            )
+            raise LifecycleRejected(f"{type(reply_scratch_released)=} ≠ {expected_type=}")
 
         if not (reply["reason"] in ("exited", "owner_lost", "deadline", "shutdown")):
-            raise LifecycleRejected(
-                "Runner retirement must match this operation and include its exit status, scratch state and supported reason."
-            )
+            raise LifecycleRejected("Runner retirement must match this operation and include its exit status, scratch state and supported reason.")
 
         if not (-signal.NSIG < reply["returncode"] < 256):
             raise LifecycleRejected("Runner retirement has an impossible operating-system exit status; its cause remains unknown.")

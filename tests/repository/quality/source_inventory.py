@@ -109,6 +109,4 @@ def require_exact_inventory(
     )
 
     if missing or unclassified:
-        raise SourceInventoryError(
-            f"{label} inventory is not exact; missing={list(missing)!r}; unclassified={list(unclassified)!r}"
-        )
+        raise SourceInventoryError(f"{label} inventory is not exact; missing={list(missing)!r}; unclassified={list(unclassified)!r}")

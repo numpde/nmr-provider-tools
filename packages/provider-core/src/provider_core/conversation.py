@@ -54,9 +54,7 @@ class TextCorrection:
             return
 
         if not (type((actual_user_content := self.user_content)) is (expected_type := str)):
-            raise TypeError(
-                f"{type(actual_user_content)=} ≠ {expected_type=}"
-            )
+            raise TypeError(f"{type(actual_user_content)=} ≠ {expected_type=}")
 
         if not (self.user_content):
             raise ValueError("Text correction requires a nonempty user instruction.")
@@ -183,15 +181,11 @@ class ToolConversation:
             require_turn_limit(max_corrections)
 
         if not (type(secrets) is (expected_type := tuple)):
-            raise TypeError(
-                f"{type(secrets)=} ≠ {expected_type=}"
-            )
+            raise TypeError(f"{type(secrets)=} ≠ {expected_type=}")
 
         for secret in secrets:
             if not (type(secret) is (expected_type := str)):
-                raise TypeError(
-                    f"{type(secret)=} ≠ {expected_type=}"
-                )
+                raise TypeError(f"{type(secret)=} ≠ {expected_type=}")
 
         if any(not secret for secret in secrets):
             raise ValueError("Cannot configure interpretation: known secrets must be an explicit tuple of nonempty strings.")
@@ -432,9 +426,7 @@ class ToolConversation:
         # silent-defaults: allow-contract -- Absent usable correction text reports exhaustion without choosing another endpoint or input.
         reason = self.last_rejection or "No tool submitted a supported input."
 
-        raise ConversationFailed(
-            f"Cannot interpret the request: the {self._max_turns}-turn budget was exhausted. Last correction: {reason}"
-        )
+        raise ConversationFailed(f"Cannot interpret the request: the {self._max_turns}-turn budget was exhausted. Last correction: {reason}")
 
     def _route(self, endpoint):
         # Identity comes from the trusted adapter, not model response fields.
@@ -497,9 +489,7 @@ class ToolConversation:
                 or call_id in identifiers
                 or call.get("type") != "function"
             ):
-                raise ConversationFailed(
-                    "Cannot interpret model action: tool identity, function or argument carrier is malformed or repeated."
-                )
+                raise ConversationFailed("Cannot interpret model action: tool identity, function or argument carrier is malformed or repeated.")
 
             function = call.get("function")
 
@@ -588,9 +578,7 @@ class ToolConversation:
         self.correction_failures.append((self._turns, rejection))
 
         if self._max_corrections is not None and self._corrections >= self._max_corrections:
-            raise ConversationFailed(
-                f"Cannot interpret the request: the {self._max_corrections}-correction budget was exhausted."
-            )
+            raise ConversationFailed(f"Cannot interpret the request: the {self._max_corrections}-correction budget was exhausted.")
 
         content = reason
 

@@ -143,9 +143,7 @@ def signed_request(identity, *, method, path, query, body, created, nonce):
     target = _request_target(method, path, query)
 
     if body is not None and type(body) is not (expected_body_type := bytes):
-        raise TypeError(
-            f"{type(body)=} ≠ {expected_body_type=}"
-        )
+        raise TypeError(f"{type(body)=} ≠ {expected_body_type=}")
 
     require_type(created, int)
 

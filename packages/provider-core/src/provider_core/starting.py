@@ -151,9 +151,7 @@ class AttemptStarter:
                 await self.api.retire(owner=self)
 
             if not (self._unretained is None):
-                raise StartRefused(
-                    "Received acknowledgement remains unresolved; retain its owner and reconcile the claim before preparation"
-                )
+                raise StartRefused("Received acknowledgement remains unresolved; retain its owner and reconcile the claim before preparation")
 
             return None
         except asyncio.CancelledError as cause:

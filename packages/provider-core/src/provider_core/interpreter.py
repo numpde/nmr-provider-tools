@@ -252,9 +252,7 @@ class Interpreter:
         require_instance(endpoint_factories, tuple)
 
         if not (endpoint_factories):
-            raise ValueError(
-                "Cannot configure interpretation: provide an ordered nonempty tuple of endpoint factories."
-            )
+            raise ValueError("Cannot configure interpretation: provide an ordered nonempty tuple of endpoint factories.")
 
         require_positive_number(interpretation_budget_seconds)
 
@@ -279,20 +277,14 @@ class Interpreter:
         require_positive_number(connection_timeout_seconds)
 
         if not isinstance(secrets, (expected_type := tuple)):
-            raise TypeError(
-                f"{type(secrets)=} ≠ {expected_type=}"
-            )
+            raise TypeError(f"{type(secrets)=} ≠ {expected_type=}")
 
         for secret in secrets:
             if not isinstance(secret, (expected_type := str)):
-                raise TypeError(
-                    f"{type(secret)=} ≠ {expected_type=}"
-                )
+                raise TypeError(f"{type(secret)=} ≠ {expected_type=}")
 
         if any(not secret for secret in secrets):
-            raise ValueError(
-                "Cannot configure interpretation: provide known credentials as an explicit tuple of nonempty strings."
-            )
+            raise ValueError("Cannot configure interpretation: provide known credentials as an explicit tuple of nonempty strings.")
 
         self._factories = endpoint_factories
         self.interpretation_budget_seconds = interpretation_budget_seconds
@@ -516,9 +508,7 @@ def _encode(value: object) -> bytes:
 def _no_secrets(value: object, secrets: tuple[str, ...]) -> None:
     if isinstance(value, str):
         if any(secret in value for secret in secrets):
-            raise ConversationFailed(
-                "Cannot continue interpretation: captured context contains a configured credential."
-            )
+            raise ConversationFailed("Cannot continue interpretation: captured context contains a configured credential.")
     elif isinstance(value, dict):
         for (key, item) in value.items():
             _no_secrets(key, secrets)
@@ -635,19 +625,13 @@ class _History:
         queries = arguments.get("records")
 
         if set(arguments) != {"records"}:
-            raise ToolRejected(
-                "Provide records as a list of one to eight catalogue references with optional cursors."
-            )
+            raise ToolRejected("Provide records as a list of one to eight catalogue references with optional cursors.")
 
         if not isinstance(queries, (expected_type := list)):
-            raise ToolRejected(
-                f"{type(queries)=} ≠ {expected_type=}"
-            )
+            raise ToolRejected(f"{type(queries)=} ≠ {expected_type=}")
 
         if not (1 <= len(queries) <= 8):
-            raise ToolRejected(
-                "Provide records as a list of one to eight catalogue references with optional cursors."
-            )
+            raise ToolRejected("Provide records as a list of one to eight catalogue references with optional cursors.")
 
         results: list[Document] = []
 
@@ -665,14 +649,10 @@ class _History:
             cursor = query["cursor"] if "cursor" in query else 0
 
             if not (type(cursor) is (expected_type := int)):
-                raise ToolRejected(
-                    f"{type(cursor)=} ≠ {expected_type=}"
-                )
+                raise ToolRejected(f"{type(cursor)=} ≠ {expected_type=}")
 
             if cursor < 0:
-                raise ToolRejected(
-                    "A history cursor must be a nonnegative integer offset in that record's JSON text."
-                )
+                raise ToolRejected("A history cursor must be a nonnegative integer offset in that record's JSON text.")
 
             record = self._records.get(query["ref"])
             status = "deferred"
@@ -818,9 +798,7 @@ class _DescribeInputConstraints:
                 properties = parent["properties"]
 
             if not (part in properties):
-                raise ToolRejected(
-                    "The requested field is not declared at that property path; read the full tool schema."
-                )
+                raise ToolRejected("The requested field is not declared at that property path; read the full tool schema.")
 
             schema = properties[part]
             required = "required" in parent and part in parent["required"]
@@ -904,9 +882,7 @@ class _Tools:
             name = definition["function"]["name"]
 
             if name in provider.schemas or name in self.information:
-                raise ValueError(
-                    "Cannot compose interpreter tools: an information-tool name is already in use."
-                )
+                raise ValueError("Cannot compose interpreter tools: an information-tool name is already in use.")
 
             self.information[name] = tool
 
@@ -1094,9 +1070,7 @@ class _ModelVisit:
         await self._endpoint.retire()
 
         if not (self.retirement_confirmed):
-            raise ConversationRetirementFailed(
-                ((self.number, RuntimeError("Model HTTP cleanup remains unconfirmed.")),)
-            )
+            raise ConversationRetirementFailed(((self.number, RuntimeError("Model HTTP cleanup remains unconfirmed.")),))
 
     async def complete(self, messages: list[Document], tools: list[Document]) -> Document:
         for attempt in range(self._total_http_attempts_per_turn):

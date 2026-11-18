@@ -60,9 +60,7 @@ def _require_mount_path(mount_path):
         absolute_mount_path.resolve() != absolute_mount_path
         or any(character in str(absolute_mount_path) for character in ("\n", "\r", ","))
     ):
-        raise DeliveryDeploymentRejected(
-            "Delivery inputs require canonical absolute paths without mount delimiters."
-        )
+        raise DeliveryDeploymentRejected("Delivery inputs require canonical absolute paths without mount delimiters.")
 
     return absolute_mount_path
 
@@ -196,9 +194,7 @@ def daemon_configuration(definition):
 
 def render(definition, source, image, checksum):
     if definition.uid != os.geteuid() or re.fullmatch(r"sha256:[0-9a-f]{64}", image) is None:
-        raise DeliveryDeploymentRejected(
-            "Delivery rendering requires its installing nonzero UID and an immutable image ID."
-        )
+        raise DeliveryDeploymentRejected("Delivery rendering requires its installing nonzero UID and an immutable image ID.")
 
     source = _require_mount_path(source)
     listeners = admit_listeners(definition)
@@ -254,9 +250,7 @@ def render(definition, source, image, checksum):
         )
 
         if set(services) & set(api_route.compose["services"]):
-            raise DeliveryDeploymentRejected(
-                "Delivery proxy identities collide; no ambiguous recipe was published."
-            )
+            raise DeliveryDeploymentRejected("Delivery proxy identities collide; no ambiguous recipe was published.")
 
         for proxy in api_route.compose["services"].values():
             proxy["labels"]["org.nmr-provider-tools.delivery"] = definition.project

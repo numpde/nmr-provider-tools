@@ -202,9 +202,7 @@ def publish_file(path, destination, checksum):
             observed = digest(destination)
 
             if observed != checksum:
-                raise ValueError(
-                    f"Cannot reuse {destination.name!r}: expected SHA-256 {checksum}, found {observed}; the existing file is preserved."
-                )
+                raise ValueError(f"Cannot reuse {destination.name!r}: expected SHA-256 {checksum}, found {observed}; the existing file is preserved.")
         except (OSError, ValueError) as invalid_winner:
             raise conflict from invalid_winner
 

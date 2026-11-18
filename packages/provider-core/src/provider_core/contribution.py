@@ -569,9 +569,7 @@ class ImplementationDescription:
             self.configuration is not None
             and type((actual_configuration := self.configuration)) is not (expected_configuration_type := ConfigurationDescription)
         ):
-            raise TypeError(
-                f"{type(actual_configuration)=} ≠ {expected_configuration_type=}"
-            )
+            raise TypeError(f"{type(actual_configuration)=} ≠ {expected_configuration_type=}")
 
         _set_records(values=self.assets, record_type=AssetDescription, label="Scientific assets")
         _unique(self.assets, lambda value: value.name, "Scientific assets")
@@ -842,16 +840,12 @@ class CallBinding[InputT, StateT, OutputT]:
 
         if input_type is NoInput:
             if not (input_format is None):
-                raise ValueError(
-                    "Omit input_format when the scientific call has no input"
-                )
+                raise ValueError("Omit input_format when the scientific call has no input")
 
             admitted_input_format = "provider-core.no-input.v1"
         else:
             if input_format is None:
-                raise ValueError(
-                    "A scientific call with input requires input_format"
-                )
+                raise ValueError("A scientific call with input requires input_format")
 
             admitted_input_format = input_format
 

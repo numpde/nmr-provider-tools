@@ -795,9 +795,7 @@ class ProviderAPI:
         require_type(analysis_kind_ref, str)
 
         if not (len(analysis_kind_ref) <= 128 and re.fullmatch('[a-z][a-z0-9]*(?:_[a-z0-9]+)*', analysis_kind_ref) is not None):
-            raise ValueError(
-                "Cannot read Job input: analysis kind must be a lower snake-case catalog key of at most 128 characters"
-            )
+            raise ValueError("Cannot read Job input: analysis kind must be a lower snake-case catalog key of at most 128 characters")
 
         response = await self._exchange(
             "read Job input",

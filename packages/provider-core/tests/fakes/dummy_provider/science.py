@@ -187,9 +187,7 @@ class PreparedValues:
     @property
     def value_count(self) -> int:
         if self.values is None:
-            raise RuntimeError(
-                "The prepared values have already been consumed or disposed"
-            )
+            raise RuntimeError("The prepared values have already been consumed or disposed")
 
         return len(self.values)
 
@@ -198,14 +196,10 @@ class PreparedValues:
             raise RuntimeError("The prepared values belong to another analysis")
 
         if not (analysis.accepted_preparation is self):
-            raise RuntimeError(
-                "The prepared values are not this analysis's accepted preparation"
-            )
+            raise RuntimeError("The prepared values are not this analysis's accepted preparation")
 
         if self.values is None:
-            raise RuntimeError(
-                "The prepared values have already been consumed or disposed"
-            )
+            raise RuntimeError("The prepared values have already been consumed or disposed")
 
         prepared_values = self.values
         analysis.accepted_preparation = None
@@ -256,9 +250,7 @@ def initialize_analysis(analysis: WeightedSumAnalysis) -> None:
         raise RuntimeError("The analysis is already initialized")
 
     if analysis.model.loaded_coefficients is None:
-        raise RuntimeError(
-            "Cannot initialize an analysis before loading model coefficients"
-        )
+        raise RuntimeError("Cannot initialize an analysis before loading model coefficients")
 
     analysis.is_open = True
 
@@ -287,9 +279,7 @@ def prepare(
     loaded_coefficients = analysis.model.loaded_coefficients
 
     if loaded_coefficients is None:
-        raise RuntimeError(
-            "Cannot prepare input because model coefficients are not loaded"
-        )
+        raise RuntimeError("Cannot prepare input because model coefficients are not loaded")
 
     actual_value_count = len(candidate.values)
     expected_value_count = len(loaded_coefficients)

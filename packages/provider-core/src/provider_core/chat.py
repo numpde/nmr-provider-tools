@@ -50,14 +50,10 @@ class ChatEndpointSpec:
         require_type(self.model, str)
 
         if not (self.model.strip() and self.model.isprintable() and len(self.model.encode('utf-8')) <= 512):
-            raise ValueError(
-                "Cannot configure interpreter endpoint: model must be nonblank printable UTF-8 text within 512 bytes."
-            )
+            raise ValueError("Cannot configure interpreter endpoint: model must be nonblank printable UTF-8 text within 512 bytes.")
 
         if not (type((actual_api_key := self.api_key)) is (expected_type := str)):
-            raise TypeError(
-                f"{type(actual_api_key)=} ≠ {expected_type=}"
-            )
+            raise TypeError(f"{type(actual_api_key)=} ≠ {expected_type=}")
 
         if not (self.api_key) or any(not 32 < ord(char) < 127 for char in self.api_key):
             raise ValueError("Cannot configure interpreter endpoint: an explicit header-safe API key is required.")
@@ -86,9 +82,7 @@ class ChatEndpointSpec:
             raise ValueError("Cannot configure interpreter endpoint: URL is not valid HTTPS.") from None
 
         if url.scheme != "https" or not url.host or url.userinfo or "?" in self.url or "#" in self.url or str(url) != self.url:
-            raise ValueError(
-                "Cannot configure interpreter endpoint: use a canonical HTTPS URL without credentials, query or fragment."
-            )
+            raise ValueError("Cannot configure interpreter endpoint: use a canonical HTTPS URL without credentials, query or fragment.")
 
 
 def _encode_request(spec, messages, tools):

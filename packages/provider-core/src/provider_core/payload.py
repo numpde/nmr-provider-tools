@@ -169,17 +169,13 @@ def _dataclass_fields(value_type: type[object]):
     if any(not field.init for field in declared_fields):
         non_init_field = next(field.name for field in declared_fields if not field.init)
 
-        raise TypeError(
-            f"{value_type.__qualname__}.{non_init_field} must participate in construction"
-        )
+        raise TypeError(f"{value_type.__qualname__}.{non_init_field} must participate in construction")
 
     annotations = _resolved_hints(value_type)
     declared_names = {field.name for field in declared_fields}
 
     if set(annotations) != declared_names:
-        raise TypeError(
-            f"{value_type.__qualname__} must annotate every init field and no non-field names"
-        )
+        raise TypeError(f"{value_type.__qualname__} must annotate every init field and no non-field names")
 
     return (declared_fields, annotations)
 
@@ -225,9 +221,7 @@ def _validate_annotation(
         return
 
     if origin in (list, dict):
-        raise TypeError(
-            f"{path} uses a mutable container; use tuple or a nested frozen dataclass"
-        )
+        raise TypeError(f"{path} uses a mutable container; use tuple or a nested frozen dataclass")
 
     members = _union_members(annotation)
 
@@ -545,9 +539,7 @@ def _encode_dataclass(
     path: str,
 ) -> dict[str, object]:
     if not (type(value) is (expected_type := value_type)):
-        raise TypeError(
-            f"{path=}; {type(value)=} ≠ {expected_type=}"
-        )
+        raise TypeError(f"{path=}; {type(value)=} ≠ {expected_type=}")
 
     (declared_fields, hints) = _dataclass_fields(value_type)
 
@@ -635,9 +627,7 @@ class DataclassStateBinding[T]:
         require_instance(values, Mapping)
 
         if set(values) != set(self.names):
-            raise ValueError(
-                "Live scientific state names differ from the declared state struct"
-            )
+            raise ValueError("Live scientific state names differ from the declared state struct")
 
         annotations = _resolved_hints(self.value_type)
 
@@ -645,8 +635,6 @@ class DataclassStateBinding[T]:
             expected_type = annotations[name]
 
             if not (type(state_value) is expected_type):
-                raise TypeError(
-                    f"{name=}; {type(state_value)=} ≠ {expected_type=}"
-                )
+                raise TypeError(f"{name=}; {type(state_value)=} ≠ {expected_type=}")
 
         return self.value_type(**values)

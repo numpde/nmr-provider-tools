@@ -467,9 +467,7 @@ class AttemptController:
         """
 
         if not (self._lifetime is _Lifetime.NEW):
-            raise ControllerRefused(
-                "This controller accepts only one run; retain its original invocation and controller for settlement or recovery"
-            )
+            raise ControllerRefused("This controller accepts only one run; retain its original invocation and controller for settlement or recovery")
 
         self._lifetime = _Lifetime.RUNNING
 

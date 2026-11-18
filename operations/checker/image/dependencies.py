@@ -205,9 +205,7 @@ def install(packages, directory):
         ).stdout
 
         if observed != package["version"]:
-            raise ValueError(
-                f"Cannot admit checker image: installed {package['name']} version differs from declaration.",
-            )
+            raise ValueError(f"Cannot admit checker image: installed {package['name']} version differs from declaration.")
 
 
 def main():

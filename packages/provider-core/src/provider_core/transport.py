@@ -144,9 +144,7 @@ def _require_output_file(descriptor):
     access_mode = flags & os.O_ACCMODE
 
     if not stat.S_ISREG(facts.st_mode) or access_mode not in (os.O_WRONLY, os.O_RDWR) or flags & os.O_APPEND:
-        raise ExchangeFailed(
-            "Cannot receive HTTP response in a file: output must be a writable regular file without append mode; request was not sent"
-        )
+        raise ExchangeFailed("Cannot receive HTTP response in a file: output must be a writable regular file without append mode; request was not sent")
 
 
 def _write_file_chunk(descriptor, chunk):
@@ -266,9 +264,7 @@ def require_unix_socket_path(path):
     """
 
     if not (type(path) is (expected_type := str)):
-        raise TypeError(
-            f"{type(path)=} ≠ {expected_type=}"
-        )
+        raise TypeError(f"{type(path)=} ≠ {expected_type=}")
 
     require_absolute_path(path)
 
@@ -379,9 +375,7 @@ class HttpTransport:
 
         # httpcore 1.0.9 emits an unbracketed IPv6 CONNECT authority.
         if self._proxy_socket is not None and b":" in request.url.raw_host:
-            raise ValueError(
-                "Cannot start proxied HTTPS exchange: IPv6 literal destinations are not supported; use a DNS name or IPv4 address."
-            )
+            raise ValueError("Cannot start proxied HTTPS exchange: IPv6 literal destinations are not supported; use a DNS name or IPv4 address.")
 
     async def _perform(self, request, maximum_bytes, account_bytes, outcome, output_fd, before_body, decoder_factory, not_after):
         if not_after is not None and asyncio.get_running_loop().time() >= not_after:

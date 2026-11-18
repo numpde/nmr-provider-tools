@@ -314,9 +314,7 @@ def require_execution_settings(*, allowed_job_states, poll_seconds, task_settle_
     require_type(allowed_job_states, frozenset)
 
     if not (allowed_job_states) or not (allowed_job_states <= JOB_STATES) or "cancelled" in allowed_job_states:
-        raise ValueError(
-            "Cannot configure execution: allowed_job_states must be a nonempty frozenset of open or closed; cancelled Jobs stop work"
-        )
+        raise ValueError("Cannot configure execution: allowed_job_states must be a nonempty frozenset of open or closed; cancelled Jobs stop work")
 
     for seconds in (poll_seconds, task_settle_seconds):
         require_positive_number(seconds)
@@ -1242,9 +1240,7 @@ class AttemptExecutor:
         outcome = self._terminal()
 
         if len(outcome.body) > self.claim.maximum_terminal_bytes:
-            raise ExecutionRefused(
-                "Cannot hand off this outcome: its encoded request exceeds the reserved report allowance; retain the outcome and cleanup owner"
-            )
+            raise ExecutionRefused("Cannot hand off this outcome: its encoded request exceeds the reserved report allowance; retain the outcome and cleanup owner")
 
         self._delivery_outcome = outcome
 
@@ -1419,9 +1415,7 @@ class AttemptExecutor:
 
     async def _retire_api(self):
         if not (self._observation_wait is None):
-            raise ExecutionRefused(
-                "Cannot retire API while its original observation waiter is unresolved; settle that waiter first"
-            )
+            raise ExecutionRefused("Cannot retire API while its original observation waiter is unresolved; settle that waiter first")
 
         if self.api.pending_owner is self:
             await self.api.retire(owner=self)
@@ -1510,29 +1504,19 @@ class AttemptExecutor:
         """
 
         if not (self._active):
-            raise ExecutionRefused(
-                "Cannot record suppression: this interrupted executor has no unselected returned analysis"
-            )
+            raise ExecutionRefused("Cannot record suppression: this interrupted executor has no unselected returned analysis")
 
         if self._observing:
-            raise ExecutionRefused(
-                "Cannot record suppression: this interrupted executor has no unselected returned analysis"
-            )
+            raise ExecutionRefused("Cannot record suppression: this interrupted executor has no unselected returned analysis")
 
         if self.last_failure is None:
-            raise ExecutionRefused(
-                "Cannot record suppression: this interrupted executor has no unselected returned analysis"
-            )
+            raise ExecutionRefused("Cannot record suppression: this interrupted executor has no unselected returned analysis")
 
         if not (type((actual_outcome := self._outcome)) in (expected_type := (AnalysisSuccess, AnalysisFailure))):
-            raise ExecutionRefused(
-                f"Cannot record suppression: {type(actual_outcome)=} ≠ {expected_type=}"
-            )
+            raise ExecutionRefused(f"Cannot record suppression: {type(actual_outcome)=} ≠ {expected_type=}")
 
         if not (type((actual_checkpoint := self._checkpoint)) in (expected_type := (AcknowledgedCheckpoint, EnteredCheckpoint))):
-            raise ExecutionRefused(
-                f"Cannot record suppression: {type(actual_checkpoint)=} ≠ {expected_type=}"
-            )
+            raise ExecutionRefused(f"Cannot record suppression: {type(actual_checkpoint)=} ≠ {expected_type=}")
 
         if (
             self._task is not None
@@ -1546,9 +1530,7 @@ class AttemptExecutor:
         reason = _suppression_reason(self.last_failure.cause)
 
         if reason is None:
-            raise ExecutionRefused(
-                "Cannot suppress this outcome: its failure was not a server stop, failed observation or caller cancellation"
-            )
+            raise ExecutionRefused("Cannot suppress this outcome: its failure was not a server stop, failed observation or caller cancellation")
 
         self._observing = True
 

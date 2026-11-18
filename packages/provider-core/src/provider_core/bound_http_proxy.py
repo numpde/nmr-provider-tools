@@ -201,9 +201,7 @@ def _dns_name(name: str) -> bytes:
     labels = name.rstrip(".").encode("idna").split(b".")
 
     if len(name.encode("idna")) > 253 or not labels or any(not label or len(label) > 63 for label in labels):
-        raise ValueError(
-            "Cannot resolve proxy destination: require a DNS name of at most 253 bytes with labels of 1 through 63 bytes."
-        )
+        raise ValueError("Cannot resolve proxy destination: require a DNS name of at most 253 bytes with labels of 1 through 63 bytes.")
 
     return b"".join(bytes((len(label),)) + label for label in labels) + b"\0"
 
@@ -644,9 +642,7 @@ class ConnectionAdmission:
 
     def set_limit(self, limit):
         if not (type(limit) is (expected_type := int)):
-            raise TypeError(
-                f"{type(limit)=} ≠ {expected_type=}"
-            )
+            raise TypeError(f"{type(limit)=} ≠ {expected_type=}")
 
         if not (limit > 0):
             raise ValueError("Proxy connection capacity must be a positive integer.")
@@ -786,9 +782,7 @@ def require_interface_name(interface: str) -> None:
     # Native lookup admits the same device name consumed by SO_BINDTODEVICE.
     # https://github.com/numpde/magnet-deploy/blob/2d4ee50b0359e71900fce9289ea01f46d0f41249/scripts/image-build-proxy.py#L373-L381
     if not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9_.-]{0,14}", interface):
-        raise ValueError(
-            "Cannot start proxy: require an ASCII interface name of 1 through 15 bytes, without paths or whitespace."
-        )
+        raise ValueError("Cannot start proxy: require an ASCII interface name of 1 through 15 bytes, without paths or whitespace.")
 
 
 def require_interface(interface: str) -> None:

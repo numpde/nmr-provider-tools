@@ -338,9 +338,7 @@ def retire(root, docker, current, *, staged=(), operations=pathlib.Path("/tmp"))
 
     for image_id in retirement_plan:
         if current() != selected_inputs:
-            raise RetirementRefused(
-                "Current source selection changed; retain the remaining images and retry."
-            )
+            raise RetirementRefused("Current source selection changed; retain the remaining images and retry.")
 
         protected_images.update(retained_image_ids(operations))
 

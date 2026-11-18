@@ -292,9 +292,7 @@ def verify(source_dir):
             release_execute_bits = payload_files[acquisition_rel_path]["mode"] & 0o111
 
             if actual_execute_bits != release_execute_bits:
-                raise ValueError(
-                    f"Acquisition {acquisition_rel_path=}: {actual_execute_bits=:03o} ≠ {release_execute_bits=:03o} (octal)"
-                )
+                raise ValueError(f"Acquisition {acquisition_rel_path=}: {actual_execute_bits=:03o} ≠ {release_execute_bits=:03o} (octal)")
 
             actual.add(acquisition_rel_path)
 

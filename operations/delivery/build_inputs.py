@@ -42,9 +42,7 @@ def release_inputs(pin, runtime_lock):
     ).encode()
 
     if hashlib.sha256(install_lock_bytes).hexdigest() != release["install_lock_sha256"]:
-        raise ValueError(
-            "Cannot use delivery release: runtime lock differs from the issued install lock."
-        )
+        raise ValueError("Cannot use delivery release: runtime lock differs from the issued install lock.")
 
     return (release, install_lock_bytes)
 
@@ -158,9 +156,7 @@ def acquire_release(pin, runtime_lock, pool, tool):
             ]
 
             if len(candidates) != 1 or urllib.parse.urlsplit(candidates[0]).hostname != "files.pythonhosted.org":
-                raise ValueError(
-                    f"Cannot acquire {wheel_name}: the pinned wheel is absent from its published index."
-                )
+                raise ValueError(f"Cannot acquire {wheel_name}: the pinned wheel is absent from its published index.")
 
             url = candidates[0]
 

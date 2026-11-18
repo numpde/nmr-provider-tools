@@ -34,17 +34,13 @@ def dependency_files(pool, lock):
         wheel_bytes = (pool / wheel_name).read_bytes()
 
         if not (hashlib.sha256(wheel_bytes).hexdigest() in hashes):
-            raise ValueError(
-                f"Cannot build wheelhouse bundle: {wheel_name} differs from its pinned hash."
-            )
+            raise ValueError(f"Cannot build wheelhouse bundle: {wheel_name} differs from its pinned hash.")
 
         with zipfile.ZipFile(io.BytesIO(wheel_bytes)) as archive:
             for member in archive.infolist():
                 if not member.is_dir():
                     if member.filename in files:
-                        raise ValueError(
-                            f"Cannot build wheelhouse bundle: duplicate {member.filename}."
-                        )
+                        raise ValueError(f"Cannot build wheelhouse bundle: duplicate {member.filename}.")
 
                     files[member.filename] = archive.read(member)
 

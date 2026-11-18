@@ -22,9 +22,7 @@ class CallRejected(Exception):
 
     def __init__(self, code: str | ErrorCode, message: str) -> None:
         if not (type(code) is str or isinstance(code, (StrEnum, ErrorCode))):
-            raise TypeError(
-                f"{type(code)=} should be str, StrEnum, or ErrorCode"
-            )
+            raise TypeError(f"{type(code)=} should be str, StrEnum, or ErrorCode")
 
         code_text = code.value if isinstance(code, ErrorCode) else code
 
@@ -32,9 +30,7 @@ class CallRejected(Exception):
             raise ValueError("A rejection code must match [a-z][a-z0-9_]{0,63}")
 
         if not (type(message) is (expected_type := str)):
-            raise TypeError(
-                f"{type(message)=} ≠ {expected_type=}"
-            )
+            raise TypeError(f"{type(message)=} ≠ {expected_type=}")
 
         if not (message):
             raise ValueError("A rejection needs a nonempty explanatory message")

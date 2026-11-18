@@ -36,9 +36,7 @@ from provider_core.type_requirements import require_instance, require_type
 
 def _identity(value, label):
     if not (type(value) is (expected_type := str)):
-        raise TypeError(
-            f"{label=}; {type(value)=} ≠ {expected_type=}"
-        )
+        raise TypeError(f"{label=}; {type(value)=} ≠ {expected_type=}")
 
     if not (value and all(character.isprintable() and not character.isspace() for character in value)):
         raise ValueError(f"{label} must be a nonempty identity without whitespace or control characters")
@@ -46,9 +44,7 @@ def _identity(value, label):
 
 def _digest(value, label):
     if not (type(value) is (expected_type := str)):
-        raise TypeError(
-            f"{label=}; {type(value)=} ≠ {expected_type=}"
-        )
+        raise TypeError(f"{label=}; {type(value)=} ≠ {expected_type=}")
 
     if re.fullmatch(r"(?:sha256:|configured-v[23]:sha256:)[0-9a-f]{64}\Z", value) is None:
         raise ValueError(f"{label} must be a lowercase sha256, configured-v2:sha256 or configured-v3:sha256 digest")

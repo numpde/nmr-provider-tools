@@ -167,9 +167,7 @@ class AttemptClaims:
 
         for identity in identities:
             if identity in self._claims:
-                raise OwnershipRefused(
-                    "Cannot select this live Attempt: its START key or Job is already owned; no claim was acquired"
-                )
+                raise OwnershipRefused("Cannot select this live Attempt: its START key or Job is already owned; no claim was acquired")
 
         self._require_live_capacity(live_terminal_bytes)
         self._loop = loop
@@ -259,9 +257,7 @@ class _AttemptClaim:
         existing = self._registry._claims.get(identity)
 
         if existing is not None and existing is not self:
-            raise OwnershipRefused(
-                "Received Attempt already has another local owner; preserve the acknowledgement for reconciliation"
-            )
+            raise OwnershipRefused("Received Attempt already has another local owner; preserve the acknowledgement for reconciliation")
 
         self._registry._claims[identity] = self
 

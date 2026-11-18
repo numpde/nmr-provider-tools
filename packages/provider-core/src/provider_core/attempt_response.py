@@ -65,9 +65,7 @@ def require_attempt_ref(value):
     require_type(value, str)
 
     if re.fullmatch(r"execution_attempt:sha256:[0-9a-f]{64}", value) is None:
-        raise ValueError(
-            "Execution Attempt reference must be execution_attempt:sha256: followed by 64 lowercase hexadecimal digits"
-        )
+        raise ValueError("Execution Attempt reference must be execution_attempt:sha256: followed by 64 lowercase hexadecimal digits")
 
 
 def read_attempt(raw, *, execution_attempt_ref, job_ref):
@@ -258,14 +256,10 @@ def read_complete(raw, *, execution_attempt_ref, result_schema_id, result):
     result_ref = document["analysis_result_ref"]
 
     if not (type(result_ref) is (expected_type := str)):
-        raise ResponseRejected(
-            f"{type(result_ref)=} ≠ {expected_type=}"
-        )
+        raise ResponseRejected(f"{type(result_ref)=} ≠ {expected_type=}")
 
     if re.fullmatch(r"analysis_result:sha256:[0-9a-f]{64}", result_ref) is None:
-        raise ResponseRejected(
-            "Analysis result reference must be analysis_result:sha256: followed by 64 lowercase hexadecimal digits"
-        )
+        raise ResponseRejected("Analysis result reference must be analysis_result:sha256: followed by 64 lowercase hexadecimal digits")
 
     return AttemptCompletion(
         execution_attempt_ref,

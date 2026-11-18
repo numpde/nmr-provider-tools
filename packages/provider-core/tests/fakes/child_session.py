@@ -140,8 +140,6 @@ class ChildSession:
         self._prepared = None
 
         if self.mode == "close_output" and not self.child.pipes_closed:
-            raise ChildStopUnconfirmed(
-                "Scripted child stop is unconfirmed; retain its exact process and explicitly settle after cleanup"
-            )
+            raise ChildStopUnconfirmed("Scripted child stop is unconfirmed; retain its exact process and explicitly settle after cleanup")
 
         await self.child.stop()

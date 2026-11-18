@@ -239,18 +239,14 @@ def qualify_acquisition_bundle(bundle, scratch, expected_source_files):
                 or not member.isfile()
                 or member.name in verified_sources
             ):
-                raise ValueError(
-                    "Cannot qualify acquisition source bundle: unsafe or duplicate member."
-                )
+                raise ValueError("Cannot qualify acquisition source bundle: unsafe or duplicate member.")
 
             expected_member = expected_source_files.get(member.name)
 
             require_type(expected_member, dict)
 
             if set(expected_member) != {"sha256", "size", "mode"} or member.size != expected_member["size"] or member.mode != expected_member["mode"]:
-                raise ValueError(
-                    "Cannot qualify acquisition source bundle: member differs from source inventory."
-                )
+                raise ValueError("Cannot qualify acquisition source bundle: member differs from source inventory.")
 
             with archive.extractfile(member) as reader:
                 member_bytes = reader.read()
@@ -268,9 +264,7 @@ def qualify_acquisition_bundle(bundle, scratch, expected_source_files):
 
     for name in verified_sources:
         if any(parent.as_posix() in verified_sources for parent in PurePosixPath(name).parents):
-            raise ValueError(
-                "Cannot qualify acquisition source bundle: member conflicts with its parent path."
-            )
+            raise ValueError("Cannot qualify acquisition source bundle: member conflicts with its parent path.")
 
     destination = scratch / "acquisition-source"
 

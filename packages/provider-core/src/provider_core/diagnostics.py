@@ -210,9 +210,7 @@ def write_notice(content):
         maximum = os.fpathconf(descriptor, "PC_PIPE_BUF")
 
         if len(content) > maximum:
-            raise DiagnosticOutputRefused(
-                f"Cannot emit complete API availability notice: {len(content)} bytes exceed the pipe's {maximum}-byte atomic-write limit."
-            )
+            raise DiagnosticOutputRefused(f"Cannot emit complete API availability notice: {len(content)} bytes exceed the pipe's {maximum}-byte atomic-write limit.")
 
     write_stderr(content)
 
