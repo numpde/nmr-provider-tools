@@ -11,11 +11,6 @@ uid=$(id -u) gid=$(id -g)
 if [[ $uid == 0 || $gid == 0 || $root =~ [[:cntrl:],] ]]; then
     printf '%s\n' 'Cannot build shared delivery: use a nonzero caller and repository path without mount delimiters.' >&2; exit 2
 fi
-inputs=(operations/docker/base_image.sh tools/container_guard.py tools/artifacts.py tools/wheelhouse.py packages/provider-core/sdk_build/core_environment.py
-    tools/installer.py requirements/installer-release.json
-    operations/delivery/build_inputs.py operations/delivery/image/delivery_deployment.py packages/provider-core/sdk_build/provider_core_acquire.py host/tools/build_stream_inputs.py
-    requirements/provider-core.lock requirements/delivery-release.json requirements/wheelhouse-tool-release.json
-    operations/delivery/image/Dockerfile operations/delivery/image/check_runtime.py)
 source "$root/host/tools/checker_operation.sh"
 source "$root/host/tools/checker_inputs.sh"
 source "$root/operations/delivery/image_identity.sh"
@@ -23,15 +18,15 @@ recipe=$(delivery_recipe_identity)
 checker_begin
 checker_admit_tools
 checker_host_identity "$checker_image" /usr/local/bin/python3 "$uid" "$gid" || exit "$?"
-checker_input_paths=("${inputs[@]}")
-expected=$(checker_fingerprint checker)
+inputs=("${delivery_recipe_inputs[@]}")
+expected=$(image_fingerprint checker "${inputs[@]}")
 [[ $recipe == "$expected" ]] || { printf '%s\n' 'Delivery recipe changed before capture; retry.' >&2; exit 2; }
 context=$operation_directory/context
 mkdir -- "$context"
 for path in "${inputs[@]}"; do
     (cd -- "$root"; cp --parents --preserve=mode -- "$path" "$context/")
 done
-captured=$(root=$context checker_fingerprint checker)
+captured=$(root=$context image_fingerprint checker "${inputs[@]}")
 if [[ $captured != "$expected" ]]; then
     operation_diagnostic+=$'Cannot build shared delivery: construction sources changed during capture; retry after edits finish.\n'
     exit 2
@@ -58,15 +53,15 @@ checker_run 120 --pull never --network none --read-only --user "$checker_host_ui
     --entrypoint python3 "$checker_image" -B -m operations.delivery.build_inputs capture --pin /release.json --runtime-lock /core-runtime.lock --pool /wheelhouse --destination /capture
 for path in provider-core-install.lock provider-core-wheel-inputs.json provider-core-stream.json operations/delivery/image/Dockerfile.selected; do
     [[ -f $context/$path && ! -L $context/$path ]] || exit 2
-    checker_input_paths+=("$path")
+    inputs+=("$path")
 done
-fingerprint=$(root=$context checker_fingerprint checker)
+fingerprint=$(root=$context image_fingerprint checker "${inputs[@]}")
 if ! python3 -I -S -B -c 'import sys; sys.exit(sys.version_info < (3, 11))'; then
     operation_diagnostic+=$'Cannot build shared delivery: host Python 3.11 or newer is needed to stream build inputs.\n'; exit 2
 fi
 tool_pin=$(python3 -I -S -B "$context/host/tools/build_stream_inputs.py" "$context" \
-    "$operation_directory/source-allowlist.json" "${checker_input_paths[@]}")
-[[ $(root=$context checker_fingerprint checker) == "$fingerprint" ]] || {
+    "$operation_directory/source-allowlist.json" "${inputs[@]}")
+[[ $(root=$context image_fingerprint checker "${inputs[@]}") == "$fingerprint" ]] || {
     operation_diagnostic+=$'Cannot build shared delivery: captured inputs changed before streaming.\n'; exit 2;
 }
 read -r tool_name tool_hash <<< "$tool_pin"

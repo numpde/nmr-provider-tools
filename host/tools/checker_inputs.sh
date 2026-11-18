@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
 # Runtime tests are mounted. Only actual image construction inputs bind its tag.
+source "$root/operations/docker/image_fingerprint.sh"
 checker_input_paths=(
     operations/docker/base_image.sh tools/checker_dependencies.py tools/container_guard.py tools/artifacts.py
     requirements/checker-dependencies.json containers/checker/Dockerfile
@@ -7,22 +8,7 @@ checker_input_paths=(
 )
 
 checker_fingerprint() {
-    local path mode target=$1
-    for path in "${checker_input_paths[@]}"; do
-        if [[ ! -f $root/$path || -L $root/$path ]]; then
-            printf 'Cannot identify checker inputs: expected a regular file at %q.\n' "$root/$path" >&2
-            return 2
-        fi
-    done
-    (
-        cd -- "$root" || exit "$?"
-        printf '%s\0' linux/amd64 "$target" || exit "$?"
-        for path in "${checker_input_paths[@]}"; do
-            mode=$(stat -c %a -- "$path") || exit "$?"
-            printf '%s\0%s\0' "$path" "$mode" || exit "$?"
-            sha256sum -- "$path" || exit "$?"
-        done
-    ) | sha256sum | cut -d ' ' -f 1
+    image_fingerprint "$1" "${checker_input_paths[@]}"
 }
 
 checker_image_tag() {
