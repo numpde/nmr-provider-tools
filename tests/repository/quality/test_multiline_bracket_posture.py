@@ -206,12 +206,24 @@ class MultilineBracketPostureTests(unittest.TestCase):
         self.assertEqual(first=[], second=multiline_literal_findings(source=source))
 
     def test_multiline_set_and_nested_dictionary_braces_use_utf8_positions(self):
-        source = 'café = {first,\n    second}\nnested = {\n    "clé": {"value": 1,\n        "other": 2},\n}\n'
+        source = (
+            'café = {first,\n'
+            '    second}\n'
+            'nested = {\n'
+            '    "clé": {"value": 1,\n'
+            '        "other": 2},\n'
+            '}\n'
+        )
 
         self.assertEqual(first=[1, 2, 4, 5], second=[line for (line, _) in multiline_literal_findings(source=source)])
 
     def test_multiline_list_and_parenthesized_tuple_report_both_delimiters(self):
-        source = 'items = [first,\n    second]\nvalues = (first,\n    "café")\n'
+        source = (
+            'items = [first,\n'
+            '    second]\n'
+            'values = (first,\n'
+            '    "café")\n'
+        )
 
         self.assertEqual(
             first=[
@@ -224,7 +236,18 @@ class MultilineBracketPostureTests(unittest.TestCase):
         )
 
     def test_multiline_list_and_tuple_allow_clear_delimiters(self):
-        source = "items = [\n    first,\n    second,\n]\nvalues = (\n    first,\n    second,\n)\na[(first),\n  (second)]\n"
+        source = (
+            "items = [\n"
+            "    first,\n"
+            "    second,\n"
+            "]\n"
+            "values = (\n"
+            "    first,\n"
+            "    second,\n"
+            ")\n"
+            "a[(first),\n"
+            "  (second)]\n"
+        )
 
         self.assertEqual(first=[], second=multiline_literal_findings(source=source))
 
@@ -328,7 +351,12 @@ class MultilineBracketPostureTests(unittest.TestCase):
                 self.assertEqual(first=1, second=len(shared_item_lines(source=source)))
 
     def test_nested_single_line_groups_own_their_commas(self):
-        source = "value = call(\n    pair=(first, second),\n    mapping={first: second, third: fourth},\n)\n"
+        source = (
+            "value = call(\n"
+            "    pair=(first, second),\n"
+            "    mapping={first: second, third: fourth},\n"
+            ")\n"
+        )
 
         self.assertEqual(first=[], second=shared_item_lines(source=source))
 
@@ -342,35 +370,65 @@ class MultilineBracketPostureTests(unittest.TestCase):
             "    ),\n"
             ")\n"
         )
-        separated = source.replace(', "operations/', ',\n        "operations/')
+
+        separated = source.replace(
+            ', "operations/',
+            (
+                ',\n'
+                '        "operations/'
+            ),
+        )
 
         self.assertEqual(first=[(4, 28, 8)], second=shared_item_lines(source=source))
         self.assertEqual(first=[], second=shared_item_lines(source=separated))
 
     def test_nested_multiline_group_and_outer_arguments_are_both_checked(self):
-        source = "value = call(\n    pair=(\n        first, second,\n    ), option=True,\n)\n"
+        source = (
+            "value = call(\n"
+            "    pair=(\n"
+            "        first, second,\n"
+            "    ), option=True,\n"
+            ")\n"
+        )
 
         self.assertEqual(first=[(3, 15, 8), (4, 7, 4)], second=shared_item_lines(source=source))
 
     def test_lambda_parameter_commas_are_not_call_argument_boundaries(self):
-        source = "value = call(\n    lambda first, second: first, option=True,\n)\n"
+        source = (
+            "value = call(\n"
+            "    lambda first, second: first, option=True,\n"
+            ")\n"
+        )
 
         self.assertEqual(first=1, second=len(shared_item_lines(source=source)))
 
     def test_nested_lambda_headers_have_independent_colons(self):
-        source = "value = call(\n    lambda first=lambda second, third: second: first, option=True,\n)\n"
+        source = (
+            "value = call(\n"
+            "    lambda first=lambda second, third: second: first, option=True,\n"
+            ")\n"
+        )
 
         self.assertEqual(first=1, second=len(shared_item_lines(source=source)))
 
     def test_string_and_comment_commas_are_opaque(self):
-        source = 'value = call(\n    "first, second",  # third, fourth\n    option=True,\n)\n'
+        source = (
+            'value = call(\n'
+            '    "first, second",  # third, fourth\n'
+            '    option=True,\n'
+            ')\n'
+        )
 
         self.assertEqual(first=[], second=shared_item_lines(source=source))
 
     def test_fstrings_do_not_create_bracket_frames(self):
         sources = [
-            'value = call(\n    f"{first, second}", option=True,\n)\n',
-            'value = call(\n    f"{f\'{mapping["key"]}\'}", option=True,\n)\n',
+            'value = call(\n'
+            '    f"{first, second}", option=True,\n'
+            ')\n',
+            'value = call(\n'
+            '    f"{f\'{mapping["key"]}\'}", option=True,\n'
+            ')\n',
         ]
 
         for source in sources:
@@ -378,7 +436,12 @@ class MultilineBracketPostureTests(unittest.TestCase):
                 self.assertEqual(first=1, second=len(shared_item_lines(source=source)))
 
     def test_multiline_item_cannot_share_its_closing_line_with_next_item(self):
-        source = 'value = call(\n    """first\nsecond""", option=True,\n)\n'
+        source = (
+            'value = call(\n'
+            '    """first\n'
+            'second""", option=True,\n'
+            ')\n'
+        )
 
         self.assertEqual(first=1, second=len(shared_item_lines(source=source)))
 

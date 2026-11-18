@@ -90,8 +90,14 @@ def fixture_command(name):
                 "nul": b"0\0\n",
                 "cr": b"0\r\n",
                 "missing-lf": b"0",
-                "extra-lf": b"0\n\n",
-                "extra-line": b"0\n7\n",
+                "extra-lf": (
+                    b"0\n"
+                    b"\n"
+                ),
+                "extra-line": (
+                    b"0\n"
+                    b"7\n"
+                ),
                 "negative": b"-1\n",
                 "256": b"256\n",
                 "text": b"unknown\n",

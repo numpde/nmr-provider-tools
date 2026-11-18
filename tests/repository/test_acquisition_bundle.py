@@ -87,8 +87,12 @@ class AcquisitionBundleTests(unittest.TestCase):
         pin = root / "pylock.toml"
 
         pin.write_text(
-            'lock-version = "1.0"\n[[packages]]\nname = "linux-idmap"\nversion = "0.3.0"\n'
-            '[[packages.wheels]]\nurl = "https://example.invalid/' + identity.name + '"\n'
+            'lock-version = "1.0"\n'
+            '[[packages]]\n'
+            'name = "linux-idmap"\n'
+            'version = "0.3.0"\n'
+            '[[packages.wheels]]\n'
+            'url = "https://example.invalid/' + identity.name + '"\n'
             'hashes = {sha256 = "' + hashlib.sha256(identity.read_bytes()).hexdigest() + '"}\n'
         )
 

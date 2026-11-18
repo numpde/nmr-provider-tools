@@ -21,20 +21,51 @@ from .sources import REPOSITORY_ROOT
 
 class MakeSourceInspectionTests(unittest.TestCase):
     def test_returns_one_repository_owned_define_body(self) -> None:
-        makefile = "override define OWNER\nfirst\nsecond\nendef\n"
+        makefile = (
+            "override define OWNER\n"
+            "first\n"
+            "second\n"
+            "endef\n"
+        )
 
-        self.assertEqual("first\nsecond", make_define_body(makefile, "OWNER"))
+        self.assertEqual(
+            (
+                "first\n"
+                "second"
+            ),
+            make_define_body(makefile, "OWNER"),
+        )
 
     def test_rejects_missing_duplicate_or_unowned_defines(self) -> None:
         for (makefile, message) in (
-            ("define OWNER\nbody\nendef\n", "must appear once"),
-            ("override define OWNER\nbody\n", "has no endef"),
             (
-                "override define OWNER\nbody\nendefinitely\n",
+                (
+                    "define OWNER\n"
+                    "body\n"
+                    "endef\n"
+                ),
+                "must appear once",
+            ),
+            (
+                (
+                    "override define OWNER\n"
+                    "body\n"
+                ),
                 "has no endef",
             ),
             (
-                "override define OWNER\none\nendef\noverride define OWNER\ntwo\nendef\n",
+                "override define OWNER\n"
+                "body\n"
+                "endefinitely\n",
+                "has no endef",
+            ),
+            (
+                "override define OWNER\n"
+                "one\n"
+                "endef\n"
+                "override define OWNER\n"
+                "two\n"
+                "endef\n",
                 "must appear once",
             ),
         ):
@@ -42,7 +73,12 @@ class MakeSourceInspectionTests(unittest.TestCase):
                 make_define_body(makefile, "OWNER")
 
     def test_returns_only_the_selected_recipe(self) -> None:
-        makefile = "first:\n\t@printf first\nsecond:\n\t@printf second\n"
+        makefile = (
+            "first:\n"
+            "\t@printf first\n"
+            "second:\n"
+            "\t@printf second\n"
+        )
 
         self.assertEqual(
             "\t@printf first\n",
@@ -52,7 +88,10 @@ class MakeSourceInspectionTests(unittest.TestCase):
     def test_accepts_prerequisites_without_confusing_them_for_targets(self) -> None:
         for separator in (": ", ":"):
             with self.subTest(separator=separator):
-                makefile = f"owner{separator}prerequisite\n\t@printf owner\n"
+                makefile = (
+                    f"owner{separator}prerequisite\n"
+                    f"\t@printf owner\n"
+                )
 
                 self.assertEqual(
                     "\t@printf owner\n",
@@ -66,7 +105,10 @@ class MakeSourceInspectionTests(unittest.TestCase):
                     make_target_body(makefile, "prerequisite")
 
     def test_requires_an_exact_sole_literal_target(self) -> None:
-        makefile = "wanted-extra:\n\t@printf wrong\n"
+        makefile = (
+            "wanted-extra:\n"
+            "\t@printf wrong\n"
+        )
 
         with self.assertRaisesRegex(AssertionError, "target 'wanted' is missing"):
             make_target_body(makefile, "wanted")
@@ -74,12 +116,18 @@ class MakeSourceInspectionTests(unittest.TestCase):
     def test_rejects_ambiguous_or_recipe_less_rules(self) -> None:
         cases = (
             (
-                "duplicate:\n\t@printf one\nduplicate:\n\t@printf two\n",
+                "duplicate:\n"
+                "\t@printf one\n"
+                "duplicate:\n"
+                "\t@printf two\n",
                 "duplicate",
                 "multiple literal rules",
             ),
             (
-                "duplicate:\n\t@printf one\nduplicate:prerequisite\n\t@printf two\n",
+                "duplicate:\n"
+                "\t@printf one\n"
+                "duplicate:prerequisite\n"
+                "\t@printf two\n",
                 "duplicate",
                 "multiple literal rules",
             ),
@@ -90,17 +138,20 @@ class MakeSourceInspectionTests(unittest.TestCase):
                 "must have one plain literal rule",
             ),
             (
-                "inline: ; @printf inline\n\t@printf another\n",
+                "inline: ; @printf inline\n"
+                "\t@printf another\n",
                 "inline",
                 "must have one plain literal rule",
             ),
             (
-                "first second:\n\t@printf grouped\n",
+                "first second:\n"
+                "\t@printf grouped\n",
                 "first",
                 "must have one plain literal rule",
             ),
             (
-                "double::\n\t@printf double\n",
+                "double::\n"
+                "\t@printf double\n",
                 "double",
                 "must have one plain literal rule",
             ),
@@ -111,15 +162,32 @@ class MakeSourceInspectionTests(unittest.TestCase):
                 make_target_body(makefile, target)
 
     def test_recipe_includes_lines_after_blank_lines_and_comments(self) -> None:
-        makefile = "split:\n\t@printf first\n\n# explanation\n\t@printf second\n"
+        makefile = (
+            "split:\n"
+            "\t@printf first\n"
+            "\n"
+            "# explanation\n"
+            "\t@printf second\n"
+        )
 
         self.assertEqual(
-            "\t@printf first\n\n# explanation\n\t@printf second\n",
+            "\t@printf first\n"
+            "\n"
+            "# explanation\n"
+            "\t@printf second\n",
             make_target_body(makefile, "split"),
         )
 
     def test_invocation_inventory_names_every_direct_owner(self) -> None:
-        makefile = "override define SHARED\n\t$(COMMAND)\nendef\nfirst:\n\t$(COMMAND)\nsecond:prerequisite\n\t$(COMMAND)\n"
+        makefile = (
+            "override define SHARED\n"
+            "\t$(COMMAND)\n"
+            "endef\n"
+            "first:\n"
+            "\t$(COMMAND)\n"
+            "second:prerequisite\n"
+            "\t$(COMMAND)\n"
+        )
 
         self.assertEqual(
             ["define SHARED", "target first", "target second"],
@@ -128,10 +196,20 @@ class MakeSourceInspectionTests(unittest.TestCase):
 
     def test_invocation_inventory_rejects_uninspected_uses(self) -> None:
         for makefile in (
-            "first:\n\t$(COMMAND)\nloose = $(COMMAND)\n",
-            "first:\n\t$(COMMAND)\nUNRELATED = literal\n\t$(COMMAND)\n",
-            "first:\n\t@# $(COMMAND)\n",
-            "override define SHARED\ninner:\n\t$(COMMAND)\nendef\nloose = $(COMMAND)\n",
+            "first:\n"
+            "\t$(COMMAND)\n"
+            "loose = $(COMMAND)\n",
+            "first:\n"
+            "\t$(COMMAND)\n"
+            "UNRELATED = literal\n"
+            "\t$(COMMAND)\n",
+            "first:\n"
+            "\t@# $(COMMAND)\n",
+            "override define SHARED\n"
+            "inner:\n"
+            "\t$(COMMAND)\n"
+            "endef\n"
+            "loose = $(COMMAND)\n",
         ):
             with self.subTest(makefile=makefile), self.assertRaisesRegex(AssertionError, "outside one direct recipe"):
                 make_invocation_owners(makefile, "$(COMMAND)")

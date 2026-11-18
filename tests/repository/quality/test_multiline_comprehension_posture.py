@@ -133,11 +133,27 @@ class MultilineComprehensionPostureTests(unittest.TestCase):
         self.assertEqual(first=[], second=multiline_filter_findings(source=source))
         self.assertEqual(
             first=[(4, "put if on its own line before a multiline comprehension filter")],
-            second=multiline_filter_findings(source=source.replace("if\n        (", "if (")),
+            second=multiline_filter_findings(
+                source=source.replace(
+                    (
+                        "if\n"
+                        "        ("
+                    ),
+                    "if (",
+                )
+            ),
         )
         self.assertEqual(
             first=[(3, "put if on its own line before a multiline comprehension filter")],
-            second=multiline_filter_findings(source=source.replace("models\n        if", "models if")),
+            second=multiline_filter_findings(
+                source=source.replace(
+                    (
+                        "models\n"
+                        "        if"
+                    ),
+                    "models if",
+                )
+            ),
         )
 
     def test_inline_filters_and_multiline_call_filters_can_start_beside_if(self) -> None:
@@ -180,9 +196,15 @@ class MultilineComprehensionPostureTests(unittest.TestCase):
 
     def test_multiline_collection_comprehensions_keep_their_delimiters_visible(self) -> None:
         sources = (
-            "values = [\n    item for item in items\n]\n",
-            "values = {\n    item for item in items\n}\n",
-            "values = {\n    item.key: item.value for item in items\n}\n",
+            "values = [\n"
+            "    item for item in items\n"
+            "]\n",
+            "values = {\n"
+            "    item for item in items\n"
+            "}\n",
+            "values = {\n"
+            "    item.key: item.value for item in items\n"
+            "}\n",
         )
 
         for source in sources:
@@ -191,9 +213,16 @@ class MultilineComprehensionPostureTests(unittest.TestCase):
 
     def test_multiline_generator_expressions_use_their_own_or_call_delimiters(self) -> None:
         sources = (
-            "values = (\n    item for item in items\n)\n",
-            "consume(\n    item for item in items\n)\n",
-            "consume((\n    item for item in items\n)\n)\n",
+            "values = (\n"
+            "    item for item in items\n"
+            ")\n",
+            "consume(\n"
+            "    item for item in items\n"
+            ")\n",
+            "consume((\n"
+            "    item for item in items\n"
+            ")\n"
+            ")\n",
         )
 
         for source in sources:
@@ -202,10 +231,14 @@ class MultilineComprehensionPostureTests(unittest.TestCase):
 
     def test_expression_after_opening_and_inline_closing_are_reported(self) -> None:
         source = (
-            "one = {item for item in items\n}\n"
-            "two = [\n    item for item in items]\n"
-            "three = {item.key: item.value\n    for item in items}\n"
-            "four = (item for item in items\n)\n"
+            "one = {item for item in items\n"
+            "}\n"
+            "two = [\n"
+            "    item for item in items]\n"
+            "three = {item.key: item.value\n"
+            "    for item in items}\n"
+            "four = (item for item in items\n"
+            ")\n"
         )
 
         self.assertEqual(
@@ -224,7 +257,10 @@ class MultilineComprehensionPostureTests(unittest.TestCase):
             "values = [item for item in items]\n"
             "mapping = {key: value for key, value in pairs}\n"
             "generated = (item for item in items)\n"
-            "call(\n    first,\n    second,\n)\n"
+            "call(\n"
+            "    first,\n"
+            "    second,\n"
+            ")\n"
             "text = f\"{[item for item in items]}\"\n"
         )
 

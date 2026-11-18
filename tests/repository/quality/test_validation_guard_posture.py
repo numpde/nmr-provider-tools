@@ -367,7 +367,11 @@ class GuardPostureTests(unittest.TestCase):
 
         for (operator, expected) in cases:
             with self.subTest(operator=operator):
-                source = f"if not math.isfinite(value) {operator} value <= 0:\n    raise ValueError('invalid value')\n"
+                source = (
+                    f"if not math.isfinite(value) {operator} value <= 0:\n"
+                    f"    raise ValueError('invalid value')\n"
+                )
+
                 findings = _findings(pathlib.Path("example.py"), source)
 
                 self.assertEqual(1, len(findings))
@@ -383,7 +387,11 @@ class GuardPostureTests(unittest.TestCase):
 
         for (lower, upper, expected) in cases:
             with self.subTest(lower=lower, upper=upper):
-                source = f"if value {lower} minimum or value {upper} maximum:\n    raise ValueError('outside bounds')\n"
+                source = (
+                    f"if value {lower} minimum or value {upper} maximum:\n"
+                    f"    raise ValueError('outside bounds')\n"
+                )
+
                 findings = _findings(pathlib.Path("example.py"), source)
 
                 self.assertEqual(1, len(findings))
@@ -395,7 +403,10 @@ class GuardPostureTests(unittest.TestCase):
             "value < minimum or value != maximum",
         ):
             with self.subTest(condition=condition):
-                statement = ast.parse(f"if {condition}:\n    raise ValueError('outside bounds')\n").body[0]
+                statement = ast.parse(
+                    f"if {condition}:\n"
+                    f"    raise ValueError('outside bounds')\n"
+                ).body[0]
 
                 self.assertIsNone(_split_range_finding(source_path=pathlib.Path("example.py"), statement=statement))
 

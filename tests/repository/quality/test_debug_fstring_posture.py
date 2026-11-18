@@ -283,7 +283,11 @@ class DebugFstringPostureTests(unittest.TestCase):
         self.assertEqual(first=[(5, "duration")], second=[(finding.line, finding.expression) for finding in findings])
 
     def test_dynamic_format_fields_are_structural_but_nested_fstrings_are_values(self) -> None:
-        source = 'message = f"{duration:{width}.{precision}f}"\nmessage = f"{f\'{label}\' = }"\n'
+        source = (
+            'message = f"{duration:{width}.{precision}f}"\n'
+            'message = f"{f\'{label}\' = }"\n'
+        )
+
         findings = _findings(source_path=pathlib.Path("example.py"), source=source)
 
         self.assertEqual(first=["duration", "label"], second=[finding.expression for finding in findings])
@@ -303,7 +307,12 @@ class DebugFstringPostureTests(unittest.TestCase):
         )
 
     def test_ordinary_data_formatting_is_reported_without_a_silent_exemption(self) -> None:
-        source = 'path = f"/work/{name}.json"\ncommand = f"--port={port}"\nheader = "mode=live"\n'
+        source = (
+            'path = f"/work/{name}.json"\n'
+            'command = f"--port={port}"\n'
+            'header = "mode=live"\n'
+        )
+
         findings = _findings(source_path=pathlib.Path("example.py"), source=source)
 
         self.assertEqual(first=["name", "port", "mode"], second=[finding.expression for finding in findings])

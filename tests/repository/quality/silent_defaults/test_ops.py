@@ -197,7 +197,12 @@ class OpsSilentDefaultsTest(unittest.TestCase):
         )
 
     def test_docker_continuations_preserve_every_default_and_start_line(self):
-        source = "# fixture\nENV FIRST=one \\\n    SECOND=two \\\n    THIRD=three\n"
+        source = (
+            "# fixture\n"
+            "ENV FIRST=one \\\n"
+            "    SECOND=two \\\n"
+            "    THIRD=three\n"
+        )
 
         self.assertEqual(
             [
@@ -209,7 +214,13 @@ class OpsSilentDefaultsTest(unittest.TestCase):
         )
 
         self.assertEqual([(2, "ENV FIRST=one      SECOND=two      THIRD=three")], list(docker_logical_lines(source))[1:])
-        continued = "ENV FIRST=one \\\n# Docker continuation comment\n\n    SECOND=two\n"
+
+        continued = (
+            "ENV FIRST=one \\\n"
+            "# Docker continuation comment\n"
+            "\n"
+            "    SECOND=two\n"
+        )
 
         self.assertEqual(
             [
@@ -284,22 +295,114 @@ class OpsSilentDefaultsTest(unittest.TestCase):
 
     def test_shell_publication_names_are_conservative_source_candidates(self):
         cases = (
-            ("directory=\ndirectory=ready\ndirectory=\n", set()),
-            ("export TOKEN\nTOKEN=\n", {"TOKEN"}),
-            ("TOKEN=\nexport TOKEN\n", {"TOKEN"}),
-            ("TOKEN=\nTOKEN=ready\nexport TOKEN\n", {"TOKEN"}),
+            (
+                (
+                    "directory=\n"
+                    "directory=ready\n"
+                    "directory=\n"
+                ),
+                set(),
+            ),
+            (
+                (
+                    "export TOKEN\n"
+                    "TOKEN=\n"
+                ),
+                {"TOKEN"},
+            ),
+            (
+                (
+                    "TOKEN=\n"
+                    "export TOKEN\n"
+                ),
+                {"TOKEN"},
+            ),
+            (
+                (
+                    "TOKEN=\n"
+                    "TOKEN=ready\n"
+                    "export TOKEN\n"
+                ),
+                {"TOKEN"},
+            ),
             ("export 'TOKEN' \"OTHER=value\" THIRD=ready\n", {"TOKEN", "OTHER", "THIRD"}),
-            ('export "$name"\nTOKEN=\n', None),
-            ("export 'export TOKEN'\nTOKEN=\n", None),
-            ("export -n TOKEN\nTOKEN=\n", None),
-            ("declare -x TOKEN\nTOKEN=\n", None),
-            ("typeset -x TOKEN\nTOKEN=\n", None),
-            ("set '-a'\nTOKEN=\n", None),
-            ("set -o allexport\nTOKEN=\n", None),
-            ('set "$flags"\nTOKEN=\n', None),
-            ('set -m; set "$flags"\nTOKEN=\n', None),
-            ("shopt -s -o allexport\nTOKEN=\n", None),
-            ("export TOKEN\nshopt -s nullglob dotglob\n", {"TOKEN"}),
+            (
+                (
+                    'export "$name"\n'
+                    'TOKEN=\n'
+                ),
+                None,
+            ),
+            (
+                (
+                    "export 'export TOKEN'\n"
+                    "TOKEN=\n"
+                ),
+                None,
+            ),
+            (
+                (
+                    "export -n TOKEN\n"
+                    "TOKEN=\n"
+                ),
+                None,
+            ),
+            (
+                (
+                    "declare -x TOKEN\n"
+                    "TOKEN=\n"
+                ),
+                None,
+            ),
+            (
+                (
+                    "typeset -x TOKEN\n"
+                    "TOKEN=\n"
+                ),
+                None,
+            ),
+            (
+                (
+                    "set '-a'\n"
+                    "TOKEN=\n"
+                ),
+                None,
+            ),
+            (
+                (
+                    "set -o allexport\n"
+                    "TOKEN=\n"
+                ),
+                None,
+            ),
+            (
+                (
+                    'set "$flags"\n'
+                    'TOKEN=\n'
+                ),
+                None,
+            ),
+            (
+                (
+                    'set -m; set "$flags"\n'
+                    'TOKEN=\n'
+                ),
+                None,
+            ),
+            (
+                (
+                    "shopt -s -o allexport\n"
+                    "TOKEN=\n"
+                ),
+                None,
+            ),
+            (
+                (
+                    "export TOKEN\n"
+                    "shopt -s nullglob dotglob\n"
+                ),
+                {"TOKEN"},
+            ),
             ("TOKEN=; export TOKEN\n", None),
         )
 
@@ -309,26 +412,154 @@ class OpsSilentDefaultsTest(unittest.TestCase):
 
     def test_ops_property_distinguishes_private_resets_from_blank_publication(self):
         cases = (
-            ("fixture.sh", "directory=\ndirectory=ready\ndirectory=\n", None),
-            ("fixture.sh", "export TOKEN\nTOKEN=\n", "blank env assignment: TOKEN="),
-            ("fixture.sh", "TOKEN=\nexport TOKEN\n", "blank env assignment: TOKEN="),
-            ("fixture.sh", "TOKEN=\nTOKEN=ready\nexport TOKEN\n", "blank env assignment: TOKEN="),
-            ("fixture.sh", "TOKEN=\nexport 'TOKEN' OTHER=ready\n", "blank env assignment: TOKEN="),
-            ("fixture.sh", 'TOKEN=\nexport "$name"\n', "blank env assignment: TOKEN="),
-            ("fixture.sh", "TOKEN=\nexport 'export TOKEN'\n", "blank env assignment: TOKEN="),
-            ("fixture.sh", "TOKEN=\nexport -n TOKEN\n", "blank env assignment: TOKEN="),
-            ("fixture.sh", "TOKEN=\ndeclare -x TOKEN\n", "blank env assignment: TOKEN="),
-            ("fixture.sh", "TOKEN=\ntypeset -x TOKEN\n", "blank env assignment: TOKEN="),
-            ("fixture.sh", "TOKEN=\nset '-a'\n", "blank env assignment: TOKEN="),
-            ("fixture.sh", "TOKEN=\nset -o allexport\n", "blank env assignment: TOKEN="),
-            ("fixture.sh", 'TOKEN=\nset "$flags"\n', "blank env assignment: TOKEN="),
-            ("fixture.sh", 'TOKEN=\nset -m; set "$flags"\n', "blank env assignment: TOKEN="),
-            ("fixture.sh", "TOKEN=\nshopt -s -o allexport\n", "blank env assignment: TOKEN="),
-            ("fixture.sh", "directory=\nshopt -s nullglob dotglob\n", None),
+            (
+                "fixture.sh",
+                (
+                    "directory=\n"
+                    "directory=ready\n"
+                    "directory=\n"
+                ),
+                None,
+            ),
+            (
+                "fixture.sh",
+                (
+                    "export TOKEN\n"
+                    "TOKEN=\n"
+                ),
+                "blank env assignment: TOKEN=",
+            ),
+            (
+                "fixture.sh",
+                (
+                    "TOKEN=\n"
+                    "export TOKEN\n"
+                ),
+                "blank env assignment: TOKEN=",
+            ),
+            (
+                "fixture.sh",
+                (
+                    "TOKEN=\n"
+                    "TOKEN=ready\n"
+                    "export TOKEN\n"
+                ),
+                "blank env assignment: TOKEN=",
+            ),
+            (
+                "fixture.sh",
+                (
+                    "TOKEN=\n"
+                    "export 'TOKEN' OTHER=ready\n"
+                ),
+                "blank env assignment: TOKEN=",
+            ),
+            (
+                "fixture.sh",
+                (
+                    'TOKEN=\n'
+                    'export "$name"\n'
+                ),
+                "blank env assignment: TOKEN=",
+            ),
+            (
+                "fixture.sh",
+                (
+                    "TOKEN=\n"
+                    "export 'export TOKEN'\n"
+                ),
+                "blank env assignment: TOKEN=",
+            ),
+            (
+                "fixture.sh",
+                (
+                    "TOKEN=\n"
+                    "export -n TOKEN\n"
+                ),
+                "blank env assignment: TOKEN=",
+            ),
+            (
+                "fixture.sh",
+                (
+                    "TOKEN=\n"
+                    "declare -x TOKEN\n"
+                ),
+                "blank env assignment: TOKEN=",
+            ),
+            (
+                "fixture.sh",
+                (
+                    "TOKEN=\n"
+                    "typeset -x TOKEN\n"
+                ),
+                "blank env assignment: TOKEN=",
+            ),
+            (
+                "fixture.sh",
+                (
+                    "TOKEN=\n"
+                    "set '-a'\n"
+                ),
+                "blank env assignment: TOKEN=",
+            ),
+            (
+                "fixture.sh",
+                (
+                    "TOKEN=\n"
+                    "set -o allexport\n"
+                ),
+                "blank env assignment: TOKEN=",
+            ),
+            (
+                "fixture.sh",
+                (
+                    'TOKEN=\n'
+                    'set "$flags"\n'
+                ),
+                "blank env assignment: TOKEN=",
+            ),
+            (
+                "fixture.sh",
+                (
+                    'TOKEN=\n'
+                    'set -m; set "$flags"\n'
+                ),
+                "blank env assignment: TOKEN=",
+            ),
+            (
+                "fixture.sh",
+                (
+                    "TOKEN=\n"
+                    "shopt -s -o allexport\n"
+                ),
+                "blank env assignment: TOKEN=",
+            ),
+            (
+                "fixture.sh",
+                (
+                    "directory=\n"
+                    "shopt -s nullglob dotglob\n"
+                ),
+                None,
+            ),
             ("fixture.env", "TOKEN=\n", "blank env assignment: TOKEN="),
             ("fixture.env.example", "TOKEN=''\n", "blank env assignment: TOKEN=''"),
-            ("compose.yml", "environment:\n  TOKEN:\n", "blank compose env mapping: TOKEN:"),
-            ("compose.yml", "environment:\n  - TOKEN=\n", "blank compose env assignment: TOKEN="),
+            (
+                "compose.yml",
+                (
+                    "environment:\n"
+                    "  TOKEN:\n"
+                ),
+                "blank compose env mapping: TOKEN:",
+            ),
+            (
+                "compose.yml",
+                (
+                    "environment:\n"
+                    "  - TOKEN=\n"
+                ),
+                "blank compose env assignment: TOKEN=",
+            ),
             ("workflow.yml", "  default: ready\n", "workflow dispatch default"),
         )
 

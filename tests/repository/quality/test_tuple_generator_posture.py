@@ -150,9 +150,13 @@ class TupleGeneratorPostureTests(unittest.TestCase):
 
     def test_escape_requires_a_documented_reason_near_the_binding(self) -> None:
         cases = (
-            "# repo-check: allow-tuple-generator --\nvalue = tuple(x for x in xs)\n",
-            "# repo-check: allow-tuple-generator\nvalue = tuple(x for x in xs)\n",
-            "# repo-check: allow-tuple-generator -- immutable inventory\n\nvalue = tuple(x for x in xs)\n",
+            "# repo-check: allow-tuple-generator --\n"
+            "value = tuple(x for x in xs)\n",
+            "# repo-check: allow-tuple-generator\n"
+            "value = tuple(x for x in xs)\n",
+            "# repo-check: allow-tuple-generator -- immutable inventory\n"
+            "\n"
+            "value = tuple(x for x in xs)\n",
         )
 
         for source in cases:

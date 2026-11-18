@@ -91,7 +91,10 @@ class ExplicitTuplePostureTests(unittest.TestCase):
             "value = lambda: (first, second)",
             "(first, *rest) = values",
             "value = ()",
-            "value = (\n    first,\n    second,\n)",
+            "value = (\n"
+            "    first,\n"
+            "    second,\n"
+            ")",
         ]
 
         for source in sources:
@@ -117,9 +120,13 @@ class ExplicitTuplePostureTests(unittest.TestCase):
     def test_strings_and_comments_do_not_affect_parenthesis_matching(self):
         sources = [
             'value = ("(", ")")',
-            'value = (\n    first,  # )\n    second,\n)',
+            'value = (\n'
+            '    first,  # )\n'
+            '    second,\n'
+            ')',
             'value = "first, second"',
-            '# first, second\nvalue = first',
+            '# first, second\n'
+            'value = first',
         ]
 
         for source in sources:

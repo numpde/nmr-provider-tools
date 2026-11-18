@@ -838,24 +838,89 @@ class PythonSilentDefaultsTest(unittest.TestCase):
         self.assertTrue(python_source_has_default('path = parsed.path or "/"'))
         self.assertTrue(python_source_has_default('manager = value if value is not None else "apk"'))
         self.assertTrue(python_source_has_default('value = env["PORT"] if "PORT" in env else "8080"'))
-        self.assertTrue(python_source_has_default('if "PORT" in env:\n    port = env["PORT"]\nelse:\n    port = "8080"'))
-        self.assertTrue(python_source_has_default('try:\n    port = env["PORT"]\nexcept KeyError:\n    port = "8080"'))
+
+        self.assertTrue(
+            python_source_has_default(
+                'if "PORT" in env:\n'
+                '    port = env["PORT"]\n'
+                'else:\n'
+                '    port = "8080"'
+            )
+        )
+
+        self.assertTrue(
+            python_source_has_default(
+                'try:\n'
+                '    port = env["PORT"]\n'
+                'except KeyError:\n'
+                '    port = "8080"'
+            )
+        )
+
         self.assertTrue(python_source_has_default('parser.add_argument("--port", default="8080")'))
         self.assertTrue(python_source_has_default('parser.add_argument("profile", nargs="?")'))
-        self.assertTrue(python_source_has_default('def run(port: str = "8080"):\n    pass'))
-        self.assertTrue(python_source_has_default("try:\n    run()\nexcept Exception:\n    pass"))
-        self.assertTrue(python_source_has_default("try:\n    run()\nexcept Exception:\n    return []"))
-        self.assertTrue(python_source_has_default('if args.port is None:\n    args.port = "8080"'))
+
+        self.assertTrue(
+            python_source_has_default(
+                'def run(port: str = "8080"):\n'
+                '    pass'
+            )
+        )
+
+        self.assertTrue(
+            python_source_has_default(
+                "try:\n"
+                "    run()\n"
+                "except Exception:\n"
+                "    pass"
+            )
+        )
+
+        self.assertTrue(
+            python_source_has_default(
+                "try:\n"
+                "    run()\n"
+                "except Exception:\n"
+                "    return []"
+            )
+        )
+
+        self.assertTrue(
+            python_source_has_default(
+                'if args.port is None:\n'
+                '    args.port = "8080"'
+            )
+        )
+
         self.assertTrue(python_source_has_default('profile = args[0] if args else "all"'))
-        self.assertTrue(python_source_has_default('if args:\n    profile = args[0]\nelse:\n    profile = "all"'))
+
+        self.assertTrue(
+            python_source_has_default(
+                'if args:\n'
+                '    profile = args[0]\n'
+                'else:\n'
+                '    profile = "all"'
+            )
+        )
 
     def test_matchers_ignore_explicit_absence(self) -> None:
         self.assertFalse(python_source_has_default("value = default if raw is None else raw"))
         self.assertFalse(python_source_has_default('value = config.get("profile")'))
-        self.assertFalse(python_source_has_default("def run(optional: str | None = None):\n    pass"))
 
         self.assertFalse(
-            python_source_has_default('try:\n    run()\nexcept Exception as exc:\n    raise RuntimeError("failed") from exc')
+            python_source_has_default(
+                "def run(optional: str | None = None):\n"
+                "    pass"
+            )
+        )
+
+        self.assertFalse(
+            python_source_has_default(
+                'try:\n'
+                '    run()\n'
+                'except Exception as exc:\n'
+                '    raise RuntimeError("failed") from exc'
+            )
         )
 
         self.assertFalse(python_source_has_default('optional = env["OPTIONAL"] if "OPTIONAL" in env else ""'))

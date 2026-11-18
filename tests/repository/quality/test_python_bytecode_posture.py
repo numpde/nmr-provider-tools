@@ -20,12 +20,24 @@ class PythonBytecodePostureTests(unittest.TestCase):
             "result=$(python3 -I helper.py)",
             "native 'mapping' untimed stdio python3 -I -S identity.py",
             "PYTHONDONTWRITEBYTECODE=1 python3 -I identity.py",
-            "export PYTHONDONTWRITEBYTECODE=1\npython3 -E identity.py"
+            "export PYTHONDONTWRITEBYTECODE=1\n"
+            "python3 -E identity.py"
         ):
             with self.subTest(source=source):
                 self.assertEqual(1, len(findings(pathlib.Path("launcher.sh"), source)))
 
-        self.assertEqual(1, len(findings(pathlib.Path("Makefile"), "run:\n\t@python3 -I helper.py\n")))
+        self.assertEqual(
+            1,
+            len(
+                findings(
+                    pathlib.Path("Makefile"),
+                    (
+                        "run:\n"
+                        "\t@python3 -I helper.py\n"
+                    ),
+                )
+            ),
+        )
 
     def test_effective_literal_environment_and_flags_are_accepted(self):
         for source in (
@@ -33,7 +45,8 @@ class PythonBytecodePostureTests(unittest.TestCase):
             "python3 -IBS identity.py",
             "PYTHONDONTWRITEBYTECODE=1 python3 helper.py",
             "env -u PYTHONDONTWRITEBYTECODE PYTHONDONTWRITEBYTECODE=1 python3 helper.py",
-            "export PYTHONDONTWRITEBYTECODE=1\npython3 helper.py",
+            "export PYTHONDONTWRITEBYTECODE=1\n"
+            "python3 helper.py",
             "docker run --env PYTHONDONTWRITEBYTECODE=1 --entrypoint python3 image helper.py"
         ):
             with self.subTest(source=source):

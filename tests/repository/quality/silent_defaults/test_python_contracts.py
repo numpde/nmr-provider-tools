@@ -58,8 +58,20 @@ class PythonContractApplicabilityTests(unittest.TestCase):
 
     def test_comparison_predicates_do_not_default_create_fault_inputs(self):
         sources = (
-            'if "NMRNET_FAKE_CREATE_OUTPUT" not in os.environ or os.environ["NMRNET_FAKE_CREATE_OUTPUT"] not in {\n    "exact",\n    "empty",\n    "disagree",\n    "nul",\n    "cap",\n}:\n    raise SystemExit(97)\n',
-            'if (\n    "NMRNET_FAKE_CREATE_STATUS" not in os.environ\n    or re.fullmatch(r"0|[1-9][0-9]{0,2}", os.environ["NMRNET_FAKE_CREATE_STATUS"]) is None\n    or int(os.environ["NMRNET_FAKE_CREATE_STATUS"]) > 255\n):\n    raise SystemExit(97)\n',
+            'if "NMRNET_FAKE_CREATE_OUTPUT" not in os.environ or os.environ["NMRNET_FAKE_CREATE_OUTPUT"] not in {\n'
+            '    "exact",\n'
+            '    "empty",\n'
+            '    "disagree",\n'
+            '    "nul",\n'
+            '    "cap",\n'
+            '}:\n'
+            '    raise SystemExit(97)\n',
+            'if (\n'
+            '    "NMRNET_FAKE_CREATE_STATUS" not in os.environ\n'
+            '    or re.fullmatch(r"0|[1-9][0-9]{0,2}", os.environ["NMRNET_FAKE_CREATE_STATUS"]) is None\n'
+            '    or int(os.environ["NMRNET_FAKE_CREATE_STATUS"]) > 255\n'
+            '):\n'
+            '    raise SystemExit(97)\n',
         )
 
         for source in sources:
@@ -89,11 +101,15 @@ class PythonContractApplicabilityTests(unittest.TestCase):
 
         for source in (
             f"value = {expression}\n",
-            f"def select():\n    return {expression}\n",
+            f"def select():\n"
+            f"    return {expression}\n",
             f"consume({expression})\n",
-            f"if {expression}:\n    fail()\n",
-            f"if consume({expression}):\n    fail()\n",
-            f"if ({expression}) == expected:\n    fail()\n",
+            f"if {expression}:\n"
+            f"    fail()\n",
+            f"if consume({expression}):\n"
+            f"    fail()\n",
+            f"if ({expression}) == expected:\n"
+            f"    fail()\n",
             f"value = not ({expression})\n",
         ):
             with self.subTest(source=source):
@@ -131,7 +147,11 @@ class PythonContractApplicabilityTests(unittest.TestCase):
                 self.assertEqual([raw[1]], applicable)
 
     def test_composed_comparison_admission_preserves_function_default_finding(self):
-        source = 'def select(value=(os.environ["K"] == "x" and destination == "ready") or count < 0):\n    pass\n'
+        source = (
+            'def select(value=(os.environ["K"] == "x" and destination == "ready") or count < 0):\n'
+            '    pass\n'
+        )
+
         (raw, applicable) = self.exercise_property(source, accepted=False)
 
         self.assertEqual(2, len(raw))
@@ -144,9 +164,27 @@ class PythonContractApplicabilityTests(unittest.TestCase):
             ('value = os.environ["K"] == "x" or 37\n', 'os.environ["K"] == "x" or 37'),
             ('value = os.environ["K"] == "x" or os.environ["OTHER"]\n', 'os.environ["K"] == "x" or os.environ["OTHER"]'),
             ('value = os.environ["K"] or "x"\n', 'os.environ["K"] or "x"'),
-            ('if (os.environ["K"] or "x") == "x" or os.environ["OTHER"] == "y":\n    reject()\n', 'os.environ["K"] or "x"'),
-            ('if os.environ.get("K", "x") == "x" or os.environ["OTHER"] == "y":\n    reject()\n', 'os.environ.get("K", "x")'),
-            ('if not (os.environ["K"] or "x") or os.environ["OTHER"] == "y":\n    reject()\n', 'os.environ["K"] or "x"'),
+            (
+                (
+                    'if (os.environ["K"] or "x") == "x" or os.environ["OTHER"] == "y":\n'
+                    '    reject()\n'
+                ),
+                'os.environ["K"] or "x"',
+            ),
+            (
+                (
+                    'if os.environ.get("K", "x") == "x" or os.environ["OTHER"] == "y":\n'
+                    '    reject()\n'
+                ),
+                'os.environ.get("K", "x")',
+            ),
+            (
+                (
+                    'if not (os.environ["K"] or "x") or os.environ["OTHER"] == "y":\n'
+                    '    reject()\n'
+                ),
+                'os.environ["K"] or "x"',
+            ),
         ):
             with self.subTest(source=source):
                 (raw, applicable) = self.exercise_property(source, accepted=False)
@@ -158,8 +196,10 @@ class PythonContractApplicabilityTests(unittest.TestCase):
     def test_not_and_chained_comparisons_combine_predicates_without_admitting_defaults(self):
         for source in (
             'value = 0 <= int(os.environ["K"]) <= 255 or os.environ["OTHER"] is None\n',
-            'if not os.environ["K"] or os.environ["OTHER"] != "y":\n    reject()\n',
-            'if not ("K" in os.environ) or len(os.environ["OTHER"]) > 255:\n    reject()\n',
+            'if not os.environ["K"] or os.environ["OTHER"] != "y":\n'
+            '    reject()\n',
+            'if not ("K" in os.environ) or len(os.environ["OTHER"]) > 255:\n'
+            '    reject()\n',
         ):
             with self.subTest(source=source):
                 (raw, applicable) = self.exercise_property(source, accepted=True)
@@ -168,7 +208,8 @@ class PythonContractApplicabilityTests(unittest.TestCase):
                 self.assertEqual([], applicable)
 
         (raw, applicable) = self.exercise_property(
-            'if not os.environ.get("K", "x") or 0 <= int(os.environ["OTHER"]) <= 255:\n    reject()\n',
+            'if not os.environ.get("K", "x") or 0 <= int(os.environ["OTHER"]) <= 255:\n'
+            '    reject()\n',
             accepted=False
         )
 
@@ -178,9 +219,12 @@ class PythonContractApplicabilityTests(unittest.TestCase):
 
     def test_optional_env_activation_guards_keep_raw_findings_without_defaulting_inputs(self):
         for source in (
-            'if destination == "ready" and (os.environ.get("READY") or os.environ.get("PREFLIGHT")):\n    inspect()\n',
-            'if destination == "ready" and ((os.environ.get("READY") and package_capture) or (os.environ.get("PREFLIGHT") == "1" and preflight) or (os.environ.get("ADMISSION") and marker.exists())):\n    fail()\n',
-            'if not (os.environ.get("A") or os.environ.get("B")):\n    proceed()\n',
+            'if destination == "ready" and (os.environ.get("READY") or os.environ.get("PREFLIGHT")):\n'
+            '    inspect()\n',
+            'if destination == "ready" and ((os.environ.get("READY") and package_capture) or (os.environ.get("PREFLIGHT") == "1" and preflight) or (os.environ.get("ADMISSION") and marker.exists())):\n'
+            '    fail()\n',
+            'if not (os.environ.get("A") or os.environ.get("B")):\n'
+            '    proceed()\n',
         ):
             with self.subTest(source=source):
                 (raw, applicable) = self.exercise_property(source, accepted=True)
@@ -193,17 +237,27 @@ class PythonContractApplicabilityTests(unittest.TestCase):
 
         for source in (
             f"value = {expression}\n",
-            f"def select():\n    return {expression}\n",
+            f"def select():\n"
+            f"    return {expression}\n",
             f"consume({expression})\n",
-            f"if consume({expression}):\n    proceed()\n",
-            f'if ({expression}) == "x":\n    proceed()\n',
-            f"if ({expression})[0]:\n    proceed()\n",
-            f"if ({expression}) + suffix:\n    proceed()\n",
-            f"if (value := ({expression})):\n    proceed()\n",
-            'if os.environ.get("A") or check(os.environ.get("B")):\n    proceed()\n',
-            'if os.environ.get("A") or os.environ.get("B").strip():\n    proceed()\n',
-            'if os.environ.get("A") or "fallback":\n    proceed()\n',
-            'if os.environ.get("A") or unrelated_flag:\n    proceed()\n',
+            f"if consume({expression}):\n"
+            f"    proceed()\n",
+            f'if ({expression}) == "x":\n'
+            f'    proceed()\n',
+            f"if ({expression})[0]:\n"
+            f"    proceed()\n",
+            f"if ({expression}) + suffix:\n"
+            f"    proceed()\n",
+            f"if (value := ({expression})):\n"
+            f"    proceed()\n",
+            'if os.environ.get("A") or check(os.environ.get("B")):\n'
+            '    proceed()\n',
+            'if os.environ.get("A") or os.environ.get("B").strip():\n'
+            '    proceed()\n',
+            'if os.environ.get("A") or "fallback":\n'
+            '    proceed()\n',
+            'if os.environ.get("A") or unrelated_flag:\n'
+            '    proceed()\n',
         ):
             with self.subTest(source=source):
                 (raw, applicable) = self.exercise_property(source, accepted=False)
@@ -214,12 +268,20 @@ class PythonContractApplicabilityTests(unittest.TestCase):
     def test_env_activation_guards_preserve_nested_and_body_defaults(self):
         for (source, retained) in (
             (
-                'if (os.environ.get("A") or "fallback") or os.environ.get("B"):\n    proceed()\n',
+                'if (os.environ.get("A") or "fallback") or os.environ.get("B"):\n'
+                '    proceed()\n',
                 'os.environ.get("A") or "fallback"',
             ),
-            ('if os.environ.get("A", "fallback") or os.environ.get("B"):\n    proceed()\n', 'os.environ.get("A", "fallback")'),
             (
-                'if os.environ.get("A") or os.environ.get("B"):\n    value = os.environ.get("C") or "fallback"\n',
+                (
+                    'if os.environ.get("A", "fallback") or os.environ.get("B"):\n'
+                    '    proceed()\n'
+                ),
+                'os.environ.get("A", "fallback")',
+            ),
+            (
+                'if os.environ.get("A") or os.environ.get("B"):\n'
+                '    value = os.environ.get("C") or "fallback"\n',
                 'os.environ.get("C") or "fallback"',
             ),
         ):
@@ -235,11 +297,29 @@ class PythonContractApplicabilityTests(unittest.TestCase):
         for (entry, count) in (
             ('"kind": record.get("kind", "missing"),\n', 1),
             ('"entries": [item.get("name", "missing")] if ready else [],\n', 2),
-            ('37: consume(\n        payload.get("result", {}) if ready else {},\n    ),\n', 2),
-            ('"config": (\n        config.get("value", "missing")\n    ),\n', 1),
+            (
+                (
+                    '37: consume(\n'
+                    '        payload.get("result", {}) if ready else {},\n'
+                    '    ),\n'
+                ),
+                2,
+            ),
+            (
+                (
+                    '"config": (\n'
+                    '        config.get("value", "missing")\n'
+                    '    ),\n'
+                ),
+                1,
+            ),
         ):
             with self.subTest(entry=entry):
-                source = "result = {\n    " + self.annotation + "    " + entry + "}\n"
+                source = (
+                    "result = {\n"
+                    "    "
+                ) + self.annotation + "    " + entry + "}\n"
+
                 (raw, applicable) = self.exercise_property(source, accepted=True)
 
                 self.assertEqual(count, len(raw))
@@ -256,19 +336,43 @@ class PythonContractApplicabilityTests(unittest.TestCase):
 
     def test_dict_entry_contract_preserves_sibling_key_and_enclosing_findings(self):
         sources = (
-            "result = {\n    "
+            "result = {\n"
+            "    "
             + self.annotation
-            + '    "kind": record.get("kind", "missing"),\n    "entries": record.get("entries", []),\n}\n',
-            "result = {\n    "
+            + (
+                '    "kind": record.get("kind", "missing"),\n'
+                '    "entries": record.get("entries", []),\n'
+                '}\n'
+            ),
+            "result = {\n"
+            "    "
             + self.annotation
-            + '    "kind": record.get("kind", "missing"), (\n        "entries"\n    ): record.get("entries", []),\n}\n',
-            'result = {record.get("key", "fallback"): {\n    '
+            + (
+                '    "kind": record.get("kind", "missing"), (\n'
+                '        "entries"\n'
+                '    ): record.get("entries", []),\n'
+                '}\n'
+            ),
+            'result = {record.get("key", "fallback"): {\n'
+            '    '
             + self.annotation
-            + '    "kind": record.get("kind", "missing"),\n}}\n',
-            'result = payload.get("result", {\n    ' + self.annotation + '    "kind": record.get("kind", "missing"),\n})\n',
-            'if state.get("ready", True):\n    result = {\n        '
+            + (
+                '    "kind": record.get("kind", "missing"),\n'
+                '}}\n'
+            ),
+            'result = payload.get("result", {\n'
+            '    ' + self.annotation + (
+                '    "kind": record.get("kind", "missing"),\n'
+                '})\n'
+            ),
+            'if state.get("ready", True):\n'
+            '    result = {\n'
+            '        '
             + self.annotation
-            + '        "kind": record.get("kind", "missing"),\n    }\n',
+            + (
+                '        "kind": record.get("kind", "missing"),\n'
+                '    }\n'
+            ),
         )
 
         for source in sources:
@@ -293,7 +397,14 @@ class PythonContractApplicabilityTests(unittest.TestCase):
             'os.environ.pop("OPTION", None)',
         ):
             with self.subTest(expression=expression):
-                source = "result = {\n    " + self.annotation + '    "value": ' + expression + ",\n}\n"
+                source = (
+                    "result = {\n"
+                    "    "
+                ) + self.annotation + '    "value": ' + expression + (
+                    ",\n"
+                    "}\n"
+                )
+
                 (raw, applicable) = self.exercise_property(source, accepted=False)
 
                 self.assertTrue(raw)
@@ -310,19 +421,43 @@ class PythonContractApplicabilityTests(unittest.TestCase):
             self.annotation + '    **record.get("entries", {}),\n',
             self.annotation + '    "left": left.get("value", 0), "right": right.get("value", 0),\n',
             self.annotation + '    "left": left.get("value", 0), **right.get("values", {}),\n',
-            self.annotation + '    "left": left.get("value", 0), **(\n        required\n    ),\n',
-            self.annotation + '    "left": left.get("value", 0), (\n        key\n    ): required,\n',
-            self.annotation + '    "left": left.get("value", 0),\n    dynamic_key: required,\n',
-            self.annotation + '    "left": left.get("value", 0),\n    **required,\n',
+            self.annotation + (
+                '    "left": left.get("value", 0), **(\n'
+                '        required\n'
+                '    ),\n'
+            ),
+            self.annotation + (
+                '    "left": left.get("value", 0), (\n'
+                '        key\n'
+                '    ): required,\n'
+            ),
+            self.annotation + (
+                '    "left": left.get("value", 0),\n'
+                '    dynamic_key: required,\n'
+            ),
+            self.annotation + (
+                '    "left": left.get("value", 0),\n'
+                '    **required,\n'
+            ),
             self.annotation + '    "values": [left.get("value", 0), right.get("value", 0)],\n',
-            self.annotation + '\n    "kind": record.get("kind", "missing"),\n',
+            self.annotation + (
+                '\n'
+                '    "kind": record.get("kind", "missing"),\n'
+            ),
             self.annotation + '        "kind": record.get("kind", "missing"),\n',
-            '"kind":\n        ' + self.annotation + '        record.get("kind", "missing"),\n',
+            '"kind":\n'
+            '        ' + self.annotation + '        record.get("kind", "missing"),\n',
             '"kind": record.get("kind", "missing"),  ' + self.annotation,
             self.annotation + '    "kind": required,\n',
         ):
             with self.subTest(body=body):
-                (raw, applicable) = self.exercise_property("result = {\n    " + body + "}\n", accepted=False)
+                (raw, applicable) = self.exercise_property(
+                    (
+                        "result = {\n"
+                        "    "
+                    ) + body + "}\n",
+                    accepted=False,
+                )
 
                 self.assertTrue(any("python contract annotation requires" in finding for finding in applicable))
 
@@ -330,9 +465,13 @@ class PythonContractApplicabilityTests(unittest.TestCase):
                     self.assertIn(finding, applicable)
 
         (raw, applicable) = self.exercise_property(
-            "result = {\n    "
+            "result = {\n"
+            "    "
             + self.annotation.replace("allow-contract", "allow-pop-default")
-            + '    "value": os.environ.pop("OPTION", None),\n}\n',
+            + (
+                '    "value": os.environ.pop("OPTION", None),\n'
+                '}\n'
+            ),
             accepted=False,
         )
 
@@ -342,7 +481,11 @@ class PythonContractApplicabilityTests(unittest.TestCase):
             self.assertIn(finding, applicable)
 
         (raw, applicable) = self.exercise_property(
-            "result = {\n    " + self.annotation + '    "key": record.get("value", "missing") for record in records\n}\n',
+            "result = {\n"
+            "    " + self.annotation + (
+                '    "key": record.get("value", "missing") for record in records\n'
+                '}\n'
+            ),
             accepted=False,
         )
 
@@ -355,7 +498,11 @@ class PythonContractApplicabilityTests(unittest.TestCase):
         annotation = self.annotation.replace("The protocol requires an origin path", " ")
 
         (raw, applicable) = self.exercise_property(
-            "result = {\n    " + annotation + '    "kind": record.get("kind", "missing"),\n}\n',
+            "result = {\n"
+            "    " + annotation + (
+                '    "kind": record.get("kind", "missing"),\n'
+                '}\n'
+            ),
             accepted=False
         )
 
@@ -366,15 +513,36 @@ class PythonContractApplicabilityTests(unittest.TestCase):
     def test_call_expression_contract_covers_multiline_consumer_regions(self):
         for (source, count) in (
             (
-                'self.assertEqual(\n    0 if len(arguments) == 2 and arguments[0] == "--print" else 2,\n    result.returncode,\n    msg=result.stderr,\n)\n',
+                'self.assertEqual(\n'
+                '    0 if len(arguments) == 2 and arguments[0] == "--print" else 2,\n'
+                '    result.returncode,\n'
+                '    msg=result.stderr,\n'
+                ')\n',
                 1,
             ),
             (
-                'self.assertEqual(\n    ["run", "run", "build"] + ([] if fault == "malformed-build" else ["image"]),\n    [call["arguments"][0] for call in calls],\n)\n',
+                'self.assertEqual(\n'
+                '    ["run", "run", "build"] + ([] if fault == "malformed-build" else ["image"]),\n'
+                '    [call["arguments"][0] for call in calls],\n'
+                ')\n',
                 1,
             ),
-            ('consume(\n    payload.get("result", {}) if ready else {},\n)\n', 2),
-            ('handlers.get("name", fallback)(\n    required,\n)\n', 1),
+            (
+                (
+                    'consume(\n'
+                    '    payload.get("result", {}) if ready else {},\n'
+                    ')\n'
+                ),
+                2,
+            ),
+            (
+                (
+                    'handlers.get("name", fallback)(\n'
+                    '    required,\n'
+                    ')\n'
+                ),
+                1,
+            ),
         ):
             with self.subTest(source=source):
                 (raw, applicable) = self.exercise_property(self.annotation + source, accepted=True)
@@ -397,7 +565,13 @@ class PythonContractApplicabilityTests(unittest.TestCase):
         ):
             with self.subTest(expression=expression):
                 (raw, applicable) = self.exercise_property(
-                    self.annotation + "consume(\n    " + expression + "\n)\n",
+                    self.annotation + (
+                        "consume(\n"
+                        "    "
+                    ) + expression + (
+                        "\n"
+                        ")\n"
+                    ),
                     accepted=False
                 )
 
@@ -407,9 +581,15 @@ class PythonContractApplicabilityTests(unittest.TestCase):
                     self.assertIn(finding, applicable)
 
         for source in (
-            'os.environ.get("CALLBACK", "fallback")(\n    required,\n)\n',
-            '(lambda: required)(\n    payload.get("result", 0),\n)\n',
-            'os.environ.pop(\n    "OPTION", None,\n)\n',
+            'os.environ.get("CALLBACK", "fallback")(\n'
+            '    required,\n'
+            ')\n',
+            '(lambda: required)(\n'
+            '    payload.get("result", 0),\n'
+            ')\n',
+            'os.environ.pop(\n'
+            '    "OPTION", None,\n'
+            ')\n',
         ):
             with self.subTest(source=source):
                 (raw, applicable) = self.exercise_property(self.annotation + source, accepted=False)
@@ -420,14 +600,26 @@ class PythonContractApplicabilityTests(unittest.TestCase):
                     self.assertIn(finding, applicable)
 
         pop_annotation = self.annotation.replace("allow-contract", "allow-pop-default")
-        (raw, applicable) = self.exercise_property(pop_annotation + 'os.environ.pop(\n    "OPTION", None,\n)\n', accepted=True)
+
+        (raw, applicable) = self.exercise_property(
+            pop_annotation + (
+                'os.environ.pop(\n'
+                '    "OPTION", None,\n'
+                ')\n'
+            ),
+            accepted=True,
+        )
 
         self.assertEqual(1, len(raw))
         self.assertEqual([], applicable)
 
         for source in (
-            'consume(\n    os.environ.pop("OPTION", None),\n)\n',
-            'result = consume(\n    os.environ.pop("OPTION", None),\n)\n',
+            'consume(\n'
+            '    os.environ.pop("OPTION", None),\n'
+            ')\n',
+            'result = consume(\n'
+            '    os.environ.pop("OPTION", None),\n'
+            ')\n',
         ):
             with self.subTest(source=source):
                 (raw, applicable) = self.exercise_property(pop_annotation + source, accepted=False)
@@ -439,12 +631,24 @@ class PythonContractApplicabilityTests(unittest.TestCase):
 
     def test_call_expression_contract_preserves_siblings_other_shapes_and_enclosing_findings(self):
         for source in (
-            'consume(\n    left.get("result", 0),\n    right.get("result", 0),\n)\n',
-            'handlers.get("name", fallback)(\n    payload.get("result", 0),\n)\n',
-            '{"result": payload.get("result", 0),\n}\n',
-            '(\n    payload.get("result", 0),\n)\n',
-            'await consume(\n    payload.get("result", 0),\n)\n',
-            "consume(\n    required,\n)\n",
+            'consume(\n'
+            '    left.get("result", 0),\n'
+            '    right.get("result", 0),\n'
+            ')\n',
+            'handlers.get("name", fallback)(\n'
+            '    payload.get("result", 0),\n'
+            ')\n',
+            '{"result": payload.get("result", 0),\n'
+            '}\n',
+            '(\n'
+            '    payload.get("result", 0),\n'
+            ')\n',
+            'await consume(\n'
+            '    payload.get("result", 0),\n'
+            ')\n',
+            "consume(\n"
+            "    required,\n"
+            ")\n",
         ):
             with self.subTest(source=source):
                 (raw, applicable) = self.exercise_property(self.annotation + source, accepted=False)
@@ -456,19 +660,37 @@ class PythonContractApplicabilityTests(unittest.TestCase):
 
         for (source, retained) in (
             (
-                self.annotation + 'consume(\n    payload.get("result", 0),\n)\nstatus = state.get("done", 0)\n',
+                self.annotation + (
+                    'consume(\n'
+                    '    payload.get("result", 0),\n'
+                    ')\n'
+                    'status = state.get("done", 0)\n'
+                ),
                 'state.get("done", 0)',
             ),
             (
-                'if state.get("ready", True):\n    '
+                'if state.get("ready", True):\n'
+                '    '
                 + self.annotation
-                + '    consume(\n        payload.get("result", 0),\n    )\n',
+                + (
+                    '    consume(\n'
+                    '        payload.get("result", 0),\n'
+                    '    )\n'
+                ),
                 'state.get("ready", True)',
             ),
             (
-                "try:\n    inspect()\nexcept Exception:\n    "
+                "try:\n"
+                "    inspect()\n"
+                "except Exception:\n"
+                "    "
                 + self.annotation
-                + '    consume(\n        payload.get("result", 0),\n    )\n    return "fallback"\n',
+                + (
+                    '    consume(\n'
+                    '        payload.get("result", 0),\n'
+                    '    )\n'
+                    '    return "fallback"\n'
+                ),
                 "python exception fallback:",
             ),
         ):
@@ -482,9 +704,17 @@ class PythonContractApplicabilityTests(unittest.TestCase):
 
     def test_return_value_contract_covers_multiline_fixture_selection_regions(self):
         for source in (
-            "return validate(\n    [batch] if batches is None else batches,\n    records,\n)\n",
-            'return command, environment | {\n    "NATIVE_NEXT": "yes" if next_success else "no",\n    "OUTCOME": outcome,\n}\n',
-            'return (\n    payload.get("result", {}) if ready else {}\n)\n',
+            "return validate(\n"
+            "    [batch] if batches is None else batches,\n"
+            "    records,\n"
+            ")\n",
+            'return command, environment | {\n'
+            '    "NATIVE_NEXT": "yes" if next_success else "no",\n'
+            '    "OUTCOME": outcome,\n'
+            '}\n',
+            'return (\n'
+            '    payload.get("result", {}) if ready else {}\n'
+            ')\n',
         ):
             with self.subTest(source=source):
                 (raw, applicable) = self.exercise_property(self.annotation + source, accepted=True)
@@ -504,7 +734,13 @@ class PythonContractApplicabilityTests(unittest.TestCase):
         ):
             with self.subTest(expression=expression):
                 (raw, applicable) = self.exercise_property(
-                    self.annotation + "return (\n    " + expression + "\n)\n",
+                    self.annotation + (
+                        "return (\n"
+                        "    "
+                    ) + expression + (
+                        "\n"
+                        ")\n"
+                    ),
                     accepted=False
                 )
 
@@ -515,13 +751,19 @@ class PythonContractApplicabilityTests(unittest.TestCase):
 
     def test_return_value_contract_preserves_siblings_adjacent_and_ancestor_findings(self):
         for source in (
-            'return (\n    left.get("result", 0),\n    right.get("result", 0),\n)\n',
+            'return (\n'
+            '    left.get("result", 0),\n'
+            '    right.get("result", 0),\n'
+            ')\n',
             "return\n",
             "return None\n",
             "return required\n",
             "return 37\n",
-            'value: object = (\n    payload.get("result", 0)\n)\n',
-            '{"result": payload.get("result", 0),\n}\n',
+            'value: object = (\n'
+            '    payload.get("result", 0)\n'
+            ')\n',
+            '{"result": payload.get("result", 0),\n'
+            '}\n',
         ):
             with self.subTest(source=source):
                 (raw, applicable) = self.exercise_property(self.annotation + source, accepted=False)
@@ -532,7 +774,12 @@ class PythonContractApplicabilityTests(unittest.TestCase):
                     self.assertIn(finding, applicable)
 
         (raw, applicable) = self.exercise_property(
-            self.annotation + 'return (\n    payload.get("result", 0)\n)\nstatus = state.get("done", 0)\n',
+            self.annotation + (
+                'return (\n'
+                '    payload.get("result", 0)\n'
+                ')\n'
+                'status = state.get("done", 0)\n'
+            ),
             accepted=False
         )
 
@@ -540,9 +787,16 @@ class PythonContractApplicabilityTests(unittest.TestCase):
         self.assertEqual([raw[1]], applicable)
 
         (raw, applicable) = self.exercise_property(
-            "try:\n    inspect()\nexcept Exception:\n    "
+            "try:\n"
+            "    inspect()\n"
+            "except Exception:\n"
+            "    "
             + self.annotation
-            + '    return (\n        payload.get("result", 0)\n    )\n',
+            + (
+                '    return (\n'
+                '        payload.get("result", 0)\n'
+                '    )\n'
+            ),
             accepted=False,
         )
 
@@ -561,7 +815,15 @@ class PythonContractApplicabilityTests(unittest.TestCase):
                 self.assertEqual(1, len(raw))
                 self.assertEqual([], applicable)
 
-        (raw, applicable) = self.exercise_property(annotation + 'environment.pop(\n    "MARKER",\n    None,\n)\n', accepted=True)
+        (raw, applicable) = self.exercise_property(
+            annotation + (
+                'environment.pop(\n'
+                '    "MARKER",\n'
+                '    None,\n'
+                ')\n'
+            ),
+            accepted=True,
+        )
 
         self.assertEqual(1, len(raw))
         self.assertEqual([], applicable)
@@ -592,8 +854,10 @@ class PythonContractApplicabilityTests(unittest.TestCase):
             'return environment.pop("MARKER", None)',
             'consume(environment.pop("MARKER", None))',
             'environment.pop("MARKER", None) if enabled else None',
-            'if environment.pop("MARKER", None):\n    pass',
-            'while environment.pop("MARKER", None):\n    pass',
+            'if environment.pop("MARKER", None):\n'
+            '    pass',
+            'while environment.pop("MARKER", None):\n'
+            '    pass',
             '(environment.pop("MARKER", None),)',
             'environment.pop("MARKER", None); environment.pop("OTHER", None)',
             "environment.pop(key, None)",
@@ -628,7 +892,10 @@ class PythonContractApplicabilityTests(unittest.TestCase):
             "    " + annotation + call,
             call.rstrip() + "  " + annotation,
             annotation.replace("The protocol requires an origin path", " ") + call,
-            annotation + 'if enabled:\n    environment.pop("MARKER", None)\n',
+            annotation + (
+                'if enabled:\n'
+                '    environment.pop("MARKER", None)\n'
+            ),
         )
 
         for source in sources:
@@ -653,7 +920,14 @@ class PythonContractApplicabilityTests(unittest.TestCase):
             "(errors.Missing, OSError)",
         ):
             with self.subTest(declared=declared):
-                source = "try:\n    inspect()\n" + self.annotation + "except " + declared + ":\n    pass\n"
+                source = (
+                    "try:\n"
+                    "    inspect()\n"
+                ) + self.annotation + "except " + declared + (
+                    ":\n"
+                    "    pass\n"
+                )
+
                 (raw, applicable) = self.exercise_property(source, accepted=True)
 
                 self.assertEqual(1, len(raw))
@@ -679,12 +953,30 @@ class PythonContractApplicabilityTests(unittest.TestCase):
             "except* OSError:",
         )
 
-        sources = ["try:\n    inspect()\n" + self.annotation + header + "\n    pass\n" for header in headers]
+        sources = [
+            (
+                "try:\n"
+                "    inspect()\n"
+            ) + self.annotation + header + (
+                "\n"
+                "    pass\n"
+            )
+            for header in headers
+        ]
 
         sources.extend(
             (
-                "try:\n    inspect()\n" + self.annotation + "except OSError:\n    return 0\n",
-                "try:\n    inspect()\n" + self.annotation + 'except OSError:\n    pass\n    result = state.get("done", 0)\n',
+                "try:\n"
+                "    inspect()\n" + self.annotation + (
+                    "except OSError:\n"
+                    "    return 0\n"
+                ),
+                "try:\n"
+                "    inspect()\n" + self.annotation + (
+                    'except OSError:\n'
+                    '    pass\n'
+                    '    result = state.get("done", 0)\n'
+                ),
             )
         )
 
@@ -715,7 +1007,14 @@ class PythonContractApplicabilityTests(unittest.TestCase):
 
         for statement in statements:
             with self.subTest(statement=statement):
-                source = "try:\n    " + statement + "\n" + self.annotation + "except KeyError:\n    pass\n"
+                source = (
+                    "try:\n"
+                    "    "
+                ) + statement + "\n" + self.annotation + (
+                    "except KeyError:\n"
+                    "    pass\n"
+                )
+
                 (raw, applicable) = self.exercise_property(source, accepted=False)
 
                 self.assertTrue(raw)
@@ -727,7 +1026,14 @@ class PythonContractApplicabilityTests(unittest.TestCase):
                     self.assertIn(finding, applicable)
 
     def test_typed_pass_annotation_does_not_cover_neighbours_or_other_placements(self):
-        source = 'try:\n    value = state.get("done", 0)\n' + self.annotation + "except OSError:\n    pass\n"
+        source = (
+            'try:\n'
+            '    value = state.get("done", 0)\n'
+        ) + self.annotation + (
+            "except OSError:\n"
+            "    pass\n"
+        )
+
         (raw, applicable) = self.exercise_property(source, accepted=False)
 
         self.assertEqual(2, len(raw))
@@ -737,9 +1043,22 @@ class PythonContractApplicabilityTests(unittest.TestCase):
 
         for (tail, retained) in (
             ('status = state.get("done", 0)\n', 'state.get("done", 0)'),
-            ("except ValueError:\n    pass\n", "except ValueError: pass"),
+            (
+                (
+                    "except ValueError:\n"
+                    "    pass\n"
+                ),
+                "except ValueError: pass",
+            ),
         ):
-            source = "try:\n    inspect()\n" + self.annotation + "except OSError:\n    pass\n" + tail
+            source = (
+                "try:\n"
+                "    inspect()\n"
+            ) + self.annotation + (
+                "except OSError:\n"
+                "    pass\n"
+            ) + tail
+
             (raw, applicable) = self.exercise_property(source, accepted=False)
 
             self.assertEqual(2, len(raw))
@@ -748,11 +1067,31 @@ class PythonContractApplicabilityTests(unittest.TestCase):
             self.assertIn(applicable[0], raw)
 
         sources = (
-            self.annotation + "try:\n    inspect()\nexcept OSError:\n    pass\n",
-            "try:\n    inspect()\nexcept OSError:\n    " + self.annotation + "    pass\n",
-            "try:\n    inspect()\n    " + self.annotation + "except OSError:\n    pass\n",
-            "try:\n    inspect()\n" + self.annotation + "\nexcept OSError:\n    pass\n",
-            "try:\n    inspect()\nexcept OSError: " + self.annotation + "    pass\n",
+            self.annotation + (
+                "try:\n"
+                "    inspect()\n"
+                "except OSError:\n"
+                "    pass\n"
+            ),
+            "try:\n"
+            "    inspect()\n"
+            "except OSError:\n"
+            "    " + self.annotation + "    pass\n",
+            "try:\n"
+            "    inspect()\n"
+            "    " + self.annotation + (
+                "except OSError:\n"
+                "    pass\n"
+            ),
+            "try:\n"
+            "    inspect()\n" + self.annotation + (
+                "\n"
+                "except OSError:\n"
+                "    pass\n"
+            ),
+            "try:\n"
+            "    inspect()\n"
+            "except OSError: " + self.annotation + "    pass\n",
         )
 
         for source in sources:
@@ -766,7 +1105,11 @@ class PythonContractApplicabilityTests(unittest.TestCase):
         for body in ("raise", "return None"):
             with self.subTest(body=body):
                 (raw, applicable) = self.exercise_property(
-                    "try:\n    inspect()\n" + self.annotation + "except OSError:\n    " + body + "\n",
+                    "try:\n"
+                    "    inspect()\n" + self.annotation + (
+                        "except OSError:\n"
+                        "    "
+                    ) + body + "\n",
                     accepted=False
                 )
 
@@ -776,10 +1119,22 @@ class PythonContractApplicabilityTests(unittest.TestCase):
 
     def test_if_header_annotation_rejects_multiline_and_multiple_candidates(self) -> None:
         sources = (
-            self.annotation + 'if response.headers.get(\n    "Content-Encoding", "identity"\n) != "identity":\n    pass\n',
+            self.annotation + (
+                'if response.headers.get(\n'
+                '    "Content-Encoding", "identity"\n'
+                ') != "identity":\n'
+                '    pass\n'
+            ),
             self.annotation
-            + 'if (response.headers.get("Content-Encoding", "identity") != "identity"\n    and enabled):\n    pass\n',
-            self.annotation + 'if left.get("coding", "identity") == right.get("coding", "identity"):\n    pass\n',
+            + (
+                'if (response.headers.get("Content-Encoding", "identity") != "identity"\n'
+                '    and enabled):\n'
+                '    pass\n'
+            ),
+            self.annotation + (
+                'if left.get("coding", "identity") == right.get("coding", "identity"):\n'
+                '    pass\n'
+            ),
         )
 
         for source in sources:
@@ -793,11 +1148,26 @@ class PythonContractApplicabilityTests(unittest.TestCase):
 
     def test_header_extension_keeps_operator_and_non_if_contracts_strict(self) -> None:
         sources = (
-            self.annotation + 'if os.environ.get("PORT", "8080"):\n    pass\n',
-            self.annotation + "if args.port or 443:\n    pass\n",
-            self.annotation + 'if parser.add_argument("--port", default="8080"):\n    pass\n',
-            self.annotation + 'def run() -> registry.get("Result", object):\n    pass\n',
-            self.annotation + 'while parsed.path or "/":\n    pass\n',
+            self.annotation + (
+                'if os.environ.get("PORT", "8080"):\n'
+                '    pass\n'
+            ),
+            self.annotation + (
+                "if args.port or 443:\n"
+                "    pass\n"
+            ),
+            self.annotation + (
+                'if parser.add_argument("--port", default="8080"):\n'
+                '    pass\n'
+            ),
+            self.annotation + (
+                'def run() -> registry.get("Result", object):\n'
+                '    pass\n'
+            ),
+            self.annotation + (
+                'while parsed.path or "/":\n'
+                '    pass\n'
+            ),
         )
 
         for source in sources:
@@ -816,7 +1186,11 @@ class PythonContractApplicabilityTests(unittest.TestCase):
             ('payload.get("items", {}) if ready else []', 2),
         ):
             with self.subTest(expression=expression):
-                source = "for item in " + expression + ":\n    pass\n"
+                source = "for item in " + expression + (
+                    ":\n"
+                    "    pass\n"
+                )
+
                 (raw, applicable) = self.exercise_property(source, accepted=False)
 
                 self.assertEqual(count, len(raw))
@@ -828,7 +1202,10 @@ class PythonContractApplicabilityTests(unittest.TestCase):
 
         # This placement was formerly rejected alongside unsupported Return
         # neighbours; the For header now owns its generic iterable explicitly.
-        source = 'for value in payload.get("results", []):\n    consume(value)\n'
+        source = (
+            'for value in payload.get("results", []):\n'
+            '    consume(value)\n'
+        )
 
         (raw, applicable) = self.exercise_property(source, accepted=False)
 
@@ -843,12 +1220,27 @@ class PythonContractApplicabilityTests(unittest.TestCase):
         for (source, retained) in (
             ('for item in payload.get("items", []): status = state.get("done", 0)\n', 'state.get("done", 0)'),
             ('for targets[slots.get("slot", 0)] in payload.get("items", []): pass\n', 'slots.get("slot", 0)'),
-            ('for item in payload.get("items", []):\n    status = state.get("done", 0)\n', 'state.get("done", 0)'),
             (
-                'for item in payload.get("items", []):\n    pass\nelse:\n    status = state.get("done", 0)\n',
+                (
+                    'for item in payload.get("items", []):\n'
+                    '    status = state.get("done", 0)\n'
+                ),
                 'state.get("done", 0)',
             ),
-            ('for item in payload.get("items", []): pass\nstatus = state.get("done", 0)\n', 'state.get("done", 0)'),
+            (
+                'for item in payload.get("items", []):\n'
+                '    pass\n'
+                'else:\n'
+                '    status = state.get("done", 0)\n',
+                'state.get("done", 0)',
+            ),
+            (
+                (
+                    'for item in payload.get("items", []): pass\n'
+                    'status = state.get("done", 0)\n'
+                ),
+                'state.get("done", 0)',
+            ),
         ):
             with self.subTest(source=source):
                 (raw, applicable) = self.exercise_property(self.annotation + source, accepted=False)
@@ -859,15 +1251,30 @@ class PythonContractApplicabilityTests(unittest.TestCase):
                 self.assertTrue(applicable[0].endswith(": " + retained))
 
     def test_for_iterable_contract_requires_a_local_explanation_and_single_line_region(self):
-        loop = 'for item in payload.get("items", []):\n    pass\n'
+        loop = (
+            'for item in payload.get("items", []):\n'
+            '    pass\n'
+        )
 
         for source in (
             self.annotation.replace("The protocol requires an origin path", "") + loop,
             " " + self.annotation + loop,
             self.annotation + "\n" + loop,
-            self.annotation + 'for item in payload.get(\n    "items", []\n):\n    pass\n',
-            self.annotation + 'for item in (left.get("items", []), right.get("items", [])):\n    pass\n',
-            "async def run():\n    " + self.annotation + '    async for item in payload.get("items", []):\n        pass\n',
+            self.annotation + (
+                'for item in payload.get(\n'
+                '    "items", []\n'
+                '):\n'
+                '    pass\n'
+            ),
+            self.annotation + (
+                'for item in (left.get("items", []), right.get("items", [])):\n'
+                '    pass\n'
+            ),
+            "async def run():\n"
+            "    " + self.annotation + (
+                '    async for item in payload.get("items", []):\n'
+                '        pass\n'
+            ),
         ):
             with self.subTest(source=source):
                 (raw, applicable) = self.exercise_property(source, accepted=False)
@@ -891,7 +1298,10 @@ class PythonContractApplicabilityTests(unittest.TestCase):
         ):
             with self.subTest(expression=expression):
                 (raw, applicable) = self.exercise_property(
-                    self.annotation + "for item in " + expression + ":\n    pass\n",
+                    self.annotation + "for item in " + expression + (
+                        ":\n"
+                        "    pass\n"
+                    ),
                     accepted=False
                 )
 
@@ -912,10 +1322,23 @@ class PythonContractApplicabilityTests(unittest.TestCase):
 
     def test_with_context_and_assignment_value_cover_one_multiline_generic_contract(self):
         sources = (
-            'with os.fdopen(\n    descriptor,\n    "r+b" if flags & os.O_RDWR else "rb",\n    closefd=False,\n) as stream:\n    pass\n',
-            'request = Request(\n    url,\n    headers={\n        **({"Range": f"bytes={offset}-"} if offset else {}),\n    },\n)\n',
-            'path = (parsed.path\n        or "/")\n',
-            'value = (\n    payload.get("value", 0) if ready else 0\n)\n',
+            'with os.fdopen(\n'
+            '    descriptor,\n'
+            '    "r+b" if flags & os.O_RDWR else "rb",\n'
+            '    closefd=False,\n'
+            ') as stream:\n'
+            '    pass\n',
+            'request = Request(\n'
+            '    url,\n'
+            '    headers={\n'
+            '        **({"Range": f"bytes={offset}-"} if offset else {}),\n'
+            '    },\n'
+            ')\n',
+            'path = (parsed.path\n'
+            '        or "/")\n',
+            'value = (\n'
+            '    payload.get("value", 0) if ready else 0\n'
+            ')\n',
         )
 
         for source in sources:
@@ -928,23 +1351,32 @@ class PythonContractApplicabilityTests(unittest.TestCase):
     def test_with_and_assignment_regions_preserve_body_targets_and_adjacent_defaults(self):
         sources = (
             (
-                'with acquire(mode if writable else "rb") as stream:\n    status = state.get("done", 0)\n',
+                'with acquire(mode if writable else "rb") as stream:\n'
+                '    status = state.get("done", 0)\n',
                 'state.get("done", 0)',
             ),
             (
-                'with acquire(mode if writable else "rb") as targets[slots.get("slot", 0)]:\n    pass\n',
+                'with acquire(mode if writable else "rb") as targets[slots.get("slot", 0)]:\n'
+                '    pass\n',
                 'slots.get("slot", 0)',
             ),
             (
-                'targets[slots.get("slot", 0)] = (\n    mode if writable else "rb"\n)\n',
+                'targets[slots.get("slot", 0)] = (\n'
+                '    mode if writable else "rb"\n'
+                ')\n',
                 'slots.get("slot", 0)',
             ),
             (
-                'value = (\n    mode if writable else "rb"\n)\nstatus = state.get("done", 0)\n',
+                'value = (\n'
+                '    mode if writable else "rb"\n'
+                ')\n'
+                'status = state.get("done", 0)\n',
                 'state.get("done", 0)',
             ),
             (
-                'with acquire(mode if writable else "rb"):\n    def inner(status=0):\n        pass\n',
+                'with acquire(mode if writable else "rb"):\n'
+                '    def inner(status=0):\n'
+                '        pass\n',
                 "python function default: 0",
             ),
         )
@@ -971,8 +1403,17 @@ class PythonContractApplicabilityTests(unittest.TestCase):
 
         for expression in expressions:
             for source in (
-                "with acquire(\n    " + expression + "\n):\n    pass\n",
-                "value = (\n    " + expression + "\n)\n",
+                "with acquire(\n"
+                "    " + expression + (
+                    "\n"
+                    "):\n"
+                    "    pass\n"
+                ),
+                "value = (\n"
+                "    " + expression + (
+                    "\n"
+                    ")\n"
+                ),
             ):
                 with self.subTest(source=source):
                     (raw, applicable) = self.exercise_property(self.annotation + source, accepted=False)
@@ -984,11 +1425,22 @@ class PythonContractApplicabilityTests(unittest.TestCase):
 
     def test_with_and_assignment_regions_reject_siblings_and_other_statement_kinds(self):
         sources = (
-            'with acquire(left.get("mode", "rb")), acquire(right.get("mode", "rb")):\n    pass\n',
-            'value = (\n    left.get("value", 0),\n    right.get("value", 0),\n)\n',
-            'value: object = (\n    payload.get("value", 0)\n)\n',
-            'value += (\n    payload.get("value", 0)\n)\n',
-            'async with acquire(\n    payload.get("value", 0)\n):\n    pass\n',
+            'with acquire(left.get("mode", "rb")), acquire(right.get("mode", "rb")):\n'
+            '    pass\n',
+            'value = (\n'
+            '    left.get("value", 0),\n'
+            '    right.get("value", 0),\n'
+            ')\n',
+            'value: object = (\n'
+            '    payload.get("value", 0)\n'
+            ')\n',
+            'value += (\n'
+            '    payload.get("value", 0)\n'
+            ')\n',
+            'async with acquire(\n'
+            '    payload.get("value", 0)\n'
+            '):\n'
+            '    pass\n',
         )
 
         for source in sources:
@@ -1023,7 +1475,10 @@ class PythonContractApplicabilityTests(unittest.TestCase):
                     self.assertIn(finding, applicable)
 
         (raw, applicable) = self.exercise_property(
-            self.annotation + "def run(value=" + expression + "):\n    pass\n",
+            self.annotation + "def run(value=" + expression + (
+                "):\n"
+                "    pass\n"
+            ),
             accepted=True
         )
 
@@ -1031,7 +1486,10 @@ class PythonContractApplicabilityTests(unittest.TestCase):
         self.assertEqual([], applicable)
 
         (raw, applicable) = self.exercise_property(
-            "try:\n    run()\nexcept Exception:\n    " + self.annotation + "    return " + expression + "\n",
+            "try:\n"
+            "    run()\n"
+            "except Exception:\n"
+            "    " + self.annotation + "    return " + expression + "\n",
             accepted=False
         )
 
@@ -1065,7 +1523,10 @@ class PythonContractApplicabilityTests(unittest.TestCase):
 
     def test_signature_contract_and_nested_exception_annotation_have_distinct_scopes(self):
         (raw, applicable) = self.exercise_property(
-            self.annotation + "def run(port=parsed.port or 443):\n    return port\n",
+            self.annotation + (
+                "def run(port=parsed.port or 443):\n"
+                "    return port\n"
+            ),
             accepted=True
         )
 
@@ -1073,7 +1534,9 @@ class PythonContractApplicabilityTests(unittest.TestCase):
         self.assertEqual([], applicable)
 
         (raw, applicable) = self.exercise_property(
-            "try:\n    run()\nexcept Exception:\n" + "    " + self.annotation + '    return payload.get("result", [])\n',
+            "try:\n"
+            "    run()\n"
+            "except Exception:\n" + "    " + self.annotation + '    return payload.get("result", [])\n',
             accepted=False,
         )
 
@@ -1086,10 +1549,19 @@ class PythonContractApplicabilityTests(unittest.TestCase):
 
     def test_signature_contract_covers_sync_async_and_multiline_defaults(self):
         for definition in (
-            "def read(size=-1):\n    pass\n",
-            "async def read(size=-1):\n    pass\n",
-            "def read(\n    size=-1, /,\n    *, depth=0, optional=None,\n):\n    pass\n",
-            "def read(size=payload.get(\n    'size', 17\n)):\n    pass\n",
+            "def read(size=-1):\n"
+            "    pass\n",
+            "async def read(size=-1):\n"
+            "    pass\n",
+            "def read(\n"
+            "    size=-1, /,\n"
+            "    *, depth=0, optional=None,\n"
+            "):\n"
+            "    pass\n",
+            "def read(size=payload.get(\n"
+            "    'size', 17\n"
+            ")):\n"
+            "    pass\n",
         ):
             with self.subTest(definition=definition):
                 (raw, applicable) = self.exercise_property(self.annotation + definition, accepted=True)
@@ -1100,8 +1572,11 @@ class PythonContractApplicabilityTests(unittest.TestCase):
     def test_signature_contract_keeps_body_decorator_annotation_and_neighbours_visible(self):
         for outside in (
             '    return state.get("completed", 0)\n',
-            "    def inner(status=0):\n        pass\n",
-            "    pass\ndef other(status=0):\n    pass\n",
+            "    def inner(status=0):\n"
+            "        pass\n",
+            "    pass\n"
+            "def other(status=0):\n"
+            "    pass\n",
         ):
             with self.subTest(outside=outside):
                 (raw, applicable) = self.exercise_property(self.annotation + "def read(size=-1):\n" + outside, accepted=False)
@@ -1111,9 +1586,18 @@ class PythonContractApplicabilityTests(unittest.TestCase):
                 self.assertNotIn("-1", applicable[0])
 
         for source in (
-            '@decorate(registry.get("decorator", object))\n' + self.annotation + "def read(size=-1):\n    pass\n",
-            self.annotation + 'def read(size=-1) -> registry.get("Result", object):\n    pass\n',
-            self.annotation + 'def read(size: registry.get("Size", int) = -1):\n    pass\n',
+            '@decorate(registry.get("decorator", object))\n' + self.annotation + (
+                "def read(size=-1):\n"
+                "    pass\n"
+            ),
+            self.annotation + (
+                'def read(size=-1) -> registry.get("Result", object):\n'
+                '    pass\n'
+            ),
+            self.annotation + (
+                'def read(size: registry.get("Size", int) = -1):\n'
+                '    pass\n'
+            ),
         ):
             with self.subTest(source=source):
                 (raw, applicable) = self.exercise_property(source, accepted=False)
@@ -1135,7 +1619,10 @@ class PythonContractApplicabilityTests(unittest.TestCase):
         ):
             with self.subTest(expression=expression):
                 (raw, applicable) = self.exercise_property(
-                    self.annotation + "def run(value=" + expression + "):\n    pass\n",
+                    self.annotation + "def run(value=" + expression + (
+                        "):\n"
+                        "    pass\n"
+                    ),
                     accepted=False
                 )
 
@@ -1145,11 +1632,29 @@ class PythonContractApplicabilityTests(unittest.TestCase):
                     self.assertIn(finding, applicable)
 
         for source in (
-            "def record(status=0):\n    pass\n",
-            self.annotation + 'def read(\n    size=-1,\n    port=os.environ.get("PORT", "8080"),\n):\n    pass\n',
-            self.annotation + "def read(optional=None):\n    pass\n",
-            self.annotation + "@decorate\ndef read(size=-1):\n    pass\n",
-            self.annotation + "class Reader:\n    def read(self, size=-1):\n        pass\n",
+            "def record(status=0):\n"
+            "    pass\n",
+            self.annotation + (
+                'def read(\n'
+                '    size=-1,\n'
+                '    port=os.environ.get("PORT", "8080"),\n'
+                '):\n'
+                '    pass\n'
+            ),
+            self.annotation + (
+                "def read(optional=None):\n"
+                "    pass\n"
+            ),
+            self.annotation + (
+                "@decorate\n"
+                "def read(size=-1):\n"
+                "    pass\n"
+            ),
+            self.annotation + (
+                "class Reader:\n"
+                "    def read(self, size=-1):\n"
+                "        pass\n"
+            ),
         ):
             with self.subTest(source=source):
                 (raw, applicable) = self.exercise_property(source, accepted=False)
@@ -1186,15 +1691,24 @@ class PythonContractApplicabilityTests(unittest.TestCase):
         for (header, footer, retained) in (
             ("value = lambda path: (\n", ")\n", None),
             ("value = lambda path=defaults.get('path', 17): (\n", ")\n", "defaults.get"),
-            ("with patch(target, side_effect=lambda path: (\n", ")):\n    pass\n", None),
             (
                 "with patch(target, side_effect=lambda path: (\n",
-                ')), acquire(other.get("value", 17)):\n    pass\n',
+                (
+                    ")):\n"
+                    "    pass\n"
+                ),
+                None,
+            ),
+            (
+                "with patch(target, side_effect=lambda path: (\n",
+                ')), acquire(other.get("value", 17)):\n'
+                '    pass\n',
                 "other.get",
             ),
             (
                 "with patch(target, side_effect=lambda path: (\n",
-                ')), patch(other, side_effect=lambda: other.get("value", 17)):\n    pass\n',
+                ')), patch(other, side_effect=lambda: other.get("value", 17)):\n'
+                '    pass\n',
                 "other.get",
             ),
         ):
@@ -1224,7 +1738,14 @@ class PythonContractApplicabilityTests(unittest.TestCase):
             "required",
         ):
             with self.subTest(expression=expression):
-                source = "value = lambda: (\n    " + annotation + "    " + expression + "\n)\n"
+                source = (
+                    "value = lambda: (\n"
+                    "    "
+                ) + annotation + "    " + expression + (
+                    "\n"
+                    ")\n"
+                )
+
                 (raw, applicable) = self.exercise_property(source, accepted=False)
 
                 self.assertTrue(applicable)
@@ -1238,9 +1759,21 @@ class PythonContractApplicabilityTests(unittest.TestCase):
         for source in (
             annotation + 'value = lambda: payload.get("value", 17)\n',
             annotation + 'value = payload.get("value", 17)\n',
-            "value = lambda: (\n    " + annotation + '\n    payload.get("value", 17)\n)\n',
-            "value = lambda: (\n" + annotation + '    payload.get("value", 17)\n)\n',
-            "value = lambda: (\n    " + self.annotation + '    payload.get("value", 17)\n)\n',
+            "value = lambda: (\n"
+            "    " + annotation + (
+                '\n'
+                '    payload.get("value", 17)\n'
+                ')\n'
+            ),
+            "value = lambda: (\n" + annotation + (
+                '    payload.get("value", 17)\n'
+                ')\n'
+            ),
+            "value = lambda: (\n"
+            "    " + self.annotation + (
+                '    payload.get("value", 17)\n'
+                ')\n'
+            ),
         ):
             with self.subTest(source=source):
                 (raw, applicable) = self.exercise_property(source, accepted=False)
@@ -1257,7 +1790,14 @@ class PythonContractApplicabilityTests(unittest.TestCase):
             "# silent-defaults: allow-lambda-body --    \n",
         ):
             with self.subTest(invalid=invalid):
-                source = "value = lambda: (\n    " + invalid + '    payload.get("value", 17)\n)\n'
+                source = (
+                    "value = lambda: (\n"
+                    "    "
+                ) + invalid + (
+                    '    payload.get("value", 17)\n'
+                    ')\n'
+                )
+
                 (raw, applicable) = self.exercise_property(source, accepted=False)
 
                 self.assertEqual(1, len(raw))
@@ -1275,7 +1815,11 @@ class PythonContractApplicabilityTests(unittest.TestCase):
         self.assertIn("python contract annotation requires", applicable[0])
 
     def test_accepting_one_candidate_preserves_unannotated_neighbouring_findings(self):
-        source = self.annotation + 'path = parsed.path or "/"\nstatus = state.get("completed", 0)\n'
+        source = self.annotation + (
+            'path = parsed.path or "/"\n'
+            'status = state.get("completed", 0)\n'
+        )
+
         (raw, applicable) = self.exercise_property(source, accepted=False)
 
         self.assertEqual(2, len(raw))
@@ -1285,7 +1829,15 @@ class PythonContractApplicabilityTests(unittest.TestCase):
         tag = "# silent-defaults: allow-exception-outcome -- Preserve the reviewed failure outcome\n"
 
         for outcome in ('False', 'failure', '{"detail_unavailable": "Unreadable optional detail"}'):
-            source = "def operation():\n    try:\n        parse_optional_detail()\n    " + tag + "    except ValueError:\n        return " + outcome + "\n"
+            source = (
+                "def operation():\n"
+                "    try:\n"
+                "        parse_optional_detail()\n"
+                "    "
+            ) + tag + (
+                "    except ValueError:\n"
+                "        return "
+            ) + outcome + "\n"
 
             with self.subTest(outcome=outcome):
                 (raw, applicable) = self.exercise_property(source, accepted=True)
@@ -1305,16 +1857,50 @@ class PythonContractApplicabilityTests(unittest.TestCase):
             ("return False", "IndexError", "args[0]"),
             ("return 7", "KeyError", 'os.environ["SETTING"]'),
             ("return 7", "IndexError", "args[0]"),
-            ("str(error)\n        if False:\n            return 1", "Exception as error", "parse()"),
+            (
+                (
+                    "str(error)\n"
+                    "        if False:\n"
+                    "            return 1"
+                ),
+                "Exception as error",
+                "parse()",
+            ),
         ):
-            source = "def main():\n    try:\n        " + protected + "\n    " + tag + "    except " + caught + ":\n        " + body + "\n    return 0\n"
+            source = (
+                "def main():\n"
+                "    try:\n"
+                "        "
+            ) + protected + (
+                "\n"
+                "    "
+            ) + tag + "    except " + caught + (
+                ":\n"
+                "        "
+            ) + body + (
+                "\n"
+                "    return 0\n"
+            )
 
             with self.subTest(body=body, caught=caught, protected=protected):
                 self.exercise_property(source, accepted=False)
 
     def test_process_failure_contract_requires_direct_nonzero_final_return(self):
         tag = "# silent-defaults: allow-exception-outcome -- Report the process failure and exit nonzero\n"
-        source = "def main():\n    try:\n        start()\n    " + tag + "    except BaseException as error:\n        report(error)\n        if interrupted(error):\n            return 130\n        return 2\n"
+
+        source = (
+            "def main():\n"
+            "    try:\n"
+            "        start()\n"
+            "    "
+        ) + tag + (
+            "    except BaseException as error:\n"
+            "        report(error)\n"
+            "        if interrupted(error):\n"
+            "            return 130\n"
+            "        return 2\n"
+        )
+
         (raw, applicable) = self.exercise_property(source, accepted=True)
 
         self.assertEqual(1, len(raw))

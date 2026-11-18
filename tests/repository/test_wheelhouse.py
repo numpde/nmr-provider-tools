@@ -52,8 +52,24 @@ class WheelhouseTests(unittest.TestCase):
         with zipfile.ZipFile(wheel_path, "w") as archive:
             prefix = f"{distribution}-{version}.dist-info"
 
-            archive.writestr(f"{prefix}/METADATA", f"Metadata-Version: 2.1\nName: {name}\nVersion: {version}\n")
-            archive.writestr(f"{prefix}/WHEEL", "Wheel-Version: 1.0\nRoot-Is-Purelib: true\nTag: py3-none-any\n")
+            archive.writestr(
+                f"{prefix}/METADATA",
+                (
+                    f"Metadata-Version: 2.1\n"
+                    f"Name: {name}\n"
+                    f"Version: {version}\n"
+                ),
+            )
+
+            archive.writestr(
+                f"{prefix}/WHEEL",
+                (
+                    "Wheel-Version: 1.0\n"
+                    "Root-Is-Purelib: true\n"
+                    "Tag: py3-none-any\n"
+                ),
+            )
+
             archive.writestr(f"{prefix}/RECORD", "")
 
         return wheel_path
@@ -80,7 +96,12 @@ class WheelhouseTests(unittest.TestCase):
         locked_sha256 = wheelhouse.digest(wheel)
 
         shutil.copyfile(wheel, cached_wheel)
-        self.lock.write_text(f"pool-local==1.0 \\\n    --hash=sha256:{locked_sha256}\n")
+
+        self.lock.write_text(
+            f"pool-local==1.0 \\\n"
+            f"    --hash=sha256:{locked_sha256}\n"
+        )
+
         self.assertEqual("complete", provider_core_acquire.cache_state(self.pool, [self.lock]))
 
         self.lock.write_text(self.lock.read_text().replace("==1.0 ", "==1.0+other "))
@@ -100,7 +121,8 @@ class WheelhouseTests(unittest.TestCase):
         shutil.copyfile(alternate, self.pool / alternate.name)
 
         self.lock.write_text(
-            f"pool-local==1.0 \\\n    --hash=sha256:{wheelhouse.digest(wheel)} \\\n"
+            f"pool-local==1.0 \\\n"
+            f"    --hash=sha256:{wheelhouse.digest(wheel)} \\\n"
             f"    --hash=sha256:{wheelhouse.digest(alternate)}\n"
         )
 
@@ -110,8 +132,11 @@ class WheelhouseTests(unittest.TestCase):
         lock = self.root / "bootstrap.toml"
 
         lock.write_text(
-            '[[packages]]\nname = "identity-fixture"\nversion = "1.0"\n'
-            '[[packages.wheels]]\nurl = "https://example.invalid/' + self.missing.name + '"\n'
+            '[[packages]]\n'
+            'name = "identity-fixture"\n'
+            'version = "1.0"\n'
+            '[[packages.wheels]]\n'
+            'url = "https://example.invalid/' + self.missing.name + '"\n'
             'hashes = {sha256 = "' + wheelhouse.digest(self.missing) + '"}\n'
         )
 

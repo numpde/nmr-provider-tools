@@ -41,7 +41,13 @@ def mixed_string_prefix_lines(*, source: str) -> list[int]:
 
 class StringConcatenationPostureTests(unittest.TestCase):
     def test_reports_mixed_prefixes_across_lines_and_comments(self):
-        source = 'message = (\n    "Expected more "  # context\n    f"for {value=}"\n    " here"\n)\n'
+        source = (
+            'message = (\n'
+            '    "Expected more "  # context\n'
+            '    f"for {value=}"\n'
+            '    " here"\n'
+            ')\n'
+        )
 
         self.assertEqual(first=[3], second=mixed_string_prefix_lines(source=source))
 

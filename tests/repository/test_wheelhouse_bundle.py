@@ -26,7 +26,12 @@ class WheelhouseBundleTests(unittest.TestCase):
             canary = root / "checker-site/checker_only_canary-1.0.dist-info"
 
             canary.mkdir(parents=True)
-            (canary / "METADATA").write_text("Name: checker-only-canary\nVersion: 1.0\n")
+
+            (canary / "METADATA").write_text(
+                "Name: checker-only-canary\n"
+                "Version: 1.0\n"
+            )
+
             environment = root / "target"
             command = pip_command(create_environment(environment))
 
@@ -56,7 +61,11 @@ class WheelhouseBundleTests(unittest.TestCase):
 
             lock = root / "tool.lock"
 
-            lock.write_text(f"example==1.0 \\\n    --hash=sha256:{hashlib.sha256(wheel.read_bytes()).hexdigest()}\n")
+            lock.write_text(
+                f"example==1.0 \\\n"
+                f"    --hash=sha256:{hashlib.sha256(wheel.read_bytes()).hexdigest()}\n"
+            )
+
             (first, second) = (root / "first.pyz", root / "second.pyz")
             type_requirements_source = ROOT / "packages/type-requirements/src/type_requirements.py"
 

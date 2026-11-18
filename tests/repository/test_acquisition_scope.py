@@ -91,7 +91,14 @@ printf '%s %s\n' "$uid" "$gid"
         )
 
         self.assertEqual(0, status, msg=stderr)
-        self.assertEqual(b'17 19\n17 19\n', stdout)
+
+        self.assertEqual(
+            (
+                b'17 19\n'
+                b'17 19\n'
+            ),
+            stdout,
+        )
 
         self.assertEqual(
             [
@@ -172,7 +179,8 @@ printf '%s\n' "${values[*]}"
             '17 19\n',
             '17 19 23 29 31\n',
             '17 19 23 29',
-            '17 19 23 29\nextra\n',
+            '17 19 23 29\n'
+            'extra\n',
             '017 19 23 29\n',
             '17 19 23 4294967295\n',
             '17 19 23 -1\n',
@@ -491,7 +499,10 @@ done
         )
 
         self.assertEqual(
-            b'package-output\nresult=7\npackage-output\nresult=7\n',
+            b'package-output\n'
+            b'result=7\n'
+            b'package-output\n'
+            b'result=7\n',
             self.assert_exit(caller_process, root, 0)
         )
 
@@ -516,7 +527,15 @@ return "$status"
         (stdout, stderr) = caller_process.communicate(timeout=15)
 
         self.assertEqual(2, caller_process.returncode, msg=stderr)
-        self.assertEqual(b'package-output\nresult=unchanged\n', stdout)
+
+        self.assertEqual(
+            (
+                b'package-output\n'
+                b'result=unchanged\n'
+            ),
+            stdout,
+        )
+
         self.assertEqual(['2 no'], (root / 'caller-exit').read_text().splitlines())
         self.assertEqual(1, sum(line.endswith(' down') for line in (root / 'compose-calls').read_text().splitlines()))
 
@@ -1381,8 +1400,24 @@ _acq_fail 'fixture diagnostic'
 
         self.addCleanup(shutil.rmtree, operation, ignore_errors=True)
         self.addCleanup(shutil.rmtree, client, ignore_errors=True)
-        self.assertTrue((operation / 'client-cleanup.stderr').read_bytes().startswith(b'cleanup\0cause\r\n\n'))
-        self.assertIn(b'cleanup\\x00cause\\r\n\n', stderr)
+
+        self.assertTrue(
+            (operation / 'client-cleanup.stderr')
+            .read_bytes()
+            .startswith(
+                b'cleanup\0cause\r\n'
+                b'\n'
+            )
+        )
+
+        self.assertIn(
+            (
+                b'cleanup\\x00cause\\r\n'
+                b'\n'
+            ),
+            stderr,
+        )
+
         self.assertNotIn(b'ignored null byte', stderr)
         self.assertNotIn(b'\0', stderr)
         self.assertNotIn(b'truncated after', stderr)

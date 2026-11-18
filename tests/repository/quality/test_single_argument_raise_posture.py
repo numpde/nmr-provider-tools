@@ -53,8 +53,28 @@ class SingleArgumentRaisePostureTests(unittest.TestCase):
 
         self.assertEqual(first=[1], second=unnecessary_raise_breaks(source=source))
         self.assertEqual(first=[], second=unnecessary_raise_breaks(source='raise TypeError("bad")\n'))
-        self.assertEqual(first=[], second=unnecessary_raise_breaks(source='raise Error(\n    "bad",\n) from cause\n'))
-        self.assertEqual(first=[], second=unnecessary_raise_breaks(source='raise Error(\n    "bad",  # reason\n)\n'))
+
+        self.assertEqual(
+            first=[],
+            second=unnecessary_raise_breaks(
+                source=(
+                    'raise Error(\n'
+                    '    "bad",\n'
+                    ') from cause\n'
+                )
+            ),
+        )
+
+        self.assertEqual(
+            first=[],
+            second=unnecessary_raise_breaks(
+                source=(
+                    'raise Error(\n'
+                    '    "bad",  # reason\n'
+                    ')\n'
+                )
+            ),
+        )
 
     def test_authored_python_avoids_unnecessary_raise_breaks(self) -> None:
         findings = [

@@ -82,7 +82,12 @@ class DeliveryReleaseTests(unittest.TestCase):
             dockerfile = destination / "operations/delivery/image/Dockerfile"
 
             dockerfile.parent.mkdir(parents=True)
-            dockerfile.write_text("FROM scratch AS wheel_inputs\n# selected-wheel-inputs\n")
+
+            dockerfile.write_text(
+                "FROM scratch AS wheel_inputs\n"
+                "# selected-wheel-inputs\n"
+            )
+
             record = ROOT / "requirements/installer-release.json"
 
             (destination / "requirements").mkdir()

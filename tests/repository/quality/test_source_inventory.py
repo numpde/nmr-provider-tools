@@ -225,10 +225,22 @@ class SourceInventoryUnitTests(unittest.TestCase):
                     sources.python_sources()
 
     def test_frontend_ownership_rejects_pinned_and_unpinned_registry_directives(self):
-        self.assertFalse(has_external_frontend("# Local engine frontend.\nFROM base@sha256:hash\n"))
+        self.assertFalse(
+            has_external_frontend(
+                "# Local engine frontend.\n"
+                "FROM base@sha256:hash\n"
+            )
+        )
 
         for directive in ("# syntax=docker/dockerfile:1", "# SYNTAX = docker/dockerfile:1@sha256:" + "a" * 64):
-            self.assertTrue(has_external_frontend("# Introduction.\n" + directive + "\nFROM base\n"))
+            self.assertTrue(
+                has_external_frontend(
+                    "# Introduction.\n" + directive + (
+                        "\n"
+                        "FROM base\n"
+                    )
+                )
+            )
 
     def test_root_visibility_reports_new_source_caches_and_hidden_links(self):
         with tempfile.TemporaryDirectory() as directory:

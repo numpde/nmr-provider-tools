@@ -107,9 +107,12 @@ class ExpectedConditionGuardPostureTests(unittest.TestCase):
 
     def test_examples_require_expected_condition_form(self):
         sources = [
-            "if not 1 <= count <= settings.beam_size:\n    raise ValueError\n",
-            'if type(candidate) is not str:\n    raise TypeError(f"Unexpected {type(candidate)=}")\n',
-            "if candidate not in supported:\n    raise ValueError()\n",
+            "if not 1 <= count <= settings.beam_size:\n"
+            "    raise ValueError\n",
+            'if type(candidate) is not str:\n'
+            '    raise TypeError(f"Unexpected {type(candidate)=}")\n',
+            "if candidate not in supported:\n"
+            "    raise ValueError()\n",
         ]
 
         for source in sources:
@@ -120,18 +123,27 @@ class ExpectedConditionGuardPostureTests(unittest.TestCase):
         for predicate in ["predicate()", "isinstance(candidate, str)", "owner.ready()", "np.isfinite(samples).all()"]:
             for condition in [f"not {predicate}", f"not ({predicate})"]:
                 with self.subTest(condition=condition):
-                    source = f"if {condition}:\n    raise builtins.TypeError() from cause\n"
+                    source = (
+                        f"if {condition}:\n"
+                        f"    raise builtins.TypeError() from cause\n"
+                    )
 
                     self.assertEqual(first=[], second=guard_findings(source=source))
 
-        source = "if not predicate() == expected:\n    raise ValueError()\n"
+        source = (
+            "if not predicate() == expected:\n"
+            "    raise ValueError()\n"
+        )
 
         self.assertEqual(first=1, second=len(guard_findings(source=source)))
 
     def test_parentheses_enclose_the_complete_expected_condition(self):
         for condition in ("not (first) and second", "not (first) or second", "not (first) == second"):
             with self.subTest(condition=condition):
-                source = f"if {condition}:\n    raise ValueError()\n"
+                source = (
+                    f"if {condition}:\n"
+                    f"    raise ValueError()\n"
+                )
 
                 self.assertEqual(first=1, second=len(guard_findings(source=source)))
 
@@ -143,29 +155,48 @@ class ExpectedConditionGuardPostureTests(unittest.TestCase):
             "not (candidate in supported)",
             "not ((candidate in supported))",
             'not (candidate == "(")',
-            "not (\n    first  # ) is comment text\n    and second\n)",
+            "not (\n"
+            "    first  # ) is comment text\n"
+            "    and second\n"
+            ")",
         ]
 
         for condition in conditions:
             with self.subTest(condition=condition):
-                source = f"if {condition}:\n    raise ValueError()\n"
+                source = (
+                    f"if {condition}:\n"
+                    f"    raise ValueError()\n"
+                )
 
                 self.assertEqual(first=[], second=guard_findings(source=source))
 
     def test_enclosing_if_parentheses_do_not_replace_not_operand_parentheses(self):
-        source = "if (not ready):\n    raise ValueError()\n"
+        source = (
+            "if (not ready):\n"
+            "    raise ValueError()\n"
+        )
 
         self.assertEqual(first=1, second=len(guard_findings(source=source)))
 
     def test_any_exception_type_and_raise_form_is_in_scope(self):
         sources = [
-            "if tokens is not None:\n    raise RuntimeError()\n",
-            "if failure is not None:\n    raise failure\n",
-            "if invalid not in allowed:\n    raise\n",
-            "if type(value) is not str:\n    log()\n    raise TypeError()\n",
-            "if type(value) is not str:\n    raise TypeError()\nelse:\n    accept()\n",
-            "if type(value) is not str:\n    raise custom.Error() from cause\n",
-            "if not permitted:\n    raise BaseExceptionGroup('failed', causes)\n",
+            "if tokens is not None:\n"
+            "    raise RuntimeError()\n",
+            "if failure is not None:\n"
+            "    raise failure\n",
+            "if invalid not in allowed:\n"
+            "    raise\n",
+            "if type(value) is not str:\n"
+            "    log()\n"
+            "    raise TypeError()\n",
+            "if type(value) is not str:\n"
+            "    raise TypeError()\n"
+            "else:\n"
+            "    accept()\n",
+            "if type(value) is not str:\n"
+            "    raise custom.Error() from cause\n",
+            "if not permitted:\n"
+            "    raise BaseExceptionGroup('failed', causes)\n",
         ]
 
         for source in sources:
@@ -174,9 +205,13 @@ class ExpectedConditionGuardPostureTests(unittest.TestCase):
 
     def test_non_raising_conditions_are_outside_the_rule(self):
         sources = [
-            "if not permitted:\n    return value\n",
-            "if value is not None:\n    use(value)\n",
-            "if value not in allowed:\n    if not (acceptable):\n        raise Error()\n",
+            "if not permitted:\n"
+            "    return value\n",
+            "if value is not None:\n"
+            "    use(value)\n",
+            "if value not in allowed:\n"
+            "    if not (acceptable):\n"
+            "        raise Error()\n",
         ]
 
         for source in sources:
@@ -185,7 +220,10 @@ class ExpectedConditionGuardPostureTests(unittest.TestCase):
 
     def test_positive_guards_are_reported_without_suggesting_an_inversion(self):
         for condition in ["left != right", "value < bound", "value > bound", "first is not second is not third", "invalid or missing"]:
-            source = f"if {condition}:\n    raise ValueError()\n"
+            source = (
+                f"if {condition}:\n"
+                f"    raise ValueError()\n"
+            )
 
             self.assertEqual(first=1, second=len(guard_findings(source=source)))
 

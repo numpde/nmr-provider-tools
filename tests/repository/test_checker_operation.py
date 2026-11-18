@@ -300,7 +300,15 @@ printf 'retired\\n' > "$PROBE_REPORT.retired"
 
         (command, environment) = self.invocation("success")
         command[-1] = str(shadow)
-        command[2] = command[2].replace('budget=10', 'image_retire_after_success=true\nbudget=10')
+
+        command[2] = command[2].replace(
+            'budget=10',
+            (
+                'image_retire_after_success=true\n'
+                'budget=10'
+            ),
+        )
+
         completed_process = subprocess.run(command, env=environment, capture_output=True, text=True, timeout=15, check=False)
 
         self.assertEqual(0, completed_process.returncode, msg=completed_process.stderr)

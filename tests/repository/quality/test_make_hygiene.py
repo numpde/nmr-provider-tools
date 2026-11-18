@@ -168,7 +168,13 @@ class RepositoryHygieneTest(unittest.TestCase):
 
     def test_default_goal_accepts_one_bare_or_owned_help_assignment(self):
         for assignment in (".DEFAULT_GOAL = help", ".DEFAULT_GOAL := help", "override .DEFAULT_GOAL := help"):
-            with self.subTest(assignment=assignment), patch(f"{__name__}.read_text", return_value=assignment + "\nhelp:\n"):
+            with self.subTest(assignment=assignment), patch(
+                f"{__name__}.read_text",
+                return_value=assignment + (
+                    "\n"
+                    "help:\n"
+                ),
+            ):
                 self.test_make_default_goal_is_explicit_help_target()
 
     def test_default_goal_rejects_changed_missing_and_duplicate_authority(self):
@@ -176,14 +182,24 @@ class RepositoryHygieneTest(unittest.TestCase):
             "",
             ".DEFAULT_GOAL := weights/download",
             "override .DEFAULT_GOAL := test",
-            ".DEFAULT_GOAL := help\noverride .DEFAULT_GOAL := help",
-            "override .DEFAULT_GOAL := help\n override .DEFAULT_GOAL := test",
-            "override .DEFAULT_GOAL := help\n.DEFAULT_GOAL := $(shell private-effect)",
-            "override .DEFAULT_GOAL := help\nexport .DEFAULT_GOAL = test",
+            ".DEFAULT_GOAL := help\n"
+            "override .DEFAULT_GOAL := help",
+            "override .DEFAULT_GOAL := help\n"
+            " override .DEFAULT_GOAL := test",
+            "override .DEFAULT_GOAL := help\n"
+            ".DEFAULT_GOAL := $(shell private-effect)",
+            "override .DEFAULT_GOAL := help\n"
+            "export .DEFAULT_GOAL = test",
         ):
             with (
                 self.subTest(assignments=assignments),
-                patch(f"{__name__}.read_text", return_value=assignments + "\nhelp:\n"),
+                patch(
+                    f"{__name__}.read_text",
+                    return_value=assignments + (
+                        "\n"
+                        "help:\n"
+                    ),
+                ),
                 self.assertRaises(AssertionError),
             ):
                 self.test_make_default_goal_is_explicit_help_target()
@@ -233,8 +249,13 @@ class RepositoryHygieneTest(unittest.TestCase):
 
     def test_target_parser_excludes_assignments_and_recipe_text(self):
         makefile = (
-            "ROOT := /workspace\nROOT ::= /workspace\nROOT :::= /workspace\n"
-            "ROOT = value\nROOT += value\nROOT ?= value\nROOT != printf value\n"
+            "ROOT := /workspace\n"
+            "ROOT ::= /workspace\n"
+            "ROOT :::= /workspace\n"
+            "ROOT = value\n"
+            "ROOT += value\n"
+            "ROOT ?= value\n"
+            "ROOT != printf value\n"
             ".PHONY: help real/one real/two\n"
             "help:\n"
             "\t@echo 'recipe/target: hidden'\n"
@@ -246,7 +267,10 @@ class RepositoryHygieneTest(unittest.TestCase):
         self.assertEqual("\t@echo 'recipe/target: hidden'", self.make_help_recipe(makefile))
 
     def test_duplicate_detection_retains_names_repeated_across_multi_target_rules(self):
-        makefile = "first/one second/two:\nsecond/two third/three:\n"
+        makefile = (
+            "first/one second/two:\n"
+            "second/two third/three:\n"
+        )
 
         self.assertEqual(["first/one", "second/two", "second/two", "third/three"], self.make_target_list(makefile))
 
@@ -269,7 +293,16 @@ class RepositoryHygieneTest(unittest.TestCase):
             self.test_make_phony_targets_are_real_targets()
 
         with (
-            patch(f"{__name__}.read_text", return_value=makefile.replace("help:\n", "help:\n\t@echo 'make stale/lane'\n")),
+            patch(
+                f"{__name__}.read_text",
+                return_value=makefile.replace(
+                    "help:\n",
+                    (
+                        "help:\n"
+                        "\t@echo 'make stale/lane'\n"
+                    ),
+                ),
+            ),
             self.assertRaises(AssertionError),
         ):
             self.test_make_help_mentions_existing_targets()
@@ -281,7 +314,13 @@ class RepositoryHygieneTest(unittest.TestCase):
             self.test_make_phony_targets_are_real_targets()
 
     def test_empty_aggregate_recipe_stops_before_subsequent_phony(self):
-        makefile = "tests: tests/repository\n\n.PHONY: later\nlater:\n\t@echo ready\n"
+        makefile = (
+            "tests: tests/repository\n"
+            "\n"
+            ".PHONY: later\n"
+            "later:\n"
+            "\t@echo ready\n"
+        )
 
         self.assertEqual("", self.make_target_recipe(makefile, "tests").strip())
         self.assertEqual("\t@echo ready", self.make_target_recipe(makefile, "later"))

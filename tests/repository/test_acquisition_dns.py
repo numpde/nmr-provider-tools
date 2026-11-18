@@ -17,7 +17,14 @@ from acquisition_tool import dns
 
 class ResolverCaptureTests(unittest.TestCase):
     def test_networkmanager_link_dns_wins_without_consulting_global_resolvers(self):
-        response = SimpleNamespace(returncode=0, stdout="192.0.2.53\n192.0.2.54\n192.0.2.53\n")
+        response = SimpleNamespace(
+            returncode=0,
+            stdout=(
+                "192.0.2.53\n"
+                "192.0.2.54\n"
+                "192.0.2.53\n"
+            ),
+        )
 
         with patch.object(dns.socket, "if_nametoindex", return_value=2), \
                 patch.object(dns.subprocess, "run", return_value=response) as run, \
@@ -44,7 +51,17 @@ class ResolverCaptureTests(unittest.TestCase):
     def test_unmanaged_link_retains_configured_global_resolvers(self):
         with patch.object(dns.socket, "if_nametoindex", return_value=2), \
                 patch.object(dns.subprocess, "run", side_effect=FileNotFoundError), \
-                patch.object(pathlib.Path, "read_text", side_effect=[OSError(), "nameserver 127.0.0.53\nnameserver 192.0.2.53\n"]):
+                patch.object(
+                    pathlib.Path,
+                    "read_text",
+                    side_effect=[
+                        OSError(),
+                        (
+                            "nameserver 127.0.0.53\n"
+                            "nameserver 192.0.2.53\n"
+                        ),
+                    ],
+                ):
             self.assertEqual(("192.0.2.53",), dns.capture_dns_servers("wlan0"))
 
     def test_system_route_uses_existing_global_configuration_without_manager_calls(self):

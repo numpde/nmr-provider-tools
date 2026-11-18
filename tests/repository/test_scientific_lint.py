@@ -64,19 +64,81 @@ def late_module_imports(source, *, package=None):
 
 class ImportOrderDetectionTests(unittest.TestCase):
     def test_only_canonical_early_guard_may_precede_import_section(self):
-        guard = "from tools.container_guard import require_container\nrequire_container()\n"
+        guard = (
+            "from tools.container_guard import require_container\n"
+            "require_container()\n"
+        )
 
-        self.assertEqual([], late_module_imports('"""Owner."""\n' + guard + "import pickle\nVALUE = 1\n"))
-        self.assertEqual([4], late_module_imports(guard + "VALUE = 1\nimport pickle\n"))
+        self.assertEqual(
+            [],
+            late_module_imports(
+                '"""Owner."""\n' + guard + (
+                    "import pickle\n"
+                    "VALUE = 1\n"
+                )
+            ),
+        )
+
+        self.assertEqual(
+            [4],
+            late_module_imports(
+                guard + (
+                    "VALUE = 1\n"
+                    "import pickle\n"
+                )
+            ),
+        )
+
         self.assertEqual([2, 4], late_module_imports("work()\n" + guard + "import pickle\n"))
-        self.assertEqual([3], late_module_imports("import os\nwork()\nimport pickle\n"))
-        self.assertEqual([2], late_module_imports("require_container()\nimport pickle\n"))
-        self.assertEqual([4], late_module_imports(guard + "require_container()\nimport pickle\n"))
-        core_guard = "from provider_core.container_guard import require_container\nrequire_container()\n"
+
+        self.assertEqual(
+            [3],
+            late_module_imports(
+                "import os\n"
+                "work()\n"
+                "import pickle\n"
+            ),
+        )
+
+        self.assertEqual(
+            [2],
+            late_module_imports(
+                "require_container()\n"
+                "import pickle\n"
+            ),
+        )
+
+        self.assertEqual(
+            [4],
+            late_module_imports(
+                guard + (
+                    "require_container()\n"
+                    "import pickle\n"
+                )
+            ),
+        )
+
+        core_guard = (
+            "from provider_core.container_guard import require_container\n"
+            "require_container()\n"
+        )
 
         self.assertEqual([], late_module_imports(core_guard + "import json\n"))
-        self.assertEqual([4], late_module_imports(core_guard + "work()\nimport json\n"))
-        sibling_guard = "from .container_guard import require_container\nrequire_container()\n"
+
+        self.assertEqual(
+            [4],
+            late_module_imports(
+                core_guard + (
+                    "work()\n"
+                    "import json\n"
+                )
+            ),
+        )
+
+        sibling_guard = (
+            "from .container_guard import require_container\n"
+            "require_container()\n"
+        )
 
         self.assertEqual([], late_module_imports(sibling_guard + "import json\n", package="tools"))
         self.assertEqual([3], late_module_imports(sibling_guard + "import json\n", package="other"))

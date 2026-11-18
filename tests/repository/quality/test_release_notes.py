@@ -80,25 +80,32 @@ class ReleaseNotesTests(unittest.TestCase):
 
     def test_allows_blank_lines_headings_separate_items_and_fenced_code(self):
         source = (
-            "# Release heading\n\n"
-            "One complete paragraph.\n\n"
+            "# Release heading\n"
+            "\n"
+            "One complete paragraph.\n"
+            "\n"
             "- Item one\n"
             "  - Nested item\n"
             "2. Numbered item\n"
-            "\n### New section\n"
-            "\n```python\n"
+            "\n"
+            "### New section\n"
+            "\n"
+            "```python\n"
             "Multi-line code\n"
             "two more lines\n"
             "- Not a Markdown item\n"
             "```\n"
-            "\n~~~text\n"
+            "\n"
+            "~~~text\n"
             "Another multi-line example\n"
             "~~~\n"
-            "\n    ```bash\n"
+            "\n"
+            "    ```bash\n"
             "    Commands can span lines\n"
             "    without a paragraph violation\n"
             "    ```\n"
-            "\n---\n"
+            "\n"
+            "---\n"
             "After the separator.\n"
         )
 
@@ -111,11 +118,20 @@ class ReleaseNotesTests(unittest.TestCase):
             (root / "notes").mkdir()
 
             (root / "notes/new_release_v9.8.7.md").write_text(
-                "# Release\n\nFirst line\nwrapped line\n",
+                "# Release\n"
+                "\n"
+                "First line\n"
+                "wrapped line\n",
                 encoding="utf-8",
             )
 
-            (root / "notes/other.md").write_text("not\nscoped\n", encoding="utf-8")
+            (root / "notes/other.md").write_text(
+                (
+                    "not\n"
+                    "scoped\n"
+                ),
+                encoding="utf-8",
+            )
 
             self.assertEqual(
                 [f"notes/new_release_v9.8.7.md:4: {_GUIDANCE}"],

@@ -203,7 +203,14 @@ class ImageRetirementTests(unittest.TestCase):
             self.assertEqual(retained_image_ids(root), set())
             receipt.write_text("partial")
             self.assertEqual(retained_image_ids(root), set())
-            receipt.write_text(IDENTIFIER + "\n\n")
+
+            receipt.write_text(
+                IDENTIFIER + (
+                    "\n"
+                    "\n"
+                )
+            )
+
             self.assertEqual(retained_image_ids(root), set())
             unrelated = root / "other-owner"
 

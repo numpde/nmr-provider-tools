@@ -135,7 +135,14 @@ class GenericVariableNamePostureTests(unittest.TestCase):
         )
 
     def test_generic_path_and_file_names_are_flagged(self):
-        source = "path = 1\nrelative_path = 2\nrel_path = 3\nfile = 4\nfilepath = 5\nacquisition_rel_path = 6\n"
+        source = (
+            "path = 1\n"
+            "relative_path = 2\n"
+            "rel_path = 3\n"
+            "file = 4\n"
+            "filepath = 5\n"
+            "acquisition_rel_path = 6\n"
+        )
 
         self.assertEqual(
             first=["path", "relative_path", "rel_path", "file", "filepath"],
@@ -143,7 +150,11 @@ class GenericVariableNamePostureTests(unittest.TestCase):
         )
 
     def test_generic_parameters_assignments_and_comprehensions_are_flagged(self):
-        source = "def convert(value, /, *items, data, label, **values):\n    result = [item for item in items]\n    return result\n"
+        source = (
+            "def convert(value, /, *items, data, label, **values):\n"
+            "    result = [item for item in items]\n"
+            "    return result\n"
+        )
 
         self.assertEqual(
             first=["data", "items", "label", "value", "values", "item", "result"],
@@ -151,12 +162,21 @@ class GenericVariableNamePostureTests(unittest.TestCase):
         )
 
     def test_underscores_and_case_do_not_hide_generic_names(self):
-        source = "_value = 1\nVALUES = []\n__result__ = None\n"
+        source = (
+            "_value = 1\n"
+            "VALUES = []\n"
+            "__result__ = None\n"
+        )
 
         self.assertEqual(first=["_value", "VALUES", "__result__"], second=[finding.variable_name for finding in _findings(source=source)])
 
     def test_purpose_names_reads_keys_comments_and_strings_are_not_bindings(self):
-        source = 'payload_bytes = data\nresult_ref = {"value": "item"}\n# result = data\nprovider.value = 1\n'
+        source = (
+            'payload_bytes = data\n'
+            'result_ref = {"value": "item"}\n'
+            '# result = data\n'
+            'provider.value = 1\n'
+        )
 
         self.assertEqual(first=[], second=_findings(source=source))
 
@@ -187,7 +207,12 @@ class GenericVariableNamePostureTests(unittest.TestCase):
         )
 
     def test_multiline_import_diagnostics_locate_each_binding(self):
-        source = "from package import (\n    value,\n    data,\n)\n"
+        source = (
+            "from package import (\n"
+            "    value,\n"
+            "    data,\n"
+            ")\n"
+        )
 
         self.assertEqual(
             first=[(2, "value"), (3, "data")],
@@ -207,7 +232,11 @@ class GenericVariableNamePostureTests(unittest.TestCase):
         self.assertEqual(first=["item", "value", "data", "result"], second=[finding.variable_name for finding in _findings(source=source)])
 
     def test_helpers_and_public_keyword_contracts_have_no_blanket_exemption(self):
-        source = "class Codec:\n    def encode(self, *, value):\n        return value\n"
+        source = (
+            "class Codec:\n"
+            "    def encode(self, *, value):\n"
+            "        return value\n"
+        )
 
         self.assertEqual(first=["value"], second=[finding.variable_name for finding in _findings(source=source)])
 

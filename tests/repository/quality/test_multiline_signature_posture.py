@@ -89,12 +89,21 @@ class MultilineSignaturePostureTests(unittest.TestCase):
     def test_parameters_on_the_opening_line_are_reported(self):
         for header in ("def f(value,", "async def f(value,", "def __init__(self,", "def f[T](value: T,"):
             with self.subTest(header=header):
-                source = f"{header}\n    other=None,\n):\n    pass\n"
+                source = (
+                    f"{header}\n"
+                    f"    other=None,\n"
+                    f"):\n"
+                    f"    pass\n"
+                )
 
                 self.assertEqual(first=[(1, "start multiline signature parameters on the next line")], second=multiline_signature_findings(source=source))
 
     def test_parameters_on_the_closing_line_are_reported(self):
-        source = "def f(\n    value) -> str:\n    pass\n"
+        source = (
+            "def f(\n"
+            "    value) -> str:\n"
+            "    pass\n"
+        )
 
         self.assertEqual(first=[(2, "start the closing signature parenthesis on its own line")], second=multiline_signature_findings(source=source))
 
@@ -113,7 +122,13 @@ class MultilineSignaturePostureTests(unittest.TestCase):
         self.assertEqual(first=[], second=multiline_signature_findings(source=source))
 
     def test_single_line_parameters_are_not_made_multiline_by_the_return_annotation(self):
-        source = "def f(value: str) -> tuple[\n    str,\n    int,\n]:\n    pass\n"
+        source = (
+            "def f(value: str) -> tuple[\n"
+            "    str,\n"
+            "    int,\n"
+            "]:\n"
+            "    pass\n"
+        )
 
         self.assertEqual(first=[], second=multiline_signature_findings(source=source))
 
@@ -149,7 +164,13 @@ class MultilineSignaturePostureTests(unittest.TestCase):
         )
 
     def test_call_delimiters_allow_nested_closers_and_unicode_arguments(self):
-        source = "result = (build)(\n    wrap(\n        'café',\n    ),\n).value\n"
+        source = (
+            "result = (build)(\n"
+            "    wrap(\n"
+            "        'café',\n"
+            "    ),\n"
+            ").value\n"
+        )
 
         self.assertEqual(first=[], second=multiline_signature_findings(source=source))
 

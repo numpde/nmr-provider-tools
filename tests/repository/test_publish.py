@@ -37,7 +37,8 @@ class PublicationTests(unittest.TestCase):
 
         (self.root / "packages/provider-core/sdk_build").mkdir(parents=True)
         (self.root / "packages/provider-core/sdk_build/provider_core.sh").write_text(
-            '#!/usr/bin/env bash\nset -euo pipefail\n'
+            '#!/usr/bin/env bash\n'
+            'set -euo pipefail\n'
             'if [[ $1 == build ]]; then\n'
             '  make --no-print-directory package/build "WHEELHOUSE=$WHEELHOUSE_INPUT" "OUTPUT=$OUTPUT_INPUT"\n'
             'else\n'
@@ -48,7 +49,13 @@ class PublicationTests(unittest.TestCase):
         self.note = self.root / "notes/005_release_v0.2.0.md"
 
         self.note.parent.mkdir()
-        self.note.write_text("# Authored fixture release\n\nThe reader-facing change.\n")
+
+        self.note.write_text(
+            "# Authored fixture release\n"
+            "\n"
+            "The reader-facing change.\n"
+        )
+
         self.inputs = self.root / "inputs"
 
         self.inputs.mkdir(mode=0o700)

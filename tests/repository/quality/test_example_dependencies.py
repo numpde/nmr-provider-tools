@@ -21,9 +21,11 @@ class ExampleDependencyTests(unittest.TestCase):
 
                 (example / "pyproject.toml").write_text(
                     data=(
-                    f'[project]\nname = "test-example"\nversion = "0.1.0"\n'
-                    f'dependencies = ["{dependency}"]\n'
-                ),
+                        f'[project]\n'
+                        f'name = "test-example"\n'
+                        f'version = "0.1.0"\n'
+                        f'dependencies = ["{dependency}"]\n'
+                    ),
                     encoding="utf-8"
                 )
 
@@ -46,9 +48,11 @@ class ExampleDependencyTests(unittest.TestCase):
 
                 (example / "pyproject.toml").write_text(
                     data=(
-                    f'[project]\nname = "test-example"\nversion = "0.1.0"\n'
-                    f'dependencies = {dependencies}\n'
-                ),
+                        f'[project]\n'
+                        f'name = "test-example"\n'
+                        f'version = "0.1.0"\n'
+                        f'dependencies = {dependencies}\n'
+                    ),
                     encoding="utf-8"
                 )
 
@@ -63,7 +67,9 @@ class ExampleDependencyTests(unittest.TestCase):
 
             (example / "pyproject.toml").write_text(
                 data=(
-                    '[project]\nname = "test-example"\nversion = "0.1.0"\n'
+                    '[project]\n'
+                    'name = "test-example"\n'
+                    'version = "0.1.0"\n'
                     'dependencies = ["provider-core==0.6.19", "numpy==2.5.4"]\n'
                 ),
                 encoding="utf-8",
@@ -72,7 +78,13 @@ class ExampleDependencyTests(unittest.TestCase):
             with self.assertRaises(expected_exception=FileNotFoundError):
                 _discover_examples(examples=pathlib.Path(directory), core_version="0.6.19", mock_dependencies=frozenset())
 
-            (example / "requirements.lock").write_text(data="numpy==2.5.4 \\\n    --hash=sha256:" + "0" * 64 + "\n", encoding="utf-8")
+            (example / "requirements.lock").write_text(
+                data=(
+                    "numpy==2.5.4 \\\n"
+                    "    --hash=sha256:"
+                ) + "0" * 64 + "\n",
+                encoding="utf-8",
+            )
 
             self.assertEqual(
                 first=[(example, "test-example", "0.1.0")],
@@ -80,14 +92,23 @@ class ExampleDependencyTests(unittest.TestCase):
             )
 
             with (example / "requirements.lock").open(mode="a", encoding="utf-8") as scientific_lock_file:
-                scientific_lock_file.write("transitive-package==1.0.0 \\\n    --hash=sha256:" + "1" * 64 + "\n")
+                scientific_lock_file.write(
+                    "transitive-package==1.0.0 \\\n"
+                    "    --hash=sha256:" + "1" * 64 + "\n"
+                )
 
             self.assertEqual(
                 first=[(example, "test-example", "0.1.0")],
                 second=_discover_examples(examples=pathlib.Path(directory), core_version="0.6.19", mock_dependencies=frozenset()),
             )
 
-            (example / "requirements.lock").write_text(data="numpy==2.4.1 \\\n    --hash=sha256:" + "0" * 64 + "\n", encoding="utf-8")
+            (example / "requirements.lock").write_text(
+                data=(
+                    "numpy==2.4.1 \\\n"
+                    "    --hash=sha256:"
+                ) + "0" * 64 + "\n",
+                encoding="utf-8",
+            )
 
             with self.assertRaises(expected_exception=ValueError):
                 _discover_examples(examples=pathlib.Path(directory), core_version="0.6.19", mock_dependencies=frozenset())
@@ -104,13 +125,21 @@ class ExampleDependencyTests(unittest.TestCase):
 
                 (example / "pyproject.toml").write_text(
                     data=(
-                        f'[project]\nname = "test-example"\nversion = "0.1.0"\n'
+                        f'[project]\n'
+                        f'name = "test-example"\n'
+                        f'version = "0.1.0"\n'
                         f'dependencies = {dependencies}\n'
                     ),
                     encoding="utf-8",
                 )
 
-                (example / "requirements.lock").write_text(data="provider-core==0.6.18 \\\n    --hash=sha256:" + "0" * 64 + "\n", encoding="utf-8")
+                (example / "requirements.lock").write_text(
+                    data=(
+                        "provider-core==0.6.18 \\\n"
+                        "    --hash=sha256:"
+                    ) + "0" * 64 + "\n",
+                    encoding="utf-8",
+                )
 
                 with self.assertRaises(expected_exception=ValueError):
                     _discover_examples(examples=pathlib.Path(directory), core_version="0.6.19", mock_dependencies=frozenset())
@@ -123,7 +152,9 @@ class ExampleDependencyTests(unittest.TestCase):
 
             (example / "pyproject.toml").write_text(
                 data=(
-                    '[project]\nname = "test-example"\nversion = "0.1.0"\n'
+                    '[project]\n'
+                    'name = "test-example"\n'
+                    'version = "0.1.0"\n'
                     'dependencies = ["provider-core==0.6.19", "mock-numpy==0.1.0"]\n'
                 ),
                 encoding="utf-8",
@@ -153,7 +184,9 @@ class ExampleDependencyTests(unittest.TestCase):
 
             (example / "pyproject.toml").write_text(
                 data=(
-                    '[project]\nname = "test-example"\nversion = "0.1.0"\n'
+                    '[project]\n'
+                    'name = "test-example"\n'
+                    'version = "0.1.0"\n'
                     'dependencies = ["provider-core==0.6.19", "numpy==2.5.4"]\n'
                 ),
                 encoding="utf-8",
@@ -161,8 +194,11 @@ class ExampleDependencyTests(unittest.TestCase):
 
             (example / "requirements.lock").write_text(
                 data=(
-                    "numpy==2.5.4 \\\n    --hash=sha256:" + "0" * 64 + "\n"
-                    "mock-numpy==0.1.0 \\\n    --hash=sha256:" + "1" * 64 + "\n"
+                    "numpy==2.5.4 \\\n"
+                    "    --hash=sha256:" + "0" * 64 +
+                    "\n"
+                    "mock-numpy==0.1.0 \\\n"
+                    "    --hash=sha256:" + "1" * 64 + "\n"
                 ),
                 encoding="utf-8",
             )
@@ -188,7 +224,9 @@ class ExampleDependencyTests(unittest.TestCase):
                 with self.subTest(distribution_name=distribution_name, dependencies=dependencies):
                     (scientific_mock / "pyproject.toml").write_text(
                         data=(
-                            f'[project]\nname = "{distribution_name}"\nversion = "0.1.0"\n'
+                            f'[project]\n'
+                            f'name = "{distribution_name}"\n'
+                            f'version = "0.1.0"\n'
                             f'dependencies = {dependencies}\n'
                         ),
                         encoding="utf-8",

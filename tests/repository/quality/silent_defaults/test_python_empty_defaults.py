@@ -600,20 +600,43 @@ class PythonEmptyDefaultsTest(unittest.TestCase):
 
         self.assertTrue(
             _has_env_default_expression(
-                'if "DEPLOY_BRANCH" in env:\n    branch = env["DEPLOY_BRANCH"]\nelse:\n    branch = "main"'
+                'if "DEPLOY_BRANCH" in env:\n'
+                '    branch = env["DEPLOY_BRANCH"]\n'
+                'else:\n'
+                '    branch = "main"'
             )
         )
 
         self.assertTrue(
-            _has_env_default_expression('try:\n    branch = env["DEPLOY_BRANCH"]\nexcept KeyError:\n    branch = "main"')
+            _has_env_default_expression(
+                'try:\n'
+                '    branch = env["DEPLOY_BRANCH"]\n'
+                'except KeyError:\n'
+                '    branch = "main"'
+            )
         )
 
         self.assertTrue(_has_env_default_expression('parser.add_argument("--profile", default="demo")'))
         self.assertTrue(_has_env_default_expression('parser.add_argument("profile", nargs="?")'))
-        self.assertTrue(_has_env_default_expression('if args.profile is None:\n    args.profile = "demo"'))
+
+        self.assertTrue(
+            _has_env_default_expression(
+                'if args.profile is None:\n'
+                '    args.profile = "demo"'
+            )
+        )
+
         self.assertTrue(_has_env_default_expression('profile = args.profile or "demo"'))
         self.assertTrue(_has_env_default_expression('profile = args[0] if args else "all"'))
-        self.assertTrue(_has_env_default_expression('if args:\n    profile = args[0]\nelse:\n    profile = "all"'))
+
+        self.assertTrue(
+            _has_env_default_expression(
+                'if args:\n'
+                '    profile = args[0]\n'
+                'else:\n'
+                '    profile = "all"'
+            )
+        )
 
     def test_python_matcher_ignores_explicit_none_check(self) -> None:
         self.assertFalse(_has_env_default_expression("value = default if raw is None else raw"))
@@ -622,7 +645,12 @@ class PythonEmptyDefaultsTest(unittest.TestCase):
         self.assertFalse(_has_env_default_expression('optional = env["OPTIONAL_REF"] if "OPTIONAL_REF" in env else None'))
 
         self.assertFalse(
-            _has_env_default_expression('if "OPTIONAL_REF" in env:\n    optional = env["OPTIONAL_REF"]\nelse:\n    optional = ""')
+            _has_env_default_expression(
+                'if "OPTIONAL_REF" in env:\n'
+                '    optional = env["OPTIONAL_REF"]\n'
+                'else:\n'
+                '    optional = ""'
+            )
         )
 
         self.assertFalse(_has_env_default_expression("enabled = args.enabled or args.force_enabled"))
@@ -639,7 +667,16 @@ class PythonEmptyDefaultsTest(unittest.TestCase):
     def test_python_matcher_accepts_explicit_absence_checks(self) -> None:
         self.assertFalse(_has_falsy_default_expression("payload = {} if payload is None else payload"))
         self.assertFalse(_has_falsy_default_expression("name = '' if name is None else name"))
-        self.assertFalse(_has_falsy_default_expression("if payload is None:\n    payload = {}\nelse:\n    payload = payload"))
+
+        self.assertFalse(
+            _has_falsy_default_expression(
+                "if payload is None:\n"
+                "    payload = {}\n"
+                "else:\n"
+                "    payload = payload"
+            )
+        )
+
         self.assertFalse(_has_falsy_default_expression("raise RuntimeError('bad') or value"))
 
     def test_python_matcher_flags_unannotated_empty_get_defaults(self) -> None:
@@ -657,13 +694,17 @@ class PythonEmptyDefaultsTest(unittest.TestCase):
 
         self.assertFalse(
             _has_empty_get_default_expression(
-                '# silent-defaults: allow-empty-get -- protocol absence\npayload.get("context", {})'
+                '# silent-defaults: allow-empty-get -- protocol absence\n'
+                'payload.get("context", {})'
             )
         )
 
         self.assertFalse(
             _has_empty_get_default_expression(
-                'payload.get(\n    "context",\n    {},  # silent-defaults: allow-empty-get -- protocol absence\n)'
+                'payload.get(\n'
+                '    "context",\n'
+                '    {},  # silent-defaults: allow-empty-get -- protocol absence\n'
+                ')'
             )
         )
 
@@ -679,7 +720,8 @@ class PythonEmptyDefaultsTest(unittest.TestCase):
 
         self.assertFalse(
             _has_pop_default_expression(
-                '# silent-defaults: allow-pop-default -- delete if present\nheaders.pop("X-Robots-Tag", None)'
+                '# silent-defaults: allow-pop-default -- delete if present\n'
+                'headers.pop("X-Robots-Tag", None)'
             )
         )
 

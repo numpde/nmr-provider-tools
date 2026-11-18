@@ -300,11 +300,17 @@ class TypeErrorEvidencePostureTests(unittest.TestCase):
             "not isinstance(seconds, (expected_types := (int, float)))",
         ):
             with self.subTest(condition=condition):
-                source = f'if {condition}:\n    raise TypeError(f"{{type(seconds)=}} ∉ {{expected_types=}}")\n'
+                source = (
+                    f'if {condition}:\n'
+                    f'    raise TypeError(f"{{type(seconds)=}} ∉ {{expected_types=}}")\n'
+                )
 
                 self.assertEqual(first=[], second=_expectation_findings(source_path=pathlib.Path("example.py"), source=source))
 
-        source = 'if not (type(seconds) is (expected_type := float)):\n    raise TypeError(f"{type(seconds)=} ∉ {expected_type=}")\n'
+        source = (
+            'if not (type(seconds) is (expected_type := float)):\n'
+            '    raise TypeError(f"{type(seconds)=} ∉ {expected_type=}")\n'
+        )
 
         self.assertTrue(expr=_expectation_findings(source_path=pathlib.Path("example.py"), source=source))
 
@@ -318,7 +324,10 @@ class TypeErrorEvidencePostureTests(unittest.TestCase):
             ("candidate", "(bases := (Left, Right))", 'f"{bases=} {candidate=}"'),
         ):
             with self.subTest(candidate=candidate, parent=parent):
-                source = f"if not builtins.issubclass({candidate}, {parent}):\n    raise builtins.TypeError({message})\n"
+                source = (
+                    f"if not builtins.issubclass({candidate}, {parent}):\n"
+                    f"    raise builtins.TypeError({message})\n"
+                )
 
                 self.assertEqual(first=[], second=_subclass_findings(source_path=pathlib.Path("example.py"), source=source))
 
@@ -337,19 +346,30 @@ class TypeErrorEvidencePostureTests(unittest.TestCase):
             'message',
         ):
             with self.subTest(message=message):
-                source = f"if not issubclass(candidate, (base := Parent)):\n    raise TypeError({message})\n"
+                source = (
+                    f"if not issubclass(candidate, (base := Parent)):\n"
+                    f"    raise TypeError({message})\n"
+                )
 
                 self.assertTrue(expr=_subclass_findings(source_path=pathlib.Path("example.py"), source=source))
 
     def test_subclass_evidence_scope_is_direct_rejection_only(self):
         for source in (
-            "if issubclass(candidate, Parent):\n    raise TypeError('unsupported')\n",
-            "if not issubclass(candidate, Parent) or other:\n    raise TypeError('bad')\n",
-            "if not issubclass(candidate, Parent):\n    raise ValueError('bad')\n",
-            "if not issubclass(candidate, Parent):\n    raise failure\n",
-            "if not issubclass(candidate, Parent):\n    raise\n",
-            "if not custom.issubclass(candidate, Parent):\n    raise TypeError('bad')\n",
-            "if not issubclass(candidate, Parent):\n    if enabled:\n        raise TypeError('bad')\n",
+            "if issubclass(candidate, Parent):\n"
+            "    raise TypeError('unsupported')\n",
+            "if not issubclass(candidate, Parent) or other:\n"
+            "    raise TypeError('bad')\n",
+            "if not issubclass(candidate, Parent):\n"
+            "    raise ValueError('bad')\n",
+            "if not issubclass(candidate, Parent):\n"
+            "    raise failure\n",
+            "if not issubclass(candidate, Parent):\n"
+            "    raise\n",
+            "if not custom.issubclass(candidate, Parent):\n"
+            "    raise TypeError('bad')\n",
+            "if not issubclass(candidate, Parent):\n"
+            "    if enabled:\n"
+            "        raise TypeError('bad')\n",
         ):
             with self.subTest(source=source):
                 self.assertEqual(first=[], second=_subclass_findings(source_path=pathlib.Path("example.py"), source=source))
@@ -360,12 +380,19 @@ class TypeErrorEvidencePostureTests(unittest.TestCase):
             ("(actual := candidate)", "(actual := Parent)", 'f"{actual=}"'),
         ):
             with self.subTest(candidate=candidate, parent=parent):
-                source = f"if not issubclass({candidate}, {parent}):\n    raise TypeError({message})\n"
+                source = (
+                    f"if not issubclass({candidate}, {parent}):\n"
+                    f"    raise TypeError({message})\n"
+                )
 
                 self.assertTrue(expr=_subclass_findings(source_path=pathlib.Path("example.py"), source=source))
 
     def test_subclass_evidence_diagnostic_identifies_both_missing_operands(self):
-        source = "if not issubclass(candidate, (base := Parent)):\n    raise TypeError\n"
+        source = (
+            "if not issubclass(candidate, (base := Parent)):\n"
+            "    raise TypeError\n"
+        )
+
         findings = _subclass_findings(source_path=pathlib.Path("example.py"), source=source)
 
         self.assertEqual(first=1, second=len(findings))
@@ -373,7 +400,10 @@ class TypeErrorEvidencePostureTests(unittest.TestCase):
         self.assertIn(member="candidate, base", container=findings[0])
 
     def test_bound_type_and_inequality_fields_are_required_together(self):
-        source = 'if not (type(values) is (expected_type := tuple)):\n    raise TypeError(f"{type(values)=} ≠ {expected_type=}")\n'
+        source = (
+            'if not (type(values) is (expected_type := tuple)):\n'
+            '    raise TypeError(f"{type(values)=} ≠ {expected_type=}")\n'
+        )
 
         self.assertEqual(first=[], second=_expectation_findings(source_path=pathlib.Path("example.py"), source=source))
 
@@ -384,7 +414,10 @@ class TypeErrorEvidencePostureTests(unittest.TestCase):
                 self.assertTrue(expr=_expectation_findings(source_path=pathlib.Path("example.py"), source=bad_source))
 
     def test_compound_guards_cannot_overwrite_an_earlier_expectation(self):
-        source = 'if type(left) is not (expected_type := int) and type(right) is not (expected_type := str):\n    raise Error(f"{type(left)=} ≠ {expected_type=}; {type(right)=} ≠ {expected_type=}")\n'
+        source = (
+            'if type(left) is not (expected_type := int) and type(right) is not (expected_type := str):\n'
+            '    raise Error(f"{type(left)=} ≠ {expected_type=}; {type(right)=} ≠ {expected_type=}")\n'
+        )
 
         self.assertTrue(expr=_expectation_findings(source_path=pathlib.Path("example.py"), source=source))
 
@@ -393,12 +426,18 @@ class TypeErrorEvidencePostureTests(unittest.TestCase):
             "type(value) is not (expected_type := str) or forbidden",
             "not (type(value) is (expected_type := str) and permitted)",
         ]:
-            source = f'if {condition}:\n    raise Error(f"{{type(value)=}} ≠ {{expected_type=}}")\n'
+            source = (
+                f'if {condition}:\n'
+                f'    raise Error(f"{{type(value)=}} ≠ {{expected_type=}}")\n'
+            )
 
             self.assertTrue(expr=_expectation_findings(source_path=pathlib.Path("example.py"), source=source))
 
     def test_joint_mismatches_can_truthfully_report_both_subjects(self):
-        source = 'if type(left) is not (expected_left_type := int) and type(right) is not (expected_right_type := str):\n    raise Error(f"{type(left)=} ≠ {expected_left_type=}; {type(right)=} ≠ {expected_right_type=}")\n'
+        source = (
+            'if type(left) is not (expected_left_type := int) and type(right) is not (expected_right_type := str):\n'
+            '    raise Error(f"{type(left)=} ≠ {expected_left_type=}; {type(right)=} ≠ {expected_right_type=}")\n'
+        )
 
         self.assertEqual(first=[], second=_expectation_findings(source_path=pathlib.Path("example.py"), source=source))
 
@@ -409,23 +448,36 @@ class TypeErrorEvidencePostureTests(unittest.TestCase):
         ]
 
         for (condition, expected_name) in cases:
-            source = f'if {condition}:\n    raise CustomError("invalid_type", f"{{type(value)=}} ≠ {{{expected_name}=}}")\n'
+            source = (
+                f'if {condition}:\n'
+                f'    raise CustomError("invalid_type", f"{{type(value)=}} ≠ {{{expected_name}=}}")\n'
+            )
 
             self.assertEqual(first=[], second=_expectation_findings(source_path=pathlib.Path("example.py"), source=source))
 
     def test_existing_expectation_authority_does_not_need_self_assignment(self):
-        source = 'for expected_type in types:\n    if not (type(value) is expected_type):\n        raise TypeError(f"{type(value)=} ≠ {expected_type=}")\n'
+        source = (
+            'for expected_type in types:\n'
+            '    if not (type(value) is expected_type):\n'
+            '        raise TypeError(f"{type(value)=} ≠ {expected_type=}")\n'
+        )
 
         self.assertEqual(first=[], second=_expectation_findings(source_path=pathlib.Path("example.py"), source=source))
 
     def test_rethrows_keep_the_original_exception(self):
         for rejection in ["raise", "raise failure"]:
-            source = f"if not (isinstance(failure, KnownError)):\n    {rejection}\n"
+            source = (
+                f"if not (isinstance(failure, KnownError)):\n"
+                f"    {rejection}\n"
+            )
 
             self.assertEqual(first=[], second=_expectation_findings(source_path=pathlib.Path("example.py"), source=source))
 
     def test_generator_local_cannot_be_reported_as_an_outer_value(self):
-        source = 'if not (all(type(value) is (expected_type := str) for value in values)):\n    raise TypeError(f"{type(value)=} ≠ {expected_type=}")\n'
+        source = (
+            'if not (all(type(value) is (expected_type := str) for value in values)):\n'
+            '    raise TypeError(f"{type(value)=} ≠ {expected_type=}")\n'
+        )
 
         self.assertTrue(expr=_expectation_findings(source_path=pathlib.Path("example.py"), source=source))
 
@@ -443,7 +495,10 @@ class TypeErrorEvidencePostureTests(unittest.TestCase):
         ):
             for guard in ("type(value) is not str", "str != type(value)", "not isinstance(value, str)"):
                 with self.subTest(message=message, guard=guard):
-                    source = f"if {guard}:\n    raise TypeError({message})\n"
+                    source = (
+                        f"if {guard}:\n"
+                        f"    raise TypeError({message})\n"
+                    )
 
                     self.assertEqual(first=[], second=_findings(source_path=pathlib.Path("example.py"), source=source))
 
@@ -466,7 +521,11 @@ class TypeErrorEvidencePostureTests(unittest.TestCase):
             'message',
         ):
             with self.subTest(message=message):
-                source = f"if type(value) is not str:\n    raise TypeError({message})\n"
+                source = (
+                    f"if type(value) is not str:\n"
+                    f"    raise TypeError({message})\n"
+                )
+
                 findings = _findings(source_path=pathlib.Path("example.py"), source=source)
 
                 self.assertEqual(first=1, second=len(findings))
@@ -479,35 +538,56 @@ class TypeErrorEvidencePostureTests(unittest.TestCase):
             "type(left) is not type(right)",
         ):
             with self.subTest(guard=guard):
-                incomplete = f'if {guard}:\n    raise TypeError(f"Unexpected {{type(left)=}}")\n'
+                incomplete = (
+                    f'if {guard}:\n'
+                    f'    raise TypeError(f"Unexpected {{type(left)=}}")\n'
+                )
+
                 findings = _findings(source_path=pathlib.Path("example.py"), source=incomplete)
 
                 self.assertEqual(first=("right",), second=findings[0].missing_subjects)
-                complete = f'if {guard}:\n    raise TypeError(f"Unexpected {{type(left)=}} and {{type(right)=}}")\n'
+
+                complete = (
+                    f'if {guard}:\n'
+                    f'    raise TypeError(f"Unexpected {{type(left)=}} and {{type(right)=}}")\n'
+                )
 
                 self.assertEqual(first=[], second=_findings(source_path=pathlib.Path("example.py"), source=complete))
 
     def test_subject_expression_identity_is_preserved(self) -> None:
-        source = 'if type(record.value) is not str:\n    raise TypeError(f"Unexpected {type(value)=}")\n'
+        source = (
+            'if type(record.value) is not str:\n'
+            '    raise TypeError(f"Unexpected {type(value)=}")\n'
+        )
 
         self.assertEqual(
             first=("record.value",),
             second=_findings(source_path=pathlib.Path("example.py"), source=source)[0].missing_subjects,
         )
 
-        source = 'if type(record["value"]) is not str:\n    raise TypeError(f"Unexpected {type(record[\'value\'])=}")\n'
+        source = (
+            'if type(record["value"]) is not str:\n'
+            '    raise TypeError(f"Unexpected {type(record[\'value\'])=}")\n'
+        )
 
         self.assertEqual(first=[], second=_findings(source_path=pathlib.Path("example.py"), source=source))
 
     def test_bare_builtin_type_errors_and_causes_are_checked(self) -> None:
         for rejection in ("raise TypeError", "raise builtins.TypeError()", "raise TypeError('bad') from cause"):
             with self.subTest(rejection=rejection):
-                source = f"if type(value) is not str:\n    {rejection}\n"
+                source = (
+                    f"if type(value) is not str:\n"
+                    f"    {rejection}\n"
+                )
 
                 self.assertEqual(first=1, second=len(_findings(source_path=pathlib.Path("example.py"), source=source)))
 
     def test_diagnostic_identifies_the_missing_subject_and_required_syntax(self) -> None:
-        source = "if type(value) is not str:\n    raise TypeError('bad')\n"
+        source = (
+            "if type(value) is not str:\n"
+            "    raise TypeError('bad')\n"
+        )
+
         diagnostic = _findings(source_path=pathlib.Path("example.py"), source=source)[0].diagnostic()
 
         self.assertIn(member="example.py:2", container=diagnostic)
@@ -516,18 +596,29 @@ class TypeErrorEvidencePostureTests(unittest.TestCase):
 
     def test_unowned_nested_or_non_type_failures_are_outside_the_rule(self) -> None:
         for source in (
-            "if value is None:\n    raise TypeError('missing')\n",
-            "if isinstance(value, str):\n    raise TypeError('unsupported string')\n",
-            "if type(value) is not str:\n    raise ValueError('bad')\n",
-            "if type(value) is not str:\n    raise errors.TypeError('bad')\n",
-            "if type(value) is not str:\n    if enabled:\n        raise TypeError('bad')\n",
-            "if type(value) is not str:\n    def deferred():\n        raise TypeError('bad')\n",
+            "if value is None:\n"
+            "    raise TypeError('missing')\n",
+            "if isinstance(value, str):\n"
+            "    raise TypeError('unsupported string')\n",
+            "if type(value) is not str:\n"
+            "    raise ValueError('bad')\n",
+            "if type(value) is not str:\n"
+            "    raise errors.TypeError('bad')\n",
+            "if type(value) is not str:\n"
+            "    if enabled:\n"
+            "        raise TypeError('bad')\n",
+            "if type(value) is not str:\n"
+            "    def deferred():\n"
+            "        raise TypeError('bad')\n",
         ):
             with self.subTest(source=source):
                 self.assertEqual(first=[], second=_findings(source_path=pathlib.Path("example.py"), source=source))
 
     def test_constrained_type_rejection_still_requires_actual_evidence(self):
-        source = "if type(value) is not str and optional:\n    raise TypeError('bad')\n"
+        source = (
+            "if type(value) is not str and optional:\n"
+            "    raise TypeError('bad')\n"
+        )
 
         self.assertEqual(first=1, second=len(_findings(source_path=pathlib.Path("example.py"), source=source)))
 

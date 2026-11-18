@@ -155,7 +155,15 @@ class PackageArtifactTests(unittest.TestCase):
         archive_path = scratch / "sources.tar.gz"
 
         members = (
-            ("acquisition_tool/owner.sh", b"#!/bin/sh\nexit 0\n", tarfile.REGTYPE, 0o644),
+            (
+                "acquisition_tool/owner.sh",
+                (
+                    b"#!/bin/sh\n"
+                    b"exit 0\n"
+                ),
+                tarfile.REGTYPE,
+                0o644,
+            ),
             ("provider_core/bound_http_proxy.py", b"PROXY = 1\n", tarfile.REGTYPE, 0o644),
         )
 
@@ -345,8 +353,20 @@ class PackageArtifactTests(unittest.TestCase):
         test = self.root / "tests.lock"
         target = self.root / "installed-tests.lock"
 
-        runtime.write_text("core-runtime==1.0 \\\n    --hash=sha256:" + "a" * 64 + "\n")
-        test.write_text("test-only==2.0 \\\n    --hash=sha256:" + "b" * 64 + "\n")
+        runtime.write_text(
+            (
+                "core-runtime==1.0 \\\n"
+                "    --hash=sha256:"
+            ) + "a" * 64 + "\n"
+        )
+
+        test.write_text(
+            (
+                "test-only==2.0 \\\n"
+                "    --hash=sha256:"
+            ) + "b" * 64 + "\n"
+        )
+
         original = runtime.read_bytes()
 
         behavioral_install_lock(runtime, test, target)

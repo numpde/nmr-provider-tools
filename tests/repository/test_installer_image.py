@@ -35,7 +35,10 @@ class InstallerImageTests(unittest.TestCase):
         source.mkdir()
 
         (source / "pyproject.toml").write_text(
-            '[build-system]\nrequires = []\nbuild-backend = "backend"\nbackend-path = ["."]\n'
+            '[build-system]\n'
+            'requires = []\n'
+            'build-backend = "backend"\n'
+            'backend-path = ["."]\n'
         )
 
         (source / "backend.py").write_text(

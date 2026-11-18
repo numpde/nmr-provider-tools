@@ -305,7 +305,14 @@ class CapturedNativeTests(unittest.TestCase):
 
         self.assertEqual(0, completed_process.returncode, msg=completed_process.stderr)
         self.assertEqual(b"", completed_process.stdout)
-        self.assertEqual(b"stdio\0\xff\ncaller\0\xfe\n", completed_process.stderr)
+
+        self.assertEqual(
+            (
+                b"stdio\0\xff\n"
+                b"caller\0\xfe\n"
+            ),
+            completed_process.stderr,
+        )
 
     # silent-defaults: allow-contract -- Omitted result mode selects this fixture's captured discard profile; streaming scenarios select stdio explicitly; proof=tests/repository/test_inference_native.py::CapturedNativeTests.test_container_ordinary_signal_number_status_is_not_cancellation_or_expiry
     def container_policy_command(self, *, budget, mode="discard"):
@@ -934,7 +941,12 @@ class CapturedNativeTests(unittest.TestCase):
 
     def test_retirement_fact_is_false_during_the_birth_handoff(self):
         source = self.helper.read_text()
-        birth = "        (\n            exec {capture_guard}>&-\n            umask 077\n"
+
+        birth = (
+            "        (\n"
+            "            exec {capture_guard}>&-\n"
+            "            umask 077\n"
+        )
 
         self.assertEqual(1, source.count(birth))
         sample = '            printf "%s\\n" "$inference_retirement_confirmed" "$BASHPID" > "$NATIVE_BIRTH_FACT"\n'
@@ -1203,7 +1215,10 @@ class CapturedNativeTests(unittest.TestCase):
         # Corrupt only the second call: the first true fact cannot grant later cleanup.
         source = self.helper.read_text()
 
-        entry = "    inference_result=\n    inference_retirement_confirmed=true\n"
+        entry = (
+            "    inference_result=\n"
+            "    inference_retirement_confirmed=true\n"
+        )
 
         self.assertEqual(1, source.count(entry))
 
@@ -1384,7 +1399,11 @@ class CapturedNativeTests(unittest.TestCase):
         capture = "    leader=$!\n"
 
         self.assertEqual(1, source.count(capture))
-        delayed = '    printf "%s\\n" "$!" "$scratch" > "$NATIVE_BIRTH"\n    sleep 0.25\n' + capture
+
+        delayed = (
+            '    printf "%s\\n" "$!" "$scratch" > "$NATIVE_BIRTH"\n'
+            '    sleep 0.25\n'
+        ) + capture
 
         self.helper.write_text(source.replace(capture, delayed, 1))
         birth = self.root / "birth"
@@ -1422,7 +1441,15 @@ class CapturedNativeTests(unittest.TestCase):
         self.assertEqual(1, source.count(launch))
         source = source.replace(launch, "        exit 28", 1)
         source = source.replace('    ) 2>/dev/null > "$scratch/output" 2>&1 &', "    ) > /dev/null 2>&1 &", 1)
-        source = source.replace("    drain=$!\n", '    drain=$!\n    printf "%s\\n" "$drain" > "$NATIVE_DRAIN"\n', 1)
+
+        source = source.replace(
+            "    drain=$!\n",
+            (
+                '    drain=$!\n'
+                '    printf "%s\\n" "$drain" > "$NATIVE_DRAIN"\n'
+            ),
+            1,
+        )
 
         self.helper.write_text(source)
         receipt = self.root / "drain"
@@ -1453,7 +1480,8 @@ class CapturedNativeTests(unittest.TestCase):
 
         source = self.helper.read_text().replace(
             "    drain=$!\n",
-            '    drain=$!\n    printf "%s\\n" "$drain" > "$NATIVE_DRAIN"\n',
+            '    drain=$!\n'
+            '    printf "%s\\n" "$drain" > "$NATIVE_DRAIN"\n',
             1,
         )
 
@@ -1670,7 +1698,15 @@ class CapturedNativeTests(unittest.TestCase):
         match = re.search(r"retained at (/tmp/nmrnet-inference-native\.[A-Za-z0-9]+/command\.log)", text)
 
         self.assertIsNotNone(match, msg=text)
-        self.assertEqual(b"stdout\0\r\nstderr\0\r\n", pathlib.Path(match.group(1)).read_bytes())
+
+        self.assertEqual(
+            (
+                b"stdout\0\r\n"
+                b"stderr\0\r\n"
+            ),
+            pathlib.Path(match.group(1)).read_bytes(),
+        )
+
         self.assertEqual(b"", reset.read_bytes())
         self.assert_client_retired()
 

@@ -125,14 +125,25 @@ class ErrorTransparencyPostureTests(unittest.TestCase):
             ("safe_reason(exc)", []),
         ):
             with self.subTest(message=message):
-                source = f"try:\n    work()\nexcept OSError as exc:\n    raise CommandError({message})\n"
+                source = (
+                    f"try:\n"
+                    f"    work()\n"
+                    f"except OSError as exc:\n"
+                    f"    raise CommandError({message})\n"
+                )
 
                 self.assertEqual(expected, _raw_cli_exception_text(source))
 
     def test_raw_exception_detector_follows_blocks_but_not_new_scopes(self) -> None:
         for (block, expected) in (("if ready", [5]), ("with resource", [5]), ("def deferred(exc)", []), ("class Deferred", [])):
             with self.subTest(block=block):
-                source = f"try:\n    work()\nexcept OSError as exc:\n    {block}:\n        raise CommandError(str(exc))\n"
+                source = (
+                    f"try:\n"
+                    f"    work()\n"
+                    f"except OSError as exc:\n"
+                    f"    {block}:\n"
+                    f"        raise CommandError(str(exc))\n"
+                )
 
                 self.assertEqual(expected, _raw_cli_exception_text(source))
 
@@ -152,7 +163,12 @@ class ErrorTransparencyPostureTests(unittest.TestCase):
                 ("repr(other_error)", []),
             ):
                 with self.subTest(caught=caught, message=message):
-                    source = f"try:\n    work()\nexcept {caught} as exc:\n    raise CommandError({message})\n"
+                    source = (
+                        f"try:\n"
+                        f"    work()\n"
+                        f"except {caught} as exc:\n"
+                        f"    raise CommandError({message})\n"
+                    )
 
                     self.assertEqual(expected, _raw_cli_exception_text(source))
 
@@ -172,12 +188,22 @@ class ErrorTransparencyPostureTests(unittest.TestCase):
     def test_context_and_formatting_do_not_substitute_for_a_filesystem_cause(self) -> None:
         for message in ('"failed " + "again"', 'f"failed at {path}"', '"failed: " + f"{path}"', 'f"failed"'):
             with self.subTest(message=message):
-                source = f"try:\n    work()\nexcept OSError as exc:\n    raise CommandError({message}, returncode=2) from exc\n"
+                source = (
+                    f"try:\n"
+                    f"    work()\n"
+                    f"except OSError as exc:\n"
+                    f"    raise CommandError({message}, returncode=2) from exc\n"
+                )
 
                 self.assertEqual([3], _opaque_oserror_translations(source))
 
     def test_explicit_reason_projection_is_not_a_cause_free_message(self) -> None:
-        source = 'try:\n    work()\nexcept OSError as exc:\n    raise CommandError(f"filesystem code {exc.errno}") from exc\n'
+        source = (
+            'try:\n'
+            '    work()\n'
+            'except OSError as exc:\n'
+            '    raise CommandError(f"filesystem code {exc.errno}") from exc\n'
+        )
 
         self.assertEqual([], _opaque_oserror_translations(source))
 
@@ -189,7 +215,12 @@ class ErrorTransparencyPostureTests(unittest.TestCase):
             ("OSError as exc", 'raise CommandError("failed") from None'),
         ):
             with self.subTest(caught=caught, statement=statement):
-                source = f"try:\n    work()\nexcept {caught}:\n    {statement}\n"
+                source = (
+                    f"try:\n"
+                    f"    work()\n"
+                    f"except {caught}:\n"
+                    f"    {statement}\n"
+                )
 
                 self.assertEqual([3], _opaque_oserror_translations(source))
 
@@ -199,12 +230,23 @@ class ErrorTransparencyPostureTests(unittest.TestCase):
             ("OSError as exc", "raise"),
             ("OSError as exc", 'raise OtherError("failed") from exc'),
             ("OSError as exc", "raise CommandError(safe_reason(exc)) from exc"),
-            ("OSError as exc", 'report(exc)\n    raise CommandError("failed") from exc'),
+            (
+                "OSError as exc",
+                (
+                    'report(exc)\n'
+                    '    raise CommandError("failed") from exc'
+                ),
+            ),
             ("errors.OSError as exc", 'raise CommandError("failed") from exc'),
             ("OSError as exc", 'raise errors.CommandError("failed") from exc'),
         ):
             with self.subTest(caught=caught, statement=statement):
-                source = f"try:\n    work()\nexcept {caught}:\n    {statement}\n"
+                source = (
+                    f"try:\n"
+                    f"    work()\n"
+                    f"except {caught}:\n"
+                    f"    {statement}\n"
+                )
 
                 self.assertEqual([], _opaque_oserror_translations(source))
 

@@ -167,22 +167,28 @@ class RuntimePolicyPostureTests(unittest.TestCase):
         cases = (
             (
                 "trailing explanation",
-                "# repo-check: allow-module-constant because this is stable\nVALUE = 1\n",
+                "# repo-check: allow-module-constant because this is stable\n"
+                "VALUE = 1\n",
                 ["VALUE"],
             ),
             (
                 "blank line",
-                "# repo-check: allow-module-constant\n\nVALUE = 1\n",
+                "# repo-check: allow-module-constant\n"
+                "\n"
+                "VALUE = 1\n",
                 ["VALUE"],
             ),
             (
                 "wrong indentation",
-                "if enabled:\n# repo-check: allow-module-constant\n    VALUE = 1\n",
+                "if enabled:\n"
+                "# repo-check: allow-module-constant\n"
+                "    VALUE = 1\n",
                 ["VALUE"],
             ),
             (
                 "chained assignment",
-                "# repo-check: allow-module-constant\nFIRST = SECOND = 1\n",
+                "# repo-check: allow-module-constant\n"
+                "FIRST = SECOND = 1\n",
                 ["FIRST", "SECOND"],
             ),
         )

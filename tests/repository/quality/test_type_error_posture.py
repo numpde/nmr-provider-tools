@@ -227,7 +227,11 @@ class TypeErrorPostureTests(unittest.TestCase):
 
         for condition in conditions:
             with self.subTest(condition=condition):
-                source = f"if {condition}:\n    raise ValueError('invalid value')\n"
+                source = (
+                    f"if {condition}:\n"
+                    f"    raise ValueError('invalid value')\n"
+                )
+
                 findings = _findings(source_path=pathlib.Path("example.py"), source=source)
 
                 self.assertEqual(1, len(findings))
@@ -254,7 +258,11 @@ class TypeErrorPostureTests(unittest.TestCase):
             "not (isinstance(value, str) and 0 < len(value))",
         ):
             with self.subTest(condition=condition):
-                source = f"if {condition}:\n    raise TypeError('invalid value')\n"
+                source = (
+                    f"if {condition}:\n"
+                    f"    raise TypeError('invalid value')\n"
+                )
+
                 findings = _findings(source_path=pathlib.Path("example.py"), source=source)
 
                 self.assertEqual(1, len(findings))
@@ -276,7 +284,10 @@ class TypeErrorPostureTests(unittest.TestCase):
             "type(value) is not str or not custom_predicate(value)",
         ):
             with self.subTest(condition=condition):
-                source = f"if {condition}:\n    raise TypeError('invalid type')\n"
+                source = (
+                    f"if {condition}:\n"
+                    f"    raise TypeError('invalid type')\n"
+                )
 
                 self.assertEqual([], _findings(source_path=pathlib.Path("example.py"), source=source))
 
@@ -302,7 +313,10 @@ class TypeErrorPostureTests(unittest.TestCase):
 
         for condition in conditions:
             with self.subTest(condition=condition):
-                source = f"if {condition}:\n    raise ValueError('invalid value')\n"
+                source = (
+                    f"if {condition}:\n"
+                    f"    raise ValueError('invalid value')\n"
+                )
 
                 self.assertEqual([], _findings(source_path=pathlib.Path("example.py"), source=source))
 
@@ -311,10 +325,14 @@ class TypeErrorPostureTests(unittest.TestCase):
             "raise ValueError",
             "raise ValueError('invalid') from cause",
             "raise builtins.ValueError('invalid')",
-            "report(value)\n    raise ValueError('invalid')",
+            "report(value)\n"
+            "    raise ValueError('invalid')",
         ):
             with self.subTest(rejection=rejection):
-                source = f"if type(value) is not str:\n    {rejection}\n"
+                source = (
+                    f"if type(value) is not str:\n"
+                    f"    {rejection}\n"
+                )
 
                 self.assertEqual(1, len(_findings(source_path=pathlib.Path("example.py"), source=source)))
 
@@ -322,17 +340,29 @@ class TypeErrorPostureTests(unittest.TestCase):
             "raise TypeError('invalid')",
             "raise errors.ValueError('invalid')",
             "return ValueError('invalid')",
-            "if invalid(value):\n        raise ValueError('invalid')",
-            "def deferred():\n        raise ValueError('invalid')",
-            "class Deferred:\n        raise ValueError('invalid')",
+            "if invalid(value):\n"
+            "        raise ValueError('invalid')",
+            "def deferred():\n"
+            "        raise ValueError('invalid')",
+            "class Deferred:\n"
+            "        raise ValueError('invalid')",
         ):
             with self.subTest(rejection=rejection):
-                source = f"if type(value) is not str:\n    {rejection}\n"
+                source = (
+                    f"if type(value) is not str:\n"
+                    f"    {rejection}\n"
+                )
 
                 self.assertEqual([], _findings(source_path=pathlib.Path("example.py"), source=source))
 
     def test_diagnostic_names_the_guard_and_required_exception_order(self) -> None:
-        findings = _findings(source_path=pathlib.Path("example.py"), source="if type(value) is not str:\n    raise ValueError('bad')\n")
+        findings = _findings(
+            source_path=pathlib.Path("example.py"),
+            source=(
+                "if type(value) is not str:\n"
+                "    raise ValueError('bad')\n"
+            ),
+        )
 
         self.assertEqual(
             "example.py:1: guard 'type(value) is not str' rejects a type with ValueError; "
