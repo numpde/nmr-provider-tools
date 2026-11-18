@@ -54,10 +54,14 @@ class AttemptInventoryTests(unittest.IsolatedAsyncioTestCase):
                 self.assertIsInstance(page.attempts, tuple)
 
                 self.assertEqual(
-                    [(item.analysis_kind_ref, item.execution_attempt_ref, item.job_ref, item.provider_attempt_key)
-                                  for item in page.attempts],
-                    [(item["analysis_kind_ref"], item["execution_attempt_ref"], item["job_ref"], item["provider_attempt_key"])
-                                  for item in order]
+                    [
+                        (item.analysis_kind_ref, item.execution_attempt_ref, item.job_ref, item.provider_attempt_key)
+                        for item in page.attempts
+                    ],
+                    [
+                        (item["analysis_kind_ref"], item["execution_attempt_ref"], item["job_ref"], item["provider_attempt_key"])
+                        for item in order
+                    ],
                 )
 
     def test_empty_page_is_an_observation_without_an_absence_or_terminal_receipt(self):
@@ -67,8 +71,10 @@ class AttemptInventoryTests(unittest.IsolatedAsyncioTestCase):
         self.assertIsNone(result.next_cursor)
 
     def test_maximum_items_and_exact_byte_ceiling(self):
-        items = [attempt(job_ref=f"job:item-{index}", execution_attempt_ref=f"execution_attempt:sha256:{index:064x}")
-                 for index in range(100)]
+        items = [
+            attempt(job_ref=f"job:item-{index}", execution_attempt_ref=f"execution_attempt:sha256:{index:064x}")
+            for index in range(100)
+        ]
 
         raw = response(attempts=items)
         padded = raw + b" " * (65536 - len(raw))

@@ -94,8 +94,10 @@ def check_routes():
     routes = pathlib.Path("/proc/net/route").read_text().splitlines()[1:]
 
     if any(
-        len(parts) >= 8 and parts[1] == "00000000" and parts[7] == "00000000"
-        for parts in (row.split() for row in routes)
+        (
+            len(parts) >= 8 and parts[1] == "00000000" and parts[7] == "00000000"
+            for parts in (row.split() for row in routes)
+        ),
     ):
         raise RuntimeError("IPv4 default route exists")
 

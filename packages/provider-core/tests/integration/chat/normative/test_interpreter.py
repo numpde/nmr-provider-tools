@@ -57,8 +57,10 @@ class SharedInterpreterCarrierTests(unittest.IsolatedAsyncioTestCase):
                 secrets=("PRIVATE_KEY",)
             )
 
-            tools = [{"type": "function", "function": {"name": name, "parameters": {"type": "object"}}}
-                     for name in ("inspect", "prepare")]
+            tools = [
+                {"type": "function", "function": {"name": name, "parameters": {"type": "object"}}}
+                for name in ("inspect", "prepare")
+            ]
 
             result = await owner.run([], tools, dispatch)
 

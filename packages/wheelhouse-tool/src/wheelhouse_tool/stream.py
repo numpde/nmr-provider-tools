@@ -58,9 +58,11 @@ def stream_context(pool, source, selections, output, source_allowlist=None):
     if source_allowlist is None:
         if not source.is_dir():
             raise ValueError("Cannot stream build inputs: the curated source context is missing.")
-        paths = ((Path(root) / name, (Path(root) / name).relative_to(source).as_posix())
-                 for (root, directories, files) in os.walk(source, followlinks=False, onerror=fail_walk)
-                 for name in sorted(directories + files))
+        paths = (
+            (Path(root) / name, (Path(root) / name).relative_to(source).as_posix())
+            for (root, directories, files) in os.walk(source, followlinks=False, onerror=fail_walk)
+            for name in sorted(directories + files)
+        )
     else:
         paths = ((Path(item["path"]), item["destination"]) for item in source_allowlist)
     for (path, name) in paths:

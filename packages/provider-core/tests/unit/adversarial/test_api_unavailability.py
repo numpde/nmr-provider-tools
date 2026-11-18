@@ -71,11 +71,14 @@ class ApiAvailabilityTests(unittest.IsolatedAsyncioTestCase):
         return (api, transport, caught.exception)
 
     async def test_discovery_can_pace_access_refusals_without_granting_mutation_permissions(self):
-        responses = [reply(signature_window_problem(code=code), status=401) for code in (
-            "authentication_failed",
-            "authentication_nonce_reused",
-            "signature_created_in_future",
-        )]
+        responses = [
+            reply(signature_window_problem(code=code), status=401)
+            for code in (
+                "authentication_failed",
+                "authentication_nonce_reused",
+                "signature_created_in_future",
+            )
+        ]
 
         responses += [
             reply(
@@ -249,11 +252,14 @@ class ApiAvailabilityTests(unittest.IsolatedAsyncioTestCase):
             code="authorization_denied"
         )
 
-        responses = [reply(signature_window_problem(code=code), status=401) for code in (
-            "authentication_failed",
-            "authentication_nonce_reused",
-            "signature_created_in_future",
-        )]
+        responses = [
+            reply(signature_window_problem(code=code), status=401)
+            for code in (
+                "authentication_failed",
+                "authentication_nonce_reused",
+                "signature_created_in_future",
+            )
+        ]
 
         responses += [
             reply(denied, status=403),

@@ -564,8 +564,10 @@ async def shutdown_scenario(schedule, seed, directory, facts):
                 {
                     "controller_failure_types": failure_types(result),
                     "settlement_failure_types": sorted(
-                        {name for failure in settlement_failures
-                                                    for name in failure_types(failure)}
+                        {
+                            name for failure in settlement_failures
+                            for name in failure_types(failure)
+                        },
                     ),
                     "shutdown_ready": controller.shutdown_ready,
                     "work_settled": controller.work_settled,

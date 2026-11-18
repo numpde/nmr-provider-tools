@@ -142,8 +142,10 @@ class ProseServiceOutageTests(unittest.IsolatedAsyncioTestCase):
                     self.assertEqual(observation["retry_after"], ["1"], msg=evidence)
 
                     following = next(
-                        (request for request in result["requests"]
-                         if request["at"] > observation["at"]),
+                        (
+                            request for request in result["requests"]
+                            if request["at"] > observation["at"]
+                        ),
                         None
                     )
 

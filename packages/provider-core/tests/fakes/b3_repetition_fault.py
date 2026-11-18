@@ -543,15 +543,17 @@ async def scenario(marker, report, seed):
                         final_descriptors=_descriptors(),
                         final_open_prose_connections=open_prose_connections,
                         final_open_jobs_api_connections=open_jobs_api_connections,
-                        jobs=[{
-                            "name": name,
-                            "session_prepare_calls": session.prepare_calls,
-                            "scientific_prepare_calls": session.scientific_prepare_calls,
-                            "scientific_execute_calls": session.execute_calls,
-                            "starts": sum(request.url.path.endswith("/start") for (request, _) in control.calls),
-                            "shutdown_ready": controller.shutdown_ready
-                        }
-                              for (name, session, control, controller) in jobs],
+                        jobs=[
+                            {
+                                "name": name,
+                                "session_prepare_calls": session.prepare_calls,
+                                "scientific_prepare_calls": session.scientific_prepare_calls,
+                                "scientific_execute_calls": session.execute_calls,
+                                "starts": sum(request.url.path.endswith("/start") for (request, _) in control.calls),
+                                "shutdown_ready": controller.shutdown_ready,
+                            }
+                            for (name, session, control, controller) in jobs
+                        ],
                         prose_request_paths=[request.split(b" ")[1].decode() for request in prose_peer.requests],
                     )
                 except Exception as failure:

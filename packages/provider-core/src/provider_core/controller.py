@@ -352,11 +352,15 @@ class AttemptController:
     async def _settle_revocation(self, executor):
         # One retained operation observes original work and normal settlement.
         # Concurrent or cancelled observers cannot replace or interrupt it.
-        tasks = {task for task in (
-            executor._task,
-            executor._retirement_task,
-            executor._observation_wait,
-        ) if task is not None}
+        tasks = {
+            task
+            for task in (
+                executor._task,
+                executor._retirement_task,
+                executor._observation_wait,
+            )
+            if task is not None
+        }
 
         if tasks:
             await asyncio.wait(tasks)

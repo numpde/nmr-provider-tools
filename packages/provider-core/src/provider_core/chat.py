@@ -215,8 +215,10 @@ def _endpoint_error(response, messages, key):
 
     echoes = _request_echoes(messages, key)
 
-    result = {name: _without_echoes(fields[name], echoes)
-              for name in ("message", "type", "code", "param") if type(fields.get(name)) is str}
+    result = {
+        name: _without_echoes(fields[name], echoes)
+        for name in ("message", "type", "code", "param") if type(fields.get(name)) is str
+    }
 
     # silent-defaults: allow-contract -- An empty reviewed diagnostic selection reports detail unavailable without exposing the response body.
     return result or {"detail_unavailable": "The model service response contained no readable error fields."}

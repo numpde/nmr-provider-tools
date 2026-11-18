@@ -156,8 +156,10 @@ class DeliveryServiceTests(unittest.IsolatedAsyncioTestCase):
 
     async def test_scoped_status_reports_paused_publisher_while_inbox_still_accepts(self):
         # silent-defaults: allow-contract -- Change only the topology header to exercise the wrong-environment refusal.
-        headers = [(name, b"web" if name.lower() == b"nmr-api-topology" else value)
-                   for (name, value) in response_headers()]
+        headers = [
+            (name, b"web" if name.lower() == b"nmr-api-topology" else value)
+            for (name, value) in response_headers()
+        ]
 
         async with api_tls_peer("success", response_headers=headers) as peer:
             (service, endpoint) = self.service(peer)

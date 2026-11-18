@@ -260,13 +260,16 @@ class AdoptionTests(unittest.IsolatedAsyncioTestCase):
             reject_encoded_result_over_bytes=1024,
         )
 
-        operations = [analysis.submit_method(
-            method=instance.calculate,
-            scientific_input=Numbers(values=(1,)),
-            states={},
-            reservation=reservation,
-            policy=operation_policy,
-        ) for _ in range(2)]
+        operations = [
+            analysis.submit_method(
+                method=instance.calculate,
+                scientific_input=Numbers(values=(1,)),
+                states={},
+                reservation=reservation,
+                policy=operation_policy,
+            )
+            for _ in range(2)
+        ]
 
         self.assertIsNot(expr1=operations[0], expr2=operations[1])
 

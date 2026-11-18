@@ -65,8 +65,10 @@ def main():
         if document["schema_id"] != "provider-core.delivery.v1":
             parser.error("Cannot inspect or discard held results: use the installed delivery configuration (schema provider-core.delivery.v1).")
 
-        matches = [binding for binding in document["bindings"]
-                   if (binding["api"]["origin"], binding["api"]["provider_ref"]) == (options.api_origin, options.provider_ref)]
+        matches = [
+            binding for binding in document["bindings"]
+            if (binding["api"]["origin"], binding["api"]["provider_ref"]) == (options.api_origin, options.provider_ref)
+        ]
 
         if len(matches) != 1:
             parser.error("Cannot inspect or discard held results: the supplied API/provider pair must match exactly one configured binding.")
@@ -87,8 +89,10 @@ def main():
                         "provider_ref": options.provider_ref,
                         "outstanding_items": len(items),
                         "pending": [item for item in items if item["state"] == "pending"],
-                        "held": [item for item in items
-                                       if item["state"] == "held"]
+                        "held": [
+                            item for item in items
+                            if item["state"] == "held"
+                        ]
                     },
                     sort_keys=True
                 )

@@ -452,8 +452,10 @@ def wheel_payload(wheel, expected, version):
         metadata_prefix = f"provider_core-{version}.dist-info/"
 
         if len(archive_members) != len(set(archive_members)) or any(
-            not name.startswith(metadata_prefix) and name not in expected
-            for name in archive_members
+            (
+                not name.startswith(metadata_prefix) and name not in expected
+                for name in archive_members
+            ),
         ):
             raise ValueError("Cannot qualify package: wheel contains duplicate or unexpected payload files.")
 
@@ -731,7 +733,8 @@ def check(artifacts, revision):
                 artifact.name: digest(artifact)
                 for artifact in artifacts.iterdir()
                 if not artifact.name.endswith("-sha256.json")
-            } != observed_hashes
+            }
+            != observed_hashes
         ):
             raise ValueError("Cannot qualify package: release artifacts changed during qualification.")
 

@@ -108,9 +108,11 @@ def retained_image_ids(directory):
     protected_image_ids = set()
 
     for receipt in (
-        receipt_path
-        for name in ("built-image", "built-bootstrap", "built-checker")
-        for receipt_path in directory.glob("nmr-provider-tools.*/" + name)
+        (
+            receipt_path
+            for name in ("built-image", "built-bootstrap", "built-checker")
+            for receipt_path in directory.glob("nmr-provider-tools.*/" + name)
+        )
     ):
         if receipt.is_symlink() or receipt.parent.is_symlink():
             continue
@@ -210,13 +212,15 @@ def select_images(images, protected, current):
             continue
 
         if any(
-            tag in {
-                f"nmr-provider-tools/checker:{current_checker}",
-                f"nmr-provider-tools/checker-bootstrap:{current_bootstrap}",
-                f"nmr-provider-tools/delivery-recipe:{current_recipe}",
-                "nmr-provider-tools/wheelhouse-tool:local",
-            }
-            for tag in image_tags
+            (
+                tag in {
+                    f"nmr-provider-tools/checker:{current_checker}",
+                    f"nmr-provider-tools/checker-bootstrap:{current_bootstrap}",
+                    f"nmr-provider-tools/delivery-recipe:{current_recipe}",
+                    "nmr-provider-tools/wheelhouse-tool:local",
+                }
+                for tag in image_tags
+            ),
         ):
             continue
 

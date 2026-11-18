@@ -125,12 +125,14 @@ def _positional_parameters(
     parameters = tuple(signature.parameters.values())
 
     if len(parameters) != count or any(
-        parameter.kind
-        not in (
-            inspect.Parameter.POSITIONAL_ONLY,
-            inspect.Parameter.POSITIONAL_OR_KEYWORD,
-        )
-        for parameter in parameters
+        (
+            parameter.kind
+            not in (
+                inspect.Parameter.POSITIONAL_ONLY,
+                inspect.Parameter.POSITIONAL_OR_KEYWORD,
+            )
+            for parameter in parameters
+        ),
     ):
         raise TypeError(f"{label} must accept exactly {count} positional parameters")
 

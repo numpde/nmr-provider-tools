@@ -25,8 +25,10 @@ def cache_state(pool, locks):
 
     target_tags = set(sys_tags())
 
-    expected_locks = [(lock, {(name, Version(version)): hashes for ((name, version), hashes) in requirements(lock).items()})
-                      for lock in locks]
+    expected_locks = [
+        (lock, {(name, Version(version)): hashes for ((name, version), hashes) in requirements(lock).items()})
+        for lock in locks
+    ]
 
     missing = False
 

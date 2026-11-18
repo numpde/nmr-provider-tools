@@ -78,8 +78,10 @@ class ObservedProseService(ProseService):
         if response is not None:
             status = response.status
 
-            retry_after = [value.decode("ascii", errors="replace")
-                           for (name, value) in response.headers if name.lower() == b"retry-after"]
+            retry_after = [
+                value.decode("ascii", errors="replace")
+                for (name, value) in response.headers if name.lower() == b"retry-after"
+            ]
 
         self.retry_observations.append(
             {
@@ -552,8 +554,10 @@ async def run_outage(directory, *, mode, backlog, seed):
 
             carriers = [endpoint for factory in observed_factories for endpoint in factory.endpoints]
 
-            children = [endpoint._transport.last_process_result for endpoint in carriers
-                        if endpoint._transport.last_process_result is not None]
+            children = [
+                endpoint._transport.last_process_result for endpoint in carriers
+                if endpoint._transport.last_process_result is not None
+            ]
 
             return {
                 "mode": mode,
@@ -589,8 +593,10 @@ async def run_outage(directory, *, mode, backlog, seed):
                 "final_claims": len(claims.live_owners()),
                 "open_peer_connections": peer_connections,
                 "all_http_owners_retired": all(endpoint.retirement_confirmed for endpoint in carriers),
-                "children": [{"pid": child.pid, "returncode": child.returncode, "alive": _process_alive(child.pid)}
-                             for child in children],
+                "children": [
+                    {"pid": child.pid, "returncode": child.returncode, "alive": _process_alive(child.pid)}
+                    for child in children
+                ],
                 "idle_descriptors": idle_descriptors,
                 "final_descriptors": _descriptors(),
             }

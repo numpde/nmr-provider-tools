@@ -253,8 +253,10 @@ class DeliveryWorkerTests(unittest.IsolatedAsyncioTestCase):
 
     async def test_topology_failure_pauses_binding_without_holding_its_pending_items(self):
         # silent-defaults: allow-contract -- Change only the topology header to exercise the wrong-environment refusal.
-        headers = [(name, b"web" if name.lower() == b"nmr-api-topology" else value)
-                   for (name, value) in response_headers()]
+        headers = [
+            (name, b"web" if name.lower() == b"nmr-api-topology" else value)
+            for (name, value) in response_headers()
+        ]
 
         async with api_tls_peer("success", response_headers=headers) as peer:
             (first, second) = (replace(outcome(), api_origin=peer.origin), replace(outcome(suffix="1"), api_origin=peer.origin))

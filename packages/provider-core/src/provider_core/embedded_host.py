@@ -331,12 +331,14 @@ class InProcessExecutionHost:
         selected_residents = [self.residents[name] for name in allocation_names]
 
         if any(
-            resident.analysis is not None
-            or (resident.initialization is not None and not resident.initialization.done())
-            or resident.failure is not None
-            or resident.retirement is not None
-            or resident.retired
-            for resident in selected_residents
+            (
+                resident.analysis is not None
+                or (resident.initialization is not None and not resident.initialization.done())
+                or resident.failure is not None
+                or resident.retirement is not None
+                or resident.retired
+                for resident in selected_residents
+            ),
         ):
             raise CapacityUnavailable("A requested allocation is occupied, failed or retiring.")
 
@@ -734,10 +736,12 @@ class InProcessAnalysisExecutor:
                 message="The original scientific initialization failed and remains owned.",
             )
 
-        if invocation.target.name not in {
-            item.description.name
-            for item in scientific_analysis.resident.binding._calls
-        }:
+        if (
+            invocation.target.name not in {
+                item.description.name
+                for item in scientific_analysis.resident.binding._calls
+            }
+        ):
             return NotAdmitted(
                 code=AdmissionCode.INVALID_REQUEST,
                 message="The selected scientific call is not registered.",

@@ -64,8 +64,10 @@ class AttemptInventoryIntegrationTests(unittest.IsolatedAsyncioTestCase):
                 ):
                     self.assertEqual(request.split(b"\r\n")[0], b"GET " + target + b" HTTP/1.1")
 
-                    headers = {name.lower(): value.strip() for line in request.split(b"\r\n")[1:] if b":" in line
-                               for (name, value) in [line.split(b":", 1)]}
+                    headers = {
+                        name.lower(): value.strip() for line in request.split(b"\r\n")[1:] if b":" in line
+                        for (name, value) in [line.split(b":", 1)]
+                    }
 
                     (path, _, query) = target.partition(b"?")
 

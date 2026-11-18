@@ -24,8 +24,10 @@ def selection_identity(entries):
         if key in selected and selected[key] != checksum:
             raise ValueError("Cannot identify selection: artifact entries conflict.")
         selected[key] = checksum
-    canonical = [{"directory": directory, "filename": name, "sha256": checksum}
-                 for ((directory, name), checksum) in sorted(selected.items())]
+    canonical = [
+        {"directory": directory, "filename": name, "sha256": checksum}
+        for ((directory, name), checksum) in sorted(selected.items())
+    ]
     encoded = json.dumps(canonical, sort_keys=True, separators=(",", ":"), ensure_ascii=True).encode()
     return hashlib.sha256(encoded).hexdigest()
 

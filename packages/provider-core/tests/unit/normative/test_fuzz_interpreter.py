@@ -11,8 +11,10 @@ from provider_core.interpreter import Interpreter
 from tests.fakes.conversation import call, interpreter_test_limits, endpoint
 
 
-TOOLS = [{"type": "function", "function": {"name": name, "parameters": {"type": "object"}}}
-         for name in ("inspect", "prepare")]
+TOOLS = [
+    {"type": "function", "function": {"name": name, "parameters": {"type": "object"}}}
+    for name in ("inspect", "prepare")
+]
 
 
 class InterpreterFaultSequenceTests(unittest.IsolatedAsyncioTestCase):

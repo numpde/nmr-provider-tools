@@ -232,7 +232,8 @@ def _capture_image_inputs(pin, runtime_lock, pool, destination, lock_fd):
             [
                 {"directory": "wheelhouse", "filename": name, "sha256": checksum}
                 for (name, checksum) in sorted(selected_wheels["files"].items())
-            ] + [{"directory": "installer", "filename": installer["name"], "sha256": installer["sha256"]}],
+            ]
+            + [{"directory": "installer", "filename": installer["name"], "sha256": installer["sha256"]}],
             target,
             sort_keys=True,
         )

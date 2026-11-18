@@ -50,15 +50,18 @@ class WheelhouseTests(unittest.TestCase):
     def test_transient_http_errors_close_before_delay_and_exhaustion(self):
         bodies = [io.BytesIO(b"private response body") for _ in range(3)]
 
-        failures = [RequestFailure(
-            urllib.error.HTTPError(
-                "https://secret.invalid/private",
-                503,
-                "private",
-                {"Retry-After": "5"},
-                body,
+        failures = [
+            RequestFailure(
+                urllib.error.HTTPError(
+                    "https://secret.invalid/private",
+                    503,
+                    "private",
+                    {"Retry-After": "5"},
+                    body,
+                )
             )
-        ) for body in bodies]
+            for body in bodies
+        ]
 
         operation = Mock(side_effect=failures)
 
@@ -826,11 +829,14 @@ class WheelhouseTests(unittest.TestCase):
         self.assertNotIn("private", str(error.exception))
 
     def test_locator_projects_one_admitted_local_version(self):
-        hashes = {name: hashlib.sha256(name.encode()).hexdigest() for name in (
-            "example-1.0-py3-none-any.whl",
-            "example-1.0+local-py3-none-any.whl",
-            "example-1.0+local.tar.gz"
-        )}
+        hashes = {
+            name: hashlib.sha256(name.encode()).hexdigest()
+            for name in (
+                "example-1.0-py3-none-any.whl",
+                "example-1.0+local-py3-none-any.whl",
+                "example-1.0+local.tar.gz",
+            )
+        }
 
         self.lock.write_text(
             '--index-url https://example.invalid/simple\n'
@@ -849,7 +855,8 @@ class WheelhouseTests(unittest.TestCase):
             'name': 'example',
             'files': [
                 {'filename': name, 'url': 'https://example.invalid/' + name.replace('+', '%2B'), 'hashes': {'sha256': digest}}
-            for (name, digest) in hashes.items()]
+                for (name, digest) in hashes.items()
+            ],
         }
 
         with patch('wheelhouse_tool.locate.urllib.request.build_opener') as opener:

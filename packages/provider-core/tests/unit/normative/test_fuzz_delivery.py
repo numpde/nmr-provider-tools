@@ -31,8 +31,10 @@ class DeliveryFaultSequenceTests(unittest.TestCase):
 
     def check_outstanding(self, queue, expected, providers):
         for provider in providers:
-            entries = {item.outcome.execution_attempt_ref: (item, state)
-                       for (item, state) in expected.values() if item.outcome.provider_ref == provider}
+            entries = {
+                item.outcome.execution_attempt_ref: (item, state)
+                for (item, state) in expected.values() if item.outcome.provider_ref == provider
+            }
 
             rows = queue.inventory("https://api.example", provider)
 

@@ -174,15 +174,18 @@ class InstallationContractTests(unittest.TestCase):
 
         self.assertEqual(
             set(distribution.requires),
-            {f'{requirement}; extra == "api"' for requirement in (
-                "cryptography==50.0.0",
-                "http-sf==1.2.1",
-                "httpx==0.28.1",
-                "httpcore==1.0.9",
-                "h11==0.16.0",
-                "tomli-w==1.2.0",
-                "pydantic==2.14.3",
-            )}
+            {
+                f'{requirement}; extra == "api"'
+                for requirement in (
+                    "cryptography==50.0.0",
+                    "http-sf==1.2.1",
+                    "httpx==0.28.1",
+                    "httpcore==1.0.9",
+                    "h11==0.16.0",
+                    "tomli-w==1.2.0",
+                    "pydantic==2.14.3",
+                )
+            },
         )
 
     def test_core_imports_without_scientific_or_repository_packages(self):
