@@ -142,6 +142,20 @@ class TypeRequirementsTests(unittest.TestCase):
 
         self.assertEqual(str(raised.exception), "'hello': expected int, got str")
 
+    def test_unavailable_source_and_unrenderable_value_still_raise_type_error(self):
+        class Unrenderable:
+            def __repr__(self):
+                raise ValueError("Custom repr failed")
+
+        value = Unrenderable()
+
+        with patch.object(linecache, "getlines", return_value=[]):
+            with self.assertRaises(TypeError) as raised:
+                require_type(value, int)
+
+        self.assertIn("expected int, got Unrenderable", str(raised.exception))
+        self.assertNotIn("Custom repr failed", str(raised.exception))
+
     def test_invalid_type_specifications(self):
         for check in (require_type, require_instance, require_subclass):
             for spec in ((), (int, "str"), "int"):
