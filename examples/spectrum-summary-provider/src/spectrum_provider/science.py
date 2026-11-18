@@ -6,26 +6,17 @@ import math
 from dataclasses import dataclass
 
 from provider_core.contribution_errors import ScientificRejection
+from provider_core.tools import require_finite_number
 
 
-def _finite_number(value: object, *, label: str) -> float:
-    if not (type(value) in (expected_type := (int, float))):
-        raise TypeError(f"{label=}; {type(value)=} ∉ {expected_type=}")
-
-    if not math.isfinite(value):
-        raise ValueError(f"{label} must be finite")
-
-    return float(value)
-
-
-def _finite_samples(values: object, *, label: str) -> tuple[float, ...]:
-    if not (type(values) is (expected_type := tuple)):
-        raise TypeError(f"{label=}; {type(values)=} ≠ {expected_type=}")
+def _finite_samples(raw_samples: object, *, series_name: str) -> tuple[float, ...]:
+    if not (type(raw_samples) is (expected_type := tuple)):
+        raise TypeError(f"{series_name=}; {type(raw_samples)=} ≠ {expected_type=}")
 
     samples = []
 
-    for (index, value) in enumerate(values):
-        samples.append(_finite_number(value, label=f"Spectrum {label}[{index}]"))
+    for raw_sample in raw_samples:
+        samples.append(float(require_finite_number(raw_sample)))
 
     return tuple(samples)
 
@@ -36,8 +27,8 @@ class Spectrum:
     intensities: tuple[float, ...]
 
     def __post_init__(self) -> None:
-        positions = _finite_samples(self.positions, label="positions")
-        intensities = _finite_samples(self.intensities, label="intensities")
+        positions = _finite_samples(self.positions, series_name="positions")
+        intensities = _finite_samples(self.intensities, series_name="intensities")
         position_count = len(positions)
         intensity_count = len(intensities)
 
@@ -66,7 +57,7 @@ class BaselineSettings:
     baseline: float
 
     def __post_init__(self) -> None:
-        object.__setattr__(self, "baseline", _finite_number(self.baseline, label="Baseline"))
+        object.__setattr__(self, "baseline", float(require_finite_number(self.baseline)))
 
 
 @dataclass(frozen=True, slots=True, kw_only=True)
@@ -77,7 +68,7 @@ class PeakSettings:
         object.__setattr__(
             self,
             "minimum_height",
-            _finite_number(self.minimum_height, label="Minimum peak height"),
+            float(require_finite_number(self.minimum_height)),
         )
 
 
@@ -87,8 +78,8 @@ class Peak:
     height: float
 
     def __post_init__(self) -> None:
-        object.__setattr__(self, "position", _finite_number(self.position, label="Peak position"))
-        object.__setattr__(self, "height", _finite_number(self.height, label="Peak height"))
+        object.__setattr__(self, "position", float(require_finite_number(self.position)))
+        object.__setattr__(self, "height", float(require_finite_number(self.height)))
 
 
 @dataclass(frozen=True, slots=True, kw_only=True)

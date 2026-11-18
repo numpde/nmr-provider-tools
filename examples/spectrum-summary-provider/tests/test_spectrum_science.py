@@ -2,6 +2,9 @@
 
 from __future__ import annotations
 
+import os
+import subprocess
+import sys
 import unittest
 
 from provider_core.contribution_errors import ScientificRejection
@@ -9,6 +12,19 @@ from spectrum_provider import science
 
 
 class SpectrumScienceTests(unittest.TestCase):
+    def test_science_imports_without_the_container_launcher(self) -> None:
+        environment = os.environ.copy()
+        environment.pop("PROVIDER_CORE_IN_CONTAINER", None)
+        imported = subprocess.run(
+            [sys.executable, "-I", "-B", "-m", "spectrum_provider.science"],
+            env=environment,
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+
+        self.assertEqual(0, imported.returncode, msg=imported.stderr)
+
     def test_correction_then_detection_preserves_positions_and_reports_peaks(self) -> None:
         source = science.Spectrum(
             positions=(0, 1, 2, 3, 4),
@@ -78,16 +94,16 @@ class SpectrumScienceTests(unittest.TestCase):
                     science.Spectrum(positions=positions, intensities=intensities)
 
     def test_nonfinite_and_boolean_measurements_and_settings_are_rejected(self) -> None:
-        for value in (float("inf"), float("-inf"), float("nan"), True):
-            expected_error = TypeError if type(value) is bool else ValueError
+        for invalid_measurement in (float("inf"), float("-inf"), float("nan"), True):
+            expected_error = TypeError if type(invalid_measurement) is bool else ValueError
 
             for constructor in (
-                lambda: science.Spectrum(positions=(value,), intensities=(1,)),
-                lambda: science.Spectrum(positions=(0,), intensities=(value,)),
-                lambda: science.BaselineSettings(baseline=value),
-                lambda: science.PeakSettings(minimum_height=value),
+                lambda: science.Spectrum(positions=(invalid_measurement,), intensities=(1,)),
+                lambda: science.Spectrum(positions=(0,), intensities=(invalid_measurement,)),
+                lambda: science.BaselineSettings(baseline=invalid_measurement),
+                lambda: science.PeakSettings(minimum_height=invalid_measurement),
             ):
-                with self.subTest(value=value, constructor=constructor):
+                with self.subTest(invalid_measurement=invalid_measurement, constructor=constructor):
                     with self.assertRaises(expected_error):
                         constructor()
 

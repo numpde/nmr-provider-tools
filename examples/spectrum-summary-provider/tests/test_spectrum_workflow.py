@@ -7,7 +7,7 @@ require_container()
 import asyncio
 import io
 import json
-from pathlib import Path
+import pathlib
 import subprocess
 import sys
 import shutil
@@ -48,11 +48,11 @@ from spectrum_provider.binding import BaselineCorrector
 
 class SpectrumWorkflowTests(unittest.IsolatedAsyncioTestCase):
     async def asyncSetUp(self):
-        directory = Path(self.enterContext(TemporaryDirectory()))
+        directory = pathlib.Path(self.enterContext(TemporaryDirectory()))
         self.configuration = directory / "provider.toml"
 
         shutil.copyfile(
-            src=Path(__file__).parent.parent / "config/deployments/localhost/provider.toml",
+            src=pathlib.Path(__file__).parent.parent / "config/deployments/localhost/provider.toml",
             dst=self.configuration,
         )
 
@@ -450,19 +450,19 @@ class SpectrumWorkflowTests(unittest.IsolatedAsyncioTestCase):
 class SpectrumCommandTests(unittest.TestCase):
     def test_installed_command_runs_outside_its_source_tree(self):
         with TemporaryDirectory() as directory:
-            shutil.copytree(src=Path(__file__).parent.parent / "config", dst=Path(directory) / "config")
+            shutil.copytree(src=pathlib.Path(__file__).parent.parent / "config", dst=pathlib.Path(directory) / "config")
 
-            result = subprocess.run(
+            command_result = subprocess.run(
                 [sys.executable, "-I", "-B", "-m", "spectrum_provider"],
-                cwd=Path(directory),
+                cwd=pathlib.Path(directory),
                 capture_output=True,
                 text=True,
                 timeout=30,
             )
 
-        self.assertEqual(0, result.returncode, result.stderr)
+        self.assertEqual(0, command_result.returncode, command_result.stderr)
 
         self.assertEqual(
             {"peaks": [{"position": 1.0, "height": 3.0}, {"position": 3.0, "height": 4.0}]},
-            json.loads(result.stdout),
+            json.loads(command_result.stdout),
         )

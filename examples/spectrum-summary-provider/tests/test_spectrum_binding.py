@@ -5,7 +5,7 @@ from provider_core.container_guard import require_container
 require_container()
 
 from importlib import metadata, resources
-from pathlib import Path
+import pathlib
 import sys
 import shutil
 from tempfile import TemporaryDirectory
@@ -21,11 +21,11 @@ from spectrum_provider import provider as provider_setup
 
 class SpectrumBindingTests(unittest.IsolatedAsyncioTestCase):
     async def asyncSetUp(self):
-        directory = Path(self.enterContext(TemporaryDirectory()))
+        directory = pathlib.Path(self.enterContext(TemporaryDirectory()))
         self.configuration = directory / "provider.toml"
 
         shutil.copyfile(
-            src=Path(__file__).parent.parent / "config/deployments/localhost/provider.toml",
+            src=pathlib.Path(__file__).parent.parent / "config/deployments/localhost/provider.toml",
             dst=self.configuration,
         )
 
@@ -36,15 +36,15 @@ class SpectrumBindingTests(unittest.IsolatedAsyncioTestCase):
 
     async def test_installed_distribution_contains_its_package(self) -> None:
         distribution = metadata.distribution("spectrum-summary-provider-example")
-        package = Path(resources.files("spectrum_provider")).resolve()
+        package = pathlib.Path(resources.files("spectrum_provider")).resolve()
 
-        self.assertEqual(package, Path(distribution.locate_file("spectrum_provider")).resolve())
-        self.assertTrue(package.is_relative_to(Path(sys.prefix).resolve()))
+        self.assertEqual(package, pathlib.Path(distribution.locate_file("spectrum_provider")).resolve())
+        self.assertTrue(package.is_relative_to(pathlib.Path(sys.prefix).resolve()))
 
         for name in ("science.py", "binding.py", "provider.py"):
             with self.subTest(name=name):
                 self.assertTrue(package.joinpath(name).is_file())
-                self.assertIn(f"spectrum_provider/{name}", {str(path) for path in distribution.files})
+                self.assertIn(f"spectrum_provider/{name}", {str(distribution_file) for distribution_file in distribution.files})
 
     async def test_independent_bindings_share_the_typed_spectrum_format(self) -> None:
         provider = await self.provider()

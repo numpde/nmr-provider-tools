@@ -3,7 +3,7 @@
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from dataclasses import dataclass
-from pathlib import Path
+import pathlib
 import tomllib
 
 from provider_core.contribution import ref
@@ -19,7 +19,7 @@ from .science import Spectrum
 
 # Select the deployment document relative to the application's working directory.
 # repo-check: allow-module-constant
-PROVIDER_CONFIG_PATH = Path("config/deployments/localhost/provider.toml")
+PROVIDER_CONFIG_PATH = pathlib.Path("config/deployments/localhost/provider.toml")
 
 
 @dataclass(frozen=True, slots=True, kw_only=True, eq=False)
