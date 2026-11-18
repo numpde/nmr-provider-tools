@@ -47,6 +47,7 @@ from provider_core.contribution import (
 from provider_core.payload import JsonDataclassCodec, PayloadCodec
 from provider_core.hosting import AllocationRef
 from provider_core.state_slots import StateInputSlot, StateType, StateOutputSlot
+from provider_core.type_requirements import require_instance, require_subclass, require_type
 
 
 @dataclass(frozen=True, slots=True, kw_only=True)
@@ -261,12 +262,10 @@ class _NamedStates:
     value_type: type = dict
 
     def __post_init__(self) -> None:
-        if not (type((actual_inputs := self.inputs)) is (expected_type := tuple)):
-            raise TypeError(f"{type(actual_inputs)=} ≠ {expected_type=}")
+        require_type(self.inputs, tuple)
 
         for state_input_slot in self.inputs:
-            if not (type(state_input_slot) is (expected_type := StateInputSlot)):
-                raise TypeError(f"{type(state_input_slot)=} ≠ {expected_type=}")
+            require_type(state_input_slot, StateInputSlot)
 
     @property
     def names(self) -> tuple[str, ...]:
@@ -360,8 +359,7 @@ def _schema(*, annotation: object, seen: frozenset[type]) -> object:
 
 def _codec(*, value_type: type, supplied: PayloadCodec | None) -> PayloadCodec:
     if supplied is not None:
-        if not isinstance(supplied, (expected_type := PayloadCodec)):
-            raise TypeError(f"{type(supplied)=} ≠ {expected_type=}")
+        require_instance(supplied, PayloadCodec)
 
         if not (supplied.value_type is value_type):
             raise TypeError("Scientific codec type differs from the method annotation")
@@ -594,8 +592,7 @@ class HostedContribution:
     _analysis_close: _LifecycleMethod | None = field(init=False, repr=False, compare=False)
 
     def __post_init__(self, host: str, allocation_name: str) -> None:
-        if not isinstance((actual_contribution := self.contribution), (expected_type := Contribution)):
-            raise TypeError(f"{type(actual_contribution)=} ≠ {expected_type=}")
+        require_instance(self.contribution, Contribution)
 
         contribution_type = type(self.contribution)
 
@@ -609,11 +606,7 @@ class HostedContribution:
         object.__setattr__(self, "_analysis_close", None)
 
         if analysis_type is not None:
-            if not isinstance(analysis_type, (expected_type := type)):
-                raise TypeError(f"{type(analysis_type)=} ≠ {expected_type=}")
-
-            if not issubclass(analysis_type, (expected_parent := Analysis)):
-                raise TypeError(f"{analysis_type=} should be a subclass of {expected_parent=}")
+            require_subclass(analysis_type, Analysis)
 
             if analysis_type.__init__ is not Analysis.__init__ or analysis_type.__new__ is not object.__new__:
                 raise TypeError("Analysis construction is SDK-owned; acquire resources in initialize")
