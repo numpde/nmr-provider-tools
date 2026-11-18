@@ -10,8 +10,8 @@ import ast
 import io
 import tokenize
 import unittest
+import pathlib
 from collections.abc import Callable, Iterator
-from pathlib import Path
 
 from ..sources import ROOT
 from .test_shared_scanner import repo_files
@@ -21,7 +21,7 @@ DEFAULTING_CALL_NAMES = {"get", "getenv", "pop", "setdefault"}
 ARGPARSE_CALL_NAMES = {"add_argument"}
 
 
-def python_files() -> list[Path]:
+def python_files() -> list[pathlib.Path]:
     return repo_files(("**/*.py",))
 
 
@@ -384,7 +384,7 @@ def _default_candidates(tree: ast.AST) -> Iterator[tuple[ast.AST, str]]:
             yield (node, "python exception fallback")
 
 
-def _default_finding(path: Path, source: str, node: ast.AST, label: str) -> str:
+def _default_finding(path: pathlib.Path, source: str, node: ast.AST, label: str) -> str:
     return f"{path.relative_to(ROOT)}:{node.lineno}: {label}: {source_snippet(source, node)}"
 
 
@@ -424,7 +424,7 @@ def _boolean_env_or_guards(node: ast.AST) -> Iterator[ast.AST]:
         yield from _boolean_env_or_guards(node.operand)
 
 
-def python_default_findings(path: Path) -> list[str]:
+def python_default_findings(path: pathlib.Path) -> list[str]:
     source = path.read_text(encoding="utf-8")
     tree = ast.parse(source, filename=str(path))
 
@@ -590,7 +590,7 @@ def _exception_outcome_contract(handler, protected):
     return refusal or unavailable or isinstance(value, ast.Name)
 
 
-def python_operator_default_findings(path: Path) -> list[str]:
+def python_operator_default_findings(path: pathlib.Path) -> list[str]:
     """Apply boolean guard classification and local reviewed exceptions.
 
     Raw candidates stay unchanged. Independent ENV activation ORs consumed only
@@ -702,7 +702,7 @@ def python_operator_default_findings(path: Path) -> list[str]:
             if boundary:
                 protected = following_handlers[0][1]
         elif not following and following_entries:
-            following = [key for (key, _value, _owner) in following_entries]
+            following = [key for (key, _entry_expression, _owner) in following_entries]
 
             selected = [
                 (node, label)

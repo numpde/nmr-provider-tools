@@ -8,8 +8,8 @@ require_container()
 
 import ast
 import unittest
+import pathlib
 from collections.abc import Callable
-from pathlib import Path
 
 from ._repo_surfaces import repo_source, surface_files
 
@@ -42,7 +42,7 @@ EMPTY_GET_DEFAULT_WAIVER = "silent-defaults: allow-empty-get"
 POP_DEFAULT_WAIVER = "silent-defaults: allow-pop-default"
 
 
-def _python_operator_files() -> list[Path]:
+def _python_operator_files() -> list[pathlib.Path]:
     return surface_files(
         PYTHON_SURFACE_GLOBS,
         extra_exclude_parts=PYTHON_SCAN_EXCLUDED_PARTS,
@@ -73,7 +73,7 @@ def _source_snippet(source: str, node: ast.AST) -> str:
     return " ".join(segment.split())
 
 
-def _finding(path: Path, source: str, node: ast.AST) -> str:
+def _finding(path: pathlib.Path, source: str, node: ast.AST) -> str:
     return f"{repo_source(path)}:{node.lineno}: {_source_snippet(source, node)}"
 
 
@@ -440,7 +440,7 @@ def _is_args_default_if_statement(node: ast.AST) -> bool:
     )
 
 
-def _env_default_findings(path: Path) -> list[str]:
+def _env_default_findings(path: pathlib.Path) -> list[str]:
     source = path.read_text(encoding="utf-8")
     tree = ast.parse(source, filename=str(path))
     findings: list[str] = []
@@ -482,7 +482,7 @@ def _env_default_findings(path: Path) -> list[str]:
     return findings
 
 
-def _falsy_default_findings(path: Path) -> list[str]:
+def _falsy_default_findings(path: pathlib.Path) -> list[str]:
     source = path.read_text(encoding="utf-8")
     tree = ast.parse(source, filename=str(path))
     findings: list[str] = []
@@ -494,7 +494,7 @@ def _falsy_default_findings(path: Path) -> list[str]:
     return findings
 
 
-def _empty_get_default_findings(path: Path) -> list[str]:
+def _empty_get_default_findings(path: pathlib.Path) -> list[str]:
     source = path.read_text(encoding="utf-8")
     source_lines = source.splitlines()
     tree = ast.parse(source, filename=str(path))
@@ -507,7 +507,7 @@ def _empty_get_default_findings(path: Path) -> list[str]:
     return findings
 
 
-def _zero_getattr_default_findings(path: Path) -> list[str]:
+def _zero_getattr_default_findings(path: pathlib.Path) -> list[str]:
     source = path.read_text(encoding="utf-8")
     tree = ast.parse(source, filename=str(path))
     findings: list[str] = []
@@ -519,7 +519,7 @@ def _zero_getattr_default_findings(path: Path) -> list[str]:
     return findings
 
 
-def _pop_default_findings(path: Path) -> list[str]:
+def _pop_default_findings(path: pathlib.Path) -> list[str]:
     source = path.read_text(encoding="utf-8")
     source_lines = source.splitlines()
     tree = ast.parse(source, filename=str(path))
@@ -682,40 +682,40 @@ class PythonEmptyDefaultsTest(unittest.TestCase):
     def test_python_operator_surfaces_do_not_default_env_reads(self) -> None:
         findings: list[str] = []
 
-        for path in _python_operator_files():
-            findings.extend(_env_default_findings(path))
+        for operator_path in _python_operator_files():
+            findings.extend(_env_default_findings(operator_path))
 
         self.assertEqual([], findings)
 
     def test_python_operator_surfaces_do_not_use_falsy_empty_defaults(self) -> None:
         findings: list[str] = []
 
-        for path in _python_operator_files():
-            findings.extend(_falsy_default_findings(path))
+        for operator_path in _python_operator_files():
+            findings.extend(_falsy_default_findings(operator_path))
 
         self.assertEqual([], findings)
 
     def test_python_operator_surfaces_annotate_empty_get_defaults(self) -> None:
         findings: list[str] = []
 
-        for path in _python_operator_files():
-            findings.extend(_empty_get_default_findings(path))
+        for operator_path in _python_operator_files():
+            findings.extend(_empty_get_default_findings(operator_path))
 
         self.assertEqual([], findings)
 
     def test_python_operator_surfaces_do_not_default_getattr_to_zero(self) -> None:
         findings: list[str] = []
 
-        for path in _python_operator_files():
-            findings.extend(_zero_getattr_default_findings(path))
+        for operator_path in _python_operator_files():
+            findings.extend(_zero_getattr_default_findings(operator_path))
 
         self.assertEqual([], findings)
 
     def test_python_operator_surfaces_annotate_pop_defaults(self) -> None:
         findings: list[str] = []
 
-        for path in _python_operator_files():
-            findings.extend(_pop_default_findings(path))
+        for operator_path in _python_operator_files():
+            findings.extend(_pop_default_findings(operator_path))
 
         self.assertEqual([], findings)
 

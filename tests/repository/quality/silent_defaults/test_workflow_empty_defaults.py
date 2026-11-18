@@ -8,7 +8,7 @@ require_container()
 
 import re
 import unittest
-from pathlib import Path
+import pathlib
 
 from ._repo_surfaces import repo_source, surface_files, surface_lines
 
@@ -49,7 +49,7 @@ def _workflow_blank_env_entries_from_lines(lines: list[str], source: str) -> lis
     return findings
 
 
-def _workflow_blank_env_entries(path: Path) -> list[str]:
+def _workflow_blank_env_entries(path: pathlib.Path) -> list[str]:
     return _workflow_blank_env_entries_from_lines(
         path.read_text(encoding="utf-8").splitlines(),
         repo_source(path),

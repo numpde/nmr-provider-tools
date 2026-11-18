@@ -7,8 +7,8 @@ from tools.container_guard import require_container
 require_container()
 
 import re
+import pathlib
 from collections.abc import Iterable, Iterator
-from pathlib import Path
 
 from ..sources import ROOT as REPO_ROOT, source_files
 
@@ -23,16 +23,16 @@ SILENT_DEFAULTS_TEST_PARTS = frozenset({"silent_defaults"})
 SILENT_DEFAULTS_PRIVATE_ENV_EXCLUSIONS = frozenset()
 
 
-def repo_path(path: Path) -> Path:
-    return path.relative_to(REPO_ROOT)
+def repo_path(source_path: pathlib.Path) -> pathlib.Path:
+    return source_path.relative_to(REPO_ROOT)
 
 
-def repo_source(path: Path) -> str:
-    return repo_path(path).as_posix()
+def repo_source(source_path: pathlib.Path) -> str:
+    return repo_path(source_path).as_posix()
 
 
-def _validate_repo_relative_paths(paths: frozenset[Path]) -> None:
-    absolute_paths = sorted(path.as_posix() for path in paths if path.is_absolute())
+def _validate_repo_relative_paths(paths: frozenset[pathlib.Path]) -> None:
+    absolute_paths = sorted(excluded_path.as_posix() for excluded_path in paths if excluded_path.is_absolute())
 
     if absolute_paths:
         raise ValueError(f"surface file exclusions must be repo-relative: {absolute_paths}")
@@ -42,8 +42,8 @@ def surface_files(
     patterns: Iterable[str],
     *,
     extra_exclude_parts: frozenset[str] = frozenset(),
-    exclude_repo_paths: frozenset[Path] = frozenset(),
-) -> list[Path]:
+    exclude_repo_paths: frozenset[pathlib.Path] = frozenset(),
+) -> list[pathlib.Path]:
     _validate_repo_relative_paths(exclude_repo_paths)
 
     return source_files(
@@ -55,15 +55,15 @@ def surface_files(
 
 
 def surface_lines(
-    paths: Iterable[Path],
+    paths: Iterable[pathlib.Path],
     *,
     skip_comments: bool = False,
 ) -> Iterator[tuple[str, int, str]]:
-    for path in paths:
-        source = repo_source(path)
+    for source_path in paths:
+        source = repo_source(source_path)
 
         for (line_number, line) in enumerate(
-            path.read_text(encoding="utf-8").splitlines(),
+            source_path.read_text(encoding="utf-8").splitlines(),
             start=1,
         ):
             if skip_comments and line.lstrip().startswith("#"):

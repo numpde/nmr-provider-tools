@@ -10,7 +10,7 @@ import re
 import shlex
 import tempfile
 import unittest
-from pathlib import Path
+import pathlib
 from unittest.mock import patch
 
 from ..sources import ROOT
@@ -45,7 +45,7 @@ ALLOWED_DOCKER_DEFAULTS = {
 ALLOWED_SHELL_DEFAULTS = set()
 
 
-def ops_files() -> list[Path]:
+def ops_files() -> list[pathlib.Path]:
     return repo_files(
         (
             "Makefile",
@@ -321,7 +321,7 @@ class OpsSilentDefaultsTest(unittest.TestCase):
         )
 
         with tempfile.TemporaryDirectory() as directory:
-            root = Path(directory)
+            root = pathlib.Path(directory)
 
             for (label, source, diagnostic) in cases:
                 with self.subTest(label=label, source=source):
@@ -379,7 +379,7 @@ class OpsSilentDefaultsTest(unittest.TestCase):
 
         self.assertEqual(ALLOWED_SHELL_DEFAULTS, defaults)
 
-    def shell_silent_success_findings(self, files: list[Path]) -> list[str]:
+    def shell_silent_success_findings(self, files: list[pathlib.Path]) -> list[str]:
         findings: list[str] = []
 
         for path in files:
@@ -395,7 +395,7 @@ class OpsSilentDefaultsTest(unittest.TestCase):
         return findings
 
 
-def make_function_default_findings(files: list[Path]) -> list[str]:
+def make_function_default_findings(files: list[pathlib.Path]) -> list[str]:
     """Retain raw Make fallback matches except complete literal origin gates."""
     findings = []
 
@@ -412,7 +412,7 @@ def make_function_default_findings(files: list[Path]) -> list[str]:
     return findings
 
 
-def make_default_assignment_findings(files: list[Path]) -> list[str]:
+def make_default_assignment_findings(files: list[pathlib.Path]) -> list[str]:
     findings: list[str] = []
 
     for path in files:
@@ -447,7 +447,7 @@ def make_default_assignment_findings_for_source(source: str, label: str) -> list
     return findings
 
 
-def docker_default_findings(files: list[Path]) -> list[str]:
+def docker_default_findings(files: list[pathlib.Path]) -> list[str]:
     findings: list[str] = []
 
     for path in files:
@@ -564,7 +564,7 @@ def docker_default_classification(
     return "changed" if any(allowed_entry[:3] == entry[:3] for allowed_entry in allowed) else "unreviewed"
 
 
-def shell_default_findings(files: list[Path]) -> list[str]:
+def shell_default_findings(files: list[pathlib.Path]) -> list[str]:
     findings: list[str] = []
     defaults = shell_defaults(files)
 
@@ -577,7 +577,7 @@ def shell_default_findings(files: list[Path]) -> list[str]:
     return findings
 
 
-def make_defaults(path: Path) -> dict[str, str]:
+def make_defaults(path: pathlib.Path) -> dict[str, str]:
     defaults: dict[str, str] = {}
 
     for line in path.read_text(encoding="utf-8").splitlines():
@@ -589,7 +589,7 @@ def make_defaults(path: Path) -> dict[str, str]:
     return defaults
 
 
-def docker_defaults(files: list[Path]) -> set[tuple[str, str, str, str]]:
+def docker_defaults(files: list[pathlib.Path]) -> set[tuple[str, str, str, str]]:
     defaults: set[tuple[str, str, str, str]] = set()
 
     for path in files:
@@ -626,7 +626,7 @@ def docker_defaults(files: list[Path]) -> set[tuple[str, str, str, str]]:
     return defaults
 
 
-def shell_defaults(files: list[Path]) -> set[tuple[str, str, str, str]]:
+def shell_defaults(files: list[pathlib.Path]) -> set[tuple[str, str, str, str]]:
     defaults: set[tuple[str, str, str, str]] = set()
 
     for path in files:

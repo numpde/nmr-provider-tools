@@ -10,7 +10,7 @@ require_container()
 
 import tempfile
 import unittest
-from pathlib import Path
+import pathlib
 from unittest.mock import patch
 
 from . import test_python as policy
@@ -22,15 +22,15 @@ class PythonContractApplicabilityTests(unittest.TestCase):
 
     def exercise_property(self, source, *, accepted):
         with tempfile.TemporaryDirectory() as directory:
-            root = Path(directory)
-            path = root / "tools/consumer.py"
+            root = pathlib.Path(directory)
+            consumer_path = root / "tools/consumer.py"
 
-            path.parent.mkdir()
-            path.write_text(source)
+            consumer_path.parent.mkdir()
+            consumer_path.write_text(source)
 
-            with patch.object(policy, "ROOT", root), patch.object(policy, "python_files", return_value=[path]):
-                raw = policy.python_default_findings(path)
-                applicable = policy.python_operator_default_findings(path)
+            with patch.object(policy, "ROOT", root), patch.object(policy, "python_files", return_value=[consumer_path]):
+                raw = policy.python_default_findings(consumer_path)
+                applicable = policy.python_operator_default_findings(consumer_path)
                 property_test = policy.PythonSilentDefaultsTest()
 
                 if accepted:

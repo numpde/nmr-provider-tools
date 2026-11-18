@@ -9,7 +9,7 @@ require_container()
 import re
 import tempfile
 import unittest
-from pathlib import Path
+import pathlib
 from unittest.mock import patch
 
 from . import _repo_surfaces
@@ -31,7 +31,7 @@ def is_literal_make_origin_gate(source: str, line: str) -> bool:
     whitespace inside arguments or after the value as literal payload bytes.
     https://github.com/numpde/magnet-deploy/blob/2d4ee50b0359e71900fce9289ea01f46d0f41249/Makefile#L74-L78
     """
-    path = Path(source)
+    path = pathlib.Path(source)
 
     if path.name != "Makefile" and path.suffix != ".mk":
         return False
@@ -47,12 +47,12 @@ def is_literal_make_origin_gate(source: str, line: str) -> bool:
     )
 
 
-def repo_files(patterns: tuple[str, ...]) -> list[Path]:
-    return source_files(root=ROOT, patterns=patterns, exclude_subtrees=(Path(*SELF_PARTS),))
+def repo_files(patterns: tuple[str, ...]) -> list[pathlib.Path]:
+    return source_files(root=ROOT, patterns=patterns, exclude_subtrees=(pathlib.Path(*SELF_PARTS),))
 
 
 def line_findings(
-    paths: list[Path],
+    paths: list[pathlib.Path],
     matcher: re.Pattern[str],
     label: str,
     *,
@@ -74,7 +74,7 @@ def line_findings(
 class SharedScannerTest(unittest.TestCase):
     def test_regular_inventories_exclude_python_fixtures(self):
         with tempfile.TemporaryDirectory() as directory:
-            root = Path(directory)
+            root = pathlib.Path(directory)
             fixture_path = root / "tests/repository/fixtures/example.py.fixture"
 
             fixture_path.parent.mkdir(parents=True)
@@ -100,7 +100,7 @@ class SharedScannerTest(unittest.TestCase):
         self.assertEqual([], repo_files(("NMRNetplusplus/node_modules/**/*.ts",)))
 
     def test_line_findings_reports_relative_paths_and_skips_comments(self) -> None:
-        path = Path(__file__).resolve()
+        path = pathlib.Path(__file__).resolve()
         findings = line_findings([path], re.compile(r"^SCANNER_TEST_MARKER = "), "marker")
 
         marker_line = next(

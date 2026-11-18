@@ -8,7 +8,7 @@ require_container()
 
 import tempfile
 import unittest
-from pathlib import Path
+import pathlib
 from unittest.mock import patch
 
 from . import _repo_surfaces
@@ -42,7 +42,7 @@ SHELL_SURFACE_GLOBS = (
 )
 
 
-def _shell_surface_files() -> list[Path]:
+def _shell_surface_files() -> list[pathlib.Path]:
     return surface_files(
         SHELL_SURFACE_GLOBS,
         extra_exclude_parts=frozenset({"tests"}),
@@ -68,7 +68,7 @@ class ShellEmptyDefaultsTest(unittest.TestCase):
         # No local secret exemption: retain the original secret/example
         # classification proof using temporary deployment input fixtures.
         with tempfile.TemporaryDirectory() as directory:
-            root = Path(directory)
+            root = pathlib.Path(directory)
             config = root / "config"
 
             config.mkdir()
@@ -76,7 +76,7 @@ class ShellEmptyDefaultsTest(unittest.TestCase):
             for name in ("private.env", "private.env.example"):
                 (config / name).write_text("PROFILE=fixture\n")
 
-            excluded = frozenset({Path("config/private.env")})
+            excluded = frozenset({pathlib.Path("config/private.env")})
 
             with (
                 patch.object(_repo_surfaces, "REPO_ROOT", root),
@@ -85,8 +85,8 @@ class ShellEmptyDefaultsTest(unittest.TestCase):
                 scanned = {repo_path(path) for path in _shell_surface_files()}
 
             self.assertTrue(excluded.isdisjoint(scanned))
-            self.assertIn(Path("config/private.env.example"), scanned)
-            self.assertNotIn(Path("config/private.env"), scanned)
+            self.assertIn(pathlib.Path("config/private.env.example"), scanned)
+            self.assertNotIn(pathlib.Path("config/private.env"), scanned)
 
     def test_shell_operator_surfaces_do_not_use_empty_default_expansion(self) -> None:
         findings: list[str] = []

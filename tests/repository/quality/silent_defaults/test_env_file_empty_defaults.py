@@ -9,7 +9,7 @@ require_container()
 import re
 import tempfile
 import unittest
-from pathlib import Path
+import pathlib
 from unittest.mock import patch
 
 from . import _repo_surfaces
@@ -27,7 +27,7 @@ ENV_FILE_GLOBS = ("*.env", "*.env.example", "**/*.env", "**/*.env.example")
 ENV_ASSIGNMENT_RE = re.compile(r"^(?:export\s+)?(?P<name>[A-Za-z_][A-Za-z0-9_]*)\s*=\s*(?P<value>.*)$")
 
 
-def _env_files() -> list[Path]:
+def _env_files() -> list[pathlib.Path]:
     return surface_files(
         ENV_FILE_GLOBS,
         exclude_repo_paths=SILENT_DEFAULTS_PRIVATE_ENV_EXCLUSIONS,
@@ -54,12 +54,12 @@ class EnvFileEmptyDefaultsTest(unittest.TestCase):
         # its documented example. Exercise that same contract in a fixture:
         # NMRNet has no reviewed private dotenv exclusions to grant.
         with tempfile.TemporaryDirectory() as directory:
-            root = Path(directory)
+            root = pathlib.Path(directory)
 
             for name in ("private.env", "private.env.example"):
                 (root / name).write_text("PROFILE=fixture\n")
 
-            excluded = frozenset({Path("private.env")})
+            excluded = frozenset({pathlib.Path("private.env")})
 
             with (
                 patch.object(_repo_surfaces, "REPO_ROOT", root),
@@ -68,8 +68,8 @@ class EnvFileEmptyDefaultsTest(unittest.TestCase):
                 scanned = {repo_path(path) for path in _env_files()}
 
             self.assertTrue(excluded.isdisjoint(scanned))
-            self.assertIn(Path("private.env.example"), scanned)
-            self.assertNotIn(Path("private.env"), scanned)
+            self.assertIn(pathlib.Path("private.env.example"), scanned)
+            self.assertNotIn(pathlib.Path("private.env"), scanned)
 
     def test_env_file_exclusions_must_be_repo_relative(self) -> None:
         with self.assertRaisesRegex(ValueError, "repo-relative"):
@@ -82,7 +82,7 @@ class EnvFileEmptyDefaultsTest(unittest.TestCase):
         scanned = {repo_path(path) for path in surface_files(("tests/repository/**/*.py",))}
 
         self.assertNotIn(
-            Path("tests/repository/quality/silent_defaults/test_env_file_empty_defaults.py"),
+            pathlib.Path("tests/repository/quality/silent_defaults/test_env_file_empty_defaults.py"),
             scanned,
         )
 

@@ -11,7 +11,7 @@ require_container()
 
 import tempfile
 import unittest
-from pathlib import Path
+import pathlib
 from unittest.mock import patch
 
 from . import test_make_empty_defaults as vote
@@ -22,7 +22,7 @@ from .test_shared_scanner import is_literal_make_origin_gate
 class MakeOriginGateTests(unittest.TestCase):
     def findings_from_both_collectors(self, source, line):
         with tempfile.TemporaryDirectory() as directory:
-            root = Path(directory)
+            root = pathlib.Path(directory)
             path = root / source
 
             path.parent.mkdir(parents=True, exist_ok=True)
