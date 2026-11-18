@@ -45,7 +45,7 @@ source "$ACQUISITION_SOURCE_ROOT/acquisition_tool/owner.sh"
             'IDENTITY_OUTPUT': '17 19 23 29\n',
             'IDENTITY_STATUS': '0',
             'IDENTITY_DIAGNOSTIC': '',
-            'ACQUISITION_SOURCE_ROOT': str(pathlib.Path(__file__).resolve().parents[2] / 'host'),
+            'ACQUISITION_SOURCE_ROOT': str(pathlib.Path(__file__).resolve().parents[2] / 'packages/acquisition'),
         }
 
         process = subprocess.Popen(
@@ -400,7 +400,7 @@ acquisition_scope --endpoint unix:///outer.sock --bootstrap-image fixture:bootst
         script = r'''
 set -uo pipefail
 if [[ ${OWNER_ERREXIT:-0} == 1 ]]; then set -e; fi
-source host/acquisition_tool/owner.sh
+source packages/acquisition/acquisition_tool/owner.sh
 # Replace only the public mapping port: the scope, workers, native client
 # supervisor, signal handlers and engine retirement remain real.
 acquisition_map_owner() { printf -v "$1" '%s' 0; printf -v "$2" '%s' 0; printf '%s\n' "$3" >> "$STATE/map-images"; }
@@ -768,7 +768,7 @@ return 2
                         [
                             'bash',
                             '-c',
-                            'source host/acquisition_tool/owner.sh; '
+                            'source packages/acquisition/acquisition_tool/owner.sh; '
                             '_acq_private_receipt_below_limit "$1"',
                             'bash',
                             str(receipt)

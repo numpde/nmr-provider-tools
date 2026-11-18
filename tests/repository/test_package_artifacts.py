@@ -191,7 +191,7 @@ class PackageArtifactTests(unittest.TestCase):
                     ],
                     check=True
                 ),
-                call(["python3", "-I", "-S", "-B", str(ROOT / "containers/isolated/acquisition_import_check.py"), str(extracted)], check=True),
+                call(["python3", "-I", "-S", "-B", str(ROOT / "packages/acquisition/build/acquisition_import_check.py"), str(extracted)], check=True),
                 call(["python3", "-I", "-S", "-B", str(extracted / "acquisition_tool/identity.py"), "--help"], check=True, stdout=subprocess.DEVNULL),
             ],
             commands.call_args_list
@@ -238,7 +238,7 @@ class PackageArtifactTests(unittest.TestCase):
             path.parent.mkdir(parents=True, exist_ok=True)
             path.write_text("QUALIFIED = True")
 
-        check_script = ROOT / "containers/isolated/acquisition_import_check.py"
+        check_script = ROOT / "packages/acquisition/build/acquisition_import_check.py"
 
         command = [
             sys.executable,

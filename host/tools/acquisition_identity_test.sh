@@ -35,7 +35,7 @@ checker_run 60 --pull never --network none --read-only --cap-drop ALL \
     --security-opt no-new-privileges:true --pids-limit 64 --memory 128m \
     --tmpfs /tmp:rw,nosuid,nodev,noexec,size=16m \
     --mount "type=bind,src=$dependency,dst=/identity.whl,readonly" \
-    --mount "type=bind,src=$root/host/acquisition_tool,dst=/source/acquisition_tool,readonly" \
+    --mount "type=bind,src=$root/packages/acquisition/acquisition_tool,dst=/source/acquisition_tool,readonly" \
     --mount "type=bind,src=$root/tests/acquisition_identity,dst=/tests,readonly" \
     --entrypoint python3 "$base_image" -I -S -B -c \
     'import sys,unittest; sys.path[:0]=["/identity.whl", "/source", "/tests"]; unittest.main(module="test_identity", verbosity=2)'

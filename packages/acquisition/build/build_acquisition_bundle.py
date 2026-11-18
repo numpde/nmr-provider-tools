@@ -112,9 +112,10 @@ def contents(pool, source, core_wheel, pin, *, revision, wheelhouse_bundle):
     (files, dependencies) = dependency_files(pool, pin)
 
     for name in SOURCE_FILES:
-        _add(files, name, (source / "host" / name).read_bytes())
+        source_root = "packages/acquisition" if name.startswith("acquisition_tool/") else "host"
+        _add(files, name, (source / source_root / name).read_bytes())
 
-    _add(files, "compose/acquisition.yml", (source / "compose/acquisition.yml").read_bytes())
+    _add(files, "compose/acquisition.yml", (source / "packages/acquisition/compose/acquisition.yml").read_bytes())
 
     for (source_name, issued_name) in INSTALLER_SOURCES:
         _add(files, issued_name, (source / source_name).read_bytes())

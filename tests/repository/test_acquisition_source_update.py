@@ -16,7 +16,7 @@ import tempfile
 import unittest
 from unittest.mock import patch
 
-from host.acquisition_tool import source_update as updates
+from acquisition_tool import source_update as updates
 from tests.repository.quality.sources import ROOT
 
 
@@ -272,7 +272,7 @@ class SourceUpdateTests(unittest.TestCase):
                 sys.executable,
                 "-I",
                 "-B",
-                str(ROOT / "host/acquisition_tool/source_update.py"),
+                str(ROOT / "packages/acquisition/acquisition_tool/source_update.py"),
                 "verify",
                 "--source-dir",
                 str(self.source),

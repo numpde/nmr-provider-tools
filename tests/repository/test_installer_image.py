@@ -15,7 +15,7 @@ from unittest.mock import patch
 
 from tests.repository.quality.sources import ROOT
 from tools import installer
-from tools.build_acquisition_bundle import INSTALLER_SOURCES
+from build_acquisition_bundle import INSTALLER_SOURCES
 from tools.installer import pip_command
 
 

@@ -17,8 +17,8 @@ import unittest
 import pathlib
 import zipfile
 
-from tools.build_acquisition_bundle import build, INSTALLER_SOURCES, PROXY_FILES, SOURCE_FILES
-from host.acquisition_tool.source_update import verify
+from build_acquisition_bundle import build, INSTALLER_SOURCES, PROXY_FILES, SOURCE_FILES
+from acquisition_tool.source_update import verify
 from tests.repository.quality.sources import ROOT
 
 
@@ -49,13 +49,14 @@ class AcquisitionBundleTests(unittest.TestCase):
         source = root / "source"
 
         for name in SOURCE_FILES:
-            path = source / "host" / name
+            source_root = "packages/acquisition" if name.startswith("acquisition_tool/") else "host"
+            path = source / source_root / name
 
             path.parent.mkdir(parents=True, exist_ok=True)
             path.write_text("# cold source\n")
 
-        (source / "compose").mkdir()
-        (source / "compose/acquisition.yml").write_bytes((ROOT / "compose/acquisition.yml").read_bytes())
+        (source / "packages/acquisition/compose").mkdir(parents=True)
+        (source / "packages/acquisition/compose/acquisition.yml").write_bytes((ROOT / "packages/acquisition/compose/acquisition.yml").read_bytes())
 
         for (source_name, _issued_name) in INSTALLER_SOURCES:
             path = source / source_name
@@ -208,9 +209,9 @@ class AcquisitionBundleTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temporary:
             root = pathlib.Path(temporary)
             (source, wheel, _identity, pin) = self.fixture(root)
-            authored_updater = ROOT / "host/acquisition_tool/source_update.py"
+            authored_updater = ROOT / "packages/acquisition/acquisition_tool/source_update.py"
 
-            (source / "host/acquisition_tool/source_update.py").write_bytes(authored_updater.read_bytes())
+            (source / "packages/acquisition/acquisition_tool/source_update.py").write_bytes(authored_updater.read_bytes())
             archive_path = root / "candidate.tar.gz"
 
             self.build(root, archive_path, source, wheel, pin)
