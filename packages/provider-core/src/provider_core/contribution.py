@@ -1204,8 +1204,7 @@ def ref[InputT, StateT, OutputT](call: CallBinding[InputT, StateT, OutputT]) -> 
 def description_document(description: ImplementationDescription) -> dict[str, object]:
     """Return the scheduler-facing, JSON-compatible view of one binding."""
 
-    if not (type(description) is (expected_type := ImplementationDescription)):
-        raise TypeError(f"{type(description)=} ≠ {expected_type=}")
+    require_type(description, ImplementationDescription)
 
     # Requirements are unordered; canonical array order keeps exported revisions stable.
     # Compare selector presence before its value so None never compares with a string.
