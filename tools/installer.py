@@ -62,12 +62,14 @@ def validate_release(record):
         raise ValueError("Cannot start the installer: release record must identify one pip wheel by name, size, SHA-256 and HTTPS source.")
 
     record_name = record["name"]
+
     require_type(record_name, str)
 
     if not re.fullmatch(pattern := r"pip-[0-9]+\.[0-9]+(?:\.[0-9]+)?-py3-none-any\.whl", record_name):
         raise ValueError(f"Cannot start the installer: {record_name=} does not follow {pattern=}.")
 
     record_sha256 = record["sha256"]
+
     require_type(record_sha256, str)
 
     if not re.fullmatch((expected_pattern := r"[0-9a-f]{64}"), record_sha256):

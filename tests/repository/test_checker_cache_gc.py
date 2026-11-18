@@ -114,6 +114,7 @@ class EngineCacheGCTests(unittest.TestCase):
 
             for name in ("engine_cache_gc.sh", "engine_cache_gc.py", "docker_context.sh", "docker_client.sh"):
                 shutil.copyfile(ROOT / "operations/docker" / name, root / "operations/docker" / name)
+
             shutil.copyfile(ROOT / "host/tools/inference_native.sh", root / "host/tools/inference_native.sh")
 
             config = root / "daemon.json"

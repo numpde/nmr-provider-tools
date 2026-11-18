@@ -190,11 +190,13 @@ class LauncherTests(unittest.TestCase):
 
         with tempfile.TemporaryDirectory() as directory:
             log = pathlib.Path(directory) / "context-inspections"
+
             environment = {
                 key: value
                 for (key, value) in os.environ.items()
                 if key not in {"MAKEFLAGS", "MFLAGS", "MAKEOVERRIDES", "GNUMAKEFLAGS", "MAKELEVEL"}
             }
+
             environment.update(PATH=f"{fixture}:{os.environ['PATH']}", FAKE_CONTEXT_LOG=str(log))
 
             for options in (("-rR", "-qp"), ("--question",), ("--dry-run",)):
@@ -222,6 +224,7 @@ class LauncherTests(unittest.TestCase):
 
                             if finished:
                                 status = value
+
                                 break
 
                         if status is None:
@@ -244,6 +247,7 @@ class LauncherTests(unittest.TestCase):
 
             for name in ("tools", "host", "requirements", "operations"):
                 shutil.copytree(ROOT / name, root / name)
+
             shutil.copytree(ROOT / "packages/type-requirements", root / "packages/type-requirements")
 
             (root / "future-source").mkdir()
@@ -251,6 +255,7 @@ class LauncherTests(unittest.TestCase):
             (root / ".aws").mkdir()
             (root / "release-artifacts").mkdir()
             launcher = root / "tests/repository/run.sh"
+
             launcher.parent.mkdir(parents=True)
 
             launcher.write_bytes((ROOT / "tests/repository/run.sh").read_bytes())
@@ -277,6 +282,7 @@ class LauncherTests(unittest.TestCase):
             root = pathlib.Path(directory)
 
             launcher = root / "tests/repository/run.sh"
+
             launcher.parent.mkdir(parents=True)
 
             launcher.write_bytes((ROOT / "tests/repository/run.sh").read_bytes())

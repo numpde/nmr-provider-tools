@@ -134,6 +134,7 @@ def multiline_literal_findings(*, source: str) -> list[tuple[int, str]]:
         opening_line = lines[expression.lineno - 1]
         opening_column = expression.col_offset
         opening_symbol = opening_line[opening_column:opening_column + 1]
+
         if isinstance(expression, ast.Tuple):
             closing = pairs.get((expression.lineno, opening_column))
 

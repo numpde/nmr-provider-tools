@@ -59,6 +59,7 @@ class AttemptOutcomeTests(unittest.IsolatedAsyncioTestCase):
                     " result\n"
                     "雪 ",
                 )
+
                 self.assertEqual(result.result_byte_length, len(b"result bytes"))
                 self.assertEqual(result.analysis_result_ref, "analysis_result:sha256:" + "b" * 64)
                 self.assertNotIn("雪", repr(result))
@@ -68,6 +69,7 @@ class AttemptOutcomeTests(unittest.IsolatedAsyncioTestCase):
                     " Explain\n"
                     "雪\x01 ",
                 )
+
                 self.assertNotIn("Explain", repr(result))
 
             (first, second) = (call[0] for call in transport.calls)

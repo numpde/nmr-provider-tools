@@ -174,11 +174,13 @@ def build_wheel(wheel_directory, config_settings=None, metadata_directory=None):
                     installer.install(self.root, record)
 
                 captured_size = min(len(damaged_bytes), expected_size + 1)
+
                 self.assertIn(wheel.name, str(caught.exception))
                 self.assertIn(f"{captured_size=} ≠ {expected_size=}", str(caught.exception))
                 dispatch.assert_not_called()
 
         damaged_bytes = b"x" * expected_size
+
         wheel.write_bytes(damaged_bytes)
 
         with patch("tools.installer.subprocess.run") as dispatch:

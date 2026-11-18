@@ -19,11 +19,13 @@ from .sources import ROOT, python_sources
 def multiline_signature_findings(*, source: str) -> list[tuple[int, str]]:
     """Check parameter and argument list boundaries without counting nested delimiters."""
     lines = source.splitlines()
+
     tokens = [
         token
         for token in tokenize.generate_tokens(readline=io.StringIO(initial_value=source).readline)
         if token.type not in {tokenize.COMMENT, tokenize.NL, tokenize.NEWLINE, tokenize.INDENT, tokenize.DEDENT, tokenize.ENDMARKER}
     ]
+
     stack = []
     closing = {}
 

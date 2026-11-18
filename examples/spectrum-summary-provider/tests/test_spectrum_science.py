@@ -14,7 +14,9 @@ from spectrum_provider import science
 class SpectrumScienceTests(unittest.TestCase):
     def test_science_imports_without_the_container_launcher(self) -> None:
         environment = os.environ.copy()
+
         environment.pop("PROVIDER_CORE_IN_CONTAINER", None)
+
         imported = subprocess.run(
             [sys.executable, "-I", "-B", "-m", "spectrum_provider.science"],
             env=environment,

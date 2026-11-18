@@ -103,6 +103,7 @@ class MultilineBooleanPostureTests(unittest.TestCase):
                 )
             ),
         )
+
         self.assertEqual(
             first=[(2, "put the Boolean operator at the end of the preceding line")],
             second=multiline_boolean_findings(

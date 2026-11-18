@@ -99,11 +99,13 @@ class InstalledDeploymentTests(unittest.TestCase):
         raw = definition(2).replace(b"uid = 65532", f"uid = {self.uid}".encode()).replace(b"gid = 65532", f"gid = {self.gid}".encode())
         raw = raw.replace(b'credential_file = "/synthetic/signing.json"', b'credential_file = "/synthetic/first.json"', 1)
         raw = raw.replace(b'credential_file = "/synthetic/signing.json"', b'credential_file = "/synthetic/second.json"', 1)
+
         raw = raw.replace(
             b"[bindings.route]",
             b'ca_file = "/synthetic/shared-ca.pem"\n'
             b"[bindings.route]",
         )
+
         plan = self.render(raw)
         mounts = plan["services"]["delivery"]["volumes"]
 
@@ -119,6 +121,7 @@ class InstalledDeploymentTests(unittest.TestCase):
                         b'mode = "local"\n'
                         b'network_id = "' + b"b" * 64 + b'"',
                     )
+
                     raw = raw.replace(b"api.example=127.0.0.1", b"api.example=172.18.0.5")
                 else:
                     raw = self.raw.replace(b'mode = "mapped"', b'mode = "external"').replace(b'addresses = ["api.example=127.0.0.1"]', b'resolver_file = "/synthetic/resolver"')

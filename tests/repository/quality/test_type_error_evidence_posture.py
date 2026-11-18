@@ -185,6 +185,7 @@ def _expectation_findings(*, source_path: pathlib.Path, source: str) -> list[str
             isinstance(node.ops[0], (ast.In, ast.NotIn)) and
             _type_call(expression=unwrap_binding(expression=node.left))
         }
+
         membership_expectations.update(
             _expectation_name(expression=node.args[1])
             for node in ast.walk(node=statement.test)
@@ -262,6 +263,7 @@ def _subclass_findings(*, source_path: pathlib.Path, source: str) -> list[str]:
             continue
 
         message = rejection.exc.args[0] if isinstance(rejection.exc, ast.Call) and rejection.exc.args else None
+
         evidenced = (
             {
                 _subject_key(expression=field.value)
@@ -280,6 +282,7 @@ def _subclass_findings(*, source_path: pathlib.Path, source: str) -> list[str]:
         # The parent is evaluated after the candidate; rebinding a name used to
         # render the candidate would show a different value from the one checked
         candidate = diagnostic_subject(subject=predicate.args[0])
+
         candidate_names = {node.id for node in ast.walk(node=candidate) if isinstance(node, ast.Name)}
 
         if any(isinstance(node, ast.NamedExpr) and node.target.id in candidate_names for node in ast.walk(node=predicate.args[1])):

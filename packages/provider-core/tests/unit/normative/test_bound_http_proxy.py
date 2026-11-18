@@ -117,6 +117,7 @@ class BoundProxyTests(unittest.TestCase):
                         self.assertEqual("", errors.getvalue())
 
                 connect.assert_not_called()
+
                 request.sendall.assert_called_once_with(
                     b"HTTP/1.1 502 Bad Gateway\r\n"
                     b"Connection: close\r\n"
@@ -149,10 +150,12 @@ class BoundProxyTests(unittest.TestCase):
 
     def test_header_limit_accepts_exact_boundary_and_rejects_one_extra_byte(self):
         limit = bound_http_proxy.MAX_HEADER_BYTES
+
         header = b"x" * (limit - 4) + (
             b"\r\n"
             b"\r\n"
         )
+
         client = MagicMock()
         client.recv.side_effect = [header[index : index + 8192] for index in range(0, len(header), 8192)]
 
@@ -181,6 +184,7 @@ class BoundProxyTests(unittest.TestCase):
             b"\r\n"
             b"\r\n"
         )
+
         body = b"body received with the terminator"
         prefix = header[:-1]
         client = MagicMock()
@@ -193,6 +197,7 @@ class BoundProxyTests(unittest.TestCase):
             b"GET http://example.invalid/ HTTP/1.1\r\n"
             b"\r\n"
         )
+
         body = b"body"
         client = MagicMock()
         client.recv.side_effect = [*[bytes([byte]) for byte in header[:-1]], header[-1:] + body]
@@ -226,11 +231,13 @@ class BoundProxyTests(unittest.TestCase):
                         bound_http_proxy.ProxyHandler(request, ("127.0.0.1", 1), SimpleNamespace(outbound_interface="lo", dns_servers=None))
 
                     connect.assert_not_called()
+
                     request.sendall.assert_called_once_with(
                         b"HTTP/1.1 502 Bad Gateway\r\n"
                         b"Connection: close\r\n"
                         b"\r\n"
                     )
+
                     self.assertIn("request admission", errors.getvalue())
                     self.assertIn("ValueError", errors.getvalue())
                     self.assertNotIn(private, errors.getvalue())
@@ -251,11 +258,13 @@ class BoundProxyTests(unittest.TestCase):
                     bound_http_proxy.ProxyHandler(request, ("127.0.0.1", 1), SimpleNamespace(outbound_interface="lo", dns_servers=None))
 
                 connect.assert_not_called()
+
                 request.sendall.assert_called_once_with(
                     b"HTTP/1.1 502 Bad Gateway\r\n"
                     b"Connection: close\r\n"
                     b"\r\n"
                 )
+
                 self.assertIn("request admission", errors.getvalue())
                 self.assertIn(type(failure).__name__, errors.getvalue())
                 self.assertNotIn(private, errors.getvalue())
@@ -325,6 +334,7 @@ class BoundProxyTests(unittest.TestCase):
                         f"{method} {target} HTTP/1.1\r\n"
                         "\r\n"
                     ).encode("ascii")
+
                     result = bound_http_proxy.parse_destination(header)
 
                     self.assertEqual(result[:3], (method, "example.invalid", port))
@@ -360,6 +370,7 @@ class BoundProxyTests(unittest.TestCase):
                     "Host: example.invalid\r\n"
                     "\r\n"
                 ).encode("ascii")
+
                 (method, host, port, forwarded) = bound_http_proxy.parse_destination(header)
 
                 self.assertEqual(("GET", "example.invalid", 80), (method, host, port))
@@ -391,6 +402,7 @@ class BoundProxyTests(unittest.TestCase):
             f"{method} {target} HTTP/1.1\r\n"
             "\r\n"
         ).encode("ascii")
+
         fragments = iter(((29, header[:-1]), (29.9, header[-1:])))
 
         def receive(_size):

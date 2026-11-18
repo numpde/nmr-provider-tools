@@ -103,7 +103,9 @@ def _exception_parameters(
         name for (name, candidate) in vars(builtins).items()
         if isinstance(candidate, type) and issubclass(candidate, BaseException)
     }
+
     inherited = {name: ((), ()) for name in builtin_exceptions}
+
     inherited.update({f"builtins.{name}": ((), ()) for name in builtin_exceptions})
 
     while True:
@@ -117,6 +119,7 @@ def _exception_parameters(
                 _qualified_name(parent, aliases_by_source[source_path])
                 for parent in declaration.bases
             ]
+
             exception_parents = [parent for parent in bases if parent in inherited]
 
             if exception_parents:
@@ -152,12 +155,14 @@ def error_code_findings(*, sources: dict[pathlib.Path, str]) -> list[tuple[pathl
     """Inspect declarations and direct constructor calls for authored exceptions."""
     modules = {source_path: ast.parse(source) for (source_path, source) in sources.items()}
     aliases_by_source = {source_path: _aliases(module, source_path) for (source_path, module) in modules.items()}
+
     declarations = {
         aliases_by_source[source_path][statement.name]: (source_path, statement)
         for (source_path, module) in modules.items()
         for statement in module.body
         if isinstance(statement, ast.ClassDef)
     }
+
     exception_parameters = _exception_parameters(declarations, aliases_by_source)
     findings = []
     error_code_parents = set()
@@ -189,6 +194,7 @@ def error_code_findings(*, sources: dict[pathlib.Path, str]) -> list[tuple[pathl
 
         if own_parameters is not None and (len(positional) > 1 or any(parameter.arg in code_arguments for parameter in positional)):
             constructor = _method(declaration, "__init__")
+
             findings.append((source_path, constructor.lineno, "custom exception constructors take at most one positional message"))
 
         if code_enum is None:
@@ -260,6 +266,7 @@ def error_code_findings(*, sources: dict[pathlib.Path, str]) -> list[tuple[pathl
                 findings.append((source_path, call.lineno, "pass custom exception context by keyword after the message"))
 
             supplied_codes = [keyword.value for keyword in call.keywords if keyword.arg in code_arguments]
+
             supplied_codes.extend(positional_codes)
 
             for supplied_code in supplied_codes:
@@ -294,10 +301,12 @@ raise OSError(errno.EIO, "Cannot read", filename)
 raise ExceptionGroup("work and cleanup failed", errors)
 record(code="wire field")
 """
+
         self.assertEqual(first=[], second=error_code_findings(sources={pathlib.Path("sample.py"): source}))
 
     def test_reports_positional_codes_and_other_positional_context(self):
         source_path = pathlib.Path("sample.py")
+
         source = """class Rejected(ValueError):
     def __init__(self, code, message):
         super().__init__(message)
@@ -309,6 +318,7 @@ class SourceLimitError(ValueError):
 raise Rejected("invalid_input", "Explain the failure")
 raise SourceLimitError("Source exceeds its limit", source)
 """
+
         self.assertEqual(
             first=[
                 (source_path, 1, "coded exceptions must declare their own nested Code(ErrorCode)"),
@@ -340,7 +350,9 @@ class OtherError(Rejected):
     class Code(ErrorCode):
         INVALID_INPUT = auto()
 """
+
         source_path = pathlib.Path("consumer.py")
+
         consumer = """from failures import Rejected as Refusal, OtherError
 INVALID_INPUT = "invalid_input"
 raise Refusal("Explain the failure", code=Refusal.Code.INVALID_INPUT)
@@ -350,6 +362,7 @@ raise Refusal("Explain the failure", code=Refusal.Code.INVALID_INPUT.value)
 raise Refusal("Explain the failure", code=OtherError.Code.INVALID_INPUT)
 raise OtherError("Explain the failure", code=OtherError.Code.INVALID_INPUT)
 """
+
         self.assertEqual(
             first=[(source_path, line, "pass a member of this exception's own Code enum") for line in (4, 5, 6, 7)],
             second=error_code_findings(sources={pathlib.Path("failures.py"): declarations, source_path: consumer}),
@@ -357,6 +370,7 @@ raise OtherError("Explain the failure", code=OtherError.Code.INVALID_INPUT)
 
     def test_reports_external_code_bases_and_manually_spelled_members(self):
         source_path = pathlib.Path("sample.py")
+
         source = """from enum import Enum, StrEnum, auto
 
 class ErrorCode(StrEnum):
@@ -374,6 +388,7 @@ class Rejected(ValueError):
     def __init__(self, message, *, code: ExternalCode):
         super().__init__(message)
 """
+
         self.assertEqual(
             first=[
                 (source_path, 3, "ErrorCode must be a memberless plain Enum with lowercase auto() values"),
@@ -387,6 +402,7 @@ class Rejected(ValueError):
 
     def test_subclass_cannot_borrow_its_parents_code_enum(self):
         source_path = pathlib.Path("sample.py")
+
         source = """from enum import Enum, auto
 
 class ErrorCode(Enum):
@@ -406,6 +422,7 @@ class ChildRejected(Rejected):
 
 raise ChildRejected("Explain the failure", code=Rejected.Code.INVALID_INPUT)
 """
+
         self.assertEqual(
             first=[
                 (source_path, 15, "coded exceptions must declare their own nested Code(ErrorCode)"),
@@ -421,6 +438,7 @@ raise ChildRejected("Explain the failure", code=Rejected.Code.INVALID_INPUT)
                 for source_path in python_sources(production_only=False)
             }
         )
+
         diagnostics = [f"{source_path}:{line}: {reason}" for (source_path, line, reason) in findings]
 
         self.assertEqual(first=[], second=diagnostics, msg="\n".join(diagnostics))

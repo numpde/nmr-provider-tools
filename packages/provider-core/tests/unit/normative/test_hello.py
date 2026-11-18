@@ -73,6 +73,7 @@ class HelloTests(unittest.IsolatedAsyncioTestCase):
         )
 
         self.assertEqual(json.loads(body)["display_name"], " \t")
+
         self.assertEqual(
             json.loads(body)["description"],
             "line\n"

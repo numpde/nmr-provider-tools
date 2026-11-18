@@ -32,6 +32,7 @@ class GeneratedTruncationTests(unittest.TestCase):
     @given(body=st.binary(min_size=1, max_size=256), tunnel=st.booleans(), data=st.data())
     def test_generated_content_length_truncation_is_rejected(self, body, tunnel, data):
         cut = data.draw(st.integers(0, len(body) - 1), label="received entity bytes")
+
         wire = (
             b"HTTP/1.1 200 OK\r\n"
             b"Content-Length: "
@@ -50,7 +51,9 @@ class GeneratedTruncationTests(unittest.TestCase):
             b"0\r\n"
             b"\r\n"
         )
+
         cut = data.draw(st.integers(0, len(framed) - 1), label="received chunk framing bytes")
+
         wire = (
             b"HTTP/1.1 200 OK\r\n"
             b"Transfer-Encoding: chunked\r\n"

@@ -90,6 +90,7 @@ class ImageBuildProxyInputTests(unittest.TestCase):
 
     def test_complete_headers_preserve_the_received_remainder(self):
         client = Mock()
+
         client.recv.return_value = (
             b"GET http://example.invalid/ HTTP/1.1\r\n"
             b"\r\n"
@@ -142,6 +143,7 @@ class ImageBuildProxyInputTests(unittest.TestCase):
             b"\r\n"
             b"\r\n"
         )
+
         exact = Mock()
         raw = b"x" * (_PROXY.MAX_HEADER_BYTES - len(header_end)) + header_end
         exact.recv.side_effect = [raw[index : index + 8192] for index in range(0, len(raw), 8192)]
@@ -163,6 +165,7 @@ class ImageBuildProxyInputTests(unittest.TestCase):
             b"\r\n"
             b"\r\n"
         )
+
         (prefix, body) = (header[:-1], b"body")
         chunks = [prefix[index : index + 8192] for index in range(0, len(prefix), 8192)]
         client = Mock()
@@ -605,6 +608,7 @@ class ImageBuildProxyWorkerTests(unittest.TestCase):
             b"Connection: close\r\n"
             b"\r\n"
         )
+
         self.assertIn("request admission", stderr.getvalue())
         self.assertIn("ValueError", stderr.getvalue())
         self.assertNotIn(_PRIVATE, stderr.getvalue())
@@ -635,6 +639,7 @@ class ImageBuildProxyWorkerTests(unittest.TestCase):
             b"HTTP/1.1 200 Connection Established\r\n"
             b"\r\n"
         )
+
         self.assertNotIn(_PRIVATE, stderr.getvalue() + stdout.getvalue())
 
     def test_initial_forwarding_write_failure_does_not_append_http_failure(self):

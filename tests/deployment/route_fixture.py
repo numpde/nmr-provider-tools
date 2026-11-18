@@ -212,6 +212,7 @@ def shared_group_socket(mode, path, owner_uid, access_gid):
     mounts = pathlib.Path("/proc/self/mountinfo").read_text().splitlines()
 
     socket_mount_path = str(path.parent)
+
     socket_mount_options = [
         fields[5].split(",")
         for line in mounts
@@ -251,6 +252,7 @@ def shared_group_socket(mode, path, owner_uid, access_gid):
                 b"CONNECT witness.invalid:1 HTTP/1.1\r\n"
                 b"\r\n"
             )
+
             response = bytearray()
 
             while (

@@ -72,6 +72,7 @@ class WheelhouseBundleTests(unittest.TestCase):
             build(root, first, root, lock, type_requirements_source=type_requirements_source)
             build(root, second, root, lock, type_requirements_source=type_requirements_source)
             self.assertEqual(first.read_bytes(), second.read_bytes())
+
             inventory = wheelhouse_source_inventory(
                 root / "wheelhouse_tool",
                 type_requirements_source=type_requirements_source,
@@ -82,6 +83,7 @@ class WheelhouseBundleTests(unittest.TestCase):
                     name.removeprefix("wheelhouse_tool/"): archive.read(name)
                     for name in archive.namelist() if name.startswith("wheelhouse_tool/")
                 }
+
                 payload["type_requirements.py"] = archive.read("type_requirements.py")
 
             self.assertEqual(set(inventory), set(payload))

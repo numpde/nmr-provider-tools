@@ -337,6 +337,7 @@ class TransportDecodedTests(unittest.IsolatedAsyncioTestCase):
                     b'\r\n'
                     b'\r\n',
                 )
+
                 writer.write(
                     b'HTTP/1.1 200 OK\r\n'
                     b'Content-Encoding: gzip\r\n'
@@ -347,6 +348,7 @@ class TransportDecodedTests(unittest.IsolatedAsyncioTestCase):
                     b'\r\n'
                     + wire,
                 )
+
                 await writer.drain()
             finally:
                 writer.close()

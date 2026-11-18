@@ -22,6 +22,7 @@ class DeliveryRetireOldTests(unittest.TestCase):
 
             docker.mkdir(parents=True)
             retirement_script = root / 'operations/delivery/retire_old.sh'
+
             retirement_script.parent.mkdir(parents=True)
             shutil.copyfile(ROOT / 'operations/delivery/retire_old.sh', retirement_script)
             (root / 'volumes').write_text(''.join(name + '\n' for name in names))

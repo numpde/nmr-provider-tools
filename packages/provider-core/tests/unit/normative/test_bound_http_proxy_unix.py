@@ -50,6 +50,7 @@ class HTTPResponse(socketserver.BaseRequestHandler):
         (header, _) = bound_http_proxy.receive_headers(self.request)
 
         self.server.headers.append(header)
+
         self.request.sendall(
             b"HTTP/1.1 200 OK\r\n"
             b"Content-Length: 2\r\n"
@@ -87,6 +88,7 @@ class UnixProxyTests(unittest.TestCase):
                                     "\r\n"
                                 ).encode(),
                             )
+
                             client.shutdown(socket.SHUT_WR)
                             response = read_all(client)
 
@@ -97,6 +99,7 @@ class UnixProxyTests(unittest.TestCase):
                         b"ok",
                     ),
                 )
+
                 self.assertEqual(
                     [
                         (
@@ -124,6 +127,7 @@ class UnixProxyTests(unittest.TestCase):
                                     "ping"
                                 ).encode(),
                             )
+
                             client.shutdown(socket.SHUT_WR)
                             response = read_all(client)
 
@@ -152,6 +156,7 @@ class UnixProxyTests(unittest.TestCase):
                 b"\r\n",
                 response,
             )
+
             self.assertIn("FileNotFoundError", errors.getvalue())
             self.assertNotIn(str(missing_socket_path), errors.getvalue())
 

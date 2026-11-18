@@ -111,10 +111,12 @@ def contents(pool, source, core_wheel, pin, *, revision, wheelhouse_bundle):
 
     for name in SOURCE_FILES:
         source_path = source / "host" / name
+
         if name.startswith("acquisition_tool/"):
             source_path = source / "packages/acquisition" / name
         elif name == "tools/docker_client.sh":
             source_path = source / "operations/docker/docker_client.sh"
+
         _add(files, name, source_path.read_bytes())
 
     _add(files, "compose/acquisition.yml", (source / "packages/acquisition/compose/acquisition.yml").read_bytes())

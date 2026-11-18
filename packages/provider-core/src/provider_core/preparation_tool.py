@@ -75,10 +75,13 @@ class PreparationTool[PreparedT]:
 
         # Retain the request and acquired operation so resume does not create new work
         self.preparation_submission: Submission | None = None
+
         # Publish the accepted state before report cleanup, preventing another proposal
         self.prepared_state_handle: StateHandle[PreparedT] | None = None
+
         # Remember the temporary report so an interrupted waiter can finish releasing it
         self.preparation_report_ref: ResultRef | None = None
+
         # Keep observing the same release if cleanup is interrupted
         self.preparation_report_release: ResultRelease | None = None
 

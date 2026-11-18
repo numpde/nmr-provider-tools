@@ -121,6 +121,7 @@ def receive_headers(client: socket.socket) -> tuple[bytes, bytes]:
             raise ConnectionError("client closed before sending headers")
 
         data.extend(chunk)
+
         terminator = data.find(
             b"\r\n"
             b"\r\n",
@@ -754,6 +755,7 @@ class UnixRelayHandler(socketserver.BaseRequestHandler):
             if phase == "gateway connection":
                 try:
                     self.request.settimeout(1)
+
                     self.request.sendall(
                         b"HTTP/1.1 502 Bad Gateway\r\n"
                         b"Connection: close\r\n"

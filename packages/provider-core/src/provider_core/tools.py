@@ -14,6 +14,7 @@ def duplicate_json_fields(field_pairs: list[tuple[str, object]]) -> Counter[str]
 
 def require_absolute_path(path: str | pathlib.Path) -> pathlib.Path:
     """Return an absolute NUL-free path without resolving it or accessing files."""
+
     if not isinstance(path, (expected_types := (str, pathlib.Path))):
         raise TypeError(f"{type(path)=} ∉ {expected_types=}")
 
@@ -30,6 +31,7 @@ def require_absolute_path(path: str | pathlib.Path) -> pathlib.Path:
 
 def require_finite_number(number: object) -> int | float:
     """Return a finite int or float, excluding booleans."""
+
     if not (type(number) in (expected_types := (int, float))):
         raise TypeError(f"{type(number)=} ∉ {expected_types=}")
 

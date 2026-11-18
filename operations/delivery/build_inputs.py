@@ -214,10 +214,12 @@ def _capture_image_inputs(pin, runtime_lock, pool, destination, lock_fd):
     )
 
     installer = installer_release(destination / "requirements/installer-release.json")
+
     copy_instructions += (
         "\n"
         "COPY " + json.dumps(["installer/" + installer["name"], "/installer/" + installer["name"]])
     )
+
     selected_dockerfile = destination / "operations/delivery/image/Dockerfile.selected"
 
     with selected_dockerfile.open("x") as target:

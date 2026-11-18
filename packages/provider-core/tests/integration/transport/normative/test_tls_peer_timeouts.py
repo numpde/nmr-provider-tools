@@ -42,7 +42,9 @@ class TlsPeerTimeoutTests(unittest.IsolatedAsyncioTestCase):
                     b"Connection: close\r\n"
                     b"\r\n",
                 )
+
                 await writer.drain()
+
                 head = await asyncio.wait_for(
                     reader.readuntil(
                         b"\r\n"
@@ -50,6 +52,7 @@ class TlsPeerTimeoutTests(unittest.IsolatedAsyncioTestCase):
                     ),
                     2,
                 )
+
                 body = await asyncio.wait_for(reader.readexactly(4), 2)
 
                 self.assertIn(b"HTTP/1.1 200 OK", head)

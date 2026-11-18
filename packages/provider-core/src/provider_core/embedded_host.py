@@ -50,6 +50,7 @@ from provider_core._embedded_support import (
     _Resident,
     _ScientificAnalysis,
 )
+
 from provider_core.type_requirements import require_instance, require_type
 
 

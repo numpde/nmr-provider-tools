@@ -815,6 +815,7 @@ class WheelhouseTests(unittest.TestCase):
             'torch==2.3.0+cpu \\\n'
             '    --hash=sha256:' + digest + '\n'
         )
+
         url = "https://example.invalid/torch-2.3.0%2Bcpu-cp312-cp312-linux_x86_64.whl#sha256=" + digest
         projected = tomllib.loads(locate(self.lock, direct_sources=[url]))
 
@@ -925,6 +926,7 @@ class WheelhouseTests(unittest.TestCase):
             " \\\n"
             "    --hash=sha256:" + digest + "\n"
         )
+
         self.assertEqual("torch", tomllib.loads(locate(self.lock))["packages"][0]["name"])
 
         with self.assertRaisesRegex(ValueError, "differs from its locked identity"):

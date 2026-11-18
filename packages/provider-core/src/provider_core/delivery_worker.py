@@ -82,6 +82,7 @@ class DeliveryWorker:
         seconds, with the initial delay no greater than the maximum. on_notice
         is called synchronously with a failure or None and the publication facts.
         """
+
         if api.origin != endpoint.api_origin:
             raise ValueError(f"{api.origin=} should match {endpoint.api_origin=}")
 
@@ -127,6 +128,7 @@ class DeliveryWorker:
 
     def _facts(self, event: str, item: DeliveryOutcome) -> dict[str, str]:
         """Identify the retained request in a publisher notice."""
+
         return {"event": event, **item.acceptance()}
 
     async def _backoff(self, delay: float, minimum: float, seconds: float) -> None:
@@ -175,6 +177,7 @@ class DeliveryWorker:
 
             Another request's progress does not settle this retained report.
             """
+
             return {
                 **self._facts(event, item),
                 "publication_wait_seconds": loop.time() - publication_started
@@ -284,6 +287,7 @@ class DeliveryWorker:
         on_notice. Cancellation is re-raised after retirement with that failure as
         its cause, so cleanup diagnostics survive the cancelled caller.
         """
+
         if self._running:
             raise ValueError("A delivery binding already has its serial API worker.")
 

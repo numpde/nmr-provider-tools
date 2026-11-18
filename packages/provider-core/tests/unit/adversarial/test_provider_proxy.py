@@ -68,11 +68,13 @@ class ServiceProxyRefusalTests(unittest.TestCase):
                     self.assertNotIn(private, output.getvalue())
 
                 self.assertIn("192.0.2.53", output.getvalue())
+
                 request.sendall.assert_called_once_with(
                     b"HTTP/1.1 502 Bad Gateway\r\n"
                     b"Connection: close\r\n"
                     b"\r\n",
                 )
+
                 channels.assert_called_once_with(socket.AF_INET, socket.SOCK_DGRAM)
                 udp.send.assert_called_once()
                 udp.__exit__.assert_called_once()

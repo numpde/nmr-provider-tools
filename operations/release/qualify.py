@@ -67,6 +67,7 @@ def qualify_wheelhouse_bundle(bundle, scratch):
     )
 
     projected_lock = scratch / "pylock.local.toml"
+
     wheelhouse_command = [
         "python3",  # Use the qualification container's base interpreter
         "-I",  # Ignore PYTHON* settings and the user site
@@ -300,6 +301,7 @@ def qualify_acquisition_bundle(bundle, scratch, expected_source_files):
     if not (verified_sources.keys() == expected_source_files.keys()):
         missing_members = sorted(expected_source_files.keys() - verified_sources.keys(), key=repr)
         unexpected_members = sorted(verified_sources.keys() - expected_source_files.keys())
+
         raise ValueError(f"Acquisition archive members should match the source inventory, but {missing_members=} and {unexpected_members=}")
 
     for member_name in verified_sources:

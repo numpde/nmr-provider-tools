@@ -21,6 +21,7 @@ class InstallationContractTests(unittest.TestCase):
                 '["PRIVATE_BINDING_KEY_CANARY"]\n'
                 'x=2\n',
             )
+
             binding_path.chmod(0o600)
 
             completed_process = subprocess.run(

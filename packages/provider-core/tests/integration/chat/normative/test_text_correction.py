@@ -55,6 +55,7 @@ class TextCorrectionTests(unittest.IsolatedAsyncioTestCase):
             "Cannot prepare input: shift_lo='5.801' (type=str).\n"
             "Choose a finite number."
         )
+
         rejection = ToolRejected(diagnostic)
         rejection.__cause__ = ValueError("PRIVATE scientific admission cause")
         value = {"z": 1, "a": "5.801"}

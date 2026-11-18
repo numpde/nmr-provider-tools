@@ -253,6 +253,7 @@ class PreparationToolTests(unittest.IsolatedAsyncioTestCase):
 
             # Only an explicit retry after observing rejection may start new work
             await self.propose(value=3)
+
             self.assertEqual(first=[Sample(value=-1), Sample(value=3)], second=self.science.inputs)
             self.assertIsNotNone(obj=self.preparation_tool.prepared_state_handle)
         finally:

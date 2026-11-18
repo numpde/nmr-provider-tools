@@ -207,6 +207,7 @@ def publish_file(path, destination, expected_sha256):
 
             if not (existing_sha256 == expected_sha256):
                 artifact_name = destination.name
+
                 raise ValueError(f"For {artifact_name=}, {existing_sha256=} should match {expected_sha256=}. The existing file was retained.")
         except (OSError, ValueError) as invalid_winner:
             raise conflict from invalid_winner

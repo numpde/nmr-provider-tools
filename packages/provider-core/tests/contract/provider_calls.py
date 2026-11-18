@@ -27,12 +27,14 @@ def provider_calls():
     hello = announcement()
     hello_request = hello_body(**{name: value for (name, value) in hello.items() if name != "provider_ref"})
     start = start_body("job:example", "retained-start:01")
+
     complete = complete_body(
         ATTEMPT_REF,
         " result\n"
         "雪 ",
         b"result bytes",
     )
+
     failed = fail_body(
         ATTEMPT_REF,
         "input_rejected",

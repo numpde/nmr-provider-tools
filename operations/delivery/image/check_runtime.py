@@ -21,5 +21,6 @@ for module in ("tools", "nmrnet_provider", "nmrnet_inference", "magnet_provider"
 with TemporaryDirectory() as temporary:
     root = Path(temporary)
     policy = ServicePolicy.admit("external", ["api.example:443"], [])
+
     with ServiceProxyServer(root / "proxy.sock", "lo", policy, status_directory=root):
         pass

@@ -48,6 +48,7 @@ def declaration(path):
         raise ValueError("Cannot admit checker dependencies: expected Linux/amd64 package list.")
 
     packages = document["packages"]
+
     require_instance(packages, list)
 
     if len(packages) != 1:
@@ -198,6 +199,7 @@ def install(packages, directory):
 
     for package in packages:
         package_name = package["name"]
+
         installed_version = subprocess.run(
             ["dpkg-query", "--show", "--showformat=${Version}", package_name],
             check=True,

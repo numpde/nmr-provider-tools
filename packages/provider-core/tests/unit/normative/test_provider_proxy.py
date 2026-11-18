@@ -104,12 +104,14 @@ class ServiceProxyTests(unittest.TestCase):
                 live.refresh(server)
                 self.assertEqual(server.max_admission_delay_seconds, 3)
                 self.assertIn("max_admission_delay_seconds", str(logger.return_value.warning.call_args.args[1]))
+
                 settings_path.write_text(
                     (
                         '[api_proxy]\n'
                         'max_connections = '
                     ) + '[' * 2000 + '1' + ']' * 2000,
                 )
+
                 live.next_poll = 0
 
                 live.refresh(server)
@@ -340,6 +342,7 @@ class ServiceProxyTests(unittest.TestCase):
             b"CONNECT api.example:443 HTTP/1.1\r\n"
             b"\r\n",
         )
+
         handler.server.policy = new
 
         with patch.object(bound_http_proxy, "connect_bound") as connect:
@@ -456,10 +459,12 @@ logging.getLogger('dependency').warning('dependency-warning')
                             with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as client:
                                 client.settimeout(1)
                                 client.connect(str(path))
+
                                 client.sendall(
                                     b"CONNECT denied.example:443 HTTP/1.1\r\n"
                                     b"\r\n",
                                 )
+
                                 self.assertIn(b"403 Forbidden", client.recv(1024))
 
                             self.assertIsNone(child.poll())
@@ -586,6 +591,7 @@ logging.getLogger('dependency').warning('dependency-warning')
             self.assertIs(policy.connect("api.example", 443, "eth0"), sentinel)
 
         connect.assert_called_once_with("192.0.2.8", 443, "eth0")
+
         self.assertEqual(
             policy.destination(
                 b"CONNECT api.example:8443 HTTP/1.1\r\n"
@@ -620,16 +626,19 @@ logging.getLogger('dependency').warning('dependency-warning')
                             client.settimeout(2)
                             peer.settimeout(2)
                             client.connect(str(proxy_socket_path))
+
                             client.sendall(
                                 b"CONNECT api.example:443 HTTP/1.1\r\n"
                                 b"\r\n"
                                 b"opaque-prefix",
                             )
+
                             self.assertEqual(
                                 client.recv(4096),
                                 b"HTTP/1.1 200 Connection Established\r\n"
                                 b"\r\n",
                             )
+
                             self.assertEqual(peer.recv(4096), b"opaque-prefix")
                             client.shutdown(socket.SHUT_WR)
                             self.assertEqual(peer.recv(4096), b"")

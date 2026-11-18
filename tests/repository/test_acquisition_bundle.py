@@ -50,6 +50,7 @@ class AcquisitionBundleTests(unittest.TestCase):
 
         for name in SOURCE_FILES:
             path = source / "host" / name
+
             if name.startswith("acquisition_tool/"):
                 path = source / "packages/acquisition" / name
             elif name == "tools/docker_client.sh":

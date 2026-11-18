@@ -46,6 +46,7 @@ class UnixProxy:
                     b"\r\n",
                 ),
             )
+
             self.received.set()
 
             if self.mode == "stall":
@@ -80,6 +81,7 @@ class UnixProxy:
                 b"HTTP/1.1 200 Connection Established\r\n"
                 b"\r\n",
             )
+
             await writer.drain()
 
             async def copy(source, target):

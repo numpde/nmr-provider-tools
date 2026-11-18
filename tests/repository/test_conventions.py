@@ -74,6 +74,7 @@ def has_early_guard(source, *, package_marker=False, guard_module="tools.contain
 
 def unguarded_sources(root):
     """Include new production modules and fixture source without scanning upstream."""
+
     sources = set(
         source_files(
             root=root,
@@ -91,6 +92,7 @@ def unguarded_sources(root):
 
     # The isolated setuptools interpreter only receives the staged source and backend
     sources.discard(root / "packages/provider-core/sdk_build/build_sdist.py")
+
     core_root = root / "packages/provider-core/src/provider_core"
     portable_roots = (core_root, root / "operations/delivery/image", root / "tests/deployment")
 
@@ -114,6 +116,7 @@ def unguarded_sources(root):
 
     # Scientific code imports rejection types and pure validators before launch
     portable_sources.discard(core_root / "contribution_errors.py")
+
     portable_sources.discard(core_root / "tools.py")
 
     failures = [
@@ -252,16 +255,19 @@ class ConventionDetectionTests(unittest.TestCase):
             worker.parent.mkdir(parents=True)
             worker.write_text(self.GUARD + "import json\n")
             self.assertEqual([str(worker.relative_to(root))], unguarded_sources(root))
+
             worker.write_text(
                 "from provider_core.container_guard import require_container\n"
                 "require_container()\n"
                 "import json\n",
             )
+
             self.assertEqual([], unguarded_sources(root))
 
     def test_installed_delivery_sources_keep_exact_guard_ownership(self):
         with tempfile.TemporaryDirectory() as directory:
             root = pathlib.Path(directory)
+
             portable = (
                 "operations/delivery/image/delivery_deployment.py",
                 "operations/delivery/image/check_runtime.py",
@@ -277,6 +283,7 @@ class ConventionDetectionTests(unittest.TestCase):
             ordinary = root / "tools/nested/worker.py"
 
             ordinary.parent.mkdir(parents=True)
+
             core_guard = (
                 "from provider_core.container_guard import require_container\n"
                 "require_container()\n"

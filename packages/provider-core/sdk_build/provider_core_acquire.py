@@ -169,6 +169,7 @@ def main():
     with tempfile.TemporaryDirectory(prefix="provider-core-locks-") as temporary:
         for (number, lock) in enumerate(locks):
             projection = pathlib.Path(temporary) / f"pylock.{number}.toml"
+
             command = [
                 sys.executable,  # Use the worker's Python interpreter
                 "-I",  # Ignore PYTHON* settings and the user site

@@ -36,6 +36,7 @@ def dependency_files(pool, lock):
 
         if not (wheel_sha256 in accepted_hashes):
             expected_sha256s = sorted(accepted_hashes)
+
             raise ValueError(f"For {wheel_name=}, {wheel_sha256=} should be one of {expected_sha256s=}")
 
         with zipfile.ZipFile(io.BytesIO(wheel_bytes)) as archive:
@@ -116,6 +117,7 @@ def main():
     args = parser.parse_args()
 
     package = pathlib.Path(__file__).resolve().parents[1]
+
     build(
         args.pool,
         args.output,

@@ -29,6 +29,7 @@ def exchange(proxy_port, origin_port, tunnel):
                     "\r\n"
                 ).encode(),
             )
+
             response = b""
 
             while (
@@ -80,6 +81,7 @@ def exchange(proxy_port, origin_port, tunnel):
             ),
         ):
             origin_response_suffix = origin_response[-len(expected_suffix):]
+
             raise RuntimeError(f"{origin_response_suffix=} should be {expected_suffix=}")
 
 

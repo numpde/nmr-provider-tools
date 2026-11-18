@@ -115,6 +115,7 @@ if operation_run "$budget" inert-image; then exit 0; else exit "$?"; fi
         (shadow / "operations/docker").mkdir(parents=True)
 
         shutil.copyfile(ROOT / "host/tools/inference_native.sh", shadow / "host/tools/inference_native.sh")
+
         for name in ("container_operation.sh", "docker_client.sh", "image_lifecycle.sh"):
             shutil.copyfile(ROOT / "operations/docker" / name, shadow / "operations/docker" / name)
 
@@ -282,6 +283,7 @@ exit "$status"
         (shadow / "operations/docker").mkdir(parents=True)
 
         shutil.copyfile(ROOT / "host/tools/inference_native.sh", shadow / "host/tools/inference_native.sh")
+
         for name in ("container_operation.sh", "docker_client.sh", "image_lifecycle.sh"):
             shutil.copyfile(ROOT / "operations/docker" / name, shadow / "operations/docker" / name)
 

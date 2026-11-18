@@ -287,6 +287,7 @@ class CapturedModelTrustTests(unittest.TestCase):
         der = ssl.PEM_cert_to_DER_cert(self.certificate.decode("ascii"))
 
         encoded = base64.b64encode(der + bytes.fromhex("300ca00a06082b06010505070301"))
+
         trusted = b"-----BEGIN TRUSTED CERTIFICATE-----\n" + encoded + (
             b"\n"
             b"-----END TRUSTED CERTIFICATE-----\n"

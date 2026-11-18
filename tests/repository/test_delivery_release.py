@@ -34,15 +34,19 @@ class DeliveryReleaseTests(unittest.TestCase):
     def test_install_lock_mismatch_reports_both_hashes(self):
         self.inputs.stop()
         runtime_lock = self.pool / "runtime.lock"
+
         runtime_lock.write_bytes(b"")
         pin = self.pool / "release.json"
         expected_install_lock_sha256 = "0" * 64
+
         pin.write_text(json.dumps(self.release | {"install_lock_sha256": expected_install_lock_sha256}))
+
         install_lock_bytes = (
             "\n"
             "provider-core==1.2.3 \\\n"
             f"    --hash=sha256:{self.digest}\n"
         ).encode()
+
         install_lock_sha256 = hashlib.sha256(install_lock_bytes).hexdigest()
 
         with self.assertRaises(ValueError) as rejected:
@@ -83,6 +87,7 @@ class DeliveryReleaseTests(unittest.TestCase):
 
     def test_publisher_receives_the_exact_toml_lock(self):
         wheel_url = "https://example.invalid/provider_core-1.2.3-py3-none-any.whl"
+
         expected_lock = (
             'lock-version = "1.0"\n'
             'created-by = "nmr-provider-tools delivery"\n'
@@ -97,6 +102,7 @@ class DeliveryReleaseTests(unittest.TestCase):
 
         def inspect_lock(command, *, check):
             generated_lock = pathlib.Path(command[command.index("--lock") + 1])
+
             self.assertEqual(first=expected_lock, second=generated_lock.read_bytes())
 
         with patch.object(delivery_image.subprocess, "run", side_effect=inspect_lock) as publish:

@@ -84,11 +84,13 @@ def multiline_comprehension_findings(*, source: str) -> list[tuple[int, str]]:
 def multiline_filter_findings(*, source: str) -> list[tuple[int, str]]:
     """Find comprehension filters that start a multiline Boolean condition beside if."""
     lines = source.splitlines()
+
     tokens = [
         token
         for token in tokenize.generate_tokens(readline=io.StringIO(initial_value=source).readline)
         if token.type not in {tokenize.COMMENT, tokenize.NL, tokenize.NEWLINE}
     ]
+
     token_indices = {token.start: index for (index, token) in enumerate(tokens)}
     findings = []
 
@@ -131,6 +133,7 @@ class MultilineComprehensionPostureTests(unittest.TestCase):
 
         self.assertEqual(first=[], second=multiline_comprehension_findings(source=source))
         self.assertEqual(first=[], second=multiline_filter_findings(source=source))
+
         self.assertEqual(
             first=[(4, "put if on its own line before a multiline comprehension filter")],
             second=multiline_filter_findings(
@@ -143,6 +146,7 @@ class MultilineComprehensionPostureTests(unittest.TestCase):
                 )
             ),
         )
+
         self.assertEqual(
             first=[(3, "put if on its own line before a multiline comprehension filter")],
             second=multiline_filter_findings(

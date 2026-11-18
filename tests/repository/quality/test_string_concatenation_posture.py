@@ -13,9 +13,11 @@ from .sources import ROOT, python_sources
 
 def mixed_string_prefix_lines(*, source: str) -> list[int]:
     """Report the first mixed prefix in each run of adjacent literals."""
+
     # Each f-string gets its own context so literals in replacement expressions
     # cannot affect concatenation around the enclosing f-string
     runs = [None]
+
     findings = []
 
     for token in tokenize.generate_tokens(io.StringIO(source).readline):

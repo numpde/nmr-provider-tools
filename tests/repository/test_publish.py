@@ -36,6 +36,7 @@ class PublicationTests(unittest.TestCase):
         (self.root / "operations/docker/docker_context.sh").write_text("select_docker_context() { :; }\n")
 
         (self.root / "packages/provider-core/sdk_build").mkdir(parents=True)
+
         (self.root / "packages/provider-core/sdk_build/provider_core.sh").write_text(
             '#!/usr/bin/env bash\n'
             'set -euo pipefail\n'

@@ -29,6 +29,7 @@ class GeneratedShutdownTests(unittest.TestCase):
     def test_terminal_chunk_preserves_generated_octets(self, chunks, tunnel, fragment_size):
         body = b"".join(chunks)
         framed = b"".join(format(len(chunk), "x").encode() + b"\r\n" + chunk + b"\r\n" for chunk in chunks)
+
         wire = (
             b"HTTP/1.1 200 OK\r\n"
             b"Transfer-Encoding: chunked\r\n"

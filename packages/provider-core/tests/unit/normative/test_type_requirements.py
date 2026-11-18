@@ -171,6 +171,7 @@ class TypeRequirementsTests(unittest.TestCase):
 
         def value():
             calls.append(1)
+
             return "hello"
 
         with self.assertRaises(TypeError) as raised:

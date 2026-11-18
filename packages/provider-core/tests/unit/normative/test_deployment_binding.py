@@ -64,6 +64,7 @@ class DeploymentBindingTests(unittest.TestCase):
         )
 
         self.assertEqual("external", parse_deployment_bindings(external).bindings[0].route["mode"])
+
         local = raw.replace(
             b'mode = "mapped"',
             (
