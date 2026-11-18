@@ -67,19 +67,33 @@ def qualify_wheelhouse_bundle(bundle, scratch):
     )
 
     projected_lock = scratch / "pylock.local.toml"
-    wheelhouse_command = ["python3", "-I", "-S", str(bundle)]
+    wheelhouse_command = [
+        "python3",  # Use the qualification container's base interpreter
+        "-I",  # Ignore PYTHON* settings and the user site
+        "-S",  # Skip site initialization and installed dependencies
+        str(bundle),  # Load dependencies from the issued zipapp
+    ]
 
     subprocess.run(
-        [*wheelhouse_command, "locate", "--help"],
-        check=True,
-        stdout=subprocess.DEVNULL,
+        [
+            *wheelhouse_command,  # Exercise the issued zipapp in isolation
+            "locate",  # Load the artifact lookup command
+            "--help",  # Verify that the command loads without fetching packages
+        ],
+        check=True,  # Reject a bundle that cannot load the command
+        stdout=subprocess.DEVNULL,  # Keep successful help text out of the release log
     )
 
     selected_wheels = subprocess.run(
-        [*wheelhouse_command, "select", "--lock", str(selection_lock)],
-        check=True,
-        stdout=subprocess.PIPE,
-        text=True,
+        [
+            *wheelhouse_command,  # Resolve with the issued zipapp
+            "select",  # Compute the artifact selection without downloading
+            "--lock",  # Read selection inputs from a lock
+            str(selection_lock),  # Use the one-wheel qualification fixture
+        ],
+        check=True,  # Reject failed selection before reading its output
+        stdout=subprocess.PIPE,  # Capture the selected artifacts for comparison
+        text=True,  # Read the JSON selection as text
     )
 
     if json.loads(selected_wheels.stdout)["artifacts"][0]["sha256"] != packaging_digest:
@@ -87,19 +101,19 @@ def qualify_wheelhouse_bundle(bundle, scratch):
 
     subprocess.run(
         [
-            *wheelhouse_command,
-            "check",
-            "--lock",
-            str(selection_lock),
-            "--pool",
-            "/wheelhouse",
-            "--local-lock",
-            str(projected_lock),
-            "--local-root",
-            "/wheels",
+            *wheelhouse_command,  # Verify artifacts with the issued zipapp
+            "check",  # Verify the selected wheel in the local pool
+            "--lock",  # Select the expected artifact and hash
+            str(selection_lock),  # Use the same fixture as the selection check
+            "--pool",  # Select the source of cached wheel bytes
+            "/wheelhouse",  # Read the mounted release wheelhouse
+            "--local-lock",  # Generate a lock that points to local files
+            str(projected_lock),  # Keep the projection for independent inspection
+            "--local-root",  # Set the artifact path as seen by the consumer
+            "/wheels",  # Use the eventual installation mount path
         ],
-        check=True,
-        stdout=subprocess.DEVNULL,
+        check=True,  # Reject a missing or mismatched wheel
+        stdout=subprocess.DEVNULL,  # Inspect the projected file directly
     )
 
     projected_artifact = tomllib.loads(projected_lock.read_text())["packages"][0]["wheels"][0]
@@ -137,18 +151,18 @@ def qualify_wheelhouse_bundle(bundle, scratch):
 
     report_conversion = subprocess.run(
         [
-            *wheelhouse_command,
-            "report",
-            "--report",
-            str(report),
-            "--pool",
-            "/wheelhouse",
-            "--directory",
-            "wheels",
+            *wheelhouse_command,  # Parse the report with the issued zipapp
+            "report",  # Convert pip's selection into a build-input manifest
+            "--report",  # Identify the pip report to convert
+            str(report),  # Use the fixture for the selected wheel
+            "--pool",  # Require the reported wheel to come from this pool
+            "/wheelhouse",  # Resolve the fixture's local wheel path
+            "--directory",  # Select the wheel's destination in the context
+            "wheels",  # Place wheels under the context's wheels directory
         ],
-        check=True,
-        stdout=subprocess.PIPE,
-        text=True,
+        check=True,  # Reject report conversion failure
+        stdout=subprocess.PIPE,  # Capture the generated manifest
+        text=True,  # Keep the result available for JSON parsing and writing
     )
 
     expected_report = [
@@ -161,10 +175,15 @@ def qualify_wheelhouse_bundle(bundle, scratch):
     manifest.write_text(report_conversion.stdout)
 
     manifest_identity = subprocess.run(
-        [*wheelhouse_command, "identity", "--manifest", str(manifest)],
-        check=True,
-        stdout=subprocess.PIPE,
-        text=True,
+        [
+            *wheelhouse_command,  # Compute identity with the issued zipapp
+            "identity",  # Hash the canonical build manifest
+            "--manifest",  # Select the manifest to hash
+            str(manifest),  # Use the result of the report conversion
+        ],
+        check=True,  # Reject identity computation failure
+        stdout=subprocess.PIPE,  # Capture the hash for independent comparison
+        text=True,  # Read the hash as text
     ).stdout.strip()
 
     canonical_manifest = json.dumps(
@@ -194,17 +213,17 @@ def qualify_wheelhouse_bundle(bundle, scratch):
 
     streamed_context = subprocess.run(
         [
-            *wheelhouse_command,
-            "stream",
-            "--pool",
-            "/wheelhouse",
-            "--source-allowlist",
-            str(source_allowlist),
-            "--manifest",
-            str(manifest),
+            *wheelhouse_command,  # Build the context with the issued zipapp
+            "stream",  # Emit the build context as a tar stream
+            "--pool",  # Select the source of the manifest's wheel bytes
+            "/wheelhouse",  # Read wheels from the mounted cache
+            "--source-allowlist",  # Limit checkout input to explicitly selected files
+            str(source_allowlist),  # Admit the fixture Dockerfile and its hash
+            "--manifest",  # Limit wheels to the selected names and hashes
+            str(manifest),  # Reuse the independently checked wheel selection
         ],
-        check=True,
-        stdout=subprocess.PIPE,
+        check=True,  # Reject a failed context stream
+        stdout=subprocess.PIPE,  # Preserve tar bytes for inspection
     ).stdout
 
     with tarfile.open(fileobj=io.BytesIO(streamed_context)) as archive:
@@ -298,40 +317,54 @@ def qualify_acquisition_bundle(bundle, scratch, expected_source_files):
         with extracted_file.open("xb") as output:
             output.write(member_bytes)
 
-    subprocess.run(["bash", "-n", str(destination / "acquisition_tool/owner.sh")], check=True)
+    subprocess.run(
+        [
+            "bash",  # Parse the owner with its actual shell
+            "-n",  # Check shell syntax without executing the owner
+            str(destination / "acquisition_tool/owner.sh"),  # Read the extracted owner script
+        ],
+        check=True,  # Reject a bundle whose owner cannot be parsed
+    )
 
     subprocess.run(
         [
-        "python3",
-        "-I",
-        "-S",
-        "-B",
-        str(destination / "acquisition_tool/source_update.py"),
-        "verify",
-        "--source-dir",
-        str(destination),
+            "python3",  # Use the qualification container's base interpreter
+            "-I",  # Ignore PYTHON* settings and the user site
+            "-S",  # Skip installed dependencies
+            "-B",  # Keep bytecode out of the extracted tree
+            str(destination / "acquisition_tool/source_update.py"),  # Run the issued source verifier
+            "verify",  # Compare the extracted files with their manifest
+            "--source-dir",  # Select the tree to check
+            str(destination),  # Verify the actual extraction
     ],
-        check=True
+        check=True,  # Reject any manifest or source mismatch
     )
 
     cold_import_check = pathlib.Path(__file__).resolve().parents[2] / "packages/acquisition/build/acquisition_import_check.py"
 
     subprocess.run(
-        ["python3", "-I", "-S", "-B", str(cold_import_check), str(destination)],
-        check=True,
+        [
+            "python3",  # Use the qualification container's base interpreter
+            "-I",  # Ignore PYTHON* settings and the user site
+            "-S",  # Exclude site packages from the import check
+            "-B",  # Keep bytecode out of the extracted tree
+            str(cold_import_check),  # Test the acquisition modules' import closure
+            str(destination),  # Supply the extracted bundle as the only added import root
+        ],
+        check=True,  # Reject imports that need an unbundled dependency
     )
 
     subprocess.run(
         [
-            "python3",
-            "-I",
-            "-S",
-            "-B",
-            str(destination / "acquisition_tool/identity.py"),
-            "--help",
+            "python3",  # Use the qualification container's base interpreter
+            "-I",  # Ignore PYTHON* settings and the user site
+            "-S",  # Exclude site packages from the CLI check
+            "-B",  # Keep bytecode out of the extracted tree
+            str(destination / "acquisition_tool/identity.py"),  # Load the issued identity CLI
+            "--help",  # Exercise startup without contacting Docker
         ],
-        check=True,
-        stdout=subprocess.DEVNULL,
+        check=True,  # Reject an identity CLI that cannot start
+        stdout=subprocess.DEVNULL,  # Keep successful help text out of the release log
     )
 
 
@@ -514,15 +547,18 @@ def qualify_installed(wheel, lock, source, pool, root, suites):
         selected_python = behavioral_python if suite in ("unit", "integration") else runtime_python
 
         test_command = [
-            str(selected_python),
-            "-I",
-            "-B",
-            str(test_root / "tests/run_suite.py"),
-            suite,
-            "test*.py",
+            str(selected_python),  # Use the environment containing the candidate wheel
+            "-I",  # Ignore PYTHON* settings and the user site
+            "-B",  # Keep bytecode out of the staged suite
+            str(test_root / "tests/run_suite.py"),  # Run the tests issued in the source distribution
+            suite,  # Select the qualification suite for this install
+            "test*.py",  # Run the full suite without a filename filter
         ]
 
-        test_process = subprocess.run(test_command, cwd=test_root)
+        test_process = subprocess.run(
+            test_command,  # Run the installed SDK qualification suite
+            cwd=test_root,  # Resolve fixtures relative to the staged suite
+        )
 
         if test_process.returncode:
             raise SystemExit(
