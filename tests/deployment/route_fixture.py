@@ -22,7 +22,7 @@ import signal
 import ssl
 import stat
 import sys
-from pathlib import Path
+import pathlib
 from urllib.parse import urlsplit
 
 
@@ -44,7 +44,7 @@ async def peer(literal_ip):
     from tests.fakes.api_tls import api_tls_peer, verify_signed_request
     from tests.fakes.attempts import observation
 
-    root = Path("/evidence")
+    root = pathlib.Path("/evidence")
     stopping = asyncio.Event()
 
     asyncio.get_running_loop().add_signal_handler(signal.SIGTERM, stopping.set)
@@ -55,7 +55,7 @@ async def peer(literal_ip):
         if literal_ip:
             origin = server.origin
 
-        shutil.copyfile(Path(server.scratch.name) / "cert.pem", root / "ca.pem")
+        shutil.copyfile(pathlib.Path(server.scratch.name) / "cert.pem", root / "ca.pem")
         write_json(root / "received.json", {"requests": 0, "server_names": []})
 
         async def respond(request, body):
@@ -112,7 +112,7 @@ addresses = ["{urlsplit(origin).hostname}=127.0.0.1"]
 
 async def peer_info():
     deadline = asyncio.get_running_loop().time() + 10
-    path = Path("/evidence/peer.json")
+    path = pathlib.Path("/evidence/peer.json")
 
     while not path.exists():
         if asyncio.get_running_loop().time() >= deadline:
@@ -166,7 +166,7 @@ async def client(mode, path):
         raise AssertionError("Different UID unexpectedly traversed the private route")
 
     readonly_route(path)
-    origin = json.loads(Path("/evidence/peer.json").read_text())["origin"]
+    origin = json.loads(pathlib.Path("/evidence/peer.json").read_text())["origin"]
     socket = str(path)
 
     if mode == "direct":
@@ -209,7 +209,7 @@ def shared_group_socket(mode, path, owner_uid, access_gid):
     if (access_gid in os.getgroups()) != (mode == "allowed"):
         raise AssertionError("Shared grant witness has incorrect supplementary groups")
 
-    mounts = Path("/proc/self/mountinfo").read_text().splitlines()
+    mounts = pathlib.Path("/proc/self/mountinfo").read_text().splitlines()
 
     socket_mount_path = str(path.parent)
     socket_mount_options = [
@@ -337,16 +337,16 @@ def main():
     selected = commands.add_parser("client")
 
     selected.add_argument("mode", choices=("success", "lost", "direct", "forbidden"))
-    selected.add_argument("socket", type=Path)
+    selected.add_argument("socket", type=pathlib.Path)
     shared = commands.add_parser("shared-group")
 
     shared.add_argument("mode", choices=("allowed", "denied"))
-    shared.add_argument("socket", type=Path)
+    shared.add_argument("socket", type=pathlib.Path)
     shared.add_argument("owner_uid", type=int)
     shared.add_argument("access_gid", type=int)
     render = commands.add_parser("compose")
 
-    render.add_argument("projection", type=Path)
+    render.add_argument("projection", type=pathlib.Path)
 
     for name in ("image", "namespace", "operation", "fixture", "support"):
         render.add_argument("--" + name, required=True)
@@ -362,7 +362,7 @@ def main():
     elif args.action == "shared-group":
         shared_group_socket(args.mode, args.socket, args.owner_uid, args.access_gid)
     elif args.action == "received":
-        print(Path("/evidence/received.json").read_text())
+        print(pathlib.Path("/evidence/received.json").read_text())
     else:
         compose(json.loads(args.projection.read_text()), args.image, args.namespace, args.operation, args.fixture, args.support)
 

@@ -6,8 +6,8 @@ require_container()
 
 import hashlib
 import tempfile
+import pathlib
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
-from pathlib import Path
 from threading import Thread
 
 from tools.delivery_image import publish_release_wheels, release_inputs
@@ -15,9 +15,9 @@ from tools.provider_core_acquire import tool_present
 from tools.wheelhouse import read_json
 
 
-pool = Path("/wheelhouse")
-(release, _) = release_inputs(Path("/release.json"), Path("/core-runtime.lock"))
-tool = read_json(Path("/wheelhouse-tool-release.json"))
+pool = pathlib.Path("/wheelhouse")
+(release, _) = release_inputs(pathlib.Path("/release.json"), pathlib.Path("/core-runtime.lock"))
+tool = read_json(pathlib.Path("/wheelhouse-tool-release.json"))
 
 if not tool_present(pool, tool):
     wheelhouse_tool_path = pool / tool["name"]
@@ -54,7 +54,7 @@ thread.start()
 
 try:
     with tempfile.TemporaryDirectory() as temporary:
-        test_pool = Path(temporary)
+        test_pool = pathlib.Path(temporary)
         test_name = "delivery_fixture-1.0-py3-none-any.whl"
         test_url = f"http://127.0.0.1:{server.server_port}/{test_name}"
 

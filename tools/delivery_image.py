@@ -13,7 +13,7 @@ import sys
 import tempfile
 import urllib.parse
 import urllib.request
-from pathlib import Path
+import pathlib
 
 from tools.artifacts import regular_file, require_download_proxy
 from tools.installer import release as installer_release
@@ -86,7 +86,7 @@ def publish_release_wheels(tool, pool, artifacts):
     from pip._vendor.packaging.utils import parse_wheel_filename
 
     with tempfile.TemporaryDirectory(prefix="delivery-lock-") as temporary:
-        acquisition_lock = Path(temporary) / "pylock.delivery.toml"
+        acquisition_lock = pathlib.Path(temporary) / "pylock.delivery.toml"
 
         with acquisition_lock.open("x", encoding="utf-8") as stream:
             stream.write('lock-version = "1.0"\ncreated-by = "nmr-provider-tools delivery"\n')
@@ -143,9 +143,9 @@ def acquire_release(pin, runtime_lock, pool, tool):
                 metadata = json.load(response)
 
             candidates = [
-                item["url"]
-                for item in metadata["urls"]
-                if item["filename"] == wheel_name and item["digests"]["sha256"] == expected_sha256
+                release_file["url"]
+                for release_file in metadata["urls"]
+                if release_file["filename"] == wheel_name and release_file["digests"]["sha256"] == expected_sha256
             ]
 
             if len(candidates) != 1 or urllib.parse.urlsplit(candidates[0]).hostname != "files.pythonhosted.org":
@@ -234,11 +234,11 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description=__doc__)
 
     parser.add_argument("action", choices=("check", "acquire", "capture"))
-    parser.add_argument("--pin", type=Path, required=True)
-    parser.add_argument("--runtime-lock", type=Path, required=True)
-    parser.add_argument("--pool", type=Path, required=True)
-    parser.add_argument("--destination", type=Path)
-    parser.add_argument("--tool-pin", type=Path)
+    parser.add_argument("--pin", type=pathlib.Path, required=True)
+    parser.add_argument("--runtime-lock", type=pathlib.Path, required=True)
+    parser.add_argument("--pool", type=pathlib.Path, required=True)
+    parser.add_argument("--destination", type=pathlib.Path)
+    parser.add_argument("--tool-pin", type=pathlib.Path)
     args = parser.parse_args()
 
     if args.action == "check":

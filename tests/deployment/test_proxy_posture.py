@@ -21,7 +21,7 @@ import struct
 import tempfile
 import unittest
 from contextlib import redirect_stderr, redirect_stdout
-from pathlib import Path
+import pathlib
 from types import SimpleNamespace
 from unittest.mock import MagicMock, Mock, patch
 
@@ -170,7 +170,7 @@ class ImageBuildProxyTransportTests(unittest.TestCase):
         resolver = MagicMock()
         resolver.__enter__.return_value = resolver
         resolver.connect.side_effect = lambda _address: clock.__setitem__(0, 0.2)
-        resolver.send.side_effect = lambda _data: clock.__setitem__(0, 0.6)
+        resolver.send.side_effect = lambda _dns_query: clock.__setitem__(0, 0.6)
         resolver.recv.return_value = _dns_response("example.invalid")
 
         with (
@@ -271,7 +271,7 @@ class ImageBuildProxyTransportTests(unittest.TestCase):
         resolver.__enter__.return_value = resolver
 
         resolver.connect.side_effect = lambda _address: clock.__setitem__(0, 1)
-        resolver.send.side_effect = lambda _data: clock.__setitem__(0, 3)
+        resolver.send.side_effect = lambda _dns_query: clock.__setitem__(0, 3)
 
         with (
             patch.object(_PROXY.time, "monotonic", side_effect=lambda: clock[0]),
@@ -387,7 +387,7 @@ class ImageBuildProxyTransportTests(unittest.TestCase):
         (left, right) = (Mock(), Mock())
         left.recv.side_effect = lambda _size: (clock.__setitem__(0, 2), b"data")[1]
 
-        def send(_data):
+        def send(_relay_bytes):
             # silent-defaults: allow-contract -- The blocked write reaches the original inactivity deadline; the completed write finishes at second three; proof=tests/deployment/test_proxy_posture.py::ImageBuildProxyTransportTests.test_relay_resets_inactivity_only_after_a_completed_bounded_write
             clock[0] = 120 if blocked else 3
 
@@ -445,7 +445,7 @@ class ImageBuildProxyTransportTests(unittest.TestCase):
 
             return b""
 
-        def forward_response(_data):
+        def forward_response(_response_bytes):
             clock[0] = 3
 
             events.append("response forwarded")
@@ -487,7 +487,7 @@ class ImageBuildProxyTransportTests(unittest.TestCase):
         clock = [0]
         (left, right) = (Mock(), Mock())
         left.recv.side_effect = lambda _size: (clock.__setitem__(0, 1), b"data")[1]
-        right.sendall.side_effect = lambda _data: clock.__setitem__(0, 120.1)
+        right.sendall.side_effect = lambda _relay_bytes: clock.__setitem__(0, 120.1)
 
         with (
             patch.object(_PROXY.time, "monotonic", side_effect=lambda: clock[0]),
@@ -633,14 +633,14 @@ class ImageBuildProxyWorkerTests(unittest.TestCase):
 
     def test_readiness_is_private_and_cannot_overwrite_a_file_or_symlink(self):
         with tempfile.TemporaryDirectory() as temporary:
-            ready = Path(temporary) / "proxy.port"
+            ready = pathlib.Path(temporary) / "proxy.port"
             server = MagicMock(server_address=("127.0.0.1", 12345))
 
             _run_main(server, ready)
             self.assertEqual("12345\n", ready.read_text(encoding="ascii"))
             self.assertEqual(0o600, stat.S_IMODE(ready.stat().st_mode))
 
-            for path in (ready, Path(temporary) / "symlink.port"):
+            for path in (ready, pathlib.Path(temporary) / "symlink.port"):
                 if path != ready:
                     path.symlink_to(ready)
 
@@ -654,20 +654,20 @@ class ImageBuildProxyWorkerTests(unittest.TestCase):
 
     def test_readiness_publication_exposes_only_complete_bytes(self):
         with tempfile.TemporaryDirectory() as temporary:
-            ready = Path(temporary) / "proxy.port"
+            ready = pathlib.Path(temporary) / "proxy.port"
             server = MagicMock(server_address=("127.0.0.1", 12345))
             link = _PROXY.os.link
 
             def inspect_publication(source, destination, **kwargs):
                 self.assertFalse(ready.exists())
-                self.assertEqual("12345\n", Path(source).read_text(encoding="ascii"))
+                self.assertEqual("12345\n", pathlib.Path(source).read_text(encoding="ascii"))
 
                 return link(source, destination, **kwargs)
 
             with patch.object(_PROXY.os, "link", side_effect=inspect_publication):
                 _run_main(server, ready)
 
-            self.assertEqual([], list(Path(temporary).glob(".proxy-ready.*")))
+            self.assertEqual([], list(pathlib.Path(temporary).glob(".proxy-ready.*")))
 
     def test_readiness_publication_failure_survives_temporary_cleanup_failure(self):
         """Temporary cleanup must not replace the failed publication outcome.
@@ -677,7 +677,7 @@ class ImageBuildProxyWorkerTests(unittest.TestCase):
         """
 
         with tempfile.TemporaryDirectory() as temporary:
-            ready = Path(temporary) / "proxy.port"
+            ready = pathlib.Path(temporary) / "proxy.port"
 
             ready.write_text("prior receipt\n", encoding="ascii")
             server = MagicMock(server_address=("127.0.0.1", 12345))
@@ -685,7 +685,7 @@ class ImageBuildProxyWorkerTests(unittest.TestCase):
 
             with (
                 patch.object(_PROXY.os, "link", side_effect=FileExistsError(_PRIVATE)),
-                patch.object(_PROXY.Path, "unlink", side_effect=PermissionError(_PRIVATE)),
+                patch.object(pathlib.Path, "unlink", side_effect=PermissionError(_PRIVATE)),
                 redirect_stderr(stderr),
                 self.assertRaises(SystemExit) as rejected,
             ):
@@ -696,7 +696,7 @@ class ImageBuildProxyWorkerTests(unittest.TestCase):
             self.assertIn("Cannot confirm temporary readiness cleanup", stderr.getvalue())
             self.assertNotIn(_PRIVATE, str(rejected.exception) + stderr.getvalue())
             self.assertEqual("prior receipt\n", ready.read_text(encoding="ascii"))
-            retained = list(Path(temporary).glob(".proxy-ready.*"))
+            retained = list(pathlib.Path(temporary).glob(".proxy-ready.*"))
 
             self.assertEqual(1, len(retained))
             self.assertEqual("12345\n", retained[0].read_text(encoding="ascii"))
@@ -717,7 +717,7 @@ class ImageBuildProxyWorkerTests(unittest.TestCase):
         """Observe continued serving without ever unlinking a receipt path."""
 
         with tempfile.TemporaryDirectory() as temporary:
-            ready = Path(temporary) / "proxy.port"
+            ready = pathlib.Path(temporary) / "proxy.port"
             server = MagicMock(server_address=("127.0.0.1", 12345))
             stderr = io.StringIO()
             link = _PROXY.os.link
@@ -727,11 +727,11 @@ class ImageBuildProxyWorkerTests(unittest.TestCase):
 
                 if replaced:
                     _PROXY.os.unlink(destination)
-                    Path(destination).write_text("replacement receipt\n", encoding="ascii")
+                    pathlib.Path(destination).write_text("replacement receipt\n", encoding="ascii")
 
             with (
                 patch.object(_PROXY.os, "link", side_effect=publish),
-                patch.object(_PROXY.Path, "unlink", side_effect=PermissionError(_PRIVATE)),
+                patch.object(pathlib.Path, "unlink", side_effect=PermissionError(_PRIVATE)),
                 redirect_stderr(stderr),
             ):
                 _run_main(server, ready)
@@ -744,7 +744,7 @@ class ImageBuildProxyWorkerTests(unittest.TestCase):
             # silent-defaults: allow-contract -- The replacement scenario keeps its replacement receipt; the ordinary scenario keeps the published port receipt while serving continues; proof=tests/deployment/test_proxy_posture.py::ImageBuildProxyWorkerTests.test_readiness_published_receipt_still_serves_when_temporary_cleanup_fails
             self.assertEqual(ready.read_text(encoding="ascii"), "replacement receipt\n" if replaced else "12345\n")
 
-            retained = list(Path(temporary).glob(".proxy-ready.*"))
+            retained = list(pathlib.Path(temporary).glob(".proxy-ready.*"))
 
             self.assertEqual(1, len(retained))
             self.assertEqual("12345\n", retained[0].read_text(encoding="ascii"))

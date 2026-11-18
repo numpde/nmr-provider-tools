@@ -18,7 +18,7 @@ import re
 import stat
 import sys
 import tomllib
-from pathlib import Path
+import pathlib
 from types import SimpleNamespace
 
 import tomli_w
@@ -50,21 +50,21 @@ def _details(error, text, diagnostic_window):
     return owned_details(error)
 
 
-def _path(value):
+def _require_mount_path(mount_path):
     try:
-        path = require_absolute_path(value)
+        absolute_mount_path = require_absolute_path(mount_path)
     except (TypeError, ValueError) as cause:
         raise DeliveryDeploymentRejected("Cannot admit a delivery input path") from cause
 
     if (
-        path.resolve() != path
-        or any(character in str(path) for character in ("\n", "\r", ","))
+        absolute_mount_path.resolve() != absolute_mount_path
+        or any(character in str(absolute_mount_path) for character in ("\n", "\r", ","))
     ):
         raise DeliveryDeploymentRejected(
             "Delivery inputs require canonical absolute paths without mount delimiters."
         )
 
-    return path
+    return absolute_mount_path
 
 
 def read_definition(path):
@@ -200,7 +200,7 @@ def render(definition, source, image, checksum):
             "Delivery rendering requires its installing nonzero UID and an immutable image ID."
         )
 
-    source = _path(source)
+    source = _require_mount_path(source)
     listeners = admit_listeners(definition)
     queue_volume = definition.project + "-queue"
     services = {}
@@ -282,7 +282,7 @@ def render(definition, source, image, checksum):
     }
 
     delivery_service["volumes"].extend(
-        _bind(path, "/grants" + path) for path in sorted(trust_paths)
+        _bind(trust_path, "/grants" + trust_path) for trust_path in sorted(trust_paths)
     )
 
     volume_initializer = _service(image, "provider_core.delivery_main", definition, 10)
@@ -375,14 +375,14 @@ def render_shared(path, source, image):
                 raise ValueError
 
         # silent-defaults: allow-contract -- Only external mode grants a resolver file.
-        resolver = _path(route["resolver_file"]) if mode == "external" else None
+        resolver = _require_mount_path(route["resolver_file"]) if mode == "external" else None
     except (KeyError, TypeError, ValueError, UnicodeError, RecursionError, OverflowError):
         raise DeliveryDeploymentRejected(
             "Shared deployment settings require the documented host, route, "
             "proxy and outbox inputs."
         ) from None
 
-    source = _path(source)
+    source = _require_mount_path(source)
     config_path = "/settings/" + source.name
     owner = SimpleNamespace(uid=uid, gid=gid, project=project)
     proxy_volume = project + "-proxy-socket"
@@ -564,7 +564,7 @@ def runtime_configuration(path, expected):
             "its 65536-byte contract."
         )
 
-    configuration_path = Path("/run/delivery.toml")
+    configuration_path = pathlib.Path("/run/delivery.toml")
 
     with configuration_path.open("xb") as stream:
         os.fchmod(stream.fileno(), 0o600)
@@ -577,7 +577,7 @@ async def intake_ready(binding, listener):
     endpoint = DeliveryEndpoint(
         binding.api["origin"],
         binding.api["provider_ref"],
-        Path(listener),
+        pathlib.Path(listener),
         socket_group_id=binding.socket_group_id,
     )
 
@@ -607,7 +607,7 @@ async def health(definition):
     )
 
     intake_failures = [
-        result for result in intake_results if isinstance(result, BaseException)
+        intake_result for intake_result in intake_results if isinstance(intake_result, BaseException)
     ]
 
     if intake_failures:
@@ -624,9 +624,9 @@ def initialize(uid, gid, queue, ipc):
             "nonzero target UID/GID."
         )
 
-    for (target, mode) in [(queue, 0o700), *((path, 0o710) for path in ipc)]:
-        path = _path(target)
-        observed_metadata = path.lstat()
+    for (target, mode) in [(queue, 0o700), *((ipc_root, 0o710) for ipc_root in ipc)]:
+        volume_root = _require_mount_path(target)
+        observed_metadata = volume_root.lstat()
 
         # todo: use format/pattern from elsewhere
         if not stat.S_ISDIR(observed_metadata.st_mode):
@@ -639,13 +639,13 @@ def initialize(uid, gid, queue, ipc):
         ) == (uid, gid, mode):
             continue
 
-        if observed_metadata.st_uid != 0 or any(path.iterdir()):
+        if observed_metadata.st_uid != 0 or any(volume_root.iterdir()):
             raise DeliveryDeploymentRejected(
                 "Refusing to change an existing delivery volume with "
                 "unexpected ownership, mode or contents."
             )
 
-        volume_fd = os.open(path, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW | os.O_CLOEXEC)
+        volume_fd = os.open(volume_root, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW | os.O_CLOEXEC)
 
         try:
             os.fchmod(volume_fd, mode)
@@ -661,20 +661,20 @@ def main():
 
     renderer = commands.add_parser("render")
 
-    renderer.add_argument("--definition", type=Path, required=True)
-    renderer.add_argument("--source", type=Path, required=True)
+    renderer.add_argument("--definition", type=pathlib.Path, required=True)
+    renderer.add_argument("--source", type=pathlib.Path, required=True)
     renderer.add_argument("--image", required=True)
 
     shared_renderer = commands.add_parser("render-shared")
 
-    shared_renderer.add_argument("--definition", type=Path, required=True)
-    shared_renderer.add_argument("--source", type=Path, required=True)
+    shared_renderer.add_argument("--definition", type=pathlib.Path, required=True)
+    shared_renderer.add_argument("--source", type=pathlib.Path, required=True)
     shared_renderer.add_argument("--image", required=True)
 
     for name in ("run", "operator", "health"):
         operation_parser = commands.add_parser(name)
 
-        operation_parser.add_argument("--definition", type=Path, required=True)
+        operation_parser.add_argument("--definition", type=pathlib.Path, required=True)
         operation_parser.add_argument("--sha256", required=True)
 
         if name == "operator":
@@ -685,8 +685,8 @@ def main():
     for name in ("uid", "gid"):
         initializer_parser.add_argument("--" + name, type=int, required=True)
 
-    initializer_parser.add_argument("--queue", type=Path, required=True)
-    initializer_parser.add_argument("--ipc", type=Path, action="append", required=True)
+    initializer_parser.add_argument("--queue", type=pathlib.Path, required=True)
+    initializer_parser.add_argument("--ipc", type=pathlib.Path, action="append", required=True)
 
     options = parser.parse_args()
 

@@ -5,7 +5,7 @@ from tools.container_guard import require_container
 require_container()
 
 import os
-from pathlib import Path
+import pathlib
 import shutil
 import subprocess
 import tempfile
@@ -17,7 +17,7 @@ from tests.repository.quality.sources import ROOT
 class DeliveryRetireOldTests(unittest.TestCase):
     def run_retirement(self, scenario, names):
         with tempfile.TemporaryDirectory() as temporary:
-            root = Path(temporary)
+            root = pathlib.Path(temporary)
             tools = root / 'host/tools'
 
             tools.mkdir(parents=True)
@@ -83,7 +83,7 @@ checker_call() {
                 'PROBE_SCENARIO': scenario,
             }
 
-            result = subprocess.run(
+            completed_process = subprocess.run(
                 ['bash', str(tools / 'delivery_retire_old.sh'), environment['PROBE_PROJECT'], environment['PROBE_IMAGE']],
                 env=environment,
                 text=True,
@@ -97,17 +97,17 @@ checker_call() {
             if (root / 'removed').exists():
                 removed = (root / 'removed').read_text().splitlines()
 
-            result.reservation_retained = (root / 'reservation').exists()
+            completed_process.reservation_retained = (root / 'reservation').exists()
 
-            return (result, remaining, removed)
+            return (completed_process, remaining, removed)
 
     def test_removes_only_owned_old_sockets(self):
         (project, digest) = ('delivery-test', 'b' * 64)
         old = [f'{project}-ipc-{digest}', f'{project}-route-{digest}']
         protected = [f'{project}-queue', f'{project}-proxy-socket', f'{project}-outbox-socket']
-        (result, remaining, removed) = self.run_retirement('normal', old + protected)
+        (retirement_process, remaining, removed) = self.run_retirement('normal', old + protected)
 
-        self.assertEqual(0, result.returncode, msg=result.stderr)
+        self.assertEqual(0, retirement_process.returncode, msg=retirement_process.stderr)
         self.assertEqual(old, removed)
         self.assertEqual(protected, remaining)
 
@@ -116,43 +116,43 @@ checker_call() {
 
         for scenario in ('foreign', 'bad-driver', 'borrowed', 'changed'):
             with self.subTest(scenario=scenario):
-                (result, remaining, removed) = self.run_retirement(scenario, [name])
+                (retirement_process, remaining, removed) = self.run_retirement(scenario, [name])
 
-                self.assertNotEqual(0, result.returncode)
+                self.assertNotEqual(0, retirement_process.returncode)
                 self.assertEqual([name], remaining)
                 self.assertEqual([], removed)
 
     def test_later_borrower_prevents_all_removals(self):
         digest = 'b' * 64
         old = [f'delivery-test-ipc-{digest}', f'delivery-test-route-{digest}']
-        (result, remaining, removed) = self.run_retirement('later-borrowed', old)
+        (retirement_process, remaining, removed) = self.run_retirement('later-borrowed', old)
 
-        self.assertNotEqual(0, result.returncode)
+        self.assertNotEqual(0, retirement_process.returncode)
         self.assertEqual(old, remaining)
         self.assertEqual([], removed)
 
     def test_interrupted_removal_reports_possible_effect_and_preserves_status(self):
         name = 'delivery-test-ipc-' + 'b' * 64
-        (result, remaining, removed) = self.run_retirement('interrupted', [name])
+        (retirement_process, remaining, removed) = self.run_retirement('interrupted', [name])
 
-        self.assertEqual(130, result.returncode)
+        self.assertEqual(130, retirement_process.returncode)
         self.assertEqual([], remaining)
         self.assertEqual([name], removed)
-        self.assertIn('may already be removed', result.stderr)
-        self.assertIn('including its project reservation', result.stderr)
-        self.assertIn('native control receipt retained', result.stderr)
-        self.assertTrue(result.reservation_retained)
+        self.assertIn('may already be removed', retirement_process.stderr)
+        self.assertIn('including its project reservation', retirement_process.stderr)
+        self.assertIn('native control receipt retained', retirement_process.stderr)
+        self.assertTrue(retirement_process.reservation_retained)
 
     def test_malformed_final_inventory_cannot_claim_success(self):
         name = 'delivery-test-ipc-' + 'b' * 64
-        (result, _, _) = self.run_retirement('malformed-final', [name])
+        (retirement_process, _, _) = self.run_retirement('malformed-final', [name])
 
-        self.assertNotEqual(0, result.returncode)
-        self.assertIn('final volume inventory could not be confirmed', result.stderr)
+        self.assertNotEqual(0, retirement_process.returncode)
+        self.assertIn('final volume inventory could not be confirmed', retirement_process.stderr)
 
     def test_no_old_volumes_is_idempotent(self):
-        (result, remaining, removed) = self.run_retirement('normal', ['delivery-test-queue'])
+        (retirement_process, remaining, removed) = self.run_retirement('normal', ['delivery-test-queue'])
 
-        self.assertEqual(0, result.returncode, msg=result.stderr)
+        self.assertEqual(0, retirement_process.returncode, msg=retirement_process.stderr)
         self.assertEqual(['delivery-test-queue'], remaining)
         self.assertEqual([], removed)

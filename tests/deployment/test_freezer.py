@@ -12,7 +12,7 @@ import subprocess
 import sys
 import tempfile
 import unittest
-from pathlib import Path
+import pathlib
 from unittest.mock import patch
 
 from tests.unit.normative.test_deployment_binding import definition
@@ -28,7 +28,7 @@ class InstalledDeploymentTests(unittest.TestCase):
         temporary = tempfile.TemporaryDirectory()
 
         self.addCleanup(temporary.cleanup)
-        self.root = Path(temporary.name)
+        self.root = pathlib.Path(temporary.name)
 
         (self.uid, self.gid) = (os.geteuid(), os.getegid())
         self.binding_file = self.root / "definition.toml"
@@ -156,16 +156,16 @@ class InstalledDeploymentTests(unittest.TestCase):
 
     def test_cli_help_and_render_keep_safe_owned_refusal(self):
         command = [sys.executable, "-I", "-B", "/opt/provider-tools/delivery_deployment.py"]
-        result = subprocess.run([*command, "--help"], capture_output=True, text=True, check=False)
+        completed_process = subprocess.run([*command, "--help"], capture_output=True, text=True, check=False)
 
-        self.assertEqual(0, result.returncode, msg=result.stderr)
+        self.assertEqual(0, completed_process.returncode, msg=completed_process.stderr)
         self.write_definition(self.raw.replace(b'interface = "lo"', b'interface = 42'))
-        result = subprocess.run([*command, "render", "--definition", str(self.binding_file), "--source", str(self.binding_file), "--image", self.image], capture_output=True, text=True, check=False)
+        completed_process = subprocess.run([*command, "render", "--definition", str(self.binding_file), "--source", str(self.binding_file), "--image", self.image], capture_output=True, text=True, check=False)
 
-        self.assertEqual(2, result.returncode, msg=result.stderr)
-        self.assertIn("interface must be", result.stderr)
-        self.assertNotIn("Traceback", result.stderr)
-        self.assertEqual("", result.stdout)
+        self.assertEqual(2, completed_process.returncode, msg=completed_process.stderr)
+        self.assertIn("interface must be", completed_process.stderr)
+        self.assertNotIn("Traceback", completed_process.stderr)
+        self.assertEqual("", completed_process.stdout)
 
 
 if __name__ == "__main__":

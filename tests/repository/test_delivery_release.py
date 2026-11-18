@@ -8,7 +8,7 @@ import hashlib
 import json
 import tempfile
 import unittest
-from pathlib import Path
+import pathlib
 from unittest.mock import patch
 
 from tools import core_environment, delivery_image
@@ -20,7 +20,7 @@ class DeliveryReleaseTests(unittest.TestCase):
         temporary = tempfile.TemporaryDirectory()
 
         self.addCleanup(temporary.cleanup)
-        self.pool = Path(temporary.name)
+        self.pool = pathlib.Path(temporary.name)
         self.wheel = self.pool / "provider_core-1.2.3-py3-none-any.whl"
         self.content = b"released wheel"
         self.digest = hashlib.sha256(self.content).hexdigest()
@@ -35,7 +35,7 @@ class DeliveryReleaseTests(unittest.TestCase):
         inode = self.wheel.stat().st_ino
 
         with patch.object(delivery_image, "require_download_proxy", side_effect=AssertionError("network not needed")):
-            delivery_image.acquire_release(None, None, self.pool, Path("unused.pyz"))
+            delivery_image.acquire_release(None, None, self.pool, pathlib.Path("unused.pyz"))
 
         self.assertEqual(inode, self.wheel.stat().st_ino)
         self.assertEqual(self.content, self.wheel.read_bytes())
@@ -44,7 +44,7 @@ class DeliveryReleaseTests(unittest.TestCase):
         self.wheel.write_bytes(b"different")
 
         with self.assertRaisesRegex(ValueError, "existing file retained"):
-            delivery_image.acquire_release(None, None, self.pool, Path("unused.pyz"))
+            delivery_image.acquire_release(None, None, self.pool, pathlib.Path("unused.pyz"))
 
         self.assertEqual(b"different", self.wheel.read_bytes())
 
@@ -53,7 +53,7 @@ class DeliveryReleaseTests(unittest.TestCase):
             delivery_image,
             "publish_release_wheels"
         ) as publish:
-            delivery_image.acquire_release(None, None, self.pool, Path("tool.pyz"))
+            delivery_image.acquire_release(None, None, self.pool, pathlib.Path("tool.pyz"))
 
         self.assertEqual(self.wheel.name, publish.call_args.args[2][0][0])
         self.assertEqual(self.digest, publish.call_args.args[2][0][1])
@@ -65,7 +65,7 @@ class DeliveryReleaseTests(unittest.TestCase):
             side_effect=ValueError("downloaded bytes differ")
         ):
             with self.assertRaisesRegex(ValueError, "downloaded bytes"):
-                delivery_image.acquire_release(None, None, self.pool, Path("tool.pyz"))
+                delivery_image.acquire_release(None, None, self.pool, pathlib.Path("tool.pyz"))
 
         self.assertFalse(self.wheel.exists())
         self.assertEqual([], list(self.pool.iterdir()))
@@ -77,7 +77,7 @@ class DeliveryReleaseTests(unittest.TestCase):
         }
 
         with tempfile.TemporaryDirectory() as temporary:
-            destination = Path(temporary)
+            destination = pathlib.Path(temporary)
             dockerfile = destination / "containers/delivery/Dockerfile"
 
             dockerfile.parent.mkdir(parents=True)
@@ -119,10 +119,10 @@ class DeliveryReleaseTests(unittest.TestCase):
 
     def test_install_uses_pool_directly_and_checks_captured_identities(self):
         with tempfile.TemporaryDirectory() as temporary:
-            root = Path(temporary) / "runtime"
+            root = pathlib.Path(temporary) / "runtime"
 
             root.mkdir()
-            lock = Path(temporary) / "provider-core-install.lock"
+            lock = pathlib.Path(temporary) / "provider-core-install.lock"
 
             lock.write_bytes(b"lock")
 
