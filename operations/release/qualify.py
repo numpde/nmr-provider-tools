@@ -228,36 +228,51 @@ def qualify_acquisition_bundle(bundle, scratch, expected_source_files):
         verified_sources = {}
 
         for member in archive.getmembers():
-            member_path = PurePosixPath(member.name)
+            member_name = member.name
+            member_path = PurePosixPath(member_name)
 
             if (
-                not member.name
+                not member_name
                 or not member_path.parts
                 or member_path.is_absolute()
                 or ".." in member_path.parts
-                or member_path.as_posix() != member.name
+                or member_path.as_posix() != member_name
                 or not member.isfile()
-                or member.name in verified_sources
             ):
-                raise ValueError("Cannot qualify acquisition source bundle: unsafe or duplicate member.")
+                raise ValueError(f"{member_name=} should be a regular file at a canonical relative path within the acquisition archive")
 
-            expected_member = expected_source_files.get(member.name)
+            if not (member_name not in verified_sources):
+                raise ValueError(f"{member_name=} should appear only once in the acquisition archive")
+
+            expected_member = expected_source_files.get(member_name)
 
             require_type(expected_member, dict)
 
-            if set(expected_member) != {"sha256", "size", "mode"} or member.size != expected_member["size"] or member.mode != expected_member["mode"]:
-                raise ValueError("Cannot qualify acquisition source bundle: member differs from source inventory.")
+            member_fields = set(expected_member)
+            expected_member_fields = {"mode", "sha256", "size"}
+
+            if not (member_fields == expected_member_fields):
+                raise ValueError(f"For {member_name=}, {member_fields=} should match {expected_member_fields=}")
+
+            expected_member_size = expected_member["size"]
+            expected_member_mode = expected_member["mode"]
+
+            if not (member.size == expected_member_size):
+                raise ValueError(f"For {member_name=}, {member.size=} should match {expected_member_size=}")
+
+            if not (member.mode == expected_member_mode):
+                raise ValueError(f"For {member_name=}, {member.mode=} should match {expected_member_mode=}")
 
             with archive.extractfile(member) as reader:
                 member_bytes = reader.read()
 
-            if hashlib.sha256(member_bytes).hexdigest() != expected_member["sha256"]:
-                raise ValueError(
-                    "Cannot qualify acquisition source bundle: member checksum "
-                    "differs from source inventory."
-                )
+            member_sha256 = hashlib.sha256(member_bytes).hexdigest()
+            expected_member_sha256 = expected_member["sha256"]
 
-            verified_sources[member.name] = member_bytes
+            if not (member_sha256 == expected_member_sha256):
+                raise ValueError(f"For {member_name=}, {member_sha256=} should match {expected_member_sha256=}")
+
+            verified_sources[member_name] = member_bytes
 
     if set(verified_sources) != set(expected_source_files):
         raise ValueError("Cannot qualify acquisition source bundle: incomplete source inventory.")

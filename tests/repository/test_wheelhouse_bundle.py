@@ -104,7 +104,7 @@ class WheelhouseBundleTests(unittest.TestCase):
 
             wheel.write_bytes(b"changed")
 
-            with self.assertRaisesRegex(ValueError, "pinned hash"):
+            with self.assertRaisesRegex(ValueError, r"wheel_sha256=.* should be one of expected_sha256s="):
                 build(root, root / "wrong.pyz", root, lock, type_requirements_source=type_requirements_source)
 
             self.assertFalse((root / "wrong.pyz").exists())

@@ -197,15 +197,18 @@ def install(packages, directory):
     subprocess.run(["dpkg", "--install", *[str(directory / package["file"]) for package in packages]], check=True)
 
     for package in packages:
-        observed = subprocess.run(
-            ["dpkg-query", "--show", "--showformat=${Version}", package["name"]],
+        package_name = package["name"]
+        installed_version = subprocess.run(
+            ["dpkg-query", "--show", "--showformat=${Version}", package_name],
             check=True,
             capture_output=True,
             text=True,
         ).stdout
 
-        if observed != package["version"]:
-            raise ValueError(f"Cannot admit checker image: installed {package['name']} version differs from declaration.")
+        expected_version = package["version"]
+
+        if not (installed_version == expected_version):
+            raise ValueError(f"For {package_name=}, {installed_version=} should match {expected_version=}")
 
 
 def main():

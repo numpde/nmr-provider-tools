@@ -80,10 +80,11 @@ def dependency_files(pool, pin):
         )
 
     wheel_bytes = (pool / wheel_name).read_bytes()
-    observed_sha256 = hashlib.sha256(wheel_bytes).hexdigest()
+    wheel_sha256 = hashlib.sha256(wheel_bytes).hexdigest()
+    expected_sha256 = wheel["hashes"]["sha256"]
 
-    if observed_sha256 != wheel["hashes"]["sha256"]:
-        raise ValueError("Cannot build acquisition source bundle: identity wheel differs from its pinned hash.")
+    if not (wheel_sha256 == expected_sha256):
+        raise ValueError(f"For {wheel_name=}, {wheel_sha256=} should match {expected_sha256=}")
 
     files = {}
 
@@ -92,7 +93,7 @@ def dependency_files(pool, pin):
             if not member.is_dir():
                 _add(files, member.filename, archive.read(member))
 
-    return (files, {wheel_name: observed_sha256})
+    return (files, {wheel_name: wheel_sha256})
 
 
 def contents(pool, source, core_wheel, pin, *, revision, wheelhouse_bundle):

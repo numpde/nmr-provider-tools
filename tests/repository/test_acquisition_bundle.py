@@ -174,7 +174,7 @@ class AcquisitionBundleTests(unittest.TestCase):
             (source / "packages/acquisition" / SOURCE_FILES[0]).write_text("# restored\n")
             identity.write_bytes(b"changed dependency")
 
-            with self.assertRaisesRegex(ValueError, "pinned hash"):
+            with self.assertRaisesRegex(ValueError, r"wheel_sha256=.* should match expected_sha256="):
                 self.build(root, output, source, wheel, pin)
 
             self.assertFalse(output.exists())

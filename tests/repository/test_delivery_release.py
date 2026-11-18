@@ -31,6 +31,28 @@ class DeliveryReleaseTests(unittest.TestCase):
         self.inputs.start()
         self.addCleanup(self.inputs.stop)
 
+    def test_install_lock_mismatch_reports_both_hashes(self):
+        self.inputs.stop()
+        runtime_lock = self.pool / "runtime.lock"
+        runtime_lock.write_bytes(b"")
+        pin = self.pool / "release.json"
+        expected_install_lock_sha256 = "0" * 64
+        pin.write_text(json.dumps(self.release | {"install_lock_sha256": expected_install_lock_sha256}))
+        install_lock_bytes = (
+            "\n"
+            "provider-core==1.2.3 \\\n"
+            f"    --hash=sha256:{self.digest}\n"
+        ).encode()
+        install_lock_sha256 = hashlib.sha256(install_lock_bytes).hexdigest()
+
+        with self.assertRaises(ValueError) as rejected:
+            delivery_image.release_inputs(pin, runtime_lock)
+
+        self.assertEqual(
+            first=f"{install_lock_sha256=} should match {expected_install_lock_sha256=}",
+            second=str(rejected.exception),
+        )
+
     def test_warm_pool_needs_no_network_and_retains_file(self):
         self.wheel.write_bytes(self.content)
         inode = self.wheel.stat().st_ino
@@ -44,7 +66,7 @@ class DeliveryReleaseTests(unittest.TestCase):
     def test_conflicting_cached_wheel_is_preserved(self):
         self.wheel.write_bytes(b"different")
 
-        with self.assertRaisesRegex(ValueError, "existing file retained"):
+        with self.assertRaisesRegex(ValueError, r"wheel_sha256=.* should match expected_sha256=.*\. The existing file was retained"):
             delivery_image.acquire_release(None, None, self.pool, pathlib.Path("unused.pyz"))
 
         self.assertEqual(b"different", self.wheel.read_bytes())

@@ -41,8 +41,11 @@ def release_inputs(pin, runtime_lock):
         f"    --hash=sha256:{wheel_digest}\n"  # machine-string: pip consumes package and hash syntax; expression labels would invalidate the requirement.
     ).encode()
 
-    if hashlib.sha256(install_lock_bytes).hexdigest() != release["install_lock_sha256"]:
-        raise ValueError("Cannot use delivery release: runtime lock differs from the issued install lock.")
+    install_lock_sha256 = hashlib.sha256(install_lock_bytes).hexdigest()
+    expected_install_lock_sha256 = release["install_lock_sha256"]
+
+    if not (install_lock_sha256 == expected_install_lock_sha256):
+        raise ValueError(f"{install_lock_sha256=} should match {expected_install_lock_sha256=}")
 
     return (release, install_lock_bytes)
 
@@ -69,10 +72,12 @@ def missing_wheels(release, pool):
         wheel_path = pool / wheel_name
 
         if wheel_path.exists() or wheel_path.is_symlink():
-            if digest(wheel_path) != expected_sha256:
+            wheel_sha256 = digest(wheel_path)
+
+            if not (wheel_sha256 == expected_sha256):
                 raise ValueError(
-                    f"Cannot reuse {wheel_name}: cached bytes differ from "
-                    f"the pinned release; existing file retained."
+                    f"For {wheel_name=}, {wheel_sha256=} should match {expected_sha256=}. "
+                    f"The existing file was retained."
                 )
         else:
             missing_wheel_ids.append((wheel_name, expected_sha256))
@@ -155,10 +160,17 @@ def acquire_release(pin, runtime_lock, pool, tool):
                 if release_file["filename"] == wheel_name and release_file["digests"]["sha256"] == expected_sha256
             ]
 
-            if len(candidates) != 1 or urllib.parse.urlsplit(candidates[0]).hostname != "files.pythonhosted.org":
-                raise ValueError(f"Cannot acquire {wheel_name}: the pinned wheel is absent from its published index.")
+            matching_downloads = len(candidates)
+
+            if not (matching_downloads == 1):
+                raise ValueError(f"For {wheel_name=} and {expected_sha256=}, {matching_downloads=} should be one")
 
             url = candidates[0]
+            download_host = urllib.parse.urlsplit(url).hostname
+            expected_download_host = "files.pythonhosted.org"
+
+            if not (download_host == expected_download_host):
+                raise ValueError(f"For {wheel_name=}, {download_host=} should match {expected_download_host=}")
 
         artifacts.append((wheel_name, expected_sha256, url))
 

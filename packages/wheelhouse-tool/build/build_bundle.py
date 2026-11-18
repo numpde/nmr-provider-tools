@@ -29,12 +29,14 @@ SOURCE_MODULES = (
 def dependency_files(pool, lock):
     files = {}
 
-    for ((package, version), hashes) in requirements(lock).items():
+    for ((package, version), accepted_hashes) in requirements(lock).items():
         wheel_name = f"{package.replace('-', '_')}-{version}-py3-none-any.whl"
         wheel_bytes = (pool / wheel_name).read_bytes()
+        wheel_sha256 = hashlib.sha256(wheel_bytes).hexdigest()
 
-        if not (hashlib.sha256(wheel_bytes).hexdigest() in hashes):
-            raise ValueError(f"Cannot build wheelhouse bundle: {wheel_name} differs from its pinned hash.")
+        if not (wheel_sha256 in accepted_hashes):
+            expected_sha256s = sorted(accepted_hashes)
+            raise ValueError(f"For {wheel_name=}, {wheel_sha256=} should be one of {expected_sha256s=}")
 
         with zipfile.ZipFile(io.BytesIO(wheel_bytes)) as archive:
             for member in archive.infolist():
