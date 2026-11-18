@@ -26,6 +26,7 @@ from provider_core.hosting import (
 
 from provider_core.scientific import AssetAccess, NoAssets, HostedContribution
 from provider_core.tools import require_nonnegative_number
+from provider_core.type_requirements import require_instance, require_type
 
 # This describes the backend's implemented features, not operator-selectable settings.
 # repo-check: allow-module-constant
@@ -67,11 +68,9 @@ class Allocation:
     assets: AssetAccess = field(default_factory=NoAssets)
 
     def __post_init__(self):
-        if not (type((actual_name := self.name)) is (expected_type := str)):
-            raise TypeError(f"{type(actual_name)=} ≠ {expected_type=}")
+        require_type(self.name, str)
 
-        if not isinstance((actual_binding := self.binding), (expected_type := (ImplementationBinding, HostedContribution))):
-            raise TypeError(f"{type(actual_binding)=} ≠ {expected_type=}")
+        require_instance(self.binding, (ImplementationBinding, HostedContribution))
 
         if not (0 < len(self.name) <= 160):
             raise ValueError("Allocation name must contain between 1 and 160 characters.")
@@ -106,8 +105,7 @@ class _Changes:
         self.require_loop()
 
         if after is not None:
-            if not (type(after) is (expected_type := int)):
-                raise TypeError(f"{type(after)=} ≠ {expected_type=}")
+            require_type(after, int)
 
             if not (0 <= after <= self.revision):
                 raise ValueError("Observation cursor must belong to this owner's current history.")

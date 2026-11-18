@@ -10,6 +10,7 @@ import time
 
 from provider_core.runner_protocol import LifecycleRejected
 from provider_core.tools import require_positive_number
+from provider_core.type_requirements import require_instance
 
 
 def _observe_completion(wrapped):
@@ -25,8 +26,7 @@ async def await_original(original, *, deadline):
     This wait grants no resource retirement or permission to close its inputs.
     """
 
-    if not isinstance(original, (expected_type := Future)):
-        raise TypeError(f"{type(original)=} ≠ {expected_type=}")
+    require_instance(original, Future)
 
     seconds = None
 

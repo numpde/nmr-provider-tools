@@ -57,6 +57,7 @@ from provider_core.producer_checkpoint import (
 
 from provider_core.transport import ExchangeFailed
 from provider_core.tools import require_positive_number
+from provider_core.type_requirements import require_type
 
 
 class _Retirement(Enum):
@@ -310,10 +311,7 @@ def _observe_task_failure(task):
 def require_execution_settings(*, allowed_job_states, poll_seconds, task_settle_seconds):
     """Validate before either a controller or executor accepts its session."""
 
-    if not (type(allowed_job_states) is (expected_type := frozenset)):
-        raise TypeError(
-            f"{type(allowed_job_states)=} ≠ {expected_type=}"
-        )
+    require_type(allowed_job_states, frozenset)
 
     if not (allowed_job_states) or not (allowed_job_states <= JOB_STATES) or "cancelled" in allowed_job_states:
         raise ValueError(
@@ -368,10 +366,7 @@ class AttemptExecutor:
     ):
         claim.require_live(scope)
 
-        if not (type(scope) is (expected_type := RecoveryScope)):
-            raise TypeError(
-                f"{type(scope)=} ≠ {expected_type=}"
-            )
+        require_type(scope, RecoveryScope)
 
         if api.origin != scope.api_origin:
             raise ValueError("Cannot configure execution: signing origin differs from the selected scope")
@@ -610,10 +605,7 @@ class AttemptExecutor:
         if type(prepared) is AnalysisFailure:
             self._outcome = prepared
         else:
-            if not (type(prepared) is (expected_type := PreparedAnalysis)):
-                raise TypeError(
-                    f"{type(prepared)=} ≠ {expected_type=}"
-                )
+            require_type(prepared, PreparedAnalysis)
 
             entered = mark_execution_entered(acknowledged, prepared.identity)
 

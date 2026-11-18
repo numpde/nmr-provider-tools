@@ -50,6 +50,7 @@ from provider_core._embedded_support import (
     _Resident,
     _ScientificAnalysis,
 )
+from provider_core.type_requirements import require_instance, require_type
 
 
 class InProcessExecutionHost:
@@ -95,12 +96,10 @@ class InProcessExecutionHost:
         for value in (initialization_seconds, retirement_seconds):
             require_positive_number(value)
 
-        if not (type(allocations) is (expected_type := tuple)):
-            raise TypeError(f"{type(allocations)=} ≠ {expected_type=}")
+        require_type(allocations, tuple)
 
         for allocation in allocations:
-            if not (type(allocation) is (expected_type := Allocation)):
-                raise TypeError(f"{type(allocation)=} ≠ {expected_type=}")
+            require_type(allocation, Allocation)
 
         if len({item.name for item in allocations}) != len(allocations):
             raise ValueError("Allocation names must be unique within a host.")
@@ -108,8 +107,7 @@ class InProcessExecutionHost:
         for allocation in allocations:
             binding = allocation.binding
 
-            if not isinstance(binding, (expected_type := ImplementationBinding)):
-                raise TypeError(f"{type(binding)=} ≠ {expected_type=}")
+            require_instance(binding, ImplementationBinding)
 
         self.loop = asyncio.get_running_loop()
         self.identity = uuid4().hex
@@ -217,8 +215,7 @@ class InProcessExecutionHost:
         """
         self._require_loop()
 
-        if not (type(allocation) is (expected_type := AllocationRef)):
-            raise TypeError(f"{type(allocation)=} ≠ {expected_type=}")
+        require_type(allocation, AllocationRef)
 
         resident = self.residents.get(allocation.allocation)
 
@@ -286,12 +283,10 @@ class InProcessExecutionHost:
             if analysis_id is not None or allocation_names is not None:
                 raise TypeError("Choose allocation handles or the legacy named analysis arguments")
 
-            if not (type(allocations) is (expected_type := frozenset)):
-                raise TypeError(f"{type(allocations)=} ≠ {expected_type=}")
+            require_type(allocations, frozenset)
 
             for reference in allocations:
-                if not (type(reference) is (expected_type := AllocationRef)):
-                    raise TypeError(f"{type(reference)=} ≠ {expected_type=}")
+                require_type(reference, AllocationRef)
 
             for reference in allocations:
                 resident = self.residents.get(reference.allocation)
@@ -309,11 +304,9 @@ class InProcessExecutionHost:
         if self.retiring:
             raise CapacityUnavailable("The host is retiring and refuses new analyses.")
 
-        if not (type(analysis_id) is (expected_type := str)):
-            raise TypeError(f"{type(analysis_id)=} ≠ {expected_type=}")
+        require_type(analysis_id, str)
 
-        if not (type(allocation_names) is (expected_type := tuple)):
-            raise TypeError(f"{type(allocation_names)=} ≠ {expected_type=}")
+        require_type(allocation_names, tuple)
 
         if not (
             0 < len(analysis_id) <= 160
@@ -363,8 +356,7 @@ class InProcessExecutionHost:
         """
         self._require_loop()
 
-        if not (type(reference) is (expected_type := AllocationRef)):
-            raise TypeError(f"{type(reference)=} ≠ {expected_type=}")
+        require_type(reference, AllocationRef)
 
         if reference.host != self.identity:
             raise ValueError("Allocation retirement requires this host's exact AllocationRef.")
@@ -500,8 +492,7 @@ class InProcessAnalysisExecutor:
         """Return this analysis's reservation for an exact allocation handle."""
         self.host._require_loop()
 
-        if not (type(allocation) is (expected_type := AllocationRef)):
-            raise TypeError(f"{type(allocation)=} ≠ {expected_type=}")
+        require_type(allocation, AllocationRef)
 
         resident = self.host.residents.get(allocation.allocation)
 
@@ -534,8 +525,7 @@ class InProcessAnalysisExecutor:
         A returned handle means the request was admitted, not that it ran or succeeded.
         """
 
-        if not (type(call) is (expected_type := CallBinding)):
-            raise TypeError(f"{type(call)=} ≠ {expected_type=}")
+        require_type(call, CallBinding)
 
         invocation = Invocation(
             operation_id=uuid4().hex,
@@ -578,8 +568,7 @@ class InProcessAnalysisExecutor:
 
         hosted = self.science[reservation.allocation].resident.binding
 
-        if not isinstance(hosted, (expected_type := HostedContribution)):
-            raise TypeError(f"{type(hosted)=} ≠ {expected_type=}")
+        require_instance(hosted, HostedContribution)
 
         if not (getattr(method, "__self__", None) is hosted.contribution):
             raise ValueError("Submit an exported bound method of the reserved contribution")
@@ -613,8 +602,7 @@ class InProcessAnalysisExecutor:
         """Admit work and retain portable request identity for the open analysis."""
         self.host._require_loop()
 
-        if not (type(invocation) is (expected_type := Invocation)):
-            raise TypeError(f"{type(invocation)=} ≠ {expected_type=}")
+        require_type(invocation, Invocation)
 
         operation_key = (self.identity, invocation.operation_id)
 

@@ -19,6 +19,7 @@ from dataclasses import dataclass, field
 from provider_core.chat_errors import ChatFailed
 from provider_core.response_json import ResponseRejected, read_document
 from provider_core.transport_errors import ExchangeFailed
+from provider_core.type_requirements import require_type
 
 
 def _encode(value):
@@ -145,10 +146,7 @@ def independent_interruption_failure(failure):
 def require_turn_limit(max_turns):
     """Admit the conversation budget before startup acquires model carriers."""
 
-    if not (type(max_turns) is (expected_type := int)):
-        raise TypeError(
-            f"{type(max_turns)=} ≠ {expected_type=}"
-        )
+    require_type(max_turns, int)
 
     if not (0 < max_turns):
         raise ValueError("Cannot configure interpretation: the total model-turn limit must be a positive integer.")
@@ -174,10 +172,7 @@ class ToolConversation:
     """
 
     def __init__(self, endpoints, *, max_turns, secrets, text_correction=None, argument_bytes=None, max_corrections=None):
-        if not (type(endpoints) is (expected_type := tuple)):
-            raise TypeError(
-                f"{type(endpoints)=} ≠ {expected_type=}"
-            )
+        require_type(endpoints, tuple)
 
         if not (endpoints):
             raise ValueError("Cannot configure interpretation: provide a nonempty ordered tuple of endpoints.")
@@ -205,8 +200,7 @@ class ToolConversation:
             raise TypeError(f"{type(text_correction)=} ≠ {expected_type=}")
 
         if argument_bytes is not None:
-            if not (type(argument_bytes) is (expected_type := int)):
-                raise TypeError(f"{type(argument_bytes)=} ≠ {expected_type=}")
+            require_type(argument_bytes, int)
 
             if not (0 < argument_bytes):
                 raise ValueError("Cannot configure interpretation: argument_bytes must be a positive integer or None.")
@@ -431,10 +425,7 @@ class ToolConversation:
                     tuple(self.correction_failures)
                 )
 
-            if not (type(outcome) is (expected_type := ToolReply)):
-                raise TypeError(
-                    f"{type(outcome)=} ≠ {expected_type=}"
-                )
+            require_type(outcome, ToolReply)
 
             self._feedback(call["id"], outcome.value)
 

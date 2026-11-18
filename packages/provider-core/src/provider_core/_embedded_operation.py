@@ -35,6 +35,7 @@ from provider_core.hosting import (
 )
 
 from provider_core.payload import CallRejected
+from provider_core.type_requirements import require_type
 
 
 class _OperationControl:
@@ -49,8 +50,7 @@ class _OperationControl:
         if not (self.operation.call.description.progress):
             raise RuntimeError("This call did not declare progress reporting.")
 
-        if not (type(event) is (expected_type := ProgressEvent)):
-            raise TypeError(f"{type(event)=} ≠ {expected_type=}")
+        require_type(event, ProgressEvent)
 
         progress_receipt = Future()
 
@@ -226,8 +226,7 @@ class _Operation(_Changes):
 
             phase = "state_adoption"
 
-            if not (type(scientific_return) is (expected_type := ScientificReturn)):
-                raise TypeError(f"{type(scientific_return)=} ≠ {expected_type=}")
+            require_type(scientific_return, ScientificReturn)
 
             adoption_receipt = Future()
 
@@ -242,8 +241,7 @@ class _Operation(_Changes):
             phase = "encoding"
             result_payload = self.call.encode_result(scientific_return.value)
 
-            if not (type(result_payload) is (expected_type := bytes)):
-                raise TypeError(f"{type(result_payload)=} ≠ {expected_type=}")
+            require_type(result_payload, bytes)
 
             if not (len(result_payload) <= self.invocation.policy.reject_encoded_result_over_bytes):
                 raise ValueError(
@@ -478,8 +476,7 @@ class _Operation(_Changes):
     def _require_result(self, result):
         self.require_loop()
 
-        if not (type(result) is (expected_type := ResultRef)):
-            raise TypeError(f"{type(result)=} ≠ {expected_type=}")
+        require_type(result, ResultRef)
 
         if not (
             result == self.result

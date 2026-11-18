@@ -28,6 +28,7 @@ from provider_core.network import NetworkIOObservation, OwnedNetworkBackend
 from provider_core.decoded_body import DecodedBody, DecodedBodyRejected, require_decoded_limit
 from provider_core.transport_errors import ExchangeFailed
 from provider_core.tools import require_absolute_path, require_positive_number
+from provider_core.type_requirements import require_instance, require_type
 
 
 def temporary_io_failure(cause, remaining, *, network_failure=None):
@@ -285,18 +286,12 @@ def require_unix_socket_path(path):
 def require_transport_settings(*, trust, exchange_seconds, retirement_seconds, proxy_socket=None, allow_http=False):
     """Admit TLS and deadlines before composition acquires any transport."""
 
-    if not isinstance(trust, (expected_type := ssl.SSLContext)):
-        raise TypeError(
-            f"{type(trust)=} ≠ {expected_type=}"
-        )
+    require_instance(trust, ssl.SSLContext)
 
     if trust.verify_mode != ssl.CERT_REQUIRED or not (trust.check_hostname):
         raise ValueError("Cannot configure HTTPS exchange: TLS must verify the certificate and hostname")
 
-    if not (type(allow_http) is (expected_type := bool)):
-        raise TypeError(
-            f"{type(allow_http)=} ≠ {expected_type=}"
-        )
+    require_type(allow_http, bool)
 
     if allow_http and proxy_socket is not None:
         raise ValueError("Cannot configure HTTP exchange: plain HTTP admission requires a direct transport without a proxy")
@@ -667,10 +662,7 @@ class HttpTransport:
         require_decoded_limit(maximum_bytes)
         require_decoded_limit(error_maximum_bytes)
 
-        if not (type(success_status) is (expected_type := int)):
-            raise TypeError(
-                f"{type(success_status)=} ≠ {expected_type=}"
-            )
+        require_type(success_status, int)
 
         if not (100 <= success_status <= 599):
             raise ValueError("Cannot decode HTTP response: success_status must be an integer HTTP status from 100 through 599")
@@ -703,10 +695,7 @@ class HttpTransport:
         and finalization.
         """
 
-        if not (type(output_fd) is (expected_type := int)):
-            raise TypeError(
-                f"{type(output_fd)=} ≠ {expected_type=}"
-            )
+        require_type(output_fd, int)
 
         if not (0 <= output_fd):
             raise ValueError("Cannot receive HTTP response in a file: output_fd must be a non-negative descriptor")
@@ -726,10 +715,7 @@ class HttpTransport:
         if not (self._active is None):
             raise ExchangeFailed("Cannot start HTTP exchange: an earlier exchange is active or its retirement is unconfirmed")
 
-        if not (type(maximum_bytes) is (expected_type := int)):
-            raise TypeError(
-                f"{type(maximum_bytes)=} ≠ {expected_type=}"
-            )
+        require_type(maximum_bytes, int)
 
         if not (0 <= maximum_bytes):
             raise ValueError("Cannot receive HTTP response: byte limit must be a non-negative integer")

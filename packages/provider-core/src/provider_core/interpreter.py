@@ -41,6 +41,7 @@ from provider_core.conversation import (
 
 from provider_core.transport_errors import ExchangeFailed
 from provider_core.tools import require_positive_number
+from provider_core.type_requirements import require_instance, require_type
 
 # Two remaining-time floats may change decimal length before the next request.
 # repo-check: allow-module-constant
@@ -248,10 +249,7 @@ class Interpreter:
         retain_history_up_to_records: int,
         secrets: tuple[str, ...],
     ):
-        if not isinstance(endpoint_factories, (expected_type := tuple)):
-            raise TypeError(
-                f"{type(endpoint_factories)=} ≠ {expected_type=}"
-            )
+        require_instance(endpoint_factories, tuple)
 
         if not (endpoint_factories):
             raise ValueError(
@@ -260,10 +258,7 @@ class Interpreter:
 
         require_positive_number(interpretation_budget_seconds)
 
-        if not (type(reject_combined_messages_and_tools_over_bytes) is (expected_type := int)):
-            raise TypeError(
-                f"{type(reject_combined_messages_and_tools_over_bytes)=} ≠ {expected_type=}"
-            )
+        require_type(reject_combined_messages_and_tools_over_bytes, int)
 
         if not (0 < reject_combined_messages_and_tools_over_bytes):
             raise ValueError(f"Interpreter request byte limit must be positive: {reject_combined_messages_and_tools_over_bytes=}")

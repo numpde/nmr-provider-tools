@@ -43,6 +43,7 @@ from provider_core.starting import AttemptStarter, StartFailed
 from provider_core.ownership import OwnershipRefused
 from provider_core.uploads import UploadRecoveryExhausted
 from provider_core.tools import require_positive_number
+from provider_core.type_requirements import require_type
 
 
 class ControllerRefused(RuntimeError):
@@ -94,10 +95,7 @@ class LiveStartPolicy:
         for value in (self.cadence_seconds, self.window_seconds):
             require_positive_number(value)
 
-        if not (type((actual_maximum_replays := self.maximum_replays)) is (expected_type := int)):
-            raise TypeError(
-                f"{type(actual_maximum_replays)=} ≠ {expected_type=}"
-            )
+        require_type(self.maximum_replays, int)
 
         if not (0 <= self.maximum_replays <= 1):
             raise ValueError("One live START invocation permits zero or one exact replay")
@@ -192,10 +190,7 @@ class AttemptController:
     ):
         claims._require_live_view()
 
-        if not (type(scope) is (expected_type := RecoveryScope)):
-            raise TypeError(
-                f"{type(scope)=} ≠ {expected_type=}"
-            )
+        require_type(scope, RecoveryScope)
 
         if api.origin != scope.api_origin:
             raise ValueError("Cannot configure Attempt controller: signing origin differs from the selected scope")
@@ -203,32 +198,21 @@ class AttemptController:
         if preverified_input is not None and type(preverified_input) is not (expected_preverified_input_type := VerifiedJobInput):
             raise TypeError(f"{type(preverified_input)=} ≠ {expected_preverified_input_type=}")
 
-        if not (type(stopping) is (expected_type := asyncio.Event)):
-            raise TypeError(f"{type(stopping)=} ≠ {expected_type=}")
+        require_type(stopping, asyncio.Event)
 
-        if not (type(start_policy) is (expected_type := LiveStartPolicy)):
-            raise TypeError(f"{type(start_policy)=} ≠ {expected_type=}")
+        require_type(start_policy, LiveStartPolicy)
 
         if admission_stopping is None:
             admission_stopping = stopping
 
-        if not (type(admission_stopping) is (expected_type := asyncio.Event)):
-            raise TypeError(
-                f"{type(admission_stopping)=} ≠ {expected_type=}"
-            )
+        require_type(admission_stopping, asyncio.Event)
 
-        if not (type(maximum_terminal_bytes) is (expected_type := int)):
-            raise TypeError(
-                f"{type(maximum_terminal_bytes)=} ≠ {expected_type=}"
-            )
+        require_type(maximum_terminal_bytes, int)
 
         if not (16384 <= maximum_terminal_bytes <= 2097152):
             raise ValueError("Live terminal allowance must cover 16384 through 2097152 encoded request bytes")
 
-        if not (type(allow_active_start_replay) is (expected_type := bool)):
-            raise TypeError(
-                f"{type(allow_active_start_replay)=} ≠ {expected_type=}"
-            )
+        require_type(allow_active_start_replay, bool)
 
         require_execution_settings(
             allowed_job_states=allowed_job_states,
