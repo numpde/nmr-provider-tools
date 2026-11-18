@@ -7,8 +7,8 @@ inference, offerings, model configuration and their execution policy.
 ## Contents
 
 - [Scientific contributions](#scientific-contributions)
-- [Scientific input tools](#scientific-input-tools)
 - [Type requirements](#type-requirements)
+- [Scientific input tools](#scientific-input-tools)
 - [Attempts and capacity](#attempts-and-capacity)
 - [Crashes and recovery](#crashes-and-recovery)
 - [Shared result delivery](#shared-result-delivery)
