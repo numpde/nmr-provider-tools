@@ -1,8 +1,7 @@
 """Make multiline and/or expressions read as a vertical list of conditions.
 
-Each operand has its own parentheses unless it is a direct call, whose call
-brackets already mark its boundary. The operator ends the preceding operand's
-line, so the next line starts with the next condition.
+Group each operand with parentheses. Direct calls and attribute reads can
+stand on their own. The operator ends the preceding operand's line.
 """
 
 from tools.container_guard import require_container
@@ -35,7 +34,7 @@ def multiline_boolean_findings(*, source: str) -> list[tuple[int, str]]:
 
             grouped = before.endswith(b"(") and after.startswith(b")")
 
-            if not grouped and not isinstance(operand, ast.Call):
+            if not grouped and not isinstance(operand, (ast.Call, ast.Attribute)):
                 findings.append((operand.lineno, "group each multiline Boolean operand"))
                 continue
 
@@ -63,6 +62,16 @@ class MultilineBooleanPostureTests(unittest.TestCase):
 
         self.assertEqual(first=[], second=multiline_boolean_findings(source="result = first and second\n"))
         self.assertEqual(first=[], second=multiline_boolean_findings(source="result = (\n    ready() and\n    (enabled)\n)\n"))
+
+    def test_bare_attribute_reads_still_require_trailing_operators(self) -> None:
+        self.assertEqual(
+            first=[],
+            second=multiline_boolean_findings(source="result = (\n    claim.active or\n    (claim is None)\n)\n"),
+        )
+        self.assertEqual(
+            first=[(2, "put the Boolean operator at the end of the preceding line")],
+            second=multiline_boolean_findings(source="result = (\n    claim.active\n    or (claim is None)\n)\n"),
+        )
 
     def test_authored_python_uses_multiline_boolean_layout(self) -> None:
         findings = [

@@ -382,8 +382,12 @@ class LifecycleOrders(RuleBasedStateMachine):
 
         claim = original.controller._claim
 
-        if (claim is None or claim.active or name not in self.tasks
-                or not self.tasks[name].done()):
+        if (
+            (claim is None) or
+            claim.active or
+            (name not in self.tasks) or
+            (not self.tasks[name].done())
+        ):
             return
 
         peers = [
