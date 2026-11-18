@@ -10,11 +10,11 @@ import hashlib
 
 from provider_core.contribution import AssetDescription, ConfigurationDescription
 from provider_core.payload import JsonDataclassCodec
+from provider_core.type_requirements import require_type
 
 
 def _sha256_digest(content: bytes) -> str:
-    if not (type(content) is (expected_type := bytes)):
-        raise TypeError(f"{type(content)=} ≠ {expected_type=}")
+    require_type(content, bytes)
 
     return "sha256:" + hashlib.sha256(content).hexdigest()
 
