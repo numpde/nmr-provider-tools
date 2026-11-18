@@ -6,9 +6,9 @@ if [[ $root =~ [[:cntrl:],] ]]; then
     printf '%s\n' 'Cannot mount test inputs: checkout path contains a comma or control character.' >&2
     exit 2
 fi
-source "$root/host/tools/docker_context.sh"
+source "$root/operations/docker/docker_context.sh"
 select_docker_context
-source "$root/host/tools/base_image.sh"
+source "$root/operations/docker/base_image.sh"
 source "$root/host/tools/checker_operation.sh"
 checker_begin
 ordered_container_retirement=true

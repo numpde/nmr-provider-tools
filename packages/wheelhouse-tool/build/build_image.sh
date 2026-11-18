@@ -3,7 +3,7 @@
 set -euo pipefail
 root=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/../../.." && pwd -P)
 action=${1:?Select build or test}
-source "$root/host/tools/base_image.sh"
+source "$root/operations/docker/base_image.sh"
 source "$root/host/tools/wheelhouse_path.sh"
 select_wheelhouse
 require_wheelhouse_pool

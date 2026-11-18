@@ -129,7 +129,7 @@ if [[ $action == prepare ]]; then
     source "$root/host/tools/wheelhouse_path.sh"
     select_wheelhouse
     require_wheelhouse_pool
-    source "$root/host/tools/docker_context.sh"
+    source "$root/operations/docker/docker_context.sh"
     select_docker_context
     mkdir -m 700 -- "$scratch/artifacts"
     cp -- "${notes[0]}" "$scratch/release-notes.md"

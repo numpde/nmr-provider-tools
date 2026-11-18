@@ -2,9 +2,9 @@
 # Exercise the cold identity adapter against its exact released dependency.
 set -euo pipefail
 root=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/../.." && pwd -P)
-source "$root/host/tools/docker_context.sh"
+source "$root/operations/docker/docker_context.sh"
 select_docker_context
-source "$root/host/tools/base_image.sh"
+source "$root/operations/docker/base_image.sh"
 source "$root/host/tools/wheelhouse_path.sh"
 select_wheelhouse
 require_wheelhouse_pool

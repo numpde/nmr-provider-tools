@@ -6,7 +6,7 @@ if [[ ! -v DOCKER_CONTEXT_INPUT_ORIGIN || $DOCKER_CONTEXT_INPUT_ORIGIN != 'comma
     printf '%s\n' 'Select DOCKER_CONTEXT explicitly for live checker provisioning: make tests/repository/provisioning/live DOCKER_CONTEXT=<name> NETWORK_INTERFACE=<system|interface>.' >&2
     exit 2
 fi
-source "$root/host/tools/docker_context.sh"
+source "$root/operations/docker/docker_context.sh"
 select_docker_context
 source "$root/host/tools/acquisition_interface.sh"
 select_acquisition_interface

@@ -8,7 +8,7 @@ import json
 import tempfile
 import unittest
 
-from host.tools.image_retirement import RetirementRefused, retire, select_images, retained_image_ids
+from operations.docker.image_retirement import RetirementRefused, retire, select_images, retained_image_ids
 
 
 CURRENT = ("a" * 64, "b" * 64, "f" * 64)

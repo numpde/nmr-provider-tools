@@ -25,7 +25,7 @@ fi
 [[ -v LOCATE_REQUIRED_INPUT ]] || { printf '%s\n' 'Required source preference was not supplied by the Make owner.' >&2; exit 2; }
 read -r -a required <<< "$LOCATE_REQUIRED_INPUT"
 for package in "${required[@]}"; do arguments+=(--require-sdist "$package"); done
-exec bash "$root/host/tools/docker.sh" run --image nmr-provider-tools/wheelhouse-tool:local -- --pull never --read-only \
+exec bash "$root/operations/docker/docker.sh" run --image nmr-provider-tools/wheelhouse-tool:local -- --pull never --read-only \
     --cap-drop ALL --security-opt no-new-privileges:true --pids-limit 128 --memory 512m \
     --tmpfs /tmp:rw,nosuid,nodev,noexec,size=128m --workdir /opt \
     --mount "type=bind,src=$root/packages/wheelhouse-tool/src/wheelhouse_tool,dst=/opt/wheelhouse_tool,readonly" \

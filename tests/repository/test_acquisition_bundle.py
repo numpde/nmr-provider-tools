@@ -49,8 +49,11 @@ class AcquisitionBundleTests(unittest.TestCase):
         source = root / "source"
 
         for name in SOURCE_FILES:
-            source_root = "packages/acquisition" if name.startswith("acquisition_tool/") else "host"
-            path = source / source_root / name
+            path = source / "host" / name
+            if name.startswith("acquisition_tool/"):
+                path = source / "packages/acquisition" / name
+            elif name == "tools/docker_client.sh":
+                path = source / "operations/docker/docker_client.sh"
 
             path.parent.mkdir(parents=True, exist_ok=True)
             path.write_text("# cold source\n")
@@ -158,13 +161,13 @@ class AcquisitionBundleTests(unittest.TestCase):
             (source, wheel, identity, pin) = self.fixture(root)
             output = root / "bundle.tar.gz"
 
-            (source / "host" / SOURCE_FILES[0]).unlink()
+            (source / "packages/acquisition" / SOURCE_FILES[0]).unlink()
 
             with self.assertRaises(FileNotFoundError):
                 self.build(root, output, source, wheel, pin)
 
             self.assertFalse(output.exists())
-            (source / "host" / SOURCE_FILES[0]).write_text("# restored\n")
+            (source / "packages/acquisition" / SOURCE_FILES[0]).write_text("# restored\n")
             identity.write_bytes(b"changed dependency")
 
             with self.assertRaisesRegex(ValueError, "pinned hash"):

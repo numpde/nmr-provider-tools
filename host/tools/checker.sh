@@ -5,7 +5,7 @@ root=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/../.." && pwd -P)
 if [[ $# != 1 ]]; then printf '%s\n' 'Supply one checker preparation action from make help.' >&2; exit 2; fi
 action=$1
 case "$action" in
-    base-download) exec bash "$root/host/tools/docker.sh" download-proxy ;;
+    base-download) exec bash "$root/operations/docker/docker.sh" download-proxy ;;
     bootstrap-build|download|check|build|prepare) ;;
     *) printf 'Cannot prepare checker: unknown action %q. Use make help.\n' "$action" >&2; exit 2 ;;
 esac
@@ -16,9 +16,9 @@ fi
 uid=$(id -u)
 gid=$(id -g)
 if [[ $uid == 0 || $gid == 0 ]]; then printf '%s\n' 'Checker preparation requires a nonzero caller UID and GID.' >&2; exit 2; fi
-source "$root/host/tools/docker_context.sh"
+source "$root/operations/docker/docker_context.sh"
 select_docker_context
-source "$root/host/tools/base_image.sh"
+source "$root/operations/docker/base_image.sh"
 source "$root/host/tools/wheelhouse_path.sh"
 if [[ $action != bootstrap-build ]]; then select_wheelhouse; fi
 if [[ $action == download || $action == prepare ]]; then
@@ -66,7 +66,7 @@ if [[ $captured != "$expected" || $captured_bootstrap != "$bootstrap_fingerprint
     operation_diagnostic+=$'Cannot build checker: source inputs changed during capture. Retry after source edits finish.\n'
     exit 2
 fi
-build_base_image=$(bash -eu -c 'source "$1"; printf "%s" "$base_image"' bash "$context/host/tools/base_image.sh")
+build_base_image=$(bash -eu -c 'source "$1"; printf "%s" "$base_image"' bash "$context/operations/docker/base_image.sh")
 
 build_checker_target() {
     local target=$1 fingerprint=$2 image= receipt=$operation_directory/built-$1
@@ -114,7 +114,7 @@ if [[ $action == download || $action == prepare ]]; then
     # put it beneath a signal-forwarding process-group killer.
     source "$root/host/tools/inference_native.sh"
     checker_acquisition_receipt
-    if controller_native 'checker acquisition' untimed stdio bash "$root/host/tools/docker.sh" run --image "$bootstrap_image" --retired-receipt "$operation_acquisition_receipt" -- \
+    if controller_native 'checker acquisition' untimed stdio bash "$root/operations/docker/docker.sh" run --image "$bootstrap_image" --retired-receipt "$operation_acquisition_receipt" -- \
         "${worker[@]}" --mount "type=bind,src=$wheelhouse_directory,dst=/wheelhouse" \
         --entrypoint python3 -- -B -m tools.checker_dependencies download \
         --declaration "$declaration" --directory /wheelhouse --installer "$installer"; then :; else

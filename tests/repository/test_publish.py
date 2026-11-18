@@ -32,7 +32,8 @@ class PublicationTests(unittest.TestCase):
             target.parent.mkdir(parents=True, exist_ok=True)
             shutil.copyfile(name, target)
 
-        (self.root / "host/tools/docker_context.sh").write_text("select_docker_context() { :; }\n")
+        (self.root / "operations/docker").mkdir(parents=True)
+        (self.root / "operations/docker/docker_context.sh").write_text("select_docker_context() { :; }\n")
 
         (self.root / "host/tools/provider_core.sh").write_text(
             '#!/usr/bin/env bash\nset -euo pipefail\n'

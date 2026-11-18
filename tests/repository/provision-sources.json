@@ -10,13 +10,13 @@
     },
     {
       "source": "tools/docker_client.sh",
-      "target": "tools/docker_client.sh",
+      "target": "operations/docker/docker_client.sh",
       "sha256": "46c4ffa0dace2c9ffd8969a4e55adf95bd44c6bda02111e9f75d01ffee2b9668",
       "adaptation": "Local guard and operator variable names, test references and current official Python base pin; predicates unchanged."
     },
     {
       "source": "tools/docker.sh",
-      "target": "tools/docker.sh",
+      "target": "operations/docker/docker.sh",
       "sha256": "1f67f94061695282b03cae5762e4e639eef13e55d7f7148e03f6505c6f5bad70",
       "adaptation": "Local guard and operator variable names, test references and current official Python base pin; predicates unchanged."
     },

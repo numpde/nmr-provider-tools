@@ -142,7 +142,12 @@ def boundary_imports(root):
     """Report host imports of contained code and reverse production imports."""
     violations = []
 
-    for (directory, forbidden) in ((root / "host", "tools"), (root / "tools", "host")):
+    for (directory, forbidden) in (
+        (root / "host", "tools"),
+        (root / "operations", "tools"),
+        (root / "tools", "host"),
+        (root / "tools", "operations"),
+    ):
         for path in source_files(root=root, patterns=(f"{directory.relative_to(root)}/**/*.py",)):
             if not path.is_relative_to(directory):
                 continue

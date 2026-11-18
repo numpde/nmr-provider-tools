@@ -4,7 +4,7 @@
 # is part of this lane. The existing checker owner retires its temporary workers.
 set -euo pipefail
 root=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/../.." && pwd -P)
-source "$root/host/tools/docker_context.sh"
+source "$root/operations/docker/docker_context.sh"
 select_docker_context
 source "$root/host/tools/wheelhouse_path.sh"
 select_wheelhouse
@@ -28,7 +28,7 @@ checker_call 'select ambient test context' 30 stdio "${engine[@]}" context use "
 checker_call 'resolve real test context' 30 stdio env -u NMR_SELECTED_DOCKER_ENDPOINT \
     DOCKER_CONFIG="$private_config" DOCKER_HOST="unix://$operation_directory/poison.sock" \
     DOCKER_CONTEXT="$ambient_context" DOCKER_CONTEXT_INPUT="$selected_context" DOCKER_CONTEXT_INPUT_ORIGIN='command line' \
-    bash "$root/host/tools/docker_context.sh" --endpoint > "$operation_directory/endpoint"
+    bash "$root/operations/docker/docker_context.sh" --endpoint > "$operation_directory/endpoint"
 if ! cmp -s "$operation_directory/endpoint" <(printf '%s\n' "$NMR_SELECTED_DOCKER_ENDPOINT"); then
     printf '%s\n' 'Cannot qualify Docker context selection: the resolved endpoint differs from the selected engine.' >&2
     exit 2

@@ -13,16 +13,16 @@ else
     }
 fi
 [[ $(id -u) != 0 && $(id -g) != 0 ]] || exit 2
-source "$root/host/tools/docker_context.sh"
+source "$root/operations/docker/docker_context.sh"
 select_docker_context
-source "$root/host/tools/image_lifecycle.sh"
+source "$root/operations/docker/image_lifecycle.sh"
 if image_lifecycle_lock exclusive; then :; else
     status=$?
     if "$automatic" && [[ $status == 75 ]]; then exit 0; fi
     printf '%s\n' 'Image retirement is busy or unavailable; retry its maintained Make target.' >&2
     exit "$status"
 fi
-source "$root/host/tools/docker_client.sh"
+source "$root/operations/docker/docker_client.sh"
 source "$root/host/tools/inference_native.sh"
 docker_client_directory= inference_diagnostic=
 inference_retirement_confirmed=true
@@ -52,4 +52,4 @@ if [[ -v SHARED_RUNTIME_IMAGE_INPUT_ORIGIN && $SHARED_RUNTIME_IMAGE_INPUT_ORIGIN
     }
 fi
 inference_native 'exact project image retirement' 180 stdio \
-    python3 -I -S -B "$root/host/tools/image_retirement.py" "$root" "$staged" "${engine[@]}"
+    python3 -I -S -B "$root/operations/docker/image_retirement.py" "$root" "$staged" "${engine[@]}"

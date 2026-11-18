@@ -12,7 +12,7 @@ from types import SimpleNamespace
 import unittest
 from unittest.mock import patch
 
-from host.tools.engine_cache_gc import configured, install, limits, native_config, unit_files
+from operations.docker.engine_cache_gc import configured, install, limits, native_config, unit_files
 from tests.repository.quality.sources import ROOT
 
 
@@ -80,7 +80,7 @@ class EngineCacheGCTests(unittest.TestCase):
             config.write_text('{"data-root":"/keep"}\n')
             before = config.read_bytes()
 
-            with patch("host.tools.engine_cache_gc.subprocess.run", return_value=SimpleNamespace(returncode=1)) as command:
+            with patch("operations.docker.engine_cache_gc.subprocess.run", return_value=SimpleNamespace(returncode=1)) as command:
                 with self.assertRaisesRegex(ValueError, "original file is unchanged"):
                     install(root, "science", "unix:///tmp/engine.sock", config)
 
@@ -97,7 +97,7 @@ class EngineCacheGCTests(unittest.TestCase):
             failure = subprocess.CalledProcessError(1, ["systemctl", "--user", "daemon-reload"])
 
             with patch(
-                "host.tools.engine_cache_gc.subprocess.run",
+                "operations.docker.engine_cache_gc.subprocess.run",
                 side_effect=[SimpleNamespace(returncode=0), SimpleNamespace(stdout=str(root / "config") + "\n"), failure],
             ):
                 with self.assertRaisesRegex(RuntimeError, "settings were saved.*activation could not be confirmed"):
@@ -110,9 +110,11 @@ class EngineCacheGCTests(unittest.TestCase):
             root = pathlib.Path(directory)
 
             (root / "host/tools").mkdir(parents=True)
+            (root / "operations/docker").mkdir(parents=True)
 
-            for name in ("engine_cache_gc.sh", "engine_cache_gc.py", "docker_context.sh", "docker_client.sh", "inference_native.sh"):
-                shutil.copyfile(ROOT / "host/tools" / name, root / "host/tools" / name)
+            for name in ("engine_cache_gc.sh", "engine_cache_gc.py", "docker_context.sh", "docker_client.sh"):
+                shutil.copyfile(ROOT / "operations/docker" / name, root / "operations/docker" / name)
+            shutil.copyfile(ROOT / "host/tools/inference_native.sh", root / "host/tools/inference_native.sh")
 
             config = root / "daemon.json"
             document = configured({})
@@ -124,7 +126,7 @@ class EngineCacheGCTests(unittest.TestCase):
             completed_process = subprocess.run(
                 [
                     "bash",
-                    str(root / "host/tools/engine_cache_gc.sh"),
+                    str(root / "operations/docker/engine_cache_gc.sh"),
                     "run",
                     "science",
                     "unix:///tmp/selected-engine.sock",

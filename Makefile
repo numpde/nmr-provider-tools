@@ -44,9 +44,9 @@ ifneq ($(strip $(filter-out help publish/release checks/python-cache/clean provi
 ifneq ($(MAKE_INTROSPECTION_ONLY),yes)
 ifeq ($(origin DOCKER_CONTEXT),command line)
 docker_context_quote = '$(subst ','"'"',$(1))'
-override export NMR_SELECTED_DOCKER_ENDPOINT := $(shell env -u NMR_SELECTED_DOCKER_ENDPOINT -u DOCKER_CONTEXT_INPUT -u DOCKER_CONTEXT_INPUT_ORIGIN DOCKER_CONTEXT_INPUT_ORIGIN='command line' DOCKER_CONTEXT_INPUT=$(call docker_context_quote,$(value DOCKER_CONTEXT)) bash host/tools/docker_context.sh --endpoint)
+override export NMR_SELECTED_DOCKER_ENDPOINT := $(shell env -u NMR_SELECTED_DOCKER_ENDPOINT -u DOCKER_CONTEXT_INPUT -u DOCKER_CONTEXT_INPUT_ORIGIN DOCKER_CONTEXT_INPUT_ORIGIN='command line' DOCKER_CONTEXT_INPUT=$(call docker_context_quote,$(value DOCKER_CONTEXT)) bash operations/docker/docker_context.sh --endpoint)
 else
-override export NMR_SELECTED_DOCKER_ENDPOINT := $(shell env -u NMR_SELECTED_DOCKER_ENDPOINT -u DOCKER_CONTEXT_INPUT -u DOCKER_CONTEXT_INPUT_ORIGIN bash host/tools/docker_context.sh --endpoint)
+override export NMR_SELECTED_DOCKER_ENDPOINT := $(shell env -u NMR_SELECTED_DOCKER_ENDPOINT -u DOCKER_CONTEXT_INPUT -u DOCKER_CONTEXT_INPUT_ORIGIN bash operations/docker/docker_context.sh --endpoint)
 endif
 ifeq ($(strip $(NMR_SELECTED_DOCKER_ENDPOINT)),)
 $(error Select a local Docker context for this operation)
@@ -521,14 +521,14 @@ publish/release:
 	bash host/tools/publish.sh release
 
 engine/cache/gc/install:
-	bash host/tools/engine_cache_gc.sh install
+	bash operations/docker/engine_cache_gc.sh install
 
 engine/cache/gc:
 	[[ $$DOCKER_CONTEXT_INPUT_ORIGIN == 'command line' && $$ENGINE_CONFIG_INPUT_ORIGIN == 'command line' && -v ENGINE_CONFIG_INPUT && -n $$ENGINE_CONFIG_INPUT ]] || { printf '%s\n' 'Supply DOCKER_CONTEXT=<context> and ENGINE_CONFIG=/absolute/daemon.json on the Make command line.' >&2; exit 2; }
-	bash host/tools/engine_cache_gc.sh run "$$DOCKER_CONTEXT_INPUT" "$$NMR_SELECTED_DOCKER_ENDPOINT" "$$ENGINE_CONFIG_INPUT"
+	bash operations/docker/engine_cache_gc.sh run "$$DOCKER_CONTEXT_INPUT" "$$NMR_SELECTED_DOCKER_ENDPOINT" "$$ENGINE_CONFIG_INPUT"
 
 packages/images/retire:
-	bash host/tools/image_retirement.sh
+	bash operations/docker/image_retirement.sh
 
 .PHONY: tests/acquisition/compose
 tests/acquisition/compose:

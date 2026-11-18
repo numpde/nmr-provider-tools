@@ -15,7 +15,7 @@ import pathlib
 
 ROOT = pathlib.Path("/workspace")
 REPOSITORY_ROOT = ROOT
-PYTHON_ROOTS = ("host", "tools", "tests")
+PYTHON_ROOTS = ("host", "operations", "tools", "tests")
 OPTIONAL_PYTHON_ROOTS = ("src",)
 
 SKIP_DIRS = {
@@ -44,7 +44,7 @@ def python_sources(*, production_only):
     """
 
     # silent-defaults: allow-contract -- The required production_only choice selects host/tools or all authored roots; future shared-package and example modules belong to both inventories; proof=tests/repository/quality/test_source_inventory.py::SourceInventoryUnitTests.test_python_source_selection_respects_explicit_scope
-    roots = ("host", "tools") if production_only else PYTHON_ROOTS
+    roots = ("host", "operations", "tools") if production_only else PYTHON_ROOTS
 
     patterns = [f"{name}/**/*.py" for name in (*roots, *OPTIONAL_PYTHON_ROOTS)]
 

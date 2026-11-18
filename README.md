@@ -117,6 +117,9 @@ on the operator's host. `packages/acquisition/acquisition_tool/` owns the author
 owner and resolver/identity sources. Host Python does not depend on the
 container-only `tools` package.
 
+`operations/docker/` owns local Docker context selection, client setup, image
+lifecycle and engine cache maintenance.
+
 `packages/wheelhouse-tool/` owns the wheelhouse CLI, its image and bundle
 builders, and its operator launchers. Its Python import name is `wheelhouse_tool`.
 

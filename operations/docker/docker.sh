@@ -3,7 +3,7 @@
 set -euo pipefail
 readonly repository_root="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/../.." && pwd -P)"
 root=$repository_root
-source "$root/host/tools/base_image.sh"
+source "$root/operations/docker/base_image.sh"
 readonly proxy_image=$base_image metadata_timeout=30
 print_command=false
 if [[ $# -gt 0 && $1 == --print ]]; then print_command=true; shift; fi
@@ -17,7 +17,7 @@ case "$operation" in
     download-proxy) [[ $# == 0 ]] || exit 2 ;;
     require-images) ;;
     run) ;;
-    *) printf '%s\n' 'Usage: host/tools/docker.sh [--print] [--success-note TEXT] {download-proxy|check-interface|require-images IMAGE...|run --image IMAGE [--retired-receipt FILE] -- CREATE_ARGS... -- APPLICATION_ARGS...}' >&2; exit 2 ;;
+    *) printf '%s\n' 'Usage: operations/docker/docker.sh [--print] [--success-note TEXT] {download-proxy|check-interface|require-images IMAGE...|run --image IMAGE [--retired-receipt FILE] -- CREATE_ARGS... -- APPLICATION_ARGS...}' >&2; exit 2 ;;
 esac
 image= retired_receipt= scope_started=false
 create=() application=()
@@ -35,9 +35,9 @@ if [[ $operation == run ]]; then
     [[ $# -gt 0 && $1 == -- ]] || exit 2
     shift; application=("$@")
 fi
-source "$root/host/tools/docker_context.sh"
+source "$root/operations/docker/docker_context.sh"
 select_docker_context
-source "$root/host/tools/docker_client.sh"
+source "$root/operations/docker/docker_client.sh"
 source "$root/host/tools/inference_native.sh"
 docker_client_directory= scratch= pending_diagnostic=
 retain_preflight_receipts=false

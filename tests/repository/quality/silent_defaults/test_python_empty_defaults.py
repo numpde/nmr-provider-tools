@@ -16,6 +16,7 @@ from ._repo_surfaces import repo_source, surface_files
 PYTHON_SURFACE_GLOBS = (
     "*.py",
     "tools/**/*.py",
+    "operations/**/*.py",
     "containers/**/*.py",
     "src/**/*.py",
     "packages/*/src/**/*.py",

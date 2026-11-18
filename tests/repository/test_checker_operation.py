@@ -112,9 +112,12 @@ if checker_run "$budget" inert-image; then exit 0; else exit "$?"; fi
         shadow = self.directory / "identity-checkout"
 
         (shadow / "host/tools").mkdir(parents=True)
+        (shadow / "operations/docker").mkdir(parents=True)
 
-        for name in ("checker_operation.sh", "docker_client.sh", "inference_native.sh", "image_lifecycle.sh"):
+        for name in ("checker_operation.sh", "inference_native.sh"):
             shutil.copyfile(ROOT / "host/tools" / name, shadow / "host/tools" / name)
+        for name in ("docker_client.sh", "image_lifecycle.sh"):
+            shutil.copyfile(ROOT / "operations/docker" / name, shadow / "operations/docker" / name)
 
         acquisition = shadow / "bootstrap/acquisition/acquisition_tool"
 
@@ -277,11 +280,14 @@ exit "$status"
         shadow = self.directory / "checkout"
 
         (shadow / "host/tools").mkdir(parents=True)
+        (shadow / "operations/docker").mkdir(parents=True)
 
-        for name in ("checker_operation.sh", "docker_client.sh", "inference_native.sh", "image_lifecycle.sh"):
+        for name in ("checker_operation.sh", "inference_native.sh"):
             shutil.copyfile(ROOT / "host/tools" / name, shadow / "host/tools" / name)
+        for name in ("docker_client.sh", "image_lifecycle.sh"):
+            shutil.copyfile(ROOT / "operations/docker" / name, shadow / "operations/docker" / name)
 
-        (shadow / "host/tools/image_retirement.sh").write_text(
+        (shadow / "operations/docker/image_retirement.sh").write_text(
             '''set -eu
 [[ $1 == --automatic ]]
 [[ ! -e $PROBE_STATE ]]

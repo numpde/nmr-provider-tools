@@ -27,7 +27,7 @@ class NetworkGateTests(unittest.TestCase):
         return subprocess.run(
             [
                 "bash",
-                "host/tools/docker.sh",
+                "operations/docker/docker.sh",
                 "--print",
                 "run",
                 "--image",

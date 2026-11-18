@@ -56,6 +56,8 @@ def ops_files() -> list[pathlib.Path]:
             "containers/**/*.sh",
             "host/tools/**/*.sh",
             "host/**/*.py",
+            "operations/**/*.py",
+            "operations/**/*.sh",
             "packages/*/build/**/*.py",
             "packages/*/build/**/*.sh",
             "packages/*/build/**/Dockerfile*",

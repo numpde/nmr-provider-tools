@@ -33,7 +33,7 @@ if [[ -v FUZZ_PROFILE_INPUT_ORIGIN && $FUZZ_PROFILE_INPUT_ORIGIN == 'command lin
     esac
     fuzz_environment=(--env "PROVIDER_CORE_FUZZ_PROFILE=$FUZZ_PROFILE_INPUT")
 fi
-source "$root/host/tools/base_image.sh"
+source "$root/operations/docker/base_image.sh"
 arguments=()
 source "$root/host/tools/checker_inputs.sh"
 tool_image=$(checker_image_tag checker "$(checker_fingerprint checker)")
@@ -64,7 +64,7 @@ worker=(--pull never --read-only "${worker_identity[@]}" --cap-drop ALL --securi
 if [[ $action == download ]]; then
     worker+=(--mount "type=bind,src=$root/requirements/wheelhouse-tool-release.json,dst=/wheelhouse-tool-release.json,readonly")
     if ! "$printing"; then mkdir -p -- "$wheelhouse_directory"; fi
-    network=(bash "$root/host/tools/docker.sh")
+    network=(bash "$root/operations/docker/docker.sh")
     if "$printing"; then network+=(--print); fi
     if ! "$printing"; then
         source "$root/host/tools/checker_operation.sh"
@@ -177,6 +177,7 @@ case "$action" in
             --mount "type=bind,src=$wheelhouse_directory,dst=/wheelhouse,readonly"
             --mount "type=bind,src=$root/containers,dst=/workspace/containers,readonly"
             --mount "type=bind,src=$root/host,dst=/workspace/host,readonly"
+            --mount "type=bind,src=$root/operations,dst=/workspace/operations,readonly"
             --mount "type=bind,src=$root/requirements/installer-release.json,dst=/workspace/requirements/installer-release.json,readonly"
             --entrypoint python3 "$tool_image" -B -m tools.package --artifacts /artifacts --revision "$revision")
         budget=untimed
@@ -233,7 +234,7 @@ fi
 if [[ $action == package ]]; then
     mkdir -- "$operation_directory/source"
     checker_call 'committed qualification source capture' 30 stdio git -C "$root" -c tar.umask=0022 archive --format=tar \
-        --output="$operation_directory/source.tar" "$revision" tools packages/wheelhouse-tool packages/acquisition host containers requirements
+        --output="$operation_directory/source.tar" "$revision" tools packages/wheelhouse-tool packages/acquisition host operations containers requirements
     tar --same-permissions -xf "$operation_directory/source.tar" -C "$operation_directory/source"
     for index in "${!arguments[@]}"; do
         case "${arguments[index]}" in
@@ -245,6 +246,8 @@ if [[ $action == package ]]; then
                 arguments[index]="type=bind,src=$operation_directory/source/packages/acquisition,dst=/workspace/packages/acquisition,readonly" ;;
             "type=bind,src=$root/host,dst=/workspace/host,readonly")
                 arguments[index]="type=bind,src=$operation_directory/source/host,dst=/workspace/host,readonly" ;;
+            "type=bind,src=$root/operations,dst=/workspace/operations,readonly")
+                arguments[index]="type=bind,src=$operation_directory/source/operations,dst=/workspace/operations,readonly" ;;
             "type=bind,src=$root/containers,dst=/workspace/containers,readonly")
                 arguments[index]="type=bind,src=$operation_directory/source/containers,dst=/workspace/containers,readonly" ;;
             "type=bind,src=$root/requirements/acquisition-bootstrap.pylock.toml,dst=/acquisition-bootstrap.pylock.toml,readonly")
@@ -265,7 +268,7 @@ fi
 if [[ $action == build ]]; then
     mkdir -- "$operation_directory/source"
     checker_call 'committed core source capture' 30 stdio git -C "$root" -c tar.umask=0022 archive --format=tar \
-        --output="$operation_directory/source.tar" "$revision" packages/provider-core packages/acquisition requirements tools packages/wheelhouse-tool host containers
+        --output="$operation_directory/source.tar" "$revision" packages/provider-core packages/acquisition requirements tools packages/wheelhouse-tool host operations containers
     tar --same-permissions -xf "$operation_directory/source.tar" -C "$operation_directory/source"
     arguments=(--pull never --network none --read-only --user "$checker_host_uid:$checker_host_gid" --cap-drop ALL --security-opt no-new-privileges:true
         --cpus 2 --memory 1g --memory-swap 1g --pids-limit 128 --tmpfs /tmp:rw,nosuid,nodev,noexec,size=256m
@@ -276,6 +279,7 @@ if [[ $action == build ]]; then
         --mount "type=bind,src=$operation_directory/source/packages/wheelhouse-tool/build,dst=/workspace/wheelhouse-build,readonly"
         --mount "type=bind,src=$operation_directory/source/packages/acquisition,dst=/workspace/packages/acquisition,readonly"
         --mount "type=bind,src=$operation_directory/source/host,dst=/workspace/host,readonly"
+        --mount "type=bind,src=$operation_directory/source/operations,dst=/workspace/operations,readonly"
         --mount "type=bind,src=$operation_directory/source/containers,dst=/workspace/containers,readonly"
         --mount "type=bind,src=$operation_directory/source/packages/provider-core,dst=/package,readonly"
         --mount "type=bind,src=$operation_directory/source/requirements,dst=/requirements,readonly"

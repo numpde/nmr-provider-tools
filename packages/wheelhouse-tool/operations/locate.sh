@@ -24,7 +24,7 @@ read -r -a sources <<< "$LOCATE_SOURCES_INPUT"
 for source in "${sources[@]}"; do arguments+=(--source "$source"); done
 read -r -a required <<< "$LOCATE_REQUIRED_INPUT"
 for source in "${required[@]}"; do arguments+=(--require-source "$source"); done
-command=(bash "$root/host/tools/docker.sh" run --image nmr-provider-tools/wheelhouse-tool:local -- --pull never --read-only \
+command=(bash "$root/operations/docker/docker.sh" run --image nmr-provider-tools/wheelhouse-tool:local -- --pull never --read-only \
     --cap-drop ALL --security-opt no-new-privileges:true --pids-limit 128 --memory 512m \
     --tmpfs /tmp:rw,nosuid,nodev,noexec,size=128m --workdir /opt \
     --mount "type=bind,src=$root/packages/wheelhouse-tool/src/wheelhouse_tool,dst=/opt/wheelhouse_tool,readonly" \

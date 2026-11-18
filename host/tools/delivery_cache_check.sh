@@ -2,7 +2,7 @@
 # Check a complete pool without requiring any network grant.
 set -euo pipefail
 root=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/../.." && pwd -P)
-source "$root/host/tools/base_image.sh"
+source "$root/operations/docker/base_image.sh"
 source "$root/host/tools/checker_operation.sh"
 uid=$(id -u) gid=$(id -g)
 checker_begin

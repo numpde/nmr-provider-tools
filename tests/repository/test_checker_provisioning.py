@@ -23,7 +23,7 @@ class CheckerProvisioningTests(unittest.TestCase):
         self.addCleanup(temporary.cleanup)
         self.root = pathlib.Path(temporary.name)
 
-        for name in ("tools", "requirements", "containers"):
+        for name in ("tools", "requirements", "containers", "operations"):
             shutil.copytree(ROOT / name, self.root / name)
 
         shutil.copytree(ROOT / "host", self.root / "host")
@@ -94,7 +94,7 @@ class CheckerProvisioningTests(unittest.TestCase):
             '''root=$1
 source "$root/host/tools/checker_inputs.sh"
 sha256sum() {
-    if [[ $# != 0 && $2 == host/tools/base_image.sh ]]; then return 7; fi
+    if [[ $# != 0 && $2 == operations/docker/base_image.sh ]]; then return 7; fi
     command sha256sum "$@"
 }
 if fingerprint=$(checker_fingerprint checker); then exit 99; else exit "$?"; fi
@@ -108,7 +108,7 @@ if fingerprint=$(checker_fingerprint checker); then exit 99; else exit "$?"; fi
             '''root=$1
 export DOCKER_CONTEXT_INPUT=default DOCKER_CONTEXT_INPUT_ORIGIN='command line'
 cp() {
-    if [[ $* == *host/tools/base_image.sh* ]]; then printf '\\n# changed during copy\\n' >> "$root/host/tools/base_image.sh"; fi
+    if [[ $* == *operations/docker/base_image.sh* ]]; then printf '\\n# changed during copy\\n' >> "$root/operations/docker/base_image.sh"; fi
     command cp "$@"
 }
 export -f cp

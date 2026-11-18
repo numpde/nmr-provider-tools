@@ -116,7 +116,7 @@ def unit_files(root, context, endpoint, config):
         argument(command_argument)
         for command_argument in (
             "/bin/bash",
-            str(root / "host/tools/engine_cache_gc.sh"),
+            str(root / "operations/docker/engine_cache_gc.sh"),
             "run",
             context,
             endpoint,

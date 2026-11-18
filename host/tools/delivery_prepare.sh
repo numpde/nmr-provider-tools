@@ -2,9 +2,9 @@
 # Reuse the common wheelhouse and build the explicitly pinned delivery release.
 set -euo pipefail
 root=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/../.." && pwd -P)
-source "$root/host/tools/docker_context.sh"
+source "$root/operations/docker/docker_context.sh"
 select_docker_context
-source "$root/host/tools/base_image.sh"
+source "$root/operations/docker/base_image.sh"
 source "$root/host/tools/wheelhouse_path.sh"
 select_wheelhouse
 mkdir -p -- "$wheelhouse_directory"
@@ -19,7 +19,7 @@ cache=$(bash "$root/host/tools/delivery_cache_check.sh" "$wheelhouse_directory")
 if [[ $cache == missing ]]; then
     checker_admit_tools
     checker_acquisition_receipt
-    bash "$root/host/tools/docker.sh" run --image "$checker_image" --retired-receipt "$operation_acquisition_receipt" -- --pull never --read-only --cap-drop ALL \
+    bash "$root/operations/docker/docker.sh" run --image "$checker_image" --retired-receipt "$operation_acquisition_receipt" -- --pull never --read-only --cap-drop ALL \
     --security-opt no-new-privileges:true --cpus 2 --memory 512m --memory-swap 512m --pids-limit 64 \
     --tmpfs /tmp:rw,nosuid,nodev,noexec,size=128m --workdir /workspace \
     --env NMR_PROVIDER_TOOLS_IN_CONTAINER=1 --env PYTHONDONTWRITEBYTECODE=1 --env PYTHONPATH=/workspace \
