@@ -749,6 +749,24 @@ class AdoptionTests(unittest.IsolatedAsyncioTestCase):
 
         self.assertEqual(first=frozenset(), second=self.host.allocations)
 
+    async def test_invalid_analysis_class_rejected_before_handover(self):
+        class UnrelatedAnalysis(Sum):
+            analysis_type = str
+
+        class NonClassAnalysis(Sum):
+            analysis_type = "not-a-class"
+
+        for contribution_type in (UnrelatedAnalysis, NonClassAnalysis):
+            instance = contribution_type(configuration=Settings(scale=2))
+
+            with self.subTest(contribution_type=contribution_type):
+                with self.assertRaises(TypeError):
+                    adopt(host=self.host, contribution=instance)
+
+                self.assertEqual(0, instance.initializations)
+                self.assertEqual(0, instance.closes)
+                self.assertEqual(frozenset(), self.host.allocations)
+
     async def test_unsupported_operations_fail_before_initialization(self):
         class AsyncSum(Sum):
             @operation()
