@@ -178,7 +178,7 @@ class UnixTunnelFailureTests(unittest.IsolatedAsyncioTestCase):
                 while pending:
                     cause = pending.pop()
 
-                    if cause is not None and all(cause is not seen for seen in causes):
+                    if (cause is not None) and (all(cause is not seen for seen in causes)):
                         causes.append(cause)
                         pending.extend((cause.__cause__, cause.__context__))
 

@@ -17,7 +17,7 @@ from tests.fakes.api import api
 
 class ObservedExecutor(AttemptExecutor):
     async def _observe_active(self):
-        if self.condition_transport.blocked.is_set() and not self.condition_transport.release.is_set():
+        if (self.condition_transport.blocked.is_set()) and (not self.condition_transport.release.is_set()):
             self.poll_attempted.set()
 
         await super()._observe_active()

@@ -47,7 +47,7 @@ def build_source_wheel(
     the stage permits a subsequent source-distribution build from the same tree.
     """
 
-    if not source.is_dir() or source.is_symlink():
+    if (not source.is_dir()) or (source.is_symlink()):
         raise ValueError("Cannot build wheel: source must be a real directory.")
 
     if any(source_entry.is_symlink() for source_entry in source.rglob("*")):
@@ -130,7 +130,7 @@ def build_candidate(source, runtime_lock, build_lock, pool, output):
 
 
 def _build_candidate(source, runtime_lock, build_lock, pool, output, lock_fd):
-    if output.is_symlink() or not output.is_dir() or any(output.iterdir()):
+    if (output.is_symlink()) or (not output.is_dir()) or (any(output.iterdir())):
         raise ValueError("Cannot build provider-core: output must be a private empty directory.")
 
     with tempfile.TemporaryDirectory(prefix="core-build-") as temporary:
@@ -210,7 +210,7 @@ def _build_candidate(source, runtime_lock, build_lock, pool, output, lock_fd):
             (set(output.iterdir()) != {wheel, sdist}) or
             any(
                 (
-                    not distribution.is_file() or distribution.is_symlink()
+                    (not distribution.is_file()) or (distribution.is_symlink())
                     for distribution in (wheel, sdist)
                 ),
             )
@@ -280,7 +280,7 @@ def _install_environment(root, lock, pool, expected_inputs, extra_pools, require
         lock_fd,
     )
 
-    if expected_inputs is not None and selected_wheel_inputs != expected_inputs:
+    if (expected_inputs is not None) and (selected_wheel_inputs != expected_inputs):
         raise ValueError(
             "Cannot admit provider-core installation: selected wheel identities "
             "differ from the pinned inputs."

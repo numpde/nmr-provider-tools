@@ -126,7 +126,7 @@ def _machine_string_exemptions(*, source_path: pathlib.Path, source: str, litera
     findings = []
 
     for token in tokenize.generate_tokens(readline=io.StringIO(initial_value=source).readline):
-        if token.type != tokenize.COMMENT or not token.string.startswith("# machine-string"):
+        if (token.type != tokenize.COMMENT) or (not token.string.startswith("# machine-string")):
             continue
 
         if _MACHINE_STRING_PRAGMA.fullmatch(string=token.string.rstrip()) is None:
@@ -166,7 +166,7 @@ def _findings(*, source_path: pathlib.Path, source: str) -> list[_Finding]:
         node
         for node in ast.walk(node=tree)
         if
-        (isinstance(node, ast.JoinedStr) and (id(node) not in format_specs)) or
+        ((isinstance(node, ast.JoinedStr)) and (id(node) not in format_specs)) or
         (isinstance(node, ast.Constant) and
          isinstance(node.value, str) and
          (not isinstance(parents.get(node), ast.JoinedStr)))
@@ -178,7 +178,7 @@ def _findings(*, source_path: pathlib.Path, source: str) -> list[_Finding]:
         if node in exempt_literals or (isinstance(node, ast.Constant) and parents.get(node) in exempt_literals):
             continue
 
-        if isinstance(node, ast.JoinedStr) and id(node) not in format_specs:
+        if (isinstance(node, ast.JoinedStr)) and (id(node) not in format_specs):
             findings.extend(_interpolation_findings(source_path=source_path, source=source, joined=node))
         elif isinstance(node, ast.Constant):
             findings.extend(_constant_findings(source_path=source_path, literal=node))

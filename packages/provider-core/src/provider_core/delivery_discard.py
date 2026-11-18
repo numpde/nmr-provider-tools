@@ -39,13 +39,13 @@ def main():
     parser.add_argument("--body-sha256")
     options = parser.parse_args()
 
-    if (not options.list_held and options.body_sha256 is None) or (options.list_held and options.body_sha256 is not None):
+    if ((not options.list_held) and (options.body_sha256 is None)) or ((options.list_held) and (options.body_sha256 is not None)):
         parser.error("Supply the exact body SHA-256 for discard; list-held needs no payload selector.")
 
     os.umask(0o077)
 
     if options.shared_config is not None:
-        if options.state_directory is None or not options.state_directory.is_absolute():
+        if (options.state_directory is None) or (not options.state_directory.is_absolute()):
             parser.error("Shared delivery inspection requires its absolute state directory.")
 
         if _https_origin(options.api_origin)[0] != options.api_origin:

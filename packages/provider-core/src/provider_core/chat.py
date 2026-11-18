@@ -55,7 +55,7 @@ class ChatEndpointSpec:
         if not (type((actual_api_key := self.api_key)) is (expected_type := str)):
             raise TypeError(f"{type(actual_api_key)=} ≠ {expected_type=}")
 
-        if not (self.api_key) or any(not 32 < ord(char) < 127 for char in self.api_key):
+        if (not (self.api_key)) or (any(not 32 < ord(char) < 127 for char in self.api_key)):
             raise ValueError("Cannot configure interpreter endpoint: an explicit header-safe API key is required.")
 
         if self.reasoning_effort is not None:
@@ -81,7 +81,7 @@ class ChatEndpointSpec:
         except httpx.InvalidURL:
             raise ValueError("Cannot configure interpreter endpoint: URL is not valid HTTPS.") from None
 
-        if url.scheme != "https" or not url.host or url.userinfo or "?" in self.url or "#" in self.url or str(url) != self.url:
+        if (url.scheme != "https") or (not url.host) or (url.userinfo) or ("?" in self.url) or ("#" in self.url) or (str(url) != self.url):
             raise ValueError("Cannot configure interpreter endpoint: use a canonical HTTPS URL without credentials, query or fragment.")
 
 

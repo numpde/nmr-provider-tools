@@ -160,7 +160,7 @@ class ObservedCrashRecoveryTests(unittest.IsolatedAsyncioTestCase):
                 return result
 
             async def retire(self, *, owner=None):
-                if not self.retirement_confirmed and not release.is_set():
+                if (not self.retirement_confirmed) and (not release.is_set()):
                     session.begin_crash.set()
                     await asyncio.wait_for(session.crash_ready.wait(), 2)
                     raise retirement_failure

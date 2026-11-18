@@ -211,7 +211,7 @@ class LifecycleOrders(RuleBasedStateMachine):
 
         # Admission can be refused or locally stopped before a START exists.
         # A generated reply may only follow the actual observed original send.
-        if transport.release_start.is_set() or not transport.start_received.is_set():
+        if (transport.release_start.is_set()) or (not transport.start_received.is_set()):
             return
 
         async def release():
@@ -227,7 +227,7 @@ class LifecycleOrders(RuleBasedStateMachine):
         stop=st.sampled_from(("cancelled", "expired")),
     )
     def withdraw_permission(self, name, stop):
-        if name not in self.started or self.cases[name].transport.stop:
+        if (name not in self.started) or (self.cases[name].transport.stop):
             return
 
         async def revoke():
@@ -330,7 +330,7 @@ class LifecycleOrders(RuleBasedStateMachine):
 
     @rule(name=st.sampled_from(("a", "b")))
     def request_local_stop(self, name):
-        if name not in self.started or name in self.local_stops:
+        if (name not in self.started) or (name in self.local_stops):
             return
 
         self.local_stops.add(name)
@@ -348,7 +348,7 @@ class LifecycleOrders(RuleBasedStateMachine):
     def join_completed_owner(self, name):
         task = self.tasks.get(name)
 
-        if task is None or not task.done():
+        if (task is None) or (not task.done()):
             return
 
         async def join():
@@ -514,7 +514,7 @@ class LifecycleOrders(RuleBasedStateMachine):
 
                 assert owned == (case.controller in owners)
 
-                if session.retiring.is_set() and not session.retirement_completed and case.start_count:
+                if (session.retiring.is_set()) and (not session.retirement_completed) and (case.start_count):
                     assert owned, "Retirement is pending but its original claim was released"
 
                 if (
@@ -524,7 +524,7 @@ class LifecycleOrders(RuleBasedStateMachine):
                 ):
                     assert owned, "Independent retirement failure released the original claim"
 
-                if not owned and case.start_count:
+                if (not owned) and (case.start_count):
                     assert session.retirement_completed, "Claim released before positive session retirement"
 
             assert len(owners) <= 2

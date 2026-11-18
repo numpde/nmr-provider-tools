@@ -61,7 +61,7 @@ class DockerfileEmptyDefaultsTest(unittest.TestCase):
         ):
             match = DOCKER_ARG_DEFAULT_RE.match(line)
 
-            if match and match.group("value") is not None:
+            if (match) and (match.group("value") is not None):
                 findings.append(f"{source}:{line_number}: ARG {match.group('name')}={match.group('value')!r}")
 
         self.assertEqual([], findings)

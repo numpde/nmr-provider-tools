@@ -87,7 +87,7 @@ class CountingScience:
         return self.handle
 
     async def execute(self, prepared):
-        if prepared is not self.handle or self.executions:
+        if (prepared is not self.handle) or (self.executions):
             raise AssertionError("Scientific execution replaced or repeated its prepared handle")
 
         self.executions += 1
@@ -95,7 +95,7 @@ class CountingScience:
         return AnalysisSuccess("fixture.result.v1", b"one execution", ProtectedEvidence("fixture.result.v1", b"evidence"))
 
     async def retire(self):
-        if self.pending is not None and self.retired_handle is None:
+        if (self.pending is not None) and (self.retired_handle is None):
             self.retired_handle = await asyncio.shield(self.pending)
 
             self.retirements += 1
@@ -249,7 +249,7 @@ class ShieldedSession(InterpretedSession):
 
         await super().retire()
 
-        if self.original is not None and not self.observed:
+        if (self.original is not None) and (not self.observed):
             try:
                 await asyncio.shield(self.original)
             except BaseException as failure:
@@ -886,7 +886,7 @@ class ComposedLifecycleOwnershipTests(unittest.IsolatedAsyncioTestCase):
                     (held.controller, original),
                     (healthy.controller, independent)
                 ):
-                    if task is not None and not task.done():
+                    if (task is not None) and (not task.done()):
                         controller.request_stop()
 
                 tasks = [task for task in (original, independent) if task is not None]

@@ -222,7 +222,7 @@ async def scenario(marker, report, seed):
             return outcome
 
         async def execute(self, prepared, *, report_condition):
-            if prepared is not self.handle or prepared is None:
+            if (prepared is not self.handle) or (prepared is None):
                 raise AssertionError("Scientific execution changed its original prepared handle")
 
             report_condition.require_execution()
@@ -430,7 +430,7 @@ async def scenario(marker, report, seed):
                     wanted = {item.execution_attempt_ref for item in local_delivery.items}
                     deadline = time.monotonic() + 6
 
-                    while not wanted <= published and time.monotonic() < deadline:
+                    while (not (wanted <= published)) and (time.monotonic() < deadline):
                         await asyncio.sleep(0.005)
 
                     if not (wanted <= published):

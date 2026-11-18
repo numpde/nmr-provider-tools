@@ -1128,7 +1128,7 @@ class CapturedNativeTests(unittest.TestCase):
                 try:
                     deadline = time.monotonic() + NATIVE_FIXTURE_WATCHDOG_SECONDS
 
-                    while not receipt.exists() and time.monotonic() < deadline:
+                    while (not receipt.exists()) and (time.monotonic() < deadline):
                         time.sleep(0.01)
 
                     self.assertTrue(receipt.exists(), msg=f"fixture did not publish {receipt.name}")
@@ -1364,7 +1364,7 @@ class CapturedNativeTests(unittest.TestCase):
                 # Settle before the next subcase can reuse its observation path.
                 # A cleanup failure outside subTest prevents another scenario.
                 try:
-                    if process is not None and process.poll() is None:
+                    if (process is not None) and (process.poll() is None):
                         process.send_signal(signal.SIGTERM)
 
                         try:
@@ -1384,7 +1384,7 @@ class CapturedNativeTests(unittest.TestCase):
     def await_file(self, path):
         deadline = time.monotonic() + 3
 
-        while not path.exists() and time.monotonic() < deadline:
+        while (not path.exists()) and (time.monotonic() < deadline):
             time.sleep(0.01)
 
         self.assertTrue(path.exists(), msg=f"fixture did not publish {path.name}")
@@ -2077,7 +2077,7 @@ class StdioNativeTests(unittest.TestCase):
                     deadline = time.monotonic() + 2
 
                     while (
-                        wait_channel.read_text().strip() not in {"pipe_write", "anon_pipe_write"} and time.monotonic() < deadline
+                        (wait_channel.read_text().strip() not in {"pipe_write", "anon_pipe_write"}) and (time.monotonic() < deadline)
                     ):
                         time.sleep(0.01)
 

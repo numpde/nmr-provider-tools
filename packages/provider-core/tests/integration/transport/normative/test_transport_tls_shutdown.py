@@ -75,7 +75,7 @@ class TlsShutdownTests(unittest.IsolatedAsyncioTestCase):
                         ):
                             chunk = connection.recv(1)
 
-                            if not chunk or len(request) >= 16384:
+                            if (not chunk) or (len(request) >= 16384):
                                 raise ValueError("Test server did not receive a bounded HTTP request")
 
                             request.extend(chunk)

@@ -137,7 +137,7 @@ class PreparationTool[PreparedT]:
 
     @staticmethod
     def _start_expired(*, operation_observation: Observation) -> bool:
-        if not operation_observation.finished or len(operation_observation.failures) != 1:
+        if (not operation_observation.finished) or (len(operation_observation.failures) != 1):
             return False
 
         (failure,) = operation_observation.failures

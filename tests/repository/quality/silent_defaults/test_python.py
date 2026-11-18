@@ -35,7 +35,7 @@ def is_env_mapping(node: ast.AST) -> bool:
 
 
 def is_defaulting_call(node: ast.AST) -> bool:
-    if not isinstance(node, ast.Call) or not isinstance(node.func, ast.Attribute):
+    if (not isinstance(node, ast.Call)) or (not isinstance(node.func, ast.Attribute)):
         return False
 
     if node.func.attr not in DEFAULTING_CALL_NAMES:
@@ -64,7 +64,7 @@ def is_explicit_defaulting_call(node: ast.AST) -> bool:
 
 
 def is_explicit_mapping_default_call(node: ast.AST) -> bool:
-    if not isinstance(node, ast.Call) or not isinstance(node.func, ast.Attribute):
+    if (not isinstance(node, ast.Call)) or (not isinstance(node.func, ast.Attribute)):
         return False
 
     if node.func.attr not in DEFAULTING_CALL_NAMES:
@@ -111,7 +111,7 @@ def is_default_literal(node: ast.AST) -> bool:
 
 
 def is_non_empty_default_value(node: ast.AST) -> bool:
-    return not contains_env_access(node) and not is_absence_literal(node)
+    return (not contains_env_access(node)) and (not is_absence_literal(node))
 
 
 def is_env_default_if_expression(node: ast.AST) -> bool:
@@ -147,7 +147,7 @@ def assigned_values_by_target(statements: list[ast.stmt]) -> dict[str, ast.AST]:
             for target in statement.targets:
                 values[ast.dump(target)] = statement.value
 
-        if isinstance(statement, ast.AnnAssign) and statement.value is not None:
+        if (isinstance(statement, ast.AnnAssign)) and (statement.value is not None):
             values[ast.dump(statement.target)] = statement.value
 
     return values
@@ -163,7 +163,7 @@ def has_same_target_fallback_assignment(
     for (target, primary_value) in primary_values.items():
         fallback_value = fallback_values.get(target)
 
-        if fallback_value is not None and primary_predicate(primary_value) and fallback_predicate(fallback_value):
+        if (fallback_value is not None) and (primary_predicate(primary_value)) and (fallback_predicate(fallback_value)):
             return True
 
     return False
@@ -199,7 +199,7 @@ def is_env_default_keyerror_handler(node: ast.AST) -> bool:
     body_values = assigned_values_by_target(node.body)
 
     for handler in node.handlers:
-        if not isinstance(handler.type, ast.Name) or handler.type.id != "KeyError":
+        if (not isinstance(handler.type, ast.Name)) or (handler.type.id != "KeyError"):
             continue
 
         if has_same_target_fallback_assignment(
@@ -214,7 +214,7 @@ def is_env_default_keyerror_handler(node: ast.AST) -> bool:
 
 
 def is_argparse_default(node: ast.AST) -> bool:
-    if not isinstance(node, ast.Call) or not isinstance(node.func, ast.Attribute):
+    if (not isinstance(node, ast.Call)) or (not isinstance(node.func, ast.Attribute)):
         return False
 
     if node.func.attr not in ARGPARSE_CALL_NAMES:
@@ -224,13 +224,13 @@ def is_argparse_default(node: ast.AST) -> bool:
 
 
 def is_argparse_optional_positional(node: ast.AST) -> bool:
-    if not isinstance(node, ast.Call) or not isinstance(node.func, ast.Attribute):
+    if (not isinstance(node, ast.Call)) or (not isinstance(node.func, ast.Attribute)):
         return False
 
     if node.func.attr not in ARGPARSE_CALL_NAMES:
         return False
 
-    if not node.args or not isinstance(node.args[0], ast.Constant) or not isinstance(node.args[0].value, str):
+    if (not node.args) or (not isinstance(node.args[0], ast.Constant)) or (not isinstance(node.args[0].value, str)):
         return False
 
     if node.args[0].value.startswith("-"):
@@ -253,10 +253,10 @@ def args_none_compare(node: ast.AST) -> str | None:
     if not isinstance(node, ast.Compare):
         return None
 
-    if len(node.ops) != 1 or not isinstance(node.ops[0], ast.Is):
+    if (len(node.ops) != 1) or (not isinstance(node.ops[0], ast.Is)):
         return None
 
-    if len(node.comparators) != 1 or not isinstance(node.comparators[0], ast.Constant):
+    if (len(node.comparators) != 1) or (not isinstance(node.comparators[0], ast.Constant)):
         return None
 
     if node.comparators[0].value is not None:
@@ -364,7 +364,7 @@ def is_exception_fallback_handler(node: ast.AST) -> bool:
         if isinstance(statement, ast.Pass):
             return True
 
-        if isinstance(statement, ast.Return) and statement.value is not None and not is_absence_literal(statement.value):
+        if (isinstance(statement, ast.Return)) and (statement.value is not None) and (not is_absence_literal(statement.value)):
             return True
 
     return False
@@ -438,7 +438,7 @@ def python_default_findings(path: pathlib.Path) -> list[str]:
 
 
 def _discarded_env_pop_contract(statement: ast.stmt) -> bool:
-    if not isinstance(statement, ast.Expr) or not isinstance(statement.value, ast.Call):
+    if (not isinstance(statement, ast.Expr)) or (not isinstance(statement.value, ast.Call)):
         return False
 
     call = statement.value
@@ -457,7 +457,7 @@ def _discarded_env_pop_contract(statement: ast.stmt) -> bool:
 
 
 def _typed_pass_contract(handler: ast.ExceptHandler, protected: ast.Try) -> bool:
-    if len(handler.body) != 1 or not isinstance(handler.body[0], ast.Pass):
+    if (len(handler.body) != 1) or (not isinstance(handler.body[0], ast.Pass)):
         return False
 
     types = handler.type.elts if isinstance(handler.type, ast.Tuple) else [handler.type]
@@ -476,7 +476,7 @@ def _typed_pass_contract(handler: ast.ExceptHandler, protected: ast.Try) -> bool
 
             reference = reference.value
 
-        if not isinstance(reference, ast.Name) or reference.id in broad:
+        if (not isinstance(reference, ast.Name)) or (reference.id in broad):
             return False
 
     # A Pass mentions no input itself; inspect what its protected suite can
@@ -509,7 +509,7 @@ def _contract_candidate(node: ast.AST, label: str, *, protected: ast.Try | None 
         return False
 
     if label == "python exception fallback":
-        return isinstance(node, ast.ExceptHandler) and protected is not None and _typed_pass_contract(node, protected)
+        return (isinstance(node, ast.ExceptHandler)) and (protected is not None) and (_typed_pass_contract(node, protected))
 
     if label not in {"python silent default", "python function default"}:
         return False
@@ -575,7 +575,7 @@ def _exception_outcome_contract(handler, protected):
 
     if any(
         (
-            not isinstance(node, ast.Name) or node.id in {"Exception", "BaseException", "ExceptionGroup", "BaseExceptionGroup"}
+            (not isinstance(node, ast.Name)) or (node.id in {"Exception", "BaseException", "ExceptionGroup", "BaseExceptionGroup"})
             for node in declared
         ),
     ):
@@ -591,7 +591,7 @@ def _exception_outcome_contract(handler, protected):
     ):
         return False
 
-    if len(handler.body) != 1 or not isinstance(handler.body[0], ast.Return):
+    if (len(handler.body) != 1) or (not isinstance(handler.body[0], ast.Return)):
         return False
 
     value = handler.body[0].value
@@ -678,7 +678,7 @@ def python_operator_default_findings(path: pathlib.Path) -> list[str]:
         following = [node for node in statements if node.lineno == next_line]
         following_loops = [node for node in following if isinstance(node, ast.For)]
         following_handlers = [(handler, owner) for (handler, owner) in handlers if handler.lineno == next_line]
-        following_entries = [(key, value, owner) for (key, value, owner) in entries if key is not None and key.lineno == next_line]
+        following_entries = [(key, value, owner) for (key, value, owner) in entries if (key is not None) and (key.lineno == next_line)]
         protected = None
 
         if prefix == "# silent-defaults: allow-exception-outcome":
@@ -729,7 +729,7 @@ def python_operator_default_findings(path: pathlib.Path) -> list[str]:
 
             if boundary:
                 protected = following_handlers[0][1]
-        elif not following and following_entries:
+        elif (not following) and (following_entries):
             following = [key for (key, _entry_expression, _owner) in following_entries]
 
             selected = [

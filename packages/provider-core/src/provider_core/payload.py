@@ -85,7 +85,7 @@ def _require_format(value: object) -> None:
 
     if not (
         (value) and
-        all(character.isprintable() and not character.isspace() for character in value)
+        all((character.isprintable()) and (not character.isspace()) for character in value)
     ):
         raise ValueError("A payload format must be a nonempty identity without whitespace")
 
@@ -161,7 +161,7 @@ def _dataclass_fields(value_type: type[object]):
         "__slots__" in value_type.__dict__,
     )
 
-    if not parameters.frozen or not slotted:
+    if (not parameters.frozen) or (not slotted):
         raise TypeError(f"{value_type.__qualname__} must be a frozen, slotted dataclass")
 
     declared_fields = fields(value_type)
@@ -226,7 +226,7 @@ def _validate_annotation(
     members = _union_members(annotation)
 
     if members is not None:
-        if len(members) != 2 or NoneType not in members:
+        if (len(members) != 2) or (NoneType not in members):
             raise TypeError(f"{path} supports only T | None unions")
 
         _validate_annotation(
@@ -616,7 +616,7 @@ class DataclassStateBinding[T]:
         for field in declared_fields:
             annotation = hints[field.name]
 
-            if get_origin(annotation) is not None or annotation in (Any, object):
+            if (get_origin(annotation) is not None) or (annotation in (Any, object)):
                 raise TypeError(
                     f"{self.value_type.__qualname__}.{field.name} "
                     f"must name a concrete live-state class"

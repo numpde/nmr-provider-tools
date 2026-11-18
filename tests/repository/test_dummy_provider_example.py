@@ -60,7 +60,7 @@ class DummyProviderExampleTests(unittest.TestCase):
             for node in ast.walk(tree):
                 if isinstance(node, ast.Import):
                     names = [alias.name for alias in node.names]
-                elif isinstance(node, ast.ImportFrom) and node.module is not None:
+                elif (isinstance(node, ast.ImportFrom)) and (node.module is not None):
                     names = (node.module,)
                 else:
                     continue

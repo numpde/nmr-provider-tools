@@ -34,7 +34,7 @@ class RetirementUnconfirmed(RuntimeError):
 
 
 def token(value):
-    return type(value) is str and _TOKEN.fullmatch(value) is not None
+    return (type(value) is str) and (_TOKEN.fullmatch(value) is not None)
 
 
 def _remaining(connection, deadline):

@@ -378,7 +378,7 @@ def main():
     try:
         (root, staged, *engine) = sys.argv[1:]
 
-        if not engine or (staged and _ID.fullmatch(staged) is None):
+        if (not engine) or (staged and _ID.fullmatch(staged) is None):
             raise RetirementRefused("No explicit engine or immutable staged image was supplied.")
 
         staged_images = ()

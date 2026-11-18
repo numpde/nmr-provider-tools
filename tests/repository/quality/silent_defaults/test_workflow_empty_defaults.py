@@ -27,7 +27,7 @@ def _workflow_blank_env_entries_from_lines(lines: list[str], source: str) -> lis
     yaml_stack: list[tuple[int, str]] = []
 
     for (line_number, line) in enumerate(lines, start=1):
-        if not line.strip() or line.lstrip().startswith("#"):
+        if (not line.strip()) or (line.lstrip().startswith("#")):
             continue
 
         key_match = WORKFLOW_MAPPING_KEY_RE.match(line)

@@ -80,7 +80,7 @@ def declaration(path):
 
     require_type(package["size"], int)
 
-    if not (0 < package["size"] and re.fullmatch(r"[0-9a-f]{64}", package["sha256"]) is not None):
+    if not ((0 < package["size"]) and (re.fullmatch(r"[0-9a-f]{64}", package["sha256"]) is not None)):
         raise ValueError("Cannot admit checker dependency: expected a positive byte count and SHA-256.")
 
     return packages
@@ -104,7 +104,7 @@ def verify(package, path):
 
 
 def check(packages, pool):
-    if pool.is_symlink() or not pool.is_dir():
+    if (pool.is_symlink()) or (not pool.is_dir()):
         raise ValueError(f"Cannot use checker cache {pool}: expected a directory without a symlink.")
 
     for package in packages:
@@ -114,7 +114,7 @@ def check(packages, pool):
 def capture(packages, pool, destination):
     """Hash copied bytes, so cache replacement cannot rebind build inputs."""
 
-    if destination.is_symlink() or not destination.is_dir() or any(destination.iterdir()):
+    if (destination.is_symlink()) or (not destination.is_dir()) or (any(destination.iterdir())):
         raise ValueError("Cannot capture checker dependencies: destination must be a private empty directory.")
 
     check(packages, pool)
@@ -166,7 +166,7 @@ class HttpsRedirects(urllib.request.HTTPRedirectHandler):
 def download(packages, pool):
     require_download_proxy()
 
-    if pool.is_symlink() or not pool.is_dir():
+    if (pool.is_symlink()) or (not pool.is_dir()):
         raise ValueError(f"Cannot download checker dependencies: shared cache directory is missing: {pool}.")
 
     for package in packages:

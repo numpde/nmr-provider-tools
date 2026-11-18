@@ -116,7 +116,7 @@ class SupervisedChatTransport:
     def _fail(self, exchange, primary, message):
         if exchange.failure is None:
             exchange.failure = ExchangeFailed(message, primary=primary)
-        elif exchange.failure.primary is not primary and exchange.failure.interruption is None:
+        elif (exchange.failure.primary is not primary) and (exchange.failure.interruption is None):
             exchange.failure.interruption = primary
 
         self.last_failure = exchange.failure
@@ -177,7 +177,7 @@ class SupervisedChatTransport:
 
         cleanup = tuple(exchange.cleanup_failures)
 
-        if not exchange.retired and exchange.stopped_at is not None:
+        if (not exchange.retired) and (exchange.stopped_at is not None):
             cleanup += (_ExitPending("Interpreter HTTP child or IPC retirement is still owned"),)
 
         failure.cleanup_failures = cleanup
@@ -185,7 +185,7 @@ class SupervisedChatTransport:
         if exchange.caller_interruption is not None:
             failure.caller_interruption = exchange.caller_interruption
 
-        if isinstance(exchange.child_reply, ExchangeFailed) and exchange.child_reply is not failure:
+        if (isinstance(exchange.child_reply, ExchangeFailed)) and (exchange.child_reply is not failure):
             failure.child_failure = exchange.child_reply
 
         child_process = exchange.child_process
@@ -260,7 +260,7 @@ class SupervisedChatTransport:
 
             raise exchange.failure
 
-        if not exchange.retired or exchange.response is None:
+        if (not exchange.retired) or (exchange.response is None):
             raise ExchangeFailed("Cannot accept model reply: original exchange retirement is unconfirmed")
 
         return exchange.response
@@ -389,7 +389,7 @@ class SupervisedChatTransport:
             else:
                 cause = exchange.cleanup_task.exception()
 
-                if cause is not None and not any(cause is failure for failure in exchange.cleanup_failures):
+                if (cause is not None) and (not any(cause is failure for failure in exchange.cleanup_failures)):
                     self._fail(exchange, cause, "Cannot retire interpreter HTTP child: original cleanup failed")
                     exchange.cleanup_failures.append(cause)
 
@@ -399,7 +399,7 @@ class SupervisedChatTransport:
                 self._active = None
 
     async def _finish(self, exchange):
-        if exchange.child_process is None and exchange.launch is not None:
+        if (exchange.child_process is None) and (exchange.launch is not None):
             try:
                 exchange.child_process = await asyncio.shield(exchange.launch)
             except asyncio.CancelledError:
@@ -424,7 +424,7 @@ class SupervisedChatTransport:
 
             self._close_pipes(child_process)
 
-            if exchange.io is not None and not exchange.io.done():
+            if (exchange.io is not None) and (not exchange.io.done()):
                 exchange.io.cancel()
 
             if exchange.io is not None:

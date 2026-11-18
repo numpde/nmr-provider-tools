@@ -46,7 +46,7 @@ class SharedDeliveryWorker(DeliveryWorker):
         (operation_failure, cleanup_failures) = (None, ())
 
         try:
-            while not self.stopping.is_set() and not self.paused:
+            while (not self.stopping.is_set()) and (not self.paused):
                 self._api_receipt_received = False
 
                 self.changed.clear()
@@ -68,7 +68,7 @@ class SharedDeliveryWorker(DeliveryWorker):
         except BaseException as cause:
             operation_failure = cause
         finally:
-            if self.api is not None and not self.api.retirement_confirmed:
+            if (self.api is not None) and (not self.api.retirement_confirmed):
                 try:
                     await self.api.retire(owner=self)
                 except BaseException as cause:
@@ -76,7 +76,7 @@ class SharedDeliveryWorker(DeliveryWorker):
 
             self._running = False
 
-        if operation_failure is not None or cleanup_failures:
+        if (operation_failure is not None) or (cleanup_failures):
             # silent-defaults: allow-contract -- No API failure exists if constructing the first API owner failed.
             self.failure = DeliveryWorkerFailed(
                 cause=operation_failure,

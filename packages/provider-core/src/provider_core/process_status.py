@@ -32,7 +32,7 @@ def _start_ticks(pid):
 def _private_file(descriptor):
     observed = os.fstat(descriptor)
 
-    if not stat.S_ISREG(observed.st_mode) or observed.st_uid != os.geteuid() or stat.S_IMODE(observed.st_mode) != 0o600:
+    if (not stat.S_ISREG(observed.st_mode)) or (observed.st_uid != os.geteuid()) or (stat.S_IMODE(observed.st_mode) != 0o600):
         raise PermissionError("Process status requires a caller-owned mode 0600 regular file.")
 
 
@@ -52,7 +52,7 @@ class ProcessStatus:
         if (
             (phase == self.phase) and
             (now - self.updated < 5) and
-            (details == self.details or (details is not None and self.details is not None))
+            (details == self.details or ((details is not None) and (self.details is not None)))
         ):
             return
 
@@ -102,7 +102,7 @@ def read_status(path, role):
     if not (set(status_record) in (fields, fields | { "details" })):
         raise ValueError("Process status has an unsupported shape.")
 
-    if "details" in status_record and type((value_details := status_record["details"])) is not (expected_value_details_type := dict):
+    if ("details" in status_record) and (type((value_details := status_record["details"])) is not (expected_value_details_type := dict)):
         raise TypeError(f"{type(value_details)=} ≠ {expected_value_details_type=}")
 
     if status_record["role"] != role:
@@ -180,7 +180,7 @@ def main():
                 if "queue_observation_age_seconds" in details:
                     details["queue_observation_age_seconds"] += age
 
-                if details.get("queue") is not None and details["queue"].get("oldest_pending_age_seconds") is not None:
+                if (details.get("queue") is not None) and (details["queue"].get("oldest_pending_age_seconds") is not None):
                     details["queue"]["oldest_pending_age_seconds"] += age
 
                 print(json.dumps({ "observation_age_seconds": age, **details }, sort_keys=True, allow_nan=False))

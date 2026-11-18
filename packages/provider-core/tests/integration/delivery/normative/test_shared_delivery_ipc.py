@@ -102,7 +102,7 @@ class SharedDeliveryIPCTests(unittest.IsolatedAsyncioTestCase):
         async def lose_first(connection, writer, status, document):
             nonlocal dropped
 
-            if not dropped and status == 200 and document == expected.acceptance():
+            if (not dropped) and (status == 200) and (document == expected.acceptance()):
                 dropped = True
 
                 writer.close()

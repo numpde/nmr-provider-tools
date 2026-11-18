@@ -142,7 +142,7 @@ class UnixProxy:
         failures = [
             result
             for (task, result) in zip(handlers, results, strict=True)
-            if isinstance(result, BaseException) and not (task in cancelled and isinstance(result, asyncio.CancelledError))
+            if (isinstance(result, BaseException)) and (not (task in cancelled and isinstance(result, asyncio.CancelledError)))
         ]
 
         if failures:

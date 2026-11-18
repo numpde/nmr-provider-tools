@@ -34,7 +34,7 @@ def _findings(*, source: str) -> list[int]:
             method_prefix = method_line.encode(encoding="utf-8")[:method.end_col_offset].decode(encoding="utf-8")
             method_suffix = re.search(pattern=rf"\.\s*{re.escape(method.attr)}$", string=method_prefix)
 
-            if (method_suffix is not None) and method_prefix[:method_suffix.start()].strip():
+            if (method_suffix is not None) and (method_prefix[:method_suffix.start()].strip()):
                 findings.add(method.end_lineno)
 
     return sorted(findings)

@@ -15,7 +15,7 @@ def redundant_negated_call_lines(*, source: str) -> list[int]:
     findings = []
 
     for expression in ast.walk(node=ast.parse(source=source)):
-        if not isinstance(expression, ast.UnaryOp) or not isinstance(expression.op, ast.Not):
+        if (not isinstance(expression, ast.UnaryOp)) or (not isinstance(expression.op, ast.Not)):
             continue
 
         if not isinstance(expression.operand, ast.Call):

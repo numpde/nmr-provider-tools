@@ -70,7 +70,7 @@ def require_start_body(body, *, job_ref):
 def require_analysis_kind(value):
     require_type(value, str)
 
-    if not (len(value) <= 128 and re.fullmatch(r"[a-z][a-z0-9]*(?:_[a-z0-9]+)*", value) is not None):
+    if not ((len(value) <= 128) and (re.fullmatch(r"[a-z][a-z0-9]*(?:_[a-z0-9]+)*", value) is not None)):
         raise ValueError("Analysis kind must be a lower snake-case catalog key of at most 128 characters")
 
 
@@ -120,14 +120,14 @@ def _scalar_text(value, label):
     if not (type(value) is (expected_type := str)):
         raise TypeError(f"{label=}; {type(value)=} ≠ {expected_type=}")
 
-    if not (1 <= len(value) <= 1024) or any(c == "\x00" or 0xD800 <= ord(c) <= 0xDFFF for c in value):
+    if (not (1 <= len(value) <= 1024)) or (any(c == "\x00" or 0xD800 <= ord(c) <= 0xDFFF for c in value)):
         raise ValueError(f"Cannot publish Attempt outcome: {label} must contain 1 through 1024 Unicode scalar values without NUL")
 
 
 def _failure_code(value):
     require_type(value, str)
 
-    if not (len(value) <= 128 and re.fullmatch(r"[a-z][a-z0-9]*(?:_[a-z0-9]+)*", value) is not None):
+    if not ((len(value) <= 128) and (re.fullmatch(r"[a-z][a-z0-9]*(?:_[a-z0-9]+)*", value) is not None)):
         raise ValueError("Cannot publish Attempt failure: code must be lower snake-case ASCII of at most 128 characters")
 
 
@@ -230,7 +230,7 @@ def read_complete_body(body, *, execution_attempt_ref):
     except (ValueError, binascii.Error):
         raise ValueError("Cannot publish Attempt result: content is not valid standard base64") from None
 
-    if b64encode(result).decode("ascii") != encoded or not 1 <= len(result) <= 786432:
+    if (b64encode(result).decode("ascii") != encoded) or (not (1 <= len(result) <= 786432)):
         raise ValueError("Cannot publish Attempt result: base64 must be canonical and encode 1 through 786432 bytes")
 
     return (document["result_schema_id"], result)

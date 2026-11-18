@@ -18,7 +18,7 @@ def _hanging_words(*, source: str) -> list[int]:
     comments = [
         token
         for token in tokenize.generate_tokens(readline=io.StringIO(source).readline)
-        if token.type == tokenize.COMMENT and not source_lines[token.start[0] - 1][:token.start[1]].strip()
+        if (token.type == tokenize.COMMENT) and (not source_lines[token.start[0] - 1][:token.start[1]].strip())
     ]
 
     findings = []

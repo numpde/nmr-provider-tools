@@ -362,7 +362,7 @@ class _Operation(_Changes):
                 (
                     owner
                     for owner in self.analysis.states.values()
-                    if not owner.disposed and owner.returned.value is returned_state.value
+                    if (not owner.disposed) and (owner.returned.value is returned_state.value)
                 ),
                 None,
             )
@@ -498,7 +498,7 @@ class _Operation(_Changes):
         # The exact release remains observable after its payload is discarded.
         # Check identity before returning it; a cached owner grants no authority
         # over a different operation or result.
-        if self.release is not None and type(result) is ResultRef and result == self.result:
+        if (self.release is not None) and (type(result) is ResultRef) and (result == self.result):
             return self.release
 
         self._require_result(result)
@@ -556,7 +556,7 @@ class _Operation(_Changes):
             return
 
         try:
-            if self.raw is not None and type((actual_raw := self.raw)) is not (expected_type := ScientificReturn):
+            if (self.raw is not None) and (type((actual_raw := self.raw)) is not (expected_type := ScientificReturn)):
                 raise TypeError(f"{type(actual_raw)=} ≠ {expected_type=}")
 
             if (

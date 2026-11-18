@@ -57,7 +57,7 @@ def release_wheels(release):
 
 
 def missing_wheels(release, pool):
-    if not pool.is_dir() or pool.is_symlink():
+    if (not pool.is_dir()) or (pool.is_symlink()):
         raise ValueError("Cannot use delivery release: wheelhouse must be an existing directory.")
 
     missing_wheel_ids = []
@@ -262,7 +262,7 @@ if __name__ == "__main__":
         with pool_lock(args.pool):
             if (
                 missing_wheels(release, args.pool) or
-                (args.tool_pin and not tool_present(args.pool, read_json(args.tool_pin)))
+                ((args.tool_pin) and (not tool_present(args.pool, read_json(args.tool_pin))))
             ):
                 print("missing")
             else:

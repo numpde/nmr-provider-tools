@@ -71,7 +71,7 @@ def _type_rejection_operands(*, expression: ast.expr, rejecting: bool) -> list[a
     if isinstance(expression, ast.BoolOp):
         if (
             (rejecting and isinstance(expression.op, ast.Or)) or
-            (not rejecting and isinstance(expression.op, ast.And))
+            ((not rejecting) and (isinstance(expression.op, ast.And)))
         ):
             operands = []
 
@@ -103,7 +103,7 @@ def _type_rejection_operands(*, expression: ast.expr, rejecting: bool) -> list[a
 
     operator = expression.ops[0]
 
-    if (rejecting and isinstance(operator, ast.NotIn)) or (not rejecting and isinstance(operator, ast.In)):
+    if (rejecting and isinstance(operator, ast.NotIn)) or ((not rejecting) and (isinstance(operator, ast.In))):
         if _type_call(expression=expression.left):
             return [expression.left.args[0]]
 
@@ -111,7 +111,7 @@ def _type_rejection_operands(*, expression: ast.expr, rejecting: bool) -> list[a
 
     if (
         (rejecting and isinstance(operator, (ast.IsNot, ast.NotEq))) or
-        (not rejecting and isinstance(operator, (ast.Is, ast.Eq)))
+        ((not rejecting) and (isinstance(operator, (ast.Is, ast.Eq))))
     ):
         return [
             operand.args[0]
@@ -176,13 +176,13 @@ def _findings(*, source_path: pathlib.Path, source: str) -> list[_Finding]:
     findings = []
 
     for statement in ast.walk(ast.parse(source=source, filename=str(source_path))):
-        if not isinstance(statement, ast.If) or not _type_rejection(expression=statement.test, rejecting=True):
+        if (not isinstance(statement, ast.If)) or (not _type_rejection(expression=statement.test, rejecting=True)):
             continue
 
         # Only direct raises belong to this guard; nested scopes or conditional
         # branches can have their own failure contract.
         for child in statement.body:
-            if not isinstance(child, ast.Raise) or child.exc is None:
+            if (not isinstance(child, ast.Raise)) or (child.exc is None):
                 continue
 
             exception = child.exc.func if isinstance(child.exc, ast.Call) else child.exc

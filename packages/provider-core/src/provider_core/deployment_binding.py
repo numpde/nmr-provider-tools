@@ -50,7 +50,7 @@ def _absolute_path(value, label):
 
     path = pathlib.Path(value)
 
-    if path.anchor != "/" or ".." in path.parts or str(path) != value or not path.name:
+    if (path.anchor != "/") or (".." in path.parts) or (str(path) != value) or (not path.name):
         raise BindingDefinitionRejected(f"Cannot admit delivery bindings: {label} must be an absolute normalized path.")
 
     return path

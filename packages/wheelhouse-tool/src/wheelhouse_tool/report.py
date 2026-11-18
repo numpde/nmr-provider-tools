@@ -11,7 +11,7 @@ from pathlib import PurePosixPath
 def manifest(report, pool, directory, allowed_sources):
     """The caller owns the successful hash-checked pip run and its frozen lock."""
 
-    if not isinstance(report, dict) or report.get("version") != "1" or not isinstance(report.get("install"), list) or not report["install"]:
+    if (not isinstance(report, dict)) or (report.get("version") != "1") or (not isinstance(report.get("install"), list)) or (not report["install"]):
         raise ValueError("Cannot use pip report: expected a nonempty version 1 installation report.")
 
     root = PurePosixPath(pool)
@@ -55,13 +55,13 @@ def manifest(report, pool, directory, allowed_sources):
             (name in (".", "..")) or
             ("\\" in name) or
             any(ord(character) < 32 or ord(character) == 127 for character in name) or
-            (not name.endswith(".whl") and name not in allowed_sources)
+            ((not name.endswith(".whl")) and (name not in allowed_sources))
         ):
             raise ValueError("Cannot use pip report: selected artifact is outside the pool or not authorized.")
 
         checksum = download["archive_info"]["hashes"]["sha256"]
 
-        if not re.fullmatch(r"[0-9a-f]{64}", checksum) or name in seen:
+        if (not re.fullmatch(r"[0-9a-f]{64}", checksum)) or (name in seen):
             raise ValueError("Cannot use pip report: selected artifact hash or filename is invalid.")
 
         seen.add(name)

@@ -218,7 +218,7 @@ class CapturedSSLContext(ssl.SSLContext):
 
         paths = ssl.get_default_verify_paths()
 
-        if paths.cafile is not None or paths.capath is not None:
+        if (paths.cafile is not None) or (paths.capath is not None):
             self.load_verify_locations(cafile=paths.cafile, capath=paths.capath)
 
     # silent-defaults: allow-contract -- Server authentication is SSLContext's normal client-root purpose.
@@ -502,7 +502,7 @@ def restore_trust(snapshot, *, directory=None):
 
     curve = snapshot["ecdh_curve"]
 
-    if curve is not None and not (type(curve) is (expected_type := str)):
+    if (curve is not None) and (not (type(curve) is (expected_type := str))):
         raise _refuse(f"{type(curve)=} ≠ {expected_type=}")
 
     context = _SSL_CONTEXT(ssl.PROTOCOL_TLS_CLIENT)

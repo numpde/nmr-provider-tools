@@ -132,7 +132,7 @@ class MakeEmptyDefaultsTest(unittest.TestCase):
 
             stripped_line = line.strip()
 
-            if not stripped_line or MAKE_GLOBAL_VARIABLE_RE.match(stripped_line):
+            if (not stripped_line) or (MAKE_GLOBAL_VARIABLE_RE.match(stripped_line)):
                 continue
 
             match = MAKE_TARGET_SPECIFIC_VARIABLE_RE.match(stripped_line)

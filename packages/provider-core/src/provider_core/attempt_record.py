@@ -67,7 +67,7 @@ class RecoveryScope:
         for value in (self.consumer_id, self.generation_id):
             require_type(value, str)
 
-            if not (1 <= len(value) <= 1024) or any(c == "\x00" or 0xD800 <= ord(c) <= 0xDFFF for c in value):
+            if (not (1 <= len(value) <= 1024)) or (any(c == "\x00" or 0xD800 <= ord(c) <= 0xDFFF for c in value)):
                 raise ValueError("Cannot bind recovery scope: consumer and generation identities require 1 through 1024 Unicode scalar values without NUL")
 
 

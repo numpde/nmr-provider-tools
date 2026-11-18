@@ -59,7 +59,7 @@ class CausalDelivery(RecordingDelivery):
 
     @property
     def awaiting_answer(self):
-        return not self._tearing_down and len(self.offers) > self._answered
+        return (not self._tearing_down) and (len(self.offers) > self._answered)
 
     async def wait_for_offers(self, count):
         async with self._offers_changed:

@@ -15,7 +15,7 @@ from provider_core.contribution_errors import ErrorCode, ScientificRejection
 
 
 def _finite_float(value: object, *, label: str) -> float:
-    if type(value) not in (int, float) or not math.isfinite(value):
+    if (type(value) not in (int, float)) or (not math.isfinite(value)):
         raise ValueError(f"{label} must be a finite number")
 
     return float(value)

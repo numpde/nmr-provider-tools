@@ -50,7 +50,7 @@ class FailureCollector:
                 if any(id(leaf) in self._seen for leaf in _leaves(cause=cause)):
                     # Python 3.12 needs a function rather than a bound method.
                     def unrecorded_leaf(candidate: BaseException) -> bool:
-                        return not isinstance(candidate, BaseExceptionGroup) and id(candidate) not in self._seen
+                        return (not isinstance(candidate, BaseExceptionGroup)) and (id(candidate) not in self._seen)
 
                     cause = cause.subgroup(unrecorded_leaf)
             elif id(cause) in self._seen:

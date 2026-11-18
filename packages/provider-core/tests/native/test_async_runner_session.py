@@ -287,7 +287,7 @@ class AsyncNativeWireTests(unittest.IsolatedAsyncioTestCase):
         def native_failure(deadline):
             native_threads.append(threading.get_ident())
 
-            if not setup and not release.wait(1):
+            if (not setup) and (not release.wait(1)):
                 raise TimeoutError("Fixture did not release the retained native read")
 
             raise cause
@@ -477,7 +477,7 @@ class AsyncNativeWireTests(unittest.IsolatedAsyncioTestCase):
 
         try:
             async with asyncio.timeout(1):
-                while not entered.is_set() or self.owner.setup is None:
+                while (not entered.is_set()) or (self.owner.setup is None):
                     await asyncio.sleep(0)
 
             self.assertTrue(self.owner.setup.cancel())

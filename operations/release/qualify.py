@@ -501,7 +501,7 @@ def wheel_payload(wheel, expected, version):
             (len(archive_members) != len(set(archive_members))) or
             any(
                 (
-                    not name.startswith(metadata_prefix) and name not in expected
+                    (not name.startswith(metadata_prefix)) and (name not in expected)
                     for name in archive_members
                 ),
             )
@@ -523,7 +523,7 @@ def wheel_payload(wheel, expected, version):
         return {
             name.removeprefix(metadata_prefix): archive.read(name)
             for name in archive_members
-            if name.startswith(metadata_prefix) and not name.endswith("/RECORD")
+            if (name.startswith(metadata_prefix)) and (not name.endswith("/RECORD"))
         }
 
 

@@ -174,7 +174,7 @@ class EmbeddedHostTests(unittest.IsolatedAsyncioTestCase):
         async with asyncio.timeout(10):
             observation = await control.observe(after=None, wait_seconds=0)
 
-            while not observation.settled and not observation.failures:
+            while (not observation.settled) and (not observation.failures):
                 observation = await control.observe(
                     after=observation.revision,
                     wait_seconds=1,

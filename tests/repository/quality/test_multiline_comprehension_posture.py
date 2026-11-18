@@ -75,7 +75,7 @@ def multiline_comprehension_findings(*, source: str) -> list[tuple[int, str]]:
         before_closing = closing_line[:closing.start[1]]
         after_closing = closing_line[closing.end[1]:]
 
-        if before_closing.strip() or after_closing.strip() not in {"", ","}:
+        if (before_closing.strip()) or (after_closing.strip() not in {"", ","}):
             findings.add((closing.start[0], "put the closing comprehension delimiter on its own line"))
 
     return sorted(findings)
@@ -99,7 +99,7 @@ def multiline_filter_findings(*, source: str) -> list[tuple[int, str]]:
             continue
 
         for condition in clause.ifs:
-            if not isinstance(condition, ast.BoolOp) or condition.lineno == condition.end_lineno:
+            if (not isinstance(condition, ast.BoolOp)) or (condition.lineno == condition.end_lineno):
                 continue
 
             column = _character_column(line=lines[condition.lineno - 1], byte_column=condition.col_offset)

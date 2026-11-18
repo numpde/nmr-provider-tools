@@ -27,7 +27,7 @@ def _https_origin(value):
 
     require_type(value, str)
 
-    if not (value) or any(ord(c) <= 32 or ord(c) >= 127 for c in value):
+    if (not (value)) or (any(ord(c) <= 32 or ord(c) >= 127 for c in value)):
         raise ValueError("Cannot configure signing: supply one ASCII HTTPS origin without whitespace")
 
     try:
@@ -48,7 +48,7 @@ def _https_origin(value):
         ("#" in value) or
         parsed.netloc.endswith(":") or
         ("%" in host) or
-        (port is not None and port <= 0)
+        ((port is not None) and (port <= 0))
     ):
         raise ValueError("Cannot configure signing: HTTPS origin must contain only a host and optional port")
 
@@ -67,7 +67,7 @@ def _https_origin(value):
     else:
         authority = f"[{address}]" if isinstance(address, IPv6Address) else str(address)
 
-    if port is not None and port != 443:
+    if (port is not None) and (port != 443):
         authority += f":{port}"
 
     return ("https://" + authority, authority)
@@ -99,7 +99,7 @@ def require_credential_ref(value):
 
     require_type(value, str)
 
-    if not (len(value) <= 128 and re.fullmatch('credential:[A-Za-z0-9_.-]+(?::[A-Za-z0-9_.-]+)*', value) is not None):
+    if not ((len(value) <= 128) and (re.fullmatch('credential:[A-Za-z0-9_.-]+(?::[A-Za-z0-9_.-]+)*', value) is not None)):
         raise ValueError("Cannot configure signing: credential reference must use bounded credential:name segments")
 
 
@@ -142,7 +142,7 @@ def signed_request(identity, *, method, path, query, body, created, nonce):
     """
     target = _request_target(method, path, query)
 
-    if body is not None and type(body) is not (expected_body_type := bytes):
+    if (body is not None) and (type(body) is not (expected_body_type := bytes)):
         raise TypeError(f"{type(body)=} ≠ {expected_body_type=}")
 
     require_type(created, int)

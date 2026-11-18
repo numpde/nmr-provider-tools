@@ -169,7 +169,7 @@ class AttemptStarter:
             self._finish_if_settled()
 
     def _finish_if_settled(self):
-        if self.api.pending_owner is not self and self._unretained is None:
+        if (self.api.pending_owner is not self) and (self._unretained is None):
             self.claim.finish(self)
             self._pending = None
 

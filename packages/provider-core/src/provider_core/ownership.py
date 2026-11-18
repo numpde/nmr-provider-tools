@@ -155,13 +155,13 @@ class AttemptClaims:
         return (scope.api_origin, scope.provider_ref, "job", job_ref) in self._claims
 
     def _require_live_view(self):
-        if self._loop is not None and asyncio.get_running_loop() is not self._loop:
+        if (self._loop is not None) and (asyncio.get_running_loop() is not self._loop):
             raise OwnershipRefused("Live owner views must remain on their owning event loop")
 
     def _reserve(self, identities, *, live_terminal_bytes):
         loop = asyncio.get_running_loop()
 
-        if self._loop is not None and self._loop is not loop:
+        if (self._loop is not None) and (self._loop is not loop):
             raise OwnershipRefused("Attempt claims must remain on their owning event loop")
 
         for identity in identities:
@@ -179,7 +179,7 @@ class AttemptClaims:
         return claim
 
     def _require(self, claim):
-        if asyncio.get_running_loop() is not self._loop or not claim.active:
+        if (asyncio.get_running_loop() is not self._loop) or (not claim.active):
             raise OwnershipRefused("Attempt claim is released, stale or belongs to another event loop")
 
 
@@ -247,7 +247,7 @@ class _AttemptClaim:
         self._registry._require(self)
         identity = _identity(scope, execution_attempt_ref)
 
-        if self._operation_owner is not owner or owner is None:
+        if (self._operation_owner is not owner) or (owner is None):
             raise OwnershipRefused("Only the current operation owner can bind an Attempt reference")
 
         if any(known[:2] != identity[:2] or (known[2] == "attempt" and known != identity) for known in self._identities):
@@ -255,7 +255,7 @@ class _AttemptClaim:
 
         existing = self._registry._claims.get(identity)
 
-        if existing is not None and existing is not self:
+        if (existing is not None) and (existing is not self):
             raise OwnershipRefused("Received Attempt already has another local owner; preserve the acknowledgement for reconciliation")
 
         self._registry._claims[identity] = self
@@ -285,7 +285,7 @@ class _AttemptClaim:
         """Free the report allowance after the exact borrower confirms its ACK."""
         self._registry._require(self)
 
-        if owner is None or self._operation_owner is not owner:
+        if (owner is None) or (self._operation_owner is not owner):
             raise OwnershipRefused("Only the current operation owner can release its terminal allowance")
 
         owner.require_terminal_release_ready(self)
@@ -297,7 +297,7 @@ class _AttemptClaim:
         if not (self._operation_owner is None):
             raise OwnershipRefused("Cannot release Attempt claim while an operation remains unresolved")
 
-        if owner is None or owner is not self._lifecycle_owner:
+        if (owner is None) or (owner is not self._lifecycle_owner):
             raise OwnershipRefused("Only the exact lifecycle owner can release a live Attempt claim")
 
         owner.require_claim_release_ready(self)

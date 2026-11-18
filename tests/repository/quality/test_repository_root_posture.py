@@ -160,7 +160,7 @@ def _findings_in_body(
         names = _assigned_names(statement)
         value = _assigned_value(statement)
 
-        if value is None or not names:
+        if (value is None) or (not names):
             continue
 
         source_location_depth = _source_location_depth(

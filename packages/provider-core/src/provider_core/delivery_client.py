@@ -286,7 +286,7 @@ class DeliveryClient:
     def can_retry(self, failure):
         """Permit another local read or unchanged submission after owned I/O settles."""
 
-        if failure is not self.last_failure or type(failure) is not DeliveryUnavailable or not self.retirement_confirmed:
+        if (failure is not self.last_failure) or (type(failure) is not DeliveryUnavailable) or (not self.retirement_confirmed):
             return False
 
         if failure.status == 503:

@@ -94,7 +94,7 @@ def unexplained_settings(source):
                     statement += "\n" + continuation
 
         if not statement.lstrip().startswith("["):
-            if not explained and not _inline_explanation(statement):
+            if (not explained) and (not _inline_explanation(statement)):
                 findings.append(line_number)
 
         explained = False

@@ -47,7 +47,7 @@ def _version(release_version):
 
 
 def is_checksum(candidate_checksum):
-    return type(candidate_checksum) is str and re.fullmatch(r"[0-9a-f]{64}", candidate_checksum) is not None
+    return (type(candidate_checksum) is str) and (re.fullmatch(r"[0-9a-f]{64}", candidate_checksum) is not None)
 
 
 def read_pin(release_pin_path):
@@ -229,7 +229,7 @@ def verify(source_dir):
     """
     source = pathlib.Path(source_dir).absolute()
 
-    if source.resolve() != source or source.is_symlink() or not source.is_dir():
+    if (source.resolve() != source) or (source.is_symlink()) or (not source.is_dir()):
         raise ValueError(f"Cannot verify acquisition source {source}: require a real directory without symlink parents.")
 
     manifest_path = source / "acquisition-manifest.json"

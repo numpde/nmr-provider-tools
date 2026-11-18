@@ -27,7 +27,7 @@ def mixed_string_prefix_lines(*, source: str) -> list[int]:
 
             if previous is None:
                 runs[-1] = (formatted, False)
-            elif formatted != previous[0] and not previous[1]:
+            elif (formatted != previous[0]) and (not previous[1]):
                 findings.append(token.start[0])
                 runs[-1] = (previous[0], True)
 

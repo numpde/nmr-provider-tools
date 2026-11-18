@@ -114,7 +114,7 @@ class ChildSession:
 
     # Match the required session port; child retirement tests emit no conditions.
     async def execute(self, handle, *, report_condition):  # noqa: ARG002
-        if handle is not self._prepared or handle is None:
+        if (handle is not self._prepared) or (handle is None):
             raise ValueError("Scripted generation requires this session's current unused handle")
 
         self._prepared = None
@@ -139,7 +139,7 @@ class ChildSession:
     async def retire(self):
         self._prepared = None
 
-        if self.mode == "close_output" and not self.child.pipes_closed:
+        if (self.mode == "close_output") and (not self.child.pipes_closed):
             raise ChildStopUnconfirmed("Scripted child stop is unconfirmed; retain its exact process and explicitly settle after cleanup")
 
         await self.child.stop()

@@ -192,7 +192,7 @@ def error_code_findings(*, sources: dict[pathlib.Path, str]) -> list[tuple[pathl
         class_codes = [(target, initializer) for (target, initializer) in _class_assignments(declaration) if target.id in code_arguments]
         accepts_code = any(parameter.arg in code_arguments for parameter in (*positional, *keyword_only))
 
-        if own_parameters is not None and (len(positional) > 1 or any(parameter.arg in code_arguments for parameter in positional)):
+        if (own_parameters is not None) and (len(positional) > 1 or any(parameter.arg in code_arguments for parameter in positional)):
             constructor = _method(declaration, "__init__")
 
             findings.append((source_path, constructor.lineno, "custom exception constructors take at most one positional message"))
@@ -206,7 +206,7 @@ def error_code_findings(*, sources: dict[pathlib.Path, str]) -> list[tuple[pathl
         aliases = aliases_by_source[source_path]
         bases = [_qualified_name(base, aliases) for base in code_enum.bases]
 
-        if len(bases) != 1 or bases[0] not in error_code_parents:
+        if (len(bases) != 1) or (bases[0] not in error_code_parents):
             findings.append((source_path, code_enum.lineno, "nested Code must derive from the shared ErrorCode"))
 
         if _method(code_enum, "_generate_next_value_") is not None:
@@ -216,7 +216,7 @@ def error_code_findings(*, sources: dict[pathlib.Path, str]) -> list[tuple[pathl
         owned_codes[qualified_name] = {f"{qualified_name}.Code.{target.id}" for (target, _) in members}
 
         for (target, initializer) in members:
-            if not isinstance(initializer, ast.Call) or _qualified_name(initializer.func, aliases) != "enum.auto":
+            if (not isinstance(initializer, ast.Call)) or (_qualified_name(initializer.func, aliases) != "enum.auto"):
                 findings.append((source_path, target.lineno, "declare each error code with auto()"))
 
         for (target, initializer) in class_codes:
@@ -232,7 +232,7 @@ def error_code_findings(*, sources: dict[pathlib.Path, str]) -> list[tuple[pathl
             class_aliases = aliases | {"Code": f"{qualified_name}.Code"}
 
             for parameter in (*positional, *keyword_only):
-                if parameter.arg not in code_arguments or parameter.annotation is None:
+                if (parameter.arg not in code_arguments) or (parameter.annotation is None):
                     continue
 
                 annotation = parameter.annotation
@@ -272,7 +272,7 @@ def error_code_findings(*, sources: dict[pathlib.Path, str]) -> list[tuple[pathl
             for supplied_code in supplied_codes:
                 candidates = owned_codes.get(qualified_name)
 
-                if candidates is None or _qualified_name(supplied_code, aliases) not in candidates:
+                if (candidates is None) or (_qualified_name(supplied_code, aliases) not in candidates):
                     findings.append((source_path, supplied_code.lineno, "pass a member of this exception's own Code enum"))
 
     return sorted(findings)

@@ -190,7 +190,7 @@ class ToolConversation:
         if any(not secret for secret in secrets):
             raise ValueError("Cannot configure interpretation: known secrets must be an explicit tuple of nonempty strings.")
 
-        if text_correction is not None and not (type(text_correction) is (expected_type := TextCorrection)):
+        if (text_correction is not None) and (not (type(text_correction) is (expected_type := TextCorrection))):
             raise TypeError(f"{type(text_correction)=} ≠ {expected_type=}")
 
         if argument_bytes is not None:
@@ -453,7 +453,7 @@ class ToolConversation:
             if text_field in message:
                 assistant_text = message[text_field]
 
-                if assistant_text is not None and not (type(assistant_text) is (expected_type := str)):
+                if (assistant_text is not None) and (not (type(assistant_text) is (expected_type := str))):
                     raise ConversationFailed(f"{text_field=}; {type(assistant_text)=} ≠ {expected_type=}")
 
                 self._require_no_secrets(assistant_text)
@@ -538,7 +538,7 @@ class ToolConversation:
         except UnicodeError as cause:
             raise ToolRejected("Tool arguments must be valid UTF-8 JSON text.") from cause
 
-        if self._argument_bytes is not None and len(raw) > self._argument_bytes:
+        if (self._argument_bytes is not None) and (len(raw) > self._argument_bytes):
             raise ToolRejected(f"Tool arguments exceed the {self._argument_bytes}-byte limit; submit a smaller JSON object.")
 
         try:
@@ -580,7 +580,7 @@ class ToolConversation:
 
         self.correction_failures.append((self._turns, rejection))
 
-        if self._max_corrections is not None and self._corrections >= self._max_corrections:
+        if (self._max_corrections is not None) and (self._corrections >= self._max_corrections):
             raise ConversationFailed(f"Cannot interpret the request: the {self._max_corrections}-correction budget was exhausted.")
 
         content = reason
@@ -591,7 +591,7 @@ class ToolConversation:
         for call in calls:
             self._messages.append(self._tool_message(call["id"], content))
 
-        if self._text_correction is not None and self._text_correction.user_content is not None:
+        if (self._text_correction is not None) and (self._text_correction.user_content is not None):
             self._messages.append({"role": "user", "content": self._text_correction.user_content})
 
     def _observation(self):

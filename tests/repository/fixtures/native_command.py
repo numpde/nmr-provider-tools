@@ -31,7 +31,7 @@ def fixture_command(name):
             command = pathlib.Path(f"/proc/{anchor}/cmdline").read_bytes().split(b"\0")[:-1]
             role = pathlib.Path(os.environ["ENGINE_STATE"], "role-" + os.fsdecode(command[-1]))
 
-            if command[-3:-1] != [b"rm", b"--force"] or not role.is_file() or role.read_text().strip() != selected:
+            if (command[-3:-1] != [b"rm", b"--force"]) or (not role.is_file()) or (role.read_text().strip() != selected):
                 os.execv("/bin/mv", [name, *arguments])
 
             assert anchor == os.getppid()

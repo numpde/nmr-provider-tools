@@ -115,7 +115,7 @@ class ScopeReader:
         return read
 
     def _entry(self, source: SourceRef) -> tuple[SourceEntry, ZipInfo | None]:
-        if self._archive is not None and source.upload_ref == self._root.upload_ref and source.member is not None:
+        if (self._archive is not None) and (source.upload_ref == self._root.upload_ref) and (source.member is not None):
             info = self._access._indexed_member(self._members, source.member)
 
             return (SourceEntry(source, info.file_size), info)
@@ -161,7 +161,7 @@ class SourceAccess:
         """Admit one inventory and reuse its archive index for the inspection."""
         contents = self._upload(source.upload_ref)
 
-        if source.member is None and not _is_zip(contents):
+        if (source.member is None) and (not _is_zip(contents)):
             entries = (SourceEntry(source, len(contents)),)
 
             yield ScopeReader(self, source, entries, contents)
@@ -241,7 +241,7 @@ class SourceAccess:
             if total > self.max_member_bytes:
                 raise InputReadError(f"Cannot read the selected source: it exceeds the {self.max_member_bytes}-byte member limit")
 
-            if scope_bytes is not None and total > scope_bytes:
+            if (scope_bytes is not None) and (total > scope_bytes):
                 raise ScopeLimitError(source, self.max_scope_bytes)
 
             chunks.append(chunk)
@@ -340,7 +340,7 @@ class SourceAccess:
                 stream.seek(zip64_offset)
                 record = stream.read(56)
 
-                if len(record) < 56 or not record.startswith(b"PK\x06\x06"):
+                if (len(record) < 56) or (not record.startswith(b"PK\x06\x06")):
                     raise InputReadError("Cannot inspect this ZIP: its ZIP64 entry count is unavailable")
 
                 total_entries = struct.unpack_from("<Q", record, 32)[0]
@@ -361,7 +361,7 @@ class SourceAccess:
         info = matches[0]
         mode = info.external_attr >> 16
 
-        if info.is_dir() or (stat.S_IFMT(mode) not in {0, stat.S_IFREG}):
+        if (info.is_dir()) or (stat.S_IFMT(mode) not in {0, stat.S_IFREG}):
             raise InputReadError("Cannot read the selected ZIP member: it is not a regular file")
 
         if info.flag_bits & 1:
@@ -397,7 +397,7 @@ def _read_chunk(stream, size: int) -> bytes:
         # bz2 reports corrupt compressed data as an errno-less OSError.
         # Translate that form only for ZIP decoding; filesystem errors and
         # unclassified errors from direct-file reads remain operational.
-        if isinstance(error, OSError) and (not isinstance(stream, ZipExtFile) or error.errno is not None):
+        if isinstance(error, OSError) and ((not isinstance(stream, ZipExtFile)) or (error.errno is not None)):
             raise
 
         raise InputReadError("Cannot read the selected ZIP member: decoding or integrity checking failed") from error

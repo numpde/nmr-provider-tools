@@ -71,7 +71,7 @@ class PeakWorkflow:
             baseline_observation = await self.baseline_submission.wait()
 
             # Science may succeed while encoding fails. Keep both facts intact.
-            if baseline_observation.outcome is not Outcome.SUCCEEDED or baseline_observation.result_state is not ResultState.AVAILABLE:
+            if (baseline_observation.outcome is not Outcome.SUCCEEDED) or (baseline_observation.result_state is not ResultState.AVAILABLE):
                 return baseline_observation
 
             corrected_spectrum_payload = await self.baseline_submission.operation.read_result(result=baseline_observation.result)

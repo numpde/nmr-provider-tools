@@ -83,13 +83,13 @@ def selected(lock, prefer_sdist, require_sdist=(), document=None, source_lock=No
 
     projection = {}
 
-    if document.tool is not None and "nmr-provider-tools" in document.tool:
+    if (document.tool is not None) and ("nmr-provider-tools" in document.tool):
         projection = document.tool["nmr-provider-tools"]
 
     source_digest = projection.get("source-lock-sha256")
     source_requirements = None
 
-    if source_lock is not None and source_digest is None:
+    if (source_lock is not None) and (source_digest is None):
         raise ValueError("Cannot use projected lock: source lock binding is missing.")
 
     if source_digest is not None:
@@ -115,7 +115,7 @@ def selected(lock, prefer_sdist, require_sdist=(), document=None, source_lock=No
     found_required = set()
 
     for (package, artifact) in document.select(prefer_sdist_predicate=lambda name: name in preferences):
-        if not isinstance(artifact, (PackageWheel, PackageSdist, PackageArchive)) or artifact.url is None:
+        if (not isinstance(artifact, (PackageWheel, PackageSdist, PackageArchive))) or (artifact.url is None):
             raise ValueError(f"Cannot acquire {package.name}: expected a URL for a locked artifact.")
 
         url = urllib.parse.urlsplit(artifact.url)
@@ -125,29 +125,29 @@ def selected(lock, prefer_sdist, require_sdist=(), document=None, source_lock=No
         if source_requirements is not None:
             entry = source_requirements.get(package.name)
 
-            if entry is None or digest not in entry[1]:
+            if (entry is None) or (digest not in entry[1]):
                 raise ValueError(f"Cannot use projected lock: {package.name} differs from its source lock.")
 
             requirement = entry[0]
 
-            if requirement.url is not None and artifact.url != urllib.parse.urldefrag(requirement.url).url:
+            if (requirement.url is not None) and (artifact.url != urllib.parse.urldefrag(requirement.url).url):
                 raise ValueError(f"Cannot use projected lock: {package.name} has a different locked URL.")
 
-            if requirement.url is None and (package.version is None or not requirement.specifier.contains(package.version, prereleases=True)):
+            if requirement.url is None and ((package.version is None) or (not requirement.specifier.contains(package.version, prereleases=True))):
                 raise ValueError(f"Cannot use projected lock: {package.name} has a different locked version.")
 
-        if not name or name in (".", "..") or "/" in name or "\\" in name:
+        if (not name) or (name in (".", "..")) or ("/" in name) or ("\\" in name):
             raise ValueError(f"Cannot acquire {package.name}: the artifact filename is invalid.")
 
-        source = isinstance(artifact, PackageSdist) or (isinstance(artifact, PackageArchive) and not name.endswith(".whl"))
+        source = isinstance(artifact, PackageSdist) or ((isinstance(artifact, PackageArchive)) and (not name.endswith(".whl")))
 
-        if isinstance(artifact, PackageArchive) and not source:
+        if (isinstance(artifact, PackageArchive)) and (not source):
             try:
                 (wheel_name, wheel_version, _build, wheel_tags) = parse_wheel_filename(name)
             except InvalidWheelFilename as error:
                 raise ValueError(f"Cannot acquire {package.name}: direct wheel filename is invalid.") from error
 
-            if wheel_name != package.name or (package.version is not None and wheel_version != package.version):
+            if wheel_name != package.name or ((package.version is not None) and (wheel_version != package.version)):
                 raise ValueError(f"Cannot acquire {package.name}: direct wheel does not match the locked package.")
 
             if not wheel_tags.intersection(sys_tags()):
@@ -159,22 +159,22 @@ def selected(lock, prefer_sdist, require_sdist=(), document=None, source_lock=No
             except InvalidSdistFilename as error:
                 raise ValueError(f"Cannot acquire {package.name}: direct source archive has no standard distribution filename.") from error
 
-            if source_name != package.name or (package.version is not None and source_version != package.version):
+            if source_name != package.name or ((package.version is not None) and (source_version != package.version)):
                 raise ValueError(f"Cannot acquire {package.name}: direct source archive does not match the locked package.")
 
-        if source and package.name not in preferences:
+        if (source) and (package.name not in preferences):
             raise ValueError(f"Cannot acquire {package.name}: source distributions require an explicit preference.")
 
-        if package.name in required and not source:
+        if (package.name in required) and (not source):
             raise ValueError(f"Cannot acquire {package.name}: the lock does not select a source distribution.")
 
         if package.name in required:
             found_required.add(package.name)
 
-        if type(digest) is not str or not re.fullmatch(r"[0-9a-f]{64}", digest):
+        if (type(digest) is not str) or (not re.fullmatch(r"[0-9a-f]{64}", digest)):
             raise ValueError(f"Cannot acquire {name}: a SHA-256 lock hash is required.")
 
-        if url.scheme not in ("https", "http") or not url.netloc or url.username is not None:
+        if (url.scheme not in ("https", "http")) or (not url.netloc) or (url.username is not None):
             raise ValueError(f"Cannot acquire {name}: expected an HTTP(S) artifact URL without credentials.")
 
         if name in seen and seen[name] != digest:
@@ -187,7 +187,7 @@ def selected(lock, prefer_sdist, require_sdist=(), document=None, source_lock=No
     if missing := required - found_required:
         raise ValueError(f"Cannot acquire source distribution: {', '.join(sorted(missing))} is not selected by the lock.")
 
-    if source_requirements is not None and {package.name for (_, _, _, package, _) in artifacts} != set(source_requirements):
+    if (source_requirements is not None) and ({package.name for (_, _, _, package, _) in artifacts} != set(source_requirements)):
         raise ValueError("Cannot use projected lock: its selected packages differ from the source lock.")
 
     return artifacts
@@ -247,7 +247,7 @@ def download_once(pool, name, digest, url, directory_fd):
                     checksum.update(block)
                     target.write(block)
 
-                if length is not None and received < length:
+                if (length is not None) and (received < length):
                     raise RequestFailure(http.client.IncompleteRead(b"", length - received)) from None
 
             if checksum.hexdigest() != digest:
@@ -404,7 +404,7 @@ def main():
         require_sdist = args.require_sdist
 
     try:
-        if args.local_lock is not None and (args.local_root is None or not args.local_root.is_absolute()):
+        if (args.local_lock is not None) and ((args.local_root is None) or (not args.local_root.is_absolute())):
             raise ValueError("Cannot write a local lock: supply an absolute --local-root.")
 
         if (

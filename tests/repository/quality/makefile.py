@@ -28,7 +28,7 @@ def make_invocation_owners(makefile: str, invocation: str) -> list[str]:
             in_define = True
 
             continue
-        elif line and not line.startswith("\t") and not line.lstrip().startswith("#"):
+        elif (line) and (not line.startswith("\t")) and (not line.lstrip().startswith("#")):
             (rule_targets, separator, _) = line.partition(":")
 
             # silent-defaults: allow-contract -- A literal rule names its owner; a nonrule clears the previous owner so a later tabbed invocation cannot inherit it; proof=tests/repository/quality/test_makefile.py::MakeSourceInspectionTests.test_invocation_inventory_rejects_uninspected_uses
@@ -39,7 +39,7 @@ def make_invocation_owners(makefile: str, invocation: str) -> list[str]:
 
         before_invocation = line.split(invocation, 1)[0]
 
-        if owner is None or "#" in before_invocation or (not in_define and not line.startswith("\t")):
+        if owner is None or "#" in before_invocation or ((not in_define) and (not line.startswith("\t"))):
             raise AssertionError(f"Makefile has {invocation!r} outside one direct recipe or define")
 
         if owner not in owners:
@@ -95,7 +95,7 @@ def make_target_body(makefile: str, target: str) -> str:
 
             gap.clear()
             recipe.append(line)
-        elif not line.strip() or line.lstrip().startswith("#"):
+        elif (not line.strip()) or (line.lstrip().startswith("#")):
             gap.append(line)
         else:
             break

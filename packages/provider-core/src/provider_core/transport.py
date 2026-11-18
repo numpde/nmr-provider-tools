@@ -143,7 +143,7 @@ def _require_output_file(descriptor):
 
     access_mode = flags & os.O_ACCMODE
 
-    if not stat.S_ISREG(facts.st_mode) or access_mode not in (os.O_WRONLY, os.O_RDWR) or flags & os.O_APPEND:
+    if (not stat.S_ISREG(facts.st_mode)) or (access_mode not in (os.O_WRONLY, os.O_RDWR)) or (flags & os.O_APPEND):
         raise ExchangeFailed("Cannot receive HTTP response in a file: output must be a writable regular file without append mode; request was not sent")
 
 
@@ -228,7 +228,7 @@ def response_request_id(headers):
     """
     values = [value for (name, value) in headers if name.lower() == b"x-request-id"]
 
-    if len(values) == 1 and re.fullmatch(rb"[!-~]{1,128}", values[0]) is not None:
+    if (len(values) == 1) and (re.fullmatch(rb"[!-~]{1,128}", values[0]) is not None):
         return values[0].decode("ascii")
 
     return None
@@ -284,12 +284,12 @@ def require_transport_settings(*, trust, exchange_seconds, retirement_seconds, p
 
     require_instance(trust, ssl.SSLContext)
 
-    if trust.verify_mode != ssl.CERT_REQUIRED or not (trust.check_hostname):
+    if (trust.verify_mode != ssl.CERT_REQUIRED) or (not (trust.check_hostname)):
         raise ValueError("Cannot configure HTTPS exchange: TLS must verify the certificate and hostname")
 
     require_type(allow_http, bool)
 
-    if allow_http and proxy_socket is not None:
+    if (allow_http) and (proxy_socket is not None):
         raise ValueError("Cannot configure HTTP exchange: plain HTTP admission requires a direct transport without a proxy")
 
     require_positive_number(exchange_seconds)
@@ -374,11 +374,11 @@ class HttpTransport:
             raise ValueError("Cannot start HTTPS exchange: destination must use HTTPS")
 
         # httpcore 1.0.9 emits an unbracketed IPv6 CONNECT authority.
-        if self._proxy_socket is not None and b":" in request.url.raw_host:
+        if (self._proxy_socket is not None) and (b":" in request.url.raw_host):
             raise ValueError("Cannot start proxied HTTPS exchange: IPv6 literal destinations are not supported; use a DNS name or IPv4 address.")
 
     async def _perform(self, request, maximum_bytes, account_bytes, outcome, output_fd, before_body, decoder_factory, not_after):
-        if not_after is not None and asyncio.get_running_loop().time() >= not_after:
+        if (not_after is not None) and (asyncio.get_running_loop().time() >= not_after):
             outcome.primary = TimeoutError("HTTP exchange absolute deadline expired before task entry")
 
             return outcome
@@ -395,7 +395,7 @@ class HttpTransport:
             if file_body is not None:
                 await file_body.validate()
 
-            if not_after is not None and asyncio.get_running_loop().time() >= not_after:
+            if (not_after is not None) and (asyncio.get_running_loop().time() >= not_after):
                 raise TimeoutError("HTTP exchange absolute deadline expired before request dispatch")
 
             network = OwnedNetworkBackend(proxy_socket=self._proxy_socket)
@@ -531,7 +531,7 @@ class HttpTransport:
                     # Cancellation during TLS goodbye may already have closed
                     # the raw socket. Keep the interruption as the operation's
                     # outcome without inventing an unfinished resource owner.
-                    if isinstance(failure, asyncio.CancelledError) and network is not None and network.retirement_confirmed:
+                    if (isinstance(failure, asyncio.CancelledError)) and (network is not None) and (network.retirement_confirmed):
                         if outcome.primary is None:
                             outcome.primary = failure
                     else:
@@ -605,7 +605,7 @@ class HttpTransport:
         # therefore never entered its body and acquired no client or response.
         outcome = _Outcome(primary=asyncio.CancelledError()) if task.cancelled() else task.result()
 
-        if not outcome.cleanup_failures and self._active is exchange:
+        if (not outcome.cleanup_failures) and (self._active is exchange):
             self._active = None
 
         return outcome
@@ -726,7 +726,7 @@ class HttpTransport:
 
         loop = asyncio.get_running_loop()
 
-        if not_after is not None and loop.time() >= not_after:
+        if (not_after is not None) and (loop.time() >= not_after):
             failure = ExchangeFailed(
                 "Cannot start HTTP exchange: the original absolute deadline expired before dispatch",
                 primary=TimeoutError("HTTP exchange absolute deadline expired before dispatch"),
@@ -757,36 +757,36 @@ class HttpTransport:
 
             (done, _) = await asyncio.wait({task}, timeout=seconds)
 
-            if not done or not_after is not None and loop.time() >= not_after:
+            if (not done) or ((not_after is not None) and (loop.time() >= not_after)):
                 primary = TimeoutError("HTTP exchange exceeded its aggregate deadline")
         except asyncio.CancelledError as failure:
             primary = cancellation = failure
 
         if not task.done():
             if not task.cancelling():
-                if type(primary) is TimeoutError and received.network_backend is not None:
+                if (type(primary) is TimeoutError) and (received.network_backend is not None):
                     received.network_backend.cancel_pending_for_deadline()
 
                 task.cancel()
 
             later_cancellation = await self._observe_retirement(exchange)
 
-            if cancellation is None and later_cancellation is not None:
+            if (cancellation is None) and (later_cancellation is not None):
                 cancellation = later_cancellation
 
         outcome = self._completed(exchange)
         interruption = None
 
-        if received.primary is not None and not isinstance(received.primary, asyncio.CancelledError):
+        if (received.primary is not None) and (not isinstance(received.primary, asyncio.CancelledError)):
             interruption = primary
             primary = received.primary
 
-        if outcome is not None and primary is None:
+        if (outcome is not None) and (primary is None):
             primary = outcome.primary
 
         cleanup_failures = received.cleanup_failures
 
-        if primary is None and outcome is not None and not cleanup_failures:
+        if (primary is None) and (outcome is not None) and (not cleanup_failures):
             return outcome.response
 
         if outcome is None or cleanup_failures:
@@ -817,7 +817,7 @@ class HttpTransport:
 
         self.last_failure = failure
 
-        if cancellation is not None or isinstance(primary, asyncio.CancelledError):
+        if (cancellation is not None) or (isinstance(primary, asyncio.CancelledError)):
             raise cancellation if cancellation is not None else primary
 
         if isinstance(primary, (KeyboardInterrupt, SystemExit)):
@@ -837,7 +837,7 @@ class HttpTransport:
 
         task = exchange.task
 
-        if not task.done() and not task.cancelling():
+        if (not task.done()) and (not task.cancelling()):
             task.cancel()
 
         cancellation = await self._observe_retirement(exchange)
@@ -878,7 +878,7 @@ class HttpTransport:
                 raise self.last_failure from None
 
         if not (cancellation is None):
-            if self.last_failure is not None and self.last_failure.caller_interruption is None:
+            if (self.last_failure is not None) and (self.last_failure.caller_interruption is None):
                 self.last_failure.caller_interruption = cancellation
 
             raise cancellation

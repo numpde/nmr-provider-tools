@@ -150,7 +150,7 @@ class LauncherTests(unittest.TestCase):
 
                     output += part
 
-                    if not sent and b"Choice [" in output:
+                    if (not sent) and (b"Choice [" in output):
                         os.write(terminal, b"1\n")
                         sent = True
 
@@ -214,7 +214,7 @@ class LauncherTests(unittest.TestCase):
 
                     try:
                         while time.monotonic() < deadline:
-                            if not terminal_closed and select.select([terminal], [], [], 0.1)[0]:
+                            if (not terminal_closed) and (select.select([terminal], [], [], 0.1)[0]):
                                 try:
                                     output += os.read(terminal, 65536)
                                 except OSError:

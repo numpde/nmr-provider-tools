@@ -66,7 +66,7 @@ def authority_parts(authority):
     """Admit the exact ASCII host:port representation emitted by configuration."""
     (host, separator, port_text) = authority.rpartition(":")
 
-    if not separator or not re.fullmatch(r"[a-z0-9][a-z0-9.-]*", host):
+    if (not separator) or (not re.fullmatch(r"[a-z0-9][a-z0-9.-]*", host)):
         raise ServiceRefused("Cannot admit service proxy authority: require a canonical DNS name or IPv4 address and explicit port.")
 
     try:
@@ -75,7 +75,7 @@ def authority_parts(authority):
     except (UnicodeError, ValueError):
         raise ServiceRefused("Cannot admit service proxy authority: its DNS name or port is malformed.") from None
 
-    if not 1 <= port <= 65535 or port_text != str(port):
+    if (not (1 <= port <= 65535)) or (port_text != str(port)):
         raise ServiceRefused("Cannot admit service proxy authority: require a canonical port from 1 through 65535.")
 
     return (host, port)
@@ -95,7 +95,7 @@ class ServicePolicy:
 
         admitted = frozenset(authority_parts(value) for value in authorities)
 
-        if not admitted or len(admitted) != len(authorities):
+        if (not admitted) or (len(admitted) != len(authorities)):
             raise ServiceRefused("Cannot configure service proxy: authorities must be nonempty and unique.")
 
         mapped = {}
@@ -108,7 +108,7 @@ class ServicePolicy:
             except ipaddress.AddressValueError:
                 raise ServiceRefused("Cannot configure local service proxy: each peer requires a literal IPv4 address.") from None
 
-            if not separator or host in mapped:
+            if (not separator) or (host in mapped):
                 raise ServiceRefused("Cannot configure local service proxy: peer address assignments must be unambiguous.")
 
             try:
@@ -116,7 +116,7 @@ class ServicePolicy:
             except ipaddress.AddressValueError:
                 literal = None
 
-            if literal is not None and str(literal) != address:
+            if (literal is not None) and (str(literal) != address):
                 raise ServiceRefused("Cannot configure local service proxy: a literal authority must keep its own address.")
 
             mapped[host] = address
@@ -364,7 +364,7 @@ class ServiceProxyServer(bound_http_proxy.ProxyServer):
         self._start_waiting()
 
     def process_request(self, request, client_address):
-        if self.live_configuration is None and not self.shared_socket:
+        if (self.live_configuration is None) and (not self.shared_socket):
             return super().process_request(request, client_address)
 
         self._start_waiting()
@@ -411,7 +411,7 @@ class ServiceProxyServer(bound_http_proxy.ProxyServer):
                 self.shutdown_request(request)
                 continue
 
-            if blocked or ready_at > now or not self._slots.acquire():
+            if (blocked) or (ready_at > now) or (not self._slots.acquire()):
                 self.pending.append((ready_at, expires_at, request, client_address))
 
                 if self.admission_order == "fifo":
@@ -572,13 +572,13 @@ def main():
     parser.add_argument("--socket-group-id", type=int)
     args = parser.parse_args()
 
-    if args.live_config is None and (not args.authority or not args.log_level):
+    if args.live_config is None and ((not args.authority) or (not args.log_level)):
         parser.error("private routes require --authority and --log-level")
 
-    if args.live_config is not None and (args.authority is not None or args.log_level is not None):
+    if (args.live_config is not None) and ((args.authority is not None) or (args.log_level is not None)):
         parser.error("live routes take authorities and log level from --live-config")
 
-    if args.live_config is not None and args.address is not None:
+    if (args.live_config is not None) and (args.address is not None):
         parser.error("live routes take address mappings from --live-config")
 
     # Startup errors need the same formatter before live settings can supply

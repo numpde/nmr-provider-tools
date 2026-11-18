@@ -77,11 +77,11 @@ def _findings(*, source: str) -> list[_Finding]:
             (syntax_node.value.id in {"self", "cls"})
         ):
             bindings.append((syntax_node.lineno, syntax_node.attr))
-        elif isinstance(syntax_node, ast.ExceptHandler) and syntax_node.name is not None:
+        elif (isinstance(syntax_node, ast.ExceptHandler)) and (syntax_node.name is not None):
             bindings.append((syntax_node.lineno, syntax_node.name))
-        elif isinstance(syntax_node, (ast.MatchAs, ast.MatchStar)) and syntax_node.name is not None:
+        elif (isinstance(syntax_node, (ast.MatchAs, ast.MatchStar))) and (syntax_node.name is not None):
             bindings.append((syntax_node.lineno, syntax_node.name))
-        elif isinstance(syntax_node, ast.MatchMapping) and syntax_node.rest is not None:
+        elif (isinstance(syntax_node, ast.MatchMapping)) and (syntax_node.rest is not None):
             bindings.append((syntax_node.lineno, syntax_node.rest))
         elif isinstance(syntax_node, (ast.Import, ast.ImportFrom)):
             for imported_name in syntax_node.names:

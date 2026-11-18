@@ -21,7 +21,7 @@ def multiline_boolean_findings(*, source: str) -> list[tuple[int, str]]:
     findings = []
 
     for expression in ast.walk(node=ast.parse(source=source)):
-        if not isinstance(expression, ast.BoolOp) or expression.lineno == expression.end_lineno:
+        if (not isinstance(expression, ast.BoolOp)) or (expression.lineno == expression.end_lineno):
             continue
 
         if isinstance(expression.op, ast.And):

@@ -94,7 +94,7 @@ def shell_exported_names(source: str) -> set[str] | None:
     names: set[str] = set()
 
     for line in source.splitlines():
-        if line.lstrip().startswith("#") or not re.search(r"\b(?:export|declare|typeset|set|shopt)\b", line):
+        if (line.lstrip().startswith("#")) or (not re.search(r"\b(?:export|declare|typeset|set|shopt)\b", line)):
             continue
 
         try:
@@ -259,7 +259,7 @@ class OpsSilentDefaultsTest(unittest.TestCase):
 
                     continue
 
-                if environment_indent is not None and line.strip():
+                if (environment_indent is not None) and (line.strip()):
                     current_indent = len(line) - len(line.lstrip())
 
                     if current_indent <= environment_indent:
@@ -711,7 +711,7 @@ def docker_default_findings_for_source(
     for (line_number, line) in docker_logical_lines(source):
         arg_match = DOCKER_ARG_DEFAULT_RE.match(line)
 
-        if arg_match and arg_match.group("value") is not None:
+        if (arg_match) and (arg_match.group("value") is not None):
             name = arg_match.group("name")
             value = arg_match.group("value")
             entry = ("ARG", label, name, value)
@@ -775,7 +775,7 @@ def docker_logical_lines(source):
     first_line = 1
 
     for (line_number, line) in enumerate(source.splitlines(), start=1):
-        if not line.strip() or line.lstrip().startswith("#"):
+        if (not line.strip()) or (line.lstrip().startswith("#")):
             if pending:
                 continue
 
@@ -841,7 +841,7 @@ def docker_defaults(files: list[pathlib.Path]) -> set[tuple[str, str, str, str]]
         for (_line_number, line) in docker_logical_lines(path.read_text(encoding="utf-8")):
             arg_match = DOCKER_ARG_DEFAULT_RE.match(line)
 
-            if arg_match and arg_match.group("value") is not None:
+            if (arg_match) and (arg_match.group("value") is not None):
                 defaults.add(("ARG", label, arg_match.group("name"), arg_match.group("value")))
                 continue
 

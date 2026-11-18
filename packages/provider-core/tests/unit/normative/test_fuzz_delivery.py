@@ -79,7 +79,7 @@ class DeliveryFaultSequenceTests(unittest.TestCase):
 
                         # silent-defaults: allow-contract -- New intake and restart have no preselected outstanding record.
                         existing_key = (randomizer.choice(tuple(expected))
-                                        if expected and action not in ("enqueue", "reopen") else None)
+                                        if (expected) and (action not in ("enqueue", "reopen")) else None)
 
                         # silent-defaults: allow-contract -- Record the actual old key or the attempted new identity.
                         trace.append((action, existing_key if existing_key is not None else (provider, suffix)))
@@ -88,7 +88,7 @@ class DeliveryFaultSequenceTests(unittest.TestCase):
                             if action == "reopen":
                                 queue.close()
                                 queue = DeliveryQueue(pathlib.Path(directory), limits=limits)
-                            elif action == "enqueue" or not expected:
+                            elif (action == "enqueue") or (not expected):
                                 item = DeliveryHandoff(
                                     outcome(provider=provider, suffix=suffix, message=f"result-{seed}-{step}"),
                                     materials[provider][0]

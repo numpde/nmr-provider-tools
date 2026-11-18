@@ -70,7 +70,7 @@ def requirements(lock):
         for raw in stream:
             line = raw.decode().strip().removesuffix("\\").rstrip()
 
-            if not line or line.startswith("#"):
+            if (not line) or (line.startswith("#")):
                 continue
 
             if match := re.fullmatch(r"--hash=sha256:([0-9a-f]{64})", line):
@@ -92,7 +92,7 @@ def requirements(lock):
 
             packages[current] = set()
 
-    if not packages or not all(packages.values()):
+    if (not packages) or (not all(packages.values())):
         raise ValueError("Cannot acquire wheels: every locked package must have SHA-256 hashes")
 
     return packages
@@ -186,7 +186,7 @@ def wheel_inputs_from_report(lock, pool, report, extra_pools=(), required_files=
         # Pip owns lock resolution and checks the selected file against the lock.
         files[candidate.name] = installed_distribution["download_info"]["archive_info"]["hashes"]["sha256"]
 
-    if required_files and not set(required_files).issubset(files):
+    if (required_files) and (not set(required_files).issubset(files)):
         raise ValueError("Cannot select wheels: a required release artifact was not selected.")
 
     return {"lock_sha256": digest(lock), "files": files}

@@ -21,7 +21,7 @@ def _addresses(resolver_tokens):
         except ipaddress.AddressValueError:
             continue
 
-        if not address.is_loopback and str(address) not in servers:
+        if (not address.is_loopback) and (str(address) not in servers):
             servers.append(str(address))
 
     return tuple(servers)

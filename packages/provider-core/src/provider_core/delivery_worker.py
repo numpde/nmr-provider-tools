@@ -241,7 +241,7 @@ class DeliveryWorker:
                     # to this row. Trust, routing, topology and unknown refusals
                     # pause the binding, rather than holding every pending item.
                     item_refusal = (
-                        (failure.status == 409 and failure.problem_code is not None) or
+                        ((failure.status == 409) and (failure.problem_code is not None)) or
                         (failure.status == 200 and type(failure.cause) is ResponseRejected)
                     )
 
@@ -297,7 +297,7 @@ class DeliveryWorker:
         cleanup_failures: tuple[BaseException, ...] = ()
 
         try:
-            while not self.stopping.is_set() and not self.paused:
+            while (not self.stopping.is_set()) and (not self.paused):
                 self._api_receipt_received = False
 
                 self.changed.clear()
@@ -322,7 +322,7 @@ class DeliveryWorker:
 
             self._running = False
 
-        if operation_failure is not None or cleanup_failures:
+        if (operation_failure is not None) or (cleanup_failures):
             self.failure = DeliveryWorkerFailed(
                 cause=operation_failure,
                 api_failure=self.api.last_failure,

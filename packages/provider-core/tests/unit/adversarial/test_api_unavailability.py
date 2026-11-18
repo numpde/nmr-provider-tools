@@ -668,7 +668,7 @@ class ApiAvailabilityTests(unittest.IsolatedAsyncioTestCase):
                 self.assertIs(api.can_retry_read(failure), expected)
                 self.assertNotIn("PRIVATE", str(failure))
 
-                if response.body != unavailable_problem() or not expected:
+                if (response.body != unavailable_problem()) or (not expected):
                     self.assertIsNone(failure.problem_code)
 
     async def test_reviewed_io_evidence_is_distinct_from_configuration_and_protocol_errors(self):

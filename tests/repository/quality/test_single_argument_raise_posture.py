@@ -21,7 +21,7 @@ def unnecessary_raise_breaks(*, source: str) -> list[int]:
     lines = source.splitlines()
 
     for node in ast.walk(node=ast.parse(source=source)):
-        if not isinstance(node, ast.Raise) or node.cause is not None or not isinstance(node.exc, ast.Call):
+        if (not isinstance(node, ast.Raise)) or (node.cause is not None) or (not isinstance(node.exc, ast.Call)):
             continue
 
         call = node.exc

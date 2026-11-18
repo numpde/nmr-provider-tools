@@ -115,7 +115,7 @@ def _discover_examples(
 
         scientific_dependencies = set(dependencies) - selected_sdk_dependencies - mock_dependencies
 
-        if not scientific_dependencies and (source / "requirements.lock").exists():
+        if (not scientific_dependencies) and ((source / "requirements.lock").exists()):
             raise ValueError("An example without scientific dependencies cannot install a scientific lock")
 
         if scientific_dependencies:

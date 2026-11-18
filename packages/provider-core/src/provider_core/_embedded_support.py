@@ -55,7 +55,7 @@ def _require_supported_binding(binding):
         if not (call.interruption in EMBEDDED_CAPABILITIES.interruption):
             raise ValueError("The embedded backend cannot provide this call's interruption contract.")
 
-        if call.progress and not EMBEDDED_CAPABILITIES.progress:
+        if (call.progress) and (not EMBEDDED_CAPABILITIES.progress):
             raise ValueError("The embedded backend cannot retain this call's progress events.")
 
 
@@ -81,7 +81,7 @@ class Allocation:
 def _require_start_deadline(*, start_not_after: float | None, now: float) -> None:
     """Refuse new scientific entry after the addressed backend's original deadline."""
 
-    if start_not_after is not None and not now < start_not_after:
+    if (start_not_after is not None) and (not now < start_not_after):
         raise StartDeadlineExpired(f"Cannot start scientific work: {start_not_after=} has passed at {now=}")
 
 

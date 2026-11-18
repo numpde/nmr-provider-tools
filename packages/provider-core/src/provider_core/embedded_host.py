@@ -223,14 +223,14 @@ class InProcessExecutionHost:
         if resident is None or resident.reference != allocation:
             raise ValueError("The allocation handle does not belong to this host")
 
-        if self.retiring or resident.retirement is not None or resident.retired:
+        if (self.retiring) or (resident.retirement is not None) or (resident.retired):
             raise CapacityUnavailable("Cannot initialize an allocation that is retiring")
 
         if resident.analysis is not None:
             raise CapacityUnavailable("Cannot initialize an allocation while an analysis owns it")
 
         if resident.failure is not None:
-            if resident.initialization is not None and resident.initialization.done():
+            if (resident.initialization is not None) and (resident.initialization.done()):
                 if resident.initialization.exception() is resident.failure:
                     resident.initialization_abandoned = False
                     resident.initialization_failure_observed = True
@@ -281,7 +281,7 @@ class InProcessExecutionHost:
         self._require_loop()
 
         if allocations is not None:
-            if analysis_id is not None or allocation_names is not None:
+            if (analysis_id is not None) or (allocation_names is not None):
                 raise TypeError("Choose allocation handles or the legacy named analysis arguments")
 
             require_type(allocations, frozenset)
@@ -327,7 +327,7 @@ class InProcessExecutionHost:
         if any(
             (
                 (resident.analysis is not None) or
-                (resident.initialization is not None and not resident.initialization.done()) or
+                ((resident.initialization is not None) and (not resident.initialization.done())) or
                 (resident.failure is not None) or
                 (resident.retirement is not None) or
                 resident.retired
@@ -398,10 +398,10 @@ class InProcessExecutionHost:
         except BaseException as cause:
             failures.append(cause)
 
-        if resident.initialization_abandoned and not resident.initialization_failure_observed:
+        if (resident.initialization_abandoned) and (not resident.initialization_failure_observed):
             initialization_failure = resident.initialization.exception()
 
-            if initialization_failure is not None and initialization_failure is not resident.initialization_limit_failure:
+            if (initialization_failure is not None) and (initialization_failure is not resident.initialization_limit_failure):
                 failures.append(initialization_failure)
 
         resident.join_task = self.loop.create_task(
@@ -576,7 +576,7 @@ class InProcessAnalysisExecutor:
 
         call = hosted.call(method=method)
 
-        if type(scientific_input) is NoInput and call.input_codec.value_type is not NoInput:
+        if (type(scientific_input) is NoInput) and (call.input_codec.value_type is not NoInput):
             raise TypeError(f"Unexpected {type(scientific_input)=}; {call.description.name=} requires {call.input_codec.value_type=}")
 
         return self.submit_call(

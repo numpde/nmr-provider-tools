@@ -51,7 +51,7 @@ def _inputs(args):
             )
         )
 
-    if args.host_uid is not None or args.host_gid is not None:
+    if (args.host_uid is not None) or (args.host_gid is not None):
         raise ValueError("Do not combine host-owner IDs with --map projections.")
 
     if any(policy_setting is None for policy_setting in policy):
@@ -63,7 +63,7 @@ def _inputs(args):
     projections = []
 
     for (axis, direction, identifier) in args.maps:
-        if axis not in ("uid", "gid") or direction not in ("forward", "inverse"):
+        if (axis not in ("uid", "gid")) or (direction not in ("forward", "inverse")):
             raise ValueError("Each --map selects uid or gid, forward or inverse, and one Linux ID.")
 
         projections.append((axis, direction, Identifier.of(identifier)))
@@ -168,7 +168,7 @@ def main(argv=None):
                 receipt.write("retired\n")
 
     # Receipt and restored caller handlers precede any usable projection output.
-    if status == 0 and not cancellation.is_set():
+    if (status == 0) and (not cancellation.is_set()):
         sys.stdout.write(" ".join(map(str, translated_ids)) + "\n")
 
     return 128 + cancellation.signal if cancellation.is_set() else status

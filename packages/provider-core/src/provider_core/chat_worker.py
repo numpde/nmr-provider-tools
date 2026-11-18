@@ -177,7 +177,7 @@ async def _exchange(document, cancellation):
     except BaseException as cause:
         if isinstance(cause, ExchangeFailed):
             failure = cause
-        elif transport is not None and transport.last_failure is not None:
+        elif (transport is not None) and (transport.last_failure is not None):
             failure = transport.last_failure
         else:
             # silent-defaults: allow-contract -- Only an observed cancellation is caller interruption; other setup failures retain their original primary cause.
@@ -195,7 +195,7 @@ async def _exchange(document, cancellation):
         write_message(sys.stdout.buffer, response_message(response))
     finally:
         try:
-            if transport is not None and not transport.retirement_confirmed:
+            if (transport is not None) and (not transport.retirement_confirmed):
                 # This observes the original exchange and its fixed cleanup
                 # deadline. It never creates a second HTTP attempt or budget.
                 # A retirement failure propagates to main's nonzero exit;
@@ -215,7 +215,7 @@ def main(argv=None):
     try:
         # A test-owned entry module may have arguments of its own. The parent
         # always appends the exact admitted request-frame allowance last.
-        if not arguments or not arguments[-1].isascii() or not arguments[-1].isdecimal():
+        if (not arguments) or (not arguments[-1].isascii()) or (not arguments[-1].isdecimal()):
             return 1
 
         maximum = int(arguments[-1])

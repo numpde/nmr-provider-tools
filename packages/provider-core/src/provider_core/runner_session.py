@@ -199,7 +199,7 @@ class RunnerSession:
                 with self._control_state:
                     self.retirement = retirement
 
-                    if retirement.reason == "exited" and not self._local_interruption:
+                    if (retirement.reason == "exited") and (not self._local_interruption):
                         self._original_exit = OriginalWorkerExit(
                             self.role,
                             self.generation,

@@ -253,7 +253,7 @@ class DeliveryProgressNoticeTests(unittest.IsolatedAsyncioTestCase):
 
             for (_, facts, _) in self.notices:
                 if facts["execution_attempt_ref"] == first.execution_attempt_ref:
-                    self.assertTrue("recovered" not in facts or facts["recovered"] is False, msg=evidence)
+                    self.assertTrue(("recovered" not in facts) or (facts["recovered"] is False), msg=evidence)
 
             published = self.notices[-1][1]
 
@@ -293,7 +293,7 @@ class DeliveryProgressNoticeTests(unittest.IsolatedAsyncioTestCase):
                 self.assertEqual([], peer.requests, msg=evidence)
                 self.assertEqual(delivery_outcome, self.queue.next_pending(delivery_outcome.api_origin, delivery_outcome.provider_ref), msg=evidence)
                 self.assertEqual(delivery_outcome.execution_attempt_ref, self.notices[0][1]["execution_attempt_ref"], msg=evidence)
-                self.assertTrue("recovered" not in self.notices[0][1] or self.notices[0][1]["recovered"] is False, msg=evidence)
+                self.assertTrue(("recovered" not in self.notices[0][1]) or (self.notices[0][1]["recovered"] is False), msg=evidence)
         finally:
             loop.set_exception_handler(previous_handler)
 

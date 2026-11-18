@@ -100,7 +100,7 @@ def require_exact_inventory(
 ) -> None:
     """Reject missing reviewed files and present-but-unclassified files."""
 
-    if not isinstance(label, str) or not label:
+    if (not isinstance(label, str)) or (not label):
         raise TypeError("label must be a non-empty string")
 
     (missing, unclassified) = inventory_delta(

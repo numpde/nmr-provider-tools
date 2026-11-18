@@ -99,7 +99,7 @@ class ObservationRecovery:
         require_positive_number(self.gap_seconds)
         require_positive_number(self.backoff_max_seconds)
 
-        if not callable(self.on_retry) or not callable(self.on_recovered):
+        if (not callable(self.on_retry)) or (not callable(self.on_recovered)):
             raise ValueError("Observation recovery requires explicit protected retry and recovery observers")
 
 
@@ -120,7 +120,7 @@ class ConditionRecovery:
         for value in (self.window_seconds, self.backoff_max_seconds):
             require_positive_number(value)
 
-        if not callable(self.on_retry) or not callable(self.on_recovered):
+        if (not callable(self.on_retry)) or (not callable(self.on_recovered)):
             raise ValueError("Condition recovery requires protected retry and recovery observers")
 
 
@@ -138,7 +138,7 @@ class ConditionRecoveryExpired(TimeoutError):
 
 
 def require_condition_recovery(policy):
-    if policy is not None and type(policy) is not (expected_type := ConditionRecovery):
+    if (policy is not None) and (type(policy) is not (expected_type := ConditionRecovery)):
         raise TypeError(f"{type(policy)=} ≠ {expected_type=}")
 
 
@@ -173,16 +173,16 @@ class ObservationGapExpired(TimeoutError):
     def observation_pending(self):
         task = self._executor._observation_wait
 
-        return task is not None and not task.done()
+        return (task is not None) and (not task.done())
 
 
 def require_observation_recovery(policy):
-    if policy is not None and type(policy) is not (expected_type := ObservationRecovery):
+    if (policy is not None) and (type(policy) is not (expected_type := ObservationRecovery)):
         raise TypeError(f"{type(policy)=} ≠ {expected_type=}")
 
 
 def require_phase_progress_observer(observer):
-    if observer is not None and not callable(observer):
+    if (observer is not None) and (not callable(observer)):
         raise ValueError("Phase-progress continuation requires a diagnostic observer or explicit fail-stop None")
 
 
@@ -214,7 +214,7 @@ class _ConditionReporter:
             self.executor._require_live_permission()
             deadline = self.executor._observation_deadline
 
-            if deadline is not None and asyncio.get_running_loop().time() >= deadline:
+            if (deadline is not None) and (asyncio.get_running_loop().time() >= deadline):
                 raise ObservationGapExpired(self.executor._observation_recovery.gap_seconds, executor=self.executor)
         except Exception as cause:
             # A caught refusal must not let the binding return an otherwise
@@ -313,7 +313,7 @@ def require_execution_settings(*, allowed_job_states, poll_seconds, task_settle_
 
     require_type(allowed_job_states, frozenset)
 
-    if not (allowed_job_states) or not (allowed_job_states <= JOB_STATES) or "cancelled" in allowed_job_states:
+    if (not (allowed_job_states)) or (not (allowed_job_states <= JOB_STATES)) or ("cancelled" in allowed_job_states):
         raise ValueError("Cannot configure execution: allowed_job_states must be a nonempty frozenset of open or closed; cancelled Jobs stop work")
 
     for seconds in (poll_seconds, task_settle_seconds):
@@ -369,7 +369,7 @@ class AttemptExecutor:
         if api.origin != scope.api_origin:
             raise ValueError("Cannot configure execution: signing origin differs from the selected scope")
 
-        if preverified_input is not None and type(preverified_input) is not (expected_preverified_input_type := VerifiedJobInput):
+        if (preverified_input is not None) and (type(preverified_input) is not (expected_preverified_input_type := VerifiedJobInput)):
             raise TypeError(f"{type(preverified_input)=} ≠ {expected_preverified_input_type=}")
 
         if (
@@ -450,7 +450,7 @@ class AttemptExecutor:
     def delivery_accepted(self):
         """The relay owns this terminal body; cleanup and API publication may remain."""
 
-        return self._delivery_acceptance is not None and type(self._checkpoint) is DeliveryAcceptedCheckpoint
+        return (self._delivery_acceptance is not None) and (type(self._checkpoint) is DeliveryAcceptedCheckpoint)
 
     @property
     def work_settled(self):
@@ -513,7 +513,7 @@ class AttemptExecutor:
         return None
 
     def require_terminal_release_ready(self, claim):
-        if claim is not self.claim or not self.delivery_accepted:
+        if (claim is not self.claim) or (not self.delivery_accepted):
             raise ExecutionRefused("Cannot release report capacity before this executor receives its matching delivery acknowledgement")
 
     async def run(self, acknowledged):
@@ -536,7 +536,7 @@ class AttemptExecutor:
         self.claim.require(self.scope, acknowledged.admission.execution_attempt_ref)
         self.claim.lifecycle_owner.require_execution_ready(self.claim, self, acknowledged)
 
-        if self._preverified_input is not None and self._preverified_input.identity != acknowledged.start.input:
+        if (self._preverified_input is not None) and (self._preverified_input.identity != acknowledged.start.input):
             raise ExecutionRefused("Verified Job input differs from this Attempt's selected input; no science was started")
 
         self.claim.begin(self)
@@ -673,7 +673,7 @@ class AttemptExecutor:
                 reporter.require_execution()
                 phase_outcome = await contain_task_exit(operation, *args, report_condition=reporter)
             except (Exception, BaseExceptionGroup, asyncio.CancelledError) as cause:
-                if reporter.failure is not None and cause is not reporter.failure:
+                if (reporter.failure is not None) and (cause is not reporter.failure):
                     if reporter.failure is self._observed_stop:
                         if isinstance(cause, asyncio.CancelledError) and self._cancel_requested:
                             # Retirement may add independent evidence to this
@@ -805,7 +805,7 @@ class AttemptExecutor:
                         # Real server-stop evidence and earlier report failures still veto.
                         if (
                             (not self._admitted_crash_result(phase)) or
-                            (isinstance(failure, ObservedWorkerCrash) and failure is not self._observed_crash)
+                            ((isinstance(failure, ObservedWorkerCrash)) and (failure is not self._observed_crash))
                         ):
                             raise
 
@@ -818,7 +818,7 @@ class AttemptExecutor:
 
             self._require_live_permission()
 
-            if self._observed_crash is not None and self._observed_crash.phase == phase:
+            if (self._observed_crash is not None) and (self._observed_crash.phase == phase):
                 return result
 
             # A known binding failure needs no acceptance read. For a successful
@@ -838,7 +838,7 @@ class AttemptExecutor:
         self.claim.lifecycle_owner.require_execution_ready(self.claim, self, self._acknowledged)
 
     def _cancel_task(self):
-        if self._task is not None and not self._task.done() and not self._cancel_requested:
+        if (self._task is not None) and (not self._task.done()) and (not self._cancel_requested):
             if self._task.cancelling():
                 self._server_revocation = None  # A different owner already interrupted this phase.
 
@@ -867,7 +867,7 @@ class AttemptExecutor:
 
             # The phase may have observed this same stop at its permission gate.
             # Every independent failure still prevents revocation release.
-            if cause is not None and cause is not self._observed_stop:
+            if (cause is not None) and (cause is not self._observed_stop):
                 self._server_revocation = None
 
                 task.result()
@@ -890,7 +890,7 @@ class AttemptExecutor:
             async with self._api_lock:
                 reporter.require_active()
 
-                if deadline is not None and asyncio.get_running_loop().time() >= deadline:
+                if (deadline is not None) and (asyncio.get_running_loop().time() >= deadline):
                     raise ConditionRecoveryExpired(
                         policy.window_seconds,
                         phase=reporter.phase,
@@ -1050,7 +1050,7 @@ class AttemptExecutor:
 
         # Terminal Attempts and cancelled Jobs stop work. Job closure policy is
         # explicit in composition: e.g. SECS continues closed Jobs, NMRNet stops.
-        if observed.state != "in_progress" or observed.job_state not in self._allowed_job_states:
+        if (observed.state != "in_progress") or (observed.job_state not in self._allowed_job_states):
             stop = ExecutionStopped(observed)
             self._observed_stop = stop
 
@@ -1171,7 +1171,7 @@ class AttemptExecutor:
     def _cancel_observation_wait(self):
         task = self._observation_wait
 
-        if task is not None and not task.done() and not task.cancelling():
+        if (task is not None) and (not task.done()) and (not task.cancelling()):
             task.cancel()
 
     async def _settle_observation_wait(self):
@@ -1281,7 +1281,7 @@ class AttemptExecutor:
 
                 if (
                     self._handoff_stopping.is_set() or
-                    (type(failure) is not DeliveryFull and not self.delivery.can_retry(failure))
+                    ((type(failure) is not DeliveryFull) and (not self.delivery.can_retry(failure)))
                 ):
                     raise
 
@@ -1329,7 +1329,7 @@ class AttemptExecutor:
     def _cancel_handoff(self):
         self._handoff_stopping.set()
 
-        if self._handoff_wait is not None and not self._handoff_wait.done() and not self._handoff_wait.cancelling():
+        if (self._handoff_wait is not None) and (not self._handoff_wait.done()) and (not self._handoff_wait.cancelling()):
             self._handoff_wait.cancel()
 
     async def _settle_handoff(self):
@@ -1361,7 +1361,7 @@ class AttemptExecutor:
         await self.delivery.retire()
 
     def _begin_retirement(self):
-        if self._retirement is not _Retirement.CONFIRMED and self._retirement_task is None:
+        if (self._retirement is not _Retirement.CONFIRMED) and (self._retirement_task is None):
             self._retirement = _Retirement.UNCONFIRMED
             self._retirement_task = asyncio.create_task(contain_task_exit(retire_session, self.session))
 
@@ -1404,7 +1404,7 @@ class AttemptExecutor:
             self._retire_delivery
         ]
 
-        if self._retirement is _Retirement.NOT_ATTEMPTED or self._retirement_task is not None:
+        if (self._retirement is _Retirement.NOT_ATTEMPTED) or (self._retirement_task is not None):
             # Do not retry failed normal retirement while handling its own error.
             operations.insert(0, self._retire_session)
 
@@ -1424,7 +1424,7 @@ class AttemptExecutor:
             except (Exception, BaseExceptionGroup) as cause:
                 self._remember(cause, cleanup=True)
 
-                if not isinstance(cause, Exception) and fatal is None:
+                if (not isinstance(cause, Exception)) and (fatal is None):
                     fatal = cause
 
         if not (cancellation is None):
@@ -1443,7 +1443,7 @@ class AttemptExecutor:
     async def settle(self):
         """Retire work and observe original I/O; never invoke a prepared handle."""
 
-        if not self._active or self._observing:
+        if (not self._active) or (self._observing):
             raise ExecutionRefused("No unobserved execution lifecycle is available to settle")
 
         self._observing = True
@@ -1479,7 +1479,7 @@ class AttemptExecutor:
 
                     self._remember(cause, cleanup=True)
 
-                    if not isinstance(cause, Exception) and fatal is None:
+                    if (not isinstance(cause, Exception)) and (fatal is None):
                         fatal = cause
 
             if not (cancellation is None):
@@ -1598,7 +1598,7 @@ class AttemptExecutor:
             (self._condition_receipt is not None) or
             (self.delivery.last_failure is not None) or
             bool(self.last_failure.cleanup_failures) or
-            (self._operation_interruption is not None and self._operation_interruption.__cause__ is not None)
+            ((self._operation_interruption is not None) and (self._operation_interruption.__cause__ is not None))
         )
 
     def _link_interruption(self, interruption):
@@ -1612,7 +1612,7 @@ class AttemptExecutor:
 
         if retained is None:
             self.last_failure.interruption_cause = previous
-        elif previous is not None and previous is not retained:
+        elif (previous is not None) and (previous is not retained):
             self.last_failure.interruption_cause = BaseExceptionGroup("Analysis interruption observations", (retained, previous))
 
         interruption.__cause__ = self.last_failure

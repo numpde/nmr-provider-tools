@@ -183,7 +183,7 @@ async def child(owner_kind, failure_kind):
         while isinstance(failure, (ControllerFailed, ExecutionFailed)):
             failure = failure.cause
 
-        if cleanup is not None and primary_kind == "ordinary":
+        if (cleanup is not None) and (primary_kind == "ordinary"):
             assert isinstance(failure, BaseExceptionGroup)
             assert cleanup in failure_graph(failure)
             primary_record = owner.operation.last_failure if owner_kind == "controller" else owner.last_failure
@@ -201,7 +201,7 @@ async def child(owner_kind, failure_kind):
 
     assert [event[0] for event in session.events] == ["prepare", "retire"]
     assert delivery.retire_calls >= 1
-    assert len(child_processes) == 1 and child_processes[0].returncode is not None, "the original child must actually be reaped"
+    assert (len(child_processes) == 1) and (child_processes[0].returncode is not None), "the original child must actually be reaped"
     assert not delivery.items, "an authored Python process exit must not synthesize terminal FAIL"
     assert len(transport.calls) == 3 + len(prefix), "no science replay or later API publication"
     assert not original.cancelled()
@@ -337,7 +337,7 @@ async def owned_port_child(stage, failure_kind):
     if stage == "condition":
         assert swallowed and owner.last_failure.cause is swallowed[0]
         assert [event[0] for event in session.events] == ["prepare", "retire"]
-        assert delivery.submit_calls == 0 and not delivery.items
+        assert (delivery.submit_calls == 0) and (not delivery.items)
         assert len(transport.calls) == 3
     else:
         assert [event[0] for event in session.events] == ["prepare", "execute", "retire"]
@@ -346,7 +346,7 @@ async def owned_port_child(stage, failure_kind):
 
         if stage == "retirement":
             assert len(delivery.items) == 1 and delivery.items[0].operation is TerminalOperation.COMPLETE
-            assert owner._outcome is None and not owner.retirement_confirmed
+            assert (owner._outcome is None) and (not owner.retirement_confirmed)
         else:
             assert not delivery.items
             assert owner._outcome is session.outcome and owner.retirement_confirmed
@@ -482,7 +482,7 @@ async def graph_child(stage, variant):
         nodes = failure_graph(caught)
 
         assert owner.last_failure in nodes
-        assert caught is not primary and caught is not retirement and caught is not delivery_failure
+        assert (caught is not primary) and (caught is not retirement) and (caught is not delivery_failure)
         assert primary.__cause__ is original_primary_cause
         assert retirement.__cause__ is original_retirement_cause
 

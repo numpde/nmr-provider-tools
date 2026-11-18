@@ -111,7 +111,7 @@ class RunningSupervisor:
         deadline = time.monotonic() + 5
 
         while not self.path.exists():
-            if self.process.poll() is not None or time.monotonic() > deadline:
+            if (self.process.poll() is not None) or (time.monotonic() > deadline):
                 self.close()
                 raise RuntimeError("Disposable supervisor did not open its endpoint")
 

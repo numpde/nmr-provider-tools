@@ -55,12 +55,12 @@ def guard_findings(*, source: str) -> list[tuple[int, str]]:
     findings = []
 
     for statement in ast.walk(node=ast.parse(source=source)):
-        if not isinstance(statement, ast.If) or not _raising_guard(statement=statement):
+        if (not isinstance(statement, ast.If)) or (not _raising_guard(statement=statement)):
             continue
 
         condition = statement.test
 
-        if not isinstance(condition, ast.UnaryOp) or not isinstance(condition.op, ast.Not):
+        if (not isinstance(condition, ast.UnaryOp)) or (not isinstance(condition.op, ast.Not)):
             findings.append((statement.lineno, "write the raising guard as if not (expected_condition): raise ..."))
         elif (
             (not isinstance(condition.operand, ast.Call)) and

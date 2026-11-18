@@ -351,7 +351,7 @@ def _read_failure(document):
                     issubclass(constructor, OSError) or constructor is RemoteExchangeError)):
                     raise ValueError("Interpreter child error number is malformed")
 
-            result = constructor(number, text) if number is not None and issubclass(constructor, OSError) else constructor(text)
+            result = constructor(number, text) if (number is not None) and (issubclass(constructor, OSError)) else constructor(text)
 
             if constructor is RemoteExchangeError:
                 result.remote_type = kind
@@ -383,7 +383,7 @@ def _read_failure(document):
 
     if network is not None:
         for name in ("stage", "unix_path", "configured_unix_path"):
-            if network[name] is not None and type((network_item := network[name])) is not (expected_network_item_type := str):
+            if (network[name] is not None) and (type((network_item := network[name])) is not (expected_network_item_type := str)):
                 raise TypeError(f"{type(network_item)=} ≠ {expected_network_item_type=}")
 
         if not (type((network_eof := network["eof"])) is (expected_network_eof_type := bool)):

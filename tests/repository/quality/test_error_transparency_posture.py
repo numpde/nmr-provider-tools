@@ -29,7 +29,7 @@ def _opaque_oserror_translations(source: str) -> list[int]:
     findings = []
 
     for handler in ast.walk(ast.parse(source)):
-        if not isinstance(handler, ast.ExceptHandler) or handler.type is None:
+        if (not isinstance(handler, ast.ExceptHandler)) or (handler.type is None):
             continue
 
         caught = list(ast.walk(handler.type))
@@ -37,7 +37,7 @@ def _opaque_oserror_translations(source: str) -> list[int]:
         if not any(isinstance(node, ast.Name) and node.id == "OSError" for node in caught):
             continue
 
-        if len(handler.body) != 1 or not isinstance(handler.body[0], ast.Raise):
+        if (len(handler.body) != 1) or (not isinstance(handler.body[0], ast.Raise)):
             continue
 
         replacement = handler.body[0].exc
@@ -45,7 +45,7 @@ def _opaque_oserror_translations(source: str) -> list[int]:
         if not isinstance(replacement, ast.Call):
             continue
 
-        if not isinstance(replacement.func, ast.Name) or replacement.func.id != "CommandError":
+        if (not isinstance(replacement.func, ast.Name)) or (replacement.func.id != "CommandError"):
             continue
 
         if (
@@ -76,7 +76,7 @@ def _raw_cli_exception_text(source: str) -> list[int]:
     findings = []
 
     for handler in ast.walk(ast.parse(source)):
-        if not isinstance(handler, ast.ExceptHandler) or not handler.name or handler.type is None:
+        if (not isinstance(handler, ast.ExceptHandler)) or (not handler.name) or (handler.type is None):
             continue
 
         if not any(
@@ -92,7 +92,7 @@ def _raw_cli_exception_text(source: str) -> list[int]:
 
             call = statement.exc
 
-            if not isinstance(call.func, ast.Name) or call.func.id != "CommandError" or not call.args:
+            if (not isinstance(call.func, ast.Name)) or (call.func.id != "CommandError") or (not call.args):
                 continue
 
             for node in (node for arg in call.args for node in ast.walk(arg)):

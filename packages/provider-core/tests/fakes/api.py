@@ -43,7 +43,7 @@ class Transport:
         self.pending_owner = None
 
     async def retire(self, *, owner=None):
-        if not self.retirement_confirmed and self.pending_owner is not owner:
+        if (not self.retirement_confirmed) and (self.pending_owner is not owner):
             raise ExchangeFailed("Foreign exchange owner")
 
         self.retirement_confirmed = True

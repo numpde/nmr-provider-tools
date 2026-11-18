@@ -68,7 +68,7 @@ class MagnetSession:
         candidate rejection is outside these three outcome-seam cases.
         """
 
-        if acknowledged.start.input != instructions.identity or self.retired or self._prepared is not None:
+        if (acknowledged.start.input != instructions.identity) or (self.retired) or (self._prepared is not None):
             raise ValueError("Magnet fixture preparation requires its exact live admitted input")
 
         self.phases.append(type(self.store.records[0]))
@@ -83,7 +83,7 @@ class MagnetSession:
 
     # Match the required session port; this scientific-shape fixture emits no conditions.
     async def execute(self, handle, *, report_condition):  # noqa: ARG002
-        if self.retired or self._prepared is None or self._prepared[0] is not handle:
+        if (self.retired) or (self._prepared is None) or (self._prepared[0] is not handle):
             raise ValueError("Magnet fixture execution requires its current unused prepared handle")
 
         (_, key, model_input) = self._prepared

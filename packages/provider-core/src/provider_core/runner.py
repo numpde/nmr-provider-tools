@@ -38,7 +38,7 @@ LOCK_NAME = ".owner-session.lock"
 
 
 def _private_directory(path):
-    if not path.is_absolute() or path.resolve() != path:
+    if (not path.is_absolute()) or (path.resolve() != path):
         raise ValueError("Runner directories require canonical absolute paths without symlink ancestors.")
 
     descriptor = os.open(path, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW | os.O_CLOEXEC)
@@ -61,7 +61,7 @@ def _lease(parent):
     try:
         observed = os.fstat(descriptor)
 
-        if not stat.S_ISREG(observed.st_mode) or observed.st_uid != os.geteuid() or stat.S_IMODE(observed.st_mode) != 0o600:
+        if (not stat.S_ISREG(observed.st_mode)) or (observed.st_uid != os.geteuid()) or (stat.S_IMODE(observed.st_mode) != 0o600):
             raise PermissionError("Runner lifetime lock must be a caller-owned mode 0600 regular file.")
 
         fcntl.flock(descriptor, fcntl.LOCK_EX | fcntl.LOCK_NB)
@@ -82,7 +82,7 @@ def _unlink_socket(parent, name, identity=None):
         (not stat.S_ISSOCK(observed.st_mode)) or
         (observed.st_uid != os.geteuid()) or
         (stat.S_IMODE(observed.st_mode) != 0o600) or
-        (identity is not None and (observed.st_dev, observed.st_ino) != identity)
+        ((identity is not None) and ((observed.st_dev, observed.st_ino) != identity))
     ):
         raise PermissionError("Runner endpoint changed or is not a private owned socket; preserve it.")
 
@@ -135,7 +135,7 @@ def _watch(worker, control, shutdown, deadline, status):
                 if control.fileno() in observed:
                     return "owner_lost"
 
-                if deadline is not None and time.monotonic() >= deadline:
+                if (deadline is not None) and (time.monotonic() >= deadline):
                     return "deadline"
     finally:
         os.close(pidfd)
@@ -292,7 +292,7 @@ def _operation(control, *, generation, lock_identity, lease, scratch_fd, argv, o
         except BaseException as cleanup:
             raise BaseExceptionGroup("Runner setup and owned child/scratch cleanup both failed", [primary, cleanup]) from None
 
-        if worker is not None and not greeting_delivered and isinstance(primary, OSError):
+        if (worker is not None) and (not greeting_delivered) and (isinstance(primary, OSError)):
             # A queued caller can leave before its greeting. With its child
             # reaped and scratch removed, this does not poison the supervisor.
             LOGGER.warning(
@@ -437,7 +437,7 @@ def main(arguments=None):
     for seconds in (options.startup_seconds, options.terminate_seconds, options.kill_seconds, options.cleanup_seconds):
         require_positive_number(seconds)
 
-    if not options.worker or options.worker[0] != "--" or len(options.worker) < 2:
+    if (not options.worker) or (options.worker[0] != "--") or (len(options.worker) < 2):
         parser.error("Supply one fixed worker command after --.")
 
     (read_fd, write_fd) = os.pipe2(os.O_CLOEXEC | os.O_NONBLOCK)

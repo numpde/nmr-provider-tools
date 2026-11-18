@@ -38,7 +38,7 @@ def _identity(value: object, label: str) -> None:
 
     if not (
         (value) and
-        all(character.isprintable() and not character.isspace() for character in value)
+        all((character.isprintable()) and (not character.isspace()) for character in value)
     ):
         raise ValueError(
             f"{label} must be a nonempty identity without whitespace "
@@ -219,7 +219,7 @@ def _scientific_call_shape(
     resolved_annotations = _resolved_callable_hints(scientific_call, label="Scientific call")
     context_type = resolved_annotations.get(parameters[0].name)
 
-    if get_origin(context_type) is not CallContext or len(get_args(context_type)) != 4:
+    if (get_origin(context_type) is not CallContext) or (len(get_args(context_type)) != 4):
         raise TypeError("Scientific call must accept one CallContext[Instance, Analysis, Input, State]")
 
     (instance_type, analysis_type, input_type, state_type) = get_args(context_type)
@@ -234,7 +234,7 @@ def _scientific_call_shape(
 
     return_annotation = resolved_annotations.get("return")
 
-    if get_origin(return_annotation) is not ScientificReturn or len(get_args(return_annotation)) != 1:
+    if (get_origin(return_annotation) is not ScientificReturn) or (len(get_args(return_annotation)) != 1):
         raise TypeError("Scientific call return annotation must be ScientificReturn[OutputT]")
 
     (output_type,) = get_args(return_annotation)
@@ -334,7 +334,7 @@ class ConfiguredIdentity:
         if not (0 < self.contract_version):
             raise ValueError("Contract version must be a positive integer")
 
-        if self.configuration is not None and type((actual_configuration := self.configuration)) is not (expected_configuration_type := ConfigurationDescription):
+        if (self.configuration is not None) and (type((actual_configuration := self.configuration)) is not (expected_configuration_type := ConfigurationDescription)):
             raise TypeError(f"{type(actual_configuration)=} ≠ {expected_configuration_type=}")
 
         _set_records(values=self.assets, record_type=AssetDescription, label="Scientific assets")
@@ -1025,10 +1025,10 @@ class ImplementationBinding[InstanceT, AnalysisT]:
     def __post_init__(self) -> None:
         require_type(self.identity, ConfiguredIdentity)
 
-        if self.instance is not None and type((actual_instance := self.instance)) is not (expected_instance_type := InstanceHooks):
+        if (self.instance is not None) and (type((actual_instance := self.instance)) is not (expected_instance_type := InstanceHooks)):
             raise TypeError(f"{type(actual_instance)=} ≠ {expected_instance_type=}")
 
-        if self.analysis is not None and type((actual_analysis := self.analysis)) is not (expected_analysis_type := AnalysisHooks):
+        if (self.analysis is not None) and (type((actual_analysis := self.analysis)) is not (expected_analysis_type := AnalysisHooks)):
             raise TypeError(f"{type(actual_analysis)=} ≠ {expected_analysis_type=}")
 
         bound_calls = []
@@ -1145,13 +1145,13 @@ class ImplementationBinding[InstanceT, AnalysisT]:
         for call in calls:
             call_shape = call._shape
 
-            if call_shape.instance is not None and call_shape.instance is not instance_type:
+            if (call_shape.instance is not None) and (call_shape.instance is not instance_type):
                 raise TypeError(
                     f"Call {call.description.name!r} instance annotation must be "
                     f"{instance_type.__qualname__}"
                 )
 
-            if call_shape.analysis is not None and call_shape.analysis is not analysis_type:
+            if (call_shape.analysis is not None) and (call_shape.analysis is not analysis_type):
                 raise TypeError(
                     f"Call {call.description.name!r} analysis annotation must be "
                     f"{analysis_type.__qualname__}"
@@ -1180,7 +1180,7 @@ def _require_state_kinds(*, calls: tuple[CallBinding, ...]) -> None:
             declared_types.append((parameter.kind, call.state_binding.input_types[parameter.name]))
 
         for (kind, value_type) in declared_types:
-            if kind in state_types and state_types[kind] is not value_type:
+            if (kind in state_types) and (state_types[kind] is not value_type):
                 raise TypeError(f"Scientific state kind {kind!r} names different Python types")
 
             state_types[kind] = value_type

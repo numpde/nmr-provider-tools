@@ -85,7 +85,7 @@ def _has_escape(binding: ast.Assign | ast.AnnAssign, source_lines: list[str]) ->
     if binding.lineno < 2:
         return False
 
-    if isinstance(binding, ast.Assign) and (len(binding.targets) != 1 or not isinstance(binding.targets[0], ast.Name)):
+    if isinstance(binding, ast.Assign) and ((len(binding.targets) != 1) or (not isinstance(binding.targets[0], ast.Name))):
         return False
 
     preceding_line = source_lines[binding.lineno - 2]

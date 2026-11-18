@@ -87,7 +87,7 @@ def limits(document):
 
         if (
             (type(threshold) is str) and
-            (not threshold or any(character.isspace() or ord(character) < 32 for character in threshold))
+            ((not threshold) or (any(character.isspace() or ord(character) < 32 for character in threshold)))
         ):
             raise ValueError(f"Native builder.gc.{setting} requires its literal space threshold.")
 
@@ -97,7 +97,7 @@ def limits(document):
 
 
 def argument(command_argument):
-    if not command_argument or any(ord(c) < 32 or ord(c) == 127 for c in command_argument):
+    if (not command_argument) or (any(ord(c) < 32 or ord(c) == 127 for c in command_argument)):
         raise ValueError("Timer arguments cannot contain empty values or control characters.")
 
     # Systemd specifiers remain literal. ExecStart's ':' prefix below disables

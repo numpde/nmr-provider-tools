@@ -24,7 +24,7 @@ class PortInventoryTests(unittest.TestCase):
             target = ROOT / entry["target"]
 
             with self.subTest(target=entry["target"]):
-                self.assertTrue(target.is_file() and not target.is_symlink())
+                self.assertTrue((target.is_file()) and (not target.is_symlink()))
                 self.assertRegex(entry["sha256"], r"^[0-9a-f]{64}$")
 
                 if not target.name.endswith(".py"):

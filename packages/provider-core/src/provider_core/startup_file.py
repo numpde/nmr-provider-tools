@@ -42,13 +42,13 @@ def read_startup_file(path, *, maximum_bytes, secret=False):
         status = os.fstat(descriptor)
         mode = stat.S_IMODE(status.st_mode)
 
-        if not stat.S_ISREG(status.st_mode) or status.st_size > maximum_bytes:
+        if (not stat.S_ISREG(status.st_mode)) or (status.st_size > maximum_bytes):
             raise StartupFileRejected(f"{path=} must be a regular file within {maximum_bytes} bytes.")
 
         if secret:
-            if status.st_uid != os.geteuid() or mode not in (0o400, 0o600):
+            if (status.st_uid != os.geteuid()) or (mode not in (0o400, 0o600)):
                 raise StartupFileRejected(f"{path=} must belong to the container user with mode 0400 or 0600.")
-        elif status.st_uid not in (0, os.geteuid()) or mode & 0o022:
+        elif (status.st_uid not in (0, os.geteuid())) or (mode & 0o022):
             raise StartupFileRejected(f"{path=} must belong to root or the container user and forbid group/other writes.")
 
         content = bytearray()
@@ -73,7 +73,7 @@ def read_startup_file(path, *, maximum_bytes, secret=False):
     except OSError as cause:
         cleanup = cause
 
-    if primary is not None and not isinstance(primary, Exception):
+    if (primary is not None) and (not isinstance(primary, Exception)):
         if not (cleanup is None):
             raise primary from StartupFileRejected(
                 f"{path=} close also failed during interruption.",
@@ -83,7 +83,7 @@ def read_startup_file(path, *, maximum_bytes, secret=False):
 
         raise primary
 
-    if primary is not None or cleanup is not None:
+    if (primary is not None) or (cleanup is not None):
         if isinstance(primary, StartupFileRejected) and cleanup is None:
             raise primary
 

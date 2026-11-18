@@ -87,7 +87,7 @@ def _is_env_subscript(node: ast.AST) -> bool:
 
 
 def _is_defaulting_call(node: ast.AST) -> bool:
-    if not isinstance(node, ast.Call) or not isinstance(node.func, ast.Attribute):
+    if (not isinstance(node, ast.Call)) or (not isinstance(node.func, ast.Attribute)):
         return False
 
     if node.func.attr not in DEFAULTING_CALL_NAMES:
@@ -154,7 +154,7 @@ def _is_empty_absence_literal(node: ast.AST) -> bool:
 
 
 def _is_non_empty_default_value(node: ast.AST) -> bool:
-    return not _contains_env_access(node) and not _is_empty_absence_literal(node)
+    return (not _contains_env_access(node)) and (not _is_empty_absence_literal(node))
 
 
 def _is_not_absence_literal(node: ast.AST) -> bool:
@@ -172,20 +172,20 @@ def _is_falsy_default_literal(node: ast.AST) -> bool:
         return len(node.elts) == 0
 
     if isinstance(node, ast.Call) and isinstance(node.func, ast.Name):
-        return node.func.id in {"dict", "list", "set", "tuple"} and not node.args and not node.keywords
+        return (node.func.id in {"dict", "list", "set", "tuple"}) and (not node.args) and (not node.keywords)
 
     return False
 
 
 def _is_falsy_default_boolop(node: ast.AST) -> bool:
-    if not isinstance(node, ast.BoolOp) or not isinstance(node.op, ast.Or):
+    if (not isinstance(node, ast.BoolOp)) or (not isinstance(node.op, ast.Or)):
         return False
 
     return any(_is_falsy_default_literal(value) for value in node.values[1:])
 
 
 def _is_empty_get_default_call(node: ast.AST) -> bool:
-    if not isinstance(node, ast.Call) or not isinstance(node.func, ast.Attribute):
+    if (not isinstance(node, ast.Call)) or (not isinstance(node.func, ast.Attribute)):
         return False
 
     if node.func.attr != "get" or len(node.args) < 2:
@@ -195,7 +195,7 @@ def _is_empty_get_default_call(node: ast.AST) -> bool:
 
 
 def _is_pop_default_call(node: ast.AST) -> bool:
-    if not isinstance(node, ast.Call) or not isinstance(node.func, ast.Attribute):
+    if (not isinstance(node, ast.Call)) or (not isinstance(node.func, ast.Attribute)):
         return False
 
     if node.func.attr != "pop" or len(node.args) < 2:
@@ -205,7 +205,7 @@ def _is_pop_default_call(node: ast.AST) -> bool:
 
 
 def _is_zero_getattr_default_call(node: ast.AST) -> bool:
-    if not isinstance(node, ast.Call) or not isinstance(node.func, ast.Name):
+    if (not isinstance(node, ast.Call)) or (not isinstance(node.func, ast.Name)):
         return False
 
     if node.func.id != "getattr" or len(node.args) < 3:
@@ -213,7 +213,7 @@ def _is_zero_getattr_default_call(node: ast.AST) -> bool:
 
     default = node.args[2]
 
-    return isinstance(default, ast.Constant) and default.value == 0 and default.value is not False
+    return (isinstance(default, ast.Constant)) and (default.value == 0) and (default.value is not False)
 
 
 def _has_empty_get_waiver(source_lines: list[str], node: ast.AST) -> bool:
@@ -248,7 +248,7 @@ def _assigned_values_by_target(statements: list[ast.stmt]) -> dict[str, ast.AST]
             for target in statement.targets:
                 values[ast.dump(target)] = statement.value
 
-        if isinstance(statement, ast.AnnAssign) and statement.value is not None:
+        if (isinstance(statement, ast.AnnAssign)) and (statement.value is not None):
             values[ast.dump(statement.target)] = statement.value
 
     return values
@@ -303,7 +303,7 @@ def _is_env_default_keyerror_handler(node: ast.AST) -> bool:
     body_values = _assigned_values_by_target(node.body)
 
     for handler in node.handlers:
-        if not isinstance(handler.type, ast.Name) or handler.type.id != "KeyError":
+        if (not isinstance(handler.type, ast.Name)) or (handler.type.id != "KeyError"):
             continue
 
         if _has_same_target_fallback_assignment(
@@ -318,7 +318,7 @@ def _is_env_default_keyerror_handler(node: ast.AST) -> bool:
 
 
 def _is_argparse_default_call(node: ast.AST) -> bool:
-    if not isinstance(node, ast.Call) or not isinstance(node.func, ast.Attribute):
+    if (not isinstance(node, ast.Call)) or (not isinstance(node.func, ast.Attribute)):
         return False
 
     if node.func.attr not in ARGPARSE_CALL_NAMES:
@@ -328,13 +328,13 @@ def _is_argparse_default_call(node: ast.AST) -> bool:
 
 
 def _is_argparse_optional_positional(node: ast.AST) -> bool:
-    if not isinstance(node, ast.Call) or not isinstance(node.func, ast.Attribute):
+    if (not isinstance(node, ast.Call)) or (not isinstance(node.func, ast.Attribute)):
         return False
 
     if node.func.attr not in ARGPARSE_CALL_NAMES:
         return False
 
-    if not node.args or not isinstance(node.args[0], ast.Constant) or not isinstance(node.args[0].value, str):
+    if (not node.args) or (not isinstance(node.args[0], ast.Constant)) or (not isinstance(node.args[0].value, str)):
         return False
 
     if node.args[0].value.startswith("-"):
@@ -358,11 +358,11 @@ def _contains_args_attribute_access(node: ast.AST) -> bool:
 
 
 def _is_literal_non_absence_default(node: ast.AST) -> bool:
-    return isinstance(node, ast.Constant) and node.value not in {"", None}
+    return (isinstance(node, ast.Constant)) and (node.value not in {"", None})
 
 
 def _is_args_attribute_or_default_expression(node: ast.AST) -> bool:
-    if not isinstance(node, ast.BoolOp) or not isinstance(node.op, ast.Or):
+    if (not isinstance(node, ast.BoolOp)) or (not isinstance(node.op, ast.Or)):
         return False
 
     return (
@@ -375,10 +375,10 @@ def _is_args_none_compare(node: ast.AST) -> str | None:
     if not isinstance(node, ast.Compare):
         return None
 
-    if len(node.ops) != 1 or not isinstance(node.ops[0], ast.Is):
+    if (len(node.ops) != 1) or (not isinstance(node.ops[0], ast.Is)):
         return None
 
-    if len(node.comparators) != 1 or not isinstance(node.comparators[0], ast.Constant):
+    if (len(node.comparators) != 1) or (not isinstance(node.comparators[0], ast.Constant)):
         return None
 
     if node.comparators[0].value is not None:
@@ -411,13 +411,13 @@ def _is_args_default_if_expression(node: ast.AST) -> bool:
     if not isinstance(node, ast.IfExp):
         return False
 
-    if not isinstance(node.test, ast.Name) or node.test.id != "args":
+    if (not isinstance(node.test, ast.Name)) or (node.test.id != "args"):
         return False
 
     if not isinstance(node.body, ast.Subscript):
         return False
 
-    if not isinstance(node.body.value, ast.Name) or node.body.value.id != "args":
+    if (not isinstance(node.body.value, ast.Name)) or (node.body.value.id != "args"):
         return False
 
     return not (isinstance(node.orelse, ast.Constant) and node.orelse.value is None)
@@ -514,7 +514,7 @@ def _empty_get_default_findings(path: pathlib.Path) -> list[str]:
     findings: list[str] = []
 
     for node in ast.walk(tree):
-        if _is_empty_get_default_call(node) and not _has_empty_get_waiver(source_lines, node):
+        if (_is_empty_get_default_call(node)) and (not _has_empty_get_waiver(source_lines, node)):
             findings.append(_finding(path, source, node))
 
     return findings
@@ -539,7 +539,7 @@ def _pop_default_findings(path: pathlib.Path) -> list[str]:
     findings: list[str] = []
 
     for node in ast.walk(tree):
-        if _is_pop_default_call(node) and not _has_pop_default_waiver(source_lines, node):
+        if (_is_pop_default_call(node)) and (not _has_pop_default_waiver(source_lines, node)):
             findings.append(_finding(path, source, node))
 
     return findings
@@ -576,7 +576,7 @@ def _has_empty_get_default_expression(source: str) -> bool:
     tree = ast.parse(source, filename="<inline>")
     source_lines = source.splitlines()
 
-    return any(_is_empty_get_default_call(node) and not _has_empty_get_waiver(source_lines, node) for node in ast.walk(tree))
+    return any((_is_empty_get_default_call(node)) and (not _has_empty_get_waiver(source_lines, node)) for node in ast.walk(tree))
 
 
 def _has_zero_getattr_default_expression(source: str) -> bool:
@@ -589,7 +589,7 @@ def _has_pop_default_expression(source: str) -> bool:
     tree = ast.parse(source, filename="<inline>")
     source_lines = source.splitlines()
 
-    return any(_is_pop_default_call(node) and not _has_pop_default_waiver(source_lines, node) for node in ast.walk(tree))
+    return any((_is_pop_default_call(node)) and (not _has_pop_default_waiver(source_lines, node)) for node in ast.walk(tree))
 
 
 class PythonEmptyDefaultsTest(unittest.TestCase):

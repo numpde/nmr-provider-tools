@@ -129,7 +129,7 @@ def failure_evidence(error, *, secrets, describe_owner=describe_core_failure, ow
         if isinstance(current, OSError) and type(current.errno) is int:
             evidence["errno"] = current.errno
 
-            if current.errno in errno.errorcode and not isinstance(current, (ssl.SSLError, socket.gaierror, socket.herror)):
+            if (current.errno in errno.errorcode) and (not isinstance(current, (ssl.SSLError, socket.gaierror, socket.herror))):
                 evidence["reason"] = os.strerror(current.errno)
 
         if type(current) is SystemExit:

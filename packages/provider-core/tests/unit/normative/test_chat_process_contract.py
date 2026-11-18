@@ -373,7 +373,7 @@ class ChatProcessContractTests(unittest.IsolatedAsyncioTestCase):
             async def observed_read(size):
                 value = await original_read(size)
 
-                if size == 1 and not value:
+                if (size == 1) and (not value):
                     reply_eof.set()
 
                 return value

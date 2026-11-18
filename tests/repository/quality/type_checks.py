@@ -49,7 +49,7 @@ def _predicates(*, expression: ast.expr, rejecting: bool, comprehension_names: f
         ]
 
     if isinstance(expression, ast.Call):
-        if not rejecting and _builtin(expression=expression.func, name="isinstance") and len(expression.args) == 2:
+        if (not rejecting) and (_builtin(expression=expression.func, name="isinstance")) and (len(expression.args) == 2):
             return [TypePredicate(subject=expression.args[0], expected=expression.args[1], comprehension_names=comprehension_names)]
 
         if (
@@ -83,7 +83,7 @@ def _predicates(*, expression: ast.expr, rejecting: bool, comprehension_names: f
 
         return []
 
-    if not isinstance(expression, ast.Compare) or len(expression.ops) != 1:
+    if (not isinstance(expression, ast.Compare)) or (len(expression.ops) != 1):
         return []
 
     operator = expression.ops[0]
@@ -102,7 +102,7 @@ def _predicates(*, expression: ast.expr, rejecting: bool, comprehension_names: f
     if _type_call(expression=left):
         return [TypePredicate(subject=left.args[0], expected=expression.comparators[0], comprehension_names=comprehension_names)]
 
-    if _type_call(expression=right) and not isinstance(operator, (ast.In, ast.NotIn)):
+    if (_type_call(expression=right)) and (not isinstance(operator, (ast.In, ast.NotIn))):
         return [TypePredicate(subject=right.args[0], expected=expression.left, comprehension_names=comprehension_names)]
 
     return []
@@ -123,7 +123,7 @@ def has_type_rejection_alternatives(*, expression: ast.expr, rejecting: bool) ->
     if not isinstance(expression, ast.BoolOp):
         return False
 
-    alternatives = (rejecting and isinstance(expression.op, ast.Or)) or (not rejecting and isinstance(expression.op, ast.And))
+    alternatives = (rejecting and isinstance(expression.op, ast.Or)) or ((not rejecting) and (isinstance(expression.op, ast.And)))
 
     if alternatives and _predicates(expression=expression, rejecting=rejecting, comprehension_names=frozenset()):
         return True

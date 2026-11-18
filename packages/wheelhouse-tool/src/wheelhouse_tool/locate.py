@@ -37,20 +37,20 @@ def read_requirements(path, configured_index=None):
     for raw in source.decode("utf-8").splitlines():
         line = raw.strip().removesuffix("\\").rstrip()
 
-        if not line or line.startswith("#"):
+        if (not line) or (line.startswith("#")):
             continue
 
         if line.startswith("--index-url "):
             declared = line.split(None, 1)[1]
 
-            if index is not None and index.rstrip("/") != declared.rstrip("/"):
+            if (index is not None) and (index.rstrip("/") != declared.rstrip("/")):
                 raise ValueError("Cannot locate artifacts: supplied and locked index URLs differ.")
 
             index = declared
         elif line.startswith("--hash=sha256:"):
             checksum = line.removeprefix("--hash=sha256:")
 
-            if not records or not re.fullmatch(r"[0-9a-f]{64}", checksum):
+            if (not records) or (not re.fullmatch(r"[0-9a-f]{64}", checksum)):
                 raise ValueError("Cannot locate artifacts: a lock hash is malformed or misplaced.")
 
             records[-1][1].add(checksum)
@@ -71,7 +71,7 @@ def read_requirements(path, configured_index=None):
 
             records.append((requirement, set()))
 
-    if not records or any(not hashes for (_, hashes) in records):
+    if (not records) or (any(not hashes for (_, hashes) in records)):
         raise ValueError("Cannot locate artifacts: every package needs an existing SHA-256 lock hash.")
 
     parsed_index_input = index
@@ -81,7 +81,7 @@ def read_requirements(path, configured_index=None):
 
     parsed_index = urllib.parse.urlsplit(parsed_index_input)
 
-    if index is not None and (parsed_index.scheme != "https" or not parsed_index.netloc or parsed_index.username is not None or parsed_index.query):
+    if (index is not None) and ((parsed_index.scheme != "https") or (not parsed_index.netloc) or (parsed_index.username is not None) or (parsed_index.query)):
         raise ValueError("Cannot locate artifacts: supply the lock's HTTPS package index.")
 
     index_base = None
@@ -110,7 +110,7 @@ def locate(path, index=None, allowed_sources=(), required_sources=(), direct_sou
         if values:
             checksum = values[0]
 
-        if parsed.scheme != "https" or parsed.username is not None or parsed.query or checksum is None or not re.fullmatch(r"[0-9a-f]{64}", checksum):
+        if (parsed.scheme != "https") or (parsed.username is not None) or (parsed.query) or (checksum is None) or (not re.fullmatch(r"[0-9a-f]{64}", checksum)):
             raise ValueError("Cannot locate artifacts: direct sources require an HTTPS URL with a SHA-256 fragment.")
 
         if distribution in direct:
@@ -133,7 +133,7 @@ def locate(path, index=None, allowed_sources=(), required_sources=(), direct_sou
 
             url = urllib.parse.urlsplit(requirement.url if requirement.url else supplied[0])
 
-            if url.scheme != "https" or url.username is not None or url.query:
+            if (url.scheme != "https") or (url.username is not None) or (url.query):
                 raise ValueError(f"Cannot locate {name}: direct artifact must use HTTPS without credentials.")
 
             filename = urllib.parse.unquote(url.path.rsplit("/", 1)[-1])
@@ -155,7 +155,7 @@ def locate(path, index=None, allowed_sources=(), required_sources=(), direct_sou
                 (checksum not in hashes) or
                 (name in required_sources) or
                 (not tags.intersection(sys_tags())) or
-                (supplied and not requirement.specifier.contains(version, prereleases=True))
+                ((supplied) and (not requirement.specifier.contains(version, prereleases=True)))
             ):
                 raise ValueError(f"Cannot locate {name}: direct artifact differs from its locked identity.")
 
@@ -215,7 +215,7 @@ def locate(path, index=None, allowed_sources=(), required_sources=(), direct_sou
 
             requires = artifact.get("requires-python")
 
-            if requires and not SpecifierSet(requires).contains(python_version, prereleases=True):
+            if (requires) and (not SpecifierSet(requires).contains(python_version, prereleases=True)):
                 continue
 
             try:
@@ -231,7 +231,7 @@ def locate(path, index=None, allowed_sources=(), required_sources=(), direct_sou
                 except InvalidSdistFilename:
                     continue
 
-            if distribution != name or not requirement.specifier.contains(artifact_version, prereleases=True):
+            if (distribution != name) or (not requirement.specifier.contains(artifact_version, prereleases=True)):
                 continue
 
             url = urllib.parse.urljoin(project_url, artifact["url"])
@@ -254,7 +254,7 @@ def locate(path, index=None, allowed_sources=(), required_sources=(), direct_sou
         wheels = [item for item in wheels if not item[2]] or wheels
         sources = [item for item in sources if not item[2]] or sources
 
-        if pool is not None and wheels and not (name in allowed_sources and sources):
+        if (pool is not None) and (wheels) and (not (name in allowed_sources and sources)):
             # Freeze the reusable choices in this projection so later selection
             # cannot switch back to a different, uncached wheel.
             from wheelhouse_tool.__main__ import inspect_artifact, pool_lock
@@ -288,10 +288,10 @@ def locate(path, index=None, allowed_sources=(), required_sources=(), direct_sou
         if name in allowed_sources and sources:
             package["sdist"] = sources[0][1]
 
-        if name in required_sources and "sdist" not in package:
+        if (name in required_sources) and ("sdist" not in package):
             raise ValueError(f"Cannot locate {name}: its required source distribution is unavailable.")
 
-        if "wheels" not in package and "sdist" not in package:
+        if ("wheels" not in package) and ("sdist" not in package):
             raise ValueError(f"Cannot locate {name}: the index has no artifact admitted by its lock and source policy.")
 
         packages.append(package)

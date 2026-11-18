@@ -556,7 +556,7 @@ acquisition_compose_worker offline result "$STATE/caller.yml" worker-offline
     def wait_marker(self, process, marker):
         deadline = time.monotonic() + 15
 
-        while not marker.exists() and time.monotonic() < deadline:
+        while (not marker.exists()) and (time.monotonic() < deadline):
             if process.poll() is not None:
                 self.fail(f'owner exited before {marker.name}: {process.communicate()}')
 

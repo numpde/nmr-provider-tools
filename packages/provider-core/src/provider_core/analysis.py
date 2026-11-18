@@ -69,7 +69,7 @@ class ObservedWorkerCrash(RuntimeError):
     def __init__(self, acknowledged, *, phase, owner, runner, evidence, cause):
         require_type(acknowledged, AcknowledgedAttempt)
 
-        if phase not in ("preparing", "running") or owner is None:
+        if (phase not in ("preparing", "running")) or (owner is None):
             raise ValueError("Observed crash requires its actual admission, scientific owner, phase, native session and bounded evidence")
 
         require_type(runner, RunnerSession)

@@ -71,7 +71,7 @@ class InstalledDeploymentTests(unittest.TestCase):
         self.assertEqual(2, len(initializer["volumes"]))
         self.assertNotIn("--control", initializer["command"])
         self.assertTrue(all("-control-" not in name for name in plan["volumes"]))
-        proxy = next(service for (name, service) in plan["services"].items() if name.startswith("api-") and not name.startswith("api-init-"))
+        proxy = next(service for (name, service) in plan["services"].items() if (name.startswith("api-")) and (not name.startswith("api-init-")))
 
         self.assertEqual("host", proxy["network_mode"])
         self.assertEqual("INFO", proxy["command"][proxy["command"].index("--log-level") + 1])
@@ -127,7 +127,7 @@ class InstalledDeploymentTests(unittest.TestCase):
                     raw = self.raw.replace(b'mode = "mapped"', b'mode = "external"').replace(b'addresses = ["api.example=127.0.0.1"]', b'resolver_file = "/synthetic/resolver"')
 
                 plan = self.render(raw)
-                proxy = next(service for (name, service) in plan["services"].items() if name.startswith("api-") and not name.startswith("api-init-"))
+                proxy = next(service for (name, service) in plan["services"].items() if (name.startswith("api-")) and (not name.startswith("api-init-")))
 
                 if mode == "local":
                     self.assertNotIn("network_mode", proxy)

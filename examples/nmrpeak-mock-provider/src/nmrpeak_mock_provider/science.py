@@ -95,7 +95,7 @@ def prepare(*, model: Model, candidate: HfInput | ChfInput, settings: Settings) 
     if (not candidate.formula) or (not candidate.proton_peaks):
         raise ScientificRejection(code="missing_science", message="Supply a formula and proton peaks")
 
-    if isinstance(candidate, ChfInput) and not candidate.carbon_peaks:
+    if (isinstance(candidate, ChfInput)) and (not candidate.carbon_peaks):
         raise ScientificRejection(code="missing_carbon", message="CHF requires carbon peaks")
 
     tokens = model.tokenize(candidate=candidate)

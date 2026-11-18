@@ -100,7 +100,7 @@ class LiveStartPolicy:
         if not (0 <= self.maximum_replays <= 1):
             raise ValueError("One live START invocation permits zero or one exact replay")
 
-        if not callable(self.on_retry) or not callable(self.on_recovered):
+        if (not callable(self.on_retry)) or (not callable(self.on_recovered)):
             raise ValueError("Live START requires protected retry and recovery observers")
 
 
@@ -195,7 +195,7 @@ class AttemptController:
         if api.origin != scope.api_origin:
             raise ValueError("Cannot configure Attempt controller: signing origin differs from the selected scope")
 
-        if preverified_input is not None and type(preverified_input) is not (expected_preverified_input_type := VerifiedJobInput):
+        if (preverified_input is not None) and (type(preverified_input) is not (expected_preverified_input_type := VerifiedJobInput)):
             raise TypeError(f"{type(preverified_input)=} ≠ {expected_preverified_input_type=}")
 
         require_type(stopping, asyncio.Event)
@@ -279,7 +279,7 @@ class AttemptController:
             (self._lifetime in (_Lifetime.NEW, _Lifetime.RUNNING, _Lifetime.SETTLING)) or
             (not self.api.retirement_confirmed) or
             (not self.delivery.retirement_confirmed) or
-            (self._revocation_settlement is not None and not self._revocation_settlement.done())
+            ((self._revocation_settlement is not None) and (not self._revocation_settlement.done()))
         ):
             return False
 
@@ -288,7 +288,7 @@ class AttemptController:
 
         return (
             self._retired_by_controller and
-            (self._claim is None or not self._claim.active or self._claim.operation_owner is None)
+            ((self._claim is None) or (not self._claim.active) or (self._claim.operation_owner is None))
         )
 
     @property
@@ -302,7 +302,7 @@ class AttemptController:
 
         return (
             self.work_settled and
-            (not isinstance(self._operation, AttemptExecutor) or self._operation.shutdown_ready)
+            ((not isinstance(self._operation, AttemptExecutor)) or (self._operation.shutdown_ready))
         )
 
     async def settle_revocation(self, failure):
@@ -404,12 +404,12 @@ class AttemptController:
         admitted_api_failure = None
 
         if type(reason) is ObservationGapExpired:
-            if reason._executor is not executor or (not reason.read_started and reason.cause is not None):
+            if (reason._executor is not executor) or ((not reason.read_started) and (reason.cause is not None)):
                 raise ControllerRefused("Cannot confirm an observation-gap hold: its original observation does not belong to this executor.") from failure
 
             admitted_api_failure = reason.cause
 
-        if type(reason) is UploadRecoveryExhausted and (reason.cleanup_failures or reason.interruption is not None):
+        if type(reason) is UploadRecoveryExhausted and ((reason.cleanup_failures) or (reason.interruption is not None)):
             raise failure
 
         if (
@@ -442,11 +442,11 @@ class AttemptController:
 
         claim = self._claim
 
-        if claim is None or executor.claim is not claim:
+        if (claim is None) or (executor.claim is not claim):
             raise ControllerRefused("Cannot confirm a held Attempt: its exact lifecycle claim is unavailable.") from failure
 
         try:
-            if claim.lifecycle_owner is not self or claim.operation_owner is not None:
+            if (claim.lifecycle_owner is not self) or (claim.operation_owner is not None):
                 raise ControllerRefused("Cannot confirm a held Attempt: its exact lifecycle claim is unavailable.") from failure
 
             # This owning-loop check binds Job, START key and input to THIS
@@ -535,7 +535,7 @@ class AttemptController:
         try:
             return await asyncio.shield(self._driver)
         except asyncio.CancelledError:
-            if observer.cancelling() == cancellations and self._driver_interruption is not None:
+            if (observer.cancelling() == cancellations) and (self._driver_interruption is not None):
                 raise self._driver_interruption
 
             raise
@@ -644,7 +644,7 @@ class AttemptController:
         if pending.scope != self.scope:
             raise ControllerRefused("Live START requires the selected API, provider, lane and generation")
 
-        if self._preverified_input is not None and self._preverified_input.identity != pending.input:
+        if (self._preverified_input is not None) and (self._preverified_input.identity != pending.input):
             raise ControllerRefused("Verified input differs from the selected START; no request was sent")
 
         self._claim = self._claims.claim_live(
@@ -673,7 +673,7 @@ class AttemptController:
 
             return acknowledged
 
-        if acknowledged.admission.replayed and not self._allow_active_start_replay:
+        if (acknowledged.admission.replayed) and (not self._allow_active_start_replay):
             await self._retire_session()
 
             return ActiveStartReplayHeld(acknowledged)
@@ -720,7 +720,7 @@ class AttemptController:
         if self._stopping_requested():
             raise ExecutionStopRequested("Cannot continue science or select a report: the supervising owner requested stopping")
 
-        if acknowledged.admission.replayed and not self._allow_active_start_replay:
+        if (acknowledged.admission.replayed) and (not self._allow_active_start_replay):
             raise ControllerRefused("Cannot execute an active START replay with unproved earlier execution")
 
     def require_claim_release_ready(self, claim):
@@ -759,10 +759,10 @@ class AttemptController:
         if not (self._retired_by_controller):
             raise ControllerRefused("Cannot release live ownership before this session's cleanup is confirmed")
 
-        if self._start_deferred is not None and not self._start_deferred.may_have_committed:
+        if (self._start_deferred is not None) and (not self._start_deferred.may_have_committed):
             return
 
-        if self._acknowledged is not None and self._acknowledged.admission.state != "in_progress":
+        if (self._acknowledged is not None) and (self._acknowledged.admission.state != "in_progress"):
             return
 
         raise ControllerRefused("Cannot release this live Job: START may have committed or its active Attempt lacks a valid disposition")
@@ -888,7 +888,7 @@ class AttemptController:
         """Settle exact owners and release only after confirmed session retirement."""
         revocation = self._revocation_settlement
 
-        if revocation is not None and not revocation.done() and asyncio.current_task() is not revocation:
+        if (revocation is not None) and (not revocation.done()) and (asyncio.current_task() is not revocation):
             await asyncio.shield(revocation)
 
             return None
@@ -952,8 +952,8 @@ class AttemptController:
             if self._claim is not None:
                 if (
                     (not isinstance(self._operation, AttemptExecutor)) and
-                    ((self._start_deferred is not None and self._start_deferred.may_have_committed) or
-                     (self._acknowledged is not None and self._acknowledged.admission.state == "in_progress")) and
+                    (((self._start_deferred is not None) and (self._start_deferred.may_have_committed)) or
+                     ((self._acknowledged is not None) and (self._acknowledged.admission.state == "in_progress"))) and
                     (self._claim.operation_owner is None) and
                     self._retired_by_controller and
                     self.api.retirement_confirmed and
@@ -1015,7 +1015,7 @@ class AttemptController:
 
         if retained is None:
             self.last_failure.interruption_cause = previous
-        elif previous is not None and previous is not retained:
+        elif (previous is not None) and (previous is not retained):
             self.last_failure.interruption_cause = BaseExceptionGroup("Attempt interruption observations", (retained, previous))
 
         interruption.__cause__ = self.last_failure

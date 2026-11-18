@@ -454,7 +454,7 @@ class Interpreter:
 
             failures = self._failures()
 
-            if failures and not isinstance(failure, InterpretationFailed):
+            if (failures) and (not isinstance(failure, InterpretationFailed)):
                 context = ConversationFailed(
                     "Earlier interpreter model failures preceded this operation failure.",
                     cause=failure.__cause__,
@@ -901,20 +901,20 @@ class _Tools:
 
 
 def _retryable(failure: ChatFailed) -> bool:
-    if failure.reason == "http_status" and failure.response is not None:
+    if (failure.reason == "http_status") and (failure.response is not None):
         return failure.response.status in _RETRYABLE_STATUSES
 
-    if failure.reason != "exchange_failed" or type(failure.cause) is not ExchangeFailed:
+    if (failure.reason != "exchange_failed") or (type(failure.cause) is not ExchangeFailed):
         return False
 
     exchange = failure.cause
 
-    if exchange.cleanup_failures or exchange.caller_interruption is not None:
+    if (exchange.cleanup_failures) or (exchange.caller_interruption is not None):
         return False
 
     status = exchange.proxy_connect_status
 
-    if status is not None and not 200 <= status < 300:
+    if (status is not None) and (not (200 <= status < 300)):
         return status in _RETRYABLE_STATUSES
 
     # Native-only consumers do not import optional HTTP libraries.

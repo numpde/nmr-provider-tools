@@ -82,7 +82,7 @@ def _socket_grant(path, socket_group_id):
     try:
         lock = os.fstat(descriptor)
 
-        if not stat.S_ISREG(lock.st_mode) or lock.st_uid != os.geteuid() or stat.S_IMODE(lock.st_mode) != 0o600:
+        if (not stat.S_ISREG(lock.st_mode)) or (lock.st_uid != os.geteuid()) or (stat.S_IMODE(lock.st_mode) != 0o600):
             raise DeliveryUnavailable("Cannot open delivery IPC: its lock must be a caller-owned mode 0600 regular file.")
 
         fcntl.flock(descriptor, fcntl.LOCK_EX | fcntl.LOCK_NB)
@@ -192,7 +192,7 @@ class DeliveryInbox:
 
         error = task.exception()
 
-        if error is not None and not isinstance(error, (DeliveryFull, DeliveryConflict, DeliveryInventoryUnavailable)):
+        if (error is not None) and (not isinstance(error, (DeliveryFull, DeliveryConflict, DeliveryInventoryUnavailable))):
             self.failure = error
 
             self.failed.set()

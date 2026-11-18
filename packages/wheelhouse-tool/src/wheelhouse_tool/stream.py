@@ -96,7 +96,7 @@ def stream_context(pool, source, selections, output, source_allowlist=None):
         if not (stat.S_ISDIR(metadata.st_mode) or stat.S_ISREG(metadata.st_mode)):
             raise ValueError(f"Cannot stream {name}: source must contain only directories and regular files.")
 
-        if source_allowlist is not None and not stat.S_ISREG(metadata.st_mode):
+        if (source_allowlist is not None) and (not stat.S_ISREG(metadata.st_mode)):
             raise ValueError(f"Cannot stream {name}: allowlist entries must be regular files.")
 
         source_paths[name] = path
@@ -104,7 +104,7 @@ def stream_context(pool, source, selections, output, source_allowlist=None):
     for name in source_paths:
         if any(
             (
-                parent.as_posix() in source_paths and not source_paths[parent.as_posix()].is_dir()
+                (parent.as_posix() in source_paths) and (not source_paths[parent.as_posix()].is_dir())
                 for parent in PurePosixPath(name).parents
             ),
         ):
@@ -114,7 +114,7 @@ def stream_context(pool, source, selections, output, source_allowlist=None):
 
     for selection in selections:
         if "lock" in selection:
-            if not {"lock", "directory"}.issubset(selection) or set(selection) - {"lock", "directory", "prefer_sdist", "require_sdist", "source_lock"}:
+            if (not {"lock", "directory"}.issubset(selection)) or (set(selection) - {"lock", "directory", "prefer_sdist", "require_sdist", "source_lock"}):
                 raise ValueError("Cannot stream build inputs: lock and explicit artifact entries cannot be mixed.")
         elif set(selection) != {"directory", "filename", "sha256"}:
             raise ValueError("Cannot stream build inputs: expected an explicit artifact entry.")
@@ -176,7 +176,7 @@ def stream_context(pool, source, selections, output, source_allowlist=None):
                 any(name.startswith(destination + "/") for name in source_paths) or
                 any(
                     (
-                        parent.as_posix() in source_paths and not source_paths[parent.as_posix()].is_dir()
+                        (parent.as_posix() in source_paths) and (not source_paths[parent.as_posix()].is_dir())
                         for parent in PurePosixPath(destination).parents
                         if str(parent) != "."
                     ),
@@ -201,7 +201,7 @@ def stream_context(pool, source, selections, output, source_allowlist=None):
             metadata = path.lstat()
             info = tarfile.TarInfo(name)
 
-            if name not in source_hashes and stat.S_ISDIR(metadata.st_mode):
+            if (name not in source_hashes) and (stat.S_ISDIR(metadata.st_mode)):
                 info.type = tarfile.DIRTYPE
                 info.mode = 0o755
 

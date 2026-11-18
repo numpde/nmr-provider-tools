@@ -95,7 +95,7 @@ class StateOutputSlot[T]:
     def __set_name__(self, owner: type, name: str) -> None:
         """Bind an omitted port name to its unambiguous Python attribute."""
 
-        if self._inferred and self.name is not None and self.name != name:
+        if (self._inferred) and (self.name is not None) and (self.name != name):
             raise ValueError("An inferred state port cannot have different Python attribute names")
 
         if self.name is None:
@@ -176,7 +176,7 @@ class StateInputSlot[T]:
     def __set_name__(self, owner: type, name: str) -> None:
         """Bind an omitted port name to its unambiguous Python attribute."""
 
-        if self._inferred and self.name is not None and self.name != name:
+        if (self._inferred) and (self.name is not None) and (self.name != name):
             raise ValueError("An inferred state port cannot have different Python attribute names")
 
         if self.name is None:

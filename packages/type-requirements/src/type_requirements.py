@@ -11,7 +11,7 @@ __all__ = ["require_type", "require_instance", "require_subclass"]
 def _allowed_types(T: type | tuple[type, ...]) -> tuple[type, ...]:
     types = T if isinstance(T, tuple) else (T,)
 
-    if not types or not all(isinstance(item, type) for item in types):
+    if (not types) or (not all(isinstance(item, type) for item in types)):
         raise TypeError("T must be a type or a non-empty tuple of types")
 
     return types

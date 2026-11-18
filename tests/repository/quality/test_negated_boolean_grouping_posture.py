@@ -16,7 +16,7 @@ def ungrouped_negated_boolean_lines(*, source: str) -> list[int]:
     findings = []
 
     for expression in ast.walk(node=ast.parse(source=source)):
-        if not isinstance(expression, ast.BoolOp) or expression.lineno != expression.end_lineno:
+        if (not isinstance(expression, ast.BoolOp)) or (expression.lineno != expression.end_lineno):
             continue
 
         if not any(

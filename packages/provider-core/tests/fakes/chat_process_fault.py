@@ -86,7 +86,7 @@ def install_fault(stack, path):
     async def held_close(self):
         state = active.get()
 
-        if state is not None and state["cancelled"]:
+        if (state is not None) and (state["cancelled"]):
             if not state["engaged"]:
                 state["engaged"] = True
 
@@ -331,7 +331,7 @@ async def scenario(marker, report):
             return failed
 
         async def execute(self, prepared, *, report_condition):
-            if prepared is not self.handle or self.handle is None:
+            if (prepared is not self.handle) or (self.handle is None):
                 raise AssertionError("Fixture execution changed its prepared handle")
 
             report_condition.require_execution()

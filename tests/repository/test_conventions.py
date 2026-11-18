@@ -38,7 +38,7 @@ def has_early_guard(source, *, package_marker=False, guard_module="tools.contain
     ):
         statements = statements[1:]
 
-    if package_marker and not statements:
+    if (package_marker) and (not statements):
         return True
 
     while (
@@ -57,7 +57,7 @@ def has_early_guard(source, *, package_marker=False, guard_module="tools.contain
     return (
         isinstance(imported, ast.ImportFrom) and
         ((imported.level == 0 and imported.module == guard_module) or
-         (imported.level == 1 and package is not None and f"{package}.{imported.module}" == guard_module)) and
+         ((imported.level == 1) and (package is not None) and (f"{package}.{imported.module}" == guard_module))) and
         (len(imported.names) == 1) and
         (imported.names[0].name == "require_container") and
         (imported.names[0].asname is None) and
@@ -152,7 +152,7 @@ def make_targets(source):
     for line in source.splitlines():
         match = re.match(r"^([A-Za-z0-9_./% -]+):(?!=)(.*)$", line)
 
-        if match and not match[1].startswith("."):
+        if (match) and (not match[1].startswith(".")):
             for name in match[1].split():
                 targets[name] = match[2].split("#", 1)[0].split()
 
@@ -189,7 +189,7 @@ def boundary_imports(root):
                 else:
                     continue
 
-                if any(module is not None and module.split(".", 1)[0] == forbidden for module in modules):
+                if any((module is not None) and (module.split(".", 1)[0] == forbidden) for module in modules):
                     violations.append(str(path.relative_to(root)))
 
     return sorted(set(violations))

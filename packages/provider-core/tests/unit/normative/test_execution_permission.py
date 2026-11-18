@@ -245,7 +245,7 @@ class DeadlineDispatch(Session):
         executor = self.probe.controller.operation
         deadline = executor._observation_deadline
         self.pending_read = executor._observation_wait
-        self.read_was_pending = self.pending_read is not None and not self.pending_read.done()
+        self.read_was_pending = (self.pending_read is not None) and (not self.pending_read.done())
         self.asserted_deadline = deadline
 
         loop = asyncio.get_running_loop()

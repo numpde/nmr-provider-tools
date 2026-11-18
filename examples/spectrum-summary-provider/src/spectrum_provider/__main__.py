@@ -67,7 +67,7 @@ async def run_demo() -> None:
             with failure_collector.capture():
                 analysis_executor.request_stop()
 
-        if workflow is not None and workflow.baseline_report_release is not None:
+        if (workflow is not None) and (workflow.baseline_report_release is not None):
             with failure_collector.capture():
                 async with asyncio.timeout(15):
                     await observe_cleanup(control=workflow.baseline_report_release)

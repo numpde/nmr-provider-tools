@@ -132,7 +132,7 @@ def readonly_route(path):
 
     facts = path.stat()
 
-    if not stat.S_ISSOCK(facts.st_mode) or (facts.st_uid, facts.st_gid, stat.S_IMODE(facts.st_mode)) != (65532, 65532, 0o600):
+    if (not stat.S_ISSOCK(facts.st_mode)) or ((facts.st_uid, facts.st_gid, stat.S_IMODE(facts.st_mode)) != (65532, 65532, 0o600)):
         raise AssertionError("Actual proxy socket differs from its owner-only birth grant")
 
     if (parent / "ready").read_bytes() != b"ready\n":

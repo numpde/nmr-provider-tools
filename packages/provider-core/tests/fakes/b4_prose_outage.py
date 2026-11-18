@@ -228,7 +228,7 @@ async def run_outage(directory, *, mode, backlog, seed):
         if not available:
             first_failed_request.set()
 
-        if mode == "blocked" and not available:
+        if (mode == "blocked") and (not available):
             return "headers-stall"
 
         return "success"
@@ -355,7 +355,7 @@ async def run_outage(directory, *, mode, backlog, seed):
             return unavailable
 
         async def execute(self, prepared, *, report_condition):
-            if prepared is not self.handle or prepared is None:
+            if (prepared is not self.handle) or (prepared is None):
                 raise AssertionError("Scientific execution changed its original prepared handle")
 
             report_condition.require_execution()
@@ -497,7 +497,7 @@ async def run_outage(directory, *, mode, backlog, seed):
 
             jobs.append(job)
 
-            if name.startswith("affected-") and session.failure is not None:
+            if (name.startswith("affected-")) and (session.failure is not None):
                 first_failed_job.set()
 
             return job

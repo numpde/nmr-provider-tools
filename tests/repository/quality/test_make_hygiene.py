@@ -344,7 +344,7 @@ class RepositoryHygieneTest(unittest.TestCase):
         for (index, line) in enumerate(lines):
             match = MAKE_TARGET_RE.match(line)
 
-            if match is not None and target in match.group("names").split():
+            if (match is not None) and (target in match.group("names").split()):
                 recipe: list[str] = []
 
                 for recipe_line in lines[index + 1 :]:
@@ -372,7 +372,7 @@ class RepositoryHygieneTest(unittest.TestCase):
         for line in makefile.splitlines():
             match = MAKE_TARGET_RE.match(line)
 
-            if match is not None and target in match.group("names").split():
+            if (match is not None) and (target in match.group("names").split()):
                 return tuple(match.group("prereqs").split("#", 1)[0].split())
 
         raise self.failureException(f"missing Make target: {target}")

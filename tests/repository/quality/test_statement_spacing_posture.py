@@ -54,7 +54,7 @@ def _attached_start(*, statement: ast.stmt, comment_columns: dict[int, int]) -> 
 def _assigns_self_attributes(*, statement: ast.stmt) -> bool:
     if isinstance(statement, ast.Assign):
         targets = statement.targets
-    elif isinstance(statement, ast.AnnAssign) and statement.value is not None:
+    elif (isinstance(statement, ast.AnnAssign)) and (statement.value is not None):
         targets = [statement.target]
     else:
         return False
@@ -73,7 +73,7 @@ def missing_blank_lines(*, source: str) -> list[int]:
     comment_columns = {
         token.start[0]: token.start[1]
         for token in tokenize.generate_tokens(readline=io.StringIO(source).readline)
-        if token.type == tokenize.COMMENT and not lines[token.start[0] - 1][:token.start[1]].strip()
+        if (token.type == tokenize.COMMENT) and (not lines[token.start[0] - 1][:token.start[1]].strip())
     }
 
     missing = set()
@@ -81,12 +81,12 @@ def missing_blank_lines(*, source: str) -> list[int]:
 
     for owner in ast.walk(node=tree):
         for (_, value) in ast.iter_fields(node=owner):
-            if not isinstance(value, list) or not value or not all(isinstance(item, ast.stmt) for item in value):
+            if (not isinstance(value, list)) or (not value) or (not all(isinstance(item, ast.stmt) for item in value)):
                 continue
 
             for (previous, statement) in zip(value, value[1:]):
-                ends_attribute_group = _assigns_self_attributes(statement=previous) and not _assigns_self_attributes(statement=statement)
-                ends_assignment_group = isinstance(previous, assignment_types) and not isinstance(statement, assignment_types)
+                ends_attribute_group = (_assigns_self_attributes(statement=previous)) and (not _assigns_self_attributes(statement=statement))
+                ends_assignment_group = (isinstance(previous, assignment_types)) and (not isinstance(statement, assignment_types))
                 previous_start = _attached_start(statement=previous, comment_columns=comment_columns)
                 start = _attached_start(statement=statement, comment_columns=comment_columns)
 

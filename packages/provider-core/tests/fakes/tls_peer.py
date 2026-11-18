@@ -202,7 +202,7 @@ class TlsPeer:
             # silent-defaults: allow-contract -- Absent Content-Length means this fixture request has no framed body.
             length = lengths[0] if lengths else 0
 
-            if len(lengths) > 1 or not 0 <= length <= 2097152:
+            if (len(lengths) > 1) or (not (0 <= length <= 2097152)):
                 raise ValueError("Test request body exceeds the supported route bound or repeats Content-Length")
 
             self.request_bodies.append(await reader.readexactly(length))
@@ -324,7 +324,7 @@ class TlsPeer:
         failures = [
             result
             for (task, result) in zip(handlers, results, strict=True)
-            if isinstance(result, BaseException) and not (task in cancelled and isinstance(result, asyncio.CancelledError))
+            if (isinstance(result, BaseException)) and (not (task in cancelled and isinstance(result, asyncio.CancelledError)))
         ]
 
         if failures:

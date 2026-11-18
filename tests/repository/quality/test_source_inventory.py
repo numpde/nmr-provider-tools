@@ -50,7 +50,7 @@ def root_entry_visibility_findings(manifest, root):
     """
     records = manifest.split("\0")
 
-    if not records or records[-1] != "":
+    if (not records) or (records[-1] != ""):
         raise ValueError("root-entry manifest must end with NUL")
 
     expected = {}
@@ -59,7 +59,7 @@ def root_entry_visibility_findings(manifest, root):
     for record in records[:-1]:
         (kind, separator, name) = record.partition("\t")
 
-        if not separator or not name or "/" in name or name in {".", ".."}:
+        if (not separator) or (not name) or ("/" in name) or (name in {".", ".."}):
             raise ValueError("root-entry manifest has an invalid root name")
 
         if name in expected:
@@ -78,7 +78,7 @@ def root_entry_visibility_findings(manifest, root):
 
         if not path.exists():
             findings.append(f"{name}: public source root is invisible to repository checks")
-        elif path.is_symlink() or (kind == "f" and not path.is_file()) or (kind == "d" and not path.is_dir()):
+        elif path.is_symlink() or ((kind == "f") and (not path.is_file())) or ((kind == "d") and (not path.is_dir())):
             findings.append(f"{name}: visible source root type disagrees with host inventory")
 
     for path in sorted(root.iterdir()):

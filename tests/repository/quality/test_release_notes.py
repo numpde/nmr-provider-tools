@@ -39,7 +39,7 @@ def wrapped_lines(source: str) -> list[int]:
         if opening:
             fence = opening.group(1)
             previous = None
-        elif not line.strip() or _HEADING.match(line) or _SEPARATOR.match(line):
+        elif (not line.strip()) or (_HEADING.match(line)) or (_SEPARATOR.match(line)):
             previous = None
         elif _LIST_ITEM.match(line):
             previous = "item"

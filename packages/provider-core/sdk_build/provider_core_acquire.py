@@ -48,7 +48,7 @@ def cache_state(pool, locks):
                     continue
 
                 for (identity, specifier) in specifiers.items():
-                    if identity[0] != name or not specifier.contains(version, prereleases=True):
+                    if (identity[0] != name) or (not specifier.contains(version, prereleases=True)):
                         continue
 
                     wheel_sha256 = digest(wheel_path)
@@ -79,7 +79,7 @@ def cache_state(pool, locks):
 def tool_present(pool, pin):
     tool_path = pool / pin["name"]
 
-    if not tool_path.exists() and not tool_path.is_symlink():
+    if (not tool_path.exists()) and (not tool_path.is_symlink()):
         return False
 
     tool_sha256 = digest(tool_path)
@@ -96,7 +96,7 @@ def bootstrap_present(pool, lock):
     (wheel,) = package["wheels"]
     wheel_path = pool / pathlib.Path(urllib.parse.urlsplit(wheel["url"]).path).name
 
-    if not wheel_path.exists() and not wheel_path.is_symlink():
+    if (not wheel_path.exists()) and (not wheel_path.is_symlink()):
         return False
 
     wheel_sha256 = digest(wheel_path)

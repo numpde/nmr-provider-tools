@@ -179,7 +179,7 @@ class SharedDeliveryService(DeliveryService):
             self._reload()
             self.changed.clear()
 
-            if self.process_status is not None and time.monotonic() - self.overview_at >= 5:
+            if (self.process_status is not None) and (time.monotonic() - self.overview_at >= 5):
                 (bindings, self.overview, failure) = await self.inbox.storage(self.queue.pending_overview)
                 self.overview_at = time.monotonic()
 
@@ -244,7 +244,7 @@ class SharedDeliveryService(DeliveryService):
             age = time.time() - oldest if type(oldest) in (int, float) and math.isfinite(oldest) else None
 
             # silent-defaults: allow-contract -- A future timestamp does not establish a nonnegative age.
-            overview["oldest_pending_age_seconds"] = age if age is not None and age >= 0 else None
+            overview["oldest_pending_age_seconds"] = age if (age is not None) and (age >= 0) else None
 
         return {
             "queue": overview,
@@ -284,7 +284,7 @@ class SharedDeliveryService(DeliveryService):
         self.worker_failures = tuple(value for value in settled if isinstance(value, BaseException))
 
         for worker in tuple(self.workers.values()):
-            if worker.api is not None and not worker.api.retirement_confirmed:
+            if (worker.api is not None) and (not worker.api.retirement_confirmed):
                 try:
                     await worker.api.retire(owner=worker)
                 except BaseException as cause:

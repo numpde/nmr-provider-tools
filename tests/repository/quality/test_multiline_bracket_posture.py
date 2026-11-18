@@ -104,7 +104,7 @@ def shared_item_lines(*, source: str) -> list[tuple[int, int, int]]:
             frame.lambda_headers += 1
         elif token.type == tokenize.OP and token.string == ":" and frame.lambda_headers:
             frame.lambda_headers -= 1
-        elif token.type == tokenize.OP and token.string == "," and not frame.lambda_headers:
+        elif (token.type == tokenize.OP) and (token.string == ",") and (not frame.lambda_headers):
             if frame.current:
                 frame.items.append(frame.current)
                 frame.current = []
@@ -128,7 +128,7 @@ def multiline_literal_findings(*, source: str) -> list[tuple[int, str]]:
     findings = []
 
     for expression in ast.walk(node=ast.parse(source=source)):
-        if not isinstance(expression, (ast.Dict, ast.Set, ast.List, ast.Tuple)) or expression.lineno == expression.end_lineno:
+        if (not isinstance(expression, (ast.Dict, ast.Set, ast.List, ast.Tuple))) or (expression.lineno == expression.end_lineno):
             continue
 
         opening_line = lines[expression.lineno - 1]

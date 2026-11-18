@@ -58,7 +58,7 @@ def _message_type_subjects(*, source: str, message: ast.expr, type_aliases: dict
     subjects = set()
 
     for value in message.values:
-        if not isinstance(value, ast.FormattedValue) or not _is_debug_expression(source=source, formatted=value):
+        if (not isinstance(value, ast.FormattedValue)) or (not _is_debug_expression(source=source, formatted=value)):
             continue
 
         expression = value.value
@@ -100,7 +100,7 @@ def _findings(*, source_path: pathlib.Path, source: str) -> list[_Finding]:
             continue
 
         for child in statement.body:
-            if not isinstance(child, ast.Raise) or child.exc is None:
+            if (not isinstance(child, ast.Raise)) or (child.exc is None):
                 continue
 
             exception = child.exc.func if isinstance(child.exc, ast.Call) else child.exc
@@ -199,16 +199,16 @@ def _expectation_findings(*, source_path: pathlib.Path, source: str) -> list[str
         bound_expectations = [
             node.target.id
             for node in ast.walk(node=statement.test)
-            if isinstance(node, ast.NamedExpr) and _expectation_name(expression=node) is not None
+            if (isinstance(node, ast.NamedExpr)) and (_expectation_name(expression=node) is not None)
         ]
 
         reused_expectations = len(bound_expectations) != len(set(bound_expectations))
 
         for rejection in statement.body:
-            if not isinstance(rejection, ast.Raise) or not isinstance(rejection.exc, (ast.Call, ast.Name)):
+            if (not isinstance(rejection, ast.Raise)) or (not isinstance(rejection.exc, (ast.Call, ast.Name))):
                 continue
 
-            if isinstance(rejection.exc, ast.Name) and rejection.exc.id not in {"TypeError", "ValueError", "RuntimeError"}:
+            if (isinstance(rejection.exc, ast.Name)) and (rejection.exc.id not in {"TypeError", "ValueError", "RuntimeError"}):
                 # Re-raising an existing failure preserves its original message
                 # and identity; this rule governs newly constructed diagnostics.
                 continue
@@ -223,7 +223,24 @@ def _expectation_findings(*, source_path: pathlib.Path, source: str) -> list[str
                 expected_name = _expectation_name(expression=predicate.expected)
                 unavailable = any(isinstance(node, ast.Name) and node.id in predicate.comprehension_names for node in ast.walk(node=subject))
 
-                if has_type_rejection_alternatives(expression=statement.test, rejecting=True) or reused_expectations or expected_name is None or unavailable or not any(_has_type_pair(source=source, message=message, subject=subject, expected_name=expected_name, membership=expected_name in membership_expectations) for message in messages):
+                if (
+                    has_type_rejection_alternatives(expression=statement.test, rejecting=True) or
+                    (reused_expectations) or
+                    (expected_name is None) or
+                    (unavailable) or
+                    not any(
+                        (
+                            _has_type_pair(
+                                source=source,
+                                message=message,
+                                subject=subject,
+                                expected_name=expected_name,
+                                membership=expected_name in membership_expectations,
+                            )
+                            for message in messages
+                        ),
+                    )
+                ):
                     findings.append(f'{source_path}:{rejection.lineno}: bind the accepted type as expected_type and report f"{{type({ast.unparse(subject)})=}} ≠ {{expected_type=}}" from the same checked value and expectation')
 
     return findings
@@ -234,12 +251,12 @@ def _subclass_findings(*, source_path: pathlib.Path, source: str) -> list[str]:
     findings = []
 
     for statement in ast.walk(node=ast.parse(source=source, filename=str(source_path))):
-        if not isinstance(statement, ast.If) or len(statement.body) != 1:
+        if (not isinstance(statement, ast.If)) or (len(statement.body) != 1):
             continue
 
         condition = statement.test
 
-        if not isinstance(condition, ast.UnaryOp) or not isinstance(condition.op, ast.Not):
+        if (not isinstance(condition, ast.UnaryOp)) or (not isinstance(condition.op, ast.Not)):
             continue
 
         predicate = condition.operand
@@ -254,7 +271,7 @@ def _subclass_findings(*, source_path: pathlib.Path, source: str) -> list[str]:
 
         rejection = statement.body[0]
 
-        if not isinstance(rejection, ast.Raise) or rejection.exc is None:
+        if (not isinstance(rejection, ast.Raise)) or (rejection.exc is None):
             continue
 
         exception = rejection.exc.func if isinstance(rejection.exc, ast.Call) else rejection.exc

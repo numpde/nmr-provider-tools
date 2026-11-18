@@ -164,7 +164,7 @@ class _UploadFile:
     def _create(self):
         directory = os.fstat(self.directory_fd)
 
-        if not stat.S_ISDIR(directory.st_mode) or directory.st_uid != os.geteuid() or stat.S_IMODE(directory.st_mode) != 0o700:
+        if (not stat.S_ISDIR(directory.st_mode)) or (directory.st_uid != os.geteuid()) or (stat.S_IMODE(directory.st_mode) != 0o700):
             raise UploadFailed("private-file destination must be an owner-controlled mode-0700 directory")
 
         self.fd = os.open(
@@ -325,7 +325,7 @@ class UploadTransfer:
 
             head = outcome.response_head
 
-            if self._header_failure is not None and outcome.primary is self._header_failure:
+            if (self._header_failure is not None) and (outcome.primary is self._header_failure):
                 return (
                     (head is not None) and
                     (self._header_failure.response is head) and
@@ -342,7 +342,7 @@ class UploadTransfer:
                 except UploadFailed:
                     return False
 
-            if head is not None and any(name.lower() == b"transfer-encoding" for (name, _) in head.headers):
+            if (head is not None) and (any(name.lower() == b"transfer-encoding" for (name, _) in head.headers)):
                 return False
 
             if type(outcome.primary) is httpcore.RemoteProtocolError:
@@ -486,7 +486,7 @@ class UploadTransfer:
             self.last_failure = failure
         else:
             cause = (
-                self.last_failure if isinstance(failure, asyncio.CancelledError) and self.last_failure is not None else failure
+                self.last_failure if (isinstance(failure, asyncio.CancelledError)) and (self.last_failure is not None) else failure
             )
 
             self.last_failure = UploadFailed("private-file acquisition did not complete", cause=cause)
@@ -496,7 +496,7 @@ class UploadTransfer:
 
         if retained is None:
             self.last_failure.interruption = cause
-        elif cause is not None and cause is not retained:
+        elif (cause is not None) and (cause is not retained):
             self.last_failure.interruption = BaseExceptionGroup("Upload interruption observations", (retained, cause))
 
     def _link_file_interruption(self, interruption):
@@ -515,7 +515,7 @@ class UploadTransfer:
 
         # A pending wait supplies no new filesystem result. Keep the concrete
         # cleanup cause already retained, without accumulating polling history.
-        if not self.last_failure.cleanup_failures or self._pending_upload_file.pending is None:
+        if (not self.last_failure.cleanup_failures) or (self._pending_upload_file.pending is None):
             self.last_failure.cleanup_failures = (failure,)
 
         if self._pending_upload_file.close_uncertain and self._pending_upload_file.pending is None:
@@ -539,7 +539,7 @@ class UploadTransfer:
             try:
                 await file.settle(remaining())
             except UploadFailed as failure:
-                if file.pending is not None or operation != "create":
+                if (file.pending is not None) or (operation != "create"):
                     raise
 
                 # No grant can precede an observed create. Its late intrinsic
@@ -627,7 +627,7 @@ class UploadTransfer:
         if grant.expires_at <= datetime.now(UTC):
             raise UploadFailed("download grant expired before transfer; inspect sources before explicitly requesting fresh access")
 
-        if not grant.capability or any(ord(c) <= 32 or ord(c) >= 127 for c in grant.capability):
+        if (not grant.capability) or (any(ord(c) <= 32 or ord(c) >= 127 for c in grant.capability)):
             raise UploadFailed("download bearer cannot be represented as a single HTTP authorization value")
 
         request = httpx.Request("GET", target, headers={"Authorization": "Bearer " + grant.capability})
@@ -683,7 +683,7 @@ class UploadTransfer:
             self._interrupted = True
             self._store_outcome = self._store.last_failure
 
-            if self.last_failure is None and self._store.last_failure is not None:
+            if (self.last_failure is None) and (self._store.last_failure is not None):
                 self.last_failure = self._store.last_failure
 
             raise
@@ -714,7 +714,7 @@ class JobUploads:
 
         require_type(limits, UploadLimits)
 
-        if recovery is not None and type(recovery) is not (expected_recovery_type := UploadRecovery):
+        if (recovery is not None) and (type(recovery) is not (expected_recovery_type := UploadRecovery)):
             raise TypeError(f"{type(recovery)=} ≠ {expected_recovery_type=}")
 
         self.job_ref = job_ref
@@ -778,7 +778,7 @@ class JobUploads:
                 )
 
     def _retain_grant_issuance(self, failure):
-        if self._grant_issued and isinstance(failure, UploadFailed) and not failure.grant_issued:
+        if (self._grant_issued) and (isinstance(failure, UploadFailed)) and (not failure.grant_issued):
             failure.grant_issued = True
 
             failure.add_note("Read access was issued before this failure and may have extended Upload retention.")
@@ -786,7 +786,7 @@ class JobUploads:
     def can_retry_transfer(self, failure):
         """Classify the current transfer without dispatching or changing budgets."""
 
-        return not self._active and self._transfer_owner.can_retry_transfer(failure)
+        return (not self._active) and (self._transfer_owner.can_retry_transfer(failure))
 
     @property
     def received_bytes(self):
@@ -1152,7 +1152,7 @@ class JobUploads:
             (grant.job_ref != self.job_ref) or
             (grant.upload_ref != selected.upload_ref) or
             (grant.byte_length != selected.byte_length) or
-            (selected.content_hash is not None and grant.content_hash != selected.content_hash)
+            ((selected.content_hash is not None) and (grant.content_hash != selected.content_hash))
         ):
             raise UploadFailed("download grant differs from the selected Upload identity or byte facts")
 

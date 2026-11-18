@@ -53,7 +53,7 @@ def _is_literal(expression: ast.expr) -> bool:
 
     if isinstance(expression, ast.Dict):
         return all(
-            key is not None and _is_literal(key) and _is_literal(value)
+            (key is not None) and (_is_literal(key)) and (_is_literal(value))
             for (key, value) in zip(expression.keys, expression.values, strict=True)
         )
 
@@ -143,7 +143,7 @@ def _positional_message_findings(
 
         message_position = _message_position_by_method.get(call.func.attr)
 
-        if message_position is not None and len(call.args) > message_position:
+        if (message_position is not None) and (len(call.args) > message_position):
             findings.append(
                 _PositionalMessageFinding(
                     source_path=source_path,

@@ -150,7 +150,7 @@ def owned_relationships(error):
         if error.caller_interruption is not None:
             yield ("transport caller interruption", error.caller_interruption)
 
-        if type(error.network_io) is NetworkIOObservation and error.network_io.error is not None:
+        if (type(error.network_io) is NetworkIOObservation) and (error.network_io.error is not None):
             yield ("network I/O error", error.network_io.error)
 
             if error.network_io.cause is not None:
@@ -319,10 +319,10 @@ def owned_details(error):
         details["network_io_eof"] = error.network_io.eof
         details["network_io_deadline_cancelled"] = error.network_io.deadline_cancelled
 
-    if kind is ExchangeFailed and error.response_head is not None:
+    if (kind is ExchangeFailed) and (error.response_head is not None):
         details.update(status=error.response_head.status, request_id=response_request_id(error.response_head.headers))
 
-    if kind is ExchangeFailed and error.proxy_connect_status is not None:
+    if (kind is ExchangeFailed) and (error.proxy_connect_status is not None):
         details["proxy_connect_status"] = error.proxy_connect_status
 
     if kind is ExchangeFailed and type(error.process) is ChatProcessResult:

@@ -278,10 +278,10 @@ def _http_failure(response, operation):
         # replace the HTTP failure with a parser error or leak its private text.
         return failure
 
-    if type(problem) is not dict or set(problem) != {"type", "title", "status", "instance", "request_id", "code", "detail"}:
+    if (type(problem) is not dict) or (set(problem) != {"type", "title", "status", "instance", "request_id", "code", "detail"}):
         return failure
 
-    if type(problem["status"]) is not int or problem["status"] != response.status:
+    if (type(problem["status"]) is not int) or (problem["status"] != response.status):
         return failure
 
     if any(type(problem[name]) is not str for name in ("type", "title", "instance", "request_id", "code", "detail")):
@@ -292,7 +292,7 @@ def _http_failure(response, operation):
 
     reason = _PROBLEM_REASONS.get((response.status, problem["type"].removeprefix("urn:nmr-api:problem:"), problem["code"]))
 
-    if not problem["type"].startswith("urn:nmr-api:problem:") or reason is None:
+    if (not problem["type"].startswith("urn:nmr-api:problem:")) or (reason is None):
         return failure
 
     failure = ApiFailure(operation, f"{reason} (HTTP {response.status})", response=response)
@@ -569,7 +569,7 @@ class ProviderAPI:
         source 12a53e720fc87e1a4144c76203f8853d5afaf753 (fixture manifest).
         """
 
-        if type(failure) is not ApiFailure or failure is not self.last_failure or not self.retirement_confirmed:
+        if (type(failure) is not ApiFailure) or (failure is not self.last_failure) or (not self.retirement_confirmed):
             return False
 
         if (
@@ -589,12 +589,12 @@ class ProviderAPI:
     def _settled_status_failure(self, failure, status):
         """Recognize one settled origin/edge status, not operation permission."""
 
-        if type(failure) is not ApiFailure or failure is not self.last_failure or not self.retirement_confirmed:
+        if (type(failure) is not ApiFailure) or (failure is not self.last_failure) or (not self.retirement_confirmed):
             return False
 
         head = failure._received_head()
 
-        if head is not None and head.status == status and self._gateway_environment_matches(head):
+        if (head is not None) and (head.status == status) and (self._gateway_environment_matches(head)):
             # Error/rate replies may come from an edge with a non-API body.
             # An interrupted body still needs settled, clean transport evidence.
             exchange = failure.cause
@@ -631,7 +631,7 @@ class ProviderAPI:
     def _recoverable_attempt_failure(self, failure):
         """Share settled send evidence; public methods own exact route permission."""
 
-        if type(failure) is not ApiFailure or failure is not self.last_failure or not self.retirement_confirmed:
+        if (type(failure) is not ApiFailure) or (failure is not self.last_failure) or (not self.retirement_confirmed):
             return False
 
         if self._retryable_failure(failure) or self._settled_status_failure(failure, 500):
@@ -657,7 +657,7 @@ class ProviderAPI:
     def _retryable_failure(self, failure):
         """Share settled failure evidence, not operation retry authority."""
 
-        if type(failure) is not ApiFailure or failure is not self.last_failure or not self.retirement_confirmed:
+        if (type(failure) is not ApiFailure) or (failure is not self.last_failure) or (not self.retirement_confirmed):
             return False
 
         if failure.response is not None:
@@ -806,7 +806,7 @@ class ProviderAPI:
 
         require_type(analysis_kind_ref, str)
 
-        if not (len(analysis_kind_ref) <= 128 and re.fullmatch('[a-z][a-z0-9]*(?:_[a-z0-9]+)*', analysis_kind_ref) is not None):
+        if not ((len(analysis_kind_ref) <= 128) and (re.fullmatch('[a-z][a-z0-9]*(?:_[a-z0-9]+)*', analysis_kind_ref) is not None)):
             raise ValueError("Cannot read Job input: analysis kind must be a lower snake-case catalog key of at most 128 characters")
 
         response = await self._exchange(
@@ -1048,7 +1048,7 @@ class ProviderAPI:
             (failure.status == 409 and failure.problem_code in {"upload_read_not_finalized", "project_purge_in_progress"})
         )
 
-        if issuance and not refused:
+        if (issuance) and (not refused):
             failure.issuance_may_have_committed = True
 
             failure.add_note(
@@ -1076,7 +1076,7 @@ class ProviderAPI:
              }))
         )
 
-        if attempt_mutation and not attempt_refused:
+        if (attempt_mutation) and (not attempt_refused):
             failure.attempt_mutation_may_have_committed = True
 
             failure.add_note(

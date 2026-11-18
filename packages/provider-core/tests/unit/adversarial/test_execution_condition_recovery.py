@@ -28,7 +28,7 @@ class ConditionRecoveryFailureTests(unittest.IsolatedAsyncioTestCase):
             async def exchange(self, request, **kwargs):
                 received = await super().exchange(request, **kwargs)
 
-                if request.method == "GET" and self.failure is not None and self.reads > 1:
+                if (request.method == "GET") and (self.failure is not None) and (self.reads > 1):
                     return reply(b"PRIVATE monitor unavailable", status=503)
 
                 return received

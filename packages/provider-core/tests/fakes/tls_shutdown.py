@@ -93,7 +93,7 @@ class ShutdownPeer:
 
                 self.raw_close_started.set()
 
-                while self.hold_raw_close and not self.raw_close_release.is_set():
+                while (self.hold_raw_close) and (not self.raw_close_release.is_set()):
                     try:
                         await self.raw_close_release.wait()
                     # silent-defaults: allow-contract -- This fault models a physical close that cannot finish until the test releases it, despite observer cancellation.
@@ -141,7 +141,7 @@ class ShutdownPeer:
                     ):
                         chunk = connection.recv(1)
 
-                        if not chunk or len(request) >= 16384:
+                        if (not chunk) or (len(request) >= 16384):
                             raise AssertionError("TLS shutdown probe received an incomplete or oversized request")
 
                         request.extend(chunk)
@@ -152,7 +152,7 @@ class ShutdownPeer:
                     for offset in range(0, len(reply), step):
                         connection.sendall(reply[offset:offset + step])
 
-                    if self.hold and not self.release.wait(3):
+                    if (self.hold) and (not self.release.wait(3)):
                         raise AssertionError("TLS shutdown probe was not released during teardown")
 
                     # SSLSocket.close is deliberately bypassed: no TLS goodbye

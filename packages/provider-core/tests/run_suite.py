@@ -46,7 +46,7 @@ class _AsyncioDiagnosticObserver(logging.Handler):
         self.result = result
 
     def emit(self, record):
-        if not _ACTIVE_ASYNCIO_OBSERVERS or _ACTIVE_ASYNCIO_OBSERVERS[-1] is not self:
+        if (not _ACTIVE_ASYNCIO_OBSERVERS) or (_ACTIVE_ASYNCIO_OBSERVERS[-1] is not self):
             return
 
         cause = None

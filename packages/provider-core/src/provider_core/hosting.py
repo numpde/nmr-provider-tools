@@ -38,7 +38,7 @@ def _identity(value, label):
     if not (type(value) is (expected_type := str)):
         raise TypeError(f"{label=}; {type(value)=} ≠ {expected_type=}")
 
-    if not (value and all(character.isprintable() and not character.isspace() for character in value)):
+    if not (value and all((character.isprintable()) and (not character.isspace()) for character in value)):
         raise ValueError(f"{label} must be a nonempty identity without whitespace or control characters")
 
 
@@ -534,7 +534,7 @@ async def observe_cleanup(
     """
     observation = await control.observe(after=None, wait_seconds=0)
 
-    while not observation.settled and not observation.failures:
+    while (not observation.settled) and (not observation.failures):
         observation = await control.observe(
             after=observation.revision,
             wait_seconds=1,

@@ -39,7 +39,7 @@ class LiveAttemptProbe:
         if self.controller is not None:
             claim = self.controller._claim
 
-            if claim is None or not claim.active:
+            if (claim is None) or (not claim.active):
                 return ()
 
             operation = self.controller.operation

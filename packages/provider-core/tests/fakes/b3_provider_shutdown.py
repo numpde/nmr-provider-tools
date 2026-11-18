@@ -406,7 +406,7 @@ async def shutdown_scenario(schedule, seed, directory, facts):
                 # wait() task is deliberately withholding that exit observation.
                 # With two capacity slots, unrelated B must still make progress
                 # through its own actual subprocess and delivery handoff.
-                if not actual_child_exit.is_set() or allow_exit_observation.is_set():
+                if (not actual_child_exit.is_set()) or (allow_exit_observation.is_set()):
                     raise AssertionError("No held original child-exit observation")
 
                 completion = (
@@ -545,7 +545,7 @@ async def shutdown_scenario(schedule, seed, directory, facts):
             settlement_failures = []
             settle_deadline = loop.time() + 2
 
-            while not controller.shutdown_ready and loop.time() < settle_deadline:
+            while (not controller.shutdown_ready) and (loop.time() < settle_deadline):
                 try:
                     await controller.settle()
                 except ControllerFailed as failure:

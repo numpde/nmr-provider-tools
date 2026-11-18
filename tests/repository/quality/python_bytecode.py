@@ -72,7 +72,7 @@ def production_files(root):
 
 
 def _python(executable_word):
-    return type(executable_word) is str and _PYTHON.fullmatch(executable_word.rsplit("$(", 1)[-1].lstrip("(").rsplit("/", 1)[-1]) is not None
+    return (type(executable_word) is str) and (_PYTHON.fullmatch(executable_word.rsplit("$(", 1)[-1].lstrip("(").rsplit("/", 1)[-1]) is not None)
 
 
 def _inline_imports(source):
@@ -112,16 +112,16 @@ def _needs_flag(arguments, env_enabled=False):
             if argument == "-m" and payload.split(".")[0] in _COMPILERS:
                 return False
 
-            if argument == "-c" and not _inline_imports(payload):
+            if (argument == "-c") and (not _inline_imports(payload)):
                 return False
 
-            return not disabled and (isolated or not env_enabled)
+            return (not disabled) and ((isolated) or (not env_enabled))
 
         if argument == "-":
             return False  # Heredoc/stdin programs are a documented boundary.
 
         if argument == "--":
-            return index + 1 < len(arguments) and not disabled and (isolated or not env_enabled)
+            return (index + 1 < len(arguments)) and (not disabled) and ((isolated) or (not env_enabled))
 
         if argument.startswith("-"):
             if argument in {"-W", "-X"}:
@@ -135,7 +135,7 @@ def _needs_flag(arguments, env_enabled=False):
             disabled |= "B" in argument[1:]
             isolated |= "I" in argument[1:] or "E" in argument[1:]
         else:
-            return not disabled and (isolated or not env_enabled)
+            return (not disabled) and ((isolated) or (not env_enabled))
 
         index += 1
 
@@ -161,7 +161,7 @@ def _logical_lines(source):
 
 def shell_findings(source_path, source):
     findings = []
-    (global_env, preface) = (False, source_path.name not in {"Makefile", "GNUmakefile"} and source_path.suffix != ".mk")
+    (global_env, preface) = (False, (source_path.name not in {"Makefile", "GNUmakefile"}) and (source_path.suffix != ".mk"))
 
     for (number, line) in _logical_lines(source):
         if preface and re.fullmatch(r"export PYTHONDONTWRITEBYTECODE=['\"]?1['\"]?", line):
@@ -180,7 +180,7 @@ def shell_findings(source_path, source):
         except ValueError:
             continue  # Multiline quoted command construction needs owner review.
 
-        if not tokens or tokens[0].lstrip("@") in {"echo", "printf"}:
+        if (not tokens) or (tokens[0].lstrip("@") in {"echo", "printf"}):
             continue
 
         for (index, token) in enumerate(tokens):
@@ -196,7 +196,7 @@ def shell_findings(source_path, source):
             arguments = tokens[index + argument_offset:]
 
             # An array declaration ending at the entrypoint has no program.
-            if not arguments or arguments[0] == ")":
+            if (not arguments) or (arguments[0] == ")"):
                 continue
 
             if (
@@ -208,7 +208,7 @@ def shell_findings(source_path, source):
                 continue  # E.g. helper(image, python3, uid, gid), not a launch.
 
             prefix = tokens[:index]
-            enabled = global_env and not entrypoint
+            enabled = (global_env) and (not entrypoint)
 
             for (position, prefix_argument) in enumerate(prefix):
                 if prefix_argument in {"-i", "--ignore-environment", "--unset=" + _ENV}:
@@ -218,12 +218,12 @@ def shell_findings(source_path, source):
                 elif prefix_argument.startswith(_ENV + "="):
                     if entrypoint and position > 0 and prefix[position - 1] in {"--env", "-e"}:
                         enabled = prefix_argument == _ENV + "=1"
-                    elif not entrypoint and (position == 0 or prefix[position - 1] != "--env"):
+                    elif (not entrypoint) and (position == 0 or prefix[position - 1] != "--env"):
                         enabled = prefix_argument == _ENV + "=1"
 
             isolated = _needs_flag(arguments, True)
 
-            if entrypoint and any("[@]" in prefix_argument for prefix_argument in prefix) and not isolated:
+            if (entrypoint) and (any("[@]" in prefix_argument for prefix_argument in prefix)) and (not isolated):
                 continue  # Shared creation/env argv is not visible at this site.
 
             if _needs_flag(arguments, enabled):
@@ -261,7 +261,7 @@ def python_findings(source_path, source):
     findings = []
 
     for node in ast.walk(ast.parse(source, filename=str(source_path))):
-        if not isinstance(node, ast.Call) or not node.args:
+        if (not isinstance(node, ast.Call)) or (not node.args):
             continue
 
         function = node.func
@@ -277,7 +277,7 @@ def python_findings(source_path, source):
 
         argv = node.args[0]
 
-        if not isinstance(argv, (ast.List, ast.Tuple)) or not argv.elts or not _python(_literal_text(argv.elts[0])):
+        if (not isinstance(argv, (ast.List, ast.Tuple))) or (not argv.elts) or (not _python(_literal_text(argv.elts[0]))):
             continue
 
         command_arguments = [_literal_text(argument) for argument in argv.elts[1:]]

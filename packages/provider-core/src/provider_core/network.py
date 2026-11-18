@@ -141,7 +141,7 @@ def _availability(cause, remaining, observation, *, timeout_cancellation=False):
 
     # AnyIO's grouped address failure uses an explicit OSError cause.
     # An errno-less local setup error cannot borrow incidental handler context.
-    preceding = explicit if explicit is not None or type(cause) is OSError else context
+    preceding = explicit if (explicit is not None) or (type(cause) is OSError) else context
 
     if preceding is not None:
         return _availability(preceding, remaining - 1, observation, timeout_cancellation=timeout_cancellation)
@@ -195,7 +195,7 @@ class OwnedNetworkBackend(httpcore.AsyncNetworkBackend):
         except BaseException as error:
             facts = self.observation
 
-            if facts.error is None or isinstance(facts.error, asyncio.CancelledError) and not isinstance(error, asyncio.CancelledError):
+            if facts.error is None or ((isinstance(facts.error, asyncio.CancelledError)) and (not isinstance(error, asyncio.CancelledError))):
                 facts.stage = stage
                 facts.unix_path = path
                 facts.error = error
@@ -360,7 +360,7 @@ class _OwnedStream(httpcore.AsyncNetworkStream):
             # HttpTransport observes that failure. Abort an unfinished response:
             # TLS unwrap could read more application data and replace the
             # original failure with a shutdown error. Success still closes TLS.
-            if sys.exception() is not None or asyncio.current_task().cancelling():
+            if (sys.exception() is not None) or (asyncio.current_task().cancelling()):
                 await self._close_raw()
             else:
                 try:
@@ -380,7 +380,7 @@ class _OwnedStream(httpcore.AsyncNetworkStream):
 
                     # Only a successful raw close releases this owner;
                     # an EOF-shaped raw-close failure above must still fail.
-                    if not peer_eof or failure is self._raw_close_failure:
+                    if (not peer_eof) or (failure is self._raw_close_failure):
                         raise
 
                     (

@@ -306,7 +306,7 @@ def _members(*, contribution: type[Contribution]) -> tuple[tuple[str, Callable],
                 raise TypeError(f"Exported operation {name!r} must be an instance method")
 
         if isinstance(member, property):
-            if member.fget is not None and "__scientific_operation__" in member.fget.__dict__:
+            if (member.fget is not None) and ("__scientific_operation__" in member.fget.__dict__):
                 raise TypeError(f"Exported operation {name!r} cannot be a property")
 
         if inspect.isfunction(object=member) and "__scientific_operation__" in member.__dict__:
@@ -402,7 +402,7 @@ def _lifecycle(*, owner: type, name: str, keywords: dict[str, type]) -> _Lifecyc
     assert_synchronous(function)
     parameters = tuple(inspect.signature(obj=function).parameters.values())
 
-    if not parameters or parameters[0].kind is not inspect.Parameter.POSITIONAL_OR_KEYWORD:
+    if (not parameters) or (parameters[0].kind is not inspect.Parameter.POSITIONAL_OR_KEYWORD):
         raise TypeError(f"Lifecycle method {name!r} requires an instance receiver")
 
     actual = {parameter.name: parameter for parameter in parameters[1:]}
@@ -413,7 +413,7 @@ def _lifecycle(*, owner: type, name: str, keywords: dict[str, type]) -> _Lifecyc
     annotations = get_type_hints(obj=function)
 
     for (key, parameter) in actual.items():
-        if parameter.kind is not inspect.Parameter.KEYWORD_ONLY or parameter.default is not inspect.Parameter.empty:
+        if (parameter.kind is not inspect.Parameter.KEYWORD_ONLY) or (parameter.default is not inspect.Parameter.empty):
             raise TypeError(f"Lifecycle argument {key!r} must be required and keyword-only")
 
         if not (key in annotations):
@@ -439,7 +439,7 @@ def _compile_method(
     declaration = function.__scientific_operation__
     parameters = tuple(inspect.signature(obj=function).parameters.values())
 
-    if not parameters or parameters[0].kind is not inspect.Parameter.POSITIONAL_OR_KEYWORD:
+    if (not parameters) or (parameters[0].kind is not inspect.Parameter.POSITIONAL_OR_KEYWORD):
         raise TypeError(f"Operation {name!r} requires an ordinary instance receiver")
 
     if any(parameter.kind is not inspect.Parameter.KEYWORD_ONLY for parameter in parameters[1:]):
@@ -472,7 +472,7 @@ def _compile_method(
             found_states.add(parameter.name)
         elif annotation is ScientificControl:
             controls.append(parameter.name)
-        elif contribution.analysis_type is not None and annotation is contribution.analysis_type:
+        elif (contribution.analysis_type is not None) and (annotation is contribution.analysis_type):
             analyses.append(parameter.name)
         else:
             inputs.append((parameter.name, annotation))
@@ -497,7 +497,7 @@ def _compile_method(
     if wrapped:
         (output,) = get_args(tp=output)
 
-    if declaration.state_outputs and not wrapped:
+    if (declaration.state_outputs) and (not wrapped):
         raise TypeError(f"Operation {name!r} returning state must return ScientificReturn[Result]")
 
     (input_name, input_type) = (None, NoInput)
@@ -609,7 +609,7 @@ class HostedContribution:
         if analysis_type is not None:
             require_subclass(analysis_type, Analysis)
 
-            if analysis_type.__init__ is not Analysis.__init__ or analysis_type.__new__ is not object.__new__:
+            if (analysis_type.__init__ is not Analysis.__init__) or (analysis_type.__new__ is not object.__new__):
                 raise TypeError("Analysis construction is SDK-owned; acquire resources in initialize")
 
             object.__setattr__(self, "_analysis_initialize", _lifecycle(owner=analysis_type, name="initialize", keywords={}))

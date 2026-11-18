@@ -107,7 +107,7 @@ class _Gzip:
         return b"".join(output)
 
     def finish(self):
-        if self._members == 0 or self._decoder is not None:
+        if (self._members == 0) or (self._decoder is not None):
             raise DecodedBodyRejected("invalid_encoding")
 
 
@@ -146,7 +146,7 @@ class _Deflate:
         return output
 
     def finish(self):
-        if self._decoder is None or not self._decoder.eof:
+        if (self._decoder is None) or (not self._decoder.eof):
             raise DecodedBodyRejected("invalid_encoding")
 
 
@@ -158,7 +158,7 @@ def _codings(headers):
             for coding in header_value.split(b",", _MAX_CODINGS):
                 coding = coding.strip(b" \t").lower()
 
-                if len(codings) == _MAX_CODINGS or coding not in (b"identity", b"gzip", b"deflate"):
+                if (len(codings) == _MAX_CODINGS) or (coding not in (b"identity", b"gzip", b"deflate")):
                     raise DecodedBodyRejected("unsupported_encoding")
 
                 codings.append(coding)
