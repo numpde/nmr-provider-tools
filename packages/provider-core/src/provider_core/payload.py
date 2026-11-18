@@ -31,6 +31,7 @@ from typing import (
 
 from provider_core.contribution_errors import CallRejected, ErrorCode
 from provider_core.tools import duplicate_json_fields
+from provider_core.type_requirements import require_instance, require_type
 
 
 class PayloadRejected(CallRejected):
@@ -46,8 +47,7 @@ class PayloadRejected(CallRejected):
         MISSING_FIELD = auto()
 
     def __init__(self, message: str, *, code: PayloadRejected.Code) -> None:
-        if not isinstance(code, (expected_type := self.Code)):
-            raise TypeError(f"{type(code)=} ≠ {expected_type=}")
+        require_instance(code, self.Code)
 
         super().__init__(code=code, message=message)
 
@@ -81,8 +81,7 @@ class StateBinding[T](Protocol):
 
 
 def _require_format(value: object) -> None:
-    if not (type(value) is (expected_type := str)):
-        raise TypeError(f"{type(value)=} ≠ {expected_type=}")
+    require_type(value, str)
 
     if not (
         value
@@ -103,8 +102,7 @@ def _unique_fields(field_pairs: list[tuple[str, object]]) -> dict[str, object]:
 
 
 def _read_json(payload: bytes) -> object:
-    if not (type(payload) is (expected_type := bytes)):
-        raise TypeError(f"{type(payload)=} ≠ {expected_type=}")
+    require_type(payload, bytes)
 
     try:
         return json.loads(
@@ -150,8 +148,7 @@ def _resolved_hints(value_type: type[object]) -> dict[str, object]:
 
 
 def _dataclass_fields(value_type: type[object]):
-    if not isinstance(value_type, (expected_type := type)):
-        raise TypeError(f"{type(value_type)=} ≠ {expected_type=}")
+    require_instance(value_type, type)
 
     if not is_dataclass(value_type):
         raise TypeError(f"{value_type=}; expected a dataclass type")
@@ -634,8 +631,7 @@ class DataclassStateBinding[T]:
         return tuple(field.name for field in fields(self.value_type))
 
     def bind(self, values: Mapping[str, object]) -> T:
-        if not isinstance(values, (expected_values_type := Mapping)):
-            raise TypeError(f"{type(values)=} ≠ {expected_values_type=}")
+        require_instance(values, Mapping)
 
         if set(values) != set(self.names):
             raise ValueError(
