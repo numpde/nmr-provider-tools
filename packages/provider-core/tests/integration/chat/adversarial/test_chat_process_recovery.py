@@ -2,7 +2,7 @@
 
 import json
 import os
-from pathlib import Path
+import pathlib
 import signal
 import subprocess
 import sys
@@ -13,13 +13,13 @@ import unittest
 
 class ModelProcessRecoveryTests(unittest.TestCase):
     def test_hung_model_cleanup_allows_next_job_with_same_warm_worker(self):
-        fixture = Path(__file__).resolve().parents[3] / "fakes/chat_process_fault.py"
+        fixture = pathlib.Path(__file__).resolve().parents[3] / "fakes/chat_process_fault.py"
 
         with tempfile.TemporaryDirectory() as directory:
-            root = Path(directory)
+            root = pathlib.Path(directory)
             report_path = root / "verdict.json"
 
-            process = subprocess.Popen(
+            child_process = subprocess.Popen(
                 (
                     sys.executable,
                     "-I",
@@ -46,7 +46,7 @@ class ModelProcessRecoveryTests(unittest.TestCase):
 
                         break
 
-                    if process.poll() is not None:
+                    if child_process.poll() is not None:
                         break
 
                     time.sleep(0.01)
@@ -55,24 +55,24 @@ class ModelProcessRecoveryTests(unittest.TestCase):
                 # children. Stop it after the behavioral verdict, including the
                 # intentionally noncooperative baseline cleanup.
                 try:
-                    os.killpg(process.pid, signal.SIGTERM)
+                    os.killpg(child_process.pid, signal.SIGTERM)
                 # silent-defaults: allow-contract -- An absent disposable group needs no signal; communicate still observes the original fixture process.
                 except ProcessLookupError:
                     pass
 
                 try:
-                    process.wait(timeout=0.5)
+                    child_process.wait(timeout=0.5)
                 # silent-defaults: allow-contract -- An unobserved exit advances to SIGKILL below; the bounded outer teardown never treats it as recovery.
                 except subprocess.TimeoutExpired:
                     pass
 
                 try:
-                    os.killpg(process.pid, signal.SIGKILL)
+                    os.killpg(child_process.pid, signal.SIGKILL)
                 # silent-defaults: allow-contract -- An already absent group needs no further signal; the original fixture is still reaped by communicate.
                 except ProcessLookupError:
                     pass
 
-                (stdout, stderr) = process.communicate(timeout=2)
+                (stdout, stderr) = child_process.communicate(timeout=2)
 
             self.assertIsNotNone(report, msg="The bounded recovery fixture did not produce a verdict:\n" + stdout + stderr)
             evidence = json.dumps(report, sort_keys=True)

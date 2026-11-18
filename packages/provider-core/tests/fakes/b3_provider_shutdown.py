@@ -13,7 +13,7 @@ from dataclasses import asdict, dataclass, replace
 from hashlib import sha256
 import json
 import os
-from pathlib import Path
+import pathlib
 import random
 import signal
 import sys
@@ -335,7 +335,7 @@ async def shutdown_scenario(schedule, seed, directory, facts):
         patches.enter_context(patch.object(chat_process.asyncio, "create_subprocess_exec", side_effect=observed_launch))
 
         if schedule.ignore_stop_signals:
-            fault_entrypoint = Path(__file__).resolve()
+            fault_entrypoint = pathlib.Path(__file__).resolve()
             command = (sys.executable, "-I", "-B", str(fault_entrypoint), "http-child", str(marker))
 
             patches.enter_context(patch.object(chat_process, "_worker_command", return_value=command))
@@ -355,7 +355,7 @@ async def shutdown_scenario(schedule, seed, directory, facts):
             original_owner = http_transport.pending_owner
             original_deadline = original_exchange.deadline
             original_driver = controller._driver
-            trust_directory = Path(original_exchange.trust_directory.name)
+            trust_directory = pathlib.Path(original_exchange.trust_directory.name)
 
             for request_number in range(schedule.stop_requests):
                 controller.request_stop()
@@ -658,9 +658,9 @@ async def main(report, mode, seed):
 
 
 if __name__ == "__main__":
-    sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
+    sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[2]))
 
     if sys.argv[1] == "http-child":
-        uncooperative_http_child(Path(sys.argv[2]))
+        uncooperative_http_child(pathlib.Path(sys.argv[2]))
     else:
-        asyncio.run(main(Path(sys.argv[1]), sys.argv[2], int(sys.argv[3])))
+        asyncio.run(main(pathlib.Path(sys.argv[1]), sys.argv[2], int(sys.argv[3])))

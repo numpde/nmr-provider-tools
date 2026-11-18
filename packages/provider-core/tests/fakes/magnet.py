@@ -94,7 +94,7 @@ class MagnetSession:
 
         return AnalysisSuccess(
             RESULT_SCHEMA_ID,
-            self._result(key, model_input, result),
+            self._encode_prediction_report(key, model_input, result),
             ProtectedEvidence("fixture.magnet.evidence.v1", b"scripted async product result"),
         )
 
@@ -102,7 +102,7 @@ class MagnetSession:
         self._prepared = None
         self.retired = True
 
-    def _result(self, key, model_input, result):
+    def _encode_prediction_report(self, key, model_input, result):
         return json.dumps(
             {"schema_id": RESULT_SCHEMA_ID, "provider_attempt_key": key, "model_input": model_input, "prediction": result},
             sort_keys=True,

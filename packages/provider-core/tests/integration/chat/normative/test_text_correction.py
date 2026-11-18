@@ -41,13 +41,13 @@ class TextCorrectionTests(unittest.IsolatedAsyncioTestCase):
                 )
 
                 dispatch = AsyncMock(return_value=ToolFinished("selected"))
-                result = await conversation.run([], [], dispatch)
+                conversation_result = await conversation.run([], [], dispatch)
 
                 self.assertEqual([plain, {"role": "user", "content": "correction-v1\n"}], model.requests[1])
                 dispatch.assert_awaited_once_with("submit", {})
-                self.assertEqual("selected", result.value)
-                self.assertEqual(2, json.loads(result.observation)["turns_started"])
-                self.assertEqual(1, json.loads(result.observation)["corrections"])
+                self.assertEqual("selected", conversation_result.value)
+                self.assertEqual(2, json.loads(conversation_result.observation)["turns_started"])
+                self.assertEqual(1, json.loads(conversation_result.observation)["corrections"])
                 await conversation.retire()
 
     async def test_caller_rejection_preserves_safe_arguments_and_exact_diagnostic_then_instruction(self):
@@ -64,7 +64,7 @@ class TextCorrectionTests(unittest.IsolatedAsyncioTestCase):
             text_correction=conversation_api.TextCorrection(user_content="correction-v1\n"),
         )
 
-        result = await conversation.run([], [], AsyncMock(side_effect=[rejection, ToolFinished("selected")]))
+        conversation_result = await conversation.run([], [], AsyncMock(side_effect=[rejection, ToolFinished("selected")]))
         (assistant, tool, user) = model.requests[1]
 
         self.assertEqual("assistant", assistant["role"])
@@ -72,9 +72,9 @@ class TextCorrectionTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(value, json.loads(assistant["tool_calls"][0]["function"]["arguments"]))
         self.assertEqual({"role": "tool", "tool_call_id": "bad", "content": diagnostic}, tool)
         self.assertEqual({"role": "user", "content": "correction-v1\n"}, user)
-        self.assertEqual(((1, rejection),), result.correction_failures)
-        self.assertNotIn(diagnostic.encode(), result.observation)
-        self.assertNotIn(b"PRIVATE", result.observation)
+        self.assertEqual(((1, rejection),), conversation_result.correction_failures)
+        self.assertNotIn(diagnostic.encode(), conversation_result.observation)
+        self.assertNotIn(b"PRIVATE", conversation_result.observation)
         await conversation.retire()
 
     async def test_default_rejection_still_scrubs_arguments_and_uses_json_tool_feedback(self):

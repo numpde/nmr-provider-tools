@@ -9,7 +9,7 @@ import base64
 from datetime import UTC, datetime, timedelta
 import gc
 import json
-from pathlib import Path
+import pathlib
 import ssl
 import tempfile
 import unittest
@@ -58,7 +58,7 @@ def certificate_material():
 
 def handshake(client_context, certificate, key, hostname):
     with tempfile.TemporaryDirectory() as directory:
-        root = Path(directory)
+        root = pathlib.Path(directory)
 
         (root / "cert.pem").write_bytes(certificate)
         (root / "key.pem").write_bytes(key)
@@ -124,7 +124,7 @@ class CapturedModelTrustTests(unittest.TestCase):
         legacy = ssl.create_default_context()
 
         with tempfile.TemporaryDirectory() as directory:
-            bundle = Path(directory) / "bundle.pem"
+            bundle = pathlib.Path(directory) / "bundle.pem"
 
             bundle.write_bytes(self.certificate)
             selected = ssl.DefaultVerifyPaths(str(bundle), None, "SSL_CERT_FILE", str(bundle), "SSL_CERT_DIR", directory)
@@ -187,7 +187,7 @@ class CapturedModelTrustTests(unittest.TestCase):
         trust = CapturedSSLContext(ssl.PROTOCOL_TLS_CLIENT)
 
         with tempfile.TemporaryDirectory() as directory:
-            root = Path(directory)
+            root = pathlib.Path(directory)
             bundle = root / "bundle.pem"
 
             bundle.write_bytes(self.certificate + self.crl)
@@ -207,7 +207,7 @@ class CapturedModelTrustTests(unittest.TestCase):
         # its generated key is not an input to the subject-name hash.
         for name in ("FFFFFFFF.0", "44a46a84.1"):
             with self.subTest(name=name), tempfile.TemporaryDirectory() as directory:
-                root = Path(directory)
+                root = pathlib.Path(directory)
 
                 (root / name).write_bytes(self.certificate)
                 trust = CapturedSSLContext(ssl.PROTOCOL_TLS_CLIENT)
@@ -223,7 +223,7 @@ class CapturedModelTrustTests(unittest.TestCase):
         trust = CapturedSSLContext(ssl.PROTOCOL_TLS_CLIENT)
 
         with tempfile.TemporaryDirectory() as directory:
-            root = Path(directory)
+            root = pathlib.Path(directory)
 
             (root / "44a46a84.0").write_bytes(self.certificate)
             trust.load_verify_locations(capath=root)
@@ -232,7 +232,7 @@ class CapturedModelTrustTests(unittest.TestCase):
 
         with tempfile.TemporaryDirectory() as grant:
             restored = restore_trust(snapshot, directory=grant)
-            files = list(Path(grant).glob("capath-*/*"))
+            files = list(pathlib.Path(grant).glob("capath-*/*"))
 
             self.assertEqual([path.name for path in files], ["44a46a84.0"])
             self.assertEqual(files[0].read_bytes(), self.certificate)
@@ -242,7 +242,7 @@ class CapturedModelTrustTests(unittest.TestCase):
         trust = CapturedSSLContext(ssl.PROTOCOL_TLS_CLIENT)
 
         with tempfile.TemporaryDirectory() as directory:
-            root = Path(directory)
+            root = pathlib.Path(directory)
 
             (root / "44a46a84.0").write_bytes(self.certificate)
             trust.load_verify_locations(capath=root)
@@ -253,7 +253,7 @@ class CapturedModelTrustTests(unittest.TestCase):
         def observed_directory(*args, **kwargs):
             result = native_directory(*args, **kwargs)
 
-            created.append(Path(result.name))
+            created.append(pathlib.Path(result.name))
 
             return result
 
@@ -263,7 +263,7 @@ class CapturedModelTrustTests(unittest.TestCase):
         self.assertEqual(1, len(created))
         self.assertFalse(created[0].exists())
         restored = restore_trust(snapshot)
-        restored_directory = Path(restored._chat_directory.name)
+        restored_directory = pathlib.Path(restored._chat_directory.name)
 
         self.assertTrue(restored_directory.is_dir())
         reference = weakref.ref(restored)
@@ -282,7 +282,7 @@ class CapturedModelTrustTests(unittest.TestCase):
         trusted = b"-----BEGIN TRUSTED CERTIFICATE-----\n" + encoded + b"\n-----END TRUSTED CERTIFICATE-----\n"
 
         with tempfile.TemporaryDirectory() as directory:
-            root = Path(directory)
+            root = pathlib.Path(directory)
 
             (root / "44a46a84.0").write_bytes(trusted)
             trust = CapturedSSLContext(ssl.PROTOCOL_TLS_CLIENT)
@@ -319,7 +319,7 @@ class CapturedModelTrustTests(unittest.TestCase):
         trust._msg_callback = None
 
         with tempfile.TemporaryDirectory() as directory:
-            root = Path(directory)
+            root = pathlib.Path(directory)
 
             (root / "cert.pem").write_bytes(self.certificate)
             (root / "key.pem").write_bytes(self.key)

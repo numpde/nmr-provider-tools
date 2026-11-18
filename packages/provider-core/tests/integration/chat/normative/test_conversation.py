@@ -25,13 +25,13 @@ class ConversationTests(unittest.IsolatedAsyncioTestCase):
 
             return ToolFinished("selected")
 
-        result = await conversation.run([], [], dispatch)
+        conversation_result = await conversation.run([], [], dispatch)
 
-        self.assertEqual(result.correction_failures, ((1, rejection),))
-        self.assertIs(result.correction_failures[0][1].__cause__, cause)
-        self.assertEqual(json.loads(result.observation)["corrections"], 1)
-        self.assertNotIn(b"Choose an advertised record", result.observation)
-        self.assertNotIn(b"PRIVATE", result.observation)
+        self.assertEqual(conversation_result.correction_failures, ((1, rejection),))
+        self.assertIs(conversation_result.correction_failures[0][1].__cause__, cause)
+        self.assertEqual(json.loads(conversation_result.observation)["corrections"], 1)
+        self.assertNotIn(b"Choose an advertised record", conversation_result.observation)
+        self.assertNotIn(b"PRIVATE", conversation_result.observation)
         await conversation.retire()
 
     async def test_success_hands_off_original_endpoint_failures_separately_from_public_observation(self):
@@ -46,12 +46,12 @@ class ConversationTests(unittest.IsolatedAsyncioTestCase):
         async def dispatch(_name, _arguments):
             return ToolFinished("selected")
 
-        result = await conversation.run([], [], dispatch)
+        conversation_result = await conversation.run([], [], dispatch)
 
-        self.assertEqual(result.endpoint_failures, ((0, failure),))
-        self.assertIsInstance(result.endpoint_failures, tuple)
-        self.assertNotIn(b"Earlier request", result.observation)
-        self.assertEqual(result.value, "selected")
+        self.assertEqual(conversation_result.endpoint_failures, ((0, failure),))
+        self.assertIsInstance(conversation_result.endpoint_failures, tuple)
+        self.assertNotIn(b"Earlier request", conversation_result.observation)
+        self.assertEqual(conversation_result.value, "selected")
         await conversation.retire()
 
     async def test_completed_tool_and_reasoning_survive_fallback_without_repeating_effect(
@@ -78,15 +78,15 @@ class ConversationTests(unittest.IsolatedAsyncioTestCase):
             return ToolFinished("submitted")
 
         conversation = ToolConversation((first, second), max_turns=3, secrets=())
-        result = await conversation.run([{"role": "user", "content": "fixture request"}], [], dispatch)
+        conversation_result = await conversation.run([{"role": "user", "content": "fixture request"}], [], dispatch)
 
-        self.assertEqual(result.value, "submitted")
+        self.assertEqual(conversation_result.value, "submitted")
         self.assertEqual(effects, ["prepare", "submit"])
         transcript = second.complete.call_args.args[0]
 
         self.assertEqual(transcript[1]["reasoning_content"], "fixture reasoning")
         self.assertEqual(json.loads(transcript[2]["content"]), {"reference": "owned-reference"})
-        observed = json.loads(result.observation)
+        observed = json.loads(conversation_result.observation)
 
         self.assertEqual(observed["turns_started"], 3)
 
@@ -96,5 +96,5 @@ class ConversationTests(unittest.IsolatedAsyncioTestCase):
         )
 
         self.assertEqual(observed["routes"][0]["failure"], "exchange_failed")
-        self.assertNotIn(b"owned-reference", result.observation)
+        self.assertNotIn(b"owned-reference", conversation_result.observation)
         await conversation.retire()

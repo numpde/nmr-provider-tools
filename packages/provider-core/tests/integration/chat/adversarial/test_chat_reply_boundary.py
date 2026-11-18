@@ -2,7 +2,7 @@
 
 import asyncio
 import json
-from pathlib import Path
+import pathlib
 import signal
 import sys
 import tempfile
@@ -40,8 +40,8 @@ class ModelReplyBoundaryTests(unittest.IsolatedAsyncioTestCase):
             return child
 
         with tempfile.TemporaryDirectory() as directory:
-            marker = Path(directory) / "reply.json"
-            fixture = Path(__file__).resolve().parents[3] / "fakes/chat_reply_fault.py"
+            marker = pathlib.Path(directory) / "reply.json"
+            fixture = pathlib.Path(__file__).resolve().parents[3] / "fakes/chat_reply_fault.py"
             command = (sys.executable, "-I", "-B", str(fixture), mode, str(marker))
 
             async with TlsPeer("success", response_body=body) as peer:

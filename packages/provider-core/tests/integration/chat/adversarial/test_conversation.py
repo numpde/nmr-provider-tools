@@ -300,13 +300,13 @@ class ConversationBoundaryTests(unittest.IsolatedAsyncioTestCase):
                 model = endpoint("fixture", call("submit", "submit", {}))
                 conversation = ToolConversation((model,), max_turns=1, secrets=(secret,))
 
-                result = await conversation.run(
+                conversation_result = await conversation.run(
                     [{"role": "user", "content": "safe request"}],
                     [],
                     AsyncMock(return_value=ToolFinished(None)),
                 )
 
-                identity = json.loads(result.observation)["routes"][0]["endpoint"]
+                identity = json.loads(conversation_result.observation)["routes"][0]["endpoint"]
 
                 self.assertEqual(identity["model"], "fixture")
                 await conversation.retire()
@@ -351,11 +351,11 @@ class ConversationBoundaryTests(unittest.IsolatedAsyncioTestCase):
         )
 
         conversation = ToolConversation(models, max_turns=3, secrets=())
-        result = await conversation.run([], [], AsyncMock(return_value=ToolFinished(None)))
+        conversation_result = await conversation.run([], [], AsyncMock(return_value=ToolFinished(None)))
 
         await conversation.retire()
         self.assertEqual(conversation.endpoint_failures, [(0, failures[0]), (1, failures[1])])
-        self.assertNotIn(b"PRIVATE", result.observation)
+        self.assertNotIn(b"PRIVATE", conversation_result.observation)
 
     async def test_failed_exchange_uses_the_shared_turn_budget_before_fallback(self):
         failure = ChatFailed("exchange_failed", "Fixture reply lost.")

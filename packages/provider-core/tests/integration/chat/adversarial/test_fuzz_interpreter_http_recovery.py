@@ -2,7 +2,7 @@
 
 import json
 import os
-from pathlib import Path
+import pathlib
 import signal
 import subprocess
 import sys
@@ -13,13 +13,13 @@ import unittest
 
 class RepeatedInterpreterTimeoutTests(unittest.TestCase):
     def test_timeouts_beyond_job_capacity_preserve_the_original_jobs_api_receipt(self):
-        fixture = Path(__file__).resolve().parents[3] / "fakes/b3_repetition_fault.py"
+        fixture = pathlib.Path(__file__).resolve().parents[3] / "fakes/b3_repetition_fault.py"
 
         # Replayable seeds vary whether the first result receives its API receipt
         # while another interpreter request waits for headers or ignores cleanup.
         for seed in (14, 41, 97):
             with self.subTest(seed=seed), tempfile.TemporaryDirectory() as directory:
-                root = Path(directory)
+                root = pathlib.Path(directory)
                 report_path = root / "verdict.json"
 
                 fixture_process = subprocess.Popen(

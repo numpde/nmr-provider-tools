@@ -75,13 +75,13 @@ class CountingScience:
             raise AssertionError("Scientific preparation was repeated")
 
         self.preparations += 1
-        self.pending = asyncio.create_task(self._prepare())
+        self.pending = asyncio.create_task(self._await_preparation_release())
 
         self.entered.set()
 
         return await asyncio.shield(self.pending)
 
-    async def _prepare(self):
+    async def _await_preparation_release(self):
         await self.release.wait()
 
         return self.handle

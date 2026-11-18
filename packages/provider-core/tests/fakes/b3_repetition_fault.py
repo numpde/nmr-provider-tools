@@ -12,7 +12,7 @@ from dataclasses import replace
 from hashlib import sha256
 import json
 import os
-from pathlib import Path
+import pathlib
 import random
 import signal
 import sys
@@ -35,7 +35,7 @@ def _descriptors():
     """Count sockets and pipes in the still-running Linux provider fixture."""
     targets = []
 
-    for descriptor in Path("/proc/self/fd").iterdir():
+    for descriptor in pathlib.Path("/proc/self/fd").iterdir():
         try:
             targets.append(str(descriptor.readlink()))
         # silent-defaults: allow-contract -- A descriptor closed during enumeration is no longer an owned resource.
@@ -329,7 +329,7 @@ async def scenario(marker, report, seed):
     ).encode()
 
     with ExitStack() as patches:
-        command = (sys.executable, "-I", "-B", str(Path(__file__).resolve()), "http-worker", str(marker))
+        command = (sys.executable, "-I", "-B", str(pathlib.Path(__file__).resolve()), "http-worker", str(marker))
 
         patches.enter_context(patch("provider_core.chat_process._worker_command", return_value=command))
         patches.enter_context(patch.object(SupervisedChatTransport, "_stop", new=record_first_http_stop))
@@ -567,13 +567,13 @@ async def scenario(marker, report, seed):
 
 
 if __name__ == "__main__":
-    sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
+    sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[2]))
 
     if sys.argv[1] == "http-worker":
         from tests.fakes.chat_process_fault import http_worker
 
-        http_worker(Path(sys.argv[2]))
+        http_worker(pathlib.Path(sys.argv[2]))
     elif sys.argv[1] == "scenario":
-        asyncio.run(scenario(Path(sys.argv[2]), Path(sys.argv[3]), int(sys.argv[4])))
+        asyncio.run(scenario(pathlib.Path(sys.argv[2]), pathlib.Path(sys.argv[3]), int(sys.argv[4])))
     else:
         raise SystemExit("Unknown B3 repetition fixture role")

@@ -11,7 +11,7 @@ from contextvars import ContextVar
 from dataclasses import replace
 import json
 import os
-from pathlib import Path
+import pathlib
 import signal
 import sys
 import time
@@ -157,7 +157,7 @@ class WarmWorker:
             sys.executable,
             "-I",
             "-B",
-            str(Path(__file__).resolve()),
+            str(pathlib.Path(__file__).resolve()),
             "warm-worker",
             stdin=asyncio.subprocess.PIPE,
             stdout=asyncio.subprocess.PIPE,
@@ -397,12 +397,12 @@ async def scenario(marker, report):
             if error.name != "provider_core.chat_process":
                 raise
         else:
-            command = (sys.executable, "-I", "-B", str(Path(__file__).resolve()), "http-worker", str(marker))
+            command = (sys.executable, "-I", "-B", str(pathlib.Path(__file__).resolve()), "http-worker", str(marker))
 
             stack.enter_context(patch.object(chat_process, "_worker_command", return_value=command))
 
         async with TlsPeer("success", response_body=body, response_mode=response_mode) as peer:
-            trust = https_trust((Path(peer.scratch.name) / "cert.pem").read_bytes(), label="B1 fixture")
+            trust = https_trust((pathlib.Path(peer.scratch.name) / "cert.pem").read_bytes(), label="B1 fixture")
 
             async def lane():
                 nonlocal lane_failure
@@ -531,13 +531,13 @@ async def scenario(marker, report):
 
 
 if __name__ == "__main__":
-    sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
+    sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[2]))
 
     if sys.argv[1] == "warm-worker":
         warm_worker()
     elif sys.argv[1] == "http-worker":
-        http_worker(Path(sys.argv[2]))
+        http_worker(pathlib.Path(sys.argv[2]))
     elif sys.argv[1] == "scenario":
-        asyncio.run(scenario(Path(sys.argv[2]), Path(sys.argv[3])))
+        asyncio.run(scenario(pathlib.Path(sys.argv[2]), pathlib.Path(sys.argv[3])))
     else:
         raise SystemExit("Unknown chat recovery fixture role")

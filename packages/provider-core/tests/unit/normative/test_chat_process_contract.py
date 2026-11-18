@@ -9,7 +9,7 @@ import asyncio
 from contextlib import asynccontextmanager
 import gzip
 import json
-from pathlib import Path
+import pathlib
 import ssl
 import tempfile
 import unittest
@@ -277,7 +277,7 @@ class ChatProcessContractTests(unittest.IsolatedAsyncioTestCase):
 
     async def test_unavailable_fixed_unix_proxy_never_falls_back_to_direct_tls(self):
         with tempfile.TemporaryDirectory() as directory:
-            proxy = str(Path(directory) / "absent-proxy.sock")
+            proxy = str(pathlib.Path(directory) / "absent-proxy.sock")
 
             async with TlsPeer("success", response_body=completion()) as peer, launched_children() as children:
                 endpoint = self.factory(
@@ -343,7 +343,7 @@ class ChatProcessContractTests(unittest.IsolatedAsyncioTestCase):
         def observe_directory(*args, **kwargs):
             directory = temporary_directory(*args, **kwargs)
 
-            trust_directories.append(Path(directory.name))
+            trust_directories.append(pathlib.Path(directory.name))
 
             return directory
 

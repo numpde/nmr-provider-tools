@@ -2,7 +2,7 @@
 
 import json
 import os
-from pathlib import Path
+import pathlib
 import signal
 import subprocess
 import sys
@@ -13,12 +13,12 @@ import unittest
 
 class ProviderHttpShutdownTests(unittest.TestCase):
     def run_schedules(self, mode, seed):
-        fixture = Path(__file__).resolve().parents[3] / "fakes/b3_provider_shutdown.py"
+        fixture = pathlib.Path(__file__).resolve().parents[3] / "fakes/b3_provider_shutdown.py"
 
         with tempfile.TemporaryDirectory() as directory:
-            report_path = Path(directory) / "verdict.json"
+            report_path = pathlib.Path(directory) / "verdict.json"
 
-            process = subprocess.Popen(
+            child_process = subprocess.Popen(
                 (sys.executable, "-I", "-B", str(fixture), str(report_path), mode, str(seed)),
                 stdout=subprocess.PIPE,
                 stderr=subprocess.PIPE,
@@ -45,7 +45,7 @@ class ProviderHttpShutdownTests(unittest.TestCase):
 
                         break
 
-                    if process.poll() is not None:
+                    if child_process.poll() is not None:
                         break
 
                     time.sleep(0.01)
@@ -53,24 +53,24 @@ class ProviderHttpShutdownTests(unittest.TestCase):
                 # The verdict has already sampled actual SDK cleanup.
                 # Killing this disposable group afterwards cannot satisfy the assertions.
                 try:
-                    os.killpg(process.pid, signal.SIGTERM)
+                    os.killpg(child_process.pid, signal.SIGTERM)
                 # silent-defaults: allow-contract -- An already exited process has no remaining process group to terminate; cleanup continues to reap.
                 except ProcessLookupError:
                     pass
 
                 try:
-                    process.wait(timeout=0.5)
+                    child_process.wait(timeout=0.5)
                 # silent-defaults: allow-contract -- A child that outlives the grace period is escalated to SIGKILL; no capacity is released early.
                 except subprocess.TimeoutExpired:
                     pass
 
                 try:
-                    os.killpg(process.pid, signal.SIGKILL)
+                    os.killpg(child_process.pid, signal.SIGKILL)
                 # silent-defaults: allow-contract -- A process already reaped before escalation cannot receive SIGKILL; final shutdown evidence is still collected.
                 except ProcessLookupError:
                     pass
 
-                (stdout, stderr) = process.communicate(timeout=2)
+                (stdout, stderr) = child_process.communicate(timeout=2)
 
             self.assertIsNotNone(report, msg="No bounded shutdown verdict was produced:\n" + stdout + stderr)
             self.assertNotIn("fixture_failure", report, msg=json.dumps(report, sort_keys=True))

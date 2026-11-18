@@ -1,7 +1,7 @@
 """Bound aggregate prose-service traffic and retain independent science/delivery."""
 
 import json
-from pathlib import Path
+import pathlib
 import tempfile
 import unittest
 
@@ -125,7 +125,7 @@ class ProseServiceOutageTests(unittest.IsolatedAsyncioTestCase):
     async def test_retry_after_ceiling_does_not_grow_with_tenfold_backlog(self):
         for backlog in (12, 120):
             with self.subTest(backlog=backlog), tempfile.TemporaryDirectory() as directory:
-                result = await run_outage(Path(directory) / "outbox", mode="retry_after", backlog=backlog, seed=17)
+                result = await run_outage(pathlib.Path(directory) / "outbox", mode="retry_after", backlog=backlog, seed=17)
 
                 self.assert_outage_recovered(result)
                 evidence = json.dumps(result, sort_keys=True)
@@ -153,7 +153,7 @@ class ProseServiceOutageTests(unittest.IsolatedAsyncioTestCase):
     async def test_seeded_outage_modes_preserve_original_publication_and_warm_science(self):
         for (mode, seed) in (("unavailable", 14), ("invalid_retry_after", 41), ("disconnect", 97), ("blocked", 23)):
             with self.subTest(mode=mode, seed=seed), tempfile.TemporaryDirectory() as directory:
-                result = await run_outage(Path(directory) / "outbox", mode=mode, backlog=12, seed=seed)
+                result = await run_outage(pathlib.Path(directory) / "outbox", mode=mode, backlog=12, seed=seed)
 
                 self.assert_outage_recovered(result)
 

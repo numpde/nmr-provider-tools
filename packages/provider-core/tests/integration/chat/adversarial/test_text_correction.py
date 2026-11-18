@@ -130,10 +130,10 @@ class TextCorrectionBoundaryTests(unittest.IsolatedAsyncioTestCase):
             text_correction=TextCorrection(user_content="correction-v1\n"),
         )
 
-        result = await conversation.run([], [], AsyncMock(return_value=ToolFinished("selected")))
+        conversation_result = await conversation.run([], [], AsyncMock(return_value=ToolFinished("selected")))
 
-        self.assertEqual(1, len(result.endpoint_failures))
-        self.assertEqual((), result.correction_failures)
+        self.assertEqual(1, len(conversation_result.endpoint_failures))
+        self.assertEqual((), conversation_result.correction_failures)
         self.assertEqual([[]], second.requests)
         first.retire.assert_awaited_once()
         await conversation.retire()

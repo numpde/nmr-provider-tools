@@ -1,7 +1,7 @@
 """Stop a real HTTP child while it returns its otherwise valid model reply."""
 
 import json
-from pathlib import Path
+import pathlib
 import signal
 import sys
 from unittest.mock import patch
@@ -34,7 +34,7 @@ def run():
         if mode == "exit":
             stream.close()
 
-        Path(marker).write_text(json.dumps({"written": count, "length": len(frame)}))
+        pathlib.Path(marker).write_text(json.dumps({"written": count, "length": len(frame)}))
 
         # The parent must reject partial bytes or an unretired complete reply.
         # This synchronous fault cannot finish through asyncio cancellation.
