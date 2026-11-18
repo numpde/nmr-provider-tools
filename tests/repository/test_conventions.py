@@ -130,7 +130,7 @@ def unguarded_sources(root):
             path.read_text(),
             package_marker=path.name in { "__init__.py", "__init__.py.fixture" },
             guard_module="provider_core.container_guard",
-        ),
+        )
     )
 
     return failures
