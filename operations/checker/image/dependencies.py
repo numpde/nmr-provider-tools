@@ -41,7 +41,7 @@ def declaration(path):
 
     require_instance(document, dict)
 
-    if set(document) != {"platform", "packages"}:
+    if set(document) != { "platform", "packages" }:
         raise ValueError("Cannot admit checker dependencies: expected platform and packages fields.")
 
     if document["platform"] != "linux/amd64":
@@ -57,7 +57,7 @@ def declaration(path):
 
     require_instance(package, dict)
 
-    if set(package) != {"name", "version", "file", "url", "size", "sha256"}:
+    if set(package) != { "name", "version", "file", "url", "size", "sha256" }:
         raise ValueError("Cannot admit checker dependency: package identity fields differ.")
 
     require_instance(package["name"], str)
@@ -71,7 +71,8 @@ def declaration(path):
 
     filename = f"make_{package['version'].split(':', 1)[-1]}_amd64.deb"
 
-    if package["file"] != filename or package["url"] != f"https://deb.debian.org/debian/pool/main/m/make-dfsg/{filename}":
+    if package["file"] != filename or package[
+        "url"] != f"https://deb.debian.org/debian/pool/main/m/make-dfsg/{filename}":
         raise ValueError("Cannot admit checker dependency: URL must name the declared Debian Make artifact.")
 
     require_type(package["size"], int)
@@ -204,7 +205,9 @@ def install(packages, directory):
         ).stdout
 
         if observed != package["version"]:
-            raise ValueError(f"Cannot admit checker image: installed {package['name']} version differs from declaration.")
+            raise ValueError(
+                f"Cannot admit checker image: installed {package['name']} version differs from declaration.",
+            )
 
 
 def main():
@@ -222,7 +225,7 @@ def main():
     if args.installer is not None:
         record = installer_release(args.installer)
 
-        artifacts.append(record | {"file": record["name"]})
+        artifacts.append(record | { "file": record["name"] })
 
     if args.action == "capture":
         if args.destination is None:
