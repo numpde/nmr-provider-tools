@@ -124,6 +124,7 @@ class InstallationContractTests(unittest.TestCase):
                 "provider_core/attempt_inventory.py",
                 "provider_core/signing.py",
                 "provider_core/transport.py",
+                "provider_core/tools.py",
                 "provider_core/transport_errors.py",
                 "provider_core/decoded_body.py",
                 "provider_core/network.py",
