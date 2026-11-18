@@ -17,6 +17,7 @@ from provider_core.api import ApiFailure
 from provider_core.attempt_record import RecoveryScope, StartPending, acknowledge_start
 from provider_core.ownership import OwnershipRefused
 from provider_core.transport import ExchangeFailed
+from provider_core.type_requirements import require_type
 
 
 class StartRefused(RuntimeError):
@@ -50,10 +51,7 @@ class AttemptStarter:
     def __init__(self, api, scope, claim):
         claim.require_live(scope)
 
-        if not (type(scope) is (expected_type := RecoveryScope)):
-            raise TypeError(
-                f"{type(scope)=} ≠ {expected_type=}"
-            )
+        require_type(scope, RecoveryScope)
 
         if api.origin != scope.api_origin:
             raise ValueError("Cannot configure Attempt start: signing origin differs from the selected scope")
