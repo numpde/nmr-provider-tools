@@ -788,8 +788,7 @@ class CallBinding[InputT, StateT, OutputT]:
 
         _callback(self.scientific_call, "Scientific call")
 
-        if not (type((actual_output_slots := self._output_slots)) is (expected_output_slots_type := tuple)):
-            raise TypeError(f"{type(actual_output_slots)=} ≠ {expected_output_slots_type=}")
+        require_type(self._output_slots, tuple)
 
         output_descriptions = []
 
