@@ -31,10 +31,10 @@ def has_early_guard(source, *, package_marker=False, guard_module="tools.contain
     statements = ast.parse(source).body
 
     if (
-        statements
-        and isinstance(statements[0], ast.Expr)
-        and isinstance(statements[0].value, ast.Constant)
-        and isinstance(statements[0].value.value, str)
+            statements
+            and isinstance(statements[0], ast.Expr)
+            and isinstance(statements[0].value, ast.Constant)
+            and isinstance(statements[0].value.value, str)
     ):
         statements = statements[1:]
 
@@ -42,10 +42,10 @@ def has_early_guard(source, *, package_marker=False, guard_module="tools.contain
         return True
 
     while (
-        statements
-        and isinstance(statements[0], ast.ImportFrom)
-        and statements[0].level == 0
-        and statements[0].module == "__future__"
+            statements
+            and isinstance(statements[0], ast.ImportFrom)
+            and statements[0].level == 0
+            and statements[0].module == "__future__"
     ):
         statements = statements[1:]
 
@@ -55,34 +55,38 @@ def has_early_guard(source, *, package_marker=False, guard_module="tools.contain
     (imported, called) = statements[:2]
 
     return (
-        isinstance(imported, ast.ImportFrom)
-        and (
-            (imported.level == 0 and imported.module == guard_module)
-            or (imported.level == 1 and package is not None and f"{package}.{imported.module}" == guard_module)
-        )
-        and len(imported.names) == 1
-        and imported.names[0].name == "require_container"
-        and imported.names[0].asname is None
-        and isinstance(called, ast.Expr)
-        and isinstance(called.value, ast.Call)
-        and isinstance(called.value.func, ast.Name)
-        and called.value.func.id == "require_container"
-        and not called.value.args
-        and not called.value.keywords
+            isinstance(imported, ast.ImportFrom)
+            and (
+                    (imported.level == 0 and imported.module == guard_module)
+                    or (imported.level == 1 and package is not None and f"{package}.{imported.module}" == guard_module)
+            )
+            and len(imported.names) == 1
+            and imported.names[0].name == "require_container"
+            and imported.names[0].asname is None
+            and isinstance(called, ast.Expr)
+            and isinstance(called.value, ast.Call)
+            and isinstance(called.value.func, ast.Name)
+            and called.value.func.id == "require_container"
+            and not called.value.args
+            and not called.value.keywords
     )
 
 
 def unguarded_sources(root):
     """Include new production modules and fixture source without scanning upstream."""
-    sources = set(source_files(root=root, patterns=(
-        "tools/**/*.py",
-        "operations/checker/image/dependencies.py",
-        "operations/delivery/build_inputs.py",
-        "operations/release/qualify.py",
-        "packages/provider-core/sdk_build/*.py",
-        "tests/repository/**/*.py",
-        "src/**/*.py",
-    )))
+    sources = set(
+        source_files(
+            root=root, patterns=(
+                "tools/**/*.py",
+                "operations/checker/image/dependencies.py",
+                "operations/delivery/build_inputs.py",
+                "operations/release/qualify.py",
+                "packages/provider-core/sdk_build/*.py",
+                "tests/repository/**/*.py",
+                "src/**/*.py",
+            ),
+        ),
+    )
     # The isolated setuptools interpreter only receives the staged source and backend
     sources.discard(root / "packages/provider-core/sdk_build/build_sdist.py")
     core_root = root / "packages/provider-core/src/provider_core"
@@ -90,7 +94,12 @@ def unguarded_sources(root):
 
     portable_sources = {
         path
-        for path in source_files(root=root, patterns=("packages/provider-core/src/provider_core/**/*.py", "operations/delivery/image/**/*.py", "tests/deployment/**/*.py"))
+        for path in source_files(
+            root=root, patterns=(
+                "packages/provider-core/src/provider_core/**/*.py", "operations/delivery/image/**/*.py",
+                "tests/deployment/**/*.py",
+            ),
+        )
         if any(path.is_relative_to(directory) for directory in portable_roots)
     }
 
@@ -108,8 +117,8 @@ def unguarded_sources(root):
         for path in sorted(sources)
         if not has_early_guard(
             path.read_text(),
-            package_marker=path.name in {"__init__.py", "__init__.py.fixture"},
-            package=".".join(path.parent.relative_to(root).parts)
+            package_marker=path.name in { "__init__.py", "__init__.py.fixture" },
+            package=".".join(path.parent.relative_to(root).parts),
         )
     ]
 
@@ -119,9 +128,9 @@ def unguarded_sources(root):
         if path != core_root / "container_guard.py"
         and not has_early_guard(
             path.read_text(),
-            package_marker=path.name in {"__init__.py", "__init__.py.fixture"},
-            guard_module="provider_core.container_guard"
-        )
+            package_marker=path.name in { "__init__.py", "__init__.py.fixture" },
+            guard_module="provider_core.container_guard",
+        ),
     )
 
     return failures
@@ -129,7 +138,7 @@ def unguarded_sources(root):
 
 def make_targets(source):
     """Read literal root-Makefile targets; recipes and variable assignments are excluded."""
-    targets = {}
+    targets = { }
 
     for line in source.splitlines():
         match = re.match(r"^([A-Za-z0-9_./% -]+):(?!=)(.*)$", line)
@@ -146,10 +155,10 @@ def boundary_imports(root):
     violations = []
 
     for (directory, forbidden) in (
-        (root / "host", "tools"),
-        (root / "operations", "tools"),
-        (root / "tools", "host"),
-        (root / "tools", "operations"),
+            (root / "host", "tools"),
+            (root / "operations", "tools"),
+            (root / "tools", "host"),
+            (root / "tools", "operations"),
     ):
         for path in source_files(root=root, patterns=(f"{directory.relative_to(root)}/**/*.py",)):
             if not path.is_relative_to(directory):
@@ -157,9 +166,9 @@ def boundary_imports(root):
 
             # These operations run in the checker container
             if path in (
-                root / "operations/checker/image/dependencies.py",
-                root / "operations/delivery/build_inputs.py",
-                root / "operations/release/qualify.py",
+                    root / "operations/checker/image/dependencies.py",
+                    root / "operations/delivery/build_inputs.py",
+                    root / "operations/release/qualify.py",
             ):
                 continue
 
@@ -198,8 +207,8 @@ class RepositoryConventionTests(unittest.TestCase):
             if name not in ("tests", "help"):
                 self.assertRegex(name, r"^[a-z][a-z0-9_-]*(/[a-z][a-z0-9_-]*)+$")
 
-        self.assertTrue({"tests/repository"} <= targets.keys())
-        self.assertTrue({"tests/repository"} <= set(targets["tests"]))
+        self.assertTrue({ "tests/repository" } <= targets.keys())
+        self.assertTrue({ "tests/repository" } <= set(targets["tests"]))
 
 
 class ConventionDetectionTests(unittest.TestCase):
@@ -213,10 +222,10 @@ class ConventionDetectionTests(unittest.TestCase):
         self.assertFalse(has_early_guard(source, package="tools.nested"))
 
         for invalid in (
-            source.replace("from .", "from .."),
-            source.replace("import require_container", "import require_container as guard"),
-            source.replace("require_container()", "require_container(True)"),
-            "import os\n" + source,
+                source.replace("from .", "from .."),
+                source.replace("import require_container", "import require_container as guard"),
+                source.replace("require_container()", "require_container(True)"),
+                "import os\n" + source,
         ):
             with self.subTest(source=invalid):
                 self.assertFalse(has_early_guard(invalid, package="tools"))
@@ -229,13 +238,18 @@ class ConventionDetectionTests(unittest.TestCase):
             worker.parent.mkdir(parents=True)
             worker.write_text(self.GUARD + "import json\n")
             self.assertEqual([str(worker.relative_to(root))], unguarded_sources(root))
-            worker.write_text("from provider_core.container_guard import require_container\nrequire_container()\nimport json\n")
+            worker.write_text(
+                "from provider_core.container_guard import require_container\nrequire_container()\nimport json\n",
+            )
             self.assertEqual([], unguarded_sources(root))
 
     def test_installed_delivery_sources_keep_exact_guard_ownership(self):
         with tempfile.TemporaryDirectory() as directory:
             root = pathlib.Path(directory)
-            portable = ("operations/delivery/image/delivery_deployment.py", "operations/delivery/image/check_runtime.py", "tests/deployment/test_freezer.py")
+            portable = (
+                "operations/delivery/image/delivery_deployment.py", "operations/delivery/image/check_runtime.py",
+                "tests/deployment/test_freezer.py",
+            )
 
             for name in portable:
                 path = root / name
@@ -249,7 +263,7 @@ class ConventionDetectionTests(unittest.TestCase):
             core_guard = "from provider_core.container_guard import require_container\nrequire_container()\n"
 
             ordinary.write_text(core_guard)
-            self.assertEqual(set(portable) | {str(ordinary.relative_to(root))}, set(unguarded_sources(root)))
+            self.assertEqual(set(portable) | { str(ordinary.relative_to(root)) }, set(unguarded_sources(root)))
 
             for name in portable:
                 (root / name).write_text(core_guard)
@@ -271,11 +285,11 @@ class ConventionDetectionTests(unittest.TestCase):
 
     def test_missing_late_conditional_and_rebound_guards_fail(self):
         for source in (
-            "import pickle\n",
-            "import pickle\n" + self.GUARD,
-            "from .__future__ import annotations\n" + self.GUARD,
-            "if True:\n    from tools.container_guard import require_container\n    require_container()\n",
-            "from tools.container_guard import require_container\nrequire_container = lambda: None\nrequire_container()\n",
+                "import pickle\n",
+                "import pickle\n" + self.GUARD,
+                "from .__future__ import annotations\n" + self.GUARD,
+                "if True:\n    from tools.container_guard import require_container\n    require_container()\n",
+                "from tools.container_guard import require_container\nrequire_container = lambda: None\nrequire_container()\n",
         ):
             with self.subTest(source=source):
                 self.assertFalse(has_early_guard(source))
@@ -298,11 +312,11 @@ class ConventionDetectionTests(unittest.TestCase):
             root = pathlib.Path(directory)
 
             for name in (
-                "tools/container_guard.py",
-                "tools/new/worker.py",
-                "src/model.py",
-                "src/input_geometry.py",
-                "tests/repository/nested/test_new.py",
+                    "tools/container_guard.py",
+                    "tools/new/worker.py",
+                    "src/model.py",
+                    "src/input_geometry.py",
+                    "tests/repository/nested/test_new.py",
             ):
                 path = root / name
 
@@ -328,10 +342,10 @@ class ConventionDetectionTests(unittest.TestCase):
 
     def test_target_parser_ignores_recipes_and_assignments(self):
         targets = make_targets(
-            ".PHONY: test test/unit\nROOT := /workspace\ntest: test/unit test/repository\n\techo unexpected: text\ntest/unit test/repository:\n"
+            ".PHONY: test test/unit\nROOT := /workspace\ntest: test/unit test/repository\n\techo unexpected: text\ntest/unit test/repository:\n",
         )
 
-        self.assertEqual({"test": ["test/unit", "test/repository"], "test/unit": [], "test/repository": []}, targets)
+        self.assertEqual({ "test": ["test/unit", "test/repository"], "test/unit": [], "test/repository": [] }, targets)
 
 
 if __name__ == "__main__":
