@@ -4,7 +4,7 @@ source "$root/operations/docker/image_fingerprint.sh"
 checker_input_paths=(
     operations/docker/base_image.sh operations/checker/image/dependencies.py tools/container_guard.py tools/artifacts.py
     requirements/checker-dependencies.json operations/checker/image/Dockerfile
-    tools/installer.py requirements/installer-release.json
+    tools/installer.py requirements/installer-release.json packages/type-requirements/src/type_requirements.py
 )
 
 checker_fingerprint() {

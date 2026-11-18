@@ -238,6 +238,7 @@ class LauncherTests(unittest.TestCase):
 
             for name in ("tools", "host", "requirements", "operations"):
                 shutil.copytree(ROOT / name, root / name)
+            shutil.copytree(ROOT / "packages/type-requirements", root / "packages/type-requirements")
 
             (root / "future-source").mkdir()
             (root / ".work").mkdir()

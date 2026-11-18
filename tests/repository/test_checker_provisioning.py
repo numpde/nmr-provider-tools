@@ -27,6 +27,7 @@ class CheckerProvisioningTests(unittest.TestCase):
             shutil.copytree(ROOT / name, self.root / name)
 
         shutil.copytree(ROOT / "host", self.root / "host")
+        shutil.copytree(ROOT / "packages/type-requirements", self.root / "packages/type-requirements")
         shutil.copyfile(ROOT / "Makefile", self.root / "Makefile")
         self.environment = os.environ | {"PATH": f"{ROOT / 'tests/repository/fixtures/docker-context'}:{os.environ['PATH']}"}
 

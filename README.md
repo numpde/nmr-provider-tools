@@ -136,6 +136,11 @@ builders, and its operator launchers. Its Python import name is `wheelhouse_tool
 and runs tests against the installed SDK. `operations/release/` qualifies the
 resulting release artifacts and publishes them to GitHub.
 
+`packages/type-requirements/src/type_requirements.py` owns the standard-library
+type checks shared by the checker, installer, and SDK. The maintained build
+targets include that source in each artifact, and SDK callers import it from
+`provider_core.type_requirements`.
+
 `tools/` contains shared Python modules for container operations.
 `containers/acquisition/` owns the container-side acquisition proxy source. The installed `provider_core`
 package contains both portable scientific contracts and guarded operational

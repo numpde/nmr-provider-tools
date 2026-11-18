@@ -28,12 +28,17 @@ from tools.installer import create_environment, pip_command
 from tools.wheelhouse import digest, pool_read_lock, read_json, requirements, select_wheels, wheel_inputs_from_report
 
 
+TYPE_REQUIREMENTS_SOURCE = pathlib.Path("/workspace/packages/type-requirements/src/type_requirements.py")
+SDK_TYPE_REQUIREMENTS = pathlib.Path("src/provider_core/_type_requirements.py")
+
+
 def build_source_wheel(
     *,
     source: pathlib.Path,
     staged_source: pathlib.Path,
     python: pathlib.Path,
     output: pathlib.Path,
+    sdk_type_requirements: pathlib.Path | None = None,
 ) -> pathlib.Path:
     """Build from writable scratch, never from a read-only source mount.
 
@@ -55,6 +60,9 @@ def build_source_wheel(
     for directory in (staged_source, *staged_source.rglob("*")):
         if directory.is_dir():
             directory.chmod(directory.stat().st_mode | stat.S_IWUSR)
+
+    if sdk_type_requirements is not None:
+        shutil.copy2(sdk_type_requirements, staged_source / SDK_TYPE_REQUIREMENTS)
 
     subprocess.run(
         [
@@ -178,6 +186,7 @@ def _build_candidate(source, runtime_lock, build_lock, pool, output, lock_fd):
             staged_source=scratch / "package",
             python=builder_python,
             output=output,
+            sdk_type_requirements=TYPE_REQUIREMENTS_SOURCE,
         )
 
         sdist_builder = pathlib.Path(__file__).with_name("build_sdist.py")
@@ -333,11 +342,7 @@ def source_inventory(source):
             raise ValueError(f"Cannot capture package inventory: source links are not release inputs.")
 
         if source_entry.is_file():
-            inventory[source_entry.relative_to(source).as_posix()] = {
-                "sha256": digest(source_entry),
-                "size": source_entry.stat().st_size,
-                "mode": source_entry.stat().st_mode & 0o777,
-            }
+            inventory[source_entry.relative_to(source).as_posix()] = source_file_identity(source_entry)
         elif not source_entry.is_dir():
             # todo: better msg
             raise ValueError(f"Cannot capture package inventory: source must contain regular files and directories.")
@@ -345,17 +350,23 @@ def source_inventory(source):
     return inventory
 
 
-def wheelhouse_source_inventory(source):
-    from build_bundle import SOURCE_MODULES
+def source_file_identity(source_file):
+    source_stat = source_file.stat()
 
     return {
-        name: {
-            "sha256": digest(source / name),
-            "size": (source / name).stat().st_size,
-            "mode": (source / name).stat().st_mode & 0o777,
-        }
-        for name in SOURCE_MODULES
+        "sha256": digest(source_file),
+        "size": source_stat.st_size,
+        "mode": source_stat.st_mode & 0o777,
     }
+
+
+def wheelhouse_source_inventory(source, *, type_requirements_source):
+    from build_bundle import SOURCE_MODULES
+
+    inventory = {name: source_file_identity(source / name) for name in SOURCE_MODULES}
+    inventory["type_requirements.py"] = source_file_identity(type_requirements_source)
+
+    return inventory
 
 
 def normalize_sdist(path):
@@ -398,6 +409,7 @@ def release(source, runtime_lock, build_lock, pool, output, revision):
 
     dependency_files(pool, pathlib.Path("/requirements/wheelhouse-tool.lock"))
     source_files = source_inventory(source)
+    source_files[SDK_TYPE_REQUIREMENTS.as_posix()] = source_file_identity(TYPE_REQUIREMENTS_SOURCE)
 
     (wheel, install_lock, dependency_inputs) = build_candidate(
         source=source,
@@ -418,6 +430,7 @@ def release(source, runtime_lock, build_lock, pool, output, revision):
         output=wheelhouse_bundle,
         source=pathlib.Path("/workspace"),
         lock=pathlib.Path("/requirements/wheelhouse-tool.lock"),
+        type_requirements_source=TYPE_REQUIREMENTS_SOURCE,
     )
 
     acquisition_bundle = output / ("acquisition-owner-" + artifact_prefix.removeprefix("provider_core-") + ".tar.gz")
@@ -441,7 +454,10 @@ def release(source, runtime_lock, build_lock, pool, output, revision):
                 "source_revision": revision,
                 "dependency_inputs": dependency_inputs,
                 "source_files": source_files,
-                "tool_source_files": wheelhouse_source_inventory(pathlib.Path("/workspace/wheelhouse_tool")),
+                "tool_source_files": wheelhouse_source_inventory(
+                    pathlib.Path("/workspace/wheelhouse_tool"),
+                    type_requirements_source=TYPE_REQUIREMENTS_SOURCE,
+                ),
                 "acquisition_source_files": acquisition_record["source_files"],
                 "acquisition_dependency_inputs": acquisition_record["dependency_inputs"],
                 "files": {artifact.name: digest(artifact) for artifact in release_files},

@@ -1,5 +1,8 @@
 **
 !packages/
+!packages/type-requirements/
+!packages/type-requirements/src/
+!packages/type-requirements/src/type_requirements.py
 !packages/wheelhouse-tool/
 !packages/wheelhouse-tool/src/
 !packages/wheelhouse-tool/src/wheelhouse_tool/

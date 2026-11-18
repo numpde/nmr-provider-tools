@@ -3,6 +3,7 @@ FROM ${BASE_IMAGE} AS bootstrap
 LABEL org.nmr-provider-tools.role=checker-bootstrap
 COPY operations/checker/image/dependencies.py /opt/provider-tools/operations/checker/image/
 COPY tools/container_guard.py tools/artifacts.py tools/installer.py /opt/provider-tools/tools/
+COPY packages/type-requirements/src/type_requirements.py /opt/provider-tools/
 COPY requirements/checker-dependencies.json /opt/provider-tools/requirements/
 COPY requirements/installer-release.json /opt/provider-tools/installer/release.json
 WORKDIR /opt/provider-tools

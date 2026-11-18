@@ -43,6 +43,7 @@ PROXY_FILES = ("__init__.py", "container_guard.py", "bound_http_proxy.py", "diag
 # Consumers bake this qualified helper package and its inputs into tool images.
 # repo-check: allow-module-constant
 INSTALLER_SOURCES = (
+    ("packages/type-requirements/src/type_requirements.py", "type_requirements.py"),
     ("tools/installer.py", "acquisition_tool/installer/tools/installer.py"),
     ("tools/container_guard.py", "acquisition_tool/installer/tools/container_guard.py"),
     ("requirements/installer-release.json", "acquisition_tool/installer/requirements/installer-release.json"),

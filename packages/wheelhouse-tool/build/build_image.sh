@@ -19,7 +19,8 @@ case "$action" in
         fi
         operation_host_identity "$checker_image" /usr/local/bin/python3 "$(id -u)" "$(id -g)"
         sources=(packages/wheelhouse-tool/build/Dockerfile requirements/wheelhouse-tool.lock requirements/wheelhouse-tool-release.json
-            tools/installer.py tools/container_guard.py requirements/installer-release.json)
+            tools/installer.py tools/container_guard.py requirements/installer-release.json
+            packages/type-requirements/src/type_requirements.py)
         for path in "$root"/packages/wheelhouse-tool/src/wheelhouse_tool/*.py; do sources+=("${path#"$root"/}"); done
         tool_pin=$(python3 -I -S -B "$root/host/tools/build_stream_inputs.py" "$root" \
             "$operation_directory/source-allowlist.json" "${sources[@]}")
@@ -38,7 +39,7 @@ case "$action" in
         operation_run 120 --pull never --network none --read-only --user "$operation_host_uid:$operation_host_gid" \
             --cap-drop ALL --security-opt no-new-privileges:true --pids-limit 64 --memory 512m \
             --tmpfs /tmp:rw,nosuid,nodev,noexec,size=128m --workdir /workspace \
-            --env NMR_PROVIDER_TOOLS_IN_CONTAINER=1 --env PYTHONDONTWRITEBYTECODE=1 --env PYTHONPATH=/workspace \
+            --env NMR_PROVIDER_TOOLS_IN_CONTAINER=1 --env PYTHONDONTWRITEBYTECODE=1 --env PYTHONPATH=/workspace:/opt/provider-tools \
             --mount "type=bind,src=$root/tools,dst=/workspace/tools,readonly" \
             --mount "type=bind,src=$root/requirements/wheelhouse-tool.lock,dst=/tool.lock,readonly" \
             --mount "type=bind,src=$wheelhouse_directory,dst=/wheelhouse,readonly" \

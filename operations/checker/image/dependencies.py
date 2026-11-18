@@ -25,6 +25,7 @@ from urllib.parse import urlsplit
 from tools.artifacts import fsync_directory, regular_file, require_download_proxy
 from tools.installer import duplicate_json_fields
 from tools.installer import install as install_pip, release as installer_release
+from type_requirements import require_instance, require_type
 
 
 def unique_fields(field_pairs):
@@ -38,8 +39,7 @@ def declaration(path):
     with regular_file(path) as stream:
         document = json.load(stream, object_pairs_hook=unique_fields)
 
-    if not isinstance(document, (expected_type := dict)):
-        raise TypeError(f"{type(document)=} ≠ {expected_type=}")
+    require_instance(document, dict)
 
     if set(document) != {"platform", "packages"}:
         raise ValueError("Cannot admit checker dependencies: expected platform and packages fields.")
@@ -47,36 +47,24 @@ def declaration(path):
     if document["platform"] != "linux/amd64":
         raise ValueError("Cannot admit checker dependencies: expected Linux/amd64 package list.")
 
-    if not isinstance((document_packages := document["packages"]), (expected_type := list)):
-        raise TypeError(f"{type(document_packages)=} ≠ {expected_type=}")
-
     packages = document["packages"]
+    require_instance(packages, list)
 
     if len(packages) != 1:
         raise ValueError("Cannot admit checker dependencies: this checker requires exactly GNU Make.")
 
     package = packages[0]
 
-    if not isinstance(package, (expected_type := dict)):
-        raise TypeError(f"{type(package)=} ≠ {expected_type=}")
+    require_instance(package, dict)
 
     if set(package) != {"name", "version", "file", "url", "size", "sha256"}:
         raise ValueError("Cannot admit checker dependency: package identity fields differ.")
 
-    if not isinstance((package_name := package['name']), (expected_package_name_type := str)):
-        raise TypeError(f"Cannot admit checker dependency: {type(package_name)=} ≠ {expected_package_name_type=}")
-
-    if not isinstance((package_version := package['version']), (expected_package_version_type := str)):
-        raise TypeError(f"Cannot admit checker dependency: {type(package_version)=} ≠ {expected_package_version_type=}")
-
-    if not isinstance((package_file := package['file']), (expected_package_file_type := str)):
-        raise TypeError(f"Cannot admit checker dependency: {type(package_file)=} ≠ {expected_package_file_type=}")
-
-    if not isinstance((package_url := package['url']), (expected_package_url_type := str)):
-        raise TypeError(f"Cannot admit checker dependency: {type(package_url)=} ≠ {expected_package_url_type=}")
-
-    if not isinstance((package_sha256 := package['sha256']), (expected_package_sha256_type := str)):
-        raise TypeError(f"Cannot admit checker dependency: {type(package_sha256)=} ≠ {expected_package_sha256_type=}")
+    require_instance(package["name"], str)
+    require_instance(package["version"], str)
+    require_instance(package["file"], str)
+    require_instance(package["url"], str)
+    require_instance(package["sha256"], str)
 
     if package["name"] != "make" or re.fullmatch(r"[A-Za-z0-9.+:~_-]+", package["version"]) is None:
         raise ValueError("Cannot admit checker dependency: expected a GNU Make version.")
@@ -86,10 +74,7 @@ def declaration(path):
     if package["file"] != filename or package["url"] != f"https://deb.debian.org/debian/pool/main/m/make-dfsg/{filename}":
         raise ValueError("Cannot admit checker dependency: URL must name the declared Debian Make artifact.")
 
-    if not (type((package_size := package["size"])) is (expected_type := int)):
-        raise TypeError(
-            f"{type(package_size)=} ≠ {expected_type=}"
-        )
+    require_type(package["size"], int)
 
     if not (0 < package["size"] and re.fullmatch(r"[0-9a-f]{64}", package["sha256"]) is not None):
         raise ValueError("Cannot admit checker dependency: expected a positive byte count and SHA-256.")

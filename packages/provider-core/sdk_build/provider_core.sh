@@ -51,12 +51,13 @@ worker=(--pull never --read-only "${worker_identity[@]}" --cap-drop ALL --securi
     --cpus 2 --memory 1g --memory-swap 1g --pids-limit 128
     --tmpfs /tmp:rw,nosuid,nodev,noexec,size=256m --workdir /workspace
     --env NMR_PROVIDER_TOOLS_IN_CONTAINER=1 --env PROVIDER_CORE_IN_CONTAINER=1
-    --env PYTHONDONTWRITEBYTECODE=1 --env PYTHONPATH=/workspace:/workspace/wheelhouse-build:/workspace/packages/acquisition/build
+    --env PYTHONDONTWRITEBYTECODE=1 --env PYTHONPATH=/workspace:/workspace/wheelhouse-build:/workspace/packages/acquisition/build:/workspace/packages/type-requirements/src
     --mount "type=bind,src=$root/tools,dst=/workspace/tools,readonly"
     --mount "type=bind,src=$root/packages/provider-core/sdk_build,dst=/workspace/sdk_build,readonly"
     --mount "type=bind,src=$root/packages/wheelhouse-tool/src/wheelhouse_tool,dst=/workspace/wheelhouse_tool,readonly"
     --mount "type=bind,src=$root/packages/wheelhouse-tool/build,dst=/workspace/wheelhouse-build,readonly"
     --mount "type=bind,src=$root/packages/acquisition,dst=/workspace/packages/acquisition,readonly"
+    --mount "type=bind,src=$root/packages/type-requirements,dst=/workspace/packages/type-requirements,readonly"
     --mount "type=bind,src=$root/requirements/provider-core.lock,dst=/core-runtime.lock,readonly"
     --mount "type=bind,src=$root/requirements/provider-core-build.lock,dst=/core-build.lock,readonly"
     --mount "type=bind,src=$root/packages/provider-core/tests/requirements.lock,dst=/core-test.lock,readonly"
@@ -234,7 +235,7 @@ fi
 if [[ $action == package ]]; then
     mkdir -- "$operation_directory/source"
     operation_call 'committed qualification source capture' 30 stdio git -C "$root" -c tar.umask=0022 archive --format=tar \
-        --output="$operation_directory/source.tar" "$revision" tools packages/provider-core/sdk_build packages/wheelhouse-tool packages/acquisition host operations containers requirements
+        --output="$operation_directory/source.tar" "$revision" tools packages/provider-core/sdk_build packages/wheelhouse-tool packages/acquisition packages/type-requirements host operations containers requirements
     tar --same-permissions -xf "$operation_directory/source.tar" -C "$operation_directory/source"
     for index in "${!arguments[@]}"; do
         case "${arguments[index]}" in
@@ -246,6 +247,8 @@ if [[ $action == package ]]; then
                 arguments[index]="type=bind,src=$operation_directory/source/tools,dst=/workspace/tools,readonly" ;;
             "type=bind,src=$root/packages/acquisition,dst=/workspace/packages/acquisition,readonly")
                 arguments[index]="type=bind,src=$operation_directory/source/packages/acquisition,dst=/workspace/packages/acquisition,readonly" ;;
+            "type=bind,src=$root/packages/type-requirements,dst=/workspace/packages/type-requirements,readonly")
+                arguments[index]="type=bind,src=$operation_directory/source/packages/type-requirements,dst=/workspace/packages/type-requirements,readonly" ;;
             "type=bind,src=$root/host,dst=/workspace/host,readonly")
                 arguments[index]="type=bind,src=$operation_directory/source/host,dst=/workspace/host,readonly" ;;
             "type=bind,src=$root/operations,dst=/workspace/operations,readonly")
@@ -270,19 +273,20 @@ fi
 if [[ $action == build ]]; then
     mkdir -- "$operation_directory/source"
     operation_call 'committed core source capture' 30 stdio git -C "$root" -c tar.umask=0022 archive --format=tar \
-        --output="$operation_directory/source.tar" "$revision" packages/provider-core packages/acquisition requirements tools packages/wheelhouse-tool host operations containers
+        --output="$operation_directory/source.tar" "$revision" packages/provider-core packages/acquisition packages/type-requirements requirements tools packages/wheelhouse-tool host operations containers
     tar --same-permissions -xf "$operation_directory/source.tar" -C "$operation_directory/source"
     # Keep build programs outside the package tree recorded in the release inventory
     mv -- "$operation_directory/source/packages/provider-core/sdk_build" "$operation_directory/sdk_build"
     arguments=(--pull never --network none --read-only --user "$operation_host_uid:$operation_host_gid" --cap-drop ALL --security-opt no-new-privileges:true
         --cpus 2 --memory 1g --memory-swap 1g --pids-limit 128 --tmpfs /tmp:rw,nosuid,nodev,noexec,size=256m
         --workdir /workspace --env NMR_PROVIDER_TOOLS_IN_CONTAINER=1 --env PROVIDER_CORE_IN_CONTAINER=1
-        --env PYTHONDONTWRITEBYTECODE=1 --env PYTHONPATH=/workspace:/workspace/wheelhouse-build:/workspace/packages/acquisition/build
+        --env PYTHONDONTWRITEBYTECODE=1 --env PYTHONPATH=/workspace:/workspace/wheelhouse-build:/workspace/packages/acquisition/build:/workspace/packages/type-requirements/src
         --mount "type=bind,src=$operation_directory/source/tools,dst=/workspace/tools,readonly"
         --mount "type=bind,src=$operation_directory/sdk_build,dst=/workspace/sdk_build,readonly"
         --mount "type=bind,src=$operation_directory/source/packages/wheelhouse-tool/src/wheelhouse_tool,dst=/workspace/wheelhouse_tool,readonly"
         --mount "type=bind,src=$operation_directory/source/packages/wheelhouse-tool/build,dst=/workspace/wheelhouse-build,readonly"
         --mount "type=bind,src=$operation_directory/source/packages/acquisition,dst=/workspace/packages/acquisition,readonly"
+        --mount "type=bind,src=$operation_directory/source/packages/type-requirements,dst=/workspace/packages/type-requirements,readonly"
         --mount "type=bind,src=$operation_directory/source/host,dst=/workspace/host,readonly"
         --mount "type=bind,src=$operation_directory/source/operations,dst=/workspace/operations,readonly"
         --mount "type=bind,src=$operation_directory/source/containers,dst=/workspace/containers,readonly"

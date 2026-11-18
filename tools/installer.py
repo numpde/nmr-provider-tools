@@ -20,6 +20,8 @@ import subprocess
 import sys
 import tempfile
 
+from type_requirements import require_type
+
 
 def duplicate_json_fields(field_pairs: list[tuple[str, object]]) -> Counter[str]:
     """Count occurrences beyond the first for each repeated JSON field."""
@@ -54,32 +56,29 @@ def release(release_json_path):
 def validate_release(record):
     """Validate metadata before using its filename or byte count."""
 
-    if not (type(record) is (expected_type := dict)):
-        raise TypeError(f"{type(record)=} ≠ {expected_type=}")
+    require_type(record, dict)
 
     if not (set(record) == {"name", "sha256", "size", "url"}):
         raise ValueError("Cannot start the installer: release record must identify one pip wheel by name, size, SHA-256 and HTTPS source.")
 
-    if not (type((record_name := record["name"])) is (expected_type := str)):
-        raise TypeError(f"{type(record_name)=} ≠ {expected_type=}")
+    record_name = record["name"]
+    require_type(record_name, str)
 
     if not re.fullmatch(pattern := r"pip-[0-9]+\.[0-9]+(?:\.[0-9]+)?-py3-none-any\.whl", record_name):
         raise ValueError(f"Cannot start the installer: {record_name=} does not follow {pattern=}.")
 
-    if not (type((record_sha256 := record["sha256"])) is (expected_type := str)):
-        raise TypeError(f"{type(record_sha256)=} ≠ {expected_type=}")
+    record_sha256 = record["sha256"]
+    require_type(record_sha256, str)
 
     if not re.fullmatch((expected_pattern := r"[0-9a-f]{64}"), record_sha256):
         raise ValueError(f"{record_sha256=} should match {expected_pattern=}")
 
-    if not (type((record_size := record["size"])) is (expected_type := int)):
-        raise TypeError(f"{type(record_size)=} ≠ {expected_type=}")
+    require_type(record["size"], int)
 
     if not (record["size"] > 0):
         raise ValueError("Cannot start the installer: release record must identify one pip wheel by name, size, SHA-256 and HTTPS source.")
 
-    if not (type((record_url := record["url"])) is (expected_type := str)):
-        raise TypeError(f"{type(record_url)=} ≠ {expected_type=}")
+    require_type(record["url"], str)
 
     if not (record["url"].startswith("https://files.pythonhosted.org/") and record["url"].endswith("/" + record["name"])):
         raise ValueError("Cannot start the installer: release record must identify one pip wheel by name, size, SHA-256 and HTTPS source.")

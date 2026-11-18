@@ -16,6 +16,7 @@ import pathlib
 from build_bundle import build
 from sdk_build.core_environment import wheelhouse_source_inventory
 from tools.installer import create_environment, pip_command
+from tests.repository.quality.sources import ROOT
 
 
 class WheelhouseBundleTests(unittest.TestCase):
@@ -57,17 +58,37 @@ class WheelhouseBundleTests(unittest.TestCase):
 
             lock.write_text(f"example==1.0 \\\n    --hash=sha256:{hashlib.sha256(wheel.read_bytes()).hexdigest()}\n")
             (first, second) = (root / "first.pyz", root / "second.pyz")
+            type_requirements_source = ROOT / "packages/type-requirements/src/type_requirements.py"
 
-            build(root, first, root, lock)
-            build(root, second, root, lock)
+            build(root, first, root, lock, type_requirements_source=type_requirements_source)
+            build(root, second, root, lock, type_requirements_source=type_requirements_source)
             self.assertEqual(first.read_bytes(), second.read_bytes())
-            inventory = wheelhouse_source_inventory(root / "wheelhouse_tool")
+            inventory = wheelhouse_source_inventory(
+                root / "wheelhouse_tool",
+                type_requirements_source=type_requirements_source,
+            )
 
             with zipfile.ZipFile(first) as archive:
                 payload = {name.removeprefix("wheelhouse_tool/"): archive.read(name)
                            for name in archive.namelist() if name.startswith("wheelhouse_tool/")}
+                payload["type_requirements.py"] = archive.read("type_requirements.py")
 
             self.assertEqual(set(inventory), set(payload))
+            self.assertEqual(type_requirements_source.read_bytes(), payload["type_requirements.py"])
+
+            subprocess.run(
+                [
+                    str(create_environment(root / "consumer")),
+                    "-I",
+                    "-S",
+                    "-B",
+                    "-c",
+                    "import sys; sys.path.insert(0, sys.argv[1]); "
+                    "from type_requirements import require_type; require_type(1, int)",
+                    str(first),
+                ],
+                check=True,
+            )
 
             for (name, data) in payload.items():
                 self.assertEqual(inventory[name]["sha256"], hashlib.sha256(data).hexdigest())
@@ -75,6 +96,6 @@ class WheelhouseBundleTests(unittest.TestCase):
             wheel.write_bytes(b"changed")
 
             with self.assertRaisesRegex(ValueError, "pinned hash"):
-                build(root, root / "wrong.pyz", root, lock)
+                build(root, root / "wrong.pyz", root, lock, type_requirements_source=type_requirements_source)
 
             self.assertFalse((root / "wrong.pyz").exists())

@@ -5,6 +5,7 @@ FROM ${BASE_IMAGE}
 ENV PROVIDER_CORE_IN_CONTAINER=1 PYTHONDONTWRITEBYTECODE=1
 WORKDIR /opt/build
 COPY tools/container_guard.py tools/artifacts.py tools/wheelhouse.py tools/installer.py ./tools/
+COPY packages/type-requirements/src/type_requirements.py ./
 COPY packages/provider-core/sdk_build/core_environment.py ./sdk_build/
 COPY requirements/installer-release.json /opt/provider-tools/installer/release.json
 COPY --from=wheel_inputs /installer/ /opt/provider-tools/installer/wheels/

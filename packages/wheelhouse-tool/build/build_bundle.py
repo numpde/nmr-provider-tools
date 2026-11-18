@@ -51,7 +51,7 @@ def dependency_files(pool, lock):
     return files
 
 
-def build(pool, output, source, lock):
+def build(pool, output, source, lock, *, type_requirements_source):
     bundle_members = dependency_files(pool, lock)
 
     bundle_members["__main__.py"] = (
@@ -75,6 +75,8 @@ def build(pool, output, source, lock):
 
     for name in SOURCE_MODULES:
         bundle_members[f"wheelhouse_tool/{name}"] = (source / "wheelhouse_tool" / name).read_bytes()
+
+    bundle_members["type_requirements.py"] = type_requirements_source.read_bytes()
 
     (temporary_fd, temporary_name) = tempfile.mkstemp(
         prefix=f".{output.name}.",
@@ -115,7 +117,14 @@ def main():
     parser.add_argument("--lock", type=pathlib.Path, required=True)
     args = parser.parse_args()
 
-    build(args.pool, args.output, pathlib.Path(__file__).resolve().parent.parent / "src", args.lock)
+    package = pathlib.Path(__file__).resolve().parents[1]
+    build(
+        args.pool,
+        args.output,
+        package / "src",
+        args.lock,
+        type_requirements_source=package.parent / "type-requirements/src/type_requirements.py",
+    )
 
 
 if __name__ == "__main__":

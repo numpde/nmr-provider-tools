@@ -3,6 +3,7 @@
 source "$root/operations/docker/image_fingerprint.sh"
 delivery_recipe_inputs=(operations/docker/base_image.sh tools/container_guard.py tools/artifacts.py tools/wheelhouse.py
     packages/provider-core/sdk_build/core_environment.py tools/installer.py requirements/installer-release.json
+    packages/type-requirements/src/type_requirements.py
     operations/delivery/build_inputs.py operations/delivery/image/delivery_deployment.py packages/provider-core/sdk_build/provider_core_acquire.py host/tools/build_stream_inputs.py
     requirements/provider-core.lock requirements/delivery-release.json requirements/wheelhouse-tool-release.json
     operations/delivery/image/Dockerfile operations/delivery/image/check_runtime.py)

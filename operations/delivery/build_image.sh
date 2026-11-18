@@ -44,6 +44,7 @@ operation_run 120 --pull never --network none --read-only --user "$operation_hos
     --cpus 2 --memory 512m --memory-swap 512m --pids-limit 64 --tmpfs /tmp:rw,nosuid,nodev,noexec,size=128m \
     --workdir /workspace --env NMR_PROVIDER_TOOLS_IN_CONTAINER=1 --env PYTHONDONTWRITEBYTECODE=1 --env PYTHONPATH=/workspace \
     --mount "type=bind,src=$context/tools,dst=/workspace/tools,readonly" \
+    --mount "type=bind,src=$context/packages/type-requirements/src/type_requirements.py,dst=/workspace/type_requirements.py,readonly" \
     --mount "type=bind,src=$context/packages/provider-core/sdk_build/provider_core_acquire.py,dst=/workspace/sdk_build/provider_core_acquire.py,readonly" \
     --mount "type=bind,src=$context/operations/delivery/build_inputs.py,dst=/workspace/operations/delivery/build_inputs.py,readonly" \
     --mount "type=bind,src=$context/requirements/provider-core.lock,dst=/core-runtime.lock,readonly" \

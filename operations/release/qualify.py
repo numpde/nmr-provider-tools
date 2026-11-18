@@ -27,6 +27,7 @@ from tools.artifacts import regular_file
 from build_bundle import build as build_wheelhouse_bundle
 from build_acquisition_bundle import build as build_acquisition_bundle
 from sdk_build.core_environment import behavioral_install_lock, build_candidate, install_environment, wheelhouse_source_inventory
+from sdk_build.core_environment import SDK_TYPE_REQUIREMENTS, TYPE_REQUIREMENTS_SOURCE
 from tools.wheelhouse import digest, requirements
 
 
@@ -584,7 +585,10 @@ def check(artifacts, revision):
                 "identities differ from this release."
             )
 
-        if release_record["tool_source_files"] != wheelhouse_source_inventory(pathlib.Path("/workspace/wheelhouse_tool")):
+        if release_record["tool_source_files"] != wheelhouse_source_inventory(
+            pathlib.Path("/workspace/wheelhouse_tool"),
+            type_requirements_source=TYPE_REQUIREMENTS_SOURCE,
+        ):
             raise ValueError("Cannot qualify package: wheelhouse tool source differs from the release inputs.")
 
         wheelhouse_bundle = artifacts / f"wheelhouse-tool-{release_version}.pyz"
@@ -595,6 +599,7 @@ def check(artifacts, revision):
             rebuilt_wheelhouse_bundle,
             pathlib.Path("/workspace"),
             pathlib.Path("/wheelhouse-tool.lock"),
+            type_requirements_source=TYPE_REQUIREMENTS_SOURCE,
         )
 
         if wheelhouse_bundle.read_bytes() != rebuilt_wheelhouse_bundle.read_bytes():
@@ -642,6 +647,10 @@ def check(artifacts, revision):
             raise ValueError("Cannot qualify package: source project and version differ from the release artifacts.")
 
         source_python_files = source_payload(extracted_source, release_record["source_files"])
+
+        if (extracted_source / SDK_TYPE_REQUIREMENTS).read_bytes() != TYPE_REQUIREMENTS_SOURCE.read_bytes():
+            raise ValueError("The SDK source distribution should contain the captured type requirements module.")
+
         original_wheel_metadata = wheel_payload(captured_wheels[0], source_python_files, release_version)
 
         runtime_install_lock = artifacts / (artifact_prefix + "-install.lock")
