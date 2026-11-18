@@ -17,6 +17,7 @@ from datetime import datetime
 from hashlib import sha256
 
 from provider_core.response_json import ResponseRejected, read_document, read_timestamp
+from provider_core.type_requirements import require_type
 
 # The pinned Attempt response has this wire byte ceiling.
 # repo-check: allow-module-constant
@@ -61,10 +62,7 @@ class AttemptProgress:
 
 
 def require_attempt_ref(value):
-    if not (type(value) is (expected_type := str)):
-        raise TypeError(
-            f"{type(value)=} ≠ {expected_type=}"
-        )
+    require_type(value, str)
 
     if re.fullmatch(r"execution_attempt:sha256:[0-9a-f]{64}", value) is None:
         raise ValueError(
