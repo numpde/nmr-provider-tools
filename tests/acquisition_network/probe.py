@@ -22,11 +22,13 @@ class Origin(http.server.BaseHTTPRequestHandler):
 def exchange(proxy_port, origin_port, tunnel):
     with socket.create_connection(("127.0.0.1", proxy_port), timeout=3) as client:
         if tunnel:
-            client.sendall((
-                f"CONNECT 127.0.0.2:{origin_port} HTTP/1.1\r\n"
-                "Host: fixture\r\n"
-                "\r\n"
-            ).encode())
+            client.sendall(
+                (
+                    f"CONNECT 127.0.0.2:{origin_port} HTTP/1.1\r\n"
+                    "Host: fixture\r\n"
+                    "\r\n"
+                ).encode(),
+            )
             response = b""
 
             while (
@@ -52,12 +54,14 @@ def exchange(proxy_port, origin_port, tunnel):
                 b"\r\n"
             )
         else:
-            client.sendall((
-                f"GET http://127.0.0.2:{origin_port}/proof HTTP/1.1\r\n"
-                "Host: fixture\r\n"
-                "Connection: close\r\n"
-                "\r\n"
-            ).encode())
+            client.sendall(
+                (
+                    f"GET http://127.0.0.2:{origin_port}/proof HTTP/1.1\r\n"
+                    "Host: fixture\r\n"
+                    "Connection: close\r\n"
+                    "\r\n"
+                ).encode(),
+            )
 
         client.shutdown(socket.SHUT_WR)
         origin_response = b""
@@ -68,11 +72,13 @@ def exchange(proxy_port, origin_port, tunnel):
             if len(origin_response) > 65536:
                 raise RuntimeError("origin response exceeded its bound")
 
-        if not origin_response.endswith(expected_suffix := (
-            b"\r\n"
-            b"\r\n"
-            b"proof"
-        )):
+        if not origin_response.endswith(
+            expected_suffix := (
+                b"\r\n"
+                b"\r\n"
+                b"proof"
+            ),
+        ):
             origin_response_suffix = origin_response[-len(expected_suffix):]
             raise RuntimeError(f"{origin_response_suffix=} should be {expected_suffix=}")
 

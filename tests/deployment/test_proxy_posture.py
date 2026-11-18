@@ -73,10 +73,12 @@ class ImageBuildProxyInputTests(unittest.TestCase):
     def test_connect_ports_are_admitted_before_socket_use(self):
         for port in ("0", "65536", "-1", "not-a-port"):
             with self.subTest(port=port), self.assertRaises(ValueError):
-                _PROXY.parse_destination((
-                    f"CONNECT example.invalid:{port} HTTP/1.1\r\n"
-                    "\r\n"
-                ).encode())
+                _PROXY.parse_destination(
+                    (
+                        f"CONNECT example.invalid:{port} HTTP/1.1\r\n"
+                        "\r\n"
+                    ).encode(),
+                )
 
         self.assertEqual(
             ("CONNECT", "example.invalid", 443),
