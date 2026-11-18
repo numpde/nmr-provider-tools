@@ -29,9 +29,9 @@ if hashlib.sha256(wheel_bytes).hexdigest() != pin["hashes"]["sha256"]:
 sys.stdout.write(str(dependency) + "\n")
 PY
 )
-source "$root/host/tools/checker_operation.sh"
-checker_begin
-checker_run 60 --pull never --network none --read-only --cap-drop ALL \
+source "$root/operations/docker/container_operation.sh"
+operation_begin
+operation_run 60 --pull never --network none --read-only --cap-drop ALL \
     --security-opt no-new-privileges:true --pids-limit 64 --memory 128m \
     --tmpfs /tmp:rw,nosuid,nodev,noexec,size=16m \
     --mount "type=bind,src=$dependency,dst=/identity.whl,readonly" \

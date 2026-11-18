@@ -3,11 +3,12 @@
 set -euo pipefail
 root=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/../.." && pwd -P)
 source "$root/operations/docker/base_image.sh"
-source "$root/host/tools/checker_operation.sh"
+source "$root/operations/docker/container_operation.sh"
+source "$root/host/tools/checker_inputs.sh"
 uid=$(id -u) gid=$(id -g)
-checker_begin
+operation_begin
 checker_admit_tools
-checker_run 120 --pull never --network none --read-only --user "$uid:$gid" --cap-drop ALL \
+operation_run 120 --pull never --network none --read-only --user "$uid:$gid" --cap-drop ALL \
     --security-opt no-new-privileges:true --cpus 2 --memory 512m --memory-swap 512m --pids-limit 64 \
     --tmpfs /tmp:rw,nosuid,nodev,noexec,size=128m --workdir /workspace \
     --env NMR_PROVIDER_TOOLS_IN_CONTAINER=1 --env PYTHONDONTWRITEBYTECODE=1 --env PYTHONPATH=/workspace \
@@ -20,7 +21,7 @@ checker_run 120 --pull never --network none --read-only --user "$uid:$gid" --cap
     --mount "type=bind,src=$1,dst=/wheelhouse,readonly" \
     --entrypoint python3 "$checker_image" -B -m operations.delivery.build_inputs check \
     --pin /release.json --runtime-lock /core-runtime.lock --pool /wheelhouse --tool-pin /wheelhouse-tool-release.json > "$operation_directory/result"
-checker_metadata "$operation_directory/check-exit" inspect --format '{{.State.Running}} {{.State.ExitCode}}' "$operation_container"
+operation_metadata "$operation_directory/check-exit" inspect --format '{{.State.Running}} {{.State.ExitCode}}' "$operation_container"
 cmp -s "$operation_directory/check-exit" <(printf 'false 0\n') || {
     operation_diagnostic+=$'Cannot inspect the delivery pool: the checker did not retire successfully.\n'; exit 2;
 }

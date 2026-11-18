@@ -9,8 +9,8 @@ root=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/../.." && pwd -P)
 }
 project=$1 image=$2 uid=$(id -u) gid=$(id -g)
 [[ $uid != 0 && $gid != 0 ]] || { printf '%s\n' 'Cannot retire old delivery sockets as root; use the installing account.' >&2; exit 2; }
-source "$root/host/tools/checker_operation.sh"
-checker_begin
+source "$root/operations/docker/container_operation.sh"
+operation_begin
 removal_requested=false
 report_failure() {
     printf 'Cannot retire old delivery sockets: %s\n' "$1" >&2
@@ -33,12 +33,12 @@ interrupted() {
 trap 'interrupted 129' HUP
 trap 'interrupted 130' INT
 trap 'interrupted 143' TERM
-checker_metadata "$operation_directory/image" image inspect --format '{{.Id}} {{index .Config.Labels "org.nmr-provider-tools.role"}} {{index .Config.Labels "org.nmr-provider-tools.inputs"}}' "$image" || { status=$?; report_failure 'the shared delivery image could not be inspected.'; exit "$status"; }
+operation_metadata "$operation_directory/image" image inspect --format '{{.Id}} {{index .Config.Labels "org.nmr-provider-tools.role"}} {{index .Config.Labels "org.nmr-provider-tools.inputs"}}' "$image" || { status=$?; report_failure 'the shared delivery image could not be inspected.'; exit "$status"; }
 IFS= read -r observed < "$operation_directory/image"
 [[ $observed =~ ^(sha256:[0-9a-f]{64})\ delivery\ ([0-9a-f]{64})$ && ${BASH_REMATCH[1]} == "$image" ]] \
     && cmp -s "$operation_directory/image" <(printf '%s\n' "$observed") \
     || { report_failure 'the image is not an admitted shared delivery build.'; exit 2; }
-checker_create --name "nmr-provider-tools-operation-$project" --pull never --network none --read-only \
+operation_create --name "nmr-provider-tools-operation-$project" --pull never --network none --read-only \
     --user "$uid:$gid" --cap-drop ALL --security-opt no-new-privileges:true --cpus 1 \
     --memory 64m --memory-swap 64m --pids-limit 16 --entrypoint /bin/true "$image" \
     || { status=$?; report_failure 'another project operation may still own the reservation.'; exit "$status"; }
@@ -46,7 +46,7 @@ inventory() {
     local destination=$1 kind
     local -a found
     for kind in ipc route; do
-        checker_metadata "$operation_directory/inventory-$kind" volume ls --filter "name=^${project}-${kind}-" --format '{{.Name}}' \
+        operation_metadata "$operation_directory/inventory-$kind" volume ls --filter "name=^${project}-${kind}-" --format '{{.Name}}' \
             || return "$?"
         mapfile -t found < "$operation_directory/inventory-$kind"
         if (( ${#found[@]} )); then
@@ -68,7 +68,7 @@ for volume in "${listed[@]}"; do
 done
 inspect_candidate() {
     local volume=$1 receipt=$2 borrower=$3 owner logical driver options created extra
-    checker_metadata "$receipt" volume inspect --format '{{.Name}}|{{index .Labels "com.docker.compose.project"}}|{{index .Labels "com.docker.compose.volume"}}|{{.Driver}}|{{json .Options}}|{{.CreatedAt}}' "$volume" \
+    operation_metadata "$receipt" volume inspect --format '{{.Name}}|{{index .Labels "com.docker.compose.project"}}|{{index .Labels "com.docker.compose.volume"}}|{{.Driver}}|{{json .Options}}|{{.CreatedAt}}' "$volume" \
         || { local status=$?; report_failure "ownership of $volume could not be inspected."; return "$status"; }
     extra=
     IFS='|' read -r observed owner logical driver options created extra < "$receipt"
@@ -76,7 +76,7 @@ inspect_candidate() {
         && ( $options == null || $options == '{}' ) && -n $created && -z $extra ]] \
         && cmp -s "$receipt" <(printf '%s|%s|%s|%s|%s|%s\n' "$observed" "$owner" "$logical" "$driver" "$options" "$created") \
         || { report_failure "ownership or storage settings of $volume could not be confirmed."; return 2; }
-    checker_metadata "$borrower" ps --all --quiet --no-trunc --filter "volume=$volume" \
+    operation_metadata "$borrower" ps --all --quiet --no-trunc --filter "volume=$volume" \
         || { local status=$?; report_failure "borrowers of $volume could not be inspected."; return "$status"; }
     [[ ! -s $borrower ]] || { report_failure "$volume is still borrowed by a container; stop or remove the borrower first."; return 2; }
 }
@@ -88,7 +88,7 @@ for volume in "${candidates[@]}"; do
     cmp -s "$operation_directory/receipt-$volume" "$operation_directory/recheck" \
         || { report_failure "$volume changed during inspection."; exit 2; }
     removal_requested=true
-    checker_call 'retire old delivery socket volume' 60 stdio "${engine[@]}" volume rm -- "$volume" \
+    operation_call 'retire old delivery socket volume' 60 stdio "${engine[@]}" volume rm -- "$volume" \
         || { status=$?; report_failure "removal of $volume was not confirmed."; retain_uncertain_removal; exit "$status"; }
 done
 inventory "$operation_directory/remaining" \

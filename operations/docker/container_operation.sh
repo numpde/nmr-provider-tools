@@ -6,7 +6,7 @@
 source "$root/operations/docker/docker_client.sh"
 source "$root/host/tools/inference_native.sh"
 
-checker_begin() {
+operation_begin() {
     source "$root/operations/docker/image_lifecycle.sh"
     image_lifecycle_lock shared || return "$?"
     image_retire_after_success=false
@@ -23,7 +23,7 @@ checker_begin() {
     operation_container=
     operation_diagnostic=
     operation_success=
-    trap checker_finish EXIT
+    trap operation_finish EXIT
     trap 'exit 129' HUP
     trap 'exit 130' INT
     trap 'exit 143' TERM
@@ -33,38 +33,31 @@ checker_begin() {
     fi
 }
 
-checker_acquisition_receipt() {
+operation_reserve_acquisition_receipt() {
     operation_acquisition_receipt=$operation_directory/acquisition-${#operation_acquisition_receipts[@]}.retired
     operation_acquisition_receipts+=("$operation_acquisition_receipt")
 }
 
-checker_admit_tools() {
-    local -a checker_input_paths
-    source "$root/host/tools/checker_inputs.sh"
-    local fingerprint
-    fingerprint=$(checker_fingerprint checker) || return "$?"
-    checker_admit_image "$fingerprint" checker
-}
 
-checker_can_dispatch() {
+operation_can_dispatch() {
     local receipt
     if ! "$inference_retirement_confirmed"; then
         retain_operation=true
-        operation_diagnostic+=$'Cannot dispatch another checker client: previous local process retirement is unconfirmed.\n'
+        operation_diagnostic+=$'Cannot dispatch another Docker client: previous local process retirement is unconfirmed.\n'
         return 2
     fi
     for receipt in "${operation_acquisition_receipts[@]}"; do
         if ! cmp -s "$receipt" <(printf 'retired\n'); then
             retain_operation=true
-            operation_diagnostic+=$'Cannot dispatch another checker client: acquisition retirement is unconfirmed.\n'
+            operation_diagnostic+=$'Cannot dispatch another Docker client: acquisition retirement is unconfirmed.\n'
             return 2
         fi
     done
 }
 
-checker_call() {
+operation_call() {
     local status=0
-    checker_can_dispatch || return "$?"
+    operation_can_dispatch || return "$?"
     if inference_native "$@"; then :; else status=$?; fi
     operation_diagnostic+=$inference_diagnostic
     if ! "$inference_retirement_confirmed"; then retain_operation=true; fi
@@ -72,10 +65,10 @@ checker_call() {
     return "$status"
 }
 
-checker_metadata() {
+operation_metadata() {
     local receipt=$1
     shift
-    checker_call 'checker metadata' 30 stdio bash -eu -c '
+    operation_call 'container metadata' 30 stdio bash -eu -c '
         receipt=$1; shift
         umask 077
         ulimit -f 4
@@ -84,72 +77,72 @@ checker_metadata() {
     [[ -f $receipt && ! -L $receipt && $(stat -c %s -- "$receipt") -lt 4096 ]]
 }
 
-checker_create() {
+operation_create() {
     local identifier receipt cid
     operation_container=
     container_sequence=$((container_sequence + 1))
     receipt=$operation_directory/create-$container_sequence
     cid=$operation_directory/container-$container_sequence.cid
     create_pending=true
-    checker_metadata "$receipt" create --label "$operation_label" --cidfile "$cid" "$@" || return "$?"
+    operation_metadata "$receipt" create --label "$operation_label" --cidfile "$cid" "$@" || return "$?"
     if ! IFS= read -r identifier < "$receipt"; then return 2; fi
     if [[ ! $identifier =~ ^[0-9a-f]{64}$ || ! -f $cid || -L $cid ]] \
         || ! cmp -s "$receipt" <(printf '%s\n' "$identifier") \
         || ! { cmp -s "$cid" <(printf '%s' "$identifier") || cmp -s "$cid" <(printf '%s\n' "$identifier"); }; then
-        printf -v operation_diagnostic '%sCannot start checker container: create output and private CID receipt disagree; retained inputs at %q.\n' "$operation_diagnostic" "$operation_directory"
+        printf -v operation_diagnostic '%sCannot start container: create output and private CID receipt disagree; retained inputs at %q.\n' "$operation_diagnostic" "$operation_directory"
         return 2
     fi
     create_pending=false
     operation_container=$identifier
 }
 
-checker_run() {
+operation_run() {
     local budget=$1
     shift
-    checker_create "$@" || return "$?"
-    checker_call 'checker container attachment' "$budget" stdio "${engine[@]}" start --attach "$operation_container"
+    operation_create "$@" || return "$?"
+    operation_call 'container attachment' "$budget" stdio "${engine[@]}" start --attach "$operation_container"
 }
 
 # The published owner retires its probe and original native client before
 # admitting values. Its receipt remains distinct from our own native-client fact.
-checker_project_ids() {
-    local checker_identity_output=$1 checker_identity_count=$2 checker_identity_image=$3 checker_identity_status=0
+operation_project_ids() {
+    local identity_output=$1 identity_count=$2 identity_image=$3 identity_status=0
     shift 3
-    checker_can_dispatch || return "$?"
+    operation_can_dispatch || return "$?"
     python3 -I -S -B "$root/bootstrap/acquisition/acquisition_tool/source_update.py" \
         verify --source-dir "$root/bootstrap/acquisition" || return "$?"
     source "$root/bootstrap/acquisition/acquisition_tool/owner.sh"
-    checker_acquisition_receipt
-    if acquisition_project_ids "$checker_identity_output" "$checker_identity_count" \
-        "$NMR_SELECTED_DOCKER_ENDPOINT" "$checker_identity_image" "$operation_acquisition_receipt" "$@"; then :; else
-        checker_identity_status=$?
+    operation_reserve_acquisition_receipt
+    if acquisition_project_ids "$identity_output" "$identity_count" \
+        "$NMR_SELECTED_DOCKER_ENDPOINT" "$identity_image" "$operation_acquisition_receipt" "$@"; then :; else
+        identity_status=$?
     fi
     if ! cmp -s "$operation_acquisition_receipt" <(printf 'retired\n'); then
         retain_operation=true
-        [[ $checker_identity_status != 0 ]] || checker_identity_status=2
+        [[ $identity_status != 0 ]] || identity_status=2
     fi
-    return "$checker_identity_status"
+    return "$identity_status"
 }
 
 # Inverse projections identify the container user that writes as the host caller.
-checker_host_identity() {
+operation_host_identity() {
     local image=$1 python=$2 host_uid=$3 host_gid=$4
     local -a values=()
-    checker_project_ids values 2 "$image" \
+    operation_project_ids values 2 "$image" \
         --interpreter "$python" --user-uid 0 --user-gid 0 \
         --memory-bytes 67108864 --pids-limit 16 --nano-cpus 1000000000 \
         --map uid inverse "$host_uid" --map gid inverse "$host_gid" || return "$?"
-    checker_host_uid=${values[0]}
-    checker_host_gid=${values[1]}
+    operation_host_uid=${values[0]}
+    operation_host_gid=${values[1]}
 }
 
-checker_teardown() {
+operation_teardown() {
     # Repeated caller signals cannot interrupt this bounded retirement attempt.
     # A failed/expired client is not proof of daemon retirement.
     timeout --signal=TERM --kill-after=2s 30s "${engine[@]}" "$@"
 }
 
-checker_finish() {
+operation_finish() {
     local status=$? failed=false identifier receipt
     local -a identifiers=()
     trap - EXIT
@@ -158,7 +151,7 @@ checker_finish() {
         if ! cmp -s "$receipt" <(printf 'retired\n'); then retain_operation=true; fi
     done
     if "$inference_retirement_confirmed" && [[ -n $docker_client_directory ]]; then
-        if checker_teardown ps --all --quiet --no-trunc --filter "label=$operation_label" > "$operation_directory/containers"; then
+        if operation_teardown ps --all --quiet --no-trunc --filter "label=$operation_label" > "$operation_directory/containers"; then
             mapfile -t identifiers < "$operation_directory/containers"
             if [[ ${#identifiers[@]} != 0 ]] && ! cmp -s "$operation_directory/containers" <(printf '%s\n' "${identifiers[@]}"); then
                 failed=true
@@ -188,11 +181,11 @@ checker_finish() {
                 if ! "$failed"; then
                     for identifier in "${operation_retire_order[@]}"; do
                         [[ -n $identifier && -n ${actual[$identifier]:-} ]] || continue
-                        if ! checker_teardown rm --force --volumes "$identifier" > /dev/null; then
+                        if ! operation_teardown rm --force --volumes "$identifier" > /dev/null; then
                             failed=true
                             break
                         fi
-                        if ! checker_teardown ps --all --quiet --no-trunc --filter "id=$identifier" > "$operation_directory/ordered-residue" || [[ -s $operation_directory/ordered-residue ]]; then
+                        if ! operation_teardown ps --all --quiet --no-trunc --filter "id=$identifier" > "$operation_directory/ordered-residue" || [[ -s $operation_directory/ordered-residue ]]; then
                             failed=true
                             break
                         fi
@@ -201,13 +194,13 @@ checker_finish() {
             else
                 for identifier in "${identifiers[@]}"; do
                     if [[ $identifier =~ ^[0-9a-f]{64}$ ]]; then
-                        if checker_teardown rm --force --volumes "$identifier" > /dev/null; then :; else failed=true; fi
+                        if operation_teardown rm --force --volumes "$identifier" > /dev/null; then :; else failed=true; fi
                     else
                         failed=true
                     fi
                 done
             fi
-            if checker_teardown ps --all --quiet --no-trunc --filter "label=$operation_label" > "$operation_directory/residue"; then
+            if operation_teardown ps --all --quiet --no-trunc --filter "label=$operation_label" > "$operation_directory/residue"; then
                 if [[ -s $operation_directory/residue ]]; then failed=true; fi
             else
                 failed=true

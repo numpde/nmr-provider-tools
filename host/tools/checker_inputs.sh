@@ -22,7 +22,7 @@ checker_image_tag() {
 checker_admit_image() {
     local fingerprint=$1 receipt=$operation_directory/image status tag
     tag=$(checker_image_tag "$2" "$fingerprint") || return "$?"
-    if checker_metadata "$receipt" image inspect --format '{{.Id}} {{index .Config.Labels "org.nmr-provider-tools.inputs"}}' "$tag"; then :; else
+    if operation_metadata "$receipt" image inspect --format '{{.Id}} {{index .Config.Labels "org.nmr-provider-tools.inputs"}}' "$tag"; then :; else
         status=$?
         printf -v operation_diagnostic '%sCannot admit prepared checker %s. Run make checks/prepare with an explicit WHEELHOUSE and NETWORK_INTERFACE; inspect Docker availability if preparation already succeeded.\n' "$operation_diagnostic" "$tag"
         return "$status"
@@ -41,4 +41,10 @@ checker_admit_image() {
         return 2
     fi
     checker_image=${BASH_REMATCH[1]}
+}
+
+checker_admit_tools() {
+    local fingerprint
+    fingerprint=$(checker_fingerprint checker) || return "$?"
+    checker_admit_image "$fingerprint" checker
 }

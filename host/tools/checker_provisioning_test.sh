@@ -10,8 +10,8 @@ source "$root/operations/docker/docker_context.sh"
 select_docker_context
 source "$root/host/tools/acquisition_interface.sh"
 select_acquisition_interface
-source "$root/host/tools/checker_operation.sh"
-checker_begin
+source "$root/operations/docker/container_operation.sh"
+operation_begin
 cache="$operation_directory/cache \$literal 'quoted'"
 mkdir -m 755 -- "$cache"
 

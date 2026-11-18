@@ -18,17 +18,17 @@ class DeliveryRetireOldTests(unittest.TestCase):
     def run_retirement(self, scenario, names):
         with tempfile.TemporaryDirectory() as temporary:
             root = pathlib.Path(temporary)
-            tools = root / 'host/tools'
+            docker = root / 'operations/docker'
 
-            tools.mkdir(parents=True)
+            docker.mkdir(parents=True)
             retirement_script = root / 'operations/delivery/retire_old.sh'
             retirement_script.parent.mkdir(parents=True)
             shutil.copyfile(ROOT / 'operations/delivery/retire_old.sh', retirement_script)
             (root / 'volumes').write_text(''.join(name + '\n' for name in names))
 
-            (tools / 'checker_operation.sh').write_text(
+            (docker / 'container_operation.sh').write_text(
                 '''
-checker_begin() {
+operation_begin() {
     operation_directory=$PROBE_ROOT/operation
     mkdir "$operation_directory"
     docker_client_directory=$PROBE_ROOT/client
@@ -37,8 +37,8 @@ checker_begin() {
     operation_success=
     trap 'rm -f "$PROBE_ROOT/reservation"; printf "%s" "$operation_success"' EXIT
 }
-checker_create() { touch "$PROBE_ROOT/reservation"; }
-checker_metadata() {
+operation_create() { touch "$PROBE_ROOT/reservation"; }
+operation_metadata() {
     local receipt=$1; shift
     case "$1 $2" in
         'image inspect') printf '%s delivery %064d\\n' "$PROBE_IMAGE" 0 > "$receipt" ;;
@@ -67,7 +67,7 @@ checker_metadata() {
         *) return 22 ;;
     esac
 }
-checker_call() {
+operation_call() {
     local name=${!#}
     printf '%s\\n' "$name" >> "$PROBE_ROOT/removed"
     grep -Fxv "$name" "$PROBE_ROOT/volumes" > "$PROBE_ROOT/new" || :

@@ -9,20 +9,20 @@ fi
 source "$root/operations/docker/docker_context.sh"
 select_docker_context
 source "$root/operations/docker/base_image.sh"
-source "$root/host/tools/checker_operation.sh"
-checker_begin
+source "$root/operations/docker/container_operation.sh"
+operation_begin
 ordered_container_retirement=true
 record_container() {
     operation_retire_order=("$operation_container" "${operation_retire_order[@]}")
 }
 
-checker_metadata "$operation_directory/base" image inspect --format '{{.Id}} {{.Os}}/{{.Architecture}}' "$base_image"
+operation_metadata "$operation_directory/base" image inspect --format '{{.Id}} {{.Os}}/{{.Architecture}}' "$base_image"
 read -r resolved_image platform extra < "$operation_directory/base"
 [[ $resolved_image =~ ^sha256:[0-9a-f]{64}$ && $platform == linux/amd64 && -z $extra ]] || {
     printf '%s\n' 'The pinned Python base has invalid selected-engine metadata.' >&2; exit 2;
 }
-checker_host_identity "$base_image" /usr/local/bin/python3 "$(id -u)" "$(id -g)"
-uid=$checker_host_uid gid=$checker_host_gid
+operation_host_identity "$base_image" /usr/local/bin/python3 "$(id -u)" "$(id -g)"
+uid=$operation_host_uid gid=$operation_host_gid
 mkdir -m 700 "$operation_directory/route" "$operation_directory/relay-ready"
 route=$operation_directory/route
 relay_ready=$operation_directory/relay-ready
@@ -43,51 +43,51 @@ wait_ready() {
     return 2
 }
 
-checker_create "${common[@]}" --network host \
+operation_create "${common[@]}" --network host \
     --mount "type=bind,src=$route,dst=/route" \
     --mount "type=bind,src=$fixture,dst=/fixture/probe.py,readonly" \
     --entrypoint python3 "$base_image" -I -B /fixture/probe.py origin /route/origin.ready
 origin=$operation_container
 record_container
-checker_metadata "$operation_directory/origin-start" start "$origin"
+operation_metadata "$operation_directory/origin-start" start "$origin"
 wait_ready "$route/origin.ready"
 origin_port=$(<"$route/origin.ready")
 [[ $origin_port =~ ^[0-9]+$ ]] && ((origin_port > 0 && origin_port <= 65535))
 
-checker_create "${common[@]}" --network host \
+operation_create "${common[@]}" --network host \
     --env PYTHONPATH=/sdk --mount "type=bind,src=$sdk,dst=/sdk,readonly" \
     --mount "type=bind,src=$route,dst=/route" --entrypoint python3 "$base_image" -P -B \
     -m provider_core.bound_http_proxy --interface system --unix-socket /route/gateway.sock --ready-file /route/gateway.ready
 gateway=$operation_container
 record_container
-checker_metadata "$operation_directory/gateway-start" start "$gateway"
+operation_metadata "$operation_directory/gateway-start" start "$gateway"
 wait_ready "$route/gateway.ready"
 cmp -s "$route/gateway.ready" <(printf '/route/gateway.sock\n')
 [[ -S "$route/gateway.sock" && ! -L "$route/gateway.sock" && $(stat -c %a "$route/gateway.sock") == 600 ]]
 
-checker_create "${common[@]}" --network none \
+operation_create "${common[@]}" --network none \
     --env PYTHONPATH=/sdk --mount "type=bind,src=$sdk,dst=/sdk,readonly" \
     --mount "type=bind,src=$route,dst=/route,readonly" \
     --mount "type=bind,src=$relay_ready,dst=/ready" --entrypoint python3 "$base_image" -P -B \
     -m provider_core.bound_http_proxy --relay-socket /route/gateway.sock --port 0 --ready-file /ready/relay
 relay_id=$operation_container
 record_container
-checker_metadata "$operation_directory/relay-start" start "$relay_id"
-checker_metadata "$operation_directory/relay-mode" inspect --format '{{.HostConfig.NetworkMode}} {{.State.Running}}' "$relay_id"
+operation_metadata "$operation_directory/relay-start" start "$relay_id"
+operation_metadata "$operation_directory/relay-mode" inspect --format '{{.HostConfig.NetworkMode}} {{.State.Running}}' "$relay_id"
 cmp -s "$operation_directory/relay-mode" <(printf 'none true\n')
 wait_ready "$relay_ready/relay"
 relay_port=$(<"$relay_ready/relay")
 [[ $relay_port =~ ^[0-9]+$ ]] && ((relay_port > 0 && relay_port <= 65535))
-checker_metadata "$operation_directory/relay-netns" exec "$relay_id" python3 -I -B -c 'import os; print(os.stat("/proc/self/ns/net").st_ino)'
+operation_metadata "$operation_directory/relay-netns" exec "$relay_id" python3 -I -B -c 'import os; print(os.stat("/proc/self/ns/net").st_ino)'
 
-checker_create "${common[@]}" --network "container:$relay_id" \
+operation_create "${common[@]}" --network "container:$relay_id" \
     --mount "type=bind,src=$fixture,dst=/fixture/probe.py,readonly" \
     --entrypoint python3 "$base_image" -I -B /fixture/probe.py worker "$relay_port" "$origin_port"
 worker=$operation_container
 record_container
-checker_metadata "$operation_directory/worker-mode" inspect --format '{{.HostConfig.NetworkMode}}' "$worker"
+operation_metadata "$operation_directory/worker-mode" inspect --format '{{.HostConfig.NetworkMode}}' "$worker"
 cmp -s "$operation_directory/worker-mode" <(printf 'container:%s\n' "$relay_id")
-checker_call 'isolated acquisition network test' 30 stdio "${engine[@]}" start --attach "$worker" >"$operation_directory/worker-result"
+operation_call 'isolated acquisition network test' 30 stdio "${engine[@]}" start --attach "$worker" >"$operation_directory/worker-result"
 python3 -I -B - "$operation_directory/relay-netns" "$operation_directory/worker-result" <<'PY'
 import json, pathlib, sys
 relay = int(pathlib.Path(sys.argv[1]).read_text())

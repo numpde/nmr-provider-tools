@@ -7,8 +7,9 @@ source "$root/operations/docker/base_image.sh"
 source "$root/host/tools/wheelhouse_path.sh"
 select_wheelhouse
 require_wheelhouse_pool
-source "$root/host/tools/checker_operation.sh"
-checker_begin
+source "$root/operations/docker/container_operation.sh"
+source "$root/host/tools/checker_inputs.sh"
+operation_begin
 checker_admit_tools
 image=nmr-provider-tools/wheelhouse-tool:local
 case "$action" in
@@ -16,7 +17,7 @@ case "$action" in
         if ! python3 -I -S -B -c 'import sys; sys.exit(sys.version_info < (3, 11))'; then
             printf '%s\n' 'Cannot build the wheelhouse tool: host Python 3.11 or newer is required.' >&2; exit 2
         fi
-        checker_host_identity "$checker_image" /usr/local/bin/python3 "$(id -u)" "$(id -g)"
+        operation_host_identity "$checker_image" /usr/local/bin/python3 "$(id -u)" "$(id -g)"
         sources=(packages/wheelhouse-tool/build/Dockerfile requirements/wheelhouse-tool.lock requirements/wheelhouse-tool-release.json
             tools/installer.py tools/container_guard.py requirements/installer-release.json)
         for path in "$root"/packages/wheelhouse-tool/src/wheelhouse_tool/*.py; do sources+=("${path#"$root"/}"); done
@@ -34,7 +35,7 @@ case "$action" in
             && [[ $(sha256sum -- "$wheelhouse_directory/$tool_name" | cut -d' ' -f1) == "$tool_hash" ]] || {
             printf '%s\n' 'Cannot build the wheelhouse tool: cached release bytes differ from the pin.' >&2; exit 2;
         }
-        checker_run 120 --pull never --network none --read-only --user "$checker_host_uid:$checker_host_gid" \
+        operation_run 120 --pull never --network none --read-only --user "$operation_host_uid:$operation_host_gid" \
             --cap-drop ALL --security-opt no-new-privileges:true --pids-limit 64 --memory 512m \
             --tmpfs /tmp:rw,nosuid,nodev,noexec,size=128m --workdir /workspace \
             --env NMR_PROVIDER_TOOLS_IN_CONTAINER=1 --env PYTHONDONTWRITEBYTECODE=1 --env PYTHONPATH=/workspace \
@@ -42,14 +43,14 @@ case "$action" in
             --mount "type=bind,src=$root/requirements/wheelhouse-tool.lock,dst=/tool.lock,readonly" \
             --mount "type=bind,src=$wheelhouse_directory,dst=/wheelhouse,readonly" \
             --entrypoint python3 "$checker_image" -B -m tools.wheelhouse check --pool /wheelhouse --lock /tool.lock > "$operation_directory/selection.json"
-        checker_metadata "$operation_directory/selection-exit" inspect --format '{{.State.Running}} {{.State.ExitCode}}' "$operation_container"
+        operation_metadata "$operation_directory/selection-exit" inspect --format '{{.State.Running}} {{.State.ExitCode}}' "$operation_container"
         cmp -s "$operation_directory/selection-exit" <(printf 'false 0\n') || {
             printf '%s\n' 'Cannot build the wheelhouse tool: the selection worker did not complete.' >&2; exit 2;
         }
         python3 -I -S -B "$root/packages/wheelhouse-tool/build/image_manifest.py" "$operation_directory/selection.json" "$operation_directory/manifest.json" "$root/requirements/installer-release.json"
         # BuildKit receives a stream, not host mounts. Once the pipeline is
-        # joined it no longer reads scratch; checker_call retains unjoined work.
-        checker_call 'offline wheelhouse tool build' 900 stdio bash -o pipefail -c '
+        # joined it no longer reads scratch; operation_call retains unjoined work.
+        operation_call 'offline wheelhouse tool build' 900 stdio bash -o pipefail -c '
             tool=$1 pool=$2 allowlist=$3 manifest=$4
             shift 4
             python3 -I -S -B "$tool" stream --pool "$pool" --source-allowlist "$allowlist" --manifest "$manifest" | "$@"
@@ -66,11 +67,11 @@ case "$action" in
             && { cmp -s "$operation_directory/built-image" <(printf '%s' "$built_image") || cmp -s "$operation_directory/built-image" <(printf '%s\n' "$built_image"); } || {
             printf '%s\n' 'Cannot admit the wheelhouse tool build: no immutable image ID was returned.' >&2; exit 2;
         }
-        checker_call 'publish wheelhouse tool image' 30 stdio "${engine[@]}" image tag "$built_image" "$image"
+        operation_call 'publish wheelhouse tool image' 30 stdio "${engine[@]}" image tag "$built_image" "$image"
         image_retire_after_success=true
         ;;
     test)
-        checker_run 180 --pull never --network none --read-only --cap-drop ALL \
+        operation_run 180 --pull never --network none --read-only --cap-drop ALL \
             --security-opt no-new-privileges:true --pids-limit 128 --memory 512m \
             --tmpfs /tmp:rw,nosuid,nodev,noexec,size=128m \
             --mount "type=bind,src=$root/packages/wheelhouse-tool/src/wheelhouse_tool,dst=/opt/wheelhouse_tool,readonly" \

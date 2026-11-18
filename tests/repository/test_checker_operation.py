@@ -73,23 +73,23 @@ esac
     def invocation(self, scenario):
         script = '''set -euo pipefail
 root=$1
-source "$root/host/tools/checker_operation.sh"
-checker_begin
+source "$root/operations/docker/container_operation.sh"
+operation_begin
 printf '%s\\n' "$operation_directory" "$docker_client_directory" > "$PROBE_REPORT"
 engine=(bash "$PROBE_ENGINE")
 if [[ $PROBE_SCENARIO == unknown-retirement ]]; then
     inference_retirement_confirmed=false
-    checker_call 'forbidden dispatch' 1 stdio true
+    operation_call 'forbidden dispatch' 1 stdio true
 fi
 if [[ $PROBE_SCENARIO == settled-stream-failure ]]; then
     printf 'captured build input\\n' > "$operation_directory/source"
-    checker_call 'settled failed stream build stage' 2 stdio bash -o pipefail -c '
+    operation_call 'settled failed stream build stage' 2 stdio bash -o pipefail -c '
         cat "$1" | { cat > "$2"; exit 23; }
     ' bash "$operation_directory/source" "$PROBE_REPORT.stream"
 fi
 budget=10
 if [[ $PROBE_SCENARIO == attachment-timeout ]]; then budget=1; fi
-if checker_run "$budget" inert-image; then exit 0; else exit "$?"; fi
+if operation_run "$budget" inert-image; then exit 0; else exit "$?"; fi
 '''
 
         return (["bash", "-c", script, "bash", str(ROOT)], self.environment | {"PROBE_SCENARIO": scenario})
@@ -114,9 +114,8 @@ if checker_run "$budget" inert-image; then exit 0; else exit "$?"; fi
         (shadow / "host/tools").mkdir(parents=True)
         (shadow / "operations/docker").mkdir(parents=True)
 
-        for name in ("checker_operation.sh", "inference_native.sh"):
-            shutil.copyfile(ROOT / "host/tools" / name, shadow / "host/tools" / name)
-        for name in ("docker_client.sh", "image_lifecycle.sh"):
+        shutil.copyfile(ROOT / "host/tools/inference_native.sh", shadow / "host/tools/inference_native.sh")
+        for name in ("container_operation.sh", "docker_client.sh", "image_lifecycle.sh"):
             shutil.copyfile(ROOT / "operations/docker" / name, shadow / "operations/docker" / name)
 
         acquisition = shadow / "bootstrap/acquisition/acquisition_tool"
@@ -151,20 +150,20 @@ python3() {
     printf 'verify\\n' >> "$PROBE_IDENTITY_EVENTS"
     if [[ $PROBE_SCENARIO == verification-failure ]]; then return 31; fi
 }
-source "$root/host/tools/checker_operation.sh"
-checker_begin
+source "$root/operations/docker/container_operation.sh"
+operation_begin
 printf '%s\\n' "$operation_directory" "$docker_client_directory" > "$PROBE_REPORT"
 engine=(bash "$PROBE_ENGINE")
-checker_host_uid=old-uid
-checker_host_gid=old-gid
-if checker_host_identity pinned-image /probe/python 1001 1002; then status=0; else status=$?; fi
-printf '%s\\n' "$status" "$checker_host_uid" "$checker_host_gid" "$inference_retirement_confirmed" > "$PROBE_IDENTITY_RESULT"
+operation_host_uid=old-uid
+operation_host_gid=old-gid
+if operation_host_identity pinned-image /probe/python 1001 1002; then status=0; else status=$?; fi
+printf '%s\\n' "$status" "$operation_host_uid" "$operation_host_gid" "$inference_retirement_confirmed" > "$PROBE_IDENTITY_RESULT"
 if [[ $PROBE_SCENARIO == identity-success ]]; then
-    checker_call 'settled identity follow-up' 1 stdio bash -c 'printf "native\\n" >> "$PROBE_IDENTITY_EVENTS"'
+    operation_call 'settled identity follow-up' 1 stdio bash -c 'printf "native\\n" >> "$PROBE_IDENTITY_EVENTS"'
 fi
 if [[ $PROBE_SCENARIO == missing-receipt || $PROBE_SCENARIO == malformed-receipt ]]; then
-    if checker_call 'forbidden native dispatch' 1 stdio bash -c 'printf "native\\n" >> "$PROBE_IDENTITY_EVENTS"'; then next_native=0; else next_native=$?; fi
-    if checker_host_identity next-image /probe/python 1001 1002; then next_identity=0; else next_identity=$?; fi
+    if operation_call 'forbidden native dispatch' 1 stdio bash -c 'printf "native\\n" >> "$PROBE_IDENTITY_EVENTS"'; then next_native=0; else next_native=$?; fi
+    if operation_host_identity next-image /probe/python 1001 1002; then next_identity=0; else next_identity=$?; fi
     printf '%s\\n' "$next_native" "$next_identity" "$inference_retirement_confirmed" >> "$PROBE_IDENTITY_RESULT"
 fi
 exit "$status"
@@ -282,9 +281,8 @@ exit "$status"
         (shadow / "host/tools").mkdir(parents=True)
         (shadow / "operations/docker").mkdir(parents=True)
 
-        for name in ("checker_operation.sh", "inference_native.sh"):
-            shutil.copyfile(ROOT / "host/tools" / name, shadow / "host/tools" / name)
-        for name in ("docker_client.sh", "image_lifecycle.sh"):
+        shutil.copyfile(ROOT / "host/tools/inference_native.sh", shadow / "host/tools/inference_native.sh")
+        for name in ("container_operation.sh", "docker_client.sh", "image_lifecycle.sh"):
             shutil.copyfile(ROOT / "operations/docker" / name, shadow / "operations/docker" / name)
 
         (shadow / "operations/docker/image_retirement.sh").write_text(

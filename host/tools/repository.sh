@@ -71,11 +71,11 @@ done
 # The preview does not create files or contact an engine. The real invocation
 # substitutes a private host snapshot of root names/types, without their contents.
 metadata=/tmp/nmr-provider-tools-root-entries
-source "$root/host/tools/checker_operation.sh"
+source "$root/operations/docker/container_operation.sh"
 if [[ $printing == 1 ]]; then
     if ! docker_client_prepare print; then printf '%s' "$docker_client_diagnostic" >&2; exit 2; fi
 else
-    checker_begin
+    operation_begin
     checker_admit_image "$fingerprint" checker
     image=$checker_image
     metadata=$operation_directory/root-entries
@@ -122,4 +122,4 @@ if [[ $printing == 1 ]]; then
     printf '\n'
     exit 0
 fi
-checker_run untimed "${arguments[@]}"
+operation_run untimed "${arguments[@]}"

@@ -68,11 +68,11 @@ if [[ $action == download ]]; then
     network=(bash "$root/operations/docker/docker.sh")
     if "$printing"; then network+=(--print); fi
     if ! "$printing"; then
-        source "$root/host/tools/checker_operation.sh"
-        checker_begin
+        source "$root/operations/docker/container_operation.sh"
+        operation_begin
         checker_admit_tools
         tool_image=$checker_image
-        checker_host_identity "$tool_image" /usr/local/bin/python3 "$uid" "$gid" || exit "$?"
+        operation_host_identity "$tool_image" /usr/local/bin/python3 "$uid" "$gid" || exit "$?"
         mkdir -- "$operation_directory/locks"
         cp -- "$root/requirements/provider-core.lock" "$operation_directory/locks/core-runtime.lock"
         cp -- "$root/requirements/provider-core-build.lock" "$operation_directory/locks/core-build.lock"
@@ -96,10 +96,10 @@ if [[ $action == download ]]; then
                     worker[index]="type=bind,src=$operation_directory/locks/acquisition-bootstrap.pylock.toml,dst=/acquisition-bootstrap.pylock.toml,readonly" ;;
             esac
         done
-        checker_run 120 "${worker[@]}" --network none --user "$checker_host_uid:$checker_host_gid" \
+        operation_run 120 "${worker[@]}" --network none --user "$operation_host_uid:$operation_host_gid" \
             --mount "type=bind,src=$wheelhouse_directory,dst=/wheelhouse,readonly" \
             --entrypoint python3 "$tool_image" -B -m sdk_build.provider_core_acquire check > "$operation_directory/pool-state"
-        checker_metadata "$operation_directory/pool-check-exit" inspect --format '{{.State.Running}} {{.State.ExitCode}}' "$operation_container"
+        operation_metadata "$operation_directory/pool-check-exit" inspect --format '{{.State.Running}} {{.State.ExitCode}}' "$operation_container"
         cmp -s "$operation_directory/pool-check-exit" <(printf 'false 0\n') || {
             operation_diagnostic+=$'Cannot acquire dependencies: the pool check did not retire successfully.\n'; exit 2;
         }
@@ -113,16 +113,16 @@ if [[ $action == download ]]; then
     fi
     acquisition_receipt_options=()
     if ! "$printing"; then
-        checker_acquisition_receipt
+        operation_reserve_acquisition_receipt
         acquisition_receipt_options=(--retired-receipt "$operation_acquisition_receipt")
     fi
     "${network[@]}" run --image "$tool_image" "${acquisition_receipt_options[@]}" -- "${worker[@]}" --mount "type=bind,src=$wheelhouse_directory,dst=/wheelhouse" \
         --entrypoint python3 -- -B -m sdk_build.provider_core_acquire
     if ! "$printing"; then
-        checker_run 120 "${worker[@]}" --network none --user "$checker_host_uid:$checker_host_gid" \
+        operation_run 120 "${worker[@]}" --network none --user "$operation_host_uid:$operation_host_gid" \
             --mount "type=bind,src=$wheelhouse_directory,dst=/wheelhouse,readonly" \
             --entrypoint python3 "$tool_image" -B -m sdk_build.provider_core_acquire verify > /dev/null
-        checker_metadata "$operation_directory/final-check-exit" inspect --format '{{.State.Running}} {{.State.ExitCode}}' "$operation_container"
+        operation_metadata "$operation_directory/final-check-exit" inspect --format '{{.State.Running}} {{.State.ExitCode}}' "$operation_container"
         cmp -s "$operation_directory/final-check-exit" <(printf 'false 0\n') || {
             operation_diagnostic+=$'Cannot confirm dependency acquisition: the final pool check did not retire successfully.\n'; exit 2;
         }
@@ -209,31 +209,31 @@ case "$action" in
         fi
         ;;
 esac
-source "$root/host/tools/checker_operation.sh"
+source "$root/operations/docker/container_operation.sh"
 if "$printing"; then
     if ! docker_client_prepare print; then printf '%s' "$docker_client_diagnostic" >&2; exit 2; fi
     printf '%q ' "${engine[@]}" create --label org.nmr-provider-tools.operation=PRINT --cidfile /tmp/nmr-provider-tools.PRINT/container.cid "${arguments[@]}"
     printf '\n'
     exit
 fi
-checker_begin
+operation_begin
 checker_admit_tools
 for index in "${!arguments[@]}"; do
     if [[ ${arguments[index]} == "$tool_image" ]]; then arguments[index]=$checker_image; fi
 done
 tool_image=$checker_image
 if [[ $action == build || $action == package ]]; then
-    checker_host_identity "$tool_image" /usr/local/bin/python3 "$uid" "$gid" || exit "$?"
+    operation_host_identity "$tool_image" /usr/local/bin/python3 "$uid" "$gid" || exit "$?"
     # The release qualification exercises actual socket groups, which must be
     # nonzero even when a rootless engine maps the caller's host GID to zero.
     if [[ $action == package ]]; then
-        arguments[4]="$checker_host_uid:1"
-        arguments=("${arguments[@]:0:5}" --group-add "$checker_host_gid" "${arguments[@]:5}")
+        arguments[4]="$operation_host_uid:1"
+        arguments=("${arguments[@]:0:5}" --group-add "$operation_host_gid" "${arguments[@]:5}")
     fi
 fi
 if [[ $action == package ]]; then
     mkdir -- "$operation_directory/source"
-    checker_call 'committed qualification source capture' 30 stdio git -C "$root" -c tar.umask=0022 archive --format=tar \
+    operation_call 'committed qualification source capture' 30 stdio git -C "$root" -c tar.umask=0022 archive --format=tar \
         --output="$operation_directory/source.tar" "$revision" tools packages/provider-core/sdk_build packages/wheelhouse-tool packages/acquisition host operations containers requirements
     tar --same-permissions -xf "$operation_directory/source.tar" -C "$operation_directory/source"
     for index in "${!arguments[@]}"; do
@@ -269,12 +269,12 @@ if [[ $action == package ]]; then
 fi
 if [[ $action == build ]]; then
     mkdir -- "$operation_directory/source"
-    checker_call 'committed core source capture' 30 stdio git -C "$root" -c tar.umask=0022 archive --format=tar \
+    operation_call 'committed core source capture' 30 stdio git -C "$root" -c tar.umask=0022 archive --format=tar \
         --output="$operation_directory/source.tar" "$revision" packages/provider-core packages/acquisition requirements tools packages/wheelhouse-tool host operations containers
     tar --same-permissions -xf "$operation_directory/source.tar" -C "$operation_directory/source"
     # Keep build programs outside the package tree recorded in the release inventory
     mv -- "$operation_directory/source/packages/provider-core/sdk_build" "$operation_directory/sdk_build"
-    arguments=(--pull never --network none --read-only --user "$checker_host_uid:$checker_host_gid" --cap-drop ALL --security-opt no-new-privileges:true
+    arguments=(--pull never --network none --read-only --user "$operation_host_uid:$operation_host_gid" --cap-drop ALL --security-opt no-new-privileges:true
         --cpus 2 --memory 1g --memory-swap 1g --pids-limit 128 --tmpfs /tmp:rw,nosuid,nodev,noexec,size=256m
         --workdir /workspace --env NMR_PROVIDER_TOOLS_IN_CONTAINER=1 --env PROVIDER_CORE_IN_CONTAINER=1
         --env PYTHONDONTWRITEBYTECODE=1 --env PYTHONPATH=/workspace:/workspace/wheelhouse-build:/workspace/packages/acquisition/build
@@ -296,4 +296,4 @@ if [[ $action == build ]]; then
         --output /output --revision "$revision")
     budget=900
 fi
-checker_run "$budget" "${arguments[@]}"
+operation_run "$budget" "${arguments[@]}"

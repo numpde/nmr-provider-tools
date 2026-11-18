@@ -9,11 +9,11 @@ if [[ $uid == 0 || $gid == 0 || $root =~ [[:cntrl:],] ]]; then exit 2; fi
     && -v SHARED_RUNTIME_IMAGE_INPUT && $SHARED_RUNTIME_IMAGE_INPUT =~ ^sha256:[0-9a-f]{64}$ ]] \
     || { printf '%s\n' 'Use tests/deployment with explicit SHARED_RUNTIME_IMAGE from delivery/image/build.' >&2; exit 2; }
 image=$SHARED_RUNTIME_IMAGE_INPUT
-source "$root/host/tools/checker_operation.sh"
-checker_begin
-checker_metadata "$operation_directory/image" image inspect --format '{{.Id}} {{index .Config.Labels "org.nmr-provider-tools.role"}}' "$image"
+source "$root/operations/docker/container_operation.sh"
+operation_begin
+operation_metadata "$operation_directory/image" image inspect --format '{{.Id}} {{index .Config.Labels "org.nmr-provider-tools.role"}}' "$image"
 cmp -s "$operation_directory/image" <(printf '%s delivery\n' "$image") || exit 2
-checker_run untimed --pull never --network none --init --read-only --user "$uid:$gid" --cap-drop ALL \
+operation_run untimed --pull never --network none --init --read-only --user "$uid:$gid" --cap-drop ALL \
     --security-opt no-new-privileges:true --cpus 2 --memory 512m --memory-swap 512m --pids-limit 64 \
     --tmpfs /tmp:rw,nosuid,nodev,noexec,size=64m --env PROVIDER_CORE_IN_CONTAINER=1 \
     --mount "type=bind,src=$root/packages/provider-core/tests,dst=/test-support/tests,readonly" \

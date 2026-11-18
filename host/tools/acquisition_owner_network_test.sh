@@ -9,8 +9,8 @@ fi
 source "$root/operations/docker/docker_context.sh"
 select_docker_context
 source "$root/operations/docker/base_image.sh"
-source "$root/host/tools/checker_operation.sh"
-checker_begin
+source "$root/operations/docker/container_operation.sh"
+operation_begin
 ordered_container_retirement=true
 owner_started=false
 owner_receipt=$operation_directory/acquisition-retired
@@ -19,7 +19,7 @@ owner_checker_finish() {
     if "$owner_started" && ! cmp -s "$owner_receipt" <(printf 'retired\n'); then
         retain_operation=true
     fi
-    if (exit "$status"); then checker_finish; else checker_finish; fi
+    if (exit "$status"); then operation_finish; else operation_finish; fi
 }
 trap owner_checker_finish EXIT
 if [[ ! -v ARTIFACTS_INPUT_ORIGIN || $ARTIFACTS_INPUT_ORIGIN != 'command line' || ! -v ARTIFACTS_INPUT || -z $ARTIFACTS_INPUT || -L $ARTIFACTS_INPUT ]]; then
@@ -76,13 +76,13 @@ record_container() {
     operation_retire_order=("$operation_container" "${operation_retire_order[@]}")
 }
 
-checker_metadata "$operation_directory/base" image inspect --format '{{.Id}} {{.Os}}/{{.Architecture}}' "$base_image"
+operation_metadata "$operation_directory/base" image inspect --format '{{.Id}} {{.Os}}/{{.Architecture}}' "$base_image"
 read -r resolved_image platform extra < "$operation_directory/base"
 [[ $resolved_image =~ ^sha256:[0-9a-f]{64}$ && $platform == linux/amd64 && -z $extra ]] || {
     printf '%s\n' 'The pinned Python base has invalid selected-engine metadata.' >&2; exit 2;
 }
-checker_host_identity "$base_image" /usr/local/bin/python3 "$(id -u)" "$(id -g)"
-uid=$checker_host_uid gid=$checker_host_gid
+operation_host_identity "$base_image" /usr/local/bin/python3 "$(id -u)" "$(id -g)"
+uid=$operation_host_uid gid=$operation_host_gid
 mkdir -m 700 "$operation_directory/route"
 route=$operation_directory/route
 fixture=$root/tests/acquisition_network/probe.py
@@ -101,13 +101,13 @@ wait_ready() {
     return 2
 }
 
-checker_create "${common[@]}" --network host \
+operation_create "${common[@]}" --network host \
     --mount "type=bind,src=$route,dst=/route" \
     --mount "type=bind,src=$fixture,dst=/fixture/probe.py,readonly" \
     --entrypoint python3 "$base_image" -I -B /fixture/probe.py origin /route/origin.ready
 origin=$operation_container
 record_container
-checker_metadata "$operation_directory/origin-start" start "$origin"
+operation_metadata "$operation_directory/origin-start" start "$origin"
 wait_ready "$route/origin.ready"
 origin_port=$(<"$route/origin.ready")
 [[ $origin_port =~ ^[0-9]+$ ]] && ((origin_port > 0 && origin_port <= 65535))

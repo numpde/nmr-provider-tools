@@ -129,7 +129,7 @@ operation_directory=$root
 operation_diagnostic=
 identifier=sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
 fingerprint=bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
-checker_metadata() {
+operation_metadata() {
     local label=$fingerprint
     if [[ SCENARIO == wrong-label ]]; then label=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa; fi
     if [[ SCENARIO == nul ]]; then printf '%s %s\\0\\n' "$identifier" "$label" > "$1"

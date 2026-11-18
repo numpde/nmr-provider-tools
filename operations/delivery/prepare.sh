@@ -13,12 +13,13 @@ uid=$(id -u) gid=$(id -g)
 [[ $uid != 0 && $gid != 0 && ! $root =~ [[:cntrl:],] ]] || {
     printf '%s\n' 'Cannot prepare shared delivery: use a nonzero caller and a mountable repository path.' >&2; exit 2
 }
-source "$root/host/tools/checker_operation.sh"
-checker_begin
+source "$root/operations/docker/container_operation.sh"
+source "$root/host/tools/checker_inputs.sh"
+operation_begin
 cache=$(bash "$root/operations/delivery/check_cache.sh" "$wheelhouse_directory")
 if [[ $cache == missing ]]; then
     checker_admit_tools
-    checker_acquisition_receipt
+    operation_reserve_acquisition_receipt
     bash "$root/operations/docker/docker.sh" run --image "$checker_image" --retired-receipt "$operation_acquisition_receipt" -- --pull never --read-only --cap-drop ALL \
     --security-opt no-new-privileges:true --cpus 2 --memory 512m --memory-swap 512m --pids-limit 64 \
     --tmpfs /tmp:rw,nosuid,nodev,noexec,size=128m --workdir /workspace \

@@ -20,7 +20,7 @@ class OrderedRetirementTests(unittest.TestCase):
 
             script = r'''set -eu
 root=$1
-source "$root/host/tools/checker_operation.sh"
+source "$root/operations/docker/container_operation.sh"
 operation_directory=$2
 mkdir -p "$operation_directory"
 operation_label=owned
@@ -36,7 +36,7 @@ relay=$(printf 'b%.0s' {1..64})
 gateway=$(printf 'c%.0s' {1..64})
 unknown=$(printf 'd%.0s' {1..64})
 operation_retire_order=("$worker" "$relay" "$gateway")
-checker_teardown() {
+operation_teardown() {
   case "$1" in
     ps)
       if [[ "$*" == *"label="* ]]; then
@@ -59,7 +59,7 @@ touch "$operation_directory/$worker" "$operation_directory/$relay" "$operation_d
 if [[ $UNEXPECTED == yes ]]; then touch "$operation_directory/$unknown"; fi
 set +e
 (exit "$PRIMARY")
-checker_finish
+operation_finish
 '''
 
             fail_text = "no"
