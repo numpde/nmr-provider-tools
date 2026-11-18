@@ -148,9 +148,9 @@ class MultilineComprehensionPostureTests(unittest.TestCase):
 
     def test_all_authored_python_uses_multiline_comprehension_delimiter_layout(self) -> None:
         findings = [
-            f"{path.relative_to(ROOT)}:{line}: {reason}"
-            for path in python_sources(production_only=False)
-            for (line, reason) in multiline_comprehension_findings(source=path.read_text(encoding="utf-8"))
+            f"{source_path.relative_to(ROOT)}:{line}: {reason}"
+            for source_path in python_sources(production_only=False)
+            for (line, reason) in multiline_comprehension_findings(source=source_path.read_text(encoding="utf-8"))
         ]
 
         self.assertEqual(first=[], second=findings, msg="\n".join(findings))

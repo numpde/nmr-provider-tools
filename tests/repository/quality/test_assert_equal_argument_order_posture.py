@@ -12,20 +12,20 @@ import ast
 import inspect
 import textwrap
 import unittest
+import pathlib
 from dataclasses import dataclass
-from pathlib import Path
 
 from .sources import REPOSITORY_ROOT, source_files
 
 
 @dataclass(frozen=True, slots=True)
 class _Finding:
-    path: Path
+    source_path: pathlib.Path
     line: int
 
     def diagnostic(self) -> str:
         return (
-            f"{self.path}:{self.line}: assertEqual() has an observation-shaped "
+            f"{self.source_path}:{self.line}: assertEqual() has an observation-shaped "
             f"first argument and a literal expectation second; consider "
             f"assertEqual(expected, observed)"
         )
@@ -33,13 +33,13 @@ class _Finding:
 
 @dataclass(frozen=True, slots=True)
 class _PositionalMessageFinding:
-    path: Path
+    source_path: pathlib.Path
     line: int
     method: str
 
     def diagnostic(self) -> str:
         return (
-            f"{self.path}:{self.line}: {self.method}() passes its diagnostic "
+            f"{self.source_path}:{self.line}: {self.method}() passes its diagnostic "
             f"message positionally; use msg= so the argument's role is explicit"
         )
 
@@ -73,12 +73,12 @@ def _is_assert_equal(call: ast.Call) -> bool:
     )
 
 
-def _findings(path: Path, source: str) -> list[_Finding]:
-    tree = ast.parse(source, filename=str(path))
+def _findings(source_path: pathlib.Path, source: str) -> list[_Finding]:
+    tree = ast.parse(source, filename=str(source_path))
 
     return sorted(
         [
-            _Finding(path=path, line=call.lineno)
+            _Finding(source_path=source_path, line=call.lineno)
             for call in ast.walk(tree)
             if isinstance(call, ast.Call)
             and _is_assert_equal(call)
@@ -125,10 +125,10 @@ _message_position_by_method = _message_positions()
 
 
 def _positional_message_findings(
-    path: Path,
+    source_path: pathlib.Path,
     source: str,
 ) -> list[_PositionalMessageFinding]:
-    tree = ast.parse(source, filename=str(path))
+    tree = ast.parse(source, filename=str(source_path))
     findings: list[_PositionalMessageFinding] = []
 
     for call in ast.walk(tree):
@@ -145,7 +145,7 @@ def _positional_message_findings(
         if message_position is not None and len(call.args) > message_position:
             findings.append(
                 _PositionalMessageFinding(
-                    path=path,
+                    source_path=source_path,
                     line=call.lineno,
                     method=call.func.attr,
                 )
@@ -154,7 +154,7 @@ def _positional_message_findings(
     return sorted(findings, key=lambda finding: finding.line)
 
 
-def _test_paths() -> list[Path]:
+def _test_paths() -> list[pathlib.Path]:
     return source_files(root=REPOSITORY_ROOT, patterns=("repository_checks/**/*.py", "tests/**/*.py"))
 
 
@@ -181,7 +181,7 @@ class AssertEqualArgumentOrderPostureTests(unittest.TestCase):
 
         self.assertEqual(
             [2, 3, 4],
-            [finding.line for finding in _findings(Path("example.py"), source)],
+            [finding.line for finding in _findings(pathlib.Path("example.py"), source)],
         )
 
     def test_message_detector_uses_unittest_signatures(self) -> None:
@@ -207,7 +207,7 @@ class AssertEqualArgumentOrderPostureTests(unittest.TestCase):
 
         self.assertEqual(
             [(2, "assertEqual"), (3, "assertTrue"), (4, "assertAlmostEqual")],
-            [(finding.line, finding.method) for finding in _positional_message_findings(Path("example.py"), source)],
+            [(finding.line, finding.method) for finding in _positional_message_findings(pathlib.Path("example.py"), source)],
         )
 
     def test_repository_assert_equal_calls_put_visible_expectations_first(
@@ -216,13 +216,13 @@ class AssertEqualArgumentOrderPostureTests(unittest.TestCase):
         findings = sorted(
             [
                 finding
-                for path in _test_paths()
+                for source_path in _test_paths()
                 for finding in _findings(
-                    path.relative_to(REPOSITORY_ROOT),
-                    path.read_text(encoding="utf-8"),
+                    source_path.relative_to(REPOSITORY_ROOT),
+                    source_path.read_text(encoding="utf-8"),
                 )
             ],
-            key=lambda finding: (finding.path, finding.line),
+            key=lambda finding: (finding.source_path, finding.line),
         )
 
         if findings:
@@ -234,13 +234,13 @@ class AssertEqualArgumentOrderPostureTests(unittest.TestCase):
         findings = sorted(
             [
                 finding
-                for path in _test_paths()
+                for source_path in _test_paths()
                 for finding in _positional_message_findings(
-                    path.relative_to(REPOSITORY_ROOT),
-                    path.read_text(encoding="utf-8"),
+                    source_path.relative_to(REPOSITORY_ROOT),
+                    source_path.read_text(encoding="utf-8"),
                 )
             ],
-            key=lambda finding: (finding.path, finding.line, finding.method),
+            key=lambda finding: (finding.source_path, finding.line, finding.method),
         )
 
         if findings:

@@ -133,8 +133,8 @@ class ExplicitTuplePostureTests(unittest.TestCase):
     def test_all_authored_python_uses_explicit_tuples(self):
         findings = []
 
-        for path in python_sources(production_only=False):
-            for node in bare_tuples(source=path.read_text(encoding="utf-8")):
-                findings.append(f"{path.relative_to(ROOT)}:{node.lineno}: parenthesize this tuple value or unpacking target explicitly")
+        for source_path in python_sources(production_only=False):
+            for node in bare_tuples(source=source_path.read_text(encoding="utf-8")):
+                findings.append(f"{source_path.relative_to(ROOT)}:{node.lineno}: parenthesize this tuple value or unpacking target explicitly")
 
         self.assertEqual(first=[], second=findings, msg="\n".join(findings))

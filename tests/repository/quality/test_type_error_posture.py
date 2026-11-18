@@ -13,15 +13,15 @@ require_container()
 import ast
 import textwrap
 import unittest
+import pathlib
 from dataclasses import dataclass
-from pathlib import Path
 
 from .sources import REPOSITORY_ROOT, python_sources
 
 
 @dataclass(frozen=True, slots=True)
 class _Finding:
-    path: Path
+    source_path: pathlib.Path
     line: int
     condition: str
     exception: str
@@ -33,7 +33,7 @@ class _Finding:
         }
 
         return (
-            f"{self.path}:{self.line}: guard {self.condition!r} {concerns[self.exception]}; "
+            f"{self.source_path}:{self.line}: guard {self.condition!r} {concerns[self.exception]}; "
             f"reject wrong types first in a separate TypeError "
             f"guard, then validate supported values with ValueError"
         )
@@ -168,10 +168,10 @@ def _value_predicate(*, expression: ast.expr) -> bool:
     )
 
 
-def _findings(*, path: Path, source: str) -> list[_Finding]:
+def _findings(*, source_path: pathlib.Path, source: str) -> list[_Finding]:
     findings = []
 
-    for statement in ast.walk(ast.parse(source=source, filename=str(path))):
+    for statement in ast.walk(ast.parse(source=source, filename=str(source_path))):
         if not isinstance(statement, ast.If) or not _type_rejection(expression=statement.test, rejecting=True):
             continue
 
@@ -191,7 +191,7 @@ def _findings(*, path: Path, source: str) -> list[_Finding]:
                 continue
 
             findings.append(
-                _Finding(path=path, line=statement.lineno, condition=ast.unparse(statement.test), exception=exception_name)
+                _Finding(source_path=source_path, line=statement.lineno, condition=ast.unparse(statement.test), exception=exception_name)
             )
 
             break
@@ -228,7 +228,7 @@ class TypeErrorPostureTests(unittest.TestCase):
         for condition in conditions:
             with self.subTest(condition=condition):
                 source = f"if {condition}:\n    raise ValueError('invalid value')\n"
-                findings = _findings(path=Path("example.py"), source=source)
+                findings = _findings(source_path=pathlib.Path("example.py"), source=source)
 
                 self.assertEqual(1, len(findings))
                 self.assertEqual(1, findings[0].line)
@@ -244,7 +244,7 @@ class TypeErrorPostureTests(unittest.TestCase):
             """
         )
 
-        self.assertEqual([], _findings(path=Path("example.py"), source=source))
+        self.assertEqual([], _findings(source_path=pathlib.Path("example.py"), source=source))
 
     def test_mixed_guard_cannot_be_fixed_by_changing_only_the_exception(self) -> None:
         for condition in (
@@ -255,7 +255,7 @@ class TypeErrorPostureTests(unittest.TestCase):
         ):
             with self.subTest(condition=condition):
                 source = f"if {condition}:\n    raise TypeError('invalid value')\n"
-                findings = _findings(path=Path("example.py"), source=source)
+                findings = _findings(source_path=pathlib.Path("example.py"), source=source)
 
                 self.assertEqual(1, len(findings))
                 self.assertEqual("TypeError", findings[0].exception)
@@ -278,7 +278,7 @@ class TypeErrorPostureTests(unittest.TestCase):
             with self.subTest(condition=condition):
                 source = f"if {condition}:\n    raise TypeError('invalid type')\n"
 
-                self.assertEqual([], _findings(path=Path("example.py"), source=source))
+                self.assertEqual([], _findings(source_path=pathlib.Path("example.py"), source=source))
 
     def test_semantic_predicates_and_type_metadata_are_not_type_guards(self) -> None:
         conditions = (
@@ -304,7 +304,7 @@ class TypeErrorPostureTests(unittest.TestCase):
             with self.subTest(condition=condition):
                 source = f"if {condition}:\n    raise ValueError('invalid value')\n"
 
-                self.assertEqual([], _findings(path=Path("example.py"), source=source))
+                self.assertEqual([], _findings(source_path=pathlib.Path("example.py"), source=source))
 
     def test_only_the_guard_owning_a_direct_value_error_is_flagged(self) -> None:
         for rejection in (
@@ -316,7 +316,7 @@ class TypeErrorPostureTests(unittest.TestCase):
             with self.subTest(rejection=rejection):
                 source = f"if type(value) is not str:\n    {rejection}\n"
 
-                self.assertEqual(1, len(_findings(path=Path("example.py"), source=source)))
+                self.assertEqual(1, len(_findings(source_path=pathlib.Path("example.py"), source=source)))
 
         for rejection in (
             "raise TypeError('invalid')",
@@ -329,10 +329,10 @@ class TypeErrorPostureTests(unittest.TestCase):
             with self.subTest(rejection=rejection):
                 source = f"if type(value) is not str:\n    {rejection}\n"
 
-                self.assertEqual([], _findings(path=Path("example.py"), source=source))
+                self.assertEqual([], _findings(source_path=pathlib.Path("example.py"), source=source))
 
     def test_diagnostic_names_the_guard_and_required_exception_order(self) -> None:
-        findings = _findings(path=Path("example.py"), source="if type(value) is not str:\n    raise ValueError('bad')\n")
+        findings = _findings(source_path=pathlib.Path("example.py"), source="if type(value) is not str:\n    raise ValueError('bad')\n")
 
         self.assertEqual(
             "example.py:1: guard 'type(value) is not str' rejects a type with ValueError; "
@@ -343,8 +343,8 @@ class TypeErrorPostureTests(unittest.TestCase):
     def test_production_type_rejections_do_not_raise_value_error(self) -> None:
         findings = [
             finding
-            for path in python_sources(production_only=True)
-            for finding in _findings(path=path.relative_to(REPOSITORY_ROOT), source=path.read_text(encoding="utf-8"))
+            for source_path in python_sources(production_only=True)
+            for finding in _findings(source_path=source_path.relative_to(REPOSITORY_ROOT), source=source_path.read_text(encoding="utf-8"))
         ]
 
         self.assertEqual([], findings, msg="\n".join(finding.diagnostic() for finding in findings))

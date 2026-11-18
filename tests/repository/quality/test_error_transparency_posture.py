@@ -159,10 +159,10 @@ class ErrorTransparencyPostureTests(unittest.TestCase):
     def test_cli_projects_broad_failure_facts_instead_of_dumping_exception_text(self) -> None:
         findings = []
 
-        for path in python_sources(production_only=True):
-            for line in _raw_cli_exception_text(path.read_text(encoding="utf-8")):
+        for source_path in python_sources(production_only=True):
+            for line in _raw_cli_exception_text(source_path.read_text(encoding="utf-8")):
                 findings.append(
-                    f"{path.relative_to(REPOSITORY_ROOT)}:{line}: CommandError "
+                    f"{source_path.relative_to(REPOSITORY_ROOT)}:{line}: CommandError "
                     f"formats a broad exception's raw text; project safe cause "
                     f"and context fields rather than losing the cause or exposing values."
                 )
@@ -211,10 +211,10 @@ class ErrorTransparencyPostureTests(unittest.TestCase):
     def test_filesystem_command_failures_do_not_hide_their_cause(self) -> None:
         findings = []
 
-        for path in python_sources(production_only=True):
-            for line in _opaque_oserror_translations(path.read_text(encoding="utf-8")):
+        for source_path in python_sources(production_only=True):
+            for line in _opaque_oserror_translations(source_path.read_text(encoding="utf-8")):
                 findings.append(
-                    f"{path.relative_to(REPOSITORY_ROOT)}:{line}: OSError "
+                    f"{source_path.relative_to(REPOSITORY_ROOT)}:{line}: OSError "
                     f"becomes a fixed CommandError; default CLI output hides "
                     f"its chained cause. Project the safe filesystem reason "
                     f"or report it before raising; do not dump exception text."

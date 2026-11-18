@@ -342,8 +342,8 @@ class StatementSpacingPostureTests(unittest.TestCase):
     def test_all_authored_python_obeys_statement_spacing(self):
         findings = []
 
-        for path in python_sources(production_only=False):
-            for line in missing_blank_lines(source=path.read_text(encoding="utf-8")):
-                findings.append(f"{path.relative_to(ROOT)}:{line}: insert a blank line here; separate commented statements, returns, completed self-attribute groups, provisional assignment-to-action boundaries and multiline statements or blocks; split a shared semicolon line first")
+        for source_path in python_sources(production_only=False):
+            for line in missing_blank_lines(source=source_path.read_text(encoding="utf-8")):
+                findings.append(f"{source_path.relative_to(ROOT)}:{line}: insert a blank line here; separate commented statements, returns, completed self-attribute groups, provisional assignment-to-action boundaries and multiline statements or blocks; split a shared semicolon line first")
 
         self.assertEqual(first=[], second=findings, msg="\n".join(findings))

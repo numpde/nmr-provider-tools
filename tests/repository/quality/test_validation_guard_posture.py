@@ -11,19 +11,19 @@ require_container()
 import ast
 import textwrap
 import unittest
+import pathlib
 from dataclasses import dataclass
-from pathlib import Path
 
 from .sources import REPOSITORY_ROOT, python_sources
 
 # This checker audits its own implementation using its loaded source path.
 # repo-check: allow-module-constant
-_CHECK_PATH = Path(__file__).resolve()
+_CHECK_PATH = pathlib.Path(__file__).resolve()
 
 
 @dataclass(frozen=True, slots=True)
 class _Finding:
-    path: Path
+    source_path: pathlib.Path
     line: int
     rejected_condition: str
     concern: str
@@ -32,7 +32,7 @@ class _Finding:
 
     def diagnostic(self) -> str:
         diagnostic = (
-            f"{self.path}:{self.line}: guard {self.rejected_condition!r} "
+            f"{self.source_path}:{self.line}: guard {self.rejected_condition!r} "
             f"{self.concern}; review whether {self.candidate_guard!r} makes "
             f"the accepted condition explicit"
         )
@@ -81,7 +81,7 @@ def _accepted_ordering(comparison: ast.Compare) -> str:
 
 def _rejected_ordering_finding(
     *,
-    path: Path,
+    source_path: pathlib.Path,
     statement: ast.If,
 ) -> _Finding | None:
     # Validation states the accepted domain once, in bound-to-value order, and
@@ -100,7 +100,7 @@ def _rejected_ordering_finding(
         return None
 
     return _Finding(
-        path=path,
+        source_path=source_path,
         line=statement.lineno,
         rejected_condition=ast.unparse(statement.test),
         concern="uses a rejected-condition comparison",
@@ -111,7 +111,7 @@ def _rejected_ordering_finding(
 
 def _split_range_finding(
     *,
-    path: Path,
+    source_path: pathlib.Path,
     statement: ast.If,
 ) -> _Finding | None:
     if not (
@@ -168,7 +168,7 @@ def _split_range_finding(
     accepted_range = f"{lower} {lower_operator} {subject} {upper_operator} {upper}"
 
     return _Finding(
-        path=path,
+        source_path=source_path,
         line=statement.lineno,
         rejected_condition=ast.unparse(statement.test),
         concern="splits one accepted interval into rejected bounds",
@@ -207,7 +207,7 @@ def _accepted_atom(node: ast.expr) -> str | None:
 
 def _mixed_ordering_finding(
     *,
-    path: Path,
+    source_path: pathlib.Path,
     statement: ast.If,
 ) -> _Finding | None:
     if not (
@@ -220,7 +220,7 @@ def _mixed_ordering_finding(
             isinstance(value, ast.Compare) and len(value.ops) == 1 and isinstance(value.ops[0], _ORDERED_REJECTION_OPERATORS)
             for value in statement.test.values
         )
-        and _split_range_finding(path=path, statement=statement) is None
+        and _split_range_finding(source_path=source_path, statement=statement) is None
     ):
         return None
 
@@ -242,7 +242,7 @@ def _mixed_ordering_finding(
     )
 
     return _Finding(
-        path=path,
+        source_path=source_path,
         line=statement.lineno,
         rejected_condition=ast.unparse(statement.test),
         concern="combines rejected terms instead of stating the accepted domain",
@@ -287,7 +287,7 @@ def _returns_none(statement: ast.stmt) -> bool:
 
 def _inverse_optional_predicate_finding(
     *,
-    path: Path,
+    source_path: pathlib.Path,
     statement: ast.If,
 ) -> _Finding | None:
     if not (
@@ -314,7 +314,7 @@ def _inverse_optional_predicate_finding(
     predicate = ast.unparse(statement.test.values[1].operand)
 
     return _Finding(
-        path=path,
+        source_path=source_path,
         line=statement.lineno,
         rejected_condition=ast.unparse(statement.test),
         concern="disjoins absence from a negated predicate",
@@ -322,8 +322,8 @@ def _inverse_optional_predicate_finding(
     )
 
 
-def _findings(path: Path, source: str) -> list[_Finding]:
-    tree = ast.parse(source, filename=str(path))
+def _findings(source_path: pathlib.Path, source: str) -> list[_Finding]:
+    tree = ast.parse(source, filename=str(source_path))
     findings: list[_Finding] = []
 
     for statement in ast.walk(tree):
@@ -336,7 +336,7 @@ def _findings(path: Path, source: str) -> list[_Finding]:
             _mixed_ordering_finding,
             _inverse_optional_predicate_finding,
         ):
-            finding = detector(path=path, statement=statement)
+            finding = detector(source_path=source_path, statement=statement)
 
             if finding is not None:
                 findings.append(finding)
@@ -344,17 +344,17 @@ def _findings(path: Path, source: str) -> list[_Finding]:
     return findings
 
 
-def _scan(paths: list[Path]) -> list[_Finding]:
+def _scan(paths: list[pathlib.Path]) -> list[_Finding]:
     return sorted(
         [
             finding
-            for path in paths
+            for source_path in paths
             for finding in _findings(
-                path.relative_to(REPOSITORY_ROOT),
-                path.read_text(encoding="utf-8"),
+                source_path.relative_to(REPOSITORY_ROOT),
+                source_path.read_text(encoding="utf-8"),
             )
         ],
-        key=lambda finding: (finding.path, finding.line),
+        key=lambda finding: (finding.source_path, finding.line),
     )
 
 
@@ -368,7 +368,7 @@ class GuardPostureTests(unittest.TestCase):
         for (operator, expected) in cases:
             with self.subTest(operator=operator):
                 source = f"if not math.isfinite(value) {operator} value <= 0:\n    raise ValueError('invalid value')\n"
-                findings = _findings(Path("example.py"), source)
+                findings = _findings(pathlib.Path("example.py"), source)
 
                 self.assertEqual(1, len(findings))
                 self.assertEqual(expected, findings[0].candidate_guard)
@@ -384,7 +384,7 @@ class GuardPostureTests(unittest.TestCase):
         for (lower, upper, expected) in cases:
             with self.subTest(lower=lower, upper=upper):
                 source = f"if value {lower} minimum or value {upper} maximum:\n    raise ValueError('outside bounds')\n"
-                findings = _findings(Path("example.py"), source)
+                findings = _findings(pathlib.Path("example.py"), source)
 
                 self.assertEqual(1, len(findings))
                 self.assertEqual(expected, findings[0].candidate_guard)
@@ -397,7 +397,7 @@ class GuardPostureTests(unittest.TestCase):
             with self.subTest(condition=condition):
                 statement = ast.parse(f"if {condition}:\n    raise ValueError('outside bounds')\n").body[0]
 
-                self.assertIsNone(_split_range_finding(path=Path("example.py"), statement=statement))
+                self.assertIsNone(_split_range_finding(source_path=pathlib.Path("example.py"), statement=statement))
 
     def test_detector_flags_direct_rejected_orderings_and_split_ranges(self) -> None:
         source = textwrap.dedent(
@@ -431,7 +431,7 @@ class GuardPostureTests(unittest.TestCase):
             """
         )
 
-        findings = _findings(Path("example.py"), source)
+        findings = _findings(pathlib.Path("example.py"), source)
 
         self.assertEqual(
             [finding.candidate_guard for finding in findings],
@@ -468,7 +468,7 @@ class GuardPostureTests(unittest.TestCase):
             """
         )
 
-        findings = _findings(Path("example.py"), source)
+        findings = _findings(pathlib.Path("example.py"), source)
 
         self.assertEqual(1, len(findings))
 
@@ -490,7 +490,7 @@ class GuardPostureTests(unittest.TestCase):
             """
         )
 
-        findings = _findings(Path("example.py"), source)
+        findings = _findings(pathlib.Path("example.py"), source)
 
         self.assertEqual(
             [finding.candidate_guard for finding in findings],

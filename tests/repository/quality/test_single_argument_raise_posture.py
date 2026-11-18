@@ -58,9 +58,9 @@ class SingleArgumentRaisePostureTests(unittest.TestCase):
 
     def test_authored_python_avoids_unnecessary_raise_breaks(self) -> None:
         findings = [
-            f"{path.relative_to(ROOT)}:{line}"
-            for path in python_sources(production_only=False)
-            for line in unnecessary_raise_breaks(source=path.read_text(encoding="utf-8"))
+            f"{source_path.relative_to(ROOT)}:{line}"
+            for source_path in python_sources(production_only=False)
+            for line in unnecessary_raise_breaks(source=source_path.read_text(encoding="utf-8"))
         ]
 
         self.assertEqual(first=[], second=findings, msg="\n".join(findings))

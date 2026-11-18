@@ -238,8 +238,8 @@ class ExpectedConditionGuardPostureTests(unittest.TestCase):
     def test_all_authored_raising_guards_use_expected_conditions(self):
         findings = []
 
-        for path in python_sources(production_only=False):
-            for (line, reason) in guard_findings(source=path.read_text(encoding="utf-8")):
-                findings.append(f"{path.relative_to(ROOT)}:{line}: {reason}")
+        for source_path in python_sources(production_only=False):
+            for (line, reason) in guard_findings(source=source_path.read_text(encoding="utf-8")):
+                findings.append(f"{source_path.relative_to(ROOT)}:{line}: {reason}")
 
         self.assertEqual(first=[], second=findings, msg="\n".join(findings))

@@ -62,9 +62,9 @@ d = f"{'one' 'two'}"
 
     def test_authored_python_uses_consistent_concatenated_prefixes(self):
         findings = [
-            f"{path.relative_to(ROOT)}:{line}: use either all f-strings or all plain strings in implicit concatenation"
-            for path in python_sources(production_only=False)
-            for line in mixed_string_prefix_lines(source=path.read_text(encoding="utf-8"))
+            f"{source_path.relative_to(ROOT)}:{line}: use either all f-strings or all plain strings in implicit concatenation"
+            for source_path in python_sources(production_only=False)
+            for line in mixed_string_prefix_lines(source=source_path.read_text(encoding="utf-8"))
         ]
 
         self.assertEqual(first=[], second=findings, msg="\n".join(findings))

@@ -230,10 +230,10 @@ class MultilineBracketPostureTests(unittest.TestCase):
 
     def test_authored_multiline_literals_keep_entries_between_delimiters(self):
         findings = [
-            f"{path.relative_to(ROOT)}:{line}: {message}"
-            for path in python_sources(production_only=False)
+            f"{source_path.relative_to(ROOT)}:{line}: {message}"
+            for source_path in python_sources(production_only=False)
             for line,
-            message in multiline_literal_findings(source=path.read_text(encoding="utf-8"))
+            message in multiline_literal_findings(source=source_path.read_text(encoding="utf-8"))
         ]
 
         self.assertEqual(first=[], second=findings, msg="\n".join(findings))
@@ -371,8 +371,8 @@ class MultilineBracketPostureTests(unittest.TestCase):
     def test_all_authored_python_separates_multiline_bracket_items(self):
         findings = []
 
-        for path in python_sources(production_only=False):
-            for (line, column, _) in shared_item_lines(source=path.read_text(encoding="utf-8")):
-                findings.append(f"{path.relative_to(ROOT)}:{line}:{column + 1}: put each item on a separate line inside multiline brackets")
+        for source_path in python_sources(production_only=False):
+            for (line, column, _) in shared_item_lines(source=source_path.read_text(encoding="utf-8")):
+                findings.append(f"{source_path.relative_to(ROOT)}:{line}:{column + 1}: put each item on a separate line inside multiline brackets")
 
         self.assertEqual(first=[], second=findings, msg="\n".join(findings))

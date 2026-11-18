@@ -16,21 +16,21 @@ require_container()
 import io
 import tokenize
 import unittest
+import pathlib
 from dataclasses import dataclass
-from pathlib import Path
 
 from .sources import REPOSITORY_ROOT, python_sources
 
 
 @dataclass(frozen=True, slots=True, kw_only=True)
 class _Finding:
-    path: Path
+    source_path: pathlib.Path
     line: int
     column: int
 
     def diagnostic(self) -> str:
         return (
-            f"{self.path}:{self.line}:{self.column}: "
+            f"{self.source_path}:{self.line}:{self.column}: "
             f"newline escape must end its individual string literal; "
             f"split the following text into an adjacent literal"
         )
@@ -62,7 +62,7 @@ def _escape_offsets(*, source: str, start: int, end: int) -> list[int]:
     return offsets
 
 
-def _findings(*, path: Path, source: str) -> list[_Finding]:
+def _findings(*, source_path: pathlib.Path, source: str) -> list[_Finding]:
     line_offsets = [0]
 
     line_offsets.extend(index + 1 for (index, character) in enumerate(source) if character == "\n")
@@ -116,7 +116,7 @@ def _findings(*, path: Path, source: str) -> list[_Finding]:
 
             line = source.count("\n", 0, offset) + 1
 
-            findings.append(_Finding(path=path, line=line, column=offset - line_offsets[line - 1] + 1))
+            findings.append(_Finding(source_path=source_path, line=line, column=offset - line_offsets[line - 1] + 1))
 
     return sorted(findings, key=lambda finding: (finding.line, finding.column))
 
@@ -133,14 +133,14 @@ class EscapedNewlinePostureTests(unittest.TestCase):
 
         for (fixture_name, expected_positions) in cases.items():
             with self.subTest(fixture_name=fixture_name):
-                path = REPOSITORY_ROOT / "tests/repository/fixtures/quality/escaped_newlines" / fixture_name
-                findings = _findings(path=path, source=path.read_text(encoding="utf-8"))
+                source_path = REPOSITORY_ROOT / "tests/repository/fixtures/quality/escaped_newlines" / fixture_name
+                findings = _findings(source_path=source_path, source=source_path.read_text(encoding="utf-8"))
 
                 self.assertEqual(first=expected_positions, second=[(finding.line, finding.column) for finding in findings])
 
     def test_diagnostic_names_the_source_escape_column(self) -> None:
-        path = REPOSITORY_ROOT / "tests/repository/fixtures/quality/escaped_newlines/positions.py.fixture"
-        (finding, *remaining) = _findings(path=Path("positions.py.fixture"), source=path.read_text(encoding="utf-8"))
+        fixture_path = REPOSITORY_ROOT / "tests/repository/fixtures/quality/escaped_newlines/positions.py.fixture"
+        (finding, *remaining) = _findings(source_path=pathlib.Path("positions.py.fixture"), source=fixture_path.read_text(encoding="utf-8"))
 
         self.assertEqual(
             first=(
@@ -155,8 +155,8 @@ class EscapedNewlinePostureTests(unittest.TestCase):
     def test_all_authored_python_ends_literals_at_newline_escapes(self) -> None:
         findings = [
             finding
-            for path in python_sources(production_only=False)
-            for finding in _findings(path=path.relative_to(REPOSITORY_ROOT), source=path.read_text(encoding="utf-8"))
+            for source_path in python_sources(production_only=False)
+            for finding in _findings(source_path=source_path.relative_to(REPOSITORY_ROOT), source=source_path.read_text(encoding="utf-8"))
         ]
 
         if findings:

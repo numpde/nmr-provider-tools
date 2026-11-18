@@ -29,8 +29,8 @@ import re
 import textwrap
 import tokenize
 import unittest
+import pathlib
 from dataclasses import dataclass
-from pathlib import Path
 
 from .sources import REPOSITORY_ROOT, python_sources
 from .fstrings import is_debug_expression as _is_debug_expression
@@ -52,14 +52,14 @@ _MACHINE_STRING_PRAGMA = re.compile(r"# machine-string: (?P<reason>\S.*)")
 
 @dataclass(frozen=True, slots=True, kw_only=True)
 class _Finding:
-    path: Path
+    source_path: pathlib.Path
     line: int
     expression: str
     shape: str
 
     def diagnostic(self) -> str:
         return (
-            f"{self.path}:{self.line}: {self.shape}: {self.expression!r}; "
+            f"{self.source_path}:{self.line}: {self.shape}: {self.expression!r}; "
             f"render prose values with debug f-string syntax and names that read "
             f"naturally; machine syntax requires a trailing # machine-string: <reason>"
         )
@@ -67,10 +67,10 @@ class _Finding:
 
 
 
-def _interpolation_findings(*, path: Path, source: str, joined: ast.JoinedStr) -> list[_Finding]:
+def _interpolation_findings(*, source_path: pathlib.Path, source: str, joined: ast.JoinedStr) -> list[_Finding]:
     return [
         _Finding(
-            path=path,
+            source_path=source_path,
             line=value.value.lineno,
             expression=ast.unparse(ast_obj=value.value),
             shape="interpolation without debug syntax",
@@ -81,13 +81,13 @@ def _interpolation_findings(*, path: Path, source: str, joined: ast.JoinedStr) -
     ]
 
 
-def _constant_findings(*, path: Path, literal: ast.Constant) -> list[_Finding]:
+def _constant_findings(*, source_path: pathlib.Path, literal: ast.Constant) -> list[_Finding]:
     if not isinstance(literal.value, str):
         return []
 
     findings = [
         _Finding(
-            path=path,
+            source_path=source_path,
             line=literal.lineno + literal.value[: match.start()].count("\n"),
             expression=match.group("name"),
             shape=f"literal assignment to {match.group('value')!r}",
@@ -97,7 +97,7 @@ def _constant_findings(*, path: Path, literal: ast.Constant) -> list[_Finding]:
 
     findings.extend(
         _Finding(
-            path=path,
+            source_path=source_path,
             line=literal.lineno + literal.value[: match.start()].count("\n"),
             expression=match.group("name"),
             shape=f"percent placeholder {match.group('placeholder')!r}",
@@ -108,7 +108,7 @@ def _constant_findings(*, path: Path, literal: ast.Constant) -> list[_Finding]:
     return findings
 
 
-def _machine_string_exemptions(*, path: Path, source: str, literals: list[ast.AST]) -> tuple[set[ast.AST], list[_Finding]]:
+def _machine_string_exemptions(*, source_path: pathlib.Path, source: str, literals: list[ast.AST]) -> tuple[set[ast.AST], list[_Finding]]:
     """Attach real trailing comments to complete literals, never to nearby code.
 
     Tokenizer columns count characters; AST columns count UTF-8 bytes. Compare
@@ -129,7 +129,7 @@ def _machine_string_exemptions(*, path: Path, source: str, literals: list[ast.AS
             continue
 
         if _MACHINE_STRING_PRAGMA.fullmatch(string=token.string.rstrip()) is None:
-            findings.append(_Finding(path=path, line=token.start[0], expression=token.string, shape="machine-string pragma requires a nonempty reason"))
+            findings.append(_Finding(source_path=source_path, line=token.start[0], expression=token.string, shape="machine-string pragma requires a nonempty reason"))
 
             continue
 
@@ -141,7 +141,7 @@ def _machine_string_exemptions(*, path: Path, source: str, literals: list[ast.AS
         literal = literal_ends.get((token.start[0], len(preceding.encode(encoding="utf-8"))))
 
         if literal is None:
-            findings.append(_Finding(path=path, line=token.start[0], expression=token.string, shape="machine-string pragma must immediately follow a complete string literal"))
+            findings.append(_Finding(source_path=source_path, line=token.start[0], expression=token.string, shape="machine-string pragma must immediately follow a complete string literal"))
 
             continue
 
@@ -150,8 +150,8 @@ def _machine_string_exemptions(*, path: Path, source: str, literals: list[ast.AS
     return (exempt_literals, findings)
 
 
-def _findings(*, path: Path, source: str) -> list[_Finding]:
-    tree = ast.parse(source=source, filename=str(path))
+def _findings(*, source_path: pathlib.Path, source: str) -> list[_Finding]:
+    tree = ast.parse(source=source, filename=str(source_path))
 
     # Dynamic widths and precisions control rendering; they are not facts in the
     # resulting text. Nested f-strings inside ordinary expressions still count.
@@ -168,16 +168,16 @@ def _findings(*, path: Path, source: str) -> list[_Finding]:
         or (isinstance(node, ast.Constant) and isinstance(node.value, str) and not isinstance(parents.get(node), ast.JoinedStr))
     ]
 
-    (exempt_literals, findings) = _machine_string_exemptions(path=path, source=source, literals=literals)
+    (exempt_literals, findings) = _machine_string_exemptions(source_path=source_path, source=source, literals=literals)
 
     for node in ast.walk(node=tree):
         if node in exempt_literals or (isinstance(node, ast.Constant) and parents.get(node) in exempt_literals):
             continue
 
         if isinstance(node, ast.JoinedStr) and id(node) not in format_specs:
-            findings.extend(_interpolation_findings(path=path, source=source, joined=node))
+            findings.extend(_interpolation_findings(source_path=source_path, source=source, joined=node))
         elif isinstance(node, ast.Constant):
-            findings.extend(_constant_findings(path=path, literal=node))
+            findings.extend(_constant_findings(source_path=source_path, literal=node))
 
     return sorted(findings, key=lambda finding: (finding.line, finding.expression, finding.shape))
 
@@ -210,7 +210,7 @@ class DebugFstringPostureTests(unittest.TestCase):
         for (fixture_name, expected_shapes) in cases.items():
             with self.subTest(fixture_name=fixture_name):
                 fixture_path = REPOSITORY_ROOT / "tests/repository/fixtures/quality/machine_strings" / fixture_name
-                findings = _findings(path=fixture_path, source=fixture_path.read_text(encoding="utf-8"))
+                findings = _findings(source_path=fixture_path, source=fixture_path.read_text(encoding="utf-8"))
 
                 self.assertEqual(first=sorted(expected_shapes), second=sorted(finding.shape for finding in findings))
 
@@ -229,7 +229,7 @@ class DebugFstringPostureTests(unittest.TestCase):
 
         for expression in expressions:
             with self.subTest(expression=expression):
-                findings = _findings(path=Path("example.py"), source=f"message = {expression}\n")
+                findings = _findings(source_path=pathlib.Path("example.py"), source=f"message = {expression}\n")
 
                 self.assertTrue(expr=findings)
                 self.assertTrue(expr=all(finding.shape == "interpolation without debug syntax" for finding in findings))
@@ -254,7 +254,7 @@ class DebugFstringPostureTests(unittest.TestCase):
 
         for expression in expressions:
             with self.subTest(expression=expression):
-                self.assertEqual(first=[], second=_findings(path=Path("example.py"), source=f"message = {expression}\n"))
+                self.assertEqual(first=[], second=_findings(source_path=pathlib.Path("example.py"), source=f"message = {expression}\n"))
 
     def test_multiline_expressions_use_their_own_source_span(self) -> None:
         source = textwrap.dedent(
@@ -272,19 +272,19 @@ class DebugFstringPostureTests(unittest.TestCase):
             '''
         )
 
-        findings = _findings(path=Path("example.py"), source=source)
+        findings = _findings(source_path=pathlib.Path("example.py"), source=source)
 
         self.assertEqual(first=[(5, "duration")], second=[(finding.line, finding.expression) for finding in findings])
 
     def test_dynamic_format_fields_are_structural_but_nested_fstrings_are_values(self) -> None:
         source = 'message = f"{duration:{width}.{precision}f}"\nmessage = f"{f\'{label}\' = }"\n'
-        findings = _findings(path=Path("example.py"), source=source)
+        findings = _findings(source_path=pathlib.Path("example.py"), source=source)
 
         self.assertEqual(first=["duration", "label"], second=[finding.expression for finding in findings])
 
     def test_literal_and_percent_assignments_retain_the_predecessor_census(self) -> None:
         source = 'message = "event=endpoint_failed; ready=true; count=%d; reason=%s"\n'
-        findings = _findings(path=Path("example.py"), source=source)
+        findings = _findings(source_path=pathlib.Path("example.py"), source=source)
 
         self.assertEqual(
             first=[
@@ -298,15 +298,15 @@ class DebugFstringPostureTests(unittest.TestCase):
 
     def test_ordinary_data_formatting_is_reported_without_a_silent_exemption(self) -> None:
         source = 'path = f"/work/{name}.json"\ncommand = f"--port={port}"\nheader = "mode=live"\n'
-        findings = _findings(path=Path("example.py"), source=source)
+        findings = _findings(source_path=pathlib.Path("example.py"), source=source)
 
         self.assertEqual(first=["name", "port", "mode"], second=[finding.expression for finding in findings])
 
     def test_production_values_use_debug_fstring_syntax(self) -> None:
         findings = [
             finding
-            for path in python_sources(production_only=True)
-            for finding in _findings(path=path.relative_to(REPOSITORY_ROOT), source=path.read_text(encoding="utf-8"))
+            for source_path in python_sources(production_only=True)
+            for finding in _findings(source_path=source_path.relative_to(REPOSITORY_ROOT), source=source_path.read_text(encoding="utf-8"))
         ]
 
         if findings:

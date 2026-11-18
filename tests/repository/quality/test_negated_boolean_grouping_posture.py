@@ -50,9 +50,9 @@ class NegatedBooleanGroupingPostureTests(unittest.TestCase):
 
     def test_authored_python_groups_negated_boolean_operands(self) -> None:
         findings = [
-            f"{path.relative_to(ROOT)}:{line}"
-            for path in python_sources(production_only=False)
-            for line in ungrouped_negated_boolean_lines(source=path.read_text(encoding="utf-8"))
+            f"{source_path.relative_to(ROOT)}:{line}"
+            for source_path in python_sources(production_only=False)
+            for line in ungrouped_negated_boolean_lines(source=source_path.read_text(encoding="utf-8"))
         ]
 
         self.assertEqual(first=[], second=findings, msg="\n".join(findings))

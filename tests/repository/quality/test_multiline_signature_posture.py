@@ -157,10 +157,10 @@ class MultilineSignaturePostureTests(unittest.TestCase):
 
     def test_authored_python_uses_multiline_signature_layout(self):
         findings = [
-            f"{path.relative_to(ROOT)}:{line}: {message}"
-            for path in python_sources(production_only=False)
+            f"{source_path.relative_to(ROOT)}:{line}: {message}"
+            for source_path in python_sources(production_only=False)
             for line,
-            message in multiline_signature_findings(source=path.read_text(encoding="utf-8"))
+            message in multiline_signature_findings(source=source_path.read_text(encoding="utf-8"))
         ]
 
         self.assertEqual(first=[], second=findings, msg="\n".join(findings))

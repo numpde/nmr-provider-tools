@@ -42,9 +42,9 @@ class NegatedCallParenthesesPostureTests(unittest.TestCase):
 
     def test_authored_python_omits_redundant_negated_call_parentheses(self) -> None:
         findings = [
-            f"{path.relative_to(ROOT)}:{line}"
-            for path in python_sources(production_only=False)
-            for line in redundant_negated_call_lines(source=path.read_text(encoding="utf-8"))
+            f"{source_path.relative_to(ROOT)}:{line}"
+            for source_path in python_sources(production_only=False)
+            for line in redundant_negated_call_lines(source=source_path.read_text(encoding="utf-8"))
         ]
 
         self.assertEqual(first=[], second=findings, msg="\n".join(findings))

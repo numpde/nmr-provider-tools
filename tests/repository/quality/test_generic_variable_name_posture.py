@@ -11,9 +11,9 @@ from tools.container_guard import require_container
 require_container()
 
 import ast
+import pathlib
 import unittest
 from dataclasses import dataclass
-from pathlib import Path
 
 from .sources import ROOT, python_sources
 
@@ -23,9 +23,9 @@ class _Finding:
     line: int
     variable_name: str
 
-    def diagnostic(self, *, path: Path) -> str:
+    def diagnostic(self, *, source_path: pathlib.Path) -> str:
         return (
-            f"{path}:{self.line}: generic name {self.variable_name!r}; "
+            f"{source_path}:{self.line}: generic name {self.variable_name!r}; "
             f"name its class or purpose; review public keyword and field contracts before renaming"
         )
 
@@ -213,9 +213,9 @@ class GenericVariableNamePostureTests(unittest.TestCase):
 
     def test_authored_python_bindings_explain_their_role(self):
         findings = [
-            finding.diagnostic(path=path.relative_to(ROOT))
-            for path in python_sources(production_only=False)
-            for finding in _findings(source=path.read_text(encoding="utf-8"))
+            finding.diagnostic(source_path=source_path.relative_to(ROOT))
+            for source_path in python_sources(production_only=False)
+            for finding in _findings(source=source_path.read_text(encoding="utf-8"))
         ]
 
         self.assertEqual(first=[], second=findings, msg="\n".join(findings))

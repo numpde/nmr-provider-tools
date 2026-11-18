@@ -11,8 +11,8 @@ require_container()
 import ast
 import textwrap
 import unittest
+import pathlib
 from dataclasses import dataclass
-from pathlib import Path
 
 from .sources import REPOSITORY_ROOT, python_sources
 
@@ -23,13 +23,13 @@ _ESCAPE_PREFIX = "# repo-check: allow-tuple-generator -- "
 
 @dataclass(frozen=True, slots=True)
 class _Finding:
-    path: Path
+    source_path: pathlib.Path
     line: int
     expression: str
 
     def diagnostic(self) -> str:
         return (
-            f"{self.path}:{self.line}: tuple() directly consumes a comprehension "
+            f"{self.source_path}:{self.line}: tuple() directly consumes a comprehension "
             f"{self.expression!r}; tuple may add no semantic value, generator "
             f"syntax is comma-fragile, and an inline list is only a ceremonial "
             f"workaround; build the collection shape its consumer actually owns, "
@@ -54,16 +54,16 @@ def _has_documented_escape(node: ast.Call, source_lines: list[str]) -> bool:
     return node.lineno >= 3 and immediate.strip().startswith("# repo-check:") and documents_reason(source_lines[node.lineno - 3])
 
 
-def _findings(path: Path, source: str) -> list[_Finding]:
+def _findings(source_path: pathlib.Path, source: str) -> list[_Finding]:
     """Find every comprehension converted directly to a tuple."""
 
-    tree = ast.parse(source, filename=str(path))
+    tree = ast.parse(source, filename=str(source_path))
     source_lines = source.splitlines()
 
     return sorted(
         [
             _Finding(
-                path=path,
+                source_path=source_path,
                 line=node.lineno,
                 expression=ast.unparse(node),
             )
@@ -80,17 +80,17 @@ def _findings(path: Path, source: str) -> list[_Finding]:
     )
 
 
-def _scan(paths: list[Path]) -> list[_Finding]:
+def _scan(paths: list[pathlib.Path]) -> list[_Finding]:
     return sorted(
         [
             finding
-            for path in paths
+            for source_path in paths
             for finding in _findings(
-                path.relative_to(REPOSITORY_ROOT),
-                path.read_text(encoding="utf-8"),
+                source_path.relative_to(REPOSITORY_ROOT),
+                source_path.read_text(encoding="utf-8"),
             )
         ],
-        key=lambda finding: (finding.path, finding.line),
+        key=lambda finding: (finding.source_path, finding.line),
     )
 
 
@@ -132,7 +132,7 @@ class TupleGeneratorPostureTests(unittest.TestCase):
             """
         )
 
-        findings = _findings(Path("example.py"), source)
+        findings = _findings(pathlib.Path("example.py"), source)
 
         self.assertEqual(
             [
@@ -156,7 +156,7 @@ class TupleGeneratorPostureTests(unittest.TestCase):
 
         for source in cases:
             with self.subTest(source=source):
-                self.assertEqual(1, len(_findings(Path("example.py"), source)))
+                self.assertEqual(1, len(_findings(pathlib.Path("example.py"), source)))
 
     def test_python_does_not_convert_comprehensions_directly_to_tuples(
         self,
