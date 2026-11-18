@@ -15,7 +15,7 @@ import subprocess
 import sys
 import tempfile
 import unittest
-from pathlib import Path
+import pathlib
 
 from tests.repository.quality.sources import ROOT
 
@@ -32,28 +32,28 @@ class LauncherTests(unittest.TestCase):
         ):
             with self.subTest(origin=origin, pattern=pattern):
                 environment.update(TEST_PATTERN_INPUT_ORIGIN=origin, TEST_PATTERN_INPUT=pattern)
-                result = subprocess.run(command, cwd=ROOT, env=environment, capture_output=True, text=True, check=False)
+                completed_process = subprocess.run(command, cwd=ROOT, env=environment, capture_output=True, text=True, check=False)
 
-                self.assertEqual(0, result.returncode, msg=result.stderr)
-                arguments = shlex.split(result.stdout)
+                self.assertEqual(0, completed_process.returncode, msg=completed_process.stderr)
+                arguments = shlex.split(completed_process.stdout)
 
                 self.assertEqual(expected, arguments[arguments.index("-p") + 1])
 
         for pattern in ("test_missing_quality_file.py", "../test_escape.py", "test_*.py", ""):
             with self.subTest(pattern=pattern):
                 environment.update(TEST_PATTERN_INPUT_ORIGIN="command line", TEST_PATTERN_INPUT=pattern)
-                result = subprocess.run(command, cwd=ROOT, env=environment, capture_output=True, text=True, check=False)
+                completed_process = subprocess.run(command, cwd=ROOT, env=environment, capture_output=True, text=True, check=False)
 
-                self.assertNotEqual(0, result.returncode)
-                self.assertIn("Cannot select repository test", result.stderr)
-                self.assertEqual("", result.stdout)
+                self.assertNotEqual(0, completed_process.returncode)
+                self.assertIn("Cannot select repository test", completed_process.stderr)
+                self.assertEqual("", completed_process.stdout)
 
         environment.update(TEST_PATTERN_INPUT_ORIGIN="command line", TEST_PATTERN_INPUT="test_makefile.py")
         command[-1] = "tests/repository/runtime"
-        result = subprocess.run(command, cwd=ROOT, env=environment, capture_output=True, text=True, check=False)
+        completed_process = subprocess.run(command, cwd=ROOT, env=environment, capture_output=True, text=True, check=False)
 
-        self.assertNotEqual(0, result.returncode)
-        self.assertIn("requires tests/repository or tests/repository/quality", result.stderr)
+        self.assertNotEqual(0, completed_process.returncode)
+        self.assertIn("requires tests/repository or tests/repository/quality", completed_process.stderr)
 
     def test_preview_ignores_ambient_engine_and_make_overrides(self):
         environment = os.environ | {
@@ -65,7 +65,7 @@ class LauncherTests(unittest.TestCase):
             "PATH": f"{ROOT / 'tests/repository/fixtures/docker-context'}:{os.environ['PATH']}",
         }
 
-        result = subprocess.run(
+        completed_process = subprocess.run(
             ["make", "--no-print-directory", "tests/repository/command", "DOCKER_CONTEXT=default"],
             cwd=ROOT,
             env=environment,
@@ -74,8 +74,8 @@ class LauncherTests(unittest.TestCase):
             check=False,
         )
 
-        self.assertEqual(0, result.returncode, msg=result.stderr)
-        arguments = shlex.split(result.stdout.splitlines()[-1])
+        self.assertEqual(0, completed_process.returncode, msg=completed_process.stderr)
+        arguments = shlex.split(completed_process.stdout.splitlines()[-1])
 
         self.assertNotIn("unreviewed", " ".join(arguments))
         self.assertEqual("env", arguments[0])
@@ -88,7 +88,7 @@ class LauncherTests(unittest.TestCase):
     def test_missing_context_without_terminal_refuses_before_engine_use(self):
         environment = os.environ | {"DOCKER_CONTEXT": "unreviewed", "NMR_SELECTED_DOCKER_ENDPOINT": "unix:///tmp/poison.sock", "DOCKER_CONTEXT_INPUT_ORIGIN": "command line", "DOCKER_CONTEXT_INPUT": "local-test", "MAKELEVEL": "1"}
 
-        result = subprocess.run(
+        completed_process = subprocess.run(
             ["make", "--no-print-directory", "tests/repository/command"],
             cwd=ROOT,
             env=environment,
@@ -99,24 +99,24 @@ class LauncherTests(unittest.TestCase):
             check=False,
         )
 
-        self.assertNotEqual(0, result.returncode)
-        self.assertIn("DOCKER_CONTEXT", result.stderr)
-        self.assertNotIn("docker --config", result.stdout)
+        self.assertNotEqual(0, completed_process.returncode)
+        self.assertIn("DOCKER_CONTEXT", completed_process.stderr)
+        self.assertNotIn("docker --config", completed_process.stdout)
 
     def test_selected_context_is_resolved_to_local_socket_and_remote_is_refused(self):
         directory = ROOT / "tests/repository/fixtures/docker-context"
         env = os.environ | {"PATH": f"{directory}:{os.environ['PATH']}", "DOCKER_CONTEXT": "local-test", "NMR_SELECTED_DOCKER_ENDPOINT": "unix:///tmp/poison.sock", "MAKELEVEL": "1"}
         command = ["make", "--no-print-directory", "tests/repository/command", "DOCKER_CONTEXT=local-test"]
-        result = subprocess.run(command, cwd=ROOT, env=env, capture_output=True, text=True, check=False)
+        completed_process = subprocess.run(command, cwd=ROOT, env=env, capture_output=True, text=True, check=False)
 
-        self.assertEqual(0, result.returncode, msg=result.stderr)
-        self.assertIn("unix:///run/user/1000/docker.sock", result.stdout)
-        self.assertNotIn("unix:///tmp/poison.sock", result.stdout)
+        self.assertEqual(0, completed_process.returncode, msg=completed_process.stderr)
+        self.assertIn("unix:///run/user/1000/docker.sock", completed_process.stdout)
+        self.assertNotIn("unix:///tmp/poison.sock", completed_process.stdout)
         command[-1] = "DOCKER_CONTEXT=remote-test"
-        result = subprocess.run(command, cwd=ROOT, env=env, capture_output=True, text=True, check=False)
+        completed_process = subprocess.run(command, cwd=ROOT, env=env, capture_output=True, text=True, check=False)
 
-        self.assertNotEqual(0, result.returncode)
-        self.assertNotIn("ssh://example.invalid", result.stdout)
+        self.assertNotEqual(0, completed_process.returncode)
+        self.assertNotIn("ssh://example.invalid", completed_process.stdout)
 
     def test_interactive_menu_offers_only_local_contexts(self):
         fixture = ROOT / "tests/repository/fixtures/docker-context"
@@ -166,11 +166,11 @@ class LauncherTests(unittest.TestCase):
 
     def test_multiple_make_goals_resolve_the_context_once(self):
         with tempfile.TemporaryDirectory() as directory:
-            log = Path(directory) / "context-inspections"
+            log = pathlib.Path(directory) / "context-inspections"
             fixture = ROOT / "tests/repository/fixtures/docker-context"
             environment = os.environ | {"PATH": f"{fixture}:{os.environ['PATH']}", "FAKE_CONTEXT_LOG": str(log)}
 
-            result = subprocess.run(
+            completed_process = subprocess.run(
                 ["make", "--no-print-directory", "tests/repository/command", "help", "DOCKER_CONTEXT=local-test"],
                 cwd=ROOT,
                 env=environment,
@@ -179,14 +179,14 @@ class LauncherTests(unittest.TestCase):
                 check=False,
             )
 
-            self.assertEqual(0, result.returncode, msg=result.stderr)
+            self.assertEqual(0, completed_process.returncode, msg=completed_process.stderr)
             self.assertEqual(["inspect"], log.read_text().splitlines())
 
     def test_make_queries_do_not_select_resources_with_a_terminal(self):
         fixture = ROOT / "tests/repository/fixtures/docker-context"
 
         with tempfile.TemporaryDirectory() as directory:
-            log = Path(directory) / "context-inspections"
+            log = pathlib.Path(directory) / "context-inspections"
             environment = {key: value for (key, value) in os.environ.items()
                            if key not in {"MAKEFLAGS", "MFLAGS", "MAKEOVERRIDES", "GNUMAKEFLAGS", "MAKELEVEL"}}
             environment.update(PATH=f"{fixture}:{os.environ['PATH']}", FAKE_CONTEXT_LOG=str(log))
@@ -234,7 +234,7 @@ class LauncherTests(unittest.TestCase):
 
     def test_preview_discovers_new_public_roots_and_rejects_hidden_links(self):
         with tempfile.TemporaryDirectory() as directory:
-            root = Path(directory)
+            root = pathlib.Path(directory)
 
             for name in ("tools", "host", "requirements", "containers"):
                 shutil.copytree(ROOT / name, root / name)
@@ -248,25 +248,25 @@ class LauncherTests(unittest.TestCase):
             launcher.write_bytes((ROOT / "host/tools/repository.sh").read_bytes())
             environment = os.environ | {"NMR_SELECTED_DOCKER_ENDPOINT": "unix:///var/run/docker.sock"}
             command = ["bash", str(launcher), "--print", "tests/repository"]
-            result = subprocess.run(command, env=environment, capture_output=True, text=True, check=False)
+            completed_process = subprocess.run(command, env=environment, capture_output=True, text=True, check=False)
 
-            self.assertEqual(0, result.returncode, msg=result.stderr)
-            arguments = shlex.split(result.stdout)
+            self.assertEqual(0, completed_process.returncode, msg=completed_process.stderr)
+            arguments = shlex.split(completed_process.stdout)
 
             self.assertIn(f"type=bind,src={root}/future-source,dst=/workspace/future-source,readonly", arguments)
             self.assertNotIn(f"type=bind,src={root}/.aws,dst=/workspace/.aws,readonly", arguments)
             self.assertNotIn(f"type=bind,src={root}/release-artifacts,dst=/workspace/release-artifacts,readonly", arguments)
             self.assertIn(f"type=bind,src={root}/.work,dst=/workspace/.work,readonly", arguments)
             (root / "linked").symlink_to(root / "future-source", target_is_directory=True)
-            result = subprocess.run(command, env=environment, capture_output=True, text=True, check=False)
+            completed_process = subprocess.run(command, env=environment, capture_output=True, text=True, check=False)
 
-            self.assertNotEqual(0, result.returncode)
-            self.assertEqual("", result.stdout)
-            self.assertIn("Cannot grant repository source", result.stderr)
+            self.assertNotEqual(0, completed_process.returncode)
+            self.assertEqual("", completed_process.stdout)
+            self.assertIn("Cannot grant repository source", completed_process.stderr)
 
     def test_missing_inputs_and_unknown_target_fail_before_engine_execution(self):
         with tempfile.TemporaryDirectory() as directory:
-            root = Path(directory)
+            root = pathlib.Path(directory)
 
             (root / "host/tools").mkdir(parents=True)
             launcher = root / "host/tools/repository.sh"
@@ -277,25 +277,25 @@ class LauncherTests(unittest.TestCase):
                 ("tests/repository", "checker_inputs.sh"),
                 ("unreviewed", "unknown target"),
             ):
-                result = subprocess.run(
+                completed_process = subprocess.run(
                     ["bash", str(launcher), "--print", target],
                     capture_output=True,
                     text=True,
                     check=False,
                 )
 
-                self.assertNotEqual(0, result.returncode)
-                self.assertEqual("", result.stdout)
-                self.assertIn(message, result.stderr)
+                self.assertNotEqual(0, completed_process.returncode)
+                self.assertEqual("", completed_process.stdout)
+                self.assertIn(message, completed_process.stderr)
 
     def test_empty_unittest_discovery_is_not_success(self):
         with tempfile.TemporaryDirectory() as directory:
-            result = subprocess.run(
+            completed_process = subprocess.run(
                 [sys.executable, "-B", "-m", "unittest", "discover", "-s", directory, "-v"],
                 capture_output=True,
                 text=True,
                 check=False,
             )
 
-            self.assertNotEqual(0, result.returncode)
-            self.assertIn("NO TESTS RAN", result.stderr)
+            self.assertNotEqual(0, completed_process.returncode)
+            self.assertIn("NO TESTS RAN", completed_process.stderr)

@@ -17,11 +17,11 @@ require_container()
 import os
 import tempfile
 import unittest
-from pathlib import Path
+import pathlib
 
 
 def mount_record(destination):
-    for line in Path("/proc/self/mountinfo").read_text().splitlines():
+    for line in pathlib.Path("/proc/self/mountinfo").read_text().splitlines():
         fields = line.split()
         separator = fields.index("-")
 
@@ -32,7 +32,7 @@ def mount_record(destination):
 
 
 def process_status():
-    return dict(line.split(":", 1) for line in Path("/proc/self/status").read_text().splitlines())
+    return dict(line.split(":", 1) for line in pathlib.Path("/proc/self/status").read_text().splitlines())
 
 
 class RuntimePostureTests(unittest.TestCase):
@@ -59,7 +59,7 @@ class RuntimePostureTests(unittest.TestCase):
         with tempfile.NamedTemporaryFile(dir="/tmp") as probe:
             probe.write(b"expected")
             probe.flush()
-            self.assertEqual(b"expected", Path(probe.name).read_bytes())
+            self.assertEqual(b"expected", pathlib.Path(probe.name).read_bytes())
 
     def test_has_no_effective_linux_capabilities(self):
         self.assertEqual(0, int(process_status()["CapEff"].strip(), 16))
@@ -68,7 +68,7 @@ class RuntimePostureTests(unittest.TestCase):
         self.assertEqual("1", process_status()["NoNewPrivs"].strip())
 
     def test_has_only_loopback_network_interface(self):
-        self.assertEqual({"lo"}, {path.name for path in Path("/sys/class/net").iterdir()})
+        self.assertEqual({"lo"}, {path.name for path in pathlib.Path("/sys/class/net").iterdir()})
 
     def test_tmp_is_a_hardened_writable_tmpfs(self):
         (filesystem, options) = mount_record("/tmp")
@@ -77,7 +77,7 @@ class RuntimePostureTests(unittest.TestCase):
         self.assertTrue({"rw", "noexec", "nosuid", "nodev"} <= options)
 
     def test_cgroup_v2_enforces_resource_bounds(self):
-        cgroup = Path("/sys/fs/cgroup")
+        cgroup = pathlib.Path("/sys/fs/cgroup")
 
         for (name, expected) in (("pids.max", "64"), ("memory.max", "536870912"), ("memory.swap.max", "0")):
             self.assertEqual(
@@ -92,9 +92,9 @@ class RuntimePostureTests(unittest.TestCase):
 
     def test_fixture_install_retains_no_build_source(self):
         for name in ("/build/models/embedded_fixture", "/build/test-products", "/fixture-stage", "/opt/build"):
-            self.assertFalse(Path(name).exists(), msg=f"Build source remains at {name}.")
+            self.assertFalse(pathlib.Path(name).exists(), msg=f"Build source remains at {name}.")
 
-        directory = Path("/build")
+        directory = pathlib.Path("/build")
 
         if directory.exists():
             self.assertFalse(any(path.is_file() for path in directory.rglob("*")))

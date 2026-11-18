@@ -16,7 +16,7 @@ class MakeHelpTests(unittest.TestCase):
         content = (ROOT / "Makefile").read_text()
         declared = set(re.findall(r"(?m)^([A-Za-z][A-Za-z0-9/._-]+):(?:\s|$)", content))
 
-        result = subprocess.run(
+        completed_process = subprocess.run(
             ("make", "--no-print-directory", "help"),
             cwd=ROOT,
             capture_output=True,
@@ -25,14 +25,14 @@ class MakeHelpTests(unittest.TestCase):
             check=False,
         )
 
-        self.assertEqual(0, result.returncode, msg=result.stderr)
-        documented = set(re.findall(r"\bmake ([A-Za-z][A-Za-z0-9/._-]+)", result.stdout))
+        self.assertEqual(0, completed_process.returncode, msg=completed_process.stderr)
+        documented = set(re.findall(r"\bmake ([A-Za-z][A-Za-z0-9/._-]+)", completed_process.stdout))
 
         self.assertEqual(declared, documented)
-        self.assertNotIn("Select a local Docker context", result.stderr)
+        self.assertNotIn("Select a local Docker context", completed_process.stderr)
 
     def test_release_help_explains_input_output_and_nonoverwriting_flow(self):
-        result = subprocess.run(
+        completed_process = subprocess.run(
             ("make", "--no-print-directory", "help"),
             cwd=ROOT,
             capture_output=True,
@@ -41,7 +41,7 @@ class MakeHelpTests(unittest.TestCase):
             check=False,
         )
 
-        self.assertEqual(0, result.returncode, msg=result.stderr)
+        self.assertEqual(0, completed_process.returncode, msg=completed_process.stderr)
 
         for phrase in (
             "publish/prepare",
@@ -57,4 +57,4 @@ class MakeHelpTests(unittest.TestCase):
             "separate",
         ):
             with self.subTest(phrase=phrase):
-                self.assertIn(phrase, result.stdout)
+                self.assertIn(phrase, completed_process.stdout)

@@ -15,8 +15,8 @@ import sys
 import tempfile
 import time
 import unittest
+import pathlib
 from contextlib import suppress
-from pathlib import Path
 from unittest.mock import patch
 
 
@@ -31,14 +31,14 @@ class CapturedNativeTests(unittest.TestCase):
         temporary = tempfile.TemporaryDirectory()
 
         self.addCleanup(temporary.cleanup)
-        self.root = Path(temporary.name)
+        self.root = pathlib.Path(temporary.name)
         self.helper = self.root / "inference_native.sh"
 
-        self.helper.write_bytes(Path("host/tools/inference_native.sh").read_bytes())
+        self.helper.write_bytes(pathlib.Path("host/tools/inference_native.sh").read_bytes())
         self.bin = self.root / "bin"
 
         self.bin.mkdir()
-        utility = Path(__file__).resolve().parent / "fixtures/native_command.py"
+        utility = pathlib.Path(__file__).resolve().parent / "fixtures/native_command.py"
 
         for name in ("mv", "head", "rm"):
             (self.bin / name).symlink_to(utility)
@@ -48,7 +48,7 @@ class CapturedNativeTests(unittest.TestCase):
 
         self.environment = os.environ | {
             "PATH": str(self.bin) + ":" + os.environ["PATH"],
-            "PYTHONPATH": str(Path.cwd()),
+            "PYTHONPATH": str(pathlib.Path.cwd()),
             "NATIVE_OBSERVATION": str(self.observation),
             "NATIVE_CONTROL": str(self.control),
             # Each probe owns its intended result; lost fixture wiring must
@@ -136,7 +136,7 @@ class CapturedNativeTests(unittest.TestCase):
         del environment["NATIVE_STATUS"]
 
         result = subprocess.run(
-            [sys.executable, str(Path(__file__).resolve()), "native-client"],
+            [sys.executable, str(pathlib.Path(__file__).resolve()), "native-client"],
             env=environment,
             stdin=subprocess.DEVNULL,
             capture_output=True,
@@ -232,7 +232,7 @@ class CapturedNativeTests(unittest.TestCase):
                     os.set_blocking(write_descriptor, True)
 
                     process = subprocess.Popen(
-                        ["/bin/bash", "-euc", script, "bash", str(self.helper), sys.executable, str(Path(__file__).resolve())],
+                        ["/bin/bash", "-euc", script, "bash", str(self.helper), sys.executable, str(pathlib.Path(__file__).resolve())],
                         env=environment,
                         stdin=subprocess.DEVNULL,
                         stdout=subprocess.PIPE,
@@ -293,7 +293,7 @@ class CapturedNativeTests(unittest.TestCase):
             'printf "caller\\000\\376\\n" >&2'
         )
 
-        result = subprocess.run(
+        completed_process = subprocess.run(
             ["/bin/bash", "-euc", script, "bash", str(self.helper)],
             # This stream test injects no file faults; use the real utilities.
             env=os.environ,
@@ -303,9 +303,9 @@ class CapturedNativeTests(unittest.TestCase):
             check=False,
         )
 
-        self.assertEqual(0, result.returncode, msg=result.stderr)
-        self.assertEqual(b"", result.stdout)
-        self.assertEqual(b"stdio\0\xff\ncaller\0\xfe\n", result.stderr)
+        self.assertEqual(0, completed_process.returncode, msg=completed_process.stderr)
+        self.assertEqual(b"", completed_process.stdout)
+        self.assertEqual(b"stdio\0\xff\ncaller\0\xfe\n", completed_process.stderr)
 
     # silent-defaults: allow-contract -- Omitted result mode selects this fixture's captured discard profile; streaming scenarios select stdio explicitly; proof=tests/repository/test_inference_native.py::CapturedNativeTests.test_container_ordinary_signal_number_status_is_not_cancellation_or_expiry
     def container_policy_command(self, *, budget, mode="discard"):
@@ -354,7 +354,7 @@ class CapturedNativeTests(unittest.TestCase):
     def test_container_numeric_ten_second_expiry_uses_real_timeout_and_two_second_grace(self):
         (command, environment) = self.container_policy_command(budget="10")
 
-        process = subprocess.Popen(
+        child_process = subprocess.Popen(
             command,
             env=environment,
             stdout=subprocess.PIPE,
@@ -363,30 +363,30 @@ class CapturedNativeTests(unittest.TestCase):
             start_new_session=True,
         )
 
-        self.addCleanup(self.retire_probe, process)
+        self.addCleanup(self.retire_probe, child_process)
         self.await_file(self.root / "container-handlers-ready")
         observed = json.loads(self.observation.read_text())
-        wrapper = Path("/proc", str(observed["parent"]))
+        wrapper = pathlib.Path("/proc", str(observed["parent"]))
         timeout_pid = int((wrapper / "stat").read_text().rpartition(")")[2].split()[1])
-        timeout_process = Path("/proc", str(timeout_pid))
+        timeout_process = pathlib.Path("/proc", str(timeout_pid))
         arguments = (timeout_process / "cmdline").read_bytes().split(b"\0")[:-1]
 
         self.assertEqual([b"timeout", b"--foreground", b"--signal=USR2", b"--kill-after=2", b"10"], arguments[:5])
         executable = (timeout_process / "exe").resolve(strict=True)
 
-        self.assertEqual(Path("/usr/bin/timeout").resolve(), executable)
+        self.assertEqual(pathlib.Path("/usr/bin/timeout").resolve(), executable)
         version = subprocess.run([str(executable), "--version"], capture_output=True, text=True, check=True)
 
         self.assertIn("GNU coreutils", version.stdout.splitlines()[0])
-        self.await_grace_sleep(process, seconds=2, wait_seconds=13)
+        self.await_grace_sleep(child_process, seconds=2, wait_seconds=13)
         self.assertEqual(b"expired\n", (self.root / "container-deadline").read_bytes())
-        self.assertTrue(Path("/proc", str(observed["descendant"])).exists())
+        self.assertTrue(pathlib.Path("/proc", str(observed["descendant"])).exists())
         self.await_file(self.root / "signal-observed")
         self.assertEqual("TERM\n", (self.root / "signal-observed").read_text())
-        (stdout, stderr) = process.communicate(timeout=5)
+        (stdout, stderr) = child_process.communicate(timeout=5)
 
         self.retain_cleanup(stderr)
-        self.assertEqual(124, process.returncode, msg=stderr)
+        self.assertEqual(124, child_process.returncode, msg=stderr)
         self.assertEqual("", stdout)
         self.assertIn("deadline elapsed", stderr)
         self.assertEqual("124 0 true\n", (self.root / "container-outcome").read_text())
@@ -401,7 +401,7 @@ class CapturedNativeTests(unittest.TestCase):
                     self.reset_container_observations()
                     (command, environment) = self.container_policy_command(budget=budget, mode=mode)
 
-                    process = subprocess.Popen(
+                    child_process = subprocess.Popen(
                         command,
                         env=environment,
                         stdout=subprocess.PIPE,
@@ -410,19 +410,19 @@ class CapturedNativeTests(unittest.TestCase):
                         start_new_session=True,
                     )
 
-                    self.addCleanup(self.retire_probe, process)
+                    self.addCleanup(self.retire_probe, child_process)
                     self.await_file(self.root / "container-handlers-ready")
                     observed = json.loads(self.observation.read_text())
 
-                    process.send_signal(signum)
-                    self.await_grace_sleep(process, seconds=2)
-                    self.assertTrue(Path("/proc", str(observed["descendant"])).exists())
-                    (stdout, stderr) = process.communicate(timeout=5)
+                    child_process.send_signal(signum)
+                    self.await_grace_sleep(child_process, seconds=2)
+                    self.assertTrue(pathlib.Path("/proc", str(observed["descendant"])).exists())
+                    (stdout, stderr) = child_process.communicate(timeout=5)
 
                     self.retain_cleanup(stderr)
                     expected = 128 + signum
 
-                    self.assertEqual(expected, process.returncode, msg=stderr)
+                    self.assertEqual(expected, child_process.returncode, msg=stderr)
                     self.assertEqual("", stdout)
                     self.assertEqual(name + "\n", (self.root / "signal-observed").read_text())
                     self.assertEqual(f"{expected} {expected} true\n", (self.root / "container-outcome").read_text())
@@ -461,7 +461,7 @@ class CapturedNativeTests(unittest.TestCase):
 
                 (command, environment) = self.container_policy_command(budget=budget, mode="stdio")
 
-                process = subprocess.Popen(
+                child_process = subprocess.Popen(
                     command,
                     env=environment,
                     stdout=subprocess.PIPE,
@@ -470,25 +470,25 @@ class CapturedNativeTests(unittest.TestCase):
                     start_new_session=True,
                 )
 
-                self.addCleanup(self.retire_probe, process)
+                self.addCleanup(self.retire_probe, child_process)
                 self.await_file(self.root / "container-handlers-ready")
 
                 if phase == "during-cancellation":
-                    process.send_signal(signal.SIGTERM)
+                    child_process.send_signal(signal.SIGTERM)
 
-                grace = self.await_grace_sleep(process, seconds=2, wait_seconds=5)
+                grace = self.await_grace_sleep(child_process, seconds=2, wait_seconds=5)
 
                 if phase != "known-at-expiry":
-                    process.send_signal(signal.SIGINT)
+                    child_process.send_signal(signal.SIGINT)
 
-                (stdout, stderr) = process.communicate(timeout=5)
+                (stdout, stderr) = child_process.communicate(timeout=5)
 
                 self.retain_cleanup(stderr)
 
                 # silent-defaults: allow-contract -- The known-expiry case injects HUP and expects 129; the other cases inject INT and expect 130; proof=tests/repository/test_inference_native.py::CapturedNativeTests.test_container_expiry_and_repeated_cancellation_never_renew_grace
                 expected = 129 if phase == "known-at-expiry" else 130
 
-                self.assertEqual(expected, process.returncode, msg=stderr)
+                self.assertEqual(expected, child_process.returncode, msg=stderr)
                 self.assertEqual("", stdout)
                 self.assertEqual(f"{expected} {expected} true\n", (self.root / "container-outcome").read_text())
                 self.assertEqual(["2"], (self.root / "container-grace").read_text().splitlines())
@@ -517,7 +517,7 @@ class CapturedNativeTests(unittest.TestCase):
                 self.reset_container_observations()
                 (command, environment) = self.container_policy_command(budget="10")
 
-                result = subprocess.run(
+                completed_process = subprocess.run(
                     command,
                     env=environment | {"NATIVE_BEHAVIOR": "", "NATIVE_STATUS": str(status), "PATH": os.environ["PATH"]},
                     capture_output=True,
@@ -526,11 +526,11 @@ class CapturedNativeTests(unittest.TestCase):
                     check=False,
                 )
 
-                self.retain_cleanup(result.stderr)
-                self.assertEqual(status, result.returncode, msg=result.stderr)
-                self.assertEqual("", result.stdout)
+                self.retain_cleanup(completed_process.stderr)
+                self.assertEqual(status, completed_process.returncode, msg=completed_process.stderr)
+                self.assertEqual("", completed_process.stdout)
                 self.assertEqual(f"{status} 0 true\n", (self.root / "container-outcome").read_text())
-                self.assertIn(f"native client exited with status {status}", result.stderr)
+                self.assertIn(f"native client exited with status {status}", completed_process.stderr)
                 self.assertFalse((self.root / "container-grace").exists())
                 self.assertFalse((self.root / "container-deadline").exists())
                 self.assert_client_retired()
@@ -548,7 +548,7 @@ class CapturedNativeTests(unittest.TestCase):
                 str(self.helper),
                 budget,
                 sys.executable,
-                str(Path(__file__).resolve()),
+                str(pathlib.Path(__file__).resolve()),
             ],
             (self.environment if environment is None else environment)
         )
@@ -558,7 +558,7 @@ class CapturedNativeTests(unittest.TestCase):
         (command, environment) = self.command(budget=budget)
 
         # silent-defaults: allow-contract -- Omitted additions preserve the declared client scenario; supplied entries overlay only their selected inputs; proof=tests/repository/test_inference_native.py::CapturedNativeTests.test_cli_signal_dispositions_are_native
-        result = subprocess.run(
+        completed_process = subprocess.run(
             command,
             env=environment | ({} if additions is None else additions),
             text=True,
@@ -567,16 +567,16 @@ class CapturedNativeTests(unittest.TestCase):
             check=False,
         )
 
-        self.retain_cleanup(result.stderr)
+        self.retain_cleanup(completed_process.stderr)
 
-        return result
+        return completed_process
 
     def retain_cleanup(self, stderr):
         for name in re.findall(r"/tmp/nmrnet-inference-native\.[A-Za-z0-9]+", stderr):
             self.addCleanup(subprocess.run, ["/bin/rm", "-rf", "--", name], check=True)
 
     def assert_retired(self, identifier):
-        process = Path("/proc", str(identifier))
+        process = pathlib.Path("/proc", str(identifier))
         deadline = time.monotonic() + 2
 
         while process.exists() and time.monotonic() < deadline:
@@ -611,11 +611,11 @@ class CapturedNativeTests(unittest.TestCase):
 
     def run_fact(self, *, budget, additions=None):
         (command, environment) = self.fact_command(budget=budget, additions=additions)
-        result = subprocess.run(command, env=environment, text=True, capture_output=True, timeout=NATIVE_FIXTURE_WATCHDOG_SECONDS, check=False)
+        completed_process = subprocess.run(command, env=environment, text=True, capture_output=True, timeout=NATIVE_FIXTURE_WATCHDOG_SECONDS, check=False)
 
-        self.retain_cleanup(result.stderr)
+        self.retain_cleanup(completed_process.stderr)
 
-        return (result, (self.root / "retired").read_text().strip())
+        return (completed_process, (self.root / "retired").read_text().strip())
 
     def outcome_command(self, result, *, next_success):
         (command, environment) = self.command(budget="untimed")
@@ -647,7 +647,7 @@ class CapturedNativeTests(unittest.TestCase):
                 with self.subTest(mode=mode, status=status):
                     (command, environment) = self.outcome_command(mode, next_success=False)
 
-                    result = subprocess.run(
+                    completed_process = subprocess.run(
                         command,
                         env=environment | {"NATIVE_STATUS": str(status)},
                         capture_output=True,
@@ -656,19 +656,19 @@ class CapturedNativeTests(unittest.TestCase):
                         check=False,
                     )
 
-                    self.retain_cleanup(result.stderr)
-                    self.assertEqual(status, result.returncode, msg=result.stderr)
+                    self.retain_cleanup(completed_process.stderr)
+                    self.assertEqual(status, completed_process.returncode, msg=completed_process.stderr)
                     self.assertEqual([f"{status} 0 true"], (self.root / "outcome").read_text().splitlines())
 
                     if mode == "discard":
-                        self.assertIn(f"native client exited with status {status}", result.stderr)
+                        self.assertIn(f"native client exited with status {status}", completed_process.stderr)
 
                     self.assert_client_retired()
 
     def await_term_handler(self):
         self.await_file(self.observation)
         observed = json.loads(self.observation.read_text())
-        status = Path("/proc", str(observed["pid"]), "status")
+        status = pathlib.Path("/proc", str(observed["pid"]), "status")
         deadline = time.monotonic() + 3
 
         while time.monotonic() < deadline:
@@ -683,14 +683,14 @@ class CapturedNativeTests(unittest.TestCase):
 
     # silent-defaults: allow-contract -- Observe the actual one-second untimed grace within a three-second fixture window; container-grace cases supply their own bounds; proof=tests/repository/test_inference_native.py::CapturedNativeTests.test_second_signal_during_untimed_grace_updates_final_cancellation
     def await_grace_sleep(self, process, *, seconds=1, wait_seconds=3):
-        children = Path("/proc", str(process.pid), "task", str(process.pid), "children")
+        children = pathlib.Path("/proc", str(process.pid), "task", str(process.pid), "children")
         deadline = time.monotonic() + wait_seconds
 
         while time.monotonic() < deadline:
             self.assertIsNone(process.poll(), msg="The owner exited before its grace phase was observed.")
 
             for identifier in children.read_text().split():
-                child = Path("/proc", identifier)
+                child = pathlib.Path("/proc", identifier)
 
                 try:
                     arguments = (child / "cmdline").read_bytes().split(b"\0")
@@ -714,7 +714,7 @@ class CapturedNativeTests(unittest.TestCase):
                 marker.unlink(missing_ok=True)
                 (command, environment) = self.outcome_command(mode, next_success=False)
 
-                process = subprocess.Popen(
+                child_process = subprocess.Popen(
                     command,
                     env=environment | {"NATIVE_BEHAVIOR": "resistant"},
                     stdout=subprocess.PIPE,
@@ -723,13 +723,13 @@ class CapturedNativeTests(unittest.TestCase):
                     start_new_session=True,
                 )
 
-                self.addCleanup(self.retire_probe, process)
+                self.addCleanup(self.retire_probe, child_process)
                 self.await_term_handler()
-                process.send_signal(signal.SIGTERM)
-                (stdout, stderr) = process.communicate(timeout=4)
+                child_process.send_signal(signal.SIGTERM)
+                (stdout, stderr) = child_process.communicate(timeout=4)
 
                 self.retain_cleanup(stderr)
-                self.assertEqual(143, process.returncode, msg=stderr)
+                self.assertEqual(143, child_process.returncode, msg=stderr)
                 self.assertEqual("", stdout)
                 self.assertEqual("TERM\n", marker.read_text())
                 self.assertEqual(["143 143 true"], (self.root / "outcome").read_text().splitlines())
@@ -741,7 +741,7 @@ class CapturedNativeTests(unittest.TestCase):
         self.assertEqual("untimed", command[5])
         command[5] = "20"
 
-        process = subprocess.Popen(
+        child_process = subprocess.Popen(
             command,
             env=environment | {"NATIVE_BEHAVIOR": "resistant"},
             stdout=subprocess.PIPE,
@@ -750,13 +750,13 @@ class CapturedNativeTests(unittest.TestCase):
             start_new_session=True,
         )
 
-        self.addCleanup(self.retire_probe, process)
+        self.addCleanup(self.retire_probe, child_process)
         self.await_term_handler()
-        process.send_signal(signal.SIGTERM)
-        (stdout, stderr) = process.communicate(timeout=4)
+        child_process.send_signal(signal.SIGTERM)
+        (stdout, stderr) = child_process.communicate(timeout=4)
 
         self.retain_cleanup(stderr)
-        self.assertEqual(143, process.returncode, msg=stderr)
+        self.assertEqual(143, child_process.returncode, msg=stderr)
         self.assertEqual("", stdout)
         self.assertFalse((self.root / "term-observed").exists())
         self.assertNotIn("deadline elapsed", stderr)
@@ -766,7 +766,7 @@ class CapturedNativeTests(unittest.TestCase):
     def test_second_signal_during_untimed_grace_updates_final_cancellation(self):
         (command, environment) = self.outcome_command("stdio", next_success=False)
 
-        process = subprocess.Popen(
+        child_process = subprocess.Popen(
             command,
             env=environment | {"NATIVE_BEHAVIOR": "resistant"},
             stdout=subprocess.PIPE,
@@ -775,19 +775,19 @@ class CapturedNativeTests(unittest.TestCase):
             start_new_session=True,
         )
 
-        self.addCleanup(self.retire_probe, process)
+        self.addCleanup(self.retire_probe, child_process)
         self.await_term_handler()
-        process.send_signal(signal.SIGTERM)
+        child_process.send_signal(signal.SIGTERM)
         self.await_file(self.root / "term-observed")
-        grace = self.await_grace_sleep(process)
+        grace = self.await_grace_sleep(child_process)
         anchor = json.loads(self.control.read_text())["anchor"]
 
-        self.assertTrue(Path("/proc", str(anchor)).exists())
-        process.send_signal(signal.SIGINT)
-        (stdout, stderr) = process.communicate(timeout=4)
+        self.assertTrue(pathlib.Path("/proc", str(anchor)).exists())
+        child_process.send_signal(signal.SIGINT)
+        (stdout, stderr) = child_process.communicate(timeout=4)
 
         self.retain_cleanup(stderr)
-        self.assertEqual(130, process.returncode, msg=stderr)
+        self.assertEqual(130, child_process.returncode, msg=stderr)
         self.assertEqual("", stdout)
         self.assertEqual(["130 130 true"], (self.root / "outcome").read_text().splitlines())
         self.assertEqual("TERM\n", (self.root / "term-observed").read_text())
@@ -802,7 +802,7 @@ class CapturedNativeTests(unittest.TestCase):
                     self.observation.unlink(missing_ok=True)
                     (command, environment) = self.outcome_command(mode, next_success=True)
 
-                    process = subprocess.Popen(
+                    child_process = subprocess.Popen(
                         command,
                         env=environment | {"NATIVE_BEHAVIOR": "resistant", "PATH": os.environ["PATH"]},
                         stdout=subprocess.PIPE,
@@ -811,15 +811,15 @@ class CapturedNativeTests(unittest.TestCase):
                         start_new_session=True,
                     )
 
-                    self.addCleanup(self.retire_probe, process)
+                    self.addCleanup(self.retire_probe, child_process)
                     self.await_file(self.observation)
-                    process.send_signal(signum)
-                    (_, stderr) = process.communicate(timeout=5)
+                    child_process.send_signal(signum)
+                    (_, stderr) = child_process.communicate(timeout=5)
 
                     self.retain_cleanup(stderr)
                     status = 128 + signum
 
-                    self.assertEqual(status, process.returncode, msg=stderr)
+                    self.assertEqual(status, child_process.returncode, msg=stderr)
                     self.assertEqual([f"{status} {status} true", "0 0 true"], (self.root / "outcome").read_text().splitlines())
                     self.assert_client_retired()
 
@@ -838,7 +838,7 @@ class CapturedNativeTests(unittest.TestCase):
                     # silent-defaults: allow-contract -- Scratch creation failure needs no publication fault; the post-creation case fails ready publication before native dispatch; proof=tests/repository/test_inference_native.py::CapturedNativeTests.test_early_known_and_unknown_failures_reset_outcome_without_dispatch
                     additions = {} if early else {"NATIVE_PUBLICATION_FAILURE": "ready"}
 
-                    result = subprocess.run(
+                    completed_process = subprocess.run(
                         command,
                         env=environment | additions,
                         capture_output=True,
@@ -847,8 +847,8 @@ class CapturedNativeTests(unittest.TestCase):
                         check=False
                     )
 
-                    self.retain_cleanup(result.stderr)
-                    self.assertEqual(status, result.returncode, msg=result.stderr)
+                    self.retain_cleanup(completed_process.stderr)
+                    self.assertEqual(status, completed_process.returncode, msg=completed_process.stderr)
                     self.assertEqual([f"{status} 0 {fact}"], (self.root / "outcome").read_text().splitlines())
                     self.assertFalse(self.observation.exists())
 
@@ -869,41 +869,41 @@ class CapturedNativeTests(unittest.TestCase):
                     self.helper.write_text(source.replace(boundary, f'    kill -{int(signum)} "$BASHPID"\n' + boundary, 1))
 
                     (command, environment) = self.outcome_command(mode, next_success=False)
-                    result = subprocess.run(command, env=environment | {"PATH": os.environ["PATH"]}, capture_output=True, text=True, timeout=5, check=False)
+                    completed_process = subprocess.run(command, env=environment | {"PATH": os.environ["PATH"]}, capture_output=True, text=True, timeout=5, check=False)
 
-                    self.retain_cleanup(result.stderr)
+                    self.retain_cleanup(completed_process.stderr)
                     status = 128 + signum
 
-                    self.assertEqual(status, result.returncode, msg=result.stderr)
+                    self.assertEqual(status, completed_process.returncode, msg=completed_process.stderr)
                     self.assertEqual([f"{status} {status} true"], (self.root / "outcome").read_text().splitlines())
                     self.assert_client_retired()
 
     def test_untimed_completion_preserves_status_and_has_no_short_operation_deadline(self):
-        (result, fact) = self.run_fact(budget="0.2", additions={"NATIVE_BEHAVIOR": "slow-success"})
+        (completed_process, fact) = self.run_fact(budget="0.2", additions={"NATIVE_BEHAVIOR": "slow-success"})
 
-        self.assertEqual(124, result.returncode, msg=result.stderr)
+        self.assertEqual(124, completed_process.returncode, msg=completed_process.stderr)
         self.assertEqual("true", fact)
 
         for status in (0, 7, 137):
             with self.subTest(status=status):
-                (result, fact) = self.run_fact(
+                (completed_process, fact) = self.run_fact(
                     budget="untimed",
                     additions={"NATIVE_BEHAVIOR": "slow-success", "NATIVE_STATUS": str(status)}
                 )
 
-                self.assertEqual(status, result.returncode, msg=result.stderr)
+                self.assertEqual(status, completed_process.returncode, msg=completed_process.stderr)
                 self.assertEqual("true", fact)
-                self.assertNotIn("deadline elapsed", result.stderr)
+                self.assertNotIn("deadline elapsed", completed_process.stderr)
                 self.assert_client_retired()
 
     def test_untimed_output_eof_and_held_descendant_retire_before_fact_is_true(self):
         for behavior in ("closed-output", "held-descendant"):
             with self.subTest(behavior=behavior):
-                (result, fact) = self.run_fact(budget="untimed", additions={"NATIVE_BEHAVIOR": behavior, "NATIVE_STATUS": "7"})
+                (completed_process, fact) = self.run_fact(budget="untimed", additions={"NATIVE_BEHAVIOR": behavior, "NATIVE_STATUS": "7"})
 
-                self.assertEqual(7, result.returncode, msg=result.stderr)
+                self.assertEqual(7, completed_process.returncode, msg=completed_process.stderr)
                 self.assertEqual("true", fact)
-                self.assertEqual("", result.stdout)
+                self.assertEqual("", completed_process.stdout)
                 self.assert_client_retired()
 
     def test_untimed_cancellation_preserves_signals_and_confirms_retirement(self):
@@ -912,7 +912,7 @@ class CapturedNativeTests(unittest.TestCase):
                 self.observation.unlink(missing_ok=True)
                 (command, environment) = self.fact_command(budget="untimed", additions={"NATIVE_BEHAVIOR": "resistant"})
 
-                process = subprocess.Popen(
+                child_process = subprocess.Popen(
                     command,
                     env=environment,
                     text=True,
@@ -921,13 +921,13 @@ class CapturedNativeTests(unittest.TestCase):
                     start_new_session=True
                 )
 
-                self.addCleanup(self.retire_probe, process)
+                self.addCleanup(self.retire_probe, child_process)
                 self.await_file(self.observation)
-                process.send_signal(signum)
-                (stdout, stderr) = process.communicate(timeout=4)
+                child_process.send_signal(signum)
+                (stdout, stderr) = child_process.communicate(timeout=4)
 
                 self.retain_cleanup(stderr)
-                self.assertEqual(128 + signum, process.returncode, msg=stderr)
+                self.assertEqual(128 + signum, child_process.returncode, msg=stderr)
                 self.assertEqual("true\n", (self.root / "retired").read_text())
                 self.assertEqual("", stdout)
                 self.assert_client_retired()
@@ -945,9 +945,9 @@ class CapturedNativeTests(unittest.TestCase):
         receipt = self.root / "birth-fact"
 
         self.helper.write_text(source.replace(capture, "    sleep 0.25\n" + capture, 1))
-        (result, fact) = self.run_fact(budget="untimed", additions={"NATIVE_BIRTH_FACT": str(receipt)})
+        (completed_process, fact) = self.run_fact(budget="untimed", additions={"NATIVE_BIRTH_FACT": str(receipt)})
 
-        self.assertEqual(0, result.returncode, msg=result.stderr)
+        self.assertEqual(0, completed_process.returncode, msg=completed_process.stderr)
         (sampled, child) = receipt.read_text().splitlines()
 
         self.assertEqual("false", sampled)
@@ -976,7 +976,7 @@ class CapturedNativeTests(unittest.TestCase):
             'printf forbidden > "$NATIVE_SUBSEQUENT"; inference_native forbidden 5 discard true'
         )
 
-        process = subprocess.Popen(
+        child_process = subprocess.Popen(
             command,
             env=environment
             | {
@@ -990,7 +990,7 @@ class CapturedNativeTests(unittest.TestCase):
             start_new_session=True,
         )
 
-        self.addCleanup(self.retire_probe, process)
+        self.addCleanup(self.retire_probe, child_process)
         self.await_file(self.observation)
         observed = json.loads(self.observation.read_text())
         drain = int(drain_receipt.read_text())
@@ -1000,16 +1000,16 @@ class CapturedNativeTests(unittest.TestCase):
         os.kill(observed["parent"], signal.SIGKILL)
 
         try:
-            (stdout, stderr) = process.communicate(timeout=4)
+            (stdout, stderr) = child_process.communicate(timeout=4)
 
             self.retain_cleanup(stderr)
-            self.assertEqual(1, process.returncode, msg=stderr)
+            self.assertEqual(1, child_process.returncode, msg=stderr)
             self.assertEqual("", stdout)
             self.assertEqual("false\n", (self.root / "retired").read_text())
             self.assertTrue(sentinel.exists())
             self.assertFalse((self.root / "next").exists())
             self.assertIn("Cannot confirm native client retirement", stderr)
-            self.assertTrue(Path("/proc", str(observed["descendant"])).exists())
+            self.assertTrue(pathlib.Path("/proc", str(observed["descendant"])).exists())
         finally:
             for identifier in (observed["pid"], observed["descendant"], drain):
                 self.kill_recorded_fixture(identifier)
@@ -1053,7 +1053,7 @@ class CapturedNativeTests(unittest.TestCase):
                     'if inference_native probe "$2" discard "$3" "$4" native-client; then status=0; else status=$?; fi; exit "$status"'
                 )
 
-                result = subprocess.run(
+                completed_process = subprocess.run(
                     command,
                     env=environment | {"NATIVE_SENTINEL": str(sentinel)},
                     text=True,
@@ -1062,8 +1062,8 @@ class CapturedNativeTests(unittest.TestCase):
                     check=False,
                 )
 
-                self.retain_cleanup(result.stderr)
-                self.assertEqual(expected, result.returncode, msg=result.stderr)
+                self.retain_cleanup(completed_process.stderr)
+                self.assertEqual(expected, completed_process.returncode, msg=completed_process.stderr)
                 self.assertEqual("true\n", (self.root / "retired").read_text())
                 self.assertFalse(sentinel.exists())
                 self.assert_client_retired()
@@ -1104,7 +1104,7 @@ class CapturedNativeTests(unittest.TestCase):
                 anchor = self.root / f"anchor-{signum.value}"
                 (command, environment) = self.fact_command(budget="untimed", additions={"NATIVE_BEHAVIOR": "held-descendant"})
 
-                process = subprocess.Popen(
+                child_process = subprocess.Popen(
                     command,
                     env=environment | {"NATIVE_JOIN": str(receipt), "NATIVE_ANCHOR": str(anchor)},
                     text=True,
@@ -1120,7 +1120,7 @@ class CapturedNativeTests(unittest.TestCase):
                         time.sleep(0.01)
 
                     self.assertTrue(receipt.exists(), msg=f"fixture did not publish {receipt.name}")
-                    process.send_signal(signum)
+                    child_process.send_signal(signum)
                     deadline = time.monotonic() + 2
 
                     while len(receipt.read_text().splitlines()) < 2 and time.monotonic() < deadline:
@@ -1133,13 +1133,13 @@ class CapturedNativeTests(unittest.TestCase):
                             os.killpg(int(anchor.read_text()), signal.SIGKILL)
 
                     try:
-                        (_, stderr) = process.communicate(timeout=NATIVE_FIXTURE_WATCHDOG_SECONDS)
+                        (_, stderr) = child_process.communicate(timeout=NATIVE_FIXTURE_WATCHDOG_SECONDS)
                     finally:
-                        self.retire_probe(process)
+                        self.retire_probe(child_process)
 
                     self.retain_cleanup(stderr)
 
-                self.assertEqual(128 + signum, process.returncode, msg=stderr)
+                self.assertEqual(128 + signum, child_process.returncode, msg=stderr)
                 self.assertEqual("true\n", (self.root / "retired").read_text())
                 self.assert_client_retired()
 
@@ -1153,12 +1153,12 @@ class CapturedNativeTests(unittest.TestCase):
 
         self.helper.write_text(source.replace(join, delayed, 1))
 
-        (result, fact) = self.run_fact(
+        (completed_process, fact) = self.run_fact(
             budget="untimed",
             additions={"NATIVE_JOIN_FACT": str(receipt), "NATIVE_BEHAVIOR": "held-descendant"}
         )
 
-        self.assertEqual(0, result.returncode, msg=result.stderr)
+        self.assertEqual(0, completed_process.returncode, msg=completed_process.stderr)
         self.assertEqual("false\n", receipt.read_text())
         self.assertEqual("true", fact)
         self.assert_client_retired()
@@ -1169,18 +1169,18 @@ class CapturedNativeTests(unittest.TestCase):
 
         self.assertEqual(1, source.count(creation))
         self.helper.write_text(source.replace(creation, "scratch=$(exit 28)", 1))
-        (result, fact) = self.run_fact(budget="untimed")
+        (completed_process, fact) = self.run_fact(budget="untimed")
 
-        self.assertEqual(28, result.returncode, msg=result.stderr)
+        self.assertEqual(28, completed_process.returncode, msg=completed_process.stderr)
         self.assertEqual("true", fact)
         self.assertFalse(self.observation.exists())
         self.helper.write_text(source)
 
         for (status, expected) in (("0", 23), ("7", 7)):
             with self.subTest(status=status):
-                (result, fact) = self.run_fact(budget="untimed", additions={"NATIVE_STATUS": status, "NATIVE_CLEANUP_FAILURE": "1"})
+                (completed_process, fact) = self.run_fact(budget="untimed", additions={"NATIVE_STATUS": status, "NATIVE_CLEANUP_FAILURE": "1"})
 
-                self.assertEqual(expected, result.returncode, msg=result.stderr)
+                self.assertEqual(expected, completed_process.returncode, msg=completed_process.stderr)
                 self.assertEqual("true", fact)
                 self.assert_client_retired()
 
@@ -1216,7 +1216,7 @@ class CapturedNativeTests(unittest.TestCase):
             )
         )
 
-        result = subprocess.run(
+        completed_process = subprocess.run(
             command,
             env=environment | {"NATIVE_SENTINEL": str(sentinel), "NATIVE_SUBSEQUENT": str(self.root / "subsequent")},
             text=True,
@@ -1225,8 +1225,8 @@ class CapturedNativeTests(unittest.TestCase):
             check=False,
         )
 
-        self.retain_cleanup(result.stderr)
-        self.assertEqual(1, result.returncode, msg=result.stderr)
+        self.retain_cleanup(completed_process.stderr)
+        self.assertEqual(1, completed_process.returncode, msg=completed_process.stderr)
         self.assertTrue(sentinel.exists())
         self.assertFalse((self.root / "subsequent").exists())
         observed = json.loads(self.control.read_text())
@@ -1242,18 +1242,18 @@ class CapturedNativeTests(unittest.TestCase):
             ({"NATIVE_DRAIN_FAILURE": "1"}, 33),
         ):
             with self.subTest(additions=additions):
-                (result, fact) = self.run_fact(budget="untimed", additions=additions | {"NATIVE_BEHAVIOR": "held-descendant"})
+                (completed_process, fact) = self.run_fact(budget="untimed", additions=additions | {"NATIVE_BEHAVIOR": "held-descendant"})
 
-                self.assertEqual(expected, result.returncode, msg=result.stderr)
+                self.assertEqual(expected, completed_process.returncode, msg=completed_process.stderr)
                 self.assertEqual("true", fact)
                 self.assert_client_retired()
 
     def test_real_native_137_is_distinct_from_confirmed_deadline(self):
-        result = self.run_native(additions={"NATIVE_STATUS": "137"})
+        completed_process = self.run_native(additions={"NATIVE_STATUS": "137"})
 
-        self.assertEqual(137, result.returncode, msg=result.stderr)
-        self.assertIn("native client exited with status 137", result.stderr)
-        self.assertNotIn("deadline elapsed", result.stderr)
+        self.assertEqual(137, completed_process.returncode, msg=completed_process.stderr)
+        self.assertIn("native client exited with status 137", completed_process.stderr)
+        self.assertNotIn("deadline elapsed", completed_process.stderr)
         self.assert_client_retired()
 
     def run_readied_expiry(self, *, behavior, additions=None):
@@ -1264,7 +1264,7 @@ class CapturedNativeTests(unittest.TestCase):
         if additions is not None:
             scenario_environment.update(additions)
 
-        process = subprocess.Popen(
+        child_process = subprocess.Popen(
             command,
             env=scenario_environment,
             stdout=subprocess.PIPE,
@@ -1273,15 +1273,15 @@ class CapturedNativeTests(unittest.TestCase):
             start_new_session=True,
         )
 
-        self.addCleanup(self.retire_probe, process)
+        self.addCleanup(self.retire_probe, child_process)
         self.await_term_handler()
-        self.assertIsNone(process.poll(), msg="The native client expired before its handler was ready.")
-        (stdout, stderr) = process.communicate(timeout=12)
+        self.assertIsNone(child_process.poll(), msg="The native client expired before its handler was ready.")
+        (stdout, stderr) = child_process.communicate(timeout=12)
 
         self.retain_cleanup(stderr)
         self.assertEqual("", stdout)
 
-        return (process.returncode, stderr)
+        return (child_process.returncode, stderr)
 
     def test_resistant_expiry_forwards_term_and_retires_the_full_group(self):
         (status, diagnostic) = self.run_readied_expiry(behavior="resistant")
@@ -1302,9 +1302,9 @@ class CapturedNativeTests(unittest.TestCase):
     def test_cli_signal_dispositions_are_native(self):
         for budget in ("20", "untimed"):
             with self.subTest(budget=budget):
-                result = self.run_native(budget=budget)
+                completed_process = self.run_native(budget=budget)
 
-                self.assertEqual(0, result.returncode, msg=result.stderr)
+                self.assertEqual(0, completed_process.returncode, msg=completed_process.stderr)
                 observed = json.loads(self.observation.read_text())
 
                 self.assertFalse(observed["sigint_ignored"])
@@ -1313,9 +1313,9 @@ class CapturedNativeTests(unittest.TestCase):
 
     def test_output_eof_is_not_completion(self):
         started = time.monotonic()
-        result = self.run_native(additions={"NATIVE_BEHAVIOR": "closed-output", "NATIVE_STATUS": "7"})
+        completed_process = self.run_native(additions={"NATIVE_BEHAVIOR": "closed-output", "NATIVE_STATUS": "7"})
 
-        self.assertEqual(7, result.returncode, msg=result.stderr)
+        self.assertEqual(7, completed_process.returncode, msg=completed_process.stderr)
         self.assertGreaterEqual(time.monotonic() - started, 0.2)
         self.assert_client_retired()
 
@@ -1394,7 +1394,7 @@ class CapturedNativeTests(unittest.TestCase):
                 birth.unlink(missing_ok=True)
                 (command, environment) = self.command()
 
-                process = subprocess.Popen(
+                child_process = subprocess.Popen(
                     command,
                     env=environment | {"NATIVE_BIRTH": str(birth)},
                     text=True,
@@ -1403,15 +1403,15 @@ class CapturedNativeTests(unittest.TestCase):
                     start_new_session=True,
                 )
 
-                self.addCleanup(self.retire_probe, process)
+                self.addCleanup(self.retire_probe, child_process)
                 self.await_file(birth)
                 (anchor, _) = birth.read_text().splitlines()
 
-                process.send_signal(signum)
-                (_, stderr) = process.communicate(timeout=4)
+                child_process.send_signal(signum)
+                (_, stderr) = child_process.communicate(timeout=4)
 
                 self.retain_cleanup(stderr)
-                self.assertEqual(128 + signum, process.returncode, msg=stderr)
+                self.assertEqual(128 + signum, child_process.returncode, msg=stderr)
                 self.assert_retired(int(anchor))
                 self.assertFalse(self.observation.exists(), msg="cancelled birth dispatched a native client")
 
@@ -1426,10 +1426,10 @@ class CapturedNativeTests(unittest.TestCase):
 
         self.helper.write_text(source)
         receipt = self.root / "drain"
-        result = self.run_native(additions={"NATIVE_DRAIN": str(receipt)})
+        completed_process = self.run_native(additions={"NATIVE_DRAIN": str(receipt)})
 
-        self.assertEqual(1, result.returncode, msg=result.stderr)
-        self.assertIn("native anchor did not publish", result.stderr)
+        self.assertEqual(1, completed_process.returncode, msg=completed_process.stderr)
+        self.assertIn("native anchor did not publish", completed_process.stderr)
         self.assert_retired(int(receipt.read_text()))
         self.assertFalse(self.observation.exists())
 
@@ -1442,9 +1442,9 @@ class CapturedNativeTests(unittest.TestCase):
             ("release-symlink", 1),
         ):
             with self.subTest(phase=phase):
-                result = self.run_native(additions={"NATIVE_PUBLICATION_FAILURE": phase})
+                completed_process = self.run_native(additions={"NATIVE_PUBLICATION_FAILURE": phase})
 
-                self.assertEqual(expected, result.returncode, msg=result.stderr)
+                self.assertEqual(expected, completed_process.returncode, msg=completed_process.stderr)
                 self.assertFalse(self.observation.exists())
                 self.assert_retired(json.loads(self.control.read_text())["anchor"])
 
@@ -1458,14 +1458,14 @@ class CapturedNativeTests(unittest.TestCase):
         )
 
         self.helper.write_text(source)
-        result = self.run_native(additions={"NATIVE_CORRUPT_READY": "1", "NATIVE_DRAIN": str(receipt)})
+        completed_process = self.run_native(additions={"NATIVE_CORRUPT_READY": "1", "NATIVE_DRAIN": str(receipt)})
 
-        self.assertEqual(1, result.returncode, msg=result.stderr)
-        self.assertIn("Cannot confirm native client retirement", result.stderr)
+        self.assertEqual(1, completed_process.returncode, msg=completed_process.stderr)
+        self.assertIn("Cannot confirm native client retirement", completed_process.stderr)
         self.assertFalse(self.observation.exists())
         observed = json.loads(self.control.read_text())
 
-        self.assertTrue(Path(observed["directory"]).is_dir())
+        self.assertTrue(pathlib.Path(observed["directory"]).is_dir())
 
         # This external probe owns the finite injected anchor and retires it;
         # production correctly made no group effect from its corrupted receipt.
@@ -1489,7 +1489,7 @@ class CapturedNativeTests(unittest.TestCase):
                     # fixture used for a failed final status rename.
                     self.helper.write_text(source.replace(terminal, '        if { mv -- "$receipt.ready" "$receipt.printf" \\\n', 1))
 
-                result = self.run_native(
+                completed_process = self.run_native(
                     additions={
                         "NATIVE_PUBLICATION_FAILURE": phase,
                         "NATIVE_BEHAVIOR": "held-descendant",
@@ -1499,10 +1499,10 @@ class CapturedNativeTests(unittest.TestCase):
 
                 returned_at = time.monotonic()
 
-                self.assertEqual(1, result.returncode, msg=result.stderr)
+                self.assertEqual(1, completed_process.returncode, msg=completed_process.stderr)
                 self.assertTrue(failed_at.is_file(), msg="Publication fault was not observed")
                 self.assertLess(returned_at - float(failed_at.read_text()), 3)
-                self.assertIn("publication failed; the client status is unobserved", result.stderr)
+                self.assertIn("publication failed; the client status is unobserved", completed_process.stderr)
                 self.assert_client_retired()
 
     def test_status_read_and_byte_mutations_retire_before_cleanup(self):
@@ -1524,14 +1524,14 @@ class CapturedNativeTests(unittest.TestCase):
             ("text", 2),
         ):
             with self.subTest(mutation=mutation):
-                result = self.run_native(additions={"NATIVE_STATUS_MUTATION": mutation, "NATIVE_BEHAVIOR": "held-descendant"})
+                completed_process = self.run_native(additions={"NATIVE_STATUS_MUTATION": mutation, "NATIVE_BEHAVIOR": "held-descendant"})
 
-                self.assertEqual(expected, result.returncode, msg=result.stderr)
+                self.assertEqual(expected, completed_process.returncode, msg=completed_process.stderr)
 
                 if mutation.startswith("deadline-"):
-                    self.assertIn("native deadline receipt", result.stderr)
+                    self.assertIn("native deadline receipt", completed_process.stderr)
                 else:
-                    self.assertIn("native completion receipt", result.stderr)
+                    self.assertIn("native completion receipt", completed_process.stderr)
 
                 self.assert_client_retired()
 
@@ -1550,13 +1550,13 @@ class CapturedNativeTests(unittest.TestCase):
     def test_drain_failure_preserves_native_failure_and_rejects_success(self):
         for (native_status, expected) in (("0", 33), ("7", 7)):
             with self.subTest(status=native_status):
-                result = self.run_native(additions={"NATIVE_STATUS": native_status, "NATIVE_DRAIN_FAILURE": "1"})
+                completed_process = self.run_native(additions={"NATIVE_STATUS": native_status, "NATIVE_DRAIN_FAILURE": "1"})
 
-                self.assertEqual(expected, result.returncode, msg=result.stderr)
+                self.assertEqual(expected, completed_process.returncode, msg=completed_process.stderr)
                 self.assert_client_retired()
 
     def test_cancellation_wins_over_terminal_publication_failure(self):
-        result = self.run_native(
+        completed_process = self.run_native(
             additions={
                 "NATIVE_PUBLICATION_FAILURE": "status",
                 "NATIVE_CANCEL_PUBLICATION": "1",
@@ -1564,8 +1564,8 @@ class CapturedNativeTests(unittest.TestCase):
             }
         )
 
-        self.assertEqual(143, result.returncode, msg=result.stderr)
-        self.assertIn("interrupted", result.stderr)
+        self.assertEqual(143, completed_process.returncode, msg=completed_process.stderr)
+        self.assertIn("interrupted", completed_process.stderr)
         self.assert_client_retired()
 
     def test_cleanup_preserves_primary_and_traps_are_restored(self):
@@ -1582,7 +1582,7 @@ class CapturedNativeTests(unittest.TestCase):
                     else:
                         self.assertIn("Cannot remove native client", result.stderr)
 
-                    scratch = Path(json.loads(self.control.read_text())["directory"])
+                    scratch = pathlib.Path(json.loads(self.control.read_text())["directory"])
 
                     self.assertEqual(effect == "1" or native_status == "7", scratch.exists())
                     self.assert_client_retired()
@@ -1605,7 +1605,7 @@ class CapturedNativeTests(unittest.TestCase):
             for native_status in ("0", "7"):
                 for signum in (signal.SIGHUP, signal.SIGINT, signal.SIGTERM):
                     with self.subTest(effect=effect, status=native_status, signal=signum):
-                        (result, fact) = self.run_fact(
+                        (completed_process, fact) = self.run_fact(
                             budget="untimed",
                             additions={
                                 "NATIVE_STATUS": native_status,
@@ -1614,15 +1614,15 @@ class CapturedNativeTests(unittest.TestCase):
                             },
                         )
 
-                        self.assertEqual(128 + signum, result.returncode, msg=result.stderr)
+                        self.assertEqual(128 + signum, completed_process.returncode, msg=completed_process.stderr)
                         self.assertEqual("true", fact)
-                        scratch = Path(json.loads(self.control.read_text())["directory"])
+                        scratch = pathlib.Path(json.loads(self.control.read_text())["directory"])
 
                         self.assertEqual(effect == "1" or native_status == "7", scratch.exists())
 
                         if native_status == "0":
-                            self.assertIn("evidence directory removal; attempted path", result.stderr)
-                            self.assertNotIn("retained", result.stderr)
+                            self.assertIn("evidence directory removal; attempted path", completed_process.stderr)
+                            self.assertNotIn("retained", completed_process.stderr)
 
                         self.assert_client_retired()
 
@@ -1630,7 +1630,7 @@ class CapturedNativeTests(unittest.TestCase):
         diagnostic = self.root / "diagnostic"
         reset = self.root / "reset"
 
-        result = subprocess.run(
+        completed_process = subprocess.run(
             [
                 "/bin/bash",
                 "-euc",
@@ -1642,7 +1642,7 @@ class CapturedNativeTests(unittest.TestCase):
                 "bash",
                 str(self.helper),
                 sys.executable,
-                str(Path(__file__).resolve()),
+                str(pathlib.Path(__file__).resolve()),
             ],
             env=self.environment
             | {
@@ -1659,9 +1659,9 @@ class CapturedNativeTests(unittest.TestCase):
             check=False,
         )
 
-        self.assertEqual(7, result.returncode, msg=result.stderr.decode())
-        self.assertEqual(b"", result.stdout)
-        self.assertEqual(b"", result.stderr)
+        self.assertEqual(7, completed_process.returncode, msg=completed_process.stderr.decode())
+        self.assertEqual(b"", completed_process.stdout)
+        self.assertEqual(b"", completed_process.stderr)
         text = diagnostic.read_text()
 
         self.retain_cleanup(text)
@@ -1670,7 +1670,7 @@ class CapturedNativeTests(unittest.TestCase):
         match = re.search(r"retained at (/tmp/nmrnet-inference-native\.[A-Za-z0-9]+/command\.log)", text)
 
         self.assertIsNotNone(match, msg=text)
-        self.assertEqual(b"stdout\0\r\nstderr\0\r\n", Path(match.group(1)).read_bytes())
+        self.assertEqual(b"stdout\0\r\nstderr\0\r\n", pathlib.Path(match.group(1)).read_bytes())
         self.assertEqual(b"", reset.read_bytes())
         self.assert_client_retired()
 
@@ -1700,21 +1700,21 @@ class StdioNativeTests(unittest.TestCase):
 
     def run_stdio(self, *, budget, additions):
         (command, environment) = self.fact_command(budget=budget, additions=additions)
-        result = subprocess.run(command, env=environment, capture_output=True, timeout=NATIVE_FIXTURE_WATCHDOG_SECONDS, check=False)
+        completed_process = subprocess.run(command, env=environment, capture_output=True, timeout=NATIVE_FIXTURE_WATCHDOG_SECONDS, check=False)
 
-        self.retain_cleanup(result.stderr.decode(errors="replace"))
+        self.retain_cleanup(completed_process.stderr.decode(errors="replace"))
 
-        return (result, (self.root / "retired").read_text().strip())
+        return (completed_process, (self.root / "retired").read_text().strip())
 
     def test_publication_fault_is_owned_at_construction(self):
         with patch.dict(os.environ, {"NATIVE_PUBLICATION_FAILURE": "status"}):
             self.setUp()
 
-        (result, fact) = self.run_stdio(budget="untimed", additions={})
+        (completed_process, fact) = self.run_stdio(budget="untimed", additions={})
 
-        self.assertEqual(0, result.returncode, msg=result.stderr.decode())
-        self.assertEqual(b"", result.stdout)
-        self.assertEqual(b"", result.stderr)
+        self.assertEqual(0, completed_process.returncode, msg=completed_process.stderr.decode())
+        self.assertEqual(b"", completed_process.stdout)
+        self.assertEqual(b"", completed_process.stderr)
         self.assertEqual("true", fact)
         self.assert_client_retired()
 
@@ -1725,7 +1725,7 @@ class StdioNativeTests(unittest.TestCase):
         source.write_bytes(b"unpublished bytes\n")
         before = (source.read_bytes(), source.stat().st_ino)
 
-        result = subprocess.run(
+        completed_process = subprocess.run(
             [str(self.bin / "mv"), "-T", "--", str(source), str(target)],
             env=self.environment,
             capture_output=True,
@@ -1733,14 +1733,14 @@ class StdioNativeTests(unittest.TestCase):
             check=False,
         )
 
-        self.assertEqual(1, result.returncode, msg=result.stderr.decode())
-        self.assertEqual(b"", result.stdout)
-        self.assertIn(b"KeyError: 'NATIVE_PUBLICATION_FAILURE'", result.stderr)
+        self.assertEqual(1, completed_process.returncode, msg=completed_process.stderr.decode())
+        self.assertEqual(b"", completed_process.stdout)
+        self.assertIn(b"KeyError: 'NATIVE_PUBLICATION_FAILURE'", completed_process.stderr)
         self.assertEqual(before, (source.read_bytes(), source.stat().st_ino))
         self.assertFalse(target.exists())
         self.assertFalse(self.control.exists())
 
-        result = subprocess.run(
+        completed_process = subprocess.run(
             [str(self.bin / "head"), "-c", "3", str(source)],
             env=self.environment,
             capture_output=True,
@@ -1748,11 +1748,11 @@ class StdioNativeTests(unittest.TestCase):
             check=False,
         )
 
-        self.assertEqual(0, result.returncode, msg=result.stderr.decode())
-        self.assertEqual(before[0][:3], result.stdout)
-        self.assertEqual(b"", result.stderr)
+        self.assertEqual(0, completed_process.returncode, msg=completed_process.stderr.decode())
+        self.assertEqual(before[0][:3], completed_process.stdout)
+        self.assertEqual(b"", completed_process.stderr)
 
-        result = subprocess.run(
+        completed_process = subprocess.run(
             [str(self.bin / "rm"), "-f", "--", str(source)],
             env=self.environment,
             capture_output=True,
@@ -1760,9 +1760,9 @@ class StdioNativeTests(unittest.TestCase):
             check=False,
         )
 
-        self.assertEqual(0, result.returncode, msg=result.stderr.decode())
-        self.assertEqual(b"", result.stdout)
-        self.assertEqual(b"", result.stderr)
+        self.assertEqual(0, completed_process.returncode, msg=completed_process.stderr.decode())
+        self.assertEqual(b"", completed_process.stdout)
+        self.assertEqual(b"", completed_process.stderr)
         self.assertFalse(source.exists())
         self.assertFalse(target.exists())
         self.assertFalse(self.control.exists())
@@ -1771,11 +1771,11 @@ class StdioNativeTests(unittest.TestCase):
         with patch.dict(os.environ, {"NATIVE_STATUS_MUTATION": "text"}):
             self.setUp()
 
-        (result, fact) = self.run_stdio(budget="untimed", additions={})
+        (completed_process, fact) = self.run_stdio(budget="untimed", additions={})
 
-        self.assertEqual(0, result.returncode, msg=result.stderr.decode())
-        self.assertEqual(b"", result.stdout)
-        self.assertEqual(b"", result.stderr)
+        self.assertEqual(0, completed_process.returncode, msg=completed_process.stderr.decode())
+        self.assertEqual(b"", completed_process.stdout)
+        self.assertEqual(b"", completed_process.stderr)
         self.assertEqual("true", fact)
         self.assert_client_retired()
 
@@ -1796,11 +1796,11 @@ class StdioNativeTests(unittest.TestCase):
             [str(self.bin / "head"), "-c", "1", str(read_status)],
         ):
             with self.subTest(command=command[0]):
-                result = subprocess.run(command, env=self.environment, capture_output=True, timeout=5, check=False)
+                completed_process = subprocess.run(command, env=self.environment, capture_output=True, timeout=5, check=False)
 
-                self.assertEqual(1, result.returncode, msg=result.stderr.decode())
-                self.assertEqual(b"", result.stdout)
-                self.assertIn(b"KeyError: 'NATIVE_STATUS_MUTATION'", result.stderr)
+                self.assertEqual(1, completed_process.returncode, msg=completed_process.stderr.decode())
+                self.assertEqual(b"", completed_process.stdout)
+                self.assertIn(b"KeyError: 'NATIVE_STATUS_MUTATION'", completed_process.stderr)
                 self.assertEqual(before, (source.read_bytes(), source.stat().st_ino))
                 self.assertEqual(read_before, (read_status.read_bytes(), read_status.stat().st_ino))
                 self.assertFalse(target.exists())
@@ -1808,7 +1808,7 @@ class StdioNativeTests(unittest.TestCase):
 
         ordinary = self.root / "ordinary"
 
-        result = subprocess.run(
+        completed_process = subprocess.run(
             [str(self.bin / "mv"), "-T", "--", str(source), str(ordinary)],
             env=self.environment,
             capture_output=True,
@@ -1816,13 +1816,13 @@ class StdioNativeTests(unittest.TestCase):
             check=False,
         )
 
-        self.assertEqual(0, result.returncode, msg=result.stderr.decode())
-        self.assertEqual(b"", result.stdout)
-        self.assertEqual(b"", result.stderr)
+        self.assertEqual(0, completed_process.returncode, msg=completed_process.stderr.decode())
+        self.assertEqual(b"", completed_process.stdout)
+        self.assertEqual(b"", completed_process.stderr)
         self.assertFalse(source.exists())
         self.assertEqual(before, (ordinary.read_bytes(), ordinary.stat().st_ino))
 
-        result = subprocess.run(
+        completed_process = subprocess.run(
             [str(self.bin / "head"), "-c", "3", str(ordinary)],
             env=self.environment,
             capture_output=True,
@@ -1830,11 +1830,11 @@ class StdioNativeTests(unittest.TestCase):
             check=False,
         )
 
-        self.assertEqual(0, result.returncode, msg=result.stderr.decode())
-        self.assertEqual(before[0][:3], result.stdout)
-        self.assertEqual(b"", result.stderr)
+        self.assertEqual(0, completed_process.returncode, msg=completed_process.stderr.decode())
+        self.assertEqual(before[0][:3], completed_process.stdout)
+        self.assertEqual(b"", completed_process.stderr)
 
-        result = subprocess.run(
+        completed_process = subprocess.run(
             [str(self.bin / "rm"), "-f", "--", str(ordinary)],
             env=self.environment,
             capture_output=True,
@@ -1842,9 +1842,9 @@ class StdioNativeTests(unittest.TestCase):
             check=False,
         )
 
-        self.assertEqual(0, result.returncode, msg=result.stderr.decode())
-        self.assertEqual(b"", result.stdout)
-        self.assertEqual(b"", result.stderr)
+        self.assertEqual(0, completed_process.returncode, msg=completed_process.stderr.decode())
+        self.assertEqual(b"", completed_process.stdout)
+        self.assertEqual(b"", completed_process.stderr)
         self.assertFalse(ordinary.exists())
         self.assertFalse(target.exists())
         self.assertEqual(read_before, (read_status.read_bytes(), read_status.stat().st_ino))
@@ -1866,7 +1866,7 @@ class StdioNativeTests(unittest.TestCase):
         del self.environment["NATIVE_BEHAVIOR"]
 
         result = subprocess.run(
-            [sys.executable, str(Path(__file__).resolve()), "native-client"],
+            [sys.executable, str(pathlib.Path(__file__).resolve()), "native-client"],
             env=self.environment,
             stdin=subprocess.DEVNULL,
             capture_output=True,
@@ -1888,7 +1888,7 @@ class StdioNativeTests(unittest.TestCase):
     def test_stdout_and_stderr_stream_binary_bytes_while_native_is_alive(self):
         (command, environment) = self.fact_command(budget="untimed", additions={"NATIVE_BEHAVIOR": "stream-live"})
 
-        process = subprocess.Popen(
+        child_process = subprocess.Popen(
             command,
             env=environment,
             stdout=subprocess.PIPE,
@@ -1896,38 +1896,38 @@ class StdioNativeTests(unittest.TestCase):
             start_new_session=True
         )
 
-        self.addCleanup(self.retire_probe, process)
+        self.addCleanup(self.retire_probe, child_process)
 
-        for (pipe, expected) in ((process.stdout, b"stdout\0\r\n"), (process.stderr, b"stderr\0\r\n")):
+        for (pipe, expected) in ((child_process.stdout, b"stdout\0\r\n"), (child_process.stderr, b"stderr\0\r\n")):
             self.assertEqual([pipe], select.select([pipe], [], [], NATIVE_FIXTURE_WATCHDOG_SECONDS)[0])
             self.assertEqual(expected, os.read(pipe.fileno(), len(expected)))
 
-        self.assertIsNone(process.poll())
+        self.assertIsNone(child_process.poll())
         self.assertFalse((self.root / "retired").exists())
         observed = json.loads(self.observation.read_text())
         control = json.loads(self.control.read_text())
-        scratch = Path(control["directory"])
+        scratch = pathlib.Path(control["directory"])
 
         self.assertFalse((scratch / "output").exists())
         self.assertFalse((scratch / "command.log").exists())
         self.assertTrue(observed["stdin_eof"])
-        process.send_signal(signal.SIGTERM)
-        (_, stderr) = process.communicate(timeout=4)
+        child_process.send_signal(signal.SIGTERM)
+        (_, stderr) = child_process.communicate(timeout=4)
 
         self.retain_cleanup(stderr.decode())
-        self.assertEqual(143, process.returncode, msg=stderr.decode())
+        self.assertEqual(143, child_process.returncode, msg=stderr.decode())
         self.assertEqual("true\n", (self.root / "retired").read_text())
         self.assert_client_retired()
 
     def test_stdout_and_stderr_over_eight_mib_are_not_capped(self):
-        (result, fact) = self.run_stdio(budget="untimed", additions={"NATIVE_BEHAVIOR": "stream-large"})
+        (completed_process, fact) = self.run_stdio(budget="untimed", additions={"NATIVE_BEHAVIOR": "stream-large"})
         expected = bytes(range(256)) * 32769
 
-        self.assertEqual(len(expected), len(result.stdout))
-        self.assertEqual(len(expected), len(result.stderr))
-        self.assertEqual(0, result.returncode, msg=result.stderr[:200].decode(errors="replace"))
-        self.assertEqual(expected, result.stdout)
-        self.assertEqual(expected, result.stderr)
+        self.assertEqual(len(expected), len(completed_process.stdout))
+        self.assertEqual(len(expected), len(completed_process.stderr))
+        self.assertEqual(0, completed_process.returncode, msg=completed_process.stderr[:200].decode(errors="replace"))
+        self.assertEqual(expected, completed_process.stdout)
+        self.assertEqual(expected, completed_process.stderr)
         self.assertEqual("true", fact)
         self.assert_client_retired()
 
@@ -1935,16 +1935,16 @@ class StdioNativeTests(unittest.TestCase):
         for budget in ("20", "untimed"):
             for status in (0, 7, 137):
                 with self.subTest(budget=budget, status=status):
-                    (result, fact) = self.run_stdio(
+                    (completed_process, fact) = self.run_stdio(
                         budget=budget,
                         additions={"NATIVE_BEHAVIOR": "stream-finite", "NATIVE_STATUS": str(status)}
                     )
 
-                    self.assertEqual(status, result.returncode, msg=result.stderr.decode())
-                    self.assertEqual(b"stdout\0\r\n", result.stdout)
-                    self.assertEqual(b"stderr\0\r\n", result.stderr)
-                    self.assertNotIn(b"private capped output", result.stderr)
-                    self.assertNotIn(b"command.log", result.stderr)
+                    self.assertEqual(status, completed_process.returncode, msg=completed_process.stderr.decode())
+                    self.assertEqual(b"stdout\0\r\n", completed_process.stdout)
+                    self.assertEqual(b"stderr\0\r\n", completed_process.stderr)
+                    self.assertNotIn(b"private capped output", completed_process.stderr)
+                    self.assertNotIn(b"command.log", completed_process.stderr)
                     self.assertEqual("true", fact)
                     observed = json.loads(self.observation.read_text())
 
@@ -1960,7 +1960,7 @@ class StdioNativeTests(unittest.TestCase):
             additions={"NATIVE_BEHAVIOR": "closed-output", "NATIVE_STATUS": "7"}
         )
 
-        process = subprocess.Popen(
+        child_process = subprocess.Popen(
             command,
             env=environment,
             stdout=subprocess.PIPE,
@@ -1968,24 +1968,24 @@ class StdioNativeTests(unittest.TestCase):
             start_new_session=True
         )
 
-        self.addCleanup(self.retire_probe, process)
+        self.addCleanup(self.retire_probe, child_process)
         self.await_file(self.root / "outputs-closed")
         observed = json.loads(self.observation.read_text())
 
-        self.assertFalse(Path("/proc", str(observed["pid"]), "fd", "1").exists())
-        self.assertFalse(Path("/proc", str(observed["pid"]), "fd", "2").exists())
-        self.assertIsNone(process.poll())
+        self.assertFalse(pathlib.Path("/proc", str(observed["pid"]), "fd", "1").exists())
+        self.assertFalse(pathlib.Path("/proc", str(observed["pid"]), "fd", "2").exists())
+        self.assertIsNone(child_process.poll())
         self.assertFalse((self.root / "retired").exists())
-        (_, stderr) = process.communicate(timeout=4)
+        (_, stderr) = child_process.communicate(timeout=4)
 
-        self.assertEqual(7, process.returncode, msg=stderr.decode())
+        self.assertEqual(7, child_process.returncode, msg=stderr.decode())
         self.assertEqual("true\n", (self.root / "retired").read_text())
         self.assert_client_retired()
 
     def test_held_public_pipe_descendant_is_retired_before_true_fact(self):
-        (result, fact) = self.run_stdio(budget="untimed", additions={"NATIVE_BEHAVIOR": "held-descendant", "NATIVE_STATUS": "7"})
+        (completed_process, fact) = self.run_stdio(budget="untimed", additions={"NATIVE_BEHAVIOR": "held-descendant", "NATIVE_STATUS": "7"})
 
-        self.assertEqual(7, result.returncode, msg=result.stderr.decode())
+        self.assertEqual(7, completed_process.returncode, msg=completed_process.stderr.decode())
         self.assertEqual("true", fact)
         self.assert_client_retired()
 
@@ -2022,7 +2022,7 @@ class StdioNativeTests(unittest.TestCase):
 
                     environment["NATIVE_STDIO_DIAGNOSTIC"] = str(diagnostic)
 
-                    process = subprocess.Popen(
+                    child_process = subprocess.Popen(
                         command,
                         env=environment,
                         stdout=subprocess.PIPE,
@@ -2030,10 +2030,10 @@ class StdioNativeTests(unittest.TestCase):
                         start_new_session=True
                     )
 
-                    self.addCleanup(self.retire_probe, process)
+                    self.addCleanup(self.retire_probe, child_process)
                     self.await_file(self.observation)
                     observed = json.loads(self.observation.read_text())
-                    wait_channel = Path("/proc", str(observed["pid"]), "wchan")
+                    wait_channel = pathlib.Path("/proc", str(observed["pid"]), "wchan")
                     deadline = time.monotonic() + 2
 
                     while (
@@ -2045,15 +2045,15 @@ class StdioNativeTests(unittest.TestCase):
                     self.assertFalse((self.root / "write-complete").exists())
 
                     try:
-                        process.send_signal(signum)
+                        child_process.send_signal(signum)
 
                         # Keep both consumers unread until owner exit.
                         # communicate would drain a full stderr pipe and conceal owner writes.
-                        self.assertEqual(128 + signum, process.wait(timeout=4))
+                        self.assertEqual(128 + signum, child_process.wait(timeout=4))
 
                         self.assertEqual("true\n", (self.root / "retired").read_text())
                         self.assert_client_retired()
-                        self.assertFalse(Path(json.loads(self.control.read_text())["directory"]).exists())
+                        self.assertFalse(pathlib.Path(json.loads(self.control.read_text())["directory"]).exists())
                         scratch = json.loads(self.control.read_text())["directory"]
 
                         self.assertEqual(
@@ -2064,10 +2064,10 @@ class StdioNativeTests(unittest.TestCase):
                         for identifier in (observed["pid"], observed["descendant"]):
                             self.kill_recorded_fixture(identifier)
 
-                        if process.poll() is None:
-                            os.killpg(process.pid, signal.SIGKILL)
+                        if child_process.poll() is None:
+                            os.killpg(child_process.pid, signal.SIGKILL)
 
-                        (_, stderr) = process.communicate(timeout=4)
+                        (_, stderr) = child_process.communicate(timeout=4)
 
                         self.retain_cleanup(stderr.decode())
 
@@ -2094,7 +2094,7 @@ class StdioNativeTests(unittest.TestCase):
                 receipt.unlink(missing_ok=True)
                 (command, environment) = self.fact_command(budget="untimed", additions={"NATIVE_BIRTH": str(receipt)})
 
-                process = subprocess.Popen(
+                child_process = subprocess.Popen(
                     command,
                     env=environment,
                     stdout=subprocess.PIPE,
@@ -2102,15 +2102,15 @@ class StdioNativeTests(unittest.TestCase):
                     start_new_session=True
                 )
 
-                self.addCleanup(self.retire_probe, process)
+                self.addCleanup(self.retire_probe, child_process)
                 self.await_file(receipt)
                 (fact, anchor) = receipt.read_text().splitlines()
 
                 self.assertEqual("false", fact)
-                process.send_signal(signum)
-                (_, stderr) = process.communicate(timeout=4)
+                child_process.send_signal(signum)
+                (_, stderr) = child_process.communicate(timeout=4)
 
-                self.assertEqual(128 + signum, process.returncode, msg=stderr.decode())
+                self.assertEqual(128 + signum, child_process.returncode, msg=stderr.decode())
                 self.assertEqual("true\n", (self.root / "retired").read_text())
                 self.assert_retired(int(anchor))
                 self.assertFalse(self.observation.exists())
@@ -2130,8 +2130,8 @@ class StdioNativeTests(unittest.TestCase):
                         'inference_native probe untimed stdio "$2" "$3" native-client'
                     )
 
-                    result = subprocess.run(
-                        ["/bin/bash", "-euc", script, "bash", str(self.helper), sys.executable, str(Path(__file__).resolve())],
+                    completed_process = subprocess.run(
+                        ["/bin/bash", "-euc", script, "bash", str(self.helper), sys.executable, str(pathlib.Path(__file__).resolve())],
                         env=self.environment
                         | {
                             "NATIVE_STATUS": native_status,
@@ -2146,11 +2146,11 @@ class StdioNativeTests(unittest.TestCase):
                         check=False,
                     )
 
-                    self.assertEqual(expected, result.returncode, msg=result.stderr)
-                    self.assertEqual(b"stdout\0\r\n", result.stdout)
-                    self.assertEqual(b"stderr\0\r\n", result.stderr)
+                    self.assertEqual(expected, completed_process.returncode, msg=completed_process.stderr)
+                    self.assertEqual(b"stdout\0\r\n", completed_process.stdout)
+                    self.assertEqual(b"stderr\0\r\n", completed_process.stderr)
                     self.assertEqual(f"{expected} 0 true\n", outcome.read_text())
-                    scratch = Path(json.loads(self.control.read_text())["directory"])
+                    scratch = pathlib.Path(json.loads(self.control.read_text())["directory"])
                     payload = diagnostic.read_text()
 
                     self.retain_cleanup(payload)
@@ -2177,20 +2177,20 @@ class StdioNativeTests(unittest.TestCase):
             ({"NATIVE_CLEANUP_FAILURE": "after-delete", "NATIVE_STATUS": "7"}, 7, "true"),
         ):
             with self.subTest(additions=additions):
-                (result, observed_fact) = self.run_stdio(budget="untimed", additions=additions)
+                (completed_process, observed_fact) = self.run_stdio(budget="untimed", additions=additions)
 
-                self.assertEqual(expected, result.returncode, msg=result.stderr.decode())
+                self.assertEqual(expected, completed_process.returncode, msg=completed_process.stderr.decode())
                 self.assertEqual(fact, observed_fact)
-                self.assertNotIn(b"command.log", result.stderr)
-                self.assertNotIn(b"private capped output", result.stderr)
+                self.assertNotIn(b"command.log", completed_process.stderr)
+                self.assertNotIn(b"private capped output", completed_process.stderr)
 
                 if additions.get("NATIVE_CLEANUP_FAILURE") == "after-delete":
-                    self.assertFalse(Path(json.loads(self.control.read_text())["directory"]).exists())
+                    self.assertFalse(pathlib.Path(json.loads(self.control.read_text())["directory"]).exists())
                     scratch = json.loads(self.control.read_text())["directory"]
 
                     self.assertEqual(
                         f"Cannot confirm native client evidence directory removal; attempted path {scratch} (status 23).\n".encode(),
-                        result.stderr,
+                        completed_process.stderr,
                     )
 
                 self.assert_retired(json.loads(self.control.read_text())["anchor"])
@@ -2209,16 +2209,16 @@ class StdioNativeTests(unittest.TestCase):
             source.replace(join, '            printf "%s\\n" "$inference_retirement_confirmed" > "$NATIVE_JOIN_FACT"\n' + join, 1)
         )
 
-        (result, fact) = self.run_stdio(budget="untimed", additions={"NATIVE_JOIN_FACT": str(receipt)})
+        (completed_process, fact) = self.run_stdio(budget="untimed", additions={"NATIVE_JOIN_FACT": str(receipt)})
 
-        self.assertEqual(0, result.returncode, msg=result.stderr.decode())
+        self.assertEqual(0, completed_process.returncode, msg=completed_process.stderr.decode())
         self.assertEqual("false\n", receipt.read_text())
         self.assertEqual("true", fact)
 
     def test_unknown_retirement_exit_is_not_public_pipe_eof(self):
         (command, environment) = self.fact_command(budget="untimed", additions={"NATIVE_BEHAVIOR": "stream-live"})
 
-        process = subprocess.Popen(
+        child_process = subprocess.Popen(
             command,
             env=environment | {"PATH": os.environ["PATH"]},
             stdout=subprocess.PIPE,
@@ -2226,17 +2226,17 @@ class StdioNativeTests(unittest.TestCase):
             start_new_session=True
         )
 
-        self.addCleanup(self.retire_probe, process)
+        self.addCleanup(self.retire_probe, child_process)
         self.await_file(self.observation)
         observed = json.loads(self.observation.read_text())
 
         os.kill(observed["parent"], signal.SIGKILL)
 
         try:
-            self.assertEqual(1, process.wait(timeout=4))
+            self.assertEqual(1, child_process.wait(timeout=4))
             self.assertEqual("false\n", (self.root / "retired").read_text())
 
-            for pipe in (process.stdout, process.stderr):
+            for pipe in (child_process.stdout, child_process.stderr):
                 os.set_blocking(pipe.fileno(), False)
 
                 while True:
@@ -2247,15 +2247,15 @@ class StdioNativeTests(unittest.TestCase):
 
                     self.assertNotEqual(b"", chunk, msg="unconfirmed surviving writer unexpectedly reached EOF")
 
-            self.assertTrue(Path("/proc", str(observed["descendant"])).exists())
+            self.assertTrue(pathlib.Path("/proc", str(observed["descendant"])).exists())
         finally:
             self.kill_recorded_fixture(observed["pid"])
             self.kill_recorded_fixture(observed["descendant"])
 
-        for pipe in (process.stdout, process.stderr):
+        for pipe in (child_process.stdout, child_process.stderr):
             os.set_blocking(pipe.fileno(), True)
 
-        (_, stderr) = process.communicate(timeout=4)
+        (_, stderr) = child_process.communicate(timeout=4)
 
         self.retain_cleanup(stderr.decode())
         self.assertNotIn(b"command.log", stderr)
@@ -2263,7 +2263,7 @@ class StdioNativeTests(unittest.TestCase):
 
 def native_client():
     """Model a finite native status, resistant group member or output-only EOF."""
-    observation = Path(os.environ["NATIVE_OBSERVATION"])
+    observation = pathlib.Path(os.environ["NATIVE_OBSERVATION"])
     behavior = os.environ["NATIVE_BEHAVIOR"]
 
     observed = {
@@ -2321,7 +2321,7 @@ def native_client():
             signal.signal(signum, record_signal)
 
         ignored = sum(1 << (signum - 1) for signum in (signal.SIGHUP, signal.SIGINT, signal.SIGTERM))
-        descendant_status = Path("/proc", str(descendant.pid), "status")
+        descendant_status = pathlib.Path("/proc", str(descendant.pid), "status")
         deadline = time.monotonic() + 3
 
         while time.monotonic() < deadline:

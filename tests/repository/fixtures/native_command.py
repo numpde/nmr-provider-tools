@@ -11,7 +11,7 @@ import signal
 import subprocess
 import sys
 import time
-from pathlib import Path
+import pathlib
 
 
 def fixture_command(name):
@@ -19,7 +19,7 @@ def fixture_command(name):
     arguments = sys.argv[1:]
 
     if name == "mv":
-        (source, target) = map(Path, arguments[-2:])
+        (source, target) = map(pathlib.Path, arguments[-2:])
         selected = os.environ.get("NATIVE_CORRUPT_REMOVAL_ROLE")
         identity = {}
 
@@ -28,8 +28,8 @@ def fixture_command(name):
                 os.execv("/bin/mv", [name, *arguments])
 
             anchor = int(source.read_text())
-            command = Path(f"/proc/{anchor}/cmdline").read_bytes().split(b"\0")[:-1]
-            role = Path(os.environ["ENGINE_STATE"], "role-" + os.fsdecode(command[-1]))
+            command = pathlib.Path(f"/proc/{anchor}/cmdline").read_bytes().split(b"\0")[:-1]
+            role = pathlib.Path(os.environ["ENGINE_STATE"], "role-" + os.fsdecode(command[-1]))
 
             if command[-3:-1] != [b"rm", b"--force"] or not role.is_file() or role.read_text().strip() != selected:
                 os.execv("/bin/mv", [name, *arguments])
@@ -38,7 +38,7 @@ def fixture_command(name):
 
             identity = {
                 "command": [os.fsdecode(part) for part in command],
-                "start": Path(f"/proc/{anchor}/stat").read_text().rsplit(")", 1)[1].split()[19],
+                "start": pathlib.Path(f"/proc/{anchor}/stat").read_text().rsplit(")", 1)[1].split()[19],
                 "group": os.getpgid(anchor),
                 "session": os.getsid(anchor)
             }
@@ -53,7 +53,7 @@ def fixture_command(name):
         else:
             anchor = 0
 
-        control = Path(os.environ["NATIVE_CONTROL"])
+        control = pathlib.Path(os.environ["NATIVE_CONTROL"])
         pending = control.with_name(control.name + ".pending")
 
         pending.write_text(json.dumps({"anchor": anchor, "directory": str(target.parent), **identity}))
@@ -74,12 +74,12 @@ def fixture_command(name):
 
         if target.name == "status." + phase or (target.name == "status" and phase == "status"):
             if os.environ.get("NATIVE_CANCEL_PUBLICATION") == "1":
-                parent = int(Path("/proc", str(anchor), "stat").read_text().split()[3])
+                parent = int(pathlib.Path("/proc", str(anchor), "stat").read_text().split()[3])
 
                 os.kill(parent, signal.SIGTERM)
 
             if "NATIVE_PUBLICATION_FAILED_AT" in os.environ:
-                Path(os.environ["NATIVE_PUBLICATION_FAILED_AT"]).write_text(str(time.monotonic()))
+                pathlib.Path(os.environ["NATIVE_PUBLICATION_FAILED_AT"]).write_text(str(time.monotonic()))
 
             return 29
 
@@ -148,7 +148,7 @@ def fixture_command(name):
 
 
 if __name__ == "__main__":
-    name = Path(sys.argv[0]).name
+    name = pathlib.Path(sys.argv[0]).name
 
     if not (name in {"mv", "head", "rm"}):
         raise SystemExit("Use a named test utility symlink: mv, head or rm.")
