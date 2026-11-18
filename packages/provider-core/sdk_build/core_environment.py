@@ -26,6 +26,7 @@ import pathlib
 from tools.artifacts import fsync_directory, regular_file
 from tools.installer import create_environment, pip_command
 from tools.wheelhouse import digest, pool_read_lock, read_json, requirements, select_wheels, wheel_inputs_from_report
+from type_requirements import require_type
 
 
 TYPE_REQUIREMENTS_SOURCE = pathlib.Path("/workspace/packages/type-requirements/src/type_requirements.py")
@@ -153,10 +154,7 @@ def _build_candidate(source, runtime_lock, build_lock, pool, output, lock_fd):
                 "provider-core and a three-part release version."
             )
 
-        if not (type(release_version) is (expected_type := str)):
-            raise TypeError(
-                f"{type(release_version)=} ≠ {expected_type=}"
-            )
+        require_type(release_version, str)
 
         if not (re.fullmatch(
             r"(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)",

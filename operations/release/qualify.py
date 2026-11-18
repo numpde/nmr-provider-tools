@@ -29,6 +29,7 @@ from build_acquisition_bundle import build as build_acquisition_bundle
 from sdk_build.core_environment import behavioral_install_lock, build_candidate, install_environment, wheelhouse_source_inventory
 from sdk_build.core_environment import SDK_TYPE_REQUIREMENTS, TYPE_REQUIREMENTS_SOURCE
 from tools.wheelhouse import digest, requirements
+from type_requirements import require_type
 
 
 def artifact_names(version):
@@ -107,10 +108,7 @@ def qualify_wheelhouse_bundle(bundle, scratch):
     if projected_artifact.get("path") != "/wheels/" + packaging_wheel_name or "url" in projected_artifact:
         raise ValueError("Cannot qualify wheelhouse bundle: projected artifact differs from the selected lock.")
 
-    if not (type(projected_hashes) is (expected_type := dict)):
-        raise TypeError(
-            f"{type(projected_hashes)=} ≠ {expected_type=}"
-        )
+    require_type(projected_hashes, dict)
 
     if projected_hashes.get("sha256") != packaging_digest:
         raise ValueError("Cannot qualify wheelhouse bundle: projected artifact differs from the selected lock.")
@@ -221,10 +219,7 @@ def qualify_wheelhouse_bundle(bundle, scratch):
 def qualify_acquisition_bundle(bundle, scratch, expected_source_files):
     """Validate the pinned source inventory before extracting or importing code."""
 
-    if not (type(expected_source_files) is (expected_type := dict)):
-        raise TypeError(
-            f"{type(expected_source_files)=} ≠ {expected_type=}"
-        )
+    require_type(expected_source_files, dict)
 
     if not (expected_source_files):
         raise ValueError("Cannot qualify acquisition source bundle: missing source inventory.")
@@ -250,10 +245,7 @@ def qualify_acquisition_bundle(bundle, scratch, expected_source_files):
 
             expected_member = expected_source_files.get(member.name)
 
-            if not (type(expected_member) is (expected_type := dict)):
-                raise TypeError(
-                    f"{type(expected_member)=} ≠ {expected_type=}"
-                )
+            require_type(expected_member, dict)
 
             if set(expected_member) != {"sha256", "size", "mode"} or member.size != expected_member["size"] or member.mode != expected_member["mode"]:
                 raise ValueError(
@@ -374,10 +366,7 @@ def unpack_source(archive, destination, version):
 
 
 def source_payload(source, inventory):
-    if not (type(inventory) is (expected_type := dict)):
-        raise TypeError(
-            f"{type(inventory)=} ≠ {expected_type=}"
-        )
+    require_type(inventory, dict)
 
     if not (inventory):
         raise ValueError("Cannot qualify package: the pre-build source inventory is missing.")
@@ -392,10 +381,7 @@ def source_payload(source, inventory):
                 "has unsupported entries."
             )
 
-        if not (type(facts) is (expected_type := dict)):
-            raise TypeError(
-                f"{type(facts)=} ≠ {expected_type=}"
-            )
+        require_type(facts, dict)
 
         if set(facts) != {"sha256", "size", "mode"}:
             raise ValueError(
