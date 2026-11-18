@@ -130,7 +130,8 @@ require_subclass(candidate, Base)       # candidate is a class and issubclass(ca
 
 Each accepts a class or nonempty tuple of classes, returns `None` on success,
 and raises `TypeError` on failure. The failure reports the caller's argument
-expression when source is available; otherwise it uses `repr(value)`.
+expression when source is available; otherwise it uses `repr(value)` (or the
+concrete type name if `repr()` fails).
 Source text and fallback values are not redacted. Use these helpers for
 ordinary type requirements, not for protocol-specific rejection classes,
 field-labeled errors or other domain validation.
