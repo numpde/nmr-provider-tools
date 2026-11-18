@@ -24,6 +24,7 @@ from provider_core.chat_errors import ChatFailed
 from provider_core.response_json import ResponseRejected, read_document
 from provider_core.transport import ExchangeFailed
 from provider_core.chat_process import SupervisedChatTransport
+from provider_core.type_requirements import require_type
 
 
 def _json_bytes(value):
@@ -41,18 +42,12 @@ class ChatEndpointSpec:
     reasoning_effort: str | None
 
     def __post_init__(self):
-        if not (type((actual_configuration_id := self.configuration_id)) is (expected_type := str)):
-            raise TypeError(
-                f"{type(actual_configuration_id)=} ≠ {expected_type=}"
-            )
+        require_type(self.configuration_id, str)
 
         if re.fullmatch(r"[A-Za-z0-9_.-]{1,128}", self.configuration_id) is None:
             raise ValueError("Cannot configure interpreter endpoint: configuration_id must be a bounded ASCII identifier.")
 
-        if not (type((actual_model := self.model)) is (expected_type := str)):
-            raise TypeError(
-                f"{type(actual_model)=} ≠ {expected_type=}"
-            )
+        require_type(self.model, str)
 
         if not (self.model.strip() and self.model.isprintable() and len(self.model.encode('utf-8')) <= 512):
             raise ValueError(
@@ -80,10 +75,7 @@ class ChatEndpointSpec:
             if not self.reasoning_effort.isalnum():
                 raise ValueError("Cannot configure interpreter endpoint: reasoning_effort must be an explicit ASCII word or None.")
 
-        if not (type((actual_url := self.url)) is (expected_type := str)):
-            raise TypeError(
-                f"{type(actual_url)=} ≠ {expected_type=}"
-            )
+        require_type(self.url, str)
 
         if any(not 32 < ord(char) < 127 for char in self.url):
             raise ValueError("Cannot configure interpreter endpoint: URL must be canonical ASCII HTTPS text.")
@@ -255,10 +247,7 @@ class ChatEndpoint:
     """
 
     def __init__(self, spec, *, transport, request_bytes, response_bytes, error_response_bytes=None):
-        if not (type(spec) is (expected_type := ChatEndpointSpec)):
-            raise TypeError(
-                f"{type(spec)=} ≠ {expected_type=}"
-            )
+        require_type(spec, ChatEndpointSpec)
 
         require_chat_limits(request_bytes=request_bytes, response_bytes=response_bytes)
 
