@@ -1038,6 +1038,16 @@ Separate adjacent tool/package interfaces from service API rules:
       Temporary file creation and downloader dispatch remain in build_inputs.py.
       The recipe captures this build-worker dependency. All ten focused delivery
       release tests pass, including exact lock bytes delivered to the publisher.
+  [x] Image pip bootstrap, environment seeding and the shared isolated command
+      prefix now live in tools/adapters/pip_install.py. The installer retains
+      authenticated private wheel capture before venv/pip dispatch and all
+      subprocess/resource ownership. Direct imports replace the old prefix
+      owner; relative guard imports preserve the issued helper's namespace.
+      Checker COPY/fingerprints, streamed wheelhouse inputs and acquisition
+      INSTALLER_SOURCES include the adapter. Both real offline images built;
+      dependency-cache admission passed. Installer (24), wheelhouse bundle (2),
+      acquisition bundle (6), package artifact (15) and convention (12) focused
+      tests all passed with privacy tests disabled.
   pip: tools/installer.py:154-201 owns command construction. tools/wheelhouse.py:102-193
   and wheelhouse_tool/report.py:11-65 consume installation-report version 1 and
   download_info/archive_info/hash fields. SDK build helpers and image_manifest.py

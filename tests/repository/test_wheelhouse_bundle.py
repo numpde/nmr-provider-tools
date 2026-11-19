@@ -15,7 +15,8 @@ import pathlib
 
 from build_bundle import build
 from sdk_build.core_environment import wheelhouse_source_inventory
-from tools.installer import create_environment, pip_command
+from tools.adapters.pip_install import pip_command
+from tools.installer import create_environment
 from tests.repository.quality.sources import ROOT
 
 

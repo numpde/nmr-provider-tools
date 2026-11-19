@@ -21,6 +21,7 @@ case "$action" in
         operation_host_identity "$checker_image" /usr/local/bin/python3 "$(id -u)" "$(id -g)"
         sources=(packages/wheelhouse-tool/build/Dockerfile requirements/wheelhouse-tool.lock requirements/wheelhouse-tool-release.json
             tools/installer.py tools/container_guard.py requirements/installer-release.json
+            tools/adapters/__init__.py tools/adapters/pip_install.py
             packages/type-requirements/src/type_requirements.py)
         while IFS= read -r -d '' path; do
             sources+=("${path#"$root"/}")

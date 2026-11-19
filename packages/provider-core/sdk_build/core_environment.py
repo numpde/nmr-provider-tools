@@ -23,9 +23,9 @@ import tempfile
 import tomllib
 import pathlib
 
-from tools.adapters.pip_install import install_locked_wheels_command
+from tools.adapters.pip_install import install_locked_wheels_command, pip_command
 from tools.artifacts import fsync_directory, regular_file
-from tools.installer import create_environment, pip_command
+from tools.installer import create_environment
 from tools.wheelhouse import digest, pool_read_lock, read_json, requirements, select_wheels, wheel_inputs_from_report
 from type_requirements import require_type
 

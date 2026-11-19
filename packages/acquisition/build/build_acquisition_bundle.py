@@ -67,6 +67,8 @@ INSTALLER_SOURCES = (
     ("packages/type-requirements/src/type_requirements.py", "type_requirements.py"),
     ("tools/installer.py", "acquisition_tool/installer/tools/installer.py"),
     ("tools/container_guard.py", "acquisition_tool/installer/tools/container_guard.py"),
+    ("tools/adapters/__init__.py", "acquisition_tool/installer/tools/adapters/__init__.py"),
+    ("tools/adapters/pip_install.py", "acquisition_tool/installer/tools/adapters/pip_install.py"),
     ("requirements/installer-release.json", "acquisition_tool/installer/requirements/installer-release.json"),
 )
 

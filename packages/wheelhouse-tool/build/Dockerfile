@@ -7,6 +7,7 @@ COPY installer/ /installer/
 FROM ${BASE_IMAGE}
 USER root
 COPY tools/installer.py tools/container_guard.py /opt/installer-build/tools/
+COPY tools/adapters/__init__.py tools/adapters/pip_install.py /opt/installer-build/tools/adapters/
 COPY packages/type-requirements/src/type_requirements.py /opt/installer-build/
 COPY requirements/installer-release.json /opt/installer-build/release.json
 RUN --network=none --mount=type=bind,from=dependencies,target=/dependencies,readonly \

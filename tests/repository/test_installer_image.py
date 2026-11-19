@@ -16,7 +16,7 @@ from unittest.mock import patch
 from tests.repository.quality.sources import ROOT
 from tools import installer
 from build_acquisition_bundle import INSTALLER_SOURCES
-from tools.installer import pip_command
+from tools.adapters.pip_install import pip_command
 
 
 class InstallerImageTests(unittest.TestCase):

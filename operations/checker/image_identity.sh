@@ -3,7 +3,7 @@
 source "$root/operations/docker/image_fingerprint.sh"
 checker_input_paths=(
     operations/docker/base_image.sh operations/checker/image/dependencies.py tools/container_guard.py tools/artifacts.py
-    tools/adapters/__init__.py tools/adapters/debian.py tools/adapters/http_download.py
+    tools/adapters/__init__.py tools/adapters/debian.py tools/adapters/http_download.py tools/adapters/pip_install.py
     tools/validation/__init__.py tools/validation/upstream/__init__.py tools/validation/upstream/debian.py
     requirements/checker-dependencies.json operations/checker/image/Dockerfile
     tools/installer.py requirements/installer-release.json packages/type-requirements/src/type_requirements.py

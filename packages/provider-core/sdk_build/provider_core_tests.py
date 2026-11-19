@@ -25,7 +25,7 @@ from sdk_build.core_environment import (
     install_locked,
 )
 
-from tools.installer import pip_command
+from tools.adapters.pip_install import pip_command
 from tools.wheelhouse import digest, requirements
 
 
