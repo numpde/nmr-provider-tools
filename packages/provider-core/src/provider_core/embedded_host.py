@@ -197,6 +197,49 @@ class InProcessExecutionHost:
 
         return hosted
 
+    # A class factory is created only on the owned worker. Exact-object adoption
+    # above keeps its original, independent custody contract.
+    def adopt_class(
+        self,
+        *,
+        contribution_type: type[Contribution],
+        constructor: Callable[[], Contribution],
+        requirements: frozenset[ResourceRequirement],
+        assets: AssetAccess = NoAssets(),
+        resident_resources: frozenset[ResourceRequirement] = frozenset(),
+        isolation: IsolationRequirement = IsolationRequirement.SHARED_PROCESS,
+    ) -> HostedContribution:
+        """Retain a factory before construction or initialization has effects."""
+        self._require_loop()
+
+        if self.retiring:
+            raise CapacityUnavailable("Cannot adopt a contribution while the host is retiring.")
+
+        if not callable(constructor):
+            raise TypeError("Scientific construction requires a callable factory")
+
+        allocation_name = uuid4().hex
+        hosted = HostedContribution(
+            contribution=None,
+            contribution_type=contribution_type,
+            constructor=constructor,
+            host=self.identity,
+            allocation_name=allocation_name,
+            requirements=requirements,
+            resident_resources=resident_resources,
+            isolation=isolation,
+        )
+
+        _require_supported_binding(hosted)
+        self.residents[allocation_name] = _Resident(
+            host_identity=self.identity,
+            name=allocation_name,
+            binding=hosted,
+            assets=assets,
+        )
+
+        return hosted
+
     @property
     def allocations(self) -> frozenset[AllocationRef]:
         """Snapshot hosted or unsettled allocations; omit successful retirements."""

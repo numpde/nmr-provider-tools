@@ -322,6 +322,38 @@ class AdoptionTests(unittest.IsolatedAsyncioTestCase):
         with self.assertRaises(expected_exception=ValueError):
             class_only.call(method=instance.calculate)
 
+    async def test_host_owned_construction_starts_after_factory_custody(self):
+        constructed = []
+        worker_threads = []
+
+        def construct() -> Sum:
+            from threading import current_thread
+
+            worker_threads.append(current_thread().name)
+            instance = Sum(configuration=Settings(scale=2))
+            constructed.append(instance)
+            return instance
+
+        hosted = self.host.adopt_class(
+            contribution_type=Sum,
+            constructor=construct,
+            requirements=frozenset({ResourceRequirement(kind="cpu", amount=1, unit="thread")}),
+        )
+
+        self.assertEqual([], constructed)
+        await self.host.initialize(allocation=hosted.allocation)
+
+        (instance,) = constructed
+        self.assertTrue(worker_threads[0].startswith("provider-science"))
+        self.assertEqual(instance._custody.owner, hosted.allocation)
+        self.assertEqual(1, instance.initializations)
+
+        with self.assertRaises(expected_exception=ValueError):
+            self.host.adopt(
+                contribution=instance,
+                requirements=frozenset({ResourceRequirement(kind="cpu", amount=1, unit="thread")}),
+            )
+
     async def test_adoption_does_not_initialize_or_replace_the_supplied_receiver(self):
         instance = Sum(configuration=Settings(scale=2))
         marker = instance.marker

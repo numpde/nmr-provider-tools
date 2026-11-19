@@ -586,6 +586,7 @@ class HostedContribution:
     allocation_name: InitVar[str]
     requirements: frozenset[ResourceRequirement]
     contribution_type: type[Contribution] | None = None
+    constructor: Callable[[], Contribution] | None = field(default=None, repr=False, compare=False)
     resident_resources: frozenset[ResourceRequirement] = frozenset()
     isolation: IsolationRequirement = IsolationRequirement.SHARED_PROCESS
     description: ImplementationDescription = field(init=False)
@@ -604,6 +605,9 @@ class HostedContribution:
         else:
             require_instance(self.contribution, Contribution)
             contribution_type = type(self.contribution)
+
+            if self.constructor is not None:
+                raise TypeError("Exact-object adoption cannot also supply a constructor")
 
             if (self.contribution_type is not None) and (self.contribution_type is not contribution_type):
                 raise TypeError("Declared contribution type differs from the adopted object")
@@ -705,6 +709,29 @@ class HostedContribution:
 
     def reference(self, *, method: Callable) -> CallRef:
         return ref(call=self.call(method=method))
+
+    def construct_instance(self) -> Contribution:
+        """Construct on the host-owned worker after its lifetime is retained."""
+        if self.contribution is not None:
+            return self.contribution
+
+        if self.constructor is None:
+            raise RuntimeError("This class-only declaration does not own a constructor")
+
+        instance = self.constructor()
+
+        if type(instance) is not self.contribution_type:
+            raise TypeError("The scientific constructor returned a different contribution class")
+
+        custody = instance._custody
+
+        with custody.lock:
+            if custody.owner is not None:
+                raise ValueError("Constructed scientific object already has an owner")
+
+            custody.owner = self.allocation
+
+        return instance
 
     def initialize_instance(self, *, instance: Contribution, assets: AssetAccess) -> None:
         self._initialize.invoke(instance=instance, assets=assets)
