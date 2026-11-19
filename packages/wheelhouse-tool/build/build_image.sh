@@ -68,7 +68,7 @@ case "$action" in
         if [[ -f $operation_directory/built-image && ! -L $operation_directory/built-image && $(stat -c %s -- "$operation_directory/built-image") -le 72 ]]; then
             if IFS= read -r -N 71 built_image < "$operation_directory/built-image"; then :; else built_image=; fi
         fi
-        [[ $built_image =~ ^sha256:[0-9a-f]{64}$ ]] \
+        docker_full_image_id "$built_image" \
             && { cmp -s "$operation_directory/built-image" <(printf '%s' "$built_image") || cmp -s "$operation_directory/built-image" <(printf '%s\n' "$built_image"); } || {
             printf '%s\n' 'Cannot admit the wheelhouse tool build: no immutable image ID was returned.' >&2; exit 2;
         }

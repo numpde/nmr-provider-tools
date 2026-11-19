@@ -80,12 +80,12 @@ build_checker_target() {
     if [[ -f $receipt && ! -L $receipt && $(stat -c %s -- "$receipt") -le 72 ]]; then
         if IFS= read -r -N 71 image < "$receipt"; then :; else image=; fi
     fi
-    if [[ ! $image =~ ^sha256:[0-9a-f]{64}$ ]] \
+    if ! docker_full_image_id "$image" \
         || ! { cmp -s "$receipt" <(printf '%s' "$image") || cmp -s "$receipt" <(printf '%s\n' "$image"); }; then
         operation_diagnostic+=$'Cannot admit checker build: BuildKit did not publish an immutable image ID.\n'
         return 2
     fi
-    operation_metadata "$operation_directory/built-label" image inspect --format '{{index .Config.Labels "org.nmr-provider-tools.inputs"}}' "$image"
+    docker_inspect_image_label "$operation_directory/built-label" "$image" org.nmr-provider-tools.inputs
     if ! cmp -s "$operation_directory/built-label" <(printf '%s\n' "$fingerprint"); then
         operation_diagnostic+=$'Cannot admit checker build: image input label differs from captured inputs.\n'
         return 2

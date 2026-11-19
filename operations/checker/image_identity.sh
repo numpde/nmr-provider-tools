@@ -1,6 +1,8 @@
 #!/usr/bin/env bash
 # Runtime tests are mounted. Only actual image construction inputs bind its tag.
 source "$root/operations/docker/image_fingerprint.sh"
+source "$root/operations/docker/adapters/docker_inspection.sh"
+source "$root/operations/docker/validation/upstream/image_ids.sh"
 checker_input_paths=(
     operations/docker/base_image.sh operations/checker/image/dependencies.py tools/container_guard.py tools/artifacts.py
     tools/adapters/__init__.py tools/adapters/debian.py tools/adapters/http_download.py tools/adapters/pip_install.py
@@ -24,17 +26,17 @@ checker_image_tag() {
 checker_admit_image() {
     local fingerprint=$1 receipt=$operation_directory/image status tag
     tag=$(checker_image_tag "$2" "$fingerprint") || return "$?"
-    if operation_metadata "$receipt" image inspect --format '{{.Id}} {{index .Config.Labels "org.nmr-provider-tools.inputs"}}' "$tag"; then :; else
+    if docker_inspect_image_id_and_label "$receipt" "$tag" org.nmr-provider-tools.inputs; then :; else
         status=$?
         printf -v operation_diagnostic '%sCannot admit prepared checker %s. Run make checks/prepare with an explicit WHEELHOUSE and NETWORK_INTERFACE; inspect Docker availability if preparation already succeeded.\n' "$operation_diagnostic" "$tag"
         return "$status"
     fi
-    local observed
+    local observed admitted_image
     if ! IFS= read -r observed < "$receipt"; then
         operation_diagnostic+=$'Cannot admit prepared checker: image metadata is not a complete record.\n'
         return 2
     fi
-    if [[ ! $observed =~ ^(sha256:[0-9a-f]{64})\ ([0-9a-f]{64})$ || ${BASH_REMATCH[2]} != "$fingerprint" ]]; then
+    if [[ ! $fingerprint =~ ^[0-9a-f]{64}$ ]] || ! docker_image_id_with_label_matches "$observed" "$fingerprint" admitted_image; then
         printf -v operation_diagnostic '%sCannot admit prepared checker %s: immutable image ID or input label differs. Rebuild with make checks/image/build.\n' "$operation_diagnostic" "$tag"
         return 2
     fi
@@ -42,7 +44,7 @@ checker_admit_image() {
         operation_diagnostic+=$'Cannot admit prepared checker: image metadata is not one exact newline-terminated record.\n'
         return 2
     fi
-    checker_image=${BASH_REMATCH[1]}
+    checker_image=$admitted_image
 }
 
 checker_admit_tools() {

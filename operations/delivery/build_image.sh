@@ -32,13 +32,13 @@ if [[ $captured != "$expected" ]]; then
     exit 2
 fi
 base_image_reference=$(bash -eu -c 'source "$1"; printf "%s" "$base_image"' bash "$context/operations/docker/base_image.sh")
-if operation_metadata "$operation_directory/base-image" image inspect --format '{{.Id}} {{.Os}}/{{.Architecture}}' "$base_image_reference"; then :; else
+if docker_inspect_image_id_and_platform "$operation_directory/base-image" "$base_image_reference"; then :; else
     base_status=$?
     operation_diagnostic+=$'Cannot inspect the pinned Linux/amd64 base image; verify Docker and acquire the base before building shared delivery.\n'
     exit "$base_status"
 fi
 read -r build_base_image base_platform < "$operation_directory/base-image"
-[[ $build_base_image =~ ^sha256:[0-9a-f]{64}$ && $base_platform == linux/amd64 ]] \
+docker_full_image_id "$build_base_image" && [[ $base_platform == linux/amd64 ]] \
     || { operation_diagnostic+=$'Cannot build shared delivery: the pinned base is not a Linux/amd64 image.\n'; exit 2; }
 operation_run 120 --pull never --network none --read-only --user "$operation_host_uid:$operation_host_gid" --cap-drop ALL --security-opt no-new-privileges:true \
     --cpus 2 --memory 512m --memory-swap 512m --pids-limit 64 --tmpfs /tmp:rw,nosuid,nodev,noexec,size=128m \
@@ -76,7 +76,7 @@ fi
 # BuildKit cannot resolve a config ID in FROM. Give this operation a private tag
 # for that exact image; the tag and inputs remain if build retirement is uncertain.
 base_tag="nmr-provider-tools/base-operation:${operation_directory##*.}"
-operation_metadata "$operation_directory/base-references" image inspect --format '{{range .RepoTags}}{{println .}}{{end}}{{range .RepoDigests}}{{println .}}{{end}}' "$build_base_image"
+docker_inspect_image_references "$operation_directory/base-references" "$build_base_image"
 base_reference=
 while IFS= read -r reference; do
     [[ -n $reference && $reference != nmr-provider-tools/base-operation:* ]] || continue
@@ -93,7 +93,7 @@ fi
 printf '%s\n' "$base_tag" > "$operation_directory/base-tag-name"
 retain_operation=true
 operation_call 'tag verified shared delivery base' 30 stdio "${engine[@]}" image tag "$build_base_image" "$base_tag"
-operation_metadata "$operation_directory/base-tag" image inspect --format '{{.Id}}' "$base_tag"
+docker_inspect_image_id "$operation_directory/base-tag" "$base_tag"
 if ! cmp -s "$operation_directory/base-tag" <(printf '%s\n' "$build_base_image"); then
     operation_diagnostic+=$'Cannot build shared delivery: the operation base tag does not identify the pinned image.\n'; exit 2
 fi
@@ -109,16 +109,16 @@ image=
 if [[ -f $operation_directory/built-image && ! -L $operation_directory/built-image && $(stat -c %s -- "$operation_directory/built-image") -le 72 ]]; then
     if IFS= read -r -N 71 image < "$operation_directory/built-image"; then :; else image=; fi
 fi
-if [[ ! $image =~ ^sha256:[0-9a-f]{64}$ ]] \
+if ! docker_full_image_id "$image" \
     || ! { cmp -s "$operation_directory/built-image" <(printf '%s' "$image") || cmp -s "$operation_directory/built-image" <(printf '%s\n' "$image"); }; then
     operation_diagnostic+=$'Cannot admit shared delivery build: BuildKit did not publish an immutable image ID.\n'; exit 2
 fi
-operation_metadata "$operation_directory/built-label" image inspect --format '{{index .Config.Labels "org.nmr-provider-tools.inputs"}}' "$image"
+docker_inspect_image_label "$operation_directory/built-label" "$image" org.nmr-provider-tools.inputs
 if ! cmp -s "$operation_directory/built-label" <(printf '%s\n' "$fingerprint"); then
     operation_diagnostic+=$'Cannot admit shared delivery build: image label differs from captured construction inputs.\n'; exit 2
 fi
-operation_metadata "$operation_directory/base-tag-after-build" image inspect --format '{{.Id}}' "$base_tag"
-operation_metadata "$operation_directory/base-reference-after-build" image inspect --format '{{.Id}}' "$base_reference"
+docker_inspect_image_id "$operation_directory/base-tag-after-build" "$base_tag"
+docker_inspect_image_id "$operation_directory/base-reference-after-build" "$base_reference"
 if ! cmp -s "$operation_directory/base-tag-after-build" <(printf '%s\n' "$build_base_image") \
     || ! cmp -s "$operation_directory/base-reference-after-build" <(printf '%s\n' "$build_base_image"); then
     operation_diagnostic+=$'Cannot retire the shared delivery base tag: the tag or persistent base reference changed; inspect the retained operation.\n'; exit 2

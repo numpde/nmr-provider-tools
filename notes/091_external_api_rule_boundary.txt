@@ -1138,6 +1138,13 @@ Separate adjacent tool/package interfaces from service API rules:
       The operation owner loads both shell leaves; shadow fixtures include them.
       Operation (15), ordered-retirement (4) and the actual offline wheelhouse
       image build pass with privacy tests disabled.
+  [x] Remaining build/admission image projections and full image-ID grammar
+      now live in common Docker adapter/validation helpers. Checker admission
+      retains its read, ID/fingerprint and exact-LF gates and publishes the
+      matched ID only after all pass. IID caps/framing, platform policy, tag
+      reference choice, input fingerprints and publication remain local.
+      Provisioning (53) and conventions (12) pass; the actual offline checker
+      and wheelhouse image builds pass with the shared host interface.
   Docker/Compose: operations/docker/docker_context.sh:22-57 interprets context
   endpoint output; container_operation.sh and packages/acquisition/acquisition_tool/
   owner.sh interpret create/inspect/state/exit/readiness results; image_retirement.py:138
