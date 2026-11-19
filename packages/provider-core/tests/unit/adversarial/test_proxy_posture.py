@@ -4,7 +4,7 @@ No listener, DNS server, interface traffic or installer runs in this offline
 lane. Device-binding calls, deadline accounting and disclosure are observable;
 real routing and maintained build lifecycle require separate live proof.
 
-All 21 original methods and adversarial cases are preserved from:
+The injected proxy tests originate in:
 https://github.com/numpde/magnet-deploy/blob/2d4ee50b0359e71900fce9289ea01f46d0f41249/repository_checks/test_image_build_proxy.py
 The production module path and explicit absent-primitive admission failures are
 local adaptations. Additional late-success and publication cases expose
@@ -78,24 +78,6 @@ class ImageBuildProxyInputTests(unittest.TestCase):
             _PROXY.require_interface("eth0")
 
         self.assertNotIn(_PRIVATE, str(caught.exception))
-
-    def test_connect_ports_are_admitted_before_socket_use(self):
-        for port in ("0", "65536", "-1", "not-a-port"):
-            with self.subTest(port=port), self.assertRaises(ValueError):
-                http_proxy.parse_destination(
-                    (
-                        f"CONNECT example.invalid:{port} HTTP/1.1\r\n"
-                        "\r\n"
-                    ).encode(),
-                )
-
-        self.assertEqual(
-            ("CONNECT", "example.invalid", 443),
-            http_proxy.parse_destination(
-                b"CONNECT example.invalid:443 HTTP/1.1\r\n"
-                b"\r\n"
-            )[:3]
-        )
 
     def test_complete_headers_preserve_the_received_remainder(self):
         client = Mock()
@@ -287,7 +269,7 @@ class ImageBuildProxyTransportTests(unittest.TestCase):
         left.recv.side_effect = lambda _size: (clock.__setitem__(0, 2), b"data")[1]
 
         def send(_relay_bytes):
-            # silent-defaults: allow-contract -- The blocked write reaches the original inactivity deadline; the completed write finishes at second three; proof=tests/deployment/test_proxy_posture.py::ImageBuildProxyTransportTests.test_relay_resets_inactivity_only_after_a_completed_bounded_write
+            # silent-defaults: allow-contract -- The blocked write reaches the original inactivity deadline; the completed write finishes at second three; proof=packages/provider-core/tests/unit/adversarial/test_proxy_posture.py::ImageBuildProxyTransportTests.test_relay_resets_inactivity_only_after_a_completed_bounded_write
             clock[0] = 120 if blocked else 3
 
             if blocked:
@@ -313,10 +295,10 @@ class ImageBuildProxyTransportTests(unittest.TestCase):
 
         right.settimeout.assert_called_once_with(118)
 
-        # silent-defaults: allow-contract -- A blocked first write stops after one select; a completed write reaches the next select before inactivity expires; proof=tests/deployment/test_proxy_posture.py::ImageBuildProxyTransportTests.test_relay_resets_inactivity_only_after_a_completed_bounded_write
+        # silent-defaults: allow-contract -- A blocked first write stops after one select; a completed write reaches the next select before inactivity expires; proof=packages/provider-core/tests/unit/adversarial/test_proxy_posture.py::ImageBuildProxyTransportTests.test_relay_resets_inactivity_only_after_a_completed_bounded_write
         self.assertEqual(selected.call_count, 1 if blocked else 2)
 
-        # silent-defaults: allow-contract -- Only the completed write renews inactivity from second three, moving expiry from 120 to 123; proof=tests/deployment/test_proxy_posture.py::ImageBuildProxyTransportTests.test_relay_resets_inactivity_only_after_a_completed_bounded_write
+        # silent-defaults: allow-contract -- Only the completed write renews inactivity from second three, moving expiry from 120 to 123; proof=packages/provider-core/tests/unit/adversarial/test_proxy_posture.py::ImageBuildProxyTransportTests.test_relay_resets_inactivity_only_after_a_completed_bounded_write
         self.assertEqual(clock[0], 120 if blocked else 123)
 
     def test_client_half_close_preserves_the_returning_response(self):
@@ -352,7 +334,7 @@ class ImageBuildProxyTransportTests(unittest.TestCase):
         def select(read, _write, _errors, timeout):
             snapshots.append((list(read), timeout))
 
-            # silent-defaults: allow-contract -- The scripted first read delivers client EOF, then server reads must still forward the response and its EOF; proof=tests/deployment/test_proxy_posture.py::ImageBuildProxyTransportTests.test_client_half_close_preserves_the_returning_response
+            # silent-defaults: allow-contract -- The scripted first read delivers client EOF, then server reads must still forward the response and its EOF; proof=packages/provider-core/tests/unit/adversarial/test_proxy_posture.py::ImageBuildProxyTransportTests.test_client_half_close_preserves_the_returning_response
             return (([left] if len(snapshots) == 1 else [right]), [], [])
 
         left.recv.side_effect = client_eof
@@ -403,7 +385,7 @@ class ImageBuildProxyWorkerTests(unittest.TestCase):
     def setUp(self):
         name = self._testMethodName
 
-        # silent-defaults: allow-contract -- Capacity, readiness and forwarding probes require their corresponding production feature before injected worker behavior; no substitute feature is supplied; proof=tests/deployment/test_proxy_posture.py::ImageBuildProxyWorkerTests.test_startup_failure_and_thread_completion_restore_capacity
+        # silent-defaults: allow-contract -- Capacity, readiness and forwarding probes require their corresponding production feature before injected worker behavior; no substitute feature is supplied; proof=packages/provider-core/tests/unit/adversarial/test_proxy_posture.py::ImageBuildProxyWorkerTests.test_startup_failure_and_thread_completion_restore_capacity
         required = (
             "MAX_CONNECTIONS"
             if name in {"test_overload_does_not_start_a_thread", "test_startup_failure_and_thread_completion_restore_capacity"}
@@ -532,7 +514,7 @@ class ImageBuildProxyWorkerTests(unittest.TestCase):
                 (request, connection) = (Mock(), MagicMock())
                 connection.__enter__.return_value = connection
 
-                # silent-defaults: allow-contract -- The HTTP-header failure uses GET; the two CONNECT write failures use tunnel admission bytes; proof=tests/deployment/test_proxy_posture.py::ImageBuildProxyWorkerTests.test_initial_forwarding_write_failure_does_not_append_http_failure
+                # silent-defaults: allow-contract -- The HTTP-header failure uses GET; the two CONNECT write failures use tunnel admission bytes; proof=packages/provider-core/tests/unit/adversarial/test_proxy_posture.py::ImageBuildProxyWorkerTests.test_initial_forwarding_write_failure_does_not_append_http_failure
                 header = (
                     (
                         b"GET http://example.invalid/ HTTP/1.1\r\n"
@@ -545,7 +527,7 @@ class ImageBuildProxyWorkerTests(unittest.TestCase):
                     )
                 )
 
-                # silent-defaults: allow-contract -- Only the CONNECT-remainder scenario supplies body bytes so that its initial forwarding write is exercised; proof=tests/deployment/test_proxy_posture.py::ImageBuildProxyWorkerTests.test_initial_forwarding_write_failure_does_not_append_http_failure
+                # silent-defaults: allow-contract -- Only the CONNECT-remainder scenario supplies body bytes so that its initial forwarding write is exercised; proof=packages/provider-core/tests/unit/adversarial/test_proxy_posture.py::ImageBuildProxyWorkerTests.test_initial_forwarding_write_failure_does_not_append_http_failure
                 remainder = b"body" if phase == "connect_remainder" else b""
 
                 writer = request if phase == "connect_status" else connection
@@ -707,7 +689,7 @@ class ImageBuildProxyWorkerTests(unittest.TestCase):
             self.assertIn("Readiness was published; serving will continue", stderr.getvalue())
             self.assertIn("Cannot confirm temporary readiness cleanup", stderr.getvalue())
 
-            # silent-defaults: allow-contract -- The replacement scenario keeps its replacement receipt; the ordinary scenario keeps the published port receipt while serving continues; proof=tests/deployment/test_proxy_posture.py::ImageBuildProxyWorkerTests.test_readiness_published_receipt_still_serves_when_temporary_cleanup_fails
+            # silent-defaults: allow-contract -- The replacement scenario keeps its replacement receipt; the ordinary scenario keeps the published port receipt while serving continues; proof=packages/provider-core/tests/unit/adversarial/test_proxy_posture.py::ImageBuildProxyWorkerTests.test_readiness_published_receipt_still_serves_when_temporary_cleanup_fails
             self.assertEqual(ready.read_text(encoding="ascii"), "replacement receipt\n" if replaced else "12345\n")
 
             retained = list(pathlib.Path(temporary).glob(".proxy-ready.*"))

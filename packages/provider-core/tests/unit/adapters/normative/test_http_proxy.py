@@ -7,6 +7,24 @@ from provider_core.adapters.http_proxy import CONNECT_ESTABLISHED_RESPONSE, clos
 
 
 class ProxyRequestTests(unittest.TestCase):
+    def test_connect_ports_are_admitted_before_socket_use(self):
+        for port in ("0", "65536", "-1", "not-a-port"):
+            with self.subTest(port=port), self.assertRaises(ValueError):
+                parse_destination(
+                    (
+                        f"CONNECT example.invalid:{port} HTTP/1.1\r\n"
+                        "\r\n"
+                    ).encode(),
+                )
+
+        self.assertEqual(
+            ("CONNECT", "example.invalid", 443),
+            parse_destination(
+                b"CONNECT example.invalid:443 HTTP/1.1\r\n"
+                b"\r\n"
+            )[:3]
+        )
+
     def test_destination_port_boundaries_and_scheme_defaults_are_preserved(self):
         for port in (1, 65535):
             for (method, target) in (
