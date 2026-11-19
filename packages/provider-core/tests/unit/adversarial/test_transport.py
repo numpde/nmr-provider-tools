@@ -422,7 +422,7 @@ class TransportFailureTests(unittest.IsolatedAsyncioTestCase):
 
         factory.assert_not_called()
 
-    @unittest.skip("Privacy policy under review")
+    @unittest.skipIf(os.environ.get("PRIVACY_TESTS", "1") == "0", "PRIVACY_TESTS=0")
     async def test_invalid_unix_socket_paths_are_not_echoed(self):
         for (path, error_type) in self._invalid_unix_socket_paths():
             with self.subTest(kind=type(path).__name__), self.assertRaises(error_type) as caught:
@@ -529,7 +529,7 @@ class TransportFailureTests(unittest.IsolatedAsyncioTestCase):
             if stream_failure is primary:
                 self.assertIs(failure.primary, primary)
 
-    @unittest.skip("Privacy policy under review")
+    @unittest.skipIf(os.environ.get("PRIVACY_TESTS", "1") == "0", "PRIVACY_TESTS=0")
     async def test_failed_body_diagnostics_omit_received_headers(self):
         async for (failure, _headers, _client, _stream_failure, _primary) in self._failed_bodies():
             self.assertNotIn("private-head-canary", repr(failure.response_head) + str(failure))
@@ -608,7 +608,7 @@ class TransportFailureTests(unittest.IsolatedAsyncioTestCase):
 
             self.assertEqual(factory.call_count, 1)
 
-    @unittest.skip("Privacy policy under review")
+    @unittest.skipIf(os.environ.get("PRIVACY_TESTS", "1") == "0", "PRIVACY_TESTS=0")
     async def test_primary_and_cleanup_diagnostics_omit_request_and_causes(self):
         async for (failure, _primary, _cleanup, _transport, _factory) in self._read_and_cleanup_failure():
             rendered = "".join(traceback.format_exception(failure)) + repr(failure)
@@ -616,7 +616,7 @@ class TransportFailureTests(unittest.IsolatedAsyncioTestCase):
             for private in ("private-read-canary", "private-close-canary", "private-url-canary"):
                 self.assertNotIn(private, rendered)
 
-    @unittest.skip("Privacy policy under review")
+    @unittest.skipIf(os.environ.get("PRIVACY_TESTS", "1") == "0", "PRIVACY_TESTS=0")
     async def test_file_write_failure_diagnostics_omit_causes(self):
         primary = OSError(errno.ENOSPC, "private disk cause")
         cleanup = OSError(errno.EIO, "private network cleanup")

@@ -12,6 +12,7 @@ import json
 import socket
 import ssl
 import unittest
+import os
 from builtins import ExceptionGroup
 from functools import partial
 from unittest.mock import patch
@@ -56,7 +57,7 @@ def body_timeout_problem(**changes):
 
 
 class ApiAvailabilityTests(unittest.IsolatedAsyncioTestCase):
-    @unittest.skip("Privacy policy under review")
+    @unittest.skipIf(os.environ.get("PRIVACY_TESTS", "1") == "0", "PRIVACY_TESTS=0")
     async def test_retry_diagnostics_omit_problem_and_proxy_content(self):
         for received in (
             reply(signature_window_problem(code="signature_expired"), status=401),

@@ -4,6 +4,7 @@ import io
 import sys
 import tracemalloc
 import unittest
+import os
 import zlib
 
 from provider_core.decoded_body import DecodedBody, DecodedBodyRejected
@@ -150,7 +151,7 @@ class DecodedBodyTests(unittest.TestCase):
             with self.assertRaises(error_type):
                 DecodedBodyRejected(reason)
 
-    @unittest.skip("Privacy policy under review")
+    @unittest.skipIf(os.environ.get("PRIVACY_TESTS", "1") == "0", "PRIVACY_TESTS=0")
     def test_rejection_diagnostics_omit_encoding_metadata(self):
         with self.assertRaises(DecodedBodyRejected) as caught:
             DecodedBody(((b"content-encoding", b"private-coding-sentinel"),), maximum_bytes=32)

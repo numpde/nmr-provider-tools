@@ -4,6 +4,7 @@ import base64
 import json
 import traceback
 import unittest
+import os
 
 from provider_core.job_input import FeedInputFacts, JobInputRejected, verify_job_input
 from tests.fakes.job_input import facts, response
@@ -20,7 +21,7 @@ class UntrustedJobInputTests(unittest.TestCase):
         else:
             self.fail("Untrusted input was accepted")
 
-    @unittest.skip("Privacy policy under review")
+    @unittest.skipIf(os.environ.get("PRIVACY_TESTS", "1") == "0", "PRIVACY_TESTS=0")
     def test_rejection_tracebacks_omit_input(self):
         for raw in (
             b"PRIVATE_SENTINEL",

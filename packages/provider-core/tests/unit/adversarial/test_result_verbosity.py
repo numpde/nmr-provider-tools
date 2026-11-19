@@ -1,6 +1,7 @@
 """Invalid preferences never silently select a lower disclosure level."""
 
 import unittest
+import os
 
 from provider_core.result_verbosity import ResultVerbosity
 
@@ -25,7 +26,7 @@ class ResultVerbosityRejectionTests(unittest.TestCase):
                     self.assertIn(member.value, message)
 
 
-    @unittest.skip("Privacy policy under review")
+    @unittest.skipIf(os.environ.get("PRIVACY_TESTS", "1") == "0", "PRIVACY_TESTS=0")
     def test_rejection_diagnostics_omit_input(self):
         with self.assertRaises(ValueError) as caught:
             ResultVerbosity.parse("PRIVATE_CANARY")

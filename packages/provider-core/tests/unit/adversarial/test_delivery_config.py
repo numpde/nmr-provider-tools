@@ -2,6 +2,7 @@
 
 import tempfile
 import unittest
+import os
 import pathlib
 from unittest.mock import Mock
 
@@ -38,7 +39,7 @@ class DeliveryConfigurationRefusalTests(unittest.TestCase):
         for (_refusal, state_directory) in self._configuration_refusals():
             self.assertFalse(state_directory.exists())
 
-    @unittest.skip("Privacy policy under review")
+    @unittest.skipIf(os.environ.get("PRIVACY_TESTS", "1") == "0", "PRIVACY_TESTS=0")
     def test_configuration_refusals_omit_input(self):
         for (refusal, _state_directory) in self._configuration_refusals():
             self.assertNotIn("PRIVATE", str(refusal))

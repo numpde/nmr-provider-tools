@@ -3,6 +3,7 @@
 import json
 import ssl
 import unittest
+import os
 from unittest.mock import Mock, patch
 
 from provider_core.api_config import ApiConfigurationRejected, https_settings, https_trust
@@ -68,7 +69,7 @@ class HttpsAdmissionTests(unittest.TestCase):
             self.assertIn(reason, rendered)
             self.assertIn(cause_type.__name__, rendered)
 
-    @unittest.skip("Privacy policy under review")
+    @unittest.skipIf(os.environ.get("PRIVACY_TESTS", "1") == "0", "PRIVACY_TESTS=0")
     def test_ca_parser_diagnostics_omit_certificate_content(self):
         for (error, _reason, _cause_type, _calls) in self._ca_parser_failures():
             self.assertNotIn("PRIVATE", json.dumps(failure_evidence(error, secrets=())))
@@ -89,7 +90,7 @@ class HttpsAdmissionTests(unittest.TestCase):
 
         self.assertIs(failure.cause, cause)
 
-    @unittest.skip("Privacy policy under review")
+    @unittest.skipIf(os.environ.get("PRIVACY_TESTS", "1") == "0", "PRIVACY_TESTS=0")
     def test_openssl_failure_diagnostics_omit_native_text(self):
         (failure, _cause) = self._openssl_failure()
 

@@ -6,6 +6,7 @@ from provider_core.producer_checkpoint import AcknowledgedCheckpoint, EnteredChe
 from tests.fakes.execution import live_executor
 import asyncio
 import unittest
+import os
 
 from provider_core.api import ApiFailure
 from provider_core.execution import ExecutionFailed, ExecutionRefused
@@ -207,7 +208,7 @@ class ExecutionConditionFailureTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual([event[0] for event in session.events], ["retire"])
         claim.release(owner=claim.lifecycle_owner)
 
-    @unittest.skip("Privacy policy under review")
+    @unittest.skipIf(os.environ.get("PRIVACY_TESTS", "1") == "0", "PRIVACY_TESTS=0")
     def test_condition_rejection_diagnostics_omit_input(self):
         from provider_core.attempt_request import progress_body
 

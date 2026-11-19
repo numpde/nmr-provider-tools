@@ -3,6 +3,7 @@
 import asyncio
 import json
 import unittest
+import os
 
 from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
 
@@ -110,7 +111,7 @@ class AttemptOutcomeFailureTests(unittest.IsolatedAsyncioTestCase):
             self.assertIs(failure.response, received)
             self.assertEqual(len(transport.calls), 1)
 
-    @unittest.skip("Privacy policy under review")
+    @unittest.skipIf(os.environ.get("PRIVACY_TESTS", "1") == "0", "PRIVACY_TESTS=0")
     async def test_outcome_acknowledgement_diagnostics_omit_response_content(self):
         async for (failure, _received, _transport) in self._mismatched_outcome_failures():
             self.assertNotIn("private-canary", str(failure))
@@ -166,7 +167,7 @@ class AttemptOutcomeFailureTests(unittest.IsolatedAsyncioTestCase):
             self.assertFalse(current_failure.attempt_mutation_may_have_committed)
             self.assertEqual(current_failure.problem_code, code)
 
-    @unittest.skip("Privacy policy under review")
+    @unittest.skipIf(os.environ.get("PRIVACY_TESTS", "1") == "0", "PRIVACY_TESTS=0")
     async def test_terminal_conflict_diagnostics_omit_problem_content(self):
         async for (_earlier_failure, current_failure, _code) in self._terminal_conflicts_after_lost_response():
             self.assertNotIn("private-canary", str(current_failure))

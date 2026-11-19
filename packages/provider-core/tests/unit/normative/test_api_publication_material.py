@@ -2,6 +2,7 @@
 
 import ssl
 import unittest
+import os
 from unittest.mock import Mock, patch
 
 from provider_core.api_config import ApiConfigurationRejected, api_settings, api_settings_from_material, api_settings_with_material
@@ -64,7 +65,7 @@ class PublicationMaterialTests(unittest.TestCase):
         self.assertEqual(original.identity.origin, rebuilt.identity.origin)
         reader.assert_called_once()
 
-    @unittest.skip("Privacy policy under review")
+    @unittest.skipIf(os.environ.get("PRIVACY_TESTS", "1") == "0", "PRIVACY_TESTS=0")
     def test_publication_material_representation_omits_signing_key(self):
         (_original, _provider, material) = api_settings_with_material(
             self.fields | {"credential_file": "/private/credential"},

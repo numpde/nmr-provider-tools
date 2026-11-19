@@ -2,6 +2,7 @@
 
 import asyncio
 import unittest
+import os
 from dataclasses import replace
 from datetime import UTC, datetime, timedelta
 from unittest.mock import patch
@@ -160,7 +161,7 @@ class UploadAcquisitionTests(unittest.IsolatedAsyncioTestCase):
         self.assertTrue(failure.grant_issued)
         self.assertEqual(store.calls, [])
 
-    @unittest.skip("Privacy policy under review")
+    @unittest.skipIf(os.environ.get("PRIVACY_TESTS", "1") == "0", "PRIVACY_TESTS=0")
     async def test_foreign_url_diagnostics_omit_bearer(self):
         (failure, _store) = await self._foreign_url_refusal()
 

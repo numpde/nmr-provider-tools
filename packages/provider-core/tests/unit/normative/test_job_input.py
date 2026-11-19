@@ -1,6 +1,7 @@
 """Job input preserves exact original instructions before scientific admission."""
 
 import unittest
+import os
 from dataclasses import FrozenInstanceError
 
 from provider_core.job_input import verify_job_input
@@ -28,7 +29,7 @@ class JobInputTests(unittest.TestCase):
                 with self.assertRaises(FrozenInstanceError):
                     verified.specification_bytes = b"replacement"
 
-    @unittest.skip("Privacy policy under review")
+    @unittest.skipIf(os.environ.get("PRIVACY_TESTS", "1") == "0", "PRIVACY_TESTS=0")
     def test_verified_input_representation_omits_instructions(self):
         payload = b"private\x00instructions"
         verified = verify_job_input(response(payload), feed=facts(payload))

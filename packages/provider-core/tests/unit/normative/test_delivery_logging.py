@@ -4,6 +4,7 @@ import errno
 import io
 import json
 import unittest
+import os
 
 from provider_core.api import ApiFailure
 from provider_core.delivery_logging import DeliveryNotices
@@ -52,7 +53,7 @@ class DeliveryLoggingTests(unittest.TestCase):
         self.assertIn('"errno":5', rendered)
         self.assertEqual(notices.status()["output_failures"], 0)
 
-    @unittest.skip("Privacy policy under review")
+    @unittest.skipIf(os.environ.get("PRIVACY_TESTS", "1") == "0", "PRIVACY_TESTS=0")
     def test_large_log_record_omits_response_and_native_text(self):
         (rendered, _notices) = self._large_log_record()
 
@@ -81,11 +82,11 @@ class DeliveryLoggingTests(unittest.TestCase):
         self.assertEqual(status["last_failure_errno"], errno.EPIPE)
         self.assertEqual(status["last_failed_event"], "delivery_published")
 
-    @unittest.skip("Privacy policy under review")
+    @unittest.skipIf(os.environ.get("PRIVACY_TESTS", "1") == "0", "PRIVACY_TESTS=0")
     def test_output_health_omits_sink_details(self):
         self.assertNotIn("PRIVATE", json.dumps(self._failed_output_status()))
 
-    @unittest.skip("Privacy policy under review")
+    @unittest.skipIf(os.environ.get("PRIVACY_TESTS", "1") == "0", "PRIVACY_TESTS=0")
     def test_known_credentials_and_credential_fields_are_redacted_before_stream_output(self):
         output = io.StringIO()
         notices = DeliveryNotices(output, secrets=("PRIVATE_SECRET",))

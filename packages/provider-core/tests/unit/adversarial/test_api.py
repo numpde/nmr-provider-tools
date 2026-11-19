@@ -4,6 +4,7 @@ import asyncio
 import json
 import traceback
 import unittest
+import os
 
 from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
 
@@ -49,7 +50,7 @@ class ApiReadFailureTests(unittest.IsolatedAsyncioTestCase):
         self.assertIn("503", str(failure))
         self.assertEqual(len(transport.calls), 1)
 
-    @unittest.skip("Privacy policy under review")
+    @unittest.skipIf(os.environ.get("PRIVACY_TESTS", "1") == "0", "PRIVACY_TESTS=0")
     async def test_http_failure_traceback_omits_response_content(self):
         (failure, _observed, _transport) = await self._http_failure()
 
@@ -107,7 +108,7 @@ class ApiReadFailureTests(unittest.IsolatedAsyncioTestCase):
             self.assertIn("Job input", str(failure))
             self.assertEqual(len(transport.calls), 1)
 
-    @unittest.skip("Privacy policy under review")
+    @unittest.skipIf(os.environ.get("PRIVACY_TESTS", "1") == "0", "PRIVACY_TESTS=0")
     async def test_interrupted_read_diagnostics_omit_native_text(self):
         async for (failure, _io_failure, _transport) in self._interrupted_reads():
             self.assertNotIn("private-io-canary", repr(failure))
@@ -167,7 +168,7 @@ class ApiReadFailureTests(unittest.IsolatedAsyncioTestCase):
                 self.assertIn("expired", str(failure))
                 self.assertIn("clock", str(failure))
 
-    @unittest.skip("Privacy policy under review")
+    @unittest.skipIf(os.environ.get("PRIVACY_TESTS", "1") == "0", "PRIVACY_TESTS=0")
     async def test_problem_diagnostics_omit_server_content(self):
         async for (failure, _known) in self._problem_read_failures():
             self.assertNotIn("private-", "".join(traceback.format_exception(failure)))

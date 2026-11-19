@@ -6,6 +6,7 @@ import json
 import sqlite3
 import tempfile
 import unittest
+import os
 import pathlib
 from unittest.mock import Mock, patch
 
@@ -86,7 +87,7 @@ class QueueObservationTests(unittest.TestCase):
     def test_aggregate_and_observation_failure_leave_the_queue_usable(self):
         self._queue_observation()
 
-    @unittest.skip("Privacy policy under review")
+    @unittest.skipIf(os.environ.get("PRIVACY_TESTS", "1") == "0", "PRIVACY_TESTS=0")
     def test_queue_observations_omit_identifiers_and_failure_text(self):
         aggregate, job_ref, aggregate_failure, safe_failure, output = self._queue_observation()
 

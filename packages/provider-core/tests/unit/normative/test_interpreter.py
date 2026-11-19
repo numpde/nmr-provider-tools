@@ -3,6 +3,7 @@
 import asyncio
 import json
 import unittest
+import os
 from copy import deepcopy
 from types import SimpleNamespace
 from unittest.mock import ANY, AsyncMock, Mock, patch
@@ -91,7 +92,7 @@ class InterpreterTests(unittest.IsolatedAsyncioTestCase):
 
                 endpoint_factory.assert_not_called()
 
-    @unittest.skip("Privacy policy under review")
+    @unittest.skipIf(os.environ.get("PRIVACY_TESTS", "1") == "0", "PRIVACY_TESTS=0")
     async def test_private_initial_context_is_rejected_before_any_model_or_science(self):
         from provider_core.diagnostics import failure_evidence
 
@@ -1118,7 +1119,7 @@ class InterpreterTests(unittest.IsolatedAsyncioTestCase):
             self.assertEqual(owned_details(report)["message"], report.model_summary)
             self.assertEqual(json.loads(records[1]["json_text"])["claim"], report.model_summary)
 
-    @unittest.skip("Privacy policy under review")
+    @unittest.skipIf(os.environ.get("PRIVACY_TESTS", "1") == "0", "PRIVACY_TESTS=0")
     async def test_report_history_excludes_private_arguments(self):
         async for (_failures, _report, _original, records, second, private) in self._report_history():
             for request in second.complete.await_args_list:

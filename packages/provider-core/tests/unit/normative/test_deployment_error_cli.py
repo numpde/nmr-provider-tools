@@ -5,6 +5,7 @@ import subprocess
 import sys
 import tempfile
 import unittest
+import os
 import pathlib
 
 from provider_core.deployment_binding import BindingDefinitionRejected
@@ -66,7 +67,7 @@ class DeploymentErrorCliTests(unittest.TestCase):
             self.assertTrue(report["failure"]["message"])
             self.assertEqual(completed_process.stdout, "")
 
-    @unittest.skip("Privacy policy under review")
+    @unittest.skipIf(os.environ.get("PRIVACY_TESTS", "1") == "0", "PRIVACY_TESTS=0")
     def test_binding_cli_refusals_do_not_echo_untrusted_values(self):
         for completed_process in self._binding_cli_refusals():
             self.assertNotIn("PRIVATE_INPUT_CANARY", completed_process.stderr)
@@ -120,7 +121,7 @@ class DeploymentErrorCliTests(unittest.TestCase):
         self.assertIn("immutable full image ID", report["failure"]["message"])
         self.assertEqual(completed_process.stdout, "")
 
-    @unittest.skip("Privacy policy under review")
+    @unittest.skipIf(os.environ.get("PRIVACY_TESTS", "1") == "0", "PRIVACY_TESTS=0")
     def test_route_cli_refusals_do_not_echo_untrusted_values(self):
         completed_process = self._route_cli_refusal()
 

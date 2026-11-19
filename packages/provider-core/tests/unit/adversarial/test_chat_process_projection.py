@@ -3,6 +3,7 @@
 import asyncio
 import signal
 import unittest
+import os
 
 from provider_core.chat_errors import ChatFailed
 from provider_core.chat_process import ChatProcessResult, SupervisedChatTransport, _Exchange
@@ -105,7 +106,7 @@ class ChatProcessProjectionTests(unittest.TestCase):
 
         self.assertEqual({"message": str(failure)}, owned_details(failure))
 
-    @unittest.skip("Privacy policy under review")
+    @unittest.skipIf(os.environ.get("PRIVACY_TESTS", "1") == "0", "PRIVACY_TESTS=0")
     def test_child_projection_omits_text_and_headers(self):
         (failure, _deadline, _child, _process_type) = self._child_exchange_failure()
 

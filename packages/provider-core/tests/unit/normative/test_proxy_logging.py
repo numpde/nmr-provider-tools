@@ -3,6 +3,7 @@
 import io
 import logging
 import unittest
+import os
 from unittest.mock import MagicMock, patch
 
 from provider_core import bound_http_proxy
@@ -44,7 +45,7 @@ class ProxyLoggingTests(unittest.TestCase):
         self.assertIn("credential-in-note", failure.__notes__[0])
         self.assertEqual(record.args, ("credential-in-argument",))
 
-    @unittest.skip("Privacy policy under review")
+    @unittest.skipIf(os.environ.get("PRIVACY_TESTS", "1") == "0", "PRIVACY_TESTS=0")
     def test_formatter_scrubs_credentials_from_output(self):
         (formatted, _record, _failure, _cause) = self._formatted_failure()
 

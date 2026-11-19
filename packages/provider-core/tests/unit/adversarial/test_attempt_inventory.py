@@ -3,6 +3,7 @@
 import json
 import traceback
 import unittest
+import os
 
 from provider_core.api import ApiFailure
 from provider_core.attempt_inventory import read_attempt_inventory
@@ -62,7 +63,7 @@ class AttemptInventoryFailureTests(unittest.IsolatedAsyncioTestCase):
             self.assertEqual(failure.response.body, body)
             self.assertFalse(failure.attempt_mutation_may_have_committed)
 
-    @unittest.skip("Privacy policy under review")
+    @unittest.skipIf(os.environ.get("PRIVACY_TESTS", "1") == "0", "PRIVACY_TESTS=0")
     async def test_bad_wire_diagnostics_omit_response_content(self):
         async for (_body, _transport, failure) in self._bad_wire_failures():
             for rendered in (str(failure), repr(failure), "".join(traceback.format_exception(failure))):
@@ -121,7 +122,7 @@ class AttemptInventoryFailureTests(unittest.IsolatedAsyncioTestCase):
             with self.subTest(field=field, bad=bad), self.assertRaises(ResponseRejected):
                 read_attempt_inventory(inventory_bytes, limit=2)
 
-    @unittest.skip("Privacy policy under review")
+    @unittest.skipIf(os.environ.get("PRIVACY_TESTS", "1") == "0", "PRIVACY_TESTS=0")
     def test_row_rejections_omit_response_content(self):
         for (field, bad, inventory_bytes) in self._invalid_inventory_rows():
             with self.subTest(field=field, bad=bad), self.assertRaises(ResponseRejected) as rejected:

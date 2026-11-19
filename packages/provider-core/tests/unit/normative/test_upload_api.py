@@ -1,6 +1,7 @@
 """Membership and download grants retain distinct Job/resource/content facts."""
 
 import unittest
+import os
 
 from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
 
@@ -56,7 +57,7 @@ class UploadApiTests(unittest.IsolatedAsyncioTestCase):
             self.assertNotIn("Content-Digest", request.headers)
             self.assertIn("Signature", request.headers)
 
-    @unittest.skip("Privacy policy under review")
+    @unittest.skipIf(os.environ.get("PRIVACY_TESTS", "1") == "0", "PRIVACY_TESTS=0")
     async def test_grant_representation_omits_bearer(self):
         (_observed, access, _transport) = await self._membership_and_grant()
 

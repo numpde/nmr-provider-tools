@@ -1,6 +1,7 @@
 """Reject ambiguous signing targets before any HTTP operation is possible."""
 
 import unittest
+import os
 
 from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
 
@@ -56,7 +57,7 @@ class SigningRejectionTests(unittest.TestCase):
             with self.subTest(changes=changes), self.assertRaises((ValueError, TypeError)):
                 signed_request(identity, **(defaults | changes))
 
-    @unittest.skip("Privacy policy under review")
+    @unittest.skipIf(os.environ.get("PRIVACY_TESTS", "1") == "0", "PRIVACY_TESTS=0")
     def test_identity_repr_does_not_expose_signing_material(self):
         identity = SigningIdentity("https://api.example", "credential:private-canary", Ed25519PrivateKey.generate())
 

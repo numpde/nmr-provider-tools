@@ -3,6 +3,7 @@
 from tests.fakes.execution import live_executor
 import json
 import unittest
+import os
 from unittest.mock import Mock
 
 from provider_core.analysis import PreparedAnalysis
@@ -36,7 +37,7 @@ class PreparedIdentityTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(set(document["prepared"]), {"schema_id", "sha256", "byte_length"})
         self.assertNotIsInstance(entered, PreparedAnalysis)
 
-    @unittest.skip("Privacy policy under review")
+    @unittest.skipIf(os.environ.get("PRIVACY_TESTS", "1") == "0", "PRIVACY_TESTS=0")
     def test_prepared_checkpoint_representation_omits_candidate_identity(self):
         entered = EnteredCheckpoint(AcknowledgedCheckpoint(record(), admission()), EvidenceDigest.from_evidence(IDENTITY))
 

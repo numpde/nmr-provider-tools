@@ -51,7 +51,7 @@ class DeliveryDiagnosticsTests(unittest.TestCase):
             self.assertNotIn("system_exit_code", report)
             self.assertIs(failure.code, code)
 
-    @unittest.skip("Privacy policy under review")
+    @unittest.skipIf(os.environ.get("PRIVACY_TESTS", "1") == "0", "PRIVACY_TESTS=0")
     def test_system_exit_diagnostics_omit_string_content(self):
         for (_failure, _code, _report, rendered) in self._non_numeric_exit_reports():
             self.assertNotIn("PRIVATE", rendered)
@@ -82,7 +82,7 @@ class DeliveryDiagnosticsTests(unittest.TestCase):
         self.assertIn('"sqlite_errorcode": 1', rendered)
         self.assertIn('"sqlite_errorname": "SQLITE_ERROR"', rendered)
 
-    @unittest.skip("Privacy policy under review")
+    @unittest.skipIf(os.environ.get("PRIVACY_TESTS", "1") == "0", "PRIVACY_TESTS=0")
     def test_sqlite_diagnostics_omit_sql_and_exception_text(self):
         rendered = self._sqlite_failure_report()
 
@@ -106,7 +106,7 @@ class DeliveryDiagnosticsTests(unittest.TestCase):
         self.assertNotIn("sqlite_errorcode", unreported)
         self.assertNotIn("sqlite_errorname", unreported)
 
-    @unittest.skip("Privacy policy under review")
+    @unittest.skipIf(os.environ.get("PRIVACY_TESTS", "1") == "0", "PRIVACY_TESTS=0")
     def test_sqlite_diagnostics_omit_unreported_native_text(self):
         unreported = failure_evidence(sqlite3.OperationalError("PRIVATE_SQL_TEXT"), secrets=())
 
@@ -137,7 +137,7 @@ class DeliveryDiagnosticsTests(unittest.TestCase):
         self.assertIn('"errno": 5', rendered)
         self.assertIn('"attempt_mutation_may_have_committed": true', rendered)
 
-    @unittest.skip("Privacy policy under review")
+    @unittest.skipIf(os.environ.get("PRIVACY_TESTS", "1") == "0", "PRIVACY_TESTS=0")
     def test_api_and_cleanup_diagnostics_omit_payloads(self):
         self.assertNotIn("PRIVATE", self._api_and_cleanup_report())
 
@@ -150,7 +150,7 @@ class DeliveryDiagnosticsTests(unittest.TestCase):
     def test_unknown_exception_type_reaches_operator_output(self):
         self.assertIn("ValueError", self._unknown_exception_report())
 
-    @unittest.skip("Privacy policy under review")
+    @unittest.skipIf(os.environ.get("PRIVACY_TESTS", "1") == "0", "PRIVACY_TESTS=0")
     def test_unknown_exception_text_and_credential_fields_stay_out_of_operator_output(self):
         self.assertNotIn("PRIVATE", self._unknown_exception_report())
 

@@ -3,6 +3,7 @@
 import json
 import traceback
 import unittest
+import os
 
 from provider_core.api import ApiFailure
 from provider_core.job_feed import read_jobs_page
@@ -86,7 +87,7 @@ class JobFeedFailureTests(unittest.IsolatedAsyncioTestCase):
                     limit=1,
                 )
 
-    @unittest.skip("Privacy policy under review")
+    @unittest.skipIf(os.environ.get("PRIVACY_TESTS", "1") == "0", "PRIVACY_TESTS=0")
     def test_envelope_rejection_diagnostics_omit_response_content(self):
         for (field, response_bytes) in self._invalid_envelopes():
             with self.subTest(field=field), self.assertRaises(ResponseRejected) as rejected:
@@ -156,7 +157,7 @@ class JobFeedFailureTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(failure.response.body, raw)
         self.assertFalse(failure.attempt_mutation_may_have_committed)
 
-    @unittest.skip("Privacy policy under review")
+    @unittest.skipIf(os.environ.get("PRIVACY_TESTS", "1") == "0", "PRIVACY_TESTS=0")
     async def test_wire_failure_diagnostics_omit_response_content(self):
         (failure, _raw) = await self._wire_failure()
 
