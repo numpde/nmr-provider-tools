@@ -102,3 +102,13 @@ class UntrustedJobInputTests(unittest.TestCase):
 
     def test_mutable_response_is_not_admitted(self):
         self.rejected(bytearray(response()))
+
+    def test_large_rejected_identifiers_and_field_names_do_not_expand_diagnostics(self):
+        oversized_identifier = "unexpected_" + "x" * 60000
+
+        for field_name in ("job_ref", "input_schema_id", "input_fingerprint", "schema_id", oversized_identifier):
+            with self.subTest(field_name=field_name[:40]):
+                rejection = self.rejected(response(**{field_name: oversized_identifier}))
+
+                self.assertLess(len(str(rejection)), 1024)
+                self.assertIn("...", str(rejection))

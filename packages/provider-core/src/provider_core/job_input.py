@@ -13,6 +13,7 @@ require_container()
 import base64
 import hashlib
 import re
+import reprlib
 from dataclasses import dataclass, field
 
 from provider_core.response_json import ResponseRejected, read_document
@@ -52,22 +53,24 @@ class FeedInputFacts:
             raise JobInputRejected(f"{type(self.job_ref)=} ≠ {expected_type=}")
 
         if not re.fullmatch((expected_pattern := r"job:[A-Za-z0-9_.-]{1,124}"), self.job_ref):
-            raise JobInputRejected(f"{self.job_ref=} should match {expected_pattern=}")
+            raise JobInputRejected(f"self.job_ref={reprlib.repr(self.job_ref)} should match {expected_pattern=}")
 
         if not (self.input_schema_id == INPUT_SCHEMA):
-            raise JobInputRejected(f"{self.input_schema_id=} should match {INPUT_SCHEMA=}")
+            raise JobInputRejected(f"self.input_schema_id={reprlib.repr(self.input_schema_id)} should match {INPUT_SCHEMA=}")
 
         if not (type(self.input_fingerprint) is (expected_type := str)):
             raise JobInputRejected(f"{type(self.input_fingerprint)=} ≠ {expected_type=}")
 
         if not re.fullmatch((expected_pattern := r"sha256:[0-9a-f]{64}"), self.input_fingerprint):
-            raise JobInputRejected(f"{self.input_fingerprint=} should match {expected_pattern=}")
+            raise JobInputRejected(f"self.input_fingerprint={reprlib.repr(self.input_fingerprint)} should match {expected_pattern=}")
 
         if not (type(self.input_byte_length) is (expected_type := int)):
             raise JobInputRejected(f"{type(self.input_byte_length)=} ≠ {expected_type=}")
 
-        if not (1 <= self.input_byte_length <= MAX_INPUT_BYTES):
-            raise JobInputRejected(f"{self.input_byte_length=} should be between 1 and {MAX_INPUT_BYTES=}")
+        min_input_bytes = 1
+
+        if not (min_input_bytes <= self.input_byte_length <= MAX_INPUT_BYTES):
+            raise JobInputRejected(f"{self.input_byte_length=} should be between {min_input_bytes=} and {MAX_INPUT_BYTES=}")
 
 
 @dataclass(frozen=True, slots=True)
@@ -132,10 +135,13 @@ def verify_job_input(response_bytes, *, feed):
     expected_fields = {"schema_id", "job_ref", "input_schema_id", "input_fingerprint", "input_byte_length", "canonical_input_base64"}
 
     if not (response_fields == expected_fields):
-        raise JobInputRejected(f"{response_fields=} should match {expected_fields=}")
+        unexpected_fields = response_fields - expected_fields
+        missing_fields = expected_fields - response_fields
+
+        raise JobInputRejected(f"unexpected_fields={reprlib.repr(unexpected_fields)} and {missing_fields=} should be empty")
 
     if not ((response_schema_id := input_response["schema_id"]) == RESPONSE_SCHEMA):
-        raise JobInputRejected(f"{response_schema_id=} should match {RESPONSE_SCHEMA=}")
+        raise JobInputRejected(f"response_schema_id={reprlib.repr(response_schema_id)} should match {RESPONSE_SCHEMA=}")
 
     observed_input = FeedInputFacts(
         *(input_response[name] for name in ("job_ref", "input_schema_id", "input_fingerprint", "input_byte_length"))
@@ -154,9 +160,10 @@ def verify_job_input(response_bytes, *, feed):
         raise JobInputRejected(f"{type(observed_input_base64)=} ≠ {expected_type=}")
 
     base64_character_count = len(observed_input_base64)
+    min_base64_characters, max_base64_characters = 1, 87384
 
-    if not (1 <= base64_character_count <= 87384):
-        raise JobInputRejected(f"{base64_character_count=} should be between 1 and 87384")
+    if not (min_base64_characters <= base64_character_count <= max_base64_characters):
+        raise JobInputRejected(f"{base64_character_count=} should be between {min_base64_characters=} and {max_base64_characters=}")
 
     try:
         specification_bytes = base64.b64decode(observed_input_base64, validate=True)
