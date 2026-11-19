@@ -1498,7 +1498,10 @@
         "AttemptOutcomeFailureTests.test_lost_outcome_reply_never_retries_or_switches_terminal_operation",
         "AttemptOutcomeFailureTests.test_mismatched_acknowledgements_retain_uncertainty",
         "AttemptOutcomeFailureTests.test_terminal_conflicts_resolve_only_the_current_send"
-      ]
+      ],
+      "retired_test_methods": {
+        "AttemptOutcomeFailureTests.test_invalid_builder_inputs_do_not_create_publication": "Moved unchanged to AttemptRequestEncodingTests in tests/unit/adapters/nmr/v1/adversarial/test_attempt_request.py."
+      }
     },
     {
       "path": "packages/provider-core/tests/unit/adversarial/test_attempt_progress.py",
@@ -2218,7 +2221,10 @@
         "AttemptOutcomeTests.test_builders_preserve_maximum_payloads_and_scalar_text",
         "AttemptOutcomeTests.test_result_bytes_are_opaque_not_required_to_be_utf8_or_json",
         "AttemptOutcomeTests.test_terminal_replay_preserves_exact_request_bytes_and_acknowledged_content"
-      ]
+      ],
+      "retired_test_methods": {
+        "AttemptOutcomeTests.test_builders_preserve_maximum_payloads_and_scalar_text": "Moved unchanged to AttemptRequestEncodingTests in tests/unit/adapters/nmr/v1/normative/test_attempt_request.py."
+      }
     },
     {
       "path": "packages/provider-core/tests/unit/normative/test_attempt_progress.py",
@@ -2250,7 +2256,10 @@
       "test_methods": [
         "AttemptStartTests.test_builder_preserves_explicit_key_without_inventing_identity",
         "AttemptStartTests.test_exact_start_bytes_survive_explicit_replay_and_terminal_reply"
-      ]
+      ],
+      "retired_test_methods": {
+        "AttemptStartTests.test_builder_preserves_explicit_key_without_inventing_identity": "Moved unchanged to AttemptRequestEncodingTests in tests/unit/adapters/nmr/v1/normative/test_attempt_request.py."
+      }
     },
     {
       "path": "packages/provider-core/tests/unit/normative/test_attempt_transitions.py",

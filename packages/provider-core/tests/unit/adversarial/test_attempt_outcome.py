@@ -77,15 +77,6 @@ class AttemptOutcomeFailureTests(unittest.IsolatedAsyncioTestCase):
 
             self.assertEqual(transport.calls, [])
 
-    def test_invalid_builder_inputs_do_not_create_publication(self):
-        for (data, error_type) in ((b"", ValueError), (b"x" * 786433, ValueError), (bytearray(b"x"), TypeError)):
-            with self.assertRaises(error_type):
-                complete_body(ATTEMPT_REF, "schema", data)
-
-        for message in ("", "\x00", "\udfff", "x" * 1025):
-            with self.assertRaises(ValueError):
-                fail_body(ATTEMPT_REF, "input_rejected", message)
-
     async def _mismatched_outcome_failures(self):
         for (completing, response, changes) in (
             (True, complete_response, {"result_fingerprint": "sha256:" + "0" * 64}),

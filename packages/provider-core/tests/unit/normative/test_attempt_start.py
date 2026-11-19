@@ -1,12 +1,10 @@
 """Recover admission with original start bytes and fresh request authentication."""
 
-import json
 import unittest
 
 from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
 
 from provider_core.api import ProviderAPI
-from provider_core.adapters.nmr.v1.attempt_request import start_body
 from provider_core.adapters.nmr.v1.signing import SigningIdentity
 from tests.fakes.api import Transport, reply
 from tests.fakes.attempts import retained_start, start_response
@@ -50,17 +48,3 @@ class AttemptStartTests(unittest.IsolatedAsyncioTestCase):
             )
 
             self.assertEqual(first.headers["Content-Type"], "application/json")
-
-    def test_builder_preserves_explicit_key_without_inventing_identity(self):
-        body = start_body("job:example", "persisted:key-1")
-
-        self.assertIs(type(body), bytes)
-
-        self.assertEqual(
-            json.loads(body),
-            {
-                "schema_id": "nmr.provider.execution_attempt_start_request.v1",
-                "job_ref": "job:example",
-                "provider_attempt_key": "persisted:key-1",
-            },
-        )

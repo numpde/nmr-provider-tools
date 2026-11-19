@@ -85,18 +85,6 @@ class AttemptOutcomeTests(unittest.IsolatedAsyncioTestCase):
                 ("POST", b"/provider/v1/execution-attempts/" + operation.encode())
             )
 
-    def test_builders_preserve_maximum_payloads_and_scalar_text(self):
-        result = b"x" * 786432
-        body = complete_body(ATTEMPT_REF, "雪" * 1024, result)
-
-        self.assertLessEqual(len(body), 2097152)
-        self.assertEqual(len(json.loads(body)["canonical_result_base64"]), 1048576)
-        message = "\U0001f600" * 1024
-        body = fail_body(ATTEMPT_REF, "x" * 128, message)
-
-        self.assertLessEqual(len(body), 16384)
-        self.assertEqual(json.loads(body)["failure_message"], message)
-
     async def test_result_bytes_are_opaque_not_required_to_be_utf8_or_json(self):
         data = b"\xff\x00\x80\r\n"
 
