@@ -191,7 +191,7 @@ class InstallationContractTests(unittest.TestCase):
                 "provider_core/execution.py",
                 "provider_core/controller.py",
                 "provider_core/response_json.py",
-                "provider_core/upload_response.py",
+                "provider_core/validation/upstream/nmr/v1/upload_response.py",
                 "provider_core/uploads.py",
                 "provider_core/upload_file.py",
             },

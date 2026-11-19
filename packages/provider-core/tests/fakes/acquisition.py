@@ -11,7 +11,7 @@ from datetime import UTC, datetime, timedelta
 from unittest.mock import patch
 
 from provider_core.transport import HttpResponse, HttpResponseHead, HttpTransport
-from provider_core.upload_response import ReadGrant, UploadMember, UploadSet
+from provider_core.validation.upstream.nmr.v1.upload_response import ReadGrant, UploadMember, UploadSet
 from provider_core.uploads import JobUploads, UploadLimits, VerifiedUploadFile
 from tests.fakes.transport import Client, Stream
 from tests.fakes.uploads import UPLOAD_REF

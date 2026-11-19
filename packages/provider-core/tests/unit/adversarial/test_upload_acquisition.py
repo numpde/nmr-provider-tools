@@ -8,7 +8,7 @@ from datetime import UTC, datetime, timedelta
 from unittest.mock import patch
 
 from provider_core.api import ApiFailure
-from provider_core.upload_response import ReadGrant, UploadMember
+from provider_core.validation.upstream.nmr.v1.upload_response import ReadGrant, UploadMember
 from provider_core.uploads import UploadFailed, UploadInputRejected, VerifiedUpload
 from tests.fakes.acquisition import sources, store_headers
 from tests.fakes.uploads import UPLOAD_REF

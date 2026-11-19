@@ -227,12 +227,19 @@ NMR Provider API: wire and validation owners
     Focused unit test_attempt_api.py and test_attempt_outcome.py and contract
     test_installation.py passed on science with PRIVACY_TESTS=0.
 
-[ ] N10 Extract Upload membership and grant admission
+[x] N10 Extract Upload membership and grant admission
     core/upload_response.py:59-236
     Job/Upload reference forms, membership/grant schemas and fields, collection
     limits, byte/hash facts, pending/null hashes, expiry rendering, capability
     and download-URL forms, and binding to the selected Job/Upload.
     Evidence: test_upload_api.py and integration/test_upload_api.py.
+    Completed 2026-11-19: checked Upload records, membership/grant readers and
+    reference admission now live in
+    core/validation/upstream/nmr/v1/upload_response.py. All callers, installed
+    payload checks and donor mappings use the new owner; the old module is removed.
+    Store permissions, current-expiry decisions and transfer verification stay
+    in acquisition. Focused unit/integration test_upload_api.py and contract
+    test_installation.py passed on science with PRIVACY_TESTS=0.
 
 [ ] N11 Verify the store profile and separate transfer admission from local policy
     core/uploads.py:105,254-355,618-633,1193 onward

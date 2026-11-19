@@ -16,7 +16,7 @@ from base64 import b64decode, b64encode
 
 from provider_core.validation.upstream.nmr.v1.attempt_response import require_attempt_ref
 from provider_core.response_json import read_document
-from provider_core.upload_response import require_job_ref
+from provider_core.validation.upstream.nmr.v1.upload_response import require_job_ref
 from provider_core.type_requirements import require_type
 
 

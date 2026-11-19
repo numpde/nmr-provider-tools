@@ -1,4 +1,4 @@
-"""Admit inert Upload observations from the pinned provider API wire contract.
+"""Admit inert Upload observations from the selected Provider API wire contract.
 
 Authority: nmr-api-v1 6a163b7a9cc1e2c7485b681c0b2b969c7c20e6c8,
 provider/schemas/job_upload_set_read_response.v1.schema.json,

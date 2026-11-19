@@ -17,7 +17,7 @@ from dataclasses import dataclass
 
 from provider_core.attempt_record import RecoveryScope, StartPending, _encode_pending
 from provider_core.validation.upstream.nmr.v1.attempt_response import require_attempt_ref
-from provider_core.upload_response import require_job_ref
+from provider_core.validation.upstream.nmr.v1.upload_response import require_job_ref
 from provider_core.type_requirements import require_type
 
 

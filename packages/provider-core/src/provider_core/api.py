@@ -54,7 +54,7 @@ from provider_core.transport import ExchangeFailed, response_request_id
 from provider_core.type_requirements import require_type
 from provider_core.network import network_availability
 
-from provider_core.upload_response import (
+from provider_core.validation.upstream.nmr.v1.upload_response import (
     GRANT_RESPONSE_BYTES,
     MEMBERSHIP_RESPONSE_BYTES,
     read_grant,

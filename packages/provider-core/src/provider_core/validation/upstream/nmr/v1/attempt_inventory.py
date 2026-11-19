@@ -20,7 +20,7 @@ from provider_core.validation.upstream.nmr.v1.attempt_request import require_ana
 from provider_core.validation.upstream.nmr.v1.attempt_response import ATTEMPT_RESPONSE_BYTES, require_attempt_ref
 from provider_core.validation.upstream.nmr.v1.paging import MAX_PAGE_ITEMS, require_cursor
 from provider_core.response_json import ResponseRejected, read_document, read_timestamp
-from provider_core.upload_response import require_job_ref
+from provider_core.validation.upstream.nmr.v1.upload_response import require_job_ref
 
 
 @dataclass(frozen=True, slots=True)

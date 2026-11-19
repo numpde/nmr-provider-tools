@@ -21,7 +21,7 @@ from provider_core.response_json import ResponseRejected, read_document
 from provider_core.validation.upstream.nmr.v1.signing import https_origin
 from provider_core.transport import ExchangeFailed, require_unix_socket_path, temporary_io_failure
 from provider_core.unix_http import DELIVERY_ORIGIN, UnixHttpTransport
-from provider_core.upload_response import require_job_ref
+from provider_core.validation.upstream.nmr.v1.upload_response import require_job_ref
 from provider_core.type_requirements import require_type
 
 # Bound complete local-delivery status and acknowledgement responses.

@@ -10,7 +10,7 @@ from hashlib import sha256
 import httpcore
 
 from provider_core.transport import HttpTransport, temporary_io_failure
-from provider_core.upload_response import ReadGrant
+from provider_core.validation.upstream.nmr.v1.upload_response import ReadGrant
 from provider_core.uploads import UploadFailed, UploadTransfer
 from tests.fakes.acquisition import private_source_directory, store_headers
 from tests.fakes.tls_peer import TlsPeer

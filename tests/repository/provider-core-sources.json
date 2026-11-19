@@ -336,6 +336,7 @@
     },
     {
       "path": "packages/provider-core/src/provider_core/upload_response.py",
+      "replacement_path": "packages/provider-core/src/provider_core/validation/upstream/nmr/v1/upload_response.py",
       "mode": "100644",
       "git_blob": "08964b56332aab501bd977b17772da974cddd575",
       "sha256": "34fab008a3f703ed55eb3ae2a836e12117224856d081ff7a2b453740166a1b5e",
