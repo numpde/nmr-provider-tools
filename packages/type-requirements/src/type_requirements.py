@@ -73,21 +73,8 @@ def _argument_source(caller) -> str | None:
 
 
 def _raise_mismatch(expr: object, T: type | tuple[type, ...], relation: str) -> None:
-    expected = (
-        f"one of ({', '.join(item.__name__ for item in T)})"
-        if isinstance(T, tuple)
-        else T.__name__
-    )
-
-    if relation == "instance":
-        expected = f"instance of {expected}"
-    elif relation == "subclass":
-        expected = f"subclass of {expected}"
-
-    actual = type(expr).__name__
-
-    if relation == "subclass":
-        actual = expr.__name__ if isinstance(expr, type) else f"{actual} instance"
+    expected_type = T
+    actual_type = type(expr)
 
     frame = inspect.currentframe()
     caller = frame.f_back.f_back if frame and frame.f_back else None
@@ -102,14 +89,23 @@ def _raise_mismatch(expr: object, T: type | tuple[type, ...], relation: str) -> 
         del caller
 
     if source_expr is not None:
-        subject = source_expr
+        checked_expression = source_expr
     else:
         try:
-            subject = repr(expr)
+            checked_expression = repr(expr)
         except Exception:
-            subject = f"<{actual}>"
+            checked_expression = "<unrenderable>"
 
-    raise TypeError(f"{subject}: expected {expected}, got {actual}")
+    if relation == "instance":
+        raise TypeError(f"{checked_expression=} should be an instance of {expected_type=}; {actual_type=}")
+
+    if relation == "subclass":
+        if not isinstance(expr, type):
+            raise TypeError(f"{checked_expression=} should be a class; {actual_type=}")
+
+        raise TypeError(f"{checked_expression=} should be a subclass of {expected_type=}; {expr=}")
+
+    raise TypeError(f"{checked_expression=}: {actual_type=} ≠ {expected_type=}")
 
 
 def require_type(expr: object, T: type | tuple[type, ...]) -> None:
