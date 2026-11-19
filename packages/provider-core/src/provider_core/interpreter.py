@@ -510,12 +510,12 @@ def _no_secrets(value: object, secrets: tuple[str, ...]) -> None:
         if any((secret in value) for secret in secrets):
             raise ConversationFailed("Cannot continue interpretation: captured context contains a configured credential.")
     elif isinstance(value, dict):
-        for (key, item) in value.items():
+        for (key, mapped_value) in value.items():
             _no_secrets(key, secrets)
-            _no_secrets(item, secrets)
+            _no_secrets(mapped_value, secrets)
     elif isinstance(value, (tuple, list)):
-        for item in value:
-            _no_secrets(item, secrets)
+        for sequence_element in value:
+            _no_secrets(sequence_element, secrets)
 
 
 def _tool(
@@ -556,7 +556,7 @@ class _HistoryRecord:
 
     def page(self, start: int, stop: int) -> Document:
         # Canonical ASCII keeps offsets stable even inside escaped Unicode.
-        result = {
+        page_reply = {
             **self.metadata(),
             "status": "returned",
             "cursor": start,
@@ -564,10 +564,10 @@ class _HistoryRecord:
             "complete": stop == len(self.data),
         }
 
-        if not result["complete"]:
-            result["next_cursor"] = stop
+        if not page_reply["complete"]:
+            page_reply["next_cursor"] = stop
 
-        return result
+        return page_reply
 
 
 class _History:
@@ -586,17 +586,17 @@ class _History:
         # Screen the whole value before pagination could split a credential.
         _no_secrets(value, self._secrets)
 
-        data = _encode(value)
+        record_bytes = _encode(value)
         self._sequence += 1
 
-        if len(data) > self._max_bytes:
+        if len(record_bytes) > self._max_bytes:
             self._unavailable += 1
 
             return
 
         while (
             self._records and
-            (((self._bytes + len(data)) > self._max_bytes) or (len(self._records) >= self._max_records))
+            (((self._bytes + len(record_bytes)) > self._max_bytes) or (len(self._records) >= self._max_records))
         ):
             (_, oldest) = self._records.popitem(last=False)
             self._bytes -= len(oldest.data)
@@ -607,11 +607,11 @@ class _History:
             visit=visit,
             kind=kind,
             tool=tool,
-            data=data
+            data=record_bytes
         )
 
         self._records[record.ref] = record
-        self._bytes += len(data)
+        self._bytes += len(record_bytes)
 
     def catalogue(self) -> Document:
         return {
@@ -631,7 +631,7 @@ class _History:
         if not (1 <= len(queries) <= 8):
             raise ToolRejected("Provide records as a list of one to eight catalogue references with optional cursors.")
 
-        results: list[Document] = []
+        record_replies: list[Document] = []
 
         for query in queries:
             if not isinstance(query, (expected_type := dict)):
@@ -658,7 +658,7 @@ class _History:
             if record is None:
                 status = "unavailable"
 
-            results.append(
+            record_replies.append(
                 {
                     "ref": query["ref"],
                     "status": status,
@@ -667,7 +667,7 @@ class _History:
 
         # Every requested reference needs a status even when an earlier page
         # consumes the data allowance. Fill pages around those reserved entries.
-        if not fits({"records": results}):
+        if not fits({"records": record_replies}):
             raise ToolRejected("History reply cannot fit the remaining context; request fewer records.")
 
         for (index, query) in enumerate(queries):
@@ -675,15 +675,15 @@ class _History:
 
             if record is not None:
                 # silent-defaults: allow-contract -- A missing optional cursor means the beginning of this already-validated record's content.
-                results[index] = self._read_page(
+                record_replies[index] = self._read_page(
                     record,
                     query["cursor"] if "cursor" in query else 0,
-                    results[:index],
-                    results[index + 1:],
+                    record_replies[:index],
+                    record_replies[index + 1:],
                     fits,
                 )
 
-        return {"records": results}
+        return {"records": record_replies}
 
     @staticmethod
     def _read_page(
@@ -751,7 +751,7 @@ class _DescribeInputConstraints:
         )
 
     async def invoke(self, arguments: Document, *, not_after: float) -> ToolReply:
-        (name, path) = (arguments.get("tool"), arguments.get("field"))
+        (name, field_path) = (arguments.get("tool"), arguments.get("field"))
 
         if set(arguments) - {"tool", "field"}:
             raise ToolRejected("Name an available provider tool and optionally a nonempty field path.")
@@ -762,33 +762,33 @@ class _DescribeInputConstraints:
         if not (name in self._schemas):
             raise ToolRejected("Name an available provider tool and optionally a nonempty field path.")
 
-        if path is not None:
-            if not isinstance(path, (expected_path_type := str)):
-                raise ToolRejected(f"{type(path)=} ≠ {expected_path_type=}")
+        if field_path is not None:
+            if not isinstance(field_path, (expected_path_type := str)):
+                raise ToolRejected(f"{type(field_path)=} ≠ {expected_path_type=}")
 
-            if not (path):
+            if not (field_path):
                 raise ToolRejected("Name an available provider tool and optionally a nonempty field path.")
 
         if self._reader is not None:
-            metadata = await self._reader(name, path, not_after=not_after)
+            metadata = await self._reader(name, field_path, not_after=not_after)
 
             if metadata is not NotImplemented:
                 return ToolReply(metadata)
 
         schema = self._schemas[name]
 
-        result = {
+        tool_metadata = {
             "tool": name,
             "scope": "declared schema; additional provider rules may apply",
         }
 
-        if path is None:
-            return ToolReply({**result, "schema": schema})
+        if field_path is None:
+            return ToolReply({**tool_metadata, "schema": schema})
 
         parent = schema
         required = False
 
-        for part in path.split("."):
+        for part in field_path.split("."):
             parent = schema
             properties = {}
 
@@ -803,8 +803,8 @@ class _DescribeInputConstraints:
 
         return ToolReply(
             {
-                **result,
-                "field": path,
+                **tool_metadata,
+                "field": field_path,
                 "schema": schema,
                 "required": required,
                 "parent_schema": parent,

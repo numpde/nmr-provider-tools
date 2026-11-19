@@ -152,14 +152,14 @@ class InterpreterTests(unittest.IsolatedAsyncioTestCase):
         owner = interpreter(first, second)
 
         with patch("provider_core.interpreter._now", side_effect=lambda: clock[0]):
-            result = await owner.run([], TOOLS, AsyncMock(return_value=ToolFinished("ready")))
+            interpretation_result = await owner.run([], TOOLS, AsyncMock(return_value=ToolFinished("ready")))
 
-        self.assertEqual(result.value, "ready")
+        self.assertEqual(interpretation_result.value, "ready")
         self.assertEqual(deadlines, [220, 340])
-        self.assertEqual(result.model_visit, 2)
+        self.assertEqual(interpretation_result.model_visit, 2)
         self.assertEqual(first.grant, {"exchange_seconds": 120, "connect_seconds": 10})
         self.assertEqual(second.grant["exchange_seconds"], 215)
-        self.assertEqual(len(result.observations), 2)
+        self.assertEqual(len(interpretation_result.observations), 2)
         self.assertTrue(owner.retirement_confirmed)
 
     async def test_retry_stays_on_same_endpoint_same_turn_after_retirement(self):
@@ -184,14 +184,14 @@ class InterpreterTests(unittest.IsolatedAsyncioTestCase):
         dispatch = AsyncMock(return_value=ToolFinished("ready"))
 
         with patch("provider_core.interpreter.asyncio.sleep", new=AsyncMock()) as sleep:
-            result = await interpreter(model).run([], TOOLS, dispatch)
+            interpretation_result = await interpreter(model).run([], TOOLS, dispatch)
 
         self.assertEqual(events, ["request", "retire", "request", "retire"])
         sleep.assert_awaited_once_with(1.0)
-        self.assertEqual(json.loads(result.observations[0])["turns_started"], 1)
+        self.assertEqual(json.loads(interpretation_result.observations[0])["turns_started"], 1)
         self.assertEqual(model.complete.await_args_list[0].kwargs, model.complete.await_args_list[1].kwargs)
         dispatch.assert_awaited_once()
-        self.assertIs(result.failures[0][1], failure)
+        self.assertIs(interpretation_result.failures[0][1], failure)
 
     async def test_retry_count_and_retry_after_are_bounded_by_original_window(self):
         for (retry_after, attempts) in ((b"0", 2), (b"999", 1)):
@@ -208,11 +208,11 @@ class InterpreterTests(unittest.IsolatedAsyncioTestCase):
     async def test_permanent_error_skips_retry_and_selected_model_has_fixed_deadline(self):
         first = endpoint("unauthorized", ChatFailed("http_status", "Unauthorized.", response=SimpleNamespace(status=401, headers=())))
         second = endpoint("next", call("read", "inspect", {}), call("finish", "prepare", {}))
-        result = await interpreter(first, second).run([], TOOLS, AsyncMock(side_effect=[ToolReply({"x": 1}), ToolFinished("ready")]))
+        interpretation_result = await interpreter(first, second).run([], TOOLS, AsyncMock(side_effect=[ToolReply({"x": 1}), ToolFinished("ready")]))
 
         self.assertEqual(first.complete.await_count, 1)
         self.assertEqual(second.complete.await_args_list[0].kwargs, second.complete.await_args_list[1].kwargs)
-        self.assertEqual(result.value, "ready")
+        self.assertEqual(interpretation_result.value, "ready")
 
     async def test_three_proposal_rejections_escalate_with_original_request_and_retrievable_history(self):
         bad = endpoint("fast", *(call(f"bad-{i}", "prepare", {"verbosity": "invalid"}) for i in range(3)))
@@ -240,7 +240,7 @@ class InterpreterTests(unittest.IsolatedAsyncioTestCase):
 
             return ToolFinished(args)
 
-        result = await interpreter(bad, good).run(original, TOOLS, dispatch)
+        interpretation_result = await interpreter(bad, good).run(original, TOOLS, dispatch)
 
         self.assertEqual(bad.complete.await_count, 3)
         self.assertEqual(captures[0][:-1], original)
@@ -248,7 +248,7 @@ class InterpreterTests(unittest.IsolatedAsyncioTestCase):
         returned = feedback(captures[1])["value"]["records"][0]
 
         self.assertEqual(json.loads(returned["json_text"])["arguments"], {"verbosity": "invalid"})
-        self.assertEqual(result.value, {"verbosity": "quiet"})
+        self.assertEqual(interpretation_result.value, {"verbosity": "quiet"})
 
     async def test_schema_queries_use_actual_schema_and_do_not_dispatch_science(self):
         model = endpoint(
@@ -477,9 +477,9 @@ class InterpreterTests(unittest.IsolatedAsyncioTestCase):
             return await original(messages, tools, **kwargs)
 
         second.complete = AsyncMock(side_effect=complete)
-        result = await interpreter(first, second, context=32768).run([], TOOLS, dispatch)
+        interpretation_result = await interpreter(first, second, context=32768).run([], TOOLS, dispatch)
 
-        self.assertEqual(result.correction_failures, ())
+        self.assertEqual(interpretation_result.correction_failures, ())
         reply = feedback(captures[1])["value"]["records"][0]
 
         self.assertFalse(reply["complete"])
@@ -626,9 +626,9 @@ class InterpreterTests(unittest.IsolatedAsyncioTestCase):
             return ToolFinished("prepared")
 
         with patch("provider_core.interpreter._now", side_effect=lambda: clock[0]):
-            result = await interpreter(first, second).run([], TOOLS, dispatch)
+            interpretation_result = await interpreter(first, second).run([], TOOLS, dispatch)
 
-        self.assertEqual(result.value, "prepared")
+        self.assertEqual(interpretation_result.value, "prepared")
         self.assertFalse(hasattr(second, "grant"))
 
     async def test_prior_model_failure_remains_attached_to_later_scientific_failure(self):
@@ -697,15 +697,15 @@ class InterpreterTests(unittest.IsolatedAsyncioTestCase):
         malformed["tool_calls"][0]["function"]["arguments"] = "not JSON"
         model = endpoint("fixture", malformed, call("done", "prepare", {}))
         owner = interpreter(model)
-        result = await owner.run([], TOOLS, AsyncMock(return_value=ToolFinished("ready")))
+        interpretation_result = await owner.run([], TOOLS, AsyncMock(return_value=ToolFinished("ready")))
 
-        self.assertEqual(len(result.correction_failures), 1)
-        (visit, turn, failure) = result.correction_failures[0]
+        self.assertEqual(len(interpretation_result.correction_failures), 1)
+        (visit, turn, failure) = interpretation_result.correction_failures[0]
 
         self.assertEqual((visit, turn), (1, 1))
         self.assertIsInstance(failure, ToolRejected)
         await owner.retire()
-        self.assertEqual(owner.correction_failures, result.correction_failures)
+        self.assertEqual(owner.correction_failures, interpretation_result.correction_failures)
 
     async def test_unverified_model_input_problem_advances_without_finishing_or_invalidating_job(self):
         from provider_core.interpreter import ModelReportedInterpretationProblem
@@ -718,12 +718,12 @@ class InterpreterTests(unittest.IsolatedAsyncioTestCase):
 
             return ToolFinished("prepared")
 
-        result = await interpreter(first, second).run([], TOOLS, dispatch)
+        interpretation_result = await interpreter(first, second).run([], TOOLS, dispatch)
 
-        self.assertEqual(result.value, "prepared")
+        self.assertEqual(interpretation_result.value, "prepared")
         self.assertEqual(first.complete.await_count, 1)
         self.assertEqual(second.complete.await_count, 1)
-        self.assertEqual(result.correction_failures, ())
+        self.assertEqual(interpretation_result.correction_failures, ())
         catalogue = state(second.complete.await_args.args[0])["history"]
 
         self.assertEqual(catalogue["records"][0]["kind"], "unverified_interpretation_problem")
@@ -741,14 +741,14 @@ class InterpreterTests(unittest.IsolatedAsyncioTestCase):
         owner = Interpreter((build,), interpretation_budget_seconds=240, reject_combined_messages_and_tools_over_bytes=16384, **interpreter_test_limits(), secrets=())
 
         with patch("provider_core.interpreter._now", side_effect=lambda: clock[0]):
-            result = await owner.run(
+            interpretation_result = await owner.run(
                 [],
                 TOOLS,
                 AsyncMock(return_value=ToolFinished("ready")),
                 not_after=135,
             )
 
-        self.assertEqual(result.value, "ready")
+        self.assertEqual(interpretation_result.value, "ready")
         self.assertEqual(model.complete.await_args.kwargs["not_after"], 135)
 
         self.assertEqual(
@@ -831,9 +831,9 @@ class InterpreterTests(unittest.IsolatedAsyncioTestCase):
                 read["reasoning_content"] = "model reasoning " * 700
                 second = endpoint("second", read, call("done", "prepare", {}))
                 dispatch = AsyncMock(side_effect=[ToolReply({"text": text}), ToolFinished("ready")])
-                result = await interpreter(first, second, context=32768).run([], TOOLS, dispatch)
+                interpretation_result = await interpreter(first, second, context=32768).run([], TOOLS, dispatch)
 
-                self.assertEqual(result.value, "ready")
+                self.assertEqual(interpretation_result.value, "ready")
                 self.assertEqual(second.complete.await_count, 2)
                 (final_messages, final_tools) = second.complete.await_args.args
 
@@ -889,11 +889,11 @@ class InterpreterTests(unittest.IsolatedAsyncioTestCase):
             call("done", "prepare", {}),
         )
 
-        result = await interpreter(model).run([], tools, AsyncMock(return_value=ToolFinished("ready")))
+        interpretation_result = await interpreter(model).run([], tools, AsyncMock(return_value=ToolFinished("ready")))
 
-        self.assertEqual(result.value, "ready")
-        self.assertEqual(len(result.correction_failures), 1)
-        self.assertIsInstance(result.correction_failures[0][2], ToolRejected)
+        self.assertEqual(interpretation_result.value, "ready")
+        self.assertEqual(len(interpretation_result.correction_failures), 1)
+        self.assertIsInstance(interpretation_result.correction_failures[0][2], ToolRejected)
 
     async def test_accepted_preparation_remains_owned_when_model_retirement_fails(self):
         prepared = object()
@@ -940,9 +940,9 @@ class InterpreterTests(unittest.IsolatedAsyncioTestCase):
             ]
         )
 
-        result = await interpreter(first, second, context=32768).run([], TOOLS, dispatch)
+        interpretation_result = await interpreter(first, second, context=32768).run([], TOOLS, dispatch)
 
-        self.assertEqual(result.correction_failures, ())
+        self.assertEqual(interpretation_result.correction_failures, ())
         records = feedback(second.complete.await_args.args[0])["value"]["records"]
 
         self.assertEqual([record["ref"] for record in records], ["record-2", "record-1"])
@@ -958,11 +958,11 @@ class InterpreterTests(unittest.IsolatedAsyncioTestCase):
         )
 
         dispatch = AsyncMock(return_value=ToolFinished("ready"))
-        result = await interpreter(model).run([], TOOLS, dispatch)
+        interpretation_result = await interpreter(model).run([], TOOLS, dispatch)
 
         dispatch.assert_awaited_once_with("prepare", {"verbosity": "quiet"}, not_after=ANY)
-        self.assertEqual(result.value, "ready")
-        self.assertEqual(len(result.correction_failures), 1)
+        self.assertEqual(interpretation_result.value, "ready")
+        self.assertEqual(len(interpretation_result.correction_failures), 1)
 
     async def test_stable_instructions_precede_changing_turn_context(self):
         messages = [
@@ -1021,12 +1021,12 @@ class InterpreterTests(unittest.IsolatedAsyncioTestCase):
             self.assertFalse(hasattr(second, "grant"))
         finally:
             release.set()
-            result = await running
+            interpretation_result = await running
 
-        self.assertEqual(result.value, "ready")
-        self.assertEqual(result.failures, ((1, report),))
-        self.assertEqual(result.correction_failures, ())
-        self.assertNotIn("failure", json.loads(result.observations[0])["routes"][0])
+        self.assertEqual(interpretation_result.value, "ready")
+        self.assertEqual(interpretation_result.failures, ((1, report),))
+        self.assertEqual(interpretation_result.correction_failures, ())
+        self.assertNotIn("failure", json.loads(interpretation_result.observations[0])["routes"][0])
 
     async def test_unverified_reports_remain_claims_when_the_model_ladder_is_exhausted(self):
         from provider_core.interpreter import ModelReportedInterpretationProblem
@@ -1099,11 +1099,11 @@ class InterpreterTests(unittest.IsolatedAsyncioTestCase):
 
                     self.assertIsNone(owner.accepted_result)
                 else:
-                    result = await owner.run([], TOOLS, dispatch)
+                    interpretation_result = await owner.run([], TOOLS, dispatch)
 
-                    self.assertIsNone(result.value)
+                    self.assertIsNone(interpretation_result.value)
                     self.assertIsNotNone(owner.accepted_result)
-                    failures = result.failures
+                    failures = interpretation_result.failures
 
                 await owner.retire()
                 records = feedback(second.complete.await_args.args[0])["value"]["records"]
@@ -1183,11 +1183,11 @@ class InterpreterTests(unittest.IsolatedAsyncioTestCase):
                 finally:
                     settled.set()
 
-                result = await running
+                interpretation_result = await running
 
-                self.assertIsNone(result.value)
+                self.assertIsNone(interpretation_result.value)
                 self.assertEqual(events, ["provider settled", "model retired", "prepare"])
-                self.assertIs(result.failures[0][1].__cause__, expired)
+                self.assertIs(interpretation_result.failures[0][1].__cause__, expired)
 
     async def test_independent_inspection_timeout_is_not_a_model_window_signal(self):
         first = endpoint("first", call("inspect", "inspect", {}))
@@ -1251,9 +1251,9 @@ class InterpreterTests(unittest.IsolatedAsyncioTestCase):
             await owner.retire()
             self.assertFalse(running.done())
             finish.set()
-            result = await running
+            interpretation_result = await running
 
-            self.assertIsNone(result.value)
+            self.assertIsNone(interpretation_result.value)
             self.assertIsNotNone(owner.accepted_result)
             self.assertEqual(owner.accepted_result.model_visit, 1)
             dispatch.assert_awaited_once()

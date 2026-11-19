@@ -261,12 +261,12 @@ class ToolConversation:
             if any((secret in value) for secret in self._secrets):
                 raise ConversationFailed("Cannot continue interpretation: its outgoing context contains a configured credential.")
         elif type(value) is dict:
-            for (key, item) in value.items():
+            for (key, mapped_value) in value.items():
                 self._require_no_secrets(key)
-                self._require_no_secrets(item)
+                self._require_no_secrets(mapped_value)
         elif type(value) in (tuple, list):
-            for item in value:
-                self._require_no_secrets(item)
+            for sequence_element in value:
+                self._require_no_secrets(sequence_element)
 
     async def run(self, messages, tools, dispatch):
         if self._used or self._retired:
