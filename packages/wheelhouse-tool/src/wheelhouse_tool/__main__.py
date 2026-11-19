@@ -19,6 +19,7 @@ from pathlib import Path
 from packaging.pylock import PackageArchive, PackageSdist, PackageWheel, PylockSelectError, PylockValidationError
 from packaging.tags import sys_tags
 from packaging.utils import InvalidSdistFilename, InvalidWheelFilename, canonicalize_name, parse_sdist_filename, parse_wheel_filename
+from type_requirements import require_instance
 from wheelhouse_tool.adapters.pylock import read_lock, render_local_lock
 from wheelhouse_tool.network import RequestFailure, failure_detail, request, retry
 from wheelhouse_tool.validation.upstream.pylock import require_pylock_filename
@@ -114,8 +115,10 @@ def selected(lock, prefer_sdist, require_sdist=(), document=None, source_lock=No
     found_required = set()
 
     for (package, artifact) in document.select(prefer_sdist_predicate=lambda name: name in preferences):
-        if (not isinstance(artifact, (PackageWheel, PackageSdist, PackageArchive))) or (artifact.url is None):
-            raise ValueError(f"Cannot acquire {package.name}: expected a URL for a locked artifact.")
+        require_instance(artifact, (PackageWheel, PackageSdist, PackageArchive))
+
+        if not (artifact.url is not None):
+            raise ValueError(f"{artifact.url=} should be set for {package.name=}")
 
         url = urllib.parse.urlsplit(artifact.url)
         name = getattr(artifact, "filename", None) or urllib.parse.unquote(url.path.rsplit("/", 1)[-1])
@@ -432,7 +435,7 @@ def main():
                 args.local_lock.unlink(missing_ok=True)
                 raise
     # silent-defaults: allow-exception-outcome -- The acquisition CLI reports qualified failures with nonzero exit status, never an empty success.
-    except (OSError, ValueError, PylockSelectError, PylockValidationError) as error:
+    except (OSError, TypeError, ValueError, PylockSelectError, PylockValidationError) as error:
         print(str(error), file=sys.stderr)
 
         return 1

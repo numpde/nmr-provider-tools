@@ -10,7 +10,7 @@ import socket
 import ssl
 import sys
 import tarfile
-from contextlib import contextmanager, redirect_stderr
+from contextlib import contextmanager, redirect_stderr, redirect_stdout
 import tempfile
 import threading
 import tomllib
@@ -1134,6 +1134,39 @@ class WheelhouseTests(unittest.TestCase):
         self.assertEqual("/wheels/" + self.name, artifact["path"])
         self.assertNotIn("url", artifact)
         self.assertEqual(hashlib.sha256(self.content).hexdigest(), artifact["hashes"]["sha256"])
+
+    def test_acquire_cli_reports_unsupported_artifacts_and_missing_urls(self):
+        directory_lock = (
+            'lock-version = "1.0"\n'
+            'created-by = "test"\n'
+            '[[packages]]\n'
+            'name = "example"\n'
+            '[packages.directory]\n'
+            'path = "source"\n'
+        )
+
+        local_wheel_lock = tool.local_lock(self.lock, self.pool)
+
+        for (lock_text, rejected_detail) in (
+            (directory_lock, "PackageDirectory"),
+            (local_wheel_lock, "artifact.url"),
+        ):
+            with self.subTest(artifact=rejected_detail):
+                self.lock.write_text(lock_text)
+                stdout = io.StringIO()
+                stderr = io.StringIO()
+
+                with (
+                    patch.object(sys, "argv", ["wheelhouse-tool", "acquire", "--lock", str(self.lock), "--pool", str(self.pool)]),
+                    redirect_stdout(stdout),
+                    redirect_stderr(stderr),
+                ):
+                    self.assertEqual(tool.main(), 1)
+
+                self.assertEqual(stdout.getvalue(), "")
+                self.assertIn(rejected_detail, stderr.getvalue())
+                self.assertEqual(self.requests, [])
+                self.assertEqual(list(self.pool.iterdir()), [])
 
     def test_source_must_be_explicitly_allowed(self):
         self.lock.write_text(
