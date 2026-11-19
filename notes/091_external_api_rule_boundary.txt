@@ -108,11 +108,18 @@ Contract sources and uncertainty
   SDK source comments also cite the earlier API revision 6a163b7a9cc1e2c7485b681c0b2b969c7c20e6c8.
   README.md:752-800 inside packages/provider-core explains the donor history.
   Preserve these distinctions; the current sibling API checkout is not the pin.
-- [ ] Distinguish the supported Chat profile from local restrictions
+- [x] Distinguish the supported Chat profile from local restrictions
   Chat Completions: core/chat.py and the SDK README cite Magnet and SECS ports.
   No comparable pinned, versioned OpenAI service schema was identified. Treat
   this as a supported compatible profile; separate API requirements from local
   restrictions instead of declaring every current restriction an upstream rule.
+  Resolved for the current separation, 2026-11-19: the existing Magnet source
+  was inspected at its cited 600968 revision. Its finite reasoning vocabulary
+  and appended route differ from this SDK's configuration, so it does not prove
+  universal configuration limits. Configuration-ID/model bounds, visible-ASCII
+  key representation, ASCII/alphanumeric reasoning selection and canonical full
+  HTTPS URL remain local restrictions. Request/response adapters explicitly
+  describe the supported subset, with no newly claimed immutable service pin.
 - [ ] Record service-schema authority separately from installed tool/library pins
   Package and release services: actual requests identify PyPI Simple JSON,
   PyPI project/version JSON and GitHub releases. No comparable service-schema
@@ -491,11 +498,11 @@ NMR rules currently reached through operational code
 OpenAI-compatible Chat Completions profile
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-[ ] C1  Separate Chat wire configuration, request encoding and reply admission
+[x] C1  Separate Chat wire configuration, request encoding and reply admission
     [x] Separate request encoding and authenticated HTTP construction
     [x] Separate successful completion admission and failure translation
     [x] Separate completion admission and service error translation
-    [ ] Classify configuration restrictions by their actual owner
+    [x] Classify configuration restrictions by their actual owner
     core/chat.py:35-88,189-221,237 onward
     Endpoint/model/key/reasoning settings mix local configuration and supported
     carrier restrictions. _encode_request owns model/messages/tools, tool_choice,
@@ -533,6 +540,11 @@ OpenAI-compatible Chat Completions profile
     Focused Chat integration, failure projection, process projection and
     installation lanes passed on science with PRIVACY_TESTS=0 (49 tests, twelve
     skips). Independent audit confirmed fallback texts, filtering and cause graph.
+    Configuration review completed 2026-11-19: the remaining ChatEndpointSpec
+    checks are local carrier configuration, not established upstream limits.
+    They remain before transport construction, documented in place; no new
+    service restriction or compatibility layer was introduced. Independent
+    review found no remaining proven API guard in the configuration owner.
 
 [ ] C2  Extract tool-call carrier rules from transcript ownership
     core/conversation.py:250-254,374-397,443-571

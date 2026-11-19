@@ -39,7 +39,13 @@ def _json_bytes(value):
 
 @dataclass(frozen=True, slots=True, kw_only=True)
 class ChatEndpointSpec:
-    """An explicit complete endpoint URL, with no ambient configuration lookup."""
+    """Grant one complete endpoint URL without ambient configuration lookup.
+
+    Identifier/model bounds, header-safe keys and the reasoning word grammar
+    restrict this SDK's configuration; they are not universal service limits.
+    Composition supplies the complete canonical HTTPS URL. The wire adapter
+    neither appends a route nor chooses an endpoint or reasoning vocabulary.
+    """
 
     configuration_id: str
     model: str
