@@ -166,6 +166,7 @@ class InstallationContractTests(unittest.TestCase):
                 "provider_core/validation/upstream/http.py",
                 "provider_core/validation/upstream/content_encoding.py",
                 "provider_core/validation/upstream/dns.py",
+                "provider_core/validation/upstream/host_resolver.py",
                 "provider_core/validation/upstream/http_proxy.py",
                 "provider_core/validation/upstream/nmr/__init__.py",
                 "provider_core/validation/upstream/nmr/v1/__init__.py",

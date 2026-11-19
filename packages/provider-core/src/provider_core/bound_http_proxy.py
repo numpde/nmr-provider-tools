@@ -34,6 +34,7 @@ from http import HTTPStatus
 from provider_core.adapters import dns as dns_adapter, http_proxy
 from provider_core.diagnostic_text import CredentialRedactingFormatter
 from provider_core.validation.upstream import dns
+from provider_core.validation.upstream.host_resolver import nameserver_tokens
 from provider_core.validation.upstream.http_proxy import header_end
 
 # Header admission owns this fixed byte ceiling independently of coalesced body
@@ -139,23 +140,20 @@ def _dns_servers(resolver_file: pathlib.Path | None = None) -> tuple[str, ...]:
 
     for path in paths:
         try:
-            lines = path.read_text(encoding="ascii").splitlines()
+            resolver_text = path.read_text(encoding="ascii")
         except OSError:
             continue
 
         servers = []
 
-        for line in lines:
-            fields = line.split()
+        for resolver_token in nameserver_tokens(resolver_text):
+            try:
+                address = ipaddress.ip_address(resolver_token)
+            except ValueError:
+                continue
 
-            if len(fields) == 2 and fields[0] == "nameserver":
-                try:
-                    address = ipaddress.ip_address(fields[1])
-                except ValueError:
-                    continue
-
-                if (address.version == 4) and (not address.is_loopback):
-                    servers.append(str(address))
+            if (address.version == 4) and (not address.is_loopback):
+                servers.append(str(address))
 
         if servers:
             return tuple(dict.fromkeys(servers))
@@ -213,7 +211,7 @@ def resolve_ipv4_bound(
     except ipaddress.AddressValueError:
         pass
 
-    normalized_host = host.rstrip(".").encode("idna").decode("ascii").lower()
+    normalized_host = dns.normalize_dns_name(host)
     errors = []
     failures = []
 

@@ -17,6 +17,12 @@ class DNSNameRejected(ValueError):
     """A DNS wire name cannot be decoded within the selected work cap."""
 
 
+def normalize_dns_name(hostname: str) -> str:
+    """Normalize a comparison name without changing name-admission timing."""
+
+    return hostname.rstrip(".").encode("idna").decode("ascii").lower()
+
+
 # Preserve the acquisition proxy's admitted name profile from its donor.
 # https://github.com/numpde/magnet-deploy/blob/2d4ee50b0359e71900fce9289ea01f46d0f41249/scripts/image-build-proxy.py#L96-L298
 def read_dns_labels(hostname: str) -> list[bytes]:
@@ -159,7 +165,7 @@ def read_ipv4_response(
 
     (question_type, question_class) = struct.unpack("!HH", response[offset:question_end])
     offset = question_end
-    expected_name = hostname.rstrip(".").encode("idna").decode("ascii").lower()
+    expected_name = normalize_dns_name(hostname)
     expected_question = (1, 1)
 
     if not (question_name == expected_name):

@@ -61,6 +61,7 @@ PROXY_FILES = (
     "validation/__init__.py",
     "validation/upstream/__init__.py",
     "validation/upstream/dns.py",
+    "validation/upstream/host_resolver.py",
     "validation/upstream/http_proxy.py",
 )
 
