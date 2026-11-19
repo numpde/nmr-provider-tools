@@ -493,6 +493,7 @@ OpenAI-compatible Chat Completions profile
 
 [ ] C1  Separate Chat wire configuration, request encoding and reply admission
     [x] Separate request encoding and authenticated HTTP construction
+    [x] Separate successful completion admission and failure translation
     [ ] Separate completion admission and service error translation
     [ ] Classify configuration restrictions by their actual owner
     core/chat.py:35-88,189-221,237 onward
@@ -513,6 +514,16 @@ OpenAI-compatible Chat Completions profile
     Focused integration test_chat.py, unit test_chat_process_contract.py and
     contract test_installation.py passed on science with PRIVACY_TESTS=0
     (40 tests, six skips). Independent audit confirmed byte and ordering parity.
+    Completion slice completed 2026-11-19: validation/upstream/chat_completions/
+    response.py owns the one-assistant-choice shape and completed finish subset.
+    The response adapter preserves length exhaustion as completion_limit and
+    maps admission rejection to invalid_response with the original cause/reply.
+    Malformed role/finish evidence is bounded; the full reply remains retained.
+    Existing malformed-response integration cases now include large field values
+    and verify diagnostic bounds alongside one-exchange and response identity.
+    Focused integration test_chat.py and test_chat_reply_boundary.py and contract
+    test_installation.py passed on science with PRIVACY_TESTS=0 (31 tests, six
+    skips). Independent audit confirmed check order, classification and identity.
 
 [ ] C2  Extract tool-call carrier rules from transcript ownership
     core/conversation.py:250-254,374-397,443-571

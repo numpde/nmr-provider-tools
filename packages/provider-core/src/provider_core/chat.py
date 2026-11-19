@@ -22,6 +22,7 @@ import httpx
 
 from provider_core.chat_errors import ChatFailed
 from provider_core.adapters.chat_completions.request import completion_request, request_body
+from provider_core.adapters.chat_completions.response import read_completion
 from provider_core.response_json import ResponseRejected, read_document
 from provider_core.transport import ExchangeFailed
 from provider_core.chat_process import SupervisedChatTransport
@@ -339,44 +340,4 @@ class ChatEndpoint:
                 endpoint_error=_endpoint_error(response, messages, self.spec.api_key),
             )
 
-        try:
-            document = read_document(response.body, self._response_bytes)
-
-            if not (type(document) is (expected_type := dict)):
-                raise ResponseRejected(f"{type(document)=} ≠ {expected_type=}")
-
-            if not (type((document_choices := document.get("choices"))) is (expected_type := list)):
-                raise ResponseRejected(f"{type(document_choices)=} ≠ {expected_type=}")
-
-            if len(document["choices"]) != 1:
-                raise ResponseRejected("Model reply must contain exactly one completion.")
-
-            choice = document["choices"][0]
-
-            if not (type(choice) is (expected_type := dict)):
-                raise ResponseRejected(f"{type(choice)=} ≠ {expected_type=}")
-
-            if not (type((choice_message := choice.get("message"))) is (expected_type := dict)):
-                raise ResponseRejected(f"{type(choice_message)=} ≠ {expected_type=}")
-
-            if choice["message"].get("role") != "assistant":
-                raise ResponseRejected("Model reply must contain one assistant message.")
-
-            if choice.get("finish_reason") == "length":
-                raise ChatFailed(
-                    "completion_limit",
-                    "Cannot interpret the model reply: generation stopped at the service's completion limit; no tool was accepted.",
-                    response=response,
-                )
-
-            if not (choice.get("finish_reason") in ("stop", "tool_calls")):
-                raise ResponseRejected("Model service did not report a completed assistant reply.")
-        except ResponseRejected as cause:
-            raise ChatFailed(
-                "invalid_response",
-                "Cannot interpret the model reply: it is not one complete supported JSON completion; no tool was accepted.",
-                cause=cause,
-                response=response,
-            ) from None
-
-        return choice["message"]
+        return read_completion(response, maximum_bytes=self._response_bytes)

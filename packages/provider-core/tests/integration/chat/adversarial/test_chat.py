@@ -273,6 +273,8 @@ class ChatCarrierRejectionTests(unittest.IsolatedAsyncioTestCase):
             (200, json.dumps({"choices": [{"message": {"role": "assistant"}, "finish_reason": "length"}]}).encode()),
             (200, json.dumps({"choices": [{"message": {"role": "assistant"}, "finish_reason": None}]}).encode()),
             (200, json.dumps({"choices": [{"message": {"role": "assistant"}, "finish_reason": "content_filter"}]}).encode()),
+            (200, json.dumps({"choices": [{"message": {"role": "x" * 1024}, "finish_reason": "stop"}]}).encode()),
+            (200, json.dumps({"choices": [{"message": {"role": "assistant"}, "finish_reason": "x" * 1024}]}).encode()),
         ):
             with self.subTest(status=status, body=body):
                 response = HttpResponse(status, ((b"content-type", b"application/json"),), body)
@@ -299,6 +301,9 @@ class ChatCarrierRejectionTests(unittest.IsolatedAsyncioTestCase):
         async for (failure, response, transport) in self._malformed_reply_failures():
             transport.exchange_decoded.assert_awaited_once()
             self.assertIs(failure.response, response)
+
+            if failure.cause is not None:
+                self.assertLess(len(str(failure.cause)), 512)
 
     @unittest.skipIf(os.environ.get("PRIVACY_TESTS", "1") == "0", "Privacy tests disabled")
     async def test_malformed_reply_diagnostics_omit_body(self):
