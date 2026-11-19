@@ -600,7 +600,7 @@ async def shutdown_scenario(schedule, seed, directory, facts):
                     "trust_directory_exists": trust_directory.exists(),
                     "claim_count_after_local_stop": len(claims.live_owners()),
                     "cleanup_seconds": cleanup_seconds,
-                    "child_exit_seconds_after_stop": [at - original_stop_time for at in child_exit_times],
+                    "child_exit_seconds_after_stop": [(at - original_stop_time) for at in child_exit_times],
                     "observations_released_seconds_after_stop": release_time - original_stop_time,
                     "shutdown_seconds_after_releasing_observations": loop.time() - release_time,
                     "signal_delays": [(number, at - original_stop_time) for (number, at) in signals],

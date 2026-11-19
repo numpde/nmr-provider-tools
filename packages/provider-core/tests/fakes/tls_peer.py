@@ -235,7 +235,7 @@ class TlsPeer:
 
                 writer.write(
                     f"HTTP/1.1 {self.response_status} {HTTPStatus(self.response_status).phrase}\r\n".encode("ascii")
-                    + b"".join(name + b": " + value + b"\r\n" for (name, value) in headers)
+                    + b"".join((name + b": " + value + b"\r\n") for (name, value) in headers)
                     + b"Content-Length: "
                     + str(len(body)).encode("ascii")
                     + (
@@ -257,7 +257,7 @@ class TlsPeer:
 
                 writer.write(
                     b"HTTP/1.1 200 OK\r\n"
-                    + b"".join(name + b": " + value + b"\r\n" for (name, value) in headers)
+                    + b"".join((name + b": " + value + b"\r\n") for (name, value) in headers)
                     + (
                         b"Content-Length: 100\r\n"
                         b"\r\n"

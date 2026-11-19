@@ -25,7 +25,7 @@ class SingleRetirementSession(Session):
     """A successful retirement is final, rather than an idempotent operation."""
 
     async def retire(self):
-        if any(event[0] == "retire" for event in self.events):
+        if any((event[0] == "retire") for event in self.events):
             raise RuntimeError("Scripted session was already retired; do not release its resources twice")
 
         await super().retire()

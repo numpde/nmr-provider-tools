@@ -441,14 +441,14 @@ async def scenario(marker, report, seed):
 
                     while time.monotonic() < deadline:
                         if acknowledgement_phase == "request_received":
-                            seen = sum(request.split(b" ")[1] == b"/hang" for request in prose_peer.requests)
+                            seen = sum((request.split(b" ")[1] == b"/hang") for request in prose_peer.requests)
                         else:
                             events = []
 
                             if marker.exists():
                                 events = [json.loads(line) for line in marker.read_text().splitlines()]
 
-                            seen = sum(event["kind"] == "cleanup_engaged" for event in events)
+                            seen = sum((event["kind"] == "cleanup_engaged") for event in events)
 
                         if seen >= acknowledgement_cycle:
                             result["acknowledgement_released_during_cycle"] = seen

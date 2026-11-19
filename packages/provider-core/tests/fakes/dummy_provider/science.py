@@ -317,7 +317,7 @@ def calculate(
     # State is consumed before numerical work. A later failure does not make the
     # old state reference usable again.
     weighted_sum = math.fsum(
-        coefficient * value
+        (coefficient * value)
         for (coefficient, value) in zip(
             loaded_coefficients,
             prepared_values,

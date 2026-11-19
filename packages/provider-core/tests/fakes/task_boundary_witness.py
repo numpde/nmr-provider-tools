@@ -213,7 +213,7 @@ async def child(owner_kind, failure_kind):
             failure_record = owner.operation.last_failure
 
         assert any(
-            isinstance(cause, BaseExceptionGroup) and (cause.exceptions == (cleanup,))
+            (isinstance(cause, BaseExceptionGroup) and (cause.exceptions == (cleanup,)))
             for cause in failure_record.cleanup_failures
         )
 

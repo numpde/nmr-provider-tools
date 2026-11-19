@@ -516,10 +516,10 @@ async def scenario(marker, report):
                 "failure_types": sorted(failures),
                 "deliveries": [item.operation.value for controller in controllers for item in controller.delivery.items],
                 "fault": {
-                    "read_cancelled": any(event["kind"] == "read_cancelled" for event in events),
+                    "read_cancelled": any((event["kind"] == "read_cancelled") for event in events),
                     "cleanup_engaged": bool(engaged),
                     "pid": fault_pid,
-                    "term_ignored": any(event["kind"] == "term_ignored" for event in events),
+                    "term_ignored": any((event["kind"] == "term_ignored") for event in events),
                     "owner_still_alive": alive
                 },
             }
