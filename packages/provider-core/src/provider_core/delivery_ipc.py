@@ -206,7 +206,7 @@ class DeliveryInbox:
         return await asyncio.shield(task)
 
     async def _read(self, reader, connection):
-        (request, body) = (None, bytearray())
+        (ipc_request, body) = (None, bytearray())
 
         async with asyncio.timeout(self.request_seconds):
             while True:
@@ -215,49 +215,49 @@ class DeliveryInbox:
                 if event is h11.NEED_DATA:
                     connection.receive_data(await reader.read(65536))
                 elif isinstance(event, h11.Request):
-                    request = event
+                    ipc_request = event
                 elif isinstance(event, h11.Data):
                     if (len(body) + len(event.data)) > self.max_request_bytes:
                         raise DeliveryRequestRejected("Delivery request exceeds the supported body limit.")
 
                     body.extend(event.data)
                 elif isinstance(event, h11.EndOfMessage):
-                    return (request, bytes(body))
+                    return (ipc_request, bytes(body))
                 elif isinstance(event, h11.ConnectionClosed):
                     raise ConnectionError("Delivery client disconnected before its complete request.")
 
-    def _headers(self, request, endpoint):
-        values = {}
+    def _headers(self, ipc_request, endpoint):
+        identity_headers = {}
 
-        for (name, value) in request.headers:
-            if name in (b"nmr-api-origin", b"nmr-provider-ref", b"nmr-job-ref"):
-                if name in values:
+        for (header_name, header_value) in ipc_request.headers:
+            if header_name in (b"nmr-api-origin", b"nmr-provider-ref", b"nmr-job-ref"):
+                if header_name in identity_headers:
                     raise DeliveryRequestRejected("Delivery identity headers must not repeat.")
 
                 try:
-                    values[name] = value.decode("ascii")
+                    identity_headers[header_name] = header_value.decode("ascii")
                 except UnicodeDecodeError:
                     raise DeliveryRequestRejected("Delivery identity headers must use ASCII text.") from None
 
-        if (values.get(b"nmr-api-origin"), values.get(b"nmr-provider-ref")) != (endpoint.api_origin, endpoint.provider_ref):
+        if (identity_headers.get(b"nmr-api-origin"), identity_headers.get(b"nmr-provider-ref")) != (endpoint.api_origin, endpoint.provider_ref):
             raise DeliveryRequestRejected("This socket is bound to another API/provider; correct the deployment grant.")
 
-        return values
+        return identity_headers
 
-    async def _dispatch(self, endpoint, request, body):
-        headers = self._headers(request, endpoint)
+    async def _dispatch(self, endpoint, ipc_request, body):
+        identity_headers = self._headers(ipc_request, endpoint)
 
         try:
-            parts = request.target.decode("ascii").split("/")
+            parts = ipc_request.target.decode("ascii").split("/")
         except UnicodeDecodeError:
             raise DeliveryRequestRejected("Delivery operation must use an ASCII route.") from None
 
-        if (request.method == b"POST") and (len(parts) == 4) and (parts[1] == "submit"):
+        if (ipc_request.method == b"POST") and (len(parts) == 4) and (parts[1] == "submit"):
             try:
                 delivery_outcome = DeliveryOutcome(
                     endpoint.api_origin,
                     endpoint.provider_ref,
-                    headers.get(b"nmr-job-ref"),
+                    identity_headers.get(b"nmr-job-ref"),
                     parts[3],
                     TerminalOperation(parts[2]),
                     body,
@@ -271,7 +271,7 @@ class DeliveryInbox:
 
             return accepted
 
-        if (request.method != b"GET") or body:
+        if (ipc_request.method != b"GET") or body:
             raise DeliveryRequestRejected("Delivery supports only outcome submission and read-only status.")
 
         if parts == ["", "pending"]:
@@ -295,8 +295,8 @@ class DeliveryInbox:
 
         raise DeliveryRequestRejected("Unsupported delivery operation.")
 
-    async def _respond(self, connection, writer, status, document):
-        content = json.dumps(document, allow_nan=False, separators=(",", ":")).encode("utf-8")
+    async def _respond(self, connection, writer, status, response_payload):
+        content = json.dumps(response_payload, allow_nan=False, separators=(",", ":")).encode("utf-8")
 
         writer.write(
             connection.send(
@@ -328,26 +328,26 @@ class DeliveryInbox:
             if len(self._clients) > MAX_CONNECTIONS:
                 return
 
-            (request, body) = await self._read(reader, connection)
+            (ipc_request, body) = await self._read(reader, connection)
 
             try:
-                accepted = await self._dispatch(endpoint, request, body)
-                durable_enqueue_confirmed = request.method == b"POST"
-                (status, reply) = (200, accepted)
+                accepted = await self._dispatch(endpoint, ipc_request, body)
+                durable_enqueue_confirmed = ipc_request.method == b"POST"
+                (status, response_payload) = (200, accepted)
             except DeliveryFull:
-                (status, reply) = (429, {"error": "Delivery capacity is full; no new item was accepted."})
+                (status, response_payload) = (429, {"error": "Delivery capacity is full; no new item was accepted."})
             except DeliveryConflict:
-                (status, reply) = (409, {"error": "The original outstanding terminal request remains unchanged."})
+                (status, response_payload) = (409, {"error": "The original outstanding terminal request remains unchanged."})
             except DeliveryStorageFailed:
-                (status, reply) = (503, {"error": "Delivery storage is unavailable; acceptance is not confirmed."})
+                (status, response_payload) = (503, {"error": "Delivery storage is unavailable; acceptance is not confirmed."})
             except DeliveryInventoryUnavailable as cause:
                 self.on_failure(cause, {"event": "delivery_inventory_unavailable", "provider_ref": endpoint.provider_ref})
-                (status, reply) = (503, {"error": "Pending inventory is oversized; publication continues and per-Attempt status remains available."})
+                (status, response_payload) = (503, {"error": "Pending inventory is oversized; publication continues and per-Attempt status remains available."})
             except DeliveryRequestRejected as cause:
                 self.on_failure(cause, {"event": "delivery_request_rejected", "provider_ref": endpoint.provider_ref})
-                (status, reply) = (400, {"error": "The request does not match this provider's delivery protocol."})
+                (status, response_payload) = (400, {"error": "The request does not match this provider's delivery protocol."})
 
-            await self._respond(connection, writer, status, reply)
+            await self._respond(connection, writer, status, response_payload)
         except (OSError, ConnectionError, TimeoutError, h11.ProtocolError) as cause:
             self.on_failure(
                 cause,
