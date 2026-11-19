@@ -74,7 +74,7 @@ class NoAssets:
     """An allocation with no file assets cannot resolve a content reference."""
 
     def path(self, *, asset: AssetRef) -> pathlib.Path:
-        raise LookupError(f"This allocation grants no asset {asset.digest}")
+        raise LookupError(f"{asset.digest=} is not granted to this allocation")
 
 
 class _Custody:
@@ -97,7 +97,7 @@ class Contribution:
     If you override __init__, call super().__init__() to establish ownership
     bookkeeping. The SDK does not read, serialize, freeze or hash your settings.
     This base class supplies that bookkeeping, empty initialize/close methods,
-    and analysis_type=None for contributions without a separate analysis session.
+    and no separate analysis session by default.
 
     Construct the object without acquiring external resources, then pass it to
     host.adopt(contribution=object, requirements=...). The host
@@ -146,7 +146,7 @@ class Contribution:
     session before calling its initialize, and passes it to exported methods
     through an argument annotated with that session type. Implement its initialize
     and close rather than overriding its SDK-owned constructor. Leave
-    analysis_type=None when no separate session is needed. Session cleanup,
+    analysis_type as None when no separate session is needed. Session cleanup,
     produced-state disposal, result release and contribution retirement have
     separate owners; finishing one does not imply the others have finished.
     """
@@ -300,20 +300,20 @@ def _members(*, contribution: type[Contribution]) -> tuple[tuple[str, Callable],
 
     result = []
 
-    for (name, member) in sorted(effective.items()):
+    for (member_name, member) in sorted(effective.items()):
         if isinstance(member, (staticmethod, classmethod)):
             if "__scientific_operation__" in member.__func__.__dict__:
-                raise TypeError(f"Exported operation {name!r} must be an instance method")
+                raise TypeError(f"{member_name=} should be an instance method")
 
         if isinstance(member, property):
             if (member.fget is not None) and ("__scientific_operation__" in member.fget.__dict__):
-                raise TypeError(f"Exported operation {name!r} cannot be a property")
+                raise TypeError(f"{member_name=} should not be a property")
 
         if inspect.isfunction(object=member) and ("__scientific_operation__" in member.__dict__):
-            if name in ("__init__", "initialize", "close"):
-                raise ValueError(f"Lifecycle method {name!r} cannot also be an operation")
+            if member_name in ("__init__", "initialize", "close"):
+                raise ValueError(f"Lifecycle {member_name=} should not also be an operation")
 
-            result.append((name, member))
+            result.append((member_name, member))
 
     if not (result):
         raise ValueError("A contribution must export at least one operation")
@@ -330,7 +330,7 @@ def _schema(*, annotation: object, seen: frozenset[type]) -> object:
 
     if origin is not None:
         return {
-            "origin": f"{origin.__module__}.{origin.__qualname__}",
+            "origin": f"{origin.__module__}.{origin.__qualname__}",  # machine-string: Execution contract schemas identify a type by its dotted Python import name
             "arguments": [_schema(annotation=item, seen=seen) for item in get_args(tp=annotation)],
         }
 
@@ -340,7 +340,9 @@ def _schema(*, annotation: object, seen: frozenset[type]) -> object:
     if not isinstance(annotation, type):
         return {"literal": annotation}
 
-    document = {"type": f"{annotation.__module__}.{annotation.__qualname__}"}
+    document = {
+        "type": f"{annotation.__module__}.{annotation.__qualname__}",  # machine-string: Execution contract schemas retain the annotated type's dotted Python import name
+    }
 
     if annotation in seen:
         return document
@@ -368,7 +370,7 @@ def _codec(*, value_type: type, supplied: PayloadCodec | None) -> PayloadCodec:
         return supplied
 
     return JsonDataclassCodec(
-        format=f"python-json.v1:{value_type.__module__}.{value_type.__qualname__}",
+        format=f"python-json.v1:{value_type.__module__}.{value_type.__qualname__}",  # machine-string: Payload codec identity contains the wire format version and dotted value type
         value_type=value_type,
     )
 
@@ -396,34 +398,37 @@ class _LifecycleMethod:
         self.function(**{self.receiver: instance, **arguments})
 
 
-def _lifecycle(*, owner: type, name: str, keywords: dict[str, type]) -> _LifecycleMethod:
-    function = inspect.getattr_static(obj=owner, attr=name)
+def _lifecycle(*, owner: type, method_name: str, expected_parameters: dict[str, type]) -> _LifecycleMethod:
+    function = inspect.getattr_static(obj=owner, attr=method_name)
 
     assert_synchronous(function)
     parameters = tuple(inspect.signature(obj=function).parameters.values())
 
     if (not parameters) or (parameters[0].kind is not inspect.Parameter.POSITIONAL_OR_KEYWORD):
-        raise TypeError(f"Lifecycle method {name!r} requires an instance receiver")
+        raise TypeError(f"{method_name=} should have an instance receiver")
 
-    actual = {parameter.name: parameter for parameter in parameters[1:]}
+    parameters_by_name = {parameter.name: parameter for parameter in parameters[1:]}
 
-    if set(actual) != set(keywords):
-        raise TypeError(f"Lifecycle method {name!r} requires keyword arguments {sorted(keywords)!r}")
+    if set(parameters_by_name) != set(expected_parameters):
+        actual_parameter_names = sorted(parameters_by_name)
+        expected_parameter_names = sorted(expected_parameters)
+
+        raise TypeError(f"{method_name=}: {actual_parameter_names=} should match {expected_parameter_names=}")
 
     annotations = get_type_hints(obj=function)
 
-    for (key, parameter) in actual.items():
+    for (parameter_name, parameter) in parameters_by_name.items():
         if (parameter.kind is not inspect.Parameter.KEYWORD_ONLY) or (parameter.default is not inspect.Parameter.empty):
-            raise TypeError(f"Lifecycle argument {key!r} must be required and keyword-only")
+            raise TypeError(f"{method_name=}: {parameter_name=} should be required and keyword-only")
 
-        if not (key in annotations):
-            raise TypeError(f"Lifecycle {name=} requires an annotation for {key=}")
+        if not (parameter_name in annotations):
+            raise TypeError(f"{method_name=} requires an annotation for {parameter_name=}")
 
-        if not (annotations[key] is keywords[key]):
-            raise TypeError(f"Lifecycle argument {key!r} must be annotated as {keywords[key].__qualname__}")
+        if not (annotations[parameter_name] is expected_parameters[parameter_name]):
+            raise TypeError(f"{method_name=}: {parameter_name=} should be annotated as {expected_parameters[parameter_name]=}")
 
     if not (annotations.get("return") is NoneType):
-        raise TypeError(f"Lifecycle method {name!r} must declare a None return")
+        raise TypeError(f"{method_name=} should declare a None return")
 
     return _LifecycleMethod(function=function, receiver=parameters[0].name)
 
@@ -431,7 +436,7 @@ def _lifecycle(*, owner: type, name: str, keywords: dict[str, type]) -> _Lifecyc
 def _compile_method(
     *,
     contribution: type[Contribution],
-    name: str,
+    method_name: str,
     function: Callable,
     resources: frozenset[ResourceRequirement],
 ) -> CallBinding:
@@ -440,19 +445,19 @@ def _compile_method(
     parameters = tuple(inspect.signature(obj=function).parameters.values())
 
     if (not parameters) or (parameters[0].kind is not inspect.Parameter.POSITIONAL_OR_KEYWORD):
-        raise TypeError(f"Operation {name!r} requires an ordinary instance receiver")
+        raise TypeError(f"{method_name=} should have an ordinary instance receiver")
 
     if any((parameter.kind is not inspect.Parameter.KEYWORD_ONLY) for parameter in parameters[1:]):
-        raise TypeError(f"Operation {name!r} scientific arguments must be keyword-only")
+        raise TypeError(f"{method_name=} should have keyword-only scientific arguments")
 
     if any((parameter.default is not inspect.Parameter.empty) for parameter in parameters):
-        raise TypeError(f"Operation {name!r} arguments must be explicit, without defaults")
+        raise TypeError(f"{method_name=} should have required arguments without defaults")
 
     hints = get_type_hints(obj=function)
     state_binding = _NamedStates(inputs=declaration.state_inputs)
 
     if len(set(state_binding.names)) != len(state_binding.names):
-        raise ValueError(f"Operation {name!r} has duplicate state input names")
+        raise ValueError(f"{method_name=}: {state_binding.names=} should be unique")
 
     inputs = []
     analyses = []
@@ -461,13 +466,13 @@ def _compile_method(
 
     for parameter in parameters[1:]:
         if not (parameter.name in hints):
-            raise TypeError(f"Operation {name=} requires an annotation for {parameter.name=}")
+            raise TypeError(f"{method_name=} requires an annotation for {parameter.name=}")
 
         annotation = hints[parameter.name]
 
         if parameter.name in state_binding.input_types:
             if not (annotation is state_binding.input_types[parameter.name]):
-                raise TypeError(f"Operation {name!r} state {parameter.name!r} has a different declared type")
+                raise TypeError(f"{method_name=}: {parameter.name=} has {annotation=}; expected {state_binding.input_types[parameter.name]=}")
 
             found_states.add(parameter.name)
         elif annotation is ScientificControl:
@@ -478,18 +483,22 @@ def _compile_method(
             inputs.append((parameter.name, annotation))
 
     if found_states != set(state_binding.names):
-        raise ValueError(f"Operation {name!r} does not accept all its declared state inputs")
+        actual_state_names = sorted(found_states)
+        expected_state_names = sorted(state_binding.names)
+
+        raise ValueError(f"{method_name=}: {actual_state_names=} should match {expected_state_names=}")
 
     if (len(inputs) > 1) or (len(analyses) > 1) or (len(controls) > 1):
-        raise TypeError(f"Operation {name!r} accepts at most one payload, analysis and control argument")
+        raise TypeError(f"{method_name=} should accept at most one payload, one analysis and one control argument")
 
-    needs_control = declaration.progress or (declaration.interruption is InterruptionSupport.COOPERATIVE)
+    requires_control_argument = declaration.progress or (declaration.interruption is InterruptionSupport.COOPERATIVE)
+    has_control_argument = bool(controls)
 
-    if bool(controls) != needs_control:
-        raise ValueError(f"Operation {name!r} must declare a control argument exactly when progress or cooperative stopping is supported")
+    if has_control_argument != requires_control_argument:
+        raise ValueError(f"{method_name=}: {has_control_argument=} should match {requires_control_argument=}")
 
     if not ("return" in hints):
-        raise TypeError(f"Operation {name=} requires a return annotation")
+        raise TypeError(f"{method_name=} requires a return annotation")
 
     output = hints["return"]
     wrapped = get_origin(tp=output) is ScientificReturn
@@ -498,7 +507,7 @@ def _compile_method(
         (output,) = get_args(tp=output)
 
     if (declaration.state_outputs) and (not wrapped):
-        raise TypeError(f"Operation {name!r} returning state must return ScientificReturn[Result]")
+        raise TypeError(f"{method_name=} should return ScientificReturn[Result] when returning state")
 
     (input_name, input_type) = (None, NoInput)
 
@@ -543,7 +552,7 @@ def _compile_method(
 
     return CallBinding(
         description=CallDescription(
-            name=name,
+            name=method_name,
             input_format=input_codec.format,
             result_format=result_codec.format,
             state_inputs=state_binding.parameters,
@@ -598,8 +607,8 @@ class HostedContribution:
         contribution_type = type(self.contribution)
 
         _require_resource_requirements(resource_requirements=self.requirements)
-        object.__setattr__(self, "_initialize", _lifecycle(owner=contribution_type, name="initialize", keywords={"assets": AssetAccess}))
-        object.__setattr__(self, "_close", _lifecycle(owner=contribution_type, name="close", keywords={}))
+        object.__setattr__(self, "_initialize", _lifecycle(owner=contribution_type, method_name="initialize", expected_parameters={"assets": AssetAccess}))
+        object.__setattr__(self, "_close", _lifecycle(owner=contribution_type, method_name="close", expected_parameters={}))
         analysis_type = contribution_type.analysis_type
 
         object.__setattr__(self, "_analysis_type", analysis_type)
@@ -612,8 +621,8 @@ class HostedContribution:
             if (analysis_type.__init__ is not Analysis.__init__) or (analysis_type.__new__ is not object.__new__):
                 raise TypeError("Analysis construction is SDK-owned; acquire resources in initialize")
 
-            object.__setattr__(self, "_analysis_initialize", _lifecycle(owner=analysis_type, name="initialize", keywords={}))
-            object.__setattr__(self, "_analysis_close", _lifecycle(owner=analysis_type, name="close", keywords={}))
+            object.__setattr__(self, "_analysis_initialize", _lifecycle(owner=analysis_type, method_name="initialize", expected_parameters={}))
+            object.__setattr__(self, "_analysis_close", _lifecycle(owner=analysis_type, method_name="close", expected_parameters={}))
 
         members = _members(contribution=contribution_type)
         calls = []
@@ -621,7 +630,7 @@ class HostedContribution:
         for (name, function) in members:
             call = _compile_method(
                 contribution=contribution_type,
-                name=name,
+                method_name=name,
                 function=function,
                 resources=self.requirements,
             )
@@ -651,7 +660,7 @@ class HostedContribution:
         document["analysis"] = None
 
         if self._analysis_type is not None:
-            document["analysis"] = f"{self._analysis_type.__module__}.{self._analysis_type.__qualname__}"
+            document["analysis"] = f"{self._analysis_type.__module__}.{self._analysis_type.__qualname__}"  # machine-string: The execution contract identifies its analysis type by dotted Python import name
 
         document["operation_schemas"] = [
             {

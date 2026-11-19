@@ -128,11 +128,11 @@ def _read_json(payload: bytes) -> object:
 
 
 def _path_field(path: str, name: str) -> str:
-    return f"{path}.{name}"
+    return f"{path}.{name}"  # machine-string: Recursive codec traversal appends field selectors to this location identifier
 
 
 def _path_index(path: str, index: int) -> str:
-    return f"{path}[{index}]"
+    return f"{path}[{index}]"  # machine-string: Recursive codec traversal appends an array selector to this location identifier
 
 
 def _union_members(annotation: object) -> tuple[object, ...] | None:
@@ -162,20 +162,20 @@ def _dataclass_fields(value_type: type[object]):
     )
 
     if (not parameters.frozen) or (not slotted):
-        raise TypeError(f"{value_type.__qualname__} must be a frozen, slotted dataclass")
+        raise TypeError(f"{value_type.__qualname__ = } must be a frozen, slotted dataclass")
 
     declared_fields = fields(value_type)
 
     if any((not field.init) for field in declared_fields):
         non_init_field = next(field.name for field in declared_fields if not field.init)
 
-        raise TypeError(f"{value_type.__qualname__}.{non_init_field} must participate in construction")
+        raise TypeError(f"{value_type.__qualname__ = }.{non_init_field = } must participate in construction")
 
     annotations = _resolved_hints(value_type)
     declared_names = {field.name for field in declared_fields}
 
     if set(annotations) != declared_names:
-        raise TypeError(f"{value_type.__qualname__} must annotate every init field and no non-field names")
+        raise TypeError(f"{value_type.__qualname__ = } must annotate every init field and no non-field names")
 
     return (declared_fields, annotations)
 
@@ -190,14 +190,14 @@ def _validate_annotation(
         return
 
     if annotation is Any:
-        raise TypeError(f"{path} may not use Any")
+        raise TypeError(f"{path = } may not use Any")
 
     origin = get_origin(annotation)
     arguments = get_args(annotation)
 
     if origin is Literal:
         if not (arguments):
-            raise TypeError(f"{path} has an empty Literal")
+            raise TypeError(f"{path = } has an empty Literal")
 
         return
 
@@ -205,7 +205,7 @@ def _validate_annotation(
         if (len(arguments) == 2) and (arguments[1] is Ellipsis):
             _validate_annotation(
                 arguments[0],
-                path=f"{path}[]",
+                path=f"{path}[]",  # machine-string: Recursive annotation checks extend this identifier with a variadic tuple selector
                 seen=seen,
             )
 
@@ -214,20 +214,20 @@ def _validate_annotation(
         for (index, item) in enumerate(arguments):
             _validate_annotation(
                 item,
-                path=f"{path}[{index}]",
+                path=f"{path}[{index}]",  # machine-string: Recursive annotation checks extend this identifier with a tuple member selector
                 seen=seen,
             )
 
         return
 
     if origin in (list, dict):
-        raise TypeError(f"{path} uses a mutable container; use tuple or a nested frozen dataclass")
+        raise TypeError(f"{path = } uses a mutable container; use tuple or a nested frozen dataclass")
 
     members = _union_members(annotation)
 
     if members is not None:
         if (len(members) != 2) or (NoneType not in members):
-            raise TypeError(f"{path} supports only T | None unions")
+            raise TypeError(f"{path = } supports only T | None unions")
 
         _validate_annotation(
             next(member for member in members if member is not NoneType),
@@ -245,7 +245,7 @@ def _validate_annotation(
 
         return
 
-    raise TypeError(f"{path} uses unsupported portable annotation {annotation!r}")
+    raise TypeError(f"{path = } uses unsupported portable {annotation = }")
 
 
 def _validate_dataclass(
@@ -262,7 +262,7 @@ def _validate_dataclass(
     for field in declared_fields:
         _validate_annotation(
             hints[field.name],
-            path=f"{value_type.__qualname__}.{field.name}",
+            path=f"{value_type.__qualname__}.{field.name}",  # machine-string: Nested annotation checks carry this dotted dataclass member identifier
             seen=nested_seen,
         )
 
@@ -295,7 +295,7 @@ def _decode_value(value: object, annotation: object, *, path: str) -> object:
 
         if not math.isfinite(value):
             raise PayloadRejected(
-                f"{path} must be a finite number",
+                f"{path = } must be a finite number",
                 code=PayloadRejected.Code.INVALID_TYPE,
             )
 
@@ -313,7 +313,7 @@ def _decode_value(value: object, annotation: object, *, path: str) -> object:
     if origin is Literal:
         if not (value in arguments):
             raise PayloadRejected(
-                f"{path} is not one of the declared literal values",
+                f"{path = } is not one of the declared literal values",
                 code=PayloadRejected.Code.INVALID_VALUE,
             )
 
@@ -344,7 +344,7 @@ def _decode_value(value: object, annotation: object, *, path: str) -> object:
 
         if len(value) != len(arguments):
             raise PayloadRejected(
-                f"{path} must contain exactly {len(arguments)} items",
+                f"{path = } must contain exactly {len(arguments) = } items",
                 code=PayloadRejected.Code.INVALID_LENGTH,
             )
 
@@ -375,14 +375,14 @@ def _decode_value(value: object, annotation: object, *, path: str) -> object:
             return annotation(value)
         except (TypeError, ValueError) as error:
             raise PayloadRejected(
-                f"{path} is not a declared enum value",
+                f"{path = } is not a declared enum value",
                 code=PayloadRejected.Code.INVALID_VALUE,
             ) from error
 
     if isinstance(annotation, type) and is_dataclass(annotation):
         return _decode_dataclass(value, annotation, path=path)
 
-    raise AssertionError(f"Unsupported annotation reached decoding: {annotation!r}")
+    raise AssertionError(f"Unsupported {annotation = } reached decoding")
 
 
 def _decode_dataclass(value: object, value_type: type[T], *, path: str) -> T:
@@ -395,7 +395,7 @@ def _decode_dataclass(value: object, value_type: type[T], *, path: str) -> T:
 
     if unexpected_fields:
         raise PayloadRejected(
-            f"{path} contains unexpected fields: {sorted(unexpected_fields)!r}",
+            f"{path = } contains unexpected {sorted(unexpected_fields) = }",
             code=PayloadRejected.Code.UNEXPECTED_FIELD,
         )
 
@@ -410,7 +410,7 @@ def _decode_dataclass(value: object, value_type: type[T], *, path: str) -> T:
 
     if missing_fields:
         raise PayloadRejected(
-            f"{path} is missing required fields: {sorted(missing_fields)!r}",
+            f"{path = } is missing required {sorted(missing_fields) = }",
             code=PayloadRejected.Code.MISSING_FIELD,
         )
 
@@ -429,7 +429,7 @@ def _decode_dataclass(value: object, value_type: type[T], *, path: str) -> T:
         raise
     except (TypeError, ValueError) as error:
         raise PayloadRejected(
-            f"{path} could not construct {value_type.__qualname__}",
+            f"{path = } could not construct {value_type.__qualname__ = }",
             code=PayloadRejected.Code.INVALID_VALUE,
         ) from error
 
@@ -458,7 +458,7 @@ def _encode_value(value: object, annotation: object, *, path: str) -> object:
             raise TypeError(f"{path=}; {type(value)=} ≠ {expected_types=}")
 
         if not math.isfinite(value):
-            raise TypeError(f"{path} must be a finite float-compatible number")
+            raise TypeError(f"{path = } must be a finite float-compatible number")
 
         return float(value)
 
@@ -473,7 +473,7 @@ def _encode_value(value: object, annotation: object, *, path: str) -> object:
 
     if origin is Literal:
         if not (value in arguments):
-            raise TypeError(f"{path} is not one of the declared literal values")
+            raise TypeError(f"{path = } is not one of the declared literal values")
 
         expected_types = [type(item) for item in arguments]
 
@@ -497,7 +497,7 @@ def _encode_value(value: object, annotation: object, *, path: str) -> object:
             ]
 
         if len(value) != len(arguments):
-            raise TypeError(f"{path} must contain exactly {len(arguments)} items")
+            raise TypeError(f"{path = } must contain exactly {len(arguments) = } items")
 
         return [
             _encode_value(
@@ -529,7 +529,7 @@ def _encode_value(value: object, annotation: object, *, path: str) -> object:
     if isinstance(annotation, type) and is_dataclass(annotation):
         return _encode_dataclass(value, annotation, path=path)
 
-    raise AssertionError(f"Unsupported annotation reached encoding: {annotation!r}")
+    raise AssertionError(f"Unsupported {annotation = } reached encoding")
 
 
 def _encode_dataclass(
@@ -618,7 +618,7 @@ class DataclassStateBinding[T]:
 
             if (get_origin(annotation) is not None) or (annotation in (Any, object)):
                 raise TypeError(
-                    f"{self.value_type.__qualname__}.{field.name} "
+                    f"{self.value_type.__qualname__ = }.{field.name = } "
                     f"must name a concrete live-state class"
                 )
 

@@ -155,7 +155,7 @@ class StateOutputSlot[T]:
 
                 return StateHandle(kind=self.kind, reference=reference)
 
-        raise ValueError(f"Producer observation contains no output {self.name!r}")
+        raise ValueError(f"Producer observation contains no output {self.name = }")
 
 
 @dataclass(frozen=True, slots=True, kw_only=True)
@@ -215,7 +215,7 @@ def state_references(*, states: Mapping[StateInputSlot, StateHandle]) -> dict[st
             raise ValueError("State handle has a different scientific kind or Python type")  # todo
 
         if state_port.name in references:
-            raise ValueError(f"Some state ports in {...} have the same {state_port.name=}")  # todo
+            raise ValueError(f"Cannot project duplicate state ports: {state_port.name = } is repeated.")
 
         references[state_port.name] = state_handle.reference
 

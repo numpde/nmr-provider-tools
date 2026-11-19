@@ -41,8 +41,8 @@ def _identity(value: object, label: str) -> None:
         all(((character.isprintable()) and (not character.isspace())) for character in value)
     ):
         raise ValueError(
-            f"{label} must be a nonempty identity without whitespace "
-            f"or control characters"
+            f"Cannot use {label = }: it must be a nonempty identity without whitespace "
+            f"or control characters."
         )
 
 
@@ -51,7 +51,7 @@ def _digest(value: object, label: str) -> None:
         raise TypeError(f"{label=}; {type(value)=} ≠ {expected_type=}")
 
     if re.fullmatch(pattern=r"sha256:[0-9a-f]{64}\Z", string=value) is None:
-        raise ValueError(f"{label} must be a lowercase sha256:<64 hex characters> digest")
+        raise ValueError(f"Cannot use {label = }: it must be a lowercase sha256:<64 hex characters> digest.")
 
 
 def _binding_revision(value: object) -> None:
@@ -83,12 +83,12 @@ def _set_records(values: object, record_type: type[object], label: str) -> None:
 
 def _unique(values: Collection[object], key: Callable[[object], object], label: str) -> None:
     if len({key(value) for value in values}) != len(values):
-        raise ValueError(f"{label} cannot contain duplicates")
+        raise ValueError(f"Cannot configure {label = }: it cannot contain duplicates.")
 
 
 def _callback(value: object, label: str) -> None:
     if not callable(value):
-        raise TypeError(f"{label} must be callable")
+        raise TypeError(f"Cannot configure {label = }: it must be callable.")
 
 
 @dataclass(frozen=True, slots=True)
@@ -108,7 +108,7 @@ def _resolved_callable_hints(
     try:
         return get_type_hints(callable_, include_extras=True)
     except (NameError, TypeError) as error:
-        raise TypeError(f"{label} annotations could not be resolved") from error
+        raise TypeError(f"Cannot inspect {label = }: its annotations could not be resolved.") from error
 
 
 def _positional_parameters(
@@ -120,7 +120,7 @@ def _positional_parameters(
     try:
         signature = inspect.signature(callable_)
     except (TypeError, ValueError) as error:
-        raise TypeError(f"{label} must expose an inspectable signature") from error
+        raise TypeError(f"Cannot inspect {label = }: it must expose an inspectable signature.") from error
 
     parameters = tuple(signature.parameters.values())
 
@@ -136,7 +136,7 @@ def _positional_parameters(
             ),
         )
     ):
-        raise TypeError(f"{label} must accept exactly {count} positional parameters")
+        raise TypeError(f"Cannot inspect {label = }: it must accept exactly {count = } positional parameters.")
 
     return parameters
 
@@ -193,7 +193,7 @@ def _constructed_type(
     require_instance(constructed_type, type)
 
     if constructed_type is NoneType:
-        raise TypeError(f"{label} must declare one concrete return type")
+        raise TypeError(f"Cannot inspect {label = }: it must declare one concrete return type.")
 
     return constructed_type
 
@@ -1046,7 +1046,7 @@ class ImplementationBinding[InstanceT, AnalysisT]:
 
             if get_origin(annotation) is not CallBinding:
                 if type(declaration) is CallBinding:
-                    raise TypeError(f"Call member {member.name!r} must declare its concrete CallBinding types")
+                    raise TypeError(f"Call member {member.name = } must declare its concrete CallBinding types.")
 
                 continue
 
@@ -1061,7 +1061,7 @@ class ImplementationBinding[InstanceT, AnalysisT]:
             )
 
             if expected_types != actual_types:
-                raise TypeError(f"Call member {member.name!r} codecs differ from its declared types")
+                raise TypeError(f"Call member {member.name = } codecs differ from its declared types.")
 
             bound = replace(declaration)
 
@@ -1149,14 +1149,14 @@ class ImplementationBinding[InstanceT, AnalysisT]:
 
             if (call_shape.instance is not None) and (call_shape.instance is not instance_type):
                 raise TypeError(
-                    f"Call {call.description.name!r} instance annotation must be "
-                    f"{instance_type.__qualname__}"
+                    f"Call {call.description.name = } instance annotation must be "
+                    f"{instance_type.__qualname__ = }."
                 )
 
             if (call_shape.analysis is not None) and (call_shape.analysis is not analysis_type):
                 raise TypeError(
-                    f"Call {call.description.name!r} analysis annotation must be "
-                    f"{analysis_type.__qualname__}"
+                    f"Call {call.description.name = } analysis annotation must be "
+                    f"{analysis_type.__qualname__ = }."
                 )
 
     def ref[InputT, StateT, OutputT](self, call: CallBinding[InputT, StateT, OutputT]) -> CallRef:
@@ -1183,7 +1183,7 @@ def _require_state_kinds(*, calls: tuple[CallBinding, ...]) -> None:
 
         for (kind, value_type) in declared_types:
             if (kind in state_types) and (state_types[kind] is not value_type):
-                raise TypeError(f"Scientific state kind {kind!r} names different Python types")
+                raise TypeError(f"Scientific state {kind = } cannot name different Python types.")
 
             state_types[kind] = value_type
 
