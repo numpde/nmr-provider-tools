@@ -1048,6 +1048,12 @@ Separate adjacent tool/package interfaces from service API rules:
       dependency-cache admission passed. Installer (24), wheelhouse bundle (2),
       acquisition bundle (6), package artifact (15) and convention (12) focused
       tests all passed with privacy tests disabled.
+  [x] SDK wheel-build/dependency-check commands and repeated hash-locked
+      requirement encoding now live in the existing pip adapter. Workflows
+      retain staged sources, process environment, subprocess execution and
+      digest call timing. Focused wheelhouse (6), artifact (15) and delivery
+      release (10) tests pass; the rebuilt offline checker and wheelhouse
+      image both build. The generated delivery lock bytes remain exact.
   pip: tools/installer.py:154-201 owns command construction. tools/wheelhouse.py:102-193
   and wheelhouse_tool/report.py:11-65 consume installation-report version 1 and
   download_info/archive_info/hash fields. SDK build helpers and image_manifest.py

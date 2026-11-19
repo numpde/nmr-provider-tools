@@ -25,7 +25,7 @@ from sdk_build.core_environment import (
     install_locked,
 )
 
-from tools.adapters.pip_install import pip_command
+from tools.adapters.pip_install import check_environment_command, hashed_requirement
 from tools.wheelhouse import digest, requirements
 
 
@@ -167,11 +167,9 @@ def _build_and_install_project(
         raise ValueError(f"Project {distribution_name!r} did not produce its one expected wheel.")
 
     project_install_lock = root / "project-install.lock"
-    continuation = "\\"
 
     project_install_lock.write_text(
-        f"{distribution_name}=={distribution_version} {continuation}\n"
-        f"    --hash=sha256:{digest(project_wheel)}\n"
+        hashed_requirement(distribution_name, distribution_version, digest(project_wheel))
     )
 
     scientific_lock_path = source / "requirements.lock"
@@ -189,7 +187,7 @@ def _build_and_install_project(
         required_files={project_wheel.name: project_wheel},
     )
 
-    subprocess.run([*pip_command(python), "--no-cache-dir", "check"], check=True)
+    subprocess.run(check_environment_command(python), check=True)
 
 
 def _run_installed_suite(

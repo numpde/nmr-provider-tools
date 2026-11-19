@@ -432,7 +432,7 @@ class PackageArtifactTests(unittest.TestCase):
             (staged_source / "build/lib/dummy_provider").mkdir(parents=True)
 
         with (
-            patch("sdk_build.core_environment.pip_command", return_value=["python", "-m", "pip"]),
+            patch("tools.adapters.pip_install.pip_command", return_value=["python", "-m", "pip"]),
             patch("sdk_build.core_environment.subprocess.run", side_effect=simulate_backend) as runner,
         ):
             actual = build_source_wheel(
@@ -468,7 +468,7 @@ class PackageArtifactTests(unittest.TestCase):
         staged_source = self.root / "staged"
 
         with (
-            patch("sdk_build.core_environment.pip_command", return_value=["python", "-m", "pip"]),
+            patch("tools.adapters.pip_install.pip_command", return_value=["python", "-m", "pip"]),
             patch("sdk_build.core_environment.subprocess.run"),
         ):
             build_source_wheel(
@@ -532,7 +532,14 @@ class PackageArtifactTests(unittest.TestCase):
                         isinstance(call.func, ast.Attribute) and
                         (call.func.attr == "run") and
                         any(
-                            isinstance(item, ast.Constant) and item.value == "wheel"
+                            (
+                                isinstance(item, ast.Constant) and (item.value == "wheel")
+                            ) or
+                            (
+                                isinstance(item, ast.Call) and
+                                isinstance(item.func, ast.Name) and
+                                (item.func.id == "build_wheel_command")
+                            )
                             for item in ast.walk(call)
                         )
                     ):

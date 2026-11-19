@@ -17,6 +17,7 @@ import pathlib
 
 from tools.artifacts import regular_file, require_download_proxy
 from tools.adapters.github_release import release_asset_url
+from tools.adapters.pip_install import hashed_requirement
 from tools.adapters.pylock import write_wheel_archive_lock
 from tools.adapters import pypi_project_json as pypi_requests
 from tools.installer import release as installer_release
@@ -40,9 +41,8 @@ def release_inputs(pin, runtime_lock):
 
     install_lock_bytes = (
         runtime_requirements.rstrip()
-        + f"\n"
-        f"provider-core=={release_version} \\\n"
-        f"    --hash=sha256:{wheel_digest}\n"  # machine-string: pip consumes package and hash syntax; expression labels would invalidate the requirement.
+        + "\n"
+        + hashed_requirement("provider-core", release_version, wheel_digest)
     ).encode()
 
     install_lock_sha256 = hashlib.sha256(install_lock_bytes).hexdigest()

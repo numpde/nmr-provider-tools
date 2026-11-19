@@ -23,7 +23,12 @@ import tempfile
 import tomllib
 import pathlib
 
-from tools.adapters.pip_install import install_locked_wheels_command, pip_command
+from tools.adapters.pip_install import (
+    build_wheel_command,
+    check_environment_command,
+    hashed_requirement,
+    install_locked_wheels_command,
+)
 from tools.artifacts import fsync_directory, regular_file
 from tools.installer import create_environment
 from tools.wheelhouse import digest, pool_read_lock, read_json, requirements, select_wheels, wheel_inputs_from_report
@@ -67,18 +72,7 @@ def build_source_wheel(
         shutil.copy2(sdk_type_requirements, staged_source / SDK_TYPE_REQUIREMENTS)
 
     subprocess.run(
-        [
-            *pip_command(python),  # Use the builder's pinned pip in isolation
-            "wheel",  # Build a distribution without installing it
-            "--disable-pip-version-check",  # Skip the pip update probe
-            "--no-cache-dir",  # Avoid reading or populating pip's cache
-            "--no-index",  # Skip package index lookup
-            "--no-deps",  # Build only the requested project
-            "--no-build-isolation",  # Use the already installed build dependencies
-            "--wheel-dir",  # Select the wheel output directory
-            str(output),  # Publish the wheel to the caller's output directory
-            str(staged_source),  # Allow backend writes in scratch
-        ],
+        build_wheel_command(python, staged_source=staged_source, output=output),
         check=True,  # Stop if the wheel build fails
         env=os.environ | {"SOURCE_DATE_EPOCH": "315532800"},  # Fix wheel timestamps across rebuilds
     )
@@ -209,11 +203,7 @@ def _build_candidate(source, runtime_lock, build_lock, pool, output, lock_fd):
 
         install_lock.write_text(
             runtime_lock_text.rstrip()
-            + (
-                "\n"
-                f"provider-core=={release_version} \\\n"
-                f"    --hash=sha256:{digest(wheel)}\n"
-            )
+            + ("\n" + hashed_requirement("provider-core", release_version, digest(wheel)))
         )
 
         expected_requirements = requirements(locks["runtime"]) | {
@@ -231,8 +221,7 @@ def _build_candidate(source, runtime_lock, build_lock, pool, output, lock_fd):
         native_lock = output / f"provider_core-{release_version}-native-install.lock"
 
         native_lock.write_text(
-            f"provider-core=={release_version} \\\n"
-            f"    --hash=sha256:{digest(wheel)}\n"
+            hashed_requirement("provider-core", release_version, digest(wheel))
         )
 
         if requirements(native_lock) != {("provider-core", release_version): {digest(wheel)}}:
@@ -283,7 +272,7 @@ def _install_environment(root, lock, pool, expected_inputs, extra_pools, require
                 "identities differ from captured inputs."
             )
 
-    subprocess.run([*pip_command(environment_python), "--no-cache-dir", "check"], check=True)
+    subprocess.run(check_environment_command(environment_python), check=True)
     shutil.copyfile(lock, root / "provider-core-install.lock")
 
     return environment_python
