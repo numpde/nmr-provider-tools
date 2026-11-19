@@ -760,9 +760,18 @@ Shared wire support: retain the distinction from local policy
   fragment that proof or duplicate references. Source comments now state the
   backend behavior and policy distinction. Independent review agreed; existing
   focused real-stream/cause-erasure tests above cover the retained behavior.
-- [ ] Keep shared decoding rules distinct from caller-selected budgets
+- [x] Keep shared decoding rules distinct from caller-selected budgets
   core/decoded_body.py:81-220: Content-Encoding lists, gzip/deflate framing and
   decompression checks are HTTP/encoding support. Budget values are caller policy.
+  Completed 2026-11-19: content_encoding.py in upstream validation reads header
+  spelling/order against the decoder constructor keys and its explicit work cap,
+  removing the duplicate supported-format list. Missing headers still select
+  identity; unsupported stacks retain the same rejection class/reason and cause.
+  Stateful gzip/deflate framing and bounded allocation remain in the dedicated
+  codec, separate from transport I/O and caller-selected budgets. Local bound,
+  rejection-reason and reuse diagnostics now show actual/expected evidence.
+  Focused decoder/transport/Chat-wire unit, Chat integration and installation
+  lanes passed with PRIVACY_TESTS=0 (98 tests, eleven skips); audit confirmed parity.
 - [ ] Separate proxy HTTP/DNS rules from grants and resource ownership
   core/bound_http_proxy.py:100-267,301-390,548-631: HTTP/CONNECT target/header forms,
   default ports, DNS question/response encoding and forwarding response bytes.

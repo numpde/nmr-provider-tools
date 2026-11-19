@@ -15,8 +15,10 @@ require_container()
 
 import sys
 import zlib
+import reprlib
 
 from provider_core.type_requirements import require_type
+from provider_core.validation.upstream.content_encoding import read_content_codings
 
 
 # Closed diagnostic reasons belong to the supported codec profile.
@@ -39,7 +41,9 @@ class DecodedBodyRejected(ValueError):
         require_type(reason, str)
 
         if not (reason in _MESSAGES):
-            raise ValueError("Unknown decoded-body rejection reason")
+            expected_reasons = tuple(_MESSAGES)
+
+            raise ValueError(f"reason={reprlib.repr(reason)} ∉ {expected_reasons=}")
 
         self.reason = reason
 
@@ -150,30 +154,15 @@ class _Deflate:
             raise DecodedBodyRejected("invalid_encoding")
 
 
-def _codings(headers):
-    codings = []
-
-    for (name, header_value) in headers:
-        if name.lower() == b"content-encoding":
-            for coding in header_value.split(b",", _MAX_CODINGS):
-                coding = coding.strip(b" \t").lower()
-
-                if (len(codings) == _MAX_CODINGS) or (coding not in (b"identity", b"gzip", b"deflate")):
-                    raise DecodedBodyRejected("unsupported_encoding")
-
-                codings.append(coding)
-
-    # silent-defaults: allow-contract -- An absent Content-Encoding header means identity encoding under HTTP semantics.
-    return tuple(reversed(codings)) if codings else (b"identity",)
-
-
 def require_decoded_limit(maximum_bytes):
     """Admit the sentinel allowance before the transport dispatches any I/O."""
 
     require_type(maximum_bytes, int)
 
-    if not (0 < maximum_bytes < sys.maxsize):
-        raise ValueError("HTTP content decoding requires a positive integer below the native allocation limit")
+    min_decoded_bytes, max_decoded_bytes = 1, sys.maxsize - 1
+
+    if not (min_decoded_bytes <= maximum_bytes <= max_decoded_bytes):
+        raise ValueError(f"{maximum_bytes=} should be between {min_decoded_bytes=} and {max_decoded_bytes=}")
 
 
 class DecodedBody:
@@ -182,16 +171,19 @@ class DecodedBody:
     def __init__(self, headers, *, maximum_bytes):
         require_decoded_limit(maximum_bytes)
         constructors = {b"identity": _Identity, b"gzip": _Gzip, b"deflate": _Deflate}
-        codings = _codings(headers)
+        codings = read_content_codings(headers, supported_codings=constructors.keys(), max_codings=_MAX_CODINGS)
+
+        if not codings:
+            raise DecodedBodyRejected("unsupported_encoding")
 
         # repo-check: allow-tuple-generator -- The admitted decoding stages stay fixed for this entity.
         self._stages = tuple(constructors[coding](maximum_bytes) for coding in codings)
 
-        self._state = "open"
+        self._decoder_state = "open"
 
     def _require_open(self):
-        if self._state != "open":
-            raise RuntimeError("Cannot reuse a completed or rejected HTTP content decoder")
+        if not (self._decoder_state == (expected_decoder_state := "open")):
+            raise RuntimeError(f"{self._decoder_state=} should equal {expected_decoder_state=}")
 
     def feed(self, data):
         self._require_open()
@@ -202,7 +194,7 @@ class DecodedBody:
 
             return data
         except BaseException:
-            self._state = "failed"
+            self._decoder_state = "failed"
 
             raise
 
@@ -213,8 +205,8 @@ class DecodedBody:
             for stage in self._stages:
                 stage.finish()
         except BaseException:
-            self._state = "failed"
+            self._decoder_state = "failed"
 
             raise
 
-        self._state = "finished"
+        self._decoder_state = "finished"
