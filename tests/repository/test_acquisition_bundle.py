@@ -49,26 +49,26 @@ class AcquisitionBundleTests(unittest.TestCase):
         source = root / "source"
 
         for name in SOURCE_FILES:
-            path = source / "host" / name
+            staged_source_path = source / "host" / name
 
             if name == "acquisition_tool/validation/upstream/container_ids.sh":
-                path = source / "operations/docker/validation/upstream/container_ids.sh"
+                staged_source_path = source / "operations/docker/validation/upstream/container_ids.sh"
             elif name.startswith("acquisition_tool/"):
-                path = source / "packages/acquisition" / name
+                staged_source_path = source / "packages/acquisition" / name
             elif name == "tools/docker_client.sh":
-                path = source / "operations/docker/docker_client.sh"
+                staged_source_path = source / "operations/docker/docker_client.sh"
 
-            path.parent.mkdir(parents=True, exist_ok=True)
-            path.write_bytes((ROOT / path.relative_to(source)).read_bytes())
+            staged_source_path.parent.mkdir(parents=True, exist_ok=True)
+            staged_source_path.write_bytes((ROOT / staged_source_path.relative_to(source)).read_bytes())
 
         (source / "packages/acquisition/compose").mkdir(parents=True)
         (source / "packages/acquisition/compose/acquisition.yml").write_bytes((ROOT / "packages/acquisition/compose/acquisition.yml").read_bytes())
 
         for (source_name, _issued_name) in INSTALLER_SOURCES:
-            path = source / source_name
+            staged_source_path = source / source_name
 
-            path.parent.mkdir(parents=True, exist_ok=True)
-            path.write_bytes((ROOT / source_name).read_bytes())
+            staged_source_path.parent.mkdir(parents=True, exist_ok=True)
+            staged_source_path.write_bytes((ROOT / source_name).read_bytes())
 
         installer = json.loads((source / "requirements/installer-release.json").read_text())
         payload = b"qualified installer fixture"
@@ -151,10 +151,10 @@ class AcquisitionBundleTests(unittest.TestCase):
                         (member.uid, member.gid, member.uname, member.gname, member.mode, member.mtime)
                     )
 
-                    data = archive.extractfile(member).read()
+                    archive_member_bytes = archive.extractfile(member).read()
 
                     self.assertEqual(
-                        {"sha256": hashlib.sha256(data).hexdigest(), "size": len(data), "mode": 0o644},
+                        {"sha256": hashlib.sha256(archive_member_bytes).hexdigest(), "size": len(archive_member_bytes), "mode": 0o644},
                         record["source_files"][member.name]
                     )
 
