@@ -1,6 +1,6 @@
 """Dummy provider-owned science for the shared contribution example.
 
-The module depends only on the lightweight scientific rejection contract.
+The module uses the SDK's scientific rejection and type requirement contracts.
 Portable records are immutable; live model, analysis, and prepared state remain
 explicit and provider-owned.
 """
@@ -12,6 +12,7 @@ from dataclasses import dataclass, field
 from enum import auto
 
 from provider_core.contribution_errors import ErrorCode, ScientificRejection
+from provider_core.type_requirements import require_instance, require_type
 
 
 def _finite_float(value: object, *, label: str) -> float:
@@ -22,8 +23,7 @@ def _finite_float(value: object, *, label: str) -> float:
 
 
 def _finite_values(values: object, *, label: str) -> tuple[float, ...]:
-    if not (type(values) is tuple):
-        raise TypeError(f"{label} must be a tuple")
+    require_type(values, tuple)
 
     # repo-check: allow-tuple-generator -- Scientific values are normalized into the immutable tuple required by the model contract.
     return tuple(
@@ -41,8 +41,7 @@ class ScientificInputRejected(ScientificRejection):
         WRONG_COUNT = auto()
 
     def __init__(self, message: str, *, code: ScientificInputRejected.Code) -> None:
-        if not isinstance(code, (expected_type := self.Code)):
-            raise TypeError(f"{type(code)=} ≠ {expected_type=}")
+        require_instance(code, self.Code)
 
         super().__init__(code=code, message=message)
 

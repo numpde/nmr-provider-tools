@@ -556,8 +556,9 @@ class _Operation(_Changes):
             return
 
         try:
-            if (self.raw is not None) and (type((actual_raw := self.raw)) is not (expected_type := ScientificReturn)):
-                raise TypeError(f"{type(actual_raw)=} ≠ {expected_type=}")
+            if self.raw is not None:
+                actual_raw = self.raw
+                require_type(actual_raw, ScientificReturn)
 
             if (
                 (type(self.raw) is ScientificReturn) and

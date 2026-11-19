@@ -194,8 +194,7 @@ class StateInputSlot[T]:
         """Read a host-admitted live value while preserving its concrete type."""
         value = values[self.name]
 
-        if not (type(value) is (expected_type := self.kind.value_type)):
-            raise TypeError(f"{self.name=}; {type(value)=} ≠ {expected_type=}")
+        require_type(value, self.kind.value_type)
 
         return cast(T, value)
 

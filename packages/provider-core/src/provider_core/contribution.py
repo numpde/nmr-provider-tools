@@ -33,8 +33,7 @@ from provider_core.payload import (
 
 
 def _identity(value: object, label: str) -> None:
-    if not (type(value) is (expected_type := str)):
-        raise TypeError(f"{label=}; {type(value)=} ≠ {expected_type=}")
+    require_type(value, str)
 
     if not (
         (value) and
@@ -47,8 +46,7 @@ def _identity(value: object, label: str) -> None:
 
 
 def _digest(value: object, label: str) -> None:
-    if not (type(value) is (expected_type := str)):
-        raise TypeError(f"{label=}; {type(value)=} ≠ {expected_type=}")
+    require_type(value, str)
 
     if re.fullmatch(pattern=r"sha256:[0-9a-f]{64}\Z", string=value) is None:
         raise ValueError(f"{label} must be a lowercase sha256:<64 hex characters> digest")
@@ -62,23 +60,19 @@ def _binding_revision(value: object) -> None:
 
 
 def _records(values: object, record_type: type[object], label: str) -> None:
-    if not (type(values) is (expected_type := tuple)):
-        raise TypeError(f"{label=}; {type(values)=} ≠ {expected_type=}")
+    require_type(values, tuple)
 
     for value in values:
-        if not (type(value) is (expected_type := record_type)):
-            raise TypeError(f"{label=}; {type(value)=} ≠ {expected_type=}")
+        require_type(value, record_type)
 
 
 def _set_records(values: object, record_type: type[object], label: str) -> None:
     """Require an immutable unordered inventory with records of the declared type."""
 
-    if not (type(values) is (expected_type := frozenset)):
-        raise TypeError(f"{label=}; {type(values)=} ≠ {expected_type=}")
+    require_type(values, frozenset)
 
     for value in values:
-        if not (type(value) is (expected_type := record_type)):
-            raise TypeError(f"{label=}; {type(value)=} ≠ {expected_type=}")
+        require_type(value, record_type)
 
 
 def _unique(values: Collection[object], key: Callable[[object], object], label: str) -> None:
@@ -191,8 +185,7 @@ def _constructed_type(
 
     constructed_type = hints.get("return")
 
-    if not isinstance(constructed_type, (expected_constructed_type_type := type)):
-        raise TypeError(f"{label=}; {type(constructed_type)=} ≠ {expected_constructed_type_type=}")
+    require_instance(constructed_type, type)
 
     if constructed_type is NoneType:
         raise TypeError(f"{label} must declare one concrete return type")
@@ -334,8 +327,9 @@ class ConfiguredIdentity:
         if not (0 < self.contract_version):
             raise ValueError("Contract version must be a positive integer")
 
-        if (self.configuration is not None) and (type((actual_configuration := self.configuration)) is not (expected_configuration_type := ConfigurationDescription)):
-            raise TypeError(f"{type(actual_configuration)=} ≠ {expected_configuration_type=}")
+        if self.configuration is not None:
+            actual_configuration = self.configuration
+            require_type(actual_configuration, ConfigurationDescription)
 
         _set_records(values=self.assets, record_type=AssetDescription, label="Scientific assets")
         _unique(self.assets, lambda asset: asset.name, "Scientific assets")
@@ -568,11 +562,9 @@ class ImplementationDescription:
         if not (1 <= self.contract_version):
             raise ValueError("Contract version must be a positive integer")
 
-        if (
-            (self.configuration is not None) and
-            (type((actual_configuration := self.configuration)) is not (expected_configuration_type := ConfigurationDescription))
-        ):
-            raise TypeError(f"{type(actual_configuration)=} ≠ {expected_configuration_type=}")
+        if self.configuration is not None:
+            actual_configuration = self.configuration
+            require_type(actual_configuration, ConfigurationDescription)
 
         _set_records(values=self.assets, record_type=AssetDescription, label="Scientific assets")
         _unique(self.assets, lambda value: value.name, "Scientific assets")
@@ -756,12 +748,8 @@ class CallBinding[InputT, StateT, OutputT]:
     def __post_init__(self) -> None:
         require_type(self.description, CallDescription)
 
-        for (codec, label) in (
-            (self.input_codec, "Input codec"),
-            (self.result_codec, "Result codec"),
-        ):
-            if not isinstance(codec, (expected_codec_type := PayloadCodec)):
-                raise TypeError(f"{label=}; {type(codec)=} ≠ {expected_codec_type=}")
+        for codec in (self.input_codec, self.result_codec):
+            require_instance(codec, PayloadCodec)
 
         if self.input_codec.format != self.description.input_format:
             raise ValueError("Input codec format differs from the call description")
@@ -1025,11 +1013,13 @@ class ImplementationBinding[InstanceT, AnalysisT]:
     def __post_init__(self) -> None:
         require_type(self.identity, ConfiguredIdentity)
 
-        if (self.instance is not None) and (type((actual_instance := self.instance)) is not (expected_instance_type := InstanceHooks)):
-            raise TypeError(f"{type(actual_instance)=} ≠ {expected_instance_type=}")
+        if self.instance is not None:
+            actual_instance = self.instance
+            require_type(actual_instance, InstanceHooks)
 
-        if (self.analysis is not None) and (type((actual_analysis := self.analysis)) is not (expected_analysis_type := AnalysisHooks)):
-            raise TypeError(f"{type(actual_analysis)=} ≠ {expected_analysis_type=}")
+        if self.analysis is not None:
+            actual_analysis = self.analysis
+            require_type(actual_analysis, AnalysisHooks)
 
         bound_calls = []
         member_hints = get_type_hints(type(self), include_extras=True)
@@ -1047,8 +1037,7 @@ class ImplementationBinding[InstanceT, AnalysisT]:
 
                 continue
 
-            if not (type(declaration) is (expected_type := CallBinding)):
-                raise TypeError(f"{member.name=}; {type(declaration)=} ≠ {expected_type=}")
+            require_type(declaration, CallBinding)
 
             expected_types = get_args(annotation)
 

@@ -88,8 +88,7 @@ class InProcessExecutionHost:
             ("state_values", state_values),
             ("progress_records", progress_records),
         ):
-            if not (type(value) is (expected_type := int)):
-                raise TypeError(f"{name=}; {type(value)=} ≠ {expected_type=}")
+            require_type(value, int)
 
             if not (0 < value):
                 raise ValueError(f"Expected a positive capacity for {name=}; received {value=}")

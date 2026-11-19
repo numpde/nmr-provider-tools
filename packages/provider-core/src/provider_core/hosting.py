@@ -35,16 +35,14 @@ from provider_core.type_requirements import require_instance, require_type
 
 
 def _identity(value, label):
-    if not (type(value) is (expected_type := str)):
-        raise TypeError(f"{label=}; {type(value)=} ≠ {expected_type=}")
+    require_type(value, str)
 
     if not (value and all((character.isprintable()) and (not character.isspace()) for character in value)):
         raise ValueError(f"{label} must be a nonempty identity without whitespace or control characters")
 
 
 def _digest(value, label):
-    if not (type(value) is (expected_type := str)):
-        raise TypeError(f"{label=}; {type(value)=} ≠ {expected_type=}")
+    require_type(value, str)
 
     if re.fullmatch(r"(?:sha256:|configured-v[23]:sha256:)[0-9a-f]{64}\Z", value) is None:
         raise ValueError(f"{label} must be a lowercase sha256, configured-v2:sha256 or configured-v3:sha256 digest")
@@ -67,15 +65,13 @@ class BackendCapabilities:
             ("concurrency", self.concurrency, ConcurrencyRequirement),
             ("interruption", self.interruption, InterruptionSupport),
         ):
-            if not (type(values) is (expected_values_type := frozenset)):
-                raise TypeError(f"{name=}; {type(values)=} ≠ {expected_values_type=}")
+            require_type(values, frozenset)
 
             if not (values):
                 raise ValueError(f"Backend {name=} support cannot be empty")
 
             for value in values:
-                if not (type(value) is expected_type):
-                    raise TypeError(f"{name=}; {type(value)=} ≠ {expected_type=}")
+                require_type(value, expected_type)
 
         if any(version <= 0 for version in self.contract_versions):
             raise ValueError(f"Backend contract versions must be positive; {self.contract_versions=}")

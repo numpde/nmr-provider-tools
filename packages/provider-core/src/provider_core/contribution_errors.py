@@ -5,6 +5,8 @@ from __future__ import annotations
 import re
 from enum import Enum, StrEnum
 
+from provider_core.type_requirements import require_instance, require_type
+
 
 class ErrorCode(Enum):
     """Give auto() members their lowercase names as values."""
@@ -21,16 +23,15 @@ class CallRejected(Exception):
     message: str
 
     def __init__(self, code: str | ErrorCode, message: str) -> None:
-        if not (type(code) is str or isinstance(code, (StrEnum, ErrorCode))):
-            raise TypeError(f"{type(code)=} should be str, StrEnum, or ErrorCode")
+        if type(code) is not str:
+            require_instance(code, (StrEnum, ErrorCode))
 
         code_text = code.value if isinstance(code, ErrorCode) else code
 
         if re.fullmatch(r"[a-z][a-z0-9_]{0,63}\Z", code_text) is None:
             raise ValueError("A rejection code must match [a-z][a-z0-9_]{0,63}")
 
-        if not (type(message) is (expected_type := str)):
-            raise TypeError(f"{type(message)=} ≠ {expected_type=}")
+        require_type(message, str)
 
         if not (message):
             raise ValueError("A rejection needs a nonempty explanatory message")
