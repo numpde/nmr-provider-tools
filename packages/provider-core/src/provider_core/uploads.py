@@ -708,8 +708,8 @@ class JobUploads:
 
         require_type(limits, UploadLimits)
 
-        if (recovery is not None) and (type(recovery) is not (expected_recovery_type := UploadRecovery)):
-            raise TypeError(f"{type(recovery)=} ≠ {expected_recovery_type=}")
+        if recovery is not None:
+            require_type(recovery, UploadRecovery)
 
         self.job_ref = job_ref
         self._api = api

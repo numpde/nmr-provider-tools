@@ -138,8 +138,8 @@ class ConditionRecoveryExpired(TimeoutError):
 
 
 def require_condition_recovery(policy):
-    if (policy is not None) and (type(policy) is not (expected_type := ConditionRecovery)):
-        raise TypeError(f"{type(policy)=} ≠ {expected_type=}")
+    if policy is not None:
+        require_type(policy, ConditionRecovery)
 
 
 class ObservationGapExpired(TimeoutError):
@@ -177,8 +177,8 @@ class ObservationGapExpired(TimeoutError):
 
 
 def require_observation_recovery(policy):
-    if (policy is not None) and (type(policy) is not (expected_type := ObservationRecovery)):
-        raise TypeError(f"{type(policy)=} ≠ {expected_type=}")
+    if policy is not None:
+        require_type(policy, ObservationRecovery)
 
 
 def require_phase_progress_observer(observer):
@@ -369,8 +369,8 @@ class AttemptExecutor:
         if api.origin != scope.api_origin:
             raise ValueError("Cannot configure execution: signing origin differs from the selected scope")
 
-        if (preverified_input is not None) and (type(preverified_input) is not (expected_preverified_input_type := VerifiedJobInput)):
-            raise TypeError(f"{type(preverified_input)=} ≠ {expected_preverified_input_type=}")
+        if preverified_input is not None:
+            require_type(preverified_input, VerifiedJobInput)
 
         if (
             ((delivery.endpoint.api_origin, delivery.endpoint.provider_ref) != (scope.api_origin, scope.provider_ref)) or

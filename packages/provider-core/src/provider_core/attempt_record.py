@@ -117,8 +117,8 @@ class AcknowledgedAttempt:
         require_type(self.local_phase, LocalExecutionPhase)
 
         if self.prepared_identity is not None:
-            if not (type((actual_prepared_identity := self.prepared_identity)) is (expected_prepared_identity_type := ProtectedEvidence)):
-                raise TypeError(f"Cannot retain prepared identity: {type(actual_prepared_identity)=} ≠ {expected_prepared_identity_type=}")
+            actual_prepared_identity = self.prepared_identity
+            require_type(actual_prepared_identity, ProtectedEvidence)
 
             if not (self.local_phase is LocalExecutionPhase.EXECUTION_ENTERED):
                 raise ValueError("Cannot retain prepared identity: protected evidence belongs to the execution-entry transition.")

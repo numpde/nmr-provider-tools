@@ -196,8 +196,8 @@ class AttemptController:
         if api.origin != scope.api_origin:
             raise ValueError("Cannot configure Attempt controller: signing origin differs from the selected scope")
 
-        if (preverified_input is not None) and (type(preverified_input) is not (expected_preverified_input_type := VerifiedJobInput)):
-            raise TypeError(f"{type(preverified_input)=} ≠ {expected_preverified_input_type=}")
+        if preverified_input is not None:
+            require_type(preverified_input, VerifiedJobInput)
 
         require_type(stopping, asyncio.Event)
 

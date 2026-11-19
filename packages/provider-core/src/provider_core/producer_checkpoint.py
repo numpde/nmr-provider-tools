@@ -132,8 +132,7 @@ def checkpoint_acknowledgement(checkpoint):
 
 
 def _require_active(checkpoint):
-    if not (type(checkpoint) in (expected_type := (AcknowledgedCheckpoint, EnteredCheckpoint))):
-        raise TypeError(f"{type(checkpoint)=} ≠ {expected_type=}")
+    require_type(checkpoint, (AcknowledgedCheckpoint, EnteredCheckpoint))
 
     if not attempt_is_in_progress(checkpoint_acknowledgement(checkpoint).admission):
         raise ValueError("A terminal START replay grants no execution or fresh terminal selection.")
