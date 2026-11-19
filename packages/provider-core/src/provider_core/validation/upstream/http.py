@@ -63,7 +63,7 @@ def successful_connect_status(http_status: int) -> bool:
 def has_transfer_encoding(headers: tuple[tuple[bytes, bytes], ...]) -> bool:
     """Identify the transfer framing field by its case-insensitive HTTP name."""
 
-    return any(name.lower() == b"transfer-encoding" for (name, _) in headers)
+    return any((name.lower() == b"transfer-encoding") for (name, _) in headers)
 
 
 def read_retry_after(

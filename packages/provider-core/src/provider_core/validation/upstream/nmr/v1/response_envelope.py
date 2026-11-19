@@ -124,7 +124,7 @@ def read_problem(response):
     if (type(problem["status"]) is not int) or (problem["status"] != response.status):
         return None
 
-    if any(type(problem[name]) is not str for name in ("type", "title", "instance", "request_id", "code", "detail")):
+    if any((type(problem[name]) is not str) for name in ("type", "title", "instance", "request_id", "code", "detail")):
         return None
 
     request_id = read_request_id(response.headers)
@@ -158,7 +158,7 @@ def require_headers(response, expected_topology):
         if values != [expected]:
             raise ResponseRejected(f"HTTP {response.status} response must contain one {name.decode()} header with value {expected.decode()}")
 
-    if any(name.lower() == b"content-encoding" for (name, _) in response.headers):
+    if any((name.lower() == b"content-encoding") for (name, _) in response.headers):
         raise ResponseRejected("encoded response bodies are not supported by the API contract")
 
     markers = [value for (name, value) in response.headers if name.lower() == b"nmr-api-topology"]

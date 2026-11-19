@@ -127,7 +127,7 @@ def _require_outcome_text(scalar_text, field_name):
     if not (min_scalar_characters <= scalar_character_count <= max_scalar_characters):
         raise ValueError(f"{field_name=}; {scalar_character_count=} should be between {min_scalar_characters=} and {max_scalar_characters=}")
 
-    if not all((character != "\x00") and (not (0xD800 <= ord(character) <= 0xDFFF)) for character in scalar_text):
+    if not all(((character != "\x00") and (not (0xD800 <= ord(character) <= 0xDFFF))) for character in scalar_text):
         raise ValueError(f"{field_name=}; {scalar_text=} should not contain NUL or surrogate code points")
 
 

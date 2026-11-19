@@ -41,5 +41,5 @@ def require_store_headers(response: HttpResponse | HttpResponseHead, grant: Read
         if [value for (key, value) in response.headers if key.lower() == name] != [expected]:
             raise ResponseRejected(f"store response {name.decode()} does not match the granted whole-file transfer")
 
-    if any(name.lower() in {b"content-encoding", b"content-range"} for (name, _) in response.headers):
+    if any((name.lower() in {b"content-encoding", b"content-range"}) for (name, _) in response.headers):
         raise ResponseRejected("encoded or partial store responses are not admitted")
