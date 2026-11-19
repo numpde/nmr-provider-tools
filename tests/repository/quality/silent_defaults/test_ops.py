@@ -804,7 +804,7 @@ def docker_default_classification(
     entry: tuple[str, str, str, str],
     allowed: set[tuple[str, str, str, str]],
 ) -> str:
-    return "changed" if any(allowed_entry[:3] == entry[:3] for allowed_entry in allowed) else "unreviewed"
+    return "changed" if any((allowed_entry[:3] == entry[:3]) for allowed_entry in allowed) else "unreviewed"
 
 
 def shell_default_findings(files: list[pathlib.Path]) -> list[str]:

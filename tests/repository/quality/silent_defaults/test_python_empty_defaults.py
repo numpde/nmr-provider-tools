@@ -64,7 +64,7 @@ def _is_os_environ(node: ast.AST) -> bool:
 
 def _is_env_mapping(node: ast.AST) -> bool:
     return (
-        (isinstance(node, ast.Name) and any(fragment in node.id.lower() for fragment in ENV_NAME_FRAGMENTS)) or
+        (isinstance(node, ast.Name) and any((fragment in node.id.lower()) for fragment in ENV_NAME_FRAGMENTS)) or
         _is_os_environ(node)
     )
 
@@ -119,7 +119,7 @@ def _is_explicit_env_default_call(node: ast.AST) -> bool:
     if len(call.args) >= 2:
         return True
 
-    return any(keyword.arg == "default" for keyword in call.keywords)
+    return any((keyword.arg == "default") for keyword in call.keywords)
 
 
 def _contains_env_access(node: ast.AST) -> bool:
@@ -129,7 +129,7 @@ def _contains_env_access(node: ast.AST) -> bool:
     if _is_env_subscript(node):
         return True
 
-    return any(_is_defaulting_call(child) or _is_env_subscript(child) for child in ast.walk(node))
+    return any((_is_defaulting_call(child) or _is_env_subscript(child)) for child in ast.walk(node))
 
 
 def _is_env_validation_predicate(node: ast.AST) -> bool:
@@ -220,14 +220,14 @@ def _has_empty_get_waiver(source_lines: list[str], node: ast.AST) -> bool:
     start = max(node.lineno - 2, 0)
     end = max(getattr(node, "end_lineno", node.lineno), node.lineno)
 
-    return any(EMPTY_GET_DEFAULT_WAIVER in line for line in source_lines[start:end])
+    return any((EMPTY_GET_DEFAULT_WAIVER in line) for line in source_lines[start:end])
 
 
 def _has_pop_default_waiver(source_lines: list[str], node: ast.AST) -> bool:
     start = max(node.lineno - 2, 0)
     end = max(getattr(node, "end_lineno", node.lineno), node.lineno)
 
-    return any(POP_DEFAULT_WAIVER in line for line in source_lines[start:end])
+    return any((POP_DEFAULT_WAIVER in line) for line in source_lines[start:end])
 
 
 def _is_env_default_if_expression(node: ast.AST) -> bool:
@@ -324,7 +324,7 @@ def _is_argparse_default_call(node: ast.AST) -> bool:
     if node.func.attr not in ARGPARSE_CALL_NAMES:
         return False
 
-    return any(keyword.arg == "default" for keyword in node.keywords)
+    return any((keyword.arg == "default") for keyword in node.keywords)
 
 
 def _is_argparse_optional_positional(node: ast.AST) -> bool:
@@ -341,7 +341,7 @@ def _is_argparse_optional_positional(node: ast.AST) -> bool:
         return False
 
     return any(
-        (keyword.arg == "nargs") and isinstance(keyword.value, ast.Constant) and (keyword.value.value == "?")
+        ((keyword.arg == "nargs") and isinstance(keyword.value, ast.Constant) and (keyword.value.value == "?"))
         for keyword in node.keywords
     )
 
@@ -354,7 +354,7 @@ def _args_attribute_name(node: ast.AST) -> str | None:
 
 
 def _contains_args_attribute_access(node: ast.AST) -> bool:
-    return any(_args_attribute_name(child) is not None for child in ast.walk(node))
+    return any((_args_attribute_name(child) is not None) for child in ast.walk(node))
 
 
 def _is_literal_non_absence_default(node: ast.AST) -> bool:
@@ -425,7 +425,7 @@ def _is_args_default_if_expression(node: ast.AST) -> bool:
 
 def _contains_raw_args_access(node: ast.AST) -> bool:
     return any(
-        isinstance(child, ast.Subscript) and isinstance(child.value, ast.Name) and (child.value.id == "args")
+        (isinstance(child, ast.Subscript) and isinstance(child.value, ast.Name) and (child.value.id == "args"))
         for child in ast.walk(node)
     )
 
@@ -550,7 +550,7 @@ def _has_env_default_expression(source: str) -> bool:
 
     return any(
         (
-            (isinstance(node, ast.Call) and _is_explicit_env_default_call(node)) or
+            ((isinstance(node, ast.Call) and _is_explicit_env_default_call(node)) or
             _is_argparse_default_call(node) or
             _is_argparse_optional_positional(node) or
             (isinstance(node, ast.BoolOp) and isinstance(node.op, ast.Or) and _is_env_or_default_expression(node)) or
@@ -560,7 +560,7 @@ def _has_env_default_expression(source: str) -> bool:
             _is_args_default_assignment(node) or
             _is_args_attribute_or_default_expression(node) or
             _is_args_default_if_expression(node) or
-            _is_args_default_if_statement(node)
+            _is_args_default_if_statement(node))
             for node in ast.walk(tree)
         ),
     )
@@ -576,7 +576,7 @@ def _has_empty_get_default_expression(source: str) -> bool:
     tree = ast.parse(source, filename="<inline>")
     source_lines = source.splitlines()
 
-    return any((_is_empty_get_default_call(node)) and (not _has_empty_get_waiver(source_lines, node)) for node in ast.walk(tree))
+    return any(((_is_empty_get_default_call(node)) and (not _has_empty_get_waiver(source_lines, node))) for node in ast.walk(tree))
 
 
 def _has_zero_getattr_default_expression(source: str) -> bool:
@@ -589,7 +589,7 @@ def _has_pop_default_expression(source: str) -> bool:
     tree = ast.parse(source, filename="<inline>")
     source_lines = source.splitlines()
 
-    return any((_is_pop_default_call(node)) and (not _has_pop_default_waiver(source_lines, node)) for node in ast.walk(tree))
+    return any(((_is_pop_default_call(node)) and (not _has_pop_default_waiver(source_lines, node))) for node in ast.walk(tree))
 
 
 class PythonEmptyDefaultsTest(unittest.TestCase):

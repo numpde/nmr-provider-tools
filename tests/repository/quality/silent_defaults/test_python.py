@@ -27,7 +27,7 @@ def python_files() -> list[pathlib.Path]:
 
 def is_env_mapping(node: ast.AST) -> bool:
     if isinstance(node, ast.Name):
-        return any(fragment in node.id.lower() for fragment in ENV_NAME_FRAGMENTS)
+        return any((fragment in node.id.lower()) for fragment in ENV_NAME_FRAGMENTS)
 
     return (
         isinstance(node, ast.Attribute) and (node.attr == "environ") and isinstance(node.value, ast.Name) and (node.value.id == "os")
@@ -60,7 +60,7 @@ def is_explicit_defaulting_call(node: ast.AST) -> bool:
     if isinstance(node.func, ast.Attribute) and (node.func.attr == "setdefault"):
         return True
 
-    return (len(node.args) >= 2) or any(keyword.arg == "default" for keyword in node.keywords)
+    return (len(node.args) >= 2) or any((keyword.arg == "default") for keyword in node.keywords)
 
 
 def is_explicit_mapping_default_call(node: ast.AST) -> bool:
@@ -76,11 +76,11 @@ def is_explicit_mapping_default_call(node: ast.AST) -> bool:
     if node.func.attr == "setdefault":
         return True
 
-    return (len(node.args) >= 2) or any(keyword.arg == "default" for keyword in node.keywords)
+    return (len(node.args) >= 2) or any((keyword.arg == "default") for keyword in node.keywords)
 
 
 def contains_env_access(node: ast.AST) -> bool:
-    return any(is_defaulting_call(child) or is_env_subscript(child) for child in ast.walk(node))
+    return any((is_defaulting_call(child) or is_env_subscript(child)) for child in ast.walk(node))
 
 
 def is_env_validation_predicate(node: ast.AST) -> bool:
@@ -220,7 +220,7 @@ def is_argparse_default(node: ast.AST) -> bool:
     if node.func.attr not in ARGPARSE_CALL_NAMES:
         return False
 
-    return any(keyword.arg == "default" for keyword in node.keywords)
+    return any((keyword.arg == "default") for keyword in node.keywords)
 
 
 def is_argparse_optional_positional(node: ast.AST) -> bool:
@@ -237,7 +237,7 @@ def is_argparse_optional_positional(node: ast.AST) -> bool:
         return False
 
     return any(
-        (keyword.arg == "nargs") and isinstance(keyword.value, ast.Constant) and (keyword.value.value == "?")
+        ((keyword.arg == "nargs") and isinstance(keyword.value, ast.Constant) and (keyword.value.value == "?"))
         for keyword in node.keywords
     )
 
@@ -299,7 +299,7 @@ def is_args_default_if_expression(node: ast.AST) -> bool:
 
 def contains_raw_args_access(node: ast.AST) -> bool:
     return any(
-        isinstance(child, ast.Subscript) and isinstance(child.value, ast.Name) and (child.value.id == "args")
+        (isinstance(child, ast.Subscript) and isinstance(child.value, ast.Name) and (child.value.id == "args"))
         for child in ast.walk(node)
     )
 
@@ -483,17 +483,17 @@ def _typed_pass_contract(handler: ast.ExceptHandler, protected: ast.Try) -> bool
     # swallow. Reviewers judge type semantics; aliases are not resolved here.
     return not any(
         (
-            contains_env_access(statement) or
+            (contains_env_access(statement) or
             contains_raw_args_access(statement) or
             any(
                 (
-                    (args_attribute_name(child) is not None) or
+                    ((args_attribute_name(child) is not None) or
                     (isinstance(child, ast.Call) and
                      isinstance(child.func, ast.Attribute) and
-                     ((child.func.attr in ARGPARSE_CALL_NAMES) or (child.func.attr in {"parse_args", "parse_known_args"})))
+                     ((child.func.attr in ARGPARSE_CALL_NAMES) or (child.func.attr in {"parse_args", "parse_known_args"}))))
                     for child in ast.walk(statement)
                 ),
-            )
+            ))
             for statement in protected.body
         ),
     )
@@ -504,7 +504,7 @@ def _contract_candidate(node: ast.AST, label: str, *, protected: ast.Try | None 
     if (
         contains_env_access(node) or
         contains_raw_args_access(node) or
-        any(args_attribute_name(child) is not None for child in ast.walk(node))
+        any((args_attribute_name(child) is not None) for child in ast.walk(node))
     ):
         return False
 
@@ -517,7 +517,7 @@ def _contract_candidate(node: ast.AST, label: str, *, protected: ast.Try | None 
     if label == "python function default":
         # A nested callable's body has no signature annotation of its own.
         return not any(
-            isinstance(child, ast.Lambda) or is_argparse_default(child) or is_argparse_optional_positional(child)
+            (isinstance(child, ast.Lambda) or is_argparse_default(child) or is_argparse_optional_positional(child))
             for child in ast.walk(node)
         )
 
@@ -560,7 +560,7 @@ def _exception_outcome_contract(handler, protected):
     ):
         return False
 
-    if any(contains_env_access(statement) or contains_raw_args_access(statement) for statement in protected.body):
+    if any((contains_env_access(statement) or contains_raw_args_access(statement)) for statement in protected.body):
         return False
 
     if isinstance(handler.body[-1], ast.Return) and _positive_exit(handler.body[-1].value):
@@ -575,7 +575,7 @@ def _exception_outcome_contract(handler, protected):
 
     if any(
         (
-            (not isinstance(node, ast.Name)) or (node.id in {"Exception", "BaseException", "ExceptionGroup", "BaseExceptionGroup"})
+            ((not isinstance(node, ast.Name)) or (node.id in {"Exception", "BaseException", "ExceptionGroup", "BaseExceptionGroup"}))
             for node in declared
         ),
     ):
@@ -583,9 +583,9 @@ def _exception_outcome_contract(handler, protected):
 
     if any(
         (
-            contains_env_access(statement) or
+            (contains_env_access(statement) or
             contains_raw_args_access(statement) or
-            any(args_attribute_name(node) is not None for node in ast.walk(statement))
+            any((args_attribute_name(node) is not None) for node in ast.walk(statement)))
             for statement in protected.body
         ),
     ):
@@ -705,9 +705,9 @@ def python_operator_default_findings(path: pathlib.Path) -> list[str]:
             boundary = (
                 (len(following) == 1) and
                 ((following[0], "python silent default") in selected) and
-                all(label == "python silent default" for (_, label) in selected) and
+                all((label == "python silent default") for (_, label) in selected) and
                 not any(
-                    isinstance(child, ast.Lambda) or is_argparse_default(child) or is_argparse_optional_positional(child)
+                    (isinstance(child, ast.Lambda) or is_argparse_default(child) or is_argparse_optional_positional(child))
                     for child in ast.walk(following[0])
                 )
             )
@@ -735,16 +735,16 @@ def python_operator_default_findings(path: pathlib.Path) -> list[str]:
             selected = [
                 (node, label)
                 for (node, label) in candidates
-                if any(node in ast.walk(value) for (_key, value, _owner) in following_entries)
+                if any((node in ast.walk(value)) for (_key, value, _owner) in following_entries)
             ]
 
-            outermost = [node for (node, _) in selected if all(other in ast.walk(node) for (other, _) in selected)]
+            outermost = [node for (node, _) in selected if all((other in ast.walk(node)) for (other, _) in selected)]
 
             boundary = (
                 (len(following_entries) == 1) and
                 all(isinstance(key, ast.Constant) for key in following_entries[0][2].keys) and
                 (len(outermost) == 1) and
-                all(label == "python silent default" for (_, label) in selected) and
+                all((label == "python silent default") for (_, label) in selected) and
                 not any(
                     isinstance(child, ast.Lambda) for (_key, value, _owner) in following_entries for child in ast.walk(value)
                 )
@@ -756,17 +756,17 @@ def python_operator_default_findings(path: pathlib.Path) -> list[str]:
 
             expression = following[0].iter
             selected = [(node, label) for (node, label) in candidates if node in ast.walk(expression)]
-            outermost = [node for (node, _) in selected if all(other in ast.walk(node) for (other, _) in selected)]
+            outermost = [node for (node, _) in selected if all((other in ast.walk(node)) for (other, _) in selected)]
 
             boundary = (
                 (expression.end_lineno == next_line) and
                 (len(outermost) == 1) and
-                all(label == "python silent default" for (_, label) in selected) and
+                all((label == "python silent default") for (_, label) in selected) and
                 (not any(isinstance(child, ast.Lambda) for child in ast.walk(expression)))
             )
         elif (len(following) == 1) and isinstance(following[0], ast.FunctionDef | ast.AsyncFunctionDef):
             defaults = function_default_nodes(following[0])
-            selected = [(node, label) for (node, label) in candidates if any(node in ast.walk(default) for default in defaults)]
+            selected = [(node, label) for (node, label) in candidates if any((node in ast.walk(default)) for default in defaults)]
             boundary = bool(defaults)
         elif (
             (len(following) == 1) and
@@ -782,14 +782,14 @@ def python_operator_default_findings(path: pathlib.Path) -> list[str]:
             )
 
             selected = [
-                (node, label) for (node, label) in candidates if any(node in ast.walk(expression) for expression in expressions)
+                (node, label) for (node, label) in candidates if any((node in ast.walk(expression)) for expression in expressions)
             ]
 
-            outermost = [node for (node, _) in selected if all(other in ast.walk(node) for (other, _) in selected)]
+            outermost = [node for (node, _) in selected if all((other in ast.walk(node)) for (other, _) in selected)]
 
             boundary = (
                 (len(outermost) == 1) and
-                all(label == "python silent default" for (_, label) in selected) and
+                all((label == "python silent default") for (_, label) in selected) and
                 (not any(isinstance(child, ast.Lambda) for expression in expressions for child in ast.walk(expression)))
             )
         else:
@@ -797,14 +797,14 @@ def python_operator_default_findings(path: pathlib.Path) -> list[str]:
 
             # Nested defaults may express one contract; sibling expressions do
             # not. Strict candidates must still pass their own gate.
-            outermost = [node for (node, _) in selected if all(other in ast.walk(node) for (other, _) in selected)]
+            outermost = [node for (node, _) in selected if all((other in ast.walk(node)) for (other, _) in selected)]
 
             boundary = (
                 (len(following) == 1) and
                 ((following[0].end_lineno == next_line) or
                  (isinstance(following[0], ast.If) and (following[0].test.end_lineno == next_line))) and
                 (len(outermost) == 1) and
-                all(node.end_lineno == next_line for (node, _) in selected)
+                all((node.end_lineno == next_line) for (node, _) in selected)
             )
 
         if (
@@ -970,7 +970,7 @@ def python_source_has_default(source: str) -> bool:
     tree = ast.parse(source)
 
     return any(
-        is_silent_default(node) or function_default_nodes(node) or is_exception_fallback_handler(node) for node in ast.walk(tree)
+        (is_silent_default(node) or function_default_nodes(node) or is_exception_fallback_handler(node)) for node in ast.walk(tree)
     )
 
 

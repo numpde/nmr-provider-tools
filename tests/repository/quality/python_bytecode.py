@@ -223,7 +223,7 @@ def shell_findings(source_path, source):
 
             isolated = _needs_flag(arguments, True)
 
-            if (entrypoint) and (any("[@]" in prefix_argument for prefix_argument in prefix)) and (not isolated):
+            if (entrypoint) and (any(("[@]" in prefix_argument) for prefix_argument in prefix)) and (not isolated):
                 continue  # Shared creation/env argv is not visible at this site.
 
             if _needs_flag(arguments, enabled):
@@ -281,7 +281,7 @@ def python_findings(source_path, source):
             continue
 
         command_arguments = [_literal_text(argument) for argument in argv.elts[1:]]
-        enabled = any((keyword.arg == "env") and _env_enabled(keyword.value) for keyword in node.keywords)
+        enabled = any(((keyword.arg == "env") and _env_enabled(keyword.value)) for keyword in node.keywords)
 
         if _needs_flag(command_arguments, enabled):
             findings.append(Finding(source_path, node.lineno))
