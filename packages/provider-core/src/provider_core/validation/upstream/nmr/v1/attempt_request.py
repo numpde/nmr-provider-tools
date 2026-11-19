@@ -118,7 +118,8 @@ def require_provider_ref(provider_ref):
 def _require_outcome_text(scalar_text, field_name):
     """Admit the v1 result-schema and failure-message Unicode scalar profile."""
 
-    require_type(scalar_text, str)
+    if not (type(scalar_text) is (expected_type := str)):
+        raise TypeError(f"{field_name=}; {type(scalar_text)=} ≠ {expected_type=}")
 
     scalar_character_count = len(scalar_text)
     (min_scalar_characters, max_scalar_characters) = (1, 1024)

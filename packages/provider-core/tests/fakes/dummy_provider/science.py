@@ -12,7 +12,7 @@ from dataclasses import dataclass, field
 from enum import auto
 
 from provider_core.contribution_errors import ErrorCode, ScientificRejection
-from provider_core.type_requirements import require_instance, require_type
+from provider_core.type_requirements import require_instance
 
 
 def _finite_float(value: object, *, label: str) -> float:
@@ -23,7 +23,8 @@ def _finite_float(value: object, *, label: str) -> float:
 
 
 def _finite_values(values: object, *, label: str) -> tuple[float, ...]:
-    require_type(values, tuple)
+    if not (type(values) is (expected_type := tuple)):
+        raise TypeError(f"{label=}; {type(values)=} ≠ {expected_type=}")
 
     # repo-check: allow-tuple-generator -- Scientific values are normalized into the immutable tuple required by the model contract.
     return tuple(

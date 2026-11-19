@@ -33,7 +33,8 @@ from provider_core.payload import (
 
 
 def _identity(value: object, label: str) -> None:
-    require_type(value, str)
+    if not (type(value) is (expected_type := str)):
+        raise TypeError(f"{label=}; {type(value)=} ≠ {expected_type=}")
 
     if not (
         (value) and
@@ -46,7 +47,8 @@ def _identity(value: object, label: str) -> None:
 
 
 def _digest(value: object, label: str) -> None:
-    require_type(value, str)
+    if not (type(value) is (expected_type := str)):
+        raise TypeError(f"{label=}; {type(value)=} ≠ {expected_type=}")
 
     if re.fullmatch(pattern=r"sha256:[0-9a-f]{64}\Z", string=value) is None:
         raise ValueError(f"{label} must be a lowercase sha256:<64 hex characters> digest")
@@ -60,19 +62,23 @@ def _binding_revision(value: object) -> None:
 
 
 def _records(values: object, record_type: type[object], label: str) -> None:
-    require_type(values, tuple)
+    if not (type(values) is (expected_type := tuple)):
+        raise TypeError(f"{label=}; {type(values)=} ≠ {expected_type=}")
 
     for value in values:
-        require_type(value, record_type)
+        if not (type(value) is (expected_type := record_type)):
+            raise TypeError(f"{label=}; {type(value)=} ≠ {expected_type=}")
 
 
 def _set_records(values: object, record_type: type[object], label: str) -> None:
     """Require an immutable unordered inventory with records of the declared type."""
 
-    require_type(values, frozenset)
+    if not (type(values) is (expected_type := frozenset)):
+        raise TypeError(f"{label=}; {type(values)=} ≠ {expected_type=}")
 
     for value in values:
-        require_type(value, record_type)
+        if not (type(value) is (expected_type := record_type)):
+            raise TypeError(f"{label=}; {type(value)=} ≠ {expected_type=}")
 
 
 def _unique(values: Collection[object], key: Callable[[object], object], label: str) -> None:
@@ -748,8 +754,12 @@ class CallBinding[InputT, StateT, OutputT]:
     def __post_init__(self) -> None:
         require_type(self.description, CallDescription)
 
-        for codec in (self.input_codec, self.result_codec):
-            require_instance(codec, PayloadCodec)
+        for (codec, label) in (
+            (self.input_codec, "Input codec"),
+            (self.result_codec, "Result codec"),
+        ):
+            if not isinstance(codec, (expected_codec_type := PayloadCodec)):
+                raise TypeError(f"{label=}; {type(codec)=} ≠ {expected_codec_type=}")
 
         if self.input_codec.format != self.description.input_format:
             raise ValueError("Input codec format differs from the call description")

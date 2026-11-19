@@ -11,7 +11,8 @@ from provider_core.type_requirements import require_type
 
 
 def _finite_samples(raw_samples: object, *, series_name: str) -> tuple[float, ...]:
-    require_type(raw_samples, tuple)
+    if not (type(raw_samples) is (expected_type := tuple)):
+        raise TypeError(f"{series_name=}; {type(raw_samples)=} ≠ {expected_type=}")
 
     samples = []
 

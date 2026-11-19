@@ -1,11 +1,12 @@
 """Type diagnostics retain admission semantics, field locations and failure order."""
 
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from typing import Literal
 import unittest
 from unittest.mock import patch
 
 from provider_core import payload
+from provider_core.embedded_host import InProcessExecutionHost
 from provider_core.payload import JsonDataclassCodec, PayloadRejected
 
 
@@ -25,6 +26,14 @@ class NumericRecord:
 
 
 class TypeExpectationTests(unittest.TestCase):
+    def test_capability_type_failures_identify_the_invalid_inventory(self):
+        for inventory_name in ("contract_versions", "isolation"):
+            with self.subTest(inventory_name=inventory_name):
+                with self.assertRaises(TypeError) as rejected:
+                    replace(InProcessExecutionHost.capabilities, **{inventory_name: ()})
+
+                self.assertIn(inventory_name, str(rejected.exception))
+
     def test_literal_keeps_independent_value_and_type_acceptance(self):
         codec = JsonDataclassCodec(format="test.literal.v1", value_type=MixedNumericLiteral)
         expected = MixedNumericLiteral(selection=1)
