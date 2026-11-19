@@ -21,7 +21,8 @@ from dataclasses import dataclass, field
 import httpx
 
 from provider_core.chat_errors import ChatFailed
-from provider_core.adapters.chat_completions.request import completion_request, request_body
+from provider_core.adapters.chat_completions.encoding import context_byte_count, request_body
+from provider_core.adapters.chat_completions.request import completion_request
 from provider_core.adapters.chat_completions.response import read_completion
 from provider_core.transport import ExchangeFailed
 from provider_core.chat_process import SupervisedChatTransport
@@ -112,14 +113,14 @@ class ChatEndpointFactory:
     @property
     def context_bytes(self):
         """Exact messages/tools capacity after reserving this carrier's envelope."""
-        empty_context = _json_bytes({"messages": [], "tools": []})
+        empty_context_byte_count = context_byte_count(messages=[], tools=[])
         empty_request = request_body(
             model=self.spec.model,
             messages=[],
             tools=[],
             reasoning_effort=self.spec.reasoning_effort,
         )
-        overhead = len(empty_request) - len(empty_context)
+        overhead = len(empty_request) - empty_context_byte_count
 
         return self.request_bytes - overhead
 

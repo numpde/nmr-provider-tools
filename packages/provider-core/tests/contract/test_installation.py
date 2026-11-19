@@ -148,6 +148,7 @@ class InstallationContractTests(unittest.TestCase):
                 "provider_core/adapters/__init__.py",
                 "provider_core/adapters/chat_completions/__init__.py",
                 "provider_core/adapters/chat_completions/request.py",
+                "provider_core/adapters/chat_completions/encoding.py",
                 "provider_core/adapters/chat_completions/response.py",
                 "provider_core/adapters/chat_completions/diagnostics.py",
                 "provider_core/adapters/chat_completions/tools.py",
@@ -254,6 +255,23 @@ class InstallationContractTests(unittest.TestCase):
         )
 
         self.assertEqual(completed_process.returncode, 0, completed_process.stderr)
+
+    def test_native_conversation_imports_without_optional_http_clients(self):
+        completed_process = subprocess.run(
+            [
+                sys.executable,
+                "-I",
+                "-B",
+                "-c",
+                "import sys; sys.modules.update(httpx=None, httpcore=None); "
+                "import provider_core.conversation, provider_core.interpreter",
+            ],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+
+        self.assertEqual(0, completed_process.returncode, completed_process.stderr)
 
     def test_missing_container_marker_rejects_operational_import(self):
         environment = dict(os.environ)

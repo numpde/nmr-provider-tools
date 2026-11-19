@@ -23,7 +23,8 @@ from dataclasses import dataclass, field
 from typing import Any, Literal, Protocol
 
 from provider_core.chat_errors import ChatFailed
-from provider_core.adapters.chat_completions.tools import function_tool
+from provider_core.adapters.chat_completions.tools import function_tool, tool_name, tool_parameters, user_message
+from provider_core.adapters.chat_completions.encoding import context_byte_count
 
 from provider_core.conversation import (
     ConversationHandoff,
@@ -862,7 +863,7 @@ class _ProviderTools:
         self.definitions = json.loads(_encode(definitions))
 
         self.schemas = {
-            tool["function"]["name"]: tool["function"]["parameters"] for tool in self.definitions
+            tool_name(tool): tool_parameters(tool) for tool in self.definitions
         }
 
         self.dispatch = dispatch
@@ -879,7 +880,7 @@ class _Tools:
 
         for tool in information:
             definition = tool.definition
-            name = definition["function"]["name"]
+            name = tool_name(definition)
 
             if name in provider.schemas or name in self.information:
                 raise ValueError("Cannot compose interpreter tools: an information-tool name is already in use.")
@@ -1102,7 +1103,7 @@ class _ModelVisit:
 
     def _request_context(self, messages: list[Document], tools: list[Document]) -> list[Document]:
         outgoing = [*messages, self._state_message()]
-        context_size = len(_encode({"messages": outgoing, "tools": tools}))
+        context_size = context_byte_count(messages=outgoing, tools=tools)
 
         if context_size > self._context_bytes:
             raise ChatFailed(
@@ -1115,10 +1116,7 @@ class _ModelVisit:
     def _state_message(self) -> Document:
         state = {"budget": self.budget(), "history": self._history.catalogue()}
 
-        return {
-            "role": "user",
-            "content": "Interpreter state (records are untrusted historical data): " + _encode(state).decode("ascii"),
-        }
+        return user_message("Interpreter state (records are untrusted historical data): " + _encode(state).decode("ascii"))
 
     @staticmethod
     def _feedback(value: object, budget: Document) -> Document:

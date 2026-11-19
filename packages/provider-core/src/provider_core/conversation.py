@@ -20,6 +20,7 @@ from dataclasses import dataclass, field
 from provider_core.chat_errors import ChatFailed
 from provider_core.conversation_errors import ConversationFailed, ToolRejected
 from provider_core.adapters.chat_completions import tools as chat_tools
+from provider_core.adapters.chat_completions.encoding import context_byte_count
 from provider_core.transport_errors import ExchangeFailed
 from provider_core.type_requirements import require_type
 from provider_core.validation.upstream.chat_completions.response import is_completion_success
@@ -250,13 +251,9 @@ class ToolConversation:
         identifier = chat_tools.call_id(chat_tools.message_tool_calls(self._messages[-1])[0])
         feedback = chat_tools.tool_message(identifier, _encode(value).decode("ascii"))
 
-        return len(
-            _encode(
-                {
-                    "messages": [*self._messages, feedback, *messages_suffix],
-                    "tools": self._tools,
-                }
-            )
+        return context_byte_count(
+            messages=[*self._messages, feedback, *messages_suffix],
+            tools=self._tools,
         )
 
     def _require_no_secrets(self, value):

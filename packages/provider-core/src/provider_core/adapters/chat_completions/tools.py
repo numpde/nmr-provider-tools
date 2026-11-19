@@ -23,6 +23,18 @@ def function_tool(*, name: str, description: str, parameters: dict) -> dict:
     }
 
 
+def tool_name(definition: dict) -> str:
+    """Read the declared function name without selecting its local handler."""
+
+    return definition["function"]["name"]
+
+
+def tool_parameters(definition: dict) -> dict:
+    """Borrow the declared local schema without copying or interpreting it."""
+
+    return definition["function"]["parameters"]
+
+
 def tool_message(call_id: str, content: str) -> dict:
     """Link already admitted feedback to its original function call."""
 

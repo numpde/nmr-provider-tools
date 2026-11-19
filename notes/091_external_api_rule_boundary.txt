@@ -546,11 +546,11 @@ OpenAI-compatible Chat Completions profile
     service restriction or compatibility layer was introduced. Independent
     review found no remaining proven API guard in the configuration owner.
 
-[ ] C2  Extract tool-call carrier rules from transcript ownership
+[x] C2  Extract tool-call carrier rules from transcript ownership
     [x] Separate outbound transcript and function-call construction
     [x] Separate phased incoming carrier admission and field access
     [x] Separate argument decoding while retaining local grants and history
-    [ ] Share context byte framing across the local budget owners
+    [x] Share context byte framing across the local budget owners
     core/conversation.py:250-254,374-397,443-571
     Reads and writes role/content/reasoning_content/tool_calls; admits tool-call
     id/type/function/name/arguments; decodes JSON arguments; creates tool replies
@@ -603,6 +603,18 @@ OpenAI-compatible Chat Completions profile
     unit lanes passed on science with PRIVACY_TESTS=0 (102 tests, sixteen skips).
     Independent audit confirmed byte-grant order, cause/classification and no
     correction or caller-budget policy in the adapter.
+    Context framing completed 2026-11-19: pure encoding.py shares the exact
+    request serializer with context byte counts used by factory, conversation
+    feedback and interpreter sizing. HTTPX construction stays in request.py so
+    native model carriers gain no optional client dependency. Interpreter also
+    delegates definition name/schema field access and its user state-message
+    wrapper; schema identity, selected state and capacity decisions remain local.
+    Chat field literals no longer occur in chat/conversation/interpreter owners;
+    their local configuration/history JSON is separate. A fresh-process import
+    contract blocks HTTP clients to prove the native dependency boundary.
+    Focused Chat/interpreter integration, interpreter/process-contract unit and
+    installation lanes passed on science with PRIVACY_TESTS=0 (98 tests, eight
+    skips). Independent audit confirmed bytes, schema references and closure.
 
 [x] C3  Separate the external tool envelope from local scientific schemas
     core/input_tool.py:22-64; core/interpreter.py:525
