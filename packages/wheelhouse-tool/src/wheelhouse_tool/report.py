@@ -3,16 +3,48 @@
 import argparse
 import json
 import re
+import reprlib
 import sys
 import urllib.parse
 from pathlib import PurePosixPath
+
+from wheelhouse_tool.validation.upstream import pip_installation_report
+
+
+def local_file_path(item):
+    """Decode the selected artifact under this offline projection's URL policy."""
+
+    artifact_url = item["download_info"]["url"]
+
+    if any(ord(character) < 32 or ord(character) == 127 for character in artifact_url):
+        raise ValueError(f"{reprlib.repr(artifact_url)=} contains a control character")
+
+    url = urllib.parse.urlsplit(artifact_url)
+
+    if (
+        (url.scheme != "file") or
+        url.netloc or
+        url.query or
+        url.fragment or
+        re.search(r"%(?![0-9a-fA-F]{2})", url.path)
+    ):
+        raise ValueError(
+            f"{reprlib.repr(artifact_url)=} should use file: without an authority, query, fragment or malformed percent escapes"
+        )
+
+    try:
+        return urllib.parse.unquote(url.path, errors="strict")
+    except UnicodeDecodeError as error:
+        raise ValueError(f"{reprlib.repr(artifact_url)=} should have a valid UTF-8 path") from error
 
 
 def manifest(report, pool, directory, allowed_sources):
     """The caller owns the successful hash-checked pip run and its frozen lock."""
 
-    if (not isinstance(report, dict)) or (report.get("version") != "1") or (not isinstance(report.get("install"), list)) or (not report["install"]):
-        raise ValueError("Cannot use pip report: expected a nonempty version 1 installation report.")
+    install_records = pip_installation_report.install_records(report)
+
+    if not install_records:
+        raise ValueError("Cannot project a pip report with no installation records.")
 
     root = PurePosixPath(pool)
 
@@ -22,29 +54,8 @@ def manifest(report, pool, directory, allowed_sources):
     entries = []
     seen = set()
 
-    for item in report["install"]:
-        download = item["download_info"]
-        raw_url = download["url"]
-
-        if any(ord(character) < 32 or ord(character) == 127 for character in raw_url):
-            raise ValueError("Cannot use pip report: selected artifact URL contains control characters.")
-
-        url = urllib.parse.urlsplit(raw_url)
-
-        if (
-            (url.scheme != "file") or
-            url.netloc or
-            url.query or
-            url.fragment or
-            re.search(r"%(?![0-9a-fA-F]{2})", url.path)
-        ):
-            raise ValueError("Cannot use pip report: selected artifact is not a local pool file.")
-
-        try:
-            path = urllib.parse.unquote(url.path, errors="strict")
-        except UnicodeDecodeError as error:
-            raise ValueError("Cannot use pip report: selected artifact path is invalid.") from error
-
+    for item in install_records:
+        path = local_file_path(item)
         candidate = PurePosixPath(path)
         name = candidate.name
 
@@ -59,7 +70,7 @@ def manifest(report, pool, directory, allowed_sources):
         ):
             raise ValueError("Cannot use pip report: selected artifact is outside the pool or not authorized.")
 
-        checksum = download["archive_info"]["hashes"]["sha256"]
+        checksum = item["download_info"]["archive_info"]["hashes"]["sha256"]
 
         if (not re.fullmatch(r"[0-9a-f]{64}", checksum)) or (name in seen):
             raise ValueError("Cannot use pip report: selected artifact hash or filename is invalid.")

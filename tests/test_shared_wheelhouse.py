@@ -796,6 +796,16 @@ class WheelhouseTests(unittest.TestCase):
             with self.subTest(report=invalid), self.assertRaises(ValueError):
                 report_manifest(invalid, "/pool", "wheels", set())
 
+    def test_report_checks_source_authorization_before_reading_archive_hash(self) -> None:
+        source = "antlr-1.0.tar.gz"
+        report = {"version": "1", "install": [{"download_info": {"url": "file:///pool/" + source}}]}
+
+        with self.assertRaises(ValueError):
+            report_manifest(report, "/pool", "wheels", set())
+
+        with self.assertRaises(KeyError):
+            report_manifest(report, "/pool", "wheels", {source})
+
     def test_selection_identity_is_stable_and_changes_with_selected_bytes(self):
         first = {"directory": "wheels/main", "filename": "first.whl", "sha256": "a" * 64}
         second = {"directory": "wheels/native", "filename": "second.whl", "sha256": "b" * 64}
