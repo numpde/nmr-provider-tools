@@ -7,6 +7,7 @@ from pathlib import Path
 
 from packaging.pylock import Package, PackageArchive, PackageSdist, PackageWheel, Pylock
 from packaging.utils import NormalizedName
+from packaging.version import Version
 
 
 def read_lock(lock: Path) -> Pylock:
@@ -39,6 +40,37 @@ def render_local_lock(
         packages.append(package)
 
     return tomli_w.dumps(replace(document, packages=packages).to_dict())
+
+
+def _artifact_record(url: str, sha256: str) -> dict[str, object]:
+    return {"url": url, "hashes": {"sha256": sha256}}
+
+
+def project_archive_record(name: NormalizedName, version: Version, url: str, sha256: str) -> dict[str, object]:
+    """Encode a selected direct archive in a pylock package record."""
+
+    return {"name": name, "version": str(version), "archive": _artifact_record(url, sha256)}
+
+
+def project_index_record(
+    name: NormalizedName,
+    version: Version,
+    *,
+    wheels: Iterable[tuple[str, str]],
+    sdist: tuple[str, str] | None,
+) -> dict[str, object]:
+    """Encode the selected index wheels and optional source distribution."""
+
+    package: dict[str, object] = {"name": name, "version": str(version)}
+    wheel_records = [_artifact_record(url, sha256) for (url, sha256) in wheels]
+
+    if wheel_records:
+        package["wheels"] = wheel_records
+
+    if sdist is not None:
+        package["sdist"] = _artifact_record(*sdist)
+
+    return package
 
 
 def render_projected_lock(

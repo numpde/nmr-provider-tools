@@ -16,7 +16,7 @@ from packaging.tags import sys_tags
 from packaging.utils import InvalidSdistFilename, InvalidWheelFilename, canonicalize_name, parse_sdist_filename, parse_wheel_filename
 from packaging.version import Version
 from wheelhouse_tool.adapters import simple_json as simple_requests
-from wheelhouse_tool.adapters.pylock import render_projected_lock
+from wheelhouse_tool.adapters.pylock import project_archive_record, project_index_record, render_projected_lock
 from wheelhouse_tool.network import request as network_request, retry
 from wheelhouse_tool.validation.upstream import simple_json as simple_metadata
 
@@ -161,14 +161,7 @@ def locate(path, index=None, allowed_sources=(), required_sources=(), direct_sou
                 raise ValueError(f"Cannot locate {name}: direct artifact differs from its locked identity.")
 
             packages.append(
-                {
-                    "name": name,
-                    "version": str(version),
-                    "archive": {
-                        "url": urllib.parse.urlunsplit(url._replace(fragment="")),
-                        "hashes": {"sha256": checksum},
-                    },
-                },
+                project_archive_record(name, version, urllib.parse.urlunsplit(url._replace(fragment="")), checksum),
             )
 
             continue
@@ -230,9 +223,9 @@ def locate(path, index=None, allowed_sources=(), required_sources=(), direct_sou
             ):
                 raise ValueError(f"{reprlib.repr(url)=} should use HTTPS and name {reprlib.repr(filename)=} without credentials or a query")
 
-            item = {"url": url, "hashes": {"sha256": checksum}}
-
-            (wheels if kind == "wheel" else sources).append((filename, item, simple_metadata.file_yanked(artifact), artifact_version))
+            (wheels if kind == "wheel" else sources).append(
+                (filename, (url, checksum), simple_metadata.file_yanked(artifact), artifact_version),
+            )
 
         wheels.sort(key=lambda item: item[0])
         sources.sort(key=lambda item: (not item[0].endswith(".tar.gz"), item[0]))
@@ -248,8 +241,10 @@ def locate(path, index=None, allowed_sources=(), required_sources=(), direct_sou
                 cached = []
 
                 for item in wheels:
+                    (filename, (_, checksum), _, _) = item
+
                     try:
-                        if inspect_artifact(pool, item[0], item[1]["hashes"]["sha256"], directory_fd):
+                        if inspect_artifact(pool, filename, checksum, directory_fd):
                             cached.append(item)
                     except ValueError:
                         # A conflicting file is not reusable; leave it in place.
@@ -265,26 +260,27 @@ def locate(path, index=None, allowed_sources=(), required_sources=(), direct_sou
             wheels = [item for item in wheels if item[3] == version]
             sources = [item for item in sources if item[3] == version]
 
-        package = {"name": name, "version": str(version)}
+        selected_source = sources[0][1] if name in allowed_sources and sources else None
 
-        if wheels:
-            package["wheels"] = [item for (_, item, _, _) in wheels]
-
-        if name in allowed_sources and sources:
-            package["sdist"] = sources[0][1]
-
-        if (name in required_sources) and ("sdist" not in package):
+        if (name in required_sources) and (selected_source is None):
             raise ValueError(f"Cannot locate {name}: its required source distribution is unavailable.")
 
-        if ("wheels" not in package) and ("sdist" not in package):
+        if (not wheels) and (selected_source is None):
             raise ValueError(f"Cannot locate {name}: the index has no artifact admitted by its lock and source policy.")
 
-        packages.append(package)
+        packages.append(
+            project_index_record(
+                name,
+                version,
+                wheels=(selection for (_, selection, _, _) in wheels),
+                sdist=selected_source,
+            ),
+        )
 
     if direct:
         raise ValueError("Cannot locate artifacts: a supplied direct source is not in the lock.")
 
-    if required_sources - {package["name"] for package in packages}:
+    if required_sources - {canonicalize_name(requirement.name) for (requirement, _) in records}:
         raise ValueError("Cannot locate artifacts: a required source package is not in the lock.")
 
     return render_projected_lock(

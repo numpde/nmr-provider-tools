@@ -21,6 +21,7 @@ from packaging.tags import sys_tags
 from packaging.utils import InvalidSdistFilename, InvalidWheelFilename, canonicalize_name, parse_sdist_filename, parse_wheel_filename
 from wheelhouse_tool.adapters.pylock import read_lock, render_local_lock
 from wheelhouse_tool.network import RequestFailure, failure_detail, request, retry
+from wheelhouse_tool.validation.upstream.pylock import require_pylock_filename
 
 
 @contextmanager
@@ -401,14 +402,8 @@ def main():
         if (args.local_lock is not None) and ((args.local_root is None) or (not args.local_root.is_absolute())):
             raise ValueError("Cannot write a local lock: supply an absolute --local-root.")
 
-        if (
-            (args.local_lock is not None) and
-            (not (
-                (args.local_lock.name == "pylock.toml") or
-                (args.local_lock.name.startswith("pylock.") and args.local_lock.name.endswith(".toml"))
-            ))
-        ):
-            raise ValueError("Cannot write a local lock: use pylock.toml or pylock.NAME.toml so installers recognize it.")
+        if args.local_lock is not None:
+            require_pylock_filename(args.local_lock.name)
 
         document = read_lock(args.lock)
         artifacts = selected(args.lock, prefer_sdist, require_sdist, document, args.source_lock)

@@ -1063,6 +1063,14 @@ Separate adjacent tool/package interfaces from service API rules:
       Focused shared/guarded wheelhouse and bundle lanes passed 64 tests
       (10 privacy skips); artifact (15), delivery (10) and conventions (12)
       passed. The real delivery build remains blocked by the existing lock pin.
+  [x] Remaining standalone pylock package/archive/wheel/source record encoding
+      now lives in its codec; filename admission lives in upstream validation.
+      The exact existing basename predicate and its CLI admission point remain.
+      Locator workflows use chosen candidate facts instead of reading serialized
+      keys for local admission. Source/version/cache/yank choices remain local.
+      The shared wheelhouse lane passed 56 tests (10 privacy skips), both bundle
+      tests passed, and the real offline wheelhouse image built. Hash-lock input
+      readers and the one-pin bootstrap profile remain to be audited separately.
   pip: tools/installer.py:154-201 owns command construction. tools/wheelhouse.py:102-193
   and wheelhouse_tool/report.py:11-65 consume installation-report version 1 and
   download_info/archive_info/hash fields. SDK build helpers and image_manifest.py
