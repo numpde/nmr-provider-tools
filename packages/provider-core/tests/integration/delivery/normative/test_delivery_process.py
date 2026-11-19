@@ -13,7 +13,8 @@ from dataclasses import replace
 
 from provider_core.attempt_record import TerminalOperation
 from provider_core.adapters.nmr.v1.attempt_request import complete_body
-from provider_core.credential import parse_provider_credential
+from provider_core.api_config import MAX_CREDENTIAL_BYTES
+from provider_core.validation.upstream.nmr.v1.credential import parse_provider_credential
 from provider_core.delivery_client import DeliveryClient, DeliveryEndpoint, DeliveryRejected
 from provider_core.delivery_store import DeliveryQueue, QueueLimits
 from tests.fakes.api_tls import api_tls_peer, verify_signed_request
@@ -70,7 +71,11 @@ def _configured_binding(root, peer, proxy, *, provider):
 
     files.write(raw)
 
-    return (files, DeliveryEndpoint(peer.origin, provider, root / "ipc/http.sock"), parse_provider_credential(files.key.read_bytes()))
+    return (
+        files,
+        DeliveryEndpoint(peer.origin, provider, root / "ipc/http.sock"),
+        parse_provider_credential(files.key.read_bytes(), maximum_bytes=MAX_CREDENTIAL_BYTES),
+    )
 
 
 async def _reap_daemon(process):

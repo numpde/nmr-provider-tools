@@ -7,7 +7,8 @@ import unittest
 from http_sf import parse
 
 from provider_core.api import ProviderAPI
-from provider_core.credential import parse_provider_credential
+from provider_core.api_config import MAX_CREDENTIAL_BYTES
+from provider_core.validation.upstream.nmr.v1.credential import parse_provider_credential
 from provider_core.adapters.nmr.v1.signing import SigningIdentity
 from provider_core.transport import HttpTransport
 from tests.fakes.api_tls import api_tls_peer
@@ -17,7 +18,7 @@ from tests.fakes.hello import announcement, receipt
 
 class SignedHelloTests(unittest.IsolatedAsyncioTestCase):
     async def test_loaded_credential_signs_one_current_announcement(self):
-        credential = parse_provider_credential(encoded(document()))
+        credential = parse_provider_credential(encoded(document()), maximum_bytes=MAX_CREDENTIAL_BYTES)
 
         async with api_tls_peer("success", response_body=receipt()) as peer:
             api = ProviderAPI(

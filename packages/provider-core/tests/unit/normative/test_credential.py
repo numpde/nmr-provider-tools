@@ -5,7 +5,8 @@ import os
 
 from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
 
-from provider_core.credential import parse_provider_credential
+from provider_core.api_config import MAX_CREDENTIAL_BYTES
+from provider_core.validation.upstream.nmr.v1.credential import parse_provider_credential
 from provider_core.adapters.nmr.v1.signing import SigningIdentity, signed_request
 from tests.fakes.credential import document, encoded
 
@@ -17,7 +18,7 @@ class ProviderCredentialTests(unittest.TestCase):
         for profile in ("dev-local", "dev", "run"):
             with self.subTest(profile=profile):
                 original = document(key=key, profile=profile)
-                credential = parse_provider_credential(encoded(original))
+                credential = parse_provider_credential(encoded(original), maximum_bytes=MAX_CREDENTIAL_BYTES)
 
                 yield credential, original, key, profile
 

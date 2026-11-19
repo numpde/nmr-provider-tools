@@ -15,9 +15,14 @@ from dataclasses import dataclass
 
 from provider_core.api import require_api_topology
 from provider_core.chat_tls import CapturedSSLContext, new_https_trust
-from provider_core.credential import MAX_CREDENTIAL_BYTES, parse_provider_credential
+from provider_core.validation.upstream.nmr.v1.credential import parse_provider_credential
 from provider_core.adapters.nmr.v1.signing import SigningIdentity
 from provider_core.transport import HttpTransport, require_transport_settings
+
+
+# Startup bounds credential capture independently of the issued artifact's fields
+# repo-check: allow-module-constant
+MAX_CREDENTIAL_BYTES = 16384
 
 
 class ApiConfigurationRejected(ValueError):
@@ -163,7 +168,7 @@ def require_api_fields(table):
 
 
 def _signing_identity(table, credential_bytes):
-    credential = parse_provider_credential(credential_bytes)
+    credential = parse_provider_credential(credential_bytes, maximum_bytes=MAX_CREDENTIAL_BYTES)
 
     if (credential.profile, credential.provider_ref) != (table["profile"], table["provider_ref"]):
         raise ApiConfigurationRejected("API signing credential does not match the configured profile and provider.")

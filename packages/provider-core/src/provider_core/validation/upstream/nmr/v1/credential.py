@@ -25,10 +25,6 @@ from provider_core.validation.upstream.nmr.v1.attempt_request import require_pro
 from provider_core.response_json import ResponseRejected, read_document
 from provider_core.validation.upstream.nmr.v1.signing import require_credential_ref
 
-# The issued credential artifact has a bounded startup envelope.
-# repo-check: allow-module-constant
-MAX_CREDENTIAL_BYTES = 16384
-
 # The issued credential profile has a closed field set.
 # repo-check: allow-module-constant
 _FIELDS = {
@@ -58,13 +54,13 @@ class ProviderCredential:
     private_key: Ed25519PrivateKey = field(repr=False, compare=False)
 
 
-def parse_provider_credential(raw):
-    """Verify the closed issued document and return its identity/signing capability."""
+def parse_provider_credential(raw, *, maximum_bytes):
+    """Verify the issued artifact within the caller's local startup byte allowance."""
 
     try:
-        document = read_document(raw, MAX_CREDENTIAL_BYTES)
+        document = read_document(raw, maximum_bytes)
     except ResponseRejected as cause:
-        raise CredentialRejected("supply the original API-issued JSON file within 16384 bytes.", cause=cause) from None
+        raise CredentialRejected(f"supply the original API-issued JSON file within {maximum_bytes} bytes.", cause=cause) from None
 
     if not (type(document) is (expected_type := dict)):
         raise CredentialRejected(f"{type(document)=} ≠ {expected_type=}")

@@ -101,7 +101,7 @@ NMR Provider API: wire and validation owners
     Repository test_provider_core_port.py still reports 22 stale donor entries;
     a read-only comparison against e546a30 confirmed all 22 predate this move.
 
-[ ] N2  Separate issued credential admission from local startup policy
+[x] N2  Separate issued credential admission from local startup policy
     core/credential.py:31-131; core/api_config.py:152-230
     Issued credential fields, schema/profile/algorithm, canonical JSON/newline,
     key encoding and key-pair consistency; topology/provider binding in config.
@@ -109,6 +109,16 @@ NMR Provider API: wire and validation owners
     separate. MAX_CREDENTIAL_BYTES is a startup ceiling; its status as an
     upstream requirement is not established by the field schema alone.
     Evidence: test_credential.py, test_api_config.py, test_api_publication_material.py.
+    Completed 2026-11-19: artifact admission, key decoding and checked identity
+    now live in core/validation/upstream/nmr/v1/credential.py. The parser requires
+    the caller's maximum_bytes. API startup owns MAX_CREDENTIAL_BYTES in
+    core/api_config.py and uses it for file capture, retained material and parsing.
+    Configured profile/provider binding and TLS policy stay with startup;
+    topology vocabulary extraction is tracked under N3.
+    Focused unit test_credential.py, test_api_config.py and
+    test_api_publication_material.py, contract test_installation.py and integration
+    test_hello.py passed on science with PRIVACY_TESTS=0. Artifact source authority
+    remains the separate historical credential contract, not the HTTP-schema pin.
 
 [ ] N3  Extract Provider response-envelope and problem interpretation
     core/api.py:65-339

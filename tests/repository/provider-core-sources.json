@@ -106,6 +106,7 @@
     },
     {
       "path": "packages/provider-core/src/provider_core/credential.py",
+      "replacement_path": "packages/provider-core/src/provider_core/validation/upstream/nmr/v1/credential.py",
       "mode": "100644",
       "git_blob": "4454e26afdd0ef08b9a873a8e594144a130d01b0",
       "sha256": "9b6c6b65e6041d754ed92a49039e3961d42d59ccc68bafb1834d3be3d218f706",
