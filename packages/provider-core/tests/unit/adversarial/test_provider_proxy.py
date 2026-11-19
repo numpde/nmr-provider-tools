@@ -27,13 +27,13 @@ class ServiceProxyRefusalTests(unittest.TestCase):
         question = encode_dns_name("other.private") + struct.pack("!HH", 1, 1)
 
         for (packet, expected) in (
-            (struct.pack("!HHHHHH", transaction, 0x8003, 1, 0, 0, 0), "DNS server returned rcode 3"),
-            (b"PRIVATE", "truncated DNS response"),
+            (struct.pack("!HHHHHH", transaction, 0x8003, 1, 0, 0, 0), "rcode=3 should be zero"),
+            (b"PRIVATE", "response_byte_count=7 should be at least min_header_bytes=12"),
             (
                 struct.pack("!HHHHHH", transaction, 0x8000, 1, 0, 0, 0) + question,
-                "DNS response question does not match the request",
+                "question_name='other.private' should match expected_name='private.example'",
             ),
-            (struct.pack("!HHHHHH", transaction, 0x8000, 1, 0, 0, 0) + b"\xc0", "truncated DNS compression pointer"),
+            (struct.pack("!HHHHHH", transaction, 0x8000, 1, 0, 0, 0) + b"\xc0", "pointer_end=14 should be at most message_byte_count=13"),
         ):
             with self.subTest(reason=expected):
                 udp = MagicMock()

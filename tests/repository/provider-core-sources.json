@@ -2772,6 +2772,9 @@
       ],
       "replaced_test_methods": {
         "BoundProxyTests.test_private_admission_failures_have_fixed_http_status_and_safe_diagnostics": "BoundProxyTests.test_admission_failures_keep_fixed_http_status_and_scrub_credentials"
+      },
+      "retired_test_methods": {
+        "BoundProxyTests.test_dns_name_depth_starts_at_zero_and_bounds_compression": "Moved to DNSNameTests.test_dns_name_depth_starts_at_zero_and_bounds_compression in packages/provider-core/tests/unit/validation/upstream/adversarial/test_dns.py; the query owner now supplies the same sixteen-pointer work cap."
       }
     },
     {
@@ -2860,7 +2863,14 @@
         "ImageBuildProxyWorkerTests.test_readiness_publication_failure_survives_temporary_cleanup_failure",
         "ImageBuildProxyWorkerTests.test_readiness_published_receipt_still_serves_when_temporary_cleanup_fails",
         "ImageBuildProxyWorkerTests.test_startup_failure_and_thread_completion_restore_capacity"
-      ]
+      ],
+      "retired_test_methods": {
+        "ImageBuildProxyTransportTests.test_dns_binds_device_and_shares_one_query_budget": "Moved to DNSQueryTests.test_dns_binds_device_and_shares_one_query_budget in packages/provider-core/tests/unit/normative/test_bound_http_proxy.py.",
+        "ImageBuildProxyTransportTests.test_dns_groups_only_received_a_records_by_owner": "Moved to DNSResponseTests.test_received_a_records_are_grouped_by_owner in packages/provider-core/tests/unit/validation/upstream/adversarial/test_dns.py; pure packet reading no longer requires socket mocks.",
+        "ImageBuildProxyTransportTests.test_dns_late_success_rejects_the_reply_and_closes_the_socket": "Moved to DNSQueryTests.test_dns_late_success_rejects_the_reply_and_closes_the_socket in packages/provider-core/tests/unit/normative/test_bound_http_proxy.py.",
+        "ImageBuildProxyTransportTests.test_dns_query_deadline_caps_wait_at_three_seconds": "Moved to DNSQueryTests.test_dns_query_deadline_caps_wait_at_three_seconds in packages/provider-core/tests/unit/normative/test_bound_http_proxy.py.",
+        "ImageBuildProxyTransportTests.test_dns_rejects_a_reply_for_another_question": "Moved to DNSQueryTests.test_dns_rejects_a_reply_for_another_question in packages/provider-core/tests/unit/normative/test_bound_http_proxy.py."
+      }
     }
   ]
 }

@@ -24,7 +24,6 @@ import secrets
 import select
 import socket
 import socketserver
-import struct
 import sys
 import tempfile
 import threading
@@ -32,8 +31,9 @@ import time
 import pathlib
 from urllib.parse import urlsplit
 
-from provider_core.adapters.dns import encode_dns_name
+from provider_core.adapters.dns import ipv4_query
 from provider_core.diagnostic_text import CredentialRedactingFormatter
+from provider_core.validation.upstream import dns
 
 # Header admission owns this fixed byte ceiling independently of coalesced body
 # bytes; changing it would alter the bounded acquisition protocol.
@@ -78,14 +78,6 @@ class ProxyResolutionFailed(OSError):
 
 class ProxyResolutionDeadline(ProxyResolutionFailed, TimeoutError):
     """DNS aggregate expiry retains earlier causes and the timeout contract."""
-
-
-class DNSResponseRejected(OSError):
-    """Code-owned protocol text; only the parsed numeric rcode is interpolated."""
-
-
-class DNSNameRejected(ValueError):
-    """Code-owned name-decoder text, preserving its ValueError contract."""
 
 
 def _remaining(deadline: float, operation: str) -> float:
@@ -195,63 +187,6 @@ def parse_destination(header: bytes) -> tuple[str, str, int, bytes]:
     return (method, host, port, b"\r\n".join(lines))
 
 
-# Each top-level name starts with no followed pointers; recursive calls below
-# supply depth + 1. Sixteen hops is this decoder's existing local bound.
-# silent-defaults: allow-contract -- A new DNS name starts its pointer recursion count at zero; proof=packages/provider-core/tests/unit/normative/test_bound_http_proxy.py::BoundProxyTests.test_dns_name_depth_starts_at_zero_and_bounds_compression
-def _read_dns_name(message: bytes, offset: int, depth: int = 0) -> tuple[str, int]:
-    """Decode a DNS name with at most sixteen compression-pointer hops.
-
-    Return the decoded text and the byte after its original encoded representation.
-    """
-
-    if not (depth <= 16):
-        raise DNSNameRejected("DNS compression pointer recursion is too deep")
-
-    labels: list[bytes] = []
-    next_offset: int | None = None
-
-    while True:
-        if not (offset < len(message)):
-            raise DNSNameRejected("truncated DNS name")
-
-        size = message[offset]
-
-        if size & 0xC0 == 0xC0:
-            if not (offset + 1 < len(message)):
-                raise DNSNameRejected("truncated DNS compression pointer")
-
-            pointer = ((size & 0x3F) << 8) | message[offset + 1]
-            (suffix, _) = _read_dns_name(message, pointer, depth + 1)
-
-            if suffix:
-                labels.extend(part.encode("ascii") for part in suffix.split("."))
-
-            next_offset = next_offset or offset + 2
-
-            break
-
-        if size & 0xC0:
-            raise DNSNameRejected("invalid DNS label encoding")
-
-        offset += 1
-
-        if size == 0:
-            next_offset = next_offset or offset
-
-            break
-
-        if not (offset + size <= len(message)):
-            raise DNSNameRejected("truncated DNS label")
-
-        labels.append(message[offset : offset + size])
-        offset += size
-
-    try:
-        return (b".".join(labels).decode("ascii").lower(), next_offset)
-    except UnicodeDecodeError as cause:
-        raise DNSNameRejected("DNS name contains a non-ASCII label") from cause
-
-
 def _dns_servers(resolver_file: pathlib.Path | None = None) -> tuple[str, ...]:
     """Read explicit captured resolvers, or existing service resolver configuration."""
 
@@ -299,8 +234,7 @@ def _query_ipv4(
 
     _remaining(query_deadline, "DNS query")
     transaction = secrets.randbits(16)
-    question = encode_dns_name(host) + struct.pack("!HH", 1, 1)
-    request = struct.pack("!HHHHHH", transaction, 0x0100, 1, 0, 0, 0) + question
+    request = ipv4_query(host, transaction)
 
     with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as resolver:
         if interface != "system":
@@ -318,61 +252,8 @@ def _query_ipv4(
         # https://github.com/numpde/magnet-deploy/blob/2d4ee50b0359e71900fce9289ea01f46d0f41249/scripts/image-build-proxy.py#L183-L184
         _remaining(query_deadline, "DNS query")
 
-    if len(response) < 12:
-        raise DNSResponseRejected("truncated DNS response")
-
-    (response_id, flags, questions, answers, authorities, additional) = struct.unpack("!HHHHHH", response[:12])
-
-    if (response_id != transaction) or (not (flags & 0x8000)):
-        raise DNSResponseRejected("mismatched DNS response")
-
-    if flags & 0x0200:
-        raise DNSResponseRejected("truncated UDP DNS response")
-
-    if flags & 0x000F:
-        raise DNSResponseRejected(f"DNS server returned rcode {flags & 0x000F}")
-
-    if questions != 1:
-        raise DNSResponseRejected("DNS response has the wrong question count")
-
-    offset = 12
-    (question_name, offset) = _read_dns_name(response, offset)
-
-    if offset + 4 > len(response):
-        raise DNSResponseRejected("truncated DNS question")
-
-    (question_type, question_class) = struct.unpack("!HH", response[offset : offset + 4])
-    offset += 4
-    expected_name = host.rstrip(".").encode("idna").decode("ascii").lower()
-
-    if question_name != expected_name or (question_type, question_class) != (1, 1):
-        raise DNSResponseRejected("DNS response question does not match the request")
-
-    addresses: dict[str, list[str]] = {}
-    aliases: dict[str, str] = {}
-
-    for _ in range(answers + authorities + additional):
-        (owner, offset) = _read_dns_name(response, offset)
-
-        if offset + 10 > len(response):
-            raise DNSResponseRejected("truncated DNS record")
-
-        (record_type, record_class, _ttl, size) = struct.unpack("!HHIH", response[offset : offset + 10])
-        offset += 10
-        end = offset + size
-
-        if end > len(response):
-            raise DNSResponseRejected("truncated DNS record data")
-
-        if record_class == 1 and record_type == 1 and size == 4:
-            # silent-defaults: allow-contract -- Each response-local owner bucket contains only its received A records; proof=repository_checks/test_proxy_posture.py::ImageBuildProxyTransportTests.test_dns_groups_only_received_a_records_by_owner
-            addresses.setdefault(owner, []).append(socket.inet_ntoa(response[offset:end]))
-        elif record_class == 1 and record_type == 5:
-            (aliases[owner], _) = _read_dns_name(response, offset)
-
-        offset = end
-
-    return (addresses, aliases)
+    # Sixteen pointer hops is the existing local decoder work cap, not a DNS rule.
+    return dns.read_ipv4_response(response, hostname=host, transaction=transaction, max_pointer_depth=16)
 
 
 def resolve_ipv4_bound(
@@ -409,7 +290,7 @@ def resolve_ipv4_bound(
 
             for _ in range(16):
                 if current in visited:
-                    raise DNSResponseRejected("DNS response contains an alias cycle")
+                    raise dns.DNSResponseRejected("DNS response contains an alias cycle")
 
                 visited.add(current)
                 (addresses, aliases) = _query_ipv4(current, server, interface, deadline=deadline)

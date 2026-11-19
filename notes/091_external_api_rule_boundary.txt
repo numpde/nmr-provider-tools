@@ -786,7 +786,21 @@ Shared wire support: retain the distinction from local policy
   installation and acquisition bundle lanes passed (47 tests, three skips;
   PRIVACY_TESTS=0). The provider-proxy lane has two failures also reproduced on
   parent f7c3652: a stale message-prefix assertion and huge-integer overflow in
-  the local live-settings numeric helper. DNS response parsing, HTTP target
+  the local live-settings numeric helper.
+  DNS response/name decoding now also lives in validation/upstream/dns.py,
+  including its original exception base contracts and native decode causes;
+  query packet construction lives in adapters/dns.py. The query owner supplies
+  its existing sixteen-pointer work cap and retains randomness, interface and
+  resolver selection, socket lifetime and all deadline checks. Record ordering,
+  all-section A/CNAME interpretation and last-CNAME behavior are preserved.
+  Diagnostics identify counts, offsets, flags and mismatches, with bounded name
+  previews because compression can expand names beyond packet size. Compression
+  and record-grouping proofs moved to validation tests; four mocked DNS query
+  tests moved from deployment to SDK units, without duplicate coverage. The
+  donor ledger records these relocations. Focused DNS, bound-proxy and cold
+  bundle lanes passed (42 tests, two skips; PRIVACY_TESTS=0). Provider-proxy
+  retains the same two failures above. Donor accounting has 23 preexisting
+  failing subcases, also reproduced on immediate parent 3139b04. HTTP target
   admission and forwarding wire construction still need separation.
 - [ ] Keep locally defined IPC schemas outside upstream API validation
   core/unix_http.py uses HTTP over a local socket. The service bodies/routes in

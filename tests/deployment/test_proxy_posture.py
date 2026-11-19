@@ -17,7 +17,6 @@ require_container()
 
 import io
 import stat
-import struct
 import tempfile
 import unittest
 import os
@@ -28,7 +27,6 @@ from unittest.mock import MagicMock, Mock, patch
 
 # Exercise the installed owner; source checkout paths cannot satisfy this import.
 from provider_core import bound_http_proxy as _PROXY
-from provider_core.adapters.dns import encode_dns_name
 
 # A fixed adversarial marker proves that request-bearing errors stay private.
 # repo-check: allow-module-constant
@@ -185,148 +183,6 @@ class ImageBuildProxyInputTests(unittest.TestCase):
 
 
 class ImageBuildProxyTransportTests(unittest.TestCase):
-    def setUp(self):
-        name = self._testMethodName
-
-        # silent-defaults: allow-contract -- DNS, TCP and relay probes require their own production primitive before injecting transport behavior; this chooses a prerequisite name, not a fallback implementation; proof=tests/deployment/test_proxy_posture.py::ImageBuildProxyTransportTests.test_dns_binds_device_and_shares_one_query_budget
-        required = (
-            "_query_ipv4"
-            if name.startswith("test_dns_")
-            else "resolve_ipv4_bound"
-            if name == "test_expired_dns_budget_does_not_start_the_next_server" or name.startswith("test_tcp_")
-            else "relay"
-        )
-
-        self.assertTrue(
-            hasattr(_PROXY, required),
-            msg=f"Interface-bound transport cannot prove {name}: provider_core.bound_http_proxy does not own {required}.",
-        )
-
-        self.assertTrue(
-            hasattr(_PROXY, "time"),
-            msg=f"Interface-bound transport cannot prove {name}: provider_core.bound_http_proxy does not own monotonic deadline accounting.",
-        )
-
-    def test_dns_binds_device_and_shares_one_query_budget(self):
-        clock = [0]
-        resolver = MagicMock()
-        resolver.__enter__.return_value = resolver
-        resolver.connect.side_effect = lambda _address: clock.__setitem__(0, 0.2)
-        resolver.send.side_effect = lambda _dns_query: clock.__setitem__(0, 0.6)
-        resolver.recv.return_value = _dns_response("example.invalid")
-
-        with (
-            patch.object(_PROXY.time, "monotonic", side_effect=lambda: clock[0]),
-            patch.object(_PROXY.secrets, "randbits", return_value=111),
-            patch.object(_PROXY.socket, "socket", return_value=resolver),
-        ):
-            (addresses, aliases) = _PROXY._query_ipv4("example.invalid", "203.0.113.53", "eth0", deadline=30)
-
-        self.assertEqual(addresses, {"example.invalid": ["203.0.113.1"]})
-        self.assertEqual(aliases, {})
-        resolver.setsockopt.assert_called_once_with(_PROXY.socket.SOL_SOCKET, _PROXY.socket.SO_BINDTODEVICE, b"eth0\0")
-        resolver.connect.assert_called_once_with(("203.0.113.53", 53))
-        self.assertEqual([call.args[0] for call in resolver.settimeout.call_args_list], [3, 2.8, 2.4])
-        self.assertEqual(resolver.send.call_args.args[0][12:], encode_dns_name("example.invalid") + struct.pack("!HH", 1, 1))
-
-    def test_dns_groups_only_received_a_records_by_owner(self):
-        """Keep repeated A records in one bucket without inventing absent owners."""
-
-        for (records, expected) in (
-            ((), {}),
-            (
-                (
-                    ("example.invalid", "203.0.113.1"),
-                    ("other.invalid", "203.0.113.2"),
-                    ("example.invalid", "203.0.113.3"),
-                ),
-                {"example.invalid": ["203.0.113.1", "203.0.113.3"], "other.invalid": ["203.0.113.2"]},
-            ),
-        ):
-            with self.subTest(records=records):
-                response = (
-                    struct.pack("!HHHHHH", 111, 0x8180, 1, len(records), 0, 0)
-                    + encode_dns_name("example.invalid")
-                    + struct.pack("!HH", 1, 1)
-                )
-
-                for (owner, address) in records:
-                    response += encode_dns_name(owner) + struct.pack("!HHIH", 1, 1, 60, 4) + _PROXY.socket.inet_aton(address)
-
-                resolver = MagicMock()
-                resolver.__enter__.return_value = resolver
-                resolver.recv.return_value = response
-
-                with (
-                    patch.object(_PROXY.time, "monotonic", return_value=0),
-                    patch.object(_PROXY.secrets, "randbits", return_value=111),
-                    patch.object(_PROXY.socket, "socket", return_value=resolver),
-                ):
-                    (addresses, aliases) = _PROXY._query_ipv4("example.invalid", "203.0.113.53", "eth0", deadline=30)
-
-                self.assertEqual(expected, addresses)
-                self.assertEqual({}, aliases)
-
-    def test_dns_rejects_a_reply_for_another_question(self):
-        resolver = MagicMock()
-        resolver.__enter__.return_value = resolver
-        resolver.recv.return_value = _dns_response("other.invalid")
-
-        with (
-            patch.object(_PROXY.time, "monotonic", return_value=0),
-            patch.object(_PROXY.secrets, "randbits", return_value=111),
-            patch.object(_PROXY.socket, "socket", return_value=resolver),
-            self.assertRaises(OSError),
-        ):
-            _PROXY._query_ipv4("example.invalid", "203.0.113.53", "eth0", deadline=30)
-
-    def test_dns_late_success_rejects_the_reply_and_closes_the_socket(self):
-        """A complete reply arriving after the query budget is not admitted.
-
-        This catches the inherited missing post-recv check at:
-        https://github.com/numpde/magnet-deploy/blob/2d4ee50b0359e71900fce9289ea01f46d0f41249/scripts/image-build-proxy.py#L183-L184
-        """
-        clock = [0]
-        resolver = MagicMock()
-        resolver.__enter__.return_value = resolver
-
-        def late_reply(_size):
-            clock[0] = 3.1
-
-            return _dns_response("example.invalid")
-
-        resolver.recv.side_effect = late_reply
-
-        with (
-            patch.object(_PROXY.time, "monotonic", side_effect=lambda: clock[0]),
-            patch.object(_PROXY.secrets, "randbits", return_value=111),
-            patch.object(_PROXY.socket, "socket", return_value=resolver),
-            self.assertRaises(TimeoutError),
-        ):
-            _PROXY._query_ipv4("example.invalid", "203.0.113.53", "eth0", deadline=30)
-
-        resolver.__exit__.assert_called_once()
-
-    def test_dns_query_deadline_caps_wait_at_three_seconds(self):
-        clock = [0]
-        resolver = MagicMock()
-        resolver.__enter__.return_value = resolver
-
-        resolver.connect.side_effect = lambda _address: clock.__setitem__(0, 1)
-        resolver.send.side_effect = lambda _dns_query: clock.__setitem__(0, 3)
-
-        with (
-            patch.object(_PROXY.time, "monotonic", side_effect=lambda: clock[0]),
-            patch.object(_PROXY.secrets, "randbits", return_value=111),
-            patch.object(_PROXY.socket, "socket", return_value=resolver),
-            self.assertRaises(TimeoutError),
-        ):
-            _PROXY._query_ipv4("example.invalid", "203.0.113.53", "eth0", deadline=30)
-
-        self.assertEqual([call.args[0] for call in resolver.settimeout.call_args_list], [3, 2])
-        resolver.recv.assert_not_called()
-        self.assertEqual(3, clock[0])
-
     def test_expired_dns_budget_does_not_start_the_next_server(self):
         clock = [0]
 
@@ -860,19 +716,6 @@ class ImageBuildProxyWorkerTests(unittest.TestCase):
             self.assertEqual(0o600, stat.S_IMODE(retained[0].stat().st_mode))
 
             return stderr.getvalue()
-
-
-def _dns_response(host):
-    """Answer one fixed IPv4 question using a legal compressed owner name."""
-
-    return (
-        struct.pack("!HHHHHH", 111, 0x8180, 1, 1, 0, 0)
-        + encode_dns_name(host)
-        + struct.pack("!HH", 1, 1)
-        + b"\xc0\x0c"
-        + struct.pack("!HHIH", 1, 1, 60, 4)
-        + b"\xcb\x00\x71\x01"
-    )
 
 
 def _server_without_listener():

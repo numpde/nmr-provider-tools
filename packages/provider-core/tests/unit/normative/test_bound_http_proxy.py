@@ -6,6 +6,7 @@ require_container()
 
 import io
 import socket
+import struct
 import tempfile
 import unittest
 import os
@@ -14,7 +15,105 @@ from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
 
 from provider_core import bound_http_proxy
+from provider_core.adapters.dns import encode_dns_name
 from tests.fakes.proxy_logs import capture_proxy_logs
+
+
+def _dns_response(host):
+    """Answer one fixed IPv4 question using a legal compressed owner name."""
+
+    return (
+        struct.pack("!HHHHHH", 111, 0x8180, 1, 1, 0, 0) +
+        encode_dns_name(host) +
+        struct.pack("!HH", 1, 1) +
+        b"\xc0\x0c" +
+        struct.pack("!HHIH", 1, 1, 60, 4) +
+        b"\xcb\x00\x71\x01"
+    )
+
+
+class DNSQueryTests(unittest.TestCase):
+    def test_dns_binds_device_and_shares_one_query_budget(self):
+        clock = [0]
+        resolver = MagicMock()
+        resolver.__enter__.return_value = resolver
+        resolver.connect.side_effect = lambda _address: clock.__setitem__(0, 0.2)
+        resolver.send.side_effect = lambda _dns_query: clock.__setitem__(0, 0.6)
+        resolver.recv.return_value = _dns_response("example.invalid")
+
+        with (
+            patch.object(bound_http_proxy.time, "monotonic", side_effect=lambda: clock[0]),
+            patch.object(bound_http_proxy.secrets, "randbits", return_value=111),
+            patch.object(bound_http_proxy.socket, "socket", return_value=resolver),
+        ):
+            (addresses, aliases) = bound_http_proxy._query_ipv4("example.invalid", "203.0.113.53", "eth0", deadline=30)
+
+        self.assertEqual(addresses, {"example.invalid": ["203.0.113.1"]})
+        self.assertEqual(aliases, {})
+        resolver.setsockopt.assert_called_once_with(socket.SOL_SOCKET, socket.SO_BINDTODEVICE, b"eth0\0")
+        resolver.connect.assert_called_once_with(("203.0.113.53", 53))
+        self.assertEqual([call.args[0] for call in resolver.settimeout.call_args_list], [3, 2.8, 2.4])
+        self.assertEqual(resolver.send.call_args.args[0][12:], encode_dns_name("example.invalid") + struct.pack("!HH", 1, 1))
+
+    def test_dns_rejects_a_reply_for_another_question(self):
+        resolver = MagicMock()
+        resolver.__enter__.return_value = resolver
+        resolver.recv.return_value = _dns_response("other.invalid")
+
+        with (
+            patch.object(bound_http_proxy.time, "monotonic", return_value=0),
+            patch.object(bound_http_proxy.secrets, "randbits", return_value=111),
+            patch.object(bound_http_proxy.socket, "socket", return_value=resolver),
+            self.assertRaises(OSError),
+        ):
+            bound_http_proxy._query_ipv4("example.invalid", "203.0.113.53", "eth0", deadline=30)
+
+    def test_dns_late_success_rejects_the_reply_and_closes_the_socket(self):
+        """A complete reply arriving after the query budget is not admitted.
+
+        This catches the inherited missing post-recv check at:
+        https://github.com/numpde/magnet-deploy/blob/2d4ee50b0359e71900fce9289ea01f46d0f41249/scripts/image-build-proxy.py#L183-L184
+        """
+        clock = [0]
+        resolver = MagicMock()
+        resolver.__enter__.return_value = resolver
+
+        def late_reply(_size):
+            clock[0] = 3.1
+
+            return _dns_response("example.invalid")
+
+        resolver.recv.side_effect = late_reply
+
+        with (
+            patch.object(bound_http_proxy.time, "monotonic", side_effect=lambda: clock[0]),
+            patch.object(bound_http_proxy.secrets, "randbits", return_value=111),
+            patch.object(bound_http_proxy.socket, "socket", return_value=resolver),
+            self.assertRaises(TimeoutError),
+        ):
+            bound_http_proxy._query_ipv4("example.invalid", "203.0.113.53", "eth0", deadline=30)
+
+        resolver.__exit__.assert_called_once()
+
+    def test_dns_query_deadline_caps_wait_at_three_seconds(self):
+        clock = [0]
+        resolver = MagicMock()
+        resolver.__enter__.return_value = resolver
+
+        resolver.connect.side_effect = lambda _address: clock.__setitem__(0, 1)
+        resolver.send.side_effect = lambda _dns_query: clock.__setitem__(0, 3)
+
+        with (
+            patch.object(bound_http_proxy.time, "monotonic", side_effect=lambda: clock[0]),
+            patch.object(bound_http_proxy.secrets, "randbits", return_value=111),
+            patch.object(bound_http_proxy.socket, "socket", return_value=resolver),
+            self.assertRaises(TimeoutError),
+        ):
+            bound_http_proxy._query_ipv4("example.invalid", "203.0.113.53", "eth0", deadline=30)
+
+        self.assertEqual([call.args[0] for call in resolver.settimeout.call_args_list], [3, 2])
+        resolver.recv.assert_not_called()
+        self.assertEqual(3, clock[0])
 
 
 class BoundProxyTests(unittest.TestCase):
@@ -124,30 +223,6 @@ class BoundProxyTests(unittest.TestCase):
                     b"Connection: close\r\n"
                     b"\r\n"
                 )
-
-    def test_dns_name_depth_starts_at_zero_and_bounds_compression(self):
-        encoded_name = b"\x03WWW\x07Example\x03COM\0"
-        message = encoded_name + b"\x03API\xc0\x04"
-
-        for (offset, expected) in (
-            (0, ("www.example.com", len(encoded_name))),
-            (len(encoded_name), ("api.example.com", len(message))),
-        ):
-            with self.subTest(offset=offset):
-                self.assertEqual(expected, bound_http_proxy._read_dns_name(message, offset))
-                self.assertEqual(expected, bound_http_proxy._read_dns_name(message, offset, 0))
-
-        self.assertEqual(("www.example.com", len(encoded_name)), bound_http_proxy._read_dns_name(encoded_name, 0, 16))
-
-        for (encoded, offset, depth) in ((message, len(encoded_name), 16), (b"", 0, 17)):
-            with (
-                self.subTest(offset=offset, depth=depth),
-                self.assertRaisesRegex(ValueError, "compression pointer recursion is too deep"),
-            ):
-                bound_http_proxy._read_dns_name(encoded, offset, depth)
-
-        with self.assertRaisesRegex(ValueError, "compression pointer recursion is too deep"):
-            bound_http_proxy._read_dns_name(b"\xc0\x00", 0)
 
     def test_header_limit_accepts_exact_boundary_and_rejects_one_extra_byte(self):
         limit = bound_http_proxy.MAX_HEADER_BYTES
