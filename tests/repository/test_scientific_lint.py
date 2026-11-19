@@ -146,12 +146,15 @@ class ImportOrderDetectionTests(unittest.TestCase):
 
 class ScientificLintTests(unittest.TestCase):
     def test_provider_core_import_order(self):
-        source_paths = source_files(root=ROOT, patterns=("src/**/*.py",))
+        sdk_source_root = ROOT / "packages/provider-core/src"
+        source_paths = source_files(root=ROOT, patterns=(f"{sdk_source_root.relative_to(ROOT)}/**/*.py",))
+
+        self.assertTrue(source_paths, msg=f"{source_paths=} should include provider-core modules")
 
         findings = [
             f"{source_path.relative_to(ROOT)}:{line}: module import follows operational statements"
             for source_path in source_paths
-            for line in late_module_imports(source_path.read_text(), package=".".join(source_path.parent.relative_to(ROOT).parts))
+            for line in late_module_imports(source_path.read_text(), package=".".join(source_path.parent.relative_to(sdk_source_root).parts))
         ]
 
         self.assertEqual([], findings, msg="\n".join(findings))
