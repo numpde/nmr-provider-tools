@@ -548,7 +548,7 @@ OpenAI-compatible Chat Completions profile
 
 [ ] C2  Extract tool-call carrier rules from transcript ownership
     [x] Separate outbound transcript and function-call construction
-    [ ] Separate phased incoming carrier admission and field access
+    [x] Separate phased incoming carrier admission and field access
     [ ] Separate argument decoding while retaining local grants and history
     core/conversation.py:250-254,374-397,443-571
     Reads and writes role/content/reasoning_content/tool_calls; admits tool-call
@@ -575,6 +575,22 @@ OpenAI-compatible Chat Completions profile
     comparison confirmed both class bodies unchanged; focused conversation,
     interpreter, failure-projection and installation lanes passed on science
     with PRIVACY_TESTS=0 (103 tests, sixteen skips). Independent audit passed.
+    Phased admission completed 2026-11-19: upstream tool_calls.py reads role,
+    optional text, list and function-call fields at the original sequencing
+    points. Optional text is yielded lazily so local secret checks still precede
+    later-field validation. The tools adapter owns admitted wire paths/mutation.
+    Conversation keeps 128-character ID/64-character name grammars, seen/batch
+    exclusion, nonempty-call expectation, correction permission and secret checks.
+    These grammars are local supported-profile restrictions; cited SECS source
+    establishes basic field shapes, not universal regex bounds. reasoning_content
+    is the supported Magnet extension at its cited revision, not universal Chat.
+    A malformed second-call/fallback test proves partial admission reserves no
+    IDs and causes no dispatch or rejected transcript reuse. Specific malformed
+    and repeated-call errors now identify the field/relationship with bounded
+    untrusted text. Focused conversation/text-correction integration, interpreter
+    unit and installation lanes passed on science with PRIVACY_TESTS=0
+    (105 tests, seventeen skips). Independent audit's nonempty-list ownership
+    correction was applied and both integration lanes rerun successfully.
 
 [x] C3  Separate the external tool envelope from local scientific schemas
     core/input_tool.py:22-64; core/interpreter.py:525

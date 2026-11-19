@@ -4,6 +4,8 @@ from provider_core.container_guard import require_container
 
 require_container()
 
+from typing import Any
+
 
 def function_tool(*, name: str, description: str, parameters: dict) -> dict:
     """Advertise a tool without deriving its schema or granting dispatch permission."""
@@ -47,3 +49,39 @@ def function_call(*, call_id: str, name: str, arguments: str) -> dict:
             "arguments": arguments,
         },
     }
+
+
+def message_tool_calls(message: dict) -> Any:
+    """Read the optional carrier before the caller chooses its correction policy."""
+
+    return message.get("tool_calls")
+
+
+def attach_tool_calls(message: dict, calls: list[dict]) -> None:
+    """Attach only fully admitted calls to the caller-owned assistant message."""
+
+    message["tool_calls"] = calls
+
+
+def call_id(call: dict) -> str:
+    """Read an already admitted call's correlation identity."""
+
+    return call["id"]
+
+
+def call_name(call: dict) -> str:
+    """Read an already admitted function name without selecting a local handler."""
+
+    return call["function"]["name"]
+
+
+def call_arguments(call: dict) -> str:
+    """Read already admitted argument text without decoding or dispatching it."""
+
+    return call["function"]["arguments"]
+
+
+def replace_call_arguments(call: dict, arguments: str) -> None:
+    """Keep the same call while the owner canonicalizes or erases its arguments."""
+
+    call["function"]["arguments"] = arguments

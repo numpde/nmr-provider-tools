@@ -6,7 +6,7 @@ import unittest
 import os
 from unittest.mock import AsyncMock
 
-from tests.fakes.conversation import call, endpoint
+from tests.fakes.conversation import call, endpoint, recording_endpoint
 
 from provider_core.chat import ChatFailed
 
@@ -190,6 +190,24 @@ class ConversationBoundaryTests(unittest.IsolatedAsyncioTestCase):
             await conversation.run([], [], dispatch)
 
         dispatch.assert_awaited_once()
+        await conversation.retire()
+
+    async def test_partial_carrier_admission_does_not_reserve_call_identifiers(self):
+        message = call("shared", "submit", {})
+        malformed = call("malformed", "submit", {})["tool_calls"][0]
+        malformed["function"]["arguments"] = 123
+        message["tool_calls"].append(malformed)
+        first = endpoint("malformed", message)
+        second = recording_endpoint("accepted", call("shared", "submit", {}))
+        conversation = ToolConversation((first, second), max_turns=2, secrets=())
+        dispatch = AsyncMock(return_value=ToolFinished("accepted"))
+
+        result = await conversation.run([], [], dispatch)
+
+        self.assertEqual("accepted", result.value)
+        dispatch.assert_awaited_once_with("submit", {})
+        first.retire.assert_awaited_once()
+        self.assertEqual([[]], second.requests)
         await conversation.retire()
 
     async def test_tool_failure_is_operational_without_feedback_or_fallback(self):

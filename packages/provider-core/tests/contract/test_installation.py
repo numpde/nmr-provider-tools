@@ -158,6 +158,7 @@ class InstallationContractTests(unittest.TestCase):
                 "provider_core/validation/upstream/__init__.py",
                 "provider_core/validation/upstream/chat_completions/__init__.py",
                 "provider_core/validation/upstream/chat_completions/response.py",
+                "provider_core/validation/upstream/chat_completions/tool_calls.py",
                 "provider_core/validation/upstream/http.py",
                 "provider_core/validation/upstream/nmr/__init__.py",
                 "provider_core/validation/upstream/nmr/v1/__init__.py",

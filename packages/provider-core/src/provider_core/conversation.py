@@ -14,15 +14,24 @@ import asyncio
 import hashlib
 import json
 import re
+import reprlib
 from dataclasses import dataclass, field
 
 from provider_core.chat_errors import ChatFailed
 from provider_core.conversation_errors import ConversationFailed, ToolRejected
-from provider_core.adapters.chat_completions.tools import assistant_message, function_call, tool_message, user_message
+from provider_core.adapters.chat_completions import tools as chat_tools
 from provider_core.response_json import ResponseRejected, read_document
 from provider_core.transport_errors import ExchangeFailed
 from provider_core.type_requirements import require_type
 from provider_core.validation.upstream.chat_completions.response import is_completion_success
+from provider_core.validation.upstream.chat_completions.tool_calls import (
+    assistant_text_fields,
+    read_arguments_text,
+    read_call_id,
+    read_function_name,
+    require_assistant,
+    require_tool_calls,
+)
 
 
 def _encode(value):
@@ -239,8 +248,8 @@ class ToolConversation:
         reasoning and call identifiers use the same framing as actual feedback.
         The caller supplies its own request suffix and decides the byte grant.
         """
-        identifier = self._messages[-1]["tool_calls"][0]["id"]
-        feedback = tool_message(identifier, _encode(value).decode("ascii"))
+        identifier = chat_tools.call_id(chat_tools.message_tool_calls(self._messages[-1])[0])
+        feedback = chat_tools.tool_message(identifier, _encode(value).decode("ascii"))
 
         return len(
             _encode(
@@ -359,7 +368,7 @@ class ToolConversation:
 
             if len(calls) != 1:
                 for call in calls:
-                    call["function"]["arguments"] = "{}"
+                    chat_tools.replace_call_arguments(call, "{}")
 
                 self._correct_turn(calls, ToolRejected("Choose exactly one tool per turn; no operations were performed."))
                 continue
@@ -367,22 +376,22 @@ class ToolConversation:
             call = calls[0]
 
             try:
-                arguments = self._arguments(call["function"]["arguments"])
+                arguments = self._arguments(chat_tools.call_arguments(call))
             except ToolRejected as rejection:
                 # Invalid argument text may contain encoded credentials.
                 # Keep its call identity and safe correction, not that raw text.
-                call["function"]["arguments"] = "{}"
+                chat_tools.replace_call_arguments(call, "{}")
 
                 self._correct_turn(calls, rejection)
                 continue
 
-            call["function"]["arguments"] = _encode(arguments).decode("ascii")
+            chat_tools.replace_call_arguments(call, _encode(arguments).decode("ascii"))
 
             try:
-                outcome = await dispatch(call["function"]["name"], arguments)
+                outcome = await dispatch(chat_tools.call_name(call), arguments)
             except ToolRejected as rejection:
                 if self._text_correction is None:
-                    call["function"]["arguments"] = "{}"
+                    chat_tools.replace_call_arguments(call, "{}")
 
                 self._correct_turn(calls, rejection)
                 continue
@@ -409,7 +418,7 @@ class ToolConversation:
 
             require_type(outcome, ToolReply)
 
-            self._feedback(call["id"], outcome.value)
+            self._feedback(chat_tools.call_id(call), outcome.value)
 
         # silent-defaults: allow-contract -- Absent usable correction text reports exhaustion without choosing another endpoint or input.
         reason = self.last_rejection or "No tool submitted a supported input."
@@ -429,25 +438,14 @@ class ToolConversation:
             raise ConversationFailed("Interpretation retired before a decision could be accepted.")
 
     def _admit_carrier(self, message):
-        if not (type(message) is (expected_type := dict)):
-            raise ConversationFailed(f"{type(message)=} ≠ {expected_type=}")
+        require_assistant(message)
+        canonical = chat_tools.assistant_message()
 
-        if message.get("role") != "assistant":
-            raise ConversationFailed("Cannot interpret model action: the reply is not an assistant message.")
+        for text_field, assistant_text in assistant_text_fields(message):
+            self._require_no_secrets(assistant_text)
+            canonical[text_field] = assistant_text
 
-        canonical = assistant_message()
-
-        for text_field in ("content", "reasoning_content"):
-            if text_field in message:
-                assistant_text = message[text_field]
-
-                if (assistant_text is not None) and (not (type(assistant_text) is (expected_type := str))):
-                    raise ConversationFailed(f"{text_field=}; {type(assistant_text)=} ≠ {expected_type=}")
-
-                self._require_no_secrets(assistant_text)
-                canonical[text_field] = assistant_text
-
-        calls = message.get("tool_calls")
+        calls = chat_tools.message_tool_calls(message)
 
         if (
             (calls is None) and
@@ -456,56 +454,37 @@ class ToolConversation:
         ):
             return (canonical, [])
 
-        if not (type(calls) is (expected_type := list)):
-            raise ConversationFailed(f"{type(calls)=} ≠ {expected_type=}")
+        calls = require_tool_calls(calls)
+        tool_call_count = len(calls)
 
-        if not (calls):
-            raise ConversationFailed("Cannot interpret model action: the reply supplies no identifiable tool call.")
+        if not (tool_call_count > 0):
+            raise ConversationFailed(f"{tool_call_count=} should be positive")
 
         identifiers = set()
         admitted = []
 
         for call in calls:
-            if not (type(call) is (expected_type := dict)):
-                raise ConversationFailed(f"{type(call)=} ≠ {expected_type=}")
+            call_id = read_call_id(call)
 
-            call_id = call.get("id")
+            if not re.fullmatch((expected_pattern := r"[!-~]{1,128}"), call_id):
+                raise ConversationFailed(f"call_id={reprlib.repr(call_id)} should match {expected_pattern=}")
 
-            if not (type(call_id) is (expected_type := str)):
-                raise ConversationFailed(f"{type(call_id)=} ≠ {expected_type=}")
+            if not ((call_id not in self._seen_ids) and (call_id not in identifiers)):
+                raise ConversationFailed(f"{call_id=} should be new in this conversation")
 
-            if (
-                (re.fullmatch(r"[!-~]{1,128}", call_id) is None) or
-                (call_id in self._seen_ids) or
-                (call_id in identifiers) or
-                (call.get("type") != "function")
-            ):
-                raise ConversationFailed("Cannot interpret model action: tool identity, function or argument carrier is malformed or repeated.")
+            function_name = read_function_name(call)
 
-            function = call.get("function")
+            if not re.fullmatch((expected_pattern := r"[A-Za-z0-9_-]{1,64}"), function_name):
+                raise ConversationFailed(f"function_name={reprlib.repr(function_name)} should match {expected_pattern=}")
 
-            if not (type(function) is (expected_type := dict)):
-                raise ConversationFailed(f"{type(function)=} ≠ {expected_type=}")
-
-            function_name = function.get("name")
-
-            if not (type(function_name) is (expected_type := str)):
-                raise ConversationFailed(f"{type(function_name)=} ≠ {expected_type=}")
-
-            if re.fullmatch(r"[A-Za-z0-9_-]{1,64}", function_name) is None:
-                raise ConversationFailed("Cannot interpret model action: tool identity, function or argument carrier is malformed or repeated.")
-
-            function_arguments = function.get("arguments")
-
-            if not (type(function_arguments) is (expected_type := str)):
-                raise ConversationFailed(f"{type(function_arguments)=} ≠ {expected_type=}")
+            function_arguments = read_arguments_text(call)
 
             identifiers.add(call_id)
             self._require_no_secrets((call_id, function_name))
 
-            admitted.append(function_call(call_id=call_id, name=function_name, arguments=function_arguments))
+            admitted.append(chat_tools.function_call(call_id=call_id, name=function_name, arguments=function_arguments))
 
-        canonical["tool_calls"] = admitted
+        chat_tools.attach_tool_calls(canonical, admitted)
 
         self._seen_ids.update(identifiers)
 
@@ -543,7 +522,7 @@ class ToolConversation:
 
     def _feedback(self, identifier, value):
         self._require_no_secrets(value)
-        self._messages.append(tool_message(identifier, _encode(value).decode("ascii")))
+        self._messages.append(chat_tools.tool_message(identifier, _encode(value).decode("ascii")))
 
     def _correct_turn(self, calls, rejection):
         reason = str(rejection)
@@ -564,10 +543,10 @@ class ToolConversation:
             content = _encode({"rejected": reason}).decode("ascii")
 
         for call in calls:
-            self._messages.append(tool_message(call["id"], content))
+            self._messages.append(chat_tools.tool_message(chat_tools.call_id(call), content))
 
         if (self._text_correction is not None) and (self._text_correction.user_content is not None):
-            self._messages.append(user_message(self._text_correction.user_content))
+            self._messages.append(chat_tools.user_message(self._text_correction.user_content))
 
     def _observation(self):
         return _encode(
