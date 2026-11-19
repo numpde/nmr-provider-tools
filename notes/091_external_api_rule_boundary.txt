@@ -35,7 +35,7 @@ Migration checklist — inventoried 2026-11-19
 -------------------------------------------
 
 [x] Inventory authored sources, contract pins and existing test evidence
-[ ] Resolve the authority gaps below without changing selected contracts
+[x] Resolve the authority gaps below without changing selected contracts
 [ ] Separate each API's checks into validation/upstream and its wire operations
     into adapters; update callers and delete displaced implementations
 [ ] Verify and commit each coherent extraction with its focused Make lanes
@@ -99,7 +99,7 @@ into adapters. Mixed files need to be split by responsibility, not moved whole.
 Contract sources and uncertainty
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-- [ ] Establish the authority for each NMR rule being extracted
+- [x] Establish the authority for each NMR rule being extracted
   NMR Provider API: packages/provider-core/tests/contract/api_release.py:12-15
   selects release 719055db7751605c0e5325ca23bcbe66cde631376d4b2b99523c8e4db75f0d01
   and manifest dda8dc36db963f85ec9105567342dae4ba680476c7ab1114bd1e33acba65474b.
@@ -108,6 +108,31 @@ Contract sources and uncertainty
   SDK source comments also cite the earlier API revision 6a163b7a9cc1e2c7485b681c0b2b969c7c20e6c8.
   README.md:752-800 inside packages/provider-core explains the donor history.
   Preserve these distinctions; the current sibling API checkout is not the pin.
+  Verified against Git objects, 2026-11-19: all eighteen fixture files match
+  nmr_api/provider/contract_releases/v1/<release>/ at both
+  daec9d978dacfd11b85ef96496dfd2e977e8142a and the implementation donor above.
+  They also match contracts/upstream/nmr_api_v1/ in NMRPeak revision
+  1697dc84dd1d76ae25b04efc8183fd80614000e5. All sixteen schemas match
+  nmr_api/provider/schemas/ at both the declared source and implementation
+  revisions. The local manifest digest matches the selected digest above.
+  The release fixture governs its routes and consumed schema rules; it does
+  not replace the separate source authority for rules outside those schemas.
+
+  The issued credential artifact is defined separately at the implementation
+  donor: nmr_api/provider/private_signing_v1.py and credential_registration.py,
+  with nmr_api/security/private_signing_credential.py. Those sources establish
+  the seven fields, schema, algorithm and dev-local/dev/run profiles. They do
+  not establish a universal startup file-size ceiling. Startup still owns
+  captured bytes, file admission and configured provider/profile binding.
+
+  At that same revision, nmr_api/security/authentication/_rfc9421_profile.py
+  and security/credential_refs.py supply signing rules; request_ids.py and
+  json_datetime.py supply correlation/timestamp meanings. security/problems.py
+  and operations/errors.py define problem meanings. upload_transfer_http.py
+  and upload_transfer_http_contract.py define the separate whole-file store
+  interface. SDK origin grants, custody, transfer budgets, retry decisions and
+  cleanup remain local. This establishes source/fixture correspondence, not
+  live service compatibility; selected contracts and source pins are unchanged.
 - [x] Distinguish the supported Chat profile from local restrictions
   Chat Completions: core/chat.py and the SDK README cite Magnet and SECS ports.
   No comparable pinned, versioned OpenAI service schema was identified. Treat
@@ -120,10 +145,25 @@ Contract sources and uncertainty
   key representation, ASCII/alphanumeric reasoning selection and canonical full
   HTTPS URL remain local restrictions. Request/response adapters explicitly
   describe the supported subset, with no newly claimed immutable service pin.
-- [ ] Record service-schema authority separately from installed tool/library pins
+- [x] Record service-schema authority separately from installed tool/library pins
   Package and release services: actual requests identify PyPI Simple JSON,
   PyPI project/version JSON and GitHub releases. No comparable service-schema
   fixture pin was identified. Installed tools/libraries have separate lock pins.
+  The consumed service profiles are documented at
+  https://packaging.python.org/en/latest/specifications/simple-repository-api/,
+  https://docs.pypi.org/api/json/#get-release, and
+  https://docs.github.com/en/rest/releases/releases#get-a-release-by-tag-name.
+  GitHub CLI manuals are recorded under P2. No immutable service-schema pin
+  is selected here; the publisher supplies no explicit GitHub API version
+  header, and gh itself is an ambient operator tool. Approved repositories,
+  hosts, artifact identities and cache publication remain local policy.
+
+  The installer wheel pin selects pip 26.2.2, whose vendor.txt selects packaging
+  26.2. The standalone tool separately pins packaging 26.3 and tomli-w 1.2.0.
+  Installation-report version 1 and pylock 1.0 identify consumed file formats,
+  documented at https://pip.pypa.io/en/stable/reference/installation-report/
+  and https://packaging.python.org/en/latest/specifications/pylock-toml/.
+  These tool and file-format pins do not establish service-schema authority.
 
 NMR Provider API: wire and validation owners
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
