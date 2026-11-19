@@ -1145,6 +1145,14 @@ Separate adjacent tool/package interfaces from service API rules:
       reference choice, input fingerprints and publication remain local.
       Provisioning (53) and conventions (12) pass; the actual offline checker
       and wheelhouse image builds pass with the shared host interface.
+  [x] Delivery container/proxy/network/volume projections now live in its Docker
+      adapter; lexical image/process/volume field checks have a validator owner.
+      Deployment keeps its exact image, socket, resolver, network and grant
+      comparisons, including distinct restart/reuse settings/group policies.
+      Retirement retains inventory framing, all-candidate preflight, byte
+      rechecks, borrowers, reservations and uncertain-removal effects. CreatedAt
+      remains presence/stability evidence, not an age threshold. Six focused
+      retirement tests pass; source review confirms exact native argv/templates.
   Docker/Compose: operations/docker/docker_context.sh:22-57 interprets context
   endpoint output; container_operation.sh and packages/acquisition/acquisition_tool/
   owner.sh interpret create/inspect/state/exit/readiness results; image_retirement.py:138

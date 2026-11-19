@@ -14,14 +14,16 @@ mountable_path() {
         || { refuse 'input paths must be canonical absolute files without links or mount delimiters.'; return 2; }
 }
 source "$root/operations/docker/container_operation.sh"
+source "$root/operations/delivery/adapters/docker_inspection.sh"
+source "$root/operations/delivery/validation/upstream/docker_inspection.sh"
 operation_begin
 
 admit_image() {
-    [[ $image =~ ^sha256:[0-9a-f]{64}$ ]] || { refuse 'select an immutable SHARED_RUNTIME_IMAGE from delivery/image/build.'; return 2; }
-    operation_metadata "$operation_directory/image" image inspect --format '{{.Id}} {{index .Config.Labels "org.nmr-provider-tools.role"}} {{index .Config.Labels "org.nmr-provider-tools.inputs"}}' "$image"
+    docker_full_image_id "$image" || { refuse 'select an immutable SHARED_RUNTIME_IMAGE from delivery/image/build.'; return 2; }
+    delivery_inspect_image "$operation_directory/image" "$image"
     local observed
     IFS= read -r observed < "$operation_directory/image"
-    [[ $observed =~ ^(sha256:[0-9a-f]{64})\ delivery\ ([0-9a-f]{64})$ && ${BASH_REMATCH[1]} == "$image" ]] \
+    delivery_image_fields_match "$observed" "$image" delivery \
         && cmp -s "$operation_directory/image" <(printf '%s\n' "$observed") \
         || { refuse 'the selected image is not an admitted shared delivery build.'; return 2; }
 }
@@ -49,7 +51,7 @@ grant_helper_input() {
 }
 
 project_containers() {
-    operation_metadata "$operation_directory/project-containers" ps --all --quiet --no-trunc --filter "label=com.docker.compose.project=$project"
+    delivery_list_project_containers "$operation_directory/project-containers" "$project"
     identifiers=()
     daemon_identifiers=()
     other_identifiers=()
@@ -59,8 +61,8 @@ project_containers() {
     fi
     local identifier kind observed
     for identifier in "${identifiers[@]}"; do
-        [[ $identifier =~ ^[0-9a-f]{64}$ ]] || return 2
-        operation_metadata "$operation_directory/owner" inspect --type container --format '{{.Id}}|{{index .Config.Labels "org.nmr-provider-tools.delivery"}}|{{index .Config.Labels "com.docker.compose.project"}}|{{index .Config.Labels "com.docker.compose.service"}}' "$identifier"
+        docker_full_container_id "$identifier" || return 2
+        delivery_inspect_container_owner "$operation_directory/owner" "$identifier"
         IFS= read -r observed < "$operation_directory/owner"
         kind=${observed##*|}
         cmp -s "$operation_directory/owner" <(printf '%s|%s|%s|%s\n' "$identifier" "$project" "$project" "$kind") \
@@ -78,9 +80,9 @@ report_stopped_daemons() {
     local identifier receipt observed process_state process_exit process_oom
     for identifier in "${daemon_identifiers[@]}"; do
         receipt="$operation_directory/stopped-$identifier"
-        if operation_metadata "$receipt" inspect --type container --format '{{.State.Status}}|{{.State.ExitCode}}|{{.State.OOMKilled}}' "$identifier" \
+        if delivery_inspect_container_process "$receipt" "$identifier" \
             && IFS= read -r observed < "$receipt" \
-            && [[ $observed =~ ^exited\|[0-9]+\|(true|false)$ ]]; then
+            && delivery_container_process_fields_match "$observed" exited; then
             IFS='|' read -r process_state process_exit process_oom <<< "$observed"
             printf 'Delivery process exited with code %s (OOM killed: %s). Its exit does not establish the outcome of an in-flight API request.\n' "$process_exit" "$process_oom"
             if [[ $observed != 'exited|0|false' ]]; then
@@ -117,7 +119,7 @@ select_shared_definition() {
     definition="$root/config/deployments/$DEPLOYMENT_INPUT/settings.toml"
     source "$root/operations/delivery/image_identity.sh"
     recipe=$(delivery_recipe_identity)
-    if ! operation_metadata "$operation_directory/recipe-image" image inspect --format '{{.Id}} {{index .Config.Labels "org.nmr-provider-tools.recipe"}}' "nmr-provider-tools/delivery-recipe:$recipe"; then
+    if ! delivery_inspect_recipe_image "$operation_directory/recipe-image" "nmr-provider-tools/delivery-recipe:$recipe"; then
         refuse 'the pinned delivery image is not prepared; run make delivery/prepare.'; exit 2
     fi
     IFS=' ' read -r image actual_recipe < "$operation_directory/recipe-image"
@@ -160,18 +162,15 @@ if [[ $action == proxy-restart ]]; then
         'import sys; f = open(sys.argv[1], "rb"); f.read(1); f.close()' "/settings/$settings_name" \
         || { refuse 'the proxy UID cannot read the shared settings; restore its read access before replacement.'; exit 2; }
     reserve_project
-    operation_metadata "$operation_directory/proxy-containers" ps --all --quiet --no-trunc \
-        --filter "label=com.docker.compose.project=$proxy_project" --filter 'label=com.docker.compose.service=proxy'
+    delivery_list_project_service_containers "$operation_directory/proxy-containers" "$proxy_project" proxy
     mapfile -t proxy_identifiers < "$operation_directory/proxy-containers"
-    [[ ${#proxy_identifiers[@]} == 1 && ${proxy_identifiers[0]} =~ ^[0-9a-f]{64}$ ]] \
+    [[ ${#proxy_identifiers[@]} == 1 ]] && docker_full_container_id "${proxy_identifiers[0]}" \
         || { refuse 'the existing proxy must have one exact container identity.'; exit 2; }
     proxy_id=${proxy_identifiers[0]}
-    operation_metadata "$operation_directory/proxy-owner" inspect --type container --format \
-        '{{.Id}}|{{.State.Running}}|{{index .Config.Labels "org.nmr-provider-tools.delivery"}}|{{range .Mounts}}{{if eq .Destination "/route"}}{{.Name}}{{end}}{{end}}' "$proxy_id"
+    delivery_inspect_running_proxy_socket "$operation_directory/proxy-owner" "$proxy_id"
     cmp -s "$operation_directory/proxy-owner" <(printf '%s|true|%s|%s\n' "$proxy_id" "$proxy_project" "$project-proxy-socket") \
         || { refuse 'the running proxy does not own the expected shared socket volume.'; exit 2; }
-    operation_metadata "$operation_directory/proxy-grants" inspect --type container --format \
-        '[{{json .Config.User}},{{json .Config.Cmd}},{{json .HostConfig.NetworkMode}},{{range .Mounts}}{{if eq .Destination "/settings"}}{{json .Source}}{{end}}{{end}}]' "$proxy_id"
+    delivery_inspect_proxy_restart_grants "$operation_directory/proxy-grants" "$proxy_id"
     # The selected settings directory may intentionally move; other fixed grants stay the same.
     jq -e --slurpfile actual "$operation_directory/proxy-grants" '
         (.services.proxy | [.user, .command, (.network_mode // "")] ) as $expected |
@@ -181,28 +180,27 @@ if [[ $action == proxy-restart ]]; then
         || { refuse 'the running proxy has different fixed grants; inspect it before replacement.'; exit 2; }
     expected_network=$(jq -r '.networks.api.name // empty' "$operation_directory/proxy.json")
     if [[ -n $expected_network ]]; then
-        operation_metadata "$operation_directory/proxy-networks" inspect --type container --format '{{range .NetworkSettings.Networks}}{{.NetworkID}}{{"\n"}}{{end}}' "$proxy_id"
+        delivery_inspect_container_networks "$operation_directory/proxy-networks" "$proxy_id"
         [[ $(cat "$operation_directory/proxy-networks") == "$expected_network" ]] \
             || { refuse 'the running proxy has a different network; inspect it before replacement.'; exit 2; }
     fi
     expected_resolver=$(jq -r '.services.proxy.volumes[] | select(.target == "/etc/resolv.conf") | .source' "$operation_directory/proxy.json")
     if [[ -n $expected_resolver ]]; then
-        operation_metadata "$operation_directory/proxy-resolver" inspect --type container --format '{{range .Mounts}}{{if eq .Destination "/etc/resolv.conf"}}{{.Source}}{{end}}{{end}}' "$proxy_id"
+        delivery_inspect_proxy_resolver "$operation_directory/proxy-resolver" "$proxy_id"
         [[ $(cat "$operation_directory/proxy-resolver") == "$expected_resolver" ]] \
             || { refuse 'the running proxy has a different resolver; inspect it before replacement.'; exit 2; }
     fi
-    operation_metadata "$operation_directory/socket-volume" volume inspect --format '{{.Name}}' "$project-proxy-socket"
+    delivery_inspect_volume_name "$operation_directory/socket-volume" "$project-proxy-socket"
     cmp -s "$operation_directory/socket-volume" <(printf '%s\n' "$project-proxy-socket") \
         || { refuse 'the existing proxy socket volume could not be confirmed.'; exit 2; }
     operation_call 'replace the independent shared API proxy' 180 stdio "${engine[@]}" compose --env-file /dev/null \
         --project-name "$proxy_project" --project-directory / --file "$operation_directory/proxy.json" \
         up --detach --no-deps --force-recreate --no-build --pull never --wait --wait-timeout 120 proxy
-    operation_metadata "$operation_directory/new-proxy" ps --quiet --no-trunc --filter "label=com.docker.compose.project=$proxy_project" \
-        --filter 'label=com.docker.compose.service=proxy' --filter 'health=healthy'
+    delivery_list_healthy_service_containers "$operation_directory/new-proxy" "$proxy_project" proxy
     mapfile -t new_proxy < "$operation_directory/new-proxy"
-    [[ ${#new_proxy[@]} == 1 && ${new_proxy[0]} =~ ^[0-9a-f]{64}$ && ${new_proxy[0]} != "$proxy_id" ]] \
+    [[ ${#new_proxy[@]} == 1 ]] && docker_full_container_id "${new_proxy[0]}" && [[ ${new_proxy[0]} != "$proxy_id" ]] \
         || { refuse 'the replacement proxy was not uniquely observed healthy.'; exit 2; }
-    operation_metadata "$operation_directory/new-proxy-image" inspect --type container --format '{{.Image}}|{{range .Mounts}}{{if eq .Destination "/route"}}{{.Name}}{{end}}{{end}}' "${new_proxy[0]}"
+    delivery_inspect_proxy_image_socket "$operation_directory/new-proxy-image" "${new_proxy[0]}"
     cmp -s "$operation_directory/new-proxy-image" <(printf '%s|%s\n' "$image" "$project-proxy-socket") \
         || { refuse 'the replacement image or socket volume does not match the requested deployment.'; exit 2; }
     printf -v operation_success 'Replaced the independent proxy for %s; its socket volume remains in place.\n' "$project"
@@ -221,22 +219,21 @@ if [[ $action == up ]]; then
         'import sys; f = open(sys.argv[1], "rb"); f.read(1); f.close()' "/settings/$settings_name" \
         || { refuse 'the distinct proxy UID cannot read the shared settings directory and file; grant the shared group read access.'; exit 2; }
     reserve_project
-    operation_metadata "$operation_directory/proxy-containers" ps --all --quiet --no-trunc --filter "label=com.docker.compose.project=$proxy_project"
+    delivery_list_project_containers "$operation_directory/proxy-containers" "$proxy_project"
     mapfile -t proxy_identifiers < "$operation_directory/proxy-containers"
     if [[ ${#proxy_identifiers[@]} == 0 ]]; then
         operation_call 'start the independent shared API proxy' 180 stdio "${engine[@]}" compose --env-file /dev/null \
             --project-name "$proxy_project" --project-directory / --file "$operation_directory/proxy.json" \
             up --detach --no-build --pull never --wait --wait-timeout 120
     else
-        operation_metadata "$operation_directory/proxy-running" ps --quiet --no-trunc --filter "label=com.docker.compose.project=$proxy_project" \
-            --filter 'label=com.docker.compose.service=proxy' --filter 'health=healthy'
+        delivery_list_healthy_service_containers "$operation_directory/proxy-running" "$proxy_project" proxy
         mapfile -t proxy_running < "$operation_directory/proxy-running"
         [[ ${#proxy_running[@]} == 1 ]] || { refuse 'the existing independent proxy is not uniquely healthy; leave it unchanged and inspect it.'; exit 2; }
-        operation_metadata "$operation_directory/proxy-owner" inspect --type container --format '{{index .Config.Labels "org.nmr-provider-tools.delivery"}}|{{range .Mounts}}{{if eq .Destination "/route"}}{{.Name}}{{end}}{{end}}' "${proxy_running[0]}"
+        delivery_inspect_proxy_socket_owner "$operation_directory/proxy-owner" "${proxy_running[0]}"
         IFS= read -r existing_proxy_owner < "$operation_directory/proxy-owner"
         [[ $existing_proxy_owner == "$proxy_project|$project-proxy-socket" ]] \
             || { refuse 'the existing proxy does not own the expected shared socket; leave it unchanged and inspect the deployment.'; exit 2; }
-        operation_metadata "$operation_directory/proxy-grants" inspect --type container --format '[{{json .Config.User}},{{json .Config.Cmd}},{{json .HostConfig.NetworkMode}},{{range .Mounts}}{{if eq .Destination "/settings"}}{{json .Source}}{{end}}{{end}},{{json .HostConfig.GroupAdd}}]' "${proxy_running[0]}"
+        delivery_inspect_proxy_reuse_grants "$operation_directory/proxy-grants" "${proxy_running[0]}"
         jq -e --slurpfile actual "$operation_directory/proxy-grants" '
             (.services.proxy | [.user, .command, (.network_mode // ""),
                 (.volumes[] | select(.target == "/settings") | .source), (.group_add // [])] ) as $expected |
@@ -247,14 +244,14 @@ if [[ $action == up ]]; then
             || { refuse 'the running proxy has different fixed grants; leave it unchanged and inspect the deployment.'; exit 2; }
         expected_resolver=$(jq -r '.services.proxy.volumes[] | select(.target == "/etc/resolv.conf") | .source' "$operation_directory/proxy.json")
         if [[ -n $expected_resolver ]]; then
-            operation_metadata "$operation_directory/proxy-resolver" inspect --type container --format '{{range .Mounts}}{{if eq .Destination "/etc/resolv.conf"}}{{.Source}}{{end}}{{end}}' "${proxy_running[0]}"
+            delivery_inspect_proxy_resolver "$operation_directory/proxy-resolver" "${proxy_running[0]}"
             IFS= read -r existing_resolver < "$operation_directory/proxy-resolver"
             [[ $existing_resolver == "$expected_resolver" ]] \
                 || { refuse 'the running proxy has a different resolver grant; leave it unchanged and inspect the deployment.'; exit 2; }
         fi
         expected_network=$(jq -r '.networks.api.name // empty' "$operation_directory/proxy.json")
         if [[ -n $expected_network ]]; then
-            operation_metadata "$operation_directory/proxy-networks" inspect --type container --format '{{range .NetworkSettings.Networks}}{{.NetworkID}}{{"\n"}}{{end}}' "${proxy_running[0]}"
+            delivery_inspect_container_networks "$operation_directory/proxy-networks" "${proxy_running[0]}"
             [[ $(cat "$operation_directory/proxy-networks") == "$expected_network" ]] \
                 || { refuse 'the running proxy uses a different network; leave it unchanged and inspect the deployment.'; exit 2; }
         fi
@@ -298,7 +295,7 @@ if [[ $action == held || $action == discard ]]; then
         fi
         grants=(--mount "type=bind,src=$operation_directory/shared.toml,dst=/input/shared.toml,readonly"
             --mount "type=volume,src=$project-queue,dst=/state,volume-nocopy")
-        operation_metadata "$operation_directory/queue" volume inspect --format '{{.Name}}' "$project-queue"
+        delivery_inspect_volume_name "$operation_directory/queue" "$project-queue"
         cmp -s "$operation_directory/queue" <(printf '%s\n' "$project-queue") \
             || { refuse 'the selected queue is absent or its name differs; no inspection helper was started.'; exit 2; }
         helper -m provider_core.delivery_discard --shared-config /input/shared.toml --state-directory /state \
@@ -309,7 +306,7 @@ fi
 select_project
 project_containers
 if [[ $action == down && ${#identifiers[@]} != 0 ]]; then
-    operation_metadata "$operation_directory/runtime-image" inspect --type container --format '{{.Image}}' "${identifiers[0]}"
+    delivery_inspect_container_image "$operation_directory/runtime-image" "${identifiers[0]}"
     IFS= read -r image < "$operation_directory/runtime-image"
     admit_image
     reserve_project

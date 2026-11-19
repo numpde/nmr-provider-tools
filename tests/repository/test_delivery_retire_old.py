@@ -25,6 +25,16 @@ class DeliveryRetireOldTests(unittest.TestCase):
 
             retirement_script.parent.mkdir(parents=True)
             shutil.copyfile(ROOT / 'operations/delivery/retire_old.sh', retirement_script)
+
+            for path in (
+                'operations/delivery/adapters/docker_inspection.sh',
+                'operations/delivery/validation/upstream/docker_inspection.sh',
+                'operations/docker/validation/upstream/image_ids.sh',
+            ):
+                target = root / path
+                target.parent.mkdir(parents=True, exist_ok=True)
+                shutil.copyfile(ROOT / path, target)
+
             (root / 'volumes').write_text(''.join(name + '\n' for name in names))
 
             (docker / 'container_operation.sh').write_text(

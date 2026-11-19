@@ -3,13 +3,15 @@
 set -euo pipefail
 umask 077
 root=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/../.." && pwd -P)
-[[ $# == 2 && $1 =~ ^[a-z0-9][a-z0-9_-]{0,62}$ && $2 =~ ^sha256:[0-9a-f]{64}$ ]] || {
+source "$root/operations/delivery/validation/upstream/docker_inspection.sh"
+[[ $# == 2 && $1 =~ ^[a-z0-9][a-z0-9_-]{0,62}$ ]] && docker_full_image_id "$2" || {
     printf '%s\n' 'Cannot retire old delivery sockets: select the project and immutable shared delivery image.' >&2
     exit 2
 }
 project=$1 image=$2 uid=$(id -u) gid=$(id -g)
 [[ $uid != 0 && $gid != 0 ]] || { printf '%s\n' 'Cannot retire old delivery sockets as root; use the installing account.' >&2; exit 2; }
 source "$root/operations/docker/container_operation.sh"
+source "$root/operations/delivery/adapters/docker_inspection.sh"
 operation_begin
 removal_requested=false
 report_failure() {
@@ -33,9 +35,9 @@ interrupted() {
 trap 'interrupted 129' HUP
 trap 'interrupted 130' INT
 trap 'interrupted 143' TERM
-operation_metadata "$operation_directory/image" image inspect --format '{{.Id}} {{index .Config.Labels "org.nmr-provider-tools.role"}} {{index .Config.Labels "org.nmr-provider-tools.inputs"}}' "$image" || { status=$?; report_failure 'the shared delivery image could not be inspected.'; exit "$status"; }
+delivery_inspect_image "$operation_directory/image" "$image" || { status=$?; report_failure 'the shared delivery image could not be inspected.'; exit "$status"; }
 IFS= read -r observed < "$operation_directory/image"
-[[ $observed =~ ^(sha256:[0-9a-f]{64})\ delivery\ ([0-9a-f]{64})$ && ${BASH_REMATCH[1]} == "$image" ]] \
+delivery_image_fields_match "$observed" "$image" delivery \
     && cmp -s "$operation_directory/image" <(printf '%s\n' "$observed") \
     || { report_failure 'the image is not an admitted shared delivery build.'; exit 2; }
 operation_create --name "nmr-provider-tools-operation-$project" --pull never --network none --read-only \
@@ -46,7 +48,7 @@ inventory() {
     local destination=$1 kind
     local -a found
     for kind in ipc route; do
-        operation_metadata "$operation_directory/inventory-$kind" volume ls --filter "name=^${project}-${kind}-" --format '{{.Name}}' \
+        delivery_list_volumes_with_prefix "$operation_directory/inventory-$kind" "$project-$kind-" \
             || return "$?"
         mapfile -t found < "$operation_directory/inventory-$kind"
         if (( ${#found[@]} )); then
@@ -68,15 +70,16 @@ for volume in "${listed[@]}"; do
 done
 inspect_candidate() {
     local volume=$1 receipt=$2 borrower=$3 owner logical driver options created extra
-    operation_metadata "$receipt" volume inspect --format '{{.Name}}|{{index .Labels "com.docker.compose.project"}}|{{index .Labels "com.docker.compose.volume"}}|{{.Driver}}|{{json .Options}}|{{.CreatedAt}}' "$volume" \
+    delivery_inspect_volume_owner "$receipt" "$volume" \
         || { local status=$?; report_failure "ownership of $volume could not be inspected."; return "$status"; }
     extra=
     IFS='|' read -r observed owner logical driver options created extra < "$receipt"
     [[ $observed == "$volume" && $owner == "$project" && $logical == "$volume" && $driver == local \
-        && ( $options == null || $options == '{}' ) && -n $created && -z $extra ]] \
+        && ( $options == null || $options == '{}' ) ]] \
+        && delivery_volume_fields_present "$created" "$extra" \
         && cmp -s "$receipt" <(printf '%s|%s|%s|%s|%s|%s\n' "$observed" "$owner" "$logical" "$driver" "$options" "$created") \
         || { report_failure "ownership or storage settings of $volume could not be confirmed."; return 2; }
-    operation_metadata "$borrower" ps --all --quiet --no-trunc --filter "volume=$volume" \
+    delivery_list_volume_borrowers "$borrower" "$volume" \
         || { local status=$?; report_failure "borrowers of $volume could not be inspected."; return "$status"; }
     [[ ! -s $borrower ]] || { report_failure "$volume is still borrowed by a container; stop or remove the borrower first."; return 2; }
 }
