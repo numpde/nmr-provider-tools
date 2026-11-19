@@ -35,6 +35,7 @@ def _generic_name(*, variable_name: str) -> bool:
         "value",
         "values",
         "data",
+        "document",
         "item",
         "items",
         "entries",
@@ -122,15 +123,18 @@ class GenericVariableNamePostureTests(unittest.TestCase):
             second=[finding.variable_name for finding in _findings(source=source)],
         )
 
-    def test_entries_requires_a_specific_purpose(self):
+    def test_entries_and_document_require_a_specific_purpose(self):
         source = (
             "entries = []\n"
             "_ENTRIES = []\n"
             "reference_entries = []\n"
+            "document = {}\n"
+            "_DOCUMENT = {}\n"
+            "release_manifest = {}\n"
         )
 
         self.assertEqual(
-            first=["entries", "_ENTRIES"],
+            first=["entries", "_ENTRIES", "document", "_DOCUMENT"],
             second=[finding.variable_name for finding in _findings(source=source)],
         )
 
