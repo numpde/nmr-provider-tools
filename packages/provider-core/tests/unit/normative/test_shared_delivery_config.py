@@ -63,10 +63,10 @@ class SharedDeliveryConfigurationTests(unittest.TestCase):
             with patch("sys.argv", argv), contextlib.redirect_stdout(output):
                 delivery_discard.main()
 
-            result = json.loads(output.getvalue())
+            inventory_report = json.loads(output.getvalue())
 
-            self.assertEqual(result["held"][0]["execution_attempt_ref"], delivery_outcome.execution_attempt_ref)
-            self.assertEqual(result["pending"][0]["execution_attempt_ref"], outcome(suffix="1").execution_attempt_ref)
+            self.assertEqual(inventory_report["held"][0]["execution_attempt_ref"], delivery_outcome.execution_attempt_ref)
+            self.assertEqual(inventory_report["pending"][0]["execution_attempt_ref"], outcome(suffix="1").execution_attempt_ref)
             self.assertNotIn("SCIENTIFIC_PAYLOAD_NEEDLE", output.getvalue())
 
     def test_atomic_reload_changes_admission_and_worker_retry_retains_last_good(self):
