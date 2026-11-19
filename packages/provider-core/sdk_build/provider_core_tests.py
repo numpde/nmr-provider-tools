@@ -107,10 +107,12 @@ def _discover_examples(
             raise ValueError(f"An example cannot replace a scientific stand-in; {distribution_name=}")
 
         dependencies = project["dependencies"]
+
         sdk_dependencies = {
             f"provider-core=={core_version}",  # machine-string: package installer parses the exact core-version requirement
             f"provider-core[api]=={core_version}",  # machine-string: package installer parses the exact API-extra requirement
         }
+
         selected_sdk_dependencies = sdk_dependencies.intersection(dependencies)
 
         if not (len(selected_sdk_dependencies) == 1):
@@ -275,6 +277,7 @@ def run_suite(suite: str, patterns: tuple[str, ...]) -> None:
             )
 
             scientific_mocks = _discover_mocks(mocks_root=pathlib.Path("/mocks"))
+
             mock_dependencies = frozenset(
                 f"{name}=={version}"  # machine-string: pip parses the exact scientific-mock version requirement
                 for (_, name, version) in scientific_mocks

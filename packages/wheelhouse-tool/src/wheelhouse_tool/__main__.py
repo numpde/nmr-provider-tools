@@ -303,6 +303,7 @@ def download_once(pool, artifact_name, expected_sha256, url, directory_fd):
                         pending.error.close()
                     except OSError as close_error:
                         close_failure = failure_detail(close_error)
+
                         details.append(f"could not close the HTTP error response; {close_failure=}")
             elif isinstance(pending, OSError):
                 local_errno = None
@@ -328,6 +329,7 @@ def download_once(pool, artifact_name, expected_sha256, url, directory_fd):
 
             details.append("could not remove the temporary file from the wheelhouse")
             cleanup_evidence = "; ".join(details)
+
             raise OSError(f"Cannot finish acquiring {artifact_name=}: {cleanup_evidence=}.") from None
 
 

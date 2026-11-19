@@ -617,6 +617,7 @@ def publish_readiness(ready_file, content):
         published = True
     except OSError as error:
         error_type = type(error).__name__
+
         raise SystemExit(f"Cannot start proxy: readiness publication failed ({error_type = }).") from None
     finally:
         try:
@@ -673,6 +674,7 @@ def main() -> None:
                 args.ready_file,
                 f"{server.server_address[1]}\n",  # machine-string: readiness consumers parse the port as a numeric line; debug labels would change the protocol.
             )
+
             server.serve_forever()
 
         return
@@ -699,6 +701,7 @@ def main() -> None:
                 args.ready_file,
                 f"{server.server_address}\n",  # machine-string: readiness consumers parse the socket address line; debug labels would change the protocol.
             )
+
             server.serve_forever()
     else:
         with ProxyServer(("127.0.0.1", args.port), args.interface, dns_servers=dns_servers) as server:
@@ -706,6 +709,7 @@ def main() -> None:
                 args.ready_file,
                 f"{server.server_address[1]}\n",  # machine-string: readiness consumers parse the port as a numeric line; debug labels would change the protocol.
             )
+
             server.serve_forever()
 
 

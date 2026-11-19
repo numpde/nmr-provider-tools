@@ -271,6 +271,7 @@ class DeliveryClient:
 
     async def status(self, execution_attempt_ref):
         require_attempt_ref(execution_attempt_ref)
+
         reply = await self._request(
             "GET",
             f"/status/{execution_attempt_ref}",  # machine-string: the local IPC service parses this exact status route

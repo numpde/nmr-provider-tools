@@ -195,12 +195,15 @@ class DeliveryQueue:
             self._db.execute(
                 "PRAGMA journal_mode=DELETE"  # machine-string: SQLite selects the single-file journal mode required by delivery ownership
             )
+
             self._db.execute(
                 "PRAGMA synchronous=EXTRA"  # machine-string: SQLite enforces the configured durable commit policy
             )
+
             self._db.execute(
                 "PRAGMA secure_delete=ON"  # machine-string: SQLite erases deleted publication data as required by storage policy
             )
+
             self._initialize()
         except (OSError, sqlite3.Error, DeliveryStorageFailed) as cause:
             self.close()
@@ -267,6 +270,7 @@ class DeliveryQueue:
         if version == 1:
             with self._transaction("upgrade"):
                 self._db.execute("ALTER TABLE outstanding ADD COLUMN publication BLOB")
+
                 self._db.execute(
                     "PRAGMA user_version=2"  # machine-string: SQLite records the migrated delivery schema version
                 )

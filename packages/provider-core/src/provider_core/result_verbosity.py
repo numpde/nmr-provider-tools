@@ -27,6 +27,7 @@ class ResultVerbosity(StrEnum):
             return cls(value)
         except ValueError:
             allowed_values = ", ".join(item.value for item in cls)
+
             raise ValueError(
                 f"Cannot parse {cls.__name__ = } from {value = }; allowed verbosity values: {allowed_values = }."
             ) from None

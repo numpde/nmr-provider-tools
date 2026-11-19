@@ -72,6 +72,7 @@ def build(pool, output, source, lock, *, type_requirements_source):
     bundle_members["type_requirements.py"] = type_requirements_source.read_bytes()
 
     temporary_prefix = f".{output.name}."  # machine-string: temporary bundle files remain distinguishable beside the target output
+
     (temporary_fd, temporary_name) = tempfile.mkstemp(
         prefix=temporary_prefix,
         suffix=".part",

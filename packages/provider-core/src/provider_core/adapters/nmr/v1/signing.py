@@ -84,6 +84,7 @@ def signed_request(identity, *, method, path, query, body, created, nonce):
         f'"{name}": {value}'  # machine-string: RFC 9421 signature base preserves these exact component lines
         for (name, value) in values.items()
     ]
+
     signature_parameters = f'"@signature-params": {ser([member])}'  # machine-string: RFC 9421 signature base requires this exact serialization
     base = "\n".join(header_lines + [signature_parameters])
     headers["Signature-Input"] = ser({"sig1": member})

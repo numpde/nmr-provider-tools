@@ -233,6 +233,7 @@ class ChatEndpoint:
         if len(content) > self._request_bytes:
             content_bytes = len(content)
             content_byte_limit = self._request_bytes
+
             raise ChatFailed(
                 "request_limit",
                 f"Cannot send interpreter request: {content_bytes = } exceeds {content_byte_limit = }; this turn was not sent.",

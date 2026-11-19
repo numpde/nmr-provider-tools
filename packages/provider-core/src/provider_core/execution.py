@@ -256,6 +256,7 @@ class ExecutionStopped(RuntimeError):
     def __init__(self, observation):
         attempt_state = observation.state
         job_state = observation.job_state
+
         super().__init__(
             f"Cannot proceed with analysis: observed {attempt_state = } and {job_state = }; preserve the current record."
         )

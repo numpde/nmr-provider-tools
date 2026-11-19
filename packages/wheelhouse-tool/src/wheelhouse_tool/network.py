@@ -41,10 +41,12 @@ def failure_detail(error):
     if isinstance(reason, OSError):
         if match := re.match(r"^Tunnel connection failed: ([0-9]{3})(?:\s|$)", str(reason)):
             tunnel_status = match[1]
+
             return f"the proxy tunnel returned HTTP {tunnel_status=}"
 
         if isinstance(reason.errno, int):
             error_number = reason.errno
+
             return f"an I/O operation failed with {error_number=}"
 
     if isinstance(reason, http.client.HTTPException):
@@ -134,6 +136,7 @@ def retry(operation, operation_context):
                     failure.error.close()
                 except OSError as close_error:
                     close_failure_summary = failure_detail(close_error)
+
                     raise OSError(
                         f"{operation_context=}: {failure_summary=}; HTTP error response "
                         f"could not be closed; {close_failure_summary=}."

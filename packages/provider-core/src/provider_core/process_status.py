@@ -146,6 +146,7 @@ def check_status(path, role):
 
     if not (status_record["phase"] in ("ready", "working")):
         process_phase = status_record["phase"]
+
         raise ValueError(f"Process is not ready: {process_phase = }.")
 
     return status_record

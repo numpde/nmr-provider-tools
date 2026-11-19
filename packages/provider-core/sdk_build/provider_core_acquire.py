@@ -40,6 +40,7 @@ def cache_state(pool, locks):
             for identity in expected:
                 version_specifier = f"=={identity[1]}"  # machine-string: packaging parses the exact version constraint
                 specifiers[identity] = Specifier(version_specifier)
+
             found = set()
             conflicting = {}
 

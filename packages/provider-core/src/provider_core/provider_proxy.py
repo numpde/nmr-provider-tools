@@ -547,6 +547,7 @@ def socket_grant(path, ready, *, socket_group_id=None):
                 os.unlink(name, dir_fd=descriptor)
         except OSError as error:
             cause_type = type(error).__name__
+
             raise ServiceRefused(
                 f"Cannot start service proxy: private filesystem grant admission failed with {cause_type = } and {error.errno = }."
             ) from error

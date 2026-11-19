@@ -203,6 +203,7 @@ def _operation(control, *, generation, lock_identity, lease, scratch_fd, argv, o
         )
 
         child.close()
+
         LOGGER.info(
             "event=child_started operation=%s pid=%d",  # machine-string: operator event consumers parse these stable event and key=value fields.
             operation,
@@ -334,9 +335,11 @@ def serve(options, argv, shutdown):
         scratch_fd = _private_directory(options.scratch)
         status_fd = _private_directory(options.status_directory)
         (lease, lock_identity) = _lease(parent)
+
         status_directory = pathlib.Path(
             f"/proc/self/fd/{status_fd}",  # machine-string: ProcessStatus reads through this exact inherited proc-fd directory.
         )
+
         status = ProcessStatus(status_directory, options.role)
 
         status.refresh("starting")

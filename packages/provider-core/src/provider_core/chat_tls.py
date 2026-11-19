@@ -140,6 +140,7 @@ def _load_material(context, kind, raw, directory):
                 stream.flush()
 
             os.lseek(descriptor, 0, os.SEEK_SET)
+
             _SSL_CONTEXT.load_verify_locations(
                 context,
                 cafile=f"/proc/self/fd/{descriptor}",  # machine-string: OpenSSL consumes this proc-fd path; adding the expression name would change the path.
