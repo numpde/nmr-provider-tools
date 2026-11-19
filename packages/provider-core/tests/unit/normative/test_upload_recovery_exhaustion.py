@@ -22,7 +22,7 @@ class UploadRecoveryExhaustionTests(unittest.IsolatedAsyncioTestCase):
         (owner, api, store) = self.fixture.owner(recovery=self.fixture.policy(attempts=1))
         client = fixture.refusal(503, "service_unavailable")
 
-        with patch("provider_core.transport.httpcore.AsyncConnectionPool", return_value=client), patch.object(
+        with patch("provider_core.adapters.httpcore.httpcore.AsyncConnectionPool", return_value=client), patch.object(
             api,
             "retire",
             wraps=api.retire
@@ -50,7 +50,7 @@ class UploadRecoveryExhaustionTests(unittest.IsolatedAsyncioTestCase):
         ]
 
         with private_source_directory() as (_, directory), patch(
-            "provider_core.transport.httpcore.AsyncConnectionPool",
+            "provider_core.adapters.httpcore.httpcore.AsyncConnectionPool",
             side_effect=clients
         ):
             await owner.inspect()
@@ -83,7 +83,7 @@ class UploadRecoveryExhaustionTests(unittest.IsolatedAsyncioTestCase):
             fixture.store_reply(failure=current)
         ]
 
-        with patch("provider_core.transport.httpcore.AsyncConnectionPool", side_effect=clients):
+        with patch("provider_core.adapters.httpcore.httpcore.AsyncConnectionPool", side_effect=clients):
             await owner.inspect()
 
             with self.assertRaisesRegex(UploadRecoveryExhausted, "3 requests.*1 remain") as caught:
@@ -104,7 +104,7 @@ class UploadRecoveryExhaustionTests(unittest.IsolatedAsyncioTestCase):
             fixture.store_reply(failure=temporary_read_error())
         ]
 
-        with patch("provider_core.transport.httpcore.AsyncConnectionPool", side_effect=clients):
+        with patch("provider_core.adapters.httpcore.httpcore.AsyncConnectionPool", side_effect=clients):
             await owner.inspect()
 
             with self.assertRaisesRegex(UploadRecoveryExhausted, "remaining byte budget"):
@@ -115,7 +115,7 @@ class UploadRecoveryExhaustionTests(unittest.IsolatedAsyncioTestCase):
         client = fixture.refusal(503, "service_unavailable")
         client.headers += ((b"retry-after", b"1"),)
 
-        with patch("provider_core.transport.httpcore.AsyncConnectionPool", return_value=client):
+        with patch("provider_core.adapters.httpcore.httpcore.AsyncConnectionPool", return_value=client):
             with self.assertRaisesRegex(UploadRecoveryExhausted, "deadline") as caught:
                 await owner.inspect()
 
@@ -126,7 +126,7 @@ class UploadRecoveryExhaustionTests(unittest.IsolatedAsyncioTestCase):
         (owner, _, _) = self.fixture.owner()
 
         with patch(
-            "provider_core.transport.httpcore.AsyncConnectionPool",
+            "provider_core.adapters.httpcore.httpcore.AsyncConnectionPool",
             return_value=fixture.refusal(503, "service_unavailable")
         ):
             with self.assertRaises(ApiFailure) as caught:
@@ -136,7 +136,7 @@ class UploadRecoveryExhaustionTests(unittest.IsolatedAsyncioTestCase):
         (owner, _, _) = self.fixture.owner(recovery=self.fixture.policy(attempts=1))
         client = Client(Stream([], failure=RuntimeError("unknown network implementation fault")))
 
-        with patch("provider_core.transport.httpcore.AsyncConnectionPool", return_value=client):
+        with patch("provider_core.adapters.httpcore.httpcore.AsyncConnectionPool", return_value=client):
             with self.assertRaises(ApiFailure) as caught:
                 await owner.inspect()
 
@@ -153,7 +153,7 @@ class UploadRecoveryExhaustionTests(unittest.IsolatedAsyncioTestCase):
         ]
 
         with private_source_directory() as (_, directory), patch(
-            "provider_core.transport.httpcore.AsyncConnectionPool",
+            "provider_core.adapters.httpcore.httpcore.AsyncConnectionPool",
             side_effect=clients
         ), patch("provider_core.transport.os.write", side_effect=OSError(errno.EACCES, "private disk refusal")):
             await owner.inspect()
@@ -179,7 +179,7 @@ class UploadRecoveryExhaustionTests(unittest.IsolatedAsyncioTestCase):
                 (owner, _, _) = self.fixture.owner(recovery=policy)
 
                 with patch(
-                    "provider_core.transport.httpcore.AsyncConnectionPool",
+                    "provider_core.adapters.httpcore.httpcore.AsyncConnectionPool",
                     return_value=fixture.refusal(503, "service_unavailable")
                 ):
                     with self.assertRaises(UploadFailed) as caught:
@@ -192,7 +192,7 @@ class UploadRecoveryExhaustionTests(unittest.IsolatedAsyncioTestCase):
         client = fixture.refusal(503, "service_unavailable")
         client.close_failure = RuntimeError("original pool closure unconfirmed")
 
-        with patch("provider_core.transport.httpcore.AsyncConnectionPool", return_value=client):
+        with patch("provider_core.adapters.httpcore.httpcore.AsyncConnectionPool", return_value=client):
             with self.assertRaises(UploadFailed) as caught:
                 await owner.inspect()
 
@@ -213,7 +213,7 @@ class UploadRecoveryExhaustionTests(unittest.IsolatedAsyncioTestCase):
             hanging
         ]
 
-        with patch("provider_core.transport.httpcore.AsyncConnectionPool", side_effect=clients):
+        with patch("provider_core.adapters.httpcore.httpcore.AsyncConnectionPool", side_effect=clients):
             await owner.inspect()
 
             with self.assertRaisesRegex(UploadFailed, "deadline") as caught:

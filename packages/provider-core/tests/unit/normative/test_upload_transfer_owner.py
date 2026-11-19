@@ -70,7 +70,7 @@ class UploadTransferOwnerTests(unittest.IsolatedAsyncioTestCase):
             {"capability": "x" * 2049}
         ):
             with self.subTest(change=change), private_source_directory() as (root, directory), patch(
-                "provider_core.transport.httpcore.AsyncConnectionPool",
+                "provider_core.adapters.httpcore.httpcore.AsyncConnectionPool",
                 return_value=client
             ):
                 async def grant():
@@ -111,7 +111,7 @@ class UploadTransferOwnerTests(unittest.IsolatedAsyncioTestCase):
         )
 
         with private_source_directory() as (root, directory), patch(
-            "provider_core.transport.httpcore.AsyncConnectionPool",
+            "provider_core.adapters.httpcore.httpcore.AsyncConnectionPool",
             return_value=client
         ):
             with self.assertRaises(UploadFailed) as caught:
@@ -140,7 +140,7 @@ class UploadTransferOwnerTests(unittest.IsolatedAsyncioTestCase):
         )
 
         with private_source_directory() as (root, directory), patch(
-            "provider_core.transport.httpcore.AsyncConnectionPool",
+            "provider_core.adapters.httpcore.httpcore.AsyncConnectionPool",
             return_value=client
         ):
             with self.assertRaisesRegex(UploadFailed, "deadline expired") as caught:
@@ -170,7 +170,7 @@ class UploadTransferOwnerTests(unittest.IsolatedAsyncioTestCase):
         )
 
         with private_source_directory() as (root, directory), patch(
-            "provider_core.transport.httpcore.AsyncConnectionPool",
+            "provider_core.adapters.httpcore.httpcore.AsyncConnectionPool",
             return_value=client
         ):
             with self.assertRaises(UploadFailed) as caught:
@@ -207,7 +207,7 @@ class UploadTransferOwnerTests(unittest.IsolatedAsyncioTestCase):
         )
 
         with private_source_directory() as (root, directory), patch(
-            "provider_core.transport.httpcore.AsyncConnectionPool",
+            "provider_core.adapters.httpcore.httpcore.AsyncConnectionPool",
             return_value=client
         ), patch("provider_core.transport.os.write", side_effect=held_write):
             task = asyncio.create_task(transfer.acquire_file(grant, directory_fd=directory, retirement_seconds=0.1))
@@ -274,7 +274,7 @@ class UploadTransferOwnerTests(unittest.IsolatedAsyncioTestCase):
         )
 
         with private_source_directory() as (root, directory), patch(
-            "provider_core.transport.httpcore.AsyncConnectionPool",
+            "provider_core.adapters.httpcore.httpcore.AsyncConnectionPool",
             return_value=client
         ):
             async def grant():
@@ -308,7 +308,7 @@ class UploadTransferOwnerTests(unittest.IsolatedAsyncioTestCase):
         )
 
         with private_source_directory() as (root, directory), patch(
-            "provider_core.transport.httpcore.AsyncConnectionPool",
+            "provider_core.adapters.httpcore.httpcore.AsyncConnectionPool",
             return_value=client
         ):
             with self.assertRaises(UploadFailed) as caught:

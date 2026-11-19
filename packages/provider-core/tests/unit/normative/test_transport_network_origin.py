@@ -83,7 +83,7 @@ class TransportNetworkOriginTests(unittest.IsolatedAsyncioTestCase):
                 def account(_count):
                     raise original
 
-                with patch("provider_core.transport.httpcore.AsyncConnectionPool", return_value=client):
+                with patch("provider_core.adapters.httpcore.httpcore.AsyncConnectionPool", return_value=client):
                     with self.assertRaises(ExchangeFailed) as caught:
                         await transport.exchange(
                             httpx.Request("GET", "https://store.example/bytes"),
@@ -101,7 +101,7 @@ class TransportNetworkOriginTests(unittest.IsolatedAsyncioTestCase):
         transport = HttpTransport(trust=ssl.create_default_context(), exchange_seconds=1, retirement_seconds=1)
 
         with patch.object(client, "handle_async_request", side_effect=original), patch(
-            "provider_core.transport.httpcore.AsyncConnectionPool",
+            "provider_core.adapters.httpcore.httpcore.AsyncConnectionPool",
             return_value=client
         ):
             with self.assertRaises(ExchangeFailed) as caught:

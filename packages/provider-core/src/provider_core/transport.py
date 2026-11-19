@@ -23,6 +23,7 @@ from dataclasses import dataclass, field
 import anyio
 import httpcore
 
+from provider_core.adapters import httpcore as backend_wire
 from provider_core.network import NetworkIOObservation, OwnedNetworkBackend
 from provider_core.http_response import HttpFileResponse, HttpResponse, HttpResponseHead
 from provider_core.decoded_body import DecodedBody, DecodedBodyRejected, require_decoded_limit
@@ -302,23 +303,17 @@ class HttpTransport:
         return None if self._active is None else self._active.owner
 
     def _connection_pool(self, options):
-        if self._proxy_socket is None:
-            return httpcore.AsyncConnectionPool(**options)
-
-        # Fixed httpcore metadata; OwnedNetworkBackend admits only the Unix
-        # proxy. CONNECT and TLS retain the destination's original authority.
-        return httpcore.AsyncHTTPProxy(proxy_url="http://unix-proxy.invalid", **options)
+        return backend_wire.connection_pool(options, via_unix_proxy=self._proxy_socket is not None)
 
     def _require_destination(self, request):
         if request.url.scheme == "http" and self._allow_http:
             return
 
-        if request.url.scheme != "https":
-            raise ValueError("Cannot start HTTPS exchange: destination must use HTTPS")
+        if not (request.url.scheme == (expected_scheme := "https")):
+            raise ValueError(f"{request.url.scheme=} should equal {expected_scheme=}")
 
-        # httpcore 1.0.9 emits an unbracketed IPv6 CONNECT authority.
-        if (self._proxy_socket is not None) and (b":" in request.url.raw_host):
-            raise ValueError("Cannot start proxied HTTPS exchange: IPv6 literal destinations are not supported; use a DNS name or IPv4 address.")
+        if self._proxy_socket is not None:
+            backend_wire.require_connect_host(request.url.raw_host)
 
     async def _perform(self, request, maximum_bytes, account_bytes, outcome, output_fd, before_body, decoder_factory, not_after):
         if (not_after is not None) and (asyncio.get_running_loop().time() >= not_after):
@@ -346,7 +341,7 @@ class HttpTransport:
             outcome.network_backend = network
 
             options = {
-                "ssl_context": self._trust,
+                "trust": self._trust,
                 "network_backend": network,
                 "max_connections": 1,
                 "max_keepalive_connections": 0,
@@ -354,39 +349,33 @@ class HttpTransport:
             }
 
             client = self._connection_pool(options)
-            extensions = {"timeout": dict.fromkeys(("connect", "read", "write", "pool"), self._exchange_seconds)}
+            connect_timeout_seconds = self._exchange_seconds
 
             if self._connect_seconds is not None:
-                extensions["timeout"]["connect"] = min(self._connect_seconds, self._exchange_seconds)
+                connect_timeout_seconds = min(self._connect_seconds, self._exchange_seconds)
 
             async def observe_setup(name, info):
                 # The original request starts only after DNS, TCP/Unix,
                 # proxy CONNECT and TLS. Disable the aggregate setup timer here so a
                 # connected model can use the full response window. CONNECT's
                 # synthesized request is a different object (httpcore 1.0.9).
-                if name == "http11.send_request_headers.started" and info["request"] is wire_request:
+                if backend_wire.origin_headers_started(name, info, wire_request):
                     setup.reschedule(None)
 
                 if (
                     (self._proxy_socket is not None) and
-                    (name == "http11.receive_response_headers.complete") and
                     (outcome.proxy_connect_status is None)
                 ):
-                    outcome.proxy_connect_status = info["return_value"][1]
+                    connect_status = backend_wire.received_header_status(name, info)
 
-            extensions["trace"] = observe_setup
+                    if connect_status is not None:
+                        outcome.proxy_connect_status = connect_status
 
-            wire_request = httpcore.Request(
-                method=request.method,
-                url=httpcore.URL(
-                    scheme=request.url.raw_scheme,
-                    host=request.url.raw_host,
-                    port=request.url.port,
-                    target=request.url.raw_path
-                ),
-                headers=request.headers.raw,
-                content=request.content,
-                extensions=extensions,
+            wire_request = backend_wire.request_for_backend(
+                request,
+                io_timeout_seconds=self._exchange_seconds,
+                connect_timeout_seconds=connect_timeout_seconds,
+                trace=observe_setup,
             )
 
             try:
@@ -403,7 +392,7 @@ class HttpTransport:
 
                 raise
 
-            outcome.response_head = HttpResponseHead(response.status, tuple(response.headers))
+            outcome.response_head = backend_wire.response_head(response)
 
             if before_body is not None:
                 before_body(outcome.response_head)

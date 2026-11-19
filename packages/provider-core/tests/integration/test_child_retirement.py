@@ -161,7 +161,7 @@ class ChildRetirementTests(unittest.IsolatedAsyncioTestCase):
 
         await acquisition.inspect()
 
-        with patch("provider_core.transport.httpcore.AsyncConnectionPool", return_value=client):
+        with patch("provider_core.adapters.httpcore.httpcore.AsyncConnectionPool", return_value=client):
             receipt = await acquisition.acquire_file(UPLOAD_REF, directory_fd=descriptor, retirement_seconds=0.1)
 
         session = UploadChildSession(store, mode, receipt, directory_fd=descriptor)

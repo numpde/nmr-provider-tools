@@ -26,7 +26,7 @@ class TransportFailureTests(unittest.IsolatedAsyncioTestCase):
 
         with (
             tempfile.TemporaryFile() as output,
-            patch("provider_core.transport.httpcore.AsyncConnectionPool", return_value=client),
+            patch("provider_core.adapters.httpcore.httpcore.AsyncConnectionPool", return_value=client),
             self.assertRaises(ExchangeFailed),
         ):
             try:
@@ -53,7 +53,7 @@ class TransportFailureTests(unittest.IsolatedAsyncioTestCase):
 
         with (
             tempfile.TemporaryFile() as output,
-            patch("provider_core.transport.httpcore.AsyncConnectionPool", return_value=client),
+            patch("provider_core.adapters.httpcore.httpcore.AsyncConnectionPool", return_value=client),
         ):
             with self.assertRaises(ExchangeFailed) as caught:
                 await transport.exchange_file(
@@ -72,7 +72,7 @@ class TransportFailureTests(unittest.IsolatedAsyncioTestCase):
 
         with (
             tempfile.TemporaryFile() as output,
-            patch("provider_core.transport.httpcore.AsyncConnectionPool", return_value=client),
+            patch("provider_core.adapters.httpcore.httpcore.AsyncConnectionPool", return_value=client),
             patch("provider_core.transport.os.write", return_value=0) as write,
         ):
             with self.assertRaises(ExchangeFailed) as caught:
@@ -145,7 +145,7 @@ class TransportFailureTests(unittest.IsolatedAsyncioTestCase):
 
         with (
             tempfile.TemporaryFile() as output,
-            patch("provider_core.transport.httpcore.AsyncConnectionPool", return_value=client) as factory,
+            patch("provider_core.adapters.httpcore.httpcore.AsyncConnectionPool", return_value=client) as factory,
             patch("provider_core.transport.os.write", side_effect=held_write) as write,
         ):
             task = asyncio.create_task(
@@ -222,7 +222,7 @@ class TransportFailureTests(unittest.IsolatedAsyncioTestCase):
         for (descriptor, error_type) in ((-1, ValueError), (True, TypeError), (None, TypeError), ("private path", TypeError)):
             with (
                 self.subTest(kind=type(descriptor).__name__),
-                patch("provider_core.transport.httpcore.AsyncConnectionPool") as factory,
+                patch("provider_core.adapters.httpcore.httpcore.AsyncConnectionPool") as factory,
             ):
                 with self.assertRaises(error_type):
                     await (
@@ -259,7 +259,7 @@ class TransportFailureTests(unittest.IsolatedAsyncioTestCase):
                         self.subTest(descriptor=descriptor),
                         patch("provider_core.transport.OwnedNetworkBackend", wraps=OwnedNetworkBackend) as network,
                         patch(
-                            "provider_core.transport.httpcore.AsyncConnectionPool",
+                            "provider_core.adapters.httpcore.httpcore.AsyncConnectionPool",
                             return_value=Client(Stream([b"data"]))
                         ) as client,
                     ):
@@ -311,7 +311,7 @@ class TransportFailureTests(unittest.IsolatedAsyncioTestCase):
             with (
                 patch("provider_core.transport.os.fstat", side_effect=held_inspection) as inspect,
                 patch("provider_core.transport.OwnedNetworkBackend", wraps=OwnedNetworkBackend) as network,
-                patch("provider_core.transport.httpcore.AsyncConnectionPool") as client,
+                patch("provider_core.adapters.httpcore.httpcore.AsyncConnectionPool") as client,
             ):
                 task = asyncio.create_task(
                     transport.exchange_file(
@@ -371,7 +371,7 @@ class TransportFailureTests(unittest.IsolatedAsyncioTestCase):
         with (
             tempfile.TemporaryFile() as output,
             patch("provider_core.transport.asyncio.create_task", side_effect=cancel_before_entry),
-            patch("provider_core.transport.httpcore.AsyncConnectionPool") as factory,
+            patch("provider_core.adapters.httpcore.httpcore.AsyncConnectionPool") as factory,
         ):
             with self.assertRaises(asyncio.CancelledError):
                 await transport.exchange_file(
@@ -394,7 +394,7 @@ class TransportFailureTests(unittest.IsolatedAsyncioTestCase):
 
         with (
             patch("provider_core.transport.OwnedNetworkBackend") as backend,
-            patch("provider_core.transport.httpcore.AsyncHTTPProxy") as proxy,
+            patch("provider_core.adapters.httpcore.httpcore.AsyncHTTPProxy") as proxy,
         ):
             with self.assertRaisesRegex(ValueError, "IPv6 literal destinations"):
                 await transport.exchange(httpx.Request("GET", "https://[::1]:443/PRIVATE"), maximum_bytes=4)
@@ -415,7 +415,7 @@ class TransportFailureTests(unittest.IsolatedAsyncioTestCase):
         )
 
     async def test_invalid_unix_socket_paths_refuse_before_client_creation(self):
-        with patch("provider_core.transport.httpcore.AsyncConnectionPool") as factory:
+        with patch("provider_core.adapters.httpcore.httpcore.AsyncConnectionPool") as factory:
             for (path, error_type) in self._invalid_unix_socket_paths():
                 with self.subTest(kind=type(path).__name__), self.assertRaises(error_type):
                     HttpTransport(trust=ssl.create_default_context(), exchange_seconds=1, retirement_seconds=1, proxy_socket=path)
@@ -448,7 +448,7 @@ class TransportFailureTests(unittest.IsolatedAsyncioTestCase):
         client = HeldCleanup(Stream([], failure=primary), headers=headers)
         (transport, owner) = (self.transport(), object())
 
-        with patch("provider_core.transport.httpcore.AsyncConnectionPool", return_value=client):
+        with patch("provider_core.adapters.httpcore.httpcore.AsyncConnectionPool", return_value=client):
             try:
                 with self.assertRaises(ExchangeFailed) as caught:
                     await transport.exchange(httpx.Request("GET", "https://api.example"), maximum_bytes=7, owner=owner)
@@ -484,7 +484,7 @@ class TransportFailureTests(unittest.IsolatedAsyncioTestCase):
         client = Client(HeldBody([]), headers=[(b"x-request-id", b"request:fixture")])
         transport = HttpTransport(trust=ssl.create_default_context(), exchange_seconds=1, retirement_seconds=0.1)
 
-        with patch("provider_core.transport.httpcore.AsyncConnectionPool", return_value=client):
+        with patch("provider_core.adapters.httpcore.httpcore.AsyncConnectionPool", return_value=client):
             task = asyncio.create_task(transport.exchange(httpx.Request("GET", "https://api.example"), maximum_bytes=7))
 
             try:
@@ -512,7 +512,7 @@ class TransportFailureTests(unittest.IsolatedAsyncioTestCase):
                 client = Client(stream, status=503, headers=headers)
 
                 with (
-                    patch("provider_core.transport.httpcore.AsyncConnectionPool", return_value=client),
+                    patch("provider_core.adapters.httpcore.httpcore.AsyncConnectionPool", return_value=client),
                     self.assertRaises(ExchangeFailed) as caught,
                 ):
                     await self.transport().exchange(httpx.Request("GET", "https://api.example"), maximum_bytes=7)
@@ -540,7 +540,7 @@ class TransportFailureTests(unittest.IsolatedAsyncioTestCase):
         (owner, stranger) = (object(), object())
         request = httpx.Request("GET", "https://api.example")
 
-        with patch("provider_core.transport.httpcore.AsyncConnectionPool", return_value=client) as factory:
+        with patch("provider_core.adapters.httpcore.httpcore.AsyncConnectionPool", return_value=client) as factory:
             task = asyncio.create_task(transport.exchange(request, maximum_bytes=4, owner=owner))
 
             try:
@@ -574,7 +574,7 @@ class TransportFailureTests(unittest.IsolatedAsyncioTestCase):
         client = Client(Stream([b"abc", b"de"]))
 
         with (
-            patch("provider_core.transport.httpcore.AsyncConnectionPool", return_value=client),
+            patch("provider_core.adapters.httpcore.httpcore.AsyncConnectionPool", return_value=client),
             self.assertRaises(ExchangeFailed) as caught,
         ):
             await self.transport().exchange(httpx.Request("GET", "https://api.example"), maximum_bytes=4)
@@ -590,7 +590,7 @@ class TransportFailureTests(unittest.IsolatedAsyncioTestCase):
         transport = self.transport()
         request = httpx.Request("GET", "https://api.example/private-url-canary")
 
-        with patch("provider_core.transport.httpcore.AsyncConnectionPool", return_value=client) as factory:
+        with patch("provider_core.adapters.httpcore.httpcore.AsyncConnectionPool", return_value=client) as factory:
             try:
                 await transport.exchange(request, maximum_bytes=4)
             except ExchangeFailed as failure:
@@ -632,7 +632,7 @@ class TransportFailureTests(unittest.IsolatedAsyncioTestCase):
                 client = Client(Stream([]), send_gate=asyncio.Event())
                 transport = self.transport()
 
-                with patch("provider_core.transport.httpcore.AsyncConnectionPool", return_value=client):
+                with patch("provider_core.adapters.httpcore.httpcore.AsyncConnectionPool", return_value=client):
                     task = asyncio.create_task(transport.exchange(httpx.Request("GET", "https://api.example"), maximum_bytes=4))
 
                     await client.sent.wait()
@@ -650,7 +650,7 @@ class TransportFailureTests(unittest.IsolatedAsyncioTestCase):
         client = Client(Stream([]), send_gate=asyncio.Event())
         transport = self.transport()
 
-        with patch("provider_core.transport.httpcore.AsyncConnectionPool", return_value=client) as factory:
+        with patch("provider_core.adapters.httpcore.httpcore.AsyncConnectionPool", return_value=client) as factory:
             task = asyncio.create_task(transport.exchange(httpx.Request("GET", "https://api.example"), maximum_bytes=4))
 
             await client.sent.wait()
@@ -675,7 +675,7 @@ class TransportFailureTests(unittest.IsolatedAsyncioTestCase):
 
         with (
             patch(
-                "provider_core.transport.httpcore.AsyncConnectionPool",
+                "provider_core.adapters.httpcore.httpcore.AsyncConnectionPool",
                 return_value=SlowCloseClient(Stream([], failure=primary))
             ),
             self.assertRaises(ExchangeFailed) as caught,
@@ -702,7 +702,7 @@ class TransportFailureTests(unittest.IsolatedAsyncioTestCase):
         transport = self.transport()
 
         try:
-            with patch("provider_core.transport.httpcore.AsyncConnectionPool", return_value=client) as factory:
+            with patch("provider_core.adapters.httpcore.httpcore.AsyncConnectionPool", return_value=client) as factory:
                 started = asyncio.get_running_loop().time()
 
                 with self.assertRaises(ExchangeFailed) as caught:
@@ -735,7 +735,7 @@ class TransportFailureTests(unittest.IsolatedAsyncioTestCase):
     async def test_retirement_before_worker_entry_creates_no_client_and_releases_owner(self):
         transport = self.transport()
 
-        with patch("provider_core.transport.httpcore.AsyncConnectionPool") as factory:
+        with patch("provider_core.adapters.httpcore.httpcore.AsyncConnectionPool") as factory:
             task = asyncio.create_task(transport.exchange(httpx.Request("GET", "https://api.example"), maximum_bytes=4))
 
             # The exchange is ready first; retirement is ready before its child.
@@ -754,7 +754,7 @@ class TransportFailureTests(unittest.IsolatedAsyncioTestCase):
         client = Client(Stream([b"abc", b"de"]))
 
         with (
-            patch("provider_core.transport.httpcore.AsyncConnectionPool", return_value=client),
+            patch("provider_core.adapters.httpcore.httpcore.AsyncConnectionPool", return_value=client),
             self.assertRaises(ExchangeFailed),
         ):
             await (

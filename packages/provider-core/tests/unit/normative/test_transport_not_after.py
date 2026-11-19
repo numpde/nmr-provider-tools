@@ -33,7 +33,7 @@ class TransportNotAfterTests(unittest.IsolatedAsyncioTestCase):
                 output.flush()
                 transport = HttpTransport(trust=ssl.create_default_context(), exchange_seconds=1, retirement_seconds=0.3)
 
-                with patch("provider_core.transport.httpcore.AsyncConnectionPool") as pool, patch(
+                with patch("provider_core.adapters.httpcore.httpcore.AsyncConnectionPool") as pool, patch(
                     "provider_core.transport._FileBody"
                 ) as file_body:
                     with self.assertRaises(ExchangeFailed) as caught:
@@ -66,7 +66,7 @@ class TransportNotAfterTests(unittest.IsolatedAsyncioTestCase):
 
             return result
 
-        with patch("provider_core.transport.httpcore.AsyncConnectionPool", return_value=client), patch(
+        with patch("provider_core.adapters.httpcore.httpcore.AsyncConnectionPool", return_value=client), patch(
             "provider_core.transport.asyncio.wait",
             side_effect=delayed_observer,
         ):
@@ -90,7 +90,7 @@ class TransportNotAfterTests(unittest.IsolatedAsyncioTestCase):
                 loop = asyncio.get_running_loop()
                 transport = HttpTransport(trust=ssl.create_default_context(), exchange_seconds=1, retirement_seconds=0.3)
 
-                with patch("provider_core.transport.httpcore.AsyncConnectionPool") as pool, patch(
+                with patch("provider_core.adapters.httpcore.httpcore.AsyncConnectionPool") as pool, patch(
                     "provider_core.transport._FileBody"
                 ) as file_body:
                     loop.call_soon(time.sleep, 0.03)
@@ -124,7 +124,7 @@ class TransportNotAfterTests(unittest.IsolatedAsyncioTestCase):
         loop = asyncio.get_running_loop()
         started = loop.time()
 
-        with patch("provider_core.transport.httpcore.AsyncConnectionPool", return_value=client):
+        with patch("provider_core.adapters.httpcore.httpcore.AsyncConnectionPool", return_value=client):
             try:
                 with self.assertRaises(ExchangeFailed) as caught:
                     await transport.exchange(
@@ -191,7 +191,7 @@ class TransportNotAfterTests(unittest.IsolatedAsyncioTestCase):
                 cancellations.append(cancellation)
                 raise
 
-        with patch("provider_core.transport.httpcore.AsyncConnectionPool", return_value=client):
+        with patch("provider_core.adapters.httpcore.httpcore.AsyncConnectionPool", return_value=client):
             task = asyncio.create_task(call())
 
             try:
@@ -230,7 +230,7 @@ class TransportNotAfterTests(unittest.IsolatedAsyncioTestCase):
         loop=asyncio.get_running_loop()
         started=loop.time()
 
-        with patch("provider_core.transport.httpcore.AsyncConnectionPool",return_value=client):
+        with patch("provider_core.adapters.httpcore.httpcore.AsyncConnectionPool",return_value=client):
             try:
                 with self.assertRaises((TimeoutError,ExchangeFailed)):
                     async with asyncio.timeout_at(started+0.02):
@@ -312,7 +312,7 @@ class TransportNotAfterTests(unittest.IsolatedAsyncioTestCase):
 
         request = httpx.Request("GET", "https://model.example/turn")
 
-        with patch("provider_core.transport.httpcore.AsyncConnectionPool", return_value=client), patch(
+        with patch("provider_core.adapters.httpcore.httpcore.AsyncConnectionPool", return_value=client), patch(
             "provider_core.transport.asyncio.wait",
             side_effect=observe_cancellation,
         ):

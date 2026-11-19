@@ -35,7 +35,7 @@ class CleanupFaultSequenceTests(unittest.IsolatedAsyncioTestCase):
             owner = object()
 
             with self.subTest(seed=seed, yields=yields, cancelled=cancelled), patch(
-                "provider_core.transport.httpcore.AsyncConnectionPool",
+                "provider_core.adapters.httpcore.httpcore.AsyncConnectionPool",
                 return_value=client,
             ):
                 # silent-defaults: allow-contract -- Caller-cancelled cases reserve time for explicit interruption to win.
@@ -98,7 +98,7 @@ class CleanupFaultSequenceTests(unittest.IsolatedAsyncioTestCase):
             random.Random(seed).shuffle(actions)
 
             with self.subTest(seed=seed, trace=tuple(actions)), patch(
-                "provider_core.transport.httpcore.AsyncConnectionPool",
+                "provider_core.adapters.httpcore.httpcore.AsyncConnectionPool",
                 return_value=client,
             ):
                 task = asyncio.create_task(

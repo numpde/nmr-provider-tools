@@ -33,7 +33,7 @@ class SecsSourceReceivingTests(unittest.IsolatedAsyncioTestCase):
         await owner.inspect()
 
         with private_source_directory() as (root, directory), TemporaryDirectory() as scratch:
-            with patch("provider_core.transport.httpcore.AsyncConnectionPool", return_value=client):
+            with patch("provider_core.adapters.httpcore.httpcore.AsyncConnectionPool", return_value=client):
                 receipt = await owner.acquire_file(UPLOAD_REF, directory_fd=directory, retirement_seconds=0.1)
 
             access = SourceAccess({UPLOAD_REF: receipt}, pathlib.Path(scratch), directory_fd=directory, max_upload_bytes=len(body))

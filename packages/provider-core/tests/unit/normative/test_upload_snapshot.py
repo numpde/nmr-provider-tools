@@ -26,7 +26,7 @@ class UploadSnapshotTests(unittest.IsolatedAsyncioTestCase):
 
         with (
             private_source_directory() as (root, directory),
-            patch("provider_core.transport.httpcore.AsyncConnectionPool", return_value=client),
+            patch("provider_core.adapters.httpcore.httpcore.AsyncConnectionPool", return_value=client),
         ):
             receipt = await owner.acquire_file(UPLOAD_REF, directory_fd=directory, retirement_seconds=0.1)
             requests = list(api.calls)

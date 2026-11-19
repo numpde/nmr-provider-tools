@@ -109,7 +109,7 @@ class UploadRecoveryTests(unittest.IsolatedAsyncioTestCase):
         (owner, _, _) = self.owner()
         clients = [api_reply(MEMBERSHIP), api_reply(MEMBERSHIP), api_reply(GRANT), store_reply(failure=temporary_read_error())]
 
-        with patch("provider_core.transport.httpcore.AsyncConnectionPool", side_effect=clients):
+        with patch("provider_core.adapters.httpcore.httpcore.AsyncConnectionPool", side_effect=clients):
             await owner.inspect()
 
             with self.assertRaises(UploadFailed) as caught:
@@ -148,7 +148,7 @@ class UploadRecoveryTests(unittest.IsolatedAsyncioTestCase):
                     owners.append(owner)
                     await retire(owner=owner)
 
-                with patch("provider_core.transport.httpcore.AsyncConnectionPool", side_effect=clients), patch.object(
+                with patch("provider_core.adapters.httpcore.httpcore.AsyncConnectionPool", side_effect=clients), patch.object(
                     store,
                     "retire",
                     side_effect=observed_retire
@@ -194,7 +194,7 @@ class UploadRecoveryTests(unittest.IsolatedAsyncioTestCase):
             api_reply(changed)
         ]
 
-        with patch("provider_core.transport.httpcore.AsyncConnectionPool", side_effect=clients):
+        with patch("provider_core.adapters.httpcore.httpcore.AsyncConnectionPool", side_effect=clients):
             await owner.inspect()
 
             with self.assertRaises(UploadInputRejected):
@@ -217,7 +217,7 @@ class UploadRecoveryTests(unittest.IsolatedAsyncioTestCase):
             api_reply(MEMBERSHIP)
         ]
 
-        with patch("provider_core.transport.httpcore.AsyncConnectionPool", side_effect=clients):
+        with patch("provider_core.adapters.httpcore.httpcore.AsyncConnectionPool", side_effect=clients):
             await owner.inspect()
 
             with self.assertRaisesRegex(UploadRecoveryExhausted, "3 requests.*1 remain"):
@@ -228,7 +228,7 @@ class UploadRecoveryTests(unittest.IsolatedAsyncioTestCase):
         (owner, _, _) = self.owner(recovery=self.policy(), total=8)
         clients = [api_reply(MEMBERSHIP), api_reply(MEMBERSHIP), api_reply(GRANT), store_reply(failure=temporary_read_error())]
 
-        with patch("provider_core.transport.httpcore.AsyncConnectionPool", side_effect=clients):
+        with patch("provider_core.adapters.httpcore.httpcore.AsyncConnectionPool", side_effect=clients):
             await owner.inspect()
 
             with self.assertRaisesRegex(UploadRecoveryExhausted, "remaining byte budget"):
@@ -241,7 +241,7 @@ class UploadRecoveryTests(unittest.IsolatedAsyncioTestCase):
         (owner, _, _) = self.owner(recovery=self.policy(attempts=2))
         clients = [refusal(503, "service_unavailable"), refusal(503, "service_unavailable")]
 
-        with patch("provider_core.transport.httpcore.AsyncConnectionPool", side_effect=clients):
+        with patch("provider_core.adapters.httpcore.httpcore.AsyncConnectionPool", side_effect=clients):
             with self.assertRaises(UploadRecoveryExhausted):
                 await owner.inspect()
 
@@ -254,7 +254,7 @@ class UploadRecoveryTests(unittest.IsolatedAsyncioTestCase):
                 (owner, _, _) = self.owner(recovery=self.policy())
                 clients = [api_reply(MEMBERSHIP), api_reply(MEMBERSHIP), refusal(status, "operation_conflict")]
 
-                with patch("provider_core.transport.httpcore.AsyncConnectionPool", side_effect=clients):
+                with patch("provider_core.adapters.httpcore.httpcore.AsyncConnectionPool", side_effect=clients):
                     await owner.inspect()
 
                     with self.assertRaises(ApiFailure) as caught:
@@ -287,7 +287,7 @@ class UploadRecoveryTests(unittest.IsolatedAsyncioTestCase):
                     store_reply(failure=temporary_read_error())
                 ]
 
-                with patch("provider_core.transport.httpcore.AsyncConnectionPool", side_effect=clients):
+                with patch("provider_core.adapters.httpcore.httpcore.AsyncConnectionPool", side_effect=clients):
                     await owner.inspect()
 
                     with self.assertRaises(UploadFailed) as caught:
@@ -318,7 +318,7 @@ class UploadRecoveryTests(unittest.IsolatedAsyncioTestCase):
                 cancellations.append(cancellation)
                 raise
 
-        with patch("provider_core.transport.httpcore.AsyncConnectionPool", side_effect=clients):
+        with patch("provider_core.adapters.httpcore.httpcore.AsyncConnectionPool", side_effect=clients):
             await owner.inspect()
             task = asyncio.create_task(acquire())
 
@@ -336,7 +336,7 @@ class UploadRecoveryTests(unittest.IsolatedAsyncioTestCase):
         (owner, _, _) = self.owner(recovery=self.policy(initial=60), seconds=10)
         clients = [api_reply(MEMBERSHIP), api_reply(MEMBERSHIP), api_reply(GRANT), store_reply(failure=temporary_read_error())]
 
-        with patch("provider_core.transport.httpcore.AsyncConnectionPool", side_effect=clients):
+        with patch("provider_core.adapters.httpcore.httpcore.AsyncConnectionPool", side_effect=clients):
             await owner.inspect()
 
             with self.assertRaisesRegex(UploadRecoveryExhausted, "source recovery wait .* cannot fit .* original deadline"):
@@ -377,7 +377,7 @@ class UploadRecoveryTests(unittest.IsolatedAsyncioTestCase):
 
             return client
 
-        with patch("provider_core.transport.httpcore.AsyncConnectionPool", side_effect=pool):
+        with patch("provider_core.adapters.httpcore.httpcore.AsyncConnectionPool", side_effect=pool):
             await owner.inspect()
 
             with self.assertRaises(UploadRecoveryExhausted) as caught:
@@ -397,7 +397,7 @@ class UploadRecoveryTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(owner.requests_started, 7)
         self.assertEqual(owner.received_bytes, 0)
 
-        with patch("provider_core.transport.httpcore.AsyncConnectionPool", return_value=api_reply(MEMBERSHIP)):
+        with patch("provider_core.adapters.httpcore.httpcore.AsyncConnectionPool", return_value=api_reply(MEMBERSHIP)):
             await owner.inspect()
 
         self.assertIsNone(owner.recovery_failure)
@@ -452,7 +452,7 @@ class UploadRecoveryTests(unittest.IsolatedAsyncioTestCase):
             await retire(owner=owner)
             self.assertTrue(transport.retirement_confirmed)
 
-        with patch("provider_core.transport.httpcore.AsyncConnectionPool", side_effect=pool), patch.object(
+        with patch("provider_core.adapters.httpcore.httpcore.AsyncConnectionPool", side_effect=pool), patch.object(
             api,
             "retire",
             side_effect=observe_retirement
@@ -490,7 +490,7 @@ class UploadRecoveryTests(unittest.IsolatedAsyncioTestCase):
         ]
 
         with private_source_directory() as (root, directory), patch(
-            "provider_core.transport.httpcore.AsyncConnectionPool",
+            "provider_core.adapters.httpcore.httpcore.AsyncConnectionPool",
             side_effect=clients
         ):
             await owner.inspect()
@@ -517,7 +517,7 @@ class UploadRecoveryTests(unittest.IsolatedAsyncioTestCase):
             Client(Stream([], stall=asyncio.Event()), headers=response_headers())
         ]
 
-        with patch("provider_core.transport.httpcore.AsyncConnectionPool", side_effect=clients):
+        with patch("provider_core.adapters.httpcore.httpcore.AsyncConnectionPool", side_effect=clients):
             await owner.inspect()
 
             with self.assertRaisesRegex(UploadFailed, "deadline"):
@@ -542,7 +542,7 @@ class UploadRecoveryTests(unittest.IsolatedAsyncioTestCase):
         response = refusal(503, "service_unavailable")
         response.headers += ((b"retry-after", b"1"),)
 
-        with patch("provider_core.transport.httpcore.AsyncConnectionPool", return_value=response):
+        with patch("provider_core.adapters.httpcore.httpcore.AsyncConnectionPool", return_value=response):
             with self.assertRaises(UploadFailed):
                 await owner.inspect()
 
@@ -565,7 +565,7 @@ class UploadRecoveryTests(unittest.IsolatedAsyncioTestCase):
                 response = refusal(503, "service_unavailable")
                 scientific_state = random.getstate()
 
-                with patch("provider_core.transport.httpcore.AsyncConnectionPool", return_value=response), patch(
+                with patch("provider_core.adapters.httpcore.httpcore.AsyncConnectionPool", return_value=response), patch(
                     "provider_core.uploads.secrets.SystemRandom.uniform",
                     return_value=sample,
                 ) as jitter:
@@ -584,7 +584,7 @@ class UploadRecoveryTests(unittest.IsolatedAsyncioTestCase):
         response.headers += ((b"retry-after", b"1"),)
         clients = [response, api_reply(MEMBERSHIP)]
 
-        with patch("provider_core.transport.httpcore.AsyncConnectionPool", side_effect=clients):
+        with patch("provider_core.adapters.httpcore.httpcore.AsyncConnectionPool", side_effect=clients):
             with self.assertRaisesRegex(UploadFailed, "deadline") as caught:
                 await asyncio.wait_for(owner.inspect(), 0.5)
 
@@ -608,7 +608,7 @@ class UploadRecoveryTests(unittest.IsolatedAsyncioTestCase):
         (owner, _, _) = self.owner(recovery=self.policy(on_retry=notice, initial=0.2), seconds=0.3)
         response = refusal(503, "service_unavailable")
 
-        with patch("provider_core.transport.httpcore.AsyncConnectionPool", return_value=response), patch(
+        with patch("provider_core.adapters.httpcore.httpcore.AsyncConnectionPool", return_value=response), patch(
             "provider_core.uploads.secrets.SystemRandom.uniform",
             return_value=0.2
         ):

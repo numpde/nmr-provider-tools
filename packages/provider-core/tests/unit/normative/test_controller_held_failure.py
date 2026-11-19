@@ -440,7 +440,7 @@ class HeldFailureTests(unittest.IsolatedAsyncioTestCase):
 
         clients = [refusal(503, "service_unavailable") for _ in range(3)]
 
-        with patch("provider_core.transport.httpcore.AsyncConnectionPool", side_effect=clients):
+        with patch("provider_core.adapters.httpcore.httpcore.AsyncConnectionPool", side_effect=clients):
             failure = await self.failed_run(controller, selected)
 
         self.assertIs(type(failure.cause.cause), UploadRecoveryExhausted)

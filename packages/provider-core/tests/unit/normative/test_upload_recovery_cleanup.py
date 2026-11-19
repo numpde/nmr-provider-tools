@@ -95,7 +95,7 @@ class UploadRecoveryCleanupTests(unittest.IsolatedAsyncioTestCase):
             await store_retire(owner=owner)
 
         with private_source_directory() as (root, directory), patch(
-            "provider_core.transport.httpcore.AsyncConnectionPool",
+            "provider_core.adapters.httpcore.httpcore.AsyncConnectionPool",
             side_effect=clients
         ), patch("provider_core.uploads.os.close", side_effect=held_close):
             try:
@@ -175,7 +175,7 @@ class UploadRecoveryCleanupTests(unittest.IsolatedAsyncioTestCase):
                     await store_retire(owner=owner)
                     raise store_fatal
 
-                with patch("provider_core.transport.httpcore.AsyncConnectionPool", side_effect=clients), patch(
+                with patch("provider_core.adapters.httpcore.httpcore.AsyncConnectionPool", side_effect=clients), patch(
                     "provider_core.uploads.os.unlink",
                     side_effect=remove
                 ):

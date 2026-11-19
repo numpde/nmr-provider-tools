@@ -39,7 +39,7 @@ class UploadTransferRetryTests(unittest.IsolatedAsyncioTestCase):
         async def obtain():
             return grant
 
-        with patch("provider_core.transport.httpcore.AsyncConnectionPool", return_value=client):
+        with patch("provider_core.adapters.httpcore.httpcore.AsyncConnectionPool", return_value=client):
             with self.assertRaises(UploadFailed) as caught:
                 await transfer.acquire_file(obtain, directory_fd=directory, retirement_seconds=0.1)
 
@@ -76,7 +76,7 @@ class UploadTransferRetryTests(unittest.IsolatedAsyncioTestCase):
 
                     return api.grant
 
-                with patch("provider_core.transport.httpcore.AsyncConnectionPool", return_value=client), patch(
+                with patch("provider_core.adapters.httpcore.httpcore.AsyncConnectionPool", return_value=client), patch(
                     "provider_core.transport.os.write",
                     side_effect=fail if origin == "write" else os.write
                 ):
@@ -310,7 +310,7 @@ class UploadTransferRetryTests(unittest.IsolatedAsyncioTestCase):
 
                 client = Client(LateStream([]), headers=store_headers(b"geometry"))
 
-                with patch("provider_core.transport.httpcore.AsyncConnectionPool", return_value=client):
+                with patch("provider_core.adapters.httpcore.httpcore.AsyncConnectionPool", return_value=client):
                     task = asyncio.create_task(transfer.acquire_file(grant, directory_fd=directory, retirement_seconds=0.1))
 
                     try:

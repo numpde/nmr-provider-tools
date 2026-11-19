@@ -39,7 +39,7 @@ class UploadTransferCancellationTests(unittest.IsolatedAsyncioTestCase):
             return api.grant
 
         with private_source_directory() as (_, directory), patch(
-            "provider_core.transport.httpcore.AsyncConnectionPool",
+            "provider_core.adapters.httpcore.httpcore.AsyncConnectionPool",
             return_value=Client(Stream([], failure=temporary_read_error()), headers=store_headers(b"geometry")),
         ), patch("provider_core.uploads.os.close", side_effect=held_close):
             task = asyncio.create_task(transfer.acquire_file(grant, directory_fd=directory, retirement_seconds=0.3))

@@ -29,7 +29,7 @@ class TransportTests(unittest.IsolatedAsyncioTestCase):
 
         with (
             tempfile.TemporaryFile() as output,
-            patch("provider_core.transport.httpcore.AsyncConnectionPool", return_value=client),
+            patch("provider_core.adapters.httpcore.httpcore.AsyncConnectionPool", return_value=client),
             patch("provider_core.transport.os.write", side_effect=partial_write),
         ):
             response = await transport.exchange_file(
@@ -57,7 +57,7 @@ class TransportTests(unittest.IsolatedAsyncioTestCase):
 
         with (
             tempfile.TemporaryFile() as output,
-            patch("provider_core.transport.httpcore.AsyncConnectionPool", return_value=client),
+            patch("provider_core.adapters.httpcore.httpcore.AsyncConnectionPool", return_value=client),
         ):
             response = await transport.exchange_file(
                 httpx.Request("GET", "https://api.example/input"),
@@ -75,7 +75,7 @@ class TransportTests(unittest.IsolatedAsyncioTestCase):
 
         with (
             tempfile.TemporaryFile() as output,
-            patch("provider_core.transport.httpcore.AsyncConnectionPool", return_value=client),
+            patch("provider_core.adapters.httpcore.httpcore.AsyncConnectionPool", return_value=client),
         ):
             output.write(b"prefix:old body:tail")
             output.flush()
@@ -98,8 +98,8 @@ class TransportTests(unittest.IsolatedAsyncioTestCase):
         transport = HttpTransport(trust=trust, exchange_seconds=1, retirement_seconds=1, proxy_socket="/egress/proxy.sock")
 
         with (
-            patch("provider_core.transport.httpcore.AsyncConnectionPool", side_effect=AssertionError("direct pool created")),
-            patch("provider_core.transport.httpcore.AsyncHTTPProxy", return_value=client) as factory,
+            patch("provider_core.adapters.httpcore.httpcore.AsyncConnectionPool", side_effect=AssertionError("direct pool created")),
+            patch("provider_core.adapters.httpcore.httpcore.AsyncHTTPProxy", return_value=client) as factory,
         ):
             response = await transport.exchange(httpx.Request("GET", "https://api.example/input"), maximum_bytes=2)
 
@@ -114,7 +114,7 @@ class TransportTests(unittest.IsolatedAsyncioTestCase):
         trust = ssl.create_default_context()
         transport = HttpTransport(trust=trust, exchange_seconds=1, retirement_seconds=1)
 
-        with patch("provider_core.transport.httpcore.AsyncConnectionPool", side_effect=clients) as factory:
+        with patch("provider_core.adapters.httpcore.httpcore.AsyncConnectionPool", side_effect=clients) as factory:
             response = await transport.exchange(httpx.Request("GET", "https://api.example/input"), maximum_bytes=4)
 
             self.assertEqual(response.body, b"abcd")

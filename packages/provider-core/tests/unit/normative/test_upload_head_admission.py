@@ -43,7 +43,7 @@ class UploadHeadAdmissionTests(unittest.IsolatedAsyncioTestCase):
             return grant
 
         with private_source_directory() as (_, directory), patch(
-            "provider_core.transport.httpcore.AsyncConnectionPool",
+            "provider_core.adapters.httpcore.httpcore.AsyncConnectionPool",
             return_value=client
         ):
             with self.assertRaises(UploadFailed) as caught:

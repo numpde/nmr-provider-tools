@@ -270,7 +270,7 @@ class UploadFileAcquisitionTests(unittest.IsolatedAsyncioTestCase):
         with (
             private_source_directory() as (root, directory),
             observe_source_files(directory) as calls,
-            patch("provider_core.transport.httpcore.AsyncConnectionPool", return_value=client),
+            patch("provider_core.adapters.httpcore.httpcore.AsyncConnectionPool", return_value=client),
         ):
 
             def held_close(descriptor):
@@ -360,7 +360,7 @@ class UploadFileAcquisitionTests(unittest.IsolatedAsyncioTestCase):
         with (
             private_source_directory() as (root, directory),
             observe_source_files(directory) as calls,
-            patch("provider_core.transport.httpcore.AsyncConnectionPool", return_value=client),
+            patch("provider_core.adapters.httpcore.httpcore.AsyncConnectionPool", return_value=client),
         ):
 
             def uncertain_close(descriptor):
@@ -409,7 +409,7 @@ class UploadFileAcquisitionTests(unittest.IsolatedAsyncioTestCase):
         with (
             private_source_directory() as (root, directory),
             observe_source_files(directory) as calls,
-            patch("provider_core.transport.httpcore.AsyncConnectionPool", return_value=client),
+            patch("provider_core.adapters.httpcore.httpcore.AsyncConnectionPool", return_value=client),
         ):
 
             def held_remove(name, *args, **kwargs):
@@ -484,7 +484,7 @@ class UploadFileAcquisitionTests(unittest.IsolatedAsyncioTestCase):
         with (
             private_source_directory() as (root, directory),
             observe_source_files(directory) as calls,
-            patch("provider_core.transport.httpcore.AsyncConnectionPool", return_value=client),
+            patch("provider_core.adapters.httpcore.httpcore.AsyncConnectionPool", return_value=client),
             patch("provider_core.transport.os.write", side_effect=held_write) as writing,
         ):
             task = asyncio.create_task(owner.acquire_file(UPLOAD_REF, directory_fd=directory, retirement_seconds=0.1))
@@ -544,7 +544,7 @@ class UploadFileAcquisitionTests(unittest.IsolatedAsyncioTestCase):
         with (
             private_source_directory() as (root, directory),
             observe_source_files(directory) as calls,
-            patch("provider_core.transport.httpcore.AsyncConnectionPool", return_value=client),
+            patch("provider_core.adapters.httpcore.httpcore.AsyncConnectionPool", return_value=client),
         ):
             with (
                 patch("provider_core.uploads.os.unlink", side_effect=OSError(errno.EACCES, "PRIVATE_REMOVE")),
@@ -620,7 +620,7 @@ class UploadFileAcquisitionTests(unittest.IsolatedAsyncioTestCase):
         with (
             private_source_directory() as (root, directory),
             observe_source_files(directory) as calls,
-            patch("provider_core.transport.httpcore.AsyncConnectionPool", return_value=client),
+            patch("provider_core.adapters.httpcore.httpcore.AsyncConnectionPool", return_value=client),
         ):
             with patch("provider_core.uploads.os.unlink", side_effect=failure), self.assertRaises(UploadFailed):
                 await owner.acquire_file(UPLOAD_REF, directory_fd=directory, retirement_seconds=0.05)
@@ -672,7 +672,7 @@ class UploadFileAcquisitionTests(unittest.IsolatedAsyncioTestCase):
 
         with (
             private_source_directory() as (root, directory),
-            patch("provider_core.transport.httpcore.AsyncConnectionPool") as client,
+            patch("provider_core.adapters.httpcore.httpcore.AsyncConnectionPool") as client,
         ):
             os.fchmod(directory, 0o755)
 
@@ -695,7 +695,7 @@ class UploadFileAcquisitionTests(unittest.IsolatedAsyncioTestCase):
             with (
                 private_source_directory() as (root, directory),
                 observe_source_files(directory) as calls,
-                patch("provider_core.transport.httpcore.AsyncConnectionPool", return_value=client),
+                patch("provider_core.adapters.httpcore.httpcore.AsyncConnectionPool", return_value=client),
             ):
 
                 def close_at_expiry(descriptor):
@@ -723,7 +723,7 @@ class UploadFileAcquisitionTests(unittest.IsolatedAsyncioTestCase):
             with (
                 self.subTest(size=len(body)),
                 private_source_directory() as (root, directory),
-                patch("provider_core.transport.httpcore.AsyncConnectionPool", return_value=client),
+                patch("provider_core.adapters.httpcore.httpcore.AsyncConnectionPool", return_value=client),
             ):
                 with self.assertRaises(UploadFailed):
                     await owner.acquire_file(UPLOAD_REF, directory_fd=directory, retirement_seconds=0.1)
@@ -752,7 +752,7 @@ class UploadFileAcquisitionTests(unittest.IsolatedAsyncioTestCase):
 
         with (
             private_source_directory() as (root, directory),
-            patch("provider_core.transport.httpcore.AsyncConnectionPool", return_value=client) as clients,
+            patch("provider_core.adapters.httpcore.httpcore.AsyncConnectionPool", return_value=client) as clients,
         ):
             with self.assertRaises(UploadFailed) as caught:
                 await owner.acquire_file(UPLOAD_REF, directory_fd=directory, retirement_seconds=0.1)
@@ -777,7 +777,7 @@ class UploadFileAcquisitionTests(unittest.IsolatedAsyncioTestCase):
 
         with (
             private_source_directory() as (root, directory),
-            patch("provider_core.transport.httpcore.AsyncConnectionPool", return_value=client),
+            patch("provider_core.adapters.httpcore.httpcore.AsyncConnectionPool", return_value=client),
         ):
             with self.assertRaisesRegex(UploadFailed, "SHA-256"):
                 await owner.acquire_file(UPLOAD_REF, directory_fd=directory, retirement_seconds=0.1)
@@ -793,7 +793,7 @@ class UploadFileAcquisitionTests(unittest.IsolatedAsyncioTestCase):
 
         with (
             private_source_directory() as (root, directory),
-            patch("provider_core.transport.httpcore.AsyncConnectionPool", return_value=client) as clients,
+            patch("provider_core.adapters.httpcore.httpcore.AsyncConnectionPool", return_value=client) as clients,
         ):
             with self.assertRaises(UploadFailed):
                 await owner.acquire(UPLOAD_REF)

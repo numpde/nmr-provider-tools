@@ -26,7 +26,7 @@ class JobUploadsRetryDelegationTests(unittest.IsolatedAsyncioTestCase):
 
                     return await owner.acquire_file(api.member.upload_ref, directory_fd=directory, retirement_seconds=0.1)
 
-                with patch("provider_core.transport.httpcore.AsyncConnectionPool", return_value=client):
+                with patch("provider_core.adapters.httpcore.httpcore.AsyncConnectionPool", return_value=client):
                     await owner.inspect()
 
                     with self.assertRaises(UploadFailed) as caught:
@@ -91,7 +91,7 @@ class UploadRetryInterruptionTests(unittest.IsolatedAsyncioTestCase):
             return api.grant
 
         with private_source_directory() as (_, directory), patch(
-            "provider_core.transport.httpcore.AsyncConnectionPool",
+            "provider_core.adapters.httpcore.httpcore.AsyncConnectionPool",
             return_value=Client(InterruptedStream([]), headers=store_headers(b"geometry")),
         ):
             with self.assertRaises(UploadFailed) as caught:

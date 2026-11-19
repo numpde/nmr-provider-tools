@@ -21,7 +21,7 @@ class UploadFileAcquisitionTests(unittest.IsolatedAsyncioTestCase):
 
         with (
             private_source_directory() as (root, directory),
-            patch("provider_core.transport.httpcore.AsyncConnectionPool", return_value=client),
+            patch("provider_core.adapters.httpcore.httpcore.AsyncConnectionPool", return_value=client),
         ):
             result = await owner.acquire_file(UPLOAD_REF, directory_fd=directory, retirement_seconds=0.1)
 
@@ -49,7 +49,7 @@ class UploadFileAcquisitionTests(unittest.IsolatedAsyncioTestCase):
 
         with (
             private_source_directory() as (root, directory),
-            patch("provider_core.transport.httpcore.AsyncConnectionPool", side_effect=[file_client, byte_client]) as clients,
+            patch("provider_core.adapters.httpcore.httpcore.AsyncConnectionPool", side_effect=[file_client, byte_client]) as clients,
         ):
             result = await owner.acquire_file(UPLOAD_REF, directory_fd=directory, retirement_seconds=0.1)
 
@@ -68,7 +68,7 @@ class UploadFileAcquisitionTests(unittest.IsolatedAsyncioTestCase):
 
         with (
             private_source_directory() as (root, directory),
-            patch("provider_core.transport.httpcore.AsyncConnectionPool", return_value=client),
+            patch("provider_core.adapters.httpcore.httpcore.AsyncConnectionPool", return_value=client),
         ):
             previous = os.umask(0o777)
 

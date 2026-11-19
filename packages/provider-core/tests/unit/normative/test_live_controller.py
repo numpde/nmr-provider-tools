@@ -771,7 +771,7 @@ class LiveControllerTests(unittest.IsolatedAsyncioTestCase):
             preverified_input=verify_job_input(response(), feed=record().input),
         )
 
-        with patch("provider_core.transport.httpcore.AsyncConnectionPool", return_value=client):
+        with patch("provider_core.adapters.httpcore.httpcore.AsyncConnectionPool", return_value=client):
             with self.assertRaises(ControllerFailed) as stopped:
                 await asyncio.wait_for(controller.run(record()), 2)
 

@@ -688,7 +688,7 @@ Shared wire support: retain the distinction from local policy
 - [ ] Separate HTTP/backend adaptation from transport effects and API profiles
   [x] Separate API correlation admission from generic diagnostic projection
   [x] Give immutable response facts an owner independent of transport effects
-  [ ] Separate pinned backend request/pool/trace adaptation
+  [x] Separate pinned backend request/pool/trace adaptation
   [ ] Review network backend mapping independently of effect ownership
   core/transport.py:34-97,222,363-438: HTTP request/head mapping, CONNECT metadata,
   request correlation and httpcore trace/exception assumptions. core/network.py
@@ -718,6 +718,26 @@ Shared wire support: retain the distinction from local policy
   Focused transport, Chat-wire, Upload head-admission, real Upload acquisition
   and installation lanes passed on science with PRIVACY_TESTS=0 (62 tests,
   five skips). Independent audit confirmed class identity and dependency closure.
+  Backend bridge completed 2026-11-19: adapters/httpcore.py owns the pinned
+  request/pool/trace mapping and original response-head projection. The selected
+  wheel's request extensions, trace return tuple and unbracketed IPv6 CONNECT
+  construction were inspected directly. The IPv6 limitation is adapter preflight,
+  not a universal HTTP constraint. Transport keeps HTTPS/plain-HTTP grants, pool
+  capacity/retry choices, timeout values, first CONNECT-status retention, setup
+  rescheduling and every network/file/cleanup effect.
+  The existing polymorphic pool hook is retained for Unix delivery HTTP; its
+  override delegates UDS-only construction while fixed-origin policy stays local.
+  The installed client-only lane caught the missed override during the refactor;
+  it was restored before commit. All 105 constructor patch targets across twenty
+  fixture files were migrated manually to the adapter; read-only comparison
+  confirmed those files otherwise unchanged. Final focused transport/deadline,
+  proxy, file acquisition, Upload recovery, child retirement, delivery IPC and
+  installation lanes passed on science with PRIVACY_TESTS=0 (120 tests, eight
+  skips). The pinned API release lane also passed during request-mapping review.
+  Independent audit confirmed wire facts, options, Unix routing and ownership.
+  Its return-type concern was checked against the pinned source: AsyncHTTPProxy
+  derives from AsyncConnectionPool, so the annotation needed no change.
+  Backend exception/cause mapping remains explicitly pending below.
 - [ ] Keep shared decoding rules distinct from caller-selected budgets
   core/decoded_body.py:81-220: Content-Encoding lists, gzip/deflate framing and
   decompression checks are HTTP/encoding support. Budget values are caller policy.

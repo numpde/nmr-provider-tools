@@ -146,6 +146,7 @@ class InstallationContractTests(unittest.TestCase):
                 "provider_core/adapters/nmr/v1/job_input.py",
                 "provider_core/adapters/nmr/v1/upload_request.py",
                 "provider_core/adapters/__init__.py",
+                "provider_core/adapters/httpcore.py",
                 "provider_core/adapters/chat_completions/__init__.py",
                 "provider_core/adapters/chat_completions/request.py",
                 "provider_core/adapters/chat_completions/encoding.py",

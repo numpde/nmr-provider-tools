@@ -4,7 +4,7 @@ from provider_core.container_guard import require_container
 
 require_container()
 
-import httpcore
+from provider_core.adapters import httpcore as backend_wire
 
 from provider_core.transport import HttpTransport, require_unix_socket_path
 from provider_core.tools import require_positive_number
@@ -32,7 +32,7 @@ class UnixHttpTransport(HttpTransport):
         self.last_failure = None
 
     def _connection_pool(self, options):
-        return httpcore.AsyncConnectionPool(uds=self._socket_path, **options)
+        return backend_wire.unix_connection_pool(options, socket_path=self._socket_path)
 
     def _require_destination(self, request):
         if (
