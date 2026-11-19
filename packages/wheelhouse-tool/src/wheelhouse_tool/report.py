@@ -2,79 +2,15 @@
 
 import argparse
 import json
-import re
-import reprlib
 import sys
-import urllib.parse
-from pathlib import PurePosixPath
 
-from wheelhouse_tool.validation.upstream import pip_installation_report
-
-
-def local_file_path(item):
-    """Decode the selected artifact under this offline projection's URL policy."""
-
-    artifact_url = pip_installation_report.artifact_url(item)
-
-    if any(ord(character) < 32 or ord(character) == 127 for character in artifact_url):
-        raise ValueError(f"{reprlib.repr(artifact_url)=} contains a control character")
-
-    url = urllib.parse.urlsplit(artifact_url)
-
-    if (
-        (url.scheme != "file") or
-        url.netloc or
-        url.query or
-        url.fragment or
-        re.search(r"%(?![0-9a-fA-F]{2})", url.path)
-    ):
-        raise ValueError(f"{reprlib.repr(artifact_url)=} should use file: without an authority, query, fragment or malformed percent escapes")
-
-    try:
-        return urllib.parse.unquote(url.path, errors="strict")
-    except UnicodeDecodeError as error:
-        raise ValueError(f"{reprlib.repr(artifact_url)=} should have a valid UTF-8 path") from error
+from wheelhouse_tool.validation.selection.pip_report import selected_artifacts
 
 
 def manifest(report, pool, directory, allowed_sources):
-    """The caller owns the successful hash-checked pip run and its frozen lock."""
+    """Sort admitted artifacts for a successful hash-checked pip run."""
 
-    install_records = pip_installation_report.install_records(report)
-
-    if not install_records:
-        raise ValueError("Cannot project a pip report with no installation records.")
-
-    root = PurePosixPath(pool)
-
-    if not root.is_absolute():
-        raise ValueError("Cannot use pip report: pool must be an absolute path in the pip environment.")
-
-    entries = []
-    seen = set()
-
-    for item in install_records:
-        path = local_file_path(item)
-        candidate = PurePosixPath(path)
-        name = candidate.name
-
-        if (
-            (candidate.parent != root) or
-            (str(candidate) != path) or
-            (not name) or
-            (name in (".", "..")) or
-            ("\\" in name) or
-            any(ord(character) < 32 or ord(character) == 127 for character in name) or
-            ((not name.endswith(".whl")) and (name not in allowed_sources))
-        ):
-            raise ValueError("Cannot use pip report: selected artifact is outside the pool or not authorized.")
-
-        checksum = pip_installation_report.archive_sha256(item)
-
-        if (not re.fullmatch(r"[0-9a-f]{64}", checksum)) or (name in seen):
-            raise ValueError("Cannot use pip report: selected artifact hash or filename is invalid.")
-
-        seen.add(name)
-        entries.append({"filename": name, "sha256": checksum, "directory": directory})
+    entries = selected_artifacts(report, pool, directory, allowed_sources)
 
     return sorted(entries, key=lambda entry: entry["filename"])
 

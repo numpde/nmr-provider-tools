@@ -3,41 +3,15 @@
 import argparse
 import hashlib
 import json
-import re
 import sys
-from pathlib import PurePosixPath
+
+from wheelhouse_tool.validation.selection.identity import selected_artifacts
 
 
 def selection_identity(entries):
-    selected = {}
+    """Hash admitted artifacts independently of entry order and identical repeats."""
 
-    for entry in entries:
-        if set(entry) != {"directory", "filename", "sha256"}:
-            raise ValueError("Cannot identify selection: each entry must explicitly identify one artifact.")
-
-        (directory, name, checksum) = (entry["directory"], entry["filename"], entry["sha256"])
-        path = PurePosixPath(directory)
-
-        if (
-            path.is_absolute() or
-            (str(path) != directory) or
-            (not path.parts) or
-            (".." in path.parts) or
-            (not name) or
-            (name in (".", "..")) or
-            ("/" in name) or
-            ("\\" in name) or
-            any(ord(character) < 32 or ord(character) == 127 for character in directory + name) or
-            (not re.fullmatch(r"[0-9a-f]{64}", checksum))
-        ):
-            raise ValueError("Cannot identify selection: expected relative directories, filenames and SHA-256 hashes.")
-
-        key = (directory, name)
-
-        if key in selected and selected[key] != checksum:
-            raise ValueError("Cannot identify selection: artifact entries conflict.")
-
-        selected[key] = checksum
+    selected = selected_artifacts(entries)
 
     canonical = [
         {"directory": directory, "filename": name, "sha256": checksum}
