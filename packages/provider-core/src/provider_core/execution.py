@@ -39,7 +39,7 @@ from provider_core.attempt_record import (
 )
 
 from provider_core.adapters.nmr.v1.attempt_request import complete_body, fail_body
-from provider_core.validation.upstream.nmr.v1.attempt_response import JOB_STATES
+from provider_core.validation.upstream.nmr.v1.attempt_response import JOB_STATES, attempt_is_in_progress, observation_revokes_execution
 from provider_core.conversation import independent_interruption_failure
 from provider_core.delivery_client import DeliveryUnavailable
 from provider_core.delivery_store import DeliveryFull, DeliveryOutcome
@@ -526,7 +526,7 @@ class AttemptExecutor:
         if not (acknowledged.local_phase is LocalExecutionPhase.NOT_ENTERED):
             raise ExecutionRefused("Execution requires a matching active acknowledgement that has never entered science")
 
-        if acknowledged.admission.state != "in_progress":
+        if not attempt_is_in_progress(acknowledged.admission):
             raise ExecutionRefused("Execution requires a matching active acknowledgement that has never entered science")
 
         if acknowledged.start.scope != self.scope:
@@ -1050,11 +1050,11 @@ class AttemptExecutor:
 
         # Terminal Attempts and cancelled Jobs stop work. Job closure policy is
         # explicit in composition: e.g. SECS continues closed Jobs, NMRNet stops.
-        if (observed.state != "in_progress") or (observed.job_state not in self._allowed_job_states):
+        if (not attempt_is_in_progress(observed)) or (observed.job_state not in self._allowed_job_states):
             stop = ExecutionStopped(observed)
             self._observed_stop = stop
 
-            if observed.state == "expired" or (observed.state == "in_progress" and observed.job_state == "cancelled"):
+            if observation_revokes_execution(observed):
                 # Only the correlated API read can confer this disposition.
                 # An adapter can also raise ExecutionStopped with identical fields.
                 self._server_revocation = stop

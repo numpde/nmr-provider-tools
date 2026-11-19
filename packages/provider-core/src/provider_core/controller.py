@@ -26,6 +26,7 @@ from provider_core.attempt_record import AcknowledgedAttempt, RecoveryScope, Sta
 from provider_core.delivery_worker import require_delivery_retry_settings
 from provider_core.producer_checkpoint import DeliveryAcceptedCheckpoint, SuppressedCheckpoint
 from provider_core.validation.upstream.nmr.v1.job_input import VerifiedJobInput
+from provider_core.validation.upstream.nmr.v1.attempt_response import attempt_is_in_progress
 
 from provider_core.execution import (
     AttemptExecutor,
@@ -666,7 +667,7 @@ class AttemptController:
 
         self._acknowledged = acknowledged
 
-        if acknowledged.admission.state != "in_progress":
+        if not attempt_is_in_progress(acknowledged.admission):
             self._operation = self.session
 
             await self._retire_session()
@@ -762,7 +763,7 @@ class AttemptController:
         if (self._start_deferred is not None) and (not self._start_deferred.may_have_committed):
             return
 
-        if (self._acknowledged is not None) and (self._acknowledged.admission.state != "in_progress"):
+        if (self._acknowledged is not None) and (not attempt_is_in_progress(self._acknowledged.admission)):
             return
 
         raise ControllerRefused("Cannot release this live Job: START may have committed or its active Attempt lacks a valid disposition")
@@ -858,7 +859,7 @@ class AttemptController:
                 if first_failure is not None:
                     policy.on_recovered(acknowledged, first_failure)
 
-                if acknowledged.admission.state == "in_progress" and (self._admission_stopping_requested() or loop.time() > deadline):
+                if attempt_is_in_progress(acknowledged.admission) and (self._admission_stopping_requested() or loop.time() > deadline):
                     return self._defer_start(pending, latest_failure, True)
 
                 return acknowledged
@@ -953,7 +954,7 @@ class AttemptController:
                 if (
                     (not isinstance(self._operation, AttemptExecutor)) and
                     (((self._start_deferred is not None) and (self._start_deferred.may_have_committed)) or
-                     ((self._acknowledged is not None) and (self._acknowledged.admission.state == "in_progress"))) and
+                     ((self._acknowledged is not None) and attempt_is_in_progress(self._acknowledged.admission))) and
                     (self._claim.operation_owner is None) and
                     self._retired_by_controller and
                     self.api.retirement_confirmed and

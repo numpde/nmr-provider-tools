@@ -427,17 +427,33 @@ NMR rules currently reached through operational code
   Ownership still constructs the same provider-wide START claim identity and
   owns capacity, lane exclusion and settlement. No duplicate admission or
   retained-key copy was introduced. Verified by the focused lanes above.
-- [ ] Separate execution's wire vocabulary and terminal-body construction
+- [x] Separate execution's wire vocabulary and terminal-body construction
   core/execution.py:42,311-323,1235: imports the wire Job-state vocabulary and
   builds terminal API bodies. Separate that knowledge from scientific dispatch,
   stop decisions, live permission, observation windows and retirement ordering.
-- [ ] Separate API observation meanings from execution, admission and starting
+  Verified 2026-11-19: execution imports JOB_STATES from upstream Attempt
+  validation and complete_body/fail_body from the Attempt request adapter.
+  Nonempty configured Job-state selection and refusing cancelled Jobs remain
+  local execution policy; scientific result selection and delivery ownership
+  do not move into the encoder. Focused execution/controller and real execution
+  integration lanes below passed with these imports.
+- [x] Separate API observation meanings from execution, admission and starting
   core/execution.py:529,1053-1057 and core/controller.py:669,765,861,956 interpret
   'in_progress', 'expired' and 'cancelled' API observations inside execution and
   admission decisions. API state meaning and the local decision it informs need
   separate owners. core/starting.py:123 orchestrates start through ProviderAPI;
   its API-call/error imports must follow the adapter boundary, while ownership
   and retirement stay in the starting workflow.
+  Completed 2026-11-19: execution and controller use upstream in-progress and
+  expiry/cancellation meanings. Configured allowed Job states, correlated-read
+  requirements, stop retention and revocation disposition remain local.
+  Starting uses the separated API failure owner and existing operation methods;
+  its exact START claim, retained body and retirement responsibilities stay put.
+  Focused unit test_execution.py, test_execution_job_policy.py,
+  test_controller.py, test_controller_revocation.py, test_controller_recovery.py,
+  test_starting.py and integration test_execution.py passed on science with
+  PRIVACY_TESTS=0 (38 tests). Independent audit confirmed all original conditions
+  and state/effect ordering; no duplicate admission checks were added.
 - [ ] Separate delivery's API material and reply meanings from queue decisions
   core/delivery_store.py:74-102: DeliveryOutcome borrows provider/Attempt reference
   checks and retained outcome readers. SQLite schema, queue limits and local

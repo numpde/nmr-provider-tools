@@ -73,6 +73,12 @@ def attempt_is_in_progress(attempt: AttemptObservation | AttemptAdmission) -> bo
     return attempt.state == "in_progress"
 
 
+def observation_revokes_execution(observation: AttemptObservation) -> bool:
+    """Recognize expiry or cancellation without claiming local work has stopped."""
+
+    return (observation.state == "expired") or (attempt_is_in_progress(observation) and observation.job_state == "cancelled")
+
+
 def require_start_timestamp(started_at: datetime) -> None:
     """Admit a retained admission timestamp before encoding it as canonical UTC."""
 
