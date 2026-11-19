@@ -1,0 +1,36 @@
+Validation and upstream boundaries
+=================================
+
+2026-11-19 — proposed refactor; implementation remains pending
+
+Separate all validation from functionality, including inline and single-use
+checks. One source package, packages/validation/, should own the constraints,
+checks and rejection diagnostics, organized by domain. Callers retain parsing,
+encoding, resource operations, state transitions, retries and cleanup.
+
+Separately isolate everything coupled to upstream contracts: identifiers,
+bounds, field sets, vocabularies, routes, signing rules, codecs and response
+interpretation. Upstream-specific checks belong in the validation package's
+upstream area; wire functionality belongs in dedicated integration adapters.
+Operational code consumes admitted domain facts through those boundaries.
+Keep upstream contract definitions and pins unchanged in this step.
+
+Plan
+----
+1. Inventory validation and upstream coupling across Python, shell and Make.
+   Record each check's owner, callers, rejection type and effect-ordering boundary.
+2. Establish the validation source package and noncyclic exception ownership.
+   Preserve public rejection classifications and native causes.
+3. Migrate the provider API edge, then local configuration/model validation,
+   runtime preconditions and build/bootstrap checks. Move callers and remove
+   displaced implementations in meaningful chunks.
+4. Ship each standalone consumer's required validation source through existing
+   offline source-capture and bundle mechanisms; avoid an SDK dependency in
+   acquisition or wheelhouse bootstrap.
+5. Verify each chunk with focused Make lanes using PRIVACY_TESTS=0 and an
+   independent audit before committing.
+
+Preserve byte limits before parsing, duplicate-key/nonfinite parser hooks, and
+checks inside their existing lock, custody and dispatch ordering. Completion
+requires one owner per validation rule, isolated upstream coupling, and intact
+failure classification, mutation uncertainty and cleanup behavior.
