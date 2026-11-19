@@ -8,12 +8,12 @@ from provider_core.result_verbosity import ResultVerbosity
 
 class ResultVerbosityRejectionTests(unittest.TestCase):
     def test_only_exact_json_string_values_are_admitted(self):
-        for value in (None, True, 0, 1.0, [], {}):
+        for value in (None, True, 0, 1.0, [], {}, ResultVerbosity.LOW):
             with self.subTest(value=value):
                 with self.assertRaises(TypeError) as caught:
                     ResultVerbosity.parse(value)
 
-                self.assertIn(str(type(value)), str(caught.exception))
+                self.assertIn(type(value).__name__, str(caught.exception))
 
         for value in ("", "compact", "full", "MAX", " medium", "PRIVATE_CANARY"):
             with self.subTest(value=value):

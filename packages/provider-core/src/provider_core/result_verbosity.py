@@ -11,6 +11,8 @@ require_container()
 
 from enum import StrEnum
 
+from provider_core.type_requirements import require_type
+
 
 class ResultVerbosity(StrEnum):
     LOW = "low"
@@ -19,8 +21,7 @@ class ResultVerbosity(StrEnum):
 
     @classmethod
     def parse(cls, value):
-        if not (type(value) is (expected_type := str)):
-            raise TypeError(f"{type(value)=} ≠ {expected_type=}")
+        require_type(value, str)
 
         try:
             return cls(value)
