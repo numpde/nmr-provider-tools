@@ -814,7 +814,7 @@ class ProviderAPI:
         attempt_mutation=False,
         owner=None
     ):
-        request = signed_request(
+        signed_http_request = signed_request(
             self._identity,
             method=method,
             path=path,
@@ -827,7 +827,7 @@ class ProviderAPI:
         self.last_failure = None
 
         try:
-            response = await self._transport.exchange(request, maximum_bytes=maximum_bytes, owner=owner)
+            response = await self._transport.exchange(signed_http_request, maximum_bytes=maximum_bytes, owner=owner)
         except asyncio.CancelledError:
             self._remember_failure(
                 ApiFailure(
@@ -838,7 +838,7 @@ class ProviderAPI:
                 issuance=issuance,
                 attempt_mutation=attempt_mutation,
                 request_method=method,
-                request_target=request.url.raw_path,
+                request_target=signed_http_request.url.raw_path,
             )
 
             raise
@@ -848,7 +848,7 @@ class ProviderAPI:
                 issuance=issuance,
                 attempt_mutation=attempt_mutation,
                 request_method=method,
-                request_target=request.url.raw_path,
+                request_target=signed_http_request.url.raw_path,
             ) from None
 
         try:
@@ -859,7 +859,7 @@ class ProviderAPI:
                 issuance=issuance,
                 attempt_mutation=attempt_mutation,
                 request_method=method,
-                request_target=request.url.raw_path,
+                request_target=signed_http_request.url.raw_path,
             )
 
             raise
