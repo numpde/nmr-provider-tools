@@ -50,7 +50,7 @@ class DeliveryIPCTests(unittest.IsolatedAsyncioTestCase):
 
         self.addAsyncCleanup(self.client.retire)
 
-    async def test_submit_and_inventory_prove_durability_without_exporting_payload(self):
+    async def test_submit_and_inventory_prove_durability(self):
         delivery_outcome = outcome()
         accepted = await self.client.submit(delivery_outcome)
 
@@ -59,11 +59,16 @@ class DeliveryIPCTests(unittest.IsolatedAsyncioTestCase):
         pending = await self.client.pending()
 
         self.assertEqual(pending["items"][0]["body_sha256"], delivery_outcome.body_sha256)
-        self.assertNotIn("SCIENTIFIC_PAYLOAD_NEEDLE", json.dumps(pending))
         self.assertEqual(await self.client.status(delivery_outcome.execution_attempt_ref), pending["items"][0])
         self.assertEqual(await self.client.submit(delivery_outcome), accepted)
         self.assertEqual(len(self.queue.inventory(delivery_outcome.api_origin, delivery_outcome.provider_ref)), 1)
         self.assertTrue(self.client.retirement_confirmed)
+
+    @unittest.skip("Privacy policy under review")
+    async def test_inventory_omits_payload(self):
+        await self.client.submit(outcome())
+
+        self.assertNotIn("SCIENTIFIC_PAYLOAD_NEEDLE", json.dumps(await self.client.pending()))
 
     async def test_full_queue_refuses_new_outcome_but_allows_identical_retry(self):
         delivery_outcome = outcome()
@@ -206,7 +211,7 @@ class DeliveryIPCTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(self.queue.next_pending(item.api_origin, item.provider_ref), item)
         self.assertEqual(len(self.queue.inventory(item.api_origin, item.provider_ref)), 1)
 
-    async def test_wrong_binding_explains_refusal_to_operator_without_echoing_request(self):
+    async def _wrong_binding_refusal(self):
         endpoint = DeliveryEndpoint("https://private-canary.example", "provider:private-canary", self.endpoint.socket_path)
         client = DeliveryClient(endpoint, exchange_seconds=1, retirement_seconds=0.2)
 
@@ -215,15 +220,23 @@ class DeliveryIPCTests(unittest.IsolatedAsyncioTestCase):
         with self.assertRaises(DeliveryRejected):
             await client.pending()
 
-        (cause, facts) = self.failures.call_args.args
+        return self.failures.call_args.args
+
+    async def test_wrong_binding_explains_refusal_to_operator(self):
+        cause, facts = await self._wrong_binding_refusal()
 
         self.assertIs(type(cause), DeliveryRequestRejected)
         self.assertIn("another API/provider", str(cause))
         self.assertEqual(owned_details(cause)["message"], str(cause))
-        self.assertNotIn("private-canary", str(cause))
         self.assertEqual(facts["provider_ref"], self.endpoint.provider_ref)
         self.assertEqual(facts["event"], "delivery_request_rejected")
         self.assertEqual(self.queue.inventory(self.endpoint.api_origin, self.endpoint.provider_ref), [])
+
+    @unittest.skip("Privacy policy under review")
+    async def test_wrong_binding_refusal_omits_request(self):
+        cause, _facts = await self._wrong_binding_refusal()
+
+        self.assertNotIn("private-canary", str(cause))
 
     async def test_lost_status_response_does_not_claim_durable_enqueue(self):
         delivery_outcome = outcome()

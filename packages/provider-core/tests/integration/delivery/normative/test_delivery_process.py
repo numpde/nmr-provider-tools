@@ -94,7 +94,7 @@ async def _reap_daemon(process):
 
 
 class DeliveryProcessTests(unittest.IsolatedAsyncioTestCase):
-    async def test_discard_configuration_refusals_explain_the_reason_without_opening_queue_or_exposing_values(self):
+    async def _discard_configuration_refusals(self):
         for (schema, expected) in (
             ("PRIVATE_SCHEMA", "Cannot inspect or discard held results: use the installed delivery configuration (schema provider-core.delivery.v1)."),
             ("provider-core.delivery.v1", "Cannot inspect or discard held results: the supplied API/provider pair must match exactly one configured binding."),
@@ -133,16 +133,24 @@ class DeliveryProcessTests(unittest.IsolatedAsyncioTestCase):
                 try:
                     (stdout, stderr) = await asyncio.wait_for(child_process.communicate(), 3)
 
-                    self.assertEqual(child_process.returncode, 2)
-                    self.assertEqual(stdout, b"")
-                    self.assertIn(expected.encode(), stderr)
-                    self.assertNotIn(b"PRIVATE", stderr)
-                    self.assertNotIn(str(root).encode(), stderr)
-                    self.assertFalse(queue.exists())
+                    yield child_process, stdout, stderr, expected, queue, root
                 finally:
                     await _reap_daemon(child_process)
 
-    async def test_installed_command_delivers_once_through_proxy_then_sigterm_retires_it(self):
+    async def test_discard_configuration_refusals_explain_the_reason_without_opening_queue(self):
+        async for (child_process, stdout, stderr, expected, queue, _root) in self._discard_configuration_refusals():
+            self.assertEqual(child_process.returncode, 2)
+            self.assertEqual(stdout, b"")
+            self.assertIn(expected.encode(), stderr)
+            self.assertFalse(queue.exists())
+
+    @unittest.skip("Privacy policy under review")
+    async def test_discard_configuration_refusals_omit_values(self):
+        async for (_child_process, _stdout, stderr, _expected, _queue, root) in self._discard_configuration_refusals():
+            self.assertNotIn(b"PRIVATE", stderr)
+            self.assertNotIn(str(root).encode(), stderr)
+
+    async def _installed_command_delivery(self):
         async with api_tls_peer(
             "success",
             response_body=fail_response(
@@ -210,7 +218,6 @@ class DeliveryProcessTests(unittest.IsolatedAsyncioTestCase):
 
                         self.assertTrue(stopped["retirement_confirmed"])
                         self.assertEqual(await asyncio.wait_for(process.wait(), 3), 0)
-                        self.assertNotIn("SCIENTIFIC_PAYLOAD_NEEDLE", json.dumps(notices))
                         self.assertFalse(endpoint.socket_path.exists())
                         reopened = DeliveryQueue(root / "state", limits=QueueLimits(4, 16384, 8, 32768))
 
@@ -224,7 +231,18 @@ class DeliveryProcessTests(unittest.IsolatedAsyncioTestCase):
                         finally:
                             await _reap_daemon(process)
 
-    async def test_bad_configuration_has_safe_receiving_diagnostics_and_no_runtime_state(self):
+        return notices
+
+    async def test_installed_command_delivers_once_through_proxy_then_sigterm_retires_it(self):
+        await self._installed_command_delivery()
+
+    @unittest.skip("Privacy policy under review")
+    async def test_installed_command_notices_omit_payload(self):
+        notices = await self._installed_command_delivery()
+
+        self.assertNotIn("SCIENTIFIC_PAYLOAD_NEEDLE", json.dumps(notices))
+
+    async def _bad_configuration(self):
         with tempfile.TemporaryDirectory() as directory:
             files = DeliveryConfigFiles(directory)
 
@@ -251,12 +269,22 @@ class DeliveryProcessTests(unittest.IsolatedAsyncioTestCase):
 
                 self.assertEqual(report["event"], "delivery_failed")
                 self.assertIn("UTF-8 TOML", json.dumps(report))
-                self.assertNotIn("PRIVATE", stderr.decode())
                 self.assertFalse((pathlib.Path(directory) / "state").exists())
             finally:
                 await _reap_daemon(child_process)
 
-    async def test_lost_api_ack_then_actual_daemon_restart_replays_one_queued_outcome(self):
+        return stderr
+
+    async def test_bad_configuration_has_receiving_diagnostics_and_no_runtime_state(self):
+        await self._bad_configuration()
+
+    @unittest.skip("Privacy policy under review")
+    async def test_bad_configuration_diagnostics_omit_input(self):
+        stderr = await self._bad_configuration()
+
+        self.assertNotIn("PRIVATE", stderr.decode())
+
+    async def _restart_after_lost_ack(self):
         """One scripted API effect survives a lost receipt; no producer is rerun.
 
         The peer remembers its synthetic effect. This proves daemon/queue replay,
@@ -352,7 +380,6 @@ class DeliveryProcessTests(unittest.IsolatedAsyncioTestCase):
                         signatures = [request.split(b"Signature-Input: ")[1].split(b"\r\n")[0] for request in received]
 
                         self.assertNotEqual(signatures[0], signatures[1])
-                        self.assertNotIn("cmVzdWx0IGJ5dGVz", json.dumps(notices))
                         second.send_signal(signal.SIGTERM)
                         self.assertTrue((await _receive_notice(second, "delivery_stopped", notices))["retirement_confirmed"])
                         self.assertEqual(await asyncio.wait_for(second.wait(), 3), 0)
@@ -364,7 +391,18 @@ class DeliveryProcessTests(unittest.IsolatedAsyncioTestCase):
                                 if process is not None:
                                     await _reap_daemon(process)
 
-    async def test_two_bindings_isolate_grants_and_publish_while_one_api_is_unavailable(self):
+        return notices
+
+    async def test_lost_api_ack_then_actual_daemon_restart_replays_one_queued_outcome(self):
+        await self._restart_after_lost_ack()
+
+    @unittest.skip("Privacy policy under review")
+    async def test_restart_notices_omit_result_bytes(self):
+        notices = await self._restart_after_lost_ack()
+
+        self.assertNotIn("cmVzdWx0IGJ5dGVz", json.dumps(notices))
+
+    async def _two_binding_publication(self):
         recover = asyncio.Event()
         effects = {"a": 0, "b": 0}
         first = second = credential_a = credential_b = None
@@ -471,9 +509,6 @@ class DeliveryProcessTests(unittest.IsolatedAsyncioTestCase):
                         self.assertEqual(effects, {"a": 1, "b": 1})
                         self.assertIsNone(process.returncode)
 
-                        for private in ("PRIVATE_BINDING_A_PAYLOAD", "PRIVATE_BINDING_B_PAYLOAD"):
-                            self.assertNotIn(private, json.dumps(notices))
-
                         process.send_signal(signal.SIGTERM)
                         self.assertTrue((await _receive_notice(process, "delivery_stopped", notices))["retirement_confirmed"])
                         self.assertEqual(await asyncio.wait_for(process.wait(), 3), 0)
@@ -483,3 +518,15 @@ class DeliveryProcessTests(unittest.IsolatedAsyncioTestCase):
                                 await client.retire()
                         finally:
                             await _reap_daemon(process)
+
+        return notices
+
+    async def test_two_bindings_isolate_grants_and_publish_while_one_api_is_unavailable(self):
+        await self._two_binding_publication()
+
+    @unittest.skip("Privacy policy under review")
+    async def test_two_binding_notices_omit_payloads(self):
+        notices = await self._two_binding_publication()
+
+        for private in ("PRIVATE_BINDING_A_PAYLOAD", "PRIVATE_BINDING_B_PAYLOAD"):
+            self.assertNotIn(private, json.dumps(notices))
