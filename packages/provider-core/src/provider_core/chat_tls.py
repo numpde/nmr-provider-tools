@@ -18,6 +18,8 @@ import ssl
 import tempfile
 import weakref
 
+from provider_core.type_requirements import require_instance
+
 
 # Fixed serialization allowances bound a single immutable TLS grant.
 # repo-check: allow-module-constant
@@ -177,8 +179,7 @@ class CapturedSSLContext(ssl.SSLContext):
             if type(cadata) is str:
                 materials.append(("pem", cadata.encode("ascii")))
             else:
-                if not isinstance(cadata, (expected_types := (bytes, bytearray, memoryview))):
-                    raise TypeError(f"CA data: {type(cadata)=} ≠ {expected_types=}")
+                require_instance(cadata, (bytes, bytearray, memoryview))
 
                 materials.append(("der", bytes(cadata)))
 

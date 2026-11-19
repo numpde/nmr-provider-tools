@@ -267,20 +267,17 @@ class Interpreter:
             ("retain_history_up_to_bytes", retain_history_up_to_bytes),
             ("retain_history_up_to_records", retain_history_up_to_records),
         ):
-            if not (type(setting_value) is (expected_type := int)):
-                raise TypeError(f"{setting_name=}; {type(setting_value)=} ≠ {expected_type=}")
+            require_type(setting_value, int)
 
             if not (0 < setting_value):
                 raise ValueError(f"Interpreter setting must be positive: {setting_name=}; {setting_value=}")
 
         require_positive_number(connection_timeout_seconds)
 
-        if not isinstance(secrets, (expected_type := tuple)):
-            raise TypeError(f"{type(secrets)=} ≠ {expected_type=}")
+        require_instance(secrets, tuple)
 
         for secret in secrets:
-            if not isinstance(secret, (expected_type := str)):
-                raise TypeError(f"{type(secret)=} ≠ {expected_type=}")
+            require_instance(secret, str)
 
         if any(not secret for secret in secrets):
             raise ValueError("Cannot configure interpretation: provide known credentials as an explicit tuple of nonempty strings.")
@@ -383,8 +380,7 @@ class Interpreter:
         deadline = _now() + self.interpretation_budget_seconds
 
         if not_after is not None:
-            if not (type(not_after) in (expected_type := (int, float))):
-                raise TypeError(f"Cannot start interpretation: {type(not_after)=} ≠ {expected_type=}")
+            require_type(not_after, (int, float))
 
             if not math.isfinite(not_after):
                 raise ValueError("Cannot start interpretation: not_after must be a finite monotonic deadline.")

@@ -65,15 +65,15 @@ class ChatEndpointSpec:
         if not (self.model.strip() and self.model.isprintable() and len(self.model.encode('utf-8')) <= 512):
             raise ValueError("Cannot configure interpreter endpoint: model must be nonblank printable UTF-8 text within 512 bytes.")
 
-        if not (type((actual_api_key := self.api_key)) is (expected_type := str)):
-            raise TypeError(f"{type(actual_api_key)=} ≠ {expected_type=}")
+        actual_api_key = self.api_key
+        require_type(actual_api_key, str)
 
         if (not (self.api_key)) or (any(not 32 < ord(char) < 127 for char in self.api_key)):
             raise ValueError("Cannot configure interpreter endpoint: an explicit header-safe API key is required.")
 
         if self.reasoning_effort is not None:
-            if not (type((actual_reasoning_effort := self.reasoning_effort)) is (expected_reasoning_effort_type := str)):
-                raise TypeError(f"Cannot configure interpreter endpoint: {type(actual_reasoning_effort)=} ≠ {expected_reasoning_effort_type=}")
+            actual_reasoning_effort = self.reasoning_effort
+            require_type(actual_reasoning_effort, str)
 
             if not (self.reasoning_effort):
                 raise ValueError("Cannot configure interpreter endpoint: reasoning_effort must be an explicit ASCII word or None.")
@@ -145,14 +145,12 @@ class ChatEndpointFactory:
 def require_chat_limits(*, request_bytes, response_bytes):
     """Admit carrier limits before startup gives it a transport."""
 
-    if not (type(request_bytes) is (expected_type := int)):
-        raise TypeError(f"Cannot configure interpreter carrier: {type(request_bytes)=} ≠ {expected_type=}")
+    require_type(request_bytes, int)
 
     if not (0 < request_bytes):
         raise ValueError("Cannot configure interpreter carrier: request and response byte limits must be positive integers.")
 
-    if not (type(response_bytes) is (expected_type := int)):
-        raise TypeError(f"Cannot configure interpreter carrier: {type(response_bytes)=} ≠ {expected_type=}")
+    require_type(response_bytes, int)
 
     if not (0 < response_bytes):
         raise ValueError("Cannot configure interpreter carrier: request and response byte limits must be positive integers.")

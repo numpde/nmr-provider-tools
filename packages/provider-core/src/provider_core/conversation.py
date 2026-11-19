@@ -66,8 +66,8 @@ class TextCorrection:
         if self.user_content is None:
             return
 
-        if not (type((actual_user_content := self.user_content)) is (expected_type := str)):
-            raise TypeError(f"{type(actual_user_content)=} ≠ {expected_type=}")
+        actual_user_content = self.user_content
+        require_type(actual_user_content, str)
 
         if not (self.user_content):
             raise ValueError("Text correction requires a nonempty user instruction.")
@@ -178,18 +178,16 @@ class ToolConversation:
         if max_corrections is not None:
             require_turn_limit(max_corrections)
 
-        if not (type(secrets) is (expected_type := tuple)):
-            raise TypeError(f"{type(secrets)=} ≠ {expected_type=}")
+        require_type(secrets, tuple)
 
         for secret in secrets:
-            if not (type(secret) is (expected_type := str)):
-                raise TypeError(f"{type(secret)=} ≠ {expected_type=}")
+            require_type(secret, str)
 
         if any(not secret for secret in secrets):
             raise ValueError("Cannot configure interpretation: known secrets must be an explicit tuple of nonempty strings.")
 
-        if (text_correction is not None) and (not (type(text_correction) is (expected_type := TextCorrection))):
-            raise TypeError(f"{type(text_correction)=} ≠ {expected_type=}")
+        if text_correction is not None:
+            require_type(text_correction, TextCorrection)
 
         if argument_bytes is not None:
             require_type(argument_bytes, int)
