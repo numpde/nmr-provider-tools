@@ -82,6 +82,9 @@ class AcquisitionBundleTests(unittest.TestCase):
             for name in PROXY_FILES:
                 archive.writestr("provider_core/" + name, (ROOT / "packages/provider-core/src/provider_core" / name).read_bytes())
 
+            archive.writestr("provider_core/type_requirements.py", (ROOT / "packages/provider-core/src/provider_core/type_requirements.py").read_bytes())
+            archive.writestr("provider_core/_type_requirements.py", (ROOT / "packages/type-requirements/src/type_requirements.py").read_bytes())
+
         identity = root / "linux_idmap-0.3.0-py3-none-any.whl"
 
         with zipfile.ZipFile(identity, "w") as archive:
@@ -124,6 +127,7 @@ class AcquisitionBundleTests(unittest.TestCase):
             self.assertEqual(record, self.build(root, second, source, wheel, pin))
             self.assertEqual(first.read_bytes(), second.read_bytes())
             expected = {"compose/acquisition.yml", "acquisition-manifest.json"} | set(SOURCE_FILES) | {"provider_core/" + name for name in PROXY_FILES} | {"linux_idmap/__init__.py"}
+            expected.update({"provider_core/type_requirements.py", "provider_core/_type_requirements.py"})
             installer = json.loads((source / "requirements/installer-release.json").read_text())
 
             expected.update(issued_name for (_source_name, issued_name) in INSTALLER_SOURCES)
@@ -230,6 +234,58 @@ class AcquisitionBundleTests(unittest.TestCase):
             )
 
             self.assertIn("--pin-file", update_help.stdout)
+
+    def test_legacy_proxy_without_type_helpers_keeps_its_wheel_bytes(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = pathlib.Path(temporary)
+            (source, wheel, _identity, pin) = self.fixture(root)
+            legacy_wheel = root / "legacy" / wheel.name
+            legacy_proxy = b'"""Legacy proxy fixture without type helper imports."""\n'
+            helper_members = {"provider_core/type_requirements.py", "provider_core/_type_requirements.py"}
+
+            legacy_wheel.parent.mkdir()
+
+            with zipfile.ZipFile(wheel) as current, zipfile.ZipFile(legacy_wheel, "w") as legacy:
+                for member in current.namelist():
+                    if member in helper_members:
+                        continue
+
+                    payload = legacy_proxy if member == "provider_core/bound_http_proxy.py" else current.read(member)
+
+                    legacy.writestr(member, payload)
+
+            output = root / "legacy.tar.gz"
+
+            self.build(root, output, source, legacy_wheel, pin)
+
+            with tarfile.open(output) as archive:
+                self.assertEqual(legacy_proxy, archive.extractfile("provider_core/bound_http_proxy.py").read())
+                self.assertTrue(helper_members.isdisjoint(archive.getnames()))
+
+    def test_missing_proxy_type_helpers_never_publish_bundle(self):
+        for missing_helpers in (
+            {"provider_core/type_requirements.py"},
+            {"provider_core/_type_requirements.py"},
+            {"provider_core/type_requirements.py", "provider_core/_type_requirements.py"},
+        ):
+            with self.subTest(missing_helpers=missing_helpers), tempfile.TemporaryDirectory() as temporary:
+                root = pathlib.Path(temporary)
+                (source, wheel, _identity, pin) = self.fixture(root)
+                incomplete_wheel = root / "incomplete" / wheel.name
+
+                incomplete_wheel.parent.mkdir()
+
+                with zipfile.ZipFile(wheel) as current, zipfile.ZipFile(incomplete_wheel, "w") as incomplete:
+                    for member in current.namelist():
+                        if member not in missing_helpers:
+                            incomplete.writestr(member, current.read(member))
+
+                output = root / "incomplete.tar.gz"
+
+                with self.assertRaises(ValueError):
+                    self.build(root, output, source, incomplete_wheel, pin)
+
+                self.assertFalse(output.exists())
 
     def test_missing_owner_source_or_changed_identity_wheel_never_publishes_output(self):
         with tempfile.TemporaryDirectory() as temporary:

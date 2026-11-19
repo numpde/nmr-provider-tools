@@ -4,6 +4,7 @@ from tools.container_guard import require_container
 
 require_container()
 
+import ast
 import gzip
 import hashlib
 import io
@@ -174,8 +175,26 @@ def contents(pool, source, core_wheel, pin, *, revision, wheelhouse_bundle):
 
     with zipfile.ZipFile(core_wheel) as archive:
         member_names = archive.namelist()
+        proxy_files = list(PROXY_FILES)
 
-        for leaf in PROXY_FILES:
+        # Older pinned SDKs lack the helpers; newer ones must supply the complete pair
+        helper_files = ("type_requirements.py", "_type_requirements.py")
+        proxy_member = "provider_core/bound_http_proxy.py"
+        proxy_needs_helpers = False
+
+        if proxy_member in member_names:
+            proxy_needs_helpers = any(
+                (
+                    isinstance(node, ast.ImportFrom) and
+                    ((node.level, node.module) in {(0, "provider_core.type_requirements"), (1, "type_requirements")})
+                    for node in ast.walk(ast.parse(archive.read(proxy_member), filename=proxy_member))
+                ),
+            )
+
+        if proxy_needs_helpers or any("provider_core/" + leaf in member_names for leaf in helper_files):
+            proxy_files.extend(helper_files)
+
+        for leaf in proxy_files:
             member_name = "provider_core/" + leaf
 
             if member_names.count(member_name) != 1:
