@@ -603,7 +603,7 @@ class _History:
             self._unavailable += 1
 
         record = _HistoryRecord(
-            ref=f"record-{self._sequence}",
+            ref=f"record-{self._sequence}",  # machine-string: model tool calls return this record reference; preserve the record-<sequence> identifier format.
             visit=visit,
             kind=kind,
             tool=tool,

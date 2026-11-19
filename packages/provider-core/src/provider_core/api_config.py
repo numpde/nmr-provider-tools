@@ -108,24 +108,25 @@ def https_trust(raw, *, label):
     its fixed selectors, so a model HTTP child needs no ambient root authority.
     """
     _require_explicit_tls_environment()
+    section_name = label
 
     if raw is not None:
         try:
             pem = raw.decode("ascii")
         except UnicodeDecodeError as cause:
-            raise ApiConfigurationRejected(f"Cannot load {label} CA: the PEM certificate text must be ASCII.", cause=cause) from None
+            raise ApiConfigurationRejected(f"{section_name=}: PEM certificate text should be ASCII", cause=cause) from None
 
         try:
             trust = CapturedSSLContext(ssl.PROTOCOL_TLS_CLIENT)
 
             trust.load_verify_locations(cadata=pem)
         except (ValueError, OSError) as cause:
-            raise ApiConfigurationRejected(f"Cannot configure {label} CA trust: OpenSSL could not load the PEM certificate data.", cause=cause) from None
+            raise ApiConfigurationRejected(f"{section_name=}: OpenSSL could not load the PEM certificate data", cause=cause) from None
     else:
         try:
             trust = new_https_trust(None)
         except (OSError, ssl.SSLError) as cause:
-            raise ApiConfigurationRejected(f"{label} system TLS roots could not be loaded.", cause=cause) from None
+            raise ApiConfigurationRejected(f"{section_name=}: system TLS roots could not be loaded", cause=cause) from None
 
     return trust
 

@@ -253,7 +253,7 @@ class HttpTransport:
     constructing another owner does not discharge the old owner's obligations.
     An explicit proxy_socket routes HTTPS CONNECT through that fixed Unix path;
     None selects direct TCP. A configured proxy never falls back to direct I/O.
-    Plain HTTP requires explicit allow_http=True and cannot use a proxy.
+    Plain HTTP must be explicitly enabled and cannot use a proxy.
     TLS certificate and hostname verification remain required for HTTPS.
     Optional connect_seconds bounds total setup through DNS, connection, CONNECT
     and TLS; it ends when the origin request starts. Without it, the existing
@@ -429,7 +429,7 @@ class HttpTransport:
                     if not (decoder is None):
                         raise DecodedBodyRejected("size_limit")
 
-                    raise ExchangeFailed(f"Cannot receive HTTP response: raw body exceeds the {maximum_bytes}-byte limit")
+                    raise ExchangeFailed(f"Cannot receive HTTP response: raw body exceeds {maximum_bytes = } bytes.")
 
                 if file_body is None:
                     body.extend(chunk if decoder is None else decoder.feed(chunk))

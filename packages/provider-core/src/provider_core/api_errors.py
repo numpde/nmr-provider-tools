@@ -19,7 +19,7 @@ class ApiFailure(RuntimeError):
     """
 
     def __init__(self, operation, reason, *, response=None, cause=None):
-        super().__init__(f"Cannot {operation}: {reason}")
+        super().__init__(f"{operation=}: {reason=!s}")
         self.operation = operation
         self.response = response
         self.cause = cause

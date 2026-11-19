@@ -419,7 +419,10 @@ class ToolConversation:
         # silent-defaults: allow-contract -- Absent usable correction text reports exhaustion without choosing another endpoint or input.
         reason = self.last_rejection or "No tool submitted a supported input."
 
-        raise ConversationFailed(f"Cannot interpret the request: the {self._max_turns}-turn budget was exhausted. Last correction: {reason}")
+        raise ConversationFailed(
+            f"Cannot interpret the request: the {self._max_turns = } turn budget was exhausted. "
+            f"{reason = }"
+        )
 
     def _route(self, endpoint):
         # Identity comes from the trusted adapter, not model response fields.
@@ -525,7 +528,9 @@ class ToolConversation:
         self.correction_failures.append((self._turns, rejection))
 
         if (self._max_corrections is not None) and (self._corrections >= self._max_corrections):
-            raise ConversationFailed(f"Cannot interpret the request: the {self._max_corrections}-correction budget was exhausted.")
+            raise ConversationFailed(
+                f"Cannot interpret the request: the {self._max_corrections = } correction budget was exhausted."
+            )
 
         content = reason
 

@@ -43,7 +43,7 @@ def read_startup_file(path, *, maximum_bytes, secret=False):
         mode = stat.S_IMODE(status.st_mode)
 
         if (not stat.S_ISREG(status.st_mode)) or (status.st_size > maximum_bytes):
-            raise StartupFileRejected(f"{path=} must be a regular file within {maximum_bytes} bytes.")
+            raise StartupFileRejected(f"{path=} must be a regular file within {maximum_bytes = } bytes.")
 
         if secret:
             if (status.st_uid != os.geteuid()) or (mode not in (0o400, 0o600)):

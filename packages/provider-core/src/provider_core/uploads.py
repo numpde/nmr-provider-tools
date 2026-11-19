@@ -235,7 +235,7 @@ class _UploadFile:
 
         if not (done):
             raise UploadFailed(
-                f"waiting to {pending.operation} the private file exceeded its allotted time",
+                f"Private file {pending.operation=!s} exceeded its allotted time",
                 cause=TimeoutError("Private Upload file observation deadline expired"),
             )
 
@@ -245,7 +245,7 @@ class _UploadFile:
             pending.worker.result()
         except Exception as cause:
             raise UploadFailed(
-                f"cannot {pending.operation} the private source file; inspect the protected cause",
+                f"Private source file {pending.operation=!s} could not complete; inspect the cause",
                 cause=cause
             ) from None
 
@@ -852,7 +852,7 @@ class JobUploads:
         remaining = self._remaining_seconds()
 
         if self._requests >= self._limits.requests:
-            raise UploadFailed(f"the source session exhausted its {self._limits.requests}-request limit")
+            raise UploadFailed(f"The source session exhausted its {self._limits.requests = } request limit.")
 
         return remaining
 
@@ -918,7 +918,9 @@ class JobUploads:
             available = self._limits.requests - self._requests
 
             if available < minimum_requests:
-                raise UploadFailed(f"the next source attempt requires {minimum_requests} requests but only {available} remain")
+                raise UploadFailed(
+                    f"The next source attempt requires {minimum_requests = } requests, but only {available = } remain."
+                )
         except UploadFailed as budget:
             raise self._recovery_exhausted("source recovery exhausted its original budgets: " + budget.reason, failure) from None
 
@@ -933,8 +935,8 @@ class JobUploads:
 
         if seconds >= remaining:
             raise self._recovery_exhausted(
-                f"source recovery wait of {seconds:g} seconds cannot fit with only {remaining:g} seconds "
-                f"remaining before the original deadline",
+                f"Source recovery wait of {seconds = :g} seconds cannot fit with only {remaining = :g} seconds "
+                f"remaining before the original deadline.",
                 failure,
             ) from None
 
@@ -1122,8 +1124,8 @@ class JobUploads:
 
         if selected.byte_length > self._limits.per_source_bytes:
             raise UploadInputRejected(
-                f"selected Upload has {selected.byte_length} bytes and exceeds the fixed "
-                f"{self._limits.per_source_bytes}-byte per-source limit; select a smaller Upload"
+                f"Selected Upload has {selected.byte_length = } bytes, exceeding the fixed "
+                f"{self._limits.per_source_bytes = } byte per-source limit; select a smaller Upload."
             )
 
         return selected
@@ -1180,4 +1182,4 @@ class JobUploads:
         self._received += count
 
         if self._received > self._limits.total_bytes:
-            raise UploadFailed(f"download exhausted the source session's {self._limits.total_bytes}-byte budget")
+            raise UploadFailed(f"Download exhausted the source session's {self._limits.total_bytes = } byte budget.")

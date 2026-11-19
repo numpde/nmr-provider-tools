@@ -21,7 +21,7 @@ class UploadFailed(RuntimeError):
 
     # silent-defaults: allow-contract -- An omitted cleanup tuple carries no independent cleanup evidence; it does not confirm retirement.
     def __init__(self, reason, *, response=None, cause=None, cleanup_failures=(), interruption=None):
-        super().__init__(f"Cannot acquire Upload: {reason}")
+        super().__init__(f"Cannot acquire Upload: {reason = }")
         self.reason = reason
         self.response = response
         self.cause = cause
@@ -43,7 +43,7 @@ class UploadFileReadFailed(RuntimeError):
 
     # silent-defaults: allow-contract -- An omitted cleanup tuple carries no independent cleanup evidence; it does not confirm retirement.
     def __init__(self, reason, *, cause=None, cleanup_failures=(), interruption=None):
-        super().__init__(f"Cannot read verified Upload file: {reason}")
+        super().__init__(f"Cannot read verified Upload file: {reason = }")
         self.cause = cause
         self.cleanup_failures = tuple(cleanup_failures)
         self.interruption = interruption
