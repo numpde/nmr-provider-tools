@@ -29,6 +29,7 @@ import tomli_w
 
 from provider_core.hosting import AdmissionCode, CapacityUnavailable, NotAdmitted, ResultState, StartDeadlineExpired
 from provider_core.interpreter import InterpretationFailed, ModelWindowExpired, ProseService
+from provider_core.submission import Submission
 
 from nmrpeak_mock_provider import provider as provider_setup
 from nmrpeak_mock_provider.binding import Chf, Hf, PeakContribution
@@ -198,6 +199,36 @@ class PeakExampleTests(unittest.IsolatedAsyncioTestCase):
                 await workflow.deliver()
 
             self.assertEqual(2, len(self.factory.endpoints[0].requests))
+            self.assertEqual(1, len(receiver.payloads))
+
+    async def test_process_backend_keeps_consumed_state_unavailable(self):
+        document = tomllib.loads(self.configuration.read_text(encoding="utf-8"))
+        document["science"] = {"hf": document["science"]["hf"]}
+        document["execution"]["backend"] = "process"
+        self.configuration.write_text(data=tomli_w.dumps(document), encoding="utf-8")
+        self.factory.proposals = (candidate(carbon=False),)
+
+        async with self.open_offerings() as offerings:
+            (offering,) = offerings
+            receiver = RecordingReceiver()
+
+            async with offering.open_prediction(receive=receiver) as workflow:
+                await workflow.interpret(source="One recorded proton spectrum")
+                result = await workflow.finish()
+                self.assertEqual(result, await workflow.finish())
+
+                duplicate = Submission.from_call(
+                    analysis_executor=workflow.analysis_executor,
+                    call_binding=offering.generation_call,
+                    states={PeakContribution.candidate: workflow.preparation_tool.prepared_state_handle},
+                    reservation_ref=workflow.reservation_ref,
+                    operation_policy=workflow.operation_policy,
+                ).submit()
+
+                self.assertIsInstance(duplicate, NotAdmitted)
+                self.assertIs(AdmissionCode.INVALID_REFERENCE, duplicate.code)
+                await workflow.deliver()
+
             self.assertEqual(1, len(receiver.payloads))
 
     async def test_configured_inventory_supports_single_families_and_multiple_models(self):
