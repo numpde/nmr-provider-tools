@@ -1,36 +1,43 @@
-Validation and upstream boundaries
-=================================
+Separate checks from operations
+===============================
 
 2026-11-19 — proposed refactor; implementation remains pending
 
-Separate all validation from functionality, including inline and single-use
-checks. One source package, packages/validation/, should own the constraints,
-checks and rejection diagnostics, organized by domain. Callers retain parsing,
-encoding, resource operations, state transitions, retries and cleanup.
+Put all validation, including inline and single-use checks, in
+packages/validation/, organized by subject. It owns the rules, checks and
+rejection messages. Calling code keeps parsing, encoding, resource operations,
+requests, state changes, retries and cleanup.
 
-Separately isolate everything coupled to upstream contracts: identifiers,
-bounds, field sets, vocabularies, routes, signing rules, codecs and response
-interpretation. Upstream-specific checks belong in the validation package's
-upstream area; wire functionality belongs in dedicated integration adapters.
-Operational code consumes admitted domain facts through those boundaries.
-Keep upstream contract definitions and pins unchanged in this step.
+Also separate code that depends on an external API's rules: identifiers, limits,
+fields, allowed states and codes, routes, signing, encoding and reply meanings.
+Put its checks in the validation package's upstream area. Put the code that
+calls the API and translates requests and replies in dedicated adapters.
+Execution and delivery code uses checked results through those adapters.
+Keep the external contract definitions and selected versions unchanged.
 
 Plan
 ----
-1. Inventory validation and upstream coupling across Python, shell and Make.
-   Record each check's owner, callers, rejection type and effect-ordering boundary.
-2. Establish the validation source package and noncyclic exception ownership.
-   Preserve public rejection classifications and native causes.
-3. Migrate the provider API edge, then local configuration/model validation,
-   runtime preconditions and build/bootstrap checks. Move callers and remove
-   displaced implementations in meaningful chunks.
-4. Ship each standalone consumer's required validation source through existing
-   offline source-capture and bundle mechanisms; avoid an SDK dependency in
-   acquisition or wheelhouse bootstrap.
-5. Verify each chunk with focused Make lanes using PRIVACY_TESTS=0 and an
-   independent audit before committing.
 
-Preserve byte limits before parsing, duplicate-key/nonfinite parser hooks, and
-checks inside their existing lock, custody and dispatch ordering. Completion
-requires one owner per validation rule, isolated upstream coupling, and intact
-failure classification, mutation uncertainty and cleanup behavior.
+1. Find the checks and API-specific code in Python, shell and Make. Record each
+   check's callers, failures and position relative to locks and effects.
+2. Establish the validation package and ownership of rejection exceptions.
+   Keep imports one-way, preserve the exception types callers handle, and retain
+   original parser and system errors as causes.
+3. Move the complete provider API integration first, including signing and all
+   routes, encoders and decoders. Then move configuration and data checks,
+   runtime preconditions and build/startup checks. Update callers and delete old
+   checks in meaningful chunks. A limit's definition must supply both the check
+   and its diagnostic.
+4. Include the needed validation files in each standalone tool's existing
+   offline bundle. Acquisition and wheelhouse tools must work before the SDK is
+   installed and must use the same authored validation files.
+5. Run focused Make lanes with PRIVACY_TESTS=0 and obtain an independent review
+   before committing each chunk.
+
+Keep byte limits before parsing. Reject duplicate JSON keys and nonfinite numbers
+while the parser can still detect them. Keep checks under the same locks and in
+the same order relative to resource ownership and effects.
+
+Completion requires one owner per rule, isolated API-specific code and preserved
+failure behavior: a lost reply still leaves the request's outcome uncertain;
+cleanup retains its current ownership and ordering.
