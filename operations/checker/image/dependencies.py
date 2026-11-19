@@ -199,7 +199,7 @@ def download(packages, pool):
 
 def install(packages, directory):
     check(packages, directory)
-    debian.install_binary_packages([directory / package["file"] for package in packages])
+    debian.install_binary_packages([(directory / package["file"]) for package in packages])
 
     for package in packages:
         package_name = package["name"]

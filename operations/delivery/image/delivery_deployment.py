@@ -69,7 +69,7 @@ def _require_mount_path(mount_path):
     if not (absolute_mount_path.resolve() == absolute_mount_path):
         raise DeliveryDeploymentRejected("The delivery mount path should be canonical with symlinks resolved")
 
-    if not all(character not in str(absolute_mount_path) for character in ("\n", "\r", ",")):
+    if not all((character not in str(absolute_mount_path)) for character in ("\n", "\r", ",")):
         raise DeliveryDeploymentRejected("The delivery mount path should contain no commas or line breaks")
 
     return absolute_mount_path

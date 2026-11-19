@@ -69,7 +69,7 @@ def limits(document):
 
 
 def argument(command_argument):
-    if (not command_argument) or (any((ord(c) < 32) or (ord(c) == 127) for c in command_argument)):
+    if (not command_argument) or (any(((ord(c) < 32) or (ord(c) == 127)) for c in command_argument)):
         raise ValueError("Timer arguments cannot contain empty values or control characters.")
 
     # Systemd specifiers remain literal. ExecStart's ':' prefix below disables

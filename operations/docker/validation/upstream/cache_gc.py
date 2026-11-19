@@ -63,7 +63,7 @@ def gc_thresholds(gc_settings: dict[str, Any]) -> list[str]:
 
         if (
             (type(gc_threshold) is str) and
-            ((not gc_threshold) or (any(character.isspace() or (ord(character) < 32) for character in gc_threshold)))
+            ((not gc_threshold) or (any((character.isspace() or (ord(character) < 32)) for character in gc_threshold)))
         ):
             raise ValueError(f"{gc_threshold_name=}: {reprlib.repr(gc_threshold)=} should be nonempty without whitespace or control characters")
 

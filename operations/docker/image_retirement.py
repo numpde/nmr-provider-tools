@@ -101,7 +101,7 @@ def current_inputs(root):
 
     identities = selected_inputs.splitlines()
 
-    if (len(identities) != 3) or any(_HASH.fullmatch(identity) is None for identity in identities):
+    if (len(identities) != 3) or any((_HASH.fullmatch(identity) is None) for identity in identities):
         raise RetirementRefused("Current checker/delivery identities are incomplete.")
 
     return tuple(identities)
@@ -151,12 +151,12 @@ def select_images(images, protected, current):
 
         if any(
             (
-                tag in {
+                (tag in {
                     f"nmr-provider-tools/checker:{current_checker}",
                     f"nmr-provider-tools/checker-bootstrap:{current_bootstrap}",
                     f"nmr-provider-tools/delivery-recipe:{current_recipe}",
                     "nmr-provider-tools/wheelhouse-tool:local",
-                }
+                })
                 for tag in image_tags
             ),
         ):
@@ -202,7 +202,7 @@ def select_images(images, protected, current):
         else:
             continue
 
-        if any(tag not in allowed_tags for tag in image_tags):
+        if any((tag not in allowed_tags) for tag in image_tags):
             continue
 
         retirement_candidates.append(image_id)

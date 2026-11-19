@@ -196,7 +196,7 @@ def _capture_image_inputs(pin, runtime_lock, pool, destination, lock_fd):
         raise ValueError("Cannot build delivery: the Dockerfile has no unique wheel input marker.")
 
     copy_instructions = "\n".join(
-        "COPY " + json.dumps(["wheelhouse/" + name, "/" + name])
+        ("COPY " + json.dumps(["wheelhouse/" + name, "/" + name]))
         for name in sorted(selected_wheels["files"])
     )
 

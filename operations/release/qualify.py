@@ -35,7 +35,7 @@ from type_requirements import require_type
 def artifact_names(version):
     prefix = f"provider_core-{version}"
 
-    return {prefix + suffix for suffix in ("-py3-none-any.whl", ".tar.gz", "-install.lock", "-native-install.lock", "-release.json", "-sha256.json")} | {f"wheelhouse-tool-{version}.pyz", f"acquisition-owner-{version}.tar.gz"}
+    return {(prefix + suffix) for suffix in ("-py3-none-any.whl", ".tar.gz", "-install.lock", "-native-install.lock", "-release.json", "-sha256.json")} | {f"wheelhouse-tool-{version}.pyz", f"acquisition-owner-{version}.tar.gz"}
 
 
 def qualify_wheelhouse_bundle(bundle, scratch):
@@ -474,7 +474,7 @@ def source_payload(source, inventory):
             raise ValueError(f"For source member {name!r}, {source_mode=} should match {expected_mode=}")
 
     generated_metadata_files = {"PKG-INFO", "setup.cfg"} | {
-        "src/provider_core.egg-info/" + name
+        ("src/provider_core.egg-info/" + name)
         for name in (
             "PKG-INFO",
             "SOURCES.txt",
@@ -512,7 +512,7 @@ def wheel_payload(wheel, expected, version):
             (len(archive_members) != len(set(archive_members))) or
             any(
                 (
-                    (not name.startswith(metadata_prefix)) and (name not in expected)
+                    ((not name.startswith(metadata_prefix)) and (name not in expected))
                     for name in archive_members
                 ),
             )
@@ -551,7 +551,7 @@ def qualify_installed(wheel, lock, source, pool, root, suites):
 
     behavioral_python = None
 
-    if any(suite in ("unit", "integration") for suite in suites):
+    if any((suite in ("unit", "integration")) for suite in suites):
         behavioral_lock = behavioral_install_lock(
             lock,
             source / "tests/requirements.lock",
