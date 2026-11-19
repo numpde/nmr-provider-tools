@@ -327,12 +327,12 @@ def render_shared(path, source, image):
         raise DeliveryDeploymentRejected(f"Shared deployment requires {reprlib.repr(image)=} to be an immutable image ID.")
 
     try:
-        document = tomllib.loads(
+        operator_definition = tomllib.loads(
             read_startup_file(path, maximum_bytes=65536).decode("utf-8")
         )
 
-        host = document["deployment"]
-        route = document["api_proxy"]["route"]
+        host = operator_definition["deployment"]
+        route = operator_definition["api_proxy"]["route"]
 
         project = host["project"]
         uid = host["uid"]

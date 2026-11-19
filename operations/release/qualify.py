@@ -487,9 +487,9 @@ def source_payload(source, inventory):
     }
 
     observed_files = {
-        path.relative_to(source).as_posix()
-        for path in source.rglob("*")
-        if path.is_file()
+        source_member_path.relative_to(source).as_posix()
+        for source_member_path in source.rglob("*")
+        if source_member_path.is_file()
     }
 
     if observed_files != (set(inventory) | generated_metadata_files):
