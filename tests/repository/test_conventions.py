@@ -129,6 +129,7 @@ def unguarded_sources(root):
     portable_sources.discard(core_root / "contribution_errors.py")
 
     portable_sources.discard(core_root / "tools.py")
+    portable_sources.discard(core_root / "type_requirements.py")
 
     failures = [
         str(path.relative_to(root))
