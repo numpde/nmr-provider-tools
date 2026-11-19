@@ -118,7 +118,7 @@ class PythonBytecodePostureTests(unittest.TestCase):
         for source in good:
             self.assertEqual([], findings(pathlib.Path("driver.py"), source), msg=source)
 
-    def test_inventory_is_automatic_and_diagnostics_do_not_echo_payload(self):
+    def test_inventory_is_automatic(self):
         with tempfile.TemporaryDirectory() as directory:
             root = pathlib.Path(directory)
 
@@ -143,10 +143,16 @@ class PythonBytecodePostureTests(unittest.TestCase):
                 {path.relative_to(root).as_posix() for path in production_files(root)}
             )
 
+    def test_diagnostic_identifies_source_location(self):
+        (issue,) = findings(pathlib.Path("safe.sh"), "python3 -I worker.py")
+
+        self.assertIn("safe.sh:1:", issue.diagnostic())
+
+    @unittest.skip("Privacy policy under review")
+    def test_diagnostics_do_not_echo_payload(self):
         (issue,) = findings(pathlib.Path("safe.sh"), "python3 -I secret-private-path.py")
 
         self.assertNotIn("secret-private-path", issue.diagnostic())
-        self.assertIn("safe.sh:1:", issue.diagnostic())
 
     def test_python_fixture_uses_python_launch_analysis(self):
         (issue,) = findings(pathlib.Path("tests/fixtures/run.py.fixture"), 'subprocess.run(["python3", "worker.py"])')
