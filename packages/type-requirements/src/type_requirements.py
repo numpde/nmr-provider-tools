@@ -9,12 +9,18 @@ __all__ = ["require_type", "require_instance", "require_subclass"]
 
 
 def _allowed_types(T: type | tuple[type, ...]) -> tuple[type, ...]:
-    types = T if isinstance(T, tuple) else (T,)
+    """Validate every expected type before a value match can short-circuit."""
 
-    if (not types) or (not all(isinstance(item, type) for item in types)):
-        raise TypeError("T must be a type or a non-empty tuple of types")
+    expected_types = T if isinstance(T, tuple) else (T,)
 
-    return types
+    if not (expected_types):
+        raise TypeError(f"{T=} should contain at least one type")
+
+    for provided_type in expected_types:
+        if not isinstance(provided_type, (expected_type := type)):
+            raise TypeError(f"{type(provided_type)=} ≠ {expected_type=}")
+
+    return expected_types
 
 
 def _argument_source(caller) -> str | None:
@@ -100,8 +106,8 @@ def _raise_mismatch(expr: object, T: type | tuple[type, ...], relation: str) -> 
         raise TypeError(f"{checked_expression=} should be an instance of {expected_type=}; {actual_type=}")
 
     if relation == "subclass":
-        if not isinstance(expr, type):
-            raise TypeError(f"{checked_expression=} should be a class; {actual_type=}")
+        if not isinstance(expr, (expected_class_type := type)):
+            raise TypeError(f"{checked_expression=}: {type(expr)=} ≠ {expected_class_type=}")
 
         raise TypeError(f"{checked_expression=} should be a subclass of {expected_type=}; {expr=}")
 
