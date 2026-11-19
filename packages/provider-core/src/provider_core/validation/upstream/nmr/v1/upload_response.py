@@ -85,7 +85,7 @@ def _byte_facts(document, *, pending_allowed):
 
     fingerprint = document["content_hash"]
 
-    if pending_allowed and fingerprint is None:
+    if pending_allowed and (fingerprint is None):
         return
 
     if not (type(fingerprint) is (expected_type := str)):
@@ -149,7 +149,7 @@ def read_membership(raw, *, job_ref):
 
     _fields(document, {"schema_id", "job_ref", "uploads"})
 
-    if document["schema_id"] != "nmr.provider.job_upload_set.read.response.v1" or document["job_ref"] != job_ref:
+    if (document["schema_id"] != "nmr.provider.job_upload_set.read.response.v1") or (document["job_ref"] != job_ref):
         raise ResponseRejected("Membership response schema or Job identity differs from the request")
 
     members = document["uploads"]
@@ -173,10 +173,11 @@ def read_membership(raw, *, job_ref):
         if len(description) > 4096:
             raise ResponseRejected("Upload description must contain at most 4096 Unicode scalar values without NUL")
 
-        if any(c == "\x00" or 0xD800 <= ord(c) <= 0xDFFF for c in description):
+        # API descriptions forbid NUL and surrogate code points (U+D800–U+DFFF)
+        if any(((c == "\x00") or (0xD800 <= ord(c) <= 0xDFFF)) for c in description):
             raise ResponseRejected("Upload description must contain at most 4096 Unicode scalar values without NUL")
 
-        if admitted and member["upload_ref"] <= admitted[-1].upload_ref:
+        if admitted and (member["upload_ref"] <= admitted[-1].upload_ref):
             raise ResponseRejected("Membership must contain unique Upload references in ascending order")
 
         admitted.append(UploadMember(member["upload_ref"], description, member["byte_length"], member["content_hash"]))
@@ -193,7 +194,7 @@ def read_grant(raw, *, job_ref, upload_ref):
         {"schema_id", "upload_ref", "method", "download_url", "byte_length", "content_hash", "capability", "expires_at"}
     )
 
-    if document["schema_id"] != "nmr.upload.read_capability.response.v1" or document["upload_ref"] != upload_ref:
+    if (document["schema_id"] != "nmr.upload.read_capability.response.v1") or (document["upload_ref"] != upload_ref):
         raise ResponseRejected("Grant response schema or Upload identity differs from the request")
 
     if document["method"] != "GET":

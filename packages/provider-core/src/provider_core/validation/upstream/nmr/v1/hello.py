@@ -51,7 +51,8 @@ def _require_text(value, name, maximum):
     if not (1 <= len(value) <= maximum):
         raise ValueError(f"Cannot announce provider: {name} has {len(value)} characters; expected 1 through {maximum} Unicode scalars")
 
-    if "\0" in value or any(0xD800 <= ord(character) <= 0xDFFF for character in value):
+    # These API fields forbid NUL; U+D800–U+DFFF are surrogates, not Unicode scalar values
+    if ("\0" in value) or any((0xD800 <= ord(character) <= 0xDFFF) for character in value):
         raise ValueError(f"Cannot announce provider: {name} must not contain NUL or surrogate characters")
 
 

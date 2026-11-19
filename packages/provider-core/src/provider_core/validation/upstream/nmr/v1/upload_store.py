@@ -19,7 +19,8 @@ from provider_core.validation.upstream.nmr.v1.upload_response import ReadGrant
 def require_download_capability(capability: str) -> None:
     """Admit the capability's HTTP header representation immediately before use."""
 
-    if (not capability) or (any(ord(c) <= 32 or ord(c) >= 127 for c in capability)):
+    # Keep the bearer value in one visible-ASCII header token (33–126)
+    if (not capability) or not all((32 < ord(character) < 127) for character in capability):
         raise ResponseRejected("download bearer cannot be represented as a single HTTP authorization value")
 
 
