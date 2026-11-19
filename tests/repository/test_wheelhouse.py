@@ -39,8 +39,8 @@ class WheelhouseTests(unittest.TestCase):
 
         self.lock.write_text(
             "".join(
-                (f"{name}==1.0 " + "\\\n" + f"    --hash=sha256:{wheelhouse.digest(path)}\n")
-                for (name, path) in (("pool-cached", self.cached), ("pool-missing", self.missing))
+                (f"{name}==1.0 " + "\\\n" + f"    --hash=sha256:{wheelhouse.digest(wheel_path)}\n")
+                for (name, wheel_path) in (("pool-cached", self.cached), ("pool-missing", self.missing))
             )
         )
 
@@ -179,11 +179,11 @@ class WheelhouseTests(unittest.TestCase):
             }
 
             with patch.object(provider_core_acquire, "require_download_proxy"):
-                path = provider_core_acquire.acquire_tool(self.pool, pin)
+                acquired_tool_path = provider_core_acquire.acquire_tool(self.pool, pin)
 
                 provider_core_acquire.acquire_tool(self.pool, pin)
 
-            self.assertEqual(content, path.read_bytes())
+            self.assertEqual(content, acquired_tool_path.read_bytes())
             self.assertEqual(["/synthetic-tool.pyz"], requests)
             self.assertFalse(list(self.pool.glob("*.part")))
         finally:

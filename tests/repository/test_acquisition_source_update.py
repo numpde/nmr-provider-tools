@@ -139,19 +139,19 @@ class SourceUpdateTests(unittest.TestCase):
             "release_version": version,
             "source_revision": "a" * 40,
             "payload_files": {
-                name: {"sha256": hashlib.sha256(data).hexdigest(), "size": len(data), "mode": 0o644}
-                for (name, data) in payload.items()
+                name: {"sha256": hashlib.sha256(payload_bytes).hexdigest(), "size": len(payload_bytes), "mode": 0o644}
+                for (name, payload_bytes) in payload.items()
             },
             "dependency_inputs": {"wheelhouse-tool-0.9.0.pyz": "b" * 64},
         }
 
     def write_snapshot(self, root, version, payload):
-        for (name, data) in payload.items():
-            path = root / name
+        for (name, payload_bytes) in payload.items():
+            snapshot_file_path = root / name
 
-            path.parent.mkdir(parents=True, exist_ok=True)
-            path.write_bytes(data)
-            path.chmod(0o644)
+            snapshot_file_path.parent.mkdir(parents=True, exist_ok=True)
+            snapshot_file_path.write_bytes(payload_bytes)
+            snapshot_file_path.chmod(0o644)
 
         (root / "acquisition-manifest.json").write_text(json.dumps(self.manifest(version, payload)))
         (root / "acquisition-manifest.json").chmod(0o644)
@@ -161,11 +161,11 @@ class SourceUpdateTests(unittest.TestCase):
         payload["acquisition-manifest.json"] = json.dumps(self.manifest("2.0.0", self.new)).encode()
 
         with tarfile.open(self.archive, "w:gz") as archive:
-            for (name, data) in payload.items():
+            for (name, archive_member_bytes) in payload.items():
                 member = tarfile.TarInfo(name)
-                (member.mode, member.size) = (0o644, len(data))
+                (member.mode, member.size) = (0o644, len(archive_member_bytes))
 
-                archive.addfile(member, io.BytesIO(data))
+                archive.addfile(member, io.BytesIO(archive_member_bytes))
 
             for (name, kind) in extra:
                 member = tarfile.TarInfo(name)
