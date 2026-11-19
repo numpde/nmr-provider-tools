@@ -12,7 +12,7 @@ require_container()
 import base64
 
 from provider_core.response_json import ResponseRejected
-from provider_core.transport import HttpResponse, HttpResponseHead
+from provider_core.http_response import HttpResponse, HttpResponseHead
 from provider_core.validation.upstream.nmr.v1.upload_response import ReadGrant
 
 

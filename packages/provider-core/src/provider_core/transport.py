@@ -24,6 +24,7 @@ import anyio
 import httpcore
 
 from provider_core.network import NetworkIOObservation, OwnedNetworkBackend
+from provider_core.http_response import HttpFileResponse, HttpResponse, HttpResponseHead
 from provider_core.decoded_body import DecodedBody, DecodedBodyRejected, require_decoded_limit
 from provider_core.transport_errors import ExchangeFailed
 from provider_core.tools import require_absolute_path, require_positive_number
@@ -86,49 +87,6 @@ def temporary_io_failure(cause, remaining, *, network_failure=None):
         preceding = cause.__context__
 
     return temporary_io_failure(preceding, remaining - 1)
-
-
-@dataclass(frozen=True, slots=True)
-class HttpResponseHead:
-    """Received protocol metadata, without a complete body or admission claim.
-
-    The exchange owner retains this private evidence across body/cleanup failure;
-    API correlation/topology interpretation belongs to ProviderAPI. The existing
-    pinned httpcore/h11 parser still owns HTTP framing and its header limits.
-    Parser source: httpcore 1.0.9, httpcore/_async/http11.py:45-63,170-199;
-    sibling correlation rationale: SECS 7356c354368f2355d3ab5cef00cf48c67cea9c2c,
-    src/secs_inference/provider/http.py:290-305. See note003 R7a/R7b.
-    """
-
-    status: int
-    headers: tuple[tuple[bytes, bytes], ...] = field(repr=False)
-
-
-@dataclass(frozen=True, slots=True)
-class HttpResponse:
-    """Complete response bytes with original headers and no status interpretation.
-
-    exchange returns raw bytes; exchange_decoded returns bounded decoded bytes.
-    Content-Encoding and Content-Length still describe the received wire entity.
-    """
-
-    status: int
-    headers: tuple[tuple[bytes, bytes], ...] = field(repr=False)
-    body: bytes = field(repr=False)
-
-
-@dataclass(frozen=True, slots=True)
-class HttpFileResponse:
-    """Complete raw transfer facts, without Upload admission or file finalization.
-
-    The caller owns the borrowed descriptor and its contents. These observations
-    describe the body written during this exchange, not future pathname bytes.
-    """
-
-    status: int
-    headers: tuple[tuple[bytes, bytes], ...] = field(repr=False)
-    byte_length: int
-    content_hash: str
 
 
 def _require_output_file(descriptor):

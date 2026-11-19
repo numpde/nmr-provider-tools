@@ -165,6 +165,7 @@ class InstallationContractTests(unittest.TestCase):
                 "provider_core/validation/upstream/nmr/v1/__init__.py",
                 "provider_core/validation/upstream/nmr/v1/signing.py",
                 "provider_core/transport.py",
+                "provider_core/http_response.py",
                 "provider_core/tools.py",
                 "provider_core/transport_errors.py",
                 "provider_core/decoded_body.py",
@@ -257,7 +258,7 @@ class InstallationContractTests(unittest.TestCase):
 
         self.assertEqual(completed_process.returncode, 0, completed_process.stderr)
 
-    def test_native_conversation_imports_without_optional_http_clients(self):
+    def test_native_consumers_import_without_optional_http_clients(self):
         completed_process = subprocess.run(
             [
                 sys.executable,
@@ -265,7 +266,7 @@ class InstallationContractTests(unittest.TestCase):
                 "-B",
                 "-c",
                 "import sys; sys.modules.update(httpx=None, httpcore=None); "
-                "import provider_core.conversation, provider_core.interpreter",
+                "import provider_core.http_response, provider_core.conversation, provider_core.interpreter",
             ],
             capture_output=True,
             text=True,

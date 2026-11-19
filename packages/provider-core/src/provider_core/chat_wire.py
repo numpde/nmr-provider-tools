@@ -17,7 +17,7 @@ import httpcore
 from provider_core.network import NetworkIOObservation
 from provider_core.decoded_body import DecodedBodyRejected
 from provider_core.response_json import read_document
-from provider_core.transport import HttpResponse, HttpResponseHead
+from provider_core.http_response import HttpResponse, HttpResponseHead
 from provider_core.transport_errors import ExchangeFailed
 from provider_core.validation.upstream.chat_completions.response import is_completion_success
 from provider_core.validation.upstream.http import require_http_status

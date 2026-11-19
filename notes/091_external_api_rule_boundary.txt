@@ -687,6 +687,7 @@ Shared wire support: retain the distinction from local policy
   oversized completion/failure timestamps. Repository test_conventions.py passed.
 - [ ] Separate HTTP/backend adaptation from transport effects and API profiles
   [x] Separate API correlation admission from generic diagnostic projection
+  [x] Give immutable response facts an owner independent of transport effects
   [ ] Separate pinned backend request/pool/trace adaptation
   [ ] Review network backend mapping independently of effect ownership
   core/transport.py:34-97,222,363-438: HTTP request/head mapping, CONNECT metadata,
@@ -706,6 +707,17 @@ Shared wire support: retain the distinction from local policy
   Focused API envelope, problem validation, failure projection, Chat integration
   and installation lanes passed on science with PRIVACY_TESTS=0 (58 tests,
   fourteen skips). Independent audit confirmed selector and admission parity.
+  Response-facts slice completed 2026-11-19: existing HttpResponseHead,
+  HttpResponse and HttpFileResponse definitions moved unchanged to
+  core/http_response.py. Transport uses those same classes; wire/admission
+  consumers import the facts owner directly. This permits backend projection
+  without an adapter importing the owner of exchange effects. No new admission,
+  mutable copy or release authority was added. Read-only AST comparison proved
+  all three class bodies unchanged. The native import contract now also checks
+  the response-facts module with HTTP clients unavailable.
+  Focused transport, Chat-wire, Upload head-admission, real Upload acquisition
+  and installation lanes passed on science with PRIVACY_TESTS=0 (62 tests,
+  five skips). Independent audit confirmed class identity and dependency closure.
 - [ ] Keep shared decoding rules distinct from caller-selected budgets
   core/decoded_body.py:81-220: Content-Encoding lists, gzip/deflate framing and
   decompression checks are HTTP/encoding support. Budget values are caller policy.
