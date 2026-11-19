@@ -44,7 +44,7 @@ Migration checklist — inventoried 2026-11-19
     [x] Job-input and credential admission have dedicated validation suites
     [ ] Separate remaining mixed discovery, Hello and Attempt test cases
         [x] Job-feed validation separated from API behavior
-        [ ] Attempt-inventory validation separated from API behavior
+        [x] Attempt-inventory validation separated from API behavior
         [ ] Hello validation separated from API/encoding behavior
         [ ] Attempt encoding/admission cases separated from lifecycle behavior
     [x] Group signing tests under their adapter owner
@@ -68,6 +68,10 @@ Job-feed schema/row/page validation cases now live in the validation suites;
 signed-query, no-send and response/effect tests remain with API behavior. Moved
 method/helper ASTs are unchanged. Focused test_job_feed.py passed on science with
 PRIVACY_TESTS=0 and discovered all ten existing tests across the separated suites.
+Attempt-inventory reader cases are separated the same way, with all twelve
+existing tests discovered by test_attempt_inventory.py and passing on science
+with PRIVACY_TESTS=0. Moved method/helper ASTs are unchanged; API response/effect,
+native-cause and signed-query proofs remain operational.
 
 Source baseline: 175da21. This is a source inventory, not an implemented
 separation or a claim that the listed tests pass. Application code was unchanged.
