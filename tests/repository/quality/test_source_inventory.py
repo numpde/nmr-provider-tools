@@ -393,8 +393,8 @@ class SourceInventoryRepositoryTests(unittest.TestCase):
         for name in ("Makefile", "README.md"):
             self.assertIn(f"type=bind,src={ROOT / name},dst=/workspace/{name},readonly", mounts)
 
-        self.assertFalse(any(f"src={ROOT / 'secrets'}" in mount for mount in mounts))
-        self.assertFalse(any(f"src={ROOT / 'release-artifacts'}" in mount for mount in mounts))
+        self.assertFalse(any((f"src={ROOT / 'secrets'}" in mount) for mount in mounts))
+        self.assertFalse(any((f"src={ROOT / 'release-artifacts'}" in mount) for mount in mounts))
         self.assertNotIn(f"type=bind,src={ROOT / '.git'},dst=/workspace/.git,readonly", mounts)
 
         for mount in mounts:

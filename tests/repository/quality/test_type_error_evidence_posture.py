@@ -221,7 +221,7 @@ def _expectation_findings(*, source_path: pathlib.Path, source: str) -> list[str
             for predicate in predicates:
                 subject = diagnostic_subject(subject=predicate.subject)
                 expected_name = _expectation_name(expression=predicate.expected)
-                unavailable = any(isinstance(node, ast.Name) and (node.id in predicate.comprehension_names) for node in ast.walk(node=subject))
+                unavailable = any((isinstance(node, ast.Name) and (node.id in predicate.comprehension_names)) for node in ast.walk(node=subject))
 
                 if (
                     has_type_rejection_alternatives(expression=statement.test, rejecting=True) or
@@ -302,7 +302,7 @@ def _subclass_findings(*, source_path: pathlib.Path, source: str) -> list[str]:
 
         candidate_names = {node.id for node in ast.walk(node=candidate) if isinstance(node, ast.Name)}
 
-        if any(isinstance(node, ast.NamedExpr) and (node.target.id in candidate_names) for node in ast.walk(node=predicate.args[1])):
+        if any((isinstance(node, ast.NamedExpr) and (node.target.id in candidate_names)) for node in ast.walk(node=predicate.args[1])):
             findings.append(f"{source_path}:{rejection.lineno}: subclass parent binding overwrites the checked candidate; preserve its value for the diagnostic")
             continue
 

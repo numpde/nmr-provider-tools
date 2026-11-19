@@ -79,7 +79,7 @@ def _is_skipped_relative(*, repo_relative_path: pathlib.Path) -> bool:
     if parts and (parts[0] in {"release-artifacts", "bootstrap"}):
         return True
 
-    return any(part in SKIP_DIRS for part in parts)
+    return any((part in SKIP_DIRS) for part in parts)
 
 
 def is_python_source(*, source_path: pathlib.Path) -> bool:

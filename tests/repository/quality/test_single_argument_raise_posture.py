@@ -35,7 +35,7 @@ def unnecessary_raise_breaks(*, source: str) -> list[int]:
             continue
 
         # Comments and blank lines may explain the expression or affect its layout.
-        if (call.end_lineno != (call.lineno + 2)) or any("#" in line for line in lines[call.lineno - 1:call.end_lineno]):
+        if (call.end_lineno != (call.lineno + 2)) or any(("#" in line) for line in lines[call.lineno - 1:call.end_lineno]):
             continue
 
         findings.append(node.lineno)

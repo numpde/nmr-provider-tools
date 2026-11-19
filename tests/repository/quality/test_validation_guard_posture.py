@@ -124,10 +124,10 @@ def _split_range_finding(
         (len(statement.test.values) == 2) and
         all(
             (
-                isinstance(comparison, ast.Compare) and
+                (isinstance(comparison, ast.Compare) and
                 (len(comparison.ops) == 1) and
                 isinstance(comparison.ops[0], _ORDERED_REJECTION_OPERATORS) and
-                (len(comparison.comparators) == 1)
+                (len(comparison.comparators) == 1))
                 for comparison in statement.test.values
             ),
         )
@@ -221,7 +221,7 @@ def _mixed_ordering_finding(
         isinstance(statement.test.op, (ast.Or, ast.And)) and
         any(
             (
-                isinstance(value, ast.Compare) and (len(value.ops) == 1) and isinstance(value.ops[0], _ORDERED_REJECTION_OPERATORS)
+                (isinstance(value, ast.Compare) and (len(value.ops) == 1) and isinstance(value.ops[0], _ORDERED_REJECTION_OPERATORS))
                 for value in statement.test.values
             ),
         ) and
@@ -231,7 +231,7 @@ def _mixed_ordering_finding(
 
     accepted_atoms = [_accepted_atom(value) for value in statement.test.values]
 
-    if any(atom is None for atom in accepted_atoms):
+    if any((atom is None) for atom in accepted_atoms):
         return None
 
     inverse_boolean_operators = {ast.Or: " and ", ast.And: " or "}
@@ -243,7 +243,7 @@ def _mixed_ordering_finding(
             break
 
     accepted = conjunction.join(
-        f"({atom})" if (" and " in atom) or (" or " in atom) else atom for atom in accepted_atoms if atom is not None
+        (f"({atom})" if (" and " in atom) or (" or " in atom) else atom) for atom in accepted_atoms if atom is not None
     )
 
     return _Finding(

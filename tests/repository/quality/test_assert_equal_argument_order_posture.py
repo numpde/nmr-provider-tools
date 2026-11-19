@@ -53,7 +53,7 @@ def _is_literal(expression: ast.expr) -> bool:
 
     if isinstance(expression, ast.Dict):
         return all(
-            (key is not None) and (_is_literal(key)) and (_is_literal(value))
+            ((key is not None) and (_is_literal(key)) and (_is_literal(value)))
             for (key, value) in zip(expression.keys, expression.values, strict=True)
         )
 

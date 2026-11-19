@@ -236,7 +236,7 @@ class DebugFstringPostureTests(unittest.TestCase):
                 findings = _findings(source_path=pathlib.Path("example.py"), source=f"message = {expression}\n")
 
                 self.assertTrue(expr=findings)
-                self.assertTrue(expr=all(finding.shape == "interpolation without debug syntax" for finding in findings))
+                self.assertTrue(expr=all((finding.shape == "interpolation without debug syntax") for finding in findings))
 
     def test_debug_marker_is_independent_of_spacing_conversion_and_format(self) -> None:
         expressions = (

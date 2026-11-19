@@ -176,7 +176,7 @@ def error_code_findings(*, sources: dict[pathlib.Path, str]) -> list[tuple[pathl
 
         if (
             (bases == ["enum.Enum"]) and
-            (not any(initializer is not None for (_, initializer) in _class_assignments(declaration))) and
+            (not any((initializer is not None) for (_, initializer) in _class_assignments(declaration))) and
             _lowercases_member_name(_method(declaration, "_generate_next_value_"))
         ):
             error_code_parents.add(qualified_name)
@@ -190,9 +190,9 @@ def error_code_findings(*, sources: dict[pathlib.Path, str]) -> list[tuple[pathl
         own_parameters = _constructor_parameters(declaration)
         code_enum = _nested_code(declaration)
         class_codes = [(target, initializer) for (target, initializer) in _class_assignments(declaration) if target.id in code_arguments]
-        accepts_code = any(parameter.arg in code_arguments for parameter in (*positional, *keyword_only))
+        accepts_code = any((parameter.arg in code_arguments) for parameter in (*positional, *keyword_only))
 
-        if (own_parameters is not None) and ((len(positional) > 1) or any(parameter.arg in code_arguments for parameter in positional)):
+        if (own_parameters is not None) and ((len(positional) > 1) or any((parameter.arg in code_arguments) for parameter in positional)):
             constructor = _method(declaration, "__init__")
 
             findings.append((source_path, constructor.lineno, "custom exception constructors take at most one positional message"))
