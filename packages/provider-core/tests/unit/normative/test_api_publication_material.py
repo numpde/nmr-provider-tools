@@ -65,7 +65,7 @@ class PublicationMaterialTests(unittest.TestCase):
         self.assertEqual(original.identity.origin, rebuilt.identity.origin)
         reader.assert_called_once()
 
-    @unittest.skipIf(os.environ.get("PRIVACY_TESTS", "1") == "0", "PRIVACY_TESTS=0")
+    @unittest.skipIf(os.environ.get("PRIVACY_TESTS", "1") == "0", "Privacy tests disabled")
     def test_publication_material_representation_omits_signing_key(self):
         (_original, _provider, material) = api_settings_with_material(
             self.fields | {"credential_file": "/private/credential"},

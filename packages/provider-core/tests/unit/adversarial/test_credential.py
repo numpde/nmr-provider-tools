@@ -34,7 +34,7 @@ class ProviderCredentialBoundaryTests(unittest.TestCase):
             with self.subTest(field=field), self.assertRaises(CredentialRejected):
                 parse_provider_credential(artifact_bytes)
 
-    @unittest.skipIf(os.environ.get("PRIVACY_TESTS", "1") == "0", "PRIVACY_TESTS=0")
+    @unittest.skipIf(os.environ.get("PRIVACY_TESTS", "1") == "0", "Privacy tests disabled")
     def test_identity_rejection_diagnostics_omit_fields_and_signing_material(self):
         for (field, artifact_bytes, private_key) in self._untrusted_identity_artifacts():
             with self.subTest(field=field), self.assertRaises(CredentialRejected) as caught:
@@ -100,7 +100,7 @@ class ProviderCredentialBoundaryTests(unittest.TestCase):
             with self.subTest(public_length=public_length), self.assertRaises(CredentialRejected):
                 parse_provider_credential(artifact_bytes)
 
-    @unittest.skipIf(os.environ.get("PRIVACY_TESTS", "1") == "0", "PRIVACY_TESTS=0")
+    @unittest.skipIf(os.environ.get("PRIVACY_TESTS", "1") == "0", "Privacy tests disabled")
     def test_public_key_rejection_diagnostics_omit_input(self):
         for (public_length, artifact_bytes) in self._invalid_public_key_artifacts():
             with self.subTest(public_length=public_length), self.assertRaises(CredentialRejected) as caught:
@@ -122,6 +122,6 @@ class ProviderCredentialBoundaryTests(unittest.TestCase):
         self.assertIn("private key", str(failure))
         self.assertIsNotNone(failure.cause)
 
-    @unittest.skipIf(os.environ.get("PRIVACY_TESTS", "1") == "0", "PRIVACY_TESTS=0")
+    @unittest.skipIf(os.environ.get("PRIVACY_TESTS", "1") == "0", "Privacy tests disabled")
     def test_private_key_decoder_diagnostics_omit_input(self):
         self.assertNotIn("PRIVATE", str(self._private_key_failure()))

@@ -280,7 +280,7 @@ class HeldFailureTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(len(transport.calls), calls)
         self.assertIs(controller.require_held_failure(selected, failure), failure)
 
-    @unittest.skipIf(os.environ.get("PRIVACY_TESTS", "1") == "0", "PRIVACY_TESTS=0")
+    @unittest.skipIf(os.environ.get("PRIVACY_TESTS", "1") == "0", "Privacy tests disabled")
     async def test_held_failure_diagnostics_omit_native_and_binding_details(self):
         selected = pending("a")
 
@@ -327,7 +327,7 @@ class HeldFailureTests(unittest.IsolatedAsyncioTestCase):
         self.assertIs(type(refused.__cause__.exceptions[1]), OwnershipRefused)
         self.assertIs(controller.require_held_failure(selected, failure), failure)
 
-    @unittest.skipIf(os.environ.get("PRIVACY_TESTS", "1") == "0", "PRIVACY_TESTS=0")
+    @unittest.skipIf(os.environ.get("PRIVACY_TESTS", "1") == "0", "Privacy tests disabled")
     async def test_foreign_loop_refusal_diagnostics_omit_binding_detail(self):
         (refused, _failure, _controller, _selected) = await self._foreign_loop_refusal()
 

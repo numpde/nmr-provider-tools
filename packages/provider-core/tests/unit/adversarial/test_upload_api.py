@@ -67,7 +67,7 @@ class UploadApiFailureTests(unittest.IsolatedAsyncioTestCase):
             self.assertTrue(failure.issuance_may_have_committed)
             self.assertEqual(len(transport.calls), 1)
 
-    @unittest.skipIf(os.environ.get("PRIVACY_TESTS", "1") == "0", "PRIVACY_TESTS=0")
+    @unittest.skipIf(os.environ.get("PRIVACY_TESTS", "1") == "0", "Privacy tests disabled")
     async def test_bad_grant_diagnostics_omit_bearer(self):
         async for (failure, _transport) in self._bad_grant_failures():
             self.assertNotIn("private-bearer-canary", "".join(traceback.format_exception(failure)))
@@ -136,7 +136,7 @@ class UploadApiFailureTests(unittest.IsolatedAsyncioTestCase):
             self.assertEqual(failure.problem_code, code)
             self.assertEqual(len(transport.calls), 1)
 
-    @unittest.skipIf(os.environ.get("PRIVACY_TESTS", "1") == "0", "PRIVACY_TESTS=0")
+    @unittest.skipIf(os.environ.get("PRIVACY_TESTS", "1") == "0", "Privacy tests disabled")
     async def test_grant_refusal_diagnostics_omit_server_detail(self):
         async for (failure, _uncertain, _code, _transport) in self._grant_refusals():
             self.assertNotIn("private-detail-canary", str(failure))

@@ -94,7 +94,7 @@ class ObservedCrashTests(unittest.IsolatedAsyncioTestCase):
             self.assertEqual(-9, owned_details(crash)["returncode"])
             self.assertIn(("owned cause", crash.cause), list(owned_relationships(crash)))
 
-    @unittest.skipIf(os.environ.get("PRIVACY_TESTS", "1") == "0", "PRIVACY_TESTS=0")
+    @unittest.skipIf(os.environ.get("PRIVACY_TESTS", "1") == "0", "Privacy tests disabled")
     async def test_crash_publication_omits_native_detail(self):
         async for (controller, _calls, _accepted, _transport) in self._reported_phase_crashes():
             body = json.loads(controller.delivery.items[0].body)

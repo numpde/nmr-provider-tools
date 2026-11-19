@@ -201,7 +201,7 @@ class RuntimePolicyPostureTests(unittest.TestCase):
                     [finding.name for finding in _findings(pathlib.Path("example.py"), source)],
                 )
 
-    @unittest.skipIf(os.environ.get("PRIVACY_TESTS", "1") == "0", "PRIVACY_TESTS=0")
+    @unittest.skipIf(os.environ.get("PRIVACY_TESTS", "1") == "0", "Privacy tests disabled")
     def test_diagnostic_does_not_disclose_assigned_values(self) -> None:
         finding = _findings(
             pathlib.Path("example.py"),

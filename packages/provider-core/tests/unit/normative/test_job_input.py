@@ -29,7 +29,7 @@ class JobInputTests(unittest.TestCase):
                 with self.assertRaises(FrozenInstanceError):
                     verified.specification_bytes = b"replacement"
 
-    @unittest.skipIf(os.environ.get("PRIVACY_TESTS", "1") == "0", "PRIVACY_TESTS=0")
+    @unittest.skipIf(os.environ.get("PRIVACY_TESTS", "1") == "0", "Privacy tests disabled")
     def test_verified_input_representation_omits_instructions(self):
         payload = b"private\x00instructions"
         verified = verify_job_input(response(payload), feed=facts(payload))

@@ -38,7 +38,7 @@ class ApiEnvelopeTests(unittest.IsolatedAsyncioTestCase):
 
         self.assertEqual(transport.calls, [])
 
-    @unittest.skipIf(os.environ.get("PRIVACY_TESTS", "1") == "0", "PRIVACY_TESTS=0")
+    @unittest.skipIf(os.environ.get("PRIVACY_TESTS", "1") == "0", "Privacy tests disabled")
     def test_topology_rejection_diagnostics_omit_input(self):
         with self.assertRaises(ValueError) as caught:
             ProviderAPI(self.identity(), Transport(), expected_topology="PRIVATE")
@@ -83,7 +83,7 @@ class ApiEnvelopeTests(unittest.IsolatedAsyncioTestCase):
             self.assertEqual(failure.request_id, expected)
             self.assertIs(failure.response, observed)
 
-    @unittest.skipIf(os.environ.get("PRIVACY_TESTS", "1") == "0", "PRIVACY_TESTS=0")
+    @unittest.skipIf(os.environ.get("PRIVACY_TESTS", "1") == "0", "Privacy tests disabled")
     async def test_bad_body_diagnostics_omit_body_and_untrusted_headers(self):
         async for (failure, _expected, _observed) in self._bad_body_failures():
             self.assertNotIn("PRIVATE", str(failure))
@@ -159,7 +159,7 @@ class ApiEnvelopeTests(unittest.IsolatedAsyncioTestCase):
             # silent-defaults: allow-contract -- A missing request ID remains absent in the refusal specimen.
             self.assertEqual(failure.request_id, None if request_id is None else request_id.decode())
 
-    @unittest.skipIf(os.environ.get("PRIVACY_TESTS", "1") == "0", "PRIVACY_TESTS=0")
+    @unittest.skipIf(os.environ.get("PRIVACY_TESTS", "1") == "0", "Privacy tests disabled")
     async def test_correlated_refusal_diagnostics_omit_problem_content(self):
         async for (failure, _known, _request_id) in self._correlated_refusals():
             self.assertNotIn("PRIVATE", str(failure))

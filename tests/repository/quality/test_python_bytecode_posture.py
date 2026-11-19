@@ -149,7 +149,7 @@ class PythonBytecodePostureTests(unittest.TestCase):
 
         self.assertIn("safe.sh:1:", issue.diagnostic())
 
-    @unittest.skipIf(os.environ.get("PRIVACY_TESTS", "1") == "0", "PRIVACY_TESTS=0")
+    @unittest.skipIf(os.environ.get("PRIVACY_TESTS", "1") == "0", "Privacy tests disabled")
     def test_diagnostics_do_not_echo_payload(self):
         (issue,) = findings(pathlib.Path("safe.sh"), "python3 -I secret-private-path.py")
 

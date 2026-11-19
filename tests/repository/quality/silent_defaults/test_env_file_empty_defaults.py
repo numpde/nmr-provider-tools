@@ -50,7 +50,7 @@ class EnvFileEmptyDefaultsTest(unittest.TestCase):
     def test_env_interpolation_matcher_flags_default_expansion(self) -> None:
         self.assertRegex("API_ORIGIN=${API_ORIGIN:-https://example.test}", INTERPOLATION_DEFAULT_RE)
 
-    @unittest.skipIf(os.environ.get("PRIVACY_TESTS", "1") == "0", "PRIVACY_TESTS=0")
+    @unittest.skipIf(os.environ.get("PRIVACY_TESTS", "1") == "0", "Privacy tests disabled")
     def test_env_file_scan_excludes_operator_only_secret_files(self) -> None:
         # Original source proves a deployment-secret exclusion while admitting
         # its documented example. Exercise that same contract in a fixture:

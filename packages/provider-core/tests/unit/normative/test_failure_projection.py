@@ -41,7 +41,7 @@ class CoreFailureProjectionTests(unittest.TestCase):
 
         self.assertEqual(owned_details(failure), {"message": "Observed failure"})
 
-    @unittest.skipIf(os.environ.get("PRIVACY_TESTS", "1") == "0", "PRIVACY_TESTS=0")
+    @unittest.skipIf(os.environ.get("PRIVACY_TESTS", "1") == "0", "Privacy tests disabled")
     def test_unknown_observation_diagnostics_omit_property_text(self):
         failure = self._hostile_observation_failure()
 
@@ -66,7 +66,7 @@ class CoreFailureProjectionTests(unittest.TestCase):
 
         self.assertEqual(owned_details(Unreviewed("invalid_encoding")), {})
 
-    @unittest.skipIf(os.environ.get("PRIVACY_TESTS", "1") == "0", "PRIVACY_TESTS=0")
+    @unittest.skipIf(os.environ.get("PRIVACY_TESTS", "1") == "0", "Privacy tests disabled")
     def test_decoded_rejection_projection_omits_native_text(self):
         failure = DecodedBodyRejected("invalid_encoding")
         failure.__cause__ = ValueError("PRIVATE_ENCODING_DETAIL")
@@ -106,7 +106,7 @@ class CoreFailureProjectionTests(unittest.TestCase):
 
         self.assertEqual(owned_details(failure)["status"], 503)
 
-    @unittest.skipIf(os.environ.get("PRIVACY_TESTS", "1") == "0", "PRIVACY_TESTS=0")
+    @unittest.skipIf(os.environ.get("PRIVACY_TESTS", "1") == "0", "Privacy tests disabled")
     def test_api_projection_omits_response_payloads(self):
         self.assertNotIn("PRIVATE", repr(owned_details(self._api_failure_with_response())))
 
@@ -127,7 +127,7 @@ class CoreFailureProjectionTests(unittest.TestCase):
 
         self.assertIsNone(owned_details(exchange)["request_id"])
 
-    @unittest.skipIf(os.environ.get("PRIVACY_TESTS", "1") == "0", "PRIVACY_TESTS=0")
+    @unittest.skipIf(os.environ.get("PRIVACY_TESTS", "1") == "0", "Privacy tests disabled")
     def test_chat_projection_omits_response_payloads(self):
         exchange = ExchangeFailed(
             "Response body did not finish",
@@ -264,7 +264,7 @@ class CoreFailureProjectionTests(unittest.TestCase):
             attempt=active
         )
 
-    @unittest.skipIf(os.environ.get("PRIVACY_TESTS", "1") == "0", "PRIVACY_TESTS=0")
+    @unittest.skipIf(os.environ.get("PRIVACY_TESTS", "1") == "0", "Privacy tests disabled")
     def test_execution_projection_omits_scientific_bytes(self):
         execution = self._execution_with_outcome(acknowledge_start(record(), admission()))
         execution.cause = RuntimeError("private retirement cause")

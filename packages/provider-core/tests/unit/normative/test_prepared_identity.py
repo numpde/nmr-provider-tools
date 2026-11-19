@@ -37,7 +37,7 @@ class PreparedIdentityTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(set(document["prepared"]), {"schema_id", "sha256", "byte_length"})
         self.assertNotIsInstance(entered, PreparedAnalysis)
 
-    @unittest.skipIf(os.environ.get("PRIVACY_TESTS", "1") == "0", "PRIVACY_TESTS=0")
+    @unittest.skipIf(os.environ.get("PRIVACY_TESTS", "1") == "0", "Privacy tests disabled")
     def test_prepared_checkpoint_representation_omits_candidate_identity(self):
         entered = EnteredCheckpoint(AcknowledgedCheckpoint(record(), admission()), EvidenceDigest.from_evidence(IDENTITY))
 

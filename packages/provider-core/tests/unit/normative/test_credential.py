@@ -43,7 +43,7 @@ class ProviderCredentialTests(unittest.TestCase):
 
             self.assertIn('keyid="credential:example"', request.headers["Signature-Input"])
 
-    @unittest.skipIf(os.environ.get("PRIVACY_TESTS", "1") == "0", "PRIVACY_TESTS=0")
+    @unittest.skipIf(os.environ.get("PRIVACY_TESTS", "1") == "0", "Privacy tests disabled")
     def test_credential_representation_omits_signing_material(self):
         for (credential, original, _key, _profile) in self._admitted_credentials():
             self.assertNotIn(original["private_key_pkcs8_pem"], repr(credential))

@@ -50,7 +50,7 @@ class WheelhouseTests(unittest.TestCase):
         operation.assert_called_once_with()
         sleep.assert_not_called()
 
-    @unittest.skipIf(os.environ.get("PRIVACY_TESTS", "1") == "0", "PRIVACY_TESTS=0")
+    @unittest.skipIf(os.environ.get("PRIVACY_TESTS", "1") == "0", "Privacy tests disabled")
     def test_permanent_http_diagnostics_omit_body_and_url(self):
         (failure, _body, _operation, _sleep) = self._permanent_http_failure()
 
@@ -110,7 +110,7 @@ class WheelhouseTests(unittest.TestCase):
         sleep.assert_not_called()
         self.assertNotIn("the network failed", str(failure))
 
-    @unittest.skipIf(os.environ.get("PRIVACY_TESTS", "1") == "0", "PRIVACY_TESTS=0")
+    @unittest.skipIf(os.environ.get("PRIVACY_TESTS", "1") == "0", "Privacy tests disabled")
     def test_response_close_diagnostics_omit_native_text_and_url(self):
         (failure, _operation, _sleep) = self._response_close_failure()
 
@@ -294,13 +294,13 @@ class WheelhouseTests(unittest.TestCase):
             self.assertIn(expected, rendered)
             self.assertEqual(['.wheelhouse-acquire.lock'], [path.name for path in self.pool.iterdir()])
 
-    @unittest.skipIf(os.environ.get("PRIVACY_TESTS", "1") == "0", "PRIVACY_TESTS=0")
+    @unittest.skipIf(os.environ.get("PRIVACY_TESTS", "1") == "0", "Privacy tests disabled")
     def test_download_failure_diagnostics_omit_native_text_and_url(self):
         for (_expected, rendered) in self._download_network_failures():
             self.assertNotIn('private', rendered)
             self.assertNotIn('secret.invalid', rendered)
 
-    @unittest.skipIf(os.environ.get("PRIVACY_TESTS", "1") == "0", "PRIVACY_TESTS=0")
+    @unittest.skipIf(os.environ.get("PRIVACY_TESTS", "1") == "0", "Privacy tests disabled")
     def test_download_failure_traceback_omits_endpoint_text(self):
         with patch.object(tool.urllib.request, 'urlopen', side_effect=urllib.error.URLError('private endpoint')):
             with self.assertRaises(OSError) as captured:
@@ -323,7 +323,7 @@ class WheelhouseTests(unittest.TestCase):
 
         self.assertEqual(['.wheelhouse-acquire.lock'], [path.name for path in self.pool.iterdir()])
 
-    @unittest.skipIf(os.environ.get("PRIVACY_TESTS", "1") == "0", "PRIVACY_TESTS=0")
+    @unittest.skipIf(os.environ.get("PRIVACY_TESTS", "1") == "0", "Privacy tests disabled")
     def test_download_read_timeout_is_reported_without_private_text(self):
         failure = self._download_read_timeout()
 
@@ -390,7 +390,7 @@ class WheelhouseTests(unittest.TestCase):
         self.assertIn('could not remove the temporary file', str(failure))
         sleep.assert_not_called()
 
-    @unittest.skipIf(os.environ.get("PRIVACY_TESTS", "1") == "0", "PRIVACY_TESTS=0")
+    @unittest.skipIf(os.environ.get("PRIVACY_TESTS", "1") == "0", "Privacy tests disabled")
     def test_temporary_file_cleanup_diagnostics_omit_native_text(self):
         (failure, _sleep) = self._temporary_file_cleanup_failure()
 
@@ -415,7 +415,7 @@ class WheelhouseTests(unittest.TestCase):
         open_url.assert_called_once()
         sleep.assert_not_called()
 
-    @unittest.skipIf(os.environ.get("PRIVACY_TESTS", "1") == "0", "PRIVACY_TESTS=0")
+    @unittest.skipIf(os.environ.get("PRIVACY_TESTS", "1") == "0", "Privacy tests disabled")
     def test_partial_removal_diagnostics_omit_native_text(self):
         (failure, _body, _open_url, _sleep) = self._partial_removal_failure()
 
@@ -444,7 +444,7 @@ class WheelhouseTests(unittest.TestCase):
         sleep.assert_not_called()
         self.assertNotIn("the network failed", str(failure))
 
-    @unittest.skipIf(os.environ.get("PRIVACY_TESTS", "1") == "0", "PRIVACY_TESTS=0")
+    @unittest.skipIf(os.environ.get("PRIVACY_TESTS", "1") == "0", "Privacy tests disabled")
     def test_response_and_partial_cleanup_diagnostics_omit_native_text_and_url(self):
         (failure, _open_url, _close, _sleep) = self._response_and_partial_cleanup_failure()
 
@@ -933,7 +933,7 @@ class WheelhouseTests(unittest.TestCase):
         with self.assertRaises(ValueError) as error:
             locate(self.lock, direct_sources=[url.replace("#sha256=", "?signature=private#sha256=")])
 
-    @unittest.skipIf(os.environ.get("PRIVACY_TESTS", "1") == "0", "PRIVACY_TESTS=0")
+    @unittest.skipIf(os.environ.get("PRIVACY_TESTS", "1") == "0", "Privacy tests disabled")
     def test_locator_diagnostics_omit_url_query(self):
         (_digest, url) = self._pinned_direct_source()
 
@@ -1163,7 +1163,7 @@ class WheelhouseTests(unittest.TestCase):
     def test_credential_in_url_is_rejected(self):
         self._credential_url_refusal()
 
-    @unittest.skipIf(os.environ.get("PRIVACY_TESTS", "1") == "0", "PRIVACY_TESTS=0")
+    @unittest.skipIf(os.environ.get("PRIVACY_TESTS", "1") == "0", "Privacy tests disabled")
     def test_credential_in_url_is_rejected_without_disclosure(self):
         self.assertNotIn("secret", str(self._credential_url_refusal()))
 

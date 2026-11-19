@@ -43,7 +43,7 @@ class DeliveryHandoffTests(unittest.TestCase):
         self.assertEqual(restored.publication, handoff.publication)
         self.assertEqual(restored.acceptance(), handoff.acceptance())
 
-    @unittest.skipIf(os.environ.get("PRIVACY_TESTS", "1") == "0", "PRIVACY_TESTS=0")
+    @unittest.skipIf(os.environ.get("PRIVACY_TESTS", "1") == "0", "Privacy tests disabled")
     def test_handoff_representation_omits_signing_material(self):
         handoff = DeliveryHandoff(outcome(provider="provider:example"), self.material())
 
@@ -152,7 +152,7 @@ class DeliveryHandoffTests(unittest.TestCase):
         with self.assertRaises(DeliveryHandoffRejected):
             DeliveryHandoff(outcome(provider="provider:other"), self.material())
 
-    @unittest.skipIf(os.environ.get("PRIVACY_TESTS", "1") == "0", "PRIVACY_TESTS=0")
+    @unittest.skipIf(os.environ.get("PRIVACY_TESTS", "1") == "0", "Privacy tests disabled")
     def test_rejection_diagnostics_omit_input(self):
         handoff = DeliveryHandoff(outcome(provider="provider:example"), self.material())
         handoff_fields = json.loads(handoff.encode()) | {"credential": "PRIVATE_INVALID_CREDENTIAL"}

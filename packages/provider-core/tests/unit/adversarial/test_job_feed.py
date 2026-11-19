@@ -87,7 +87,7 @@ class JobFeedFailureTests(unittest.IsolatedAsyncioTestCase):
                     limit=1,
                 )
 
-    @unittest.skipIf(os.environ.get("PRIVACY_TESTS", "1") == "0", "PRIVACY_TESTS=0")
+    @unittest.skipIf(os.environ.get("PRIVACY_TESTS", "1") == "0", "Privacy tests disabled")
     def test_envelope_rejection_diagnostics_omit_response_content(self):
         for (field, response_bytes) in self._invalid_envelopes():
             with self.subTest(field=field), self.assertRaises(ResponseRejected) as rejected:
@@ -157,7 +157,7 @@ class JobFeedFailureTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(failure.response.body, raw)
         self.assertFalse(failure.attempt_mutation_may_have_committed)
 
-    @unittest.skipIf(os.environ.get("PRIVACY_TESTS", "1") == "0", "PRIVACY_TESTS=0")
+    @unittest.skipIf(os.environ.get("PRIVACY_TESTS", "1") == "0", "Privacy tests disabled")
     async def test_wire_failure_diagnostics_omit_response_content(self):
         (failure, _raw) = await self._wire_failure()
 

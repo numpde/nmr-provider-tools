@@ -26,7 +26,7 @@ class ResultVerbosityRejectionTests(unittest.TestCase):
                     self.assertIn(member.value, message)
 
 
-    @unittest.skipIf(os.environ.get("PRIVACY_TESTS", "1") == "0", "PRIVACY_TESTS=0")
+    @unittest.skipIf(os.environ.get("PRIVACY_TESTS", "1") == "0", "Privacy tests disabled")
     def test_rejection_diagnostics_omit_input(self):
         with self.assertRaises(ValueError) as caught:
             ResultVerbosity.parse("PRIVATE_CANARY")

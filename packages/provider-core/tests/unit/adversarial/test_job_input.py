@@ -21,7 +21,7 @@ class UntrustedJobInputTests(unittest.TestCase):
         else:
             self.fail("Untrusted input was accepted")
 
-    @unittest.skipIf(os.environ.get("PRIVACY_TESTS", "1") == "0", "PRIVACY_TESTS=0")
+    @unittest.skipIf(os.environ.get("PRIVACY_TESTS", "1") == "0", "Privacy tests disabled")
     def test_rejection_tracebacks_omit_input(self):
         for raw in (
             b"PRIVATE_SENTINEL",

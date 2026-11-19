@@ -151,7 +151,7 @@ class DecodedBodyTests(unittest.TestCase):
             with self.assertRaises(error_type):
                 DecodedBodyRejected(reason)
 
-    @unittest.skipIf(os.environ.get("PRIVACY_TESTS", "1") == "0", "PRIVACY_TESTS=0")
+    @unittest.skipIf(os.environ.get("PRIVACY_TESTS", "1") == "0", "Privacy tests disabled")
     def test_rejection_diagnostics_omit_encoding_metadata(self):
         with self.assertRaises(DecodedBodyRejected) as caught:
             DecodedBody(((b"content-encoding", b"private-coding-sentinel"),), maximum_bytes=32)

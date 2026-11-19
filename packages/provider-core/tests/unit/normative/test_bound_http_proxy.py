@@ -241,7 +241,7 @@ class BoundProxyTests(unittest.TestCase):
                     self.assertIn("request admission", errors.getvalue())
                     self.assertIn("ValueError", errors.getvalue())
 
-    @unittest.skipIf(os.environ.get("PRIVACY_TESTS", "1") == "0", "PRIVACY_TESTS=0")
+    @unittest.skipIf(os.environ.get("PRIVACY_TESTS", "1") == "0", "Privacy tests disabled")
     def test_destination_rejection_omits_port_input(self):
         private = "private-port-input-marker"
 
@@ -280,7 +280,7 @@ class BoundProxyTests(unittest.TestCase):
             self.assertIn("request admission", rendered)
             self.assertIn(type(failure).__name__, rendered)
 
-    @unittest.skipIf(os.environ.get("PRIVACY_TESTS", "1") == "0", "PRIVACY_TESTS=0")
+    @unittest.skipIf(os.environ.get("PRIVACY_TESTS", "1") == "0", "Privacy tests disabled")
     def test_admission_failure_logs_scrub_credentials(self):
         for (_failure, _request, _connect, rendered, private) in self._admission_failure_replies():
             self.assertNotIn(private, rendered)

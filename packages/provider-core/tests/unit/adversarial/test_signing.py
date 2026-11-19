@@ -57,7 +57,7 @@ class SigningRejectionTests(unittest.TestCase):
             with self.subTest(changes=changes), self.assertRaises((ValueError, TypeError)):
                 signed_request(identity, **(defaults | changes))
 
-    @unittest.skipIf(os.environ.get("PRIVACY_TESTS", "1") == "0", "PRIVACY_TESTS=0")
+    @unittest.skipIf(os.environ.get("PRIVACY_TESTS", "1") == "0", "Privacy tests disabled")
     def test_identity_repr_does_not_expose_signing_material(self):
         identity = SigningIdentity("https://api.example", "credential:private-canary", Ed25519PrivateKey.generate())
 

@@ -792,7 +792,7 @@ return 2
     def test_failed_readiness_retains_causes_after_container_retirement(self):
         self._failed_readiness()
 
-    @unittest.skipIf(os.environ.get("PRIVACY_TESTS", "1") == "0", "PRIVACY_TESTS=0")
+    @unittest.skipIf(os.environ.get("PRIVACY_TESTS", "1") == "0", "Privacy tests disabled")
     def test_failed_readiness_diagnostics_omit_cause_text(self):
         for output in self._failed_readiness():
             for private in (

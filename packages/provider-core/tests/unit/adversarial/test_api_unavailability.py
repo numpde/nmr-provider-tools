@@ -57,7 +57,7 @@ def body_timeout_problem(**changes):
 
 
 class ApiAvailabilityTests(unittest.IsolatedAsyncioTestCase):
-    @unittest.skipIf(os.environ.get("PRIVACY_TESTS", "1") == "0", "PRIVACY_TESTS=0")
+    @unittest.skipIf(os.environ.get("PRIVACY_TESTS", "1") == "0", "Privacy tests disabled")
     async def test_retry_diagnostics_omit_problem_and_proxy_content(self):
         for received in (
             reply(signature_window_problem(code="signature_expired"), status=401),

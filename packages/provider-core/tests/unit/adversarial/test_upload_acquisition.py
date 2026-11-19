@@ -161,7 +161,7 @@ class UploadAcquisitionTests(unittest.IsolatedAsyncioTestCase):
         self.assertTrue(failure.grant_issued)
         self.assertEqual(store.calls, [])
 
-    @unittest.skipIf(os.environ.get("PRIVACY_TESTS", "1") == "0", "PRIVACY_TESTS=0")
+    @unittest.skipIf(os.environ.get("PRIVACY_TESTS", "1") == "0", "Privacy tests disabled")
     async def test_foreign_url_diagnostics_omit_bearer(self):
         (failure, _store) = await self._foreign_url_refusal()
 

@@ -69,7 +69,7 @@ class ImageBuildProxyInputTests(unittest.TestCase):
         ):
             _PROXY.require_interface("eth0")
 
-    @unittest.skipIf(os.environ.get("PRIVACY_TESTS", "1") == "0", "PRIVACY_TESTS=0")
+    @unittest.skipIf(os.environ.get("PRIVACY_TESTS", "1") == "0", "Privacy tests disabled")
     def test_interface_refusal_omits_native_error_text(self):
         with (
             patch.object(_PROXY.socket, "if_nametoindex", side_effect=OSError(_PRIVATE)),
@@ -626,7 +626,7 @@ class ImageBuildProxyWorkerTests(unittest.TestCase):
     def test_pre_forwarding_error_has_fixed_http_and_operator_log(self):
         self._pre_forwarding_error()
 
-    @unittest.skipIf(os.environ.get("PRIVACY_TESTS", "1") == "0", "PRIVACY_TESTS=0")
+    @unittest.skipIf(os.environ.get("PRIVACY_TESTS", "1") == "0", "Privacy tests disabled")
     def test_pre_forwarding_error_log_omits_request_data(self):
         self.assertNotIn(_PRIVATE, self._pre_forwarding_error())
 
@@ -662,7 +662,7 @@ class ImageBuildProxyWorkerTests(unittest.TestCase):
     def test_forwarding_error_does_not_append_http_failure_to_a_tunnel(self):
         self._forwarding_error()
 
-    @unittest.skipIf(os.environ.get("PRIVACY_TESTS", "1") == "0", "PRIVACY_TESTS=0")
+    @unittest.skipIf(os.environ.get("PRIVACY_TESTS", "1") == "0", "Privacy tests disabled")
     def test_forwarding_error_log_omits_request_data(self):
         self.assertNotIn(_PRIVATE, self._forwarding_error())
 
@@ -720,7 +720,7 @@ class ImageBuildProxyWorkerTests(unittest.TestCase):
     def test_initial_forwarding_write_failure_does_not_append_http_failure(self):
         self._initial_forwarding_write_failures()
 
-    @unittest.skipIf(os.environ.get("PRIVACY_TESTS", "1") == "0", "PRIVACY_TESTS=0")
+    @unittest.skipIf(os.environ.get("PRIVACY_TESTS", "1") == "0", "Privacy tests disabled")
     def test_initial_forwarding_write_failure_logs_omit_request_data(self):
         for output in self._initial_forwarding_write_failures():
             self.assertNotIn(_PRIVATE, output)
@@ -800,7 +800,7 @@ class ImageBuildProxyWorkerTests(unittest.TestCase):
     def test_readiness_publication_failure_survives_temporary_cleanup_failure(self):
         self._readiness_publication_failure()
 
-    @unittest.skipIf(os.environ.get("PRIVACY_TESTS", "1") == "0", "PRIVACY_TESTS=0")
+    @unittest.skipIf(os.environ.get("PRIVACY_TESTS", "1") == "0", "Privacy tests disabled")
     def test_readiness_publication_failure_omits_native_error_text(self):
         self.assertNotIn(_PRIVATE, self._readiness_publication_failure())
 
@@ -815,7 +815,7 @@ class ImageBuildProxyWorkerTests(unittest.TestCase):
             with self.subTest(replaced=replaced):
                 self._assert_published_readiness_cleanup_failure(replaced)
 
-    @unittest.skipIf(os.environ.get("PRIVACY_TESTS", "1") == "0", "PRIVACY_TESTS=0")
+    @unittest.skipIf(os.environ.get("PRIVACY_TESTS", "1") == "0", "Privacy tests disabled")
     def test_published_readiness_cleanup_log_omits_native_error_text(self):
         for replaced in (False, True):
             output = self._assert_published_readiness_cleanup_failure(replaced)

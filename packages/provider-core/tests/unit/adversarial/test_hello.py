@@ -30,7 +30,7 @@ class HelloBoundaryTests(unittest.IsolatedAsyncioTestCase):
             with self.subTest(kind_valid=kind == "nmr_predict"), self.assertRaises(error_type):
                 AnalysisOffering(kind, description)
 
-    @unittest.skipIf(os.environ.get("PRIVACY_TESTS", "1") == "0", "PRIVACY_TESTS=0")
+    @unittest.skipIf(os.environ.get("PRIVACY_TESTS", "1") == "0", "Privacy tests disabled")
     def test_offering_rejections_omit_input(self):
         for (kind, description, error_type) in self._invalid_offerings():
             with self.subTest(kind_valid=kind == "nmr_predict"), self.assertRaises(error_type) as caught:
@@ -45,7 +45,7 @@ class HelloBoundaryTests(unittest.IsolatedAsyncioTestCase):
         self.assertIn("1337", str(caught.exception))
         self.assertIn("1024", str(caught.exception))
 
-    @unittest.skipIf(os.environ.get("PRIVACY_TESTS", "1") == "0", "PRIVACY_TESTS=0")
+    @unittest.skipIf(os.environ.get("PRIVACY_TESTS", "1") == "0", "Privacy tests disabled")
     def test_offering_length_refusal_omits_description_content(self):
         with self.assertRaises(ValueError) as caught:
             AnalysisOffering("nmr_predict", "PRIVATE" + "x" * 1330)
@@ -86,7 +86,7 @@ class HelloBoundaryTests(unittest.IsolatedAsyncioTestCase):
         async for (_failure, transport) in self._invalid_announcement_failures():
             self.assertEqual(transport.calls, [])
 
-    @unittest.skipIf(os.environ.get("PRIVACY_TESTS", "1") == "0", "PRIVACY_TESTS=0")
+    @unittest.skipIf(os.environ.get("PRIVACY_TESTS", "1") == "0", "Privacy tests disabled")
     async def test_invalid_snapshot_diagnostics_omit_input(self):
         async for (failure, _transport) in self._invalid_announcement_failures():
             self.assertNotIn("PRIVATE", str(failure))
@@ -125,7 +125,7 @@ class HelloBoundaryTests(unittest.IsolatedAsyncioTestCase):
             self.assertFalse(failure.attempt_mutation_may_have_committed)
             self.assertEqual(len(transport.calls), 1)
 
-    @unittest.skipIf(os.environ.get("PRIVACY_TESTS", "1") == "0", "PRIVACY_TESTS=0")
+    @unittest.skipIf(os.environ.get("PRIVACY_TESTS", "1") == "0", "Privacy tests disabled")
     async def test_acceptance_diagnostics_omit_response_content(self):
         async for (failure, _api, _response, _transport) in self._invalid_acceptance_failures():
             self.assertNotIn("PRIVATE", str(failure))
@@ -151,7 +151,7 @@ class HelloBoundaryTests(unittest.IsolatedAsyncioTestCase):
 
             self.assertEqual(len(transport.calls), 1)
 
-    @unittest.skipIf(os.environ.get("PRIVACY_TESTS", "1") == "0", "PRIVACY_TESTS=0")
+    @unittest.skipIf(os.environ.get("PRIVACY_TESTS", "1") == "0", "Privacy tests disabled")
     async def test_hello_failure_diagnostics_omit_response_and_transport_content(self):
         async for (failure, _outcome, _cause, _transport) in self._http_or_transport_failures():
             self.assertNotIn("PRIVATE", str(failure))

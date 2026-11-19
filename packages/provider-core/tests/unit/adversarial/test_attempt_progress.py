@@ -70,7 +70,7 @@ class AttemptProgressFailureTests(unittest.IsolatedAsyncioTestCase):
             self.assertIs(failure.response, response)
             self.assertEqual(len(transport.calls), 1)
 
-    @unittest.skipIf(os.environ.get("PRIVACY_TESTS", "1") == "0", "PRIVACY_TESTS=0")
+    @unittest.skipIf(os.environ.get("PRIVACY_TESTS", "1") == "0", "Privacy tests disabled")
     async def test_progress_acknowledgement_diagnostics_omit_response_content(self):
         async for (failure, _response, _transport) in self._malformed_progress_failures():
             self.assertNotIn("private_canary", str(failure))
@@ -114,7 +114,7 @@ class AttemptProgressFailureTests(unittest.IsolatedAsyncioTestCase):
             self.assertTrue(api.last_failure.attempt_mutation_may_have_committed)
             self.assertEqual(len(transport.calls), 1)
 
-    @unittest.skipIf(os.environ.get("PRIVACY_TESTS", "1") == "0", "PRIVACY_TESTS=0")
+    @unittest.skipIf(os.environ.get("PRIVACY_TESTS", "1") == "0", "Privacy tests disabled")
     async def test_progress_conflict_diagnostics_omit_problem_content(self):
         async for (failure, _code, _transport) in self._progress_conflict_failures():
             self.assertNotIn("private-canary", str(failure))

@@ -56,7 +56,7 @@ SECRET_PATTERNS = [
 
 
 class RepositoryHygieneTest(unittest.TestCase):
-    @unittest.skipIf(os.environ.get("PRIVACY_TESTS", "1") == "0", "PRIVACY_TESTS=0")
+    @unittest.skipIf(os.environ.get("PRIVACY_TESTS", "1") == "0", "Privacy tests disabled")
     def test_secret_text_patterns_are_absent(self):
         findings = []
 

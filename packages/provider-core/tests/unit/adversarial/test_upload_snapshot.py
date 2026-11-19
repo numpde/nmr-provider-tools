@@ -196,7 +196,7 @@ class UploadSnapshotTests(unittest.TestCase):
             self.assertEqual(len(calls), 1)
             self.assertEqual(pathlib.Path(root, receipt.name).read_bytes(), b"original")
 
-    @unittest.skipIf(os.environ.get("PRIVACY_TESTS", "1") == "0", "PRIVACY_TESTS=0")
+    @unittest.skipIf(os.environ.get("PRIVACY_TESTS", "1") == "0", "Privacy tests disabled")
     def test_read_and_close_diagnostics_omit_native_text(self):
         for (failure, _primary, _cleanup, _calls, _root, _receipt) in self._read_and_close_failure():
             (close_failure,) = failure.cleanup_failures
@@ -230,7 +230,7 @@ class UploadSnapshotTests(unittest.TestCase):
         self.assertIn("retire", str(failure).lower())
         closing.assert_called_once()
 
-    @unittest.skipIf(os.environ.get("PRIVACY_TESTS", "1") == "0", "PRIVACY_TESTS=0")
+    @unittest.skipIf(os.environ.get("PRIVACY_TESTS", "1") == "0", "Privacy tests disabled")
     def test_close_failure_diagnostics_omit_native_text(self):
         (failure, _cleanup, _closing) = self._unconfirmed_close_failure()
 
@@ -252,7 +252,7 @@ class UploadSnapshotTests(unittest.TestCase):
 
         self.assertIs(failure.cause, primary)
 
-    @unittest.skipIf(os.environ.get("PRIVACY_TESTS", "1") == "0", "PRIVACY_TESTS=0")
+    @unittest.skipIf(os.environ.get("PRIVACY_TESTS", "1") == "0", "Privacy tests disabled")
     def test_open_failure_keeps_private_cause_out_of_the_ordinary_traceback(self):
         (failure, _primary) = self._open_failure()
 
@@ -311,7 +311,7 @@ class UploadSnapshotTests(unittest.TestCase):
         self.assertIs(close_failure.cause, cleanup)
         closing.assert_called_once()
 
-    @unittest.skipIf(os.environ.get("PRIVACY_TESTS", "1") == "0", "PRIVACY_TESTS=0")
+    @unittest.skipIf(os.environ.get("PRIVACY_TESTS", "1") == "0", "Privacy tests disabled")
     def test_interruption_diagnostics_omit_previous_and_cleanup_text(self):
         (failure, _interruption, _previous, _cleanup, _closing) = self._interruption_with_close_failure()
 

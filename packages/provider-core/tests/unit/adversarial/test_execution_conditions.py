@@ -208,7 +208,7 @@ class ExecutionConditionFailureTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual([event[0] for event in session.events], ["retire"])
         claim.release(owner=claim.lifecycle_owner)
 
-    @unittest.skipIf(os.environ.get("PRIVACY_TESTS", "1") == "0", "PRIVACY_TESTS=0")
+    @unittest.skipIf(os.environ.get("PRIVACY_TESTS", "1") == "0", "Privacy tests disabled")
     def test_condition_rejection_diagnostics_omit_input(self):
         from provider_core.attempt_request import progress_body
 
