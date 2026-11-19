@@ -13,9 +13,9 @@ require_container()
 import json
 from base64 import b64encode
 from dataclasses import asdict, dataclass, field, replace
-from datetime import datetime, timedelta
 from enum import Enum
 
+from provider_core.adapters.nmr.v1.attempt_response import start_admission_body
 from provider_core.validation.upstream.nmr.v1.attempt_request import (
     require_analysis_kind,
     require_provider_ref,
@@ -24,6 +24,7 @@ from provider_core.validation.upstream.nmr.v1.attempt_request import (
 
 from provider_core.validation.upstream.nmr.v1.attempt_response import (
     AttemptAdmission,
+    attempt_is_in_progress,
     read_start,
 )
 
@@ -94,23 +95,6 @@ class LocalExecutionPhase(Enum):
     EXECUTION_ENTERED = "execution_entered"
 
 
-def _admission_bytes(admission):
-    require_type(admission, AttemptAdmission)
-
-    timestamp = admission.started_at
-
-    require_type(timestamp, datetime)
-
-    if timestamp.utcoffset() != timedelta(0):
-        raise ValueError("Cannot retain acknowledgement: its start timestamp must be UTC")
-
-    document = asdict(admission)
-    document["started_at"] = timestamp.isoformat().replace("+00:00", "Z")
-    document["schema_id"] = "nmr.provider.execution_attempt_start_response.v1"
-
-    return json.dumps(document, sort_keys=True, separators=(",", ":")).encode()
-
-
 @dataclass(frozen=True, slots=True)
 class AcknowledgedAttempt:
     """Historical server admission and local entry; neither recreates a live handle.
@@ -140,7 +124,7 @@ class AcknowledgedAttempt:
 
         try:
             read_start(
-                _admission_bytes(self.admission),
+                start_admission_body(self.admission),
                 job_ref=self.start.input.job_ref,
                 analysis_kind_ref=self.start.analysis_kind_ref,
                 provider_ref=self.start.scope.provider_ref,
@@ -148,7 +132,7 @@ class AcknowledgedAttempt:
         except ResponseRejected as cause:
             raise ValueError(f"Cannot retain acknowledgement: {cause}") from None
 
-        if self.local_phase is LocalExecutionPhase.EXECUTION_ENTERED and self.admission.state != "in_progress":
+        if self.local_phase is LocalExecutionPhase.EXECUTION_ENTERED and not attempt_is_in_progress(self.admission):
             raise ValueError("Cannot record execution entry from a terminal start acknowledgement")
 
 

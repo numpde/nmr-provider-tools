@@ -12,9 +12,9 @@ from provider_core.container_guard import require_container
 require_container()
 
 import asyncio
-import json
 from dataclasses import dataclass
 
+from provider_core.adapters.nmr.v1.attempt_request import retained_start_key
 from provider_core.attempt_record import RecoveryScope, StartPending, _encode_pending
 from provider_core.validation.upstream.nmr.v1.attempt_response import require_attempt_ref
 from provider_core.validation.upstream.nmr.v1.upload_response import require_job_ref
@@ -77,9 +77,9 @@ def _start_identity(pending):
     # nmr-api-v1 6a163b7a9cc1e2c7485b681c0b2b969c7c20e6c8,
     # nmr_api/operations/execution_attempt_start.py:396-412 reserves keys
     # provider-wide: another Job or lane must not form a separate local owner.
-    key = json.loads(pending.body)["provider_attempt_key"]
+    provider_attempt_key = retained_start_key(pending.body)
 
-    return (pending.scope.api_origin, pending.scope.provider_ref, "start", key)
+    return (pending.scope.api_origin, pending.scope.provider_ref, "start", provider_attempt_key)
 
 
 class AttemptClaims:

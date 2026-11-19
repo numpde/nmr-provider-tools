@@ -14,7 +14,7 @@ require_container()
 import re
 import reprlib
 from dataclasses import dataclass, field
-from datetime import datetime
+from datetime import datetime, timedelta
 from hashlib import sha256
 
 from provider_core.response_json import ResponseRejected, read_document
@@ -65,6 +65,24 @@ class AttemptProgress:
     phase: str
     condition_code: str | None
     updated_at: datetime
+
+
+def attempt_is_in_progress(attempt: AttemptObservation | AttemptAdmission) -> bool:
+    """Read the API state without granting local execution or replay permission."""
+
+    return attempt.state == "in_progress"
+
+
+def require_start_timestamp(started_at: datetime) -> None:
+    """Admit a retained admission timestamp before encoding it as canonical UTC."""
+
+    require_type(started_at, datetime)
+
+    started_at_utc_offset = started_at.utcoffset()
+    expected_utc_offset = timedelta(0)
+
+    if not (started_at_utc_offset == expected_utc_offset):
+        raise ValueError(f"{started_at_utc_offset=} should equal {expected_utc_offset=}")
 
 
 def require_attempt_ref(execution_attempt_ref):

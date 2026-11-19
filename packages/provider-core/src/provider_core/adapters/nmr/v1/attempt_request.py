@@ -31,6 +31,12 @@ def start_route() -> tuple[str, str]:
     return ("POST", "/provider/v1/execution-attempts/start")
 
 
+def retained_start_key(body: bytes) -> str:
+    """Read the provider-wide key from an already admitted immutable START body."""
+
+    return json.loads(body)["provider_attempt_key"]
+
+
 def progress_route(execution_attempt_ref: str) -> tuple[str, str]:
     """Render the current-observation target without granting phase or condition retry."""
 

@@ -13,6 +13,7 @@ import json
 import re
 from dataclasses import asdict, dataclass
 
+from provider_core.adapters.nmr.v1.attempt_response import start_admission_body
 from provider_core.attempt_record import (
     MAX_PENDING_RECORD_BYTES,
     ProtectedEvidence,
@@ -20,12 +21,11 @@ from provider_core.attempt_record import (
     StartPending,
     SuppressionReason,
     TerminalOperation,
-    _admission_bytes,
     _encode_pending,
 )
 
 from provider_core.validation.evidence import require_evidence_schema_id
-from provider_core.validation.upstream.nmr.v1.attempt_response import ATTEMPT_RESPONSE_BYTES, AttemptAdmission, read_start
+from provider_core.validation.upstream.nmr.v1.attempt_response import ATTEMPT_RESPONSE_BYTES, AttemptAdmission, attempt_is_in_progress, read_start
 from provider_core.type_requirements import require_type
 
 # The existing START/admission bounds plus a 1024-scalar schema identifier,
@@ -90,7 +90,7 @@ class AcknowledgedCheckpoint:
         require_type(self.start, StartPending)
 
         read_start(
-            _admission_bytes(self.admission),
+            start_admission_body(self.admission),
             job_ref=self.start.input.job_ref,
             analysis_kind_ref=self.start.analysis_kind_ref,
             provider_ref=self.start.scope.provider_ref
@@ -105,7 +105,7 @@ class EnteredCheckpoint:
     def __post_init__(self):
         require_type(self.acknowledgement, AcknowledgedCheckpoint)
 
-        if self.acknowledgement.admission.state != "in_progress":
+        if not attempt_is_in_progress(self.acknowledgement.admission):
             raise ValueError("Execution entry requires an active acknowledgement and only its prepared identity digest.")
 
         require_type(self.prepared, EvidenceDigest)
@@ -134,7 +134,7 @@ def _require_active(checkpoint):
     if not (type(checkpoint) in (expected_type := (AcknowledgedCheckpoint, EnteredCheckpoint))):
         raise TypeError(f"{type(checkpoint)=} ≠ {expected_type=}")
 
-    if checkpoint_acknowledgement(checkpoint).admission.state != "in_progress":
+    if not attempt_is_in_progress(checkpoint_acknowledgement(checkpoint).admission):
         raise ValueError("A terminal START replay grants no execution or fresh terminal selection.")
 
 
@@ -193,7 +193,7 @@ def _document(checkpoint):
         return {
             "kind": "acknowledged",
             "start": json.loads(_encode_pending(checkpoint.start)),
-            "admission": json.loads(_admission_bytes(checkpoint.admission))
+            "admission": json.loads(start_admission_body(checkpoint.admission))
         }
 
     if type(checkpoint) is EnteredCheckpoint:
