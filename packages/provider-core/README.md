@@ -41,7 +41,7 @@ schemas. Settings, model provenance and installed code identity remain provider
 and deployment responsibilities. The SDK owns serialization and lifecycle;
 providers own scientific meaning and operation ordering. See the
 [implemented interface](../../notes/086_configured_science_boundary.md) and the
-[standalone examples](../../examples/README.md). This authoring API adds no
+[standalone examples](../../examples/README--to-be-revised-after-process-refac.md). This authoring API adds no
 automatic retries, worker pool, Jobs service or deployment authority.
 
 After `observe_completion(operation=operation)`, use
