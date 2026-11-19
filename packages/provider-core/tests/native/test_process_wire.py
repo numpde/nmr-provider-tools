@@ -61,6 +61,16 @@ class ProcessWireTests(unittest.TestCase):
         self.assertIsInstance(received.failures[0].cause, CallRejected)
         self.assertEqual("missing_science", received.failures[0].cause.code)
 
+    def test_custom_scientific_rejection_keeps_correction_permission(self):
+        class ProviderRejection(CallRejected):
+            pass
+
+        reconstructed = roundtrip(ProviderRejection(code="invalid_spectrum", message="Bad spectrum"))
+
+        self.assertIs(type(reconstructed), CallRejected)
+        self.assertEqual("invalid_spectrum", reconstructed.code)
+        self.assertEqual("Bad spectrum", reconstructed.message)
+
     def test_foreign_failure_is_not_turned_into_input_rejection(self):
         reconstructed = roundtrip(LookupError("Lost scientific worker"))
 

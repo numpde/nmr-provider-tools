@@ -99,6 +99,13 @@ def pack(value: object) -> object:
             }
 
         name = type(value).__name__
+
+        if isinstance(value, CallRejected):
+            # A provider may declare further scientific or payload rejections.
+            # The portable semantic contract is CallRejected, not a Python
+            # subclass inventory installed separately in the parent.
+            name = "ScientificRejection" if type(value) is ScientificRejection else "CallRejected"
+
         error = {"error": name if name in _ERRORS else "remote", "message": str(value)}
 
         if isinstance(value, CallRejected):
