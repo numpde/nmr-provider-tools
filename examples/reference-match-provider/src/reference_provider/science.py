@@ -154,7 +154,7 @@ def match(index: ReferenceIndex, settings: MatchSettings, candidate: VectorInput
     if len(candidate.values) != dimensions:
         raise ScientificRejection(
             "wrong_dimensions",
-            f"Matching requires {dimensions} vector values; received {len(candidate.values)}",
+            f"{len(candidate.values)=} should match {dimensions=}",
         )
 
     scores = [0.0] * len(index.labels)
