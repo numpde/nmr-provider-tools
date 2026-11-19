@@ -46,6 +46,7 @@ class JobFeedFailureTests(unittest.IsolatedAsyncioTestCase):
             ("has_provider_execution_attempt", 0, TypeError),
             ("cursor", "YQ=", ValueError),
             ("cursor", "YR", ValueError),
+            ("cursor", "a", ValueError),
             ("cursor", "", ValueError),
         ):
             with self.subTest(field=field, bad=bad):

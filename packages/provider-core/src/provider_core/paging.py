@@ -11,7 +11,6 @@ from provider_core.container_guard import require_container
 require_container()
 
 import base64
-import binascii
 import re
 
 from provider_core.type_requirements import require_type
@@ -21,29 +20,27 @@ from provider_core.type_requirements import require_type
 MAX_PAGE_ITEMS = 100
 
 
-def require_cursor(value):
-    if value is None:
+def require_cursor(cursor):
+    if cursor is None:
         return
 
-    require_type(value, str)
+    require_type(cursor, str)
 
-    if re.fullmatch(r"[A-Za-z0-9_-]+", value) is None:
-        raise ValueError("Cursor must be canonical unpadded base64url text or None for the first page")
+    if not re.fullmatch(r"[A-Za-z0-9_-]+", cursor):
+        raise ValueError(f"{cursor=} should be nonempty unpadded base64url")
 
-    try:
-        decoded = base64.urlsafe_b64decode(value + "=" * (-len(value) % 4))
-    except (ValueError, binascii.Error):
-        raise ValueError("Cursor must be canonical unpadded base64url text") from None
+    decoded_cursor = base64.urlsafe_b64decode(cursor + "=" * (-len(cursor) % 4))
+    canonical_cursor = base64.urlsafe_b64encode(decoded_cursor).decode("ascii").rstrip("=")
 
-    if base64.urlsafe_b64encode(decoded).decode("ascii").rstrip("=") != value:
-        raise ValueError("Cursor must be canonical unpadded base64url text")
+    if not (cursor == canonical_cursor):
+        raise ValueError(f"{cursor=} should match {canonical_cursor=}")
 
 
 def paging_query(*, limit, cursor):
     require_type(limit, int)
 
     if not (1 <= limit <= MAX_PAGE_ITEMS):
-        raise ValueError("Page limit must be an integer from 1 through 100")
+        raise ValueError(f"{limit=} should be between 1 and {MAX_PAGE_ITEMS=}")
 
     require_cursor(cursor)
     query = f"limit={limit}"

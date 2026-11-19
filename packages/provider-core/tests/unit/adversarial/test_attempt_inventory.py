@@ -23,6 +23,7 @@ class AttemptInventoryFailureTests(unittest.IsolatedAsyncioTestCase):
             ("limit", 101, ValueError),
             ("cursor", "YQ=", ValueError),
             ("cursor", "YR", ValueError),
+            ("cursor", "a", ValueError),
             ("cursor", "", ValueError),
             ("cursor", "a\n", ValueError),
         ):
