@@ -28,9 +28,7 @@ def local_file_path(item):
         url.fragment or
         re.search(r"%(?![0-9a-fA-F]{2})", url.path)
     ):
-        raise ValueError(
-            f"{reprlib.repr(artifact_url)=} should use file: without an authority, query, fragment or malformed percent escapes"
-        )
+        raise ValueError(f"{reprlib.repr(artifact_url)=} should use file: without an authority, query, fragment or malformed percent escapes")
 
     try:
         return urllib.parse.unquote(url.path, errors="strict")
