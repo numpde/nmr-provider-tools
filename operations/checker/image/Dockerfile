@@ -3,6 +3,9 @@ FROM ${BASE_IMAGE} AS bootstrap
 LABEL org.nmr-provider-tools.role=checker-bootstrap
 COPY operations/checker/image/dependencies.py /opt/provider-tools/operations/checker/image/
 COPY tools/container_guard.py tools/artifacts.py tools/installer.py /opt/provider-tools/tools/
+COPY tools/adapters/__init__.py tools/adapters/debian.py tools/adapters/http_download.py /opt/provider-tools/tools/adapters/
+COPY tools/validation/__init__.py /opt/provider-tools/tools/validation/
+COPY tools/validation/upstream/__init__.py tools/validation/upstream/debian.py /opt/provider-tools/tools/validation/upstream/
 COPY packages/type-requirements/src/type_requirements.py /opt/provider-tools/
 COPY requirements/checker-dependencies.json /opt/provider-tools/requirements/
 COPY requirements/installer-release.json /opt/provider-tools/installer/release.json

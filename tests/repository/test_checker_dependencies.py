@@ -7,10 +7,14 @@ require_container()
 import hashlib
 import json
 import os
+import subprocess
 import tempfile
 import unittest
+import urllib.error
+import urllib.request
 import pathlib
-from unittest.mock import patch
+from http.client import HTTPMessage
+from unittest.mock import call, patch
 
 from operations.checker.image import dependencies
 
@@ -140,3 +144,54 @@ class CheckerDependencyTests(unittest.TestCase):
                 dependencies.download([self.package], self.pool)
 
         self.assertEqual([self.artifact], list(self.pool.iterdir()))
+
+    def test_download_refuses_http_redirect_before_sending_or_publishing(self):
+        self.artifact.unlink()
+        headers = HTTPMessage()
+        headers["Location"] = "http://mirror.invalid/make.deb"
+        proxy = "http://127.0.0.1:12345"
+        proxy_environment = {name: proxy for name in ("HTTP_PROXY", "HTTPS_PROXY", "http_proxy", "https_proxy")}
+
+        with (
+            urllib.error.HTTPError(self.package["url"], 302, "Found", headers, None) as redirect,
+            patch.dict(os.environ, proxy_environment, clear=True),
+            patch.object(urllib.request.HTTPSHandler, "https_open", return_value=redirect) as open_https,
+            patch.object(urllib.request.HTTPHandler, "http_open") as open_http,
+        ):
+            with self.assertRaises(ValueError):
+                dependencies.download([self.package], self.pool)
+
+            open_https.assert_called_once()
+            open_http.assert_not_called()
+
+        self.assertEqual([], list(self.pool.iterdir()))
+
+    def test_install_verifies_artifact_before_invoking_dpkg(self):
+        self.artifact.write_bytes(b"late")
+
+        with patch.object(subprocess, "run") as run:
+            with self.assertRaises(ValueError):
+                dependencies.install([self.package], self.pool)
+
+            run.assert_not_called()
+
+    def test_install_compares_the_exact_version_reported_after_installation(self):
+        installed_version = self.package["version"] + "\n"
+        install_command = ["dpkg", "--install", str(self.artifact)]
+        version_command = ["dpkg-query", "--show", "--showformat=${Version}", "make"]
+
+        with patch.object(
+            subprocess,
+            "run",
+            side_effect=[
+                subprocess.CompletedProcess(install_command, 0),
+                subprocess.CompletedProcess(version_command, 0, stdout=installed_version),
+            ],
+        ) as run:
+            with self.assertRaises(ValueError):
+                dependencies.install([self.package], self.pool)
+
+        self.assertEqual(
+            [call(install_command, check=True), call(version_command, check=True, capture_output=True, text=True)],
+            run.call_args_list,
+        )

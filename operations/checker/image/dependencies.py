@@ -15,16 +15,17 @@ import hashlib
 import json
 import os
 import re
+import reprlib
 import shutil
-import subprocess
 import tempfile
-import urllib.request
 import pathlib
-from urllib.parse import urlsplit
 
+from tools.adapters import debian
+from tools.adapters.http_download import https_download_opener
 from tools.artifacts import fsync_directory, regular_file, require_download_proxy
 from tools.installer import duplicate_json_fields
 from tools.installer import install as install_pip, release as installer_release
+from tools.validation.upstream.debian import require_binary_package_filename
 from type_requirements import require_instance, require_type
 
 
@@ -67,16 +68,25 @@ def declaration(path):
     require_instance(package["url"], str)
     require_instance(package["sha256"], str)
 
-    if package["name"] != "make" or re.fullmatch(r"[A-Za-z0-9.+:~_-]+", package["version"]) is None:
-        raise ValueError("Cannot admit checker dependency: expected a GNU Make version.")
+    package_name = package["name"]
+    package_version = package["version"]
+    filename = package["file"]
+    expected_package_name = "make"
 
-    filename = f"make_{package['version'].split(':', 1)[-1]}_amd64.deb"
+    if not (package_name == expected_package_name):
+        raise ValueError(f"{reprlib.repr(package_name)=} should match {expected_package_name=}")
 
-    if (
-        (package["file"] != filename) or
-        (package["url"] != f"https://deb.debian.org/debian/pool/main/m/make-dfsg/{filename}")
-    ):
-        raise ValueError("Cannot admit checker dependency: URL must name the declared Debian Make artifact.")
+    version_pattern = r"[A-Za-z0-9.+:~_-]+"
+
+    if not re.fullmatch(version_pattern, package_version):
+        raise ValueError(f"{reprlib.repr(package_version)=} should match {version_pattern=}")
+
+    require_binary_package_filename(filename, package_name=package_name, package_version=package_version, architecture="amd64")
+    download_url = package["url"]
+    expected_download_url = f"https://deb.debian.org/debian/pool/main/m/make-dfsg/{filename}"  # machine-string: selected Debian archive URL
+
+    if not (download_url == expected_download_url):
+        raise ValueError(f"{reprlib.repr(download_url)=} should match {reprlib.repr(expected_download_url)=}")
 
     require_type(package["size"], int)
 
@@ -155,14 +165,6 @@ def publish(package, staged, destination):
     fsync_directory(destination.parent)
 
 
-class HttpsRedirects(urllib.request.HTTPRedirectHandler):
-    def redirect_request(self, request, fp, code, message, headers, new_url):
-        if urlsplit(new_url).scheme != "https":
-            raise ValueError("Cannot download checker dependency: redirect left HTTPS.")
-
-        return super().redirect_request(request, fp, code, message, headers, new_url)
-
-
 def download(packages, pool):
     require_download_proxy()
 
@@ -177,7 +179,7 @@ def download(packages, pool):
             continue
 
         print(f"Downloading {package['file']} into the shared wheelhouse.", flush=True)
-        opener = urllib.request.build_opener(HttpsRedirects())
+        opener = https_download_opener()
 
         with tempfile.NamedTemporaryFile(prefix=".checker-download-", suffix=".part", dir=pool) as target:
             with opener.open(package["url"], timeout=60) as response:
@@ -197,22 +199,19 @@ def download(packages, pool):
 
 def install(packages, directory):
     check(packages, directory)
-    subprocess.run(["dpkg", "--install", *[str(directory / package["file"]) for package in packages]], check=True)
+    debian.install_binary_packages([directory / package["file"] for package in packages])
 
     for package in packages:
         package_name = package["name"]
 
-        installed_version = subprocess.run(
-            ["dpkg-query", "--show", "--showformat=${Version}", package_name],
-            check=True,
-            capture_output=True,
-            text=True,
-        ).stdout
-
+        installed_version = debian.installed_package_version(package_name)
         expected_version = package["version"]
 
         if not (installed_version == expected_version):
-            raise ValueError(f"For {package_name=}, {installed_version=} should match {expected_version=}")
+            raise ValueError(
+                f"After installing {package_name=}, "
+                f"{reprlib.repr(installed_version)=} should match {reprlib.repr(expected_version)=}"
+            )
 
 
 def main():

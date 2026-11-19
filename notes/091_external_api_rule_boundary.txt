@@ -942,12 +942,30 @@ Other service and artifact interfaces in repository tooling
     and https://cli.github.com/manual/gh_release; no API version header or immutable
     service schema pin was introduced during this separation.
 
-[ ] P3  Separate Debian artifact/HTTP assumptions from dependency release policy
+[x] P3  Separate Debian artifact/HTTP assumptions from dependency release policy
     operations/checker/image/dependencies.py:38-84,158-198
     Debian artifact URL/filename/archive assumptions and HTTPS redirects are
     another repository-service edge. The dependency declaration, chosen versions,
     digest approval and cache publication are local release policy.
     Evidence: tests/repository/test_checker_dependencies.py.
+    tools/validation/upstream/debian.py now owns the binary filename convention
+    and omission of the version epoch. The existing loose version spelling remains
+    a checker selection profile, not a claim of complete Debian version admission.
+    tools/adapters/debian.py owns the exact dpkg install/query argv and returns the
+    unmodified Version output. Generic HTTPS redirect handling, shared by the .deb
+    and pip downloads, lives in tools/adapters/http_download.py. The checker retains
+    GNU Make selection, exact approved mirror/pool URL, declared digest/size, proxy
+    permission, staged copying, additive publication and version-match decisions.
+    Both checker image targets and their captured source fingerprint include every
+    new import. The offline checker image build and dependency-cache check passed;
+    focused dependency/conventions lanes passed (22 tests; PRIVACY_TESTS=0).
+    Behavior tests cover downgrade refusal before HTTP send/publication, corrupt
+    bytes before dpkg, and the exact raw version result after installation. Cross-
+    audit confirmed admission and effect order. The consumed filename and tool
+    interfaces are documented at
+    https://manpages.debian.org/bookworm/dpkg-dev/dpkg-name.1.en.html and
+    https://manpages.debian.org/bookworm/dpkg/dpkg-query.1.en.html; the selected
+    source remains https://deb.debian.org/debian/pool/main/m/make-dfsg/.
 
 Separate adjacent tool/package interfaces from service API rules:
 
