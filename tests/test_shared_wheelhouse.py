@@ -792,7 +792,7 @@ class WheelhouseTests(unittest.TestCase):
 
         self.assertEqual(source, report_manifest(report("file:///pool/" + source), "/pool", "wheels", {source})[0]["filename"])
 
-        for invalid, expected_exception in (
+        for (invalid, expected_exception) in (
             (None, TypeError),
             ([], TypeError),
             ({"version": "1", "install": {}}, TypeError),

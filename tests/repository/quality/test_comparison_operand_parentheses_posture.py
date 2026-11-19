@@ -40,7 +40,7 @@ class ComparisonOperandParenthesesPostureTests(unittest.TestCase):
 
                 self.assertEqual(
                     ["left + offset", "required | optional"],
-                    [operand for _, _, operand in comparison_operand_findings(source=source)],
+                    [operand for (_, _, operand) in comparison_operand_findings(source=source)],
                 )
                 self.assertEqual([], comparison_operand_findings(source=f"(left + offset) {operator} (required | optional)\n"))
 
@@ -70,7 +70,7 @@ class ComparisonOperandParenthesesPostureTests(unittest.TestCase):
             with self.subTest(operand=operand):
                 findings = comparison_operand_findings(source=f"{operand} in members\n")
 
-                self.assertEqual([operand], [expression for _, _, expression in findings])
+                self.assertEqual([operand], [expression for (_, _, expression) in findings])
                 self.assertEqual([], comparison_operand_findings(source=f"({operand}) in members\n"))
 
     def test_chains_check_intermediate_operands_and_nested_comparisons(self):
@@ -78,12 +78,12 @@ class ComparisonOperandParenthesesPostureTests(unittest.TestCase):
 
         self.assertEqual(
             ["lower + margin", "measured * scale", "upper - margin"],
-            [operand for _, _, operand in comparison_operand_findings(source=source)],
+            [operand for (_, _, operand) in comparison_operand_findings(source=source)],
         )
         self.assertEqual([], comparison_operand_findings(source="(lower + margin) < (measured * scale) < (upper - margin)\n"))
         self.assertEqual(
             ["left + right"],
-            [operand for _, _, operand in comparison_operand_findings(source="((left + right < limit) + offset) == expected\n")],
+            [operand for (_, _, operand) in comparison_operand_findings(source="((left + right < limit) + offset) == expected\n")],
         )
 
     def test_comparison_call_and_partial_grouping_do_not_group_the_operand(self):

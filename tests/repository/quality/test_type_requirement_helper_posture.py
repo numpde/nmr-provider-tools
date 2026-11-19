@@ -31,7 +31,7 @@ def _required_helpers(expression: ast.expr) -> set[str]:
         return {helper for operand in expression.values for helper in _required_helpers(operand)}
 
     if isinstance(expression, ast.Call) and (len(expression.args) == 2) and (not expression.keywords):
-        for predicate, helper in (
+        for (predicate, helper) in (
             ("isinstance", "require_instance"),
             ("issubclass", "require_subclass"),
         ):
@@ -93,7 +93,7 @@ class TypeRequirementHelperPostureTests(unittest.TestCase):
             ("not builtins.issubclass(candidate, (Parent, Other))", "require_subclass"),
         )
 
-        for condition, helper in cases:
+        for (condition, helper) in cases:
             with self.subTest(condition=condition):
                 findings = guard_findings(source=f"if {condition}:\n    raise CustomError('invalid') from cause\n")
 
@@ -114,7 +114,7 @@ class TypeRequirementHelperPostureTests(unittest.TestCase):
 
         findings = guard_findings(source=source)
 
-        self.assertEqual([1], [line for line, _ in findings])
+        self.assertEqual([1], [line for (line, _) in findings])
 
         self.assertEqual(("require_instance", "require_subclass", "require_type"), findings[0][1])
 
@@ -154,7 +154,7 @@ class TypeRequirementHelperPostureTests(unittest.TestCase):
         findings = []
 
         for source_path in python_sources(production_only=False):
-            for line, helpers in guard_findings(source=source_path.read_text(encoding="utf-8")):
+            for (line, helpers) in guard_findings(source=source_path.read_text(encoding="utf-8")):
                 findings.append(
                     f"{source_path.relative_to(ROOT)}:{line}: use {', '.join(helpers)} for the accepted type; "
                     f"preserve value checks, bindings, and failure semantics"
