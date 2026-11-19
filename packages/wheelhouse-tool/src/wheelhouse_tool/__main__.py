@@ -10,17 +10,16 @@ import re
 import secrets
 import stat
 import sys
-import tomllib
 import urllib.error
 import urllib.parse
 import urllib.request
 from contextlib import contextmanager
-from dataclasses import replace
 from pathlib import Path
 
-from packaging.pylock import PackageArchive, PackageSdist, PackageWheel, Pylock, PylockSelectError, PylockValidationError
+from packaging.pylock import PackageArchive, PackageSdist, PackageWheel, PylockSelectError, PylockValidationError
 from packaging.tags import sys_tags
 from packaging.utils import InvalidSdistFilename, InvalidWheelFilename, canonicalize_name, parse_sdist_filename, parse_wheel_filename
+from wheelhouse_tool.adapters.pylock import read_lock, render_local_lock
 from wheelhouse_tool.network import RequestFailure, failure_detail, request, retry
 
 
@@ -73,11 +72,6 @@ def sha256(path, directory_fd=None):
             raise ValueError(f"{artifact_name=} should name a regular file, but {file_mode=:#o}")
 
         return hashlib.file_digest(stream, "sha256").hexdigest()
-
-
-def read_lock(lock):
-    with lock.open("rb") as stream:
-        return Pylock.from_dict(tomllib.load(stream))
 
 
 # silent-defaults: allow-contract -- Optional source-distribution requirements are a fixed empty tuple; absent source-lock inputs retain their independent None sentinel.
@@ -366,7 +360,6 @@ def _run(action, pool, artifacts, directory_fd):
 # silent-defaults: allow-contract -- Source distribution preferences default to immutable empty tuples; optional captured document/artifact arguments are absent as None.
 def local_lock(lock, local_root, prefer_sdist=(), require_sdist=(), document=None, artifacts=None):
     """Project the selected locked artifacts to their paths in the build."""
-    import tomli_w
 
     if document is None:
         document = read_lock(lock)
@@ -374,21 +367,13 @@ def local_lock(lock, local_root, prefer_sdist=(), require_sdist=(), document=Non
     if artifacts is None:
         artifacts = selected(lock, prefer_sdist, require_sdist, document)
 
-    packages = []
-
-    for (name, _digest, _url, package, artifact) in artifacts:
-        local = replace(artifact, url=None, path=str(local_root / name))
-
-        if isinstance(local, PackageWheel):
-            package = replace(package, wheels=[local], sdist=None)
-        elif isinstance(local, PackageSdist):
-            package = replace(package, wheels=None, sdist=local)
-        else:
-            package = replace(package, archive=local)
-
-        packages.append(package)
-
-    return tomli_w.dumps(replace(document, packages=packages).to_dict())
+    return render_local_lock(
+        document,
+        (
+            (package, artifact, local_root / name)
+            for (name, _digest, _url, package, artifact) in artifacts
+        ),
+    )
 
 
 def main():

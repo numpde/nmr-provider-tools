@@ -985,6 +985,13 @@ Separate adjacent tool/package interfaces from service API rules:
       artifact lanes passed 31 tests. The offline delivery build stopped
       before Docker assembly because the current runtime lock hash differs
       from the issued release pin; image execution remains unverified.
+  [x] Standalone pylock TOML loading, local wheel/sdist/archive field encoding
+      and projected-lock encoding now live in wheelhouse_tool/adapters/pylock.py.
+      The codec retains metadata and package order, validates/exhausts selection
+      before serializing the original projected dictionary, and propagates
+      native errors. Workflows retain artifact/source selection and output
+      ownership. The 56-test wheelhouse lane passed (10 privacy skips), both
+      isolated bundle tests passed, and the real offline tool image built.
   pip: tools/installer.py:154-201 owns command construction. tools/wheelhouse.py:102-193
   and wheelhouse_tool/report.py:11-65 consume installation-report version 1 and
   download_info/archive_info/hash fields. SDK build helpers and image_manifest.py

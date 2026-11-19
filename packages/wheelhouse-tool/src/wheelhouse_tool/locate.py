@@ -9,14 +9,14 @@ import urllib.parse
 import urllib.request
 from pathlib import Path
 
-import tomli_w
 from packaging.markers import default_environment
-from packaging.pylock import Pylock, PylockSelectError, PylockValidationError
+from packaging.pylock import PylockSelectError, PylockValidationError
 from packaging.requirements import Requirement
 from packaging.tags import sys_tags
 from packaging.utils import InvalidSdistFilename, InvalidWheelFilename, canonicalize_name, parse_sdist_filename, parse_wheel_filename
 from packaging.version import Version
 from wheelhouse_tool.adapters import simple_json as simple_requests
+from wheelhouse_tool.adapters.pylock import render_projected_lock
 from wheelhouse_tool.network import request as network_request, retry
 from wheelhouse_tool.validation.upstream import simple_json as simple_metadata
 
@@ -287,16 +287,12 @@ def locate(path, index=None, allowed_sources=(), required_sources=(), direct_sou
     if required_sources - {package["name"] for package in packages}:
         raise ValueError("Cannot locate artifacts: a required source package is not in the lock.")
 
-    document = {
-        "lock-version": "1.0",
-        "created-by": "nmr-provider-tools metadata projection",
-        "packages": packages,
-        "tool": {"nmr-provider-tools": {"source-lock-sha256": source_sha256}},
-    }
-
-    list(Pylock.from_dict(document).select(prefer_sdist_predicate=lambda name: name in allowed_sources))
-
-    return tomli_w.dumps(document)
+    return render_projected_lock(
+        packages,
+        created_by="nmr-provider-tools metadata projection",
+        tool={"nmr-provider-tools": {"source-lock-sha256": source_sha256}},
+        prefer_sdist_predicate=lambda name: name in allowed_sources,
+    )
 
 
 def main():
