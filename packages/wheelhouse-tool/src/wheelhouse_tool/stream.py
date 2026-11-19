@@ -22,11 +22,11 @@ class HashReader:
         self.digest = hashlib.sha256()
 
     def read(self, size):
-        data = self.stream.read(size)
+        content_chunk = self.stream.read(size)
 
-        self.digest.update(data)
+        self.digest.update(content_chunk)
 
-        return data
+        return content_chunk
 
 
 def open_source(path):
@@ -53,8 +53,8 @@ def stream_context(pool, source, selections, output, source_allowlist=None):
     source_modes = {}
 
     if source_allowlist is not None:
-        source_hashes = {item["destination"]: item["sha256"] for item in source_allowlist}
-        source_modes = {item["destination"]: item["executable"] for item in source_allowlist}
+        source_hashes = {allowlist_entry["destination"]: allowlist_entry["sha256"] for allowlist_entry in source_allowlist}
+        source_modes = {allowlist_entry["destination"]: allowlist_entry["executable"] for allowlist_entry in source_allowlist}
 
     if any(not re.fullmatch(r"[0-9a-f]{64}", digest) for digest in source_hashes.values()):
         raise ValueError("Cannot stream build inputs: source files require SHA-256 hashes.")
@@ -75,7 +75,7 @@ def stream_context(pool, source, selections, output, source_allowlist=None):
             for name in sorted(directories + files)
         )
     else:
-        paths = ((Path(item["path"]), item["destination"]) for item in source_allowlist)
+        paths = ((Path(allowlist_entry["path"]), allowlist_entry["destination"]) for allowlist_entry in source_allowlist)
 
     for (path, source_relative_path) in paths:
         destination = PurePosixPath(source_relative_path)

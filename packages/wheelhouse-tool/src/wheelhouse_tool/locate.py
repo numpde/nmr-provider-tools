@@ -98,11 +98,11 @@ def locate(path, index=None, allowed_sources=(), required_sources=(), direct_sou
         parsed = urllib.parse.urlsplit(source)
         filename = urllib.parse.unquote(parsed.path.rsplit("/", 1)[-1])
         (distribution, version, _, _) = parse_wheel_filename(filename)
-        values = urllib.parse.parse_qs(parsed.fragment).get("sha256")
+        sha256_values = urllib.parse.parse_qs(parsed.fragment).get("sha256")
         checksum = None
 
-        if values:
-            checksum = values[0]
+        if sha256_values:
+            checksum = sha256_values[0]
 
         if (parsed.scheme != "https") or (parsed.username is not None) or (parsed.query) or (checksum is None) or (not re.fullmatch(r"[0-9a-f]{64}", checksum)):
             raise ValueError("Cannot locate artifacts: direct sources require an HTTPS URL with a SHA-256 fragment.")
@@ -220,10 +220,10 @@ def locate(path, index=None, allowed_sources=(), required_sources=(), direct_sou
                 (filename, (url, checksum), simple_metadata.file_yanked(artifact), artifact_version),
             )
 
-        wheels.sort(key=lambda item: item[0])
-        sources.sort(key=lambda item: (not item[0].endswith(".tar.gz"), item[0]))
-        wheels = [item for item in wheels if not item[2]] or wheels
-        sources = [item for item in sources if not item[2]] or sources
+        wheels.sort(key=lambda artifact_candidate: artifact_candidate[0])
+        sources.sort(key=lambda artifact_candidate: (not artifact_candidate[0].endswith(".tar.gz"), artifact_candidate[0]))
+        wheels = [artifact_candidate for artifact_candidate in wheels if not artifact_candidate[2]] or wheels
+        sources = [artifact_candidate for artifact_candidate in sources if not artifact_candidate[2]] or sources
 
         if (pool is not None) and (wheels) and (not ((package_name in allowed_sources) and sources)):
             # Freeze the reusable choices in this projection so later selection
@@ -233,12 +233,12 @@ def locate(path, index=None, allowed_sources=(), required_sources=(), direct_sou
             with pool_lock(pool, exclusive=False) as directory_fd:
                 cached = []
 
-                for item in wheels:
-                    (filename, (_, checksum), _, _) = item
+                for artifact_candidate in wheels:
+                    (filename, (_, checksum), _, _) = artifact_candidate
 
                     try:
                         if inspect_artifact(pool, filename, checksum, directory_fd):
-                            cached.append(item)
+                            cached.append(artifact_candidate)
                     except ValueError:
                         # A conflicting file is not reusable; leave it in place.
                         continue
@@ -249,9 +249,9 @@ def locate(path, index=None, allowed_sources=(), required_sources=(), direct_sou
         candidates = sources if (package_name in allowed_sources) and sources else wheels
 
         if candidates:
-            version = max(item[3] for item in candidates)
-            wheels = [item for item in wheels if item[3] == version]
-            sources = [item for item in sources if item[3] == version]
+            version = max(artifact_candidate[3] for artifact_candidate in candidates)
+            wheels = [artifact_candidate for artifact_candidate in wheels if artifact_candidate[3] == version]
+            sources = [artifact_candidate for artifact_candidate in sources if artifact_candidate[3] == version]
 
         selected_source = sources[0][1] if (package_name in allowed_sources) and sources else None
 
