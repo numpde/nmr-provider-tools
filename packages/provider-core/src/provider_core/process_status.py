@@ -17,6 +17,7 @@ import time
 import pathlib
 
 from provider_core.tools import require_nonnegative_number
+from provider_core.type_requirements import require_type
 
 
 def _start_ticks(pid):
@@ -96,26 +97,26 @@ def read_status(path, role):
 
     fields = { "role", "pid", "start_ticks", "updated_monotonic", "phase" }
 
-    if not (type(status_record) is (expected_type := dict)):
-        raise TypeError(f"{type(status_record)=} ≠ {expected_type=}")
+    require_type(status_record, dict)
 
     if not (set(status_record) in (fields, fields | { "details" })):
         raise ValueError("Process status has an unsupported shape.")
 
-    if ("details" in status_record) and (type((value_details := status_record["details"])) is not (expected_value_details_type := dict)):
-        raise TypeError(f"{type(value_details)=} ≠ {expected_value_details_type=}")
+    if "details" in status_record:
+        value_details = status_record["details"]
+        require_type(value_details, dict)
 
     if status_record["role"] != role:
         raise ValueError("Process status has a different role or invalid process identity.")
 
-    if not (type((value_pid := status_record['pid'])) is (expected_value_pid_type := int)):
-        raise TypeError(f"{type(value_pid)=} ≠ {expected_value_pid_type=}")
+    value_pid = status_record['pid']
+    require_type(value_pid, int)
 
     if not (0 < status_record['pid']):
         raise ValueError("Process status has a different role or invalid process identity.")
 
-    if not (type((value_start_ticks := status_record['start_ticks'])) is (expected_value_start_ticks_type := int)):
-        raise TypeError(f"{type(value_start_ticks)=} ≠ {expected_value_start_ticks_type=}")
+    value_start_ticks = status_record['start_ticks']
+    require_type(value_start_ticks, int)
 
     if not (0 < status_record['start_ticks']):
         raise ValueError("Process status has a different role or invalid process identity.")
