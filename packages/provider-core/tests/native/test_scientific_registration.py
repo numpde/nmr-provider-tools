@@ -299,6 +299,29 @@ class AdoptionTests(unittest.IsolatedAsyncioTestCase):
         async with asyncio.timeout(10):
             await observe_cleanup(control=host.retire())
 
+    async def test_class_declaration_compiles_without_constructing_a_receiver(self):
+        requirements = frozenset({ResourceRequirement(kind="cpu", amount=1, unit="thread")})
+        class_only = HostedContribution(
+            contribution=None,
+            contribution_type=Sum,
+            host="remote-host",
+            allocation_name="prediction",
+            requirements=requirements,
+        )
+        instance = Sum(configuration=Settings(scale=2))
+        adopted = self.host.adopt(contribution=instance, requirements=requirements)
+
+        self.assertIsNone(class_only.contribution)
+        self.assertEqual(adopted.description.binding_revision, class_only.description.binding_revision)
+        self.assertEqual(
+            adopted.call(method=Sum.calculate).description,
+            class_only.call(method=Sum.calculate).description,
+        )
+        self.assertIs(class_only.call(method=Sum.calculate)._owner, class_only)
+
+        with self.assertRaises(expected_exception=ValueError):
+            class_only.call(method=instance.calculate)
+
     async def test_adoption_does_not_initialize_or_replace_the_supplied_receiver(self):
         instance = Sum(configuration=Settings(scale=2))
         marker = instance.marker
