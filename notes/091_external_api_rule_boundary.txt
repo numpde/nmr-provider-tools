@@ -1126,6 +1126,12 @@ Separate adjacent tool/package interfaces from service API rules:
       per-entry removal policies. Bundle and shadow fixtures stage canonical
       bytes explicitly. Owner (50, one skip), Compose/bundle (9), operation
       (15) and ordered-retirement (4) focused tests pass with privacy disabled.
+  [x] Acquisition Running/NetworkMode projections and exact expected-record
+      comparisons now live in its issued Docker adapter/validator. The existing
+      held readiness child sources those leaves with the selected bundle root;
+      its engine argv, 100-check loop, readiness-first ordering, limits, reasons
+      and logs remain unchanged. Network grants and release stay with the owner.
+      Owner (50, one skip) and Compose/bundle (9) focused tests pass.
   Docker/Compose: operations/docker/docker_context.sh:22-57 interprets context
   endpoint output; container_operation.sh and packages/acquisition/acquisition_tool/
   owner.sh interpret create/inspect/state/exit/readiness results; image_retirement.py:138

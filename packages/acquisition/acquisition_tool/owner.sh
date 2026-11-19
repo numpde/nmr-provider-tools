@@ -296,19 +296,21 @@ _acq_ready() {
     local _acq_ready_directory=$_acq_scratch/$1
     _acq_capture "$_acq_ready_directory/start" start "$_acq_ready_cid" || return "$?"
     _acq_native "acquisition $_acq_ready_role readiness" 30 stdio bash -eu -c '
-        ready=$1 directory=$2 cid=$3; shift 3; umask 077; ulimit -f 4
+        ready=$1 directory=$2 cid=$3 bundle=$4; shift 4; umask 077; ulimit -f 4
+        source "$bundle/acquisition_tool/adapters/docker_container.sh"
+        source "$bundle/acquisition_tool/validation/upstream/docker_container.sh"
         for _ in {1..100}; do
             if [[ -f "$ready" && ! -L "$ready" && -s "$ready" ]]; then exit 0; fi
-            if "$@" inspect --format "{{.State.Running}}" "$cid" > "$directory/state" 2> "$directory/state.stderr"; then :; else
+            if _acq_inspect_container_running "$cid" "$@" > "$directory/state" 2> "$directory/state.stderr"; then :; else
                 status=$?
                 printf "inspect-failed %s\n" "$status" > "$directory/readiness-reason"
                 exit 2
             fi
-            if cmp -s "$directory/state" <(printf "false\n"); then
+            if _acq_docker_running_matches "$directory/state" false; then
                 printf "stopped\n" > "$directory/readiness-reason"
                 exit 2
             fi
-            if ! cmp -s "$directory/state" <(printf "true\n"); then
+            if ! _acq_docker_running_matches "$directory/state" true; then
                 printf "invalid-state\n" > "$directory/readiness-reason"
                 exit 2
             fi
@@ -316,7 +318,7 @@ _acq_ready() {
         done
         printf "checks-exhausted\n" > "$directory/readiness-reason"
         exit 2
-    ' bash "$_acq_ready_file" "$_acq_ready_directory" "$_acq_ready_cid" "${_acq_engine[@]}" || _acq_ready_status=$?
+    ' bash "$_acq_ready_file" "$_acq_ready_directory" "$_acq_ready_cid" "$_acq_bundle" "${_acq_engine[@]}" || _acq_ready_status=$?
     if [[ $_acq_ready_status != 0 ]]; then
         _acq_retain_diagnostics=true
         # Publish only the authored reason, never raw engine output.
@@ -403,8 +405,8 @@ _acq_start_route() {
     [[ $_acq_candidate_port =~ ^[1-9][0-9]{0,4}$ && $_acq_candidate_port -le 65535 ]] \
         && cmp -s "$_acq_scratch/relay-ready/port" <(printf '%s\n' "$_acq_candidate_port") \
         || { _acq_fail 'Relay readiness is not one port.'; return 2; }
-    _acq_capture "$_acq_scratch/relay/mode" inspect --format '{{.HostConfig.NetworkMode}} {{.State.Running}}' "${_acq_cids[relay]}" || return "$?"
-    cmp -s "$_acq_scratch/relay/mode" <(printf 'none true\n') || {
+    _acq_inspect_container_network_running "$_acq_scratch/relay/mode" "${_acq_cids[relay]}" || return "$?"
+    _acq_docker_network_running_matches "$_acq_scratch/relay/mode" none true || {
         _acq_retain_diagnostics=true
         _acq_fail 'Cannot start acquisition: relay network and running state could not be verified.'
         return 2
@@ -448,10 +450,10 @@ acquisition_worker() {
     _acq_sequence=$((_acq_sequence + 1))
     local _acq_worker_role=worker-$_acq_sequence
     _acq_create "$_acq_worker_role" "$_acq_image" _acq_worker_options "$_acq_app_name" || { _acq_failed=true; return 2; }
-    _acq_capture "$_acq_scratch/$_acq_worker_role/mode" inspect --format '{{.HostConfig.NetworkMode}}' "${_acq_cids[$_acq_worker_role]}" || { _acq_failed=true; return 2; }
+    _acq_inspect_container_network "$_acq_scratch/$_acq_worker_role/mode" "${_acq_cids[$_acq_worker_role]}" || { _acq_failed=true; return 2; }
     local _acq_expected_mode=none
     [[ $_acq_mode != online ]] || _acq_expected_mode=container:${_acq_cids[relay]}
-    cmp -s "$_acq_scratch/$_acq_worker_role/mode" <(printf '%s\n' "$_acq_expected_mode") || { _acq_failed=true; return 2; }
+    _acq_docker_network_matches "$_acq_scratch/$_acq_worker_role/mode" "$_acq_expected_mode" || { _acq_failed=true; return 2; }
     _acq_native 'acquisition worker attachment' "$_acq_budget" stdio "${_acq_engine[@]}" start --attach "${_acq_cids[$_acq_worker_role]}" || _acq_attach_status=$?
     "$_acq_native_retired" || { _acq_failed=true; return 2; }
     _acq_inspect_container_state "$_acq_scratch/$_acq_worker_role/state" "${_acq_cids[$_acq_worker_role]}" || { _acq_failed=true; return 2; }
