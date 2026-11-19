@@ -69,7 +69,7 @@ def limits(document):
 
 
 def argument(command_argument):
-    if (not command_argument) or (any(ord(c) < 32 or ord(c) == 127 for c in command_argument)):
+    if (not command_argument) or (any((ord(c) < 32) or (ord(c) == 127) for c in command_argument)):
         raise ValueError("Timer arguments cannot contain empty values or control characters.")
 
     # Systemd specifiers remain literal. ExecStart's ':' prefix below disables
@@ -203,7 +203,7 @@ def install(root, context, endpoint, daemon_config_path):
 
 def main():
     try:
-        if sys.argv[1:2] == ["policy"] and len(sys.argv) == 3:
+        if (sys.argv[1:2] == ["policy"]) and (len(sys.argv) == 3):
             (_, document) = native_config(pathlib.Path(sys.argv[2]))
             thresholds = limits(document)
 
@@ -211,7 +211,7 @@ def main():
                 print("disabled")
             else:
                 print("\n".join(thresholds))
-        elif sys.argv[1:2] == ["install"] and len(sys.argv) == 6:
+        elif (sys.argv[1:2] == ["install"]) and (len(sys.argv) == 6):
             (root, context, endpoint, config) = sys.argv[2:]
 
             install(pathlib.Path(root), context, endpoint, pathlib.Path(config))

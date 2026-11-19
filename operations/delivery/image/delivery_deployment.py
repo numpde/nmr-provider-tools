@@ -354,7 +354,7 @@ def render_shared(path, source, image):
 
         require_type(proxy_uid, int)
 
-        if not (0 < proxy_uid and proxy_uid != uid):
+        if not ((0 < proxy_uid) and (proxy_uid != uid)):
             raise ValueError
 
         require_type(gid, int)
@@ -624,7 +624,7 @@ async def health(definition):
 
 
 def initialize(uid, gid, queue, ipc):
-    if os.geteuid() != 0 or uid <= 0 or gid <= 0:
+    if (os.geteuid() != 0) or (uid <= 0) or (gid <= 0):
         raise DeliveryDeploymentRejected(
             "Volume initialization requires root with CHOWN and explicit "
             "nonzero target UID/GID."
@@ -645,7 +645,7 @@ def initialize(uid, gid, queue, ipc):
         ) == (uid, gid, mode):
             continue
 
-        if observed_metadata.st_uid != 0 or any(volume_root.iterdir()):
+        if (observed_metadata.st_uid != 0) or any(volume_root.iterdir()):
             raise DeliveryDeploymentRejected(
                 "Refusing to change an existing delivery volume with "
                 "unexpected ownership, mode or contents."

@@ -109,7 +109,7 @@ def verify(package, path):
 
             checksum.update(chunk)
 
-    if count != package["size"] or checksum.hexdigest() != package["sha256"]:
+    if (count != package["size"]) or (checksum.hexdigest() != package["sha256"]):
         raise ValueError(f"Cannot admit {path}: size or SHA-256 differs from the dependency declaration.")
 
 
