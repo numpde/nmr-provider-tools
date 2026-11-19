@@ -168,6 +168,13 @@ class _ProcessOperation:
             except (RemoteScienceError, LookupError) as cause:
                 observed = self._unavailable(cause)
 
+                if not observed.finished:
+                    # The channel is gone, not the scientific owner. Give the
+                    # workflow its original uncertainty instead of polling forever.
+                    raise RemoteScienceError(
+                        "Scientific operation may still be running in an unobservable worker"
+                    ) from cause
+
             if observed.operation != self.reference or observed.target != self.invocation.target:
                 raise RemoteScienceError("Scientific worker observation identifies different work")
 
@@ -342,6 +349,10 @@ class ProcessExecutionHost:
                 stderr=self.stderr,
                 env=environment,
             )
+        except BaseException:
+            parent.close()
+            self.stderr.close()
+            raise
         finally:
             child.close()
 

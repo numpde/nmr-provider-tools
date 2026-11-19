@@ -129,6 +129,11 @@ class _Worker:
         if action == "start":
             return await self.start(message)
 
+        # Retirement must remain available after partial startup, even if no
+        # contribution was constructed or initialized.
+        if action == "retire":
+            return await self.retire()
+
         if self.hosted is None:
             raise RuntimeError("Scientific worker is not initialized")
 
@@ -211,21 +216,18 @@ class _Worker:
             await self._finish_analysis(analysis_id, observed)
             return observed
 
-        if action == "retire":
-            return await settle_cleanup(control=self.host.retire())
-
         raise ValueError(f"Unknown scientific worker action {action!r}")
 
     async def retire(self):
-        if self.host is not None:
-            await settle_cleanup(control=self.host.retire())
+        if self.host is None:
+            return CleanupObservation(revision=0, settled=True, allowance_expired=False, failures=())
+
+        return await settle_cleanup(control=self.host.retire())
 
 
 async def _serve(sock: socket.socket) -> None:
     sock.setblocking(False)
     worker = _Worker()
-    retirement_requested = False
-
     try:
         while True:
             try:
@@ -241,12 +243,12 @@ async def _serve(sock: socket.socket) -> None:
                 await send_async(sock, {"ok": True, "value": outcome})
 
             if message["action"] == "retire":
-                retirement_requested = True
                 break
     finally:
         try:
-            if not retirement_requested:
-                await worker.retire()
+            # Always join the original host owner, including after a failed
+            # factory import or partial model construction.
+            await worker.retire()
         finally:
             sock.close()
 
