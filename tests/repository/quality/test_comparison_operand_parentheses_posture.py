@@ -138,7 +138,17 @@ class ComparisonOperandParenthesesPostureTests(unittest.TestCase):
             "    pass\n"
         )
 
-        self.assertEqual([(2, 5, "first +\n    second")], comparison_operand_findings(source=source))
+        self.assertEqual(
+            [
+                (
+                    2,
+                    5,
+                    "first +\n"
+                    "    second",
+                ),
+            ],
+            comparison_operand_findings(source=source),
+        )
 
     def test_comments_multiline_operands_unicode_and_fstrings(self):
         source = (

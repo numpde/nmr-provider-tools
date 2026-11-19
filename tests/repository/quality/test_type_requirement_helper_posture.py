@@ -95,7 +95,10 @@ class TypeRequirementHelperPostureTests(unittest.TestCase):
 
         for (condition, helper) in cases:
             with self.subTest(condition=condition):
-                findings = guard_findings(source=f"if {condition}:\n    raise CustomError('invalid') from cause\n")
+                findings = guard_findings(
+                    source=f"if {condition}:\n"
+                    f"    raise CustomError('invalid') from cause\n",
+                )
 
                 self.assertEqual([(1, (helper,))], findings)
 
@@ -120,15 +123,45 @@ class TypeRequirementHelperPostureTests(unittest.TestCase):
 
     def test_recovery_and_existing_failure_branches_are_outside_the_rule(self):
         sources = (
-            "if not isinstance(candidate, Parent):\n    return fallback\n",
-            "if not isinstance(candidate, Parent):\n    retry()\n",
-            "if not isinstance(candidate, Parent):\n    raise\n",
-            "if not isinstance(candidate, Parent):\n    raise failure\n",
-            "if not isinstance(candidate, Parent):\n    raise failure.with_traceback(traceback)\n",
-            "if not isinstance(candidate, Parent):\n    cleanup()\n    raise Error()\n",
-            "if not isinstance(candidate, Parent):\n    if invalid:\n        raise Error()\n",
-            "if not isinstance(candidate, Parent):\n    def later():\n        raise Error()\n",
-            "if invalid:\n    raise Error(f'{type(candidate)=}')\n",
+            (
+                "if not isinstance(candidate, Parent):\n"
+                "    return fallback\n"
+            ),
+            (
+                "if not isinstance(candidate, Parent):\n"
+                "    retry()\n"
+            ),
+            (
+                "if not isinstance(candidate, Parent):\n"
+                "    raise\n"
+            ),
+            (
+                "if not isinstance(candidate, Parent):\n"
+                "    raise failure\n"
+            ),
+            (
+                "if not isinstance(candidate, Parent):\n"
+                "    raise failure.with_traceback(traceback)\n"
+            ),
+            (
+                "if not isinstance(candidate, Parent):\n"
+                "    cleanup()\n"
+                "    raise Error()\n"
+            ),
+            (
+                "if not isinstance(candidate, Parent):\n"
+                "    if invalid:\n"
+                "        raise Error()\n"
+            ),
+            (
+                "if not isinstance(candidate, Parent):\n"
+                "    def later():\n"
+                "        raise Error()\n"
+            ),
+            (
+                "if invalid:\n"
+                "    raise Error(f'{type(candidate)=}')\n"
+            ),
         )
 
         for source in sources:
@@ -148,7 +181,13 @@ class TypeRequirementHelperPostureTests(unittest.TestCase):
 
         for condition in conditions:
             with self.subTest(condition=condition):
-                self.assertEqual([], guard_findings(source=f"if {condition}:\n    raise Error()\n"))
+                self.assertEqual(
+                    [],
+                    guard_findings(
+                        source=f"if {condition}:\n"
+                        f"    raise Error()\n",
+                    ),
+                )
 
     def test_authored_type_guards_use_shared_requirements(self):
         findings = []
