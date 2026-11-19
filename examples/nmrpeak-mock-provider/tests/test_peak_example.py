@@ -29,6 +29,7 @@ import tomli_w
 
 from provider_core.hosting import AdmissionCode, CapacityUnavailable, NotAdmitted, ResultState, StartDeadlineExpired
 from provider_core.interpreter import InterpretationFailed, ModelWindowExpired, ProseService
+from provider_core.process_wire import RemoteScienceError
 from provider_core.submission import Submission
 
 from nmrpeak_mock_provider import provider as provider_setup
@@ -230,6 +231,39 @@ class PeakExampleTests(unittest.IsolatedAsyncioTestCase):
                 await workflow.deliver()
 
             self.assertEqual(1, len(receiver.payloads))
+
+    async def test_process_backend_worker_death_never_replays_original_generation(self):
+        document = tomllib.loads(self.configuration.read_text(encoding="utf-8"))
+        document["science"] = {"hf": document["science"]["hf"]}
+        document["execution"]["backend"] = "process"
+        self.configuration.write_text(data=tomli_w.dumps(document), encoding="utf-8")
+        self.factory.proposals = (candidate(carbon=False),)
+        receiver = RecordingReceiver()
+
+        # A killed child cannot provide a successful scientific cleanup receipt.
+        # Preserve both the original workflow uncertainty and the host's
+        # independent worker-retirement failure.
+        with self.assertRaises(expected_exception=BaseExceptionGroup):
+            async with self.open_offerings() as offerings:
+                (offering,) = offerings
+
+                async with offering.open_prediction(receive=receiver) as workflow:
+                    await workflow.interpret(source="One recorded proton spectrum")
+                    worker = offering.execution_host.process
+                    worker.kill()
+                    await asyncio.to_thread(worker.wait)
+
+                    with self.assertRaises(expected_exception=RemoteScienceError):
+                        await workflow.finish()
+
+                    original_operation = workflow.generation_submission.operation
+
+                    with self.assertRaises(expected_exception=RemoteScienceError):
+                        await workflow.finish()
+
+                    self.assertIs(original_operation, workflow.generation_submission.operation)
+
+        self.assertEqual([], receiver.payloads)
 
     async def test_configured_inventory_supports_single_families_and_multiple_models(self):
         original = self.configuration.read_text(encoding="utf-8")
