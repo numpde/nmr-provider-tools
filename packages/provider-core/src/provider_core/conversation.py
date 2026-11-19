@@ -17,6 +17,7 @@ import re
 from dataclasses import dataclass, field
 
 from provider_core.chat_errors import ChatFailed
+from provider_core.adapters.chat_completions.tools import assistant_message, function_call, tool_message, user_message
 from provider_core.response_json import ResponseRejected, read_document
 from provider_core.transport_errors import ExchangeFailed
 from provider_core.type_requirements import require_type
@@ -253,7 +254,7 @@ class ToolConversation:
         The caller supplies its own request suffix and decides the byte grant.
         """
         identifier = self._messages[-1]["tool_calls"][0]["id"]
-        feedback = self._tool_message(identifier, _encode(value).decode("ascii"))
+        feedback = tool_message(identifier, _encode(value).decode("ascii"))
 
         return len(
             _encode(
@@ -448,7 +449,7 @@ class ToolConversation:
         if message.get("role") != "assistant":
             raise ConversationFailed("Cannot interpret model action: the reply is not an assistant message.")
 
-        canonical = {"role": "assistant"}
+        canonical = assistant_message()
 
         for text_field in ("content", "reasoning_content"):
             if text_field in message:
@@ -516,16 +517,7 @@ class ToolConversation:
             identifiers.add(call_id)
             self._require_no_secrets((call_id, function_name))
 
-            admitted.append(
-                {
-                    "id": call_id,
-                    "type": "function",
-                    "function": {
-                        "name": function_name,
-                        "arguments": function_arguments,
-                    },
-                }
-            )
+            admitted.append(function_call(call_id=call_id, name=function_name, arguments=function_arguments))
 
         canonical["tool_calls"] = admitted
 
@@ -565,11 +557,7 @@ class ToolConversation:
 
     def _feedback(self, identifier, value):
         self._require_no_secrets(value)
-        self._messages.append(self._tool_message(identifier, _encode(value).decode("ascii")))
-
-    @staticmethod
-    def _tool_message(identifier, content):
-        return {"role": "tool", "tool_call_id": identifier, "content": content}
+        self._messages.append(tool_message(identifier, _encode(value).decode("ascii")))
 
     def _correct_turn(self, calls, rejection):
         reason = str(rejection)
@@ -590,10 +578,10 @@ class ToolConversation:
             content = _encode({"rejected": reason}).decode("ascii")
 
         for call in calls:
-            self._messages.append(self._tool_message(call["id"], content))
+            self._messages.append(tool_message(call["id"], content))
 
         if (self._text_correction is not None) and (self._text_correction.user_content is not None):
-            self._messages.append({"role": "user", "content": self._text_correction.user_content})
+            self._messages.append(user_message(self._text_correction.user_content))
 
     def _observation(self):
         return _encode(

@@ -292,18 +292,26 @@ class ConversationBoundaryTests(unittest.IsolatedAsyncioTestCase):
         self.assertIs(caught.exception.failures[0][1], cleanup)
         second.retire.assert_awaited_once()
 
-    @unittest.skipIf(os.environ.get("PRIVACY_TESTS", "1") == "0", "Privacy tests disabled")
-    async def test_only_admitted_carrier_fields_enter_following_requests(self):
+    async def _requests_after_carrier_extensions(self):
         message = call("prepare", "prepare", {})
-        message["PRIVATE_unknown"] = "PRIVATE value"
-        message["tool_calls"][0]["function"]["PRIVATE_extra"] = "PRIVATE value"
+        message["provider_extension"] = "PRIVATE assistant metadata"
+        message["tool_calls"][0]["function"]["provider_extension"] = "PRIVATE function metadata"
         model = endpoint("fixture", message, call("submit", "submit", {}))
         dispatch = AsyncMock(side_effect=(ToolReply({"reference": "owned"}), ToolFinished(None)))
         conversation = ToolConversation((model,), max_turns=2, secrets=())
 
         await conversation.run([], [], dispatch)
-        self.assertNotIn("PRIVATE", json.dumps(model.complete.call_args.args))
+        requests = json.dumps(model.complete.call_args.args)
         await conversation.retire()
+
+        return requests
+
+    async def test_only_admitted_carrier_fields_enter_following_requests(self):
+        self.assertNotIn("provider_extension", await self._requests_after_carrier_extensions())
+
+    @unittest.skipIf(os.environ.get("PRIVACY_TESTS", "1") == "0", "Privacy tests disabled")
+    async def test_unadmitted_carrier_metadata_does_not_reach_following_requests(self):
+        self.assertNotIn("PRIVATE", await self._requests_after_carrier_extensions())
 
     @unittest.skipIf(os.environ.get("PRIVACY_TESTS", "1") == "0", "Privacy tests disabled")
     async def test_secret_values_are_checked_without_rewriting_json_structure(self):

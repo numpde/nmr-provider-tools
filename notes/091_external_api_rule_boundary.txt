@@ -547,6 +547,9 @@ OpenAI-compatible Chat Completions profile
     review found no remaining proven API guard in the configuration owner.
 
 [ ] C2  Extract tool-call carrier rules from transcript ownership
+    [x] Separate outbound transcript and function-call construction
+    [ ] Separate phased incoming carrier admission and field access
+    [ ] Separate argument decoding while retaining local grants and history
     core/conversation.py:250-254,374-397,443-571
     Reads and writes role/content/reasoning_content/tool_calls; admits tool-call
     id/type/function/name/arguments; decodes JSON arguments; creates tool replies
@@ -554,6 +557,15 @@ OpenAI-compatible Chat Completions profile
     Function-name/call-ID restrictions and the tools-first supported subset need
     provenance review; local turn/correction/secret/dispatch policy stays local.
     Evidence: test_conversation.py and test_text_correction.py.
+    Constructor slice completed 2026-11-19: the Chat tools adapter renders
+    assistant, user, tool-feedback and function-call carriers. Conversation
+    retains all admission, secret, correction and seen-ID update points.
+    A mixed extension-field test was split: unsupported carrier fields are
+    rejected from subsequent requests even with privacy tests disabled; the
+    separate privacy assertion still follows PRIVACY_TESTS.
+    Focused conversation/text-correction integration and interpreter unit lanes
+    passed on science with PRIVACY_TESTS=0 (96 tests, sixteen skips). Independent
+    audit confirmed identical message shapes and construction/state order.
 
 [x] C3  Separate the external tool envelope from local scientific schemas
     core/input_tool.py:22-64; core/interpreter.py:525
