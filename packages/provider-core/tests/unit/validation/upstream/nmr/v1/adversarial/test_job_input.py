@@ -1,4 +1,4 @@
-"""Untrusted API facts cannot substitute input or expose private response text."""
+"""Job-input admission rejects substituted facts and malformed wire bytes."""
 
 import base64
 import json

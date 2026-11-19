@@ -11,6 +11,11 @@ from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
 from cryptography.hazmat.primitives.serialization import Encoding, NoEncryption, PrivateFormat, PublicFormat
 
 
+# Pure parser tests choose an allowance independently of startup configuration
+# repo-check: allow-module-constant
+CREDENTIAL_PARSER_BYTES = 4096
+
+
 def document(*, key=None, **changes):
     key = Ed25519PrivateKey.generate() if key is None else key
 

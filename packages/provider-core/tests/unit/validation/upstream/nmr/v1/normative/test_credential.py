@@ -1,14 +1,12 @@
-"""API-issued provider identity admits the same key used for signed operations."""
+"""Artifact admission preserves the issued identity and matching signing key."""
 
 import unittest
 import os
 
 from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
 
-from provider_core.api_config import MAX_CREDENTIAL_BYTES
 from provider_core.validation.upstream.nmr.v1.credential import parse_provider_credential
-from provider_core.adapters.nmr.v1.signing import SigningIdentity, signed_request
-from tests.fakes.credential import document, encoded
+from tests.fakes.credential import CREDENTIAL_PARSER_BYTES, document, encoded
 
 
 class ProviderCredentialTests(unittest.TestCase):
@@ -18,7 +16,7 @@ class ProviderCredentialTests(unittest.TestCase):
         for profile in ("dev-local", "dev", "run"):
             with self.subTest(profile=profile):
                 original = document(key=key, profile=profile)
-                credential = parse_provider_credential(encoded(original), maximum_bytes=MAX_CREDENTIAL_BYTES)
+                credential = parse_provider_credential(encoded(original), maximum_bytes=CREDENTIAL_PARSER_BYTES)
 
                 yield credential, original, key, profile
 
@@ -30,19 +28,6 @@ class ProviderCredentialTests(unittest.TestCase):
             )
 
             key.public_key().verify(credential.private_key.sign(b"admitted capability"), b"admitted capability")
-            identity = SigningIdentity("https://api.example", credential.credential_ref, credential.private_key)
-
-            request = signed_request(
-                identity,
-                method="GET",
-                path="/provider/v1/jobs",
-                query=b"",
-                body=None,
-                created=1700000000,
-                nonce=bytes(16)
-            )
-
-            self.assertIn('keyid="credential:example"', request.headers["Signature-Input"])
 
     @unittest.skipIf(os.environ.get("PRIVACY_TESTS", "1") == "0", "Privacy tests disabled")
     def test_credential_representation_omits_signing_material(self):

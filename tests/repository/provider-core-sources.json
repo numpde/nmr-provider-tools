@@ -1633,6 +1633,7 @@
     },
     {
       "path": "packages/provider-core/tests/unit/adversarial/test_credential.py",
+      "replacement_path": "packages/provider-core/tests/unit/validation/upstream/nmr/v1/adversarial/test_credential.py",
       "mode": "100644",
       "git_blob": "424cb775e1f48cf65fab172cb669d1188463fc35",
       "sha256": "330606d7aeb23f45b01b323a48236ffd6ee411f36e77d247cf8ea3512efb3a1e",
@@ -1855,6 +1856,7 @@
     },
     {
       "path": "packages/provider-core/tests/unit/adversarial/test_job_input.py",
+      "replacement_path": "packages/provider-core/tests/unit/validation/upstream/nmr/v1/adversarial/test_job_input.py",
       "mode": "100644",
       "git_blob": "f425771b667361b3e97e9511222886962720e97a",
       "sha256": "e1c0aaef5585fda51e2a48054c35ca4dd5a852023d0e5d7a7fa5d6dd819f1e2d",
@@ -2321,6 +2323,7 @@
     },
     {
       "path": "packages/provider-core/tests/unit/normative/test_credential.py",
+      "replacement_path": "packages/provider-core/tests/unit/validation/upstream/nmr/v1/normative/test_credential.py",
       "mode": "100644",
       "git_blob": "be43eb0e364ca9e4db2b3a7a426f45bd1193bdcb",
       "sha256": "4c79d89969a0bb462d6dbb147cbfd042f758284eea967d6778d4b34f5ec3cdcf",
@@ -2508,6 +2511,7 @@
     },
     {
       "path": "packages/provider-core/tests/unit/normative/test_job_input.py",
+      "replacement_path": "packages/provider-core/tests/unit/validation/upstream/nmr/v1/normative/test_job_input.py",
       "mode": "100644",
       "git_blob": "33c89c5269e5988c1ff4e9587529aa8aabba0c48",
       "sha256": "3d0f9a3018b970c53ab6f593325b4ab4c2392fb586c3f8e1f2453c9805df08a8",

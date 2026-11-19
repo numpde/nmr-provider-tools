@@ -1,4 +1,4 @@
-"""Job input preserves exact original instructions before scientific admission."""
+"""Job-input validation preserves exact original instructions and checked identity."""
 
 import unittest
 import os
