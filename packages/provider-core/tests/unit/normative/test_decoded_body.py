@@ -16,15 +16,15 @@ def decoded(wire, *, coding=b"gzip", limit=8192, chunk=7):
     headers = () if coding is None else ((b"Content-Encoding", coding),)
 
     decoder = DecodedBody(headers, maximum_bytes=limit)
-    result = bytearray()
+    decoded_body = bytearray()
 
     for offset in range(0, len(wire), chunk):
-        result.extend(decoder.feed(wire[offset:offset + chunk]))
-        result.extend(decoder.feed(b""))
+        decoded_body.extend(decoder.feed(wire[offset:offset + chunk]))
+        decoded_body.extend(decoder.feed(b""))
 
     decoder.finish()
 
-    return bytes(result)
+    return bytes(decoded_body)
 
 
 class DecodedBodyTests(unittest.TestCase):
