@@ -18,7 +18,7 @@ import tokenize
 import unittest
 
 from .sources import ROOT, python_sources
-from .test_multiline_comprehension_posture import _delimiter_pairs
+from .expression_grouping import delimiter_pairs
 
 
 @dataclass(slots=True)
@@ -124,7 +124,7 @@ def multiline_literal_findings(*, source: str) -> list[tuple[int, str]]:
     opening token to match the closing token at the end of its AST span.
     """
     lines = source.encode(encoding="utf-8").splitlines()
-    pairs = _delimiter_pairs(source=source)
+    pairs = delimiter_pairs(source=source)
     findings = []
 
     for expression in ast.walk(node=ast.parse(source=source)):
