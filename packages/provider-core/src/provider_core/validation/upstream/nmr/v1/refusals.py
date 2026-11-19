@@ -47,3 +47,34 @@ def attempt_change_refused(status: int | None, problem_code: str | None) -> bool
              "execution_attempt_failure_replay_mismatch",
          }))
     )
+
+
+def signature_refresh_allowed(status: int | None, problem_code: str | None) -> bool:
+    """Recognize a refusal that permits fresh signing, without granting replay."""
+
+    return (
+        ((status == 401) and (problem_code in {"authentication_window_closed", "signature_expired"})) or
+        ((status == 408) and (problem_code == "request_body_timeout"))
+    )
+
+
+def access_refused(status: int | None, problem_code: str | None) -> bool:
+    """Recognize reviewed access refusals without promising access will recover."""
+
+    return (
+        ((status == 401) and
+         (problem_code in {
+             "authentication_failed",
+             "authentication_nonce_reused",
+             "authentication_window_closed",
+             "signature_expired",
+             "signature_created_in_future",
+         })) or
+        ((status == 403) and (problem_code == "authorization_denied"))
+    )
+
+
+def read_grant_not_finalized(status: int | None, problem_code: str | None) -> bool:
+    """Recognize the grant conflict that permits a later fresh issuance attempt."""
+
+    return (status == 409) and (problem_code == "upload_read_not_finalized")

@@ -58,8 +58,14 @@ from provider_core.response_json import ResponseRejected
 from provider_core.adapters.nmr.v1.signing import signed_request
 from provider_core.transport import ExchangeFailed
 from provider_core.type_requirements import require_type
-from provider_core.validation.upstream.nmr.v1.topology import require_api_topology
-from provider_core.validation.upstream.nmr.v1.refusals import attempt_change_refused, issuance_refused
+from provider_core.validation.upstream.nmr.v1.topology import edge_topology_matches, require_api_topology
+from provider_core.validation.upstream.nmr.v1.refusals import (
+    access_refused,
+    attempt_change_refused,
+    issuance_refused,
+    read_grant_not_finalized,
+    signature_refresh_allowed,
+)
 from provider_core.network import network_availability
 
 from provider_core.validation.upstream.nmr.v1.upload_response import (
@@ -162,8 +168,7 @@ class ProviderAPI:
         return (
             self._retryable_failure(failure) or
             ((failure.response is not None) and
-             (failure.status == 409) and
-             (failure.problem_code == "upload_read_not_finalized"))
+             read_grant_not_finalized(failure.status, failure.problem_code))
         )
 
     def can_retry_job_discovery(self, failure):
@@ -239,8 +244,7 @@ class ProviderAPI:
             (failure is self.last_failure) and
             self.retirement_confirmed and
             (failure.response is not None) and
-            ((failure.status == 401 and failure.problem_code in {"authentication_window_closed", "signature_expired"}) or
-             (failure.status == 408 and failure.problem_code == "request_body_timeout"))
+            signature_refresh_allowed(failure.status, failure.problem_code)
         )
 
     def can_replay_start(self, failure):
@@ -358,15 +362,7 @@ class ProviderAPI:
         # request is safe; this evidence does not establish absence of effects.
         return (
             (failure.response is not None) and
-            (((failure.status == 401) and
-              (failure.problem_code in {
-                  "authentication_failed",
-                  "authentication_nonce_reused",
-                  "authentication_window_closed",
-                  "signature_expired",
-                  "signature_created_in_future",
-              })) or
-             (failure.status == 403 and failure.problem_code == "authorization_denied"))
+            access_refused(failure.status, failure.problem_code)
         )
 
     def _recoverable_attempt_failure(self, failure):
@@ -440,12 +436,7 @@ class ProviderAPI:
         return response.status in (502, 503, 504) and self._gateway_environment_matches(response)
 
     def _gateway_environment_matches(self, response):
-        # A proxy may omit API headers or use HTML during maintenance.
-        # Retrying an operation grants no interpretation of that body; an explicit environment
-        # mismatch must not be hidden by the gateway status.
-        markers = [value for (name, value) in response.headers if name.lower() == b"nmr-api-topology"]
-
-        return markers in ([], [self._expected_topology.encode("ascii")])
+        return edge_topology_matches(response.headers, self._expected_topology)
 
     async def retire(self, *, owner=None):
         """Settle this API owner's transport; no domain mutation is retried."""

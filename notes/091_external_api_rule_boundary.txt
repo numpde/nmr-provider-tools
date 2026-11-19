@@ -221,6 +221,14 @@ NMR Provider API: wire and validation owners
     test_attempt_progress.py, test_attempt_outcome.py and test_upload_api.py and
     contract test_installation.py passed on science with PRIVACY_TESTS=0.
 
+    Recovery meaning extraction continued 2026-11-19: signature-refresh,
+    access-refusal and unfinalized-grant status/code predicates now live in
+    refusals.py; topology.py owns the optional edge marker profile. Current
+    failure identity, retirement, complete-response and native-I/O gates remain
+    in ProviderAPI. Focused unit test_api_unavailability.py, test_upload_api.py
+    and test_api_envelope.py passed on science with PRIVACY_TESTS=0 (43 tests,
+    seven skips); independent audit confirmed predicate and gate equivalence.
+
 [x] N5  Extract all eleven wire operations with their associated codecs
     core/api.py:713-1029,1091 onward
     Eleven dispatches construct routes, choose response ceilings, sign, admit
