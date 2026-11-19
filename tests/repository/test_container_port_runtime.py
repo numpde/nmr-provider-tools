@@ -68,7 +68,7 @@ class RuntimePostureTests(unittest.TestCase):
         self.assertEqual("1", process_status()["NoNewPrivs"].strip())
 
     def test_has_only_loopback_network_interface(self):
-        self.assertEqual({"lo"}, {path.name for path in pathlib.Path("/sys/class/net").iterdir()})
+        self.assertEqual({"lo"}, {interface_entry.name for interface_entry in pathlib.Path("/sys/class/net").iterdir()})
 
     def test_tmp_is_a_hardened_writable_tmpfs(self):
         (filesystem, options) = mount_record("/tmp")
@@ -97,7 +97,7 @@ class RuntimePostureTests(unittest.TestCase):
         directory = pathlib.Path("/build")
 
         if directory.exists():
-            self.assertFalse(any(path.is_file() for path in directory.rglob("*")))
+            self.assertFalse(any(build_entry.is_file() for build_entry in directory.rglob("*")))
 
 
 if __name__ == "__main__":

@@ -45,13 +45,13 @@ class ProviderCoreTestSelectionTests(unittest.TestCase):
                         return_value=pathlib.Path("/runtime/python"),
                     ) as install,
                     patch.object(provider_core_tests.shutil, "copytree"),
-                    patch.object(provider_core_tests, "_run_installed_suite") as run,
+                    patch.object(provider_core_tests, "_run_installed_suite") as installed_suite_invocations,
                 ):
                     provider_core_tests.run_suite(suite="unit", patterns=patterns)
 
                 actual = [
                     (invocation.kwargs["selection"], invocation.kwargs["patterns"])
-                    for invocation in run.call_args_list
+                    for invocation in installed_suite_invocations.call_args_list
                 ]
 
                 self.assertEqual(expected, tuple(actual))
