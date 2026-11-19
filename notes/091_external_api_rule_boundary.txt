@@ -1079,6 +1079,14 @@ Separate adjacent tool/package interfaces from service API rules:
       failed pin or missing-hash evidence. Delivery captures/copies the new leaf.
       Guarded wheelhouse (6), artifact (15), delivery (10) and convention (12)
       focused tests pass with privacy tests disabled.
+  [x] Standalone requirements normalization and index/hash option spelling now
+      live in its own upstream pip_requirements module. The locator retains
+      original file bytes/digest, packaging Requirement parsing, local marker/
+      extras/exact-version policy, index binding and complete hash coverage.
+      Missing prior requirement still short-circuits SHA spelling validation;
+      checks and diagnostics remain together. The 56-test shared wheelhouse
+      lane passed with ten privacy skips, both isolated bundle tests passed,
+      and the actual offline wheelhouse image built with the new module.
   pip: tools/installer.py:154-201 owns command construction. tools/wheelhouse.py:102-193
   and wheelhouse_tool/report.py:11-65 consume installation-report version 1 and
   download_info/archive_info/hash fields. SDK build helpers and image_manifest.py

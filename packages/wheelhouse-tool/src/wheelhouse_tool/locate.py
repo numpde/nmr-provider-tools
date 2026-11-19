@@ -18,6 +18,7 @@ from packaging.version import Version
 from wheelhouse_tool.adapters import simple_json as simple_requests
 from wheelhouse_tool.adapters.pylock import project_archive_record, project_index_record, render_projected_lock
 from wheelhouse_tool.network import request as network_request, retry
+from wheelhouse_tool.validation.upstream import pip_requirements
 from wheelhouse_tool.validation.upstream import simple_json as simple_metadata
 
 
@@ -35,40 +36,32 @@ def read_requirements(path, configured_index=None):
     index = configured_index
     source = path.read_bytes()
 
-    for raw in source.decode("utf-8").splitlines():
-        line = raw.strip().removesuffix("\\").rstrip()
+    for line in pip_requirements.requirement_lines(source.decode("utf-8")):
+        if (locked_index := pip_requirements.index_url_option(line)) is not None:
+            if (index is not None) and (index.rstrip("/") != locked_index.rstrip("/")):
+                raise ValueError(f"{reprlib.repr(index)=} should match {reprlib.repr(locked_index)=}")
 
-        if (not line) or (line.startswith("#")):
-            continue
+            index = locked_index
+        elif (checksum := pip_requirements.sha256_option(line)) is not None:
+            if not records:
+                raise ValueError(f"{reprlib.repr(checksum)=} should follow a pinned requirement")
 
-        if line.startswith("--index-url "):
-            declared = line.split(None, 1)[1]
-
-            if (index is not None) and (index.rstrip("/") != declared.rstrip("/")):
-                raise ValueError("Cannot locate artifacts: supplied and locked index URLs differ.")
-
-            index = declared
-        elif line.startswith("--hash=sha256:"):
-            checksum = line.removeprefix("--hash=sha256:")
-
-            if (not records) or (not re.fullmatch(r"[0-9a-f]{64}", checksum)):
-                raise ValueError("Cannot locate artifacts: a lock hash is malformed or misplaced.")
-
+            pip_requirements.require_sha256(checksum)
             records[-1][1].add(checksum)
         else:
             requirement = Requirement(line)
 
             if requirement.marker is not None:
-                raise ValueError("Cannot locate artifacts: use a target-specific lock without markers.")
+                raise ValueError(f"{reprlib.repr(requirement.marker)=} should be None")
 
             if requirement.extras:
-                raise ValueError("Cannot locate artifacts: use a fully expanded lock without extras.")
+                raise ValueError(f"{reprlib.repr(requirement.extras)=} should be empty")
 
             if requirement.url is None:
                 specifiers = list(requirement.specifier)
 
                 if len(specifiers) != 1 or specifiers[0].operator != "==" or "*" in specifiers[0].version:
-                    raise ValueError("Cannot locate artifacts: every package must have an exact version.")
+                    raise ValueError(f"{reprlib.repr(requirement.specifier)=} should pin one exact version")
 
             records.append((requirement, set()))
 
