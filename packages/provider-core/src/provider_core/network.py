@@ -49,6 +49,8 @@ def _availability(cause, remaining, observation, *, timeout_cancellation=False):
     if remaining == 0 or cause is None:
         return False
 
+    # The pinned pool rethrows the same exception from None
+    # Use captured links only for the exact error observed before that rethrow
     explicit = observation.cause if cause is observation.error else cause.__cause__
 
     if type(cause) in (ExceptionGroup, BaseExceptionGroup):
@@ -151,6 +153,8 @@ def network_availability(primary, observation, *, network_failure):
     Only known I/O wrappers may expose context erased by the pinned pool. A
     caller interruption cannot become an SDK-authored pending-I/O timeout.
     Status, environment, operation effects and retirement remain API decisions.
+    The exception whitelist is local policy, not a backend retry promise;
+    newly introduced exception kinds remain ineligible until reviewed.
     """
 
     if type(observation) is not NetworkIOObservation:

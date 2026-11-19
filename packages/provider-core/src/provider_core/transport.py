@@ -38,9 +38,12 @@ def temporary_io_failure(cause, remaining, *, network_failure=None):
 
     httpcore1.0.9 _exceptions.map_exceptions retains the native cause. AnyIO can
     group failed address attempts beneath OSError; every leaf must be temporary.
+    The pinned connection pool rethrows the same exception from None, suppressing
+    its explicit cause after the network owner has captured the original links.
     A marker-proven ReadError may retain the pinned pool's erased cause through
     exact BrokenResourceError context and its explicit native cause. Other
     unknown wrappers, TLS/protocol defects and excessive nesting remain fatal.
+    These verdicts are SDK policy; a backend exception alone grants no resend.
     """
 
     if remaining == 0:
