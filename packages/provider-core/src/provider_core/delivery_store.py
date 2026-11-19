@@ -353,16 +353,16 @@ class DeliveryQueue:
         from provider_core.delivery_handoff import DeliveryHandoffRejected, read_delivery_handoff
 
         with self._access("read a publication from"):
-            item = self.next_pending(api_origin, provider_ref)
+            pending_outcome = self.next_pending(api_origin, provider_ref)
 
-            if item is None:
+            if pending_outcome is None:
                 return None
 
             publication = (
                 self._db
                 .execute(
                     "SELECT publication FROM outstanding WHERE api_origin=? AND provider_ref=? AND attempt_ref=?",
-                    item.key,
+                    pending_outcome.key,
                 )
                 .fetchone()[0]
             )
@@ -371,21 +371,21 @@ class DeliveryQueue:
                 raise DeliveryStorageFailed("Cannot publish a legacy delivery without its original publication material; preserve and hold the row for reconciliation.")
 
             try:
-                document = json.loads(publication)
+                handoff_fields = json.loads(publication)
 
                 # Reuse the wire admission path to validate retained inputs and identity.
                 import base64
 
-                document["outcome"] = {
-                    "api_origin": item.api_origin,
-                    "provider_ref": item.provider_ref,
-                    "job_ref": item.job_ref,
-                    "execution_attempt_ref": item.execution_attempt_ref,
-                    "operation": item.operation.value,
-                    "body": base64.b64encode(item.body).decode("ascii")
+                handoff_fields["outcome"] = {
+                    "api_origin": pending_outcome.api_origin,
+                    "provider_ref": pending_outcome.provider_ref,
+                    "job_ref": pending_outcome.job_ref,
+                    "execution_attempt_ref": pending_outcome.execution_attempt_ref,
+                    "operation": pending_outcome.operation.value,
+                    "body": base64.b64encode(pending_outcome.body).decode("ascii")
                 }
 
-                handoff = read_delivery_handoff(json.dumps(document, sort_keys=True, separators=(",", ":")).encode("ascii"))
+                handoff = read_delivery_handoff(json.dumps(handoff_fields, sort_keys=True, separators=(",", ":")).encode("ascii"))
 
                 if handoff.publication_bytes() != publication:
                     raise ValueError("Noncanonical publication material")
@@ -518,7 +518,7 @@ class DeliveryQueue:
 
         return None
 
-    def _inventory(self, api_origin, provider_ref, limit, attempt_ref):
+    def _inventory(self, api_origin, provider_ref, max_rows, attempt_ref):
         with self._access("inspect"):
             query = "SELECT job_ref,attempt_ref,operation,digest,length(body),state,created_at,held_reason FROM outstanding WHERE api_origin=? AND provider_ref=?"
             parameters = (api_origin, provider_ref)
@@ -529,9 +529,9 @@ class DeliveryQueue:
 
             query += " ORDER BY created_at,attempt_ref"
 
-            if limit is not None:
+            if max_rows is not None:
                 query += " LIMIT ?"
-                parameters += (limit,)
+                parameters += (max_rows,)
 
             rows = self._db.execute(query, parameters).fetchall()
 
