@@ -15,6 +15,7 @@ import hashlib
 import json
 import os
 import re
+import reprlib
 import stat
 import sys
 from dataclasses import asdict, dataclass
@@ -23,6 +24,7 @@ from urllib.parse import urlsplit
 
 from provider_core.deployment_binding import BindingDefinitionRejected, DeploymentBinding, input_paths, load_deployment_bindings
 from provider_core.deployment_errors import RouteProjectionRejected
+from provider_core.validation.upstream.docker_ids import is_full_image_id
 
 
 @dataclass(frozen=True, slots=True)
@@ -237,8 +239,8 @@ def render_api_route(binding, *, image, interpreter, namespace, uid, gid, storag
     if not (type(image) is (expected_image_type := str)):
         raise RouteProjectionRejected(f"Cannot render API route: {type(image)=} ≠ {expected_image_type=}")
 
-    if re.fullmatch(r"sha256:[0-9a-f]{64}", image) is None:
-        raise RouteProjectionRejected("Cannot render API route: select an immutable full image ID.")
+    if not is_full_image_id(image):
+        raise RouteProjectionRejected(f"Cannot render API route: {reprlib.repr(image)=} should be an immutable full image ID.")
 
     if not (type(namespace) is (expected_namespace_type := str)):
         raise RouteProjectionRejected(f"Cannot render API route: {type(namespace)=} ≠ {expected_namespace_type=}")

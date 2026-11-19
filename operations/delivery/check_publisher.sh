@@ -18,7 +18,7 @@ operation_run 120 --pull never --network none --read-only --user "$operation_hos
     --mount "type=bind,src=$root/packages/provider-core/sdk_build/provider_core_acquire.py,dst=/workspace/sdk_build/provider_core_acquire.py,readonly" \
     --mount "type=bind,src=$root/operations/delivery/build_inputs.py,dst=/workspace/operations/delivery/build_inputs.py,readonly" \
     --mount "type=bind,src=$root/tests/repository/check_delivery_publisher.py,dst=/check.py,readonly" \
-    --mount "type=bind,src=$root/requirements/provider-core.lock,dst=/core-runtime.lock,readonly" \
+    --mount "type=bind,src=$root/requirements/delivery-runtime.lock,dst=/core-runtime.lock,readonly" \
     --mount "type=bind,src=$root/requirements/delivery-release.json,dst=/release.json,readonly" \
     --mount "type=bind,src=$root/requirements/wheelhouse-tool-release.json,dst=/wheelhouse-tool-release.json,readonly" \
     --mount "type=bind,src=$wheelhouse_directory,dst=/wheelhouse,readonly" \

@@ -19,6 +19,9 @@ RUN --network=none --mount=type=bind,from=wheel_inputs,target=/wheels,readonly \
 RUN --mount=type=bind,from=wheel_inputs,target=/wheels,readonly \
     NMR_PROVIDER_TOOLS_IN_CONTAINER=1 python3 -B -m sdk_build.core_environment install --root /opt/provider-core --lock /opt/build/provider-core-install.lock --pool /wheels --expected-inputs /opt/build/provider-core-wheel-inputs.json
 COPY operations/delivery/image/delivery_deployment.py /opt/provider-tools/delivery_deployment.py
+COPY operations/delivery/image/delivery_support/__init__.py \
+     packages/provider-core/src/provider_core/tools.py packages/provider-core/src/provider_core/startup_file.py \
+     packages/provider-core/src/provider_core/validation/upstream/docker_ids.py /opt/provider-tools/delivery_support/
 COPY operations/delivery/image/check_runtime.py /opt/build/check_runtime.py
 RUN /opt/provider-core/environment/bin/python -I -B /opt/build/check_runtime.py \
     && /opt/provider-core/environment/bin/python -I -B -m provider_core.delivery_main --help \

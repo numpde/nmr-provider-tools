@@ -15,6 +15,7 @@ import hashlib
 import json
 import os
 import re
+import reprlib
 import stat
 import sys
 import tomllib
@@ -28,11 +29,18 @@ from provider_core.delivery_client import DeliveryClient, DeliveryEndpoint
 from provider_core.deployment_route import NamedRouteVolume, RouteProjectionRejected, render_api_route
 from provider_core.diagnostics import failure_evidence
 from provider_core.failure_projection import owned_details
-from provider_core.startup_file import read_startup_file
 from provider_core.transport import require_unix_socket_path
 from provider_core.provider_proxy import LiveProxyConfiguration
 from provider_core.shared_delivery_config import SharedDeliveryConfiguration
-from provider_core.tools import require_absolute_path, require_positive_number
+
+# The image owns these helpers beside the renderer, where isolated Python needs an explicit path
+sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
+try:
+    from delivery_support.docker_ids import is_full_image_id, is_full_network_id
+    from delivery_support.startup_file import read_startup_file
+    from delivery_support.tools import require_absolute_path, require_positive_number
+finally:
+    sys.path.pop(0)
 
 # Both daemon and generic proxies use the installed application environment.
 # repo-check: allow-module-constant
@@ -198,8 +206,8 @@ def render(definition, source, image, checksum):
     if not (definition.uid == installer_uid):
         raise DeliveryDeploymentRejected(f"{definition.uid=} should match {installer_uid=}")
 
-    if re.fullmatch(r"sha256:[0-9a-f]{64}", image) is None:
-        raise DeliveryDeploymentRejected("The delivery image ID should be sha256: followed by 64 lowercase hex digits")
+    if not is_full_image_id(image):
+        raise DeliveryDeploymentRejected(f"{reprlib.repr(image)=} should be sha256: followed by 64 lowercase hex digits")
 
     source = _require_mount_path(source)
     listeners = admit_listeners(definition)
@@ -313,8 +321,8 @@ def render(definition, source, image, checksum):
 def render_shared(path, source, image):
     """Project the one operator file into independently managed proxy and outbox projects."""
 
-    if re.fullmatch(r"sha256:[0-9a-f]{64}", image) is None:
-        raise DeliveryDeploymentRejected("Shared deployment requires an immutable image ID.")
+    if not is_full_image_id(image):
+        raise DeliveryDeploymentRejected(f"Shared deployment requires {reprlib.repr(image)=} to be an immutable image ID.")
 
     try:
         document = tomllib.loads(
@@ -372,7 +380,7 @@ def render_shared(path, source, image):
             if not (type((network_id := route["network_id"])) is (expected_type := str)):
                 raise TypeError(f"{type(network_id)=} ≠ {expected_type=}")
 
-            if re.fullmatch(r"[0-9a-f]{64}", route["network_id"]) is None:
+            if not is_full_network_id(route["network_id"]):
                 raise ValueError
 
         # silent-defaults: allow-contract -- Only external mode grants a resolver file.

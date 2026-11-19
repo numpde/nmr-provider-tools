@@ -47,7 +47,7 @@ operation_run 120 --pull never --network none --read-only --user "$operation_hos
     --mount "type=bind,src=$context/packages/type-requirements/src/type_requirements.py,dst=/workspace/type_requirements.py,readonly" \
     --mount "type=bind,src=$context/packages/provider-core/sdk_build/provider_core_acquire.py,dst=/workspace/sdk_build/provider_core_acquire.py,readonly" \
     --mount "type=bind,src=$context/operations/delivery/build_inputs.py,dst=/workspace/operations/delivery/build_inputs.py,readonly" \
-    --mount "type=bind,src=$context/requirements/provider-core.lock,dst=/core-runtime.lock,readonly" \
+    --mount "type=bind,src=$context/requirements/delivery-runtime.lock,dst=/core-runtime.lock,readonly" \
     --mount "type=bind,src=$context/requirements/delivery-release.json,dst=/release.json,readonly" \
     --mount "type=bind,src=$wheelhouse_directory,dst=/wheelhouse,readonly" \
     --mount "type=bind,src=$context,dst=/capture" \

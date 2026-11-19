@@ -28,6 +28,7 @@ from provider_core.deployment_errors import BindingDefinitionRejected
 from provider_core.provider_proxy import ServicePolicy, ServiceRefused
 from provider_core.startup_file import StartupFileRejected, read_startup_file
 from provider_core.tools import require_positive_number
+from provider_core.validation.upstream.docker_ids import is_full_network_id
 
 
 def _fields(table, expected, label):
@@ -131,7 +132,7 @@ def _route(table, origin):
         if not (type((table_network_id := table["network_id"])) is (expected_table_network_id_type := str)):
             raise BindingDefinitionRejected(f"Cannot admit local delivery route: {type(table_network_id)=} ≠ {expected_table_network_id_type=}")
 
-        if re.fullmatch(r"[0-9a-f]{64}", table["network_id"]) is None:
+        if not is_full_network_id(table_network_id):
             raise BindingDefinitionRejected("Cannot admit local delivery route: network_id must be the full immutable Docker network ID.")
 
     if mode == "external":

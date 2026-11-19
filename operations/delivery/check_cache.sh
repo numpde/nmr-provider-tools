@@ -16,7 +16,7 @@ operation_run 120 --pull never --network none --read-only --user "$uid:$gid" --c
     --mount "type=bind,src=$root/packages/type-requirements/src/type_requirements.py,dst=/workspace/type_requirements.py,readonly" \
     --mount "type=bind,src=$root/packages/provider-core/sdk_build/provider_core_acquire.py,dst=/workspace/sdk_build/provider_core_acquire.py,readonly" \
     --mount "type=bind,src=$root/operations/delivery/build_inputs.py,dst=/workspace/operations/delivery/build_inputs.py,readonly" \
-    --mount "type=bind,src=$root/requirements/provider-core.lock,dst=/core-runtime.lock,readonly" \
+    --mount "type=bind,src=$root/requirements/delivery-runtime.lock,dst=/core-runtime.lock,readonly" \
     --mount "type=bind,src=$root/requirements/delivery-release.json,dst=/release.json,readonly" \
     --mount "type=bind,src=$root/requirements/wheelhouse-tool-release.json,dst=/wheelhouse-tool-release.json,readonly" \
     --mount "type=bind,src=$1,dst=/wheelhouse,readonly" \

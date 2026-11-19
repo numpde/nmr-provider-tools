@@ -18,8 +18,13 @@ On a new host, first run `make checks/base-image/download DOCKER_CONTEXT=science
 container base through Docker. Preparation downloads missing pinned wheels,
 verifies them, and builds offline.
 `system` uses the host's normal network routing; an interface name binds
-acquisition to that interface. Updating the checked-in release pin and preparing
-it again selects a new image. Starting the outbox retains its queue and leaves an
+acquisition to that interface. When selecting a new delivery release, update
+`requirements/delivery-release.json` and `requirements/delivery-runtime.lock`
+together. Verify the issued `provider_core-<version>-install.lock` against the
+pin's `install_lock_sha256`, then copy the bytes before its final `provider-core`
+requirement into the runtime lock. Download the issued lock directly over HTTPS
+from GitHub Releases if you need a copy. Prepare the new release to build its
+image. Starting the outbox retains its queue and leaves an
 existing proxy running. `make delivery/deployment/proxy/restart DOCKER_CONTEXT=science DEPLOYMENT=localhost`
 updates the proxy separately. Status, logs, and down use `PROJECT` from the
 settings file so they remain available for recovery without a prepared image.

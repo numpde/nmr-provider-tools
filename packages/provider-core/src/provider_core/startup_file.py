@@ -12,7 +12,7 @@ require_container()
 import os
 import stat
 
-from provider_core.tools import require_absolute_path
+from .tools import require_absolute_path
 
 
 class StartupFileRejected(ValueError):
