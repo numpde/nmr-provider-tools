@@ -14,6 +14,11 @@ import reprlib
 from provider_core.response_json import ResponseRejected, read_document
 
 
+# The supported completion profile uses HTTP 200 for successful replies
+# repo-check: allow-module-constant
+COMPLETION_SUCCESS_STATUS = 200
+
+
 # Reviewed optional service fields; other response members are not diagnostics
 # repo-check: allow-module-constant
 ERROR_TEXT_FIELDS = ("message", "type", "code", "param")
@@ -22,7 +27,7 @@ ERROR_TEXT_FIELDS = ("message", "type", "code", "param")
 def is_completion_success(http_status: int) -> bool:
     """Recognize the supported carrier's successful completion response status."""
 
-    return http_status == 200
+    return http_status == COMPLETION_SUCCESS_STATUS
 
 
 def error_fields(completion_error: object) -> dict[str, str] | None:

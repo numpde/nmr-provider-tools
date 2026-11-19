@@ -30,6 +30,7 @@ from provider_core.decoded_body import require_decoded_limit
 from provider_core.transport import HttpTransport
 from provider_core.transport_errors import ExchangeFailed
 from provider_core.tools import require_positive_number
+from provider_core.validation.upstream.chat_completions.response import COMPLETION_SUCCESS_STATUS
 
 
 # One outbound exchange has a closed data-only protocol schema.
@@ -169,6 +170,7 @@ async def _exchange(document, cancellation):
             request,
             maximum_bytes=document["maximum_bytes"],
             error_maximum_bytes=document["error_maximum_bytes"],
+            success_status=COMPLETION_SUCCESS_STATUS,
             owner=owner,
             not_after=document["not_after"],
         )
