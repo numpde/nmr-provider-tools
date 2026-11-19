@@ -24,12 +24,12 @@ class AttemptInventoryTests(unittest.IsolatedAsyncioTestCase):
         self.assertNotIn("Content-Digest", request.headers)
         self.assertNotIn("Content-Type", request.headers)
         self.assertIn("Signature", request.headers)
-        (item,) = attempt_page.attempts
+        (attempt_record,) = attempt_page.attempts
 
-        self.assertEqual(item.provider_attempt_key, "retained-start:01")
-        self.assertEqual(item.state, "in_progress")
-        self.assertEqual(item.started_at.tzinfo, UTC)
+        self.assertEqual(attempt_record.provider_attempt_key, "retained-start:01")
+        self.assertEqual(attempt_record.state, "in_progress")
+        self.assertEqual(attempt_record.started_at.tzinfo, UTC)
         self.assertEqual(attempt_page.next_cursor, "YQ")
 
         with self.assertRaises(FrozenInstanceError):
-            item.job_ref = "job:replacement"
+            attempt_record.job_ref = "job:replacement"

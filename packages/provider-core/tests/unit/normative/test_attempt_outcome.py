@@ -47,30 +47,30 @@ class AttemptOutcomeTests(unittest.IsolatedAsyncioTestCase):
             )
 
             for replayed in (False, True):
-                result = await getattr(api, method)(retained, execution_attempt_ref=ATTEMPT_REF)
+                attempt_receipt = await getattr(api, method)(retained, execution_attempt_ref=ATTEMPT_REF)
 
-                self.assertEqual(result.replayed, replayed)
-                self.assertEqual(result.execution_attempt_ref, ATTEMPT_REF)
-                self.assertEqual(result.committed_at.isoformat(), "2026-10-18T00:00:00+00:00")
+                self.assertEqual(attempt_receipt.replayed, replayed)
+                self.assertEqual(attempt_receipt.execution_attempt_ref, ATTEMPT_REF)
+                self.assertEqual(attempt_receipt.committed_at.isoformat(), "2026-10-18T00:00:00+00:00")
 
             if method == "complete_attempt":
                 self.assertEqual(
-                    result.result_schema_id,
+                    attempt_receipt.result_schema_id,
                     " result\n"
                     "雪 ",
                 )
 
-                self.assertEqual(result.result_byte_length, len(b"result bytes"))
-                self.assertEqual(result.analysis_result_ref, "analysis_result:sha256:" + "b" * 64)
-                self.assertNotIn("雪", repr(result))
+                self.assertEqual(attempt_receipt.result_byte_length, len(b"result bytes"))
+                self.assertEqual(attempt_receipt.analysis_result_ref, "analysis_result:sha256:" + "b" * 64)
+                self.assertNotIn("雪", repr(attempt_receipt))
             else:
                 self.assertEqual(
-                    result.failure_message,
+                    attempt_receipt.failure_message,
                     " Explain\n"
                     "雪\x01 ",
                 )
 
-                self.assertNotIn("Explain", repr(result))
+                self.assertNotIn("Explain", repr(attempt_receipt))
 
             (first, second) = (call[0] for call in transport.calls)
 
@@ -86,10 +86,10 @@ class AttemptOutcomeTests(unittest.IsolatedAsyncioTestCase):
             )
 
     async def test_result_bytes_are_opaque_not_required_to_be_utf8_or_json(self):
-        data = b"\xff\x00\x80\r\n"
+        result_bytes = b"\xff\x00\x80\r\n"
 
         transport = Transport(
-            reply(complete_response(result_fingerprint="sha256:" + sha256(data).hexdigest(), result_byte_length=len(data)))
+            reply(complete_response(result_fingerprint="sha256:" + sha256(result_bytes).hexdigest(), result_byte_length=len(result_bytes)))
         )
 
         api = ProviderAPI(
@@ -103,9 +103,9 @@ class AttemptOutcomeTests(unittest.IsolatedAsyncioTestCase):
                 ATTEMPT_REF,
                 " result\n"
                 "雪 ",
-                data,
+                result_bytes,
             ),
             execution_attempt_ref=ATTEMPT_REF,
         )
 
-        self.assertEqual(completion_receipt.result_byte_length, len(data))
+        self.assertEqual(completion_receipt.result_byte_length, len(result_bytes))
