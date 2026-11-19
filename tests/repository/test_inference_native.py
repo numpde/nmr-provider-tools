@@ -2370,7 +2370,7 @@ def native_client():
         for signum in (signal.SIGHUP, signal.SIGINT, signal.SIGTERM):
             signal.signal(signum, record_signal)
 
-        ignored = sum(1 << (signum - 1) for signum in (signal.SIGHUP, signal.SIGINT, signal.SIGTERM))
+        ignored = sum((1 << (signum - 1)) for signum in (signal.SIGHUP, signal.SIGINT, signal.SIGTERM))
         descendant_status = pathlib.Path("/proc", str(descendant.pid), "status")
         deadline = time.monotonic() + 3
 

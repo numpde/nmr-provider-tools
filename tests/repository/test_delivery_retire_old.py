@@ -36,7 +36,7 @@ class DeliveryRetireOldTests(unittest.TestCase):
                 target.parent.mkdir(parents=True, exist_ok=True)
                 shutil.copyfile(ROOT / path, target)
 
-            (root / 'volumes').write_text(''.join(name + '\n' for name in names))
+            (root / 'volumes').write_text(''.join((name + '\n') for name in names))
 
             (docker / 'container_operation.sh').write_text(
                 '''

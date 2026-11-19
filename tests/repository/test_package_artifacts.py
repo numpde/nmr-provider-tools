@@ -532,10 +532,10 @@ class PackageArtifactTests(unittest.TestCase):
                         isinstance(call.func, ast.Attribute) and
                         (call.func.attr == "run") and
                         any(
-                            (isinstance(item, ast.Constant) and (item.value == "wheel")) or
+                            ((isinstance(item, ast.Constant) and (item.value == "wheel")) or
                             (isinstance(item, ast.Call) and
                              isinstance(item.func, ast.Name) and
-                             (item.func.id == "build_wheel_command"))
+                             (item.func.id == "build_wheel_command")))
                             for item in ast.walk(call)
                         )
                     ):

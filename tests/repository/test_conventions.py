@@ -203,7 +203,7 @@ def boundary_imports(root):
                 else:
                     continue
 
-                if any((module is not None) and (module.split(".", 1)[0] == forbidden) for module in modules):
+                if any(((module is not None) and (module.split(".", 1)[0] == forbidden)) for module in modules):
                     violations.append(str(path.relative_to(root)))
 
     return sorted(set(violations))

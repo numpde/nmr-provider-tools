@@ -39,7 +39,7 @@ class WheelhouseTests(unittest.TestCase):
 
         self.lock.write_text(
             "".join(
-                f"{name}==1.0 " + "\\\n" + f"    --hash=sha256:{wheelhouse.digest(path)}\n"
+                (f"{name}==1.0 " + "\\\n" + f"    --hash=sha256:{wheelhouse.digest(path)}\n")
                 for (name, path) in (("pool-cached", self.cached), ("pool-missing", self.missing))
             )
         )

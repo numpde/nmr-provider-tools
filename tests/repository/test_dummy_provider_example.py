@@ -68,7 +68,7 @@ class DummyProviderExampleTests(unittest.TestCase):
                 for name in names:
                     if any(
                         (
-                            (name == owner) or name.startswith(owner + ".")
+                            ((name == owner) or name.startswith(owner + "."))
                             for owner in forbidden
                         ),
                     ):
