@@ -1,4 +1,4 @@
-"""Prepare one complete announcement and admit its identity-bound receipt.
+"""Admit a complete announcement and its identity-bound receipt.
 
 Authority: nmr-api-v1 6a163b7a9cc1e2c7485b681c0b2b969c7c20e6c8,
 nmr_api/provider/routes.py::PROVIDER_HELLO_ROUTE,
@@ -13,7 +13,6 @@ from provider_core.container_guard import require_container
 
 require_container()
 
-import json
 from dataclasses import dataclass, field
 from datetime import datetime
 
@@ -55,13 +54,9 @@ def _require_text(value, name, maximum):
         raise ValueError(f"Cannot announce provider: {name} must not contain NUL or surrogate characters")
 
 
-def hello_body(*, display_name, description, analysis_offerings):
-    """Encode the caller's current complete snapshot, including empty offerings.
+def require_hello_inputs(*, display_name, description, analysis_offerings):
+    """Admit the complete snapshot without selecting its content or cadence."""
 
-    Preserve permitted whitespace and offering order. UTF-8 avoids expanding
-    supplementary scalars into surrogate escapes near the route's byte ceiling.
-    No prepared request object or replay obligation survives this construction.
-    """
     _require_text(display_name, "display name", 128)
     _require_text(description, "description", 1024)
 
@@ -70,7 +65,7 @@ def hello_body(*, display_name, description, analysis_offerings):
     if not (len(analysis_offerings) <= 64):
         raise ValueError("Cannot announce provider: analysis offerings must be a tuple of at most 64 entries")
 
-    (offerings, kinds) = ([], set())
+    kinds = set()
 
     for offering in analysis_offerings:
         require_type(offering, AnalysisOffering)
@@ -79,27 +74,13 @@ def hello_body(*, display_name, description, analysis_offerings):
             raise ValueError("Cannot announce provider: analysis kinds must not repeat")
 
         kinds.add(offering.analysis_kind_ref)
-        offerings.append({"analysis_kind_ref": offering.analysis_kind_ref, "description": offering.description})
 
-    body = (
-        json
-        .dumps(
-            {
-                "schema_id": "nmr.provider.hello_request.v1",
-                "display_name": display_name,
-                "description": description,
-                "analysis_offerings": offerings,
-            },
-            ensure_ascii=False,
-            separators=(",", ":"),
-        )
-        .encode("utf-8")
-    )
+
+def require_hello_body_size(body):
+    """Apply the route ceiling to the actual UTF-8 encoding, not character counts."""
 
     if not (len(body) <= 512 * 1024):
         raise ValueError("Cannot announce provider: encoded Hello exceeds the 524288-byte route limit")
-
-    return body
 
 
 def read_hello(raw, *, provider_ref):

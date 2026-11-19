@@ -14,7 +14,8 @@ from cryptography.hazmat.primitives.serialization import load_der_public_key
 from http_sf import parse
 
 from provider_core.api import require_api_topology
-from provider_core.hello import AnalysisOffering, hello_body
+from provider_core.adapters.nmr.v1.hello import hello_body
+from provider_core.validation.upstream.nmr.v1.hello import AnalysisOffering
 from provider_core.validation.upstream.nmr.v1.job_input import JobInputRejected, verify_job_input
 from provider_core.adapters.nmr.v1.signing import SigningIdentity, signed_request
 from tests.contract.api_release import PinnedApiRelease

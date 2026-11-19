@@ -153,9 +153,9 @@ NMR Provider API: wire and validation owners
     required query names and closed top-level fields. This is not exhaustive
     validation of every nested schema rule.
 
-[ ] N6  Extract Hello, paging, Job-feed and Attempt-inventory rules
+[x] N6  Extract Hello, paging, Job-feed and Attempt-inventory rules
     [x] Separate discovery admission from query encoding
-    [ ] Separate Hello admission from announcement encoding
+    [x] Separate Hello admission from announcement encoding
     core/hello.py:30-121; core/paging.py:23-51;
     core/job_feed.py:44-145; core/attempt_inventory.py:42-125
     Hello fields/offering limits and receipt binding; reference grammars;
@@ -170,7 +170,13 @@ NMR Provider API: wire and validation owners
     installed-wheel checks and donor mappings use the new owners.
     Focused unit test_job_feed.py and test_attempt_inventory.py, integration
     test_job_discovery.py and contract test_installation.py passed on science
-    with PRIVACY_TESTS=0. Hello remains pending.
+    with PRIVACY_TESTS=0.
+    Hello completed 2026-11-19: snapshot/receipt admission and checked records
+    now live in core/validation/upstream/nmr/v1/hello.py; exact announcement
+    JSON encoding lives in core/adapters/nmr/v1/hello.py. The encoded byte
+    ceiling is still checked after UTF-8 serialization. Focused unit and
+    integration test_hello.py, contract test_api_release.py and test_installation.py
+    passed on science with PRIVACY_TESTS=0.
 
 [x] N7  Extract Job-input envelope admission and decoding
     core/job_input.py:43-178

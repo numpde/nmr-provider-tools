@@ -135,7 +135,8 @@ class InstallationContractTests(unittest.TestCase):
                 "provider_core/interpreter.py",
                 "provider_core/credential.py",
                 "provider_core/failure_projection.py",
-                "provider_core/hello.py",
+                "provider_core/validation/upstream/nmr/v1/hello.py",
+                "provider_core/adapters/nmr/v1/hello.py",
                 "provider_core/validation/upstream/nmr/v1/job_input.py",
                 "provider_core/validation/upstream/nmr/v1/job_feed.py",
                 "provider_core/validation/upstream/nmr/v1/paging.py",
@@ -223,7 +224,7 @@ class InstallationContractTests(unittest.TestCase):
                 "forbidden = {'tests','packages','repository_checks','tools','rdkit','torch','nmrnet_provider','nmrnet_inference'}; "
                 "assert all(importlib.util.find_spec(name) is None for name in forbidden); "
                 "import provider_core.failure_projection, provider_core.runner, provider_core.runner_protocol, provider_core.runner_session, provider_core.process_status; "
-                "import provider_core.chat, provider_core.chat_process, provider_core.chat_tls, provider_core.chat_wire, provider_core.chat_worker, provider_core.conversation, provider_core.credential, provider_core.hello, provider_core.validation.upstream.nmr.v1.job_input, provider_core.validation.upstream.nmr.v1.job_feed, provider_core.validation.upstream.nmr.v1.paging, provider_core.validation.upstream.nmr.v1.attempt_inventory, provider_core.adapters.nmr.v1.discovery, provider_core.adapters.nmr.v1.signing, provider_core.validation.upstream.nmr.v1.signing, provider_core.transport, provider_core.network, provider_core.api, provider_core.uploads, provider_core.attempt_response, provider_core.response_json, provider_core.attempt_record, provider_core.starting, provider_core.analysis, provider_core.execution, provider_core.controller, provider_core.api_config, provider_core.delivery_client, provider_core.delivery_config, provider_core.delivery_discard, provider_core.delivery_ipc, provider_core.delivery_logging, provider_core.delivery_main, provider_core.delivery_service, provider_core.delivery_store, provider_core.delivery_worker, provider_core.diagnostics, provider_core.producer_checkpoint, provider_core.startup_file, provider_core.unix_http; import sys; "
+                "import provider_core.chat, provider_core.chat_process, provider_core.chat_tls, provider_core.chat_wire, provider_core.chat_worker, provider_core.conversation, provider_core.credential, provider_core.validation.upstream.nmr.v1.hello, provider_core.adapters.nmr.v1.hello, provider_core.validation.upstream.nmr.v1.job_input, provider_core.validation.upstream.nmr.v1.job_feed, provider_core.validation.upstream.nmr.v1.paging, provider_core.validation.upstream.nmr.v1.attempt_inventory, provider_core.adapters.nmr.v1.discovery, provider_core.adapters.nmr.v1.signing, provider_core.validation.upstream.nmr.v1.signing, provider_core.transport, provider_core.network, provider_core.api, provider_core.uploads, provider_core.attempt_response, provider_core.response_json, provider_core.attempt_record, provider_core.starting, provider_core.analysis, provider_core.execution, provider_core.controller, provider_core.api_config, provider_core.delivery_client, provider_core.delivery_config, provider_core.delivery_discard, provider_core.delivery_ipc, provider_core.delivery_logging, provider_core.delivery_main, provider_core.delivery_service, provider_core.delivery_store, provider_core.delivery_worker, provider_core.diagnostics, provider_core.producer_checkpoint, provider_core.startup_file, provider_core.unix_http; import sys; "
                 "assert not any(n.split('.')[0] in forbidden for n in sys.modules)",
             ],
             capture_output=True,
@@ -239,7 +240,7 @@ class InstallationContractTests(unittest.TestCase):
         # silent-defaults: allow-pop-default -- Remove the inherited marker only to prove the missing-marker refusal.
         environment.pop("PROVIDER_CORE_IN_CONTAINER", None)
 
-        for module in ("validation.upstream.nmr.v1.job_input", "chat", "chat_process", "chat_tls", "chat_wire", "chat_worker", "conversation", "credential", "hello", "failure_projection", "runner", "runner_protocol", "runner_session", "process_status"):
+        for module in ("validation.upstream.nmr.v1.job_input", "chat", "chat_process", "chat_tls", "chat_wire", "chat_worker", "conversation", "credential", "adapters.nmr.v1.hello", "failure_projection", "runner", "runner_protocol", "runner_session", "process_status"):
             with self.subTest(module=module):
                 completed_process = subprocess.run(
                     [sys.executable, "-I", "-B", "-c", f"import provider_core.{module}"],

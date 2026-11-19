@@ -43,7 +43,8 @@ from provider_core.attempt_response import (
     require_attempt_ref,
 )
 
-from provider_core.hello import HELLO_RESPONSE_BYTES, hello_body, read_hello
+from provider_core.adapters.nmr.v1.hello import hello_body
+from provider_core.validation.upstream.nmr.v1.hello import HELLO_RESPONSE_BYTES, read_hello
 from provider_core.validation.upstream.nmr.v1.job_feed import PAGE_RESPONSE_BYTES, read_jobs_page
 from provider_core.validation.upstream.nmr.v1.job_input import MAX_RESPONSE_BYTES, FeedInputFacts, JobInputRejected, verify_job_input
 from provider_core.response_json import ResponseRejected

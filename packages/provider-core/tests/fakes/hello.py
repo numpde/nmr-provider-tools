@@ -2,7 +2,7 @@
 
 import json
 
-from provider_core.hello import AnalysisOffering
+from provider_core.validation.upstream.nmr.v1.hello import AnalysisOffering
 
 
 def receipt(**changes):

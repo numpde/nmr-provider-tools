@@ -196,6 +196,7 @@
     },
     {
       "path": "packages/provider-core/src/provider_core/hello.py",
+      "replacement_path": "packages/provider-core/src/provider_core/validation/upstream/nmr/v1/hello.py",
       "mode": "100644",
       "git_blob": "61a21d0775e53605ac841c73c33c939db465b603",
       "sha256": "da3abd101494b68cfad9260654970fcd1080e8ef7f711154c97512a82fd071d5",

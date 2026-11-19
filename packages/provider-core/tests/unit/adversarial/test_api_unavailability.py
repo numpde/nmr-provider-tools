@@ -22,7 +22,7 @@ from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
 
 from provider_core.api import ApiFailure, ProviderAPI
 from provider_core.adapters.nmr.v1.attempt_request import complete_body, fail_body
-from provider_core.hello import AnalysisOffering
+from provider_core.validation.upstream.nmr.v1.hello import AnalysisOffering
 from provider_core.adapters.nmr.v1.signing import SigningIdentity
 from provider_core.transport import ExchangeFailed, HttpResponseHead
 from tests.fakes.api import Transport, io_failure, reply, response_headers, signature_window_problem
