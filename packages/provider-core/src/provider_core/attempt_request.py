@@ -11,22 +11,26 @@ from provider_core.container_guard import require_container
 
 require_container()
 
-import binascii
 import json
 import re
 from base64 import b64decode, b64encode
 
 from provider_core.attempt_response import require_attempt_ref
-from provider_core.response_json import ResponseRejected, read_document
+from provider_core.response_json import read_document
 from provider_core.upload_response import require_job_ref
 from provider_core.type_requirements import require_type
 
 
-def require_provider_attempt_key(value):
-    require_type(value, str)
+def require_provider_attempt_key(provider_attempt_key):
+    require_type(provider_attempt_key, str)
 
-    if re.fullmatch(r"[A-Za-z0-9._:-]{1,128}", value) is None:
-        raise ValueError("Provider attempt key must contain 1 through 128 ASCII letters, digits, dots, underscores, colons or hyphens")
+    key_character_count = len(provider_attempt_key)
+
+    if not (key_character_count <= (max_key_characters := 128)):
+        raise ValueError(f"{key_character_count=} should be at most {max_key_characters=}")
+
+    if not re.fullmatch((expected_pattern := r"[A-Za-z0-9._:-]+"), provider_attempt_key):
+        raise ValueError(f"{provider_attempt_key=} should match {expected_pattern=}")
 
 
 def start_body(job_ref, provider_attempt_key):
@@ -51,10 +55,7 @@ def start_body(job_ref, provider_attempt_key):
 def require_start_body(body, *, job_ref):
     """Check retained content; never replace it with a newly serialized document."""
 
-    try:
-        start_request = read_document(body, 4096)
-    except ResponseRejected as cause:
-        raise ValueError(f"Cannot start Execution Attempt: retained request is invalid: {cause}") from None
+    start_request = read_document(body, 4096)
 
     require_type(start_request, dict)
 
@@ -75,11 +76,16 @@ def require_start_body(body, *, job_ref):
     require_provider_attempt_key(start_request["provider_attempt_key"])
 
 
-def require_analysis_kind(value):
-    require_type(value, str)
+def require_analysis_kind(analysis_kind_ref):
+    require_type(analysis_kind_ref, str)
 
-    if not ((len(value) <= 128) and (re.fullmatch(r"[a-z][a-z0-9]*(?:_[a-z0-9]+)*", value) is not None)):
-        raise ValueError("Analysis kind must be a lower snake-case catalog key of at most 128 characters")
+    analysis_kind_character_count = len(analysis_kind_ref)
+
+    if not (analysis_kind_character_count <= (max_analysis_kind_characters := 128)):
+        raise ValueError(f"{analysis_kind_character_count=} should be at most {max_analysis_kind_characters=}")
+
+    if not re.fullmatch((expected_pattern := r"[a-z][a-z0-9]*(?:_[a-z0-9]+)*"), analysis_kind_ref):
+        raise ValueError(f"{analysis_kind_ref=} should match {expected_pattern=}")
 
 
 def progress_body(phase, condition_code):
@@ -99,11 +105,11 @@ def progress_body(phase, condition_code):
 
         condition_code_length = len(condition_code)
 
-        if not (condition_code_length <= 128):
-            raise ValueError(f"{condition_code_length=} should be at most 128")
+        if not (condition_code_length <= (max_condition_code_characters := 128)):
+            raise ValueError(f"{condition_code_length=} should be at most {max_condition_code_characters=}")
 
-        if re.fullmatch(r"[a-z][a-z0-9]*(?:_[a-z0-9]+)*", condition_code) is None:
-            raise ValueError(f"{condition_code=} should be lowercase ASCII words separated by underscores, with digits allowed after the first letter")
+        if not re.fullmatch((expected_pattern := r"[a-z][a-z0-9]*(?:_[a-z0-9]+)*"), condition_code):
+            raise ValueError(f"{condition_code=} should match {expected_pattern=}")
 
     return (
         json
@@ -119,26 +125,42 @@ def progress_body(phase, condition_code):
     )
 
 
-def require_provider_ref(value):
-    require_type(value, str)
+def require_provider_ref(provider_ref):
+    require_type(provider_ref, str)
 
-    if re.fullmatch(r"provider:[A-Za-z0-9_.-]{1,119}", value) is None:
-        raise ValueError("Provider reference must be provider: followed by 1 through 119 letters, digits, underscores, dots or hyphens")
+    provider_ref_character_count = len(provider_ref)
 
+    if not (provider_ref_character_count <= (max_provider_ref_characters := 128)):
+        raise ValueError(f"{provider_ref_character_count=} should be at most {max_provider_ref_characters=}")
 
-def _scalar_text(value, label):
-    if not (type(value) is (expected_type := str)):
-        raise TypeError(f"{label=}; {type(value)=} ≠ {expected_type=}")
-
-    if (not (1 <= len(value) <= 1024)) or (any(c == "\x00" or 0xD800 <= ord(c) <= 0xDFFF for c in value)):
-        raise ValueError(f"Cannot publish Attempt outcome: {label} must contain 1 through 1024 Unicode scalar values without NUL")
+    if not re.fullmatch((expected_pattern := r"provider:[A-Za-z0-9_.-]+"), provider_ref):
+        raise ValueError(f"{provider_ref=} should match {expected_pattern=}")
 
 
-def _failure_code(value):
-    require_type(value, str)
+def _scalar_text(scalar_text, field_name):
+    if not (type(scalar_text) is (expected_type := str)):
+        raise TypeError(f"{field_name=}; {type(scalar_text)=} ≠ {expected_type=}")
 
-    if not ((len(value) <= 128) and (re.fullmatch(r"[a-z][a-z0-9]*(?:_[a-z0-9]+)*", value) is not None)):
-        raise ValueError("Cannot publish Attempt failure: code must be lower snake-case ASCII of at most 128 characters")
+    scalar_character_count = len(scalar_text)
+    min_scalar_characters, max_scalar_characters = 1, 1024
+
+    if not (min_scalar_characters <= scalar_character_count <= max_scalar_characters):
+        raise ValueError(f"{field_name=}; {scalar_character_count=} should be between {min_scalar_characters=} and {max_scalar_characters=}")
+
+    if not all((character != "\x00") and not (0xD800 <= ord(character) <= 0xDFFF) for character in scalar_text):
+        raise ValueError(f"{field_name=}; {scalar_text=} should not contain NUL or surrogate code points")
+
+
+def _failure_code(failure_code):
+    require_type(failure_code, str)
+
+    failure_code_character_count = len(failure_code)
+
+    if not (failure_code_character_count <= (max_failure_code_characters := 128)):
+        raise ValueError(f"{failure_code_character_count=} should be at most {max_failure_code_characters=}")
+
+    if not re.fullmatch((expected_pattern := r"[a-z][a-z0-9]*(?:_[a-z0-9]+)*"), failure_code):
+        raise ValueError(f"{failure_code=} should match {expected_pattern=}")
 
 
 def complete_body(execution_attempt_ref, result_schema_id, result):
@@ -152,8 +174,11 @@ def complete_body(execution_attempt_ref, result_schema_id, result):
 
     require_type(result, bytes)
 
-    if not (1 <= len(result) <= 786432):
-        raise ValueError("Cannot publish Attempt result: content must be immutable bytes with length 1 through 786432")
+    result_byte_length = len(result)
+    min_result_bytes, max_result_bytes = 1, 786432
+
+    if not (min_result_bytes <= result_byte_length <= max_result_bytes):
+        raise ValueError(f"{result_byte_length=} should be between {min_result_bytes=} and {max_result_bytes=}")
 
     return (
         json
@@ -197,10 +222,7 @@ def fail_body(execution_attempt_ref, failure_code, failure_message):
 
 
 def _outcome_document(body, operation, limit, execution_attempt_ref, fields):
-    try:
-        outcome_request = read_document(body, limit)
-    except ResponseRejected as cause:
-        raise ValueError(f"Cannot publish Attempt outcome: retained request is invalid: {cause}") from None
+    outcome_request = read_document(body, limit)
 
     require_type(outcome_request, dict)
 
@@ -233,20 +255,27 @@ def read_complete_body(body, *, execution_attempt_ref):
     )
 
     _scalar_text(completion_request["result_schema_id"], "result schema identity")
-    encoded = completion_request["canonical_result_base64"]
+    retained_result_base64 = completion_request["canonical_result_base64"]
 
-    require_type(encoded, str)
+    require_type(retained_result_base64, str)
 
-    if not (1 <= len(encoded) <= 1048576):
-        raise ValueError("Cannot publish Attempt result: base64 content must contain 1 through 1048576 characters")
+    retained_base64_character_count = len(retained_result_base64)
+    min_base64_characters, max_base64_characters = 1, 1048576
 
-    try:
-        result = b64decode(encoded, validate=True)
-    except (ValueError, binascii.Error):
-        raise ValueError("Cannot publish Attempt result: content is not valid standard base64") from None
+    if not (min_base64_characters <= retained_base64_character_count <= max_base64_characters):
+        raise ValueError(f"{retained_base64_character_count=} should be between {min_base64_characters=} and {max_base64_characters=}")
 
-    if (b64encode(result).decode("ascii") != encoded) or (not (1 <= len(result) <= 786432)):
-        raise ValueError("Cannot publish Attempt result: base64 must be canonical and encode 1 through 786432 bytes")
+    result = b64decode(retained_result_base64, validate=True)
+    expected_result_base64 = b64encode(result).decode("ascii")
+
+    if not (retained_result_base64 == expected_result_base64):
+        raise ValueError(f"{retained_result_base64[-4:]=} should match {expected_result_base64[-4:]=}")
+
+    result_byte_length = len(result)
+    min_result_bytes, max_result_bytes = 1, 786432
+
+    if not (min_result_bytes <= result_byte_length <= max_result_bytes):
+        raise ValueError(f"{result_byte_length=} should be between {min_result_bytes=} and {max_result_bytes=}")
 
     return (completion_request["result_schema_id"], result)
 
