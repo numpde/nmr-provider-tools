@@ -13,7 +13,7 @@ def local_file_path(item):
 
     artifact_url = pip_installation_report.artifact_url(item)
 
-    if any((ord(character) < 32) or (ord(character) == 127) for character in artifact_url):
+    if any(((ord(character) < 32) or (ord(character) == 127)) for character in artifact_url):
         raise ValueError(f"{reprlib.repr(artifact_url)=} contains a control character")
 
     url = urllib.parse.urlsplit(artifact_url)
@@ -63,7 +63,7 @@ def selected_artifacts(report, pool, directory, allowed_sources):
             (not name) or  # Require a filename
             (name in (".", "..")) or  # A directory reference cannot name an artifact
             ("\\" in name) or  # Reject Windows path separators too
-            any((ord(character) < 32) or (ord(character) == 127) for character in name) or  # Keep control characters out of artifact names
+            any(((ord(character) < 32) or (ord(character) == 127)) for character in name) or  # Keep control characters out of artifact names
             ((not name.endswith(".whl")) and (name not in allowed_sources))  # Source archives need explicit authorization
         ):
             raise ValueError("Cannot use pip report: selected artifact is outside the pool or not authorized.")

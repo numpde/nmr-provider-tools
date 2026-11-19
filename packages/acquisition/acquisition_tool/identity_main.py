@@ -39,7 +39,7 @@ def _inputs(args):
             (args.host_uid is None) or
             (args.host_gid is None) or
             (args.userns is not None) or
-            any(policy_setting is not None for policy_setting in policy)
+            any((policy_setting is not None) for policy_setting in policy)
         ):
             raise ValueError("Supply both host-owner IDs, or use --map with explicit probe policy.")
 
@@ -56,7 +56,7 @@ def _inputs(args):
     if (args.host_uid is not None) or (args.host_gid is not None):
         raise ValueError("Do not combine host-owner IDs with --map projections.")
 
-    if any(policy_setting is None for policy_setting in policy):
+    if any((policy_setting is None) for policy_setting in policy):
         raise ValueError("Mapping projections require an explicit interpreter, probe UID/GID and all three resource ceilings.")
 
     if not (len(args.maps) <= 512):

@@ -185,13 +185,13 @@ def contents(pool, source, core_wheel, pin, *, revision, wheelhouse_bundle):
         if proxy_member in member_names:
             proxy_needs_helpers = any(
                 (
-                    isinstance(node, ast.ImportFrom) and
-                    ((node.level, node.module) in {(0, "provider_core.type_requirements"), (1, "type_requirements")})
+                    (isinstance(node, ast.ImportFrom) and
+                     ((node.level, node.module) in {(0, "provider_core.type_requirements"), (1, "type_requirements")}))
                     for node in ast.walk(ast.parse(archive.read(proxy_member), filename=proxy_member))
                 ),
             )
 
-        if proxy_needs_helpers or any(("provider_core/" + leaf) in member_names for leaf in helper_files):
+        if proxy_needs_helpers or any((("provider_core/" + leaf) in member_names) for leaf in helper_files):
             proxy_files.extend(helper_files)
 
         for leaf in proxy_files:

@@ -65,7 +65,7 @@ def read_requirements(path, configured_index=None):
 
             records.append((requirement, set()))
 
-    if (not records) or (any(not hashes for (_, hashes) in records)):
+    if (not records) or (any((not hashes) for (_, hashes) in records)):
         raise ValueError("Cannot locate artifacts: every package needs an existing SHA-256 lock hash.")
 
     parsed_index_input = index

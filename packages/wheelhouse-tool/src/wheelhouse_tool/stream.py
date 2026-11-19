@@ -58,7 +58,7 @@ def stream_context(pool, source, selections, output, source_allowlist=None):
     if any(not re.fullmatch(r"[0-9a-f]{64}", digest) for digest in source_hashes.values()):
         raise ValueError("Cannot stream build inputs: source files require SHA-256 hashes.")
 
-    if any(type(value) is not bool for value in source_modes.values()):
+    if any((type(value) is not bool) for value in source_modes.values()):
         raise ValueError("Cannot stream build inputs: source executable flags must be boolean.")
 
     def fail_walk(error):
@@ -83,8 +83,8 @@ def stream_context(pool, source, selections, output, source_allowlist=None):
             destination.is_absolute() or
             (not destination.parts) or
             (str(destination) != name) or
-            any((ord(character) < 32) or (ord(character) == 127) for character in name) or
-            any(part in (".", "..") for part in destination.parts)
+            any(((ord(character) < 32) or (ord(character) == 127)) for character in name) or
+            any((part in (".", "..")) for part in destination.parts)
         ):
             raise ValueError("Cannot stream build inputs: source destination must be a relative path.")
 
@@ -104,7 +104,7 @@ def stream_context(pool, source, selections, output, source_allowlist=None):
     for name in source_paths:
         if any(
             (
-                (parent.as_posix() in source_paths) and (not source_paths[parent.as_posix()].is_dir())
+                ((parent.as_posix() in source_paths) and (not source_paths[parent.as_posix()].is_dir()))
                 for parent in PurePosixPath(name).parents
             ),
         ):
@@ -125,8 +125,8 @@ def stream_context(pool, source, selections, output, source_allowlist=None):
             directory.is_absolute() or
             (not directory.parts) or
             (str(directory) != selection["directory"]) or
-            any((ord(character) < 32) or (ord(character) == 127) for character in selection["directory"]) or
-            any(part in (".", "..") for part in directory.parts)
+            any(((ord(character) < 32) or (ord(character) == 127)) for character in selection["directory"]) or
+            any((part in (".", "..")) for part in directory.parts)
         ):
             raise ValueError("Cannot stream build inputs: artifact directory must be a relative path.")
 
@@ -164,7 +164,7 @@ def stream_context(pool, source, selections, output, source_allowlist=None):
                 (name in (".", "..")) or
                 ("/" in name) or
                 ("\\" in name) or
-                any((ord(character) < 32) or (ord(character) == 127) for character in name) or
+                any(((ord(character) < 32) or (ord(character) == 127)) for character in name) or
                 (not re.fullmatch(r"[0-9a-f]{64}", digest))
             ):
                 raise ValueError("Cannot stream build inputs: expected a filename and SHA-256 hash.")
@@ -176,7 +176,7 @@ def stream_context(pool, source, selections, output, source_allowlist=None):
                 any(name.startswith(destination + "/") for name in source_paths) or
                 any(
                     (
-                        (parent.as_posix() in source_paths) and (not source_paths[parent.as_posix()].is_dir())
+                        ((parent.as_posix() in source_paths) and (not source_paths[parent.as_posix()].is_dir()))
                         for parent in PurePosixPath(destination).parents
                         if str(parent) != "."
                     ),
@@ -190,7 +190,7 @@ def stream_context(pool, source, selections, output, source_allowlist=None):
             artifacts[destination] = (name, digest)
 
     for destination in artifacts:
-        if any(parent.as_posix() in artifacts for parent in PurePosixPath(destination).parents):
+        if any((parent.as_posix() in artifacts) for parent in PurePosixPath(destination).parents):
             raise ValueError(f"Cannot stream {destination}: an artifact occupies its parent path.")
 
     with pool_lock(pool, exclusive=False) as directory_fd:
