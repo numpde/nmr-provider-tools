@@ -45,9 +45,11 @@ PROXY_FILES = (
     "diagnostic_text.py",
     "adapters/__init__.py",
     "adapters/dns.py",
+    "adapters/http_proxy.py",
     "validation/__init__.py",
     "validation/upstream/__init__.py",
     "validation/upstream/dns.py",
+    "validation/upstream/http_proxy.py",
 )
 
 # Consumers bake this qualified helper package and its inputs into tool images.

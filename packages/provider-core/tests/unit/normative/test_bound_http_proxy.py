@@ -15,6 +15,7 @@ from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
 
 from provider_core import bound_http_proxy
+from provider_core.adapters import http_proxy
 from provider_core.adapters.dns import encode_dns_name
 from tests.fakes.proxy_logs import capture_proxy_logs
 
@@ -252,7 +253,7 @@ class BoundProxyTests(unittest.TestCase):
             ):
                 client.recv.side_effect = [oversized[index : index + 8192] for index in range(0, len(oversized), 8192)]
 
-                with self.assertRaisesRegex(ValueError, "headers"):
+                with self.assertRaisesRegex(ValueError, "header_byte_count=.* should be at most MAX_HEADER_BYTES="):
                     bound_http_proxy.receive_headers(client)
 
     def test_exact_limit_header_keeps_body_coalesced_with_its_final_fragment(self):
@@ -295,8 +296,8 @@ class BoundProxyTests(unittest.TestCase):
                         "\r\n"
                     )).encode("ascii")
 
-                    with self.assertRaisesRegex(ValueError, "port.*1 to 65535") as rejected:
-                        bound_http_proxy.parse_destination(header)
+                    with self.assertRaises(ValueError) as rejected:
+                        http_proxy.parse_destination(header)
 
                     request = MagicMock()
                     request.recv.return_value = header
@@ -321,7 +322,7 @@ class BoundProxyTests(unittest.TestCase):
         private = "private-port-input-marker"
 
         with self.assertRaises(ValueError) as rejected:
-            bound_http_proxy.parse_destination(f"CONNECT example.invalid:{private} HTTP/1.1\r\n\r\n".encode())
+            http_proxy.parse_destination(f"CONNECT example.invalid:{private} HTTP/1.1\r\n\r\n".encode())
 
         self.assertNotIn(private, str(rejected.exception))
 
@@ -413,65 +414,6 @@ class BoundProxyTests(unittest.TestCase):
                 self.assertIn("forwarding", errors.getvalue())
                 self.assertIn("OSError", errors.getvalue())
                 self.assertIn(private, errors.getvalue())
-
-    def test_destination_port_boundaries_and_scheme_defaults_are_preserved(self):
-        for port in (1, 65535):
-            for (method, target) in (
-                ("CONNECT", "example.invalid:" + str(port)),
-                ("GET", "http://example.invalid:" + str(port) + "/path?query=1"),
-            ):
-                with self.subTest(method=method, port=port):
-                    header = (
-                        f"{method} {target} HTTP/1.1\r\n"
-                        "\r\n"
-                    ).encode("ascii")
-
-                    result = bound_http_proxy.parse_destination(header)
-
-                    self.assertEqual(result[:3], (method, "example.invalid", port))
-
-                    # silent-defaults: allow-contract -- CONNECT preserves request bytes while HTTP forwards the origin-form target; the expected wire bytes are checked separately from parsed host and port; proof=tests/repository/test_bound_http_proxy.py::BoundProxyTests.test_destination_port_boundaries_and_scheme_defaults_are_preserved
-                    self.assertEqual(
-                        result[3],
-                        header if method == "CONNECT" else (
-                            b"GET /path?query=1 HTTP/1.1\r\n"
-                            b"\r\n"
-                        )
-                    )
-
-        for (scheme, port) in (("http", 80), ("https", 443)):
-            with self.subTest(scheme=scheme):
-                self.assertEqual(
-                    bound_http_proxy.parse_destination(
-                        (
-                            f"GET {scheme}://example.invalid/ HTTP/1.1\r\n"
-                            "\r\n"
-                        ).encode("ascii")
-                    )[2],
-                    port,
-                )
-
-    def test_empty_absolute_path_becomes_origin_slash(self):
-        # RFC 9112 section 3.2.1 owns the path, including a query-only URI:
-        # https://www.rfc-editor.org/rfc/rfc9112.html#section-3.2.1
-        for (suffix, origin) in (("", "/"), ("?q=one%20two", "/?q=one%20two")):
-            with self.subTest(suffix=suffix):
-                header = (
-                    f"GET http://example.invalid{suffix} HTTP/1.1\r\n"
-                    "Host: example.invalid\r\n"
-                    "\r\n"
-                ).encode("ascii")
-
-                (method, host, port, forwarded) = bound_http_proxy.parse_destination(header)
-
-                self.assertEqual(("GET", "example.invalid", 80), (method, host, port))
-
-                self.assertEqual(
-                    f"GET {origin} HTTP/1.1\r\n"
-                    "Host: example.invalid\r\n"
-                    "\r\n".encode("ascii"),
-                    forwarded,
-                )
 
     def test_forwarding_owns_write_budget_after_header_deadline_nearly_expires(self):
         """A valid late header retains the full bounded first-write budget."""

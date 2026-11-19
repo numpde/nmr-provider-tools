@@ -8,6 +8,10 @@ import struct
 
 from provider_core.validation.upstream.dns import read_dns_labels
 
+# DNS queries use the existing service port independently of resolver selection
+# repo-check: allow-module-constant
+PORT = 53
+
 
 def encode_dns_name(hostname: str) -> bytes:
     """Encode the supported name profile as length-prefixed DNS wire labels."""

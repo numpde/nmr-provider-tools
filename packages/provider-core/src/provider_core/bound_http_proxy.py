@@ -29,11 +29,12 @@ import tempfile
 import threading
 import time
 import pathlib
-from urllib.parse import urlsplit
+from http import HTTPStatus
 
-from provider_core.adapters.dns import ipv4_query
+from provider_core.adapters import dns as dns_adapter, http_proxy
 from provider_core.diagnostic_text import CredentialRedactingFormatter
 from provider_core.validation.upstream import dns
+from provider_core.validation.upstream.http_proxy import header_end
 
 # Header admission owns this fixed byte ceiling independently of coalesced body
 # bytes; changing it would alter the bounded acquisition protocol.
@@ -111,80 +112,21 @@ def receive_headers(client: socket.socket) -> tuple[bytes, bytes]:
         _remaining(deadline, "header read")
 
         if not (chunk):
-            raise ConnectionError("client closed before sending headers")
+            raise ConnectionError("Client closed before completing request headers")
 
         data.extend(chunk)
 
-        terminator = data.find(
-            b"\r\n"
-            b"\r\n",
-        )
+        header_end_offset = header_end(data)
 
         # Coalesced body bytes belong to forwarding, not header admission.
         # https://github.com/numpde/magnet-deploy/blob/2d4ee50b0359e71900fce9289ea01f46d0f41249/repository_checks/test_image_build_proxy.py#L88
-        header_bytes = terminator + 4 if terminator >= 0 else len(data)
+        header_byte_count = header_end_offset if header_end_offset is not None else len(data)
 
-        if not (header_bytes <= MAX_HEADER_BYTES):
-            raise ValueError("request headers are too large")
+        if not (header_byte_count <= MAX_HEADER_BYTES):
+            raise ValueError(f"{header_byte_count=} should be at most {MAX_HEADER_BYTES=}")
 
-        if terminator >= 0:
-            return (bytes(data[:header_bytes]), bytes(data[header_bytes:]))
-
-
-def parse_destination(header: bytes) -> tuple[str, str, int, bytes]:
-    """Admit a destination without transport and return its forwarding header.
-
-    CONNECT retains its header; absolute HTTP targets become origin-form paths.
-    Invalid destinations, including ports outside 1-65535, raise ValueError.
-    """
-    lines = header.split(b"\r\n")
-    (method, target, version) = lines[0].decode("ascii").split(" ", 2)
-    method = method.upper()
-
-    if method == "CONNECT":
-        (host, separator, port_text) = target.rpartition(":")
-
-        if (not separator) or (not host):
-            raise ValueError("CONNECT target must be host:port")
-    else:
-        parsed = urlsplit(target)
-
-        if (parsed.scheme not in ("http", "https")) or (not parsed.hostname):
-            raise ValueError("proxy request must use an absolute HTTP URL")
-
-        host = parsed.hostname
-
-    try:
-        port = int(port_text) if method == "CONNECT" else parsed.port
-    except ValueError:
-        raise ValueError("Cannot admit proxy destination: the port must be an integer from 1 to 65535.") from None
-
-    if port is None:
-        # RFC 9110 sections 4.2.1 and 4.2.2 define omitted HTTP/HTTPS ports:
-        # https://www.rfc-editor.org/rfc/rfc9110.html#section-4.2.1
-        # https://www.rfc-editor.org/rfc/rfc9110.html#section-4.2.2
-        # silent-defaults: allow-contract -- Omitted URI ports mean HTTP 80 or HTTPS 443; proof=packages/provider-core/tests/unit/normative/test_bound_http_proxy.py::BoundProxyTests.test_destination_port_boundaries_and_scheme_defaults_are_preserved
-        port = 443 if parsed.scheme == "https" else 80
-
-    # Admit the destination before DNS or socket use; explicit HTTP port zero
-    # must not silently choose the scheme default.
-    # https://github.com/numpde/magnet-deploy/blob/2d4ee50b0359e71900fce9289ea01f46d0f41249/repository_checks/test_image_build_proxy.py#L41
-    if not (1 <= port <= 65535):
-        raise ValueError("Cannot admit proxy destination: the port must be an integer from 1 to 65535.")
-
-    if method == "CONNECT":
-        return (method, host, port, header)
-
-    # RFC 9112 section 3.2.1: https://www.rfc-editor.org/rfc/rfc9112.html#section-3.2.1
-    # silent-defaults: allow-contract -- Origin-form requires / for an empty URI path; proof=packages/provider-core/tests/unit/normative/test_bound_http_proxy.py::BoundProxyTests.test_empty_absolute_path_becomes_origin_slash
-    path = parsed.path or "/"
-
-    if parsed.query:
-        path += "?" + parsed.query
-
-    lines[0] = f"{method} {path} {version}".encode("ascii")
-
-    return (method, host, port, b"\r\n".join(lines))
+        if header_end_offset is not None:
+            return (bytes(data[:header_byte_count]), bytes(data[header_byte_count:]))
 
 
 def _dns_servers(resolver_file: pathlib.Path | None = None) -> tuple[str, ...]:
@@ -234,14 +176,14 @@ def _query_ipv4(
 
     _remaining(query_deadline, "DNS query")
     transaction = secrets.randbits(16)
-    request = ipv4_query(host, transaction)
+    request = dns_adapter.ipv4_query(host, transaction)
 
     with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as resolver:
         if interface != "system":
             resolver.setsockopt(socket.SOL_SOCKET, socket.SO_BINDTODEVICE, interface.encode() + b"\0")
 
         resolver.settimeout(_remaining(query_deadline, "DNS query"))
-        resolver.connect((server, 53))
+        resolver.connect((server, dns_adapter.PORT))
         resolver.settimeout(_remaining(query_deadline, "DNS query"))
         resolver.send(request)
         resolver.settimeout(_remaining(query_deadline, "DNS query"))
@@ -418,7 +360,7 @@ class ProxyHandler(socketserver.BaseRequestHandler):
     def destination(self, header):
         """Acquisition accepts CONNECT and absolute HTTP destinations."""
 
-        return parse_destination(header)
+        return http_proxy.parse_destination(header)
 
     def connect(self, host, port):
         """Acquire the admitted destination through this listener's device."""
@@ -428,11 +370,7 @@ class ProxyHandler(socketserver.BaseRequestHandler):
     def admission_reply(self, _error):
         """Keep the acquisition listener's existing fixed failure response."""
 
-        return (
-            b"HTTP/1.1 502 Bad Gateway\r\n"
-            b"Connection: close\r\n"
-            b"\r\n"
-        )
+        return http_proxy.closing_response(HTTPStatus.BAD_GATEWAY)
 
     def report_failure(self, phase, error):
         """Report the original cause; the log formatter scrubs credentials."""
@@ -473,10 +411,7 @@ class ProxyHandler(socketserver.BaseRequestHandler):
                 if method == "CONNECT":
                     phase = "forwarding CONNECT acknowledgement to client"
 
-                    self.request.sendall(
-                        b"HTTP/1.1 200 Connection Established\r\n"
-                        b"\r\n",
-                    )
+                    self.request.sendall(http_proxy.CONNECT_ESTABLISHED_RESPONSE)
                 else:
                     phase = "forwarding request headers to upstream"
 
@@ -625,11 +560,7 @@ class UnixRelayHandler(socketserver.BaseRequestHandler):
                 try:
                     self.request.settimeout(1)
 
-                    self.request.sendall(
-                        b"HTTP/1.1 502 Bad Gateway\r\n"
-                        b"Connection: close\r\n"
-                        b"\r\n",
-                    )
+                    self.request.sendall(http_proxy.closing_response(HTTPStatus.BAD_GATEWAY))
                 except OSError as reply_error:
                     log_failure("Proxy relay admission failure reply", reply_error)
 

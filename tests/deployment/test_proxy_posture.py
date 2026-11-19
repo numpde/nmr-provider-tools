@@ -27,6 +27,7 @@ from unittest.mock import MagicMock, Mock, patch
 
 # Exercise the installed owner; source checkout paths cannot satisfy this import.
 from provider_core import bound_http_proxy as _PROXY
+from provider_core.adapters import http_proxy
 
 # A fixed adversarial marker proves that request-bearing errors stay private.
 # repo-check: allow-module-constant
@@ -81,7 +82,7 @@ class ImageBuildProxyInputTests(unittest.TestCase):
     def test_connect_ports_are_admitted_before_socket_use(self):
         for port in ("0", "65536", "-1", "not-a-port"):
             with self.subTest(port=port), self.assertRaises(ValueError):
-                _PROXY.parse_destination(
+                http_proxy.parse_destination(
                     (
                         f"CONNECT example.invalid:{port} HTTP/1.1\r\n"
                         "\r\n"
@@ -90,7 +91,7 @@ class ImageBuildProxyInputTests(unittest.TestCase):
 
         self.assertEqual(
             ("CONNECT", "example.invalid", 443),
-            _PROXY.parse_destination(
+            http_proxy.parse_destination(
                 b"CONNECT example.invalid:443 HTTP/1.1\r\n"
                 b"\r\n"
             )[:3]
@@ -464,7 +465,7 @@ class ImageBuildProxyWorkerTests(unittest.TestCase):
 
         with (
             patch.object(_PROXY, "receive_headers", return_value=(b"headers", b"")),
-            patch.object(_PROXY, "parse_destination", side_effect=ValueError(_PRIVATE)),
+            patch.object(http_proxy, "parse_destination", side_effect=ValueError(_PRIVATE)),
             redirect_stderr(stderr),
         ):
             _PROXY.ProxyHandler(request, ("127.0.0.1", 1), SimpleNamespace(outbound_interface="eth0", dns_servers=None))

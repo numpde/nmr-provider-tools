@@ -20,6 +20,7 @@ import ipaddress
 import logging
 import os
 import re
+import reprlib
 import select
 import socket
 import stat
@@ -30,11 +31,14 @@ import pathlib
 from collections import deque
 from contextlib import contextmanager
 from dataclasses import dataclass
+from http import HTTPStatus
 
 from provider_core import bound_http_proxy
+from provider_core.adapters import http_proxy
 from provider_core.diagnostic_text import CredentialRedactingFormatter
 from provider_core.tools import require_absolute_path, require_nonnegative_number
 from provider_core.validation.upstream.dns import read_dns_labels
+from provider_core.validation.upstream.http_proxy import read_port
 
 
 def _proxy_routine_record(record):
@@ -60,7 +64,7 @@ def _configure_proxy_logging(level):
 
 
 class ServiceRefused(ValueError):
-    """Owned safe refusal; request/configuration values never enter its text."""
+    """A request or configuration violates the proxy's local authority policy."""
 
 
 def authority_parts(authority):
@@ -72,12 +76,12 @@ def authority_parts(authority):
 
     try:
         read_dns_labels(host)
-        port = int(port_text)
-    except (UnicodeError, ValueError):
-        raise ServiceRefused("Cannot admit service proxy authority: its DNS name or port is malformed.") from None
+        port = read_port(port_text)
+    except (UnicodeError, ValueError) as cause:
+        raise ServiceRefused("Cannot admit service proxy authority: its DNS name or port is malformed.") from cause
 
-    if (not (1 <= port <= 65535)) or (port_text != str(port)):
-        raise ServiceRefused("Cannot admit service proxy authority: require a canonical port from 1 through 65535.")
+    if not (port_text == (expected_port_text := str(port))):
+        raise ServiceRefused(f"port_text={reprlib.repr(port_text)} should match {expected_port_text=}")
 
     return (host, port)
 
@@ -135,14 +139,14 @@ class ServicePolicy:
             raise ServiceRefused(f"Request header does not have {expected_start=}.")
 
         try:
-            destination = bound_http_proxy.parse_destination(header)
+            destination = http_proxy.parse_destination(header)
             (_, host, port, _) = destination
-            target = header.split(b" ", 2)[1].decode("ascii")
+            (_, target, _) = http_proxy.request_line(header)
 
             if authority_parts(target) != (host, port):
                 raise ValueError
-        except (UnicodeError, ValueError):
-            raise ServiceRefused("Cannot admit service proxy request: the CONNECT authority is malformed.") from None
+        except (UnicodeError, ValueError) as cause:
+            raise ServiceRefused("Cannot admit service proxy request: the CONNECT authority is malformed.") from cause
 
         if not ((host, port) in self.authorities):
             raise ServiceRefused("Cannot admit service proxy request: this destination is outside the configured authority grant.")
@@ -321,11 +325,7 @@ class ServiceProxyHandler(bound_http_proxy.ProxyHandler):
 
     def admission_reply(self, error):
         if isinstance(error, ServiceRefused):
-            return (
-                b"HTTP/1.1 403 Forbidden\r\n"
-                b"Connection: close\r\n"
-                b"\r\n"
-            )
+            return http_proxy.closing_response(HTTPStatus.FORBIDDEN)
 
         return super().admission_reply(error)
 

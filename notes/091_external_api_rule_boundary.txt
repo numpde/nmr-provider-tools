@@ -772,7 +772,7 @@ Shared wire support: retain the distinction from local policy
   rejection-reason and reuse diagnostics now show actual/expected evidence.
   Focused decoder/transport/Chat-wire unit, Chat integration and installation
   lanes passed with PRIVACY_TESTS=0 (98 tests, eleven skips); audit confirmed parity.
-- [ ] Separate proxy HTTP/DNS rules from grants and resource ownership
+- [x] Separate proxy HTTP/DNS rules from grants and resource ownership
   core/bound_http_proxy.py:100-267,301-390,548-631: HTTP/CONNECT target/header forms,
   default ports, DNS question/response encoding and forwarding response bytes.
   Interface grants, DNS-source selection, concurrency limits and cleanup are
@@ -800,8 +800,24 @@ Shared wire support: retain the distinction from local policy
   donor ledger records these relocations. Focused DNS, bound-proxy and cold
   bundle lanes passed (42 tests, two skips; PRIVACY_TESTS=0). Provider-proxy
   retains the same two failures above. Donor accounting has 23 preexisting
-  failing subcases, also reproduced on immediate parent 3139b04. HTTP target
-  admission and forwarding wire construction still need separation.
+  failing subcases, also reproduced on immediate parent 3139b04.
+  HTTP request-target admission, default ports and header-end interpretation
+  now live in validation/upstream/http_proxy.py. The configured authority reader
+  shares its numeric port admission; exact DNS/decimal spelling and grants stay
+  local. adapters/http_proxy.py owns request-line fields, origin-form forwarding,
+  CONNECT acknowledgement and closing-response encoding. Handlers still select
+  403/502 and never append an HTTP status after forwarding begins. The DNS
+  adapter also names the external service port, while the owner chooses the
+  resolver and interface. Native parse causes now survive service refusal
+  wrappers; bounded diagnostics show rejected spelling, counts and named bounds.
+  Pure forwarding/default-port tests moved into adapter tests, with donor ledger
+  locations updated. Installation and cold-bundle closures include both new HTTP
+  modules. Focused HTTP, bound/Unix proxy, installation, cold-bundle and real proxy
+  integration lanes passed (55 tests, three skips; PRIVACY_TESTS=0). The provider
+  unit lane retains its two confirmed baseline failures and donor accounting the
+  same 23 failing subcases. Independent audit found no acceptance, effect-order,
+  test-ownership or import-closure regression. Resolver-file interpretation is
+  tracked separately below; source/interface choice remains local policy.
 - [ ] Keep locally defined IPC schemas outside upstream API validation
   core/unix_http.py uses HTTP over a local socket. The service bodies/routes in
   delivery_ipc.py, shared_delivery_ipc.py, runner_protocol.py and chat_wire.py are
