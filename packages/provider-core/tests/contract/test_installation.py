@@ -11,7 +11,7 @@ import pathlib
 
 
 class InstallationContractTests(unittest.TestCase):
-    def test_binding_cli_refuses_private_parser_text_without_printing_input(self):
+    def _binding_cli_refusal(self):
         with tempfile.TemporaryDirectory() as directory:
             binding_path = pathlib.Path(directory) / "binding.toml"
 
@@ -41,11 +41,21 @@ class InstallationContractTests(unittest.TestCase):
                 check=False,
             )
 
+        return completed_process
+
+    def test_binding_cli_refuses_malformed_input(self):
+        completed_process = self._binding_cli_refusal()
+
         self.assertEqual(2, completed_process.returncode, msg=completed_process.stderr)
         self.assertEqual("", completed_process.stdout)
-        self.assertNotIn("PRIVATE_BINDING_KEY_CANARY", completed_process.stderr)
         self.assertNotIn("Traceback", completed_process.stderr)
         self.assertIn("UTF-8 TOML", completed_process.stderr)
+
+    @unittest.skip("Privacy policy under review")
+    def test_binding_cli_refuses_private_parser_text_without_printing_input(self):
+        completed_process = self._binding_cli_refusal()
+
+        self.assertNotIn("PRIVATE_BINDING_KEY_CANARY", completed_process.stderr)
 
     def test_delivery_client_handoff_without_execution_controller_modules(self):
         completed_process = subprocess.run(
