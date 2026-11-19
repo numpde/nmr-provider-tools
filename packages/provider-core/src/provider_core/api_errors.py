@@ -6,8 +6,9 @@ require_container()
 
 import time
 
-from provider_core.transport import ExchangeFailed, response_request_id
+from provider_core.transport_errors import ExchangeFailed
 from provider_core.validation.upstream.http import read_retry_after
+from provider_core.validation.upstream.nmr.v1.request_ids import read_request_id
 
 
 class ApiFailure(RuntimeError):
@@ -49,7 +50,7 @@ class ApiFailure(RuntimeError):
         head = self._received_head()
 
         # silent-defaults: allow-contract -- Request correlation exists only in an observed response.
-        return None if head is None else response_request_id(head.headers)
+        return None if head is None else read_request_id(head.headers)
 
     @property
     def retry_after_seconds(self):

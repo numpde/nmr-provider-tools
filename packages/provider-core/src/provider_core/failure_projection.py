@@ -47,11 +47,20 @@ from provider_core.lifetime import LifetimeRefused
 from provider_core.runner_protocol import LifecycleRejected, RetirementUnconfirmed
 from provider_core.starting import StartFailed, StartRefused
 from provider_core.startup_file import StartupFileRejected
-from provider_core.transport import ExchangeFailed, response_request_id
+from provider_core.transport_errors import ExchangeFailed
+from provider_core.validation.upstream.http import read_visible_ascii_header
 from provider_core.decoded_body import DecodedBodyRejected
 from provider_core.deployment_errors import BindingDefinitionRejected, RouteProjectionRejected
 from provider_core.network import NetworkIOObservation
 from provider_core.uploads import UploadFailed, UploadFileReadFailed, UploadInputRejected, UploadRecoveryExhausted
+
+
+def _diagnostic_request_id(headers):
+    """Apply the local display cap without admitting a service reply or effect."""
+
+    max_diagnostic_id_bytes = 128
+
+    return read_visible_ascii_header(headers, header_name=b"x-request-id", max_value_bytes=max_diagnostic_id_bytes)
 
 
 def owned_relationships(error):
@@ -294,7 +303,7 @@ def owned_details(error):
         details["grant_issued"] = error.grant_issued
 
         if error.response is not None:
-            details.update(status=error.response.status, request_id=response_request_id(error.response.headers))
+            details.update(status=error.response.status, request_id=_diagnostic_request_id(error.response.headers))
 
     if kind is ChatFailed:
         details["reason"] = error.reason
@@ -311,7 +320,7 @@ def owned_details(error):
             head = error.cause.response_head
 
         if head is not None:
-            details.update(status=head.status, request_id=response_request_id(head.headers))
+            details.update(status=head.status, request_id=_diagnostic_request_id(head.headers))
 
     if kind is ExchangeFailed and type(error.network_io) is NetworkIOObservation:
         details["network_io_stage"] = error.network_io.stage
@@ -319,7 +328,7 @@ def owned_details(error):
         details["network_io_deadline_cancelled"] = error.network_io.deadline_cancelled
 
     if (kind is ExchangeFailed) and (error.response_head is not None):
-        details.update(status=error.response_head.status, request_id=response_request_id(error.response_head.headers))
+        details.update(status=error.response_head.status, request_id=_diagnostic_request_id(error.response_head.headers))
 
     if (kind is ExchangeFailed) and (error.proxy_connect_status is not None):
         details["proxy_connect_status"] = error.proxy_connect_status

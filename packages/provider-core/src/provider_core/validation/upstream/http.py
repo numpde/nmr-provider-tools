@@ -17,6 +17,30 @@ from email.utils import parsedate_to_datetime
 from provider_core.type_requirements import require_type
 
 
+def read_visible_ascii_header(
+    headers: tuple[tuple[bytes, bytes], ...],
+    *,
+    header_name: bytes,
+    max_value_bytes: int,
+) -> str | None:
+    """Select one nonempty visible-ASCII value under the caller's chosen cap.
+
+    This is an optional projection, not a general HTTP header requirement.
+    The caller selects the field and decides what an absent value means.
+    """
+
+    values = [value for name, value in headers if name.lower() == header_name.lower()]
+
+    if (
+        (len(values) == 1) and
+        (0 < len(values[0]) <= max_value_bytes) and
+        (re.fullmatch(rb"[!-~]+", values[0]) is not None)
+    ):
+        return values[0].decode("ascii")
+
+    return None
+
+
 def require_http_status(http_status: object) -> int:
     """Admit a numeric HTTP status independently of any service's success rule."""
 

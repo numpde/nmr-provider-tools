@@ -686,6 +686,9 @@ Shared wire support: retain the distinction from local policy
   with PRIVACY_TESTS=0. The existing large-acknowledgement test now also covers
   oversized completion/failure timestamps. Repository test_conventions.py passed.
 - [ ] Separate HTTP/backend adaptation from transport effects and API profiles
+  [x] Separate API correlation admission from generic diagnostic projection
+  [ ] Separate pinned backend request/pool/trace adaptation
+  [ ] Review network backend mapping independently of effect ownership
   core/transport.py:34-97,222,363-438: HTTP request/head mapping, CONNECT metadata,
   request correlation and httpcore trace/exception assumptions. core/network.py
   adapts the pinned backend interface. Native effect observations, stream/file
@@ -693,6 +696,16 @@ Shared wire support: retain the distinction from local policy
   response_request_id at :222 explicitly cites NMR request_ids.py but is also
   used for model diagnostics; its profile must not silently become a universal
   HTTP requirement.
+  Correlation slice completed 2026-11-19: request_ids.py in NMR upstream
+  validation owns its visible-ASCII/128-byte profile, checked against the cited
+  API source. Shared HTTP code only selects a singleton visible-ASCII header
+  under an explicit caller cap. Generic failure projection applies its own
+  separately named display cap; it does not import NMR admission policy.
+  The transport selector is removed. API failure metadata still reads original
+  complete/late heads lazily; success/refusal correlation distinctions remain.
+  Focused API envelope, problem validation, failure projection, Chat integration
+  and installation lanes passed on science with PRIVACY_TESTS=0 (58 tests,
+  fourteen skips). Independent audit confirmed selector and admission parity.
 - [ ] Keep shared decoding rules distinct from caller-selected budgets
   core/decoded_body.py:81-220: Content-Encoding lists, gzip/deflate framing and
   decompression checks are HTTP/encoding support. Budget values are caller policy.

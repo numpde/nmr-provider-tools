@@ -10,7 +10,7 @@ from provider_core.container_guard import require_container
 require_container()
 
 from provider_core.response_json import ResponseRejected, read_document
-from provider_core.transport import response_request_id
+from provider_core.validation.upstream.nmr.v1.request_ids import read_request_id
 
 
 # Reviewed local descriptions interpret only the selected public problem meanings
@@ -127,7 +127,7 @@ def read_problem(response):
     if any(type(problem[name]) is not str for name in ("type", "title", "instance", "request_id", "code", "detail")):
         return None
 
-    request_id = response_request_id(response.headers)
+    request_id = read_request_id(response.headers)
 
     if request_id is None or problem["request_id"] != request_id:
         return None
@@ -168,5 +168,5 @@ def require_headers(response, expected_topology):
 
     request_ids = [value for (name, value) in response.headers if name.lower() == b"x-request-id"]
 
-    if len(request_ids) > 1 or (not is_api_success(response.status) and response_request_id(response.headers) is None):
+    if len(request_ids) > 1 or (not is_api_success(response.status) and read_request_id(response.headers) is None):
         raise ResponseRejected("response request correlation is missing or ambiguous")
