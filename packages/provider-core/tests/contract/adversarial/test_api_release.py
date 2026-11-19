@@ -9,7 +9,7 @@ import unittest
 import os
 import pathlib
 
-from provider_core.api import ApiFailure
+from provider_core.api_errors import ApiFailure
 from provider_core.validation.upstream.nmr.v1.job_input import JobInputRejected, verify_job_input
 from tests.contract.api_release import RELEASE_ROOT, PinnedApiRelease
 from tests.contract.provider_calls import provider_calls

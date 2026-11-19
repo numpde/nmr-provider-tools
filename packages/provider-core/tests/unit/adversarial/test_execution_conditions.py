@@ -8,7 +8,7 @@ import asyncio
 import unittest
 import os
 
-from provider_core.api import ApiFailure
+from provider_core.api_errors import ApiFailure
 from provider_core.execution import ExecutionFailed, ExecutionRefused
 from provider_core.transport import ExchangeFailed
 from tests.fakes.conditions import ConditionTransport, ReportingSession, SwallowingSession

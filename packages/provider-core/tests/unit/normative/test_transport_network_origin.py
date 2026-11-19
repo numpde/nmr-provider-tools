@@ -11,7 +11,7 @@ from unittest.mock import patch
 import httpcore
 import httpx
 
-from provider_core.api import ApiFailure
+from provider_core.api_errors import ApiFailure
 from provider_core.transport import ExchangeFailed, HttpTransport, temporary_io_failure
 from tests.fakes.api import api
 from tests.fakes.hello import announcement

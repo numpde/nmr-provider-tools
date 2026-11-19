@@ -10,7 +10,7 @@ import itertools
 import unittest
 from unittest.mock import Mock
 
-from provider_core.api import ApiFailure
+from provider_core.api_errors import ApiFailure
 from provider_core.execution import ConditionRecovery, ConditionRecoveryExpired, ExecutionFailed, ExecutionRefused, ExecutionStopped, ObservationRecovery
 from provider_core.failure_projection import owned_details, owned_relationships
 from provider_core.transport import ExchangeFailed

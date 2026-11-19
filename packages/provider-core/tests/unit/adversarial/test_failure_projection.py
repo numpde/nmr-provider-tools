@@ -3,7 +3,7 @@
 import unittest
 from builtins import ExceptionGroup
 
-from provider_core.api import ApiFailure
+from provider_core.api_errors import ApiFailure
 from provider_core.failure_projection import owned_details, owned_relationships
 
 

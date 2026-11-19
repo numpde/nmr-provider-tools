@@ -13,7 +13,7 @@ require_container()
 
 import asyncio
 
-from provider_core.api import ApiFailure
+from provider_core.api_errors import ApiFailure
 from provider_core.attempt_record import RecoveryScope, StartPending, acknowledge_start
 from provider_core.ownership import OwnershipRefused
 from provider_core.transport import ExchangeFailed

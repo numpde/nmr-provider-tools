@@ -1415,7 +1415,10 @@
         "ApiReadFailureTests.test_io_failure_and_cancellation_keep_operation_context",
         "ApiReadFailureTests.test_problem_reason_is_local_and_unknown_or_ambiguous_problem_stays_private",
         "ApiReadFailureTests.test_verification_failure_preserves_useful_reason_and_response"
-      ]
+      ],
+      "retired_test_methods": {
+        "ApiReadFailureTests.test_problem_reason_is_local_and_unknown_or_ambiguous_problem_stays_private": "The mixed API test was replaced by ResponseProblemTests.test_problem_reason_is_local_and_rejects_unknown_or_ambiguous_problems in tests/unit/validation/upstream/nmr/v1/adversarial/test_response_envelope.py. API refusal binding and uncertainty remain covered by ApiEnvelopeTests.test_reviewed_refusal_requires_environment_and_matching_header_body_correlation."
+      }
     },
     {
       "path": "packages/provider-core/tests/unit/adversarial/test_api_envelope.py",

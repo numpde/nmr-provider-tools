@@ -8,7 +8,7 @@ import unittest
 import pathlib
 from urllib.parse import urlsplit
 
-from provider_core.api import ApiFailure
+from provider_core.api_errors import ApiFailure
 from provider_core.provider_proxy import ServicePolicy, ServiceProxyServer
 from provider_core.transport import HttpTransport
 from tests.fakes.api import api

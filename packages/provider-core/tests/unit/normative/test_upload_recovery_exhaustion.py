@@ -5,7 +5,7 @@ import errno
 import unittest
 from unittest.mock import patch
 
-from provider_core.api import ApiFailure
+from provider_core.api_errors import ApiFailure
 from provider_core.uploads import UploadFailed, UploadRecoveryExhausted
 from tests.fakes.acquisition import private_source_directory
 from tests.fakes.transport import Client, Stream

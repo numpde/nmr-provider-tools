@@ -10,7 +10,7 @@ import ssl
 import time
 
 from provider_core.analysis import AnalysisOutcomeUnresolved, AnalysisSuccess
-from provider_core.api import ApiFailure
+from provider_core.api_errors import ApiFailure
 from provider_core.attempt_record import StartPending
 from provider_core.validation.upstream.nmr.v1.attempt_response import AttemptObservation
 from provider_core.controller import ControllerFailed, ControllerRefused

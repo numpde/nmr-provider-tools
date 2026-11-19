@@ -16,7 +16,8 @@ import random
 from collections.abc import Callable
 from typing import TYPE_CHECKING
 
-from provider_core.api import ApiFailure, ProviderAPI
+from provider_core.api import ProviderAPI
+from provider_core.api_errors import ApiFailure
 from provider_core.attempt_record import TerminalOperation
 from provider_core.response_json import ResponseRejected
 from provider_core.tools import require_positive_number

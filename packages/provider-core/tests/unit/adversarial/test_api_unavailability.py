@@ -20,7 +20,8 @@ from unittest.mock import patch
 import httpcore
 from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
 
-from provider_core.api import ApiFailure, ProviderAPI
+from provider_core.api import ProviderAPI
+from provider_core.api_errors import ApiFailure
 from provider_core.adapters.nmr.v1.attempt_request import complete_body, fail_body
 from provider_core.validation.upstream.nmr.v1.hello import AnalysisOffering
 from provider_core.adapters.nmr.v1.signing import SigningIdentity

@@ -15,7 +15,7 @@ require_container()
 
 import time
 
-from provider_core.api import ApiFailure
+from provider_core.api_errors import ApiFailure
 from provider_core.analysis import AnalysisOutcomeUnresolved, ObservedWorkerCrash
 from provider_core.api_config import ApiConfigurationRejected
 from provider_core.attempt_record import AcknowledgedAttempt

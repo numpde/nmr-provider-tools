@@ -7,7 +7,7 @@ import sqlite3
 import unittest
 from contextlib import redirect_stderr
 
-from provider_core.api import ApiFailure
+from provider_core.api_errors import ApiFailure
 from provider_core.delivery_worker import DeliveryWorkerFailed
 from provider_core.delivery_store import DeliveryStorageFailed
 from provider_core.diagnostics import failure_evidence, write_stderr

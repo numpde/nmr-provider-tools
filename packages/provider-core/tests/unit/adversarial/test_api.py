@@ -8,7 +8,8 @@ import os
 
 from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
 
-from provider_core.api import ApiFailure, ProviderAPI
+from provider_core.api import ProviderAPI
+from provider_core.api_errors import ApiFailure
 from provider_core.adapters.nmr.v1.signing import SigningIdentity
 from provider_core.transport import ExchangeFailed
 from tests.fakes.api import Transport, reply, response_headers
@@ -124,20 +125,9 @@ class ApiReadFailureTests(unittest.IsolatedAsyncioTestCase):
             "detail": "private-detail-canary",
         }
 
-        for (changes, known) in (
-            ({}, True),
-            ({"status": 404}, False),
-            ({"code": "private-code-canary"}, False),
-            ({"type": "urn:foreign"}, False),
-            (
-                {
-                    "request_id": (
-                        "bad\n"
-                        "request"
-                    )
-                },
-                False
-            ),
+        for changes in (
+            {},
+            {"code": "private-code-canary"},
         ):
             body = json.dumps(document | changes).encode()
             transport = Transport(reply(body, status=401, headers=response_headers(status=401, request_id=b"request:test")))
@@ -145,30 +135,9 @@ class ApiReadFailureTests(unittest.IsolatedAsyncioTestCase):
             with self.subTest(changes=changes), self.assertRaises(ApiFailure) as caught:
                 await self.api(transport).job_input(facts(), analysis_kind_ref="nmr_prediction")
 
-            yield caught.exception, known
-
-        duplicate = json.dumps(document)[:-1] + ',"code":"signature_expired"}'
-        transport = Transport(reply(duplicate.encode(), status=401, headers=response_headers(status=401, request_id=b"request:test")))
-
-        with self.assertRaises(ApiFailure) as caught:
-            await self.api(transport).job_input(facts(), analysis_kind_ref="nmr_prediction")
-
-        yield caught.exception, False
-
-    async def test_problem_reason_is_local_and_rejects_unknown_or_ambiguous_problems(self):
-        async for (failure, known) in self._problem_read_failures():
-
-            # silent-defaults: allow-contract -- Only the known correlated problem obtains the reviewed local code.
-            self.assertEqual(failure.problem_code, "signature_expired" if known else None)
-
-            # Header correlation survives rejected/unknown body diagnostics.
-            self.assertEqual(failure.request_id, "request:test")
-
-            if known:
-                self.assertIn("expired", str(failure))
-                self.assertIn("clock", str(failure))
+            yield caught.exception
 
     @unittest.skipIf(os.environ.get("PRIVACY_TESTS", "1") == "0", "Privacy tests disabled")
     async def test_problem_diagnostics_omit_server_content(self):
-        async for (failure, _known) in self._problem_read_failures():
+        async for failure in self._problem_read_failures():
             self.assertNotIn("private-", "".join(traceback.format_exception(failure)))

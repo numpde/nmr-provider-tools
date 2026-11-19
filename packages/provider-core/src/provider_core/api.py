@@ -11,15 +11,13 @@ from provider_core.container_guard import require_container
 require_container()
 
 import asyncio
-import json
-import math
-import re
 import secrets
 import time
-from datetime import timezone
-from email.utils import parsedate_to_datetime
 
 import httpcore
+
+from provider_core.api_errors import ApiFailure
+from provider_core.adapters.nmr.v1.response_envelope import require_api_envelope, require_api_headers
 
 from provider_core.adapters.nmr.v1.discovery import inventory_query, jobs_query
 from provider_core.validation.upstream.nmr.v1.attempt_inventory import read_attempt_inventory
@@ -49,8 +47,7 @@ from provider_core.validation.upstream.nmr.v1.job_feed import PAGE_RESPONSE_BYTE
 from provider_core.validation.upstream.nmr.v1.job_input import MAX_RESPONSE_BYTES, FeedInputFacts, JobInputRejected, verify_job_input
 from provider_core.response_json import ResponseRejected
 from provider_core.adapters.nmr.v1.signing import signed_request
-from provider_core.tools import duplicate_json_fields
-from provider_core.transport import ExchangeFailed, response_request_id
+from provider_core.transport import ExchangeFailed
 from provider_core.type_requirements import require_type
 from provider_core.validation.upstream.nmr.v1.topology import require_api_topology
 from provider_core.network import network_availability
@@ -63,274 +60,6 @@ from provider_core.validation.upstream.nmr.v1.upload_response import (
     require_job_ref,
     require_upload_ref,
 )
-
-
-class ApiFailure(RuntimeError):
-    """Safe operation context with private evidence for authorized diagnostics.
-
-    response and cause can contain private instructions or credentials. They must
-    not be rendered verbatim. This owner never retries an operation implicitly.
-    """
-
-    def __init__(self, operation, reason, *, response=None, cause=None):
-        super().__init__(f"Cannot {operation}: {reason}")
-        self.operation = operation
-        self.response = response
-        self.cause = cause
-        self.problem_code = None
-        self.request_method = None
-        self.request_target = None
-        self.issuance_may_have_committed = False
-        self.attempt_mutation_may_have_committed = False
-
-    def _received_head(self):
-        # Transport retirement can add late headers to the original cause.
-        # Read diagnostic facts from that owner; never copy them into stale API state.
-        if self.response is not None:
-            return self.response
-
-        # silent-defaults: allow-contract -- Only a received transport head supplies response evidence; other failures leave it absent.
-        return self.cause.response_head if isinstance(self.cause, ExchangeFailed) else None
-
-    @property
-    def status(self):
-        head = self._received_head()
-
-        # silent-defaults: allow-contract -- An unobserved response has no status; absence must remain distinguishable from a received status.
-        return None if head is None else head.status
-
-    @property
-    def request_id(self):
-        head = self._received_head()
-
-        # silent-defaults: allow-contract -- Request correlation exists only in an observed response.
-        return None if head is None else response_request_id(head.headers)
-
-    @property
-    def retry_after_seconds(self):
-        """Read server timing advice; this does not authorize another request.
-
-        RFC 9110 section 10.2.3 permits delay-seconds or an HTTP-date. Invalid
-        or ambiguous advice leaves the operation owner's local pacing intact.
-        """
-        head = self._received_head()
-
-        # silent-defaults: allow-contract -- Absent or ambiguous server timing advice grants no Retry-After floor.
-        values = [] if head is None else [value for (name, value) in head.headers if name.lower() == b"retry-after"]
-
-        if len(values) != 1:
-            return None
-
-        try:
-            value = values[0].decode("ascii").strip()
-
-            if re.fullmatch(r"[0-9]+", value):
-                seconds = float(value)
-            else:
-                date = parsedate_to_datetime(value)
-
-                if date.tzinfo is None:
-                    # The obsolete asctime HTTP-date form also denotes GMT.
-                    date = date.replace(tzinfo=timezone.utc)
-
-                seconds = max(0.0, date.timestamp() - time.time())
-        except (ValueError, OverflowError, TypeError):
-            return None
-
-        # silent-defaults: allow-contract -- Nonfinite server timing advice is unavailable; local retry pacing remains authoritative.
-        return seconds if math.isfinite(seconds) else None
-
-
-# Reviewed subset of security/problems.py::PUBLIC_PROBLEM_CODES at the API
-# revision above. Local text avoids disclosing arbitrary server detail/title.
-# Reviewed local problem descriptions are the only received-code text exposed by this owner.
-# repo-check: allow-module-constant
-_PROBLEM_REASONS = {
-    (
-        409,
-        "operation-conflict",
-        "execution_attempt_outcome_expired",
-    ): "the Attempt expired before this outcome could be accepted; this send made no change; retain prior publication evidence",
-    (
-        409,
-        "operation-conflict",
-        "execution_attempt_completion_after_failure",
-    ): "the Attempt already has a failure outcome; this completion made no change; do not rerun the analysis to resolve publication",
-    (
-        409,
-        "operation-conflict",
-        "execution_attempt_failure_after_success",
-    ): "the Attempt already has a successful outcome; this failure publication made no change; retain the original outcome",
-    (
-        409,
-        "operation-conflict",
-        "execution_attempt_completion_replay_mismatch",
-    ): "the submitted result differs from the recorded completion; this send made no change; reconcile using the original retained publication",
-    (
-        409,
-        "operation-conflict",
-        "execution_attempt_failure_replay_mismatch",
-    ): "the submitted failure differs from the recorded failure; this send made no change; reconcile using the original retained publication",
-    (
-        409,
-        "operation-conflict",
-        "execution_attempt_progress_terminal",
-    ): "the Attempt is already terminal and cannot accept changed progress; this update changed neither progress nor outcome; do not retry it or restart the analysis",
-    (
-        409,
-        "operation-conflict",
-        "execution_attempt_progress_regression",
-    ): "the Attempt already has running progress and cannot return to preparing; this update did not change progress; check progress reporting instead of retrying it or restarting the analysis",
-    (
-        401,
-        "authentication-failed",
-        "authentication_failed",
-    ): "API could not authenticate the request; check the configured provider credential",
-    (401, "authentication-failed", "authentication_nonce_reused"): "API rejected a reused signature nonce",
-    (
-        401,
-        "authentication-failed",
-        "authentication_window_closed",
-    ): "the API's request-acceptance window advanced; a fresh signature is required",
-    (
-        401,
-        "authentication-failed",
-        "signature_expired",
-    ): "the request signature expired; check the provider clock and request delay",
-    (
-        401,
-        "authentication-failed",
-        "signature_created_in_future",
-    ): "the signature timestamp is in the future; check the provider clock",
-    (403, "authorization-denied", "authorization_denied"): "API denied this provider access to the requested resource; check the provider's API permissions",
-    (404, "not-found", "resource_not_found"): "the requested resource was not found or is not accessible to this provider",
-    (408, "request-body-timeout", "request_body_timeout"): "the server did not receive the complete request body in time, so this send did not run the operation; any earlier unanswered sends remain unresolved; check the API client's retry rule for this operation before retrying with a fresh signature",
-    (
-        409,
-        "operation-conflict",
-        "upload_read_not_finalized",
-    ): "the Upload is not finalized; ask its owner to check and finalize the existing Upload before requesting access; do not reupload solely because of this error",
-    (
-        409,
-        "operation-conflict",
-        "project_purge_in_progress",
-    ): "Project removal has started; another request cannot restore access; ask the Job owner or administrator about another authorized source",
-    (503, "service-unavailable", "service_unavailable"): "API service is unavailable; no verified response was obtained",
-    (
-        409,
-        "operation-conflict",
-        "provider_attempt_key_conflict",
-    ): "the retained attempt key conflicts with an existing start; this send made no change",
-    (
-        409,
-        "operation-conflict",
-        "job_provider_attempt_limit_reached",
-    ): "this provider has reached the Job's attempt limit; this send made no change",
-    (409, "operation-conflict", "job_attempt_limit_reached"): "the Job has reached its attempt limit; this send made no change",
-}
-
-
-def _unique_problem_fields(field_pairs):
-    if duplicate_json_fields(field_pairs):
-        raise ValueError("Duplicate problem field")
-
-    return dict(field_pairs)
-
-
-def _reject_problem_constant(_nonfinite_token):
-    raise ValueError("Nonfinite problem number")
-
-
-def _http_failure(response, operation):
-    """Expose only reviewed problem meanings; retain unknown replies privately.
-
-    RFC 9457 envelope and 4096-byte bound: pinned API security/problems.py.
-    Request correlation syntax: request_ids.py (1..128 visible ASCII bytes).
-    This reads diagnostics, not mutation-effect certainty or retry permission.
-    """
-    failure = ApiFailure(operation, f"API returned HTTP {response.status}; no verified response was obtained", response=response)
-    content_types = [value for (key, value) in response.headers if key.lower() == b"content-type"]
-
-    if content_types != [b"application/problem+json"] or len(response.body) > 4096:
-        return failure
-
-    try:
-        problem = json.loads(
-            response.body.decode("utf-8"),
-            object_pairs_hook=_unique_problem_fields,
-            parse_constant=_reject_problem_constant
-        )
-    # silent-defaults: allow-exception-outcome -- Unreadable optional diagnostics leave the original API failure unchanged
-    except (ValueError, RecursionError):
-        # The original response remains evidence; malformed diagnostics must not
-        # replace the HTTP failure with a parser error or leak its private text.
-        return failure
-
-    if (type(problem) is not dict) or (set(problem) != {"type", "title", "status", "instance", "request_id", "code", "detail"}):
-        return failure
-
-    if (type(problem["status"]) is not int) or (problem["status"] != response.status):
-        return failure
-
-    if any(type(problem[name]) is not str for name in ("type", "title", "instance", "request_id", "code", "detail")):
-        return failure
-
-    if failure.request_id is None or problem["request_id"] != failure.request_id:
-        return failure
-
-    reason = _PROBLEM_REASONS.get((response.status, problem["type"].removeprefix("urn:nmr-api:problem:"), problem["code"]))
-
-    if (not problem["type"].startswith("urn:nmr-api:problem:")) or (reason is None):
-        return failure
-
-    failure = ApiFailure(operation, f"{reason} (HTTP {response.status})", response=response)
-    failure.problem_code = problem["code"]
-
-    return failure
-
-
-def _require_api_headers(response, operation, expected_topology):
-    """Admit the routed API environment before body or problem interpretation.
-
-    API nmr_api/edge_topology.py and entrypoints/_edge_runtime.py; adapts SECS
-    7356c354368f2355d3ab5cef00cf48c67cea9c2c,
-    src/secs_inference/provider/http.py:290-332. Chat/store remain neutral.
-    """
-
-    # silent-defaults: allow-contract -- The pinned protocol selects JSON for success and problem JSON for refusal.
-    content_type = b"application/json" if response.status == 200 else b"application/problem+json"
-
-    for (name, expected) in ((b"content-type", content_type), (b"cache-control", b"no-store")):
-        values = [value for (key, value) in response.headers if key.lower() == name]
-
-        if values != [expected]:
-            raise ApiFailure(
-                operation,
-                f"HTTP {response.status} response must contain one {name.decode()} header with value {expected.decode()}",
-                response=response,
-            )
-
-    if any(name.lower() == b"content-encoding" for (name, _) in response.headers):
-        raise ApiFailure(operation, "encoded response bodies are not supported by the API contract", response=response)
-
-    markers = [value for (name, value) in response.headers if name.lower() == b"nmr-api-topology"]
-
-    if markers != [expected_topology.encode("ascii")]:
-        raise ApiFailure(operation, "response must identify exactly the configured Nmr-Api-Topology", response=response)
-
-    request_ids = [value for (name, value) in response.headers if name.lower() == b"x-request-id"]
-
-    if len(request_ids) > 1 or (response.status != 200 and response_request_id(response.headers) is None):
-        raise ApiFailure(operation, "response request correlation is missing or ambiguous", response=response)
-
-
-def _require_api_envelope(response, operation, expected_topology):
-    """Admit headers before interpreting a complete response's problem body."""
-    _require_api_headers(response, operation, expected_topology)
-
-    if response.status != 200:
-        raise _http_failure(response, operation)
-
 
 
 class ProviderAPI:
@@ -472,7 +201,7 @@ class ProviderAPI:
         route/body permission, request deadlines and retry/stop policy, and retain
         the refusal. Other authentication failures do not qualify for signature
         refresh through this predicate. The
-        complete correlated problem was admitted by _http_failure; an incomplete
+        complete correlated problem was admitted by http_failure; an incomplete
         response or unsettled exchange cannot authorize this decision.
 
         Authority: nmr-api-v1 e7790cf6a922c39261fe736d5a23d17a9a5ea322,
@@ -666,7 +395,7 @@ class ProviderAPI:
                 return self._retryable_gateway(exchange.response_head) and network_availability(exchange.primary, exchange.network_io, network_failure=exchange.network_failure)
 
             try:
-                _require_api_headers(exchange.response_head, failure.operation, self._expected_topology)
+                require_api_headers(exchange.response_head, failure.operation, self._expected_topology)
             # silent-defaults: allow-exception-outcome -- Unadmitted response headers grant no read retry
             except ApiFailure:
                 return False
@@ -1124,7 +853,7 @@ class ProviderAPI:
             ) from None
 
         try:
-            _require_api_envelope(response, operation, self._expected_topology)
+            require_api_envelope(response, operation, self._expected_topology)
         except ApiFailure as failure:
             self._remember_failure(
                 failure,

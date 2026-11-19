@@ -21,7 +21,7 @@ from enum import Enum, auto
 
 from provider_core.task_boundary import contain_task_exit
 from provider_core.analysis import AnalysisOutcomeUnresolved, retire_session
-from provider_core.api import ApiFailure
+from provider_core.api_errors import ApiFailure
 from provider_core.attempt_record import AcknowledgedAttempt, RecoveryScope, StartPending
 from provider_core.delivery_worker import require_delivery_retry_settings
 from provider_core.producer_checkpoint import DeliveryAcceptedCheckpoint, SuppressedCheckpoint

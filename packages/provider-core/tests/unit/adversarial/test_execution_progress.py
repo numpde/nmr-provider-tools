@@ -6,7 +6,7 @@ from tests.fakes.execution import live_executor
 import unittest
 from unittest.mock import Mock, patch
 
-from provider_core.api import ApiFailure
+from provider_core.api_errors import ApiFailure
 from provider_core.execution import ExecutionFailed, ExecutionStopped
 from provider_core.transport import ExchangeFailed
 from tests.fakes.api import reply

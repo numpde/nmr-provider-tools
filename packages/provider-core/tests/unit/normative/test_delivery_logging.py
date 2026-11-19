@@ -6,7 +6,7 @@ import json
 import unittest
 import os
 
-from provider_core.api import ApiFailure
+from provider_core.api_errors import ApiFailure
 from provider_core.delivery_logging import DeliveryNotices
 from provider_core.delivery_worker import DeliveryWorkerFailed
 from provider_core.transport import HttpResponse

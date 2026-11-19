@@ -39,6 +39,11 @@ Migration checklist — inventoried 2026-11-19
 [ ] Separate each API's checks into validation/upstream and its wire operations
     into adapters; update callers and delete displaced implementations
 [ ] Verify and commit each coherent extraction with its focused Make lanes
+[ ] Separate existing validation and adapter cases from operation tests
+    [x] Problem-shape admission separated from API failure/uncertainty checks
+    [ ] Job-input and credential admission have dedicated validation suites
+    [ ] Separate remaining mixed discovery, Hello and Attempt test cases
+    [ ] Group signing and other encoder tests under their adapter owners
 
 The checked item records completed inventory work only. Check off an extraction
 after its callers, affected build closures and focused verification are complete.
@@ -122,7 +127,7 @@ NMR Provider API: wire and validation owners
 
 [ ] N3  Extract Provider response-envelope and problem interpretation
     [x] Give topology admission an upstream owner
-    [ ] Separate header/problem admission from operation failure context
+    [x] Separate header/problem admission from operation failure context
     [ ] Separate Retry-After parsing from operation-owned timing policy
     core/api.py:65-339
     ApiFailure metadata; Retry-After decoding; dev-local/dev/web topology;
@@ -137,6 +142,19 @@ NMR Provider API: wire and validation owners
     and the supported vocabulary in stable order. Focused unit test_api_config.py
     and test_api_envelope.py, contract test_api_release.py and test_installation.py
     passed on science with PRIVACY_TESTS=0.
+
+    Header/problem separation completed 2026-11-19: pure admission and reviewed
+    meanings live in core/validation/upstream/nmr/v1/response_envelope.py. The
+    corresponding adapter binds rejection to operation context and the original
+    response. ApiFailure lives in core/api_errors.py and retains late transport
+    evidence; send history, retirement and uncertainty remain with ProviderAPI.
+    Problem decoding uses the shared bounded JSON parser, with no duplicate hooks.
+    Pure problem cases moved into unit/validation/upstream/nmr/v1/adversarial/;
+    API tests retain header binding, response identity and uncertainty proofs.
+    Focused unit test_response_envelope.py, test_api.py, test_api_envelope.py,
+    test_api_unavailability.py and contract test_installation.py passed on science
+    with PRIVACY_TESTS=0. A read-only AST comparison confirmed ApiFailure and all
+    reviewed problem mappings are unchanged. Retry-After separation remains pending.
 
 [ ] N4  Separate refusal/replay meanings from send and retirement decisions
     core/api.py:394-701,1031-1090

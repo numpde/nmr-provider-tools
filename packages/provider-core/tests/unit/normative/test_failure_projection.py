@@ -4,7 +4,7 @@ import asyncio
 import unittest
 import os
 
-from provider_core.api import ApiFailure
+from provider_core.api_errors import ApiFailure
 from provider_core.attempt_record import ProtectedEvidence, acknowledge_start
 from provider_core.analysis import AnalysisSuccess
 from provider_core.delivery_worker import DeliveryWorkerFailed

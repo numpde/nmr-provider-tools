@@ -27,7 +27,7 @@ from enum import Enum
 
 from provider_core.task_boundary import contain_task_exit
 from provider_core.analysis import AnalysisFailure, AnalysisSuccess, ObservedWorkerCrash, PreparedAnalysis, retire_session
-from provider_core.api import ApiFailure
+from provider_core.api_errors import ApiFailure
 
 from provider_core.attempt_record import (
     AcknowledgedAttempt,

@@ -11,7 +11,7 @@ import anyio
 import httpcore
 import httpx
 
-from provider_core.api import ApiFailure
+from provider_core.api_errors import ApiFailure
 from provider_core.failure_projection import owned_relationships
 from provider_core.network import OwnedNetworkBackend, network_availability
 from provider_core.transport import ExchangeFailed, HttpTransport, temporary_io_failure

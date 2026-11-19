@@ -5,7 +5,7 @@ import itertools
 import unittest
 from unittest.mock import Mock
 
-from provider_core.api import ApiFailure
+from provider_core.api_errors import ApiFailure
 from provider_core.attempt_record import TerminalOperation
 from provider_core.execution import ConditionRecovery, ConditionRecoveryExpired, ExecutionFailed, ExecutionStopped
 from tests.fakes.api import api, reply, response_headers

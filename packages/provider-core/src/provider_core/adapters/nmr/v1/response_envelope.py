@@ -1,0 +1,42 @@
+"""Bind admitted response facts to the caller's operation and retained evidence."""
+
+from provider_core.container_guard import require_container
+
+require_container()
+
+from provider_core.api_errors import ApiFailure
+from provider_core.response_json import ResponseRejected
+from provider_core.validation.upstream.nmr.v1.response_envelope import read_problem, require_headers
+
+
+def http_failure(response, operation):
+    """Keep the complete reply and expose only its admitted problem meaning."""
+
+    problem = read_problem(response)
+
+    if problem is None:
+        return ApiFailure(operation, f"API returned HTTP {response.status}; no verified response was obtained", response=response)
+
+    problem_code, reason = problem
+    failure = ApiFailure(operation, f"{reason} (HTTP {response.status})", response=response)
+    failure.problem_code = problem_code
+
+    return failure
+
+
+def require_api_headers(response, operation, expected_topology):
+    """Bind header rejection to complete or late response evidence."""
+
+    try:
+        require_headers(response, expected_topology)
+    except ResponseRejected as rejection:
+        raise ApiFailure(operation, str(rejection), response=response) from None
+
+
+def require_api_envelope(response, operation, expected_topology):
+    """Admit headers before interpreting a complete response's problem body."""
+
+    require_api_headers(response, operation, expected_topology)
+
+    if response.status != 200:
+        raise http_failure(response, operation)

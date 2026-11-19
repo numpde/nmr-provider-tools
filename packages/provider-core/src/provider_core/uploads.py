@@ -25,7 +25,7 @@ from datetime import UTC, datetime
 import httpcore
 import httpx
 
-from provider_core.api import ApiFailure
+from provider_core.api_errors import ApiFailure
 from provider_core.task_boundary import contain_task_exit
 from provider_core.transport import ExchangeFailed, temporary_io_failure
 from provider_core.response_json import ResponseRejected

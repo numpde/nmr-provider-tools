@@ -5,7 +5,7 @@ import traceback
 import unittest
 import os
 
-from provider_core.api import ApiFailure
+from provider_core.api_errors import ApiFailure
 from provider_core.validation.upstream.nmr.v1.attempt_inventory import read_attempt_inventory
 from provider_core.response_json import ResponseRejected
 from tests.fakes.api import Transport, reply

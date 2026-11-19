@@ -3,7 +3,7 @@
 import unittest
 
 import httpcore
-from provider_core.api import ApiFailure
+from provider_core.api_errors import ApiFailure
 from provider_core.transport import HttpTransport
 from tests.fakes.api import api
 from tests.fakes.api_tls import api_tls_peer
