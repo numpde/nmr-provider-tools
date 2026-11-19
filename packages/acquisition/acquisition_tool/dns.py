@@ -6,6 +6,14 @@ import os
 import pathlib
 import socket
 import subprocess
+import sys
+
+if __name__ == "__main__":
+    # Add the selected bundle root omitted by isolated Python
+    sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent.parent))
+
+from acquisition_tool.adapters import host_resolver as resolver_adapter
+from acquisition_tool.validation.upstream import host_resolver as resolver_output
 
 
 class ResolverCaptureFailed(OSError):
@@ -62,26 +70,25 @@ def capture_dns_servers(interface):
 
     if interface != "system":
         socket.if_nametoindex(interface)
-        output = _manager_output(["nmcli", "--get-values", "IP4.DNS", "device", "show", interface])
-        servers = _addresses(output.split())
+        output = _manager_output(resolver_adapter.networkmanager_dns_command(interface))
+        servers = _addresses(resolver_output.networkmanager_dns_tokens(output))
 
         if servers:
             return servers
 
-        output = _manager_output(["resolvectl", "dns", interface])
-        servers = _addresses(output.partition(":")[2].split())
+        output = _manager_output(resolver_adapter.resolved_dns_command(interface))
+        servers = _addresses(resolver_output.resolved_dns_tokens(output))
 
         if servers:
             return servers
 
     for resolver_file in (pathlib.Path("/run/systemd/resolve/resolv.conf"), pathlib.Path("/etc/resolv.conf")):
         try:
-            lines = resolver_file.read_text(encoding="ascii").splitlines()
+            resolver_text = resolver_file.read_text(encoding="ascii")
         except OSError:
             continue
 
-        resolver_tokens = [fields[1] for line in lines if len(fields := line.split()) == 2 and fields[0] == "nameserver"]
-        servers = _addresses(resolver_tokens)
+        servers = _addresses(resolver_output.nameserver_tokens(resolver_text))
 
         if servers:
             return servers
@@ -101,10 +108,7 @@ def main():
         descriptor = os.open(args.output, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
 
         with os.fdopen(descriptor, "w", encoding="ascii") as output:
-            output.writelines(
-                f"nameserver {server}\n"  # machine-string: resolv.conf requires a bare resolver address after nameserver, without expression labels.
-                for server in servers
-            )
+            output.writelines(resolver_adapter.nameserver_lines(servers))
     except ResolverCaptureFailed as error:
         parser.exit(2, f"{error}\n")
     except (OSError, UnicodeError) as error:

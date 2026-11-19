@@ -31,11 +31,13 @@ SOURCE_FILES = (
     "acquisition_tool/source_download.py",
     "acquisition_tool/maintain_source.sh",
     "acquisition_tool/adapters/__init__.py",
+    "acquisition_tool/adapters/host_resolver.py",
     "acquisition_tool/adapters/public_release.py",
     "acquisition_tool/__init__.py",
     "acquisition_tool/identity.py",
     "acquisition_tool/identity_main.py",
     "acquisition_tool/dns.py",
+    "acquisition_tool/validation/upstream/host_resolver.py",
     "tools/inference_native.sh",
     "tools/docker_client.sh",
 )

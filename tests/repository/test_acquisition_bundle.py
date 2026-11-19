@@ -195,6 +195,24 @@ class AcquisitionBundleTests(unittest.TestCase):
 
             self.assertIn("--relay-socket", completed_process.stdout)
 
+            resolver_help = subprocess.run(
+                [
+                    sys.executable,  # Use this contained interpreter
+                    "-I",  # Ignore host Python configuration
+                    "-S",  # Exclude installed site packages
+                    "-B",  # Leave extracted sources unchanged
+                    str(extracted / "acquisition_tool/dns.py"),  # Use the issued resolver entrypoint
+                    "--help",  # Load the resolver code without capturing host settings
+                ],
+                cwd=extracted,
+                capture_output=True,
+                text=True,
+                check=True,
+                timeout=10,
+            )
+
+            self.assertIn("--interface", resolver_help.stdout)
+
             update_help = subprocess.run(
                 [
                     "bash",  # Run the issued maintenance launcher
