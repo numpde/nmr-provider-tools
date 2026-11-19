@@ -13,7 +13,7 @@ def parse_lock_line(raw: bytes) -> tuple[str, str] | str | None:
 
     lock_line = raw.decode().strip().removesuffix("\\").rstrip()
 
-    if (not lock_line) or lock_line.startswith("#"):
+    if (not lock_line) or (lock_line.startswith("#")):
         return None
 
     hash_pattern = r"--hash=sha256:([0-9a-f]{64})"

@@ -52,7 +52,7 @@ def supports_python(artifact: Mapping[str, Any], python_version: Version) -> boo
 
     requires = artifact.get("requires-python")
 
-    return not requires or SpecifierSet(requires).contains(python_version, prereleases=True)
+    return (not requires) or (SpecifierSet(requires).contains(python_version, prereleases=True))
 
 
 def file_yanked(artifact: Mapping[str, Any]) -> bool:

@@ -168,5 +168,5 @@ def require_headers(response, expected_topology):
 
     request_ids = [value for (name, value) in response.headers if name.lower() == b"x-request-id"]
 
-    if len(request_ids) > 1 or (not is_api_success(response.status) and read_request_id(response.headers) is None):
+    if (len(request_ids) > 1) or ((not is_api_success(response.status)) and (read_request_id(response.headers) is None)):
         raise ResponseRejected("response request correlation is missing or ambiguous")

@@ -344,7 +344,7 @@ class UploadTransfer:
                 except UploadFailed:
                     return False
 
-            if (head is not None) and has_transfer_encoding(head.headers):
+            if (head is not None) and (has_transfer_encoding(head.headers)):
                 return False
 
             if type(outcome.primary) is httpcore.RemoteProtocolError:

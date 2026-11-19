@@ -954,7 +954,7 @@ class AttemptController:
                 if (
                     (not isinstance(self._operation, AttemptExecutor)) and
                     (((self._start_deferred is not None) and (self._start_deferred.may_have_committed)) or
-                     ((self._acknowledged is not None) and attempt_is_in_progress(self._acknowledged.admission))) and
+                     ((self._acknowledged is not None) and (attempt_is_in_progress(self._acknowledged.admission)))) and
                     (self._claim.operation_owner is None) and
                     self._retired_by_controller and
                     self.api.retirement_confirmed and

@@ -132,7 +132,7 @@ class AcknowledgedAttempt:
         except ResponseRejected as cause:
             raise ValueError(f"Cannot retain acknowledgement: {cause}") from None
 
-        if self.local_phase is LocalExecutionPhase.EXECUTION_ENTERED and not attempt_is_in_progress(self.admission):
+        if (self.local_phase is LocalExecutionPhase.EXECUTION_ENTERED) and (not attempt_is_in_progress(self.admission)):
             raise ValueError("Cannot record execution entry from a terminal start acknowledgement")
 
 

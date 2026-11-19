@@ -12,7 +12,7 @@ def requirement_lines(text: str) -> Iterator[str]:
     for raw in text.splitlines():
         line = raw.strip().removesuffix("\\").rstrip()
 
-        if line and not line.startswith("#"):
+        if (line) and (not line.startswith("#")):
             yield line
 
 
