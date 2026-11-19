@@ -122,11 +122,11 @@ class CapturedNativeTests(unittest.TestCase):
 
             try:
                 self.assertEqual("0", probe.environment["NATIVE_STATUS"])
-                result = probe.run_native()
+                native_run = probe.run_native()
 
-                self.assertEqual(0, result.returncode, msg=result.stderr)
-                self.assertEqual("", result.stdout)
-                self.assertEqual("", result.stderr)
+                self.assertEqual(0, native_run.returncode, msg=native_run.stderr)
+                self.assertEqual("", native_run.stdout)
+                self.assertEqual("", native_run.stderr)
                 probe.assert_client_retired()
             finally:
                 self.assertTrue(probe.doCleanups())
@@ -135,7 +135,7 @@ class CapturedNativeTests(unittest.TestCase):
 
         del environment["NATIVE_STATUS"]
 
-        result = subprocess.run(
+        missing_status_run = subprocess.run(
             [sys.executable, str(pathlib.Path(__file__).resolve()), "native-client"],
             env=environment,
             stdin=subprocess.DEVNULL,
@@ -145,9 +145,9 @@ class CapturedNativeTests(unittest.TestCase):
             check=False,
         )
 
-        self.assertEqual(1, result.returncode, msg=result.stderr)
-        self.assertIn("NATIVE_STATUS", result.stderr)
-        self.assertEqual("", result.stdout)
+        self.assertEqual(1, missing_status_run.returncode, msg=missing_status_run.stderr)
+        self.assertIn("NATIVE_STATUS", missing_status_run.stderr)
+        self.assertEqual("", missing_status_run.stdout)
 
     def test_control_failures_return_before_draining_full_public_stderr(self):
         # The harness consumes the returned fields privately. It proves that
@@ -165,7 +165,7 @@ class CapturedNativeTests(unittest.TestCase):
 
         noise = 'printf "%s\\n" "$NATIVE_IO_PHASE" > "$NATIVE_IO_ENTERED"; head -c 65536 /dev/zero >&2; '
 
-        for (phase, utility, expected_status, expected_fact, reason, native_status, result) in cases:
+        for (phase, utility, expected_status, expected_fact, reason, native_status, result_mode) in cases:
             with self.subTest(phase=phase):
                 entered = self.root / "io-entered"
                 receipt = self.root / "io-return"
@@ -206,7 +206,7 @@ class CapturedNativeTests(unittest.TestCase):
                 environment = self.environment | {
                     "NATIVE_STATUS": native_status,
                     "NATIVE_IO_PHASE": phase,
-                    "NATIVE_IO_RESULT": result,
+                    "NATIVE_IO_RESULT": result_mode,
                     "NATIVE_IO_ENTERED": str(entered),
                     "NATIVE_IO_RETURN": str(receipt),
                     "NATIVE_IO_DIAGNOSTIC": str(diagnostic),

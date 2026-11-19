@@ -226,7 +226,7 @@ printf '%s %s\n' "$status" "${values[*]}"
                 self.assertFalse((root / 'identity-projection-arguments').exists())
 
     def test_generalized_projection_requires_success_and_exact_retirement(self):
-        for (receipt, result, expected) in (
+        for (receipt, identity_probe_status, expected_exit_status) in (
             ('exact', 2, 2),
             ('exact', 129, 129),
             ('exact', 130, 130),
@@ -235,9 +235,9 @@ printf '%s %s\n' "$status" "${values[*]}"
             ('malformed', 0, 2),
             ('absent', 130, 2)
         ):
-            with self.subTest(receipt=receipt, result=result):
+            with self.subTest(receipt=receipt, identity_probe_status=identity_probe_status):
                 (status, stdout, stderr, root) = self.run_mapping(
-                    f'export IDENTITY_RECEIPT={receipt} IDENTITY_STATUS={result}\n' + r'''
+                    f'export IDENTITY_RECEIPT={receipt} IDENTITY_STATUS={identity_probe_status}\n' + r'''
 export IDENTITY_DIAGNOSTIC='original probe failure'
 values=(unchanged retained)
 status=0
@@ -248,7 +248,7 @@ printf '%s %s\n' "$status" "${values[*]}"
                 )
 
                 self.assertEqual(0, status, msg=stderr)
-                self.assertEqual(f'{expected} unchanged retained\n'.encode(), stdout)
+                self.assertEqual(f'{expected_exit_status} unchanged retained\n'.encode(), stdout)
                 self.assertEqual(receipt == 'exact', (root / 'retired').exists())
                 self.assertIn(b'original probe failure', stderr)
 
