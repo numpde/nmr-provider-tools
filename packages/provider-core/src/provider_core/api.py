@@ -23,8 +23,8 @@ import httpcore
 
 from provider_core.attempt_inventory import inventory_query, read_attempt_inventory
 
-from provider_core.attempt_request import (
-    progress_body,
+from provider_core.adapters.nmr.v1.attempt_request import progress_body
+from provider_core.validation.upstream.nmr.v1.attempt_request import (
     read_complete_body,
     read_fail_body,
     require_analysis_kind,

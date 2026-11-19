@@ -21,7 +21,7 @@ from cryptography.exceptions import UnsupportedAlgorithm
 from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey, Ed25519PublicKey
 from cryptography.hazmat.primitives.serialization import Encoding, PublicFormat, load_der_public_key, load_pem_private_key
 
-from provider_core.attempt_request import require_provider_ref
+from provider_core.validation.upstream.nmr.v1.attempt_request import require_provider_ref
 from provider_core.response_json import ResponseRejected, read_document
 from provider_core.validation.upstream.nmr.v1.signing import require_credential_ref
 

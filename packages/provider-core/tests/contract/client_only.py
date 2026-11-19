@@ -53,7 +53,7 @@ async def prove_handoff():
     ipc = importlib.import_module("provider_core.delivery_ipc")
     store = importlib.import_module("provider_core.delivery_store")
     attempt = importlib.import_module("provider_core.attempt_record")
-    requests = importlib.import_module("provider_core.attempt_request")
+    requests = importlib.import_module("provider_core.adapters.nmr.v1.attempt_request")
 
     with tempfile.TemporaryDirectory() as temporary:
         root = pathlib.Path(temporary)

@@ -17,7 +17,7 @@ import json
 from dataclasses import dataclass, field
 from datetime import datetime
 
-from provider_core.attempt_request import require_analysis_kind
+from provider_core.validation.upstream.nmr.v1.attempt_request import require_analysis_kind
 from provider_core.response_json import ResponseRejected, read_document, read_timestamp
 from provider_core.type_requirements import require_type
 

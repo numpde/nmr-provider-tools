@@ -1,17 +1,16 @@
-"""Own Attempt request admission and preserve retained start/outcome bytes.
+"""Admit Attempt inputs and retained requests without reconstructing sent bytes.
 
 Authority: nmr-api-v1 6a163b7a9cc1e2c7485b681c0b2b969c7c20e6c8,
-nmr_api/provider/schemas/execution_attempt_start_request.v1.schema.json and
-provider/routes.py::EXECUTION_ATTEMPT_START_ROUTE. The lifecycle owner retains the
-exact body before first dispatch. This module neither generates keys nor stores
-request state.
+nmr_api/provider/schemas/execution_attempt_{start,progress,complete,fail}_request.v1.schema.json,
+security/analysis_kind_refs.py and wire/schemas/nmr/. The lifecycle owner retains
+the exact body before first dispatch. This module neither generates keys nor
+stores request state.
 """
 
 from provider_core.container_guard import require_container
 
 require_container()
 
-import json
 import re
 from base64 import b64decode, b64encode
 
@@ -33,23 +32,11 @@ def require_provider_attempt_key(provider_attempt_key):
         raise ValueError(f"{provider_attempt_key=} should match {expected_pattern=}")
 
 
-def start_body(job_ref, provider_attempt_key):
-    """Encode explicit start facts once for durable retention and exact replay."""
+def require_start_inputs(job_ref, provider_attempt_key):
+    """Admit explicit start facts before the adapter encodes them."""
+
     require_job_ref(job_ref)
     require_provider_attempt_key(provider_attempt_key)
-
-    return (
-        json
-        .dumps(
-            {
-                "schema_id": "nmr.provider.execution_attempt_start_request.v1",
-                "job_ref": job_ref,
-                "provider_attempt_key": provider_attempt_key,
-            },
-            separators=(",", ":"),
-        )
-        .encode("utf-8")
-    )
 
 
 def require_start_body(body, *, job_ref):
@@ -88,8 +75,8 @@ def require_analysis_kind(analysis_kind_ref):
         raise ValueError(f"{analysis_kind_ref=} should match {expected_pattern=}")
 
 
-def progress_body(phase, condition_code):
-    """Encode the caller's current observation, not a historical replay queue.
+def require_progress_inputs(phase, condition_code):
+    """Admit the caller's current phase and optional public condition code.
 
     Pinned API provider/schemas/execution_attempt_progress_request.v1.schema.json.
     Composition must supply a public condition code, never derive one from raw
@@ -111,19 +98,6 @@ def progress_body(phase, condition_code):
         if not re.fullmatch((expected_pattern := r"[a-z][a-z0-9]*(?:_[a-z0-9]+)*"), condition_code):
             raise ValueError(f"{condition_code=} should match {expected_pattern=}")
 
-    return (
-        json
-        .dumps(
-            {
-                "schema_id": "nmr.provider.execution_attempt_progress_request.v1",
-                "phase": phase,
-                "condition_code": condition_code,
-            },
-            separators=(",", ":"),
-        )
-        .encode("utf-8")
-    )
-
 
 def require_provider_ref(provider_ref):
     require_type(provider_ref, str)
@@ -137,7 +111,9 @@ def require_provider_ref(provider_ref):
         raise ValueError(f"{provider_ref=} should match {expected_pattern=}")
 
 
-def _scalar_text(scalar_text, field_name):
+def _require_outcome_text(scalar_text, field_name):
+    """Admit the v1 result-schema and failure-message Unicode scalar profile."""
+
     if not (type(scalar_text) is (expected_type := str)):
         raise TypeError(f"{field_name=}; {type(scalar_text)=} ≠ {expected_type=}")
 
@@ -163,14 +139,14 @@ def _failure_code(failure_code):
         raise ValueError(f"{failure_code=} should match {expected_pattern=}")
 
 
-def complete_body(execution_attempt_ref, result_schema_id, result):
-    """Encode opaque result bytes once for exact terminal delivery and replay.
+def require_complete_inputs(execution_attempt_ref, result_schema_id, result):
+    """Admit the result's wire representation without interpreting its science.
 
     Authority: pinned provider/schemas/execution_attempt_complete_request.v1.schema.json
     and operations/canonical_content.py. Core does not interpret scientific content.
     """
     require_attempt_ref(execution_attempt_ref)
-    _scalar_text(result_schema_id, "result schema identity")
+    _require_outcome_text(result_schema_id, "result schema identity")
 
     require_type(result, bytes)
 
@@ -180,23 +156,9 @@ def complete_body(execution_attempt_ref, result_schema_id, result):
     if not (min_result_bytes <= result_byte_length <= max_result_bytes):
         raise ValueError(f"{result_byte_length=} should be between {min_result_bytes=} and {max_result_bytes=}")
 
-    return (
-        json
-        .dumps(
-            {
-                "schema_id": "nmr.provider.execution_attempt_complete_request.v1",
-                "execution_attempt_ref": execution_attempt_ref,
-                "result_schema_id": result_schema_id,
-                "canonical_result_base64": b64encode(result).decode("ascii"),
-            },
-            separators=(",", ":"),
-        )
-        .encode("utf-8")
-    )
 
-
-def fail_body(execution_attempt_ref, failure_code, failure_message):
-    """Encode the consumer's publishable explanation without truncation or cleanup.
+def require_fail_inputs(execution_attempt_ref, failure_code, failure_message):
+    """Admit the consumer's publishable explanation without truncation or cleanup.
 
     Pinned provider/schemas/execution_attempt_fail_request.v1.schema.json allows
     useful producer explanations. Composition must protect credentials/confidential
@@ -204,21 +166,7 @@ def fail_body(execution_attempt_ref, failure_code, failure_message):
     """
     require_attempt_ref(execution_attempt_ref)
     _failure_code(failure_code)
-    _scalar_text(failure_message, "failure message")
-
-    return (
-        json
-        .dumps(
-            {
-                "schema_id": "nmr.provider.execution_attempt_fail_request.v1",
-                "execution_attempt_ref": execution_attempt_ref,
-                "failure_code": failure_code,
-                "failure_message": failure_message,
-            },
-            separators=(",", ":"),
-        )
-        .encode("utf-8")
-    )
+    _require_outcome_text(failure_message, "failure message")
 
 
 def _outcome_document(body, operation, limit, execution_attempt_ref, fields):
@@ -254,7 +202,7 @@ def read_complete_body(body, *, execution_attempt_ref):
         ("result_schema_id", "canonical_result_base64")
     )
 
-    _scalar_text(completion_request["result_schema_id"], "result schema identity")
+    _require_outcome_text(completion_request["result_schema_id"], "result schema identity")
     retained_result_base64 = completion_request["canonical_result_base64"]
 
     require_type(retained_result_base64, str)
@@ -285,6 +233,6 @@ def read_fail_body(body, *, execution_attempt_ref):
     failure_request = _outcome_document(body, "fail", 16384, execution_attempt_ref, ("failure_code", "failure_message"))
 
     _failure_code(failure_request["failure_code"])
-    _scalar_text(failure_request["failure_message"], "failure message")
+    _require_outcome_text(failure_request["failure_message"], "failure message")
 
     return (failure_request["failure_code"], failure_request["failure_message"])

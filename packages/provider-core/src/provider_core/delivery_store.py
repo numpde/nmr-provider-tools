@@ -23,7 +23,7 @@ from contextlib import contextmanager
 from dataclasses import dataclass, field
 
 from provider_core.attempt_record import TerminalOperation
-from provider_core.attempt_request import read_complete_body, read_fail_body, require_provider_ref
+from provider_core.validation.upstream.nmr.v1.attempt_request import read_complete_body, read_fail_body, require_provider_ref
 from provider_core.attempt_response import require_attempt_ref
 from provider_core.validation.upstream.nmr.v1.signing import https_origin
 from provider_core.upload_response import require_job_ref

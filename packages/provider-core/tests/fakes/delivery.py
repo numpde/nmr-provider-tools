@@ -1,7 +1,7 @@
 """Small exact terminal requests shared by delivery queue checks."""
 
 from provider_core.attempt_record import TerminalOperation
-from provider_core.attempt_request import fail_body
+from provider_core.adapters.nmr.v1.attempt_request import fail_body
 from provider_core.delivery_store import DeliveryOutcome
 from tests.fakes.attempts import ATTEMPT_REF
 

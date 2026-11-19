@@ -9,7 +9,7 @@ import pathlib
 from unittest.mock import patch
 
 from provider_core.delivery_store import MAX_PROVIDER_ITEMS, DeliveryConflict, DeliveryInventoryUnavailable, DeliveryOutcome, DeliveryQueue, DeliveryStorageFailed, QueueLimits
-from provider_core.attempt_request import fail_body
+from provider_core.adapters.nmr.v1.attempt_request import fail_body
 from provider_core.attempt_record import TerminalOperation
 from tests.fakes.delivery import outcome
 

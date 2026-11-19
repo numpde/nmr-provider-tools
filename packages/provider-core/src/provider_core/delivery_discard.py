@@ -20,7 +20,7 @@ from provider_core.diagnostics import failure_evidence
 from provider_core.startup_file import read_startup_file
 from provider_core.shared_delivery_config import SharedDeliveryConfiguration
 from provider_core.validation.upstream.nmr.v1.signing import https_origin
-from provider_core.attempt_request import require_provider_ref
+from provider_core.validation.upstream.nmr.v1.attempt_request import require_provider_ref
 
 
 def main():

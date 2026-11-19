@@ -16,8 +16,7 @@ from dataclasses import asdict, dataclass, field, replace
 from datetime import datetime, timedelta
 from enum import Enum
 
-from provider_core.attempt_request import (
-    _scalar_text,
+from provider_core.validation.upstream.nmr.v1.attempt_request import (
     require_analysis_kind,
     require_provider_ref,
     require_start_body,
@@ -31,6 +30,7 @@ from provider_core.attempt_response import (
 from provider_core.job_input import FeedInputFacts
 from provider_core.response_json import ResponseRejected
 from provider_core.validation.upstream.nmr.v1.signing import https_origin
+from provider_core.validation.evidence import require_evidence_schema_id
 from provider_core.type_requirements import require_type
 
 # Pending starts only: 4096 request bytes become at most 5464 base64 characters;
@@ -169,7 +169,7 @@ class ProtectedEvidence:
     content: bytes = field(repr=False)
 
     def __post_init__(self):
-        _scalar_text(self.schema_id, "evidence schema identity")
+        require_evidence_schema_id(self.schema_id)
 
         require_type(self.content, bytes)
 

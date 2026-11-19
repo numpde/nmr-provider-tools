@@ -38,7 +38,7 @@ from provider_core.attempt_record import (
     mark_execution_entered,
 )
 
-from provider_core.attempt_request import complete_body, fail_body
+from provider_core.adapters.nmr.v1.attempt_request import complete_body, fail_body
 from provider_core.attempt_response import JOB_STATES
 from provider_core.conversation import independent_interruption_failure
 from provider_core.delivery_client import DeliveryUnavailable

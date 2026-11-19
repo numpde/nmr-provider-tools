@@ -12,7 +12,7 @@ from contextlib import suppress
 from dataclasses import replace
 
 from provider_core.attempt_record import TerminalOperation
-from provider_core.attempt_request import complete_body
+from provider_core.adapters.nmr.v1.attempt_request import complete_body
 from provider_core.credential import parse_provider_credential
 from provider_core.delivery_client import DeliveryClient, DeliveryEndpoint, DeliveryRejected
 from provider_core.delivery_store import DeliveryQueue, QueueLimits

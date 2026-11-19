@@ -172,13 +172,22 @@ NMR Provider API: wire and validation owners
     Evidence: test_job_input.py, integration/test_api_input.py and the contract
     boundary-length test in contract/normative/test_api_release.py:31.
 
-[ ] N8  Separate Attempt request validation, encoding and retained-body admission
+[x] N8  Separate Attempt request validation, encoding and retained-body admission
     core/attempt_request.py:24-290
     Provider/key/analysis identifiers, progress/failure codes and phase values;
     request schemas/fields; result-schema and failure-message text constraints;
     result byte/base64 limits and canonical retained requests. Encoding and
     retained-body admission are mixed with validation in this file.
     Evidence: test_attempt_start.py, test_attempt_progress.py, test_attempt_outcome.py.
+    Completed 2026-11-19: request and retained-body admission now live in
+    core/validation/upstream/nmr/v1/attempt_request.py; the four encoders live in
+    core/adapters/nmr/v1/attempt_request.py. Callers use the owning module directly
+    and the old module is removed. Local evidence IDs no longer borrow an API
+    text validator; their unchanged admission rules live in validation/evidence.py.
+    Focused unit Make lanes passed: test_attempt_start.py, test_attempt_progress.py,
+    test_attempt_outcome.py, test_attempt_record.py and test_producer_checkpoint.py.
+    Contract test_api_release.py and test_installation.py and integration
+    test_attempt_outcome.py also passed, with DOCKER_CONTEXT=science and PRIVACY_TESTS=0.
 
 [ ] N9  Extract Attempt response and acknowledgement admission
     core/attempt_response.py:28-341
@@ -220,11 +229,14 @@ NMR rules currently reached through operational code
   core/attempt_record.py:59-109,172: validates retained wire bodies and rebuilds
   the API start acknowledgement. Its recovery scope and persistence envelope
   are SDK-owned. Extract the wire dependency, retaining local record ownership.
-- [ ] Resolve ownership of checkpoint evidence IDs before changing validation
+- [x] Resolve ownership of checkpoint evidence IDs before changing validation
   core/producer_checkpoint.py:53-79: imports _scalar_text from request code for
   evidence schema IDs. Decide which API field, if any, those local identities
   represent before inheriting that field's limits. Checkpoint transitions and
   checkpoint JSON are local, not an upstream API.
+  Resolved 2026-11-19: evidence IDs retain the local 1..1024 Unicode-scalar
+  profile in core/validation/evidence.py, shared by ProtectedEvidence and
+  EvidenceDigest. NMR outcome text admission is independent of that local rule.
 - [ ] Update ownership's API reference checks without moving claim management
   core/ownership.py:19-20,65-83: borrows Job/Attempt reference checks and models
   the API's start-key uniqueness scope. Capacity, claim ownership and release

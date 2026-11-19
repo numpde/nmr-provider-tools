@@ -2,7 +2,7 @@
 
 from dataclasses import dataclass
 
-from provider_core.attempt_request import complete_body, fail_body, progress_body, start_body
+from provider_core.adapters.nmr.v1.attempt_request import complete_body, fail_body, progress_body, start_body
 from provider_core.hello import hello_body
 from tests.fakes.attempt_inventory import response as inventory_response
 from tests.fakes.attempts import ATTEMPT_REF, complete_response, fail_response, observation, progress_response, start_response

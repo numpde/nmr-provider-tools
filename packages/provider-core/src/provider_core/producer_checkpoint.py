@@ -24,7 +24,7 @@ from provider_core.attempt_record import (
     _encode_pending,
 )
 
-from provider_core.attempt_request import _scalar_text
+from provider_core.validation.evidence import require_evidence_schema_id
 from provider_core.attempt_response import ATTEMPT_RESPONSE_BYTES, AttemptAdmission, read_start
 from provider_core.type_requirements import require_type
 
@@ -64,7 +64,7 @@ class EvidenceDigest:
     byte_length: int
 
     def __post_init__(self):
-        _scalar_text(self.schema_id, "prepared identity schema")
+        require_evidence_schema_id(self.schema_id)
         _require_digest(self.sha256)
 
         require_type(self.byte_length, int)

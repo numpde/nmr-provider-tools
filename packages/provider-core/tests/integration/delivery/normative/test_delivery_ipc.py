@@ -15,7 +15,7 @@ from provider_core.delivery_client import DeliveryClient, DeliveryEndpoint, Deli
 from provider_core.delivery_ipc import DeliveryInbox, DeliveryRequestRejected
 from provider_core.delivery_store import MAX_PROVIDER_ITEMS, DeliveryFull, DeliveryOutcome, DeliveryQueue, QueueLimits
 from provider_core.attempt_record import TerminalOperation
-from provider_core.attempt_request import fail_body
+from provider_core.adapters.nmr.v1.attempt_request import fail_body
 from provider_core.failure_projection import owned_details
 from tests.fakes.delivery import healthy_diagnostics, outcome
 

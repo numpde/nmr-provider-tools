@@ -210,7 +210,7 @@ class ExecutionConditionFailureTests(unittest.IsolatedAsyncioTestCase):
 
     @unittest.skipIf(os.environ.get("PRIVACY_TESTS", "1") == "0", "Privacy tests disabled")
     def test_condition_rejection_diagnostics_omit_input(self):
-        from provider_core.attempt_request import progress_body
+        from provider_core.adapters.nmr.v1.attempt_request import progress_body
 
         with self.assertRaises(ValueError) as rejected:
             progress_body("preparing", "PRIVATE invalid text")

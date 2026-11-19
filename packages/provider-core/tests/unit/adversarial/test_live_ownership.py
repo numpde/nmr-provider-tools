@@ -4,7 +4,7 @@ import asyncio
 from dataclasses import replace
 import unittest
 
-from provider_core.attempt_request import start_body
+from provider_core.adapters.nmr.v1.attempt_request import start_body
 from provider_core.controller import AttemptController
 from provider_core.execution import AttemptExecutor
 from provider_core.ownership import AttemptClaims, LiveAttemptLimits, LiveCapacityFull, OwnershipRefused

@@ -6,7 +6,7 @@ import unittest
 from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
 
 from provider_core.api import ProviderAPI
-from provider_core.attempt_request import start_body
+from provider_core.adapters.nmr.v1.attempt_request import start_body
 from provider_core.adapters.nmr.v1.signing import SigningIdentity
 from tests.fakes.api import Transport, reply
 from tests.fakes.attempts import retained_start, start_response

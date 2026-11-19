@@ -3,7 +3,7 @@
 import unittest
 from dataclasses import replace
 
-from provider_core.attempt_request import start_body
+from provider_core.adapters.nmr.v1.attempt_request import start_body
 from provider_core.ownership import AttemptClaims, OwnershipRefused
 from tests.fakes.attempt_store import record, scope
 from tests.fakes.attempts import ATTEMPT_REF

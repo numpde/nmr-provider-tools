@@ -4,7 +4,7 @@ from dataclasses import replace
 import unittest
 
 from provider_core.attempt_record import ProtectedEvidence, StartPending, SuppressionReason, TerminalOperation, _encode_pending
-from provider_core.attempt_request import start_body
+from provider_core.adapters.nmr.v1.attempt_request import start_body
 from provider_core.attempt_response import read_start
 from provider_core.ownership import AttemptClaims
 

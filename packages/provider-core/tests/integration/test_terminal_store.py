@@ -9,7 +9,7 @@ import unittest
 import pathlib
 
 from provider_core.attempt_record import TerminalOperation
-from provider_core.attempt_request import complete_body, fail_body
+from provider_core.adapters.nmr.v1.attempt_request import complete_body, fail_body
 from provider_core.delivery_store import DeliveryOutcome, DeliveryQueue, QueueLimits
 from tests.fakes.attempt_store import scope
 from tests.fakes.attempts import ATTEMPT_REF
