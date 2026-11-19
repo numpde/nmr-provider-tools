@@ -322,7 +322,12 @@ class BoundProxyTests(unittest.TestCase):
         private = "private-port-input-marker"
 
         with self.assertRaises(ValueError) as rejected:
-            http_proxy.parse_destination(f"CONNECT example.invalid:{private} HTTP/1.1\r\n\r\n".encode())
+            http_proxy.parse_destination(
+                (
+                    f"CONNECT example.invalid:{private} HTTP/1.1\r\n"
+                    f"\r\n"
+                ).encode(),
+            )
 
         self.assertNotIn(private, str(rejected.exception))
 
