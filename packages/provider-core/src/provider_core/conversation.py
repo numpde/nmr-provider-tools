@@ -17,6 +17,7 @@ import re
 from dataclasses import dataclass, field
 
 from provider_core.chat_errors import ChatFailed
+from provider_core.conversation_errors import ConversationFailed, ToolRejected
 from provider_core.adapters.chat_completions.tools import assistant_message, function_call, tool_message, user_message
 from provider_core.response_json import ResponseRejected, read_document
 from provider_core.transport_errors import ExchangeFailed
@@ -78,21 +79,6 @@ class ConversationHandoff:
     observation: bytes = field(repr=False)
     endpoint_failures: tuple = field(repr=False)
     correction_failures: tuple = field(repr=False)
-
-
-class ToolRejected(ValueError):
-    """An owned, public correction reason; never raw model or worker diagnostics."""
-
-
-class ConversationFailed(RuntimeError):
-    """Safe context with original private failures, separate from public routes."""
-
-    # silent-defaults: allow-contract -- Local conversation refusals can precede any endpoint failure; an empty history records that fact without inventing an endpoint.
-    def __init__(self, message, *, cause=None, endpoint_failures=(), correction_failures=()):
-        super().__init__(message)
-        self.cause = cause
-        self.endpoint_failures = tuple(endpoint_failures)
-        self.correction_failures = tuple(correction_failures)
 
 
 class ConversationRetirementFailed(RuntimeError):

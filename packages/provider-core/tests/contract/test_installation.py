@@ -132,6 +132,7 @@ class InstallationContractTests(unittest.TestCase):
                 "provider_core/chat_wire.py",
                 "provider_core/chat_worker.py",
                 "provider_core/conversation.py",
+                "provider_core/conversation_errors.py",
                 "provider_core/interpreter.py",
                 "provider_core/validation/upstream/nmr/v1/credential.py",
                 "provider_core/failure_projection.py",

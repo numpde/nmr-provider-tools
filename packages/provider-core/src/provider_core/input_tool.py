@@ -14,7 +14,7 @@ import json
 
 from provider_core.contribution import CallBinding
 from provider_core.adapters.chat_completions.tools import function_tool
-from provider_core.conversation import ToolRejected
+from provider_core.conversation_errors import ToolRejected
 from provider_core.payload import JsonDataclassCodec
 from provider_core.type_requirements import require_type
 

@@ -26,7 +26,6 @@ from provider_core.chat_errors import ChatFailed
 from provider_core.adapters.chat_completions.tools import function_tool
 
 from provider_core.conversation import (
-    ConversationFailed,
     ConversationHandoff,
     ConversationResult,
     ConversationRetirementFailed,
@@ -34,10 +33,10 @@ from provider_core.conversation import (
     ToolConversation,
     ToolFinished,
     ToolHandoff,
-    ToolRejected,
     ToolReply,
 )
 
+from provider_core.conversation_errors import ConversationFailed, ToolRejected
 from provider_core.transport_errors import ExchangeFailed
 from provider_core.tools import require_positive_number
 from provider_core.type_requirements import require_instance, require_type

@@ -566,6 +566,15 @@ OpenAI-compatible Chat Completions profile
     Focused conversation/text-correction integration and interpreter unit lanes
     passed on science with PRIVACY_TESTS=0 (96 tests, sixteen skips). Independent
     audit confirmed identical message shapes and construction/state order.
+    Exception ownership prepared 2026-11-19: existing ConversationFailed and
+    ToolRejected definitions moved unchanged to conversation_errors.py. Phased
+    admission can use the same failure type without importing transcript
+    operations or adding translation/cause layers. Production consumers import
+    the defining owner; conversation still uses those same class objects.
+    Retirement failures remain with their operational owner. Read-only AST
+    comparison confirmed both class bodies unchanged; focused conversation,
+    interpreter, failure-projection and installation lanes passed on science
+    with PRIVACY_TESTS=0 (103 tests, sixteen skips). Independent audit passed.
 
 [x] C3  Separate the external tool envelope from local scientific schemas
     core/input_tool.py:22-64; core/interpreter.py:525

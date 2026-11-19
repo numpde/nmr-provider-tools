@@ -23,7 +23,8 @@ from provider_core.attempt_record import AcknowledgedAttempt
 from provider_core.chat import ChatFailed
 from provider_core.chat_process import ChatProcessResult
 from provider_core.controller import ControllerFailed, ControllerRefused
-from provider_core.conversation import ConversationFailed, ConversationRetirementFailed, ToolRejected
+from provider_core.conversation import ConversationRetirementFailed
+from provider_core.conversation_errors import ConversationFailed, ToolRejected
 from provider_core.interpreter import InterpretationFailed, InterpretationInputRejected, ModelReportedInterpretationProblem
 from provider_core.validation.upstream.nmr.v1.credential import CredentialRejected
 from provider_core.delivery_client import DeliveryRejected, DeliveryUnavailable

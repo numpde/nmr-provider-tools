@@ -8,7 +8,8 @@ import asyncio
 
 from provider_core.contribution import CallBinding
 from provider_core.contribution_errors import CallRejected
-from provider_core.conversation import ToolFinished, ToolRejected
+from provider_core.conversation import ToolFinished
+from provider_core.conversation_errors import ToolRejected
 
 from provider_core.hosting import (
     AnalysisExecution,
