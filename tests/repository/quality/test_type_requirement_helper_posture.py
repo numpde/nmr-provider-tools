@@ -5,6 +5,8 @@ whose body only constructs and raises an exception. Findings require review:
 rejected-type branches need an accepted type, and compound guards must retain
 their value checks, evaluation order, bindings, and failure semantics.
 Aliases and shadowed builtins are outside this syntactic check's resolution.
+The canonical implementation owns builtin checks; calling its own requirements
+there would recurse or replace the original caller's diagnostic context.
 """
 
 from tools.container_guard import require_container
@@ -12,6 +14,7 @@ from tools.container_guard import require_container
 require_container()
 
 import ast
+import pathlib
 import unittest
 
 from .sources import ROOT, python_sources
@@ -49,8 +52,12 @@ def _required_helpers(expression: ast.expr) -> set[str]:
     return set()
 
 
-def guard_findings(*, source: str) -> list[tuple[int, tuple[str, ...]]]:
+# silent-defaults: allow-contract -- Anonymous fixtures get no implementation exemption; authored scans pass their actual file path
+def guard_findings(*, source: str, source_path: pathlib.Path | None = None) -> list[tuple[int, tuple[str, ...]]]:
     """Report single-raise type guards, excluding recovery and existing failures."""
+
+    if source_path == (ROOT / "packages/type-requirements/src/type_requirements.py"):
+        return []
 
     findings = []
 
@@ -77,6 +84,24 @@ def guard_findings(*, source: str) -> list[tuple[int, tuple[str, ...]]]:
 
 
 class TypeRequirementHelperPostureTests(unittest.TestCase):
+    def test_only_the_canonical_implementation_owns_builtin_checks(self):
+        source = (
+            "if not isinstance(candidate, Parent):\n"
+            "    raise TypeError('wrong type')\n"
+        )
+
+        self.assertEqual(
+            [],
+            guard_findings(source=source, source_path=ROOT / "packages/type-requirements/src/type_requirements.py"),
+        )
+
+        for source_path in (
+            ROOT / "packages/provider-core/src/provider_core/type_requirements.py",
+            ROOT / "packages/consumer/type_requirements.py",
+        ):
+            with self.subTest(source_path=source_path):
+                self.assertEqual([(1, ("require_instance",))], guard_findings(source=source, source_path=source_path))
+
     def test_builtin_type_guards_use_the_corresponding_helper(self):
         cases = (
             ("not isinstance(candidate, Parent)", "require_instance"),
@@ -193,7 +218,7 @@ class TypeRequirementHelperPostureTests(unittest.TestCase):
         findings = []
 
         for source_path in python_sources(production_only=False):
-            for (line, helpers) in guard_findings(source=source_path.read_text(encoding="utf-8")):
+            for (line, helpers) in guard_findings(source=source_path.read_text(encoding="utf-8"), source_path=source_path):
                 findings.append(
                     f"{source_path.relative_to(ROOT)}:{line}: use {', '.join(helpers)} for the accepted type; "
                     f"preserve value checks, bindings, and failure semantics"
