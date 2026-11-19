@@ -67,6 +67,7 @@ class TextCorrection:
             return
 
         actual_user_content = self.user_content
+
         require_type(actual_user_content, str)
 
         if not (self.user_content):

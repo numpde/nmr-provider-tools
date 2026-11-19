@@ -23,6 +23,7 @@ from provider_core.validation.upstream.nmr.v1.signing import (
     require_signature_inputs,
     request_target,
 )
+
 from provider_core.type_requirements import require_instance
 
 
@@ -41,6 +42,7 @@ class SigningIdentity:
         require_credential_ref(self.credential_ref)
 
         actual_private_key = self.private_key
+
         require_instance(actual_private_key, Ed25519PrivateKey)
 
         object.__setattr__(self, "origin", origin)

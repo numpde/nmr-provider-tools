@@ -118,6 +118,7 @@ class AcknowledgedAttempt:
 
         if self.prepared_identity is not None:
             actual_prepared_identity = self.prepared_identity
+
             require_type(actual_prepared_identity, ProtectedEvidence)
 
             if not (self.local_phase is LocalExecutionPhase.EXECUTION_ENTERED):

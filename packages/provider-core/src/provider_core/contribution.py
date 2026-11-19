@@ -334,6 +334,7 @@ class ConfiguredIdentity:
 
         if self.configuration is not None:
             actual_configuration = self.configuration
+
             require_type(actual_configuration, ConfigurationDescription)
 
         _set_records(values=self.assets, record_type=AssetDescription, label="Scientific assets")
@@ -569,6 +570,7 @@ class ImplementationDescription:
 
         if self.configuration is not None:
             actual_configuration = self.configuration
+
             require_type(actual_configuration, ConfigurationDescription)
 
         _set_records(values=self.assets, record_type=AssetDescription, label="Scientific assets")
@@ -1024,10 +1026,12 @@ class ImplementationBinding[InstanceT, AnalysisT]:
 
         if self.instance is not None:
             actual_instance = self.instance
+
             require_type(actual_instance, InstanceHooks)
 
         if self.analysis is not None:
             actual_analysis = self.analysis
+
             require_type(actual_analysis, AnalysisHooks)
 
         bound_calls = []

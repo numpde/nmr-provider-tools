@@ -104,18 +104,21 @@ def read_status(path, role):
 
     if "details" in status_record:
         value_details = status_record["details"]
+
         require_type(value_details, dict)
 
     if status_record["role"] != role:
         raise ValueError("Process status has a different role or invalid process identity.")
 
     value_pid = status_record['pid']
+
     require_type(value_pid, int)
 
     if not (0 < status_record['pid']):
         raise ValueError("Process status has a different role or invalid process identity.")
 
     value_start_ticks = status_record['start_ticks']
+
     require_type(value_start_ticks, int)
 
     if not (0 < status_record['start_ticks']):

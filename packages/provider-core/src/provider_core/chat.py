@@ -66,6 +66,7 @@ class ChatEndpointSpec:
             raise ValueError("Cannot configure interpreter endpoint: model must be nonblank printable UTF-8 text within 512 bytes.")
 
         actual_api_key = self.api_key
+
         require_type(actual_api_key, str)
 
         if (not (self.api_key)) or (any((not 32 < ord(char) < 127) for char in self.api_key)):
@@ -73,6 +74,7 @@ class ChatEndpointSpec:
 
         if self.reasoning_effort is not None:
             actual_reasoning_effort = self.reasoning_effort
+
             require_type(actual_reasoning_effort, str)
 
             if not (self.reasoning_effort):

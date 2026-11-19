@@ -558,6 +558,7 @@ class _Operation(_Changes):
         try:
             if self.raw is not None:
                 actual_raw = self.raw
+
                 require_type(actual_raw, ScientificReturn)
 
             if (
