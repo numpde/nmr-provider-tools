@@ -109,7 +109,7 @@ class DeliveryIPCTests(unittest.IsolatedAsyncioTestCase):
         pending = await client.pending()
 
         self.assertEqual(set(expected), {row["execution_attempt_ref"] for row in pending["items"]})
-        self.assertTrue(all(row["held_reason"] == "🧪" * 512 for row in pending["items"]))
+        self.assertTrue(all(row["held_reason"] == ("🧪" * 512) for row in pending["items"]))
 
         with self.assertRaises(DeliveryFull):
             await client.submit(outcome(suffix="f"))

@@ -217,7 +217,7 @@ class SourceAccess:
 
         listing = {"members": [{"name": entry.source.member, "byte_length": entry.byte_length} for entry in entries]}
 
-        if len(json.dumps(listing, ensure_ascii=False).encode("utf-8")) > 256 * 1024:
+        if len(json.dumps(listing, ensure_ascii=False).encode("utf-8")) > (256 * 1024):
             raise InputReadError(
                 "Cannot inspect this ZIP: its member listing exceeds the 262144-byte inspection limit; "
                 "an exact member can still be inspected if known"
@@ -318,7 +318,7 @@ class SourceAccess:
             tail = stream.read()
             eocd = tail.rfind(b"PK\x05\x06")
 
-            if eocd < 0 or len(tail) - eocd < 22:
+            if (eocd < 0) or ((len(tail) - eocd) < 22):
                 return
 
             (disk, central_disk, disk_entries, total_entries) = struct.unpack_from("<4H", tail, eocd + 4)
@@ -329,7 +329,7 @@ class SourceAccess:
             if total_entries == 0xFFFF:
                 locator = tail.rfind(b"PK\x06\x07", 0, eocd)
 
-                if locator < 0 or len(tail) - locator < 20:
+                if (locator < 0) or ((len(tail) - locator) < 20):
                     raise InputReadError("Cannot inspect this ZIP: its ZIP64 entry count is unavailable")
 
                 (zip64_disk, zip64_offset, total_disks) = struct.unpack_from("<IQI", tail, locator + 4)

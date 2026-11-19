@@ -116,7 +116,7 @@ def check_routes():
             parts = line.split()
 
             # Linux emits a non-forwarding unreachable default route on lo.
-            if len(parts) >= 10 and parts[0] == "0" * 32 and parts[1] == "00" and parts[-1] != "lo":
+            if (len(parts) >= 10) and (parts[0] == ("0" * 32)) and (parts[1] == "00") and (parts[-1] != "lo"):
                 raise RuntimeError("IPv6 default route exists")
 
     if set(os.listdir("/sys/class/net")) != {"lo"}:

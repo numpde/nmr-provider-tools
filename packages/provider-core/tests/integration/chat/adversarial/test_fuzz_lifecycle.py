@@ -470,7 +470,7 @@ class LifecycleOrders(RuleBasedStateMachine):
                         ),
                     )
 
-                    assert len(delivery.offers) <= delivery._answered + 1
+                    assert len(delivery.offers) <= (delivery._answered + 1)
 
                     if not delivery.accepted.is_set():
                         # Selection, a rejected reply or possible local storage

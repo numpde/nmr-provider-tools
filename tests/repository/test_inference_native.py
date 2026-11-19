@@ -2377,7 +2377,7 @@ def native_client():
         while time.monotonic() < deadline:
             fields = dict(line.split(":", 1) for line in descendant_status.read_text().splitlines() if ":" in line)
 
-            if int(fields["SigIgn"].strip(), 16) & ignored == ignored:
+            if (int(fields["SigIgn"].strip(), 16) & ignored) == ignored:
                 break
 
             time.sleep(0.01)

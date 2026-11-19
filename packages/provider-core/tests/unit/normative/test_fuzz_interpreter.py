@@ -51,7 +51,7 @@ class InterpreterFaultSequenceTests(unittest.IsolatedAsyncioTestCase):
                     )
 
                 expected_inspections += actions.count("inspect")
-                final = visit == visits - 1
+                final = visit == (visits - 1)
 
                 replies.append(
                     call(f"{visit}-finish", "prepare", {"accepted": True}) if final else

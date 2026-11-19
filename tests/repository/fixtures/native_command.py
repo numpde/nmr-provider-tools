@@ -72,7 +72,7 @@ def fixture_command(name):
 
             return 0
 
-        if target.name == "status." + phase or (target.name == "status" and phase == "status"):
+        if (target.name == ("status." + phase)) or ((target.name == "status") and (phase == "status")):
             if os.environ.get("NATIVE_CANCEL_PUBLICATION") == "1":
                 parent = int(pathlib.Path("/proc", str(anchor), "stat").read_text().split()[3])
 

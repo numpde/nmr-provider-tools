@@ -203,7 +203,7 @@ async def child(owner_kind, failure_kind):
     assert delivery.retire_calls >= 1
     assert (len(child_processes) == 1) and (child_processes[0].returncode is not None), "the original child must actually be reaped"
     assert not delivery.items, "an authored Python process exit must not synthesize terminal FAIL"
-    assert len(transport.calls) == 3 + len(prefix), "no science replay or later API publication"
+    assert len(transport.calls) == (3 + len(prefix)), "no science replay or later API publication"
     assert not original.cancelled()
 
     if cleanup is not None:
