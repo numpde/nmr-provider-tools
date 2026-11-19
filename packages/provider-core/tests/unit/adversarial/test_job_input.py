@@ -11,12 +11,10 @@ from tests.fakes.job_input import facts, response
 
 
 class UntrustedJobInputTests(unittest.TestCase):
-    def rejected(self, raw, feed=None):
+    def rejected(self, response_bytes, feed=None):
         try:
-            verify_job_input(raw, feed=facts() if feed is None else feed)
+            verify_job_input(response_bytes, feed=facts() if feed is None else feed)
         except JobInputRejected as error:
-            self.assertIn("Job input", str(error))
-
             return error
         else:
             self.fail("Untrusted input was accepted")
@@ -46,7 +44,7 @@ class UntrustedJobInputTests(unittest.TestCase):
             with self.subTest(field=next(iter(change))):
                 self.rejected(response(**change))
 
-    def test_malformed_private_documents_are_safe_rejections(self):
+    def test_malformed_responses_are_rejected(self):
         for raw in (
             b"PRIVATE_SENTINEL",
             b"[]",
@@ -96,10 +94,10 @@ class UntrustedJobInputTests(unittest.TestCase):
                 FeedInputFacts(**fields)
 
     def test_missing_field_and_duplicate_equal_field_are_rejected(self):
-        document = json.loads(response())
+        input_response = json.loads(response())
 
-        del document["job_ref"]
-        self.rejected(json.dumps(document).encode())
+        del input_response["job_ref"]
+        self.rejected(json.dumps(input_response).encode())
         self.rejected(response()[:-1] + b',"job_ref":"job:example"}')
 
     def test_mutable_response_is_not_admitted(self):

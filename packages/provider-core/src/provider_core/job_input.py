@@ -11,13 +11,11 @@ from provider_core.container_guard import require_container
 require_container()
 
 import base64
-import binascii
 import hashlib
-import json
 import re
 from dataclasses import dataclass, field
 
-from provider_core.tools import duplicate_json_fields
+from provider_core.response_json import ResponseRejected, read_document
 
 # The admitted input profile has this fixed protocol identity.
 # repo-check: allow-module-constant
@@ -50,26 +48,26 @@ class FeedInputFacts:
     input_byte_length: int
 
     def __post_init__(self):
-        if not (type((actual_job_ref := self.job_ref)) is (expected_type := str)):
-            raise JobInputRejected(f"Cannot verify Job input: {type(actual_job_ref)=} ≠ {expected_type=}")
+        if not (type(self.job_ref) is (expected_type := str)):
+            raise JobInputRejected(f"{type(self.job_ref)=} ≠ {expected_type=}")
 
-        if re.fullmatch(r"job:[A-Za-z0-9_.-]{1,124}", self.job_ref) is None:
-            raise JobInputRejected("Cannot verify Job input: job_ref is not a valid Job reference.")
+        if not re.fullmatch((expected_pattern := r"job:[A-Za-z0-9_.-]{1,124}"), self.job_ref):
+            raise JobInputRejected(f"{self.job_ref=} should match {expected_pattern=}")
 
-        if self.input_schema_id != INPUT_SCHEMA:
-            raise JobInputRejected("Cannot verify Job input: input_schema_id is not the supported text schema.")
+        if not (self.input_schema_id == INPUT_SCHEMA):
+            raise JobInputRejected(f"{self.input_schema_id=} should match {INPUT_SCHEMA=}")
 
-        if not (type((actual_input_fingerprint := self.input_fingerprint)) is (expected_type := str)):
-            raise JobInputRejected(f"Cannot verify Job input: {type(actual_input_fingerprint)=} ≠ {expected_type=}")
+        if not (type(self.input_fingerprint) is (expected_type := str)):
+            raise JobInputRejected(f"{type(self.input_fingerprint)=} ≠ {expected_type=}")
 
-        if re.fullmatch(r"sha256:[0-9a-f]{64}", self.input_fingerprint) is None:
-            raise JobInputRejected("Cannot verify Job input: input_fingerprint must be a lowercase SHA-256 fingerprint.")
+        if not re.fullmatch((expected_pattern := r"sha256:[0-9a-f]{64}"), self.input_fingerprint):
+            raise JobInputRejected(f"{self.input_fingerprint=} should match {expected_pattern=}")
 
-        if not (type((actual_input_byte_length := self.input_byte_length)) is (expected_type := int)):
-            raise JobInputRejected(f"Cannot verify Job input: {type(actual_input_byte_length)=} ≠ {expected_type=}")
+        if not (type(self.input_byte_length) is (expected_type := int)):
+            raise JobInputRejected(f"{type(self.input_byte_length)=} ≠ {expected_type=}")
 
         if not (1 <= self.input_byte_length <= MAX_INPUT_BYTES):
-            raise JobInputRejected("Cannot verify Job input: input_byte_length must be an integer from 1 through 65536.")
+            raise JobInputRejected(f"{self.input_byte_length=} should be between 1 and {MAX_INPUT_BYTES=}")
 
 
 @dataclass(frozen=True, slots=True)
@@ -80,22 +78,28 @@ class VerifiedJobInput:
     specification_bytes: bytes = field(repr=False)
 
     def __post_init__(self):
-        if not (type((actual_identity := self.identity)) is (expected_type := FeedInputFacts)):
-            raise JobInputRejected(f"{type(actual_identity)=} ≠ {expected_type=}")
+        if not (type(self.identity) is (expected_type := FeedInputFacts)):
+            raise JobInputRejected(f"{type(self.identity)=} ≠ {expected_type=}")
 
-        if not (type((actual_specification_bytes := self.specification_bytes)) is (expected_type := bytes)):
-            raise JobInputRejected(f"{type(actual_specification_bytes)=} ≠ {expected_type=}")
+        if not (type(self.specification_bytes) is (expected_type := bytes)):
+            raise JobInputRejected(f"{type(self.specification_bytes)=} ≠ {expected_type=}")
 
-        if len(self.specification_bytes) != self.identity.input_byte_length:
-            raise JobInputRejected("Cannot verify Job input: decoded byte length differs from the feed identity.")
+        specification_byte_length = len(self.specification_bytes)
 
-        if "sha256:" + hashlib.sha256(self.specification_bytes).hexdigest() != self.identity.input_fingerprint:
-            raise JobInputRejected("Cannot verify Job input: decoded SHA-256 differs from the feed identity.")
+        if not (specification_byte_length == self.identity.input_byte_length):
+            raise JobInputRejected(f"{specification_byte_length=} should match {self.identity.input_byte_length=}")
+
+        specification_fingerprint = "sha256:" + hashlib.sha256(self.specification_bytes).hexdigest()
+
+        if not (specification_fingerprint == self.identity.input_fingerprint):
+            raise JobInputRejected(f"{specification_fingerprint=} should match {self.identity.input_fingerprint=}")
 
         try:
             self.specification_bytes.decode("utf-8")
-        except UnicodeDecodeError as error:
-            raise JobInputRejected(f"Cannot verify Job input: invalid UTF-8 at byte {error.start}.") from None
+        except UnicodeDecodeError as cause:
+            # A full bytes repr can quadruple the input size; identify the Job here
+            # and retain the decoder's offending byte range and reason as the cause
+            raise JobInputRejected(f"Cannot decode input for {self.job_ref=}") from cause
 
     @property
     def job_ref(self):
@@ -104,38 +108,6 @@ class VerifiedJobInput:
     @property
     def specification_text(self):
         return self.specification_bytes.decode("utf-8")
-
-
-def _unique_fields(field_pairs):
-    if duplicate_fields := duplicate_json_fields(field_pairs):
-        raise JobInputRejected(f"Job input has {duplicate_fields=}")
-
-    return dict(field_pairs)
-
-
-def _reject_constant(nonfinite_token):
-    raise JobInputRejected(f"Job input has {nonfinite_token=}")
-
-
-def _read_response(response_bytes):
-    if not (type(response_bytes) is (expected_type := bytes)):
-        raise JobInputRejected(f"Cannot verify Job input: {type(response_bytes)=} ≠ {expected_type=}")
-
-    if len(response_bytes) > MAX_RESPONSE_BYTES:
-        raise JobInputRejected("Cannot verify Job input: response exceeds the 131072-byte limit.")
-
-    try:
-        return json.loads(response_bytes.decode("utf-8"), object_pairs_hook=_unique_fields, parse_constant=_reject_constant)
-    except JobInputRejected:
-        raise
-    except UnicodeDecodeError as error:
-        raise JobInputRejected(f"Cannot verify Job input: response has invalid UTF-8 at byte {error.start}.") from None
-    except json.JSONDecodeError as error:
-        raise JobInputRejected(
-            f"Cannot verify Job input: invalid response JSON at line {error.lineno}, column {error.colno}."
-        ) from None
-    except (RecursionError, ValueError):
-        raise JobInputRejected("Cannot verify Job input: response JSON exceeds parser nesting or number limits.") from None
 
 
 def verify_job_input(response_bytes, *, feed):
@@ -148,40 +120,52 @@ def verify_job_input(response_bytes, *, feed):
     if not (type(feed) is (expected_type := FeedInputFacts)):
         raise JobInputRejected(f"{type(feed)=} ≠ {expected_type=}")
 
-    document = _read_response(response_bytes)
-    fields = {"schema_id", "job_ref", "input_schema_id", "input_fingerprint", "input_byte_length", "canonical_input_base64"}
+    try:
+        input_response = read_document(response_bytes, MAX_RESPONSE_BYTES)
+    except ResponseRejected as cause:
+        raise JobInputRejected(str(cause)) from cause
 
-    if not (type(document) is (expected_document_type := dict)):
-        raise JobInputRejected(f"Cannot verify Job input: {type(document)=} ≠ {expected_document_type=}")
+    if not (type(input_response) is (expected_type := dict)):
+        raise JobInputRejected(f"{type(input_response)=} ≠ {expected_type=}")
 
-    if set(document) != fields:
-        raise JobInputRejected("Cannot verify Job input: response must contain exactly the six input-read fields.")
+    response_fields = set(input_response)
+    expected_fields = {"schema_id", "job_ref", "input_schema_id", "input_fingerprint", "input_byte_length", "canonical_input_base64"}
 
-    if document["schema_id"] != RESPONSE_SCHEMA:
-        raise JobInputRejected("Cannot verify Job input: response schema_id is unsupported.")
+    if not (response_fields == expected_fields):
+        raise JobInputRejected(f"{response_fields=} should match {expected_fields=}")
 
-    observed = FeedInputFacts(
-        *(document[name] for name in ("job_ref", "input_schema_id", "input_fingerprint", "input_byte_length"))
+    if not ((response_schema_id := input_response["schema_id"]) == RESPONSE_SCHEMA):
+        raise JobInputRejected(f"{response_schema_id=} should match {RESPONSE_SCHEMA=}")
+
+    observed_input = FeedInputFacts(
+        *(input_response[name] for name in ("job_ref", "input_schema_id", "input_fingerprint", "input_byte_length"))
     )
 
-    for name in ("job_ref", "input_schema_id", "input_fingerprint", "input_byte_length"):
-        if getattr(observed, name) != getattr(feed, name):
-            raise JobInputRejected(f"Cannot verify Job input: response {name} differs from the feed identity.")
+    for field_name in ("job_ref", "input_schema_id", "input_fingerprint", "input_byte_length"):
+        observed_input_fact = getattr(observed_input, field_name)
+        feed_input_fact = getattr(feed, field_name)
 
-    encoded = document["canonical_input_base64"]
+        if not (observed_input_fact == feed_input_fact):
+            raise JobInputRejected(f"{field_name=}; {observed_input_fact=} should match {feed_input_fact=}")
 
-    if not (type(encoded) is (expected_encoded_type := str)):
-        raise JobInputRejected(f"Cannot verify Job input: {type(encoded)=} ≠ {expected_encoded_type=}")
+    observed_input_base64 = input_response["canonical_input_base64"]
 
-    if not (1 <= len(encoded) <= 87384):
-        raise JobInputRejected("Cannot verify Job input: canonical_input_base64 must be bounded nonempty text.")
+    if not (type(observed_input_base64) is (expected_type := str)):
+        raise JobInputRejected(f"{type(observed_input_base64)=} ≠ {expected_type=}")
+
+    base64_character_count = len(observed_input_base64)
+
+    if not (1 <= base64_character_count <= 87384):
+        raise JobInputRejected(f"{base64_character_count=} should be between 1 and 87384")
 
     try:
-        payload = base64.b64decode(encoded, validate=True)
-    except (ValueError, binascii.Error):
-        raise JobInputRejected("Cannot verify Job input: invalid base64 encoding.") from None
+        specification_bytes = base64.b64decode(observed_input_base64, validate=True)
+    except ValueError as cause:
+        raise JobInputRejected(f"Cannot decode input for {feed.job_ref=}") from cause
 
-    if base64.b64encode(payload).decode("ascii") != encoded:
-        raise JobInputRejected("Cannot verify Job input: base64 padding or pad bits are not canonical.")
+    expected_input_base64 = base64.b64encode(specification_bytes).decode("ascii")
 
-    return VerifiedJobInput(feed, payload)
+    if not (observed_input_base64 == expected_input_base64):
+        raise JobInputRejected(f"{observed_input_base64[-4:]=} should match {expected_input_base64[-4:]=}")
+
+    return VerifiedJobInput(feed, specification_bytes)
