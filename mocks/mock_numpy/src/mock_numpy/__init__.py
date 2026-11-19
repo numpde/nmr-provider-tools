@@ -161,7 +161,7 @@ def asarray(a: object, *, dtype: type) -> ndarray:
     if not (dtype is float):
         raise NotImplementedError(f"Only explicit float dtype is implemented; {dtype=}")
 
-    if isinstance(a, ndarray) and a.dtype.scalar_type is dtype:
+    if isinstance(a, ndarray) and (a.dtype.scalar_type is dtype):
         return a
 
     return array(object=a, dtype=dtype)
@@ -198,7 +198,7 @@ def dot(a: ndarray, b: ndarray) -> float:
     if not (a.shape == b.shape):
         raise ValueError(f"Dot product shapes must match; {a.shape=}; {b.shape=}")
 
-    if not (a.dtype.kind in "iuf" and b.dtype.kind in "iuf"):
+    if not ((a.dtype.kind in "iuf") and (b.dtype.kind in "iuf")):
         raise NotImplementedError(f"Only real numeric dot products are implemented; {a.dtype=}; {b.dtype=}")
 
     return builtins.sum((float(left) * float(right) for (left, right) in zip(a._scalars, b._scalars, strict=True)), start=0.0)
@@ -210,7 +210,7 @@ def sum(a: ndarray, *, dtype: type) -> float:
     if not isinstance(a, (expected_type := ndarray)):
         raise TypeError(f"{type(a)=} ≠ {expected_type=}")
 
-    if not (dtype is float and a.dtype.kind in "iuf"):
+    if not ((dtype is float) and (a.dtype.kind in "iuf")):
         raise NotImplementedError(f"Only real arrays with float accumulation are implemented; {dtype=}; {a.dtype=}")
 
     return builtins.sum((float(scalar) for scalar in a._scalars), start=0.0)

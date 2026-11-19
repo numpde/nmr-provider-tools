@@ -69,7 +69,7 @@ class ReferenceSet:
         dimensions = len(self.entries[0].values)
 
         for reference in self.entries:
-            if reference.label in labels or len(reference.values) != dimensions:
+            if (reference.label in labels) or (len(reference.values) != dimensions):
                 raise ValueError("Matching references require unique labels and equal vector dimensions")
 
             labels.add(reference.label)

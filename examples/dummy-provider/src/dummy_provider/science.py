@@ -148,7 +148,7 @@ class PreparedSamples:
         # Snapshot before validation so accepted state owns the checked array.
         self.samples = self.samples.copy()
 
-        if not (self.samples.ndim == 1 and self.samples.size > 0):
+        if not ((self.samples.ndim == 1) and (self.samples.size > 0)):
             raise ValueError(f"Expected a nonempty prepared vector; {self.samples.shape=}")
 
         if not (self.samples.dtype.kind in "iuf"):
@@ -209,7 +209,7 @@ def load_model(model: WeightedSumModel) -> None:
     # Validate the copy the model will retain; assembly still owns its array.
     coefficient_weights = model.coefficients.weights.copy()
 
-    if not (coefficient_weights.ndim == 1 and coefficient_weights.size > 0):
+    if not ((coefficient_weights.ndim == 1) and (coefficient_weights.size > 0)):
         raise ValueError(f"Expected a nonempty coefficient vector; {coefficient_weights.shape=}")
 
     if not (coefficient_weights.dtype.kind in "iuf"):
