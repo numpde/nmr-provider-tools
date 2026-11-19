@@ -19,15 +19,197 @@ for the first 15 commits. Source inspection and authored tests do not constitute
 passing tests. This review workspace has no Docker executable; qualification
 must use the maintained installed lanes on the selected science engine.
 
-## Review scope
+## Implemented review checkpoint
 
-Keep declaration selection separate from receiver ownership. The class-only
-hosted handle supports selecting call bindings, but submit_method still requires
-an actual bound receiver. A missing parent receiver cannot match an unbound
-function merely because both expose None.
+Code checkpoint: 45f1c0a888f46d8cfa69cd842cd8d95e671749f1.
+Code tree: a74ec5b4bcff775d230f0e075fcc1bef1e058453.
+The documentation commit containing this completed record does not change code.
 
-Further revision will retain requests before transmission, start cleanup when
-requested, preserve scientific facts through transport failure, move terminal
-evidence to the original parent handles, and use the existing native runner for
-worker control. No automatic replay, replacement or generalized workflow is
-introduced. Qualification and its actual results must be recorded separately.
+Five implementation commits follow the reviewed draft, preserving its history:
+
+- a910f9c: preserve bound receiver checks and correct the evidence record.
+- de3b817: bound failure transport and preserve semantic and causal evidence.
+- 828f024: retain submission, cleanup and communication before their effects.
+- f87cc45: transfer terminal evidence before the worker forgets its records.
+- 45f1c0a: use the existing native runner and adapt installed provider setup.
+
+The source revisions are complete for this review checkpoint. They are not a
+passing installed or native qualification, and do not authorize a merge claim.
+
+## Boundaries and resulting behavior
+
+### Declaration and receiver
+
+The class-only HostedContribution compiles declarations and selects call
+bindings without a parent scientific receiver. Exact-object adoption remains
+supported. submit_method requires a real bound receiver; an absent receiver
+cannot match an unbound function merely because both expose None.
+
+Contribution constructors remain lightweight. Acquire resources in initialize,
+after the SDK resident owns the object, retaining partial acquisitions on that
+object for close. A factory returning a wrong or already owned object is refused;
+the SDK cannot recover resources secretly acquired inside a failing constructor.
+
+Offering identity, selected metadata/bindings, prompt-reading timing and the
+receiver -> analysis -> interpreter cleanup order remain as established by the
+preparation checkpoint. Request workflows contain no process launch or model
+lookup logic.
+
+### Submission and observation
+
+Local framing and supported byte-policy checks precede transmission. The parent
+then retains the operation before sending. Only a validated NotAdmitted reply
+removes it. Lost or malformed acknowledgement retains the original identity and
+quarantines uncertain communication; repeating submit returns that owner.
+
+One serialized scientific channel has a deadline across queue acquisition, send,
+header and body. Original communication tasks remain owned when a caller stops
+waiting. The original observation task publishes its reply on the event loop;
+an abandoned waiter cannot discard it or overwrite a newer final observation.
+Channel failure preserves known scientific facts and adds infrastructure evidence.
+
+The first profile permits at most 1 MiB per encoded input/result payload inside
+an 8 MiB frame. Larger requested per-operation allowances are refused before
+transmission. Exception causes, contexts, groups and text are bounded. Known SDK
+semantics come from actual exception types; coincidental foreign class names do
+not grant scientific rejection or start-deadline semantics. Bad reply encoding
+produces bounded infrastructure evidence without repeating the command. Other
+oversized records remain a transport failure, not a chunk-transfer capability.
+
+### Cleanup and terminal evidence
+
+Calling close or release_result starts and retains cleanup immediately.
+Observers only wait for that owner. Transport failure does not invent an expired
+cleanup allowance. An invalid result reference cannot poison the valid result's
+release control.
+
+Analysis opening is explicit. Submission cannot implicitly recreate a closed
+analysis, and unknown close cannot invent success. Parent-generated fresh UUIDs
+remain the identity rule for this private, same-installation channel.
+
+Close captures and joins earlier owned reads, observations and releases. New
+ones wait for the original cleanup. After successful scientific close, the
+parent reads final observations individually, stores them on the original
+handles, and sends forget_analysis once. Only its acknowledgement releases the
+parent analysis slot. Uncertain acknowledgement is not retried.
+
+The child then drops records without available results. Available results remain
+independently owned until release. Release similarly drains earlier reads and
+publishes its final observation before dropping the worker record. This replaces
+the arbitrary 128-entry history and avoids an unbounded aggregate close reply.
+
+### Native process control
+
+ProcessExecutionHost now takes a fresh RunnerSession supplied by deployment.
+It does not launch another supervisor. Deployment starts the existing runner
+with owner-session lifetime and a fixed installed command:
+
+    python -I -B -m provider_core.process_worker
+
+The runner adds its science FD, inherited lifetime lease and native operation
+identity. The worker retains the lease through process exit, including executor
+thread finalization. The parent retains AsyncRunnerSession before connecting.
+The runner owns native stop, reaping and private scratch cleanup independently
+of the scientific communication socket.
+
+Deployment owns the runner endpoint, role, stable lock identity, native budgets
+and restricted launch environment. The supervisor environment must contain only
+what this scientific worker needs; session injection does not itself filter a
+misconfigured supervisor's environment. Existing runner FD restrictions remain.
+Do not infer descendant containment from direct-worker supervision.
+
+NMRPeak process mode requires process_session at provider startup and one
+configured offering. Thread mode stays the default and refuses an unused process
+session. Process checkpoint paths are resolved before the child enters its
+private working directory. Configuration refusals before host construction leave
+the supplied, unconnected session with its caller; the constructed host owns it.
+
+Retirement gives startup, outstanding scientific handoffs and contribution close
+one scientific grace interval. Expiry does not cancel the original action. Native
+observation/stop/join uses the runner session's separate original aggregate
+allowance. After a successful scientific-close reply, half that native allowance
+is reserved for stop/join if interpreter exit stalls; no reader or budget restarts.
+Deployment must leave sufficient native allowance for its configured supervisor
+TERM, KILL, reap and scratch-cleanup bounds.
+
+Original setup and communication are joined before their descriptors close.
+Terminal non-acquisition is assessed after setup joins. A later native setup
+failure is retained unless it is the exact cause already reported by start.
+
+The scientific cleanup observation and native retirement receipt are distinct.
+Confirmed worker exit and scratch release can settle native resources while
+scientific cleanup failures remain reported. Such historical diagnostics do not
+keep a dead allocation charged. Unconfirmed worker or scratch ownership remains
+unsettled and unavailable. There is no automatic restart, replay or replacement.
+
+## Review and verification actually performed
+
+Three independent source reviewers examined request ownership, worker/wire
+boundaries and native supervision. Their findings were addressed and the changed
+handoff and shutdown paths received targeted follow-up review. No further blocker
+was found in those inspected paths. This is source-review evidence only.
+
+Python 3.12.14 ast.parse succeeded for all 12 Python files changed by the feature
+branch, including the class/factory files unchanged by this review. Parsing used
+isolated Python with bytecode writing disabled; no repository module was imported
+or executed. git diff --check passed across the review changes. Call-site and
+installed test-staging source were inspected. These are not behavioral test runs.
+
+Authored or revised behavioral coverage includes:
+
+- Class-only metadata versus actual bound receiver submission.
+- Foreign exception-name collisions, rejection text and bounded causal evidence.
+- Malformed acknowledgement with pre-send ownership and no retransmission.
+- Cleanup starting without an observer and surviving cancelled observation.
+- A cancelled observer's retained reply surviving later channel loss.
+- Concurrent old observation, result release, close and final evidence transfer.
+- Explicit analysis authority, refusal of premature forgetting and retained results.
+- Reply-framing failure without duplicate dispatch.
+- Installed NMRPeak use of the real runner for two predictions, scientific
+  rejection, consumed state and worker death with narrow expected-failure scopes.
+- Installed partial loading failure: verified malformed checkpoint bytes fail
+  inside Model.load after tokenizer retention, followed by original native
+  retirement with successful scratch cleanup.
+
+All these tests remain unrun in this session. There is no Docker executable or
+selected science engine here, so no installed/native pass or red/green pair is
+claimed. The repository's Docker requirement was not bypassed.
+
+## Next useful qualification
+
+Use a clean checkout of this branch and the maintained science-context lanes.
+Run one command at a time, stopping on failure. The unfiltered unit command is
+necessary to include the installed native phase; selecting one unit filename
+does not run native tests.
+
+    make tests/unit/provider-core \
+        DOCKER_CONTEXT=science \
+        WHEELHOUSE="$HOME/Downloads/wheelhouse" \
+        PRIVACY_TESTS=0
+
+    make tests/integration/provider-core \
+        DOCKER_CONTEXT=science \
+        WHEELHOUSE="$HOME/Downloads/wheelhouse" \
+        PRIVACY_TESTS=0 \
+        TEST_PATTERN=test_peak_example.py
+
+Resolve concrete failures in small follow-up commits and record actual commands,
+revision, counts and results. Run the affected integration/fuzz and repository
+gates required for promotion at that qualification checkpoint; do not treat the
+focused example as a full-suite result.
+
+Note 090 still requires stronger actual-child evidence for cancelled startup
+and independent initialization/cleanup failure, loss of a reply after a separately
+observed scientific effect at a barrier, and worker loss during active work.
+The current socket tests and a kill between preparation and generation are not
+substitutes. Two requests in one PID do not independently prove exactly one model
+initialization. Add the smallest discriminating installed proof where the existing
+cases do not establish that guarantee; no general fault framework is required.
+
+## Deliberately outside this revision
+
+No restart or recovery service, new supervisor, registry or generalized workflow;
+no multiple-allocation capacity expansion, other-provider migration, real-model
+or GPU qualification, cross-version protocol, platform expansion, unattended
+parent-death/descendant-containment claim, release or merge. Existing runner,
+test staging, acquisition and repository-check infrastructure are unchanged.
