@@ -1,7 +1,7 @@
 """Synthetic START, admission and scope values for checkpoint/lifecycle tests."""
 
 from provider_core.attempt_record import ProtectedEvidence, RecoveryScope, StartPending
-from provider_core.attempt_response import read_start
+from provider_core.validation.upstream.nmr.v1.attempt_response import read_start
 from tests.fakes.attempts import retained_start, start_response
 from tests.fakes.job_input import facts
 

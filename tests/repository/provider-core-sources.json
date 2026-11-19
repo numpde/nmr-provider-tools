@@ -62,6 +62,7 @@
     },
     {
       "path": "packages/provider-core/src/provider_core/attempt_response.py",
+      "replacement_path": "packages/provider-core/src/provider_core/validation/upstream/nmr/v1/attempt_response.py",
       "mode": "100644",
       "git_blob": "55774944d4239913b19e56fa19d182be615de62b",
       "sha256": "c915d69e79b955b519f319988228deb1d047ca10f04661b6ce8b2d0d603e3beb",

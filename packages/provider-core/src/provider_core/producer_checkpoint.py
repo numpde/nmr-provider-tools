@@ -25,7 +25,7 @@ from provider_core.attempt_record import (
 )
 
 from provider_core.validation.evidence import require_evidence_schema_id
-from provider_core.attempt_response import ATTEMPT_RESPONSE_BYTES, AttemptAdmission, read_start
+from provider_core.validation.upstream.nmr.v1.attempt_response import ATTEMPT_RESPONSE_BYTES, AttemptAdmission, read_start
 from provider_core.type_requirements import require_type
 
 # The existing START/admission bounds plus a 1024-scalar schema identifier,

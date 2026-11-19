@@ -6,7 +6,7 @@ from provider_core.producer_checkpoint import AcknowledgedCheckpoint
 from tests.fakes.execution import live_executor
 import unittest
 
-from provider_core.attempt_response import AttemptObservation
+from provider_core.validation.upstream.nmr.v1.attempt_response import AttemptObservation
 from provider_core.execution import ExecutionFailed, ExecutionStopped
 from tests.fakes.api import Transport, reply
 from tests.fakes.attempts import ATTEMPT_REF, observation, progress_response

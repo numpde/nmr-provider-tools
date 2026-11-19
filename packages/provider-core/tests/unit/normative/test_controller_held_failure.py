@@ -12,7 +12,7 @@ import time
 from provider_core.analysis import AnalysisOutcomeUnresolved, AnalysisSuccess
 from provider_core.api import ApiFailure
 from provider_core.attempt_record import StartPending
-from provider_core.attempt_response import AttemptObservation
+from provider_core.validation.upstream.nmr.v1.attempt_response import AttemptObservation
 from provider_core.controller import ControllerFailed, ControllerRefused
 from provider_core.diagnostics import failure_evidence
 from provider_core.execution import ExecutionStopped, ObservationGapExpired, ObservationRecovery

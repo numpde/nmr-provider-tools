@@ -1,8 +1,8 @@
 """Admit lifecycle observations without inferring work or publication history.
 
 Wire authority: nmr-api-v1 6a163b7a9cc1e2c7485b681c0b2b969c7c20e6c8,
-nmr_api/provider/routes.py::EXECUTION_ATTEMPT_READ_ROUTE and
-nmr_api/provider/schemas/execution_attempt_read_response.v1.schema.json.
+nmr_api/provider/routes.py and provider/schemas/
+execution_attempt_{read,start,progress,complete,fail}_response.v1.schema.json.
 Readback contains no terminal content; exact terminal resend, implemented by
 the publication owner, must establish whether retained outcome bytes committed.
 """

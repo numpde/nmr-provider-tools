@@ -6,7 +6,7 @@ from tests.fakes.execution import live_executor
 import unittest
 
 from provider_core.attempt_record import TerminalOperation
-from provider_core.attempt_response import AttemptObservation
+from provider_core.validation.upstream.nmr.v1.attempt_response import AttemptObservation
 from tests.fakes.api import Transport, reply
 from tests.fakes.attempts import ATTEMPT_REF, progress_response
 from tests.fakes.execution import PausedSession, live_attempt, execute_with_watchdog

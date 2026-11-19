@@ -15,7 +15,7 @@ import httpcore
 import httpx
 
 from provider_core.validation.upstream.nmr.v1.attempt_request import require_provider_ref
-from provider_core.attempt_response import require_attempt_ref
+from provider_core.validation.upstream.nmr.v1.attempt_response import require_attempt_ref
 from provider_core.delivery_store import DeliveryConflict, DeliveryFull
 from provider_core.response_json import ResponseRejected, read_document
 from provider_core.validation.upstream.nmr.v1.signing import https_origin

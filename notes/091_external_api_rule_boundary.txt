@@ -210,7 +210,7 @@ NMR Provider API: wire and validation owners
     Contract test_api_release.py and test_installation.py and integration
     test_attempt_outcome.py also passed, with DOCKER_CONTEXT=science and PRIVACY_TESTS=0.
 
-[ ] N9  Extract Attempt response and acknowledgement admission
+[x] N9  Extract Attempt response and acknowledgement admission
     core/attempt_response.py:28-341
     Job/Attempt states, Attempt/result reference forms, all receipt field sets
     and schema IDs, observation identity, timestamps, replay flags and exact
@@ -219,6 +219,13 @@ NMR Provider API: wire and validation owners
     Evidence: test_attempt_api.py plus Start/Progress/Outcome unit and integration
     files. Large acknowledgement tests retain full response evidence while
     limiting displayed metadata.
+    Completed 2026-11-19: Attempt vocabularies, ceilings, checked observations
+    and acknowledgement readers now live in
+    core/validation/upstream/nmr/v1/attempt_response.py. All callers use that
+    owner; the old module is removed. API exchange caps, failure translation and
+    uncertainty bookkeeping remain at their existing operational boundaries.
+    Focused unit test_attempt_api.py and test_attempt_outcome.py and contract
+    test_installation.py passed on science with PRIVACY_TESTS=0.
 
 [ ] N10 Extract Upload membership and grant admission
     core/upload_response.py:59-236

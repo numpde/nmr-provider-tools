@@ -19,7 +19,7 @@ from contextlib import ExitStack, contextmanager
 import h11
 
 from provider_core.attempt_record import TerminalOperation
-from provider_core.attempt_response import require_attempt_ref
+from provider_core.validation.upstream.nmr.v1.attempt_response import require_attempt_ref
 from provider_core.delivery_client import DeliveryUnavailable
 from provider_core.delivery_store import DeliveryConflict, DeliveryFull, DeliveryInventoryUnavailable, DeliveryOutcome, DeliveryStorageFailed
 

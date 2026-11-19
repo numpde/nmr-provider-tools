@@ -22,7 +22,7 @@ from provider_core.validation.upstream.nmr.v1.attempt_request import (
     require_start_body,
 )
 
-from provider_core.attempt_response import (
+from provider_core.validation.upstream.nmr.v1.attempt_response import (
     AttemptAdmission,
     read_start,
 )
