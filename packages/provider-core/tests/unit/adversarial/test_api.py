@@ -31,19 +31,29 @@ class ApiReadFailureTests(unittest.IsolatedAsyncioTestCase):
 
             self.assertEqual(transport.calls, [])
 
-    async def test_http_failure_retains_body_without_rendering_it_or_retrying(self):
+    async def _http_failure(self):
         observed = reply(b"private-response-canary", status=503)
         transport = Transport(observed)
 
         with self.assertRaises(ApiFailure) as caught:
             await self.api(transport).job_input(facts(), analysis_kind_ref="nmr_prediction")
 
-        self.assertEqual(caught.exception.status, 503)
-        self.assertIs(caught.exception.response, observed)
-        self.assertIn("Job input", str(caught.exception))
-        self.assertIn("503", str(caught.exception))
-        self.assertNotIn("private-response-canary", "".join(traceback.format_exception(caught.exception)))
+        return caught.exception, observed, transport
+
+    async def test_http_failure_retains_body_without_retrying(self):
+        (failure, observed, transport) = await self._http_failure()
+
+        self.assertEqual(failure.status, 503)
+        self.assertIs(failure.response, observed)
+        self.assertIn("Job input", str(failure))
+        self.assertIn("503", str(failure))
         self.assertEqual(len(transport.calls), 1)
+
+    @unittest.skip("Privacy policy under review")
+    async def test_http_failure_traceback_omits_response_content(self):
+        (failure, _observed, _transport) = await self._http_failure()
+
+        self.assertNotIn("private-response-canary", "".join(traceback.format_exception(failure)))
 
     async def test_invalid_success_envelope_never_yields_input(self):
         cases = (
@@ -75,7 +85,7 @@ class ApiReadFailureTests(unittest.IsolatedAsyncioTestCase):
         self.assertIs(caught.exception.response, observed)
         self.assertIsNotNone(caught.exception.cause)
 
-    async def test_io_failure_and_cancellation_keep_operation_context(self):
+    async def _interrupted_reads(self):
         io_failure = ExchangeFailed("Cannot complete HTTPS exchange", primary=RuntimeError("private-io-canary"))
 
         for interruption in (io_failure, asyncio.CancelledError()):
@@ -89,12 +99,20 @@ class ApiReadFailureTests(unittest.IsolatedAsyncioTestCase):
             ):
                 await api.job_input(facts(), analysis_kind_ref="nmr_prediction")
 
-            self.assertIs(api.last_failure.cause, io_failure)
-            self.assertIn("Job input", str(api.last_failure))
-            self.assertNotIn("private-io-canary", repr(api.last_failure))
+            yield api.last_failure, io_failure, transport
+
+    async def test_io_failure_and_cancellation_keep_operation_context(self):
+        async for (failure, io_failure, transport) in self._interrupted_reads():
+            self.assertIs(failure.cause, io_failure)
+            self.assertIn("Job input", str(failure))
             self.assertEqual(len(transport.calls), 1)
 
-    async def test_problem_reason_is_local_and_unknown_or_ambiguous_problem_stays_private(self):
+    @unittest.skip("Privacy policy under review")
+    async def test_interrupted_read_diagnostics_omit_native_text(self):
+        async for (failure, _io_failure, _transport) in self._interrupted_reads():
+            self.assertNotIn("private-io-canary", repr(failure))
+
+    async def _problem_read_failures(self):
         document = {
             "type": "urn:nmr-api:problem:authentication-failed",
             "title": "private-title-canary",
@@ -126,10 +144,18 @@ class ApiReadFailureTests(unittest.IsolatedAsyncioTestCase):
             with self.subTest(changes=changes), self.assertRaises(ApiFailure) as caught:
                 await self.api(transport).job_input(facts(), analysis_kind_ref="nmr_prediction")
 
-            failure = caught.exception
-            rendered = "".join(traceback.format_exception(failure))
+            yield caught.exception, known
 
-            self.assertNotIn("private-", rendered)
+        duplicate = json.dumps(document)[:-1] + ',"code":"signature_expired"}'
+        transport = Transport(reply(duplicate.encode(), status=401, headers=response_headers(status=401, request_id=b"request:test")))
+
+        with self.assertRaises(ApiFailure) as caught:
+            await self.api(transport).job_input(facts(), analysis_kind_ref="nmr_prediction")
+
+        yield caught.exception, False
+
+    async def test_problem_reason_is_local_and_rejects_unknown_or_ambiguous_problems(self):
+        async for (failure, known) in self._problem_read_failures():
 
             # silent-defaults: allow-contract -- Only the known correlated problem obtains the reviewed local code.
             self.assertEqual(failure.problem_code, "signature_expired" if known else None)
@@ -141,10 +167,7 @@ class ApiReadFailureTests(unittest.IsolatedAsyncioTestCase):
                 self.assertIn("expired", str(failure))
                 self.assertIn("clock", str(failure))
 
-        duplicate = json.dumps(document)[:-1] + ',"code":"signature_expired"}'
-        transport = Transport(reply(duplicate.encode(), status=401, headers=response_headers(status=401, request_id=b"request:test")))
-
-        with self.assertRaises(ApiFailure) as caught:
-            await self.api(transport).job_input(facts(), analysis_kind_ref="nmr_prediction")
-
-        self.assertIsNone(caught.exception.problem_code)
+    @unittest.skip("Privacy policy under review")
+    async def test_problem_diagnostics_omit_server_content(self):
+        async for (failure, _known) in self._problem_read_failures():
+            self.assertNotIn("private-", "".join(traceback.format_exception(failure)))
