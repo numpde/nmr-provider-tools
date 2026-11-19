@@ -29,7 +29,7 @@ def project_files(raw: bytes, *, expected_project_name: str) -> list[Mapping[str
         raise ValueError(f"{reprlib.repr(project_name)=} should match {reprlib.repr(expected_project_name)=}")
 
     # silent-defaults: allow-contract -- Preserve the existing consumed profile's empty result when files is absent
-    return project.get("files", [])
+    return project.get("files", [])  # silent-defaults: allow-empty-get -- Missing inventory cannot authorize an artifact
 
 
 def file_identity(artifact: Mapping[str, Any]) -> tuple[str, str | None] | None:
