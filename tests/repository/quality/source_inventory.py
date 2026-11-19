@@ -11,14 +11,15 @@ require_container()
 import pathlib
 from pathlib import PurePosixPath
 
+from type_requirements import require_instance
+
 
 class SourceInventoryError(AssertionError):
     """A security-sensitive source tree is incomplete or structurally unsafe."""
 
 
 def _validated_subtree(subtree: str) -> PurePosixPath:
-    if not isinstance(subtree, (expected_type := str)):
-        raise TypeError(f"{type(subtree)=} ≠ {expected_type=}")
+    require_instance(subtree, str)
 
     candidate = PurePosixPath(subtree)
 
@@ -43,8 +44,7 @@ def discover_source_files(*, root: pathlib.Path, subtree: str) -> tuple[str, ...
     Committed immutable context proof belongs to the scientific source checks.
     """
 
-    if not isinstance(root, expected_type := pathlib.Path):
-        raise TypeError(f"{root=} does not have {expected_type=}")
+    require_instance(root, pathlib.Path)
 
     subtree_path = _validated_subtree(subtree)
     base = root.joinpath(*subtree_path.parts)
@@ -100,8 +100,10 @@ def require_exact_inventory(
 ) -> None:
     """Reject missing reviewed files and present-but-unclassified files."""
 
-    if (not isinstance(label, str)) or (not label):
-        raise TypeError("label must be a non-empty string")
+    require_instance(label, str)
+
+    if not (label):
+        raise TypeError(f"{label=} should be nonempty")
 
     (missing, unclassified) = inventory_delta(
         discovered=discovered,
