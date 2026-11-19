@@ -473,7 +473,7 @@ class ApiNetworkAvailabilityTests(unittest.IsolatedAsyncioTestCase):
                     return await original_read(owner, max_bytes, timeout=None)
 
                 with (patch("provider_core.network.httpcore.AnyIOBackend", return_value=Backend(stream)),
-                      patch("provider_core.network.AnyIOStream.read", new=read_without_inner_deadline)):
+                      patch("provider_core.adapters.httpcore.AnyIOStream.read", new=read_without_inner_deadline)):
                     failure = await self.failed_exchange(client, "GET", "/provider/v1/jobs/job:example/uploads")
 
                 observation = failure.cause.network_io

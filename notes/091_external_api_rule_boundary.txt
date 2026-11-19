@@ -738,6 +738,12 @@ Shared wire support: retain the distinction from local policy
   Its return-type concern was checked against the pinned source: AsyncHTTPProxy
   derives from AsyncConnectionPool, so the annotation needed no change.
   Backend exception/cause mapping remains explicitly pending below.
+  TLS mapping extracted 2026-11-19: the backend adapter owns the unchanged
+  eight-entry TLS exception context and private AnyIOStream construction.
+  Handshake I/O, deadlines, observation and post-success assignment remain local.
+  Focused network/API-availability unit and TLS-shutdown/API-availability
+  integration lanes passed with PRIVACY_TESTS=0 (19 tests); mapping AST and
+  independent audit confirmed parity. Byte-stream and retry-policy review remain.
 - [ ] Keep shared decoding rules distinct from caller-selected budgets
   core/decoded_body.py:81-220: Content-Encoding lists, gzip/deflate framing and
   decompression checks are HTTP/encoding support. Budget values are caller policy.

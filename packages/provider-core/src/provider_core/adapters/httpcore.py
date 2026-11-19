@@ -1,4 +1,4 @@
-"""Map request, pool and trace facts for the pinned httpcore 1.0.9 backend.
+"""Map request, pool, stream and trace facts for the pinned httpcore 1.0.9 backend.
 
 Sources: httpcore/_models.py::Request, _async/http11.py trace events and
 _async/http_proxy.py::AsyncTunnelHTTPConnection. The caller owns pool options,
@@ -9,7 +9,13 @@ from provider_core.container_guard import require_container
 
 require_container()
 
+import ssl
+from contextlib import AbstractContextManager
+
+import anyio
 import httpcore
+from httpcore._backends.anyio import AnyIOStream
+from httpcore._exceptions import map_exceptions
 
 from provider_core.http_response import HttpResponseHead
 
@@ -86,3 +92,26 @@ def response_head(response: httpcore.Response) -> HttpResponseHead:
     """Capture the original response metadata before body admission or decoding."""
 
     return HttpResponseHead(response.status, tuple(response.headers))
+
+
+def tls_handshake_errors() -> AbstractContextManager[None]:
+    """Map the pinned backend's TLS failure family without owning the handshake."""
+
+    return map_exceptions(
+        {
+            TimeoutError: httpcore.ConnectTimeout,
+            httpcore.ReadTimeout: httpcore.ConnectTimeout,
+            httpcore.WriteTimeout: httpcore.ConnectTimeout,
+            httpcore.ReadError: httpcore.ConnectError,
+            httpcore.WriteError: httpcore.ConnectError,
+            anyio.BrokenResourceError: httpcore.ConnectError,
+            anyio.EndOfStream: httpcore.ConnectError,
+            ssl.SSLError: httpcore.ConnectError,
+        }
+    )
+
+
+def wrap_anyio_stream(stream: anyio.abc.ByteStream) -> httpcore.AsyncNetworkStream:
+    """Expose the already-owned stream through the pinned backend interface."""
+
+    return AnyIOStream(stream)

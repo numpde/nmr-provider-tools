@@ -23,11 +23,7 @@ import anyio
 import httpcore
 from anyio.streams.tls import TLSStream
 
-# These adapters belong to the pinned httpcore 1.0.9 backend. Reuse its
-# timeout/error conversion while choosing TLS shutdown policy explicitly.
-from httpcore._backends.anyio import AnyIOStream
-
-from httpcore._exceptions import map_exceptions
+from provider_core.adapters import httpcore as backend_wire
 
 
 @dataclass(slots=True, repr=False)
@@ -324,18 +320,7 @@ class _OwnedStream(httpcore.AsyncNetworkStream):
         # Assignment happens only after a successful upgrade: cancellation must
         # leave the raw connection reachable by the final cleanup owner.
         with self._network.io("start_tls"):
-            with map_exceptions(
-                {
-                    TimeoutError: httpcore.ConnectTimeout,
-                    httpcore.ReadTimeout: httpcore.ConnectTimeout,
-                    httpcore.WriteTimeout: httpcore.ConnectTimeout,
-                    httpcore.ReadError: httpcore.ConnectError,
-                    httpcore.WriteError: httpcore.ConnectError,
-                    anyio.BrokenResourceError: httpcore.ConnectError,
-                    anyio.EndOfStream: httpcore.ConnectError,
-                    ssl.SSLError: httpcore.ConnectError,
-                }
-            ):
+            with backend_wire.tls_handshake_errors():
                 with anyio.fail_after(timeout):
                     # httpcore's default skips the TLS goodbye and drops the
                     # socket after a complete response. The proxy then fails
@@ -350,7 +335,7 @@ class _OwnedStream(httpcore.AsyncNetworkStream):
                         standard_compatible=True,
                     )
 
-            self._stream = AnyIOStream(stream)
+            self._stream = backend_wire.wrap_anyio_stream(stream)
 
         return self
 
