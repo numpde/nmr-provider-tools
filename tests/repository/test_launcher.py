@@ -259,6 +259,7 @@ class LauncherTests(unittest.TestCase):
             launcher.parent.mkdir(parents=True)
 
             launcher.write_bytes((ROOT / "tests/repository/run.sh").read_bytes())
+
             environment = os.environ | {"NMR_SELECTED_DOCKER_ENDPOINT": "unix:///var/run/docker.sock"}
             command = ["bash", str(launcher), "--print", "tests/repository"]
             completed_process = subprocess.run(command, env=environment, capture_output=True, text=True, check=False)
@@ -286,6 +287,11 @@ class LauncherTests(unittest.TestCase):
             launcher.parent.mkdir(parents=True)
 
             launcher.write_bytes((ROOT / "tests/repository/run.sh").read_bytes())
+
+            privacy_switch = root / "operations/testing/privacy.sh"
+
+            privacy_switch.parent.mkdir(parents=True)
+            privacy_switch.write_bytes((ROOT / "operations/testing/privacy.sh").read_bytes())
 
             for (target, message) in (
                 ("tests/repository", "operations/checker/image_identity.sh"),
