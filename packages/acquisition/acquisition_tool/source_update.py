@@ -229,7 +229,7 @@ def verify(source_dir):
     source = pathlib.Path(source_dir).absolute()
 
     if (source.resolve() != source) or (source.is_symlink()) or (not source.is_dir()):
-        raise ValueError(f"Cannot verify acquisition source {source}: require a real directory without symlink parents.")
+        raise ValueError(f"{source=} should be a real directory without symlink parents")
 
     manifest_path = source / "acquisition-manifest.json"
     (manifest_bytes, metadata) = _regular_bytes(manifest_path)
@@ -380,17 +380,18 @@ def _admit_archive(
     return (payload, manifest)
 
 
-def _exchange_directories(first, second):
+def _exchange_directories(source_directory, replacement_directory):
     """Use the existing Linux directory-exchange primitive from SECS bootstrap."""
     libc = ctypes.CDLL(None, use_errno=True)
     exchange = libc.renameat2
     exchange.argtypes = (ctypes.c_int, ctypes.c_char_p, ctypes.c_int, ctypes.c_char_p, ctypes.c_uint)
     exchange.restype = ctypes.c_int
 
-    if exchange(-100, os.fsencode(first), -100, os.fsencode(second), 2) != 0:
+    # AT_FDCWD is -100; RENAME_EXCHANGE (2) swaps both directory entries atomically
+    if exchange(-100, os.fsencode(source_directory), -100, os.fsencode(replacement_directory), 2) != 0:
         number = ctypes.get_errno()
 
-        raise OSError(number, os.strerror(number), f"{first} <-> {second}")
+        raise OSError(number, os.strerror(number), os.fspath(source_directory), None, os.fspath(replacement_directory))
 
 
 def _publish(source, stage):
@@ -399,13 +400,13 @@ def _publish(source, stage):
     try:
         _exchange_directories(source, stage)
     except BaseException as error:
-        error.add_note(f"Snapshot exchange did not complete normally; retain and inspect {source} and {stage}.")
+        error.add_note(f"Snapshot exchange did not complete normally; retain and inspect {source=} and {stage=}")
         raise
 
     try:
         shutil.rmtree(stage)
     except BaseException as error:
-        error.add_note(f"New acquisition source is published at {source}; previous snapshot cleanup failed at {stage}.")
+        error.add_note(f"New acquisition {source=} is published; previous snapshot cleanup failed at {stage=}")
         raise
 
 

@@ -134,10 +134,10 @@ def main(argv=None):
     except ProbeFailure as failure:
         retired = probe_failure_retirement_confirmed(failure)
 
-        sys.stderr.write(f"Cannot map engine identity: {failure.problem.message}\n")
+        print(f"Cannot map engine identity: {failure.problem.message=}", file=sys.stderr)
 
         for problem in failure.retirement.problems:
-            sys.stderr.write(f"Probe cleanup: {problem.message}\n")
+            print(f"Probe cleanup: {problem.message=}", file=sys.stderr)
 
         if failure.handle is not None:
             container_id = failure.handle.container_id
@@ -145,15 +145,16 @@ def main(argv=None):
             if not container_id:
                 container_id = "not confirmed"
 
-            sys.stderr.write(
-                f"Probe operation {failure.handle.operation_token}; "
-                f"container {container_id}; "
-                f"retirement {failure.retirement.state}.\n"
+            print(
+                f"{failure.handle.operation_token=}; "
+                f"{container_id=}; "
+                f"{failure.retirement.state=}",
+                file=sys.stderr,
             )
 
         status = 2
     except (ValueError, StepError) as failure:
-        sys.stderr.write(f"Cannot map engine identity: {failure}\n")
+        print(f"Cannot map engine identity: {failure=!s}", file=sys.stderr)
         status = 2
     finally:
         for (number, handler) in previous.items():

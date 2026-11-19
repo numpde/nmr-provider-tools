@@ -495,6 +495,17 @@ class SourceUpdateTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "directory is a symlink"):
             updates.verify(self.source)
 
+    def test_missing_exchange_candidate_reports_both_paths_and_keeps_old_source(self):
+        missing_candidate = self.root / "missing-candidate"
+
+        with self.assertRaises(FileNotFoundError) as caught:
+            updates._exchange_directories(self.source, missing_candidate)
+
+        self.assertEqual(str(self.source), caught.exception.filename)
+        self.assertEqual(str(missing_candidate), caught.exception.filename2)
+        self.assert_old_source()
+        self.assertFalse(missing_candidate.exists())
+
     def test_exchange_failure_keeps_old_source_and_retains_candidate_evidence(self):
         failure = PermissionError("exchange denied")
 
