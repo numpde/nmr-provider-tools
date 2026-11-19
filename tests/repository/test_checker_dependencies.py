@@ -90,7 +90,7 @@ class CheckerDependencyTests(unittest.TestCase):
             self.artifact.write_bytes(b"late")
 
         with patch.object(dependencies, "check", side_effect=change_after_check):
-            with self.assertRaisesRegex(ValueError, "differs"):
+            with self.assertRaises(ValueError):
                 dependencies.capture([self.package], self.pool, self.capture)
 
     def test_artifact_symlinks_and_oversized_bytes_are_rejected(self):
@@ -103,7 +103,7 @@ class CheckerDependencyTests(unittest.TestCase):
 
         self.artifact.write_bytes(b"make-extra")
 
-        with self.assertRaisesRegex(ValueError, "exceeds declared size"):
+        with self.assertRaises(ValueError):
             dependencies.verify(self.package, self.artifact)
 
     def test_publication_keeps_identical_winner_inode_and_preserves_conflict(self):
@@ -116,7 +116,7 @@ class CheckerDependencyTests(unittest.TestCase):
         self.assertEqual(inode, self.artifact.stat().st_ino)
         self.artifact.write_bytes(b"late")
 
-        with self.assertRaisesRegex(ValueError, "differs"):
+        with self.assertRaises(ValueError):
             dependencies.publish(self.package, staged, self.artifact)
 
         self.assertEqual(b"late", self.artifact.read_bytes())

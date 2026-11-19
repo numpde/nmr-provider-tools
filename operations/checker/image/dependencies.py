@@ -96,26 +96,31 @@ def declaration(path):
     return packages
 
 
-def verify(package, path):
+def verify(package, dependency_path):
     checksum = hashlib.sha256()
-    count = 0
+    byte_count = 0
 
-    with regular_file(path) as stream:
+    with regular_file(dependency_path) as stream:
         while chunk := stream.read(1024 * 1024):
-            count += len(chunk)
+            byte_count += len(chunk)
 
-            if not (count <= package["size"]):
-                raise ValueError(f"Cannot admit {path}: exceeds declared size {package['size']}.")
+            if not (byte_count <= package["size"]):
+                raise ValueError(f"{dependency_path=}: {byte_count=} should not exceed {package['size']=}")
 
             checksum.update(chunk)
 
-    if (count != package["size"]) or (checksum.hexdigest() != package["sha256"]):
-        raise ValueError(f"Cannot admit {path}: size or SHA-256 differs from the dependency declaration.")
+    if not (byte_count == package["size"]):
+        raise ValueError(f"{dependency_path=}: {byte_count=} should match {package['size']=}")
+
+    file_sha256 = checksum.hexdigest()
+
+    if not (file_sha256 == package["sha256"]):
+        raise ValueError(f"{dependency_path=}: {file_sha256=} should match {package['sha256']=}")
 
 
 def check(packages, pool):
     if (pool.is_symlink()) or (not pool.is_dir()):
-        raise ValueError(f"Cannot use checker cache {pool}: expected a directory without a symlink.")
+        raise ValueError(f"{pool=} should be a directory without a symlink")
 
     for package in packages:
         verify(package, pool / package["file"])
@@ -169,7 +174,7 @@ def download(packages, pool):
     require_download_proxy()
 
     if (pool.is_symlink()) or (not pool.is_dir()):
-        raise ValueError(f"Cannot download checker dependencies: shared cache directory is missing: {pool}.")
+        raise ValueError(f"{pool=} should be a directory without a symlink")
 
     for package in packages:
         destination = pool / package["file"]
@@ -178,7 +183,7 @@ def download(packages, pool):
             verify(package, destination)
             continue
 
-        print(f"Downloading {package['file']} into the shared wheelhouse.", flush=True)
+        print(f"Downloading {package['file']=} into {pool=}", flush=True)
         opener = https_download_opener()
 
         with tempfile.NamedTemporaryFile(prefix=".checker-download-", suffix=".part", dir=pool) as target:
