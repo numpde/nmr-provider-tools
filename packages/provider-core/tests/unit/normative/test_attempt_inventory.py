@@ -4,7 +4,7 @@ import unittest
 from dataclasses import FrozenInstanceError
 from datetime import UTC
 
-from provider_core.attempt_inventory import read_attempt_inventory
+from provider_core.validation.upstream.nmr.v1.attempt_inventory import read_attempt_inventory
 from provider_core.response_json import ResponseRejected
 from tests.fakes.api import Transport, reply
 from tests.fakes.attempt_inventory import attempt, response

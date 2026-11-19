@@ -36,16 +36,12 @@ def require_cursor(cursor):
         raise ValueError(f"{cursor=} should match {canonical_cursor=}")
 
 
-def paging_query(*, limit, cursor):
+def require_page_inputs(*, limit, cursor):
+    """Admit the shared discovery page size and optional opaque cursor."""
+
     require_type(limit, int)
 
     if not (1 <= limit <= MAX_PAGE_ITEMS):
         raise ValueError(f"{limit=} should be between 1 and {MAX_PAGE_ITEMS=}")
 
     require_cursor(cursor)
-    query = f"limit={limit}"
-
-    if cursor is not None:
-        query += "&cursor=" + cursor
-
-    return query.encode("ascii")

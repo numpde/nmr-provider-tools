@@ -39,6 +39,7 @@
     },
     {
       "path": "packages/provider-core/src/provider_core/attempt_inventory.py",
+      "replacement_path": "packages/provider-core/src/provider_core/validation/upstream/nmr/v1/attempt_inventory.py",
       "mode": "100644",
       "git_blob": "1da745945dd626840f415684388ec206fb0d4a89",
       "sha256": "f651ed4f59301469f2d2f5824d4824372b993cd1e29a9e5366c279b306ad71a1",
@@ -202,6 +203,7 @@
     },
     {
       "path": "packages/provider-core/src/provider_core/job_feed.py",
+      "replacement_path": "packages/provider-core/src/provider_core/validation/upstream/nmr/v1/job_feed.py",
       "mode": "100644",
       "git_blob": "ea0bb002f932ee177e5cc0ad80188835ea5b5766",
       "sha256": "55ed577e644b219aea61e3a5b856fc9a628141a50c535032f81e1ffb964707a3",
@@ -231,6 +233,7 @@
     },
     {
       "path": "packages/provider-core/src/provider_core/paging.py",
+      "replacement_path": "packages/provider-core/src/provider_core/validation/upstream/nmr/v1/paging.py",
       "mode": "100644",
       "git_blob": "a2deac7d0d34e55cc64a405c92ab279f518c49c2",
       "sha256": "30d03c99067f52cba356c79e25aa49634b71f31c3bccd63472830e949169f2d6",

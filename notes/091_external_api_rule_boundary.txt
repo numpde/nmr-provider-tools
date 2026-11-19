@@ -154,6 +154,8 @@ NMR Provider API: wire and validation owners
     validation of every nested schema rule.
 
 [ ] N6  Extract Hello, paging, Job-feed and Attempt-inventory rules
+    [x] Separate discovery admission from query encoding
+    [ ] Separate Hello admission from announcement encoding
     core/hello.py:30-121; core/paging.py:23-51;
     core/job_feed.py:44-145; core/attempt_inventory.py:42-125
     Hello fields/offering limits and receipt binding; reference grammars;
@@ -162,6 +164,13 @@ NMR Provider API: wire and validation owners
     Hello text validation and Attempt scalar validation currently overlap.
     Composition still chooses announcement content and whether to follow a page.
     Evidence: test_hello.py, test_job_feed.py, test_attempt_inventory.py.
+    Discovery completed 2026-11-19: paging, Job-feed and inventory admission
+    now live in core/validation/upstream/nmr/v1/. Exact query encoding lives in
+    core/adapters/nmr/v1/discovery.py. Old modules are removed and callers,
+    installed-wheel checks and donor mappings use the new owners.
+    Focused unit test_job_feed.py and test_attempt_inventory.py, integration
+    test_job_discovery.py and contract test_installation.py passed on science
+    with PRIVACY_TESTS=0. Hello remains pending.
 
 [x] N7  Extract Job-input envelope admission and decoding
     core/job_input.py:43-178

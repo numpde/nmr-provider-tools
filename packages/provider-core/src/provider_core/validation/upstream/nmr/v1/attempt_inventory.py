@@ -18,7 +18,7 @@ from datetime import datetime
 
 from provider_core.validation.upstream.nmr.v1.attempt_request import require_analysis_kind, require_provider_attempt_key
 from provider_core.attempt_response import ATTEMPT_RESPONSE_BYTES, require_attempt_ref
-from provider_core.paging import MAX_PAGE_ITEMS, paging_query, require_cursor
+from provider_core.validation.upstream.nmr.v1.paging import MAX_PAGE_ITEMS, require_cursor
 from provider_core.response_json import ResponseRejected, read_document, read_timestamp
 from provider_core.upload_response import require_job_ref
 
@@ -39,11 +39,11 @@ class AttemptInventoryPage:
     next_cursor: str | None = field(repr=False)
 
 
-def inventory_query(*, state, limit, cursor):
+def require_inventory_state(state):
+    """Admit the API's sole supported live inventory state."""
+
     if not (state == "in_progress"):
         raise ValueError(f"{state=} should be 'in_progress'")
-
-    return b"state=in_progress&" + paging_query(limit=limit, cursor=cursor)
 
 
 def read_attempt_inventory(raw, *, limit):

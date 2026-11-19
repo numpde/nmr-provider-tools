@@ -6,7 +6,7 @@ import unittest
 import os
 
 from provider_core.api import ApiFailure
-from provider_core.job_feed import read_jobs_page
+from provider_core.validation.upstream.nmr.v1.job_feed import read_jobs_page
 from provider_core.response_json import ResponseRejected
 from tests.fakes.api import Transport, reply
 from tests.fakes.job_feed import page, response

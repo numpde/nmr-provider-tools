@@ -4,7 +4,7 @@ import json
 import unittest
 from datetime import UTC
 
-from provider_core.job_feed import PAGE_RESPONSE_BYTES, read_jobs_page
+from provider_core.validation.upstream.nmr.v1.job_feed import PAGE_RESPONSE_BYTES, read_jobs_page
 from provider_core.response_json import ResponseRejected
 from tests.fakes.api import Transport, reply
 from tests.fakes.job_feed import page, response

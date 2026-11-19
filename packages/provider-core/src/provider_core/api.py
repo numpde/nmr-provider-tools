@@ -21,7 +21,8 @@ from email.utils import parsedate_to_datetime
 
 import httpcore
 
-from provider_core.attempt_inventory import inventory_query, read_attempt_inventory
+from provider_core.adapters.nmr.v1.discovery import inventory_query, jobs_query
+from provider_core.validation.upstream.nmr.v1.attempt_inventory import read_attempt_inventory
 
 from provider_core.adapters.nmr.v1.attempt_request import progress_body
 from provider_core.validation.upstream.nmr.v1.attempt_request import (
@@ -43,7 +44,7 @@ from provider_core.attempt_response import (
 )
 
 from provider_core.hello import HELLO_RESPONSE_BYTES, hello_body, read_hello
-from provider_core.job_feed import PAGE_RESPONSE_BYTES, jobs_query, read_jobs_page
+from provider_core.validation.upstream.nmr.v1.job_feed import PAGE_RESPONSE_BYTES, read_jobs_page
 from provider_core.validation.upstream.nmr.v1.job_input import MAX_RESPONSE_BYTES, FeedInputFacts, JobInputRejected, verify_job_input
 from provider_core.response_json import ResponseRejected
 from provider_core.adapters.nmr.v1.signing import signed_request

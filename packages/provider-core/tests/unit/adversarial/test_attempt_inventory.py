@@ -6,7 +6,7 @@ import unittest
 import os
 
 from provider_core.api import ApiFailure
-from provider_core.attempt_inventory import read_attempt_inventory
+from provider_core.validation.upstream.nmr.v1.attempt_inventory import read_attempt_inventory
 from provider_core.response_json import ResponseRejected
 from tests.fakes.api import Transport, reply
 from tests.fakes.attempt_inventory import page, response

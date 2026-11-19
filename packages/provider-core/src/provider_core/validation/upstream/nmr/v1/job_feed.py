@@ -17,7 +17,7 @@ from datetime import datetime
 
 from provider_core.validation.upstream.nmr.v1.attempt_request import require_analysis_kind
 from provider_core.validation.upstream.nmr.v1.job_input import FeedInputFacts, JobInputRejected
-from provider_core.paging import MAX_PAGE_ITEMS, paging_query, require_cursor
+from provider_core.validation.upstream.nmr.v1.paging import MAX_PAGE_ITEMS, require_cursor
 from provider_core.response_json import ResponseRejected, read_document, read_timestamp
 from provider_core.type_requirements import require_type
 
@@ -41,18 +41,12 @@ class JobPage:
     next_cursor: str | None = field(repr=False)
 
 
-def jobs_query(*, analysis_kind_ref, has_provider_execution_attempt, limit, cursor):
-    """Encode explicit selection choices once for the signed request target."""
+def require_jobs_query_inputs(*, analysis_kind_ref, has_provider_execution_attempt):
+    """Admit an analysis-kind filter and explicit prior-Attempt view."""
+
     require_analysis_kind(analysis_kind_ref)
 
     require_type(has_provider_execution_attempt, bool)
-
-    # silent-defaults: allow-contract -- Encode the caller-selected boolean as the protocol-required lowercase wire value.
-    view = "true" if has_provider_execution_attempt else "false"
-
-    query = f"analysis_kind_ref={analysis_kind_ref}&has_provider_execution_attempt={view}&"
-
-    return query.encode("ascii") + paging_query(limit=limit, cursor=cursor)
 
 
 def read_jobs_page(raw, *, analysis_kind_ref, has_provider_execution_attempt, limit):
