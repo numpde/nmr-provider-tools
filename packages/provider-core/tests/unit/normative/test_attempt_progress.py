@@ -34,15 +34,15 @@ class AttemptProgressTests(unittest.IsolatedAsyncioTestCase):
 
                     self.assertEqual(progress_receipt.updated_at.isoformat(), "2026-10-18T00:00:00.123456+00:00")
 
-                (request, limit) = transport.calls[0]
+                (signed_request, max_response_bytes) = transport.calls[0]
 
                 self.assertEqual(
-                    (request.method, request.url.raw_path, limit),
+                    (signed_request.method, signed_request.url.raw_path, max_response_bytes),
                     ("PUT", b"/provider/v1/execution-attempts/" + ATTEMPT_REF.encode() + b"/progress", 65536),
                 )
 
                 self.assertEqual(
-                    json.loads(request.content),
+                    json.loads(signed_request.content),
                     {
                         "schema_id": "nmr.provider.execution_attempt_progress_request.v1",
                         "phase": phase,
@@ -50,6 +50,6 @@ class AttemptProgressTests(unittest.IsolatedAsyncioTestCase):
                     },
                 )
 
-                self.assertEqual(request.headers["Content-Type"], "application/json")
-                self.assertIn("Content-Digest", request.headers)
-                self.assertNotEqual(request.headers["Signature-Input"], transport.calls[1][0].headers["Signature-Input"])
+                self.assertEqual(signed_request.headers["Content-Type"], "application/json")
+                self.assertIn("Content-Digest", signed_request.headers)
+                self.assertNotEqual(signed_request.headers["Signature-Input"], transport.calls[1][0].headers["Signature-Input"])
