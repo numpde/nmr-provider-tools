@@ -126,10 +126,10 @@ class InterpreterFaultSequenceTests(unittest.IsolatedAsyncioTestCase):
                 self.assertEqual(result.model_visit, visits)
                 self.assertTrue(owner.retirement_confirmed)
                 unused.assert_not_called()
-                self.assertEqual(sum(event[0] == "inspect" for event in events), expected_inspections)
+                self.assertEqual(sum((event[0] == "inspect") for event in events), expected_inspections)
                 accepted = events.index(("prepare", True))
 
-                self.assertTrue(all(event[0] == "retire" for event in events[accepted + 1:]))
+                self.assertTrue(all((event[0] == "retire") for event in events[accepted + 1:]))
 
                 for (visit, values) in deadlines.items():
                     self.assertEqual(len(set(values)), 1)

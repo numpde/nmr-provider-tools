@@ -647,13 +647,13 @@ class InterpreterTests(unittest.IsolatedAsyncioTestCase):
             await owner.run([], TOOLS, dispatch)
 
         self.assertIs(caught.exception, scientific)
-        self.assertTrue(any(cause is earlier for (_, cause) in observed_before_effects))
+        self.assertTrue(any((cause is earlier) for (_, cause) in observed_before_effects))
         await owner.retire()
-        self.assertTrue(any(cause is earlier for (_, cause) in owner.failures))
+        self.assertTrue(any((cause is earlier) for (_, cause) in owner.failures))
         context = scientific.__cause__
 
         self.assertIsInstance(context, ConversationFailed)
-        self.assertTrue(any(cause is earlier for (_, cause) in context.endpoint_failures))
+        self.assertTrue(any((cause is earlier) for (_, cause) in context.endpoint_failures))
 
     async def test_exhaustion_exposes_original_failures_to_existing_protected_projection(self):
         from provider_core.failure_projection import owned_details, owned_relationships

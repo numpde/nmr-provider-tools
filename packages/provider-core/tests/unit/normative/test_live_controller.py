@@ -156,7 +156,7 @@ class LiveControllerTests(unittest.IsolatedAsyncioTestCase):
             self.assertEqual((), claims.live_owners())
             self.assertEqual(controller.session.events.count("execute"), 1)
             self.assertGreaterEqual(len(bodies), 2)
-            self.assertTrue(all(body == bodies[0] for body in bodies))
+            self.assertTrue(all((body == bodies[0]) for body in bodies))
         finally:
             recovered.set()
 

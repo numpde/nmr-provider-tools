@@ -190,4 +190,4 @@ class ProseServiceTests(unittest.IsolatedAsyncioTestCase):
         fallback.complete.assert_not_awaited()
         prepare.assert_not_awaited()
         self.assertFalse(owner.retirement_confirmed)
-        self.assertTrue(any(failure is original for (_, failure) in owner.failures))
+        self.assertTrue(any((failure is original) for (_, failure) in owner.failures))

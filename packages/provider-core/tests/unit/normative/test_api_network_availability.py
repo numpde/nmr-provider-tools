@@ -250,7 +250,7 @@ class ApiNetworkAvailabilityTests(unittest.IsolatedAsyncioTestCase):
     async def test_same_read_timeout_from_actual_stream_and_local_account_have_distinct_permission(self):
         original = httpcore.ReadTimeout("same exact object")
 
-        head = b"HTTP/1.1 200 OK\r\n" + b"".join(k+b": "+v+b"\r\n" for (k,v) in response_headers()) + (
+        head = b"HTTP/1.1 200 OK\r\n" + b"".join((k+b": "+v+b"\r\n") for (k,v) in response_headers()) + (
             b"Content-Length: 2\r\n"
             b"\r\n"
             b"x"
@@ -356,7 +356,7 @@ class ApiNetworkAvailabilityTests(unittest.IsolatedAsyncioTestCase):
                         b"x"
                     )
 
-                    stream = RawStream(chunks=[f"HTTP/1.1 {status} controlled\r\n".encode() + b"".join(k+b": "+v+b"\r\n" for (k,v) in headers) + framing])
+                    stream = RawStream(chunks=[f"HTTP/1.1 {status} controlled\r\n".encode() + b"".join((k+b": "+v+b"\r\n") for (k,v) in headers) + framing])
                     transport = self.transport()
                     client = api(transport, "https://api.fixture.example")
 

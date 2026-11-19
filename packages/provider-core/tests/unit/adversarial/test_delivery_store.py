@@ -76,7 +76,7 @@ class DeliveryQueueRefusalTests(unittest.TestCase):
 
         adopted._db.set_trace_callback(None)
         self.assertEqual(expected[-1][2], status["execution_attempt_ref"])
-        self.assertTrue(any(("AND attempt_ref=" in query) and ("LIMIT 1" in query) for query in statements))
+        self.assertTrue(any((("AND attempt_ref=" in query) and ("LIMIT 1" in query)) for query in statements))
         self.assertIsNone(adopted.status("https://other.example", "provider:test", expected[-1][2]))
 
         # The original pending row remains available while all held rows stay held.

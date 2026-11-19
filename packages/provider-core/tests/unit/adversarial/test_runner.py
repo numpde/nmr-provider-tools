@@ -135,7 +135,7 @@ class RunnerRefusalTests(unittest.TestCase):
         for (condition, failure_type) in (("mode", PermissionError), ("symlink", ValueError)):
             with self.subTest(condition=condition), tempfile.TemporaryDirectory() as temporary:
                 root = pathlib.Path(temporary)
-                (endpoint, scratch, status) = (root / name for name in ("endpoint", "scratch", "status"))
+                (endpoint, scratch, status) = ((root / name) for name in ("endpoint", "scratch", "status"))
 
                 for directory in (endpoint, scratch, status):
                     directory.mkdir(mode=0o700)

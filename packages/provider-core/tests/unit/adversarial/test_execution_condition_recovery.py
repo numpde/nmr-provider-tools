@@ -121,7 +121,7 @@ class ConditionRecoveryFailureTests(unittest.IsolatedAsyncioTestCase):
             self.assertIs(caught.exception.cause, overlap.exception)
             self.assertEqual(len(transport.condition_requests), 1)
             self.assertEqual([event[0] for event in session.events], ["retire"])
-            self.assertFalse(any(b"replacement_condition" in request.content for (request, _) in transport.calls))
+            self.assertFalse(any((b"replacement_condition" in request.content) for (request, _) in transport.calls))
             claim.release(owner=claim.lifecycle_owner)
         finally:
             transport.release_retirement.set()

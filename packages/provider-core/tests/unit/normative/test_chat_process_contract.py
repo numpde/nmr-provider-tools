@@ -92,7 +92,7 @@ class ChatProcessContractTests(unittest.IsolatedAsyncioTestCase):
     def assert_reaped(self, children, count):
         self.assertEqual(count, len(children))
         self.assertEqual(count, len({child.pid for child in children}))
-        self.assertTrue(all(child.returncode is not None for child in children))
+        self.assertTrue(all((child.returncode is not None) for child in children))
         self.assertTrue(all(child.stdin.is_closing() for child in children))
 
     async def test_factory_preserves_request_identity_trust_and_connected_response_window(self):
@@ -391,7 +391,7 @@ class ChatProcessContractTests(unittest.IsolatedAsyncioTestCase):
 
                 try:
                     await asyncio.wait_for(asyncio.gather(actual_exit.wait(), reply_eof.wait()), 3)
-                    self.assertTrue(all(child.returncode == 0 for child in children))
+                    self.assertTrue(all((child.returncode == 0) for child in children))
                     self.assertEqual(1, len(trust_directories))
                     self.assertTrue(trust_directories[0].is_dir())
                     running.cancel()

@@ -82,7 +82,7 @@ class ExecutionConditionFailureTests(unittest.IsolatedAsyncioTestCase):
             self.assertIs(executor.last_failure.operation_interruption, session.caught)
             self.assertEqual([event[0] for event in session.events], ["prepare", "retire"])
             self.assertEqual(transport.maximum_in_flight, 1)
-            self.assertFalse(any(b"waiting_capacity" in request.content for (request, _) in transport.calls))
+            self.assertFalse(any((b"waiting_capacity" in request.content) for (request, _) in transport.calls))
             claim.release(owner=claim.lifecycle_owner)
         finally:
             start_report.set()
@@ -136,7 +136,7 @@ class ExecutionConditionFailureTests(unittest.IsolatedAsyncioTestCase):
                 await report
 
             await asyncio.wait_for(task, 1)
-            self.assertFalse(any(b"late_condition" in request.content for (request, _) in transport.calls))
+            self.assertFalse(any((b"late_condition" in request.content) for (request, _) in transport.calls))
             self.assertEqual(transport.maximum_in_flight, 1)
             claim.release(owner=claim.lifecycle_owner)
         finally:

@@ -211,7 +211,7 @@ class ServiceObservationTests(unittest.IsolatedAsyncioTestCase):
                     service.changed.set()
 
                     for _ in range(100):
-                        if any(call.args[1].get("event") == "delivery_status_failed" for call in notice.call_args_list):
+                        if any((call.args[1].get("event") == "delivery_status_failed") for call in notice.call_args_list):
                             break
 
                         await asyncio.sleep(0.01)

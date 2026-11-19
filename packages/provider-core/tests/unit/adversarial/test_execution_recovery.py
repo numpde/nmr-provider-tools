@@ -343,7 +343,7 @@ class ObservationRecoveryFailureTests(unittest.IsolatedAsyncioTestCase):
 
             self.assertIs(type(failed.exception.cause), ObservationGapExpired)
             self.assertEqual(failed.exception.cause.cause.status, 503)
-            self.assertTrue(any(cause.__cause__ is cleanup for cause in failed.exception.cleanup_failures))
+            self.assertTrue(any((cause.__cause__ is cleanup) for cause in failed.exception.cleanup_failures))
             self.assertEqual([item[0] for item in session.events], ["retire"])
 
             with self.assertRaises(OwnershipRefused):

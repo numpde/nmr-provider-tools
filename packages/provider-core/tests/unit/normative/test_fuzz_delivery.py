@@ -95,7 +95,7 @@ class DeliveryFaultSequenceTests(unittest.TestCase):
                                 )
 
                                 occupied = item.outcome.key in expected
-                                provider_count = sum(old.outcome.provider_ref == provider for (old, _) in expected.values())
+                                provider_count = sum((old.outcome.provider_ref == provider) for (old, _) in expected.values())
 
                                 if occupied:
                                     with self.assertRaises(DeliveryConflict):

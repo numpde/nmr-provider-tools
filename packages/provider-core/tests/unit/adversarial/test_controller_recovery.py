@@ -131,7 +131,7 @@ class ControllerRecoveryFailureTests(unittest.IsolatedAsyncioTestCase):
             await asyncio.wait_for(controller.join(), 1)
             self.assertTrue(controller.shutdown_ready)
             self.assertGreaterEqual(len(bodies), 2)
-            self.assertTrue(all(body == bodies[0] for body in bodies))
+            self.assertTrue(all((body == bodies[0]) for body in bodies))
             self.assertEqual([event[0] for event in session.events], ["prepare", "execute", "retire"])
         finally:
             recovered.set()
