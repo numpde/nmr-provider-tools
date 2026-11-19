@@ -30,7 +30,7 @@ class ExecutionUnavailable(importlib.abc.MetaPathFinder):
     }
 
     def find_spec(self, fullname, path, target=None):
-        if any((fullname == name) or fullname.startswith(name + ".") for name in self.blocked):
+        if any(((fullname == name) or fullname.startswith(name + ".")) for name in self.blocked):
             raise ModuleNotFoundError(f"Execution modules are unavailable in this client-only proof: {fullname}")
 
         return None
@@ -91,7 +91,7 @@ async def prove_handoff():
             await inbox.close()
             queue.close()
 
-    assert not any(name in sys.modules for name in blocker.blocked)
+    assert not any((name in sys.modules) for name in blocker.blocked)
 
 
 if __name__ == "__main__":

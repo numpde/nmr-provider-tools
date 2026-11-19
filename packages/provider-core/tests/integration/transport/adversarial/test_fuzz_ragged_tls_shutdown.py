@@ -25,7 +25,7 @@ class GeneratedTruncationTests(unittest.TestCase):
             self.assertIsNotNone(caught.exception.primary)
             self.assertTrue(peer.transport.retirement_confirmed)
             self.assertGreater(peer.raw_close_successes, 0)
-            self.assertTrue(all(sock.fileno() == -1 for sock in peer.raw_sockets))
+            self.assertTrue(all((sock.fileno() == -1) for sock in peer.raw_sockets))
             self.assertEqual(1, len(peer.requests))
 
     @settings(max_examples=32, deadline=None, database=None)

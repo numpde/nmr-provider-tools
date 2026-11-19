@@ -201,7 +201,7 @@ class SharedDeliveryServiceTests(unittest.IsolatedAsyncioTestCase):
                     def notice(error, facts):
                         notices.append((error, facts))
 
-                        if sum(event[1]["event"] == "delivery_published" for event in notices) == 2:
+                        if sum((event[1]["event"] == "delivery_published") for event in notices) == 2:
                             published.set()
 
                     service = SharedDeliveryService(

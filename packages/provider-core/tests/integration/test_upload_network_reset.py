@@ -31,7 +31,7 @@ class ResetPeer(TlsPeer):
             )
 
             writer.write(
-                b"HTTP/1.1 200 OK\r\n" + b"".join(name+b": "+value+b"\r\n" for (name,value) in store_headers(BODY))
+                b"HTTP/1.1 200 OK\r\n" + b"".join((name+b": "+value+b"\r\n") for (name,value) in store_headers(BODY))
                 + (
                     b"\r\n"
                     b"g"

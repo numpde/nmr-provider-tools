@@ -25,7 +25,7 @@ class RejectedResponseShutdownTests(unittest.IsolatedAsyncioTestCase):
                     self.assertIn(failure, caught.exception.cleanup_failures)
                     self.assertGreaterEqual(peer.raw_close_attempts, 2)
                     self.assertGreater(peer.raw_close_successes, 0)
-                    self.assertTrue(all(sock.fileno() == -1 for sock in peer.raw_sockets))
+                    self.assertTrue(all((sock.fileno() == -1) for sock in peer.raw_sockets))
 
     async def test_transient_raw_eof_remains_visible_after_successful_retry(self):
         await self.assert_transient_close_failure(ssl.SSLEOFError(ssl.SSL_ERROR_EOF, "synthetic first close EOF"))

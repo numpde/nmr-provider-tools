@@ -37,7 +37,7 @@ class CompleteResponseShutdownTests(unittest.IsolatedAsyncioTestCase):
                     self.assertTrue(peer.transport.retirement_confirmed)
                     self.assertIsNone(peer.transport.pending_owner)
                     self.assertGreater(peer.raw_close_successes, 0)
-                    self.assertTrue(all(sock.fileno() == -1 for sock in peer.raw_sockets))
+                    self.assertTrue(all((sock.fileno() == -1) for sock in peer.raw_sockets))
 
                 self.assertEqual(1, peer.connections_closed)
                 self.assertEqual(1, len(peer.requests))

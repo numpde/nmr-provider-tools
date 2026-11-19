@@ -193,7 +193,7 @@ class UnixTunnelFailureTests(unittest.IsolatedAsyncioTestCase):
                         causes.append(cause)
                         pending.extend((cause.__cause__, cause.__context__))
 
-                self.assertTrue(any(isinstance(cause, ssl.SSLCertVerificationError) for cause in causes))
+                self.assertTrue(any((isinstance(cause, ssl.SSLCertVerificationError)) for cause in causes))
                 self.assertEqual(peer.requests, [])
                 self.assertEqual(len(proxy.headers), 1)
         finally:

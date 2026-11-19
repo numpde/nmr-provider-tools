@@ -20,7 +20,7 @@ class GeneratedShutdownTests(unittest.TestCase):
                 self.assertEqual(body, response.body)
                 self.assertTrue(peer.transport.retirement_confirmed)
                 self.assertGreater(peer.raw_close_successes, 0)
-                self.assertTrue(all(sock.fileno() == -1 for sock in peer.raw_sockets))
+                self.assertTrue(all((sock.fileno() == -1) for sock in peer.raw_sockets))
 
         asyncio.run(probe())
 
@@ -28,7 +28,7 @@ class GeneratedShutdownTests(unittest.TestCase):
     @given(chunks=st.lists(st.binary(min_size=1, max_size=32), max_size=6), tunnel=st.booleans(), fragment_size=st.integers(1, 31))
     def test_terminal_chunk_preserves_generated_octets(self, chunks, tunnel, fragment_size):
         body = b"".join(chunks)
-        framed = b"".join(format(len(chunk), "x").encode() + b"\r\n" + chunk + b"\r\n" for chunk in chunks)
+        framed = b"".join((format(len(chunk), "x").encode() + b"\r\n" + chunk + b"\r\n") for chunk in chunks)
 
         wire = (
             b"HTTP/1.1 200 OK\r\n"
@@ -46,7 +46,7 @@ class GeneratedShutdownTests(unittest.TestCase):
                 self.assertEqual(body, response.body)
                 self.assertTrue(peer.transport.retirement_confirmed)
                 self.assertGreater(peer.raw_close_successes, 0)
-                self.assertTrue(all(sock.fileno() == -1 for sock in peer.raw_sockets))
+                self.assertTrue(all((sock.fileno() == -1) for sock in peer.raw_sockets))
 
         asyncio.run(probe())
 

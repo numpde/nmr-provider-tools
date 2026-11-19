@@ -50,7 +50,7 @@ class DeliveryProgressNoticeTests(unittest.IsolatedAsyncioTestCase):
 
         def notice(error, facts):
             self.notices.append((error, facts, asyncio.get_running_loop().time()))
-            retries = sum(item[1]["event"] == "delivery_retry" for item in self.notices)
+            retries = sum((item[1]["event"] == "delivery_retry") for item in self.notices)
 
             if retries == 2:
                 restore_after_retries.set()

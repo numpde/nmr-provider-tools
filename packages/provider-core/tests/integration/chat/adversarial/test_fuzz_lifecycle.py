@@ -458,14 +458,14 @@ class LifecycleOrders(RuleBasedStateMachine):
                 if delivery.offers:
                     original_terminal = delivery.offers[0]
 
-                    assert all(item is original_terminal for item in delivery.offers), (
+                    assert all((item is original_terminal) for item in delivery.offers), (
                         "A delivery retry replaced the original logical terminal")
 
                     assert all(
                         (
-                            (item.key == original_terminal.key) and
-                            (item.body == original_terminal.body) and
-                            (item.body_sha256 == original_terminal.body_sha256)
+                            ((item.key == original_terminal.key) and
+                             (item.body == original_terminal.body) and
+                             (item.body_sha256 == original_terminal.body_sha256))
                             for item in delivery.offers
                         ),
                     )

@@ -119,7 +119,7 @@ class NativeInstallationTests(unittest.TestCase):
         distribution = importlib.metadata.distribution("provider-core")
 
         self.assertTrue(distribution.requires)
-        self.assertTrue(all('; extra == "api"' in requirement for requirement in distribution.requires))
+        self.assertTrue(all(('; extra == "api"' in requirement) for requirement in distribution.requires))
         installer = json.loads(pathlib.Path("/opt/provider-tools/installer/release.json").read_text())
 
         self.assertEqual(f"pip-{importlib.metadata.version('pip')}-py3-none-any.whl", installer["name"])

@@ -68,7 +68,7 @@ class SharedInterpreterCarrierTests(unittest.IsolatedAsyncioTestCase):
             self.assertEqual(result.model_visit, 2)
             self.assertTrue(owner.retirement_confirmed)
             self.assertEqual(len(peer.request_bodies), 3)
-            self.assertTrue(all(len(body) <= 6000 for body in peer.request_bodies))
+            self.assertTrue(all((len(body) <= 6000) for body in peer.request_bodies))
             messages = json.loads(peer.request_bodies[-1])["messages"]
             history = json.loads(next(message["content"] for message in messages if message["role"] == "tool"))
 

@@ -89,14 +89,14 @@ class ProseServiceOutageTests(unittest.IsolatedAsyncioTestCase):
         self.assertTrue(result["all_http_owners_retired"], msg=evidence)
         self.assertEqual(result["idle_descriptors"], result["final_descriptors"], msg=evidence)
         self.assertTrue(result["children"], msg=evidence)
-        self.assertTrue(all((child["returncode"] is not None) and (not child["alive"]) for child in result["children"]), msg=evidence)
+        self.assertTrue(all(((child["returncode"] is not None) and (not child["alive"])) for child in result["children"]), msg=evidence)
         self.assertEqual(len(result["children"]), len({child["pid"] for child in result["children"]}), msg=evidence)
         (before, after) = (result["scientific_worker_before"], result["scientific_worker_after"])
 
         self.assertEqual(before["pid"], after["pid"], msg=evidence)
         self.assertNotEqual(result["provider_pid"], after["pid"], msg=evidence)
         self.assertEqual(1, after["model_loads"], msg=evidence)
-        executed = sum(not job["failed"] for job in jobs)
+        executed = sum((not job["failed"]) for job in jobs)
 
         self.assertEqual(
             (executed, executed, len(jobs)),

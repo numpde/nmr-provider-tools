@@ -509,7 +509,7 @@ class DeliveryProcessTests(unittest.IsolatedAsyncioTestCase):
                         self.assertEqual((recovered["api_origin"], recovered["provider_ref"]), (peer_a.origin, endpoint_a.provider_ref))
                         self.assertEqual((await clients[0].pending())["items"], [])
                         self.assertGreaterEqual(len(peer_a.request_bodies), 2)
-                        self.assertTrue(all(body == first.body for body in peer_a.request_bodies))
+                        self.assertTrue(all((body == first.body) for body in peer_a.request_bodies))
                         self.assertEqual(peer_b.request_bodies, [second.body])
                         self.assertEqual(effects, {"a": 1, "b": 1})
                         self.assertIsNone(process.returncode)

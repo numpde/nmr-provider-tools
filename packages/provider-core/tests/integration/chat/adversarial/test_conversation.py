@@ -173,7 +173,7 @@ class ConversationBoundaryTests(unittest.IsolatedAsyncioTestCase):
             dispatch.assert_awaited_once_with("submit", {})
             self.assertEqual(json.loads(result.observation)["corrections"], 2)
             self.assertEqual([turn for (turn, _failure) in result.correction_failures], [1, 2])
-            self.assertTrue(all(type(failure) is ToolRejected for (_turn, failure) in result.correction_failures))
+            self.assertTrue(all((type(failure) is ToolRejected) for (_turn, failure) in result.correction_failures))
             self.assertEqual([m["tool_call_id"] for m in feedback], ["bad", "multi-1", "multi-2"])
 
     @unittest.skipIf(os.environ.get("PRIVACY_TESTS", "1") == "0", "Privacy tests disabled")

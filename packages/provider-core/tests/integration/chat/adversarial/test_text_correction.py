@@ -140,7 +140,7 @@ class TextCorrectionBoundaryTests(unittest.IsolatedAsyncioTestCase):
 
         for message in transcript:
             if message["role"] == "assistant":
-                self.assertTrue(all(item["function"]["arguments"] == "{}" for item in message["tool_calls"]))
+                self.assertTrue(all((item["function"]["arguments"] == "{}") for item in message["tool_calls"]))
 
     async def test_explicit_empty_call_list_remains_a_carrier_failure(self):
         first = recording_endpoint("bad", {"role": "assistant", "tool_calls": []})

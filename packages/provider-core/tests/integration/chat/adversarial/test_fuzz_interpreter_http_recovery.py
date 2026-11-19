@@ -120,7 +120,7 @@ class RepeatedInterpreterTimeoutTests(unittest.TestCase):
                     self.assertEqual(1, cycle["scientific_worker"]["model_loads"], msg=evidence)
                     self.assertEqual(1, cycle["scientific_worker"]["executions"], msg=evidence)
 
-                self.assertTrue(any(not cycle["receipt_released"] for cycle in report["cycles"]), msg=evidence)
+                self.assertTrue(any((not cycle["receipt_released"]) for cycle in report["cycles"]), msg=evidence)
                 self.assertTrue(any(cycle["receipt_released"] for cycle in report["cycles"][:-1]), msg=evidence)
                 self.assertEqual(report["acknowledgement_cycle"], report["acknowledgement_released_during_cycle"], msg=evidence)
                 self.assertEqual(1, report["live_claims_at_acknowledgement_release"], msg=evidence)
