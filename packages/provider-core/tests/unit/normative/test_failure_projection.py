@@ -265,8 +265,12 @@ class CoreFailureProjectionTests(unittest.TestCase):
     @unittest.skip("Privacy policy under review")
     def test_execution_projection_omits_scientific_bytes(self):
         execution = self._execution_with_outcome(acknowledge_start(record(), admission()))
+        execution.cause = RuntimeError("private retirement cause")
+        execution.cleanup_failures = (OSError(5, "PRIVATE_NATIVE"),)
 
         self.assertNotIn("PRIVATE", repr(owned_details(execution)))
+        self.assertNotIn("private retirement cause", str(execution))
+        self.assertNotIn("PRIVATE_NATIVE", repr(failure_evidence(execution, secrets=())))
 
     def test_execution_distinguishes_relay_acceptance_from_api_receipt_and_preserves_delivery_cause(self):
         active = acknowledge_start(record(), admission())

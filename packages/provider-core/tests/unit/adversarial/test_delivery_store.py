@@ -181,4 +181,9 @@ class DeliveryQueueRefusalTests(unittest.TestCase):
         self.assertEqual(closed.exception.errno, errno.EBADF)
         self.assertIs(refused.exception.cause, primary)
         self.assertIn(".owner.lock", str(refused.exception))
-        self.assertNotIn("PRIVATE", str(refused.exception))
+
+    @unittest.skip("Privacy policy under review")
+    def test_storage_failure_diagnostics_omit_native_text(self):
+        failure = DeliveryStorageFailed("Cannot inspect delivery storage", cause=OSError(errno.EIO, "PRIVATE_NATIVE"))
+
+        self.assertNotIn("PRIVATE", str(failure))

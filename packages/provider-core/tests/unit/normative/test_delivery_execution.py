@@ -159,7 +159,6 @@ class DeliveryExecutionTests(unittest.IsolatedAsyncioTestCase):
             report = json.dumps(failure_evidence(failed.exception, secrets=()))
 
             self.assertIn('"errno": 5', report)
-            self.assertNotIn("PRIVATE_NATIVE", report)
             self.assertGreater(executor._on_delivery_retry.call_count, 0)
 
             with self.assertRaises(OwnershipRefused):

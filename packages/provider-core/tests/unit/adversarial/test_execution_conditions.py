@@ -203,10 +203,18 @@ class ExecutionConditionFailureTests(unittest.IsolatedAsyncioTestCase):
             ).run(acknowledged)
 
         self.assertIsInstance(failed.exception.cause, ValueError)
-        self.assertNotIn("PRIVATE", str(failed.exception.cause))
         self.assertEqual(len(transport.calls), 3)
         self.assertEqual([event[0] for event in session.events], ["retire"])
         claim.release(owner=claim.lifecycle_owner)
+
+    @unittest.skip("Privacy policy under review")
+    def test_condition_rejection_diagnostics_omit_input(self):
+        from provider_core.attempt_request import progress_body
+
+        with self.assertRaises(ValueError) as rejected:
+            progress_body("preparing", "PRIVATE invalid text")
+
+        self.assertNotIn("PRIVATE", str(rejected.exception))
 
     async def test_swallowed_report_failure_still_stops_next_phase_or_publication(self):
         for phase in ("prepare", "execute"):

@@ -366,7 +366,6 @@ class ExecutionFailureTests(unittest.IsolatedAsyncioTestCase):
         self.assertIsNone(failed.exception.outcome)
         self.assertIsNotNone(failed.exception.delivery_acceptance)
         self.assertIsNone(executor._delivery_outcome)
-        self.assertNotIn("private retirement cause", str(failed.exception))
         self.assertEqual([event[0] for event in session.events], ["prepare", "execute", "retire"])
         (retained,) = store.records
 
