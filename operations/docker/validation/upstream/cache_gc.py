@@ -4,6 +4,8 @@ import json
 import reprlib
 from typing import Any
 
+from type_requirements import require_type
+
 
 # repo-check: allow-module-constant
 GC_THRESHOLD_FIELDS = ("defaultReservedSpace", "defaultMaxUsedSpace", "defaultMinFreeSpace")
@@ -14,8 +16,7 @@ def decode_daemon_config(raw: bytes) -> dict[str, Any]:
 
     document = json.loads(raw)
 
-    if not (type(document) is (expected_type := dict)):
-        raise TypeError(f"{type(document)=} ≠ {expected_type=}")
+    require_type(document, dict)
 
     return document
 
@@ -23,8 +24,7 @@ def decode_daemon_config(raw: bytes) -> dict[str, Any]:
 def require_gc_object(gc_settings: object) -> dict[str, Any]:
     """Admit the native GC object when reading or updating it."""
 
-    if not (type(gc_settings) is (expected_type := dict)):
-        raise TypeError(f"{type(gc_settings)=} ≠ {expected_type=}")
+    require_type(gc_settings, dict)
 
     return gc_settings
 
@@ -40,8 +40,7 @@ def gc_enabled(gc_settings: dict[str, Any]) -> bool:
 
     gc_settings_enabled = gc_settings.get("enabled")
 
-    if not (type(gc_settings_enabled) is (expected_type := bool)):
-        raise TypeError(f"{type(gc_settings_enabled)=} ≠ {expected_type=}")
+    require_type(gc_settings_enabled, bool)
 
     return gc_settings_enabled
 
@@ -60,8 +59,7 @@ def gc_thresholds(gc_settings: dict[str, Any]) -> list[str]:
     for gc_threshold_name in GC_THRESHOLD_FIELDS:
         gc_threshold = gc_settings.get(gc_threshold_name)
 
-        if not (type(gc_threshold) in (expected_types := (str, int))):
-            raise TypeError(f"{type(gc_threshold)=} ∉ {expected_types=}")
+        require_type(gc_threshold, (str, int))
 
         if (
             (type(gc_threshold) is str) and

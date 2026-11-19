@@ -120,6 +120,7 @@ class EngineCacheGCTests(unittest.TestCase):
                 "operations/docker/adapters/cache_gc.py",
                 "operations/docker/adapters/cache_gc.sh",
                 "operations/docker/validation/upstream/cache_gc.py",
+                "packages/type-requirements/src/type_requirements.py",
             ):
                 target = root / path
 

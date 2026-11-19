@@ -5,6 +5,7 @@ from pathlib import Path
 from typing import Any, TextIO
 
 from operations.docker.validation.upstream.cache_gc import GC_THRESHOLD_FIELDS, require_gc_object
+from type_requirements import require_type
 
 
 def configure_gc(
@@ -22,8 +23,7 @@ def configure_gc(
     # silent-defaults: allow-contract -- Installation creates absent native GC objects; proof=tests/repository/test_checker_cache_gc.py::EngineCacheGCTests.test_native_policy_merge_preserves_unrelated_fields_and_runtime_reads_it
     builder_settings = proposed_configuration.setdefault("builder", {})
 
-    if not (type(builder_settings) is (expected_type := dict)):
-        raise TypeError(f"{type(builder_settings)=} ≠ {expected_type=}")
+    require_type(builder_settings, dict)
 
     # silent-defaults: allow-contract -- Installation creates absent native GC objects; proof=tests/repository/test_checker_cache_gc.py::EngineCacheGCTests.test_native_policy_merge_preserves_unrelated_fields_and_runtime_reads_it
     gc_settings = require_gc_object(builder_settings.setdefault("gc", {}))

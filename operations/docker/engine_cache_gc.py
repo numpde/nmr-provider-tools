@@ -9,8 +9,11 @@ import sys
 import tempfile
 
 if __name__ == "__main__":
-    # Add the checkout root omitted by isolated Python
-    sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[2]))
+    # Load the maintained checkout and its pure type helper under isolated Python
+    repository_root = pathlib.Path(__file__).resolve().parents[2]
+
+    sys.path.insert(0, str(repository_root / "packages/type-requirements/src"))
+    sys.path.insert(0, str(repository_root))
 
 from operations.docker.adapters.cache_gc import configure_gc, validate_daemon_config_command, write_daemon_config
 
