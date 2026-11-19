@@ -2,6 +2,7 @@
 # Explicit wheel acquisition, installed tests and committed-source package builds.
 set -euo pipefail
 root=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/../../.." && pwd -P)
+source "$root/operations/testing/privacy.sh"
 printing=false
 if [[ $# -gt 0 && $1 == --print ]]; then printing=true; shift; fi
 if [[ $# != 1 ]]; then printf '%s\n' 'Supply one provider-core target from make help.' >&2; exit 2; fi
@@ -51,6 +52,7 @@ worker=(--pull never --read-only "${worker_identity[@]}" --cap-drop ALL --securi
     --cpus 2 --memory 1g --memory-swap 1g --pids-limit 128
     --tmpfs /tmp:rw,nosuid,nodev,noexec,size=256m --workdir /workspace
     --env NMR_PROVIDER_TOOLS_IN_CONTAINER=1 --env PROVIDER_CORE_IN_CONTAINER=1
+    --env "PRIVACY_TESTS=$privacy_tests"
     --env PYTHONDONTWRITEBYTECODE=1 --env PYTHONPATH=/workspace:/workspace/wheelhouse-build:/workspace/packages/acquisition/build:/workspace/packages/type-requirements/src
     --mount "type=bind,src=$root/tools,dst=/workspace/tools,readonly"
     --mount "type=bind,src=$root/packages/provider-core/sdk_build,dst=/workspace/sdk_build,readonly"

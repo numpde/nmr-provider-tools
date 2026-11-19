@@ -1717,7 +1717,7 @@ class CapturedNativeTests(unittest.TestCase):
     def test_returned_diagnostic_resets_before_next_call(self):
         self._returned_diagnostic()
 
-    @unittest.skip("Privacy policy under review")
+    @unittest.skipIf(os.environ.get("PRIVACY_TESTS", "1") == "0", "PRIVACY_TESTS=0")
     def test_returned_diagnostic_is_not_printed(self):
         completed_process = self._returned_diagnostic()
 

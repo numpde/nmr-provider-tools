@@ -2,6 +2,7 @@
 # Build and test the shared tool without installing provider-core.
 set -euo pipefail
 root=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/../../.." && pwd -P)
+source "$root/operations/testing/privacy.sh"
 action=${1:?Select build or test}
 source "$root/operations/docker/base_image.sh"
 source "$root/host/tools/wheelhouse_path.sh"
@@ -73,6 +74,7 @@ case "$action" in
         ;;
     test)
         operation_run 180 --pull never --network none --read-only --cap-drop ALL \
+            --env "PRIVACY_TESTS=$privacy_tests" \
             --security-opt no-new-privileges:true --pids-limit 128 --memory 512m \
             --tmpfs /tmp:rw,nosuid,nodev,noexec,size=128m \
             --mount "type=bind,src=$root/packages/wheelhouse-tool/src/wheelhouse_tool,dst=/opt/wheelhouse_tool,readonly" \

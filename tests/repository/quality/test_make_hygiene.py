@@ -17,6 +17,7 @@ import re
 import subprocess
 import tempfile
 import unittest
+import os
 import pathlib
 from unittest.mock import patch
 
@@ -55,7 +56,7 @@ SECRET_PATTERNS = [
 
 
 class RepositoryHygieneTest(unittest.TestCase):
-    @unittest.skip("Privacy policy under review")
+    @unittest.skipIf(os.environ.get("PRIVACY_TESTS", "1") == "0", "PRIVACY_TESTS=0")
     def test_secret_text_patterns_are_absent(self):
         findings = []
 

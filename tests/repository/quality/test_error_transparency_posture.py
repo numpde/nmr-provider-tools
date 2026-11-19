@@ -8,6 +8,7 @@ require_container()
 
 import ast
 import unittest
+import os
 
 from .sources import REPOSITORY_ROOT, python_sources
 
@@ -116,7 +117,7 @@ def _raw_cli_exception_text(source: str) -> list[int]:
 
 
 class ErrorTransparencyPostureTests(unittest.TestCase):
-    @unittest.skip("Privacy policy under review")
+    @unittest.skipIf(os.environ.get("PRIVACY_TESTS", "1") == "0", "PRIVACY_TESTS=0")
     def test_raw_exception_text_is_not_a_safe_cause_projection(self) -> None:
         for (message, expected) in (
             ('f"failed: {exc}"', [4]),
@@ -137,7 +138,7 @@ class ErrorTransparencyPostureTests(unittest.TestCase):
 
                 self.assertEqual(expected, _raw_cli_exception_text(source))
 
-    @unittest.skip("Privacy policy under review")
+    @unittest.skipIf(os.environ.get("PRIVACY_TESTS", "1") == "0", "PRIVACY_TESTS=0")
     def test_raw_exception_detector_follows_blocks_but_not_new_scopes(self) -> None:
         for (block, expected) in (("if ready", [5]), ("with resource", [5]), ("def deferred(exc)", []), ("class Deferred", [])):
             with self.subTest(block=block):
@@ -151,7 +152,7 @@ class ErrorTransparencyPostureTests(unittest.TestCase):
 
                 self.assertEqual(expected, _raw_cli_exception_text(source))
 
-    @unittest.skip("Privacy policy under review")
+    @unittest.skipIf(os.environ.get("PRIVACY_TESTS", "1") == "0", "PRIVACY_TESTS=0")
     def test_raw_projection_dispatch_preserves_nested_and_unsupported_message_shapes(self) -> None:
         """Node dispatch retains raw disclosure without treating safe fields as causes."""
 
@@ -177,7 +178,7 @@ class ErrorTransparencyPostureTests(unittest.TestCase):
 
                     self.assertEqual(expected, _raw_cli_exception_text(source))
 
-    @unittest.skip("Privacy policy under review")
+    @unittest.skipIf(os.environ.get("PRIVACY_TESTS", "1") == "0", "PRIVACY_TESTS=0")
     def test_cli_projects_broad_failure_facts_instead_of_dumping_exception_text(self) -> None:
         findings = []
 

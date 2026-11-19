@@ -4,6 +4,7 @@ set -euo pipefail
 
 root=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/../.." && pwd -P)
 cd -- "$root"
+source "$root/operations/testing/privacy.sh"
 printing=0
 if [[ $# -gt 0 && $1 == --print ]]; then
     printing=1
@@ -87,6 +88,7 @@ arguments=(--init --pull=never --network=none --read-only
     --pids-limit=64 --memory=512m --memory-swap=512m --cpus=2
     --user "$uid:$gid" --tmpfs /tmp:rw,noexec,nosuid,nodev,size=67108864
     --workdir /workspace --env HOME=/tmp --env PYTHONDONTWRITEBYTECODE=1
+    --env "PRIVACY_TESTS=$privacy_tests"
     --env PYTHONPATH=/workspace:/workspace/packages/provider-core:/workspace/packages/wheelhouse-tool/src:/workspace/packages/wheelhouse-tool/build:/workspace/packages/acquisition:/workspace/packages/acquisition/build:/workspace/packages/type-requirements/src --env NMR_PROVIDER_TOOLS_IN_CONTAINER=1
     --env "NMR_PROVIDER_TOOLS_EXPECTED_UID=$uid" --env "NMR_PROVIDER_TOOLS_EXPECTED_GID=$gid"
     "${mounts[@]}"

@@ -8,6 +8,7 @@ require_container()
 
 import tempfile
 import unittest
+import os
 import pathlib
 from unittest.mock import patch
 
@@ -76,7 +77,7 @@ class ShellEmptyDefaultsTest(unittest.TestCase):
     def test_shell_matcher_ignores_strict_required_expansion(self) -> None:
         self.assertNotRegex("${PROFILE:?missing_PROFILE}", INTERPOLATION_DEFAULT_RE)
 
-    @unittest.skip("Privacy policy under review")
+    @unittest.skipIf(os.environ.get("PRIVACY_TESTS", "1") == "0", "PRIVACY_TESTS=0")
     def test_shell_surface_scan_excludes_operator_only_secret_files(self) -> None:
         # No local secret exemption: retain the original secret/example
         # classification proof using temporary deployment input fixtures.

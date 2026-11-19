@@ -85,6 +85,13 @@ override SOURCE_ARCHIVE_INPUT := $(value INPUT_RELEASE_ARCHIVE)
 export SOURCE_ARCHIVE_INPUT
 endif
 
+unexport PRIVACY_TESTS PRIVACY_TESTS_INPUT PRIVACY_TESTS_INPUT_ORIGIN
+override export PRIVACY_TESTS_INPUT_ORIGIN := $(origin PRIVACY_TESTS)
+ifeq ($(origin PRIVACY_TESTS),command line)
+override PRIVACY_TESTS_INPUT := $(value PRIVACY_TESTS)
+export PRIVACY_TESTS_INPUT
+endif
+
 unexport TEST_PATTERN
 unexport TEST_PATTERN_INPUT
 unexport TEST_PATTERN_INPUT_ORIGIN
@@ -250,6 +257,7 @@ help:
 	  '  SHARED_RUNTIME_IMAGE=sha256:<digest>   Explicit immutable previously built image.' \
 	  '  LOCK=<file>                Input lock for wheelhouse operations.' \
 	  '  FUZZ_PROFILE=<default|extended>   Select bounded or extended SDK fuzz campaign.' \
+	  '  PRIVACY_TESTS=0|1         Run privacy tests by default (1); use 0 to skip them.' \
 	  '  ENGINE_CONFIG=<file>       Absolute daemon configuration for cache maintenance.' \
 	  '' \
 	  'Example release preparation (replace v0.6.8 and cache path for another version):' \

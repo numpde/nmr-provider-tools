@@ -5,6 +5,7 @@ require_container()
 import pathlib
 import tempfile
 import unittest
+import os
 
 from .python_bytecode import findings, production_files, scan
 from .sources import ROOT
@@ -148,7 +149,7 @@ class PythonBytecodePostureTests(unittest.TestCase):
 
         self.assertIn("safe.sh:1:", issue.diagnostic())
 
-    @unittest.skip("Privacy policy under review")
+    @unittest.skipIf(os.environ.get("PRIVACY_TESTS", "1") == "0", "PRIVACY_TESTS=0")
     def test_diagnostics_do_not_echo_payload(self):
         (issue,) = findings(pathlib.Path("safe.sh"), "python3 -I secret-private-path.py")
 
