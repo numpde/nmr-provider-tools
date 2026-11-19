@@ -93,7 +93,9 @@ class ProxyRequestTests(unittest.TestCase):
         self.assertEqual(
             parse_destination(header),
             (
-                "GET", "example.invalid", 443,
+                "GET",
+                "example.invalid",
+                443,
                 b"GET /path%20part?q=one%20two HTTP/1.0\r\n"
                 b"Host: supplied.example\r\n"
                 b"X-Custom: one\r\n"
