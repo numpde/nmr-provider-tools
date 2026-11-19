@@ -818,12 +818,25 @@ Shared wire support: retain the distinction from local policy
   same 23 failing subcases. Independent audit found no acceptance, effect-order,
   test-ownership or import-closure regression. Resolver-file interpretation is
   tracked separately below; source/interface choice remains local policy.
-- [ ] Keep locally defined IPC schemas outside upstream API validation
+- [x] Keep locally defined IPC schemas outside upstream API validation
   core/unix_http.py uses HTTP over a local socket. The service bodies/routes in
   delivery_ipc.py, shared_delivery_ipc.py, runner_protocol.py and chat_wire.py are
   locally defined protocols, not evidence of an external API contract.
   Evidence: test_decoded_body.py, test_transport.py, test_transport_proxy.py,
   test_bound_http_proxy.py and tests/deployment/test_proxy_posture.py.
+  Ownership audit, 2026-11-19: delivery_client.py and delivery_ipc.py define the
+  private submit/pending/status routes together; shared_delivery_client.py and
+  shared_delivery_ipc.py define the shared /submit handoff. runner.py and
+  runner_session.py exchange runner_protocol.py lifecycle frames. chat_process.py
+  exchanges chat_wire.py child request/reply envelopes. Their versions, field
+  sets, frame sizes, grants and acknowledgement meanings remain local. Unix HTTP
+  uses a synthetic delivery.invalid authority; its Unix socket selects the
+  recipient. Upstream imports admit embedded NMR Attempt references or supplied
+  HTTP/Chat status facts; they do not own those local envelopes. The upstream
+  validators/adapters contain no delivery.invalid, /submit, socket-group,
+  scratch-release or runner-control schema definitions. No executable change or
+  extra validation layer was needed. Existing Unix HTTP, delivery IPC, shared
+  delivery IPC, Chat-wire and runner lifecycle suites remain with those owners.
 
 Other service and artifact interfaces in repository tooling
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
