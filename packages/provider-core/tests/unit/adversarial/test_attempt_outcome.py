@@ -111,6 +111,30 @@ class AttemptOutcomeFailureTests(unittest.IsolatedAsyncioTestCase):
             self.assertIs(failure.response, received)
             self.assertEqual(len(transport.calls), 1)
 
+    async def test_large_acknowledgement_metadata_keeps_evidence_without_expanding_diagnostics(self):
+        oversized_identifier = "unexpected_" + "x" * 40000
+
+        for (completing, field_name, received_value) in (
+            (True, "result_schema_id", oversized_identifier),
+            (True, "result_fingerprint", oversized_identifier),
+            (True, "analysis_result_ref", oversized_identifier),
+            (False, "failure_code", oversized_identifier),
+            (False, "failure_message", oversized_identifier),
+            (False, oversized_identifier, True),
+        ):
+            with self.subTest(completing=completing, field_name=field_name[:40]):
+                response_builder = complete_response if completing else fail_response
+                received = reply(response_builder(**{field_name: received_value}))
+                transport = Transport(received)
+
+                with self.assertRaises(ApiFailure) as caught:
+                    await self.send(self.api(transport), completing, self.body(completing))
+
+                self.assertIs(caught.exception.response, received)
+                self.assertTrue(caught.exception.attempt_mutation_may_have_committed)
+                self.assertLess(len(str(caught.exception)), 1024)
+                self.assertIn("...", str(caught.exception))
+
     @unittest.skipIf(os.environ.get("PRIVACY_TESTS", "1") == "0", "Privacy tests disabled")
     async def test_outcome_acknowledgement_diagnostics_omit_response_content(self):
         async for (failure, _received, _transport) in self._mismatched_outcome_failures():
