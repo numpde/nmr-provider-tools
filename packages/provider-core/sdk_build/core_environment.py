@@ -118,7 +118,7 @@ def _build_candidate(source, runtime_lock, build_lock, pool, output, lock_fd):
         locks = {}
 
         for (role, lock) in (("runtime", runtime_lock), ("build", build_lock)):
-            frozen = scratch / f"{role}.lock"
+            frozen = scratch / f"{role}.lock"  # machine-string: temporary lock filename selected by the build role
 
             shutil.copyfile(lock, frozen)
             requirements(frozen)
@@ -182,8 +182,8 @@ def _build_candidate(source, runtime_lock, build_lock, pool, output, lock_fd):
             check=True,  # Stop if the source distribution build fails
         )
 
-        wheel = output / f"provider_core-{release_version}-py3-none-any.whl"
-        sdist = output / f"provider_core-{release_version}.tar.gz"
+        wheel = output / f"provider_core-{release_version}-py3-none-any.whl"  # machine-string: wheel filename consumed by installers
+        sdist = output / f"provider_core-{release_version}.tar.gz"  # machine-string: source archive filename consumed by publishers
 
         if (
             (set(output.iterdir()) != {wheel, sdist}) or
@@ -201,7 +201,7 @@ def _build_candidate(source, runtime_lock, build_lock, pool, output, lock_fd):
 
         normalize_sdist(sdist)
 
-        install_lock = output / f"provider_core-{release_version}-install.lock"
+        install_lock = output / f"provider_core-{release_version}-install.lock"  # machine-string: lock filename consumed by the install environment
         runtime_lock_text = locks["runtime"].read_text()
 
         requirements(locks["runtime"])
@@ -223,7 +223,7 @@ def _build_candidate(source, runtime_lock, build_lock, pool, output, lock_fd):
                 "from the runtime closure and built wheel."
             )
 
-        native_lock = output / f"provider_core-{release_version}-native-install.lock"
+        native_lock = output / f"provider_core-{release_version}-native-install.lock"  # machine-string: lock filename consumed by native verification
 
         native_lock.write_text(
             hashed_requirement("provider-core", release_version, digest(wheel))
@@ -294,9 +294,11 @@ def behavioral_install_lock(runtime_lock, test_lock, destination):
     overlapping_requirements = set(runtime_requirements).intersection(test_requirements)
 
     if overlapping_requirements:
+        overlapping_requirement_list = sorted(overlapping_requirements)
+
         raise ValueError(
             f"Cannot install provider-core behavioral tests: test requirements "
-            f"overlap runtime packages: {sorted(overlapping_requirements)!r}"
+            f"overlap runtime packages; {overlapping_requirement_list=}"
         )
 
     destination.write_text(

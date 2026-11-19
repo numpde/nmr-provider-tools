@@ -42,12 +42,12 @@ def _discover_projects(*, project_root: pathlib.Path) -> list[tuple[pathlib.Path
             raise TypeError(f"{metadata.parent.name=}; {type(distribution_name)=} ≠ {expected_type=}")
 
         if not re.fullmatch(pattern := r"[a-z0-9]+(?:-[a-z0-9]+)*", distribution_name):
-            raise ValueError(f"{metadata.parent.name!r}: {distribution_name=} does not follow {pattern=}")
+            raise ValueError(f"{metadata.parent.name=}: {distribution_name=} does not follow {pattern=}")
 
         # todo: separate
         if (distribution_name == "provider-core") or (distribution_name in names):
             raise ValueError(
-                f"Cannot install project {distribution_name!r}: distribution "
+                f"Cannot install project {distribution_name=}: distribution "
                 f"names must be unique and must not shadow provider-core."
             )
 
@@ -60,7 +60,7 @@ def _discover_projects(*, project_root: pathlib.Path) -> list[tuple[pathlib.Path
             distribution_version,
         ) is None:
             raise ValueError(
-                f"Cannot install project {distribution_name!r}: "
+                f"Cannot install project {distribution_name=}: "
                 f"a three-part version is required."
             )
 
@@ -107,7 +107,10 @@ def _discover_examples(
             raise ValueError(f"An example cannot replace a scientific stand-in; {distribution_name=}")
 
         dependencies = project["dependencies"]
-        sdk_dependencies = {f"provider-core=={core_version}", f"provider-core[api]=={core_version}"}
+        sdk_dependencies = {
+            f"provider-core=={core_version}",  # machine-string: package installer parses the exact core-version requirement
+            f"provider-core[api]=={core_version}",  # machine-string: package installer parses the exact API-extra requirement
+        }
         selected_sdk_dependencies = sdk_dependencies.intersection(dependencies)
 
         if not (len(selected_sdk_dependencies) == 1):
@@ -127,7 +130,10 @@ def _discover_examples(
                 if locked_project in protected_projects:
                     raise ValueError(f"An example scientific lock cannot replace a repository-built project; {locked_project=}")
 
-            locked_dependencies = {f"{name}=={version}" for (name, version) in scientific_lock}
+            locked_dependencies = {
+                f"{name}=={version}"  # machine-string: project metadata compares these exact package requirements
+                for (name, version) in scientific_lock
+            }
 
             if not (scientific_dependencies <= locked_dependencies):
                 raise ValueError(f"Example scientific dependencies must be pinned in its hashed lock; {scientific_dependencies=}; {locked_dependencies=}")
@@ -157,14 +163,14 @@ def _build_and_install_project(
     )
 
     wheel_distribution_name = distribution_name.replace("-", "_")
-    project_wheel = project_output / f"{wheel_distribution_name}-{distribution_version}-py3-none-any.whl"
+    project_wheel = project_output / f"{wheel_distribution_name}-{distribution_version}-py3-none-any.whl"  # machine-string: installer resolves this exact project artifact filename
 
     if (
         (set(project_output.iterdir()) != {project_wheel}) or
         (not project_wheel.is_file()) or
         project_wheel.is_symlink()
     ):
-        raise ValueError(f"Project {distribution_name!r} did not produce its one expected wheel.")
+        raise ValueError(f"Project {distribution_name=} did not produce its one expected wheel.")
 
     project_install_lock = root / "project-install.lock"
 
@@ -212,8 +218,8 @@ def _run_installed_suite(
 
     if test_process.returncode:
         raise SystemExit(
-            f"Installed provider-core {selection} tests failed "
-            f"(exit {test_process.returncode}); see the failure summary or "
+            f"Installed provider-core test suite failed: {selection=}, "
+            f"{test_process.returncode=}; see the failure summary or "
             f"diagnostic immediately above."
         )
 
@@ -269,7 +275,10 @@ def run_suite(suite: str, patterns: tuple[str, ...]) -> None:
             )
 
             scientific_mocks = _discover_mocks(mocks_root=pathlib.Path("/mocks"))
-            mock_dependencies = frozenset(f"{name}=={version}" for (_, name, version) in scientific_mocks)
+            mock_dependencies = frozenset(
+                f"{name}=={version}"  # machine-string: pip parses the exact scientific-mock version requirement
+                for (_, name, version) in scientific_mocks
+            )
 
             for (source, name, version) in scientific_mocks:
                 _build_and_install_project(
