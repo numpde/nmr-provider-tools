@@ -55,43 +55,43 @@ def main():
         limits = SharedDeliveryConfiguration(options.shared_config).read().limits
         state = options.state_directory
     else:
-        document = tomllib.loads(
+        delivery_configuration = tomllib.loads(
             read_startup_file(
                 options.config,
                 maximum_bytes=65536,
             ).decode("utf-8")
         )
 
-        if document["schema_id"] != "provider-core.delivery.v1":
+        if delivery_configuration["schema_id"] != "provider-core.delivery.v1":
             parser.error("Cannot inspect or discard held results: use the installed delivery configuration (schema provider-core.delivery.v1).")
 
         matches = [
-            binding for binding in document["bindings"]
+            binding for binding in delivery_configuration["bindings"]
             if (binding["api"]["origin"], binding["api"]["provider_ref"]) == (options.api_origin, options.provider_ref)
         ]
 
         if len(matches) != 1:
             parser.error("Cannot inspect or discard held results: the supplied API/provider pair must match exactly one configured binding.")
 
-        limits = QueueLimits(**document["limits"])
-        state = pathlib.Path(document["state_directory"])
+        limits = QueueLimits(**delivery_configuration["limits"])
+        state = pathlib.Path(delivery_configuration["state_directory"])
 
     queue = DeliveryQueue(state, limits=limits)
 
     try:
         if options.list_held:
-            items = queue.inventory(options.api_origin, options.provider_ref)
+            delivery_inventory = queue.inventory(options.api_origin, options.provider_ref)
 
             print(
                 json.dumps(
                     {
                         "api_origin": options.api_origin,
                         "provider_ref": options.provider_ref,
-                        "outstanding_items": len(items),
-                        "pending": [item for item in items if item["state"] == "pending"],
+                        "outstanding_items": len(delivery_inventory),
+                        "pending": [delivery_record for delivery_record in delivery_inventory if delivery_record["state"] == "pending"],
                         "held": [
-                            item for item in items
-                            if item["state"] == "held"
+                            delivery_record for delivery_record in delivery_inventory
+                            if delivery_record["state"] == "held"
                         ]
                     },
                     sort_keys=True
