@@ -7,7 +7,7 @@
 !/config/deployments/**/*.toml.example
 /secrets/**
 !/secrets/
-!/secrets/README.md
+!/secrets/README--delete.md
 __pycache__/
 *.py[cod]
 .pytest_cache/
