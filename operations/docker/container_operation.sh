@@ -4,6 +4,7 @@
 # retire owned resources, verify absence, then release mounted host inputs.
 
 source "$root/operations/docker/docker_client.sh"
+source "$root/operations/docker/validation/upstream/container_ids.sh"
 source "$root/host/tools/inference_native.sh"
 
 operation_begin() {
@@ -86,7 +87,7 @@ operation_create() {
     create_pending=true
     operation_metadata "$receipt" create --label "$operation_label" --cidfile "$cid" "$@" || return "$?"
     if ! IFS= read -r identifier < "$receipt"; then return 2; fi
-    if [[ ! $identifier =~ ^[0-9a-f]{64}$ || ! -f $cid || -L $cid ]] \
+    if ! docker_full_container_id "$identifier" || [[ ! -f $cid || -L $cid ]] \
         || ! cmp -s "$receipt" <(printf '%s\n' "$identifier") \
         || ! { cmp -s "$cid" <(printf '%s' "$identifier") || cmp -s "$cid" <(printf '%s\n' "$identifier"); }; then
         printf -v operation_diagnostic '%sCannot start container: create output and private CID receipt disagree; retained inputs at %q.\n' "$operation_diagnostic" "$operation_directory"
@@ -165,14 +166,14 @@ operation_finish() {
                 if "$create_pending" || "$retain_operation"; then failed=true; fi
                 for identifier in "${operation_retire_order[@]}"; do
                     [[ -z $identifier ]] && continue
-                    if [[ ! $identifier =~ ^[0-9a-f]{64}$ || -n ${ordered[$identifier]:-} ]]; then
+                    if ! docker_full_container_id "$identifier" || [[ -n ${ordered[$identifier]:-} ]]; then
                         failed=true
                     else
                         ordered[$identifier]=1
                     fi
                 done
                 for identifier in "${identifiers[@]}"; do
-                    if [[ ! $identifier =~ ^[0-9a-f]{64}$ || -z ${ordered[$identifier]:-} || -n ${actual[$identifier]:-} ]]; then
+                    if ! docker_full_container_id "$identifier" || [[ -z ${ordered[$identifier]:-} || -n ${actual[$identifier]:-} ]]; then
                         failed=true
                     else
                         actual[$identifier]=1
@@ -193,7 +194,7 @@ operation_finish() {
                 fi
             else
                 for identifier in "${identifiers[@]}"; do
-                    if [[ $identifier =~ ^[0-9a-f]{64}$ ]]; then
+                    if docker_full_container_id "$identifier"; then
                         if operation_teardown rm --force --volumes "$identifier" > /dev/null; then :; else failed=true; fi
                     else
                         failed=true

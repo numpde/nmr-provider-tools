@@ -9,7 +9,7 @@ _acq_container_id_matches_receipt() {
     # the private receipt can precede stdout assignment and still owns cleanup.
     # Nonempty disagreeing identities never authorize removal.
     # https://github.com/numpde/magnet-deploy/blob/2d4ee50b0359e71900fce9289ea01f46d0f41249/scripts/selected-image-build.py#L343-L370
-    [[ "$identifier" =~ ^[0-9a-f]{64}$ && -f "$receipt" && ! -L "$receipt" ]] && {
+    docker_full_container_id "$identifier" && [[ -f "$receipt" && ! -L "$receipt" ]] && {
         # Compare bytes: shell substitution discards NULs and trailing newlines.
         cmp -s "$receipt" <(printf '%s' "$identifier") ||
             cmp -s "$receipt" <(printf '%s\n' "$identifier")
@@ -683,6 +683,7 @@ acquisition_scope() {
     _acq_bundle=$(_acq_bundle_path) || return 2
     source "$_acq_bundle/acquisition_tool/compose.sh"
     source "$_acq_bundle/acquisition_tool/adapters/docker_container.sh" || return 2
+    source "$_acq_bundle/acquisition_tool/validation/upstream/container_ids.sh" || return 2
     source "$_acq_bundle/acquisition_tool/validation/upstream/docker_container.sh" || return 2
     _acq_compose_topology=$_acq_bundle/compose/acquisition.yml
     [[ -f $_acq_compose_topology ]] || _acq_compose_topology=$_acq_bundle/../compose/acquisition.yml

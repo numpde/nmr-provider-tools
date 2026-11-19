@@ -38,6 +38,7 @@ SOURCE_FILES = (
     "acquisition_tool/identity.py",
     "acquisition_tool/identity_main.py",
     "acquisition_tool/dns.py",
+    "acquisition_tool/validation/upstream/container_ids.sh",
     "acquisition_tool/validation/upstream/docker_container.sh",
     "acquisition_tool/validation/upstream/host_resolver.py",
     "acquisition_tool/validation/upstream/linux_idmap.py",
@@ -135,7 +136,9 @@ def contents(pool, source, core_wheel, pin, *, revision, wheelhouse_bundle):
     for name in SOURCE_FILES:
         source_path = source / "host" / name
 
-        if name.startswith("acquisition_tool/"):
+        if name == "acquisition_tool/validation/upstream/container_ids.sh":
+            source_path = source / "operations/docker/validation/upstream/container_ids.sh"
+        elif name.startswith("acquisition_tool/"):
             source_path = source / "packages/acquisition" / name
         elif name == "tools/docker_client.sh":
             source_path = source / "operations/docker/docker_client.sh"

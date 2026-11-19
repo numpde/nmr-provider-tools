@@ -1119,6 +1119,13 @@ Separate adjacent tool/package interfaces from service API rules:
       host startup finds the new leaves without site packages or ambient paths.
       All ten focused retirement tests and fifteen operation tests pass. Moved
       vague rejections now show the failed counts, IDs, pattern or missing field.
+  [x] Full container-ID grammar has one shell owner under operations/docker/
+      validation/upstream/container_ids.sh and is issued at the acquisition
+      validator path. Host/acquisition owners keep their distinct stdout/CID
+      framing, cancellation recovery, membership/duplicates and ordered versus
+      per-entry removal policies. Bundle and shadow fixtures stage canonical
+      bytes explicitly. Owner (50, one skip), Compose/bundle (9), operation
+      (15) and ordered-retirement (4) focused tests pass with privacy disabled.
   Docker/Compose: operations/docker/docker_context.sh:22-57 interprets context
   endpoint output; container_operation.sh and packages/acquisition/acquisition_tool/
   owner.sh interpret create/inspect/state/exit/readiness results; image_retirement.py:138
