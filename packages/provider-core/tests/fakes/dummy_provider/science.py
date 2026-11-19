@@ -111,7 +111,7 @@ class PreparationResult:
     count: int
 
     def __post_init__(self) -> None:
-        if not (type(self.count) is int and 0 < self.count):
+        if not ((type(self.count) is int) and (0 < self.count)):
             raise ValueError("count must be a positive integer")
 
 
@@ -127,7 +127,7 @@ class PredictionResult:
             _finite_float(self.total, label="prediction total"),
         )
 
-        if not (type(self.count) is int and 0 < self.count):
+        if not ((type(self.count) is int) and (0 < self.count)):
             raise ValueError("count must be a positive integer")
 
 
@@ -143,7 +143,7 @@ class SumResult:
             _finite_float(self.total, label="sum total"),
         )
 
-        if not (type(self.count) is int and 0 < self.count):
+        if not ((type(self.count) is int) and (0 < self.count)):
             raise ValueError("count must be a positive integer")
 
 

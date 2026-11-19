@@ -320,7 +320,7 @@ async def run_outage(directory, *, mode, backlog, seed):
                 raise AssertionError("The original Job's input changed during preparation")
 
             async def dispatch(name, arguments, *, not_after):
-                if name != "prepare_scientific_input" or arguments:
+                if (name != "prepare_scientific_input") or arguments:
                     raise AssertionError("The prose service proposed an unexpected scientific operation")
 
                 report_condition.require_execution()

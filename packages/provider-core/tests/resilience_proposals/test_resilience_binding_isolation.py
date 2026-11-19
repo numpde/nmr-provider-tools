@@ -92,10 +92,10 @@ class BindingIsolationTests(unittest.IsolatedAsyncioTestCase):
                         return await original_deliver(worker, item)
 
                     def notice(_error, facts):
-                        if facts["event"] == "delivery_worker_failed" and facts.get("provider_ref") == first.provider_ref:
+                        if (facts["event"] == "delivery_worker_failed") and (facts.get("provider_ref") == first.provider_ref):
                             failed.set()
 
-                        if facts["event"] == "delivery_published" and facts.get("provider_ref") == second.provider_ref:
+                        if (facts["event"] == "delivery_published") and (facts.get("provider_ref") == second.provider_ref):
                             published.set()
 
                     service = SharedDeliveryService(

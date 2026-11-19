@@ -138,7 +138,7 @@ class ExecutionPermissionTests(unittest.IsolatedAsyncioTestCase):
 
 class LiveConditionTransport(ConditionTransport):
     async def exchange(self, request, *, maximum_bytes, owner=None):
-        if request.method == "POST" and request.url.path.endswith("/start"):
+        if (request.method == "POST") and request.url.path.endswith("/start"):
             self.calls.append((request, maximum_bytes))
 
             return reply(start_response())

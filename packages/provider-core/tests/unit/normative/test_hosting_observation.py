@@ -63,7 +63,7 @@ class HeldObserver:
     async def observe(self, *, after, wait_seconds):
         self.requests.append((after, wait_seconds))
 
-        if after == self.observation.revision and wait_seconds > 0:
+        if (after == self.observation.revision) and (wait_seconds > 0):
             self.changed.clear()
             self.waiting.set()
             await self.changed.wait()

@@ -45,7 +45,7 @@ class QueueObservationTests(unittest.TestCase):
 
             queue._db.set_authorizer(
                 lambda action, arg1, arg2, _db, _trigger:
-                sqlite3.SQLITE_DENY if action == sqlite3.SQLITE_FUNCTION and arg2 == "sum" else sqlite3.SQLITE_OK
+                sqlite3.SQLITE_DENY if (action == sqlite3.SQLITE_FUNCTION) and (arg2 == "sum") else sqlite3.SQLITE_OK
             )
 
             (observed_bindings, observed_summary, failure) = queue.pending_overview()
@@ -132,7 +132,7 @@ class ServiceObservationTests(unittest.IsolatedAsyncioTestCase):
 
                 service.queue._db.set_authorizer(
                     lambda action, arg1, arg2, _db, _trigger:
-                    sqlite3.SQLITE_DENY if action == sqlite3.SQLITE_FUNCTION and arg2 == "sum" else sqlite3.SQLITE_OK
+                    sqlite3.SQLITE_DENY if (action == sqlite3.SQLITE_FUNCTION) and (arg2 == "sum") else sqlite3.SQLITE_OK
                 )
 
                 service.overview_at = 0

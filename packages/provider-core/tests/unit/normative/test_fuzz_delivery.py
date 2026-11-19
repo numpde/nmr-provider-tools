@@ -100,7 +100,7 @@ class DeliveryFaultSequenceTests(unittest.TestCase):
                                 if occupied:
                                     with self.assertRaises(DeliveryConflict):
                                         queue.enqueue_handoff(item)
-                                elif provider_count >= 3 or len(expected) >= 7:
+                                elif (provider_count >= 3) or (len(expected) >= 7):
                                     with self.assertRaises(DeliveryFull):
                                         queue.enqueue_handoff(item)
                                 else:

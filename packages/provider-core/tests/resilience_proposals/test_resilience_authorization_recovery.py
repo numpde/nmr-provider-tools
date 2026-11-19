@@ -50,7 +50,7 @@ class AuthorizationRecoveryTests(unittest.IsolatedAsyncioTestCase):
             except Exception:
                 bad_signatures.append("request signed with the wrong retained key")
 
-            if index == 0 or bad_signatures:
+            if (index == 0) or bad_signatures:
                 peer.response_status = 401
                 peer.response_headers = response_headers(status=401, request_id=b"request:test")
 
@@ -113,7 +113,7 @@ class AuthorizationRecoveryTests(unittest.IsolatedAsyncioTestCase):
                     published = asyncio.Event()
 
                     def notice(_error, facts):
-                        if facts["event"] == "delivery_published" and facts["execution_attempt_ref"] == items[1].execution_attempt_ref:
+                        if (facts["event"] == "delivery_published") and (facts["execution_attempt_ref"] == items[1].execution_attempt_ref):
                             published.set()
 
                     service = SharedDeliveryService(

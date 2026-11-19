@@ -19,7 +19,7 @@ def failure_graph(error):
     seen = {}
 
     def visit(current):
-        if current is None or id(current) in seen:
+        if (current is None) or (id(current) in seen):
             return
 
         seen[id(current)] = current
@@ -213,7 +213,7 @@ async def child(owner_kind, failure_kind):
             failure_record = owner.operation.last_failure
 
         assert any(
-            isinstance(cause, BaseExceptionGroup) and cause.exceptions == (cleanup,)
+            isinstance(cause, BaseExceptionGroup) and (cause.exceptions == (cleanup,))
             for cause in failure_record.cleanup_failures
         )
 
@@ -335,7 +335,7 @@ async def owned_port_child(stage, failure_kind):
     assert [event[0] for event in session.events].count("retire") == 1
 
     if stage == "condition":
-        assert swallowed and owner.last_failure.cause is swallowed[0]
+        assert swallowed and (owner.last_failure.cause is swallowed[0])
         assert [event[0] for event in session.events] == ["prepare", "retire"]
         assert (delivery.submit_calls == 0) and (not delivery.items)
         assert len(transport.calls) == 3
@@ -345,11 +345,11 @@ async def owned_port_child(stage, failure_kind):
         assert delivery.submit_calls == 1
 
         if stage == "retirement":
-            assert len(delivery.items) == 1 and delivery.items[0].operation is TerminalOperation.COMPLETE
+            assert (len(delivery.items) == 1) and (delivery.items[0].operation is TerminalOperation.COMPLETE)
             assert (owner._outcome is None) and (not owner.retirement_confirmed)
         else:
             assert not delivery.items
-            assert owner._outcome is session.outcome and owner.retirement_confirmed
+            assert (owner._outcome is session.outcome) and owner.retirement_confirmed
 
     print(stage + "/" + failure_kind + ": exact fatal retained, independent cleanup and selected-report duties preserved")
 
@@ -381,7 +381,7 @@ async def graph_child(stage, variant):
     retirement = OSError(errno.EIO, "PRIVATE retirement")
     delivery_failure = BaseExceptionGroup("authored delivery", (SystemExit("PRIVATE delivery"),))
 
-    if variant == "multiple" or stage == "graph-settle":
+    if (variant == "multiple") or (stage == "graph-settle"):
         primary = ValueError("PRIVATE primary")
         retirement = BaseExceptionGroup("authored retirement", (KeyboardInterrupt("PRIVATE retirement"),))
         retirement.__cause__ = previous
@@ -438,7 +438,7 @@ async def graph_child(stage, variant):
     original_primary_cause = primary.__cause__
     original_retirement_cause = retirement.__cause__
 
-    if variant == "multiple" and stage == "graph-run":
+    if (variant == "multiple") and (stage == "graph-run"):
         delivery.failure = delivery_failure
 
     if stage == "graph-admission":
@@ -461,7 +461,7 @@ async def graph_child(stage, variant):
         try:
             await owner.run(acknowledged)
         except ExecutionFailed as failed:
-            assert failed is owner.last_failure and failed.cause is primary
+            assert (failed is owner.last_failure) and (failed.cause is primary)
         else:
             raise AssertionError("fixture execution did not retain its initial failure")
 
@@ -474,7 +474,7 @@ async def graph_child(stage, variant):
     try:
         await operation
     except asyncio.CancelledError as caught:
-        assert variant == "cancel" and caught is primary
+        assert (variant == "cancel") and (caught is primary)
         assert caught.__cause__ is owner.last_failure
         assert owner.last_failure.interruption_cause is previous
         assert previous in failure_graph(caught)
@@ -489,7 +489,7 @@ async def graph_child(stage, variant):
         if stage != "graph-controller-delivery":
             assert retirement in nodes
 
-        if variant == "multiple" or stage in ("graph-settle", "graph-controller-delivery"):
+        if (variant == "multiple") or (stage in ("graph-settle", "graph-controller-delivery")):
             assert delivery_failure in nodes
 
         if stage not in ("graph-settle", "graph-controller-delivery"):
@@ -497,9 +497,9 @@ async def graph_child(stage, variant):
 
         evidence = json.dumps(failure_evidence(caught, secrets=()))
 
-        assert '"independent cleanup"' in evidence or stage == "graph-controller-delivery"
+        assert ('"independent cleanup"' in evidence) or (stage == "graph-controller-delivery")
 
-        if type(retirement) is OSError and stage != "graph-controller-delivery":
+        if (type(retirement) is OSError) and (stage != "graph-controller-delivery"):
             assert '"errno": 5' in evidence
     else:
         raise AssertionError("owned failure did not escape")
@@ -509,7 +509,7 @@ async def graph_child(stage, variant):
     print(stage + "/" + variant + ": outward evidence retains independent cleanup and original causes")
 
 
-if __name__ == "__main__" and len(sys.argv) == 3:
+if (__name__ == "__main__") and (len(sys.argv) == 3):
     if sys.argv[1].startswith("graph-"):
         operation = graph_child
     elif sys.argv[1] in ("retirement", "handoff", "condition"):

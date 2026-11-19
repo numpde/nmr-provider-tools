@@ -120,7 +120,7 @@ class ScopeReader:
 
             return (SourceEntry(source, info.file_size), info)
 
-        if self._archive is None and source == self._root:
+        if (self._archive is None) and (source == self._root):
             return (self.entries[0], None)
 
         return (self._access.scope(source)[0], None)
@@ -323,7 +323,7 @@ class SourceAccess:
 
             (disk, central_disk, disk_entries, total_entries) = struct.unpack_from("<4H", tail, eocd + 4)
 
-            if disk or central_disk or disk_entries != total_entries:
+            if disk or central_disk or (disk_entries != total_entries):
                 raise InputReadError("Cannot inspect this ZIP: multi-disk archives are unsupported")
 
             if total_entries == 0xFFFF:
@@ -334,7 +334,7 @@ class SourceAccess:
 
                 (zip64_disk, zip64_offset, total_disks) = struct.unpack_from("<IQI", tail, locator + 4)
 
-                if zip64_disk or total_disks != 1:
+                if zip64_disk or (total_disks != 1):
                     raise InputReadError("Cannot inspect this ZIP: multi-disk archives are unsupported")
 
                 stream.seek(zip64_offset)

@@ -91,7 +91,7 @@ class ProseServiceRetryTests(unittest.IsolatedAsyncioTestCase):
                 interpreters.append(interpreter)
 
                 async def prepare(name, arguments, *, not_after):
-                    if name != "prepare_scientific_input" or arguments:
+                    if (name != "prepare_scientific_input") or arguments:
                         raise AssertionError("The test prose service proposed an unexpected scientific operation")
 
                     tool_calls.append(job)

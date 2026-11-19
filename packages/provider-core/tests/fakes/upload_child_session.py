@@ -34,7 +34,7 @@ class UploadChildSession(ChildSession):
 
     # Match the core session port; this lifetime fixture emits no conditions.
     async def prepare(self, acknowledged, instructions, *, report_condition):  # noqa: ARG002
-        if acknowledged.start.input != instructions.identity or self.source.job_ref != instructions.job_ref:
+        if (acknowledged.start.input != instructions.identity) or (self.source.job_ref != instructions.job_ref):
             raise ValueError("Upload child preparation requires this Job's admitted instructions and source receipt")
 
         self.phases.append(type(self.store.records[0]))

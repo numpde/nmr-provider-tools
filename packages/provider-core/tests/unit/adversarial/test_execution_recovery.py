@@ -206,7 +206,7 @@ class ObservationRecoveryFailureTests(unittest.IsolatedAsyncioTestCase):
 
         class BlockedCondition(Transport):
             async def exchange(self, request, *, maximum_bytes, owner=None):
-                if request.method != "PUT" or json.loads(request.content)["condition_code"] is None:
+                if (request.method != "PUT") or (json.loads(request.content)["condition_code"] is None):
                     return await super().exchange(request, maximum_bytes=maximum_bytes, owner=owner)
 
                 self.calls.append((request, maximum_bytes))

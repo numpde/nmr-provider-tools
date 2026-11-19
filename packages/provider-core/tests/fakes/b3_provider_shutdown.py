@@ -35,7 +35,7 @@ def seeded_schedule(seed):
 
     return ShutdownSchedule(
         stage=stage,
-        ignore_stop_signals=stage in {"https_wait", "late_exit_observation"} and randomizer.choice((False, True)),
+        ignore_stop_signals=(stage in {"https_wait", "late_exit_observation"}) and randomizer.choice((False, True)),
         stop_requests=randomizer.randint(1, 3),
         cancelled_join_observers=randomizer.randint(0, 2),
         scheduling_turns=randomizer.randint(0, 3),
@@ -48,7 +48,7 @@ def failure_types(error):
     (seen, names) = (set(), set())
 
     def visit(current):
-        if current is None or id(current) in seen:
+        if (current is None) or (id(current) in seen):
             return
 
         seen.add(id(current))

@@ -63,7 +63,7 @@ class ScriptedChild:
         return json.loads(line)
 
     async def stop(self):
-        if self.process is None or self.pipes_closed:
+        if (self.process is None) or self.pipes_closed:
             return
 
         if self.process.returncode is None:

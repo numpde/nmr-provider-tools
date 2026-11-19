@@ -30,7 +30,7 @@ class ExecutionUnavailable(importlib.abc.MetaPathFinder):
     }
 
     def find_spec(self, fullname, path, target=None):
-        if any(fullname == name or fullname.startswith(name + ".") for name in self.blocked):
+        if any((fullname == name) or fullname.startswith(name + ".") for name in self.blocked):
             raise ModuleNotFoundError(f"Execution modules are unavailable in this client-only proof: {fullname}")
 
         return None

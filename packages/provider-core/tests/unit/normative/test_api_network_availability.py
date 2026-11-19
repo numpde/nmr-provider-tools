@@ -370,7 +370,7 @@ class ApiNetworkAvailabilityTests(unittest.IsolatedAsyncioTestCase):
                     if method == "GET":
                         self.assertIs(client.can_retry_read(failure), read_allowed)
                     else:
-                        self.assertIs(client.can_renew_read_grant(failure, job_ref="job:example", upload_ref=UPLOAD_REF), read_allowed and status == 200)
+                        self.assertIs(client.can_renew_read_grant(failure, job_ref="job:example", upload_ref=UPLOAD_REF), read_allowed and (status == 200))
                         self.assertTrue(failure.issuance_may_have_committed)
 
     async def test_actual_close_failure_blocks_availability_and_retains_independent_error(self):

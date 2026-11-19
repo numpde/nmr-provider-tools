@@ -185,7 +185,7 @@ async def scenario(marker, report, seed):
                 raise AssertionError("Session preparation changed its original Job input")
 
             async def dispatch(name, arguments, *, not_after):
-                if name != "prepare_scientific_input" or arguments:
+                if (name != "prepare_scientific_input") or arguments:
                     raise AssertionError("Unexpected prose-interpreter tool request")
 
                 report_condition.require_execution()

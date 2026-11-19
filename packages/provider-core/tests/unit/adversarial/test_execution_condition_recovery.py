@@ -178,7 +178,7 @@ class ConditionRecoveryFailureTests(unittest.IsolatedAsyncioTestCase):
             # Keep the second condition wait pending while the independent
             # monitor recovers. This checks separate evidence owners,
             # not scheduler order between two legitimately paced API operations.
-            if asyncio.current_task() is executor._task and len(failures) >= 2:
+            if (asyncio.current_task() is executor._task) and (len(failures) >= 2):
                 await asyncio.Event().wait()
             else:
                 await real_sleep(seconds)

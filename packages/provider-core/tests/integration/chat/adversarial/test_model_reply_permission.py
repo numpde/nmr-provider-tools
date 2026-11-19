@@ -138,7 +138,7 @@ class InterpretedSession:
             raise AssertionError("Preparation substituted its selected Job input")
 
         async def dispatch(name, arguments, *, not_after):
-            if name != "prepare" or arguments:
+            if (name != "prepare") or arguments:
                 raise AssertionError("Unexpected model tool")
 
             self.dispatches += 1
@@ -402,7 +402,7 @@ def failure_contains(root, expected):
     seen = set()
 
     def visit(error):
-        if error is None or id(error) in seen:
+        if (error is None) or (id(error) in seen):
             return False
 
         seen.add(id(error))

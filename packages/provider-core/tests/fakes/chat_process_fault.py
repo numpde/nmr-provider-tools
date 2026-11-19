@@ -186,7 +186,7 @@ def _failure_types(error):
     types = set()
 
     def visit(current):
-        if current is None or id(current) in seen:
+        if (current is None) or (id(current) in seen):
             return
 
         seen.add(id(current))
@@ -290,7 +290,7 @@ async def scenario(marker, report):
                 raise AssertionError("Fixture preparation changed its original input")
 
             async def dispatch(name, arguments, *, not_after):
-                if name != "prepare" or arguments:
+                if (name != "prepare") or arguments:
                     raise AssertionError("Unexpected model tool")
 
                 report_condition.require_execution()

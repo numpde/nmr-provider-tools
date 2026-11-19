@@ -179,7 +179,7 @@ class _FailureSummaryResult(unittest.TextTestResult):
 
                 break
 
-        if location == "(no traceback)" and frames:
+        if (location == "(no traceback)") and frames:
             frame = frames[-1]
             location = f"{pathlib.Path(frame.filename).name}:{frame.lineno}"
 
