@@ -24,7 +24,7 @@ def closing_response(status: HTTPStatus) -> bytes:
     return (
         f"HTTP/1.1 {status.value} {status.phrase}\r\n"
         f"Connection: close\r\n"
-        f"\r\n"
+        f"\r\n"  # machine-string: HTTP clients parse this complete status response; debug labels would corrupt the wire format
     ).encode("ascii")
 
 
@@ -64,6 +64,7 @@ def parse_destination(header: bytes) -> tuple[str, str, int, bytes]:
     if parsed.query:
         path += "?" + parsed.query
 
-    lines[0] = f"{method} {path} {version}".encode("ascii")
+    forwarded_request_line = f"{method} {path} {version}"  # machine-string: the proxy peer parses this exact HTTP request line
+    lines[0] = forwarded_request_line.encode("ascii")
 
     return (method, host, port, b"\r\n".join(lines))

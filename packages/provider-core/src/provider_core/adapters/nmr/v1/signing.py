@@ -80,7 +80,12 @@ def signed_request(identity, *, method, path, query, body, created, nonce):
         },
     )
 
-    base = "\n".join([f'"{name}": {value}' for (name, value) in values.items()] + [f'"@signature-params": {ser([member])}'])
+    header_lines = [
+        f'"{name}": {value}'  # machine-string: RFC 9421 signature base preserves these exact component lines
+        for (name, value) in values.items()
+    ]
+    signature_parameters = f'"@signature-params": {ser([member])}'  # machine-string: RFC 9421 signature base requires this exact serialization
+    base = "\n".join(header_lines + [signature_parameters])
     headers["Signature-Input"] = ser({"sig1": member})
     headers["Signature"] = ser({"sig1": (identity.private_key.sign(base.encode("ascii")), {})})
     request = httpx.Request(method, identity.origin + target.decode("ascii"), headers=headers, content=body)

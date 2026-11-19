@@ -8,10 +8,16 @@ require_container()
 def membership_route(job_ref: str) -> tuple[str, str]:
     """Render the membership target from the caller's admitted Job identity."""
 
-    return ("GET", f"/provider/v1/jobs/{job_ref}/uploads")
+    return (
+        "GET",
+        f"/provider/v1/jobs/{job_ref}/uploads"  # machine-string: the signed NMR API target uses this exact Upload-membership route
+    )
 
 
 def read_grant_route(job_ref: str, upload_ref: str) -> tuple[str, str]:
     """Render fresh issuance for the exact admitted Job and Upload binding."""
 
-    return ("POST", f"/provider/v1/jobs/{job_ref}/uploads/{upload_ref}/read-capability")
+    return (
+        "POST",
+        f"/provider/v1/jobs/{job_ref}/uploads/{upload_ref}/read-capability"  # machine-string: the signed NMR API target uses this exact read-capability route
+    )

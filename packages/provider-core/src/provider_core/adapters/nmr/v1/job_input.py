@@ -8,7 +8,10 @@ require_container()
 def job_input_route(job_ref: str) -> tuple[str, str]:
     """Render the input target without changing the admitted Job identity."""
 
-    return ("GET", f"/provider/v1/jobs/{job_ref}/input")
+    return (
+        "GET",
+        f"/provider/v1/jobs/{job_ref}/input"  # machine-string: the signed NMR API target uses this exact Job-input route
+    )
 
 
 def job_input_query(analysis_kind_ref: str) -> bytes:

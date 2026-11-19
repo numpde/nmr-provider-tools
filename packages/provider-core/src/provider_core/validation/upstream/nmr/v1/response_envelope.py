@@ -156,7 +156,7 @@ def require_headers(response, expected_topology):
         values = [value for (key, value) in response.headers if key.lower() == name]
 
         if values != [expected]:
-            raise ResponseRejected(f"HTTP {response.status} response must contain one {name.decode()} header with value {expected.decode()}")
+            raise ResponseRejected(f"HTTP {response.status=} response must contain one {name.decode()=} header with value {expected.decode()=}")
 
     if any((name.lower() == b"content-encoding") for (name, _) in response.headers):
         raise ResponseRejected("encoded response bodies are not supported by the API contract")

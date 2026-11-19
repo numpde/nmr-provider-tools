@@ -292,7 +292,7 @@ def _outcome_response(raw, operation, execution_attempt_ref, fields):
 
         raise ResponseRejected(f"{reprlib.repr(unexpected_fields)=} and {missing_fields=} should be empty")
 
-    expected_schema_id = f"nmr.provider.execution_attempt_{operation}_response.v1"
+    expected_schema_id = f"nmr.provider.execution_attempt_{operation}_response.v1"  # machine-string: response schema validation requires this exact NMR identifier
 
     if not ((response_schema_id := outcome_response["schema_id"]) == expected_schema_id):
         raise ResponseRejected(f"{reprlib.repr(response_schema_id)=} should match {expected_schema_id=}")

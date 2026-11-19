@@ -184,7 +184,7 @@ def _outcome_document(body, operation, limit, execution_attempt_ref, fields):
     if not (outcome_request_fields == expected_fields):
         raise ValueError(f"{outcome_request_fields=} should match {expected_fields=}")
 
-    expected_schema_id = f"nmr.provider.execution_attempt_{operation}_request.v1"
+    expected_schema_id = f"nmr.provider.execution_attempt_{operation}_request.v1"  # machine-string: request schema validation requires this exact NMR identifier
 
     if not ((retained_schema_id := outcome_request["schema_id"]) == expected_schema_id):
         raise ValueError(f"{retained_schema_id=} should match {expected_schema_id=}")

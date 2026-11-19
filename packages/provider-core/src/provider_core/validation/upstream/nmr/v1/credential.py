@@ -41,8 +41,8 @@ _FIELDS = {
 class CredentialRejected(ValueError):
     """Safe admission reason with private original parser/key evidence in cause."""
 
-    def __init__(self, message, *, cause=None):
-        super().__init__(f"Cannot load provider signing credential: {message}")
+    def __init__(self, reason, *, cause=None):
+        super().__init__(f"Cannot load provider signing credential: {reason=}")
         self.cause = cause
 
 
@@ -60,7 +60,7 @@ def parse_provider_credential(raw, *, maximum_bytes):
     try:
         document = read_document(raw, maximum_bytes)
     except ResponseRejected as cause:
-        raise CredentialRejected(f"supply the original API-issued JSON file within {maximum_bytes} bytes.", cause=cause) from None
+        raise CredentialRejected(f"supply the original API-issued JSON file within {maximum_bytes=} bytes.", cause=cause) from None
 
     if not (type(document) is (expected_type := dict)):
         raise CredentialRejected(f"{type(document)=} ≠ {expected_type=}")

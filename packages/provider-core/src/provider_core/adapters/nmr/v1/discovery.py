@@ -29,7 +29,7 @@ def paging_query(*, limit, cursor):
     """Encode the admitted page limit and optional cursor in their signed order."""
 
     require_page_inputs(limit=limit, cursor=cursor)
-    query = f"limit={limit}"
+    query = f"limit={limit}"  # machine-string: NMR API parses this exact query parameter
 
     if cursor is not None:
         query += "&cursor=" + cursor
@@ -48,7 +48,7 @@ def jobs_query(*, analysis_kind_ref, has_provider_execution_attempt, limit, curs
     # silent-defaults: allow-contract -- Encode the caller-selected boolean as the protocol-required lowercase wire value.
     view = "true" if has_provider_execution_attempt else "false"
 
-    query = f"analysis_kind_ref={analysis_kind_ref}&has_provider_execution_attempt={view}&"
+    query = f"analysis_kind_ref={analysis_kind_ref}&has_provider_execution_attempt={view}&"  # machine-string: the signed NMR API query requires these exact parameter names and values
 
     return query.encode("ascii") + paging_query(limit=limit, cursor=cursor)
 

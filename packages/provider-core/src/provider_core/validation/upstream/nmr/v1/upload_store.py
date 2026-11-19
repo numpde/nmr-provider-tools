@@ -28,7 +28,7 @@ def require_store_headers(response: HttpResponse | HttpResponseHead, grant: Read
     """Admit a complete whole-file head before receiving or charging body bytes."""
 
     if response.status != 200:
-        raise ResponseRejected(f"store returned HTTP {response.status}; no verified bytes were obtained")
+        raise ResponseRejected(f"store returned HTTP {response.status=}; no verified bytes were obtained")
 
     digest = base64.b64encode(bytes.fromhex(grant.content_hash.removeprefix("sha256:")))
 
@@ -39,7 +39,7 @@ def require_store_headers(response: HttpResponse | HttpResponseHead, grant: Read
         (b"content-digest", b"sha-256=:" + digest + b":"),
     ):
         if [value for (key, value) in response.headers if key.lower() == name] != [expected]:
-            raise ResponseRejected(f"store response {name.decode()} does not match the granted whole-file transfer")
+            raise ResponseRejected(f"store response {name.decode()=} does not match the granted whole-file transfer")
 
     if any((name.lower() in {b"content-encoding", b"content-range"}) for (name, _) in response.headers):
         raise ResponseRejected("encoded or partial store responses are not admitted")

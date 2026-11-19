@@ -66,10 +66,13 @@ def https_origin(value):
 
         authority = host.lower()
     else:
-        authority = f"[{address}]" if isinstance(address, IPv6Address) else str(address)
+        if isinstance(address, IPv6Address):
+            authority = f"[{address}]"  # machine-string: HTTP authority syntax preserves the IPv6 address for request signing
+        else:
+            authority = str(address)
 
     if (port is not None) and (port != 443):
-        authority += f":{port}"
+        authority += f":{port}"  # machine-string: HTTP authority syntax preserves the explicit port for request signing
 
     return ("https://" + authority, authority)
 
