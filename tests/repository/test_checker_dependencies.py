@@ -169,11 +169,11 @@ class CheckerDependencyTests(unittest.TestCase):
     def test_install_verifies_artifact_before_invoking_dpkg(self):
         self.artifact.write_bytes(b"late")
 
-        with patch.object(subprocess, "run") as run:
+        with patch.object(subprocess, "run") as package_install_dispatch:
             with self.assertRaises(ValueError):
                 dependencies.install([self.package], self.pool)
 
-            run.assert_not_called()
+            package_install_dispatch.assert_not_called()
 
     def test_install_compares_the_exact_version_reported_after_installation(self):
         installed_version = self.package["version"] + "\n"
@@ -187,11 +187,11 @@ class CheckerDependencyTests(unittest.TestCase):
                 subprocess.CompletedProcess(install_command, 0),
                 subprocess.CompletedProcess(version_command, 0, stdout=installed_version),
             ],
-        ) as run:
+        ) as dpkg_invocations:
             with self.assertRaises(ValueError):
                 dependencies.install([self.package], self.pool)
 
         self.assertEqual(
             [call(install_command, check=True), call(version_command, check=True, capture_output=True, text=True)],
-            run.call_args_list,
+            dpkg_invocations.call_args_list,
         )
