@@ -411,10 +411,10 @@ class UploadTransfer:
             except (TypeError, ValueError) as cause:
                 raise UploadFailed("private-file cleanup requires explicit finite positive retirement seconds") from cause
 
-            file = self._pending_upload_file = _UploadFile(directory_fd, retirement_seconds)
+            pending_upload_file = self._pending_upload_file = _UploadFile(directory_fd, retirement_seconds)
 
             try:
-                await file.create(self._remaining_seconds())
+                await pending_upload_file.create(self._remaining_seconds())
                 deadline = asyncio.timeout(self._remaining_seconds())
 
                 try:
@@ -438,7 +438,7 @@ class UploadTransfer:
                         interruption=failure,
                     ) from None
 
-                response = await self._transfer(grant, output_fd=file.fd)
+                response = await self._transfer(grant, output_fd=pending_upload_file.fd)
 
                 if response.byte_length != grant.byte_length:
                     raise UploadFailed("downloaded byte length differs from the grant")
@@ -446,14 +446,14 @@ class UploadTransfer:
                 if response.content_hash != grant.content_hash:
                     raise UploadFailed("downloaded SHA-256 differs from the grant")
 
-                await file.close(self._remaining_seconds())
+                await pending_upload_file.close(self._remaining_seconds())
                 self._remaining_seconds()
-                result = VerifiedUploadFile(self.job_ref, grant.upload_ref, grant.byte_length, grant.content_hash, file.name)
+                verified_upload_file = VerifiedUploadFile(self.job_ref, grant.upload_ref, grant.byte_length, grant.content_hash, pending_upload_file.name)
 
-                file.shutdown()
+                pending_upload_file.shutdown()
                 self._pending_upload_file = None
 
-                return result
+                return verified_upload_file
             except BaseException as failure:
                 if isinstance(failure, asyncio.CancelledError):
                     self._interrupted = True
@@ -524,8 +524,8 @@ class UploadTransfer:
             self._pending_upload_file.shutdown()
 
     async def _abort_file(self):
-        file = self._pending_upload_file
-        deadline = time.monotonic() + file.retirement_seconds
+        pending_upload_file = self._pending_upload_file
+        deadline = time.monotonic() + pending_upload_file.retirement_seconds
 
         def remaining():
             seconds = deadline - time.monotonic()
@@ -535,13 +535,13 @@ class UploadTransfer:
 
             return seconds
 
-        if file.pending is not None:
-            operation = file.pending.operation
+        if pending_upload_file.pending is not None:
+            operation = pending_upload_file.pending.operation
 
             try:
-                await file.settle(remaining())
+                await pending_upload_file.settle(remaining())
             except UploadFailed as failure:
-                if (file.pending is not None) or (operation != "create"):
+                if (pending_upload_file.pending is not None) or (operation != "create"):
                     raise
 
                 # No grant can precede an observed create. Its late intrinsic
@@ -550,16 +550,16 @@ class UploadTransfer:
 
                 self.last_failure.cause = failure
 
-        if file.close_uncertain:
+        if pending_upload_file.close_uncertain:
             raise UploadFailed("private-file descriptor closure is unconfirmed; retire the enclosing process")
 
-        if file.fd is not None:
-            await file.close(remaining())
+        if pending_upload_file.fd is not None:
+            await pending_upload_file.close(remaining())
 
-        if file.created:
-            await file.remove(remaining())
+        if pending_upload_file.created:
+            await pending_upload_file.remove(remaining())
 
-        file.shutdown()
+        pending_upload_file.shutdown()
         self._pending_upload_file = None
 
     async def settle_file(self):
@@ -632,7 +632,7 @@ class UploadTransfer:
         return download_request(target, capability=grant.capability)
 
     async def _transfer(self, grant, *, output_fd=None):
-        request = self._download_request(grant)
+        download_http_request = self._download_request(grant)
 
         self._before_request()
         deadline = asyncio.timeout(self._remaining_seconds())
@@ -650,14 +650,14 @@ class UploadTransfer:
             async with deadline:
                 if output_fd is None:
                     response = await self._store.exchange(
-                        request,
+                        download_http_request,
                         maximum_bytes=grant.byte_length,
                         account_bytes=self._account_bytes,
                         before_body=admit,
                     )
                 else:
                     response = await self._store.exchange_file(
-                        request,
+                        download_http_request,
                         output_fd=output_fd,
                         maximum_bytes=grant.byte_length,
                         account_bytes=self._account_bytes,
