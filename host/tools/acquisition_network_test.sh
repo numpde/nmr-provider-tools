@@ -10,15 +10,16 @@ source "$root/operations/docker/docker_context.sh"
 select_docker_context
 source "$root/operations/docker/base_image.sh"
 source "$root/operations/docker/container_operation.sh"
+source "$root/operations/docker/validation/upstream/image_ids.sh"
 operation_begin
 ordered_container_retirement=true
 record_container() {
     operation_retire_order=("$operation_container" "${operation_retire_order[@]}")
 }
 
-operation_metadata "$operation_directory/base" image inspect --format '{{.Id}} {{.Os}}/{{.Architecture}}' "$base_image"
+docker_inspect_image_id_and_platform "$operation_directory/base" "$base_image"
 read -r resolved_image platform extra < "$operation_directory/base"
-[[ $resolved_image =~ ^sha256:[0-9a-f]{64}$ && $platform == linux/amd64 && -z $extra ]] || {
+docker_full_image_id "$resolved_image" && [[ $platform == linux/amd64 && -z $extra ]] || {
     printf '%s\n' 'The pinned Python base has invalid selected-engine metadata.' >&2; exit 2;
 }
 operation_host_identity "$base_image" /usr/local/bin/python3 "$(id -u)" "$(id -g)"

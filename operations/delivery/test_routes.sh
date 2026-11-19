@@ -13,8 +13,9 @@ elif [[ $# != 0 ]]; then
 fi
 uid=$(id -u) gid=$(id -g)
 [[ $uid != 0 && $gid != 0 && ! $root =~ [[:cntrl:],] ]] || exit 2
+source "$root/operations/docker/validation/upstream/image_ids.sh"
 [[ -v SHARED_RUNTIME_IMAGE_INPUT_ORIGIN && $SHARED_RUNTIME_IMAGE_INPUT_ORIGIN == 'command line' \
-    && -v SHARED_RUNTIME_IMAGE_INPUT && $SHARED_RUNTIME_IMAGE_INPUT =~ ^sha256:[0-9a-f]{64}$ ]] \
+    && -v SHARED_RUNTIME_IMAGE_INPUT ]] && docker_full_image_id "$SHARED_RUNTIME_IMAGE_INPUT" \
     || { printf '%s\n' 'Use tests/deployment/route with explicit SHARED_RUNTIME_IMAGE from delivery/image/build.' >&2; exit 2; }
 image=$SHARED_RUNTIME_IMAGE_INPUT
 python=/opt/provider-core/environment/bin/python
@@ -35,7 +36,7 @@ route_finish() {
     if "$inference_retirement_confirmed" && ! "$retain_operation"; then
         if operation_metadata "$operation_directory/route-containers" ps --all --quiet --no-trunc --filter "label=$operation_label"; then
             while IFS= read -r identifier; do
-                if [[ $identifier =~ ^[0-9a-f]{64}$ ]]; then
+                if docker_full_container_id "$identifier"; then
                     if operation_teardown rm --force --volumes "$identifier" > /dev/null; then :; else retain_operation=true; fi
                 else
                     retain_operation=true
@@ -73,7 +74,7 @@ route_finish() {
 }
 trap route_finish EXIT
 
-operation_metadata "$operation_directory/image" image inspect --format '{{.Id}} {{index .Config.Labels "org.nmr-provider-tools.role"}}' "$image"
+docker_inspect_image_id_and_label "$operation_directory/image" "$image" org.nmr-provider-tools.role
 cmp -s "$operation_directory/image" <(printf '%s delivery\n' "$image") || exit 2
 operation_create --name "$project-reservation" --pull never --network none --read-only --user "$uid:$gid" --cap-drop ALL     --security-opt no-new-privileges:true --cpus 1 --memory 64m --memory-swap 64m --pids-limit 16 --entrypoint /bin/true "$image"
 fixture=$operation_directory/fixture.py
@@ -123,7 +124,7 @@ operation_metadata "$operation_directory/existing-route" volume ls --quiet --fil
 operation_call 'start emitted private API route' 60 stdio "${compose[@]}" up --detach --no-build --pull never --wait --wait-timeout 30
 operation_metadata "$operation_directory/proxy-id" compose --env-file /dev/null --project-name "$project" --project-directory / --file "$operation_directory/compose.json" ps --quiet --no-trunc "$proxy_role"
 IFS= read -r proxy < "$operation_directory/proxy-id"
-[[ $proxy =~ ^[0-9a-f]{64}$ ]] && cmp -s "$operation_directory/proxy-id" <(printf '%s\n' "$proxy") || exit 2
+docker_full_container_id "$proxy" && cmp -s "$operation_directory/proxy-id" <(printf '%s\n' "$proxy") || exit 2
 operation_metadata "$operation_directory/proxy-grants" inspect --format '{{json .Mounts}}' "$proxy"
 jq -e '[.[] | select(.Type == "volume" or .Type == "bind")] | length == 1 and .[0].Type == "volume" and .[0].Destination == "/route" and .[0].RW == true' "$operation_directory/proxy-grants" > /dev/null
 operation_call 'signed HTTPS through read-only private route' 30 stdio "${compose[@]}" run --rm --no-deps client success "$client_socket"

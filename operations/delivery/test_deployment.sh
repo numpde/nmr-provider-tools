@@ -6,13 +6,14 @@ source "$root/operations/testing/privacy.sh"
 [[ $# == 0 ]] || exit 2
 uid=$(id -u) gid=$(id -g)
 if [[ $uid == 0 || $gid == 0 || $root =~ [[:cntrl:],] ]]; then exit 2; fi
+source "$root/operations/docker/validation/upstream/image_ids.sh"
 [[ -v SHARED_RUNTIME_IMAGE_INPUT_ORIGIN && $SHARED_RUNTIME_IMAGE_INPUT_ORIGIN == 'command line' \
-    && -v SHARED_RUNTIME_IMAGE_INPUT && $SHARED_RUNTIME_IMAGE_INPUT =~ ^sha256:[0-9a-f]{64}$ ]] \
+    && -v SHARED_RUNTIME_IMAGE_INPUT ]] && docker_full_image_id "$SHARED_RUNTIME_IMAGE_INPUT" \
     || { printf '%s\n' 'Use tests/deployment with explicit SHARED_RUNTIME_IMAGE from delivery/image/build.' >&2; exit 2; }
 image=$SHARED_RUNTIME_IMAGE_INPUT
 source "$root/operations/docker/container_operation.sh"
 operation_begin
-operation_metadata "$operation_directory/image" image inspect --format '{{.Id}} {{index .Config.Labels "org.nmr-provider-tools.role"}}' "$image"
+docker_inspect_image_id_and_label "$operation_directory/image" "$image" org.nmr-provider-tools.role
 cmp -s "$operation_directory/image" <(printf '%s delivery\n' "$image") || exit 2
 operation_run untimed --pull never --network none --init --read-only --user "$uid:$gid" --cap-drop ALL \
     --security-opt no-new-privileges:true --cpus 2 --memory 512m --memory-swap 512m --pids-limit 64 \
