@@ -21,6 +21,7 @@ from dataclasses import dataclass, field
 import httpx
 
 from provider_core.chat_errors import ChatFailed
+from provider_core.adapters.chat_completions.request import completion_request, request_body
 from provider_core.response_json import ResponseRejected, read_document
 from provider_core.transport import ExchangeFailed
 from provider_core.chat_process import SupervisedChatTransport
@@ -85,22 +86,6 @@ class ChatEndpointSpec:
             raise ValueError("Cannot configure interpreter endpoint: use a canonical HTTPS URL without credentials, query or fragment.")
 
 
-def _encode_request(spec, messages, tools):
-    request = {
-        "model": spec.model,
-        "messages": messages,
-        "tools": tools,
-        "tool_choice": "required",
-        "parallel_tool_calls": False,
-        "stream": False,
-    }
-
-    if spec.reasoning_effort is not None:
-        request["reasoning_effort"] = spec.reasoning_effort
-
-    return _json_bytes(request)
-
-
 @dataclass(frozen=True, slots=True, kw_only=True)
 class ChatEndpointFactory:
     """Bind captured endpoint grants; each model visit receives fresh HTTP ownership."""
@@ -117,7 +102,13 @@ class ChatEndpointFactory:
     def context_bytes(self):
         """Exact messages/tools capacity after reserving this carrier's envelope."""
         empty_context = _json_bytes({"messages": [], "tools": []})
-        overhead = len(_encode_request(self.spec, [], [])) - len(empty_context)
+        empty_request = request_body(
+            model=self.spec.model,
+            messages=[],
+            tools=[],
+            reasoning_effort=self.spec.reasoning_effort,
+        )
+        overhead = len(empty_request) - len(empty_context)
 
         return self.request_bytes - overhead
 
@@ -298,7 +289,12 @@ class ChatEndpoint:
         entity. not_after bounds request work; the transport separately owns one
         configured cleanup allowance for the original exchange.
         """
-        content = _encode_request(self.spec, messages, tools)
+        content = request_body(
+            model=self.spec.model,
+            messages=messages,
+            tools=tools,
+            reasoning_effort=self.spec.reasoning_effort,
+        )
 
         if len(content) > self._request_bytes:
             raise ChatFailed(
@@ -306,12 +302,7 @@ class ChatEndpoint:
                 f"Cannot send interpreter request: its {len(content)} bytes exceed the {self._request_bytes}-byte limit; this turn was not sent.",
             )
 
-        wire = httpx.Request(
-            "POST",
-            self.spec.url,
-            headers={"Authorization": "Bearer " + self.spec.api_key, "Content-Type": "application/json"},
-            content=content,
-        )
+        wire = completion_request(url=self.spec.url, api_key=self.spec.api_key, content=content)
 
         try:
             response = await self._transport.exchange_decoded(

@@ -492,6 +492,9 @@ OpenAI-compatible Chat Completions profile
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 [ ] C1  Separate Chat wire configuration, request encoding and reply admission
+    [x] Separate request encoding and authenticated HTTP construction
+    [ ] Separate completion admission and service error translation
+    [ ] Classify configuration restrictions by their actual owner
     core/chat.py:35-88,189-221,237 onward
     Endpoint/model/key/reasoning settings mix local configuration and supported
     carrier restrictions. _encode_request owns model/messages/tools, tool_choice,
@@ -501,6 +504,15 @@ OpenAI-compatible Chat Completions profile
     Configured URLs are not a hardcoded universal /v1 endpoint.
     Request/response budgets, TLS policy and one-shot ownership are local.
     Evidence: test_chat.py and integration/chat/ normative/adversarial suites.
+    Request slice completed 2026-11-19: adapters/chat_completions/request.py
+    owns the supported request fields, JSON bytes and authenticated POST.
+    Endpoint ownership retains context selection, byte refusal before HTTP
+    construction, one exchange, cancellation and retirement. Factory overhead
+    uses the same encoder; local identity JSON remains local. The directory
+    names a compatible profile, not an invented immutable service version.
+    Focused integration test_chat.py, unit test_chat_process_contract.py and
+    contract test_installation.py passed on science with PRIVACY_TESTS=0
+    (40 tests, six skips). Independent audit confirmed byte and ordering parity.
 
 [ ] C2  Extract tool-call carrier rules from transcript ownership
     core/conversation.py:250-254,374-397,443-571
