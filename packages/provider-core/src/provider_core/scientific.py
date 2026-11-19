@@ -298,7 +298,7 @@ def _members(*, contribution: type[Contribution]) -> tuple[tuple[str, Callable],
     for parent in reversed(contribution.__mro__):
         effective.update(vars(parent))
 
-    result = []
+    exported_methods = []
 
     for (member_name, member) in sorted(effective.items()):
         if isinstance(member, (staticmethod, classmethod)):
@@ -313,15 +313,15 @@ def _members(*, contribution: type[Contribution]) -> tuple[tuple[str, Callable],
             if member_name in ("__init__", "initialize", "close"):
                 raise ValueError(f"Lifecycle {member_name=} should not also be an operation")
 
-            result.append((member_name, member))
+            exported_methods.append((member_name, member))
 
-    if not (result):
+    if not (exported_methods):
         raise ValueError("A contribution must export at least one operation")
 
-    if len({function for (_, function) in result}) != len(result):
+    if len({function for (_, function) in exported_methods}) != len(exported_methods):
         raise ValueError("An exported operation cannot have multiple aliases in one contribution")
 
-    return tuple(result)
+    return tuple(exported_methods)
 
 
 def _schema(*, annotation: object, seen: frozenset[type]) -> object:
@@ -331,7 +331,7 @@ def _schema(*, annotation: object, seen: frozenset[type]) -> object:
     if origin is not None:
         return {
             "origin": f"{origin.__module__}.{origin.__qualname__}",  # machine-string: Execution contract schemas identify a type by its dotted Python import name
-            "arguments": [_schema(annotation=item, seen=seen) for item in get_args(tp=annotation)],
+            "arguments": [_schema(annotation=type_argument, seen=seen) for type_argument in get_args(tp=annotation)],
         }
 
     if annotation is Ellipsis:
@@ -340,24 +340,24 @@ def _schema(*, annotation: object, seen: frozenset[type]) -> object:
     if not isinstance(annotation, type):
         return {"literal": annotation}
 
-    document = {
+    type_schema = {
         "type": f"{annotation.__module__}.{annotation.__qualname__}",  # machine-string: Execution contract schemas retain the annotated type's dotted Python import name
     }
 
     if annotation in seen:
-        return document
+        return type_schema
 
     if is_dataclass(obj=annotation):
         hints = get_type_hints(obj=annotation)
 
-        document["fields"] = [
+        type_schema["fields"] = [
             {"name": member.name, "type": _schema(annotation=hints[member.name], seen=seen | {annotation})}
             for member in fields(class_or_instance=annotation)
         ]
     elif issubclass(annotation, Enum):
-        document["values"] = [member.value for member in annotation]
+        type_schema["values"] = [member.value for member in annotation]
 
-    return document
+    return type_schema
 
 
 def _codec(*, value_type: type, supplied: PayloadCodec | None) -> PayloadCodec:
@@ -653,16 +653,16 @@ class HostedContribution:
             isolation=self.isolation,
         )
 
-        document = description_document(description=description)
+        implementation_schema = description_document(description=description)
 
-        del document["binding_revision"]
-        del document["binding_id"]
-        document["analysis"] = None
+        del implementation_schema["binding_revision"]
+        del implementation_schema["binding_id"]
+        implementation_schema["analysis"] = None
 
         if self._analysis_type is not None:
-            document["analysis"] = f"{self._analysis_type.__module__}.{self._analysis_type.__qualname__}"  # machine-string: The execution contract identifies its analysis type by dotted Python import name
+            implementation_schema["analysis"] = f"{self._analysis_type.__module__}.{self._analysis_type.__qualname__}"  # machine-string: The execution contract identifies its analysis type by dotted Python import name
 
-        document["operation_schemas"] = [
+        implementation_schema["operation_schemas"] = [
             {
                 "input": _schema(annotation=call.input_codec.value_type, seen=frozenset()),
                 "result": _schema(annotation=call.result_codec.value_type, seen=frozenset())
@@ -670,7 +670,7 @@ class HostedContribution:
             for call in calls
         ]
 
-        encoded_contract = json.dumps(obj=document, sort_keys=True, ensure_ascii=True, separators=(",", ":")).encode(encoding="ascii")
+        encoded_contract = json.dumps(obj=implementation_schema, sort_keys=True, ensure_ascii=True, separators=(",", ":")).encode(encoding="ascii")
         revision = "configured-v3:sha256:" + hashlib.sha256(string=encoded_contract).hexdigest()
 
         object.__setattr__(self, "description", replace(description, binding_revision=revision))
