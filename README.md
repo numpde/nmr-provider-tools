@@ -167,8 +167,9 @@ targets include that source in each artifact, and SDK callers import it from
 `provider_core.type_requirements`.
 
 `tools/` contains shared Python modules for container operations.
-`containers/acquisition/` owns the container-side acquisition proxy source. The installed `provider_core`
-package contains both portable scientific contracts and guarded operational
+`packages/provider-core/src/provider_core/bound_http_proxy.py` owns the acquisition
+proxy source; the acquisition builder includes it from the candidate SDK wheel.
+The installed `provider_core` package contains both portable scientific contracts and guarded operational
 modules. The `bootstrap/acquisition/` tree is a pinned release snapshot; its
 internal `tools/` and `acquisition_tool/` paths are deliberately unchanged.
 

@@ -22,6 +22,19 @@ in adapters: the code that connects SDK operations to that API. Operational code
 uses those adapters and their checked results. It retains workflows, resource
 ownership, locks, retries and cleanup.
 
+Contract ownership and artifact membership are separate decisions. Share a named
+external grammar within its selected version. Builders can issue that source in
+several artifacts without introducing a runtime dependency between them. Keep
+independently selected profiles distinct; equal regexes alone do not prove that
+two fields or supported versions have one authority.
+
+Keep comparisons to selected networks, lifecycle outcomes and required retirement
+evidence beside the operation they authorize. An exact receipt comparison need
+not become an upstream helper. Request/reply correlation is different: when the
+protocol echoes request facts, its reader checks that they match. Preserve
+incremental field reads when later evidence is intentionally accessed only after
+earlier admission; avoid adding intermediate objects solely to cross a directory.
+
 First inventory the API-specific code, then move checks and adapter functionality,
 update callers and remove the displaced implementations. Keep the external
 contract definitions and selected versions unchanged during this separation.
@@ -1139,9 +1152,10 @@ Separate adjacent tool/package interfaces from service API rules:
       per-entry removal policies. Bundle and shadow fixtures stage canonical
       bytes explicitly. Owner (50, one skip), Compose/bundle (9), operation
       (15) and ordered-retirement (4) focused tests pass with privacy disabled.
-  [x] Acquisition Running/NetworkMode projections and exact expected-record
-      comparisons now live in its issued Docker adapter/validator. The existing
-      held readiness child sources those leaves with the selected bundle root;
+  [x] Acquisition Running/NetworkMode projections live in its issued Docker
+      adapter. Readiness and network grant decisions compare exact receipts in
+      the owner; the validator retains native terminal-state field checks.
+      The authored readiness child sources only the adapter from the selected bundle;
       its engine argv, 100-check loop, readiness-first ordering, limits, reasons
       and logs remain unchanged. Network grants and release stay with the owner.
       Owner (50, one skip) and Compose/bundle (9) focused tests pass.
@@ -1159,12 +1173,12 @@ Separate adjacent tool/package interfaces from service API rules:
       Provisioning (53) and conventions (12) pass; the actual offline checker
       and wheelhouse image builds pass with the shared host interface.
   [x] Delivery container/proxy/network/volume projections now live in its Docker
-      adapter; lexical image/process/volume field checks have a validator owner.
+      adapter; lexical image/process field checks have a validator owner.
       Deployment keeps its exact image, socket, resolver, network and grant
       comparisons, including distinct restart/reuse settings/group policies.
       Retirement retains inventory framing, all-candidate preflight, byte
       rechecks, borrowers, reservations and uncertain-removal effects. CreatedAt
-      remains presence/stability evidence, not an age threshold. Six focused
+      remains caller-owned presence/stability evidence, not an age threshold. Six focused
       retirement tests pass; source review confirms exact native argv/templates.
   Docker/Compose: operations/docker/docker_context.sh:22-57 interprets context
   endpoint output; container_operation.sh and packages/acquisition/acquisition_tool/
