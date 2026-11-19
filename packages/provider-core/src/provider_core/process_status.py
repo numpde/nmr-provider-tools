@@ -52,8 +52,8 @@ class ProcessStatus:
 
         if (
             (phase == self.phase) and
-            (now - self.updated < 5) and
-            (details == self.details or ((details is not None) and (self.details is not None)))
+            ((now - self.updated) < 5) and
+            ((details == self.details) or ((details is not None) and (self.details is not None)))
         ):
             return
 
@@ -137,7 +137,7 @@ def read_status(path, role):
 def check_status(path, role):
     status_record = read_status(path, role)
 
-    if not (0 <= time.monotonic() - status_record["updated_monotonic"] <= 30):
+    if not (0 <= (time.monotonic() - status_record["updated_monotonic"]) <= 30):
         raise ValueError("Process status observation expired or has an invalid timestamp.")
 
     if not (status_record["phase"] in ("ready", "working")):

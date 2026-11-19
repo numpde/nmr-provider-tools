@@ -347,7 +347,7 @@ class ToolConversation:
 
                 await self._retire_endpoint(index, cause=failure)
 
-                if index + 1 == len(self._endpoints) or self._turns == self._max_turns:
+                if ((index + 1) == len(self._endpoints)) or (self._turns == self._max_turns):
                     raise ConversationFailed(
                         "Cannot interpret the request: no usable model reply was obtained within the configured endpoints and turn budget.",
                         cause=failure,

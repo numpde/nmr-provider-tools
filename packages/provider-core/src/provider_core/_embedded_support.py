@@ -217,7 +217,7 @@ class _Resident:
 
             binding.initialize_instance(instance=self.value, assets=self.assets)
 
-            if seconds < time.monotonic() - started_at:
+            if seconds < (time.monotonic() - started_at):
                 raise self.initialization_limit_failure
         except BaseException as cause:
             self.failure = cause

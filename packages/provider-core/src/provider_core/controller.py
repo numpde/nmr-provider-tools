@@ -837,18 +837,18 @@ class AttemptController:
 
                 allowance = self.api.exchange_seconds + self.api.retirement_seconds
 
-                if seconds + allowance > deadline - loop.time():
+                if (seconds + allowance) > (deadline - loop.time()):
                     return self._defer_start(pending, latest_failure, possible_commit)
 
                 policy.on_retry(pending, latest_failure, seconds)
 
-                if self._admission_stopping_requested() or seconds + allowance > deadline - loop.time():
+                if self._admission_stopping_requested() or ((seconds + allowance) > (deadline - loop.time())):
                     return self._defer_start(pending, latest_failure, possible_commit)
 
                 if await self._wait_for_admission_stop(seconds):
                     return self._defer_start(pending, latest_failure, possible_commit)
 
-                if self._admission_stopping_requested() or allowance > deadline - loop.time():
+                if self._admission_stopping_requested() or (allowance > (deadline - loop.time())):
                     return self._defer_start(pending, latest_failure, possible_commit)
 
                 replays += 1

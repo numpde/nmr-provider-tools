@@ -650,9 +650,9 @@ class InProcessAnalysisExecutor:
         returned_state_count = len(selected_call.description.state_outputs)
 
         if not (
-            (host.input_used + len(invocation.payload) <= host.input_bytes) and
-            (host.result_reserved + invocation.policy.reject_encoded_result_over_bytes <= host.result_bytes) and
-            (host.state_reserved + returned_state_count <= host.state_values)
+            ((host.input_used + len(invocation.payload)) <= host.input_bytes) and
+            ((host.result_reserved + invocation.policy.reject_encoded_result_over_bytes) <= host.result_bytes) and
+            ((host.state_reserved + returned_state_count) <= host.state_values)
         ):
             return NotAdmitted(
                 code=AdmissionCode.CAPACITY,

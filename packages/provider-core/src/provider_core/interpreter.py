@@ -596,7 +596,7 @@ class _History:
 
         while (
             self._records and
-            (self._bytes + len(data) > self._max_bytes or len(self._records) >= self._max_records)
+            (((self._bytes + len(data)) > self._max_bytes) or (len(self._records) >= self._max_records))
         ):
             (_, oldest) = self._records.popitem(last=False)
             self._bytes -= len(oldest.data)
@@ -1085,7 +1085,7 @@ class _ModelVisit:
                 if self._service is not None:
                     self._service._postpone(failure, delay)
 
-                if attempt + 1 == self._total_http_attempts_per_turn or _now() + delay >= self._deadline:
+                if ((attempt + 1) == self._total_http_attempts_per_turn) or ((_now() + delay) >= self._deadline):
                     raise
 
                 if self._service is None:
@@ -1132,7 +1132,7 @@ class _ModelVisit:
                 messages_suffix=suffix,
             )
 
-            return size + _CLOCK_ENCODING_RESERVE_BYTES <= self._context_bytes
+            return (size + _CLOCK_ENCODING_RESERVE_BYTES) <= self._context_bytes
 
         return self._history.read(arguments, fits)
 
