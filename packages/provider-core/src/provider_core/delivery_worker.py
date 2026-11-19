@@ -245,7 +245,7 @@ class DeliveryWorker:
                     # pause the binding, rather than holding every pending item.
                     item_refusal = (
                         terminal_publication_conflict(failure.status, failure.problem_code) or
-                        (is_api_success(failure.status) and type(failure.cause) is ResponseRejected)
+                        (is_api_success(failure.status) and (type(failure.cause) is ResponseRejected))
                     )
 
                     if not item_refusal:

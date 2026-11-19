@@ -42,7 +42,7 @@ from provider_core.validation.upstream.http_proxy import read_port
 
 
 def _proxy_routine_record(record):
-    return record.name == "provider_core.proxy" or record.levelno >= logging.WARNING
+    return (record.name == "provider_core.proxy") or (record.levelno >= logging.WARNING)
 
 
 def _configure_proxy_logging(level):
@@ -126,10 +126,10 @@ class ServicePolicy:
 
             mapped[host] = address
 
-        if mode == "external" and mapped:
+        if (mode == "external") and mapped:
             raise ServiceRefused("Cannot configure external service proxy: local address assignments are not allowed.")
 
-        if mode in ("local", "mapped") and mapped.keys() != {host for (host, _) in admitted}:
+        if (mode in ("local", "mapped")) and (mapped.keys() != {host for (host, _) in admitted}):
             raise ServiceRefused("Cannot configure mapped service proxy: require exactly one address for every admitted host.")
 
         return cls(admitted, tuple(sorted(mapped.items())))
@@ -262,7 +262,7 @@ class LiveProxyConfiguration:
             if not (type(route_address) is (expected_type := str)):
                 raise ServiceRefused(f"{type(route_address)=} ≠ {expected_type=}")
 
-        if self.mode == "external" and addresses:
+        if (self.mode == "external") and addresses:
             raise ServiceRefused("External service proxy does not accept local address mappings.")
 
         hosts = {authority_parts(value)[0] for value in authorities}
@@ -380,7 +380,7 @@ class ServiceProxyServer(bound_http_proxy.ProxyServer):
 
         delay_seconds = self.max_admission_delay_seconds * fraction
 
-        if delay_seconds == 0 and self.admission_order == "ready" and self._slots.acquire():
+        if (delay_seconds == 0) and (self.admission_order == "ready") and self._slots.acquire():
             self._start_reserved(request, client_address)
 
             return
@@ -408,7 +408,7 @@ class ServiceProxyServer(bound_http_proxy.ProxyServer):
             (ready_at, expires_at, request, client_address) = self.pending.popleft()
             now = time.monotonic()
 
-            if request.fileno() in closed or now >= expires_at:
+            if (request.fileno() in closed) or (now >= expires_at):
                 self.shutdown_request(request)
                 continue
 
@@ -471,7 +471,7 @@ def socket_grant(path, ready, *, socket_group_id=None):
     except (TypeError, ValueError) as cause:
         raise ServiceRefused("Cannot admit service proxy paths") from cause
 
-    if path == ready or path.parent != ready.parent:
+    if (path == ready) or (path.parent != ready.parent):
         raise ServiceRefused("Cannot start service proxy: socket and readiness require distinct absolute paths in one private directory.")
 
     descriptor = None
@@ -502,7 +502,7 @@ def socket_grant(path, ready, *, socket_group_id=None):
                 (not stat.S_ISDIR(parent.st_mode)) or
                 (parent.st_uid != os.geteuid()) or
                 (stat.S_IMODE(parent.st_mode) not in parent_modes) or
-                (shared and parent.st_gid != socket_group_id)
+                (shared and (parent.st_gid != socket_group_id))
             ):
                 raise ServiceRefused("Cannot start service proxy: its directory must be caller-owned with the required private or shared-group mode, and free of symlinks.")
 
@@ -526,13 +526,13 @@ def socket_grant(path, ready, *, socket_group_id=None):
                     continue
 
                 # silent-defaults: allow-contract -- Only the explicitly shared socket is group writable; readiness remains private.
-                mode = 0o660 if shared and leaf == path else 0o600
+                mode = 0o660 if shared and (leaf == path) else 0o600
 
                 if (
                     (not required(observed.st_mode)) or
                     (observed.st_uid != os.geteuid()) or
                     (stat.S_IMODE(observed.st_mode) != mode) or
-                    (shared and leaf == path and observed.st_gid != socket_group_id)
+                    (shared and (leaf == path) and (observed.st_gid != socket_group_id))
                 ):
                     raise ServiceRefused("Cannot start service proxy: prior route leaves have an unexpected type, owner or mode; preserve them for inspection.")
 
@@ -573,7 +573,7 @@ def main():
     parser.add_argument("--socket-group-id", type=int)
     args = parser.parse_args()
 
-    if args.live_config is None and ((not args.authority) or (not args.log_level)):
+    if (args.live_config is None) and ((not args.authority) or (not args.log_level)):
         parser.error("private routes require --authority and --log-level")
 
     if (args.live_config is not None) and ((args.authority is not None) or (args.log_level is not None)):

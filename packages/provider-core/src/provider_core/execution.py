@@ -242,7 +242,7 @@ class _ConditionReporter:
         except (Exception, BaseExceptionGroup, asyncio.CancelledError) as cause:
             # Waiting for the API lock is part of the awaited report too.
             # Keep its first failure even when a binding catches the interruption.
-            if self.active and self.failure is None:
+            if self.active and (self.failure is None):
                 self.failure = cause
 
                 self.executor._remember(cause)
@@ -472,7 +472,7 @@ class AttemptExecutor:
     def shutdown_ready(self):
         """Confirm cleanup and that no unhanded outcome/report would be lost."""
 
-        return self.work_settled and self._outcome is None and self._delivery_outcome is None
+        return self.work_settled and (self._outcome is None) and (self._delivery_outcome is None)
 
 
     @property
@@ -501,12 +501,12 @@ class AttemptExecutor:
             (self._delivery_outcome is None) and
             all(
                 (
-                    error is stop or (type(error) is _SettlementPending and error.executor is self)
+                    (error is stop) or ((type(error) is _SettlementPending) and (error.executor is self))
                     for error in self.last_failure.cleanup_failures
                 ),
             ) and
             ((self._operation_interruption is None) or
-             (self._cancel_requested and independent_interruption_failure(self._operation_interruption) is None))
+             (self._cancel_requested and (independent_interruption_failure(self._operation_interruption) is None)))
         ):
             return stop.observation
 

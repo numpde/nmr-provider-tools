@@ -53,7 +53,7 @@ def _read(connection, size, deadline):
         _remaining(connection, deadline)
         (chunk, ancillary, flags, _) = connection.recvmsg(size - len(result), 0)
 
-        if flags & socket.MSG_CTRUNC or ancillary:
+        if (flags & socket.MSG_CTRUNC) or ancillary:
             raise LifecycleRejected("Unexpected descriptor transfer in a lifecycle frame.")
 
         if not (chunk):
@@ -118,7 +118,7 @@ def receive_greeting(connection, *, deadline):
         unexpected = False
 
         for (level, kind, raw) in ancillary:
-            if level == socket.SOL_SOCKET and kind == socket.SCM_RIGHTS:
+            if (level == socket.SOL_SOCKET) and (kind == socket.SCM_RIGHTS):
                 values = array.array("i")
 
                 values.frombytes(raw[:len(raw) - len(raw) % values.itemsize])
@@ -126,14 +126,14 @@ def receive_greeting(connection, *, deadline):
             else:
                 unexpected = True
 
-        if first != b"\0" or flags & socket.MSG_CTRUNC or unexpected or len(descriptors) != 1:
+        if (first != b"\0") or (flags & socket.MSG_CTRUNC) or unexpected or (len(descriptors) != 1):
             raise LifecycleRejected("Runner greeting requires exactly one scientific endpoint.")
 
         science = socket.socket(fileno=descriptors[0])
 
         descriptors.clear()
 
-        if science.family != socket.AF_UNIX or science.type != socket.SOCK_STREAM:
+        if (science.family != socket.AF_UNIX) or (science.type != socket.SOCK_STREAM):
             raise LifecycleRejected("Runner supplied an unsupported scientific endpoint type.")
 
         value = receive_document(connection, deadline=deadline)

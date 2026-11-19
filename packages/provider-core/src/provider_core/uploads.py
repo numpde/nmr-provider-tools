@@ -109,7 +109,7 @@ def require_store_origin(value):
 
     require_type(value, str)
 
-    if any(ord(c) <= 32 or ord(c) >= 127 for c in value):
+    if any((ord(c) <= 32) or (ord(c) >= 127) for c in value):
         raise ValueError("Cannot configure Upload store: origin must be visible ASCII HTTPS text")
 
     try:
@@ -520,7 +520,7 @@ class UploadTransfer:
         if (not self.last_failure.cleanup_failures) or (self._pending_upload_file.pending is None):
             self.last_failure.cleanup_failures = (failure,)
 
-        if self._pending_upload_file.close_uncertain and self._pending_upload_file.pending is None:
+        if self._pending_upload_file.close_uncertain and (self._pending_upload_file.pending is None):
             self._pending_upload_file.shutdown()
 
     async def _abort_file(self):
@@ -582,7 +582,7 @@ class UploadTransfer:
                 cause=self.last_failure,
             )
 
-        if self._pending_upload_file.close_uncertain and self._pending_upload_file.pending is None:
+        if self._pending_upload_file.close_uncertain and (self._pending_upload_file.pending is None):
             raise UploadFailed(
                 "private-file descriptor closure is unconfirmed; retire the enclosing process",
                 cause=self.last_failure
@@ -1017,7 +1017,7 @@ class JobUploads:
                 await self._retire_recovery(failure, store_owner=store_owner)
                 api_failure = failure
 
-                if isinstance(failure, UploadFailed) and type(failure.cause) is ApiFailure:
+                if isinstance(failure, UploadFailed) and (type(failure.cause) is ApiFailure):
                     api_failure = failure.cause
 
                 api_permitted = (

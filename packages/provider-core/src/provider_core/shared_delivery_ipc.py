@@ -46,7 +46,7 @@ class SharedDeliveryInbox(DeliveryInbox):
         )
 
     async def _dispatch(self, endpoint, request, body):
-        if request.method != b"POST" or request.target != b"/submit":
+        if (request.method != b"POST") or (request.target != b"/submit"):
             raise DeliveryRequestRejected("Shared delivery accepts only result submissions.")
 
         try:

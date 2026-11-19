@@ -220,7 +220,7 @@ class InProcessExecutionHost:
 
         resident = self.residents.get(allocation.allocation)
 
-        if resident is None or resident.reference != allocation:
+        if (resident is None) or (resident.reference != allocation):
             raise ValueError("The allocation handle does not belong to this host")
 
         if (self.retiring) or (resident.retirement is not None) or (resident.retired):
@@ -248,7 +248,7 @@ class InProcessExecutionHost:
 
             raise
         except TimeoutError as cause:
-            if resident.initialization.done() and resident.initialization.exception() is cause:
+            if resident.initialization.done() and (resident.initialization.exception() is cause):
                 resident.initialization_abandoned = False
                 resident.initialization_failure_observed = True
             else:
@@ -259,7 +259,7 @@ class InProcessExecutionHost:
         except BaseException as cause:
             resident.initialization_abandoned = False
 
-            if resident.initialization.done() and resident.initialization.exception() is cause:
+            if resident.initialization.done() and (resident.initialization.exception() is cause):
                 resident.initialization_failure_observed = True
 
             raise
@@ -292,10 +292,10 @@ class InProcessExecutionHost:
             for reference in allocations:
                 resident = self.residents.get(reference.allocation)
 
-                if resident is None and reference.host == self.identity:
+                if (resident is None) and (reference.host == self.identity):
                     raise CapacityUnavailable("The reference does not identify a current allocation on this host.")
 
-                if resident is None or resident.reference != reference:
+                if (resident is None) or (resident.reference != reference):
                     raise ValueError("The allocation handle does not belong to this host")
 
             names = [reference.allocation for reference in allocations]
@@ -364,7 +364,7 @@ class InProcessExecutionHost:
 
         resident = self.residents.get(reference.allocation)
 
-        if resident is None or resident.reference != reference:
+        if (resident is None) or (resident.reference != reference):
             raise ValueError("Allocation reference does not name this host's current instance.")
 
         if resident.retirement is None:
@@ -497,7 +497,7 @@ class InProcessAnalysisExecutor:
 
         resident = self.host.residents.get(allocation.allocation)
 
-        if resident is None or resident.reference != allocation:
+        if (resident is None) or (resident.reference != allocation):
             raise ValueError("The allocation handle does not belong to this host")
 
         for reservation in self.reservations:

@@ -473,7 +473,7 @@ class ProgressEvent:
 
             require_type(self.total, int)
 
-            if not (0 <= self.completed <= self.total and 0 < self.total):
+            if not ((0 <= self.completed <= self.total) and (0 < self.total)):
                 raise ValueError("Progress counts must satisfy 0 <= completed <= total and total > 0")
 
 
@@ -955,7 +955,7 @@ class CallBinding[InputT, StateT, OutputT]:
         """Bind and pass only the scientific values this call declares."""
         scientific_control = None
 
-        if self.description.progress or self.description.interruption is InterruptionSupport.COOPERATIVE:
+        if self.description.progress or (self.description.interruption is InterruptionSupport.COOPERATIVE):
             scientific_control = control
 
         context = CallContext(

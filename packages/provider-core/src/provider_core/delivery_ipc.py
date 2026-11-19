@@ -52,7 +52,7 @@ def _socket_grant(path, socket_group_id):
     # silent-defaults: allow-contract -- Socket mode follows the explicit same-UID or shared-group connection grant.
     socket_mode = 0o660 if shared else 0o600
 
-    if shared and socket_group_id != os.getegid():
+    if shared and (socket_group_id != os.getegid()):
         raise DeliveryUnavailable("Cannot open delivery IPC: the configured socket group must be the daemon's primary GID.")
 
     parent = path.parent.lstat()
@@ -62,7 +62,7 @@ def _socket_grant(path, socket_group_id):
         (not stat.S_ISDIR(parent.st_mode)) or
         (parent.st_uid != os.geteuid()) or
         (stat.S_IMODE(parent.st_mode) not in parent_modes) or
-        (shared and parent.st_gid != socket_group_id)
+        (shared and (parent.st_gid != socket_group_id))
     ):
         # silent-defaults: allow-contract -- Parent permission requirements follow the explicit shared-group or same-UID socket grant.
         required_parent_mode = "mode 0710 or 02710 with the configured socket GID; " if shared else "mode 0700; "
@@ -94,7 +94,7 @@ def _socket_grant(path, socket_group_id):
                 (not stat.S_ISSOCK(old.st_mode)) or
                 (old.st_uid != os.geteuid()) or
                 (stat.S_IMODE(old.st_mode) != socket_mode) or
-                (shared and old.st_gid != socket_group_id)
+                (shared and (old.st_gid != socket_group_id))
             ):
                 raise DeliveryUnavailable("Cannot replace delivery IPC: the prior leaf is not its private socket. Leave it unchanged for inspection.")
 
@@ -252,7 +252,7 @@ class DeliveryInbox:
         except UnicodeDecodeError:
             raise DeliveryRequestRejected("Delivery operation must use an ASCII route.") from None
 
-        if request.method == b"POST" and len(parts) == 4 and parts[1] == "submit":
+        if (request.method == b"POST") and (len(parts) == 4) and (parts[1] == "submit"):
             try:
                 delivery_outcome = DeliveryOutcome(
                     endpoint.api_origin,
@@ -271,7 +271,7 @@ class DeliveryInbox:
 
             return accepted
 
-        if request.method != b"GET" or body:
+        if (request.method != b"GET") or body:
             raise DeliveryRequestRejected("Delivery supports only outcome submission and read-only status.")
 
         if parts == ["", "pending"]:
@@ -285,7 +285,7 @@ class DeliveryInbox:
                 "publisher": self.binding_status(endpoint),
             }
 
-        if len(parts) == 3 and parts[1] == "status":
+        if (len(parts) == 3) and (parts[1] == "status"):
             try:
                 require_attempt_ref(parts[2])
             except ValueError:

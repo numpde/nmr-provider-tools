@@ -84,7 +84,7 @@ def signed_request(identity, *, method, path, query, body, created, nonce):
     request = httpx.Request(method, identity.origin + target.decode("ascii"), headers=headers, content=body)
 
     # HTTPX must retain the bytes we signed; this checks the constructed request
-    if request.url.raw_path != target or request.headers["Host"] != identity.authority:
+    if (request.url.raw_path != target) or (request.headers["Host"] != identity.authority):
         raise ValueError("Cannot sign request: HTTP client rewrote the target or authority")
 
     return request

@@ -57,7 +57,7 @@ def _require_route_path(route_path):
         (".." in absolute_route_path.parts) or
         (str(absolute_route_path) != str(route_path)) or
         (absolute_route_path == pathlib.Path("/")) or
-        any(ord(character) < 32 or ord(character) == 127 or character == "," for character in str(absolute_route_path))
+        any((ord(character) < 32) or (ord(character) == 127) or (character == ",") for character in str(absolute_route_path))
     ):
         raise RouteProjectionRejected("Cannot grant API route input: require a normalized absolute path below root without control characters or mount delimiters.")
 
@@ -342,7 +342,7 @@ def initialize_route(uid, gid, path, *, shared_group=False):
         observed = os.fstat(descriptor)
 
         if (observed.st_uid, observed.st_gid, stat.S_IMODE(observed.st_mode)) != (uid, gid, mode):
-            if observed.st_uid != 0 or os.listdir(descriptor):
+            if (observed.st_uid != 0) or os.listdir(descriptor):
                 raise RouteProjectionRejected("Cannot initialize API route volume: unexpected ownership, permissions or retained contents require operator inspection.")
 
             os.fchmod(descriptor, mode)

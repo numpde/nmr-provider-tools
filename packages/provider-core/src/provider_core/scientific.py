@@ -157,7 +157,7 @@ class Contribution:
         self._custody = _Custody()
 
     def __setattr__(self, name: str, value: object) -> None:
-        if name == "_custody" and hasattr(self, name):
+        if (name == "_custody") and hasattr(self, name):
             raise AttributeError(f"Cannot replace {name=}; custody is fixed for this object's lifetime")
 
         object.__setattr__(self, name, value)
@@ -309,7 +309,7 @@ def _members(*, contribution: type[Contribution]) -> tuple[tuple[str, Callable],
             if (member.fget is not None) and ("__scientific_operation__" in member.fget.__dict__):
                 raise TypeError(f"Exported operation {name!r} cannot be a property")
 
-        if inspect.isfunction(object=member) and "__scientific_operation__" in member.__dict__:
+        if inspect.isfunction(object=member) and ("__scientific_operation__" in member.__dict__):
             if name in ("__init__", "initialize", "close"):
                 raise ValueError(f"Lifecycle method {name!r} cannot also be an operation")
 
@@ -480,10 +480,10 @@ def _compile_method(
     if found_states != set(state_binding.names):
         raise ValueError(f"Operation {name!r} does not accept all its declared state inputs")
 
-    if len(inputs) > 1 or len(analyses) > 1 or len(controls) > 1:
+    if (len(inputs) > 1) or (len(analyses) > 1) or (len(controls) > 1):
         raise TypeError(f"Operation {name!r} accepts at most one payload, analysis and control argument")
 
-    needs_control = declaration.progress or declaration.interruption is InterruptionSupport.COOPERATIVE
+    needs_control = declaration.progress or (declaration.interruption is InterruptionSupport.COOPERATIVE)
 
     if bool(controls) != needs_control:
         raise ValueError(f"Operation {name!r} must declare a control argument exactly when progress or cooperative stopping is supported")

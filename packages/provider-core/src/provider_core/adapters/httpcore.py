@@ -75,7 +75,7 @@ def request_for_backend(request, *, io_timeout_seconds: float, connect_timeout_s
 def origin_headers_started(event_name: str, info: dict, request: httpcore.Request) -> bool:
     """Distinguish the original request's send event from synthesized CONNECT."""
 
-    return event_name == "http11.send_request_headers.started" and info["request"] is request
+    return (event_name == "http11.send_request_headers.started") and (info["request"] is request)
 
 
 def received_header_status(event_name: str, info: dict) -> int | None:

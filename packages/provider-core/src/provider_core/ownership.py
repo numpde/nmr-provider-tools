@@ -226,7 +226,7 @@ class _AttemptClaim:
     def require_live(self, scope):
         self._registry._require(self)
 
-        if self._pending is None or scope != self._pending.scope:
+        if (self._pending is None) or (scope != self._pending.scope):
             raise OwnershipRefused("Live operation requires the exact scope and bounded selection of a live claim")
 
     def require_live_start(self, pending):
@@ -250,7 +250,7 @@ class _AttemptClaim:
         if (self._operation_owner is not owner) or (owner is None):
             raise OwnershipRefused("Only the current operation owner can bind an Attempt reference")
 
-        if any(known[:2] != identity[:2] or (known[2] == "attempt" and known != identity) for known in self._identities):
+        if any((known[:2] != identity[:2]) or ((known[2] == "attempt") and (known != identity)) for known in self._identities):
             raise OwnershipRefused("Received Attempt differs from the claim's API, provider or previously bound reference")
 
         existing = self._registry._claims.get(identity)

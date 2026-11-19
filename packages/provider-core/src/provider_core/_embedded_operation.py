@@ -251,15 +251,15 @@ class _Operation(_Changes):
             self.result = ResultRef(self.reference, uuid4().hex)
             self.result_state = ResultState.AVAILABLE
         except CallRejected as cause:
-            if self.outcome is None and phase in ("decoding", "calculation"):
+            if (self.outcome is None) and (phase in ("decoding", "calculation")):
                 self.outcome = Outcome.REJECTED
 
             self.failures = (Failure(phase, cause),)
         except BaseException as cause:
-            if self.outcome is None and phase == "calculation":
+            if (self.outcome is None) and (phase == "calculation"):
                 self.outcome = Outcome.FAILED
 
-            if self.outcome is Outcome.SUCCEEDED and phase == "encoding":
+            if (self.outcome is Outcome.SUCCEEDED) and (phase == "encoding"):
                 self.result_state = ResultState.ENCODING_FAILED
 
             self.failures = (Failure(phase, cause),)
@@ -329,7 +329,7 @@ class _Operation(_Changes):
             owner = self.state_owners[parameter.name]
             owner.claim = None
 
-            if self.dispatch is DispatchState.STARTED and self.failures:
+            if (self.dispatch is DispatchState.STARTED) and self.failures:
                 owner.available = False
 
         if self.raw is None:
@@ -528,7 +528,7 @@ class _Operation(_Changes):
 
         if (
             self.finished and
-            (self.raw is None or self.value_disposed) and
+            ((self.raw is None) or self.value_disposed) and
             (self.result_state is not ResultState.AVAILABLE) and
             (self.disposal_failure is None)
         ):

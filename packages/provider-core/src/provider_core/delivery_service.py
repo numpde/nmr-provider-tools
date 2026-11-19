@@ -225,7 +225,7 @@ class DeliveryService:
     async def close(self):
         self.request_stop()
 
-        if self._close_task is None or ((self._close_task.done()) and (self._close_task.exception() is not None)):
+        if (self._close_task is None) or ((self._close_task.done()) and (self._close_task.exception() is not None)):
             self._close_task = asyncio.create_task(self._shutdown())
 
             self._close_task.add_done_callback(self._observed)

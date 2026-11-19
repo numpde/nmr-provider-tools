@@ -112,7 +112,7 @@ class _Changes:
 
         require_nonnegative_number(wait_seconds)
 
-        if after == self.revision and wait_seconds:
+        if (after == self.revision) and wait_seconds:
             try:
                 await asyncio.wait_for(self.event.wait(), timeout=wait_seconds)
             except TimeoutError:

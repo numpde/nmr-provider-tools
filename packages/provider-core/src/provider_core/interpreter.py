@@ -792,14 +792,14 @@ class _DescribeInputConstraints:
             parent = schema
             properties = {}
 
-            if isinstance(parent, dict) and "properties" in parent:
+            if isinstance(parent, dict) and ("properties" in parent):
                 properties = parent["properties"]
 
             if not (part in properties):
                 raise ToolRejected("The requested field is not declared at that property path; read the full tool schema.")
 
             schema = properties[part]
-            required = "required" in parent and part in parent["required"]
+            required = ("required" in parent) and (part in parent["required"])
 
         return ToolReply(
             {
@@ -879,7 +879,7 @@ class _Tools:
             definition = tool.definition
             name = tool_name(definition)
 
-            if name in provider.schemas or name in self.information:
+            if (name in provider.schemas) or (name in self.information):
                 raise ValueError("Cannot compose interpreter tools: an information-tool name is already in use.")
 
             self.information[name] = tool

@@ -78,7 +78,7 @@ def temporary_io_failure(cause, remaining, *, network_failure=None):
 
     preceding = cause.__cause__
 
-    if preceding is None and cause is network_failure and type(cause) is httpcore.ReadError:
+    if (preceding is None) and (cause is network_failure) and (type(cause) is httpcore.ReadError):
         context = cause.__context__
 
         if type(context) is anyio.BrokenResourceError:
@@ -87,7 +87,7 @@ def temporary_io_failure(cause, remaining, *, network_failure=None):
 
             return temporary_io_failure(context.__cause__, remaining - 2)
 
-    if preceding is None and type(cause) is httpcore.ConnectError:
+    if (preceding is None) and (type(cause) is httpcore.ConnectError):
         preceding = cause.__context__
 
     return temporary_io_failure(preceding, remaining - 1)
@@ -308,7 +308,7 @@ class HttpTransport:
         return backend_wire.connection_pool(options, via_unix_proxy=self._proxy_socket is not None)
 
     def _require_destination(self, request):
-        if request.url.scheme == "http" and self._allow_http:
+        if (request.url.scheme == "http") and self._allow_http:
             return
 
         if not (request.url.scheme == (expected_scheme := "https")):
@@ -384,7 +384,7 @@ class HttpTransport:
                 async with asyncio.timeout(self._connect_seconds) as setup:
                     response = await client.handle_async_request(wire_request)
             except BaseException as failure:
-                if type(failure) is TimeoutError and setup.expired():
+                if (type(failure) is TimeoutError) and setup.expired():
                     network.observation.deadline_cancelled = True
                     outcome.network_failure = network.observation.error
 
@@ -493,7 +493,7 @@ class HttpTransport:
                         if outcome.primary is None:
                             outcome.primary = failure
                     except BaseException as failure:
-                        if outcome.primary is None or isinstance(outcome.primary, asyncio.CancelledError):
+                        if (outcome.primary is None) or isinstance(outcome.primary, asyncio.CancelledError):
                             outcome.primary = failure
                         else:
                             outcome.cleanup_failures.append(failure)
@@ -720,7 +720,7 @@ class HttpTransport:
         if (primary is None) and (outcome is not None) and (not cleanup_failures):
             return outcome.response
 
-        if outcome is None or cleanup_failures:
+        if (outcome is None) or cleanup_failures:
             message = "Cannot complete HTTP exchange: resource retirement is unconfirmed; this transport cannot accept more work"
         elif isinstance(primary, TimeoutError):
             message = "Cannot complete HTTP exchange: the HTTP operation timed out; resources were retired"
@@ -793,7 +793,7 @@ class HttpTransport:
 
             self.last_failure.cleanup_failures = tuple(observed.cleanup_failures)
 
-        if outcome is None or outcome.cleanup_failures:
+        if (outcome is None) or outcome.cleanup_failures:
             if self.last_failure is None:
                 self.last_failure = ExchangeFailed(
                     "Cannot retire HTTP transport: resource closure remains unconfirmed; retire the enclosing process before replacement",

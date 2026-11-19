@@ -46,7 +46,7 @@ def _private_directory(path):
     try:
         observed = os.fstat(descriptor)
 
-        if observed.st_uid != os.geteuid() or stat.S_IMODE(observed.st_mode) != 0o700:
+        if (observed.st_uid != os.geteuid()) or (stat.S_IMODE(observed.st_mode) != 0o700):
             raise PermissionError("Runner directory must be caller-owned with mode 0700.")
 
         return descriptor

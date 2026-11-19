@@ -79,7 +79,7 @@ class DeliveryNotices:
             (_, facts, error) = self.latest_failure
             failure_type = type(error).__name__[:128]
 
-            if isinstance(error, OSError) and type(error.errno) is int:
+            if isinstance(error, OSError) and (type(error.errno) is int):
                 failure_errno = error.errno
 
             if type(facts.get("event")) is str:

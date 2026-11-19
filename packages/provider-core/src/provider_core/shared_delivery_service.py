@@ -125,7 +125,7 @@ class SharedDeliveryService(DeliveryService):
         self.on_notice.set_level(settings.log_level)
 
     def _reload(self):
-        if self.live_configuration is None or time.monotonic() < self.next_reload:
+        if (self.live_configuration is None) or (time.monotonic() < self.next_reload):
             return
 
         self.next_reload = time.monotonic() + 5
@@ -241,7 +241,7 @@ class SharedDeliveryService(DeliveryService):
             oldest = overview.pop("oldest_pending_created_at")
 
             # silent-defaults: allow-contract -- Invalid stored times have no reliable age.
-            age = time.time() - oldest if type(oldest) in (int, float) and math.isfinite(oldest) else None
+            age = time.time() - oldest if (type(oldest) in (int, float)) and math.isfinite(oldest) else None
 
             # silent-defaults: allow-contract -- A future timestamp does not establish a nonnegative age.
             overview["oldest_pending_age_seconds"] = age if (age is not None) and (age >= 0) else None

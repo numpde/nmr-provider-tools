@@ -126,7 +126,7 @@ def failure_evidence(error, *, secrets, describe_owner=describe_core_failure, ow
             {name: text(value, 1024) if type(value) is str else value for (name, value) in describe_owner(current, text, diagnostic_window).items()}
         )
 
-        if isinstance(current, OSError) and type(current.errno) is int:
+        if isinstance(current, OSError) and (type(current.errno) is int):
             evidence["errno"] = current.errno
 
             if (current.errno in errno.errorcode) and (not isinstance(current, (ssl.SSLError, socket.gaierror, socket.herror))):

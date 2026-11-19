@@ -158,10 +158,10 @@ def _route(table, origin):
 
     policy = ServicePolicy.admit(mode, [f"{parsed.hostname}:{port}"], addresses)
 
-    if parsed.hostname == "0.0.0.0" or any(ipaddress.IPv4Address(address).is_unspecified for (_, address) in policy.addresses):
+    if (parsed.hostname == "0.0.0.0") or any(ipaddress.IPv4Address(address).is_unspecified for (_, address) in policy.addresses):
         raise BindingDefinitionRejected("Cannot admit API route: an unspecified address is not an API destination; select the intended peer address.")
 
-    if mode == "local" and any(ipaddress.IPv4Address(address).is_loopback for (_, address) in policy.addresses):
+    if (mode == "local") and any(ipaddress.IPv4Address(address).is_loopback for (_, address) in policy.addresses):
         raise BindingDefinitionRejected("Cannot admit local API route: loopback belongs to this proxy; select the API peer on the declared network or mapped routing for host loopback.")
 
     return dict(table)
@@ -330,7 +330,7 @@ def main():
     selection.add_argument("--all", action="store_true")
     args = parser.parse_args()
 
-    if args.action == "describe-binding" and args.all:
+    if (args.action == "describe-binding") and args.all:
         parser.error("describe-binding requires one --binding name")
 
     try:

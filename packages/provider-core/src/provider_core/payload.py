@@ -202,7 +202,7 @@ def _validate_annotation(
         return
 
     if origin is tuple:
-        if len(arguments) == 2 and arguments[1] is Ellipsis:
+        if (len(arguments) == 2) and (arguments[1] is Ellipsis):
             _validate_annotation(
                 arguments[0],
                 path=f"{path}[]",
@@ -331,7 +331,7 @@ def _decode_value(value: object, annotation: object, *, path: str) -> object:
         if not (type(value) is (expected_type := list)):
             raise PayloadRejected(f"{path=}; {type(value)=} ≠ {expected_type=}", code=PayloadRejected.Code.INVALID_TYPE)
 
-        if len(arguments) == 2 and arguments[1] is Ellipsis:
+        if (len(arguments) == 2) and (arguments[1] is Ellipsis):
             # repo-check: allow-tuple-generator -- Decode the provider's variadic tuple annotation into the immutable type its scientific callable requires.
             return tuple(
                 _decode_value(
@@ -486,7 +486,7 @@ def _encode_value(value: object, annotation: object, *, path: str) -> object:
         if not (type(value) is (expected_type := tuple)):
             raise TypeError(f"{path=}; {type(value)=} ≠ {expected_type=}")
 
-        if len(arguments) == 2 and arguments[1] is Ellipsis:
+        if (len(arguments) == 2) and (arguments[1] is Ellipsis):
             return [
                 _encode_value(
                     item,

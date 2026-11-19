@@ -138,10 +138,10 @@ class DeliveryClient:
 
             raise self.last_failure from None
 
-        if submitting and response.status == 429:
+        if submitting and (response.status == 429):
             raise DeliveryFull("Delivery capacity is full. Retain this outcome, wait for space and stop admitting computation.")
 
-        if submitting and response.status == 409:
+        if submitting and (response.status == 409):
             raise DeliveryConflict("The relay retains a different terminal request for this Attempt; reconcile it without replacing either choice.")
 
         if response.status == 503:
@@ -316,7 +316,7 @@ class DeliveryClient:
 
         return (
             temporary_io_failure(primary, 8, network_failure=exchange.network_failure) or
-            (type(connect_cause) is FileNotFoundError and connect_cause.errno == errno.ENOENT) or
+            ((type(connect_cause) is FileNotFoundError) and (connect_cause.errno == errno.ENOENT)) or
             ((type(primary) is httpcore.RemoteProtocolError) and
-             (exchange.response_head is None or exchange.response_head.status in (200, 503)))
+             ((exchange.response_head is None) or (exchange.response_head.status in (200, 503))))
         )

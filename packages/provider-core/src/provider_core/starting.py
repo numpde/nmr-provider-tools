@@ -141,7 +141,7 @@ class AttemptStarter:
     async def settle(self):
         """Settle original I/O without inventing a late acknowledgement."""
 
-        if self._pending is None or self._observing:
+        if (self._pending is None) or self._observing:
             raise StartRefused("No unobserved start operation is available to settle")
 
         self._observing = True

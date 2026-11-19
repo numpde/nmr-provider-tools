@@ -103,7 +103,7 @@ class RunnerSession:
 
             (greeting, self.science) = receive_greeting(self.control, deadline=deadline)
 
-            if greeting["role"] != self.role or tuple(greeting["lock"]) != self.expected_lock_identity:
+            if (greeting["role"] != self.role) or (tuple(greeting["lock"]) != self.expected_lock_identity):
                 self.science.close()
                 self.science = None
 

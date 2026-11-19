@@ -125,14 +125,14 @@ def independent_interruption_failure(failure):
     if cause is None:
         return None
 
-    if type(cause) is ChatFailed and cause.reason == "request_cancelled" and cause.interruption_cause is None:
+    if (type(cause) is ChatFailed) and (cause.reason == "request_cancelled") and (cause.interruption_cause is None):
         exchange = cause.cause
 
         if (
             (type(exchange) is ExchangeFailed) and
             (exchange.primary is failure) and
             (not exchange.cleanup_failures) and
-            (exchange.response_head is None or is_completion_success(exchange.response_head.status))
+            ((exchange.response_head is None) or is_completion_success(exchange.response_head.status))
         ):
             return None
 

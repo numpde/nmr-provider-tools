@@ -24,12 +24,12 @@ def _request_echoes(messages, key):
 
         if type(calls) is list:
             for call in calls:
-                if type(call) is dict and type(call.get("function")) is dict:
+                if (type(call) is dict) and (type(call.get("function")) is dict):
                     texts.append(call["function"].get("arguments"))
 
     # repo-check: allow-tuple-generator -- Capture spellings once for consistent removal across the service fields.
     return tuple(
-        spelling for text in texts if type(text) is str and text
+        spelling for text in texts if (type(text) is str) and text
         for spelling in (text, json.dumps(text, ensure_ascii=True)[1:-1])
     )
 

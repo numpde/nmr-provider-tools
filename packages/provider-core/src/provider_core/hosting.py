@@ -618,7 +618,7 @@ async def _join_settlement[ResultT](*, task: asyncio.Task[ResultT]) -> ResultT:
 def _raise_context_failure(*, original: BaseException | None, cleanup: BaseException) -> Never:
     """Keep a lone original cause intact; group independent work and cleanup errors."""
 
-    if original is None or cleanup is original:
+    if (original is None) or (cleanup is original):
         raise cleanup
 
     raise BaseExceptionGroup(
