@@ -51,6 +51,7 @@ class ComprehensionResultParenthesesPostureTests(unittest.TestCase):
             ["0xD800 <= ord(character) <= 0xDFFF"],
             [expression for (_, _, expression) in comprehension_result_findings(source=source)],
         )
+
         self.assertEqual(
             [],
             comprehension_result_findings(source='any((0xD800 <= ord(character) <= 0xDFFF) for character in value)\n'),

@@ -58,11 +58,13 @@ def ungrouped_expression_findings(*, source: str, expressions: Iterable[ast.expr
     """Locate expressions without parentheses enclosing their complete token span."""
 
     lines = source.splitlines()
+
     tokens = [
         token
         for token in tokenize.generate_tokens(readline=io.StringIO(source).readline)
         if token.type not in {tokenize.COMMENT, tokenize.NL, tokenize.NEWLINE, tokenize.INDENT, tokenize.DEDENT, tokenize.ENDMARKER}
     ]
+
     starts = {token.start: index for (index, token) in enumerate(tokens)}
     ends = {token.end: index for (index, token) in enumerate(tokens)}
     pairs = delimiter_pairs(source=source)

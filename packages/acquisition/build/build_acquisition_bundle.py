@@ -179,6 +179,7 @@ def contents(pool, source, core_wheel, pin, *, revision, wheelhouse_bundle):
 
         # Older pinned SDKs lack the helpers; newer ones must supply the complete pair
         helper_files = ("type_requirements.py", "_type_requirements.py")
+
         proxy_member = "provider_core/bound_http_proxy.py"
         proxy_needs_helpers = False
 

@@ -127,6 +127,7 @@ class AcquisitionBundleTests(unittest.TestCase):
             self.assertEqual(record, self.build(root, second, source, wheel, pin))
             self.assertEqual(first.read_bytes(), second.read_bytes())
             expected = {"compose/acquisition.yml", "acquisition-manifest.json"} | set(SOURCE_FILES) | {("provider_core/" + name) for name in PROXY_FILES} | {"linux_idmap/__init__.py"}
+
             expected.update({"provider_core/type_requirements.py", "provider_core/_type_requirements.py"})
             installer = json.loads((source / "requirements/installer-release.json").read_text())
 

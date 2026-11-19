@@ -51,6 +51,7 @@ class BooleanOperandParenthesesPostureTests(unittest.TestCase):
                     ["first == second", "third != fourth"],
                     [operand for (_, _, operand) in boolean_operand_findings(source=f"first == second {operator} third != fourth\n")],
                 )
+
                 self.assertEqual([], boolean_operand_findings(source=f"(first == second) {operator} (third != fourth)\n"))
 
     def test_reported_fixture_and_route_conditions_are_flagged(self):

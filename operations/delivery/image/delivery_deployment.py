@@ -375,6 +375,7 @@ def render_shared(path, source, image):
         if mode == "local":
 
             network_id = route["network_id"]
+
             require_type(network_id, str)
 
             if not is_full_network_id(route["network_id"]):

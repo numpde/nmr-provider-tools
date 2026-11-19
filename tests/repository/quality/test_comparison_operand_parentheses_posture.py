@@ -42,6 +42,7 @@ class ComparisonOperandParenthesesPostureTests(unittest.TestCase):
                     ["left + offset", "required | optional"],
                     [operand for (_, _, operand) in comparison_operand_findings(source=source)],
                 )
+
                 self.assertEqual([], comparison_operand_findings(source=f"(left + offset) {operator} (required | optional)\n"))
 
     def test_arithmetic_bitwise_and_unary_expressions_need_grouping(self):
@@ -80,7 +81,9 @@ class ComparisonOperandParenthesesPostureTests(unittest.TestCase):
             ["lower + margin", "measured * scale", "upper - margin"],
             [operand for (_, _, operand) in comparison_operand_findings(source=source)],
         )
+
         self.assertEqual([], comparison_operand_findings(source="(lower + margin) < (measured * scale) < (upper - margin)\n"))
+
         self.assertEqual(
             ["left + right"],
             [operand for (_, _, operand) in comparison_operand_findings(source="((left + right < limit) + offset) == expected\n")],
