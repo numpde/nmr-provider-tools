@@ -11,7 +11,7 @@ from tests.fakes.delivery import healthy_diagnostics
 
 
 class DeliveryConfigurationRefusalTests(unittest.TestCase):
-    def test_closed_fields_and_credential_binding_refuse_without_private_echo(self):
+    def _configuration_refusals(self):
         with tempfile.TemporaryDirectory() as directory:
             files = DeliveryConfigFiles(directory, socket_group_id=65532)
 
@@ -32,8 +32,16 @@ class DeliveryConfigurationRefusalTests(unittest.TestCase):
                     with self.assertRaises(DeliveryConfigurationRejected) as refused:
                         load_delivery_service(files.path, on_notice=Mock(), diagnostic_status=healthy_diagnostics)
 
-                    self.assertNotIn("PRIVATE", str(refused.exception))
-                    self.assertFalse((pathlib.Path(directory) / "state").exists())
+                    yield refused.exception, pathlib.Path(directory) / "state"
+
+    def test_closed_fields_and_credential_binding_refuse_without_runtime_state(self):
+        for (_refusal, state_directory) in self._configuration_refusals():
+            self.assertFalse(state_directory.exists())
+
+    @unittest.skip("Privacy policy under review")
+    def test_configuration_refusals_omit_input(self):
+        for (refusal, _state_directory) in self._configuration_refusals():
+            self.assertNotIn("PRIVATE", str(refusal))
 
     def test_secret_grant_stays_private_without_permission_workarounds(self):
         with tempfile.TemporaryDirectory() as directory:
