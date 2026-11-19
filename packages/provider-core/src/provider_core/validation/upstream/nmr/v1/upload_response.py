@@ -16,6 +16,7 @@ from dataclasses import dataclass, field
 from datetime import datetime, timedelta
 
 from provider_core.response_json import ResponseRejected, read_document
+from provider_core.validation.upstream.nmr.v1.timestamps import read_timestamp
 from provider_core.type_requirements import require_type
 
 # The pinned upload membership response has this byte ceiling.
@@ -190,20 +191,6 @@ def read_membership(raw, *, job_ref):
     return UploadSet(job_ref, tuple(admitted))
 
 
-def _expiry(value):
-    # Match the API renderer: UTC seconds, or exactly six nonzero fraction digits.
-    if not (type(value) is (expected_type := str)):
-        raise ResponseRejected(f"{type(value)=} ≠ {expected_type=}")
-
-    if re.fullmatch(r"[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(?:\.(?!000000)[0-9]{6})?Z", value) is None:
-        raise ResponseRejected("Grant expiry must be canonical UTC seconds or six nonzero fractional digits")
-
-    try:
-        return datetime.fromisoformat(value)
-    except ValueError:
-        raise ResponseRejected("Grant expiry is not a valid calendar date and time") from None
-
-
 def read_grant(raw, *, job_ref, upload_ref):
     """Bind the returned resource; access scope and byte verification follow later."""
     document = read_document(raw, GRANT_RESPONSE_BYTES)
@@ -232,5 +219,5 @@ def read_grant(raw, *, job_ref, upload_ref):
         document["content_hash"],
         url,
         token,
-        _expiry(document["expires_at"])
+        read_timestamp(document["expires_at"])
     )

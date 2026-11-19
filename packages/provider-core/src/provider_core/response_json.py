@@ -1,7 +1,7 @@
-"""Decode bounded API JSON before route-specific admission.
+"""Decode bounded JSON before schema-specific admission.
 
-Route-specific modules own schema and identity admission. This shared decoder
-rejects ambiguous JSON before either Upload or Attempt facts are interpreted.
+Callers own schema, identity and timestamp admission. This shared decoder rejects
+ambiguous JSON before API, Chat, credential or local IPC facts are interpreted.
 """
 
 from provider_core.container_guard import require_container
@@ -9,8 +9,6 @@ from provider_core.container_guard import require_container
 require_container()
 
 import json
-import re
-from datetime import datetime
 
 from provider_core.tools import duplicate_json_fields
 
@@ -51,18 +49,3 @@ def read_document(response_bytes, maximum_bytes):
         raise ResponseRejected("JSON nesting should fit the decoder's recursion limit") from cause
     except ValueError as cause:
         raise ResponseRejected("Cannot decode response_bytes") from cause
-
-
-def read_timestamp(timestamp):
-    """Admit UTC rendering shared by the pinned provider Job and Attempt schemas."""
-
-    if not (type(timestamp) is (expected_type := str)):
-        raise ResponseRejected(f"{type(timestamp)=} ≠ {expected_type=}")
-
-    if re.fullmatch(r"[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(?:\.(?!000000)[0-9]{6})?Z", timestamp) is None:
-        raise ResponseRejected(f"{timestamp=} should use canonical UTC seconds or nonzero microseconds")
-
-    try:
-        return datetime.fromisoformat(timestamp)
-    except ValueError as cause:
-        raise ResponseRejected(f"Cannot read {timestamp=}") from cause

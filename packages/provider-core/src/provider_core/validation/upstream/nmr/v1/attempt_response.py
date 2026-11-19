@@ -17,7 +17,8 @@ from dataclasses import dataclass, field
 from datetime import datetime
 from hashlib import sha256
 
-from provider_core.response_json import ResponseRejected, read_document, read_timestamp
+from provider_core.response_json import ResponseRejected, read_document
+from provider_core.validation.upstream.nmr.v1.timestamps import read_timestamp
 from provider_core.type_requirements import require_type
 
 # The pinned Attempt response has this wire byte ceiling.

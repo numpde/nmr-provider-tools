@@ -18,7 +18,8 @@ from datetime import datetime
 from provider_core.validation.upstream.nmr.v1.attempt_request import require_analysis_kind
 from provider_core.validation.upstream.nmr.v1.job_input import FeedInputFacts, JobInputRejected
 from provider_core.validation.upstream.nmr.v1.paging import MAX_PAGE_ITEMS, require_cursor
-from provider_core.response_json import ResponseRejected, read_document, read_timestamp
+from provider_core.response_json import ResponseRejected, read_document
+from provider_core.validation.upstream.nmr.v1.timestamps import read_timestamp
 from provider_core.type_requirements import require_type
 
 # The pinned discovery response owns this page byte ceiling.

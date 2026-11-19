@@ -118,8 +118,10 @@ class AttemptOutcomeFailureTests(unittest.IsolatedAsyncioTestCase):
             (True, "result_schema_id", oversized_identifier),
             (True, "result_fingerprint", oversized_identifier),
             (True, "analysis_result_ref", oversized_identifier),
+            (True, "committed_at", oversized_identifier),
             (False, "failure_code", oversized_identifier),
             (False, "failure_message", oversized_identifier),
+            (False, "committed_at", oversized_identifier),
             (False, oversized_identifier, True),
         ):
             with self.subTest(completing=completing, field_name=field_name[:40]):

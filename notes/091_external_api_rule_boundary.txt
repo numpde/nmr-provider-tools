@@ -355,12 +355,21 @@ OpenAI-compatible Chat Completions profile
 Shared wire support: retain the distinction from local policy
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-- [ ] Separate the NMR timestamp grammar from shared JSON parsing
+- [x] Separate the NMR timestamp grammar from shared JSON parsing
   core/response_json.py:22-68: strict JSON, duplicate/nonfinite parser hooks,
   caller-selected byte ceilings, and a separate UTC timestamp grammar. JSON
   parsing is shared by API, Chat, credential and local IPC readers; the NMR
   timestamp profile is API-specific. Do not move this module whole or postpone
   duplicate-key checks until after a dict has already discarded the duplicates.
+  Completed 2026-11-19: the sole timestamp grammar now lives in
+  core/validation/upstream/nmr/v1/timestamps.py. All five NMR readers use it,
+  including Upload expiry; generic JSON parsing and parser hooks stay in place.
+  Invalid grammar displays bounded evidence; calendar failures retain the
+  original parser cause, including for Upload grants.
+  Focused unit test_upload_api.py, test_job_feed.py, test_attempt_api.py and
+  test_attempt_outcome.py and contract test_installation.py passed on science
+  with PRIVACY_TESTS=0. The existing large-acknowledgement test now also covers
+  oversized completion/failure timestamps. Repository test_conventions.py passed.
 - [ ] Separate HTTP/backend adaptation from transport effects and API profiles
   core/transport.py:34-97,222,363-438: HTTP request/head mapping, CONNECT metadata,
   request correlation and httpcore trace/exception assumptions. core/network.py
