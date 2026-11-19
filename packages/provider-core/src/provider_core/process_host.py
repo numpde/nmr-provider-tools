@@ -404,7 +404,15 @@ class ProcessExecutionHost:
         return await asyncio.to_thread(self._exchange, message, seconds)
 
     def open_analysis(self, *, allocations: frozenset[AllocationRef]):
-        if self.retiring or self.hosted is None or self.active_analysis is not None:
+        if (
+            self.retiring or
+            self.hosted is None or
+            self.active_analysis is not None or
+            self.channel is None or
+            self.channel.failure is not None or
+            self.process is None or
+            self.process.poll() is not None
+        ):
             raise CapacityUnavailable("The scientific process allocation is unavailable or occupied")
 
         if allocations != frozenset({self.hosted.allocation}):
