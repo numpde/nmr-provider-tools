@@ -14,11 +14,11 @@ GC_THRESHOLD_FIELDS = ("defaultReservedSpace", "defaultMaxUsedSpace", "defaultMi
 def decode_daemon_config(raw: bytes) -> dict[str, Any]:
     """Read a Docker daemon configuration document."""
 
-    document = json.loads(raw)
+    daemon_configuration = json.loads(raw)
 
-    require_type(document, dict)
+    require_type(daemon_configuration, dict)
 
-    return document
+    return daemon_configuration
 
 
 def require_gc_object(gc_settings: object) -> dict[str, Any]:

@@ -123,8 +123,8 @@ def unit_files(root, context, endpoint, config):
 
 
 def install(root, context, endpoint, daemon_config_path):
-    (original_bytes, document) = native_config(daemon_config_path)
-    proposed_configuration = configured(document)
+    (original_bytes, daemon_configuration) = native_config(daemon_config_path)
+    proposed_configuration = configured(daemon_configuration)
     (unit_name, service_document, timer_document) = unit_files(root, context, endpoint, daemon_config_path)
 
     (temporary_fd, temporary_name) = tempfile.mkstemp(
@@ -206,8 +206,8 @@ def install(root, context, endpoint, daemon_config_path):
 def main():
     try:
         if (sys.argv[1:2] == ["policy"]) and (len(sys.argv) == 3):
-            (_, document) = native_config(pathlib.Path(sys.argv[2]))
-            thresholds = limits(document)
+            (_, daemon_configuration) = native_config(pathlib.Path(sys.argv[2]))
+            thresholds = limits(daemon_configuration)
 
             if thresholds is None:
                 print("disabled")
