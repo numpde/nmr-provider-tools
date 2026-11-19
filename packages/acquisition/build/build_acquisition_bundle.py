@@ -38,6 +38,7 @@ SOURCE_FILES = (
     "acquisition_tool/identity_main.py",
     "acquisition_tool/dns.py",
     "acquisition_tool/validation/upstream/host_resolver.py",
+    "acquisition_tool/validation/upstream/linux_idmap.py",
     "tools/inference_native.sh",
     "tools/docker_client.sh",
 )

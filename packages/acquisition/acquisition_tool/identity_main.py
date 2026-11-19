@@ -7,7 +7,9 @@ import pathlib
 from dataclasses import replace
 
 from linux_idmap import Identifier
-from linux_idmap.probe import ProbeFailure, ProbeRequest, ProbeResources, ResourceState, StepError, probe_identity
+from linux_idmap.probe import ProbeFailure, ProbeRequest, ProbeResources, StepError, probe_identity
+
+from acquisition_tool.validation.upstream.linux_idmap import probe_failure_retirement_confirmed
 
 
 class Cancellation:
@@ -130,13 +132,7 @@ def main(argv=None):
         retired = True
         translated_ids = _project(observation, projections)
     except ProbeFailure as failure:
-        problems = (failure.problem, *failure.retirement.problems)
-
-        # Container retirement does not erase an unresolved native Docker client.
-        retired = (
-            (failure.retirement.state in (ResourceState.NOT_CREATED, ResourceState.RETIRED)) and
-            all(problem.category != "client_cleanup" for problem in problems)
-        )
+        retired = probe_failure_retirement_confirmed(failure)
 
         sys.stderr.write(f"Cannot map engine identity: {failure.problem.message}\n")
 

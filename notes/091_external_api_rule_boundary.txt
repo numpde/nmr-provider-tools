@@ -1001,11 +1001,18 @@ Separate adjacent tool/package interfaces from service API rules:
   admits image metadata. These are external CLI/engine interfaces, not Provider
   API routes. Preserve local grants, scope ownership and retirement sequencing.
   Evidence: test_acquisition_scope.py, test_acquisition_bootstrap.py, test_network_gate.py.
-- [ ] Keep linux-idmap adaptation distinct from local identity and cleanup policy
+- [x] Keep linux-idmap adaptation distinct from local identity and cleanup policy
   linux-idmap: packages/acquisition/acquisition_tool/identity_main.py:9-10,25-100
   uses pinned request/result types and mapping operations. It is a Python package
   interface, not an implemented remote API. Identity policy and probe cleanup
   stay local. Evidence: tests/acquisition_identity/test_identity.py.
+  Probe failure interpretation now lives in acquisition_tool/validation/upstream/
+  linux_idmap.py: container retirement alone cannot erase a client_cleanup
+  problem, whether primary or secondary. The source is linux-idmap v0.3.4 at
+  c3fd1ba1686106decd0a89419f31626bae4b9525, _command.py and _probe_scope.py.
+  identity_main.py retains signal handling, receipt creation and output release.
+  The exact pinned-wheel identity lane passed all 13 tests; all six acquisition
+  bundle tests passed. No extra constructor wrappers or local policy moved.
 - [x] Separate resolver output parsing from local DNS-source selection
   Host resolver tools: packages/acquisition/acquisition_tool/dns.py:30-90 parses
   nmcli/resolvectl output and resolver files. External tool output syntax is a
