@@ -13,18 +13,22 @@ require_container()
 
 import argparse
 import asyncio
-from collections import OrderedDict
 import importlib
+import os
 import socket
 from collections.abc import Mapping
 
 from provider_core.embedded_host import InProcessExecutionHost
-from provider_core.hosting import CleanupObservation, NotAdmitted, ResultState, settle_cleanup
-from provider_core.process_wire import receive_async, send_async
+from provider_core.hosting import (
+    AdmissionCode,
+    CapacityUnavailable,
+    CleanupObservation,
+    NotAdmitted,
+    ResultState,
+    settle_cleanup,
+)
+from provider_core.process_wire import RemoteScienceError, frame, receive_async
 from provider_core.scientific import Contribution
-
-
-HISTORY_LIMIT = 128
 
 
 def _installed_member(path: str):
@@ -45,12 +49,9 @@ class _Worker:
     def __init__(self):
         self.host = None
         self.hosted = None
-        self.analyses = {}
+        self.ready = False
+        self.analysis = None
         self.operations = {}
-        self.releases = {}
-        self.analysis_cleanups = {}
-        self.finished_analyses = OrderedDict()
-        self.finished_operations = OrderedDict()
 
     async def start(self, message: Mapping) -> dict:
         if self.host is not None:
@@ -79,11 +80,19 @@ class _Worker:
 
         self.hosted = hosted
         await host.initialize(allocation=hosted.allocation)
+        self.ready = True
 
         return {
             "allocation": hosted.allocation,
             "binding_revision": hosted.description.binding_revision,
+            "process_id": os.getpid(),
         }
+
+    def _analysis(self, identity):
+        if self.analysis is None or self.analysis.identity != identity:
+            raise LookupError("This scientific analysis is not open in the worker")
+
+        return self.analysis
 
     def _operation(self, message):
         key = (message["analysis"], message["operation"])
@@ -94,18 +103,17 @@ class _Worker:
 
         return operation
 
-    async def _finish_analysis(self, analysis_id, observation):
-        if not observation.settled:
-            return
+    async def _forget_analysis(self, analysis_id):
+        """Release transferred evidence only after successful analysis cleanup."""
+        analysis = self._analysis(analysis_id)
 
-        self.finished_analyses[analysis_id] = observation
-        self.finished_analyses.move_to_end(analysis_id)
+        if analysis.cleanup is None:
+            raise RuntimeError("Scientific analysis cleanup has not been requested")
 
-        while len(self.finished_analyses) > HISTORY_LIMIT:
-            self.finished_analyses.popitem(last=False)
+        observed = await analysis.cleanup.observe(after=None, wait_seconds=0)
 
-        self.analyses.pop(analysis_id, None)
-        self.analysis_cleanups.pop(analysis_id, None)
+        if not observed.settled or observed.failures:
+            raise RuntimeError("Scientific analysis cleanup has not settled successfully")
 
         for key, operation in list(self.operations.items()):
             if key[0] != analysis_id:
@@ -113,15 +121,10 @@ class _Worker:
 
             current = await operation.observe(after=None, wait_seconds=0)
 
-            if current.result_state is ResultState.AVAILABLE:
-                continue
+            if current.result_state is not ResultState.AVAILABLE:
+                del self.operations[key]
 
-            self.finished_operations[key] = current
-            self.finished_operations.move_to_end(key)
-            del self.operations[key]
-
-        while len(self.finished_operations) > HISTORY_LIMIT:
-            self.finished_operations.popitem(last=False)
+        self.analysis = None
 
     async def command(self, message: Mapping) -> object:
         action = message["action"]
@@ -134,22 +137,29 @@ class _Worker:
         if action == "retire":
             return await self.retire()
 
-        if self.hosted is None:
+        if not self.ready:
             raise RuntimeError("Scientific worker is not initialized")
+
+        if action == "open_analysis":
+            if self.analysis is not None:
+                raise CapacityUnavailable("The scientific allocation already owns an analysis")
+
+            self.analysis = self.host.open_analysis(
+                analysis_id=message["analysis"],
+                allocation_names=(self.hosted.allocation.allocation,),
+            )
+            return self.analysis.reservation(allocation=self.hosted.allocation)
 
         if action == "submit":
             invocation = message["invocation"]
             analysis_id = invocation.reservation.analysis
-            analysis = self.analyses.get(analysis_id)
+            analysis = self.analysis
 
-            if analysis is None:
-                # The embedded host's named form preserves the incoming
-                # analysis ID; its allocation-handle form generates a new ID.
-                analysis = self.host.open_analysis(
-                    analysis_id=analysis_id,
-                    allocation_names=(self.hosted.allocation.allocation,),
-                )
-                self.analyses[analysis_id] = analysis
+            if analysis is None or analysis.identity != analysis_id:
+                return {"refusal": NotAdmitted(
+                    AdmissionCode.INVALID_REFERENCE,
+                    "Scientific submission requires its explicitly opened analysis",
+                )}
 
             decision = analysis.submit(invocation=invocation)
 
@@ -160,11 +170,6 @@ class _Worker:
             return {"operation": decision.reference}
 
         if action == "observe":
-            key = (message["analysis"], message["operation"])
-
-            if key in self.finished_operations:
-                return self.finished_operations[key]
-
             return await self._operation(message).observe(after=None, wait_seconds=0)
 
         if action == "read_result":
@@ -176,51 +181,34 @@ class _Worker:
 
         if action == "release_result":
             operation = self._operation(message)
-            key = (message["analysis"], message["operation"], message["result"].result_id)
-            control = self.releases.get(key)
-
-            if control is None:
-                control = operation.release_result(result=message["result"])
-                self.releases[key] = control
-
+            control = operation.release_result(result=message["result"])
             observed = await control.observe(after=None, wait_seconds=0)
+            current = await operation.observe(after=None, wait_seconds=0)
 
-            if observed.settled:
-                self.releases.pop(key, None)
+            if observed.settled and (
+                self.analysis is None or self.analysis.identity != message["analysis"]
+            ):
+                del self.operations[(message["analysis"], message["operation"])]
 
-            return observed
+            return {"cleanup": observed, "operation": current}
 
         if action == "stop_analysis":
-            analysis = self.analyses.get(message["analysis"])
-
-            if analysis is not None:
-                analysis.request_stop()
-
+            self._analysis(message["analysis"]).request_stop()
             return None
 
         if action == "close_analysis":
-            analysis_id = message["analysis"]
-            analysis = self.analyses.get(analysis_id)
+            control = self._analysis(message["analysis"]).close()
+            return await control.observe(after=None, wait_seconds=0)
 
-            if analysis is None:
-                return self.finished_analyses.get(
-                    analysis_id,
-                    CleanupObservation(revision=0, settled=True, allowance_expired=False, failures=()),
-                )
-
-            control = self.analysis_cleanups.get(analysis_id)
-
-            if control is None:
-                control = analysis.close()
-                self.analysis_cleanups[analysis_id] = control
-
-            observed = await control.observe(after=None, wait_seconds=0)
-            await self._finish_analysis(analysis_id, observed)
-            return observed
+        if action == "forget_analysis":
+            await self._forget_analysis(message["analysis"])
+            return None
 
         raise ValueError(f"Unknown scientific worker action {action!r}")
 
     async def retire(self):
+        self.ready = False
+
         if self.host is None:
             return CleanupObservation(revision=0, settled=True, allowance_expired=False, failures=())
 
@@ -240,9 +228,22 @@ async def _serve(sock: socket.socket) -> None:
             try:
                 outcome = await worker.command(message)
             except BaseException as cause:
-                await send_async(sock, {"ok": False, "error": cause})
+                reply = {"ok": False, "error": cause}
             else:
-                await send_async(sock, {"ok": True, "value": outcome})
+                reply = {"ok": True, "value": outcome}
+
+            try:
+                encoded = frame(reply)
+            except Exception as cause:
+                failure = RemoteScienceError(
+                    "Scientific reply could not be encoded; retain the original work without repeating it"
+                )
+                failure.__cause__ = cause
+                encoded = frame({"ok": False, "error": failure})
+
+            # Framing has no I/O effects. A failed send may have delivered a
+            # partial reply and is never retried on this stream.
+            await asyncio.get_running_loop().sock_sendall(sock, encoded)
 
             if message["action"] == "retire":
                 break

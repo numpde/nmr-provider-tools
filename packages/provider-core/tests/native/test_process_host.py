@@ -166,12 +166,88 @@ class ProcessOwnershipTests(unittest.IsolatedAsyncioTestCase):
             "ok": True,
             "value": CleanupObservation(1, True, False, ()),
         })
+        request = await asyncio.wait_for(receive_async(self.peer), timeout=5)
+        self.assertEqual("forget_analysis", request["action"])
+        await send_async(self.peer, {"ok": True, "value": None})
         await asyncio.wait_for(asyncio.shield(cleanup.task), timeout=5)
         observed = await cleanup.observe(after=None, wait_seconds=0)
         self.assertTrue(observed.settled)
         self.assertEqual((), observed.failures)
         self.assertIs(cleanup, self.analysis.close())
         self.assertIsNone(self.host.active_analysis)
+
+    async def test_close_and_release_transfer_final_evidence_after_original_observation(self):
+        self.peer.setblocking(False)
+        original = _ProcessOperation(self.analysis, self.invocation, acknowledged=True)
+        self.analysis.operations[self.invocation.operation_id] = original
+        result = ResultRef(original.reference, "known-result")
+        completed = Observation(
+            operation=original.reference,
+            target=self.invocation.target,
+            revision=2,
+            acceptance=AcceptanceState.OWNED,
+            dispatch=DispatchState.STARTED,
+            finished=True,
+            outcome=Outcome.SUCCEEDED,
+            result_state=ResultState.AVAILABLE,
+            result=result,
+            states=(),
+            progress=(),
+            progress_dropped=0,
+            failures=(),
+            stop_requested=False,
+            allowance_expired=False,
+            resources=ResourceState.OCCUPIED,
+        )
+        original.last_observation = completed
+
+        # Hold an original reply while both cleanup owners are created. Their
+        # ordering must drain that exchange without making it wait for them.
+        earlier_observer = asyncio.create_task(original.observe(after=None, wait_seconds=0))
+        request = await asyncio.wait_for(receive_async(self.peer), timeout=5)
+        self.assertEqual("observe", request["action"])
+        release = original.release_result(result)
+        cleanup = self.analysis.close()
+        await send_async(self.peer, {"ok": True, "value": completed})
+        self.assertEqual(completed, await asyncio.wait_for(earlier_observer, timeout=5))
+
+        request = await asyncio.wait_for(receive_async(self.peer), timeout=5)
+        self.assertEqual("release_result", request["action"])
+        later_started = asyncio.Event()
+
+        async def observe_after_close():
+            later_started.set()
+            return await original.observe(after=None, wait_seconds=0)
+
+        later_observer = asyncio.create_task(observe_after_close())
+        await later_started.wait()
+        self.assertFalse(later_observer.done())
+        released = replace(completed, revision=3, result_state=ResultState.RELEASED)
+        await send_async(self.peer, {
+            "ok": True,
+            "value": {"cleanup": CleanupObservation(1, True, False, ()), "operation": released},
+        })
+
+        request = await asyncio.wait_for(receive_async(self.peer), timeout=5)
+        self.assertEqual("close_analysis", request["action"])
+        await send_async(self.peer, {"ok": True, "value": CleanupObservation(2, True, False, ())})
+        request = await asyncio.wait_for(receive_async(self.peer), timeout=5)
+        self.assertEqual("observe", request["action"])
+        final = replace(released, revision=4, resources=ResourceState.RELEASED)
+        await send_async(self.peer, {"ok": True, "value": final})
+        request = await asyncio.wait_for(receive_async(self.peer), timeout=5)
+        self.assertEqual("forget_analysis", request["action"])
+        await send_async(self.peer, {"ok": True, "value": None})
+
+        self.assertEqual(final, await asyncio.wait_for(later_observer, timeout=5))
+        self.assertTrue((await observe_cleanup(release)).settled)
+        self.assertTrue((await observe_cleanup(cleanup)).settled)
+        self.assertEqual(final, await original.observe(after=None, wait_seconds=0))
+        self.assertIsNone(self.host.active_analysis)
+        self.assertIsNone(self.host.channel.failure)
+
+        with self.assertRaises(expected_exception=BlockingIOError):
+            self.peer.recv(1)
 
     async def test_cancelled_observation_retains_reply_before_subsequent_channel_loss(self):
         self.peer.setblocking(False)
