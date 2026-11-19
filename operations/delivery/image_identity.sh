@@ -3,6 +3,7 @@
 source "$root/operations/docker/image_fingerprint.sh"
 delivery_recipe_inputs=(operations/docker/base_image.sh tools/container_guard.py tools/artifacts.py tools/wheelhouse.py
     tools/adapters/__init__.py tools/adapters/github_release.py tools/adapters/pip_install.py tools/adapters/pypi_project_json.py
+    tools/adapters/pylock.py
     tools/validation/__init__.py tools/validation/upstream/__init__.py tools/validation/upstream/pypi_project_json.py
     packages/provider-core/sdk_build/core_environment.py tools/installer.py requirements/installer-release.json
     packages/type-requirements/src/type_requirements.py

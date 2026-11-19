@@ -992,6 +992,12 @@ Separate adjacent tool/package interfaces from service API rules:
       native errors. Workflows retain artifact/source selection and output
       ownership. The 56-test wheelhouse lane passed (10 privacy skips), both
       isolated bundle tests passed, and the real offline tool image built.
+  [x] Delivery's pylock 1.0 archive writer now lives in tools/adapters/pylock.py.
+      Delivery supplies its chosen creator label and approved wheel identities;
+      the adapter owns wheel filename interpretation and TOML fields/escaping.
+      Temporary file creation and downloader dispatch remain in build_inputs.py.
+      The recipe captures this build-worker dependency. All ten focused delivery
+      release tests pass, including exact lock bytes delivered to the publisher.
   pip: tools/installer.py:154-201 owns command construction. tools/wheelhouse.py:102-193
   and wheelhouse_tool/report.py:11-65 consume installation-report version 1 and
   download_info/archive_info/hash fields. SDK build helpers and image_manifest.py

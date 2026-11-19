@@ -17,6 +17,7 @@ import pathlib
 
 from tools.artifacts import regular_file, require_download_proxy
 from tools.adapters.github_release import release_asset_url
+from tools.adapters.pylock import write_wheel_archive_lock
 from tools.adapters import pypi_project_json as pypi_requests
 from tools.installer import release as installer_release
 from sdk_build.provider_core_acquire import acquire_tool, tool_present
@@ -89,27 +90,11 @@ def missing_wheels(release, pool):
 
 
 def publish_release_wheels(tool, pool, artifacts):
-    from pip._vendor.packaging.utils import parse_wheel_filename
-
     with tempfile.TemporaryDirectory(prefix="delivery-lock-") as temporary:
         acquisition_lock = pathlib.Path(temporary) / "pylock.delivery.toml"
 
         with acquisition_lock.open("x", encoding="utf-8") as stream:
-            print('lock-version = "1.0"', file=stream)
-            print('created-by = "nmr-provider-tools delivery"', file=stream)
-
-            for (wheel_name, checksum, url) in artifacts:
-                (distribution, version, _, _) = parse_wheel_filename(wheel_name)
-
-                print("[[packages]]", file=stream)
-                print(f"name = {json.dumps(str(distribution))}", file=stream)
-                print(f"version = {json.dumps(str(version))}", file=stream)
-
-                print("[packages.archive]", file=stream)
-                print(f"url = {json.dumps(url)}", file=stream)
-
-                print("[packages.archive.hashes]", file=stream)
-                print(f"sha256 = {json.dumps(checksum)}", file=stream)
+            write_wheel_archive_lock(stream, artifacts, created_by="nmr-provider-tools delivery")
 
         subprocess.run(
             [
