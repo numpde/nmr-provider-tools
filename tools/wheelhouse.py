@@ -23,8 +23,8 @@ import urllib.request
 import pathlib
 from contextlib import contextmanager
 
+from tools.adapters.pip_install import resolve_locked_wheels_command
 from tools.artifacts import fsync_directory, regular_file
-from tools.installer import pip_command
 
 # repo-check: allow-module-constant
 CHUNK_BYTES = 1024 * 1024
@@ -126,24 +126,7 @@ def select_wheels(lock, pool, extra_pools=(), required_files=None, lock_fd=None)
             borrowed_descriptors = (lock_fd,)
 
         subprocess.run(
-            [
-                *pip_command(sys.executable),  # Use the worker's pinned pip in isolation
-                "install",  # Invoke pip's install resolver
-                "--dry-run",  # Select artifacts without installing them
-                "--ignore-installed",  # Resolve the full lock even if packages are already installed
-                "--quiet",  # Suppress routine resolver output
-                "--disable-pip-version-check",  # Skip the pip update probe
-                "--no-cache-dir",  # Select files from the supplied pools
-                "--no-index",  # Resolve without contacting package indexes
-                "--no-deps",  # Resolve only the explicitly locked closure
-                "--require-hashes",  # Check every selected artifact against the lock
-                "--only-binary=:all:",  # Accept wheels only
-                *[argument for directory in pools for argument in ("--find-links", str(directory))],  # Search each admitted local pool
-                "--report",  # Record the exact artifact selections
-                str(report),  # Keep the selection report in private scratch
-                "-r",  # Read versions and hashes from the lock
-                str(frozen),  # Use the validated snapshot of the lock
-            ],
+            resolve_locked_wheels_command(sys.executable, frozen, pools, report),
             check=True,  # Stop if resolution fails
             pass_fds=borrowed_descriptors,  # Keep shared pool protection alive in pip
         )

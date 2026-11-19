@@ -23,6 +23,7 @@ import tempfile
 import tomllib
 import pathlib
 
+from tools.adapters.pip_install import install_locked_wheels_command
 from tools.artifacts import fsync_directory, regular_file
 from tools.installer import create_environment, pip_command
 from tools.wheelhouse import digest, pool_read_lock, read_json, requirements, select_wheels, wheel_inputs_from_report
@@ -93,28 +94,7 @@ def install_locked(python, lock, wheels, report, extra_pools=(), required_files=
         borrowed_descriptors = (lock_fd,)
 
     subprocess.run(
-        [
-            *pip_command(python),  # Run the target's pinned pip in isolation
-            "install",  # Materialize the locked environment
-            "--ignore-installed",  # Require fresh selection of every locked artifact
-            "--disable-pip-version-check",  # Skip the pip update probe
-            "--no-cache-dir",  # Use the supplied wheels instead of pip's cache
-            "--no-index",  # Resolve only from local sources
-            "--no-deps",  # Install only the explicitly locked closure
-            "--only-binary=:all:",  # Reject source distributions
-            "--require-hashes",  # Verify the lock hashes before installation
-            "--no-compile",  # Leave Python bytecode unmaterialized
-            "--report",  # Record which artifacts pip actually installed
-            str(report),  # Write the evidence to the caller's report
-            # Give pip a find-links entry for each admitted local pool
-            *[
-                argument
-                for directory in (wheels, *extra_pools)
-                for argument in ("--find-links", str(directory))
-            ],
-            "-r",  # Read exact versions and hashes from the lock
-            str(lock),  # Select the lock for this environment
-        ],
+        install_locked_wheels_command(python, lock, wheels, report, extra_pools),
         check=True,  # Reject an incomplete installation
         pass_fds=borrowed_descriptors,  # Keep shared pool protection alive in pip
     )

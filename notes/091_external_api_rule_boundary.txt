@@ -970,6 +970,21 @@ Other service and artifact interfaces in repository tooling
 Separate adjacent tool/package interfaces from service API rules:
 
 - [ ] Separate pip/packaging formats from local pool and artifact policy
+  [x] Standalone report v1 header admission now lives in
+      wheelhouse_tool/validation/upstream/pip_installation_report.py. The
+      projection retains its local-file URL profile, nonempty requirement,
+      pool/source authorization and late archive-hash access. The focused
+      wheelhouse lane ran 56 tests (10 privacy tests skipped); the isolated
+      bundle lane passed both tests. Guarded pip consumers and packaging
+      interfaces remain to be reviewed.
+  [x] Locked-wheel resolution and installation argv now live in
+      tools/adapters/pip_install.py. The wheel selector and SDK environment
+      owner retain subprocess execution, lock descriptors, private snapshots
+      and report admission. The delivery recipe captures the adapter and its
+      Dockerfile copies it. Focused wheelhouse, delivery-release and package
+      artifact lanes passed 31 tests. The offline delivery build stopped
+      before Docker assembly because the current runtime lock hash differs
+      from the issued release pin; image execution remains unverified.
   pip: tools/installer.py:154-201 owns command construction. tools/wheelhouse.py:102-193
   and wheelhouse_tool/report.py:11-65 consume installation-report version 1 and
   download_info/archive_info/hash fields. SDK build helpers and image_manifest.py
@@ -991,10 +1006,17 @@ Separate adjacent tool/package interfaces from service API rules:
   uses pinned request/result types and mapping operations. It is a Python package
   interface, not an implemented remote API. Identity policy and probe cleanup
   stay local. Evidence: tests/acquisition_identity/test_identity.py.
-- [ ] Separate resolver output parsing from local DNS-source selection
+- [x] Separate resolver output parsing from local DNS-source selection
   Host resolver tools: packages/acquisition/acquisition_tool/dns.py:30-90 parses
   nmcli/resolvectl output and resolver files. External tool output syntax is a
   boundary; choosing an interface/source and rejecting loopback DNS are local.
+  Exact nmcli/resolvectl command construction and resolv.conf record encoding
+  now live in acquisition_tool/adapters/host_resolver.py; lexical readers live
+  in acquisition_tool/validation/upstream/host_resolver.py. dns.py retains
+  source preference, subprocess handling, address policy and receipt creation.
+  Both modules are issued in the bundle, whose extracted DNS entrypoint starts
+  under isolated Python without installed packages. Six focused DNS tests and
+  six acquisition bundle tests pass with privacy tests disabled.
 
 Verification checklist for each affected extraction
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
