@@ -40,58 +40,69 @@ class AttemptInventoryPage:
 
 
 def inventory_query(*, state, limit, cursor):
-    if state != "in_progress":
-        raise ValueError("Attempt inventory state must be in_progress")
+    if not (state == "in_progress"):
+        raise ValueError(f"{state=} should be 'in_progress'")
 
     return b"state=in_progress&" + paging_query(limit=limit, cursor=cursor)
 
 
 def read_attempt_inventory(raw, *, limit):
     """Admit all rows before exposing a page; preserve the server's ordering."""
-    document = read_document(raw, ATTEMPT_RESPONSE_BYTES)
+    inventory_response = read_document(raw, ATTEMPT_RESPONSE_BYTES)
 
-    if not (type(document) is (expected_type := dict)):
-        raise ResponseRejected(f"{type(document)=} ≠ {expected_type=}")
+    if not (type(inventory_response) is (expected_type := dict)):
+        raise ResponseRejected(f"{type(inventory_response)=} ≠ {expected_type=}")
 
-    if set(document) != {"schema_id", "attempts", "next_cursor"}:
-        raise ResponseRejected("Attempt inventory response fields do not match the supported page schema")
+    response_fields = set(inventory_response)
+    expected_fields = {"schema_id", "attempts", "next_cursor"}
 
-    if document["schema_id"] != "nmr.provider.execution_attempts.list.response.v1":
-        raise ResponseRejected("Attempt inventory response schema is not the supported version")
+    if not (response_fields == expected_fields):
+        raise ResponseRejected(f"{response_fields=} should match {expected_fields=}")
 
-    attempts = document["attempts"]
+    expected_schema_id = "nmr.provider.execution_attempts.list.response.v1"
+
+    if not ((response_schema_id := inventory_response["schema_id"]) == expected_schema_id):
+        raise ResponseRejected(f"{response_schema_id=} should match {expected_schema_id=}")
+
+    attempts = inventory_response["attempts"]
 
     if not (type(attempts) is (expected_type := list)):
         raise ResponseRejected(f"{type(attempts)=} ≠ {expected_type=}")
 
-    if len(attempts) > MAX_PAGE_ITEMS:
-        raise ResponseRejected("Attempt inventory exceeds the requested or supported item count")
+    attempt_count = len(attempts)
 
-    if len(attempts) > limit:
-        raise ResponseRejected("Attempt inventory exceeds the requested or supported item count")
+    if not (attempt_count <= MAX_PAGE_ITEMS):
+        raise ResponseRejected(f"{attempt_count=} should be at most {MAX_PAGE_ITEMS=}")
+
+    if not (attempt_count <= limit):
+        raise ResponseRejected(f"{attempt_count=} should be at most {limit=}")
 
     try:
-        require_cursor(document["next_cursor"])
+        require_cursor(inventory_response["next_cursor"])
     except (TypeError, ValueError) as cause:
-        raise ResponseRejected(str(cause)) from None
+        raise ResponseRejected(str(cause)) from cause
 
     # repo-check: allow-tuple-generator -- The admitted AttemptPage retains an immutable ordered collection.
-    return AttemptInventoryPage(tuple(_read_attempt(attempt) for attempt in attempts), document["next_cursor"])
+    return AttemptInventoryPage(tuple(_read_attempt(attempt) for attempt in attempts), inventory_response["next_cursor"])
 
 
 def _read_attempt(attempt):
     if not (type(attempt) is (expected_type := dict)):
         raise ResponseRejected(f"{type(attempt)=} ≠ {expected_type=}")
 
-    if set(attempt) != {
+    attempt_fields = set(attempt)
+
+    expected_fields = {
         "analysis_kind_ref",
         "execution_attempt_ref",
         "job_ref",
         "provider_attempt_key",
         "state",
         "started_at",
-    }:
-        raise ResponseRejected("Inventory Attempt fields do not match the supported item schema")
+    }
+
+    if not (attempt_fields == expected_fields):
+        raise ResponseRejected(f"{attempt_fields=} should match {expected_fields=}")
 
     try:
         require_analysis_kind(attempt["analysis_kind_ref"])
@@ -99,10 +110,10 @@ def _read_attempt(attempt):
         require_job_ref(attempt["job_ref"])
         require_provider_attempt_key(attempt["provider_attempt_key"])
     except (TypeError, ValueError) as cause:
-        raise ResponseRejected(str(cause)) from None
+        raise ResponseRejected(str(cause)) from cause
 
-    if attempt["state"] != "in_progress":
-        raise ResponseRejected("Inventory Attempt state must be in_progress")
+    if not ((inventory_attempt_state := attempt["state"]) == "in_progress"):
+        raise ResponseRejected(f"{inventory_attempt_state=} should be 'in_progress'")
 
     return InventoryAttempt(
         attempt["analysis_kind_ref"],
