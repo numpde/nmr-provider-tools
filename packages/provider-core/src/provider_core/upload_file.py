@@ -192,10 +192,10 @@ def _read_upload_snapshot(upload_source_fd, receipt):
             if received > receipt.byte_length:
                 break
 
-        data = b"".join(chunks)
+        source_bytes = b"".join(chunks)
 
         try:
-            return VerifiedUpload(receipt.job_ref, receipt.upload_ref, receipt.byte_length, receipt.content_hash, data)
+            return VerifiedUpload(receipt.job_ref, receipt.upload_ref, receipt.byte_length, receipt.content_hash, source_bytes)
         except UploadFailed as refusal:
             # Reuse the byte verifier, while reporting this reader's operation.
             # Its pure length/hash refusal has no grant or I/O evidence to copy.
