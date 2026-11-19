@@ -77,7 +77,7 @@ def read_dns_name(
 
         size = message[offset]
 
-        if size & 0xC0 == 0xC0:
+        if (size & 0xC0) == 0xC0:
             pointer_end = offset + 2
 
             if not (pointer_end <= message_byte_count):
@@ -147,7 +147,7 @@ def read_ipv4_response(
     if not (flags & 0x8000):
         raise DNSResponseRejected(f"{flags=:#06x} should mark a response")
 
-    if not (flags & 0x0200 == 0):
+    if not ((flags & 0x0200) == 0):
         raise DNSResponseRejected(f"{flags=:#06x} should not mark a truncated response")
 
     if not ((rcode := flags & 0x000F) == 0):

@@ -137,7 +137,7 @@ def failure_evidence(error, *, secrets, describe_owner=describe_core_failure, ow
 
             if code is None:
                 evidence["system_exit_code"] = None
-            elif type(code) in (int, bool) and -(2 ** 63) <= code < 2 ** 63:
+            elif (type(code) in (int, bool)) and ((-(2 ** 63)) <= code < (2 ** 63)):
                 evidence["system_exit_code"] = code
             else:
                 evidence["system_exit_code_omitted"] = True

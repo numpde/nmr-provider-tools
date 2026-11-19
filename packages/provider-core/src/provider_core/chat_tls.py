@@ -376,7 +376,7 @@ def _material_bytes(value):
     if not (type(value) is (expected_type := str)):
         raise _refuse(f"{type(value)=} ≠ {expected_type=}")
 
-    if len(value) > ((MAX_TRUST_BYTES + 2) // 3) * 4:
+    if len(value) > (((MAX_TRUST_BYTES + 2) // 3) * 4):
         raise _refuse("captured trust material exceeds its fixed allowance")
 
     try:

@@ -89,7 +89,7 @@ def encoded_bytes(value):
 def decoded_bytes(value, maximum):
     require_type(value, str)
 
-    if not (len(value) <= 4 * ((maximum + 2) // 3)):
+    if not (len(value) <= (4 * ((maximum + 2) // 3))):
         raise ValueError("Interpreter child byte field exceeds its admitted limit")
 
     result = base64.b64decode(value, validate=True)

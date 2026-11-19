@@ -80,7 +80,7 @@ def require_hello_inputs(*, display_name, description, analysis_offerings):
 def require_hello_body_size(body):
     """Apply the route ceiling to the actual UTF-8 encoding, not character counts."""
 
-    if not (len(body) <= 512 * 1024):
+    if not (len(body) <= (512 * 1024)):
         raise ValueError("Cannot announce provider: encoded Hello exceeds the 524288-byte route limit")
 
 

@@ -244,7 +244,7 @@ class RunnerSession:
         if not (reply["reason"] in ("exited", "owner_lost", "deadline", "shutdown")):
             raise LifecycleRejected("Runner retirement must match this operation and include its exit status, scratch state and supported reason.")
 
-        if not (-signal.NSIG < reply["returncode"] < 256):
+        if not ((-signal.NSIG) < reply["returncode"] < 256):
             raise LifecycleRejected("Runner retirement has an impossible operating-system exit status; its cause remains unknown.")
 
         return Retirement(reply["returncode"], reply["scratch_released"], reply["reason"])

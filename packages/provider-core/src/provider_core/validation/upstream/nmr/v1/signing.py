@@ -124,7 +124,7 @@ def require_signature_inputs(*, body, created, nonce):
 
     max_structured_field_integer = 999999999999999
 
-    if not (created <= max_structured_field_integer - SIGNATURE_LIFETIME_SECONDS):
+    if not (created <= (max_structured_field_integer - SIGNATURE_LIFETIME_SECONDS)):
         expires = created + SIGNATURE_LIFETIME_SECONDS
 
         raise ValueError(f"{expires=} should be at most {max_structured_field_integer=}")
