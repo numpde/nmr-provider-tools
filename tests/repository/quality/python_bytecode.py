@@ -104,7 +104,7 @@ def _needs_flag(arguments, env_enabled=False):
             return False  # Unknown argv expansion cannot be classified literally.
 
         if argument in {"-m", "-c"}:
-            if index + 1 == len(arguments) or arguments[index + 1] is None:
+            if ((index + 1) == len(arguments)) or (arguments[index + 1] is None):
                 return False
 
             payload = arguments[index + 1]
@@ -121,7 +121,7 @@ def _needs_flag(arguments, env_enabled=False):
             return False  # Heredoc/stdin programs are a documented boundary.
 
         if argument == "--":
-            return (index + 1 < len(arguments)) and (not disabled) and ((isolated) or (not env_enabled))
+            return ((index + 1) < len(arguments)) and (not disabled) and ((isolated) or (not env_enabled))
 
         if argument.startswith("-"):
             if argument in {"-W", "-X"}:
@@ -213,13 +213,13 @@ def shell_findings(source_path, source):
             for (position, prefix_argument) in enumerate(prefix):
                 if prefix_argument in {"-i", "--ignore-environment", "--unset=" + _ENV}:
                     enabled = False
-                elif prefix_argument == "-u" and position + 1 < len(prefix) and prefix[position + 1] == _ENV:
+                elif (prefix_argument == "-u") and ((position + 1) < len(prefix)) and (prefix[position + 1] == _ENV):
                     enabled = False
                 elif prefix_argument.startswith(_ENV + "="):
                     if entrypoint and position > 0 and prefix[position - 1] in {"--env", "-e"}:
-                        enabled = prefix_argument == _ENV + "=1"
+                        enabled = prefix_argument == (_ENV + "=1")
                     elif (not entrypoint) and (position == 0 or prefix[position - 1] != "--env"):
-                        enabled = prefix_argument == _ENV + "=1"
+                        enabled = prefix_argument == (_ENV + "=1")
 
             isolated = _needs_flag(arguments, True)
 

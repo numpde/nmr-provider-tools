@@ -46,7 +46,7 @@ def _parenthesized_not(*, expression: str) -> bool:
             depth -= 1
 
             if depth == 0:
-                return index == len(tokens) - 1
+                return index == (len(tokens) - 1)
 
     return False
 

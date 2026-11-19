@@ -54,7 +54,7 @@ def _escape_offsets(*, source: str, start: int, end: int) -> list[int]:
 
             continue
 
-        if index + 1 < end and source[index + 1] == "n":
+        if ((index + 1) < end) and (source[index + 1] == "n"):
             offsets.append(index)
 
         index += 2
@@ -111,7 +111,7 @@ def _findings(*, source_path: pathlib.Path, source: str) -> list[_Finding]:
 
     for (body_end, escapes) in literals:
         for offset in escapes:
-            if offset + 2 == body_end:
+            if (offset + 2) == body_end:
                 continue
 
             line = source.count("\n", 0, offset) + 1

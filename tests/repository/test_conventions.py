@@ -147,7 +147,7 @@ def unguarded_sources(root):
             str(path.relative_to(root))
             for path in sorted(portable_sources)
             if
-            (path != core_root / "container_guard.py") and
+            (path != (core_root / "container_guard.py")) and
             not has_early_guard(
                 path.read_text(),
                 package_marker=path.name in { "__init__.py", "__init__.py.fixture" },
