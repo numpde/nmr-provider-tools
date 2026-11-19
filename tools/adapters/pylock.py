@@ -1,12 +1,48 @@
-"""Encode the pylock archive records consumed by the delivery downloader."""
+"""Read bootstrap pylock fields and encode delivery archive records."""
 
 from tools.container_guard import require_container
 
 require_container()
 
 import json
-from collections.abc import Iterable
-from typing import TextIO
+from collections.abc import Iterable, Mapping
+from typing import Any, TextIO
+
+
+def packages(document: Mapping[str, Any]) -> list[dict[str, Any]]:
+    """Read package records without choosing how many the caller accepts."""
+
+    return document["packages"]
+
+
+def wheels(package: Mapping[str, Any]) -> list[dict[str, Any]]:
+    """Read wheel records without selecting an artifact."""
+
+    return package["wheels"]
+
+
+def package_name(package: Mapping[str, Any]) -> str:
+    """Read the name for caller-owned package identity admission."""
+
+    return package["name"]
+
+
+def package_version(package: Mapping[str, Any]) -> str:
+    """Read the version for caller-owned release identity admission."""
+
+    return package["version"]
+
+
+def artifact_url(artifact: Mapping[str, Any]) -> str:
+    """Read the location before caller-owned file selection."""
+
+    return artifact["url"]
+
+
+def artifact_sha256(artifact: Mapping[str, Any]) -> str:
+    """Read the expected hash at the caller's admission point."""
+
+    return artifact["hashes"]["sha256"]
 
 
 def write_wheel_archive_lock(

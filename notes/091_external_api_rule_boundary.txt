@@ -1087,6 +1087,15 @@ Separate adjacent tool/package interfaces from service API rules:
       checks and diagnostics remain together. The 56-test shared wheelhouse
       lane passed with ten privacy skips, both isolated bundle tests passed,
       and the actual offline wheelhouse image built with the new module.
+  [x] Production bootstrap pylock field access now lives in the guarded adapter.
+      SDK/bundle callers still unpack exactly one package/wheel. Name/version/
+      pure-wheel policy, file existence/read/digest and late expected-hash access
+      remain in callers. The cold host qualifier retains independent direct
+      field reads; no separate test-only reader is needed. Contained tooling
+      keeps its own guard and existing source capture. No full schema admission
+      or new runtime dependency was introduced. The real SDK cache check returns
+      complete; bundle (6) and conventions (12) pass. Bundle identity errors now
+      show the actual expected relation.
   pip: tools/installer.py:154-201 owns command construction. tools/wheelhouse.py:102-193
   and wheelhouse_tool/report.py:11-65 consume installation-report version 1 and
   download_info/archive_info/hash fields. SDK build helpers and image_manifest.py

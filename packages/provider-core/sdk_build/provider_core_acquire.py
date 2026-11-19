@@ -14,6 +14,7 @@ import urllib.parse
 import urllib.request
 
 from tools.artifacts import require_download_proxy
+from tools.adapters import pylock
 from tools.wheelhouse import digest, pool_lock, publish_file, requirements, select_wheels
 
 
@@ -92,15 +93,15 @@ def tool_present(pool, pin):
 
 
 def bootstrap_present(pool, lock):
-    (package,) = tomllib.loads(lock.read_text())["packages"]
-    (wheel,) = package["wheels"]
-    wheel_path = pool / pathlib.Path(urllib.parse.urlsplit(wheel["url"]).path).name
+    (package,) = pylock.packages(tomllib.loads(lock.read_text()))
+    (wheel,) = pylock.wheels(package)
+    wheel_path = pool / pathlib.Path(urllib.parse.urlsplit(pylock.artifact_url(wheel)).path).name
 
     if (not wheel_path.exists()) and (not wheel_path.is_symlink()):
         return False
 
     wheel_sha256 = digest(wheel_path)
-    bootstrap_sha256 = wheel["hashes"]["sha256"]
+    bootstrap_sha256 = pylock.artifact_sha256(wheel)
 
     if wheel_sha256 != bootstrap_sha256:
         raise ValueError(f"{wheel_path=}, {wheel_sha256=} ≠ {bootstrap_sha256=}")

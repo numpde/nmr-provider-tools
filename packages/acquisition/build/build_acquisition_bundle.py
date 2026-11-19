@@ -10,6 +10,7 @@ import io
 import json
 import os
 import re
+import reprlib
 import pathlib
 from pathlib import PurePosixPath
 import tarfile
@@ -19,6 +20,7 @@ from urllib.parse import urlsplit
 import zipfile
 
 from tools.artifacts import fsync_directory, regular_file
+from tools.adapters import pylock
 from tools.installer import release as installer_release, wheel_bytes
 
 
@@ -91,23 +93,24 @@ def _add(files, member_name, member_bytes):
 
 
 def dependency_files(pool, pin):
-    (package,) = tomllib.loads(pin.read_text())["packages"]
-    (wheel,) = package["wheels"]
+    (package,) = pylock.packages(tomllib.loads(pin.read_text()))
+    (wheel,) = pylock.wheels(package)
 
-    if package["name"] != "linux-idmap":
-        raise ValueError("Cannot build acquisition source bundle: require the qualified linux-idmap pin.")
+    package_name = pylock.package_name(package)
+    expected_package_name = "linux-idmap"
 
-    wheel_name = PurePosixPath(urlsplit(wheel["url"]).path).name
+    if package_name != expected_package_name:
+        raise ValueError(f"{reprlib.repr(package_name)=} should match {expected_package_name=}")
 
-    if wheel_name != f"linux_idmap-{package['version']}-py3-none-any.whl":
-        raise ValueError(
-            "Cannot build acquisition source bundle: the identity dependency "
-            "is not its qualified pure-Python wheel."
-        )
+    wheel_name = PurePosixPath(urlsplit(pylock.artifact_url(wheel)).path).name
+    expected_wheel_name = f"linux_idmap-{pylock.package_version(package)}-py3-none-any.whl"  # machine-string: qualified wheel filename
+
+    if wheel_name != expected_wheel_name:
+        raise ValueError(f"{reprlib.repr(wheel_name)=} should match {reprlib.repr(expected_wheel_name)=}")
 
     wheel_bytes = (pool / wheel_name).read_bytes()
     wheel_sha256 = hashlib.sha256(wheel_bytes).hexdigest()
-    expected_sha256 = wheel["hashes"]["sha256"]
+    expected_sha256 = pylock.artifact_sha256(wheel)
 
     if not (wheel_sha256 == expected_sha256):
         raise ValueError(f"For {wheel_name=}, {wheel_sha256=} should match {expected_sha256=}")
