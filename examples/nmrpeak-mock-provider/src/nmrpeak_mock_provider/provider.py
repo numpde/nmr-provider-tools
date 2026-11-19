@@ -17,6 +17,7 @@ import pathlib
 import tomllib
 
 from provider_core.embedded_host import InProcessExecutionHost
+from provider_core.contribution import CallBinding
 from provider_core.failure_collection import FailureCollector
 from provider_core.hosting import OperationPolicy, settle_cleanup
 from provider_core.interpreter import EndpointFactory, Interpreter
@@ -40,6 +41,10 @@ class Offering:
     operation_policy: OperationPolicy
     hosted_predictor: HostedContribution
     create_interpreter: Callable[[], Interpreter]
+    family: str
+    interpretation_prompt_file: str
+    preparation_call: CallBinding
+    generation_call: CallBinding
 
     @asynccontextmanager
     async def open_prediction(
@@ -63,10 +68,14 @@ class Offering:
 
         with failure_collector.capture():
             analysis_executor = self.execution_host.open_analysis(allocations=frozenset({self.hosted_predictor.allocation}))
+            reservation_ref = analysis_executor.reservation(allocation=self.hosted_predictor.allocation)
 
             prediction_workflow = PredictionWorkflow(
                 analysis_executor=analysis_executor,
-                hosted_predictor=self.hosted_predictor,
+                preparation_call=self.preparation_call,
+                generation_call=self.generation_call,
+                reservation_ref=reservation_ref,
+                interpretation_prompt_file=self.interpretation_prompt_file,
                 interpreter=input_interpreter,
                 operation_policy=self.operation_policy,
                 receive=receive,
@@ -117,16 +126,16 @@ async def open_offerings(
             for resource_requirement in provider_config["execution"]["resource_requirement"]
         )
 
-        predictor_classes = {"hf": Hf, "chf": Chf}
-        offerings = set()
+        predictor_families = {"hf": (Hf, "hf_prompt.txt"), "chf": (Chf, "chf_prompt.txt")}
+        offerings = {}
 
         # Family selects a scientific input shape. Each entry is an independently
         # configured model; several entries can use the same contribution class.
         for (family, offering_configs) in provider_config["science"].items():
-            if not (family in predictor_classes):
+            if not (family in predictor_families):
                 raise ValueError(f"Cannot configure scientific offerings: unsupported {family=}")
 
-            predictor_class = predictor_classes[family]
+            (predictor_class, interpretation_prompt_file) = predictor_families[family]
 
             for offering_config in offering_configs:
                 predictor = predictor_class(
@@ -135,12 +144,14 @@ async def open_offerings(
                     create_model=create_model,
                 )
 
-                offerings.add(
-                    execution_host.adopt(
-                        contribution=predictor,
-                        requirements=resource_requirements,
-                    )
+                hosted_predictor = execution_host.adopt(
+                    contribution=predictor,
+                    requirements=resource_requirements,
                 )
+                preparation_call = hosted_predictor.call(method=predictor_class.prepare)
+                generation_call = hosted_predictor.call(method=predictor_class.generate)
+
+                offerings[hosted_predictor] = (family, interpretation_prompt_file, preparation_call, generation_call)
 
         for offering in offerings:
             try:
@@ -168,6 +179,10 @@ async def open_offerings(
                 operation_policy=operation_policy,
                 hosted_predictor=hosted_predictor,
                 create_interpreter=create_interpreter,
+                family=family,
+                interpretation_prompt_file=interpretation_prompt_file,
+                preparation_call=preparation_call,
+                generation_call=generation_call,
             )
-            for hosted_predictor in offerings
+            for (hosted_predictor, (family, interpretation_prompt_file, preparation_call, generation_call)) in offerings.items()
         )

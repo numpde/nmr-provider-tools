@@ -1,8 +1,8 @@
 """Interpret one source, run scientific validation/generation and retain delivery.
 
 PredictionWorkflow is provider application code. It uses the SDK Interpreter to
-obtain structured input, then submits prepare and generate through an
-InProcessAnalysisExecutor. The SDK runs those methods; the workflow retains
+obtain structured input, then submits the supplied preparation and generation
+bindings through AnalysisExecution. The SDK runs those methods; the workflow retains
 Submission owners and chooses when generation can follow validation.
 It retains one report receiver attempt; provider.py owns the request lifetime.
 """
@@ -10,17 +10,18 @@ It retains one report receiver attempt; provider.py owns the request lifetime.
 from collections.abc import Awaitable, Callable
 from importlib.resources import files
 
-from provider_core.embedded_host import InProcessAnalysisExecutor
+from provider_core.contribution import CallBinding
 
 from provider_core.hosting import (
+    AnalysisExecution,
     OperationPolicy,
     NotAdmitted,
     ResultConsumption,
+    ReservationRef,
 )
 
 from provider_core.interpreter import Interpreter
 from provider_core.preparation_tool import PreparationTool
-from provider_core.scientific import HostedContribution
 from provider_core.submission import Submission
 
 from .binding import PeakContribution
@@ -37,21 +38,24 @@ class PredictionWorkflow:
     def __init__(
         self,
         *,
-        analysis_executor: InProcessAnalysisExecutor,
-        hosted_predictor: HostedContribution,
+        analysis_executor: AnalysisExecution,
+        preparation_call: CallBinding,
+        generation_call: CallBinding,
+        reservation_ref: ReservationRef,
+        interpretation_prompt_file: str,
         interpreter: Interpreter,
         operation_policy: OperationPolicy,
         receive: Callable[[bytes], Awaitable[None]],
     ) -> None:
         self.analysis_executor = analysis_executor
-        self.hosted_predictor = hosted_predictor
+        self.generation_call = generation_call
+        self.reservation_ref = reservation_ref
+        self.interpretation_prompt_file = interpretation_prompt_file
         self.interpreter = interpreter
         self.operation_policy = operation_policy
 
-        reservation_ref = analysis_executor.reservation(allocation=hosted_predictor.allocation)
-
         self.preparation_tool = PreparationTool(
-            call_binding=hosted_predictor.call(method=hosted_predictor.contribution.prepare),
+            call_binding=preparation_call,
             state_output_slot=PeakContribution.validated,
             analysis_executor=analysis_executor,
             reservation_ref=reservation_ref,
@@ -76,7 +80,7 @@ class PredictionWorkflow:
 
         offering_prompt = (
             prompt_files
-            .joinpath(self.hosted_predictor.contribution.interpretation_prompt_file)
+            .joinpath(self.interpretation_prompt_file)
             .read_text(encoding="utf-8")
         )
 
@@ -140,13 +144,11 @@ class PredictionWorkflow:
         generation_submission = self.generation_submission
 
         if generation_submission is None:
-            reservation_ref = self.analysis_executor.reservation(allocation=self.hosted_predictor.allocation)
-
             generation_submission = Submission.from_call(
                 analysis_executor=self.analysis_executor,
-                call_binding=self.hosted_predictor.call(method=self.hosted_predictor.contribution.generate),
+                call_binding=self.generation_call,
                 states={PeakContribution.candidate: prepared_state_handle},
-                reservation_ref=reservation_ref,
+                reservation_ref=self.reservation_ref,
                 operation_policy=self.operation_policy,
             )
 

@@ -10,6 +10,7 @@ from provider_core.container_guard import require_container
 require_container()
 
 import asyncio
+from collections import Counter
 from copy import deepcopy
 from functools import partial
 from importlib import metadata, resources
@@ -98,73 +99,96 @@ class PeakExampleTests(unittest.IsolatedAsyncioTestCase):
         distribution = metadata.distribution(distribution_name="nmrpeak-mock-provider-example")
 
         self.assertEqual(first=package, second=pathlib.Path(distribution.locate_file(path="nmrpeak_mock_provider")))
+        expected_prompts = {
+            "hf": (package / "prompts/hf_prompt.txt").read_text(encoding="utf-8"),
+            "chf": (package / "prompts/chf_prompt.txt").read_text(encoding="utf-8"),
+        }
 
         for beam_size in (1, 2):
             with self.subTest(beam_size=beam_size):
                 self.configure_science(variant="hf", beam_size=beam_size)
                 self.configure_science(variant="chf", beam_size=beam_size)
-                prediction_reports = []
+                configured_science = tomllib.loads(self.configuration.read_text(encoding="utf-8"))["science"]
+                expected_inventory = Counter(
+                    (
+                        family,
+                        configured["settings"]["checkpoint_sha256"],
+                        configured["settings"]["beam_size"],
+                    )
+                    for (family, configurations) in configured_science.items()
+                    for configured in configurations
+                )
+                observed_inventory = Counter()
 
                 async with self.open_offerings() as offerings:
+                    self.assertEqual(first=2, second=len(offerings))
+
                     for hosted in offerings:
-                        self.factory.proposals = (candidate(carbon=isinstance(hosted.hosted_predictor.contribution, Chf)),)
+                        self.factory.proposals = (candidate(carbon=hosted.family == "chf"),)
                         receiver = RecordingReceiver()
 
                         async with hosted.open_prediction(receive=receiver) as prediction_workflow:
                             await prediction_workflow.interpret(source="Recorded NMR source")
 
                             initial_messages = self.factory.endpoints[-1].requests[0]
-                            offering_name = "CHF offering" if isinstance(hosted.hosted_predictor.contribution, Chf) else "HF offering"
 
                             self.assertEqual(first="system", second=initial_messages[0]["role"])
-                            self.assertIn(member=offering_name, container=initial_messages[1]["content"])
+                            self.assertEqual(first=expected_prompts[hosted.family], second=initial_messages[1]["content"])
                             self.assertEqual(first="Recorded NMR source", second=initial_messages[2]["content"])
                             await prediction_workflow.deliver()
                             (payload,) = receiver.payloads
                             prediction_report = json.loads(s=payload)
 
-                            self.assertEqual(
-                                first=hosted.hosted_predictor.contribution.configuration.checkpoint_sha256,
-                                second=prediction_report["checkpoint_sha256"],
-                            )
-
                             observed = await prediction_workflow.generation_submission.operation.observe(after=None, wait_seconds=0)
 
                             self.assertIs(expr1=ResultState.RELEASED, expr2=observed.result_state)
-                            prediction_reports.append(prediction_report)
+                            observed_inventory[
+                                (hosted.family, prediction_report["checkpoint_sha256"], len(prediction_report["generated_smiles"]))
+                            ] += 1
 
-                self.assertEqual(first=2, second=len(prediction_reports))
-                self.assertNotEqual(first=prediction_reports[0]["checkpoint_sha256"], second=prediction_reports[1]["checkpoint_sha256"])
-
-                for prediction_report in prediction_reports:
-                    self.assertEqual(first=beam_size, second=len(prediction_report["generated_smiles"]))
+                self.assertEqual(first=expected_inventory, second=observed_inventory)
 
     async def test_configured_inventory_supports_single_families_and_multiple_models(self):
         original = self.configuration.read_text(encoding="utf-8")
 
-        for families in (("hf",), ("chf",), ("hf", "hf"), ("chf", "chf"), ("hf", "chf", "hf")):
-            with self.subTest(families=families):
+        for configured_models in (
+            (("hf", 1),),
+            (("chf", 1),),
+            (("hf", 1), ("hf", 2)),
+            (("chf", 1), ("chf", 2)),
+            (("hf", 1), ("chf", 1), ("hf", 2)),
+            (("hf", 1), ("hf", 1)),
+        ):
+            with self.subTest(configured_models=configured_models):
                 document = tomllib.loads(original)
-                selected = {family: [] for family in families}
+                selected = {family: [] for (family, _) in configured_models}
 
-                for family in families:
+                for (family, beam_size) in configured_models:
                     # Each model needs independent nested settings before beam_size changes.
                     configured = deepcopy(x=document["science"][family][0])
+                    configured["settings"]["beam_size"] = beam_size
 
-                    family_configurations = selected[family]
-                    configured["settings"]["beam_size"] = len(family_configurations) + 1
-
-                    family_configurations.append(configured)
+                    selected[family].append(configured)
 
                 document["science"] = selected
 
                 self.configuration.write_text(data=tomli_w.dumps(document), encoding="utf-8")
+                expected_inventory = Counter(
+                    (
+                        family,
+                        configured["settings"]["checkpoint_sha256"],
+                        configured["settings"]["beam_size"],
+                    )
+                    for (family, configurations) in selected.items()
+                    for configured in configurations
+                )
+                observed_inventory = Counter()
 
                 async with self.open_offerings() as offerings:
-                    self.assertEqual(first=len(families), second=len(offerings))
+                    self.assertEqual(first=len(configured_models), second=len(offerings))
 
                     for offering in offerings:
-                        self.factory.proposals = (candidate(carbon=isinstance(offering.hosted_predictor.contribution, Chf)),)
+                        self.factory.proposals = (candidate(carbon=offering.family == "chf"),)
                         receiver = RecordingReceiver()
 
                         async with offering.open_prediction(receive=receiver) as prediction_workflow:
@@ -174,10 +198,11 @@ class PeakExampleTests(unittest.IsolatedAsyncioTestCase):
                         (payload,) = receiver.payloads
                         prediction_report = json.loads(s=payload)
 
-                        self.assertEqual(
-                            first=offering.hosted_predictor.contribution.configuration.beam_size,
-                            second=len(prediction_report["generated_smiles"]),
-                        )
+                        observed_inventory[
+                            (offering.family, prediction_report["checkpoint_sha256"], len(prediction_report["generated_smiles"]))
+                        ] += 1
+
+                self.assertEqual(first=expected_inventory, second=observed_inventory)
 
     async def test_deployment_correction_limit_controls_interpretation(self):
         document = tomllib.loads(self.configuration.read_text(encoding="utf-8"))
@@ -188,7 +213,7 @@ class PeakExampleTests(unittest.IsolatedAsyncioTestCase):
         self.factory.proposals = (rejected_proposal, candidate(carbon=False))
 
         async with self.open_offerings() as offerings:
-            (predictor,) = [offering for offering in offerings if isinstance(offering.hosted_predictor.contribution, Hf)]
+            (predictor,) = [offering for offering in offerings if offering.family == "hf"]
 
             async with predictor.open_prediction(receive=RecordingReceiver()) as prediction_workflow:
                 with self.assertRaises(expected_exception=InterpretationFailed):
@@ -247,7 +272,7 @@ class PeakExampleTests(unittest.IsolatedAsyncioTestCase):
 
     async def test_expired_interpretation_window_admits_no_scientific_work(self):
         async with self.open_offerings() as offerings:
-            (proton_formula_predictor,) = [offering for offering in offerings if isinstance(offering.hosted_predictor.contribution, Hf)]
+            (proton_formula_predictor,) = [offering for offering in offerings if offering.family == "hf"]
 
             async with proton_formula_predictor.open_prediction(receive=RecordingReceiver()) as prediction_workflow:
                 with self.assertRaises(expected_exception=ModelWindowExpired) as raised:
@@ -275,7 +300,7 @@ class PeakExampleTests(unittest.IsolatedAsyncioTestCase):
                 return super().tokenize(candidate=candidate)
 
         async with self.open_offerings(create_model=ModelWithPausedTokenization) as offerings:
-            (proton_formula_predictor,) = [offering for offering in offerings if isinstance(offering.hosted_predictor.contribution, Hf)]
+            (proton_formula_predictor,) = [offering for offering in offerings if offering.family == "hf"]
 
             async with proton_formula_predictor.open_prediction(receive=RecordingReceiver()) as prediction_workflow:
                 deadline = asyncio.get_running_loop().time() + 1
@@ -310,7 +335,7 @@ class PeakExampleTests(unittest.IsolatedAsyncioTestCase):
         self.factory.proposals = (candidate(carbon=True), candidate(carbon=False))
 
         async with self.open_offerings() as offerings:
-            (proton_formula_predictor,) = [offering for offering in offerings if isinstance(offering.hosted_predictor.contribution, Hf)]
+            (proton_formula_predictor,) = [offering for offering in offerings if offering.family == "hf"]
 
             async with proton_formula_predictor.open_prediction(receive=RecordingReceiver()) as prediction_workflow:
                 await prediction_workflow.interpret(source="Formula and proton spectrum")
@@ -322,7 +347,7 @@ class PeakExampleTests(unittest.IsolatedAsyncioTestCase):
         original = OSError("The generation submission reply was lost")
 
         async with self.open_offerings() as offerings:
-            (proton_formula_predictor,) = [offering for offering in offerings if isinstance(offering.hosted_predictor.contribution, Hf)]
+            (proton_formula_predictor,) = [offering for offering in offerings if offering.family == "hf"]
             receiver = RecordingReceiver()
 
             async with proton_formula_predictor.open_prediction(receive=receiver) as prediction_workflow:
@@ -357,7 +382,7 @@ class PeakExampleTests(unittest.IsolatedAsyncioTestCase):
         self.factory.proposals = (candidate(carbon=False),)
 
         async with self.open_offerings() as offerings:
-            (proton_formula_predictor,) = [offering for offering in offerings if isinstance(offering.hosted_predictor.contribution, Hf)]
+            (proton_formula_predictor,) = [offering for offering in offerings if offering.family == "hf"]
 
             async with proton_formula_predictor.open_prediction(receive=RecordingReceiver()) as prediction_workflow:
                 await prediction_workflow.interpret(source="Formula and proton spectrum")
@@ -380,11 +405,13 @@ class PeakExampleTests(unittest.IsolatedAsyncioTestCase):
 
     async def test_invalid_generated_candidates_fail_without_reinterpretation(self):
         self.factory.proposals = (candidate(carbon=False),)
+        configured_science = tomllib.loads(self.configuration.read_text(encoding="utf-8"))["science"]
+        (configured,) = configured_science["hf"]
+        settings = configured["settings"]
+        invalid_outputs = ((), ("",), ("C",) * (settings["beam_size"] + 1), ("C" * (settings["maximum_candidate_characters"] + 1),))
 
         async with self.open_offerings() as offerings:
-            (proton_formula_predictor,) = [offering for offering in offerings if isinstance(offering.hosted_predictor.contribution, Hf)]
-            settings = proton_formula_predictor.hosted_predictor.contribution.configuration
-            invalid_outputs = ((), ("",), ("C",) * (settings.beam_size + 1), ("C" * (settings.maximum_candidate_characters + 1),))
+            (proton_formula_predictor,) = [offering for offering in offerings if offering.family == "hf"]
 
             for output in invalid_outputs:
                 with self.subTest(output=output):
@@ -535,7 +562,7 @@ class PeakExampleTests(unittest.IsolatedAsyncioTestCase):
         receiver = RecordingReceiver()
 
         async with self.open_offerings() as offerings:
-            (proton_formula_predictor,) = [offering for offering in offerings if isinstance(offering.hosted_predictor.contribution, Hf)]
+            (proton_formula_predictor,) = [offering for offering in offerings if offering.family == "hf"]
 
             async with proton_formula_predictor.open_prediction(receive=receiver) as prediction_workflow:
                 await prediction_workflow.interpret(source="Formula and proton spectrum")
@@ -560,7 +587,7 @@ class PeakExampleTests(unittest.IsolatedAsyncioTestCase):
             raise original
 
         async with self.open_offerings() as offerings:
-            (proton_formula_predictor,) = [offering for offering in offerings if isinstance(offering.hosted_predictor.contribution, Hf)]
+            (proton_formula_predictor,) = [offering for offering in offerings if offering.family == "hf"]
 
             with self.assertRaises(expected_exception=OSError) as exit_failure:
                 async with proton_formula_predictor.open_prediction(receive=receive) as prediction_workflow:
@@ -597,7 +624,7 @@ class PeakExampleTests(unittest.IsolatedAsyncioTestCase):
             self.assertFalse(expr=requests[0].analysis_executor.closed)
 
         async with self.open_offerings() as offerings:
-            (proton_formula_predictor,) = [offering for offering in offerings if isinstance(offering.hosted_predictor.contribution, Hf)]
+            (proton_formula_predictor,) = [offering for offering in offerings if offering.family == "hf"]
 
             async def run_request():
                 async with proton_formula_predictor.open_prediction(receive=receive) as prediction_workflow:
@@ -651,7 +678,7 @@ class PeakExampleTests(unittest.IsolatedAsyncioTestCase):
             return model
 
         async with self.open_offerings(create_model=create_model) as offerings:
-            (proton_formula_predictor,) = [offering for offering in offerings if isinstance(offering.hosted_predictor.contribution, Hf)]
+            (proton_formula_predictor,) = [offering for offering in offerings if offering.family == "hf"]
 
             for _ in range(2):
                 receiver = RecordingReceiver()
@@ -674,7 +701,7 @@ class PeakExampleTests(unittest.IsolatedAsyncioTestCase):
         receiver = RecordingReceiver()
 
         async with self.open_offerings() as offerings:
-            (proton_formula_predictor,) = [offering for offering in offerings if isinstance(offering.hosted_predictor.contribution, Hf)]
+            (proton_formula_predictor,) = [offering for offering in offerings if offering.family == "hf"]
 
             async with proton_formula_predictor.open_prediction(receive=receiver) as original:
                 with self.assertRaises(expected_exception=CapacityUnavailable):

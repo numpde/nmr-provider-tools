@@ -80,8 +80,6 @@ class PeakContribution(sdk.Contribution):
 class Hf(PeakContribution):
     """Prepare a formula and proton peaks for generation."""
 
-    interpretation_prompt_file = "hf_prompt.txt"
-
     @sdk.operation(state_outputs=(PeakContribution.validated,))
     def prepare(self, *, candidate: science.HfInput) -> sdk.ScientificReturn[science.PreparationReport]:
         return self.prepare_input(candidate=candidate)
@@ -89,8 +87,6 @@ class Hf(PeakContribution):
 
 class Chf(PeakContribution):
     """Prepare a formula and proton and carbon peaks for generation."""
-
-    interpretation_prompt_file = "chf_prompt.txt"
 
     @sdk.operation(state_outputs=(PeakContribution.validated,))
     def prepare(self, *, candidate: science.ChfInput) -> sdk.ScientificReturn[science.PreparationReport]:
