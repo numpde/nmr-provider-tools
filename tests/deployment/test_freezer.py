@@ -70,7 +70,7 @@ class InstalledDeploymentTests(unittest.TestCase):
         self.assertEqual(["CHOWN"], initializer["cap_add"])
         self.assertEqual(2, len(initializer["volumes"]))
         self.assertNotIn("--control", initializer["command"])
-        self.assertTrue(all("-control-" not in name for name in plan["volumes"]))
+        self.assertTrue(all(("-control-" not in name) for name in plan["volumes"]))
         proxy = next(service for (name, service) in plan["services"].items() if (name.startswith("api-")) and (not name.startswith("api-init-")))
 
         self.assertEqual("host", proxy["network_mode"])
@@ -84,7 +84,7 @@ class InstalledDeploymentTests(unittest.TestCase):
         self.assertEqual("0:0", route_initializer["user"])
         self.assertEqual(["CHOWN"], route_initializer["cap_add"])
         self.assertEqual(["/route"], [mount["target"] for mount in route_initializer["volumes"]])
-        self.assertTrue(all(mount["type"] == "volume" for mount in initializer["volumes"]))
+        self.assertTrue(all((mount["type"] == "volume") for mount in initializer["volumes"]))
         inputs = [mount for mount in daemon["volumes"] if mount["type"] == "bind"]
 
         self.assertEqual({str(self.binding_file), "/synthetic/signing.json"}, {mount["source"] for mount in inputs})
@@ -109,7 +109,7 @@ class InstalledDeploymentTests(unittest.TestCase):
         plan = self.render(raw)
         mounts = plan["services"]["delivery"]["volumes"]
 
-        self.assertEqual(1, sum(mount["source"] == "/synthetic/shared-ca.pem" for mount in mounts))
+        self.assertEqual(1, sum((mount["source"] == "/synthetic/shared-ca.pem") for mount in mounts))
         self.assertEqual(len(mounts), len({mount["target"] for mount in mounts}))
 
     def test_local_network_uses_immutable_identity_and_external_resolver_only_reaches_proxy(self):
@@ -134,7 +134,7 @@ class InstalledDeploymentTests(unittest.TestCase):
                     self.assertEqual([{"external": True, "name": "b" * 64}], list(plan["networks"].values()))
                 else:
                     self.assertIn("/etc/resolv.conf", [mount["target"] for mount in proxy["volumes"]])
-                    self.assertTrue(all(mount["source"] != "/synthetic/resolver" for mount in plan["services"]["delivery"]["volumes"]))
+                    self.assertTrue(all((mount["source"] != "/synthetic/resolver") for mount in plan["services"]["delivery"]["volumes"]))
 
     def test_initializer_preserves_correct_nonempty_queue_and_ipc_roots(self):
         (queue, ipc) = (self.root / "queue", self.root / "ipc")

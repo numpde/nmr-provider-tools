@@ -103,7 +103,7 @@ def check_routes():
 
     if any(
         (
-            (len(parts) >= 8) and (parts[1] == "00000000") and (parts[7] == "00000000")
+            ((len(parts) >= 8) and (parts[1] == "00000000") and (parts[7] == "00000000"))
             for parts in (row.split() for row in routes)
         ),
     ):

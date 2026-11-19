@@ -155,7 +155,7 @@ class WheelhouseTests(unittest.TestCase):
         failed_requests = [path for path in self.requests if path != f"/{self.name}"]
 
         self.assertTrue(failed_requests)
-        self.assertTrue(all(path == f"/{second_name}" for path in failed_requests))
+        self.assertTrue(all((path == f"/{second_name}") for path in failed_requests))
 
         (self.root / second_name).write_bytes(second_content)
         self.requests.clear()
@@ -995,7 +995,7 @@ class WheelhouseTests(unittest.TestCase):
         self.lock.write_text(
             '--index-url https://example.invalid/simple\n'
             'example==1.0 \\\n' +
-            ''.join('    --hash=sha256:' + digest + ' \\\n' for digest in hashes.values())
+            ''.join(('    --hash=sha256:' + digest + ' \\\n') for digest in hashes.values())
         )
 
         direct = 'https://example.invalid/example-1.0%2Blocal-py3-none-any.whl#sha256=' + hashes['example-1.0+local-py3-none-any.whl']

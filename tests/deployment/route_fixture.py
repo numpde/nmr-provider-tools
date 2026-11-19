@@ -223,7 +223,7 @@ def shared_group_socket(mode, path, owner_uid, access_gid):
     if not socket_mount_options:
         raise AssertionError(f"{socket_mount_path=} should have a mount entry")
 
-    if not any("ro" in options for options in socket_mount_options):
+    if not any(("ro" in options) for options in socket_mount_options):
         raise AssertionError(f"One of {socket_mount_options=} for {socket_mount_path=} should contain 'ro'")
 
     deadline = time.monotonic() + 10
