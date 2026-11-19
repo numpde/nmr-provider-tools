@@ -10,7 +10,7 @@ import sys
 import tempfile
 import unittest
 
-from operations.docker.image_retirement import RetirementRefused, retire, select_images, retained_image_ids
+from operations.docker.image_retirement import RetirementRefused, capture_command_output, retire, select_images, retained_image_ids
 
 
 CURRENT = ("a" * 64, "b" * 64, "f" * 64)
@@ -77,6 +77,20 @@ class Engine:
 
 
 class ImageRetirementTests(unittest.TestCase):
+    def test_failed_client_preserves_its_stderr(self):
+        with self.assertRaises(RetirementRefused) as caught:
+            capture_command_output(
+                [
+                    sys.executable,  # Use the checker's installed interpreter
+                    "-I",  # Ignore ambient Python configuration
+                    "-B",  # Keep the checkout free of bytecode caches
+                    "-c",  # Run one failing client without selecting an engine
+                    "raise SystemExit('authored image inspection failure')",  # Produce the native client's diagnostic
+                ],
+            )
+
+        self.assertIn("authored image inspection failure", str(caught.exception))
+
     def test_isolated_cli_can_refuse_before_selecting_an_engine(self):
         script = pathlib.Path(__file__).resolve().parents[2] / "operations/docker/image_retirement.py"
 

@@ -58,12 +58,17 @@ def capture_command_output(arguments):
                     (2097152, 2097152),
                 ),
             )
-        except (OSError, subprocess.TimeoutExpired):
-            raise RetirementRefused("An image inspection/removal client did not complete; retain remaining images.") from None
+        except (OSError, subprocess.TimeoutExpired) as cause:
+            raise RetirementRefused(
+                f"Image inspection/removal client did not complete: {cause=!s}; retain remaining images",
+            ) from cause
 
         if command_result.returncode:
+            error.seek(0)
+            client_stderr = error.read(4096).decode("utf-8", errors="replace")
+
             raise RetirementRefused(
-                f"An image inspection/removal command failed (status {command_result.returncode}); "
+                f"Image inspection/removal failed with {command_result.returncode=}: {client_stderr=}; "
                 f"retain remaining images."
             )
 
@@ -152,9 +157,9 @@ def select_images(images, protected, current):
         if any(
             (
                 (tag in {
-                    f"nmr-provider-tools/checker:{current_checker}",
-                    f"nmr-provider-tools/checker-bootstrap:{current_bootstrap}",
-                    f"nmr-provider-tools/delivery-recipe:{current_recipe}",
+                    f"nmr-provider-tools/checker:{current_checker}",  # machine-string: Docker image protection compares these exact repository tags
+                    f"nmr-provider-tools/checker-bootstrap:{current_bootstrap}",  # machine-string: Docker image protection compares this exact bootstrap tag
+                    f"nmr-provider-tools/delivery-recipe:{current_recipe}",  # machine-string: Docker image protection compares this exact delivery recipe tag
                     "nmr-provider-tools/wheelhouse-tool:local",
                 })
                 for tag in image_tags
@@ -184,8 +189,8 @@ def select_images(images, protected, current):
                 continue
 
             allowed_tags = {
-                f"nmr-provider-tools/delivery:{recorded_inputs}",
-                f"nmr-provider-tools/delivery-recipe:{recorded_recipe}",
+                f"nmr-provider-tools/delivery:{recorded_inputs}",  # machine-string: Image retirement allows only these exact Docker tags for this recorded owner
+                f"nmr-provider-tools/delivery-recipe:{recorded_recipe}",  # machine-string: Image retirement compares the recorded recipe's exact Docker tag
             }
         elif role == "wheelhouse-tool":
             allowed_tags = {"nmr-provider-tools/wheelhouse-tool:local"}
@@ -193,12 +198,16 @@ def select_images(images, protected, current):
             if recorded_inputs == current_bootstrap:
                 continue
 
-            allowed_tags = {f"nmr-provider-tools/checker-bootstrap:{recorded_inputs}"}
+            allowed_tags = {
+                f"nmr-provider-tools/checker-bootstrap:{recorded_inputs}",  # machine-string: Image retirement compares the recorded bootstrap's exact Docker tag
+            }
         elif (role in (None, "checker")) and (type(recorded_inputs) is str) and _HASH.fullmatch(recorded_inputs):
             if recorded_inputs == current_checker:
                 continue
 
-            allowed_tags = {f"nmr-provider-tools/checker:{recorded_inputs}"}
+            allowed_tags = {
+                f"nmr-provider-tools/checker:{recorded_inputs}",  # machine-string: Image retirement compares the recorded checker's exact Docker tag
+            }
         else:
             continue
 
@@ -314,7 +323,7 @@ def main():
         if staged:
             staged_images = (staged,)
 
-        retired_count = retire(
+        retired_image_count = retire(
             pathlib.Path(root),
             lambda *arguments: capture_command_output([*engine, *arguments]),
             lambda: current_inputs(pathlib.Path(root)),
@@ -322,7 +331,7 @@ def main():
         )
 
         print(
-            f"Retired {retired_count} obsolete project images; current selections, "
+            f"{retired_image_count=}; current selections, "
             f"aliases and container references remain protected."
         )
 
@@ -330,7 +339,7 @@ def main():
     # silent-defaults: allow-exception-outcome -- An explicit image-retirement refusal is reported and terminates the CLI with nonzero status.
     except RetirementRefused as failure:
         print(
-            f"Cannot complete image retirement: {failure} Earlier removals are not rolled back.",
+            f"Cannot complete image retirement: {failure=!s}. Earlier removals are not rolled back.",
             file=sys.stderr,
         )
 

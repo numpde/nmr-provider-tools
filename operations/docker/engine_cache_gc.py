@@ -116,7 +116,7 @@ def unit_files(root, context, endpoint, config):
         f"Unit={name}.service\n"
         f"\n"
         f"[Install]\n"
-        f"WantedBy=timers.target\n"
+        f"WantedBy=timers.target\n"  # machine-string: systemd parses this timer unit, including its Unit= service reference
     )
 
     return (name, service, timer)
@@ -179,12 +179,14 @@ def install(root, context, endpoint, daemon_config_path):
         unit_directory = pathlib.Path(configuration_directory) / "systemd/user"
 
         unit_directory.mkdir(parents=True, exist_ok=True)
+        timer_unit = f"{unit_name}.timer"  # machine-string: systemctl selects the installed timer by its exact unit filename
+
         (unit_directory / (unit_name + ".service")).write_text(service_document)
-        (unit_directory / (unit_name + ".timer")).write_text(timer_document)
+        (unit_directory / timer_unit).write_text(timer_document)
         subprocess.run(["systemctl", "--user", "daemon-reload"], check=True, timeout=30)
 
         subprocess.run(
-            ["systemctl", "--user", "enable", "--now", unit_name + ".timer"],
+            ["systemctl", "--user", "enable", "--now", timer_unit],
             check=True,
             timeout=30,
         )
@@ -196,7 +198,7 @@ def install(root, context, endpoint, daemon_config_path):
         ) from None
 
     print(
-        f"Installed {unit_name}.timer. The timer reads native GC thresholds each run. "
+        f"Installed {timer_unit=}. Native GC thresholds are read each run. "
         f"Native daemon policy applies at its next planned restart; no engine was restarted."
     )
 
@@ -221,7 +223,7 @@ def main():
         return 0
     # silent-defaults: allow-exception-outcome -- Failed installation exits with failure; proof=tests/repository/test_checker_cache_gc.py::EngineCacheGCTests.test_timer_failure_reports_saved_native_policy
     except (TypeError, ValueError, RuntimeError) as failure:
-        print(f"Cannot configure/run engine cache GC: {failure}", file=sys.stderr)
+        print(f"Cannot configure/run engine cache GC: {failure=!s}", file=sys.stderr)
 
         return 2
     # silent-defaults: allow-exception-outcome -- Host command/config failure exits unsuccessfully; proof=tests/repository/test_checker_cache_gc.py::EngineCacheGCTests.test_invalid_dockerd_candidate_never_replaces_native_json_or_installs_timer
