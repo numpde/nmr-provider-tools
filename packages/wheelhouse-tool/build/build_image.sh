@@ -22,7 +22,9 @@ case "$action" in
         sources=(packages/wheelhouse-tool/build/Dockerfile requirements/wheelhouse-tool.lock requirements/wheelhouse-tool-release.json
             tools/installer.py tools/container_guard.py requirements/installer-release.json
             packages/type-requirements/src/type_requirements.py)
-        for path in "$root"/packages/wheelhouse-tool/src/wheelhouse_tool/*.py; do sources+=("${path#"$root"/}"); done
+        while IFS= read -r -d '' path; do
+            sources+=("${path#"$root"/}")
+        done < <(find "$root/packages/wheelhouse-tool/src/wheelhouse_tool" -type f -name '*.py' -print0 | sort -z)
         tool_pin=$(python3 -I -S -B "$root/host/tools/build_stream_inputs.py" "$root" \
             "$operation_directory/source-allowlist.json" "${sources[@]}")
         read -r tool_name tool_hash <<< "$tool_pin"

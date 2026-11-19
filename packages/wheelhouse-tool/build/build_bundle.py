@@ -14,17 +14,10 @@ import pathlib
 
 from tools.wheelhouse import requirements
 
-# Bundle construction and release provenance describe the same authored modules.
-# repo-check: allow-module-constant
-SOURCE_MODULES = (
-    "__init__.py",
-    "__main__.py",
-    "stream.py",
-    "report.py",
-    "identity.py",
-    "locate.py",
-    "network.py",
-)
+def source_modules(source: pathlib.Path) -> list[str]:
+    """Discover authored Python modules for both bundle bytes and provenance."""
+
+    return sorted(path.relative_to(source).as_posix() for path in source.rglob("*.py") if path.is_file())
 
 def dependency_files(pool, lock):
     files = {}
@@ -72,7 +65,7 @@ def build(pool, output, source, lock, *, type_requirements_source):
         b"raise SystemExit(main())\n"
     )
 
-    for name in SOURCE_MODULES:
+    for name in source_modules(source / "wheelhouse_tool"):
         bundle_members[f"wheelhouse_tool/{name}"] = (source / "wheelhouse_tool" / name).read_bytes()
 
     bundle_members["type_requirements.py"] = type_requirements_source.read_bytes()

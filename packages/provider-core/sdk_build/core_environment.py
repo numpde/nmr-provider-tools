@@ -366,9 +366,9 @@ def source_file_identity(source_file):
 
 
 def wheelhouse_source_inventory(source, *, type_requirements_source):
-    from build_bundle import SOURCE_MODULES
+    from build_bundle import source_modules
 
-    inventory = {name: source_file_identity(source / name) for name in SOURCE_MODULES}
+    inventory = {name: source_file_identity(source / name) for name in source_modules(source)}
     inventory["type_requirements.py"] = source_file_identity(type_requirements_source)
 
     return inventory

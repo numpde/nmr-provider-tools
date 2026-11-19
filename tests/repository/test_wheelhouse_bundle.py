@@ -54,6 +54,13 @@ class WheelhouseBundleTests(unittest.TestCase):
             for name in ("__init__.py", "__main__.py", "stream.py", "report.py", "identity.py", "locate.py", "network.py"):
                 (root / "wheelhouse_tool" / name).write_text(f"# source: {name}\n")
 
+            nested = root / "wheelhouse_tool" / "new_package"
+
+            nested.mkdir()
+
+            (nested / "__init__.py").write_text('"""An ordinary package addition."""\n')
+            (nested / "ordinary.py").write_text("ADDED = 42\n")
+
             wheel = root / "example-1.0-py3-none-any.whl"
 
             with zipfile.ZipFile(wheel, "w") as archive:
@@ -88,6 +95,7 @@ class WheelhouseBundleTests(unittest.TestCase):
 
             self.assertEqual(set(inventory), set(payload))
             self.assertEqual(type_requirements_source.read_bytes(), payload["type_requirements.py"])
+            self.assertEqual(b"ADDED = 42\n", payload["new_package/ordinary.py"])
 
             subprocess.run(
                 [
@@ -97,7 +105,8 @@ class WheelhouseBundleTests(unittest.TestCase):
                     "-B",
                     "-c",
                     "import sys; sys.path.insert(0, sys.argv[1]); "
-                    "from type_requirements import require_type; require_type(1, int)",
+                    "from type_requirements import require_type; require_type(1, int); "
+                    "from wheelhouse_tool.new_package.ordinary import ADDED; assert ADDED == 42",
                     str(first),
                 ],
                 check=True,

@@ -6,4 +6,5 @@
 !packages/wheelhouse-tool/
 !packages/wheelhouse-tool/src/
 !packages/wheelhouse-tool/src/wheelhouse_tool/
-!packages/wheelhouse-tool/src/wheelhouse_tool/*.py
+# The maintained stream supplies the discovered Python modules
+!packages/wheelhouse-tool/src/wheelhouse_tool/**

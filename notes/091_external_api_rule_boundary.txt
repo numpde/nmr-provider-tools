@@ -865,6 +865,14 @@ Other service and artifact interfaces in repository tooling
     this is an existing consumed profile, not a pinned full schema or new checks.
     Wheelhouse's distinct Simple JSON profile remains to be separated; its
     authority is https://packaging.python.org/en/latest/specifications/simple-repository-api/.
+    Its packaging now discovers Python modules recursively for both zipapp bytes
+    and source provenance instead of maintaining a flat seven-file inventory.
+    The image source allowlist is recursive and its Docker context permits the
+    package hierarchy. An ordinary nested module is included and imports from
+    an isolated built zipapp without a second inventory edit. Both focused
+    wheelhouse-bundle tests passed with PRIVACY_TESTS=0; image shell syntax and
+    independent source-closure audit passed. The Simple JSON code itself is
+    still pending; this closes its subpackage packaging prerequisite.
 
 [ ] P2  Separate GitHub service/CLI meanings from release and update ownership
     operations/release/publish.sh:214-245
