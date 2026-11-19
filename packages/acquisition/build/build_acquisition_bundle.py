@@ -191,7 +191,7 @@ def contents(pool, source, core_wheel, pin, *, revision, wheelhouse_bundle):
                 ),
             )
 
-        if proxy_needs_helpers or any("provider_core/" + leaf in member_names for leaf in helper_files):
+        if proxy_needs_helpers or any(("provider_core/" + leaf) in member_names for leaf in helper_files):
             proxy_files.extend(helper_files)
 
         for leaf in proxy_files:

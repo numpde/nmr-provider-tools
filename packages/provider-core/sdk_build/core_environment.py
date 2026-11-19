@@ -303,7 +303,7 @@ def behavioral_install_lock(runtime_lock, test_lock, destination):
         runtime_lock.read_text().rstrip() + "\n" + test_lock.read_text().strip() + "\n"
     )
 
-    if requirements(destination) != runtime_requirements | test_requirements:
+    if requirements(destination) != (runtime_requirements | test_requirements):
         raise ValueError(
             "Cannot install provider-core behavioral tests: merged wheel lock "
             "differs from its inputs"

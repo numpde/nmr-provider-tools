@@ -120,7 +120,7 @@ def qualify_wheelhouse_bundle(bundle, scratch):
     projected_artifact = tomllib.loads(projected_lock.read_text())["packages"][0]["wheels"][0]
     projected_hashes = projected_artifact.get("hashes")
 
-    if projected_artifact.get("path") != "/wheels/" + packaging_wheel_name or "url" in projected_artifact:
+    if (projected_artifact.get("path") != ("/wheels/" + packaging_wheel_name)) or ("url" in projected_artifact):
         raise ValueError("Cannot qualify wheelhouse bundle: projected artifact differs from the selected lock.")
 
     require_type(projected_hashes, dict)
@@ -490,7 +490,7 @@ def source_payload(source, inventory):
         if path.is_file()
     }
 
-    if observed_files != set(inventory) | generated_metadata_files:
+    if observed_files != (set(inventory) | generated_metadata_files):
         raise ValueError(
             "Cannot qualify package: source distribution has missing "
             "or unrecorded authored files."
@@ -722,9 +722,9 @@ def check(artifacts, revision):
 
         runtime_install_lock = artifacts / (artifact_prefix + "-install.lock")
 
-        if requirements(runtime_install_lock) != requirements(pathlib.Path("/core-runtime.lock")) | {
+        if requirements(runtime_install_lock) != (requirements(pathlib.Path("/core-runtime.lock")) | {
             ("provider-core", release_version): {digest(captured_wheels[0])}
-        }:
+        }):
             raise ValueError(
                 "Cannot qualify package: issued install lock differs from "
                 "the closed runtime dependencies and wheel."
