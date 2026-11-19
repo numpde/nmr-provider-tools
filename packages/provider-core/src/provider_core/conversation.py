@@ -528,9 +528,7 @@ class ToolConversation:
         self.correction_failures.append((self._turns, rejection))
 
         if (self._max_corrections is not None) and (self._corrections >= self._max_corrections):
-            raise ConversationFailed(
-                f"Cannot interpret the request: the {self._max_corrections = } correction budget was exhausted."
-            )
+            raise ConversationFailed(f"Cannot interpret the request: the {self._max_corrections = } correction budget was exhausted.")
 
         content = reason
 

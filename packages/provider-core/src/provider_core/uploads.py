@@ -918,9 +918,7 @@ class JobUploads:
             available = self._limits.requests - self._requests
 
             if available < minimum_requests:
-                raise UploadFailed(
-                    f"The next source attempt requires {minimum_requests = } requests, but only {available = } remain."
-                )
+                raise UploadFailed(f"The next source attempt requires {minimum_requests = } requests, but only {available = } remain.")
         except UploadFailed as budget:
             raise self._recovery_exhausted("source recovery exhausted its original budgets: " + budget.reason, failure) from None
 
