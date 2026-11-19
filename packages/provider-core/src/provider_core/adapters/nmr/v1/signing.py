@@ -17,6 +17,7 @@ from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
 from http_sf import ser
 
 from provider_core.validation.upstream.nmr.v1.signing import (
+    SIGNATURE_LIFETIME_SECONDS,
     https_origin,
     require_credential_ref,
     require_signature_inputs,
@@ -69,7 +70,7 @@ def signed_request(identity, *, method, path, query, body, created, nonce):
         [(name, {}) for name in values],
         {
             "created": created,
-            "expires": created + 300,
+            "expires": created + SIGNATURE_LIFETIME_SECONDS,
             "nonce": urlsafe_b64encode(nonce).rstrip(b"=").decode("ascii"),
             "keyid": identity.credential_ref,
             "tag": "nmr-api-v1",

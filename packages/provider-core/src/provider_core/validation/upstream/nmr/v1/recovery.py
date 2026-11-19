@@ -18,6 +18,37 @@ require_container()
 API_RECOVERY_STATUS = 500
 
 
+def encode_request_route(route: tuple[str, str]) -> tuple[str, bytes]:
+    """Represent an expected method and path for comparison with a sent target."""
+
+    method, path = route
+
+    return (method, path.encode("ascii"))
+
+
+def matches_request_route(
+    request_method: str | None,
+    request_target: bytes | None,
+    expected_route: tuple[str, str],
+    *,
+    allow_query: bool = False,
+) -> bool:
+    """Match a retained request, optionally comparing only its path bytes."""
+
+    if request_method != expected_route[0]:
+        return False
+
+    if allow_query:
+        if request_target is None:
+            return False
+
+        request_target = request_target.partition(b"?")[0]
+
+    _, expected_path = encode_request_route(expected_route)
+
+    return request_target == expected_path
+
+
 def _no_domain_change(status: int | None, problem_code: str | None) -> bool:
     return (
         (problem_code is not None) and

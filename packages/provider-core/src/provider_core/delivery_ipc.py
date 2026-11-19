@@ -19,13 +19,10 @@ from contextlib import ExitStack, contextmanager
 import h11
 
 from provider_core.attempt_record import TerminalOperation
+from provider_core.validation.upstream.nmr.v1.attempt_request import MAX_COMPLETE_REQUEST_BYTES
 from provider_core.validation.upstream.nmr.v1.attempt_response import require_attempt_ref
 from provider_core.delivery_client import DeliveryUnavailable
 from provider_core.delivery_store import DeliveryConflict, DeliveryFull, DeliveryInventoryUnavailable, DeliveryOutcome, DeliveryStorageFailed
-
-# The existing terminal request codec owns this complete-body wire ceiling.
-# repo-check: allow-module-constant
-MAX_REQUEST_BYTES = 2097152  # Existing read_complete_body wire ceiling; fail remains parser-bounded to 16 KiB.
 
 # Bound IPC HTTP framing before body admission.
 # repo-check: allow-module-constant
@@ -135,7 +132,7 @@ def _socket_grant(path, socket_group_id):
 class DeliveryInbox:
     """Own listeners, client handlers and original offloaded SQLite operations."""
 
-    max_request_bytes = MAX_REQUEST_BYTES
+    max_request_bytes = MAX_COMPLETE_REQUEST_BYTES
 
     def __init__(self, queue, endpoints, *, request_seconds, on_accepted, on_failure, binding_status):
         (self.queue, self.endpoints) = (queue, endpoints)

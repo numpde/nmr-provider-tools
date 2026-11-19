@@ -64,7 +64,9 @@ from provider_core.validation.upstream.nmr.v1.recovery import (
     API_RECOVERY_STATUS,
     access_refused,
     attempt_change_refused,
+    encode_request_route,
     issuance_refused,
+    matches_request_route,
     read_grant_not_finalized,
     signature_refresh_allowed,
 )
@@ -162,9 +164,9 @@ class ProviderAPI:
         ):
             return False
 
-        request_method, request_path = read_grant_route(job_ref, upload_ref)
+        route = read_grant_route(job_ref, upload_ref)
 
-        if (failure.request_method != request_method) or (failure.request_target != request_path.encode("ascii")):
+        if not matches_request_route(failure.request_method, failure.request_target, route):
             return False
 
         return (
@@ -189,12 +191,13 @@ class ProviderAPI:
         ):
             return False
 
-        request_method, request_path = jobs_route()
+        route = jobs_route()
 
-        if (
-            (failure.request_method != request_method) or
-            (failure.request_target is None) or
-            (failure.request_target.partition(b"?")[0] != request_path.encode("ascii"))
+        if not matches_request_route(
+            failure.request_method,
+            failure.request_target,
+            route,
+            allow_query=True,
         ):
             return False
 
@@ -219,9 +222,9 @@ class ProviderAPI:
         ):
             return False
 
-        request_method, request_path = hello_route()
+        route = hello_route()
 
-        return (failure.request_method == request_method) and (failure.request_target == request_path.encode("ascii"))
+        return matches_request_route(failure.request_method, failure.request_target, route)
 
     def can_refresh_signature(self, failure):
         """Admit a settled no-effect request refusal for existing retry owners.
@@ -262,9 +265,9 @@ class ProviderAPI:
         if not self._recoverable_attempt_failure(failure):
             return False
 
-        request_method, request_path = start_route()
+        route = start_route()
 
-        return (failure.request_method == request_method) and (failure.request_target == request_path.encode("ascii"))
+        return matches_request_route(failure.request_method, failure.request_target, route)
 
     def can_defer_phase_progress(self, failure, *, execution_attempt_ref):
         """Admit settled send evidence for consumer-owned phase continuation.
@@ -297,9 +300,9 @@ class ProviderAPI:
         if not self._recoverable_attempt_failure(failure):
             return False
 
-        request_method, request_path = progress_route(execution_attempt_ref)
+        route = progress_route(execution_attempt_ref)
 
-        return (failure.request_method == request_method) and (failure.request_target == request_path.encode("ascii"))
+        return matches_request_route(failure.request_method, failure.request_target, route)
 
     def can_replay_terminal(self, failure):
         """Permit exact durable COMPLETE/FAIL replay after settled send uncertainty.
@@ -319,12 +322,12 @@ class ProviderAPI:
         if (type(failure) is not ApiFailure) or (failure is not self.last_failure) or (not self.retirement_confirmed):
             return False
 
-        complete_method, complete_path = complete_route()
-        fail_method, fail_path = fail_route()
+        completion = complete_route()
+        failure_publication = fail_route()
 
         if (failure.request_method, failure.request_target) not in (
-            (complete_method, complete_path.encode("ascii")),
-            (fail_method, fail_path.encode("ascii")),
+            encode_request_route(completion),
+            encode_request_route(failure_publication),
         ):
             return False
 

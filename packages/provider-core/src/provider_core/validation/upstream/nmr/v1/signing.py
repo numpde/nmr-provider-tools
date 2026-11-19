@@ -17,6 +17,11 @@ from urllib.parse import urlsplit
 from provider_core.type_requirements import require_type
 
 
+# The selected signature profile's expiry offset from creation
+# repo-check: allow-module-constant
+SIGNATURE_LIFETIME_SECONDS = 300
+
+
 def https_origin(value):
     """Admit one HTTPS origin; never reinterpret credentials or a URL path."""
 
@@ -115,8 +120,15 @@ def require_signature_inputs(*, body, created, nonce):
 
     require_type(created, int)
 
-    if not (0 <= created <= 999999999999699):
-        raise ValueError("Cannot sign request: timestamp and 300-second expiry must fit structured-field integers")
+    if not (0 <= created):
+        raise ValueError(f"{created=} should be nonnegative")
+
+    max_structured_field_integer = 999999999999999
+
+    if not (created <= max_structured_field_integer - SIGNATURE_LIFETIME_SECONDS):
+        expires = created + SIGNATURE_LIFETIME_SECONDS
+
+        raise ValueError(f"{expires=} should be at most {max_structured_field_integer=}")
 
     require_type(nonce, bytes)
 

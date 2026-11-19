@@ -20,6 +20,11 @@ from provider_core.validation.upstream.nmr.v1.upload_response import require_job
 from provider_core.type_requirements import require_type
 
 
+# The retained COMPLETE request body ceiling also bounds delivery IPC intake
+# repo-check: allow-module-constant
+MAX_COMPLETE_REQUEST_BYTES = 2097152
+
+
 def require_provider_attempt_key(provider_attempt_key):
     require_type(provider_attempt_key, str)
 
@@ -197,7 +202,7 @@ def read_complete_body(body, *, execution_attempt_ref):
     completion_request = _outcome_document(
         body,
         "complete",
-        2097152,
+        MAX_COMPLETE_REQUEST_BYTES,
         execution_attempt_ref,
         ("result_schema_id", "canonical_result_base64")
     )

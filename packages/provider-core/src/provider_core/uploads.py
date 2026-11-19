@@ -30,6 +30,7 @@ from provider_core.task_boundary import contain_task_exit
 from provider_core.transport import ExchangeFailed, temporary_io_failure
 from provider_core.response_json import ResponseRejected
 from provider_core.tools import require_positive_number
+from provider_core.validation.upstream.http import has_transfer_encoding
 from provider_core.validation.upstream.nmr.v1.upload_response import require_job_ref, require_read_grant, require_upload_ref
 
 
@@ -342,7 +343,7 @@ class UploadTransfer:
                 except UploadFailed:
                     return False
 
-            if (head is not None) and (any(name.lower() == b"transfer-encoding" for (name, _) in head.headers)):
+            if (head is not None) and has_transfer_encoding(head.headers):
                 return False
 
             if type(outcome.primary) is httpcore.RemoteProtocolError:
