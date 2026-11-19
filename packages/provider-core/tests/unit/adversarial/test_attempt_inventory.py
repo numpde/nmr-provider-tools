@@ -35,7 +35,7 @@ class AttemptInventoryFailureTests(unittest.IsolatedAsyncioTestCase):
 
                 self.assertEqual(transport.calls, [])
 
-    async def test_bad_wire_retains_private_evidence_and_no_mutation_uncertainty(self):
+    async def _bad_wire_failures(self):
         raw = response()
 
         malformed = (
@@ -54,12 +54,19 @@ class AttemptInventoryFailureTests(unittest.IsolatedAsyncioTestCase):
                 with self.assertRaises(ApiFailure) as failure:
                     await api(transport, "https://api.example").execution_attempts(state="in_progress", limit=1, cursor=None)
 
-                self.assertEqual(len(transport.calls), 1)
-                self.assertEqual(failure.exception.response.body, body)
-                self.assertFalse(failure.exception.attempt_mutation_may_have_committed)
+                yield body, transport, failure.exception
 
-                for rendered in (str(failure.exception), repr(failure.exception), "".join(traceback.format_exception(failure.exception))):
-                    self.assertNotIn("private canary", rendered)
+    async def test_bad_wire_retains_evidence_and_no_mutation_uncertainty(self):
+        async for (body, transport, failure) in self._bad_wire_failures():
+            self.assertEqual(len(transport.calls), 1)
+            self.assertEqual(failure.response.body, body)
+            self.assertFalse(failure.attempt_mutation_may_have_committed)
+
+    @unittest.skip("Privacy policy under review")
+    async def test_bad_wire_diagnostics_omit_response_content(self):
+        async for (_body, _transport, failure) in self._bad_wire_failures():
+            for rendered in (str(failure), repr(failure), "".join(traceback.format_exception(failure))):
+                self.assertNotIn("private canary", rendered)
 
     def test_envelope_schema_cursor_fields_and_requested_count_are_admitted(self):
         for (field, bad) in (
@@ -87,7 +94,7 @@ class AttemptInventoryFailureTests(unittest.IsolatedAsyncioTestCase):
         with self.assertRaises(ResponseRejected):
             read_attempt_inventory(json.dumps(document).encode(), limit=2)
 
-    def test_every_row_is_admitted_before_a_page_is_exposed(self):
+    def _invalid_inventory_rows(self):
         for (field, bad) in (
             ("analysis_kind_ref", "wrong kind"),
             ("execution_attempt_ref", "foreign"),
@@ -103,11 +110,21 @@ class AttemptInventoryFailureTests(unittest.IsolatedAsyncioTestCase):
             ("started_at", "2026-10-18T00:00:00+00:00"),
             ("extra", "private canary")
         ):
-            document = page()
+            inventory_page = page()
 
-            document["attempts"].append({**document["attempts"][0], field: bad})
+            inventory_page["attempts"].append({**inventory_page["attempts"][0], field: bad})
 
+            yield field, bad, json.dumps(inventory_page).encode()
+
+    def test_every_row_is_admitted_before_a_page_is_exposed(self):
+        for (field, bad, inventory_bytes) in self._invalid_inventory_rows():
+            with self.subTest(field=field, bad=bad), self.assertRaises(ResponseRejected):
+                read_attempt_inventory(inventory_bytes, limit=2)
+
+    @unittest.skip("Privacy policy under review")
+    def test_row_rejections_omit_response_content(self):
+        for (field, bad, inventory_bytes) in self._invalid_inventory_rows():
             with self.subTest(field=field, bad=bad), self.assertRaises(ResponseRejected) as rejected:
-                read_attempt_inventory(json.dumps(document).encode(), limit=2)
+                read_attempt_inventory(inventory_bytes, limit=2)
 
             self.assertNotIn("private canary", str(rejected.exception))

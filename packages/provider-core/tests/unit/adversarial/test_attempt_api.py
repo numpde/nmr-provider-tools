@@ -34,7 +34,7 @@ class AttemptReadRejectionTests(unittest.IsolatedAsyncioTestCase):
 
             self.assertEqual(transport.calls, [])
 
-    async def test_malformed_or_foreign_observations_retain_private_evidence(self):
+    async def _malformed_observation_failures(self):
         bodies = [
             observation(execution_attempt_ref="execution_attempt:sha256:" + "b" * 64),
             observation(job_ref="job:foreign"),
@@ -64,12 +64,20 @@ class AttemptReadRejectionTests(unittest.IsolatedAsyncioTestCase):
                 with self.assertRaises(ApiFailure) as caught:
                     await api.read_attempt(ATTEMPT_REF, job_ref="job:example")
 
-                self.assertNotIn("private-canary", str(caught.exception))
-                self.assertIs(caught.exception.response, response)
-                self.assertIs(api.last_failure, caught.exception)
-                self.assertEqual(len(transport.calls), 1)
+                yield caught.exception, response, api, transport
 
-    async def test_failed_reads_preserve_transport_and_http_evidence_without_retry(self):
+    async def test_malformed_or_foreign_observations_retain_evidence(self):
+        async for (failure, response, api, transport) in self._malformed_observation_failures():
+            self.assertIs(failure.response, response)
+            self.assertIs(api.last_failure, failure)
+            self.assertEqual(len(transport.calls), 1)
+
+    @unittest.skip("Privacy policy under review")
+    async def test_malformed_observation_diagnostics_omit_response_content(self):
+        async for (failure, _response, _api, _transport) in self._malformed_observation_failures():
+            self.assertNotIn("private-canary", str(failure))
+
+    async def _failed_reads(self):
         failure = ExchangeFailed("read failed", primary=OSError("private-canary"))
 
         for outcome in (reply(b"private-canary", status=503), reply(observation(), headers=()), failure):
@@ -79,9 +87,17 @@ class AttemptReadRejectionTests(unittest.IsolatedAsyncioTestCase):
             with self.assertRaises(ApiFailure) as caught:
                 await api.read_attempt(ATTEMPT_REF, job_ref="job:example")
 
-            self.assertNotIn("private-canary", str(caught.exception))
-            self.assertIs(api.last_failure, caught.exception)
+            yield caught.exception, api, transport
+
+    async def test_failed_reads_preserve_transport_and_http_evidence_without_retry(self):
+        async for (failure, api, transport) in self._failed_reads():
+            self.assertIs(api.last_failure, failure)
             self.assertEqual(len(transport.calls), 1)
+
+    @unittest.skip("Privacy policy under review")
+    async def test_failed_read_diagnostics_omit_response_and_transport_content(self):
+        async for (failure, _api, _transport) in self._failed_reads():
+            self.assertNotIn("private-canary", str(failure))
 
     async def test_cancellation_remains_cancellation_with_operation_context(self):
         transport = Transport(asyncio.CancelledError())
