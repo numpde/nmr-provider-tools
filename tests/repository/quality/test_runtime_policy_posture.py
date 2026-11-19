@@ -37,7 +37,7 @@ class _Finding:
 
 
 def _is_uppercase_name(name: str) -> bool:
-    return any(character.isalpha() for character in name) and name.upper() == name
+    return any(character.isalpha() for character in name) and (name.upper() == name)
 
 
 def _binding_names(binding: ast.Assign | ast.AnnAssign) -> list[str]:
@@ -92,7 +92,7 @@ def _has_escape(binding: ast.Assign | ast.AnnAssign, source_lines: list[str]) ->
     preceding_line = source_lines[binding.lineno - 2]
     indentation = preceding_line[: len(preceding_line) - len(preceding_line.lstrip())]
 
-    return len(indentation) == binding.col_offset and preceding_line.strip() == _ESCAPE
+    return (len(indentation) == binding.col_offset) and (preceding_line.strip() == _ESCAPE)
 
 
 def _findings(source_path: pathlib.Path, source: str) -> list[_Finding]:

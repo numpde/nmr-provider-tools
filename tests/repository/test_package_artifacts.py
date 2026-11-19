@@ -525,7 +525,7 @@ class PackageArtifactTests(unittest.TestCase):
 
             for function in (node for node in ast.walk(module) if isinstance(node, ast.FunctionDef)):
                 for call in (node for node in ast.walk(function) if isinstance(node, ast.Call)):
-                    if isinstance(call.func, ast.Name) and call.func.id == "build_source_wheel":
+                    if isinstance(call.func, ast.Name) and (call.func.id == "build_source_wheel"):
                         shared_callers.append((path.name, function.name))
 
                     if (

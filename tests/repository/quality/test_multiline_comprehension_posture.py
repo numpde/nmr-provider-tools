@@ -35,7 +35,7 @@ def multiline_comprehension_findings(*, source: str) -> list[tuple[int, str]]:
 
         closing = pairs.get((expression.lineno, expression.col_offset))
 
-        if closing is None or expression.end_lineno == expression.lineno:
+        if (closing is None) or (expression.end_lineno == expression.lineno):
             continue
 
         opening_line = lines[expression.lineno - 1]
@@ -86,7 +86,7 @@ def multiline_filter_findings(*, source: str) -> list[tuple[int, str]]:
             keyword = tokens[condition_start - 1]
             (keyword_line, keyword_column) = keyword.start
 
-            if lines[keyword_line - 1][:keyword_column].strip() or keyword_line == tokens[condition_start].start[0]:
+            if lines[keyword_line - 1][:keyword_column].strip() or (keyword_line == tokens[condition_start].start[0]):
                 findings.append((keyword_line, "put if on its own line before a multiline comprehension filter"))
 
     return sorted(findings)

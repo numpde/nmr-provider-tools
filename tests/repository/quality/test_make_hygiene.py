@@ -77,9 +77,9 @@ class RepositoryHygieneTest(unittest.TestCase):
             root = repo_path(root_name)
 
             for path in root.rglob("*"):
-                if path.is_dir() and path.name == "__pycache__":
+                if path.is_dir() and (path.name == "__pycache__"):
                     failures.append(f"{path}: Python bytecode cache must not be materialized on host")
-                elif path.is_file() and path.suffix == ".pyc":
+                elif path.is_file() and (path.suffix == ".pyc"):
                     failures.append(f"{path}: Python bytecode must not be materialized on host")
 
         if failures:

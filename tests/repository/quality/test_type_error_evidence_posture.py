@@ -63,7 +63,7 @@ def _message_type_subjects(*, source: str, message: ast.expr, type_aliases: dict
 
         expression = value.value
 
-        if isinstance(expression, ast.Name) and expression.id in type_aliases:
+        if isinstance(expression, ast.Name) and (expression.id in type_aliases):
             expression = type_aliases[expression.id]
 
         if _type_call(expression=expression):
@@ -137,7 +137,7 @@ def _expectation_name(*, expression: ast.expr) -> str | None:
 
     name = expression.id
 
-    if name in {"expected_type", "expected_types"} or (name.startswith("expected_") and name.endswith(("_type", "_types"))):
+    if (name in {"expected_type", "expected_types"}) or (name.startswith("expected_") and name.endswith(("_type", "_types"))):
         return name
 
     return None
@@ -157,9 +157,9 @@ def _has_type_pair(*, source: str, message: ast.JoinedStr, subject: ast.expr, ex
 
         for following in message.values[index + 1:]:
             if isinstance(following, ast.Constant) and isinstance(following.value, str):
-                inequality = inequality or "≠" in following.value or (membership and "∉" in following.value)
+                inequality = inequality or ("≠" in following.value) or (membership and ("∉" in following.value))
             elif isinstance(following, ast.FormattedValue):
-                if inequality and isinstance(following.value, ast.Name) and following.value.id == expected_name and _is_debug_expression(source=source, formatted=following):
+                if inequality and isinstance(following.value, ast.Name) and (following.value.id == expected_name) and _is_debug_expression(source=source, formatted=following):
                     return True
 
                 break
@@ -221,7 +221,7 @@ def _expectation_findings(*, source_path: pathlib.Path, source: str) -> list[str
             for predicate in predicates:
                 subject = diagnostic_subject(subject=predicate.subject)
                 expected_name = _expectation_name(expression=predicate.expected)
-                unavailable = any(isinstance(node, ast.Name) and node.id in predicate.comprehension_names for node in ast.walk(node=subject))
+                unavailable = any(isinstance(node, ast.Name) and (node.id in predicate.comprehension_names) for node in ast.walk(node=subject))
 
                 if (
                     has_type_rejection_alternatives(expression=statement.test, rejecting=True) or
@@ -302,7 +302,7 @@ def _subclass_findings(*, source_path: pathlib.Path, source: str) -> list[str]:
 
         candidate_names = {node.id for node in ast.walk(node=candidate) if isinstance(node, ast.Name)}
 
-        if any(isinstance(node, ast.NamedExpr) and node.target.id in candidate_names for node in ast.walk(node=predicate.args[1])):
+        if any(isinstance(node, ast.NamedExpr) and (node.target.id in candidate_names) for node in ast.walk(node=predicate.args[1])):
             findings.append(f"{source_path}:{rejection.lineno}: subclass parent binding overwrites the checked candidate; preserve its value for the diagnostic")
             continue
 

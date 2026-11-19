@@ -175,7 +175,7 @@ def _findings(*, source_path: pathlib.Path, source: str) -> list[_Finding]:
     (exempt_literals, findings) = _machine_string_exemptions(source_path=source_path, source=source, literals=literals)
 
     for node in ast.walk(node=tree):
-        if node in exempt_literals or (isinstance(node, ast.Constant) and parents.get(node) in exempt_literals):
+        if (node in exempt_literals) or (isinstance(node, ast.Constant) and (parents.get(node) in exempt_literals)):
             continue
 
         if (isinstance(node, ast.JoinedStr)) and (id(node) not in format_specs):

@@ -30,7 +30,7 @@ def is_env_mapping(node: ast.AST) -> bool:
         return any(fragment in node.id.lower() for fragment in ENV_NAME_FRAGMENTS)
 
     return (
-        isinstance(node, ast.Attribute) and node.attr == "environ" and isinstance(node.value, ast.Name) and node.value.id == "os"
+        isinstance(node, ast.Attribute) and (node.attr == "environ") and isinstance(node.value, ast.Name) and (node.value.id == "os")
     )
 
 
@@ -42,7 +42,7 @@ def is_defaulting_call(node: ast.AST) -> bool:
         return False
 
     if node.func.attr == "getenv":
-        return isinstance(node.func.value, ast.Name) and node.func.value.id == "os"
+        return isinstance(node.func.value, ast.Name) and (node.func.value.id == "os")
 
     return is_env_mapping(node.func.value)
 
@@ -57,10 +57,10 @@ def is_explicit_defaulting_call(node: ast.AST) -> bool:
 
     assert isinstance(node, ast.Call)
 
-    if isinstance(node.func, ast.Attribute) and node.func.attr == "setdefault":
+    if isinstance(node.func, ast.Attribute) and (node.func.attr == "setdefault"):
         return True
 
-    return len(node.args) >= 2 or any(keyword.arg == "default" for keyword in node.keywords)
+    return (len(node.args) >= 2) or any(keyword.arg == "default" for keyword in node.keywords)
 
 
 def is_explicit_mapping_default_call(node: ast.AST) -> bool:
@@ -76,7 +76,7 @@ def is_explicit_mapping_default_call(node: ast.AST) -> bool:
     if node.func.attr == "setdefault":
         return True
 
-    return len(node.args) >= 2 or any(keyword.arg == "default" for keyword in node.keywords)
+    return (len(node.args) >= 2) or any(keyword.arg == "default" for keyword in node.keywords)
 
 
 def contains_env_access(node: ast.AST) -> bool:
@@ -103,7 +103,7 @@ def is_env_or_default_expression(node: ast.AST) -> bool:
 
 
 def is_absence_literal(node: ast.AST) -> bool:
-    return isinstance(node, ast.Constant) and node.value in {"", None}
+    return isinstance(node, ast.Constant) and (node.value in {"", None})
 
 
 def is_default_literal(node: ast.AST) -> bool:
@@ -237,13 +237,13 @@ def is_argparse_optional_positional(node: ast.AST) -> bool:
         return False
 
     return any(
-        keyword.arg == "nargs" and isinstance(keyword.value, ast.Constant) and keyword.value.value == "?"
+        (keyword.arg == "nargs") and isinstance(keyword.value, ast.Constant) and (keyword.value.value == "?")
         for keyword in node.keywords
     )
 
 
 def args_attribute_name(node: ast.AST) -> str | None:
-    if isinstance(node, ast.Attribute) and isinstance(node.value, ast.Name) and node.value.id == "args":
+    if isinstance(node, ast.Attribute) and isinstance(node.value, ast.Name) and (node.value.id == "args"):
         return node.attr
 
     return None
@@ -299,7 +299,7 @@ def is_args_default_if_expression(node: ast.AST) -> bool:
 
 def contains_raw_args_access(node: ast.AST) -> bool:
     return any(
-        isinstance(child, ast.Subscript) and isinstance(child.value, ast.Name) and child.value.id == "args"
+        isinstance(child, ast.Subscript) and isinstance(child.value, ast.Name) and (child.value.id == "args")
         for child in ast.walk(node)
     )
 
@@ -490,7 +490,7 @@ def _typed_pass_contract(handler: ast.ExceptHandler, protected: ast.Try) -> bool
                     (args_attribute_name(child) is not None) or
                     (isinstance(child, ast.Call) and
                      isinstance(child.func, ast.Attribute) and
-                     (child.func.attr in ARGPARSE_CALL_NAMES or child.func.attr in {"parse_args", "parse_known_args"}))
+                     ((child.func.attr in ARGPARSE_CALL_NAMES) or (child.func.attr in {"parse_args", "parse_known_args"})))
                     for child in ast.walk(statement)
                 ),
             )
@@ -528,7 +528,7 @@ def _contract_candidate(node: ast.AST, label: str, *, protected: ast.Try | None 
 
 def _positive_exit(value):
     if isinstance(value, ast.Constant):
-        return type(value.value) is int and value.value > 0
+        return (type(value.value) is int) and (value.value > 0)
 
     return isinstance(value, ast.IfExp) and _positive_exit(value.body) and _positive_exit(value.orelse)
 
@@ -595,7 +595,7 @@ def _exception_outcome_contract(handler, protected):
         return False
 
     value = handler.body[0].value
-    refusal = isinstance(value, ast.Constant) and value.value is False
+    refusal = isinstance(value, ast.Constant) and (value.value is False)
 
     unavailable = (
         isinstance(value, ast.Dict) and
@@ -700,7 +700,7 @@ def python_operator_default_findings(path: pathlib.Path) -> list[str]:
             # This placement owns one callable result, never its signature or container.
             following = [body for body in lambda_bodies if body.lineno == next_line]
 
-            selected = [(node, label) for (node, label) in candidates if len(following) == 1 and node in ast.walk(following[0])]
+            selected = [(node, label) for (node, label) in candidates if (len(following) == 1) and (node in ast.walk(following[0]))]
 
             boundary = (
                 (len(following) == 1) and
@@ -715,10 +715,10 @@ def python_operator_default_findings(path: pathlib.Path) -> list[str]:
             selected = [
                 (node, label)
                 for (node, label) in candidates
-                if len(following) == 1 and isinstance(following[0], ast.Expr) and node is following[0].value
+                if (len(following) == 1) and isinstance(following[0], ast.Expr) and (node is following[0].value)
             ]
 
-            boundary = len(following) == len(selected) == 1 and _discarded_env_pop_contract(following[0])
+            boundary = (len(following) == len(selected) == 1) and _discarded_env_pop_contract(following[0])
         elif following_handlers:
             # ExceptHandler is not ast.stmt. Its header owns this placement,
             # including a same-line Pass; no body or sibling is accepted.
@@ -764,7 +764,7 @@ def python_operator_default_findings(path: pathlib.Path) -> list[str]:
                 all(label == "python silent default" for (_, label) in selected) and
                 (not any(isinstance(child, ast.Lambda) for child in ast.walk(expression)))
             )
-        elif len(following) == 1 and isinstance(following[0], ast.FunctionDef | ast.AsyncFunctionDef):
+        elif (len(following) == 1) and isinstance(following[0], ast.FunctionDef | ast.AsyncFunctionDef):
             defaults = function_default_nodes(following[0])
             selected = [(node, label) for (node, label) in candidates if any(node in ast.walk(default) for default in defaults)]
             boundary = bool(defaults)
@@ -802,7 +802,7 @@ def python_operator_default_findings(path: pathlib.Path) -> list[str]:
             boundary = (
                 (len(following) == 1) and
                 ((following[0].end_lineno == next_line) or
-                 (isinstance(following[0], ast.If) and following[0].test.end_lineno == next_line)) and
+                 (isinstance(following[0], ast.If) and (following[0].test.end_lineno == next_line))) and
                 (len(outermost) == 1) and
                 all(node.end_lineno == next_line for (node, _) in selected)
             )

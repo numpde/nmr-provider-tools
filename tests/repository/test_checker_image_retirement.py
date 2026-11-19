@@ -58,7 +58,7 @@ class Engine:
             self.inspections += 1
             value = deepcopy(self.value)
 
-            if self.changed and self.inspections > 1:
+            if self.changed and (self.inspections > 1):
                 value["RepoTags"] = ["somebody-else/retained:latest"]
 
             if self.malformed:
@@ -140,7 +140,7 @@ class ImageRetirementTests(unittest.TestCase):
         original = engine.__call__
 
         def borrowed_later(*arguments):
-            if "--filter" in arguments and arguments[-1].startswith("ancestor="):
+            if ("--filter" in arguments) and arguments[-1].startswith("ancestor="):
                 return "2" * 64 + "\n"
 
             return original(*arguments)

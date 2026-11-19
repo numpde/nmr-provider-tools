@@ -60,7 +60,7 @@ def _assigns_self_attributes(*, statement: ast.stmt) -> bool:
         return False
 
     return all(
-        isinstance(target, ast.Attribute) and isinstance(target.value, ast.Name) and target.value.id == "self"
+        isinstance(target, ast.Attribute) and isinstance(target.value, ast.Name) and (target.value.id == "self")
         for target in targets
     )
 

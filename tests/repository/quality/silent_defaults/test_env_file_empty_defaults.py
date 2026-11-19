@@ -99,7 +99,7 @@ class EnvFileEmptyDefaultsTest(unittest.TestCase):
 
             match = ENV_ASSIGNMENT_RE.match(stripped)
 
-            if match and match.group("value").strip() in {"", '""', "''"}:
+            if match and (match.group("value").strip() in {"", '""', "''"}):
                 findings.append(f"{source}:{line_number}: {match.group('name')}={match.group('value')}")
 
         self.assertEqual([], findings)

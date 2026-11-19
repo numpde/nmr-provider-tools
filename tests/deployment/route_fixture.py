@@ -192,7 +192,7 @@ async def client(mode, path):
             if mode == "lost":
                 raise AssertionError("Stopped proxy request succeeded through an unintended direct route")
 
-            if result.job_ref != "job:example" or result.state != "in_progress":
+            if (result.job_ref != "job:example") or (result.state != "in_progress"):
                 raise AssertionError("Signed HTTPS reply did not pass the API contract")
     finally:
         await transport.retire()
@@ -204,7 +204,7 @@ async def client(mode, path):
 
 
 def shared_group_socket(mode, path, owner_uid, access_gid):
-    if os.geteuid() in (0, owner_uid) or os.getegid() == access_gid:
+    if (os.geteuid() in (0, owner_uid)) or (os.getegid() == access_gid):
         raise AssertionError("Shared grant witness requires a distinct non-root UID and primary GID")
 
     if (access_gid in os.getgroups()) != (mode == "allowed"):
@@ -235,12 +235,12 @@ def shared_group_socket(mode, path, owner_uid, access_gid):
             try:
                 channel.connect(str(path))
             except PermissionError as failure:
-                if mode != "denied" or failure.errno != errno.EACCES:
+                if (mode != "denied") or (failure.errno != errno.EACCES):
                     raise
 
                 break
             except (FileNotFoundError, ConnectionRefusedError):
-                if mode != "allowed" or time.monotonic() >= deadline:
+                if (mode != "allowed") or (time.monotonic() >= deadline):
                     raise
 
                 time.sleep(0.05)

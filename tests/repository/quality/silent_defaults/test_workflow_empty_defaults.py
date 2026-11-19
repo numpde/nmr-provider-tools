@@ -35,12 +35,12 @@ def _workflow_blank_env_entries_from_lines(lines: list[str], source: str) -> lis
         if key_match:
             indent = len(key_match.group("indent"))
 
-            while yaml_stack and yaml_stack[-1][0] >= indent:
+            while yaml_stack and (yaml_stack[-1][0] >= indent):
                 yaml_stack.pop()
 
             parent_keys = [key for (_, key) in yaml_stack]
 
-            if "env" in parent_keys and WORKFLOW_ENV_EMPTY_RE.match(line):
+            if ("env" in parent_keys) and WORKFLOW_ENV_EMPTY_RE.match(line):
                 findings.append(f"{source}:{line_number}: {line.strip()}")
 
             if key_match.group("value") == "":

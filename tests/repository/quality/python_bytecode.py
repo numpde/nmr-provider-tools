@@ -100,7 +100,7 @@ def _needs_flag(arguments, env_enabled=False):
     while index < len(arguments):
         argument = arguments[index]
 
-        if argument is None or "[@]" in argument or argument in {"$@", "$*"}:
+        if (argument is None) or ("[@]" in argument) or (argument in {"$@", "$*"}):
             return False  # Unknown argv expansion cannot be classified literally.
 
         if argument in {"-m", "-c"}:
@@ -109,7 +109,7 @@ def _needs_flag(arguments, env_enabled=False):
 
             payload = arguments[index + 1]
 
-            if argument == "-m" and payload.split(".")[0] in _COMPILERS:
+            if (argument == "-m") and (payload.split(".")[0] in _COMPILERS):
                 return False
 
             if (argument == "-c") and (not _inline_imports(payload)):
@@ -132,8 +132,8 @@ def _needs_flag(arguments, env_enabled=False):
             if not re.fullmatch(r"-[BEISOPqsubvix]+", argument):
                 return False  # Unknown switches are not assumed to be payload.
 
-            disabled |= "B" in argument[1:]
-            isolated |= "I" in argument[1:] or "E" in argument[1:]
+            disabled |= ("B" in argument[1:])
+            isolated |= ("I" in argument[1:]) or ("E" in argument[1:])
         else:
             return (not disabled) and ((isolated) or (not env_enabled))
 
@@ -187,7 +187,7 @@ def shell_findings(source_path, source):
             if not _python(token.lstrip("@")):
                 continue
 
-            entrypoint = index > 0 and tokens[index - 1] == "--entrypoint"
+            entrypoint = (index > 0) and (tokens[index - 1] == "--entrypoint")
             argument_offset = 1
 
             if entrypoint:
@@ -216,9 +216,9 @@ def shell_findings(source_path, source):
                 elif (prefix_argument == "-u") and ((position + 1) < len(prefix)) and (prefix[position + 1] == _ENV):
                     enabled = False
                 elif prefix_argument.startswith(_ENV + "="):
-                    if entrypoint and position > 0 and prefix[position - 1] in {"--env", "-e"}:
+                    if entrypoint and (position > 0) and (prefix[position - 1] in {"--env", "-e"}):
                         enabled = prefix_argument == (_ENV + "=1")
-                    elif (not entrypoint) and (position == 0 or prefix[position - 1] != "--env"):
+                    elif (not entrypoint) and ((position == 0) or (prefix[position - 1] != "--env")):
                         enabled = prefix_argument == (_ENV + "=1")
 
             isolated = _needs_flag(arguments, True)
@@ -233,10 +233,10 @@ def shell_findings(source_path, source):
 
 
 def _literal_text(node):
-    if isinstance(node, ast.Constant) and type(node.value) is str:
+    if isinstance(node, ast.Constant) and (type(node.value) is str):
         return node.value
 
-    if isinstance(node, ast.Attribute) and isinstance(node.value, ast.Name) and node.value.id == "sys" and node.attr == "executable":
+    if isinstance(node, ast.Attribute) and isinstance(node.value, ast.Name) and (node.value.id == "sys") and (node.attr == "executable"):
         return "python3"
 
     return None
@@ -281,7 +281,7 @@ def python_findings(source_path, source):
             continue
 
         command_arguments = [_literal_text(argument) for argument in argv.elts[1:]]
-        enabled = any(keyword.arg == "env" and _env_enabled(keyword.value) for keyword in node.keywords)
+        enabled = any((keyword.arg == "env") and _env_enabled(keyword.value) for keyword in node.keywords)
 
         if _needs_flag(command_arguments, enabled):
             findings.append(Finding(source_path, node.lineno))

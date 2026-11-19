@@ -94,7 +94,7 @@ def _is_defaulting_call(node: ast.AST) -> bool:
         return False
 
     if node.func.attr == "getenv":
-        return isinstance(node.func.value, ast.Name) and node.func.value.id in ENV_MODULE_NAMES
+        return isinstance(node.func.value, ast.Name) and (node.func.value.id in ENV_MODULE_NAMES)
 
     if _is_env_mapping(node.func.value):
         return True
@@ -102,7 +102,7 @@ def _is_defaulting_call(node: ast.AST) -> bool:
     if _is_os_environ(node.func.value):
         return True
 
-    return isinstance(node.func.value, ast.Attribute) and node.func.value.attr == "environ"
+    return isinstance(node.func.value, ast.Attribute) and (node.func.value.attr == "environ")
 
 
 def _is_explicit_env_default_call(node: ast.AST) -> bool:
@@ -113,7 +113,7 @@ def _is_explicit_env_default_call(node: ast.AST) -> bool:
 
     assert isinstance(call, ast.Call)
 
-    if isinstance(call.func, ast.Attribute) and call.func.attr == "setdefault":
+    if isinstance(call.func, ast.Attribute) and (call.func.attr == "setdefault"):
         return True
 
     if len(call.args) >= 2:
@@ -150,7 +150,7 @@ def _is_env_or_default_expression(node: ast.BoolOp) -> bool:
 
 
 def _is_empty_absence_literal(node: ast.AST) -> bool:
-    return isinstance(node, ast.Constant) and node.value in {"", None}
+    return isinstance(node, ast.Constant) and (node.value in {"", None})
 
 
 def _is_non_empty_default_value(node: ast.AST) -> bool:
@@ -163,7 +163,7 @@ def _is_not_absence_literal(node: ast.AST) -> bool:
 
 def _is_falsy_default_literal(node: ast.AST) -> bool:
     if isinstance(node, ast.Constant):
-        return node.value is None or node.value is False or node.value == "" or node.value == 0
+        return (node.value is None) or (node.value is False) or (node.value == "") or (node.value == 0)
 
     if isinstance(node, ast.Dict):
         return len(node.keys) == 0
@@ -188,7 +188,7 @@ def _is_empty_get_default_call(node: ast.AST) -> bool:
     if (not isinstance(node, ast.Call)) or (not isinstance(node.func, ast.Attribute)):
         return False
 
-    if node.func.attr != "get" or len(node.args) < 2:
+    if (node.func.attr != "get") or (len(node.args) < 2):
         return False
 
     return _is_falsy_default_literal(node.args[1])
@@ -198,7 +198,7 @@ def _is_pop_default_call(node: ast.AST) -> bool:
     if (not isinstance(node, ast.Call)) or (not isinstance(node.func, ast.Attribute)):
         return False
 
-    if node.func.attr != "pop" or len(node.args) < 2:
+    if (node.func.attr != "pop") or (len(node.args) < 2):
         return False
 
     return _is_falsy_default_literal(node.args[1])
@@ -208,7 +208,7 @@ def _is_zero_getattr_default_call(node: ast.AST) -> bool:
     if (not isinstance(node, ast.Call)) or (not isinstance(node.func, ast.Name)):
         return False
 
-    if node.func.id != "getattr" or len(node.args) < 3:
+    if (node.func.id != "getattr") or (len(node.args) < 3):
         return False
 
     default = node.args[2]
@@ -341,13 +341,13 @@ def _is_argparse_optional_positional(node: ast.AST) -> bool:
         return False
 
     return any(
-        keyword.arg == "nargs" and isinstance(keyword.value, ast.Constant) and keyword.value.value == "?"
+        (keyword.arg == "nargs") and isinstance(keyword.value, ast.Constant) and (keyword.value.value == "?")
         for keyword in node.keywords
     )
 
 
 def _args_attribute_name(node: ast.AST) -> str | None:
-    if isinstance(node, ast.Attribute) and isinstance(node.value, ast.Name) and node.value.id == "args":
+    if isinstance(node, ast.Attribute) and isinstance(node.value, ast.Name) and (node.value.id == "args"):
         return node.attr
 
     return None
@@ -420,12 +420,12 @@ def _is_args_default_if_expression(node: ast.AST) -> bool:
     if (not isinstance(node.body.value, ast.Name)) or (node.body.value.id != "args"):
         return False
 
-    return not (isinstance(node.orelse, ast.Constant) and node.orelse.value is None)
+    return not (isinstance(node.orelse, ast.Constant) and (node.orelse.value is None))
 
 
 def _contains_raw_args_access(node: ast.AST) -> bool:
     return any(
-        isinstance(child, ast.Subscript) and isinstance(child.value, ast.Name) and child.value.id == "args"
+        isinstance(child, ast.Subscript) and isinstance(child.value, ast.Name) and (child.value.id == "args")
         for child in ast.walk(node)
     )
 

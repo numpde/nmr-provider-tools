@@ -41,7 +41,7 @@ class _Finding:
 
 def _builtin(*, expression: ast.expr, name: str) -> bool:
     return (
-        (isinstance(expression, ast.Name) and expression.id == name) or
+        (isinstance(expression, ast.Name) and (expression.id == name)) or
         (isinstance(expression, ast.Attribute) and
          isinstance(expression.value, ast.Name) and
          (expression.value.id == "builtins") and

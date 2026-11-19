@@ -74,7 +74,7 @@ def _predicates(*, expression: ast.expr, rejecting: bool, comprehension_names: f
 
                 if isinstance(expected, ast.Name):
                     for clause in generator.generators:
-                        if isinstance(clause.target, ast.Name) and clause.target.id == expected.id and isinstance(clause.iter, ast.Name) and clause.iter.id.startswith("expected_"):
+                        if isinstance(clause.target, ast.Name) and (clause.target.id == expected.id) and isinstance(clause.iter, ast.Name) and clause.iter.id.startswith("expected_"):
                             expected = clause.iter
 
                 resolved.append(replace(predicate, expected=expected))

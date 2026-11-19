@@ -64,7 +64,7 @@ try:
         publish_release_wheels(pool / tool["name"], test_pool, [(test_name, checksum, test_url)])
         publish_release_wheels(pool / tool["name"], test_pool, [(test_name, checksum, test_url)])
 
-        if (test_pool / test_name).read_bytes() != content or requests != [f"/{test_name}"]:
+        if ((test_pool / test_name).read_bytes() != content) or (requests != [f"/{test_name}"]):
             raise AssertionError("The publisher did not acquire once and reuse the locked wheel.")
 finally:
     server.shutdown()

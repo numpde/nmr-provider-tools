@@ -74,12 +74,12 @@ def _source_location_depth(
     origin_depths: list[int] = []
 
     for node in ast.walk(expression):
-        if isinstance(node, ast.Name) and node.id == "__file__":
+        if isinstance(node, ast.Name) and (node.id == "__file__"):
             origin_depths.append(0)
-        elif isinstance(node, ast.Name) and node.id in source_location_depths:
+        elif isinstance(node, ast.Name) and (node.id in source_location_depths):
             origin_depths.append(source_location_depths[node.id])
 
-        if isinstance(node, ast.Attribute) and node.attr == "__file__":
+        if isinstance(node, ast.Attribute) and (node.attr == "__file__"):
             origin_depths.append(0)
 
         if (
@@ -111,11 +111,11 @@ def _upward_steps(expression: ast.expr) -> int:
         ):
             steps = max(steps, node.slice.value + 1)
 
-        if isinstance(node, ast.Attribute) and node.attr == "parent":
+        if isinstance(node, ast.Attribute) and (node.attr == "parent"):
             consecutive_steps = 1
             parent = node.value
 
-            while isinstance(parent, ast.Attribute) and parent.attr == "parent":
+            while isinstance(parent, ast.Attribute) and (parent.attr == "parent"):
                 consecutive_steps += 1
                 parent = parent.value
 

@@ -103,7 +103,7 @@ def check_routes():
 
     if any(
         (
-            len(parts) >= 8 and parts[1] == "00000000" and parts[7] == "00000000"
+            (len(parts) >= 8) and (parts[1] == "00000000") and (parts[7] == "00000000")
             for parts in (row.split() for row in routes)
         ),
     ):
@@ -138,7 +138,7 @@ elif sys.argv[1] in ("worker", "session-worker"):
     if sys.argv[1] == "session-worker":
         proxy = urlsplit(os.environ["HTTP_PROXY"])
 
-        if proxy.scheme != "http" or proxy.hostname != "127.0.0.1" or proxy.port is None:
+        if (proxy.scheme != "http") or (proxy.hostname != "127.0.0.1") or (proxy.port is None):
             raise RuntimeError("session proxy is not the loopback relay")
 
         (proxy_port, origin_port) = (proxy.port, int(sys.argv[2]))

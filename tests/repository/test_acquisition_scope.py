@@ -584,7 +584,7 @@ acquisition_compose_worker offline result "$STATE/caller.yml" worker-offline
         os.killpg(anchor, signal.SIGKILL)
         deadline = time.monotonic() + 5
 
-        while pathlib.Path(f'/proc/{anchor}').exists() and time.monotonic() < deadline:
+        while pathlib.Path(f'/proc/{anchor}').exists() and (time.monotonic() < deadline):
             time.sleep(.01)
 
         self.assertFalse(pathlib.Path(f'/proc/{anchor}').exists())
@@ -636,7 +636,7 @@ return 2
                 reporter = None
                 deadline = time.monotonic() + 15
 
-                while reporter is None and time.monotonic() < deadline:
+                while (reporter is None) and (time.monotonic() < deadline):
                     self.assertIsNone(caller_process.poll(), msg='owner exited before blocked reporter')
                     pending = [caller_process.pid]
 

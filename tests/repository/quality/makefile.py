@@ -39,7 +39,7 @@ def make_invocation_owners(makefile: str, invocation: str) -> list[str]:
 
         before_invocation = line.split(invocation, 1)[0]
 
-        if owner is None or "#" in before_invocation or ((not in_define) and (not line.startswith("\t"))):
+        if (owner is None) or ("#" in before_invocation) or ((not in_define) and (not line.startswith("\t"))):
             raise AssertionError(f"Makefile has {invocation!r} outside one direct recipe or define")
 
         if owner not in owners:
@@ -82,7 +82,7 @@ def make_target_body(makefile: str, target: str) -> str:
 
     (rule_target, _, remainder) = lines[rule_indexes[0]].partition(":")
 
-    if rule_target != target or remainder.startswith(":") or ";" in remainder:
+    if (rule_target != target) or remainder.startswith(":") or (";" in remainder):
         raise AssertionError(f"Makefile target {target!r} must have one plain literal rule")
 
     recipe: list[str] = []
@@ -112,4 +112,4 @@ def _rule_mentions_target(line: str, target: str) -> bool:
 
     (rule_targets, separator, _) = line.partition(":")
 
-    return bool(separator) and target in rule_targets.split()
+    return bool(separator) and (target in rule_targets.split())

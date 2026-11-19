@@ -104,7 +104,7 @@ def shell_exported_names(source: str) -> set[str] | None:
         except ValueError:
             return None
 
-        if "declare" in tokens or "typeset" in tokens:
+        if ("declare" in tokens) or ("typeset" in tokens):
             return None
 
         for builtin in ("set", "shopt"):
@@ -122,7 +122,7 @@ def shell_exported_names(source: str) -> set[str] | None:
                     break
 
                 if (
-                    (builtin == "set" and re.fullmatch(r"[+-][A-Za-z]*a[A-Za-z]*", token)) or
+                    ((builtin == "set") and re.fullmatch(r"[+-][A-Za-z]*a[A-Za-z]*", token)) or
                     (token == "allexport") or
                     ("$" in token) or
                     ("`" in token)
@@ -132,14 +132,14 @@ def shell_exported_names(source: str) -> set[str] | None:
         if "export" not in tokens:
             continue
 
-        if tokens[0] != "export" or len(tokens) == 1:
+        if (tokens[0] != "export") or (len(tokens) == 1):
             return None
 
         for token in tokens[1:]:
             name = token.partition("=")[0]
             match = ENV_ASSIGNMENT_RE.fullmatch(name + "=")
 
-            if match is None or match.group("name") != name:
+            if (match is None) or (match.group("name") != name):
                 return None
 
             names.add(name)
@@ -270,7 +270,7 @@ class OpsSilentDefaultsTest(unittest.TestCase):
                 if (
                     (assignment_match) and
                     (assignment_match.group("value").strip() in {"", '""', "''"}) and
-                    (exported_names is None or assignment_match.group("name") in exported_names)
+                    ((exported_names is None) or (assignment_match.group("name") in exported_names))
                 ):
                     findings.append(
                         f"{path.relative_to(ROOT)}:{line_number}: blank env assignment: "
@@ -279,7 +279,7 @@ class OpsSilentDefaultsTest(unittest.TestCase):
 
                 yaml_list_match = YAML_ENV_LIST_ASSIGNMENT_RE.match(line)
 
-                if yaml_list_match and yaml_list_match.group("value").strip() in {"", '""', "''"}:
+                if yaml_list_match and (yaml_list_match.group("value").strip() in {"", '""', "''"}):
                     findings.append(
                         f"{path.relative_to(ROOT)}:{line_number}: blank compose env assignment: {yaml_list_match.group('name')}="
                     )

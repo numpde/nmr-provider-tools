@@ -215,7 +215,7 @@ class IdentityTests(unittest.TestCase):
         previous = signal.getsignal(signal.SIGTERM)
 
         def interrupted_restoration(number, handler):
-            if number == signal.SIGTERM and handler == previous:
+            if (number == signal.SIGTERM) and (handler == previous):
                 signal.raise_signal(signal.SIGTERM)
 
             return install(number, handler)

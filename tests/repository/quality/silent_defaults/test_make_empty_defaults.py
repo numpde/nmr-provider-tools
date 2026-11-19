@@ -118,7 +118,7 @@ class MakeEmptyDefaultsTest(unittest.TestCase):
         for (source, line_number, line) in _make_surface_lines():
             match = MAKE_EMPTY_CHECK_ASSIGNMENT_RE.search(line)
 
-            if match and match.group("checked") == match.group("assigned"):
+            if match and (match.group("checked") == match.group("assigned")):
                 findings.append(f"{source}:{line_number}: {line.strip()}")
 
         self.assertEqual([], findings)

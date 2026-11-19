@@ -586,7 +586,7 @@ class CapturedNativeTests(unittest.TestCase):
         process = pathlib.Path("/proc", str(identifier))
         deadline = time.monotonic() + 2
 
-        while process.exists() and time.monotonic() < deadline:
+        while process.exists() and (time.monotonic() < deadline):
             time.sleep(0.01)
 
         self.assertFalse(process.exists(), msg=f"owned fixture process {identifier} remained")
@@ -705,7 +705,7 @@ class CapturedNativeTests(unittest.TestCase):
                 except (FileNotFoundError, ProcessLookupError):
                     continue
 
-                if arguments == [b"sleep", str(seconds).encode(), b""] and waiting in {"hrtimer_nanosleep", "do_nanosleep"}:
+                if (arguments == [b"sleep", str(seconds).encode(), b""]) and (waiting in {"hrtimer_nanosleep", "do_nanosleep"}):
                     return int(identifier)
 
             time.sleep(0.01)
@@ -1135,7 +1135,7 @@ class CapturedNativeTests(unittest.TestCase):
                     child_process.send_signal(signum)
                     deadline = time.monotonic() + 2
 
-                    while len(receipt.read_text().splitlines()) < 2 and time.monotonic() < deadline:
+                    while (len(receipt.read_text().splitlines()) < 2) and (time.monotonic() < deadline):
                         time.sleep(0.01)
 
                     self.assertEqual(["0 false", "1 false"], receipt.read_text().splitlines())
@@ -1616,7 +1616,7 @@ class CapturedNativeTests(unittest.TestCase):
 
                     scratch = pathlib.Path(json.loads(self.control.read_text())["directory"])
 
-                    self.assertEqual(effect == "1" or native_status == "7", scratch.exists())
+                    self.assertEqual((effect == "1") or (native_status == "7"), scratch.exists())
                     self.assert_client_retired()
 
         (command, _) = self.command()
@@ -1650,7 +1650,7 @@ class CapturedNativeTests(unittest.TestCase):
                         self.assertEqual("true", fact)
                         scratch = pathlib.Path(json.loads(self.control.read_text())["directory"])
 
-                        self.assertEqual(effect == "1" or native_status == "7", scratch.exists())
+                        self.assertEqual((effect == "1") or (native_status == "7"), scratch.exists())
 
                         if native_status == "0":
                             self.assertIn("evidence directory removal; attempted path", completed_process.stderr)

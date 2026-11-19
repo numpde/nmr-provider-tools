@@ -162,7 +162,7 @@ class LauncherTests(unittest.TestCase):
             os.close(terminal)
 
         self.assertTrue(sent, msg=output.decode(errors="replace"))
-        self.assertTrue(os.WIFEXITED(status) and os.WEXITSTATUS(status) == 0, msg=output.decode(errors="replace"))
+        self.assertTrue(os.WIFEXITED(status) and (os.WEXITSTATUS(status) == 0), msg=output.decode(errors="replace"))
         self.assertIn(b"local-test", output)
         self.assertNotIn(b"remote-test", output)
         self.assertIn(b"--host unix:///run/user/1000/docker.sock", output)

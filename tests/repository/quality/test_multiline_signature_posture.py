@@ -41,7 +41,7 @@ def multiline_signature_findings(*, source: str) -> list[tuple[int, str]]:
     lists = {}
 
     for (index, token) in enumerate(tokens):
-        if token.type != tokenize.NAME or token.string != "def":
+        if (token.type != tokenize.NAME) or (token.string != "def"):
             continue
 
         # Skip the function name and any Python 3.12 type parameters before

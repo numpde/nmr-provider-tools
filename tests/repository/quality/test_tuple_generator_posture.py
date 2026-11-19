@@ -51,7 +51,7 @@ def _has_documented_escape(node: ast.Call, source_lines: list[str]) -> bool:
     if documents_reason(immediate):
         return True
 
-    return node.lineno >= 3 and immediate.strip().startswith("# repo-check:") and documents_reason(source_lines[node.lineno - 3])
+    return (node.lineno >= 3) and immediate.strip().startswith("# repo-check:") and documents_reason(source_lines[node.lineno - 3])
 
 
 def _findings(source_path: pathlib.Path, source: str) -> list[_Finding]:

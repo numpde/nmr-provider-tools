@@ -26,12 +26,12 @@ def unnecessary_raise_breaks(*, source: str) -> list[int]:
 
         call = node.exc
 
-        if len(call.args) != 1 or call.keywords or call.lineno == call.end_lineno:
+        if (len(call.args) != 1) or call.keywords or (call.lineno == call.end_lineno):
             continue
 
         argument = call.args[0]
 
-        if argument.lineno != argument.end_lineno or call.func.lineno != call.func.end_lineno:
+        if (argument.lineno != argument.end_lineno) or (call.func.lineno != call.func.end_lineno):
             continue
 
         # Comments and blank lines may explain the expression or affect its layout.

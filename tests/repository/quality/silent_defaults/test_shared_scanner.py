@@ -33,7 +33,7 @@ def is_literal_make_origin_gate(source: str, line: str) -> bool:
     """
     path = pathlib.Path(source)
 
-    if path.name != "Makefile" and path.suffix != ".mk":
+    if (path.name != "Makefile") and (path.suffix != ".mk"):
         return False
 
     return (
