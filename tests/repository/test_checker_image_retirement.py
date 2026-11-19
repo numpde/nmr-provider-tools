@@ -5,6 +5,8 @@ require_container()
 import pathlib
 from copy import deepcopy
 import json
+import subprocess
+import sys
 import tempfile
 import unittest
 
@@ -75,6 +77,27 @@ class Engine:
 
 
 class ImageRetirementTests(unittest.TestCase):
+    def test_isolated_cli_can_refuse_before_selecting_an_engine(self):
+        script = pathlib.Path(__file__).resolve().parents[2] / "operations/docker/image_retirement.py"
+
+        with tempfile.TemporaryDirectory() as directory:
+            completed_process = subprocess.run(
+                [
+                    sys.executable,  # Run the contained interpreter
+                    "-I",  # Ignore host Python paths and configuration
+                    "-S",  # Exclude installed site packages
+                    "-B",  # Keep the checkout read-only
+                    str(script),  # Start the actual host entrypoint
+                ],
+                cwd=directory,
+                capture_output=True,
+                text=True,
+                check=False,
+                timeout=10,
+            )
+
+        self.assertEqual(2, completed_process.returncode, msg=completed_process.stderr)
+
     def test_legacy_delivery_metadata_preserves_only_that_image(self):
         legacy = image(
             Id="sha256:" + "e" * 64,

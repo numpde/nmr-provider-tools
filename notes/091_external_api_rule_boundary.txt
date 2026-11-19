@@ -1015,6 +1015,15 @@ Separate adjacent tool/package interfaces from service API rules:
       helpers enter the authored source bundle. The owner lane ran 50 tests
       with one skip; all nine Compose/bundle tests passed. Remaining Docker
       create receipts, inventories, readiness and image metadata are pending.
+  [x] Image retirement uses operations/docker/adapters/docker_inspection.py
+      for Go templates and JSON-line decoding, and validation/upstream/
+      docker_inspection.py for requested-image and alias/label field admission.
+      The retirement owner retains protected/current IDs, repository labels,
+      candidate selection, borrow checks, rechecks and exact nonforce removals.
+      The shared refusal remains importable from the original module; isolated
+      host startup finds the new leaves without site packages or ambient paths.
+      All ten focused retirement tests and fifteen operation tests pass. Moved
+      vague rejections now show the failed counts, IDs, pattern or missing field.
   Docker/Compose: operations/docker/docker_context.sh:22-57 interprets context
   endpoint output; container_operation.sh and packages/acquisition/acquisition_tool/
   owner.sh interpret create/inspect/state/exit/readiness results; image_retirement.py:138

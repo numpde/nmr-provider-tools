@@ -8,7 +8,6 @@ Deployment settings do not select images: the current delivery recipe owns that
 selection. Only known retained build IID receipts are read from /tmp.
 """
 
-import json
 import pathlib
 import re
 import resource
@@ -16,23 +15,24 @@ import subprocess
 import sys
 import tempfile
 
+if __name__ == "__main__":
+    # Add the checkout root omitted by isolated Python
+    sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[2]))
 
-class RetirementRefused(RuntimeError):
-    pass
+from operations.docker.adapters.docker_inspection import (
+    CONTAINER_IMAGE_FORMAT,
+    IMAGE_INSPECTION_FORMAT,
+    decode_inspection_lines,
+)
+from operations.docker.errors import RetirementRefused
+from operations.docker.validation.upstream.docker_inspection import IMAGE_ID, inspected_image_fields, metadata
 
-
-# repo-check: allow-module-constant
-_ID = re.compile(r"sha256:[0-9a-f]{64}")
 
 # repo-check: allow-module-constant
 _HASH = re.compile(r"[0-9a-f]{64}")
 
 # repo-check: allow-module-constant
 _IMAGE_LABEL_PREFIX = "org.nmr-provider-tools."
-
-# repo-check: allow-module-constant
-_IMAGE_JSON = ('{"Id":{{json .Id}},"Labels":{{json .Config.Labels}},'
-               '"RepoTags":{{json .RepoTags}},"RepoDigests":{{json .RepoDigests}}}')
 
 
 def capture_command_output(arguments):
@@ -71,7 +71,7 @@ def capture_command_output(arguments):
 # silent-defaults: allow-contract -- The image-ID parser defaults to tagged images; container-mode IDs are a separately selected caller contract.
 def ids(raw, *, container=False):
     reported_ids = raw.splitlines()
-    pattern = re.compile(r"[0-9a-f]{64}") if container else _ID
+    pattern = re.compile(r"[0-9a-f]{64}") if container else IMAGE_ID
 
     if any(pattern.fullmatch(reported_id) is None for reported_id in reported_ids):
         raise RetirementRefused("Docker returned an incomplete immutable-ID inventory.")
@@ -127,7 +127,7 @@ def retained_image_ids(directory):
         image_id = receipt_bytes.rstrip(b"\n").decode("ascii", errors="replace")
 
         if (
-            _ID.fullmatch(image_id) and
+            IMAGE_ID.fullmatch(image_id) and
             (receipt_bytes in (image_id.encode(), (image_id + "\n").encode()))
         ):
             protected_image_ids.add(image_id)
@@ -135,78 +135,12 @@ def retained_image_ids(directory):
     return protected_image_ids
 
 
-def metadata(raw, expected):
-    inspected_images = [json.loads(line) for line in raw.splitlines()]
-
-    if len(inspected_images) != len(expected):
-        raise RetirementRefused("Docker image inspection was incomplete.")
-
-    for inspected_image in inspected_images:
-        if not (type(inspected_image) is (expected_type := dict)):
-            raise RetirementRefused(f"{type(inspected_image)=} ≠ {expected_type=}")
-
-    if {image.get("Id") for image in inspected_images} != set(expected):
-        raise RetirementRefused("Docker image inspection was incomplete.")
-
-    return inspected_images
-
-
 def select_images(images, protected, current):
     retirement_candidates = []
     (current_checker, current_recipe, current_bootstrap) = current
 
     for image in images:
-        image_id = image.get("Id")
-
-        (image_labels, image_tags, image_digests) = (
-            image.get("Labels"),
-            image.get("RepoTags"),
-            image.get("RepoDigests"),
-        )
-
-        if not (type(image_id) is (expected_type := str)):
-            raise RetirementRefused(f"{type(image_id)=} ≠ {expected_type=}")
-
-        if _ID.fullmatch(image_id) is None:
-            raise RetirementRefused("Docker returned malformed image ownership or aliases.")
-
-        if not ("RepoTags" in image):
-            raise RetirementRefused("Docker returned malformed image ownership or aliases.")
-
-        if not ("RepoDigests" in image):
-            raise RetirementRefused("Docker returned malformed image ownership or aliases.")
-
-        if image_labels is not None:
-
-            if not (type(image_labels) is (expected_image_labels_type := dict)):
-                raise RetirementRefused(f"{type(image_labels)=} ≠ {expected_image_labels_type=}")
-
-            for (label_name, label_text) in image_labels.items():
-                if not (type(label_name) is (expected_type := str)):
-                    raise RetirementRefused(f"{type(label_name)=} ≠ {expected_type=}")
-
-                if not (type(label_text) is (expected_type := str)):
-                    raise RetirementRefused(f"{type(label_text)=} ≠ {expected_type=}")
-
-        for image_aliases in (image_tags, image_digests):
-            if image_aliases is None:
-                continue
-
-            if not (type(image_aliases) is (expected_type := list)):
-                raise RetirementRefused(f"{type(image_aliases)=} ≠ {expected_type=}")
-
-            for image_alias in image_aliases:
-                if not (type(image_alias) is (expected_type := str)):
-                    raise RetirementRefused(f"{type(image_alias)=} ≠ {expected_type=}")
-
-        # silent-defaults: allow-contract -- Docker reports absent optional Labels as null; only that absence means no labels.
-        image_labels = {} if image_labels is None else image_labels
-
-        # silent-defaults: allow-contract -- Docker reports absent optional RepoTags as null; only that absence means no aliases.
-        image_tags = [] if image_tags is None else image_tags
-
-        # silent-defaults: allow-contract -- Docker reports absent optional RepoDigests as null; only that absence means no digest aliases.
-        image_digests = [] if image_digests is None else image_digests
+        (image_id, image_labels, image_tags, image_digests) = inspected_image_fields(image)
 
         if image_id in protected or image_digests or len(image_tags) > 1:
             continue
@@ -282,17 +216,16 @@ def retire(root, docker, current, *, staged=(), operations=pathlib.Path("/tmp"))
     for offset in range(0, len(container_ids), 64):
         batch = container_ids[offset:offset + 64]
 
-        container_images = [
-            json.loads(line)
-            for line in docker(
+        container_images = decode_inspection_lines(
+            docker(
                 "inspect",
                 "--type",
                 "container",
                 "--format",
-                "{{json .Image}}",
+                CONTAINER_IMAGE_FORMAT,
                 *batch
-            ).splitlines()
-        ]
+            )
+        )
 
         if len(container_images) != len(batch):
             raise RetirementRefused("Container image references were incomplete.")
@@ -301,7 +234,7 @@ def retire(root, docker, current, *, staged=(), operations=pathlib.Path("/tmp"))
             if not (type(container_image_id) is (expected_type := str)):
                 raise RetirementRefused(f"{type(container_image_id)=} ≠ {expected_type=}")
 
-            if _ID.fullmatch(container_image_id) is None:
+            if IMAGE_ID.fullmatch(container_image_id) is None:
                 raise RetirementRefused("Container image references were incomplete.")
 
         protected_images.update(container_images)
@@ -330,7 +263,7 @@ def retire(root, docker, current, *, staged=(), operations=pathlib.Path("/tmp"))
         batch = owned_image_ids[offset:offset + 64]
 
         inspected_images.extend(
-            metadata(docker("image", "inspect", "--format", _IMAGE_JSON, *batch), batch)
+            metadata(docker("image", "inspect", "--format", IMAGE_INSPECTION_FORMAT, *batch), batch)
         )
 
     retirement_plan = select_images(inspected_images, protected_images, selected_inputs)
@@ -358,7 +291,7 @@ def retire(root, docker, current, *, staged=(), operations=pathlib.Path("/tmp"))
             continue
 
         latest_image = metadata(
-            docker("image", "inspect", "--format", _IMAGE_JSON, image_id),
+            docker("image", "inspect", "--format", IMAGE_INSPECTION_FORMAT, image_id),
             [image_id],
         )
 
@@ -378,7 +311,7 @@ def main():
     try:
         (root, staged, *engine) = sys.argv[1:]
 
-        if (not engine) or (staged and _ID.fullmatch(staged) is None):
+        if (not engine) or (staged and IMAGE_ID.fullmatch(staged) is None):
             raise RetirementRefused("No explicit engine or immutable staged image was supplied.")
 
         staged_images = ()
