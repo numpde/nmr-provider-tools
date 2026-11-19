@@ -451,7 +451,7 @@ class _Operation(_Changes):
         await self.wait(after, wait_seconds)
 
         # silent-defaults: allow-contract -- Result adoption can precede thread completion; only a finished operation may expose its result reference.
-        result = self.result if self.finished else None
+        observable_result_ref = self.result if self.finished else None
 
         return Observation(
             operation=self.reference,
@@ -462,7 +462,7 @@ class _Operation(_Changes):
             finished=self.finished,
             outcome=self.outcome,
             result_state=self.result_state,
-            result=result,
+            result=observable_result_ref,
             states=self.returned_states,
             progress=tuple(self.progress),
             progress_dropped=self.progress_dropped,

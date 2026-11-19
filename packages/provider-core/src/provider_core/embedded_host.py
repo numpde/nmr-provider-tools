@@ -82,27 +82,27 @@ class InProcessExecutionHost:
         a memory limit on caller-held handles. Time allowances are in seconds.
         """
 
-        for (name, value) in (
+        for (name, capacity) in (
             ("input_bytes", input_bytes),
             ("result_bytes", result_bytes),
             ("state_values", state_values),
             ("progress_records", progress_records),
         ):
-            if not (type(value) is (expected_type := int)):
-                raise TypeError(f"{name=}; {type(value)=} ≠ {expected_type=}")
+            if not (type(capacity) is (expected_type := int)):
+                raise TypeError(f"{name=}; {type(capacity)=} ≠ {expected_type=}")
 
-            if not (0 < value):
-                raise ValueError(f"Expected a positive capacity for {name=}; received {value=}")
+            if not (0 < capacity):
+                raise ValueError(f"{name=}; {capacity=} should be positive")
 
-        for value in (initialization_seconds, retirement_seconds):
-            require_positive_number(value)
+        require_positive_number(initialization_seconds)
+        require_positive_number(retirement_seconds)
 
         require_type(allocations, tuple)
 
         for allocation in allocations:
             require_type(allocation, Allocation)
 
-        if len({item.name for item in allocations}) != len(allocations):
+        if len({allocation.name for allocation in allocations}) != len(allocations):
             raise ValueError("Allocation names must be unique within a host.")
 
         for allocation in allocations:
@@ -120,8 +120,8 @@ class InProcessExecutionHost:
         self.retirement_seconds = retirement_seconds
 
         self.residents = {
-            item.name: _Resident(host_identity=self.identity, name=item.name, binding=item.binding, assets=item.assets)
-            for item in allocations
+            allocation.name: _Resident(host_identity=self.identity, name=allocation.name, binding=allocation.binding, assets=allocation.assets)
+            for allocation in allocations
         }
 
         self.analyses = {}
@@ -638,9 +638,9 @@ class InProcessAnalysisExecutor:
         implementation_binding = scientific_analysis.resident.binding
 
         selected_call = next(
-            item
-            for item in implementation_binding._calls
-            if item.description.name == invocation.target.name
+            exported_call
+            for exported_call in implementation_binding._calls
+            if exported_call.description.name == invocation.target.name
         )
 
         state_owners = self._state_owners(invocation, selected_call)
@@ -729,8 +729,8 @@ class InProcessAnalysisExecutor:
 
         if (
             invocation.target.name not in {
-                item.description.name
-                for item in scientific_analysis.resident.binding._calls
+                exported_call.description.name
+                for exported_call in scientific_analysis.resident.binding._calls
             }
         ):
             return NotAdmitted(
@@ -748,7 +748,7 @@ class InProcessAnalysisExecutor:
 
     def _state_owners(self, invocation, call):
         state_arguments = invocation.states
-        declared_parameters = {item.name: item for item in call.description.state_inputs}
+        declared_parameters = {state_input.name: state_input for state_input in call.description.state_inputs}
 
         if set(state_arguments) != set(declared_parameters):
             return NotAdmitted(
@@ -815,7 +815,7 @@ class InProcessAnalysisExecutor:
             self.request_stop()
 
             cleanup_overdue_flag_seconds = min(
-                (item.invocation.policy.cleanup_overdue_flag_seconds for item in self.operations.values()),
+                (operation.invocation.policy.cleanup_overdue_flag_seconds for operation in self.operations.values()),
                 default=self.host.retirement_seconds,
             )
 
