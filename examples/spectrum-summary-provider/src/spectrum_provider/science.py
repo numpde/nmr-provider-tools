@@ -7,11 +7,11 @@ from dataclasses import dataclass
 
 from provider_core.contribution_errors import ScientificRejection
 from provider_core.tools import require_finite_number
+from provider_core.type_requirements import require_type
 
 
 def _finite_samples(raw_samples: object, *, series_name: str) -> tuple[float, ...]:
-    if not (type(raw_samples) is (expected_type := tuple)):
-        raise TypeError(f"{series_name=}; {type(raw_samples)=} ≠ {expected_type=}")
+    require_type(raw_samples, tuple)
 
     samples = []
 
@@ -87,12 +87,11 @@ class PeakReport:
     peaks: tuple[Peak, ...]
 
     def __post_init__(self) -> None:
-        if not (type((actual_peaks := self.peaks)) is (expected_type := tuple)):
-            raise TypeError(f"{type(actual_peaks)=} ≠ {expected_type=}")
+        actual_peaks = self.peaks
+        require_type(actual_peaks, tuple)
 
         for peak in self.peaks:
-            if not (type(peak) is (expected_type := Peak)):
-                raise TypeError(f"{type(peak)=} ≠ {expected_type=}")
+            require_type(peak, Peak)
 
 
 def subtract_baseline(spectrum: Spectrum, settings: BaselineSettings) -> Spectrum:

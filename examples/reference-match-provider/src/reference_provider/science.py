@@ -7,6 +7,7 @@ import math
 
 from provider_core.contribution_errors import ScientificRejection
 from provider_core.tools import require_nonnegative_number
+from provider_core.type_requirements import require_type
 
 
 def _finite(numeric_value: object) -> float:
@@ -18,8 +19,8 @@ class VectorInput:
     values: tuple[float, ...]
 
     def __post_init__(self) -> None:
-        if not (type((actual_values := self.values)) is (expected_type := tuple)):
-            raise TypeError(f"{type(actual_values)=} ≠ {expected_type=}")
+        actual_values = self.values
+        require_type(actual_values, tuple)
 
         if not (self.values):
             raise ValueError("A matching vector requires at least one channel value")
@@ -38,8 +39,8 @@ class Reference:
     values: tuple[float, ...]
 
     def __post_init__(self) -> None:
-        if not (type((actual_label := self.label)) is (expected_type := str)):
-            raise TypeError(f"{type(actual_label)=} ≠ {expected_type=}")
+        actual_label = self.label
+        require_type(actual_label, str)
 
         if not self.label.strip():
             raise ValueError("Each matching reference requires a nonempty label")
@@ -55,12 +56,11 @@ class ReferenceSet:
     entries: tuple[Reference, ...]
 
     def __post_init__(self) -> None:
-        if not (type((actual_entries := self.entries)) is (expected_type := tuple)):
-            raise TypeError(f"{type(actual_entries)=} ≠ {expected_type=}")
+        actual_entries = self.entries
+        require_type(actual_entries, tuple)
 
         for entry in self.entries:
-            if not (type(entry) is (expected_type := Reference)):
-                raise TypeError(f"{type(entry)=} ≠ {expected_type=}")
+            require_type(entry, Reference)
 
         if not (self.entries):
             raise ValueError("A reference library requires a nonempty immutable tuple of references")

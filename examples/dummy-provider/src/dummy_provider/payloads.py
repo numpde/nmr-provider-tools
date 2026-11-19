@@ -11,6 +11,7 @@ from dataclasses import dataclass, field
 import mock_numpy as np
 
 from provider_core.payload import JsonDataclassCodec
+from provider_core.type_requirements import require_type
 
 from . import science
 
@@ -47,8 +48,7 @@ class SamplesCodec[SampleInputT: science.PreparationInput | science.SumInput]:
         return self.value_type(samples=np.asarray(a=document.samples, dtype=float))
 
     def encode(self, value: SampleInputT) -> bytes:
-        if not (type(value) is (expected_type := self.value_type)):
-            raise TypeError(f"{type(value)=} ≠ {expected_type=}")
+        require_type(value, self.value_type)
 
         document = _JsonSamples(samples=tuple(value.samples.tolist()))
 

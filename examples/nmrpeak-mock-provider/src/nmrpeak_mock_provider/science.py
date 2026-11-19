@@ -10,6 +10,7 @@ from dataclasses import dataclass
 from typing import BinaryIO, Protocol
 
 from provider_core.contribution_errors import ScientificRejection
+from provider_core.type_requirements import require_type
 
 
 @dataclass(frozen=True, slots=True, kw_only=True)
@@ -48,8 +49,7 @@ class Settings:
 
     def __post_init__(self) -> None:
         for model_limit in (self.maximum_input_tokens, self.beam_size, self.maximum_candidate_characters):
-            if not (type(model_limit) is (expected_type := int)):
-                raise TypeError(f"{type(model_limit)=} ≠ {expected_type=}")
+            require_type(model_limit, int)
 
             if not (0 < model_limit):
                 raise ValueError(f"{model_limit=} should be positive")
@@ -117,8 +117,7 @@ def dispose_prepared(prepared_input: PreparedInput) -> None:
 def validate_candidates(*, candidates: tuple[str, ...], settings: Settings) -> None:
     """Bad model output is an operational failure, never a user correction."""
 
-    if not (type(candidates) is (expected_type := tuple)):
-        raise TypeError(f"{type(candidates)=} ≠ {expected_type=}")
+    require_type(candidates, tuple)
 
     candidate_count = len(candidates)
 
@@ -126,8 +125,7 @@ def validate_candidates(*, candidates: tuple[str, ...], settings: Settings) -> N
         raise ValueError(f"Expected: 1 ≤ {candidate_count=} ≤ {settings.beam_size=}")
 
     for candidate in candidates:
-        if not (type(candidate) is (expected_type := str)):
-            raise TypeError(f"{type(candidate)=} ≠ {expected_type=}")
+        require_type(candidate, str)
 
         character_count = len(candidate)
 

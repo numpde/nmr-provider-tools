@@ -14,6 +14,7 @@ from enum import auto
 import mock_numpy as np
 
 from provider_core.contribution_errors import ErrorCode, ScientificRejection
+from provider_core.type_requirements import require_instance, require_type
 
 
 class ScientificInputRejected(ScientificRejection):
@@ -25,8 +26,7 @@ class ScientificInputRejected(ScientificRejection):
         WRONG_COUNT = auto()
 
     def __init__(self, message: str, *, code: ScientificInputRejected.Code) -> None:
-        if not isinstance(code, (expected_type := self.Code)):
-            raise TypeError(f"{type(code)=} ≠ {expected_type=}")
+        require_instance(code, self.Code)
 
         super().__init__(code=code, message=message)
 
@@ -84,8 +84,8 @@ class PreparationResult:
     count: int
 
     def __post_init__(self) -> None:
-        if not (type((actual_count := self.count)) is (expected_type := int)):
-            raise TypeError(f"{type(actual_count)=} ≠ {expected_type=}")
+        actual_count = self.count
+        require_type(actual_count, int)
 
         if not (0 < self.count):
             raise ValueError(f"Expected a positive {self.count=}")
@@ -100,8 +100,8 @@ class PredictionResult:
         if not np.isfinite(self.total):
             raise ValueError(f"Expected a finite prediction; {self.total=}")
 
-        if not (type((actual_count := self.count)) is (expected_type := int)):
-            raise TypeError(f"{type(actual_count)=} ≠ {expected_type=}")
+        actual_count = self.count
+        require_type(actual_count, int)
 
         if not (0 < self.count):
             raise ValueError(f"Expected a positive {self.count=}")
@@ -116,8 +116,8 @@ class SumResult:
         if not np.isfinite(self.total):
             raise ValueError(f"Expected a finite sum; {self.total=}")
 
-        if not (type((actual_count := self.count)) is (expected_type := int)):
-            raise TypeError(f"{type(actual_count)=} ≠ {expected_type=}")
+        actual_count = self.count
+        require_type(actual_count, int)
 
         if not (0 < self.count):
             raise ValueError(f"Expected a positive {self.count=}")
@@ -247,8 +247,7 @@ def prepare(
 ) -> PreparedSamples:
     """Reject one candidate without discarding the analysis itself."""
 
-    if not (type(candidate) is (expected_type := PreparationInput)):
-        raise TypeError(f"{type(candidate)=} ≠ {expected_type=}")
+    require_type(candidate, PreparationInput)
 
     if not (analysis.is_open):
         raise RuntimeError("Cannot prepare input for a closed analysis")
@@ -289,8 +288,7 @@ def calculate(
     analysis: WeightedSumAnalysis,
     state: CalculationState,
 ) -> PredictionResult:
-    if not (type(state) is (expected_type := CalculationState)):
-        raise TypeError(f"{type(state)=} ≠ {expected_type=}")
+    require_type(state, CalculationState)
 
     if not (analysis.is_open):
         raise RuntimeError("Cannot calculate for a closed analysis")
@@ -315,8 +313,7 @@ def calculate(
 
 
 def sum_values(summation: SumInput) -> SumResult:
-    if not (type(summation) is (expected_type := SumInput)):
-        raise TypeError(f"{type(summation)=} ≠ {expected_type=}")
+    require_type(summation, SumInput)
 
     if not (summation.samples.size > 0):
         raise ScientificInputRejected(
