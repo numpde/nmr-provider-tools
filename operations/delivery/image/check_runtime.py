@@ -16,7 +16,7 @@ from provider_core.provider_proxy import ServicePolicy, ServiceProxyServer
 
 for module in ("tools", "nmrnet_provider", "nmrnet_inference", "magnet_provider", "rdkit", "torch"):
     if find_spec(module) is not None:
-        raise SystemExit(f"Cannot qualify delivery image: unexpected provider or build module {module} is importable.")
+        raise SystemExit(f"{module=} should not be importable in the delivery image")
 
 with TemporaryDirectory() as temporary:
     root = Path(temporary)

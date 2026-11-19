@@ -116,7 +116,7 @@ def _service(image, module, definition, stop_seconds):
         "image": image,
         "pull_policy": "never",
         "entrypoint": [CORE_PYTHON, "-I", "-B", "-m", module],
-        "user": f"{uid}:{gid}",
+        "user": f"{uid}:{gid}",  # machine-string: Compose requires the numeric UID:GID user selector
         "init": True,
         "read_only": True,
         "cap_drop": ["ALL"],
@@ -128,11 +128,11 @@ def _service(image, module, definition, stop_seconds):
         "memswap_limit": "512m",
         "pids_limit": 64,
         "restart": "unless-stopped",
-        "stop_grace_period": f"{stop_seconds}s",
+        "stop_grace_period": f"{stop_seconds}s",  # machine-string: Compose parses this as a duration in seconds
         "network_mode": "none",
         "labels": {"org.nmr-provider-tools.delivery": definition.project},
         "tmpfs": [
-            f"/{name}:rw,nosuid,nodev,noexec,size=64m,mode=0700,uid={uid},gid={gid}"
+            f"/{name}:rw,nosuid,nodev,noexec,size=64m,mode=0700,uid={uid},gid={gid}"  # machine-string: Compose parses each tmpfs entry as a mount path and comma-separated options
             for name in ("tmp", "run")
         ],
         "logging": {
@@ -152,7 +152,7 @@ def admit_listeners(definition):
 
     for binding in definition.bindings:
         ipc_key = binding.ipc_volume.removeprefix(definition.project + "-ipc-")
-        socket_path = f"/ipc/{ipc_key}/{binding.socket_path.name}"
+        socket_path = f"/ipc/{ipc_key}/{binding.socket_path.name}"  # machine-string: The daemon opens this path inside its granted IPC volume
 
         try:
             require_unix_socket_path(socket_path)
@@ -194,7 +194,7 @@ def daemon_configuration(definition):
             {
                 "socket_path": socket_path,
                 "socket_group_id": definition.gid,
-                "proxy_socket": f"/routes/{ipc_key}/proxy.sock",
+                "proxy_socket": f"/routes/{ipc_key}/proxy.sock",  # machine-string: The delivery worker connects to this mounted Unix socket path
                 "api": api_configuration,
             }
         )

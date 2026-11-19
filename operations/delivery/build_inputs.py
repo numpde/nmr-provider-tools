@@ -55,7 +55,7 @@ def release_inputs(pin, runtime_lock):
 
 
 def release_wheels(release):
-    provider_wheel_name = f"provider_core-{release['version']}-py3-none-any.whl"
+    provider_wheel_name = f"provider_core-{release['version']}-py3-none-any.whl"  # machine-string: The wheelhouse lookup needs the distribution's exact wheel filename
 
     return dict(release["runtime_wheels"]) | {provider_wheel_name: release["wheel_sha256"]}
 
