@@ -4,12 +4,13 @@ import reprlib
 from collections.abc import Mapping
 from typing import Any
 
+from type_requirements import require_instance
+
 
 def install_records(report: object) -> list[Any]:
     """Read the versioned install list without inspecting individual records."""
 
-    if not isinstance(report, (expected_report_type := dict)):
-        raise ValueError(f"{type(report)=} ≠ {expected_report_type=}")
+    require_instance(report, dict)
 
     report_version = report.get("version")
     expected_version = "1"
@@ -19,8 +20,7 @@ def install_records(report: object) -> list[Any]:
 
     install_records = report.get("install")
 
-    if not isinstance(install_records, (expected_records_type := list)):
-        raise ValueError(f"{type(install_records)=} ≠ {expected_records_type=}")
+    require_instance(install_records, list)
 
     return install_records
 

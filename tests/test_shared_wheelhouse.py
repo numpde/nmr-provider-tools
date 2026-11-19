@@ -792,8 +792,13 @@ class WheelhouseTests(unittest.TestCase):
 
         self.assertEqual(source, report_manifest(report("file:///pool/" + source), "/pool", "wheels", {source})[0]["filename"])
 
-        for invalid in (None, [], {"version": "1", "install": []}):
-            with self.subTest(report=invalid), self.assertRaises(ValueError):
+        for invalid, expected_exception in (
+            (None, TypeError),
+            ([], TypeError),
+            ({"version": "1", "install": {}}, TypeError),
+            ({"version": "1", "install": []}, ValueError),
+        ):
+            with self.subTest(report=invalid), self.assertRaises(expected_exception):
                 report_manifest(invalid, "/pool", "wheels", set())
 
     def test_report_checks_source_authorization_before_reading_archive_hash(self) -> None:
