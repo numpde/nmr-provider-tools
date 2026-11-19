@@ -102,8 +102,8 @@ if [[ $action == download ]]; then
         operation_run 120 "${worker[@]}" --network none --user "$operation_host_uid:$operation_host_gid" \
             --mount "type=bind,src=$wheelhouse_directory,dst=/wheelhouse,readonly" \
             --entrypoint python3 "$tool_image" -B -m sdk_build.provider_core_acquire check > "$operation_directory/pool-state"
-        operation_metadata "$operation_directory/pool-check-exit" inspect --format '{{.State.Running}} {{.State.ExitCode}}' "$operation_container"
-        cmp -s "$operation_directory/pool-check-exit" <(printf 'false 0\n') || {
+        docker_inspect_container_state "$operation_directory/pool-check-exit" "$operation_container"
+        docker_container_state_matches "$operation_directory/pool-check-exit" false 0 || {
             operation_diagnostic+=$'Cannot acquire dependencies: the pool check did not retire successfully.\n'; exit 2;
         }
         if cmp -s "$operation_directory/pool-state" <(printf 'complete\n'); then
@@ -125,8 +125,8 @@ if [[ $action == download ]]; then
         operation_run 120 "${worker[@]}" --network none --user "$operation_host_uid:$operation_host_gid" \
             --mount "type=bind,src=$wheelhouse_directory,dst=/wheelhouse,readonly" \
             --entrypoint python3 "$tool_image" -B -m sdk_build.provider_core_acquire verify > /dev/null
-        operation_metadata "$operation_directory/final-check-exit" inspect --format '{{.State.Running}} {{.State.ExitCode}}' "$operation_container"
-        cmp -s "$operation_directory/final-check-exit" <(printf 'false 0\n') || {
+        docker_inspect_container_state "$operation_directory/final-check-exit" "$operation_container"
+        docker_container_state_matches "$operation_directory/final-check-exit" false 0 || {
             operation_diagnostic+=$'Cannot confirm dependency acquisition: the final pool check did not retire successfully.\n'; exit 2;
         }
     fi

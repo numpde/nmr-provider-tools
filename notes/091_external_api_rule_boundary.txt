@@ -1132,6 +1132,12 @@ Separate adjacent tool/package interfaces from service API rules:
       its engine argv, 100-check loop, readiness-first ordering, limits, reasons
       and logs remain unchanged. Network grants and release stay with the owner.
       Owner (50, one skip) and Compose/bundle (9) focused tests pass.
+  [x] Host cache/build workers use a shared Running/ExitCode projection and exact
+      record validator under operations/docker. Callers still choose false/0
+      and own process completion, receipt paths, result admission and failures.
+      The operation owner loads both shell leaves; shadow fixtures include them.
+      Operation (15), ordered-retirement (4) and the actual offline wheelhouse
+      image build pass with privacy tests disabled.
   Docker/Compose: operations/docker/docker_context.sh:22-57 interprets context
   endpoint output; container_operation.sh and packages/acquisition/acquisition_tool/
   owner.sh interpret create/inspect/state/exit/readiness results; image_retirement.py:138

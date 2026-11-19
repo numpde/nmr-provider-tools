@@ -48,8 +48,8 @@ case "$action" in
             --mount "type=bind,src=$root/requirements/wheelhouse-tool.lock,dst=/tool.lock,readonly" \
             --mount "type=bind,src=$wheelhouse_directory,dst=/wheelhouse,readonly" \
             --entrypoint python3 "$checker_image" -B -m tools.wheelhouse check --pool /wheelhouse --lock /tool.lock > "$operation_directory/selection.json"
-        operation_metadata "$operation_directory/selection-exit" inspect --format '{{.State.Running}} {{.State.ExitCode}}' "$operation_container"
-        cmp -s "$operation_directory/selection-exit" <(printf 'false 0\n') || {
+        docker_inspect_container_state "$operation_directory/selection-exit" "$operation_container"
+        docker_container_state_matches "$operation_directory/selection-exit" false 0 || {
             printf '%s\n' 'Cannot build the wheelhouse tool: the selection worker did not complete.' >&2; exit 2;
         }
         python3 -I -S -B "$root/packages/wheelhouse-tool/build/image_manifest.py" "$operation_directory/selection.json" "$operation_directory/manifest.json" "$root/requirements/installer-release.json"

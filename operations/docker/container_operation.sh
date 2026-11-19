@@ -4,7 +4,9 @@
 # retire owned resources, verify absence, then release mounted host inputs.
 
 source "$root/operations/docker/docker_client.sh"
+source "$root/operations/docker/adapters/docker_inspection.sh"
 source "$root/operations/docker/validation/upstream/container_ids.sh"
+source "$root/operations/docker/validation/upstream/container_state.sh"
 source "$root/host/tools/inference_native.sh"
 
 operation_begin() {

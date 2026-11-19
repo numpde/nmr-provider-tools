@@ -112,11 +112,19 @@ if operation_run "$budget" inert-image; then exit 0; else exit "$?"; fi
         shadow = self.directory / "identity-checkout"
 
         (shadow / "host/tools").mkdir(parents=True)
+        (shadow / "operations/docker/adapters").mkdir(parents=True)
         (shadow / "operations/docker/validation/upstream").mkdir(parents=True)
 
         shutil.copyfile(ROOT / "host/tools/inference_native.sh", shadow / "host/tools/inference_native.sh")
 
-        for name in ("container_operation.sh", "docker_client.sh", "image_lifecycle.sh", "validation/upstream/container_ids.sh"):
+        for name in (
+            "container_operation.sh",
+            "docker_client.sh",
+            "image_lifecycle.sh",
+            "adapters/docker_inspection.sh",
+            "validation/upstream/container_ids.sh",
+            "validation/upstream/container_state.sh",
+        ):
             shutil.copyfile(ROOT / "operations/docker" / name, shadow / "operations/docker" / name)
 
         acquisition = shadow / "bootstrap/acquisition/acquisition_tool"
@@ -280,11 +288,19 @@ exit "$status"
         shadow = self.directory / "checkout"
 
         (shadow / "host/tools").mkdir(parents=True)
+        (shadow / "operations/docker/adapters").mkdir(parents=True)
         (shadow / "operations/docker/validation/upstream").mkdir(parents=True)
 
         shutil.copyfile(ROOT / "host/tools/inference_native.sh", shadow / "host/tools/inference_native.sh")
 
-        for name in ("container_operation.sh", "docker_client.sh", "image_lifecycle.sh", "validation/upstream/container_ids.sh"):
+        for name in (
+            "container_operation.sh",
+            "docker_client.sh",
+            "image_lifecycle.sh",
+            "adapters/docker_inspection.sh",
+            "validation/upstream/container_ids.sh",
+            "validation/upstream/container_state.sh",
+        ):
             shutil.copyfile(ROOT / "operations/docker" / name, shadow / "operations/docker" / name)
 
         (shadow / "operations/docker/image_retirement.sh").write_text(

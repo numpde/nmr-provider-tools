@@ -22,8 +22,8 @@ operation_run 120 --pull never --network none --read-only --user "$uid:$gid" --c
     --mount "type=bind,src=$1,dst=/wheelhouse,readonly" \
     --entrypoint python3 "$checker_image" -B -m operations.delivery.build_inputs check \
     --pin /release.json --runtime-lock /core-runtime.lock --pool /wheelhouse --tool-pin /wheelhouse-tool-release.json > "$operation_directory/result"
-operation_metadata "$operation_directory/check-exit" inspect --format '{{.State.Running}} {{.State.ExitCode}}' "$operation_container"
-cmp -s "$operation_directory/check-exit" <(printf 'false 0\n') || {
+docker_inspect_container_state "$operation_directory/check-exit" "$operation_container"
+docker_container_state_matches "$operation_directory/check-exit" false 0 || {
     operation_diagnostic+=$'Cannot inspect the delivery pool: the checker did not retire successfully.\n'; exit 2;
 }
 IFS= read -r result < "$operation_directory/result"
