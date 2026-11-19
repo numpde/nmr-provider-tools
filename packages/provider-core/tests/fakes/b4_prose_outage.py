@@ -17,7 +17,7 @@ from unittest.mock import Mock
 
 from provider_core.analysis import AnalysisFailure, AnalysisSuccess, PreparedAnalysis
 from provider_core.attempt_record import ProtectedEvidence, StartPending
-    from provider_core.validation.upstream.nmr.v1.attempt_request import read_complete_body, read_fail_body
+from provider_core.validation.upstream.nmr.v1.attempt_request import read_complete_body, read_fail_body
 from provider_core.chat import ChatEndpointFactory, ChatEndpointSpec
 from provider_core.chat_errors import ChatFailed
 from provider_core.controller import AttemptController, LiveStartPolicy
