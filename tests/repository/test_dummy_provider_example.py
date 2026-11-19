@@ -21,9 +21,9 @@ class DummyProviderExampleTests(unittest.TestCase):
         )
 
         symlinks = sorted(
-            path.relative_to(example).as_posix()
-            for path in example.rglob("*")
-            if path.is_symlink()
+            symlink_path.relative_to(example).as_posix()
+            for symlink_path in example.rglob("*")
+            if symlink_path.is_symlink()
         )
 
         self.assertEqual([], symlinks)
@@ -49,13 +49,13 @@ class DummyProviderExampleTests(unittest.TestCase):
 
         findings = []
 
-        paths = source_files(root=ROOT, patterns=(f"{source.relative_to(ROOT)}/*.py",))
+        source_paths = source_files(root=ROOT, patterns=(f"{source.relative_to(ROOT)}/*.py",))
 
-        for path in paths:
-            if path.parent != source:
+        for source_path in source_paths:
+            if source_path.parent != source:
                 continue
 
-            tree = ast.parse(path.read_text(), filename=str(path))
+            tree = ast.parse(source_path.read_text(), filename=str(source_path))
 
             for node in ast.walk(tree):
                 if isinstance(node, ast.Import):
@@ -73,7 +73,7 @@ class DummyProviderExampleTests(unittest.TestCase):
                         ),
                     ):
                         findings.append(
-                            f"{path.relative_to(ROOT)}:{node.lineno}: {name}"
+                            f"{source_path.relative_to(ROOT)}:{node.lineno}: {name}"
                         )
 
         self.assertEqual([], findings, msg="\n".join(findings))

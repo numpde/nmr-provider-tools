@@ -215,7 +215,7 @@ class DeliveryReleaseTests(unittest.TestCase):
 
             self.assertEqual(
                 {"provider-core-install.lock", "provider-core-wheel-inputs.json", "provider-core-stream.json", "operations", "requirements"},
-                {path.name for path in destination.iterdir()},
+                {destination_entry.name for destination_entry in destination.iterdir()},
             )
 
             self.assertEqual(b"lock", (destination / "provider-core-install.lock").read_bytes())
