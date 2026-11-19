@@ -39,7 +39,6 @@ class PublicationMaterialTests(unittest.TestCase):
         reader.assert_called_once_with(
             "/private/credential",
             maximum_bytes=16384,
-            label="API signing credential",
             secret=True
         )
 

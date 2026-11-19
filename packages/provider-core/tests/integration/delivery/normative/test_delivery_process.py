@@ -50,7 +50,7 @@ async def _receive_notice(process, event, notices):
             if report["event"] == event:
                 return report
 
-    raise AssertionError("Installed daemon exited before " + event)
+    raise AssertionError(f"{event=} should precede daemon exit; {notices=}")
 
 
 def _configured_binding(root, peer, proxy, *, provider):
@@ -203,7 +203,7 @@ class DeliveryProcessTests(unittest.IsolatedAsyncioTestCase):
                                 if report["event"] == event:
                                     return report
 
-                        self.fail(f"Daemon exited before {event}.")
+                            self.fail(f"{event=} should precede daemon exit; {notices=}")
 
                     try:
                         await receive("delivery_ready")

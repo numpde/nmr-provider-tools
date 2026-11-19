@@ -139,7 +139,7 @@ def _read_https_settings(table, label, read_file):
     ca_bytes = None
 
     if "ca_file" in table:
-        ca_bytes = read_file(table["ca_file"], maximum_bytes=1048576, label=label + " CA")
+        ca_bytes = read_file(table["ca_file"], maximum_bytes=1048576)
 
         if not (type(ca_bytes) is (expected_type := bytes)):
             raise ApiConfigurationRejected(f"{label=}; CA reader: {type(ca_bytes)=} ≠ {expected_type=}")
@@ -188,7 +188,7 @@ def api_settings(table, read_file):
 def api_settings_with_material(table, read_file):
     """Admit one API owner and retain the exact inputs needed for its outbox."""
     require_api_fields(table)
-    raw = read_file(table["credential_file"], maximum_bytes=MAX_CREDENTIAL_BYTES, label="API signing credential", secret=True)
+    raw = read_file(table["credential_file"], maximum_bytes=MAX_CREDENTIAL_BYTES, secret=True)
     (identity, provider_ref) = _signing_identity(table, raw)
     (http, ca_bytes) = _read_https_settings(table, "API", read_file)
     settings = ApiSettings(identity, http, table["topology"])

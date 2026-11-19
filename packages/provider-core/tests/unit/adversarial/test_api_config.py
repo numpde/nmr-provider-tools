@@ -49,8 +49,8 @@ class HttpsAdmissionTests(unittest.TestCase):
         ):
             calls = []
 
-            def read_file(path, *, maximum_bytes, label):
-                calls.append((path, maximum_bytes, label))
+            def read_file(path, *, maximum_bytes):
+                calls.append((path, maximum_bytes))
 
                 return raw
 
@@ -63,7 +63,7 @@ class HttpsAdmissionTests(unittest.TestCase):
         for (error, reason, cause_type, calls) in self._ca_parser_failures():
             self.assertIn(reason, str(error))
             self.assertIsInstance(error.cause, cause_type)
-            self.assertEqual(calls, [("/PRIVATE_PATH/ca.pem", 1048576, "API CA")])
+            self.assertEqual(calls, [("/PRIVATE_PATH/ca.pem", 1048576)])
             rendered = json.dumps(failure_evidence(error, secrets=()))
 
             self.assertIn(reason, rendered)
@@ -105,7 +105,7 @@ class HttpsAdmissionTests(unittest.TestCase):
 
         self.assertIs(caught.exception, cause)
         create_context.assert_not_called()
-        reader.assert_called_once_with("/PRIVATE_PATH/ca.pem", maximum_bytes=1048576, label="API CA")
+        reader.assert_called_once_with("/PRIVATE_PATH/ca.pem", maximum_bytes=1048576)
 
     def test_explicit_ca_reader_cannot_silently_select_system_roots(self):
         with patch("provider_core.api_config.new_https_trust") as roots:
