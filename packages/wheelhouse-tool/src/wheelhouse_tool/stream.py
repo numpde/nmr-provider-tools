@@ -76,39 +76,39 @@ def stream_context(pool, source, selections, output, source_allowlist=None):
     else:
         paths = ((Path(item["path"]), item["destination"]) for item in source_allowlist)
 
-    for (path, name) in paths:
-        destination = PurePosixPath(name)
+    for (path, source_relative_path) in paths:
+        destination = PurePosixPath(source_relative_path)
 
         if (
             destination.is_absolute() or
             (not destination.parts) or
-            (str(destination) != name) or
-            any(((ord(character) < 32) or (ord(character) == 127)) for character in name) or
+            (str(destination) != source_relative_path) or
+            any(((ord(character) < 32) or (ord(character) == 127)) for character in source_relative_path) or
             any((part in (".", "..")) for part in destination.parts)
         ):
             raise ValueError("Cannot stream build inputs: source destination must be a relative path.")
 
-        if name in source_paths:
-            raise ValueError(f"Cannot stream {name}: source destination is duplicated.")
+        if source_relative_path in source_paths:
+            raise ValueError(f"Cannot stream {source_relative_path=}: source destination is duplicated.")
 
         metadata = path.lstat()
 
         if not (stat.S_ISDIR(metadata.st_mode) or stat.S_ISREG(metadata.st_mode)):
-            raise ValueError(f"Cannot stream {name}: source must contain only directories and regular files.")
+            raise ValueError(f"Cannot stream {source_relative_path=}: source must contain only directories and regular files.")
 
         if (source_allowlist is not None) and (not stat.S_ISREG(metadata.st_mode)):
-            raise ValueError(f"Cannot stream {name}: allowlist entries must be regular files.")
+            raise ValueError(f"Cannot stream {source_relative_path=}: allowlist entries must be regular files.")
 
-        source_paths[name] = path
+        source_paths[source_relative_path] = path
 
-    for name in source_paths:
+    for source_relative_path in source_paths:
         if any(
             (
                 ((parent.as_posix() in source_paths) and (not source_paths[parent.as_posix()].is_dir()))
-                for parent in PurePosixPath(name).parents
+                for parent in PurePosixPath(source_relative_path).parents
             ),
         ):
-            raise ValueError(f"Cannot stream {name}: a source file occupies its parent path.")
+            raise ValueError(f"Cannot stream {source_relative_path=}: a source file occupies its parent path.")
 
     artifacts = {}
 
@@ -147,8 +147,8 @@ def stream_context(pool, source, selections, output, source_allowlist=None):
                 required = selection["require_sdist"]
 
             inputs = [
-                (name, digest)
-                for (name, digest, *_) in selected(
+                (artifact_filename, digest)
+                for (artifact_filename, digest, *_) in selected(
                     lock,
                     preferred,
                     required,
@@ -158,50 +158,50 @@ def stream_context(pool, source, selections, output, source_allowlist=None):
         else:
             inputs = [(selection["filename"], selection["sha256"])]
 
-        for (name, digest) in inputs:
+        for (artifact_filename, digest) in inputs:
             if (
-                (not name) or
-                (name in (".", "..")) or
-                ("/" in name) or
-                ("\\" in name) or
-                any(((ord(character) < 32) or (ord(character) == 127)) for character in name) or
+                (not artifact_filename) or
+                (artifact_filename in (".", "..")) or
+                ("/" in artifact_filename) or
+                ("\\" in artifact_filename) or
+                any(((ord(character) < 32) or (ord(character) == 127)) for character in artifact_filename) or
                 (not re.fullmatch(r"[0-9a-f]{64}", digest))
             ):
                 raise ValueError("Cannot stream build inputs: expected a filename and SHA-256 hash.")
 
-            destination = str(directory / name)
+            archive_destination = str(directory / artifact_filename)
 
             if (
-                (destination in source_paths) or
-                any(name.startswith(destination + "/") for name in source_paths) or
+                (archive_destination in source_paths) or
+                any(source_relative_path.startswith(archive_destination + "/") for source_relative_path in source_paths) or
                 any(
                     (
                         ((parent.as_posix() in source_paths) and (not source_paths[parent.as_posix()].is_dir()))
-                        for parent in PurePosixPath(destination).parents
+                        for parent in PurePosixPath(archive_destination).parents
                         if str(parent) != "."
                     ),
                 )
             ):
-                raise ValueError(f"Cannot stream {destination}: it collides with the curated source context.")
+                raise ValueError(f"Cannot stream {archive_destination=}: it collides with the curated source context.")
 
-            if (destination in artifacts) and (artifacts[destination] != (name, digest)):
-                raise ValueError(f"Cannot stream {destination}: selections conflict.")
+            if (archive_destination in artifacts) and (artifacts[archive_destination] != (artifact_filename, digest)):
+                raise ValueError(f"Cannot stream {archive_destination=}: selections conflict.")
 
-            artifacts[destination] = (name, digest)
+            artifacts[archive_destination] = (artifact_filename, digest)
 
-    for destination in artifacts:
-        if any((parent.as_posix() in artifacts) for parent in PurePosixPath(destination).parents):
-            raise ValueError(f"Cannot stream {destination}: an artifact occupies its parent path.")
+    for archive_destination in artifacts:
+        if any((parent.as_posix() in artifacts) for parent in PurePosixPath(archive_destination).parents):
+            raise ValueError(f"Cannot stream {archive_destination=}: an artifact occupies its parent path.")
 
     with pool_lock(pool, exclusive=False) as directory_fd:
         # Callers must check this producer's status as well as the build status.
         tar = tarfile.open(fileobj=output, mode="w|")
 
-        for (name, path) in sorted(source_paths.items()):
+        for (source_relative_path, path) in sorted(source_paths.items()):
             metadata = path.lstat()
-            info = tarfile.TarInfo(name)
+            info = tarfile.TarInfo(source_relative_path)
 
-            if (name not in source_hashes) and (stat.S_ISDIR(metadata.st_mode)):
+            if (source_relative_path not in source_hashes) and (stat.S_ISDIR(metadata.st_mode)):
                 info.type = tarfile.DIRTYPE
                 info.mode = 0o755
 
@@ -211,19 +211,19 @@ def stream_context(pool, source, selections, output, source_allowlist=None):
 
                 if not stat.S_ISREG(os.fstat(descriptor).st_mode):
                     os.close(descriptor)
-                    raise ValueError(f"Cannot stream {name}: expected a regular source file.")
+                    raise ValueError(f"Cannot stream {source_relative_path=}: expected a regular source file.")
 
                 with os.fdopen(descriptor, "rb") as file:
                     metadata = os.fstat(file.fileno())
 
                     if not stat.S_ISREG(metadata.st_mode):
-                        raise ValueError(f"Cannot stream {name}: expected a regular source file.")
+                        raise ValueError(f"Cannot stream {source_relative_path=}: expected a regular source file.")
 
                     if (
-                        (name in source_modes) and
-                        ((source_is_executable := bool(metadata.st_mode & 0o111)) != (expected_executable := source_modes[name]))
+                        (source_relative_path in source_modes) and
+                        ((source_is_executable := bool(metadata.st_mode & 0o111)) != (expected_executable := source_modes[source_relative_path]))
                     ):
-                        raise ValueError(f"For source {name!r}, {source_is_executable=} should match {expected_executable=}")
+                        raise ValueError(f"For source {source_relative_path=}, {source_is_executable=} should match {expected_executable=}")
 
                     if metadata.st_mode & 0o111:
                         info.mode = 0o755
@@ -236,21 +236,21 @@ def stream_context(pool, source, selections, output, source_allowlist=None):
                     tar.addfile(info, reader)
 
                     if (
-                        (name in source_hashes) and
-                        ((source_sha256 := reader.digest.hexdigest()) != (expected_sha256 := source_hashes[name]))
+                        (source_relative_path in source_hashes) and
+                        ((source_sha256 := reader.digest.hexdigest()) != (expected_sha256 := source_hashes[source_relative_path]))
                     ):
-                        raise ValueError(f"For source {name!r}, {source_sha256=} should match {expected_sha256=}")
+                        raise ValueError(f"For source {source_relative_path=}, {source_sha256=} should match {expected_sha256=}")
 
-        for (destination, (name, expected_sha256)) in sorted(artifacts.items()):
-            descriptor = os.open(name, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK, dir_fd=directory_fd)
+        for (archive_destination, (artifact_filename, expected_sha256)) in sorted(artifacts.items()):
+            descriptor = os.open(artifact_filename, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK, dir_fd=directory_fd)
 
             with os.fdopen(descriptor, "rb") as file:
                 metadata = os.fstat(file.fileno())
 
                 if not stat.S_ISREG(metadata.st_mode):
-                    raise ValueError(f"Cannot stream {name}: expected a regular file.")
+                    raise ValueError(f"Cannot stream {artifact_filename=}: expected a regular file.")
 
-                info = tarfile.TarInfo(destination)
+                info = tarfile.TarInfo(archive_destination)
                 info.size = metadata.st_size
                 info.mode = 0o644
                 reader = HashReader(file)
@@ -260,7 +260,7 @@ def stream_context(pool, source, selections, output, source_allowlist=None):
                 artifact_sha256 = reader.digest.hexdigest()
 
                 if not (artifact_sha256 == expected_sha256):
-                    raise ValueError(f"For artifact {name!r}, {artifact_sha256=} should match {expected_sha256=}")
+                    raise ValueError(f"For artifact {artifact_filename=}, {artifact_sha256=} should match {expected_sha256=}")
 
         tar.close()
         output.flush()

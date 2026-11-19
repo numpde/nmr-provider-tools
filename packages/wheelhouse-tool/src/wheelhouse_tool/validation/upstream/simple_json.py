@@ -21,7 +21,7 @@ def project_files(raw: bytes, *, expected_project_name: str) -> list[Mapping[str
     try:
         project = json.loads(raw)
     except ValueError as cause:
-        raise ValueError(f"Cannot decode metadata for {reprlib.repr(expected_project_name)=}: {cause}") from cause
+        raise ValueError(f"Cannot decode metadata for {reprlib.repr(expected_project_name)=}: {cause=}") from cause
 
     project_name = canonicalize_name(project["name"])
 

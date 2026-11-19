@@ -121,73 +121,75 @@ def selected(lock, prefer_sdist, require_sdist=(), document=None, source_lock=No
             raise ValueError(f"{artifact.url=} should be set for {package.name=}")
 
         url = urllib.parse.urlsplit(artifact.url)
-        name = getattr(artifact, "filename", None) or urllib.parse.unquote(url.path.rsplit("/", 1)[-1])
+        artifact_filename = getattr(artifact, "filename", None) or urllib.parse.unquote(url.path.rsplit("/", 1)[-1])
         digest = artifact.hashes.get("sha256")
 
         if source_requirements is not None:
             entry = source_requirements.get(package.name)
 
             if (entry is None) or (digest not in entry[1]):
-                raise ValueError(f"Cannot use projected lock: {package.name} differs from its source lock.")
+                raise ValueError(f"Cannot use projected lock: {package.name=} differs from its source lock.")
 
             requirement = entry[0]
 
             if (requirement.url is not None) and (artifact.url != urllib.parse.urldefrag(requirement.url).url):
-                raise ValueError(f"Cannot use projected lock: {package.name} has a different locked URL.")
+                raise ValueError(f"Cannot use projected lock: {package.name=} has a different locked URL.")
 
             if (requirement.url is None) and ((package.version is None) or (not requirement.specifier.contains(package.version, prereleases=True))):
-                raise ValueError(f"Cannot use projected lock: {package.name} has a different locked version.")
+                raise ValueError(f"Cannot use projected lock: {package.name=} has a different locked version.")
 
-        if (not name) or (name in (".", "..")) or ("/" in name) or ("\\" in name):
-            raise ValueError(f"Cannot acquire {package.name}: the artifact filename is invalid.")
+        if (not artifact_filename) or (artifact_filename in (".", "..")) or ("/" in artifact_filename) or ("\\" in artifact_filename):
+            raise ValueError(f"Cannot acquire {package.name=}: the artifact filename is invalid.")
 
-        source = isinstance(artifact, PackageSdist) or ((isinstance(artifact, PackageArchive)) and (not name.endswith(".whl")))
+        source = isinstance(artifact, PackageSdist) or ((isinstance(artifact, PackageArchive)) and (not artifact_filename.endswith(".whl")))
 
         if (isinstance(artifact, PackageArchive)) and (not source):
             try:
-                (wheel_name, wheel_version, _build, wheel_tags) = parse_wheel_filename(name)
+                (wheel_name, wheel_version, _build, wheel_tags) = parse_wheel_filename(artifact_filename)
             except InvalidWheelFilename as error:
-                raise ValueError(f"Cannot acquire {package.name}: direct wheel filename is invalid.") from error
+                raise ValueError(f"Cannot acquire {package.name=}: direct wheel filename is invalid.") from error
 
             if (wheel_name != package.name) or ((package.version is not None) and (wheel_version != package.version)):
-                raise ValueError(f"Cannot acquire {package.name}: direct wheel does not match the locked package.")
+                raise ValueError(f"Cannot acquire {package.name=}: direct wheel does not match the locked package.")
 
             if not wheel_tags.intersection(sys_tags()):
-                raise ValueError(f"Cannot acquire {package.name}: direct wheel is incompatible with this target.")
+                raise ValueError(f"Cannot acquire {package.name=}: direct wheel is incompatible with this target.")
 
         if source and isinstance(artifact, PackageArchive):
             try:
-                (source_name, source_version) = parse_sdist_filename(name)
+                (source_name, source_version) = parse_sdist_filename(artifact_filename)
             except InvalidSdistFilename as error:
-                raise ValueError(f"Cannot acquire {package.name}: direct source archive has no standard distribution filename.") from error
+                raise ValueError(f"Cannot acquire {package.name=}: direct source archive has no standard distribution filename.") from error
 
             if (source_name != package.name) or ((package.version is not None) and (source_version != package.version)):
-                raise ValueError(f"Cannot acquire {package.name}: direct source archive does not match the locked package.")
+                raise ValueError(f"Cannot acquire {package.name=}: direct source archive does not match the locked package.")
 
         if (source) and (package.name not in preferences):
-            raise ValueError(f"Cannot acquire {package.name}: source distributions require an explicit preference.")
+            raise ValueError(f"Cannot acquire {package.name=}: source distributions require an explicit preference.")
 
         if (package.name in required) and (not source):
-            raise ValueError(f"Cannot acquire {package.name}: the lock does not select a source distribution.")
+            raise ValueError(f"Cannot acquire {package.name=}: the lock does not select a source distribution.")
 
         if package.name in required:
             found_required.add(package.name)
 
         if (type(digest) is not str) or (not re.fullmatch(r"[0-9a-f]{64}", digest)):
-            raise ValueError(f"Cannot acquire {name}: a SHA-256 lock hash is required.")
+            raise ValueError(f"Cannot acquire {artifact_filename=}: a SHA-256 lock hash is required.")
 
         if (url.scheme not in ("https", "http")) or (not url.netloc) or (url.username is not None):
-            raise ValueError(f"Cannot acquire {name}: expected an HTTP(S) artifact URL without credentials.")
+            raise ValueError(f"Cannot acquire {artifact_filename=}: expected an HTTP(S) artifact URL without credentials.")
 
-        if (name in seen) and (seen[name] != digest):
-            raise ValueError(f"Cannot acquire {name}: the lock selects conflicting bytes for one filename.")
+        if (artifact_filename in seen) and (seen[artifact_filename] != digest):
+            raise ValueError(f"Cannot acquire {artifact_filename=}: the lock selects conflicting bytes for one filename.")
 
-        seen[name] = digest
+        seen[artifact_filename] = digest
 
-        artifacts.append((name, digest, artifact.url, package, artifact))
+        artifacts.append((artifact_filename, digest, artifact.url, package, artifact))
 
     if missing := required - found_required:
-        raise ValueError(f"Cannot acquire source distribution: {', '.join(sorted(missing))} is not selected by the lock.")
+        missing_source_packages = sorted(missing)
+
+        raise ValueError(f"Cannot acquire source distributions: {missing_source_packages=} are not selected by the lock.")
 
     if (source_requirements is not None) and ({package.name for (_, _, _, package, _) in artifacts} != set(source_requirements)):
         raise ValueError("Cannot use projected lock: its selected packages differ from the source lock.")
@@ -211,12 +213,12 @@ def inspect_artifact(pool, artifact_name, expected_sha256, directory_fd=None):
     return True
 
 
-def download(pool, name, digest, url, directory_fd):
-    retry(lambda: download_once(pool, name, digest, url, directory_fd), f"Cannot acquire {name}")
+def download(pool, artifact_filename, digest, url, directory_fd):
+    retry(lambda: download_once(pool, artifact_filename, digest, url, directory_fd), f"acquiring {artifact_filename=}")
 
 
 def download_once(pool, artifact_name, expected_sha256, url, directory_fd):
-    temporary = f".wheelhouse-{secrets.token_hex(16)}.part"
+    temporary = f".wheelhouse-{secrets.token_hex(16)}.part"  # machine-string: the exclusive partial download uses this private wheelhouse filename
     descriptor = os.open(temporary, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600, dir_fd=directory_fd)
     published = False
     winner_verified = False
@@ -300,20 +302,24 @@ def download_once(pool, artifact_name, expected_sha256, url, directory_fd):
                     try:
                         pending.error.close()
                     except OSError as close_error:
-                        details.append(f"could not close the HTTP error response: {failure_detail(close_error)}")
+                        close_failure = failure_detail(close_error)
+                        details.append(f"could not close the HTTP error response; {close_failure=}")
             elif isinstance(pending, OSError):
-                number = ""
+                local_errno = None
 
                 if isinstance(pending.errno, int):
-                    number = f" (error number {pending.errno})"
+                    local_errno = pending.errno
 
-                details.append(f"a local file operation failed{number}")
+                if local_errno is None:
+                    details.append("a local file operation failed")
+                else:
+                    details.append(f"a local file operation failed; {local_errno=}")
 
             if hash_mismatch:
                 details.append(f"{downloaded_sha256=} should match {expected_sha256=}")
 
             if winner_conflict:
-                details.append(f"a competing file failed verification ({pending})")
+                details.append(f"a competing file failed verification; {pending=}")
 
             if published:
                 details.append("the verified final file was published")
@@ -321,7 +327,8 @@ def download_once(pool, artifact_name, expected_sha256, url, directory_fd):
                 details.append("a competing final file was verified")
 
             details.append("could not remove the temporary file from the wheelhouse")
-            raise OSError(f"Cannot finish acquiring {artifact_name=}: {'; '.join(details)}.") from None
+            cleanup_evidence = "; ".join(details)
+            raise OSError(f"Cannot finish acquiring {artifact_name=}: {cleanup_evidence=}.") from None
 
 
 # silent-defaults: allow-contract -- Explicit absence of source preferences is represented by immutable empty tuples; artifacts=None requests exact lock selection.
@@ -346,17 +353,17 @@ def run(action, lock, pool, prefer_sdist=(), require_sdist=(), artifacts=None):
 
 
 def _run(action, pool, artifacts, directory_fd):
-    for (name, digest, url, _package, _artifact) in artifacts:
-        if not inspect_artifact(pool, name, digest, directory_fd):
+    for (artifact_filename, digest, url, _package, _artifact) in artifacts:
+        if not inspect_artifact(pool, artifact_filename, digest, directory_fd):
             if action == "check":
-                raise FileNotFoundError(f"Cannot use {name}: the artifact is missing from the wheelhouse.")
+                raise FileNotFoundError(f"Cannot use {artifact_filename=}: the artifact is missing from the wheelhouse.")
 
-            download(pool, name, digest, url, directory_fd)
+            download(pool, artifact_filename, digest, url, directory_fd)
 
     return {
         "artifacts": [
-            {"package": str(package.name), "filename": name, "sha256": digest}
-            for (name, digest, _, package, _) in artifacts
+            {"package": str(package.name), "filename": artifact_filename, "sha256": digest}
+            for (artifact_filename, digest, _, package, _) in artifacts
         ],
     }
 

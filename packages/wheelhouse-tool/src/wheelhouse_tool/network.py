@@ -25,7 +25,7 @@ def request(operation):
 
 def failure_detail(error):
     if isinstance(error, urllib.error.HTTPError):
-        return f"the server returned HTTP {error.code}"
+        return f"the server returned HTTP {error.code=}"
 
     reason = error.reason if isinstance(error, urllib.error.URLError) else error
 
@@ -40,10 +40,12 @@ def failure_detail(error):
 
     if isinstance(reason, OSError):
         if match := re.match(r"^Tunnel connection failed: ([0-9]{3})(?:\s|$)", str(reason)):
-            return f"the proxy tunnel returned HTTP {match[1]}"
+            tunnel_status = match[1]
+            return f"the proxy tunnel returned HTTP {tunnel_status=}"
 
         if isinstance(reason.errno, int):
-            return f"an I/O operation failed with error number {reason.errno}"
+            error_number = reason.errno
+            return f"an I/O operation failed with {error_number=}"
 
     if isinstance(reason, http.client.HTTPException):
         return "the HTTP connection failed"
@@ -116,30 +118,31 @@ def retry_delay(error, attempt):
     return delay
 
 
-def retry(operation, description):
-    for attempt in range(1, 4):
+def retry(operation, operation_context):
+    for retry_attempt in range(1, 4):
         try:
             return operation()
         except RequestFailure as failure:
-            detail = failure_detail(failure.error)
+            failure_summary = failure_detail(failure.error)
             delay = None
 
-            if attempt < 3:
-                delay = retry_delay(failure.error, attempt)
+            if retry_attempt < 3:
+                delay = retry_delay(failure.error, retry_attempt)
 
             if isinstance(failure.error, urllib.error.HTTPError):
                 try:
                     failure.error.close()
                 except OSError as close_error:
+                    close_failure_summary = failure_detail(close_error)
                     raise OSError(
-                        f"{description}: {detail}; could not close the HTTP error "
-                        f"response: {failure_detail(close_error)}."
+                        f"{operation_context=}: {failure_summary=}; HTTP error response "
+                        f"could not be closed; {close_failure_summary=}."
                     ) from None
 
             if delay == -1:
-                raise OSError(f"{description}: {detail}; the requested retry delay exceeds 30 seconds.") from None
+                raise OSError(f"{operation_context=}: {failure_summary=}; requested retry delay exceeds 30 seconds.") from None
 
             if delay is None:
-                raise OSError(f"{description}: {detail} (attempt {attempt} of 3).") from None
+                raise OSError(f"{operation_context=}: {failure_summary=}; {retry_attempt=} of 3.") from None
 
             time.sleep(delay)

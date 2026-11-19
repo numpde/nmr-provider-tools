@@ -108,34 +108,34 @@ def locate(path, index=None, allowed_sources=(), required_sources=(), direct_sou
             raise ValueError("Cannot locate artifacts: direct sources require an HTTPS URL with a SHA-256 fragment.")
 
         if distribution in direct:
-            raise ValueError(f"Cannot locate {distribution}: more than one direct source was supplied.")
+            raise ValueError(f"Cannot locate {distribution=}: more than one direct source was supplied.")
 
         direct[distribution] = (source, version, checksum)
 
     python_version = Version(default_environment()["python_full_version"])
 
     for (requirement, hashes) in records:
-        name = canonicalize_name(requirement.name)
+        package_name = canonicalize_name(requirement.name)
         supplied = None
 
-        if name in direct:
-            supplied = direct.pop(name)
+        if package_name in direct:
+            supplied = direct.pop(package_name)
 
         if requirement.url or supplied:
             if requirement.url and supplied:
-                raise ValueError(f"Cannot locate {name}: its lock already supplies a direct URL.")
+                raise ValueError(f"Cannot locate {package_name=}: its lock already supplies a direct URL.")
 
             url = urllib.parse.urlsplit(requirement.url if requirement.url else supplied[0])
 
             if (url.scheme != "https") or (url.username is not None) or (url.query):
-                raise ValueError(f"Cannot locate {name}: direct artifact must use HTTPS without credentials.")
+                raise ValueError(f"Cannot locate {package_name=}: direct artifact must use HTTPS without credentials.")
 
             filename = urllib.parse.unquote(url.path.rsplit("/", 1)[-1])
 
             try:
                 (distribution, version, _, tags) = parse_wheel_filename(filename)
             except InvalidWheelFilename as error:
-                raise ValueError(f"Cannot locate {name}: direct artifact is not a named wheel.") from error
+                raise ValueError(f"Cannot locate {package_name=}: direct artifact is not a named wheel.") from error
 
             fragment = urllib.parse.parse_qs(url.fragment)
             fragment_values = fragment.get("sha256")
@@ -145,25 +145,25 @@ def locate(path, index=None, allowed_sources=(), required_sources=(), direct_sou
                 checksum = fragment_values[0]
 
             if (
-                (distribution != name) or
+                (distribution != package_name) or
                 (checksum not in hashes) or
-                (name in required_sources) or
+                (package_name in required_sources) or
                 (not tags.intersection(sys_tags())) or
                 ((supplied) and (not requirement.specifier.contains(version, prereleases=True)))
             ):
-                raise ValueError(f"Cannot locate {name}: direct artifact differs from its locked identity.")
+                raise ValueError(f"Cannot locate {package_name=}: direct artifact differs from its locked identity.")
 
             packages.append(
-                project_archive_record(name, version, urllib.parse.urlunsplit(url._replace(fragment="")), checksum),
+                project_archive_record(package_name, version, urllib.parse.urlunsplit(url._replace(fragment="")), checksum),
             )
 
             continue
 
         if index is None:
-            raise ValueError(f"Cannot locate {name}: the pinned lock needs an HTTPS package index.")
+            raise ValueError(f"Cannot locate {package_name=}: the pinned lock needs an HTTPS package index.")
 
         version = Version(next(iter(requirement.specifier)).version)
-        request = simple_requests.project_request(index, name)
+        request = simple_requests.project_request(index, package_name)
         project_url = request.full_url
         opener = urllib.request.build_opener(HttpsRedirects())
 
@@ -171,7 +171,7 @@ def locate(path, index=None, allowed_sources=(), required_sources=(), direct_sou
             with network_request(lambda: opener.open(request, timeout=60)) as response:
                 return network_request(response.read)
 
-        files = simple_metadata.project_files(retry(read_project, f"Cannot locate {name}"), expected_project_name=name)
+        files = simple_metadata.project_files(retry(read_project, f"locating {package_name=}"), expected_project_name=package_name)
 
         (wheels, sources) = ([], [])
 
@@ -202,7 +202,7 @@ def locate(path, index=None, allowed_sources=(), required_sources=(), direct_sou
                 except InvalidSdistFilename:
                     continue
 
-            if (distribution != name) or (not requirement.specifier.contains(artifact_version, prereleases=True)):
+            if (distribution != package_name) or (not requirement.specifier.contains(artifact_version, prereleases=True)):
                 continue
 
             url = simple_requests.file_url(project_url, artifact)
@@ -225,7 +225,7 @@ def locate(path, index=None, allowed_sources=(), required_sources=(), direct_sou
         wheels = [item for item in wheels if not item[2]] or wheels
         sources = [item for item in sources if not item[2]] or sources
 
-        if (pool is not None) and (wheels) and (not ((name in allowed_sources) and sources)):
+        if (pool is not None) and (wheels) and (not ((package_name in allowed_sources) and sources)):
             # Freeze the reusable choices in this projection so later selection
             # cannot switch back to a different, uncached wheel.
             from wheelhouse_tool.__main__ import inspect_artifact, pool_lock
@@ -246,24 +246,24 @@ def locate(path, index=None, allowed_sources=(), required_sources=(), direct_sou
             if cached:
                 wheels = cached
 
-        candidates = sources if (name in allowed_sources) and sources else wheels
+        candidates = sources if (package_name in allowed_sources) and sources else wheels
 
         if candidates:
             version = max(item[3] for item in candidates)
             wheels = [item for item in wheels if item[3] == version]
             sources = [item for item in sources if item[3] == version]
 
-        selected_source = sources[0][1] if (name in allowed_sources) and sources else None
+        selected_source = sources[0][1] if (package_name in allowed_sources) and sources else None
 
-        if (name in required_sources) and (selected_source is None):
-            raise ValueError(f"Cannot locate {name}: its required source distribution is unavailable.")
+        if (package_name in required_sources) and (selected_source is None):
+            raise ValueError(f"Cannot locate {package_name=}: its required source distribution is unavailable.")
 
         if (not wheels) and (selected_source is None):
-            raise ValueError(f"Cannot locate {name}: the index has no artifact admitted by its lock and source policy.")
+            raise ValueError(f"Cannot locate {package_name=}: the index has no artifact admitted by its lock and source policy.")
 
         packages.append(
             project_index_record(
-                name,
+                package_name,
                 version,
                 wheels=(selection for (_, selection, _, _) in wheels),
                 sdist=selected_source,

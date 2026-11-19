@@ -38,7 +38,7 @@ class WheelhouseTests(unittest.TestCase):
         operation = Mock(side_effect=RequestFailure(error))
 
         with patch("wheelhouse_tool.network.time.sleep") as sleep:
-            with self.assertRaisesRegex(OSError, "HTTP 404") as caught:
+            with self.assertRaisesRegex(OSError, "error.code=404") as caught:
                 retry(operation, "Cannot acquire locked artifact")
 
         return (caught.exception, body, operation, sleep)
@@ -79,7 +79,7 @@ class WheelhouseTests(unittest.TestCase):
             self.assertTrue(bodies[operation.call_count - 1].closed)
 
         with patch("wheelhouse_tool.network.time.sleep", side_effect=observe_delay) as sleep:
-            with self.assertRaisesRegex(OSError, "HTTP 503.*attempt 3 of 3"):
+            with self.assertRaisesRegex(OSError, "error.code=503.*retry_attempt=3 of 3"):
                 retry(operation, "Cannot acquire locked artifact")
 
         self.assertEqual(3, operation.call_count)
@@ -98,7 +98,7 @@ class WheelhouseTests(unittest.TestCase):
         operation = Mock(side_effect=RequestFailure(error))
 
         with patch("wheelhouse_tool.network.time.sleep") as sleep:
-            with self.assertRaisesRegex(OSError, "HTTP 503.*could not close.*error number 5") as caught:
+            with self.assertRaisesRegex(OSError, "error.code=503.*could not be closed.*error_number=5") as caught:
                 retry(operation, "Cannot acquire locked artifact")
 
         return (caught.exception, operation, sleep)
@@ -137,7 +137,7 @@ class WheelhouseTests(unittest.TestCase):
         unrelated.write_bytes(b"preserve unrelated bytes")
         unrelated_before = (unrelated.read_bytes(), unrelated.stat().st_ino)
 
-        with self.assertRaisesRegex(OSError, "server returned HTTP 404"):
+        with self.assertRaisesRegex(OSError, "error.code=404"):
             tool.run("acquire", self.lock, self.pool)
 
         first = self.pool / self.name
@@ -267,14 +267,14 @@ class WheelhouseTests(unittest.TestCase):
 
     def _download_network_failures(self):
         errors = [
-            (urllib.error.HTTPError('https://secret.invalid/path', 502, 'private response', {}, None), 'HTTP 502'),
+            (urllib.error.HTTPError('https://secret.invalid/path', 502, 'private response', {}, None), 'error.code=502'),
             (urllib.error.URLError(socket.gaierror(-2, 'private resolver')), 'name resolution failed'),
             (urllib.error.URLError(TimeoutError('private endpoint')), 'timed out'),
             (urllib.error.URLError(ssl.SSLError('private certificate')), 'TLS connection failed'),
-            (urllib.error.URLError(OSError('Tunnel connection failed: 502 private proxy')), 'proxy tunnel returned HTTP 502'),
+            (urllib.error.URLError(OSError('Tunnel connection failed: 502 private proxy')), "tunnel_status='502'"),
             (socket.gaierror(-2, 'private resolver'), 'name resolution failed'),
             (ssl.SSLError('private certificate'), 'TLS connection failed'),
-            (ConnectionResetError(104, 'private endpoint'), 'error number 104'),
+            (ConnectionResetError(104, 'private endpoint'), 'error_number=104'),
             (http.client.HTTPException('private response'), 'HTTP connection failed'),
         ]
 
@@ -403,7 +403,7 @@ class WheelhouseTests(unittest.TestCase):
         with (patch.object(tool.urllib.request, "urlopen", side_effect=error) as open_url,
               patch.object(tool.os, "unlink", side_effect=PermissionError("private")),
               patch("wheelhouse_tool.network.time.sleep") as sleep):
-            with self.assertRaisesRegex(OSError, "HTTP 503.*could not remove the temporary file") as caught:
+            with self.assertRaisesRegex(OSError, "error.code=503.*could not remove the temporary file") as caught:
                 tool.run("acquire", self.lock, self.pool)
 
         return (caught.exception, body, open_url, sleep)
@@ -431,7 +431,7 @@ class WheelhouseTests(unittest.TestCase):
               patch.object(error, "close", side_effect=OSError(5, "private close detail")) as close,
               patch.object(tool.os, "unlink", side_effect=PermissionError("private unlink detail")),
               patch("wheelhouse_tool.network.time.sleep") as sleep):
-            with self.assertRaisesRegex(OSError, "HTTP 503.*could not close.*error number 5.*could not remove") as caught:
+            with self.assertRaisesRegex(OSError, "error.code=503.*could not close.*error_number=5.*could not remove") as caught:
                 tool.run("acquire", self.lock, self.pool)
 
         return (caught.exception, open_url, close, sleep)
@@ -476,7 +476,7 @@ class WheelhouseTests(unittest.TestCase):
     def test_cleanup_failure_preserves_local_write_failure(self):
         with patch.object(tool.os, 'fsync', side_effect=OSError(28, 'private')), \
              patch.object(tool.os, 'unlink', side_effect=PermissionError('private')):
-            with self.assertRaisesRegex(OSError, 'local file operation failed \\(error number 28\\)') as captured:
+            with self.assertRaisesRegex(OSError, 'local file operation failed; local_errno=28') as captured:
                 tool.run('acquire', self.lock, self.pool)
 
         self.assertIn('could not remove the temporary file', str(captured.exception))
