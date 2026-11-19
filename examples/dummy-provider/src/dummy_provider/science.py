@@ -85,6 +85,7 @@ class PreparationResult:
 
     def __post_init__(self) -> None:
         actual_count = self.count
+
         require_type(actual_count, int)
 
         if not (0 < self.count):
@@ -101,6 +102,7 @@ class PredictionResult:
             raise ValueError(f"Expected a finite prediction; {self.total=}")
 
         actual_count = self.count
+
         require_type(actual_count, int)
 
         if not (0 < self.count):
@@ -117,6 +119,7 @@ class SumResult:
             raise ValueError(f"Expected a finite sum; {self.total=}")
 
         actual_count = self.count
+
         require_type(actual_count, int)
 
         if not (0 < self.count):

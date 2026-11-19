@@ -99,6 +99,7 @@ class PeakExampleTests(unittest.IsolatedAsyncioTestCase):
         distribution = metadata.distribution(distribution_name="nmrpeak-mock-provider-example")
 
         self.assertEqual(first=package, second=pathlib.Path(distribution.locate_file(path="nmrpeak_mock_provider")))
+
         expected_prompts = {
             "hf": (package / "prompts/hf_prompt.txt").read_text(encoding="utf-8"),
             "chf": (package / "prompts/chf_prompt.txt").read_text(encoding="utf-8"),
@@ -109,6 +110,7 @@ class PeakExampleTests(unittest.IsolatedAsyncioTestCase):
                 self.configure_science(variant="hf", beam_size=beam_size)
                 self.configure_science(variant="chf", beam_size=beam_size)
                 configured_science = tomllib.loads(self.configuration.read_text(encoding="utf-8"))["science"]
+
                 expected_inventory = Counter(
                     (
                         family,
@@ -118,6 +120,7 @@ class PeakExampleTests(unittest.IsolatedAsyncioTestCase):
                     for (family, configurations) in configured_science.items()
                     for configured in configurations
                 )
+
                 observed_inventory = Counter()
 
                 async with self.open_offerings() as offerings:
@@ -142,6 +145,7 @@ class PeakExampleTests(unittest.IsolatedAsyncioTestCase):
                             observed = await prediction_workflow.generation_submission.operation.observe(after=None, wait_seconds=0)
 
                             self.assertIs(expr1=ResultState.RELEASED, expr2=observed.result_state)
+
                             observed_inventory[
                                 (hosted.family, prediction_report["checkpoint_sha256"], len(prediction_report["generated_smiles"]))
                             ] += 1
@@ -166,6 +170,7 @@ class PeakExampleTests(unittest.IsolatedAsyncioTestCase):
                 for (family, beam_size) in configured_models:
                     # Each model needs independent nested settings before beam_size changes.
                     configured = deepcopy(x=document["science"][family][0])
+
                     configured["settings"]["beam_size"] = beam_size
 
                     selected[family].append(configured)
@@ -173,6 +178,7 @@ class PeakExampleTests(unittest.IsolatedAsyncioTestCase):
                 document["science"] = selected
 
                 self.configuration.write_text(data=tomli_w.dumps(document), encoding="utf-8")
+
                 expected_inventory = Counter(
                     (
                         family,
@@ -182,6 +188,7 @@ class PeakExampleTests(unittest.IsolatedAsyncioTestCase):
                     for (family, configurations) in selected.items()
                     for configured in configurations
                 )
+
                 observed_inventory = Counter()
 
                 async with self.open_offerings() as offerings:

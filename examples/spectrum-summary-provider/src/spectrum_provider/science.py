@@ -89,6 +89,7 @@ class PeakReport:
 
     def __post_init__(self) -> None:
         actual_peaks = self.peaks
+
         require_type(actual_peaks, tuple)
 
         for peak in self.peaks:

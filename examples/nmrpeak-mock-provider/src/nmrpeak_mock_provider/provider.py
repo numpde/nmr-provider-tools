@@ -148,6 +148,7 @@ async def open_offerings(
                     contribution=predictor,
                     requirements=resource_requirements,
                 )
+
                 preparation_call = hosted_predictor.call(method=predictor_class.prepare)
                 generation_call = hosted_predictor.call(method=predictor_class.generate)
 

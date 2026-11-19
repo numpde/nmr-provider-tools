@@ -20,6 +20,7 @@ class VectorInput:
 
     def __post_init__(self) -> None:
         actual_values = self.values
+
         require_type(actual_values, tuple)
 
         if not (self.values):
@@ -40,6 +41,7 @@ class Reference:
 
     def __post_init__(self) -> None:
         actual_label = self.label
+
         require_type(actual_label, str)
 
         if not self.label.strip():
@@ -57,6 +59,7 @@ class ReferenceSet:
 
     def __post_init__(self) -> None:
         actual_entries = self.entries
+
         require_type(actual_entries, tuple)
 
         for entry in self.entries:
