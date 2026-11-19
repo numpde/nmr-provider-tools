@@ -549,7 +549,8 @@ OpenAI-compatible Chat Completions profile
 [ ] C2  Extract tool-call carrier rules from transcript ownership
     [x] Separate outbound transcript and function-call construction
     [x] Separate phased incoming carrier admission and field access
-    [ ] Separate argument decoding while retaining local grants and history
+    [x] Separate argument decoding while retaining local grants and history
+    [ ] Share context byte framing across the local budget owners
     core/conversation.py:250-254,374-397,443-571
     Reads and writes role/content/reasoning_content/tool_calls; admits tool-call
     id/type/function/name/arguments; decodes JSON arguments; creates tool replies
@@ -591,6 +592,17 @@ OpenAI-compatible Chat Completions profile
     unit and installation lanes passed on science with PRIVACY_TESTS=0
     (105 tests, seventeen skips). Independent audit's nonempty-list ownership
     correction was applied and both integration lanes rerun successfully.
+    Argument conversion completed 2026-11-19: the adapter converts argument
+    bytes to a JSON value and its canonical wire spelling. Conversation still
+    owns UTF-8 failure/correction handling, its byte grant before parsing, exact
+    dict expectation and secret checks. It reuses the returned canonical text
+    rather than serializing twice. Strict finite encoding is retained: the
+    existing 1e999 case needs it after JSON decoding. Errors now show the actual
+    argument byte count and local maximum without rendering argument contents.
+    Focused conversation/text-correction/interpreter integration and interpreter
+    unit lanes passed on science with PRIVACY_TESTS=0 (102 tests, sixteen skips).
+    Independent audit confirmed byte-grant order, cause/classification and no
+    correction or caller-budget policy in the adapter.
 
 [x] C3  Separate the external tool envelope from local scientific schemas
     core/input_tool.py:22-64; core/interpreter.py:525

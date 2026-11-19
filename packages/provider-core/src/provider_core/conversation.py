@@ -20,7 +20,6 @@ from dataclasses import dataclass, field
 from provider_core.chat_errors import ChatFailed
 from provider_core.conversation_errors import ConversationFailed, ToolRejected
 from provider_core.adapters.chat_completions import tools as chat_tools
-from provider_core.response_json import ResponseRejected, read_document
 from provider_core.transport_errors import ExchangeFailed
 from provider_core.type_requirements import require_type
 from provider_core.validation.upstream.chat_completions.response import is_completion_success
@@ -376,7 +375,7 @@ class ToolConversation:
             call = calls[0]
 
             try:
-                arguments = self._arguments(chat_tools.call_arguments(call))
+                arguments, canonical_arguments_text = self._arguments(chat_tools.call_arguments(call))
             except ToolRejected as rejection:
                 # Invalid argument text may contain encoded credentials.
                 # Keep its call identity and safe correction, not that raw text.
@@ -385,7 +384,7 @@ class ToolConversation:
                 self._correct_turn(calls, rejection)
                 continue
 
-            chat_tools.replace_call_arguments(call, _encode(arguments).decode("ascii"))
+            chat_tools.replace_call_arguments(call, canonical_arguments_text)
 
             try:
                 outcome = await dispatch(chat_tools.call_name(call), arguments)
@@ -490,35 +489,29 @@ class ToolConversation:
 
         return (canonical, admitted)
 
-    def _arguments(self, text):
+    def _arguments(self, arguments_text: str) -> tuple[dict, str]:
         try:
-            raw = text.encode("utf-8")
+            argument_bytes = arguments_text.encode("utf-8")
         except UnicodeError as cause:
-            raise ToolRejected("Tool arguments must be valid UTF-8 JSON text.") from cause
+            raise ToolRejected("arguments_text should encode as UTF-8") from cause
 
-        if (self._argument_bytes is not None) and (len(raw) > self._argument_bytes):
-            raise ToolRejected(f"Tool arguments exceed the {self._argument_bytes}-byte limit; submit a smaller JSON object.")
+        argument_byte_count = len(argument_bytes)
+        max_argument_bytes = self._argument_bytes
+
+        if (max_argument_bytes is not None) and (argument_byte_count > max_argument_bytes):
+            raise ToolRejected(f"{argument_byte_count=} should be at most {max_argument_bytes=}")
 
         try:
-            # The consumed response and any caller-supplied tighter bound own size.
-            arguments = read_document(raw, len(raw))
-
-            _encode(arguments)
-        except (
-            ResponseRejected,
-            UnicodeError,
-            ValueError,
-            OverflowError,
-            RecursionError,
-        ) as cause:
-            raise ToolRejected("Tool arguments must be one JSON object with unique fields and finite values.") from cause
+            arguments, canonical_arguments_text = chat_tools.decode_arguments(argument_bytes)
+        except (ValueError, OverflowError, RecursionError) as cause:
+            raise ToolRejected("arguments_text should encode JSON with unique fields and finite numbers") from cause
 
         if not (type(arguments) is (expected_type := dict)):
             raise ToolRejected(f"{type(arguments)=} ≠ {expected_type=}")
 
         self._require_no_secrets(arguments)
 
-        return arguments
+        return arguments, canonical_arguments_text
 
     def _feedback(self, identifier, value):
         self._require_no_secrets(value)

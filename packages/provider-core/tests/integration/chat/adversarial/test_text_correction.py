@@ -48,7 +48,7 @@ class TextCorrectionBoundaryTests(unittest.IsolatedAsyncioTestCase):
     async def test_argument_byte_limit_applies_before_decoding(self):
         (transcript, dispatch) = await self._oversized_arguments_repair()
 
-        self.assertIn("8-byte limit", transcript[1]["content"])
+        self.assertIn("max_argument_bytes=8", transcript[1]["content"])
         dispatch.assert_awaited_once_with("submit", {})
 
     @unittest.skipIf(os.environ.get("PRIVACY_TESTS", "1") == "0", "Privacy tests disabled")

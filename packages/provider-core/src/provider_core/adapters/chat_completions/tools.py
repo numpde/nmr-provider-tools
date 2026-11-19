@@ -4,7 +4,10 @@ from provider_core.container_guard import require_container
 
 require_container()
 
+import json
 from typing import Any
+
+from provider_core.response_json import read_document
 
 
 def function_tool(*, name: str, description: str, parameters: dict) -> dict:
@@ -85,3 +88,12 @@ def replace_call_arguments(call: dict, arguments: str) -> None:
     """Keep the same call while the owner canonicalizes or erases its arguments."""
 
     call["function"]["arguments"] = arguments
+
+
+def decode_arguments(argument_bytes: bytes) -> tuple[object, str]:
+    """Read a JSON argument value and its canonical wire spelling."""
+
+    arguments = read_document(argument_bytes, len(argument_bytes))
+    canonical_arguments_text = json.dumps(arguments, allow_nan=False, ensure_ascii=True, sort_keys=True, separators=(",", ":"))
+
+    return arguments, canonical_arguments_text
