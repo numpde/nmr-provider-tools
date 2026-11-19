@@ -97,8 +97,7 @@ def request_target(method, path, query):
     if not (path.startswith("/") and (parsed_path == path)):
         raise ValueError(f"{path=} should be an absolute path without an authority, query or fragment")
 
-    if not (type(query) is (expected_type := bytes)):
-        raise TypeError(f"{type(query)=} ≠ {expected_type=}")
+    require_type(query, bytes)
 
     try:
         # silent-defaults: allow-contract -- An empty query omits the delimiter; a nonempty query retains its exact signed bytes.
@@ -115,8 +114,8 @@ def request_target(method, path, query):
 def require_signature_inputs(*, body, created, nonce):
     """Admit the body representation, structured-field time and nonce length."""
 
-    if (body is not None) and (type(body) is not (expected_body_type := bytes)):
-        raise TypeError(f"{type(body)=} ≠ {expected_body_type=}")
+    if body is not None:
+        require_type(body, bytes)
 
     require_type(created, int)
 

@@ -45,8 +45,7 @@ class HelloAccepted:
 
 
 def _require_text(value, name, maximum):
-    if not (type(value) is (expected_type := str)):
-        raise TypeError(f"{name=}; {type(value)=} ≠ {expected_type=}")
+    require_type(value, str)
 
     if not (1 <= len(value) <= maximum):
         raise ValueError(f"Cannot announce provider: {name} has {len(value)} characters; expected 1 through {maximum} Unicode scalars")

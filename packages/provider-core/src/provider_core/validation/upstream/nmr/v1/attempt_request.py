@@ -92,8 +92,7 @@ def require_progress_inputs(phase, condition_code):
         raise ValueError(f"{phase=} should be 'preparing' or 'running'")
 
     if condition_code is not None:
-        if not (type(condition_code) is (expected_type := str)):
-            raise TypeError(f"{type(condition_code)=} ≠ {expected_type=}")
+        require_type(condition_code, str)
 
         condition_code_length = len(condition_code)
 
@@ -119,8 +118,7 @@ def require_provider_ref(provider_ref):
 def _require_outcome_text(scalar_text, field_name):
     """Admit the v1 result-schema and failure-message Unicode scalar profile."""
 
-    if not (type(scalar_text) is (expected_type := str)):
-        raise TypeError(f"{field_name=}; {type(scalar_text)=} ≠ {expected_type=}")
+    require_type(scalar_text, str)
 
     scalar_character_count = len(scalar_text)
     (min_scalar_characters, max_scalar_characters) = (1, 1024)

@@ -23,6 +23,7 @@ from provider_core.validation.upstream.nmr.v1.signing import (
     require_signature_inputs,
     request_target,
 )
+from provider_core.type_requirements import require_instance
 
 
 @dataclass(frozen=True, slots=True, repr=False)
@@ -39,8 +40,8 @@ class SigningIdentity:
 
         require_credential_ref(self.credential_ref)
 
-        if not isinstance((actual_private_key := self.private_key), (expected_type := Ed25519PrivateKey)):
-            raise TypeError(f"{type(actual_private_key)=} ≠ {expected_type=}")
+        actual_private_key = self.private_key
+        require_instance(actual_private_key, Ed25519PrivateKey)
 
         object.__setattr__(self, "origin", origin)
         object.__setattr__(self, "authority", authority)
