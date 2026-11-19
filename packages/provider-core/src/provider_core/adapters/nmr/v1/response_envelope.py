@@ -6,7 +6,7 @@ require_container()
 
 from provider_core.api_errors import ApiFailure
 from provider_core.response_json import ResponseRejected
-from provider_core.validation.upstream.nmr.v1.response_envelope import read_problem, require_headers
+from provider_core.validation.upstream.nmr.v1.response_envelope import is_api_success, read_problem, require_headers
 
 
 def http_failure(response, operation):
@@ -38,5 +38,5 @@ def require_api_envelope(response, operation, expected_topology):
 
     require_api_headers(response, operation, expected_topology)
 
-    if response.status != 200:
+    if not is_api_success(response.status):
         raise http_failure(response, operation)

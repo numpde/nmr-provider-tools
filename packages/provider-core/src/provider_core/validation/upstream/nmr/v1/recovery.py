@@ -1,14 +1,21 @@
-"""Interpret admitted refusals without changing an operation's send history.
+"""Interpret API recovery facts without changing an operation's send history.
 
 Authority: the selected API's security/problems.py and operations/errors.py.
 Grant-specific conflicts precede issuance in provider_job_upload_read_capability.py.
 Each predicate describes this send only, never an earlier unanswered request.
 The caller owns correlation/admission and retains uncertainty when no fact is known.
+The pinned OpenAPI's per-route x-nmr-recovery and HTTP 500 descriptions define
+which request identity may be retried; they never authorize repeating science.
 """
 
 from provider_core.container_guard import require_container
 
 require_container()
+
+
+# The pinned routes describe recovery of their original operation after HTTP 500
+# repo-check: allow-module-constant
+API_RECOVERY_STATUS = 500
 
 
 def _no_domain_change(status: int | None, problem_code: str | None) -> bool:

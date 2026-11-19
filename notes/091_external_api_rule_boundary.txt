@@ -202,9 +202,9 @@ NMR Provider API: wire and validation owners
     test_interpreter.py and contract test_installation.py passed on science with
     PRIVACY_TESTS=0.
 
-[ ] N4  Separate refusal/replay meanings from send and retirement decisions
+[x] N4  Separate refusal/replay meanings from send and retirement decisions
     [x] Extract current-send no-change refusal meanings
-    [ ] Separate retry/replay protocol predicates from local ownership gates
+    [x] Separate retry/replay protocol predicates from local ownership gates
     core/api.py:394-701,1031-1090
     Retry/replay eligibility inspects methods, exact routes, statuses and problem
     codes. _remember_failure interprets which verified refusals establish no
@@ -228,6 +228,17 @@ NMR Provider API: wire and validation owners
     in ProviderAPI. Focused unit test_api_unavailability.py, test_upload_api.py
     and test_api_envelope.py passed on science with PRIVACY_TESTS=0 (43 tests,
     seven skips); independent audit confirmed predicate and gate equivalence.
+    Completed 2026-11-19: the shared refusal owner is now recovery.py, including
+    the pinned routes' HTTP 500 recovery status. response_envelope.py owns the
+    selected API's HTTP 200 success meaning, shared by full and late-head
+    admission. Route builders own exact target spellings. Local 429 pacing and
+    502/503/504 edge/CONNECT eligibility remain operation policy, as do native
+    transport evidence, failure identity, retirement and exact-request ownership.
+    No recovery predicate initiates a request or grants scientific replay.
+    Final focused API recovery, START, outcome and installation lanes passed on
+    science with PRIVACY_TESTS=0 (46 tests, six skips); API envelope and pinned
+    release lanes also passed during success-profile extraction. Independent
+    audit confirmed the remaining local gates contain no service rule to move.
 
 [x] N5  Extract all eleven wire operations with their associated codecs
     core/api.py:713-1029,1091 onward

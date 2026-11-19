@@ -164,7 +164,7 @@ class InstallationContractTests(unittest.TestCase):
                 "provider_core/adapters/nmr/v1/response_envelope.py",
                 "provider_core/adapters/nmr/v1/upload_store.py",
                 "provider_core/validation/upstream/nmr/v1/response_envelope.py",
-                "provider_core/validation/upstream/nmr/v1/refusals.py",
+                "provider_core/validation/upstream/nmr/v1/recovery.py",
                 "provider_core/validation/upstream/nmr/v1/upload_store.py",
                 "provider_core/validation/upstream/nmr/v1/attempt_response.py",
                 "provider_core/adapters/nmr/v1/attempt_request.py",

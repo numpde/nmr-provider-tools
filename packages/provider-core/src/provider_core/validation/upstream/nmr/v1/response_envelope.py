@@ -140,11 +140,17 @@ def read_problem(response):
     return (problem["code"], reason)
 
 
+def is_api_success(status: int) -> bool:
+    """Recognize the selected Provider API's successful response status."""
+
+    return status == 200
+
+
 def require_headers(response, expected_topology):
     """Admit the routed API environment before body or problem interpretation."""
 
     # silent-defaults: allow-contract -- The pinned protocol selects JSON for success and problem JSON for refusal.
-    content_type = b"application/json" if response.status == 200 else b"application/problem+json"
+    content_type = b"application/json" if is_api_success(response.status) else b"application/problem+json"
 
     for (name, expected) in ((b"content-type", content_type), (b"cache-control", b"no-store")):
         values = [value for (key, value) in response.headers if key.lower() == name]
@@ -162,5 +168,5 @@ def require_headers(response, expected_topology):
 
     request_ids = [value for (name, value) in response.headers if name.lower() == b"x-request-id"]
 
-    if len(request_ids) > 1 or (response.status != 200 and response_request_id(response.headers) is None):
+    if len(request_ids) > 1 or (not is_api_success(response.status) and response_request_id(response.headers) is None):
         raise ResponseRejected("response request correlation is missing or ambiguous")

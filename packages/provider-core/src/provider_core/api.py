@@ -59,7 +59,9 @@ from provider_core.adapters.nmr.v1.signing import signed_request
 from provider_core.transport import ExchangeFailed
 from provider_core.type_requirements import require_type
 from provider_core.validation.upstream.nmr.v1.topology import edge_topology_matches, require_api_topology
-from provider_core.validation.upstream.nmr.v1.refusals import (
+from provider_core.validation.upstream.nmr.v1.response_envelope import is_api_success
+from provider_core.validation.upstream.nmr.v1.recovery import (
+    API_RECOVERY_STATUS,
     access_refused,
     attempt_change_refused,
     issuance_refused,
@@ -139,7 +141,7 @@ class ProviderAPI:
 
         return (
             (self._retryable_failure(failure) or
-             self._settled_status_failure(failure, 500) or
+             self._settled_status_failure(failure, API_RECOVERY_STATUS) or
              self._settled_status_failure(failure, 429)) and
             (failure.request_method == "GET")
         )
@@ -212,7 +214,7 @@ class ProviderAPI:
 
         if not (
             self._retryable_failure(failure) or
-            self._settled_status_failure(failure, 500) or
+            self._settled_status_failure(failure, API_RECOVERY_STATUS) or
             self._settled_status_failure(failure, 429)
         ):
             return False
@@ -371,7 +373,7 @@ class ProviderAPI:
         if (type(failure) is not ApiFailure) or (failure is not self.last_failure) or (not self.retirement_confirmed):
             return False
 
-        if self._retryable_failure(failure) or self._settled_status_failure(failure, 500):
+        if self._retryable_failure(failure) or self._settled_status_failure(failure, API_RECOVERY_STATUS):
             return True
 
         # Pinned Attempt recovery admits HTTP500 under its exact retained
@@ -420,7 +422,7 @@ class ProviderAPI:
             except ApiFailure:
                 return False
 
-            if exchange.response_head.status != 200:
+            if not is_api_success(exchange.response_head.status):
                 return False
 
         if type(exchange.primary) is httpcore.ProxyError:
