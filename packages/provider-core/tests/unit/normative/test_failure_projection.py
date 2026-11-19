@@ -132,6 +132,7 @@ class CoreFailureProjectionTests(unittest.TestCase):
             "Response body did not finish",
             response_head=HttpResponseHead(429, ((b"set-cookie", b"PRIVATE"),)),
         )
+
         failure = ChatFailed("exchange_failed", "Cannot complete this model exchange", cause=exchange)
 
         self.assertNotIn("PRIVATE", repr(owned_details(failure)))

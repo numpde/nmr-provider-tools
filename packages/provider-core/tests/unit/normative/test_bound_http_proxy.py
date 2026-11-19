@@ -269,6 +269,7 @@ class BoundProxyTests(unittest.TestCase):
     def test_admission_failures_keep_fixed_http_status(self):
         for (failure, request, connect, rendered, _private) in self._admission_failure_replies():
             connect.assert_not_called()
+
             request.sendall.assert_called_once_with(
                 b"HTTP/1.1 502 Bad Gateway\r\n"
                 b"Connection: close\r\n"

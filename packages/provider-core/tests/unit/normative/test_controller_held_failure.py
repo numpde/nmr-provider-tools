@@ -282,12 +282,14 @@ class HeldFailureTests(unittest.IsolatedAsyncioTestCase):
     @unittest.skip("Privacy policy under review")
     async def test_held_failure_diagnostics_omit_native_and_binding_details(self):
         selected = pending("a")
+
         (controller, _session, _delivery, _transport) = configured(
             AttemptClaims.live(),
             selected,
             "execution_attempt:sha256:" + "a" * 64,
             AnalysisOutcomeUnresolved("PRIVATE_BINDING_DETAIL"),
         )
+
         failure = await self.failed_run(controller, selected)
         rendered = repr(failure_evidence(failure, secrets=()))
 

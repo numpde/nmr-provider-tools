@@ -69,6 +69,7 @@ class TextCorrectionTests(unittest.IsolatedAsyncioTestCase):
         )
 
         conversation_result = await conversation.run([], [], AsyncMock(side_effect=[rejection, ToolFinished("selected")]))
+
         await conversation.retire()
 
         return model.requests[1], conversation_result, value, diagnostic, rejection

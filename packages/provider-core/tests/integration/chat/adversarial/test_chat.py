@@ -115,6 +115,7 @@ class ChatCarrierRejectionTests(unittest.IsolatedAsyncioTestCase):
     async def test_http_rejection_keeps_error_fields(self):
         (failure, response, transport) = await self._http_rejection()
         evidence = failure.endpoint_error
+
         self.assertIn("Unsupported tool_choice", evidence["message"])
         self.assertEqual(evidence["code"], "unsupported_parameter")
         self.assertEqual(evidence["param"], "tool_choice")
