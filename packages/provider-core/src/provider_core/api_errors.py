@@ -4,13 +4,10 @@ from provider_core.container_guard import require_container
 
 require_container()
 
-import math
-import re
 import time
-from datetime import timezone
-from email.utils import parsedate_to_datetime
 
 from provider_core.transport import ExchangeFailed, response_request_id
+from provider_core.validation.upstream.http import read_retry_after
 
 
 class ApiFailure(RuntimeError):
@@ -63,27 +60,7 @@ class ApiFailure(RuntimeError):
         """
         head = self._received_head()
 
-        # silent-defaults: allow-contract -- Absent or ambiguous server timing advice grants no Retry-After floor.
-        values = [] if head is None else [value for (name, value) in head.headers if name.lower() == b"retry-after"]
-
-        if len(values) != 1:
+        if head is None:
             return None
 
-        try:
-            value = values[0].decode("ascii").strip()
-
-            if re.fullmatch(r"[0-9]+", value):
-                seconds = float(value)
-            else:
-                date = parsedate_to_datetime(value)
-
-                if date.tzinfo is None:
-                    # The obsolete asctime HTTP-date form also denotes GMT
-                    date = date.replace(tzinfo=timezone.utc)
-
-                seconds = max(0.0, date.timestamp() - time.time())
-        except (ValueError, OverflowError, TypeError):
-            return None
-
-        # silent-defaults: allow-contract -- Nonfinite server timing advice is unavailable; local retry pacing remains authoritative.
-        return seconds if math.isfinite(seconds) else None
+        return read_retry_after(head.headers, wall_clock=time.time)

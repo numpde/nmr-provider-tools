@@ -20,8 +20,6 @@ from collections import OrderedDict
 from collections.abc import Callable
 from copy import deepcopy
 from dataclasses import dataclass, field
-from datetime import timezone
-from email.utils import parsedate_to_datetime
 from typing import Any, Literal, Protocol
 
 from provider_core.chat_errors import ChatFailed
@@ -42,6 +40,7 @@ from provider_core.conversation import (
 from provider_core.transport_errors import ExchangeFailed
 from provider_core.tools import require_positive_number
 from provider_core.type_requirements import require_instance, require_type
+from provider_core.validation.upstream.http import read_retry_after
 
 # Two remaining-time floats may change decimal length before the next request.
 # repo-check: allow-module-constant
@@ -934,31 +933,12 @@ def _retry_after(failure: ChatFailed) -> float:
     if response is None:
         return 0.0
 
-    values = [value for (name, value) in response.headers if name.lower() == b"retry-after"]
+    retry_after_seconds = read_retry_after(response.headers, wall_clock=time.time)
 
-    if len(values) != 1:
+    if retry_after_seconds is None:
         return 0.0
 
-    try:
-        value = values[0].decode("ascii").strip()
-
-        if value.isascii() and value.isdecimal():
-            seconds = float(value)
-        else:
-            date = parsedate_to_datetime(value)
-
-            if date.tzinfo is None:
-                date = date.replace(tzinfo=timezone.utc)
-
-            seconds = max(0, date.timestamp() - time.time())
-    except (ValueError, OverflowError, TypeError, UnicodeError):
-        # Invalid optional advice grants no server-directed delay.
-        seconds = 0.0
-
-    if not math.isfinite(seconds):
-        return 0.0
-
-    return seconds
+    return retry_after_seconds
 
 
 class _ModelVisit:

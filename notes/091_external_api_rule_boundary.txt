@@ -161,10 +161,10 @@ NMR Provider API: wire and validation owners
     test_hello.py passed on science with PRIVACY_TESTS=0. Artifact source authority
     remains the separate historical credential contract, not the HTTP-schema pin.
 
-[ ] N3  Extract Provider response-envelope and problem interpretation
+[x] N3  Extract Provider response-envelope and problem interpretation
     [x] Give topology admission an upstream owner
     [x] Separate header/problem admission from operation failure context
-    [ ] Separate Retry-After parsing from operation-owned timing policy
+    [x] Separate Retry-After parsing from operation-owned timing policy
     core/api.py:65-339
     ApiFailure metadata; Retry-After decoding; dev-local/dev/web topology;
     success/problem content types, no-store, forbidden content encoding,
@@ -190,7 +190,17 @@ NMR Provider API: wire and validation owners
     Focused unit test_response_envelope.py, test_api.py, test_api_envelope.py,
     test_api_unavailability.py and contract test_installation.py passed on science
     with PRIVACY_TESTS=0. A read-only AST comparison confirmed ApiFailure and all
-    reviewed problem mappings are unchanged. Retry-After separation remains pending.
+    reviewed problem mappings are unchanged.
+    Retry-After completed 2026-11-19: the shared HTTP parser lives in
+    core/validation/upstream/http.py. API failure metadata retains dynamic late
+    heads and None for absent advice; the interpreter retains its zero-delay
+    fallback. Both supply their wall clock, sampled only after parsing a date.
+    Existing syntax vectors moved to a direct protocol suite with identical
+    inputs/results. API late-head evidence and operation pacing proofs remain.
+    Focused test_http.py, test_api_unavailability.py, test_api_envelope.py,
+    test_condition_retry_after.py, test_observation_retry_after.py,
+    test_interpreter.py and contract test_installation.py passed on science with
+    PRIVACY_TESTS=0.
 
 [ ] N4  Separate refusal/replay meanings from send and retirement decisions
     core/api.py:394-701,1031-1090
@@ -412,12 +422,15 @@ OpenAI-compatible Chat Completions profile
     Evidence: test_input_tool.py; that file exercises generated parameter schemas.
 
 [ ] C4  Separate received HTTP facts from Chat scheduling and child IPC
+    [x] Share Retry-After syntax independently of local timing policy
     core/interpreter.py:51,903-964
     HTTP status and Retry-After interpretation appears in scheduling code.
     Separate received protocol facts from local retry counts, pacing, model
     windows and fallback decisions. core/chat_wire.py:440 also maps child-carried
     HTTP replies; its framing/version/kind protocol is internal SDK IPC.
     Evidence: test_interpreter.py, test_chat_wire.py and test_chat_process_contract.py.
+    Retry-After grammar now uses validation/upstream/http.py as recorded in N3;
+    the interpreter's local retry windows and fallback choices are unchanged.
 
 [ ] C5  Move service diagnostic-field interpretation with the Chat adapter
     core/failure_projection.py:293-306

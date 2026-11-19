@@ -15,7 +15,6 @@ import unittest
 import os
 from builtins import ExceptionGroup
 from functools import partial
-from unittest.mock import patch
 
 import httpcore
 from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
@@ -320,46 +319,6 @@ class ApiAvailabilityTests(unittest.IsolatedAsyncioTestCase):
                 (api, _, failure) = await self.failed_replay_operation(response, operation="complete")
 
                 self.assertFalse(api.can_replay_terminal(failure))
-
-    def test_retry_after_accepts_http_time_forms_without_changing_retry_authority(self):
-        with patch("provider_core.api.time.time", return_value=784111777):
-            for (value, expected) in (
-                (b"120", 120),
-                (b"0", 0),
-                (b"Sun, 06 Nov 1994 08:49:37 GMT", 0),
-                (b"Sun, 06 Nov 1994 08:51:37 GMT", 120),
-                (b"Sunday, 06-Nov-94 08:51:37 GMT", 120),
-                (b"Sun Nov  6 08:51:37 1994", 120),
-                (b"-3", None),
-                (b"0.1", None),
-                (b"not a date", None),
-                (b"9" * 400, None),
-                (b"\xff", None),
-            ):
-                with self.subTest(value=value):
-                    failure = ApiFailure(
-                        "publish result",
-                        "refused",
-                        response=reply(
-                            b"rate limited",
-                            status=429,
-                            headers=((b"retry-after", value),)
-                        )
-                    )
-
-                    self.assertEqual(failure.retry_after_seconds, expected)
-
-            duplicate = ApiFailure(
-                "publish result",
-                "refused",
-                response=reply(
-                    b"rate limited",
-                    status=429,
-                    headers=((b"retry-after", b"120"), (b"retry-after", b"240"))
-                )
-            )
-
-            self.assertIsNone(duplicate.retry_after_seconds)
 
     async def test_connect_gateway_status_requires_the_owned_proxy_failure_and_settled_io(self):
         for (status, expected) in ((None, False), (200, False), (403, False), (502, True), (503, True), (504, True)):

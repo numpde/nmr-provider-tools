@@ -110,10 +110,12 @@ class ApiEnvelopeTests(unittest.IsolatedAsyncioTestCase):
         failure = caught.exception
 
         self.assertEqual((failure.status, failure.request_id), (None, None))
+        self.assertIsNone(failure.retry_after_seconds)
         self.assertTrue(failure.issuance_may_have_committed)
-        cause.response_head = HttpResponseHead(401, (MARKER, CORRELATION))
+        cause.response_head = HttpResponseHead(401, (MARKER, CORRELATION, (b"retry-after", b"120")))
 
         self.assertEqual((failure.status, failure.request_id), (401, "request:header"))
+        self.assertEqual(failure.retry_after_seconds, 120)
         self.assertTrue(failure.issuance_may_have_committed)
         self.assertIsNone(failure.problem_code)
         self.assertIs(failure.cause, cause)

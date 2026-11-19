@@ -1457,7 +1457,10 @@
         "ApiAvailabilityTests.test_terminal_refusals_retry_without_granting_other_operation_permissions",
         "ApiAvailabilityTests.test_terminal_replay_requires_this_apis_current_failure_and_exact_unqueried_terminal_target",
         "ApiAvailabilityTests.test_terminal_retry_still_refuses_untrusted_or_unknown_authentication_evidence"
-      ]
+      ],
+      "retired_test_methods": {
+        "ApiAvailabilityTests.test_retry_after_accepts_http_time_forms_without_changing_retry_authority": "Protocol syntax vectors moved to RetryAfterTests.test_retry_after_accepts_http_time_forms in tests/unit/validation/upstream/adversarial/test_http.py. Late response metadata is covered by ApiEnvelopeTests.test_late_head_is_diagnostic_and_never_downgrades_grant_uncertainty; condition and observation retry suites retain pacing proofs."
+      }
     },
     {
       "path": "packages/provider-core/tests/unit/adversarial/test_attempt_api.py",
