@@ -324,7 +324,7 @@ class DeliveryQueue:
             ):
                 (count, size) = self._db.execute("SELECT COUNT(*),COALESCE(SUM(length(body)),0) FROM outstanding" + where, parameters).fetchone()
 
-                if count >= maximum_items or size + len(item.body) > maximum_bytes:
+                if (count >= maximum_items) or ((size + len(item.body)) > maximum_bytes):
                     raise DeliveryFull("Delivery capacity is full. Keep this outcome, wait for space and stop admitting more computation.")
 
             self._db.execute(

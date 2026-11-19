@@ -179,7 +179,7 @@ class SharedDeliveryService(DeliveryService):
             self._reload()
             self.changed.clear()
 
-            if (self.process_status is not None) and (time.monotonic() - self.overview_at >= 5):
+            if (self.process_status is not None) and ((time.monotonic() - self.overview_at) >= 5):
                 (bindings, self.overview, failure) = await self.inbox.storage(self.queue.pending_overview)
                 self.overview_at = time.monotonic()
 

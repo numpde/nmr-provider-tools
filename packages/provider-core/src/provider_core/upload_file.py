@@ -64,7 +64,7 @@ class VerifiedUpload:
         if len(self.data) != self.byte_length:
             raise UploadFailed("source byte length differs from its transfer receipt")
 
-        if "sha256:" + hashlib.sha256(self.data).hexdigest() != self.content_hash:
+        if ("sha256:" + hashlib.sha256(self.data).hexdigest()) != self.content_hash:
             raise UploadFailed("source SHA-256 differs from its transfer receipt")
 
 

@@ -256,7 +256,7 @@ def _parse_deployment_bindings(raw):
         identities.add(identity)
         bindings.append(binding)
 
-    if not (len(bindings) * limits.provider_items <= limits.total_items and len(bindings) * limits.provider_bytes <= limits.total_bytes):
+    if not (((len(bindings) * limits.provider_items) <= limits.total_items) and ((len(bindings) * limits.provider_bytes) <= limits.total_bytes)):
         raise BindingDefinitionRejected("Cannot admit delivery bindings: host queue limits must cover all provider shares.")
 
     return DeploymentBindings(project, uid, gid, document["request_seconds"], document["retry_initial_seconds"], document["retry_max_seconds"], dict(document["limits"]), tuple(bindings))

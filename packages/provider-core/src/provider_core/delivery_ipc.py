@@ -217,7 +217,7 @@ class DeliveryInbox:
                 elif isinstance(event, h11.Request):
                     request = event
                 elif isinstance(event, h11.Data):
-                    if len(body) + len(event.data) > self.max_request_bytes:
+                    if (len(body) + len(event.data)) > self.max_request_bytes:
                         raise DeliveryRequestRejected("Delivery request exceeds the supported body limit.")
 
                     body.extend(event.data)

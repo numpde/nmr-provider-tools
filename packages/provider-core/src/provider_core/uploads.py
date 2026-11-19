@@ -1039,7 +1039,7 @@ class JobUploads:
 
                 retired_outage = failure
 
-                if attempt + 1 == policy.maximum_attempts:
+                if (attempt + 1) == policy.maximum_attempts:
                     raise self._recovery_exhausted("source recovery exhausted its configured attempt limit", failure) from None
 
                 self._require_recovery_capacity(failure, selected)
@@ -1129,7 +1129,7 @@ class JobUploads:
         return selected
 
     def _require_remaining_bytes(self, selected):
-        if selected.byte_length > self._limits.total_bytes - self._received:
+        if selected.byte_length > (self._limits.total_bytes - self._received):
             raise UploadFailed("selected Upload exceeds the source session's remaining byte budget")
 
     async def _grant(self, selected):

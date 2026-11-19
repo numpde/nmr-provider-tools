@@ -45,7 +45,7 @@ class DeliveryService:
         ):
             raise ValueError("Each delivery binding requires its own identity, socket and API exchange owner.")
 
-        if not (len(bindings) * limits.provider_items <= limits.total_items and len(bindings) * limits.provider_bytes <= limits.total_bytes):
+        if not (((len(bindings) * limits.provider_items) <= limits.total_items) and ((len(bindings) * limits.provider_bytes) <= limits.total_bytes)):
             raise ValueError("The host delivery budget must cover the configured provider shares; reduce their allowances or increase the host budget.")
 
         require_positive_number(request_seconds)

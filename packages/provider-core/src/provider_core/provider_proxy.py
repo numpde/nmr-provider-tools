@@ -371,7 +371,7 @@ class ServiceProxyServer(bound_http_proxy.ProxyServer):
         self._start_waiting()
         (active, capacity) = self._slots.load()
 
-        if active * 2 <= capacity:
+        if (active * 2) <= capacity:
             fraction = 0.0
         elif active >= capacity:
             fraction = 1.0
