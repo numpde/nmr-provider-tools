@@ -29,7 +29,7 @@ from provider_core.hosting import (
     RequestConflict, ReservationRef, ResourceState, ResultRef, ResultState,
     _raise_context_failure, settle_cleanup,
 )
-from provider_core.process_wire import RemoteScienceError, frame, receive, send
+from provider_core.process_wire import RemoteScienceError, frame, receive
 from provider_core.scientific import Contribution, HostedContribution
 
 
@@ -46,9 +46,13 @@ class _Channel:
             if self.failure is not None:
                 raise RemoteScienceError("Original scientific process channel is unavailable") from self.failure
 
+            # Framing failure is a local refusal before any send: it must not
+            # turn the channel or a scientific operation into an uncertainty.
+            request = frame(message)
+
             try:
                 self.sock.settimeout(seconds)
-                send(self.sock, message)
+                self.sock.sendall(request)
                 reply = receive(self.sock)
             except (OSError, EOFError, ValueError, TypeError) as cause:
                 self.failure = cause

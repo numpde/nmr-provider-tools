@@ -2,10 +2,28 @@
 
 from __future__ import annotations
 
+import socket
 import unittest
 
-from provider_core.process_host import ProcessExecutionHost
+from provider_core.process_host import ProcessExecutionHost, _Channel
 from provider_core.scientific import Contribution
+
+
+class ProcessChannelTests(unittest.TestCase):
+    def test_local_framing_failure_sends_nothing_and_preserves_channel(self):
+        (parent, child) = socket.socketpair()
+        self.addCleanup(parent.close)
+        self.addCleanup(child.close)
+        channel = _Channel(parent)
+
+        with self.assertRaises(expected_exception=TypeError):
+            channel.exchange({"action": "submit", "unsupported": object()})
+
+        self.assertIsNone(channel.failure)
+        child.settimeout(0.01)
+
+        with self.assertRaises(expected_exception=TimeoutError):
+            child.recv(1)
 
 
 class ProcessHostTests(unittest.IsolatedAsyncioTestCase):
