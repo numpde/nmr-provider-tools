@@ -14,7 +14,7 @@ from wheelhouse_tool.validation.upstream import pip_installation_report
 def local_file_path(item):
     """Decode the selected artifact under this offline projection's URL policy."""
 
-    artifact_url = item["download_info"]["url"]
+    artifact_url = pip_installation_report.artifact_url(item)
 
     if any(ord(character) < 32 or ord(character) == 127 for character in artifact_url):
         raise ValueError(f"{reprlib.repr(artifact_url)=} contains a control character")
@@ -70,7 +70,7 @@ def manifest(report, pool, directory, allowed_sources):
         ):
             raise ValueError("Cannot use pip report: selected artifact is outside the pool or not authorized.")
 
-        checksum = item["download_info"]["archive_info"]["hashes"]["sha256"]
+        checksum = pip_installation_report.archive_sha256(item)
 
         if (not re.fullmatch(r"[0-9a-f]{64}", checksum)) or (name in seen):
             raise ValueError("Cannot use pip report: selected artifact hash or filename is invalid.")

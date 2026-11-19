@@ -25,6 +25,7 @@ from contextlib import contextmanager
 
 from tools.adapters.pip_install import resolve_locked_wheels_command
 from tools.artifacts import fsync_directory, regular_file
+from tools.validation.upstream import pip_installation_report
 
 # repo-check: allow-module-constant
 CHUNK_BYTES = 1024 * 1024
@@ -137,15 +138,11 @@ def select_wheels(lock, pool, extra_pools=(), required_files=None, lock_fd=None)
 # silent-defaults: allow-contract -- Optional additional wheel pools are captured as an immutable tuple; required files are independently checked.
 def wheel_inputs_from_report(lock, pool, report, extra_pools=(), required_files=None):
     """Project pip's actual selection or installation report into input identities."""
-    selected = read_json(report)
-
-    if selected["version"] != "1":
-        raise ValueError("Cannot select wheels: pip returned an unsupported installation-report version.")
-
+    installed_distributions = pip_installation_report.install_records(read_json(report))
     files = {}
 
-    for installed_distribution in selected["install"]:
-        location = urllib.parse.urlsplit(installed_distribution["download_info"]["url"])
+    for installed_distribution in installed_distributions:
+        location = urllib.parse.urlsplit(pip_installation_report.artifact_url(installed_distribution))
         candidate = pathlib.Path(urllib.request.url2pathname(location.path))
 
         if (
@@ -167,7 +164,7 @@ def wheel_inputs_from_report(lock, pool, report, extra_pools=(), required_files=
             pass
 
         # Pip owns lock resolution and checks the selected file against the lock.
-        files[candidate.name] = installed_distribution["download_info"]["archive_info"]["hashes"]["sha256"]
+        files[candidate.name] = pip_installation_report.archive_sha256(installed_distribution)
 
     if (required_files) and (not set(required_files).issubset(files)):
         raise ValueError("Cannot select wheels: a required release artifact was not selected.")
