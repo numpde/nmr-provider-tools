@@ -1,7 +1,7 @@
 Separate external API rules from operational code
 ================================================
 
-2026-11-19 — inventory and staged separation; checklist records verified progress
+2026-11-19 — completed separation; checklist records source and verification evidence
 
 Keep code that depends on an external API's rules in clearly owned areas. An API
 change should lead maintainers to its validators and adapters, rather than
@@ -36,9 +36,9 @@ Migration checklist — inventoried 2026-11-19
 
 [x] Inventory authored sources, contract pins and existing test evidence
 [x] Resolve the authority gaps below without changing selected contracts
-[ ] Separate each API's checks into validation/upstream and its wire operations
+[x] Separate each API's checks into validation/upstream and its wire operations
     into adapters; update callers and delete displaced implementations
-[ ] Verify and commit each coherent extraction with its focused Make lanes
+[x] Verify and commit each coherent extraction with its focused Make lanes
 [x] Separate existing validation and adapter cases from operation tests
     [x] Problem-shape admission separated from API failure/uncertainty checks
     [x] Job-input and credential admission have dedicated validation suites
@@ -60,7 +60,8 @@ Credential parser tests select their own fixture allowance, independently of
 startup configuration. The admitted key proof remains; credential-backed HTTP
 signing remains covered by the signing and Hello integration suites. Focused
 test_job_input.py and test_credential.py Make lanes pass on science with
-PRIVACY_TESTS=0 and discover both moved suites. Remaining mixed cases are pending.
+PRIVACY_TESTS=0 and discover both moved suites. The following entries cover the
+other mixed suites.
 Signing suites now live under tests/unit/adapters/nmr/v1/{normative,adversarial}/;
 their bodies are unchanged and focused test_signing.py passed on science with
 PRIVACY_TESTS=0.
@@ -260,7 +261,7 @@ NMR Provider API: wire and validation owners
     uncertainty belong to the operation owner. Do not move this block wholesale.
     Evidence: test_api_unavailability.py and test_attempt_{start,progress,outcome}.py.
     No-change meanings completed 2026-11-19: pure status/code predicates now
-    live in core/validation/upstream/nmr/v1/refusals.py. _remember_failure still
+    live in core/validation/upstream/nmr/v1/recovery.py. _remember_failure still
     owns method/target attachment, uncertainty flags, notes and the same failure
     identity. No prior send history is passed to validation or cleared by a new
     refusal. Unknown or malformed replies remain uncertain.
@@ -270,14 +271,14 @@ NMR Provider API: wire and validation owners
 
     Recovery meaning extraction continued 2026-11-19: signature-refresh,
     access-refusal and unfinalized-grant status/code predicates now live in
-    refusals.py; topology.py owns the optional edge marker profile. Current
+    recovery.py. topology.py owns the optional edge marker profile. Current
     failure identity, retirement, complete-response and native-I/O gates remain
     in ProviderAPI. Focused unit test_api_unavailability.py, test_upload_api.py
     and test_api_envelope.py passed on science with PRIVACY_TESTS=0 (43 tests,
     seven skips); independent audit confirmed predicate and gate equivalence.
-    Completed 2026-11-19: the shared refusal owner is now recovery.py, including
-    the pinned routes' HTTP 500 recovery status. response_envelope.py owns the
-    selected API's HTTP 200 success meaning, shared by full and late-head
+    The completed recovery profile includes the pinned routes' HTTP 500 recovery
+    status. response_envelope.py owns the selected API's HTTP 200 success
+    meaning, shared by full and late-head
     admission. Route builders own exact target spellings. Local 429 pacing and
     502/503/504 edge/CONNECT eligibility remain operation policy, as do native
     transport evidence, failure identity, retirement and exact-request ownership.
@@ -777,13 +778,13 @@ Shared wire support: retain the distinction from local policy
   Independent audit confirmed wire facts, options, Unix routing and ownership.
   Its return-type concern was checked against the pinned source: AsyncHTTPProxy
   derives from AsyncConnectionPool, so the annotation needed no change.
-  Backend exception/cause mapping remains explicitly pending below.
+  The following entries cover backend exception/cause mapping.
   TLS mapping extracted 2026-11-19: the backend adapter owns the unchanged
   eight-entry TLS exception context and private AnyIOStream construction.
   Handshake I/O, deadlines, observation and post-success assignment remain local.
   Focused network/API-availability unit and TLS-shutdown/API-availability
   integration lanes passed with PRIVACY_TESTS=0 (19 tests); mapping AST and
-  independent audit confirmed parity. Byte-stream and retry-policy review remain.
+  independent audit confirmed parity. Byte-stream and retry-policy review follow.
   Byte-stream translation extracted 2026-11-19: the unchanged AnyIO bridge
   now lives in the adapter. Attribute/EOF translation
   delegates to the same owned stream and close callback; network keeps tracking
@@ -792,7 +793,7 @@ Shared wire support: retain the distinction from local policy
   PRIVACY_TESTS=0 (22 tests, one skip). Backend construction remains directly in
   the network owner; no pass-through factory is needed. The twelve focused unit
   tests were rerun after removing that unnecessary indirection and passed.
-  Retry/cause policy review remains.
+  The following review covers retry/cause policy.
   Cause-policy review completed 2026-11-19: the pinned wheel's mapping and pool
   rethrow sites were inspected. NetworkIOObservation already retains original
   links at the actual I/O catch point. Classifier whitelist/identity/errno/EOF
@@ -839,8 +840,9 @@ Shared wire support: retain the distinction from local policy
   tests moved from deployment to SDK units, without duplicate coverage. The
   donor ledger records these relocations. Focused DNS, bound-proxy and cold
   bundle lanes passed (42 tests, two skips; PRIVACY_TESTS=0). Provider-proxy
-  retains the same two failures above. Donor accounting has 23 preexisting
-  failing subcases, also reproduced on immediate parent 3139b04.
+  retained the same two failures above at this step. Donor accounting then had
+  23 failing subcases, also reproduced on immediate parent 3139b04. The final
+  proxy relocation below resolves its donor row; 22 other stale rows remain.
   HTTP request-target admission, default ports and header-end interpretation
   now live in validation/upstream/http_proxy.py. The configured authority reader
   shares its numeric port admission; exact DNS/decimal spelling and grants stay
@@ -854,16 +856,16 @@ Shared wire support: retain the distinction from local policy
   locations updated. Installation and cold-bundle closures include both new HTTP
   modules. Focused HTTP, bound/Unix proxy, installation, cold-bundle and real proxy
   integration lanes passed (55 tests, three skips; PRIVACY_TESTS=0). The provider
-  unit lane retains its two confirmed baseline failures and donor accounting the
-  same 23 failing subcases. Independent audit found no acceptance, effect-order,
+  unit lane retained its two confirmed baseline failures at this step.
+  Independent audit found no acceptance, effect-order,
   test-ownership or import-closure regression. Resolver-file interpretation is
-  tracked separately below; source/interface choice remains local policy.
+  completed in the resolver extraction below; source/interface choice stays local.
 - [x] Keep locally defined IPC schemas outside upstream API validation
   core/unix_http.py uses HTTP over a local socket. The service bodies/routes in
   delivery_ipc.py, shared_delivery_ipc.py, runner_protocol.py and chat_wire.py are
   locally defined protocols, not evidence of an external API contract.
   Evidence: test_decoded_body.py, test_transport.py, test_transport_proxy.py,
-  test_bound_http_proxy.py and tests/deployment/test_proxy_posture.py.
+  test_bound_http_proxy.py and SDK unit/adversarial/test_proxy_posture.py.
   Ownership audit, 2026-11-19: delivery_client.py and delivery_ipc.py define the
   private submit/pending/status routes together; shared_delivery_client.py and
   shared_delivery_ipc.py define the shared /submit handoff. runner.py and
@@ -1009,22 +1011,23 @@ Other service and artifact interfaces in repository tooling
 
 Separate adjacent tool/package interfaces from service API rules:
 
-- [ ] Separate pip/packaging formats from local pool and artifact policy
+- [x] Separate pip/packaging formats from local pool and artifact policy
   [x] Standalone report v1 header admission now lives in
       wheelhouse_tool/validation/upstream/pip_installation_report.py. The
       projection retains its local-file URL profile, nonempty requirement,
       pool/source authorization and late archive-hash access. The focused
       wheelhouse lane ran 56 tests (10 privacy tests skipped); the isolated
-      bundle lane passed both tests. Guarded pip consumers and packaging
-      interfaces remain to be reviewed.
+      bundle lane passed both tests. Later entries cover the guarded pip
+      consumers and packaging interfaces.
   [x] Locked-wheel resolution and installation argv now live in
       tools/adapters/pip_install.py. The wheel selector and SDK environment
       owner retain subprocess execution, lock descriptors, private snapshots
       and report admission. The delivery recipe captures the adapter and its
       Dockerfile copies it. Focused wheelhouse, delivery-release and package
-      artifact lanes passed 31 tests. The offline delivery build stopped
-      before Docker assembly because the current runtime lock hash differs
-      from the issued release pin; image execution remains unverified.
+      artifact lanes passed 31 tests. At this point the offline delivery build
+      stopped before Docker assembly because the SDK development lock did not
+      reproduce the issued release lock. The delivery closure below records the
+      correction and successful build.
   [x] Standalone pylock TOML loading, local wheel/sdist/archive field encoding
       and projected-lock encoding now live in wheelhouse_tool/adapters/pylock.py.
       The codec retains metadata and package order, validates/exhausts selection
@@ -1062,15 +1065,16 @@ Separate adjacent tool/package interfaces from service API rules:
       Delivery captures/copies its guarded reader and package markers.
       Focused shared/guarded wheelhouse and bundle lanes passed 64 tests
       (10 privacy skips); artifact (15), delivery (10) and conventions (12)
-      passed. The real delivery build remains blocked by the existing lock pin.
+      passed. The later delivery closure verifies these copied dependencies in
+      a real offline image build.
   [x] Remaining standalone pylock package/archive/wheel/source record encoding
       now lives in its codec; filename admission lives in upstream validation.
       The exact existing basename predicate and its CLI admission point remain.
       Locator workflows use chosen candidate facts instead of reading serialized
       keys for local admission. Source/version/cache/yank choices remain local.
       The shared wheelhouse lane passed 56 tests (10 privacy skips), both bundle
-      tests passed, and the real offline wheelhouse image built. Hash-lock input
-      readers and the one-pin bootstrap profile remain to be audited separately.
+      tests passed, and the real offline wheelhouse image built. Later entries
+      cover hash-lock input readers and the one-pin bootstrap profile.
   [x] Guarded hash-lock line decoding now lives in tools/validation/upstream/
       pip_requirements.py. It preserves the consumed pin/hash grammar, exact
       decode/normalization order and native UTF-8 failures. The wheelhouse owner
@@ -1105,7 +1109,7 @@ Separate adjacent tool/package interfaces from service API rules:
   This is a tool/file-format boundary, distinct from
   PyPI HTTP. Pool confinement, lock ownership and artifact approval are local.
   Evidence: test_shared_wheelhouse.py, test_wheelhouse.py, test_wheelhouse_bundle.py.
-- [ ] Separate Docker/Compose output interpretation from local operation grants
+- [x] Separate Docker/Compose output interpretation from local operation grants
   [x] Docker context name/endpoint projections now live in the adjacent shell
       adapter. The selector still chooses its isolated client environment,
       handles inherited endpoints before loading the adapter, and owns local
@@ -1117,8 +1121,8 @@ Separate adjacent tool/package interfaces from service API rules:
       expected running/exit state and retain capture/read failure handling,
       direct-only exact-byte checks, cleanup and result release. Both shell
       helpers enter the authored source bundle. The owner lane ran 50 tests
-      with one skip; all nine Compose/bundle tests passed. Remaining Docker
-      create receipts, inventories, readiness and image metadata are pending.
+      with one skip; all nine Compose/bundle tests passed. Later entries cover
+      create receipts, inventories, readiness and image metadata.
   [x] Image retirement uses operations/docker/adapters/docker_inspection.py
       for Go templates and JSON-line decoding, and validation/upstream/
       docker_inspection.py for requested-image and alias/label field admission.
@@ -1192,40 +1196,118 @@ Separate adjacent tool/package interfaces from service API rules:
   under isolated Python without installed packages. Six focused DNS tests and
   six acquisition bundle tests pass with privacy tests disabled.
 
+Residual protocol checks and delivery build evidence
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+- `45fc547` put exact retained-request method/path matching in NMR recovery
+  validation, consolidated the signature lifetime and COMPLETE request ceiling
+  with their selected profiles, and moved transfer-encoding field recognition
+  into HTTP validation. Transport, IPC and recovery retain their effect gates.
+- `be1def5` made both Chat decoding paths use the declared HTTP 200 success
+  status. `5a1167d` moved proxy DNS comparison-name normalization and resolver
+  file token reading to upstream validators, including the acquisition bundle
+  and installed SDK payload. The proxy retains resolver selection, address
+  admission and network effects.
+- `64bc6cc` moved Docker inventory ID and counted container image-reply
+  admission to the upstream validator. Retirement keeps ordering, batching,
+  borrower evidence, rechecks and removal. `5700955` separated native Docker
+  GC configuration fields, JSON encoding, validation argv and Buildx prune
+  argv. The caller keeps threshold values, disabled/custom-policy decisions,
+  the stable-byte check, owned-file replacement and timer installation.
+- The 13 residual Make lanes in /tmp/nmr-separation-residual-*.log exited 0.
+  They selected 159 tests with 13 privacy skips and covered NMR API/recovery,
+  the pinned HTTP contract, signing, uploads, Chat, delivery IPC, DNS/proxy,
+  installation, bundle, image retirement, cache GC and repository conventions.
+
+Delivery now selects requirements/delivery-runtime.lock (`be14c17`). Its
+14,621 bytes are the runtime prefix of the issued 0.6.18 installation lock,
+with SHA-256
+5b0b10480d7dc637fd29594ad6ead900409d0e521b8886d3118c9f9879f7b037.
+Appending the selected SDK requirement reproduces the installed-lock SHA-256
+b89469e3082c0375a2596a8e0a99c69359ae210ee0afe6f53bab944127f08738.
+The delivery JSON pin and the SDK development lock retain their exact bytes.
+All delivery workers use the dedicated lock. The SDK validator owns full
+Docker image/network ID spelling. The delivery Dockerfile and recipe capture
+cover the renderer's private support package, including the same canonical
+Docker ID, startup-file and tools sources. This supplies the renderer's
+current helper interface with the issued SDK wheel still pinned at 0.6.18.
+
+The offline delivery build completed its import and CLI smoke checks and
+tagged image
+sha256:2fc6525c3e261c26cc53bb12feaf20a8210c45d27699647696148a7e95e9d538
+locally on science (/tmp/nmr-separation-delivery-build-fixed.log). The delivery
+binding (8), route (14), CLI (5, two privacy skips), installation (9, one privacy
+skip) and release (10) lanes passed, as did the offline delivery publisher lane
+(/tmp/nmr-separation-delivery-final-*.log). All eight installed deployment cases
+then passed on that image (/tmp/nmr-separation-deployment-final.log).
+
+`b8959b3` moved implementation-level proxy mocks out of installed deployment
+qualification into the current SDK unit lane. All 28 existing cases remain:
+27 behavior cases, with their six privacy switches, and one pure CONNECT parser
+case under adapters. The focused proxy lane ran 27 cases with six skips; the
+parser/adapter lane passed eight cases. All 27 behavior method ASTs are unchanged;
+the parser case only changes its import spelling. The donor ledger records the
+new destinations. Its focused lane still reports 22 existing stale method rows;
+the changed proxy row passes. This work does not establish a green full quality
+lane or live compatibility with unselected service versions.
+
+`2c98a1c` closed the remaining Docker image/container ID gates and image
+projection templates in delivery and acquisition qualification launchers. They
+reuse existing adapters and predicates; selection, exact receipt comparisons,
+platform/role admission and cleanup stay local. All four shell syntax checks
+passed, and the maintained deployment lane again passed eight cases. Fixture
+assertions about observed mounts, volumes, network modes and exit status remain
+independent test evidence rather than delegating their expected answers to the
+production admission code. The acquisition network and route live scenarios
+were not rerun for these equivalent helper calls.
+
 Verification checklist for each affected extraction
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-- [ ] Verify the rule's source and close relevant authority gaps
+- [x] Verify the rule's source and close relevant authority gaps
   Existing contract tests authenticate fixture contents and exercise consumed
   rules; they do not establish live server compatibility or complete schema
   enforcement. Chat, store and tooling evidence is distributed across focused
-  tests and donor references. Fill source/version gaps before changing rules.
+  tests and donor references. The authority section records the inspected source
+  objects, fixture correspondence and supported service profiles.
   The sixteen pinned HTTP schemas contain no private signing-credential artifact
   schema; that artifact's documented API source is a separate authority.
-- [ ] Retain local policy ownership when separating borrowed source
+- [x] Retain local policy ownership when separating borrowed source
   A source port from Magnet or SECS does not by itself establish an upstream
   contract. Local policies remain local even when borrowed from another project.
-- [ ] Update affected example/mock callers without creating wire authorities
+- [x] Update affected example/mock callers without creating wire authorities
   No separate service-wire implementation was identified in the searched
   production examples/mocks. Their SDK calls and scientific schemas are callers
   and local models, not additional wire authorities.
-- [ ] Update and verify every affected offline build closure and hash manifest
+- [x] Update and verify every affected offline build closure and hash manifest
   Copied validation enters the SDK wheel, wheelhouse zipapp and acquisition
   bundle through different offline build closures. The existing shared
   type-requirements source is a packaging precedent; moving checks must update
   each affected closure and hash manifest without requiring SDK installation
   during bootstrap.
-  This inventory follows authored sources and build declarations; generated
-  bootstrap bundles were not independently re-qualified or made new authorities.
-- [ ] Verify preserved wire bytes, admission timing, evidence and effect ownership
+  Final closure audit checked recursive SDK packaging, acquisition SOURCE_FILES,
+  PROXY_FILES and INSTALLER_SOURCES, wheelhouse source inventory, checker COPY
+  and fingerprints, and delivery COPY and recipe inputs against actual imports.
+  Installed payload, extracted bundle/zipapp and isolated installer lanes passed;
+  real checker, wheelhouse and delivery images built. The final checker source
+  fingerprint matches its build log. Bootstrap source integrity/version checks
+  passed. Frozen bootstrap sources and acquisition/installer/wheelhouse pins are
+  unchanged. Bundle tests build extracted fixtures, not a new issued release;
+  they do not independently authenticate a remote archive digest. No generated
+  candidate archive was made a new contract authority.
+- [x] Verify preserved wire bytes, admission timing, evidence and effect ownership
   For each extraction, separate the upstream check/interpretation from the
   adjacent operation. Preserve parser-hook timing, exact signed/retained bytes,
   error classification, full original response evidence, and uncertainty after
   sending. Keep lock, custody, retry, file and queue decisions with their owners.
-- [ ] Run the affected focused Make lanes with privacy tests disabled
+  The per-slice source/AST reviews and focused behavior lanes above cover these
+  invariants. Final independent review checked the NMR, Chat, shared HTTP/DNS
+  and tool callers against their extracted owners; local effect gates remain
+  with the operation owners.
+- [x] Run the affected focused Make lanes with privacy tests disabled
   Focused SDK lanes use TEST_PATTERN=test_<name>.py and PRIVACY_TESTS=0. Repository,
-  wheelhouse, acquisition and deployment lanes cover the other consumers. Test
-  names above are evidence pointers; this inventory did not execute those lanes.
+  wheelhouse, acquisition and deployment lanes cover the other consumers. The
+  entries above record completed focused runs, privacy skips and image proofs.
 
-- [ ] Review the diff, remove displaced implementations and commit a meaningful
+- [x] Review the diff, remove displaced implementations and commit a meaningful
   verified chunk before starting the next extraction
