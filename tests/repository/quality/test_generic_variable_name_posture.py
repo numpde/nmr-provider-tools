@@ -45,11 +45,14 @@ def _generic_name(*, variable_name: str) -> bool:
         "validate",
         "run",
         "label",
+        "limit",
         "file",
         "filepath",
         "path",
         "relative_path",
         "rel_path",
+        "reply",
+        "request",
         "result",
         "results",
         "obj",
@@ -155,13 +158,13 @@ class GenericVariableNamePostureTests(unittest.TestCase):
 
     def test_generic_parameters_assignments_and_comprehensions_are_flagged(self):
         source = (
-            "def convert(value, /, *items, data, label, **values):\n"
+            "def convert(value, /, *items, data, label, limit, reply, request, **values):\n"
             "    result = [item for item in items]\n"
             "    return result\n"
         )
 
         self.assertEqual(
-            first=["data", "items", "label", "value", "values", "item", "result"],
+            first=["data", "items", "label", "limit", "reply", "request", "value", "values", "item", "result"],
             second=[finding.variable_name for finding in _findings(source=source)],
         )
 
@@ -170,9 +173,12 @@ class GenericVariableNamePostureTests(unittest.TestCase):
             "_value = 1\n"
             "VALUES = []\n"
             "__result__ = None\n"
+            "_limit = 1\n"
+            "REPLY = None\n"
+            "__request__ = None\n"
         )
 
-        self.assertEqual(first=["_value", "VALUES", "__result__"], second=[finding.variable_name for finding in _findings(source=source)])
+        self.assertEqual(first=["_value", "VALUES", "__result__", "_limit", "REPLY", "__request__"], second=[finding.variable_name for finding in _findings(source=source)])
 
     def test_purpose_names_reads_keys_comments_and_strings_are_not_bindings(self):
         source = (
