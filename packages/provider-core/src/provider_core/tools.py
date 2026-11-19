@@ -4,7 +4,7 @@ import math
 import pathlib
 from collections import Counter
 
-from provider_core.type_requirements import require_instance, require_type
+from .type_requirements import require_instance, require_type
 
 
 def duplicate_json_fields(field_pairs: list[tuple[str, object]]) -> Counter[str]:

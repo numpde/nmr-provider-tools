@@ -40,6 +40,7 @@ try:
     from delivery_support.docker_ids import is_full_image_id, is_full_network_id
     from delivery_support.startup_file import read_startup_file
     from delivery_support.tools import require_absolute_path, require_positive_number
+    from delivery_support.type_requirements import require_type
 finally:
     sys.path.pop(0)
 
@@ -341,26 +342,22 @@ def render_shared(path, source, image):
         mode = route["mode"]
         interface = route["interface"]
 
-        if not (type(project) is (expected_type := str)):
-            raise TypeError(f"{type(project)=} ≠ {expected_type=}")
+        require_type(project, str)
 
         if not (re.fullmatch(r"[a-z0-9][a-z0-9_-]{0,48}", project) is not None):
             raise ValueError
 
-        if not (type(uid) is (expected_type := int)):
-            raise TypeError(f"{type(uid)=} ≠ {expected_type=}")
+        require_type(uid, int)
 
         if not (uid == os.geteuid()):
             raise ValueError
 
-        if not (type(proxy_uid) is (expected_type := int)):
-            raise TypeError(f"{type(proxy_uid)=} ≠ {expected_type=}")
+        require_type(proxy_uid, int)
 
         if not (0 < proxy_uid and proxy_uid != uid):
             raise ValueError
 
-        if not (type(gid) is (expected_type := int)):
-            raise TypeError(f"{type(gid)=} ≠ {expected_type=}")
+        require_type(gid, int)
 
         if not (0 < gid):
             raise ValueError
@@ -370,16 +367,15 @@ def render_shared(path, source, image):
         if not (mode in ("local", "mapped", "external")):
             raise ValueError
 
-        if not (type(interface) is (expected_type := str)):
-            raise TypeError(f"{type(interface)=} ≠ {expected_type=}")
+        require_type(interface, str)
 
         LiveProxyConfiguration(path, mode).read()
         SharedDeliveryConfiguration(path).read()
 
         if mode == "local":
 
-            if not (type((network_id := route["network_id"])) is (expected_type := str)):
-                raise TypeError(f"{type(network_id)=} ≠ {expected_type=}")
+            network_id = route["network_id"]
+            require_type(network_id, str)
 
             if not is_full_network_id(route["network_id"]):
                 raise ValueError
