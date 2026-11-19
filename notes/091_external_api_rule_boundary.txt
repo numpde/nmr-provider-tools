@@ -1081,6 +1081,12 @@ Separate adjacent tool/package interfaces from service API rules:
   PyPI HTTP. Pool confinement, lock ownership and artifact approval are local.
   Evidence: test_shared_wheelhouse.py, test_wheelhouse.py, test_wheelhouse_bundle.py.
 - [ ] Separate Docker/Compose output interpretation from local operation grants
+  [x] Docker context name/endpoint projections now live in the adjacent shell
+      adapter. The selector still chooses its isolated client environment,
+      handles inherited endpoints before loading the adapter, and owns local
+      socket admission, menu order and explicit selection. Command output,
+      redirects and exit statuses are preserved. Ten launcher tests and six
+      cache-GC tests pass; the real context/cache lane also passes on science.
   [x] Acquisition worker terminal-state inspection now uses an adapter-owned
       Docker Go template and an upstream field validator. Callers select the
       expected running/exit state and retain capture/read failure handling,

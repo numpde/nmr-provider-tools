@@ -10,6 +10,8 @@ select_docker_context() {
         [[ $endpoint == unix:///* && ! $endpoint =~ [[:cntrl:]] ]] || { printf '%s\n' 'Selected Docker endpoint is not a local Unix socket.' >&2; return 2; }
         return 0
     fi
+    source "$(dirname -- "${BASH_SOURCE[0]}")/adapters/docker_context.sh" || return 2
+    local -a selected_context_client=(env -u DOCKER_HOST -u DOCKER_CONTEXT -u DOCKER_TLS -u DOCKER_TLS_VERIFY -u DOCKER_CERT_PATH docker)
     if [[ $origin == 'command line' ]]; then
         name=
         if [[ -v DOCKER_CONTEXT_INPUT ]]; then name=$DOCKER_CONTEXT_INPUT; fi
@@ -19,14 +21,14 @@ select_docker_context() {
             printf '%s\n' 'Select a local Docker context with DOCKER_CONTEXT=<name> on the make command line; no interactive terminal is available.' >&2
             return 2
         fi
-        if ! listing=$(env -u DOCKER_HOST -u DOCKER_CONTEXT -u DOCKER_TLS -u DOCKER_TLS_VERIFY -u DOCKER_CERT_PATH docker context ls --format '{{.Name}}'); then
+        if ! listing=$(docker_context_names selected_context_client); then
             exec {tty_fd}>&-
             printf '%s\n' 'Cannot list Docker contexts; inspect Docker client configuration.' >&2
             return 2
         fi
         while IFS= read -r name; do
             [[ -n $name ]] || continue
-            if endpoint=$(env -u DOCKER_HOST -u DOCKER_CONTEXT -u DOCKER_TLS -u DOCKER_TLS_VERIFY -u DOCKER_CERT_PATH docker context inspect --format '{{.Endpoints.docker.Host}}' "$name" 2>/dev/null) \
+            if endpoint=$(docker_context_endpoint selected_context_client "$name" 2>/dev/null) \
                 && [[ $endpoint == unix:///* && ! $endpoint =~ [[:cntrl:]] ]]; then
                 choices+=("$name")
                 endpoints+=("$endpoint")
@@ -49,7 +51,7 @@ select_docker_context() {
         [[ -n $name ]] || { printf '%s\n' 'Select one of the listed Docker contexts.' >&2; return 2; }
     fi
     if [[ $origin == 'command line' ]]; then
-        if ! endpoint=$(env -u DOCKER_HOST -u DOCKER_CONTEXT -u DOCKER_TLS -u DOCKER_TLS_VERIFY -u DOCKER_CERT_PATH docker context inspect --format '{{.Endpoints.docker.Host}}' "$name" 2>/dev/null); then
+        if ! endpoint=$(docker_context_endpoint selected_context_client "$name" 2>/dev/null); then
             printf 'Cannot inspect Docker context %q.\n' "$name" >&2; return 2
         fi
     fi
