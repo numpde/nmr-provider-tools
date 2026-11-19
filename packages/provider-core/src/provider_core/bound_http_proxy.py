@@ -33,6 +33,7 @@ from http import HTTPStatus
 
 from provider_core.adapters import dns as dns_adapter, http_proxy
 from provider_core.diagnostic_text import CredentialRedactingFormatter
+from provider_core.type_requirements import require_type
 from provider_core.validation.upstream import dns
 from provider_core.validation.upstream.host_resolver import nameserver_tokens
 from provider_core.validation.upstream.http_proxy import header_end
@@ -444,8 +445,7 @@ class ConnectionAdmission:
         self.set_limit(limit)
 
     def set_limit(self, limit):
-        if not (type(limit) is (expected_type := int)):
-            raise TypeError(f"{type(limit)=} ≠ {expected_type=}")
+        require_type(limit, int)
 
         if not (limit > 0):
             raise ValueError("Proxy connection capacity must be a positive integer.")

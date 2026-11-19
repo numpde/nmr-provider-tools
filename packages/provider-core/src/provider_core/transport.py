@@ -210,8 +210,7 @@ def require_unix_socket_path(path):
     Inspect the path without replacing the original string passed to native I/O.
     """
 
-    if not (type(path) is (expected_type := str)):
-        raise TypeError(f"{type(path)=} ≠ {expected_type=}")
+    require_type(path, str)
 
     require_absolute_path(path)
 
