@@ -1,4 +1,4 @@
-"""Reject ambiguous signing targets before any HTTP operation is possible."""
+"""The signing adapter rejects ambiguous targets before a request can be sent."""
 
 import unittest
 import os

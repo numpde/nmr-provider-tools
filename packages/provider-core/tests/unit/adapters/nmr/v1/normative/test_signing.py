@@ -1,4 +1,4 @@
-"""Signatures verify against the API profile, independently of signer rendering."""
+"""Signed adapter requests verify against the API's exact signature profile."""
 
 import base64
 import hashlib

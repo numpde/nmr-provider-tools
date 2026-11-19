@@ -43,7 +43,8 @@ Migration checklist — inventoried 2026-11-19
     [x] Problem-shape admission separated from API failure/uncertainty checks
     [x] Job-input and credential admission have dedicated validation suites
     [ ] Separate remaining mixed discovery, Hello and Attempt test cases
-    [ ] Group signing and other encoder tests under their adapter owners
+    [x] Group signing tests under their adapter owner
+    [ ] Group other encoder tests under their adapter owners
 
 The checked item records completed inventory work only. Check off an extraction
 after its callers, affected build closures and focused verification are complete.
@@ -56,6 +57,9 @@ startup configuration. The admitted key proof remains; credential-backed HTTP
 signing remains covered by the signing and Hello integration suites. Focused
 test_job_input.py and test_credential.py Make lanes pass on science with
 PRIVACY_TESTS=0 and discover both moved suites. Remaining mixed cases are pending.
+Signing suites now live under tests/unit/adapters/nmr/v1/{normative,adversarial}/;
+their bodies are unchanged and focused test_signing.py passed on science with
+PRIVACY_TESTS=0.
 
 Source baseline: 175da21. This is a source inventory, not an implemented
 separation or a claim that the listed tests pass. Application code was unchanged.

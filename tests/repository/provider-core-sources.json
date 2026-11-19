@@ -1968,6 +1968,7 @@
     },
     {
       "path": "packages/provider-core/tests/unit/adversarial/test_signing.py",
+      "replacement_path": "packages/provider-core/tests/unit/adapters/nmr/v1/adversarial/test_signing.py",
       "mode": "100644",
       "git_blob": "b0cdb51a729ac0a81eb186568ac7d9eaff151c5a",
       "sha256": "29b73327318a8458acec63f2ea641fc3850a4c730cea416eb5dd042036ee27a3",
@@ -2595,6 +2596,7 @@
     },
     {
       "path": "packages/provider-core/tests/unit/normative/test_signing.py",
+      "replacement_path": "packages/provider-core/tests/unit/adapters/nmr/v1/normative/test_signing.py",
       "mode": "100644",
       "git_blob": "e45435cdcc245b21e64096f30b047de089c04b7a",
       "sha256": "200eb21f83e4e5c52220c149cdba3b8bc5d0ff70d19a78a77810749d9f52fd2f",
