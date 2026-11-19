@@ -50,6 +50,18 @@ class ProviderCorePortTests(unittest.TestCase):
 
                 expected = set(entry["test_methods"])
 
+                if "split_test_methods" in entry:
+                    splits = entry["split_test_methods"]
+
+                    self.assertLessEqual(set(splits), expected)
+
+                    for original, successors in splits.items():
+                        with self.subTest(original=original):
+                            self.assertGreaterEqual(len(set(successors)), 2)
+                            self.assertLessEqual(set(successors), present)
+
+                    expected -= set(splits)
+
                 if "retired_test_methods" in entry:
                     retired = entry["retired_test_methods"]
 

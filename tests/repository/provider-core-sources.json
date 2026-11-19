@@ -841,7 +841,21 @@
         "ChatCarrierRejectionTests.test_peer_retires_an_observed_tls_handshake_that_never_reaches_its_http_handler",
         "ChatCarrierRejectionTests.test_unconfirmed_retirement_preserves_the_transport_failure",
         "ChatCarrierRejectionTests.test_unreadable_error_detail_preserves_status_without_partial_body"
-      ]
+      ],
+      "split_test_methods": {
+        "ChatCarrierRejectionTests.test_http_failure_and_malformed_replies_keep_raw_evidence_private": [
+          "ChatCarrierRejectionTests.test_http_failure_and_malformed_replies_keep_raw_evidence",
+          "ChatCarrierRejectionTests.test_malformed_reply_diagnostics_omit_body"
+        ],
+        "ChatCarrierRejectionTests.test_http_rejection_keeps_error_fields_without_complete_prompt_or_key_echoes": [
+          "ChatCarrierRejectionTests.test_http_rejection_keeps_error_fields",
+          "ChatCarrierRejectionTests.test_http_rejection_diagnostics_omit_prompt_and_key"
+        ],
+        "ChatCarrierRejectionTests.test_unreadable_error_detail_preserves_status_without_partial_body": [
+          "ChatCarrierRejectionTests.test_unreadable_error_detail_preserves_status",
+          "ChatCarrierRejectionTests.test_unreadable_error_diagnostics_omit_partial_body"
+        ]
+      }
     },
     {
       "path": "packages/provider-core/tests/integration/chat/adversarial/test_conversation.py",
@@ -867,7 +881,13 @@
         "ConversationBoundaryTests.test_secret_values_are_checked_without_rewriting_json_structure",
         "ConversationBoundaryTests.test_tool_failure_is_operational_without_feedback_or_fallback",
         "ConversationBoundaryTests.test_uncertain_retirement_blocks_endpoint_switch_and_keeps_both_causes"
-      ]
+      ],
+      "split_test_methods": {
+        "ConversationBoundaryTests.test_fallback_preserves_each_private_failure_without_publishing_its_body": [
+          "ConversationBoundaryTests.test_fallback_preserves_each_failure",
+          "ConversationBoundaryTests.test_fallback_observation_omits_failure_body"
+        ]
+      }
     },
     {
       "path": "packages/provider-core/tests/integration/chat/normative/__init__.py",
@@ -894,7 +914,17 @@
         "ConversationTests.test_completed_tool_and_reasoning_survive_fallback_without_repeating_effect",
         "ConversationTests.test_corrected_success_retains_original_rejection_without_public_reason_or_arguments",
         "ConversationTests.test_success_hands_off_original_endpoint_failures_separately_from_public_observation"
-      ]
+      ],
+      "split_test_methods": {
+        "ConversationTests.test_corrected_success_retains_original_rejection_without_public_reason_or_arguments": [
+          "ConversationTests.test_corrected_success_retains_original_rejection",
+          "ConversationTests.test_corrected_success_omits_reason_and_arguments"
+        ],
+        "ConversationTests.test_success_hands_off_original_endpoint_failures_separately_from_public_observation": [
+          "ConversationTests.test_success_hands_off_original_endpoint_failures",
+          "ConversationTests.test_success_observation_omits_endpoint_failure_text"
+        ]
+      }
     },
     {
       "path": "packages/provider-core/tests/integration/delivery/__init__.py",
@@ -931,7 +961,17 @@
         "DeliveryIPCTests.test_stalled_connection_close_is_aborted_at_the_owned_deadline",
         "DeliveryIPCTests.test_submit_and_inventory_prove_durability_without_exporting_payload",
         "DeliveryIPCTests.test_wrong_binding_explains_refusal_to_operator_without_echoing_request"
-      ]
+      ],
+      "split_test_methods": {
+        "DeliveryIPCTests.test_submit_and_inventory_prove_durability_without_exporting_payload": [
+          "DeliveryIPCTests.test_submit_and_inventory_prove_durability",
+          "DeliveryIPCTests.test_inventory_omits_payload"
+        ],
+        "DeliveryIPCTests.test_wrong_binding_explains_refusal_to_operator_without_echoing_request": [
+          "DeliveryIPCTests.test_wrong_binding_explains_refusal_to_operator",
+          "DeliveryIPCTests.test_wrong_binding_refusal_omits_request"
+        ]
+      }
     },
     {
       "path": "packages/provider-core/tests/integration/delivery/normative/test_delivery_process.py",
@@ -944,7 +984,17 @@
         "DeliveryProcessTests.test_installed_command_delivers_once_through_proxy_then_sigterm_retires_it",
         "DeliveryProcessTests.test_lost_api_ack_then_actual_daemon_restart_replays_one_queued_outcome",
         "DeliveryProcessTests.test_two_bindings_isolate_grants_and_publish_while_one_api_is_unavailable"
-      ]
+      ],
+      "split_test_methods": {
+        "DeliveryProcessTests.test_bad_configuration_has_safe_receiving_diagnostics_and_no_runtime_state": [
+          "DeliveryProcessTests.test_bad_configuration_has_receiving_diagnostics_and_no_runtime_state",
+          "DeliveryProcessTests.test_bad_configuration_diagnostics_omit_input"
+        ],
+        "DeliveryProcessTests.test_discard_configuration_refusals_explain_the_reason_without_opening_queue_or_exposing_values": [
+          "DeliveryProcessTests.test_discard_configuration_refusals_explain_the_reason_without_opening_queue",
+          "DeliveryProcessTests.test_discard_configuration_refusals_omit_values"
+        ]
+      }
     },
     {
       "path": "packages/provider-core/tests/integration/delivery/normative/test_delivery_service.py",
@@ -1258,7 +1308,13 @@
         "UnixTunnelFailureTests.test_missing_refused_or_malformed_proxy_never_attempts_direct_tcp",
         "UnixTunnelFailureTests.test_rejected_connect_retains_only_its_parsed_status_not_an_origin_head",
         "UnixTunnelFailureTests.test_wrong_destination_certificate_is_rejected_before_application_bytes"
-      ]
+      ],
+      "split_test_methods": {
+        "UnixTunnelFailureTests.test_lost_post_reply_does_not_resend_and_connect_receives_no_credentials": [
+          "UnixTunnelFailureTests.test_lost_post_reply_does_not_resend",
+          "UnixTunnelFailureTests.test_connect_receives_no_credentials"
+        ]
+      }
     },
     {
       "path": "packages/provider-core/tests/integration/transport/adversarial/test_unix_http.py",
@@ -1416,6 +1472,12 @@
         "ApiReadFailureTests.test_problem_reason_is_local_and_unknown_or_ambiguous_problem_stays_private",
         "ApiReadFailureTests.test_verification_failure_preserves_useful_reason_and_response"
       ],
+      "split_test_methods": {
+        "ApiReadFailureTests.test_http_failure_retains_body_without_rendering_it_or_retrying": [
+          "ApiReadFailureTests.test_http_failure_retains_body_without_retrying",
+          "ApiReadFailureTests.test_http_failure_traceback_omits_response_content"
+        ]
+      },
       "retired_test_methods": {
         "ApiReadFailureTests.test_problem_reason_is_local_and_unknown_or_ambiguous_problem_stays_private": "The mixed API test was replaced by ResponseProblemTests.test_problem_reason_is_local_and_rejects_unknown_or_ambiguous_problems in tests/unit/validation/upstream/nmr/v1/adversarial/test_response_envelope.py. API refusal binding and uncertainty remain covered by ApiEnvelopeTests.test_reviewed_refusal_requires_environment_and_matching_header_body_correlation."
       }
@@ -1472,7 +1534,13 @@
         "AttemptReadRejectionTests.test_failed_reads_preserve_transport_and_http_evidence_without_retry",
         "AttemptReadRejectionTests.test_invalid_request_identity_sends_nothing",
         "AttemptReadRejectionTests.test_malformed_or_foreign_observations_retain_private_evidence"
-      ]
+      ],
+      "split_test_methods": {
+        "AttemptReadRejectionTests.test_malformed_or_foreign_observations_retain_private_evidence": [
+          "AttemptReadRejectionTests.test_malformed_or_foreign_observations_retain_evidence",
+          "AttemptReadRejectionTests.test_malformed_observation_diagnostics_omit_response_content"
+        ]
+      }
     },
     {
       "path": "packages/provider-core/tests/unit/adversarial/test_attempt_inventory.py",
@@ -1485,6 +1553,12 @@
         "AttemptInventoryFailureTests.test_envelope_schema_cursor_fields_and_requested_count_are_admitted",
         "AttemptInventoryFailureTests.test_every_row_is_admitted_before_a_page_is_exposed"
       ],
+      "split_test_methods": {
+        "AttemptInventoryFailureTests.test_bad_wire_retains_private_evidence_and_no_mutation_uncertainty": [
+          "AttemptInventoryFailureTests.test_bad_wire_retains_evidence_and_no_mutation_uncertainty",
+          "AttemptInventoryFailureTests.test_bad_wire_diagnostics_omit_response_content"
+        ]
+      },
       "retired_test_methods": {
         "AttemptInventoryFailureTests.test_envelope_schema_cursor_fields_and_requested_count_are_admitted": "Moved unchanged to AttemptInventoryValidationTests in tests/unit/validation/upstream/nmr/v1/adversarial/test_attempt_inventory.py.",
         "AttemptInventoryFailureTests.test_every_row_is_admitted_before_a_page_is_exposed": "Moved unchanged to AttemptInventoryValidationTests in tests/unit/validation/upstream/nmr/v1/adversarial/test_attempt_inventory.py."
@@ -1547,7 +1621,13 @@
         "AttemptStartFailureTests.test_invalid_retained_request_or_expected_identity_never_sends",
         "AttemptStartFailureTests.test_malformed_success_keeps_admission_uncertain_and_private",
         "AttemptStartFailureTests.test_transport_cancel_and_bad_envelope_keep_uncertainty"
-      ]
+      ],
+      "split_test_methods": {
+        "AttemptStartFailureTests.test_malformed_success_keeps_admission_uncertain_and_private": [
+          "AttemptStartFailureTests.test_malformed_success_keeps_admission_uncertain",
+          "AttemptStartFailureTests.test_malformed_start_diagnostics_omit_response_content"
+        ]
+      }
     },
     {
       "path": "packages/provider-core/tests/unit/adversarial/test_attempt_transitions.py",
@@ -1655,7 +1735,13 @@
         "ProviderCredentialBoundaryTests.test_private_key_decoder_failure_has_safe_operation_context",
         "ProviderCredentialBoundaryTests.test_public_and_private_keys_must_belong_together",
         "ProviderCredentialBoundaryTests.test_public_key_padding_bits_must_be_canonical"
-      ]
+      ],
+      "split_test_methods": {
+        "ProviderCredentialBoundaryTests.test_private_key_decoder_failure_has_safe_operation_context": [
+          "ProviderCredentialBoundaryTests.test_private_key_decoder_failure_has_operation_context",
+          "ProviderCredentialBoundaryTests.test_private_key_decoder_diagnostics_omit_input"
+        ]
+      }
     },
     {
       "path": "packages/provider-core/tests/unit/adversarial/test_delivery_availability.py",
@@ -1675,7 +1761,13 @@
       "test_methods": [
         "DeliveryConfigurationRefusalTests.test_closed_fields_and_credential_binding_refuse_without_private_echo",
         "DeliveryConfigurationRefusalTests.test_secret_grant_stays_private_without_permission_workarounds"
-      ]
+      ],
+      "split_test_methods": {
+        "DeliveryConfigurationRefusalTests.test_closed_fields_and_credential_binding_refuse_without_private_echo": [
+          "DeliveryConfigurationRefusalTests.test_closed_fields_and_credential_binding_refuse_without_runtime_state",
+          "DeliveryConfigurationRefusalTests.test_configuration_refusals_omit_input"
+        ]
+      }
     },
     {
       "path": "packages/provider-core/tests/unit/adversarial/test_delivery_execution.py",
@@ -1849,7 +1941,13 @@
         "HelloBoundaryTests.test_http_or_transport_failure_is_one_send_with_protected_cause",
         "HelloBoundaryTests.test_invalid_acceptance_keeps_original_response_private",
         "HelloBoundaryTests.test_invalid_snapshot_and_expected_identity_fail_before_send"
-      ]
+      ],
+      "split_test_methods": {
+        "HelloBoundaryTests.test_invalid_acceptance_keeps_original_response_private": [
+          "HelloBoundaryTests.test_invalid_acceptance_keeps_original_response_and_uncertainty",
+          "HelloBoundaryTests.test_acceptance_diagnostics_omit_response_content"
+        ]
+      }
     },
     {
       "path": "packages/provider-core/tests/unit/adversarial/test_job_feed.py",
@@ -1863,6 +1961,12 @@
         "JobFeedFailureTests.test_item_identity_calendar_and_requested_count_are_admitted",
         "JobFeedFailureTests.test_wire_failure_retains_private_response_and_read_effect_truth"
       ],
+      "split_test_methods": {
+        "JobFeedFailureTests.test_wire_failure_retains_private_response_and_read_effect_truth": [
+          "JobFeedFailureTests.test_wire_failure_retains_response_and_read_effect_truth",
+          "JobFeedFailureTests.test_wire_failure_diagnostics_omit_response_content"
+        ]
+      },
       "retired_test_methods": {
         "JobFeedFailureTests.test_envelope_kind_view_cursor_and_schema_drift_are_rejected": "Moved unchanged to JobFeedValidationTests in tests/unit/validation/upstream/nmr/v1/adversarial/test_job_feed.py.",
         "JobFeedFailureTests.test_item_identity_calendar_and_requested_count_are_admitted": "Moved unchanged to JobFeedValidationTests in tests/unit/validation/upstream/nmr/v1/adversarial/test_job_feed.py."
@@ -1883,7 +1987,13 @@
         "UntrustedJobInputTests.test_malformed_private_documents_are_safe_rejections",
         "UntrustedJobInputTests.test_missing_field_and_duplicate_equal_field_are_rejected",
         "UntrustedJobInputTests.test_mutable_response_is_not_admitted"
-      ]
+      ],
+      "split_test_methods": {
+        "UntrustedJobInputTests.test_malformed_private_documents_are_safe_rejections": [
+          "UntrustedJobInputTests.test_malformed_responses_are_rejected",
+          "UntrustedJobInputTests.test_rejection_tracebacks_omit_input"
+        ]
+      }
     },
     {
       "path": "packages/provider-core/tests/unit/adversarial/test_network.py",
@@ -1962,7 +2072,13 @@
       "sha256": "011440a7382fd2ad96f693a9a451f7b73ec1f93fcf0ac179996fb966e5968b3c",
       "test_methods": [
         "ResultVerbosityRejectionTests.test_only_exact_json_string_values_are_admitted_without_echoing_input"
-      ]
+      ],
+      "split_test_methods": {
+        "ResultVerbosityRejectionTests.test_only_exact_json_string_values_are_admitted_without_echoing_input": [
+          "ResultVerbosityRejectionTests.test_only_exact_json_string_values_are_admitted",
+          "ResultVerbosityRejectionTests.test_rejection_diagnostics_omit_input"
+        ]
+      }
     },
     {
       "path": "packages/provider-core/tests/unit/adversarial/test_runner.py",
@@ -2061,7 +2177,17 @@
         "TransportFailureTests.test_retirement_before_worker_entry_creates_no_client_and_releases_owner",
         "TransportFailureTests.test_unusable_file_descriptors_refuse_before_network_owner_creation",
         "TransportFailureTests.test_zero_progress_file_write_refuses_without_retrying_or_closing_descriptor"
-      ]
+      ],
+      "split_test_methods": {
+        "TransportFailureTests.test_invalid_unix_socket_paths_refuse_before_client_creation_without_echoing_them": [
+          "TransportFailureTests.test_invalid_unix_socket_paths_refuse_before_client_creation",
+          "TransportFailureTests.test_invalid_unix_socket_paths_are_not_echoed"
+        ],
+        "TransportFailureTests.test_primary_and_cleanup_causes_remain_private_and_block_reuse": [
+          "TransportFailureTests.test_primary_and_cleanup_causes_are_retained_and_block_reuse",
+          "TransportFailureTests.test_primary_and_cleanup_diagnostics_omit_request_and_causes"
+        ]
+      }
     },
     {
       "path": "packages/provider-core/tests/unit/adversarial/test_upload_acquisition.py",
@@ -2099,7 +2225,13 @@
         "UploadApiFailureTests.test_malformed_duplicate_and_overlimit_grant_json_retains_uncertainty",
         "UploadApiFailureTests.test_membership_rejects_substitution_order_duplicates_and_bad_fields",
         "UploadApiFailureTests.test_only_reviewed_no_change_problem_resolves_this_issuance"
-      ]
+      ],
+      "split_test_methods": {
+        "UploadApiFailureTests.test_bad_grants_preserve_possible_issuance_without_disclosing_bearer": [
+          "UploadApiFailureTests.test_bad_grants_preserve_possible_issuance",
+          "UploadApiFailureTests.test_bad_grant_diagnostics_omit_bearer"
+        ]
+      }
     },
     {
       "path": "packages/provider-core/tests/unit/adversarial/test_upload_file_acquisition.py",
@@ -2378,7 +2510,17 @@
         "DeliveryDiagnosticsTests.test_sqlite_extended_result_codes_remain_exact_and_absent_codes_are_not_invented",
         "DeliveryDiagnosticsTests.test_sqlite_native_code_and_name_survive_without_sql_or_exception_text",
         "DeliveryDiagnosticsTests.test_unknown_exception_text_and_credential_fields_stay_out_of_operator_output"
-      ]
+      ],
+      "split_test_methods": {
+        "DeliveryDiagnosticsTests.test_api_effect_and_independent_cleanup_reach_the_core_renderer_without_payloads": [
+          "DeliveryDiagnosticsTests.test_api_effect_and_independent_cleanup_reach_the_core_renderer",
+          "DeliveryDiagnosticsTests.test_api_and_cleanup_diagnostics_omit_payloads"
+        ],
+        "DeliveryDiagnosticsTests.test_sqlite_native_code_and_name_survive_without_sql_or_exception_text": [
+          "DeliveryDiagnosticsTests.test_sqlite_native_code_and_name_survive",
+          "DeliveryDiagnosticsTests.test_sqlite_diagnostics_omit_sql_and_exception_text"
+        ]
+      }
     },
     {
       "path": "packages/provider-core/tests/unit/normative/test_delivery_execution.py",
@@ -2512,7 +2654,13 @@
         "CoreFailureProjectionTests.test_execution_distinguishes_relay_acceptance_from_api_receipt_and_preserves_delivery_cause",
         "CoreFailureProjectionTests.test_received_start_and_terminal_facts_do_not_infer_durability_or_outcome_acceptance",
         "CoreFailureProjectionTests.test_transport_edges_preserve_original_identity_order_and_independent_cleanup"
-      ]
+      ],
+      "split_test_methods": {
+        "CoreFailureProjectionTests.test_api_projects_received_correlation_and_distinct_effect_flags_without_payloads": [
+          "CoreFailureProjectionTests.test_api_projects_received_correlation_and_distinct_effect_flags",
+          "CoreFailureProjectionTests.test_api_projection_omits_response_payloads"
+        ]
+      }
     },
     {
       "path": "packages/provider-core/tests/unit/normative/test_hello.py",
@@ -2770,8 +2918,11 @@
         "BoundProxyTests.test_startup_binding_failure_cannot_publish_readiness",
         "BoundProxyTests.test_tiny_header_fragments_preserve_body_and_early_eof_rejects"
       ],
-      "replaced_test_methods": {
-        "BoundProxyTests.test_private_admission_failures_have_fixed_http_status_and_safe_diagnostics": "BoundProxyTests.test_admission_failures_keep_fixed_http_status_and_scrub_credentials"
+      "split_test_methods": {
+        "BoundProxyTests.test_private_admission_failures_have_fixed_http_status_and_safe_diagnostics": [
+          "BoundProxyTests.test_admission_failures_keep_fixed_http_status",
+          "BoundProxyTests.test_admission_failure_logs_scrub_credentials"
+        ]
       },
       "retired_test_methods": {
         "BoundProxyTests.test_destination_port_boundaries_and_scheme_defaults_are_preserved": "Moved to ProxyRequestTests.test_destination_port_boundaries_and_scheme_defaults_are_preserved in packages/provider-core/tests/unit/adapters/normative/test_http_proxy.py.",
@@ -2817,6 +2968,20 @@
         "ServiceProxyRefusalTests.test_real_dns_decoder_reasons_reach_operator_without_private_packet_or_request_data",
         "ServiceProxyRefusalTests.test_socket_and_readiness_grants_refuse_existing_leaves_or_public_parent"
       ],
+      "split_test_methods": {
+        "ServiceProxyRefusalTests.test_dns_owner_keeps_safe_reason_and_original_query_failure_separate": [
+          "ServiceProxyRefusalTests.test_dns_owner_keeps_reason_and_original_query_failure",
+          "ServiceProxyRefusalTests.test_dns_query_refusal_omits_query_data"
+        ],
+        "ServiceProxyRefusalTests.test_filesystem_refusal_retains_safe_errno_and_private_cause": [
+          "ServiceProxyRefusalTests.test_filesystem_refusal_retains_errno_and_cause",
+          "ServiceProxyRefusalTests.test_filesystem_refusal_omits_path"
+        ],
+        "ServiceProxyRefusalTests.test_real_dns_decoder_reasons_reach_operator_without_private_packet_or_request_data": [
+          "ServiceProxyRefusalTests.test_dns_decoder_failure_reaches_operator_and_rejects_the_request",
+          "ServiceProxyRefusalTests.test_dns_decoder_logs_omit_packet_and_request_data"
+        ]
+      },
       "replaced_test_methods": {
         "ServiceProxyRefusalTests.test_owned_dns_reasons_and_native_errno_reach_operator_without_private_dns_text": "ServiceProxyRefusalTests.test_owned_dns_reasons_and_original_query_causes_reach_operator"
       }
