@@ -67,10 +67,10 @@ class PhaseProgressTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(terminal.selection.body_sha256, executor.delivery.items[0].body_sha256)
         self.assertIsNone(executor._outcome)
         self.assertEqual(store.records, (terminal,))
-        commands = [json.loads(request.content) for (request, _) in transport.calls if request.method == "PUT"]
+        commands = [json.loads(progress_request.content) for (progress_request, _) in transport.calls if progress_request.method == "PUT"]
 
         self.assertEqual(
-            [(item["phase"], item["condition_code"]) for item in commands],
+            [(progress_command["phase"], progress_command["condition_code"]) for progress_command in commands],
             [("preparing", None), ("running", None)]
         )
 

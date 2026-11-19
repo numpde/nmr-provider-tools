@@ -65,7 +65,7 @@ class ObservationRecoveryTests(unittest.IsolatedAsyncioTestCase):
             self.assertIs(attempt.admission, acknowledged.admission)
             self.assertTrue(transport.retirement_confirmed)
             self.assertTrue(session.produced.is_set())
-            self.assertEqual([item[0] for item in session.events], ["prepare", "execute"])
+            self.assertEqual([event[0] for event in session.events], ["prepare", "execute"])
             notices.append(("retry", failure, seconds))
 
         def recovered(attempt, failure):
@@ -94,13 +94,13 @@ class ObservationRecoveryTests(unittest.IsolatedAsyncioTestCase):
             self.assertEqual(terminal.selection.body_sha256, executor.delivery.items[0].body_sha256)
             self.assertIsNone(executor._outcome)
             self.assertEqual(store.records, (terminal,))
-            self.assertEqual([item[0] for item in notices], ["retry", "recovered"])
+            self.assertEqual([notice[0] for notice in notices], ["retry", "recovered"])
             self.assertIs(notices[0][1], notices[1][1])
             self.assertEqual(notices[0][1].status, 503)
             self.assertGreater(notices[0][2], 0)
             self.assertLessEqual(notices[0][2], 0.01)
             self.assertEqual(len(transport.calls), 9)
-            self.assertEqual([item[0] for item in session.events], ["prepare", "execute", "retire"])
+            self.assertEqual([event[0] for event in session.events], ["prepare", "execute", "retire"])
             claim.release(owner=claim.lifecycle_owner)
         finally:
             session.release.set()
