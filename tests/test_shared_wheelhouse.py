@@ -1166,12 +1166,12 @@ class WheelhouseTests(unittest.TestCase):
                     redirect_stdout(stdout),
                     redirect_stderr(stderr),
                 ):
-                    self.assertEqual(tool.main(), 1)
+                    self.assertEqual(1, tool.main())
 
-                self.assertEqual(stdout.getvalue(), "")
+                self.assertEqual("", stdout.getvalue())
                 self.assertIn(rejected_detail, stderr.getvalue())
-                self.assertEqual(self.requests, [])
-                self.assertEqual(list(self.pool.iterdir()), [])
+                self.assertEqual([], self.requests)
+                self.assertEqual([], list(self.pool.iterdir()))
 
     def test_source_must_be_explicitly_allowed(self):
         self.lock.write_text(
