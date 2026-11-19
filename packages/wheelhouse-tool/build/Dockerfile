@@ -19,5 +19,6 @@ RUN --network=none --mount=type=bind,from=dependencies,target=/dependencies,read
 WORKDIR /opt
 COPY packages/wheelhouse-tool/src/wheelhouse_tool /opt/wheelhouse_tool
 COPY packages/type-requirements/src/type_requirements.py /opt/
+RUN --network=none python -B -m wheelhouse_tool.locate --help
 USER 65532:65532
 ENTRYPOINT ["python", "-B", "-m", "wheelhouse_tool"]

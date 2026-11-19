@@ -2,8 +2,8 @@
 
 import argparse
 import hashlib
-import json
 import re
+import reprlib
 import sys
 import urllib.parse
 import urllib.request
@@ -13,17 +13,18 @@ import tomli_w
 from packaging.markers import default_environment
 from packaging.pylock import Pylock, PylockSelectError, PylockValidationError
 from packaging.requirements import Requirement
-from packaging.specifiers import SpecifierSet
 from packaging.tags import sys_tags
 from packaging.utils import InvalidSdistFilename, InvalidWheelFilename, canonicalize_name, parse_sdist_filename, parse_wheel_filename
 from packaging.version import Version
+from wheelhouse_tool.adapters import simple_json as simple_requests
 from wheelhouse_tool.network import request as network_request, retry
+from wheelhouse_tool.validation.upstream import simple_json as simple_metadata
 
 
 class HttpsRedirects(urllib.request.HTTPRedirectHandler):
     def redirect_request(self, request, fp, code, message, headers, url):
-        if urllib.parse.urlsplit(url).scheme != "https":
-            raise ValueError("Cannot locate artifacts: index redirected away from HTTPS.")
+        if not ((redirect_scheme := urllib.parse.urlsplit(url).scheme) == (expected_scheme := "https")):
+            raise ValueError(f"redirect_scheme={reprlib.repr(redirect_scheme)} should match {expected_scheme=}")
 
         return super().redirect_request(request, fp, code, message, headers, url)
 
@@ -176,46 +177,30 @@ def locate(path, index=None, allowed_sources=(), required_sources=(), direct_sou
             raise ValueError(f"Cannot locate {name}: the pinned lock needs an HTTPS package index.")
 
         version = Version(next(iter(requirement.specifier)).version)
-        project_url = f"{index}/{name}/"
-        request = urllib.request.Request(project_url, headers={"Accept": "application/vnd.pypi.simple.v1+json"})
+        request = simple_requests.project_request(index, name)
+        project_url = request.full_url
         opener = urllib.request.build_opener(HttpsRedirects())
 
         def read_project():
             with network_request(lambda: opener.open(request, timeout=60)) as response:
                 return network_request(response.read)
 
-        try:
-            project = json.loads(retry(read_project, f"Cannot locate {name}"))
-        except ValueError:
-            raise ValueError(f"Cannot locate {name}: index metadata is invalid.") from None
-
-        if canonicalize_name(project["name"]) != name:
-            raise ValueError(f"Cannot locate {name}: index returned a different project.")
+        files = simple_metadata.project_files(retry(read_project, f"Cannot locate {name}"), expected_project_name=name)
 
         (wheels, sources) = ([], [])
-        files = []
-
-        if "files" in project:
-            files = project["files"]
 
         for artifact in files:
-            if "filename" not in artifact:
+            identity = simple_metadata.file_identity(artifact)
+
+            if identity is None:
                 continue
 
-            filename = artifact["filename"]
-            artifact_hashes = artifact.get("hashes")
-
-            if artifact_hashes is None:
-                continue
-
-            checksum = artifact_hashes.get("sha256")
+            (filename, checksum) = identity
 
             if checksum not in hashes:
                 continue
 
-            requires = artifact.get("requires-python")
-
-            if (requires) and (not SpecifierSet(requires).contains(python_version, prereleases=True)):
+            if not simple_metadata.supports_python(artifact, python_version):
                 continue
 
             try:
@@ -234,20 +219,20 @@ def locate(path, index=None, allowed_sources=(), required_sources=(), direct_sou
             if (distribution != name) or (not requirement.specifier.contains(artifact_version, prereleases=True)):
                 continue
 
-            url = urllib.parse.urljoin(project_url, artifact["url"])
+            url = simple_requests.file_url(project_url, artifact)
             parsed = urllib.parse.urlsplit(url)
 
-            if (
-                (parsed.scheme != "https") or
-                (parsed.username is not None) or
-                parsed.query or
-                (urllib.parse.unquote(parsed.path.rsplit("/", 1)[-1]) != filename)
+            if not (
+                (parsed.scheme == "https") and
+                (parsed.username is None) and
+                (not parsed.query) and
+                (urllib.parse.unquote(parsed.path.rsplit("/", 1)[-1]) == filename)
             ):
-                raise ValueError(f"Cannot locate {name}: index returned an inconsistent artifact URL.")
+                raise ValueError(f"url={reprlib.repr(url)} should use HTTPS and name filename={reprlib.repr(filename)} without credentials or a query")
 
             item = {"url": url, "hashes": {"sha256": checksum}}
 
-            (wheels if kind == "wheel" else sources).append((filename, item, bool(artifact.get("yanked")), artifact_version))
+            (wheels if kind == "wheel" else sources).append((filename, item, simple_metadata.file_yanked(artifact), artifact_version))
 
         wheels.sort(key=lambda item: item[0])
         sources.sort(key=lambda item: (not item[0].endswith(".tar.gz"), item[0]))

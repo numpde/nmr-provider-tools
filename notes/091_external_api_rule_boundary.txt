@@ -841,7 +841,7 @@ Shared wire support: retain the distinction from local policy
 Other service and artifact interfaces in repository tooling
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-[ ] P1  Separate PyPI reply interpretation from artifact selection and approval
+[x] P1  Separate PyPI reply interpretation from artifact selection and approval
     packages/wheelhouse-tool/src/wheelhouse_tool/locate.py:96,175 onward
     PyPI Simple JSON media type, project-name normalization, files metadata,
     filenames/hashes and artifact URLs. operations/delivery/build_inputs.py:127
@@ -863,16 +863,35 @@ Other service and artifact interfaces in repository tooling
     audit confirmed the source closure and field/effect ordering. The supported
     service interface is documented at https://docs.pypi.org/api/json/#get-release;
     this is an existing consumed profile, not a pinned full schema or new checks.
-    Wheelhouse's distinct Simple JSON profile remains to be separated; its
-    authority is https://packaging.python.org/en/latest/specifications/simple-repository-api/.
+    Wheelhouse's distinct Simple JSON profile is documented at
+    https://packaging.python.org/en/latest/specifications/simple-repository-api/.
     Its packaging now discovers Python modules recursively for both zipapp bytes
     and source provenance instead of maintaining a flat seven-file inventory.
     The image source allowlist is recursive and its Docker context permits the
     package hierarchy. An ordinary nested module is included and imports from
     an isolated built zipapp without a second inventory edit. Both focused
     wheelhouse-bundle tests passed with PRIVACY_TESTS=0; image shell syntax and
-    independent source-closure audit passed. The Simple JSON code itself is
-    still pending; this closes its subpackage packaging prerequisite.
+    independent source-closure audit passed.
+    The Simple JSON v1 request and relative-file links now live in
+    wheelhouse_tool/adapters/simple_json.py. Project correlation, filename/hash
+    fields, Requires-Python and yanked markers live in
+    wheelhouse_tool/validation/upstream/simple_json.py. The reader preserves
+    existing incomplete-file skips and defaults without imposing a full schema.
+    locate.py retains network retries and timeout, HTTPS redirect restrictions,
+    locked-hash admission, filename/tag/version/source decisions, URL location
+    admission, cache preference and projection. Files rejected by their hash
+    still need neither a valid Requires-Python value nor a URL. JSON decode
+    failures retain their native cause and report its parse reason in the CLI;
+    redirect errors no longer masquerade as invalid metadata. Diagnostics show
+    rejected values and expectations with
+    bounded previews. Focused wheelhouse, bundle and conventions lanes passed
+    (69 tests, ten skips; PRIVACY_TESTS=0), including normalized project names,
+    exact request URL/media type, incomplete-file gates and existing selection
+    behavior. The maintained image build passed offline with actual source and
+    pinned dependencies; locate --help verified the new imports without an SDK
+    or checkout mount. The bundle test separately proves nested source inclusion
+    and isolated zipapp import. Independent audit confirmed field/effect order,
+    unchanged accepted forms and retained local policy ownership.
 
 [ ] P2  Separate GitHub service/CLI meanings from release and update ownership
     operations/release/publish.sh:214-245

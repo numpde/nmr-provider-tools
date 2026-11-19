@@ -27,7 +27,7 @@ from wheelhouse_tool import __main__ as tool
 from wheelhouse_tool.stream import stream_context
 from wheelhouse_tool.report import manifest as report_manifest
 from wheelhouse_tool.identity import selection_identity
-from wheelhouse_tool.locate import locate
+from wheelhouse_tool.locate import locate, main as locate_main
 from wheelhouse_tool.network import RequestFailure, retry, retry_delay
 
 
@@ -816,6 +816,26 @@ class WheelhouseTests(unittest.TestCase):
             with self.assertRaises(ValueError):
                 stream_context(self.pool, None, [entry], io.BytesIO(), [])
 
+    def test_locator_cli_reports_the_metadata_decode_reason(self):
+        self.lock.write_text(
+            '--index-url https://example.invalid/simple\n'
+            'example==1.0 \\\n'
+            '    --hash=sha256:' + 'a' * 64 + '\n'
+        )
+        diagnostic = io.StringIO()
+
+        with (
+            patch("wheelhouse_tool.locate.urllib.request.build_opener") as opener,
+            patch.object(sys, "argv", ["locate", "--lock", str(self.lock)]),
+            redirect_stderr(diagnostic),
+        ):
+            opener.return_value.open.return_value = io.BytesIO(b"{")
+            exit_status = locate_main()
+
+        self.assertEqual(exit_status, 1)
+        self.assertIn("expected_project_name='example'", diagnostic.getvalue())
+        self.assertIn("line 1 column 2", diagnostic.getvalue())
+
     def test_locator_uses_index_metadata_and_existing_hashes_without_downloading_wheels(self):
         digest = "a" * 64
         direct = "b" * 64
@@ -829,10 +849,12 @@ class WheelhouseTests(unittest.TestCase):
         )
 
         metadata = {
-            "name": "example",
+            "name": "EXAMPLE",
             "files": [
+                {},
+                {"filename": "example-1.0-py3-none-any.whl"},
                 {"filename": "example-1.0-py3-none-any.whl", "url": "../../files/example-1.0-py3-none-any.whl", "hashes": {"sha256": digest}},
-                {"filename": "example-1.0-py3-none-any.whl", "url": "../../files/other.whl", "hashes": {"sha256": "c" * 64}},
+                {"filename": "example-1.0-py3-none-any.whl", "requires-python": "[malformed", "hashes": {"sha256": "c" * 64}},
             ]
         }
 
@@ -842,6 +864,8 @@ class WheelhouseTests(unittest.TestCase):
             projected = tomllib.loads(projected_text)
 
         self.assertEqual(1, opener.return_value.open.call_count)
+        self.assertEqual("https://example.invalid/simple/example/", opener.return_value.open.call_args.args[0].full_url)
+        self.assertEqual("application/vnd.pypi.simple.v1+json", opener.return_value.open.call_args.args[0].get_header("Accept"))
         self.assertEqual("https://example.invalid/files/example-1.0-py3-none-any.whl", projected["packages"][0]["wheels"][0]["url"])
         self.assertEqual(direct, projected["packages"][1]["archive"]["hashes"]["sha256"])
         derived = self.root / "pylock.derived.toml"
