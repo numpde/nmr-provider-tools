@@ -57,54 +57,62 @@ def jobs_query(*, analysis_kind_ref, has_provider_execution_attempt, limit, curs
 
 def read_jobs_page(raw, *, analysis_kind_ref, has_provider_execution_attempt, limit):
     """Bind a complete page to admitted request facts; preserve server ordering."""
-    document = read_document(raw, PAGE_RESPONSE_BYTES)
+    jobs_response = read_document(raw, PAGE_RESPONSE_BYTES)
 
-    if not (type(document) is (expected_type := dict)):
-        raise ResponseRejected(f"{type(document)=} ≠ {expected_type=}")
+    if not (type(jobs_response) is (expected_type := dict)):
+        raise ResponseRejected(f"{type(jobs_response)=} ≠ {expected_type=}")
 
-    if (set(document) != {
+    response_fields = set(jobs_response)
+
+    expected_fields = {
         "schema_id",
         "analysis_kind_ref",
         "has_provider_execution_attempt",
         "jobs",
         "next_cursor",
-    }):
-        raise ResponseRejected("Job discovery response fields do not match the supported page schema")
+    }
 
-    if document["schema_id"] != "nmr.provider.jobs.list.response.v1":
-        raise ResponseRejected("Job discovery response schema is not the supported version")
+    if not (response_fields == expected_fields):
+        raise ResponseRejected(f"{response_fields=} should match {expected_fields=}")
 
-    if document["analysis_kind_ref"] != analysis_kind_ref:
-        raise ResponseRejected("Job discovery analysis kind or provider-attempt view differs from the request")
+    expected_schema_id = "nmr.provider.jobs.list.response.v1"
 
-    if not (type((document_has_provider_execution_attempt := document["has_provider_execution_attempt"])) is (expected_type := bool)):
-        raise ResponseRejected(f"{type(document_has_provider_execution_attempt)=} ≠ {expected_type=}")
+    if not ((response_schema_id := jobs_response["schema_id"]) == expected_schema_id):
+        raise ResponseRejected(f"{response_schema_id=} should match {expected_schema_id=}")
 
-    if document["has_provider_execution_attempt"] != has_provider_execution_attempt:
-        raise ResponseRejected("Job discovery analysis kind or provider-attempt view differs from the request")
+    if not ((observed_analysis_kind_ref := jobs_response["analysis_kind_ref"]) == analysis_kind_ref):
+        raise ResponseRejected(f"{observed_analysis_kind_ref=} should match {analysis_kind_ref=}")
 
-    jobs = document["jobs"]
+    if not (type((observed_has_provider_execution_attempt := jobs_response["has_provider_execution_attempt"])) is (expected_type := bool)):
+        raise ResponseRejected(f"{type(observed_has_provider_execution_attempt)=} ≠ {expected_type=}")
+
+    if not (observed_has_provider_execution_attempt == has_provider_execution_attempt):
+        raise ResponseRejected(f"{observed_has_provider_execution_attempt=} should match {has_provider_execution_attempt=}")
+
+    jobs = jobs_response["jobs"]
 
     if not (type(jobs) is (expected_type := list)):
         raise ResponseRejected(f"{type(jobs)=} ≠ {expected_type=}")
 
-    if len(jobs) > MAX_PAGE_ITEMS:
-        raise ResponseRejected("Job discovery page exceeds the requested or supported item count")
+    job_count = len(jobs)
 
-    if len(jobs) > limit:
-        raise ResponseRejected("Job discovery page exceeds the requested or supported item count")
+    if not (job_count <= MAX_PAGE_ITEMS):
+        raise ResponseRejected(f"{job_count=} should be at most {MAX_PAGE_ITEMS=}")
+
+    if not (job_count <= limit):
+        raise ResponseRejected(f"{job_count=} should be at most {limit=}")
 
     try:
-        require_cursor(document["next_cursor"])
+        require_cursor(jobs_response["next_cursor"])
     except (TypeError, ValueError) as cause:
-        raise ResponseRejected(str(cause)) from None
+        raise ResponseRejected(str(cause)) from cause
 
     return JobPage(
         analysis_kind_ref,
         has_provider_execution_attempt,
-                   # repo-check: allow-tuple-generator -- The admitted JobPage retains server order in one immutable collection.
+        # repo-check: allow-tuple-generator -- The admitted JobPage retains server order in one immutable collection.
         tuple(_read_job(job, analysis_kind_ref) for job in jobs),
-        document["next_cursor"]
+        jobs_response["next_cursor"]
     )
 
 
@@ -112,22 +120,26 @@ def _read_job(job, analysis_kind_ref):
     if not (type(job) is (expected_type := dict)):
         raise ResponseRejected(f"{type(job)=} ≠ {expected_type=}")
 
-    if (set(job) != {
+    job_fields = set(job)
+
+    expected_fields = {
         "job_ref",
         "analysis_kind_ref",
         "input_fingerprint",
         "input_schema_id",
         "input_byte_length",
         "created_at",
-    }):
-        raise ResponseRejected("Discovered Job fields do not match the supported item schema")
+    }
 
-    if job["analysis_kind_ref"] != analysis_kind_ref:
-        raise ResponseRejected("Discovered Job analysis kind differs from the requested page")
+    if not (job_fields == expected_fields):
+        raise ResponseRejected(f"{job_fields=} should match {expected_fields=}")
+
+    if not ((observed_analysis_kind_ref := job["analysis_kind_ref"]) == analysis_kind_ref):
+        raise ResponseRejected(f"{observed_analysis_kind_ref=} should match {analysis_kind_ref=}")
 
     try:
         identity = FeedInputFacts(job["job_ref"], job["input_schema_id"], job["input_fingerprint"], job["input_byte_length"])
     except JobInputRejected as cause:
-        raise ResponseRejected(str(cause)) from None
+        raise ResponseRejected(str(cause)) from cause
 
     return DiscoveredJob(identity, analysis_kind_ref, read_timestamp(job["created_at"]))
