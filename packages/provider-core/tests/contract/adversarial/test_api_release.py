@@ -6,6 +6,7 @@ import re
 import shutil
 import tempfile
 import unittest
+import os
 import pathlib
 
 from provider_core.api import ApiFailure
@@ -85,7 +86,7 @@ class ReleasedApiRefusalTests(PinnedApiRelease, unittest.IsolatedAsyncioTestCase
             self.assertEqual(len(transport.calls), 1)
             self.assertIs(client.last_failure, failure)
 
-    @unittest.skip("Privacy policy under review")
+    @unittest.skipIf(os.environ.get("PRIVACY_TESTS", "1") == "0", "Privacy tests disabled")
     async def test_response_refusals_omit_unknown_fields(self):
         async for (_transport, _client, failure) in self._changed_responses():
             self.assertNotIn("PRIVATE_PROTOCOL_CANARY", str(failure))

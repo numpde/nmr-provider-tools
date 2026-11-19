@@ -2,6 +2,7 @@
 
 import json
 import unittest
+import os
 
 from tests.fakes.conversation import call, endpoint
 
@@ -37,7 +38,7 @@ class ConversationTests(unittest.IsolatedAsyncioTestCase):
     async def test_corrected_success_retains_original_rejection(self):
         await self._corrected_success()
 
-    @unittest.skip("Privacy policy under review")
+    @unittest.skipIf(os.environ.get("PRIVACY_TESTS", "1") == "0", "Privacy tests disabled")
     async def test_corrected_success_omits_reason_and_arguments(self):
         conversation_result = await self._corrected_success()
 
@@ -68,7 +69,7 @@ class ConversationTests(unittest.IsolatedAsyncioTestCase):
     async def test_success_hands_off_original_endpoint_failures(self):
         await self._success_after_endpoint_failure()
 
-    @unittest.skip("Privacy policy under review")
+    @unittest.skipIf(os.environ.get("PRIVACY_TESTS", "1") == "0", "Privacy tests disabled")
     async def test_success_observation_omits_endpoint_failure_text(self):
         conversation_result = await self._success_after_endpoint_failure()
 

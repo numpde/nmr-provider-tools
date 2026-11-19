@@ -7,6 +7,7 @@ import json
 import tempfile
 import threading
 import unittest
+import os
 import pathlib
 from dataclasses import replace
 from unittest.mock import patch
@@ -325,7 +326,7 @@ class DeliveryServiceTests(unittest.IsolatedAsyncioTestCase):
     async def test_failed_log_output_does_not_reverse_publication_and_is_visible_in_status(self):
         await self._publication_with_failed_log()
 
-    @unittest.skip("Privacy policy under review")
+    @unittest.skipIf(os.environ.get("PRIVACY_TESTS", "1") == "0", "Privacy tests disabled")
     async def test_failed_log_status_omits_sink_details(self):
         pending = await self._publication_with_failed_log()
 

@@ -4,6 +4,7 @@ import asyncio
 import ssl
 import tempfile
 import unittest
+import os
 import pathlib
 from unittest.mock import AsyncMock, patch
 
@@ -111,7 +112,7 @@ class UnixTunnelFailureTests(unittest.IsolatedAsyncioTestCase):
     async def test_lost_post_reply_does_not_resend(self):
         await self._lost_post_reply()
 
-    @unittest.skip("Privacy policy under review")
+    @unittest.skipIf(os.environ.get("PRIVACY_TESTS", "1") == "0", "Privacy tests disabled")
     async def test_connect_receives_no_credentials(self):
         header = await self._lost_post_reply()
 

@@ -1,6 +1,7 @@
 """Actual TLS metadata remains useful when the body or API environment fails."""
 
 import unittest
+import os
 
 from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
 
@@ -44,7 +45,7 @@ class ApiMetadataTlsTests(unittest.IsolatedAsyncioTestCase):
             self.assertIsNone(failure.problem_code)
             self.assertEqual(len(peer.requests), 1)
 
-    @unittest.skip("Privacy policy under review")
+    @unittest.skipIf(os.environ.get("PRIVACY_TESTS", "1") == "0", "Privacy tests disabled")
     async def test_failed_response_diagnostics_omit_body(self):
         async for (failure, _peer) in self._failed_responses():
             self.assertNotIn("PRIVATE", str(failure))

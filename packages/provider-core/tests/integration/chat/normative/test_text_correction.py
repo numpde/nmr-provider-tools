@@ -2,6 +2,7 @@
 
 import json
 import unittest
+import os
 from unittest.mock import AsyncMock
 
 import provider_core.conversation as conversation_api
@@ -85,7 +86,7 @@ class TextCorrectionTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual({"role": "user", "content": "correction-v1\n"}, user)
         self.assertEqual(((1, rejection),), conversation_result.correction_failures)
 
-    @unittest.skip("Privacy policy under review")
+    @unittest.skipIf(os.environ.get("PRIVACY_TESTS", "1") == "0", "Privacy tests disabled")
     async def test_correction_observation_omits_diagnostics_and_scientific_cause(self):
         (_transcript, conversation_result, _value, diagnostic, _rejection) = await self._caller_rejection_correction()
 
@@ -106,7 +107,7 @@ class TextCorrectionTests(unittest.IsolatedAsyncioTestCase):
 
         self.assertEqual({"rejected": "Choose another value."}, json.loads(tool["content"]))
 
-    @unittest.skip("Privacy policy under review")
+    @unittest.skipIf(os.environ.get("PRIVACY_TESTS", "1") == "0", "Privacy tests disabled")
     async def test_default_rejection_scrubs_arguments(self):
         (assistant, _tool) = await self._default_rejection_correction()
 

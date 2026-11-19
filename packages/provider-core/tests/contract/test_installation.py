@@ -51,7 +51,7 @@ class InstallationContractTests(unittest.TestCase):
         self.assertNotIn("Traceback", completed_process.stderr)
         self.assertIn("UTF-8 TOML", completed_process.stderr)
 
-    @unittest.skip("Privacy policy under review")
+    @unittest.skipIf(os.environ.get("PRIVACY_TESTS", "1") == "0", "Privacy tests disabled")
     def test_binding_cli_refuses_private_parser_text_without_printing_input(self):
         completed_process = self._binding_cli_refusal()
 

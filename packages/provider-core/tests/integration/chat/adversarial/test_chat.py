@@ -5,6 +5,7 @@ import gzip
 import json
 import ssl
 import unittest
+import os
 from types import SimpleNamespace
 from unittest.mock import AsyncMock
 
@@ -51,7 +52,7 @@ class ChatCarrierRejectionTests(unittest.IsolatedAsyncioTestCase):
             self.assertTrue(endpoint.retirement_confirmed)
             self.assertEqual(len(peer.requests), 1)
 
-    @unittest.skip("Privacy policy under review")
+    @unittest.skipIf(os.environ.get("PRIVACY_TESTS", "1") == "0", "Privacy tests disabled")
     async def test_oversized_error_diagnostics_omit_body(self):
         async for (failure, _endpoint, _peer) in self._oversized_error_failure():
             self.assertNotIn("PRIVATE", str(failure))
@@ -122,7 +123,7 @@ class ChatCarrierRejectionTests(unittest.IsolatedAsyncioTestCase):
         self.assertIs(failure.response, response)
         transport.exchange_decoded.assert_awaited_once()
 
-    @unittest.skip("Privacy policy under review")
+    @unittest.skipIf(os.environ.get("PRIVACY_TESTS", "1") == "0", "Privacy tests disabled")
     async def test_http_rejection_diagnostics_omit_prompt_and_key(self):
         (failure, _response, _transport) = await self._http_rejection()
 
@@ -156,7 +157,7 @@ class ChatCarrierRejectionTests(unittest.IsolatedAsyncioTestCase):
             self.assertEqual(failure.response.status, 400)
             self.assertIn("detail_unavailable", failure.endpoint_error)
 
-    @unittest.skip("Privacy policy under review")
+    @unittest.skipIf(os.environ.get("PRIVACY_TESTS", "1") == "0", "Privacy tests disabled")
     async def test_unreadable_error_diagnostics_omit_partial_body(self):
         async for failure in self._unreadable_error_failures():
             self.assertNotIn("PRIVATE", json.dumps(failure.endpoint_error))
@@ -299,7 +300,7 @@ class ChatCarrierRejectionTests(unittest.IsolatedAsyncioTestCase):
             transport.exchange_decoded.assert_awaited_once()
             self.assertIs(failure.response, response)
 
-    @unittest.skip("Privacy policy under review")
+    @unittest.skipIf(os.environ.get("PRIVACY_TESTS", "1") == "0", "Privacy tests disabled")
     async def test_malformed_reply_diagnostics_omit_body(self):
         async for (failure, _response, _transport) in self._malformed_reply_failures():
             self.assertNotIn("PRIVATE", str(failure))

@@ -3,6 +3,7 @@
 import asyncio
 import json
 import unittest
+import os
 from unittest.mock import AsyncMock
 
 from tests.fakes.conversation import call, endpoint
@@ -175,7 +176,7 @@ class ConversationBoundaryTests(unittest.IsolatedAsyncioTestCase):
             self.assertTrue(all(type(failure) is ToolRejected for (_turn, failure) in result.correction_failures))
             self.assertEqual([m["tool_call_id"] for m in feedback], ["bad", "multi-1", "multi-2"])
 
-    @unittest.skip("Privacy policy under review")
+    @unittest.skipIf(os.environ.get("PRIVACY_TESTS", "1") == "0", "Privacy tests disabled")
     async def test_correction_feedback_omits_unparsed_arguments(self):
         async for (_result, feedback, _dispatch) in self._argument_corrections():
             self.assertNotIn("PRIVATE", json.dumps(feedback))
@@ -291,7 +292,7 @@ class ConversationBoundaryTests(unittest.IsolatedAsyncioTestCase):
         self.assertIs(caught.exception.failures[0][1], cleanup)
         second.retire.assert_awaited_once()
 
-    @unittest.skip("Privacy policy under review")
+    @unittest.skipIf(os.environ.get("PRIVACY_TESTS", "1") == "0", "Privacy tests disabled")
     async def test_only_admitted_carrier_fields_enter_following_requests(self):
         message = call("prepare", "prepare", {})
         message["PRIVATE_unknown"] = "PRIVATE value"
@@ -304,7 +305,7 @@ class ConversationBoundaryTests(unittest.IsolatedAsyncioTestCase):
         self.assertNotIn("PRIVATE", json.dumps(model.complete.call_args.args))
         await conversation.retire()
 
-    @unittest.skip("Privacy policy under review")
+    @unittest.skipIf(os.environ.get("PRIVACY_TESTS", "1") == "0", "Privacy tests disabled")
     async def test_secret_values_are_checked_without_rewriting_json_structure(self):
         for secret in ('"', "\\", "model"):
             with self.subTest(secret=secret):
@@ -322,7 +323,7 @@ class ConversationBoundaryTests(unittest.IsolatedAsyncioTestCase):
                 self.assertEqual(identity["model"], "fixture")
                 await conversation.retire()
 
-    @unittest.skip("Privacy policy under review")
+    @unittest.skipIf(os.environ.get("PRIVACY_TESTS", "1") == "0", "Privacy tests disabled")
     async def test_credentials_in_tool_declarations_never_reach_the_endpoint(self):
         model = endpoint("fixture")
         conversation = ToolConversation((model,), max_turns=1, secrets=("PRIVATE key",))
@@ -333,7 +334,7 @@ class ConversationBoundaryTests(unittest.IsolatedAsyncioTestCase):
         model.complete.assert_not_awaited()
         await conversation.retire()
 
-    @unittest.skip("Privacy policy under review")
+    @unittest.skipIf(os.environ.get("PRIVACY_TESTS", "1") == "0", "Privacy tests disabled")
     async def test_decoded_argument_credentials_cannot_reach_another_turn_or_endpoint(self):
         for raw in ('{"message":"\\u0050RIVATE_MODEL_KEY"}', '{"\\u0050RIVATE_MODEL_KEY":0}'):
             with self.subTest(arguments=raw):
@@ -375,7 +376,7 @@ class ConversationBoundaryTests(unittest.IsolatedAsyncioTestCase):
 
         self.assertEqual(conversation.endpoint_failures, [(0, failures[0]), (1, failures[1])])
 
-    @unittest.skip("Privacy policy under review")
+    @unittest.skipIf(os.environ.get("PRIVACY_TESTS", "1") == "0", "Privacy tests disabled")
     async def test_fallback_observation_omits_failure_body(self):
         (_conversation, conversation_result, _failures) = await self._fallback_result()
 

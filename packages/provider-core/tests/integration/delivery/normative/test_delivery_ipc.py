@@ -5,6 +5,7 @@ import json
 import tempfile
 import threading
 import unittest
+import os
 import pathlib
 from unittest.mock import AsyncMock, Mock
 
@@ -64,7 +65,7 @@ class DeliveryIPCTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(len(self.queue.inventory(delivery_outcome.api_origin, delivery_outcome.provider_ref)), 1)
         self.assertTrue(self.client.retirement_confirmed)
 
-    @unittest.skip("Privacy policy under review")
+    @unittest.skipIf(os.environ.get("PRIVACY_TESTS", "1") == "0", "Privacy tests disabled")
     async def test_inventory_omits_payload(self):
         await self.client.submit(outcome())
 
@@ -232,7 +233,7 @@ class DeliveryIPCTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(facts["event"], "delivery_request_rejected")
         self.assertEqual(self.queue.inventory(self.endpoint.api_origin, self.endpoint.provider_ref), [])
 
-    @unittest.skip("Privacy policy under review")
+    @unittest.skipIf(os.environ.get("PRIVACY_TESTS", "1") == "0", "Privacy tests disabled")
     async def test_wrong_binding_refusal_omits_request(self):
         cause, _facts = await self._wrong_binding_refusal()
 

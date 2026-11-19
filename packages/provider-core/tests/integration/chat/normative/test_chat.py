@@ -4,6 +4,7 @@ import asyncio
 import gzip
 import json
 import unittest
+import os
 from dataclasses import replace
 
 from provider_core.chat import ChatEndpoint, ChatEndpointSpec
@@ -123,7 +124,7 @@ class ChatCarrierTests(unittest.IsolatedAsyncioTestCase):
 
             self.assertNotEqual(json.loads(changed.identity)["configuration_sha256"], identity["configuration_sha256"])
 
-    @unittest.skip("Privacy policy under review")
+    @unittest.skipIf(os.environ.get("PRIVACY_TESTS", "1") == "0", "Privacy tests disabled")
     def test_endpoint_representation_and_identity_omit_key_and_origin(self):
         origin = "https://private.example"
         spec = self._endpoint_spec(origin)

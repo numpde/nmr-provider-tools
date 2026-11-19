@@ -2,6 +2,7 @@
 
 import asyncio
 import unittest
+import os
 
 from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
 
@@ -42,7 +43,7 @@ class UploadApiIntegrationTests(unittest.IsolatedAsyncioTestCase):
         async for request in self._membership_and_grant_observations():
             self.assertNotIn(b"Content-Digest:", request)
 
-    @unittest.skip("Privacy policy under review")
+    @unittest.skipIf(os.environ.get("PRIVACY_TESTS", "1") == "0", "Privacy tests disabled")
     async def test_membership_and_grant_requests_omit_store_bearer(self):
         async for request in self._membership_and_grant_observations():
             self.assertNotIn(b"private-bearer-canary", request)

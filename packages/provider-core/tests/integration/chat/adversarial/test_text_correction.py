@@ -3,6 +3,7 @@
 import asyncio
 import json
 import unittest
+import os
 from unittest.mock import AsyncMock
 
 from provider_core.conversation import ConversationFailed, TextCorrection, ToolConversation, ToolFinished, ToolRejected, ToolReply
@@ -50,7 +51,7 @@ class TextCorrectionBoundaryTests(unittest.IsolatedAsyncioTestCase):
         self.assertIn("8-byte limit", transcript[1]["content"])
         dispatch.assert_awaited_once_with("submit", {})
 
-    @unittest.skip("Privacy policy under review")
+    @unittest.skipIf(os.environ.get("PRIVACY_TESTS", "1") == "0", "Privacy tests disabled")
     async def test_correction_scrubs_oversized_argument_text(self):
         (transcript, _dispatch) = await self._oversized_arguments_repair()
 
@@ -64,7 +65,7 @@ class TextCorrectionBoundaryTests(unittest.IsolatedAsyncioTestCase):
         with self.assertRaises(ValueError):
             TextCorrection(user_content="")
 
-    @unittest.skip("Privacy policy under review")
+    @unittest.skipIf(os.environ.get("PRIVACY_TESTS", "1") == "0", "Privacy tests disabled")
     async def test_secret_instruction_is_refused_before_the_first_model_request(self):
         model = recording_endpoint("only", call("unused", "submit", {}))
 
@@ -81,7 +82,7 @@ class TextCorrectionBoundaryTests(unittest.IsolatedAsyncioTestCase):
         model.complete.assert_not_awaited()
         await conversation.retire()
 
-    @unittest.skip("Privacy policy under review")
+    @unittest.skipIf(os.environ.get("PRIVACY_TESTS", "1") == "0", "Privacy tests disabled")
     async def test_secret_rejection_never_reaches_feedback_or_a_second_model_request(self):
         model = recording_endpoint("only", call("first", "submit", {}), call("unused", "submit", {}))
 
@@ -131,7 +132,7 @@ class TextCorrectionBoundaryTests(unittest.IsolatedAsyncioTestCase):
         self.assertTrue(all(message["content"] for message in feedback))
         dispatch.assert_awaited_once_with("submit", {})
 
-    @unittest.skip("Privacy policy under review")
+    @unittest.skipIf(os.environ.get("PRIVACY_TESTS", "1") == "0", "Privacy tests disabled")
     async def test_invalid_and_unparsed_arguments_are_erased_before_text_repair(self):
         (transcript, _dispatch) = await self._invalid_arguments_repair()
 

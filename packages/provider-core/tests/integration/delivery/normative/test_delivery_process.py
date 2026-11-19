@@ -144,7 +144,7 @@ class DeliveryProcessTests(unittest.IsolatedAsyncioTestCase):
             self.assertIn(expected.encode(), stderr)
             self.assertFalse(queue.exists())
 
-    @unittest.skip("Privacy policy under review")
+    @unittest.skipIf(os.environ.get("PRIVACY_TESTS", "1") == "0", "Privacy tests disabled")
     async def test_discard_configuration_refusals_omit_values(self):
         async for (_child_process, _stdout, stderr, _expected, _queue, root) in self._discard_configuration_refusals():
             self.assertNotIn(b"PRIVATE", stderr)
@@ -236,7 +236,7 @@ class DeliveryProcessTests(unittest.IsolatedAsyncioTestCase):
     async def test_installed_command_delivers_once_through_proxy_then_sigterm_retires_it(self):
         await self._installed_command_delivery()
 
-    @unittest.skip("Privacy policy under review")
+    @unittest.skipIf(os.environ.get("PRIVACY_TESTS", "1") == "0", "Privacy tests disabled")
     async def test_installed_command_notices_omit_payload(self):
         notices = await self._installed_command_delivery()
 
@@ -278,7 +278,7 @@ class DeliveryProcessTests(unittest.IsolatedAsyncioTestCase):
     async def test_bad_configuration_has_receiving_diagnostics_and_no_runtime_state(self):
         await self._bad_configuration()
 
-    @unittest.skip("Privacy policy under review")
+    @unittest.skipIf(os.environ.get("PRIVACY_TESTS", "1") == "0", "Privacy tests disabled")
     async def test_bad_configuration_diagnostics_omit_input(self):
         stderr = await self._bad_configuration()
 
@@ -396,7 +396,7 @@ class DeliveryProcessTests(unittest.IsolatedAsyncioTestCase):
     async def test_lost_api_ack_then_actual_daemon_restart_replays_one_queued_outcome(self):
         await self._restart_after_lost_ack()
 
-    @unittest.skip("Privacy policy under review")
+    @unittest.skipIf(os.environ.get("PRIVACY_TESTS", "1") == "0", "Privacy tests disabled")
     async def test_restart_notices_omit_result_bytes(self):
         notices = await self._restart_after_lost_ack()
 
@@ -524,7 +524,7 @@ class DeliveryProcessTests(unittest.IsolatedAsyncioTestCase):
     async def test_two_bindings_isolate_grants_and_publish_while_one_api_is_unavailable(self):
         await self._two_binding_publication()
 
-    @unittest.skip("Privacy policy under review")
+    @unittest.skipIf(os.environ.get("PRIVACY_TESTS", "1") == "0", "Privacy tests disabled")
     async def test_two_binding_notices_omit_payloads(self):
         notices = await self._two_binding_publication()
 
