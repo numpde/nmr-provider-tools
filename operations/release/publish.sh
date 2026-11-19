@@ -211,26 +211,30 @@ while IFS= read -r -d '' rule; do
     prefix=${rule#*$'\n'}
     [[ $push_url != "$prefix"* ]] || fail 'A Git URL rewrite matches the captured destination; choose canonical routing before publication.'
 done < "$scratch/url-rewrites"
-native 'GitHub repository inspection' 30 gh repo view "$push_url" --json nameWithOwner --jq .nameWithOwner > "$scratch/repository"
+github_publication=$root/host/adapters/github_publication.sh
+source "$github_publication"
+source "$root/host/validation/upstream/github_release.sh"
+native 'GitHub repository inspection' 30 bash "$github_publication" inspect-repository "$push_url" > "$scratch/repository"
 repository=$(cat "$scratch/repository")
 [[ $repository == numpde/nmr-provider-tools ]] || fail 'Origin must identify numpde/nmr-provider-tools.'
 resource_status=0
-native 'existing GitHub release inspection' 30 gh api --hostname github.com --include "repos/$repository/releases/tags/$tag" > "$scratch/existing-release" 2> "$scratch/existing-release.stderr" || resource_status=$?
-if [[ $resource_status == 0 ]]; then fail 'This GitHub release already exists; published assets must never be replaced.'; fi
-[[ $resource_status == 1 ]] && head -n 1 "$scratch/existing-release" | tr -d '\r' | grep -Eq '^HTTP/[0-9.]+ 404( |$)' \
-    || fail 'Cannot establish release absence; inspect the retained response before retrying.'
+native 'existing GitHub release inspection' 30 bash "$github_publication" inspect-release "$repository" "$tag" \
+    > "$scratch/existing-release" 2> "$scratch/existing-release.stderr" || resource_status=$?
+case "$(github_release_lookup_result "$resource_status" "$scratch/existing-release")" in
+    exists) fail 'This GitHub release already exists; published assets must never be replaced.' ;;
+    absent) ;;
+    *) fail 'Cannot establish release absence; inspect the retained response before retrying.' ;;
+esac
 if git show-ref --verify --quiet "refs/tags/$tag"; then
     [[ $(git rev-parse "$tag^{}") == "$commit" ]] || fail 'The existing local tag identifies another source commit.'
 else
     git tag -a "$tag" "$commit" -m "Release provider-core $version"
 fi
 require_unchanged_source
-# Use the existing gh identity for this HTTPS push only; never rewrite host
-# credential configuration or carry tokens into build/test containers.
-native 'release tag push' 120 git -c credential.helper= -c 'credential.helper=!gh auth git-credential' push "$push_url" "refs/tags/$tag:refs/tags/$tag"
-native 'draft release creation' 120 gh release create "$tag" --repo "$repository" --verify-tag --draft --title "provider-core $version" \
-    --notes-file "$scratch/release-notes.md" "$scratch/assets/"* "$scratch/release-build.log" "$scratch/release-test.log"
-native 'uploaded draft acquisition' 120 gh release download "$tag" --repo "$repository" --dir "$scratch/downloaded"
+native 'release tag push' 120 bash "$github_publication" push-tag "$push_url" "refs/tags/$tag:refs/tags/$tag"
+native 'draft release creation' 120 bash "$github_publication" create-draft "$repository" "$tag" "provider-core $version" \
+    "$scratch/release-notes.md" "$scratch/assets/"* "$scratch/release-build.log" "$scratch/release-test.log"
+native 'uploaded draft acquisition' 120 bash "$github_publication" download-draft "$repository" "$tag" "$scratch/downloaded"
 downloaded=("$scratch/downloaded/"*)
 [[ ${#downloaded[@]} == 10 ]] || fail 'Downloaded draft asset set differs from the ten qualified public files.'
 for name in "${names[@]}"; do
@@ -241,5 +245,5 @@ for name in release-build.log release-test.log; do
     cmp -- "$scratch/$name" "$scratch/downloaded/$name" \
         || fail 'Downloaded qualification log differs; retain the draft for inspection.'
 done
-native 'verified release publication' 30 gh release edit "$tag" --repo "$repository" --draft=false
-printf 'Published https://github.com/%s/releases/tag/%s\n' "$repository" "$tag"
+native 'verified release publication' 30 bash "$github_publication" publish-draft "$repository" "$tag"
+printf 'Published %s\n' "$(github_release_url "$repository" "$tag")"

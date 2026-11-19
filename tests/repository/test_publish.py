@@ -26,7 +26,13 @@ class PublicationTests(unittest.TestCase):
         self.addCleanup(temporary.cleanup)
         self.root = pathlib.Path(temporary.name)
 
-        for name in ("operations/release/publish.sh", "host/tools/inference_native.sh", "host/tools/wheelhouse_path.sh"):
+        for name in (
+            "operations/release/publish.sh",
+            "host/adapters/github_publication.sh",
+            "host/tools/inference_native.sh",
+            "host/tools/wheelhouse_path.sh",
+            "host/validation/upstream/github_release.sh",
+        ):
             target = self.root / name
 
             target.parent.mkdir(parents=True, exist_ok=True)
@@ -237,7 +243,7 @@ class PublicationTests(unittest.TestCase):
                 self.assertEqual([], list(self.root.glob("nmr-provider-publication.*")))
 
     def test_existing_release_and_uncertain_api_result_never_push(self):
-        for scenario in ("existing", "api-error"):
+        for scenario in ("existing", "api-error", "api-aborted"):
             with self.subTest(scenario=scenario):
                 self.trace.unlink(missing_ok=True)
                 publisher_process = self.run_publisher(scenario, "release")
@@ -246,6 +252,7 @@ class PublicationTests(unittest.TestCase):
                 calls = self.trace.read_text()
 
                 self.assertIn("gh api --hostname github.com --include", calls)
+                self.assertNotIn("git tag", calls)
                 self.assertNotIn("refs/tags/v0.2.0:refs/tags/v0.2.0", calls)
                 self.assertNotIn("gh release create", calls)
 

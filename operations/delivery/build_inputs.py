@@ -16,6 +16,7 @@ import urllib.parse
 import pathlib
 
 from tools.artifacts import regular_file, require_download_proxy
+from tools.adapters.github_release import release_asset_url
 from tools.adapters import pypi_project_json as pypi_requests
 from tools.installer import release as installer_release
 from sdk_build.provider_core_acquire import acquire_tool, tool_present
@@ -138,7 +139,8 @@ def acquire_release(pin, runtime_lock, pool, tool):
         require_download_proxy()
 
         if wheel_name.startswith("provider_core-"):
-            url = f"https://github.com/numpde/nmr-provider-tools/releases/download/v{release['version']}/{wheel_name}"  # machine-string: GitHub release paths require bare version and artifact names, without expression labels.
+            tag = "v" + release["version"]
+            url = release_asset_url("numpde/nmr-provider-tools", tag, wheel_name)
         else:
             (distribution, version, *_) = wheel_name.split("-")
 

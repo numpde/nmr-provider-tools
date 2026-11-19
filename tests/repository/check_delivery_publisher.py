@@ -12,6 +12,7 @@ from threading import Thread
 
 from operations.delivery.build_inputs import publish_release_wheels, release_inputs
 from sdk_build.provider_core_acquire import tool_present
+from tools.adapters.github_release import release_asset_url
 from tools.wheelhouse import read_json
 
 
@@ -25,7 +26,8 @@ if not tool_present(pool, tool):
     raise FileNotFoundError(f"{wheelhouse_tool_path=} should exist")
 
 name = f"provider_core-{release['version']}-py3-none-any.whl"
-url = f"https://github.com/numpde/nmr-provider-tools/releases/download/v{release['version']}/{name}"
+tag = "v" + release["version"]
+url = release_asset_url("numpde/nmr-provider-tools", tag, name)
 
 publish_release_wheels(pool / tool["name"], pool, [(name, release["wheel_sha256"], url)])
 

@@ -893,7 +893,7 @@ Other service and artifact interfaces in repository tooling
     and isolated zipapp import. Independent audit confirmed field/effect order,
     unchanged accepted forms and retained local policy ownership.
 
-[ ] P2  Separate GitHub service/CLI meanings from release and update ownership
+[x] P2  Separate GitHub service/CLI meanings from release and update ownership
     operations/release/publish.sh:214-245
     GitHub repository JSON selection, release-tag REST lookup, CLI/HTTP 404
     interpretation, release creation/download/publication and asset naming.
@@ -915,7 +915,7 @@ Other service and artifact interfaces in repository tooling
     issued archive pin retain their reviewed bytes; its historical network
     command is no longer used by the maintained update target. Publication still
     owns Git/gh authentication, destination approval and draft-to-public effects
-    under operations/release. Its remaining GitHub interface extraction is pending.
+    under operations/release.
     Focused source-update, bundle, frozen-bootstrap and conventions lanes passed
     (54 tests; PRIVACY_TESTS=0). They verify no subprocess is invoked for download,
     bad hashes leave old source intact, edits during transfer cannot retarget the
@@ -924,6 +924,23 @@ Other service and artifact interfaces in repository tooling
     Extracted bundle entrypoints run without an SDK. The maintained verification
     target passed against the unchanged frozen snapshot. Independent audit accepted
     the corrected trust ordering: only the reviewed invoking package executes code.
+    Publication's GitHub commands now live in host/adapters/github_publication.sh;
+    they exec the unchanged gh/git argv inside the existing native operation owner.
+    The publisher retains its original budgets, redirections and retirement gates.
+    host/validation/upstream/github_release.sh interprets the retired lookup:
+    success means exists, only CLI exit 1 with the original first-line HTTP 404
+    establishes absence, and every other result is unknown. Destination approval,
+    Git routing and tag decisions, artifact selection and qualified-byte checks
+    remain in publish.sh. URL reporting is pure and follows successful publication.
+    Delivery's public asset route now lives in tools/adapters/github_release.py;
+    its captured recipe includes that module. Focused publication, delivery-release
+    and conventions lanes passed (36 tests; PRIVACY_TESTS=0). An unexpected CLI
+    exit with a 404 is proved to stop before tag, push or draft effects. Cross-audit
+    confirmed argv, budget, retirement and publication-order preservation. No live
+    release was created. The consumed CLI interface remains documented by
+    https://cli.github.com/manual/gh_repo_view, https://cli.github.com/manual/gh_api
+    and https://cli.github.com/manual/gh_release; no API version header or immutable
+    service schema pin was introduced during this separation.
 
 [ ] P3  Separate Debian artifact/HTTP assumptions from dependency release policy
     operations/checker/image/dependencies.py:38-84,158-198
