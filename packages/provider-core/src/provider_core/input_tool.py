@@ -13,6 +13,7 @@ from dataclasses import dataclass
 import json
 
 from provider_core.contribution import CallBinding
+from provider_core.adapters.chat_completions.tools import function_tool
 from provider_core.conversation import ToolRejected
 from provider_core.payload import JsonDataclassCodec
 from provider_core.type_requirements import require_type
@@ -42,14 +43,11 @@ class ScientificInputToolDefinition:
     def definition(self) -> dict:
         """Return a fresh tool carrier with definitions rooted beside its parameters."""
 
-        return {
-            "type": "function",
-            "function": {
-                "name": self.name,
-                "description": self.description,
-                "parameters": self.call_binding.input_codec.json_schema(),
-            },
-        }
+        return function_tool(
+            name=self.name,
+            description=self.description,
+            parameters=self.call_binding.input_codec.json_schema(),
+        )
 
     def decode(self, *, name: str, arguments: dict) -> object:
         """Admit the selected tool's arguments using its original runtime codec.

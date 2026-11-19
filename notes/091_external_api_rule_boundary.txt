@@ -555,7 +555,7 @@ OpenAI-compatible Chat Completions profile
     provenance review; local turn/correction/secret/dispatch policy stays local.
     Evidence: test_conversation.py and test_text_correction.py.
 
-[ ] C3  Separate the external tool envelope from local scientific schemas
+[x] C3  Separate the external tool envelope from local scientific schemas
     core/input_tool.py:22-64; core/interpreter.py:525
     Builds the function-tool envelope around a scientific input codec's schema.
     Extract that external envelope; selected scientific calls and their types
@@ -563,6 +563,14 @@ OpenAI-compatible Chat Completions profile
     its additionalProperties=False reflects the local JSON codec, not a model
     service rule. core/payload.py:567 exports that local model schema.
     Evidence: test_input_tool.py; that file exercises generated parameter schemas.
+    Completed 2026-11-19: adapters/chat_completions/tools.py owns the function
+    carrier. ScientificInputToolDefinition supplies its original codec schema;
+    Interpreter still builds its own parameter object. The adapter passes that
+    object through unchanged, with no schema copy, guessed strict mode or new
+    admission. Pydantic adaptation, scientific names/fields and dispatch remain
+    local. Focused input-tool/interpreter unit, interpreter integration and
+    installation lanes passed on science with PRIVACY_TESTS=0 (80 tests, three
+    skips). Independent audit confirmed object identity and evaluation order.
 
 [ ] C4  Separate received HTTP facts from Chat scheduling and child IPC
     [x] Share Retry-After syntax independently of local timing policy

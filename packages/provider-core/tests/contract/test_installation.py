@@ -149,6 +149,7 @@ class InstallationContractTests(unittest.TestCase):
                 "provider_core/adapters/chat_completions/request.py",
                 "provider_core/adapters/chat_completions/response.py",
                 "provider_core/adapters/chat_completions/diagnostics.py",
+                "provider_core/adapters/chat_completions/tools.py",
                 "provider_core/adapters/nmr/__init__.py",
                 "provider_core/adapters/nmr/v1/__init__.py",
                 "provider_core/adapters/nmr/v1/signing.py",

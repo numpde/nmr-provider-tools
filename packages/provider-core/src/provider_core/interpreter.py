@@ -23,6 +23,7 @@ from dataclasses import dataclass, field
 from typing import Any, Literal, Protocol
 
 from provider_core.chat_errors import ChatFailed
+from provider_core.adapters.chat_completions.tools import function_tool
 
 from provider_core.conversation import (
     ConversationFailed,
@@ -49,8 +50,7 @@ _CLOCK_ENCODING_RESERVE_BYTES = 64
 # repo-check: allow-module-constant
 _RETRYABLE_STATUSES = {408, 429, 500, 502, 503, 504}
 
-# Tool documents are provider-defined JSON; this module owns their envelopes,
-# not the scientific fields inside them.
+# Parameter schemas and history remain locally owned JSON documents
 type Document = dict[str, Any]
 
 type ModelFailure = tuple[int, BaseException]
@@ -527,19 +527,16 @@ def _tool(
     properties: Document,
     required: list[str]
 ) -> Document:
-    return {
-        "type": "function",
-        "function": {
-            "name": name,
-            "description": description,
-            "parameters": {
-                "type": "object",
-                "properties": properties,
-                "required": required,
-                "additionalProperties": False,
-            },
+    return function_tool(
+        name=name,
+        description=description,
+        parameters={
+            "type": "object",
+            "properties": properties,
+            "required": required,
+            "additionalProperties": False,
         },
-    }
+    )
 
 
 @dataclass(frozen=True, slots=True, kw_only=True)
