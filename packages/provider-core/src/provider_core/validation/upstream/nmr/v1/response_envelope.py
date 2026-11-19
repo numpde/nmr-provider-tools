@@ -129,7 +129,7 @@ def read_problem(response):
 
     request_id = read_request_id(response.headers)
 
-    if request_id is None or problem["request_id"] != request_id:
+    if (request_id is None) or (problem["request_id"] != request_id):
         return None
 
     reason = _PROBLEM_REASONS.get((response.status, problem["type"].removeprefix("urn:nmr-api:problem:"), problem["code"]))

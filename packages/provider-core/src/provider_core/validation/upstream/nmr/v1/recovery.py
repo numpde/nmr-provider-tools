@@ -53,7 +53,7 @@ def _no_domain_change(status: int | None, problem_code: str | None) -> bool:
     return (
         (problem_code is not None) and
         ((status == 401) or
-         (status == 408 and problem_code == "request_body_timeout"))
+         ((status == 408) and (problem_code == "request_body_timeout")))
     )
 
 
@@ -62,7 +62,7 @@ def issuance_refused(status: int | None, problem_code: str | None) -> bool:
 
     return (
         _no_domain_change(status, problem_code) or
-        (status == 409 and problem_code in {"upload_read_not_finalized", "project_purge_in_progress"})
+        ((status == 409) and (problem_code in {"upload_read_not_finalized", "project_purge_in_progress"}))
     )
 
 

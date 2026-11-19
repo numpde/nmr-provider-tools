@@ -89,7 +89,7 @@ def read_dns_name(
             if suffix:
                 labels.extend(part.encode("ascii") for part in suffix.split("."))
 
-            next_offset = next_offset or offset + 2
+            next_offset = next_offset or (offset + 2)
 
             break
 
@@ -192,10 +192,10 @@ def read_ipv4_response(
         if not (record_end <= response_byte_count):
             raise DNSResponseRejected(f"{record_end=} should be at most {response_byte_count=}")
 
-        if record_class == 1 and record_type == 1 and size == 4:
+        if (record_class == 1) and (record_type == 1) and (size == 4):
             # silent-defaults: allow-contract -- Owner buckets contain only received A records; no absent owner is invented.
             addresses.setdefault(owner, []).append(socket.inet_ntoa(response[offset:record_end]))
-        elif record_class == 1 and record_type == 5:
+        elif (record_class == 1) and (record_type == 5):
             (aliases[owner], _) = read_dns_name(response, offset, max_pointer_depth=max_pointer_depth)
 
         offset = record_end
