@@ -1,0 +1,31 @@
+Separate external API rules from operational code
+================================================
+
+2026-11-19 — proposed separation; implementation remains pending
+
+Keep code that depends on an external API's rules in clearly owned areas. An API
+change should lead maintainers to its validators and adapters, rather than
+require searching through execution, delivery and recovery code.
+
+Scope includes identifier formats, limits, field names and required structures,
+allowed states and codes, routes, headers, signing rules, request/reply encoding
+and the meaning of replies. Include inline checks and checks used only once.
+The deciding question is whether the rule comes from the external API.
+
+Put these checks in the validation package's upstream area, grouped by API and
+supported version. Keep each API-specific constraint, its check and its rejection
+diagnostic together. For example, a length limit on result_schema_id belongs to
+that API field's validation; it does not establish a universal SDK text limit.
+
+Keep API-specific request construction, signing, encoding and reply translation
+in adapters: the code that connects SDK operations to that API. Operational code
+uses those adapters and their checked results. It retains workflows, resource
+ownership, locks, retries and cleanup.
+
+First inventory the API-specific code, then move checks and adapter functionality,
+update callers and remove the displaced implementations. Keep the external
+contract definitions and selected versions unchanged during this separation.
+
+Verify exact request bytes and signatures, response classification, and the
+distinction between refusing before sending and losing a reply after sending.
+Keep validation at the same points relative to parsing, locks and effects.
