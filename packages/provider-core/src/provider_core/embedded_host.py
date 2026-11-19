@@ -614,7 +614,7 @@ class InProcessAnalysisExecutor:
 
         require_instance(hosted, HostedContribution)
 
-        if not (getattr(method, "__self__", None) is hosted.contribution):
+        if (hosted.contribution is None) or (getattr(method, "__self__", None) is not hosted.contribution):
             raise ValueError("Submit an exported bound method of the reserved contribution")
 
         call = hosted.call(method=method)

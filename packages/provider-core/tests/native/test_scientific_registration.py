@@ -320,6 +320,41 @@ class AdoptionTests(unittest.IsolatedAsyncioTestCase):
         with self.assertRaises(expected_exception=ValueError):
             class_only.call(method=instance.calculate)
 
+    async def test_class_handle_does_not_turn_an_unbound_method_into_a_receiver(self):
+        instance = Sum(configuration=Settings(scale=2))
+        hosted = self.host.adopt_class(
+            contribution_type=Sum,
+            constructor=lambda: instance,
+            requirements=frozenset(),
+        )
+        analysis = self.host.open_analysis(allocations=frozenset({hosted.allocation}))
+        reservation = analysis.reservation(allocation=hosted.allocation)
+
+        with self.assertRaises(expected_exception=ValueError):
+            analysis.submit_method(
+                method=Sum.calculate,
+                scientific_input=Numbers(values=(1, 2)),
+                states={},
+                reservation=reservation,
+                policy=deadline_policy(),
+            )
+
+        self.assertEqual(first=0, second=instance.calls)
+        call = hosted.call(method=Sum.calculate)
+        operation = analysis.submit_call(
+            call=call,
+            payload=call.encode_input(value=Numbers(values=(1, 2))),
+            states={},
+            reservation=reservation,
+            policy=deadline_policy(),
+        )
+        observed = await observe_completion(operation=operation)
+
+        self.assertIs(expr1=Outcome.SUCCEEDED, expr2=observed.outcome)
+        self.assertEqual(first=1, second=instance.calls)
+        await observe_cleanup(control=operation.release_result(result=observed.require_result()))
+        await observe_cleanup(control=analysis.close())
+
     async def test_host_owned_construction_starts_after_factory_custody(self):
         constructed = []
         worker_threads = []

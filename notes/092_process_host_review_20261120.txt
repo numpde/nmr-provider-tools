@@ -1,0 +1,33 @@
+# Process host review and evidence correction
+
+Review baseline: feature/process-scientific-host-20261119 at
+48eb88641f84388f0b0a2c9e2dd86db2ff361d26, based on 4c8c02d.
+
+The first implementation is an unqualified draft. Independent source review
+found ownership, cleanup, failure-transport and native-supervision defects.
+Notes 089 and 090 remain the design and qualification requirements.
+
+## Evidence correction
+
+The bodies of 9c499cbb, 8d64774d and ecb6a8e8 state that local Python 3.13
+syntax parsing was performed. The implementation session contains no recorded
+execution supporting that statement. Those claims are withdrawn. The original
+history is retained; this note corrects its evidence record.
+
+No installed integration, native-worker or Docker qualification was performed
+for the first 15 commits. Source inspection and authored tests do not constitute
+passing tests. This review workspace has no Docker executable; qualification
+must use the maintained installed lanes on the selected science engine.
+
+## Review scope
+
+Keep declaration selection separate from receiver ownership. The class-only
+hosted handle supports selecting call bindings, but submit_method still requires
+an actual bound receiver. A missing parent receiver cannot match an unbound
+function merely because both expose None.
+
+Further revision will retain requests before transmission, start cleanup when
+requested, preserve scientific facts through transport failure, move terminal
+evidence to the original parent handles, and use the existing native runner for
+worker control. No automatic replay, replacement or generalized workflow is
+introduced. Qualification and its actual results must be recorded separately.
