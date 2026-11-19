@@ -116,7 +116,7 @@ def require_type(expr: object, T: type | tuple[type, ...]) -> None:
     """Require exact runtime type identity (not subclasses)."""
     allowed_types = _allowed_types(T)
 
-    if any(type(expr) is allowed for allowed in allowed_types):
+    if any((type(expr) is allowed) for allowed in allowed_types):
         return
 
     _raise_mismatch(expr, T, "type")
