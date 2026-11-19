@@ -54,10 +54,10 @@ def endpoint_error(response, messages, key: str, *, maximum_bytes: int) -> dict[
         return {"detail_unavailable": "The model service response contained no readable error object."}
 
     echoes = _request_echoes(messages, key)
-    result = {name: without_echoes(text, echoes) for (name, text) in fields.items()}
+    diagnostic_fields = {name: without_echoes(text, echoes) for (name, text) in fields.items()}
 
     # silent-defaults: allow-contract -- Empty readable fields report unavailable detail without rendering the whole response.
-    return result or {"detail_unavailable": "The model service response contained no readable error fields."}
+    return diagnostic_fields or {"detail_unavailable": "The model service response contained no readable error fields."}
 
 
 def endpoint_error_fields(endpoint_error: dict) -> Iterator[tuple[str, str]]:

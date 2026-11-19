@@ -438,18 +438,18 @@ def restore_trust(snapshot, *, directory=None):
 
     materials = []
 
-    for item in material_records:
-        if not (type(item) is (expected_type := dict)):
-            raise _refuse(f"{type(item)=} ≠ {expected_type=}")
+    for material_record in material_records:
+        if not (type(material_record) is (expected_type := dict)):
+            raise _refuse(f"{type(material_record)=} ≠ {expected_type=}")
 
-        if not ("kind" in item):
+        if not ("kind" in material_record):
             raise _refuse("a captured trust material record is invalid")
 
-        if item["kind"] == "capath":
-            if set(item) != {"kind", "entries"}:
+        if material_record["kind"] == "capath":
+            if set(material_record) != {"kind", "entries"}:
                 raise _refuse("a captured hashed trust collection is invalid")
 
-            captured_entries = item["entries"]
+            captured_entries = material_record["entries"]
 
             if not (type(captured_entries) is (expected_type := list)):
                 raise _refuse(f"{type(captured_entries)=} ≠ {expected_type=}")
@@ -457,7 +457,7 @@ def restore_trust(snapshot, *, directory=None):
             if len(captured_entries) > MAX_TRUST_MATERIALS:
                 raise _refuse("a captured hashed trust collection is invalid")
 
-            (entries, names) = ([], set())
+            (hashed_trust_files, names) = ([], set())
 
             for entry in captured_entries:
                 if not (type(entry) is (expected_type := dict)):
@@ -475,12 +475,12 @@ def restore_trust(snapshot, *, directory=None):
                     raise _refuse("a captured hashed trust name is invalid or repeated")
 
                 names.add(name)
-                entries.append((name, _material_bytes(entry["data"])))
-                _require_material_budget((*materials, ("capath", tuple(entries))))
+                hashed_trust_files.append((name, _material_bytes(entry["data"])))
+                _require_material_budget((*materials, ("capath", tuple(hashed_trust_files))))
 
-            materials.append(("capath", tuple(entries)))
-        elif (set(item) == {"kind", "data"}) and (item["kind"] in ("pem", "der", "file")):
-            materials.append((item["kind"], _material_bytes(item["data"])))
+            materials.append(("capath", tuple(hashed_trust_files)))
+        elif (set(material_record) == {"kind", "data"}) and (material_record["kind"] in ("pem", "der", "file")):
+            materials.append((material_record["kind"], _material_bytes(material_record["data"])))
         else:
             raise _refuse("a captured trust material record is invalid")
 
@@ -501,9 +501,9 @@ def restore_trust(snapshot, *, directory=None):
         if not (type(alpn) is (expected_type := list)):
             raise _refuse(f"{type(alpn)=} ≠ {expected_type=}")
 
-        for value in alpn:
-            if not (type(value) is (expected_type := str)):
-                raise _refuse(f"{type(value)=} ≠ {expected_type=}")
+        for alpn_protocol in alpn:
+            if not (type(alpn_protocol) is (expected_type := str)):
+                raise _refuse(f"{type(alpn_protocol)=} ≠ {expected_type=}")
 
     curve = snapshot["ecdh_curve"]
 
