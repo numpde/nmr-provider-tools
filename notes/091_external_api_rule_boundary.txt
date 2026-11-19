@@ -572,7 +572,7 @@ OpenAI-compatible Chat Completions profile
     installation lanes passed on science with PRIVACY_TESTS=0 (80 tests, three
     skips). Independent audit confirmed object identity and evaluation order.
 
-[ ] C4  Separate received HTTP facts from Chat scheduling and child IPC
+[x] C4  Separate received HTTP facts from Chat scheduling and child IPC
     [x] Share Retry-After syntax independently of local timing policy
     core/interpreter.py:51,903-964
     HTTP status and Retry-After interpretation appears in scheduling code.
@@ -582,6 +582,18 @@ OpenAI-compatible Chat Completions profile
     Evidence: test_interpreter.py, test_chat_wire.py and test_chat_process_contract.py.
     Retry-After grammar now uses validation/upstream/http.py as recorded in N3;
     the interpreter's local retry windows and fallback choices are unchanged.
+    Completed 2026-11-19: the Chat profile owns its exact success-status meaning,
+    shared by reply translation, child-carried body-budget selection and late-head
+    cancellation classification. Shared HTTP validation owns exact integer/status
+    range admission and CONNECT success; the latter grants no classification of
+    a later TLS failure. Retry status sets, cleanup evidence, pacing and network
+    availability policy remain local. Child framing/version/kind/header/base64
+    schemas and budgets remain internal IPC. No optional HTTP library dependency
+    was added to native consumers.
+    Focused chat-wire, process-contract, interpreter and transport unit lanes and
+    conversation integration passed on science with PRIVACY_TESTS=0 (135 tests,
+    fourteen skips). Independent audit confirmed exact type/range semantics,
+    status/retirement ordering and unchanged local policy.
 
 [x] C5  Move service diagnostic-field interpretation with the Chat adapter
     core/failure_projection.py:293-306

@@ -1,4 +1,4 @@
-"""Read optional HTTP timing advice without granting retry or pacing policy.
+"""Admit HTTP status facts and timing advice without granting retry policy.
 
 RFC 9110 section 10.2.3 permits delay-seconds or an HTTP-date. Callers own the
 wall clock and the response's authority; unadmitted advice supplies no delay.
@@ -13,6 +13,27 @@ import re
 from collections.abc import Callable
 from datetime import timezone
 from email.utils import parsedate_to_datetime
+
+from provider_core.type_requirements import require_type
+
+
+def require_http_status(http_status: object) -> int:
+    """Admit a numeric HTTP status independently of any service's success rule."""
+
+    require_type(http_status, int)
+
+    min_http_status, max_http_status = 100, 599
+
+    if not (min_http_status <= http_status <= max_http_status):
+        raise ValueError(f"{http_status=} should be between {min_http_status=} and {max_http_status=}")
+
+    return http_status
+
+
+def successful_connect_status(http_status: int) -> bool:
+    """Recognize a successful CONNECT status without classifying a later TLS failure."""
+
+    return 200 <= http_status < 300
 
 
 def read_retry_after(

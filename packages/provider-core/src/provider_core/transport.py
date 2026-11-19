@@ -29,6 +29,7 @@ from provider_core.decoded_body import DecodedBody, DecodedBodyRejected, require
 from provider_core.transport_errors import ExchangeFailed
 from provider_core.tools import require_absolute_path, require_positive_number
 from provider_core.type_requirements import require_instance, require_type
+from provider_core.validation.upstream.http import require_http_status
 
 
 def temporary_io_failure(cause, remaining, *, network_failure=None):
@@ -659,10 +660,7 @@ class HttpTransport:
         require_decoded_limit(maximum_bytes)
         require_decoded_limit(error_maximum_bytes)
 
-        require_type(success_status, int)
-
-        if not (100 <= success_status <= 599):
-            raise ValueError("Cannot decode HTTP response: success_status must be an integer HTTP status from 100 through 599")
+        require_http_status(success_status)
 
         def decoder_for(head):
             limit = maximum_bytes if head.status == success_status else error_maximum_bytes

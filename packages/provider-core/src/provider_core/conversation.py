@@ -20,6 +20,7 @@ from provider_core.chat_errors import ChatFailed
 from provider_core.response_json import ResponseRejected, read_document
 from provider_core.transport_errors import ExchangeFailed
 from provider_core.type_requirements import require_type
+from provider_core.validation.upstream.chat_completions.response import is_completion_success
 
 
 def _encode(value):
@@ -134,7 +135,7 @@ def independent_interruption_failure(failure):
             (type(exchange) is ExchangeFailed) and
             (exchange.primary is failure) and
             (not exchange.cleanup_failures) and
-            (exchange.response_head is None or exchange.response_head.status == 200)
+            (exchange.response_head is None or is_completion_success(exchange.response_head.status))
         ):
             return None
 

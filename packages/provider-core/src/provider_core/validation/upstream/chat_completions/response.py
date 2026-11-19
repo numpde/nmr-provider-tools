@@ -19,6 +19,12 @@ from provider_core.response_json import ResponseRejected, read_document
 ERROR_TEXT_FIELDS = ("message", "type", "code", "param")
 
 
+def is_completion_success(http_status: int) -> bool:
+    """Recognize the supported carrier's successful completion response status."""
+
+    return http_status == 200
+
+
 def error_fields(completion_error: object) -> dict[str, str] | None:
     """Select readable service fields, distinguishing a missing error object."""
 

@@ -41,7 +41,7 @@ from provider_core.conversation import (
 from provider_core.transport_errors import ExchangeFailed
 from provider_core.tools import require_positive_number
 from provider_core.type_requirements import require_instance, require_type
-from provider_core.validation.upstream.http import read_retry_after
+from provider_core.validation.upstream.http import read_retry_after, successful_connect_status
 
 # Two remaining-time floats may change decimal length before the next request.
 # repo-check: allow-module-constant
@@ -910,7 +910,7 @@ def _retryable(failure: ChatFailed) -> bool:
 
     status = exchange.proxy_connect_status
 
-    if (status is not None) and (not (200 <= status < 300)):
+    if (status is not None) and (not successful_connect_status(status)):
         return status in _RETRYABLE_STATUSES
 
     # Native-only consumers do not import optional HTTP libraries.

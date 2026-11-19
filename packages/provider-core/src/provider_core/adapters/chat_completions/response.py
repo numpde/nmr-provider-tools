@@ -7,13 +7,13 @@ require_container()
 from provider_core.chat_errors import ChatFailed
 from provider_core.adapters.chat_completions.diagnostics import endpoint_error
 from provider_core.response_json import ResponseRejected
-from provider_core.validation.upstream.chat_completions.response import read_choice, require_completed_finish_reason
+from provider_core.validation.upstream.chat_completions.response import is_completion_success, read_choice, require_completed_finish_reason
 
 
 def read_completion(response, *, maximum_bytes: int, error_detail_maximum_bytes: int, messages, api_key: str) -> dict:
     """Return the original message or retain the original reply and rejection cause."""
 
-    if response.status != 200:
+    if not is_completion_success(response.status):
         raise ChatFailed(
             "http_status",
             f"Cannot complete interpreter request: the model service returned HTTP {response.status}; no tool was accepted.",

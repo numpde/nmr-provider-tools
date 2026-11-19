@@ -19,6 +19,8 @@ from provider_core.decoded_body import DecodedBodyRejected
 from provider_core.response_json import read_document
 from provider_core.transport import HttpResponse, HttpResponseHead
 from provider_core.transport_errors import ExchangeFailed
+from provider_core.validation.upstream.chat_completions.response import is_completion_success
+from provider_core.validation.upstream.http import require_http_status
 
 
 # The data-only child protocol bounds metadata independently of decoded body limits.
@@ -185,16 +187,6 @@ def _read_headers(headers):
         result.append((name, value))
 
     return tuple(result)
-
-
-def _status(value):
-    if not (type(value) is (expected_type := int)):
-        raise TypeError(f"{type(value)=} ≠ {expected_type=}")
-
-    if not (100 <= value <= 599):
-        raise ValueError("Interpreter child returned an invalid HTTP status")
-
-    return value
 
 
 def response_message(response):
@@ -377,7 +369,7 @@ def _read_failure(document):
     head = document["head"]
 
     if head is not None:
-        head = HttpResponseHead(_status(head["status"]), _read_headers(head["headers"]))
+        head = HttpResponseHead(require_http_status(head["status"]), _read_headers(head["headers"]))
 
     network = document["network"]
 
@@ -406,7 +398,7 @@ def _read_failure(document):
     proxy_status = document["proxy_status"]
 
     if proxy_status is not None:
-        _status(proxy_status)
+        require_http_status(proxy_status)
 
     message = document["message"]
 
@@ -453,7 +445,7 @@ def read_reply(document, *, maximum_bytes, error_maximum_bytes):
     if document.get("kind") != "response":
         raise ValueError("Interpreter child reply has an unknown outcome")
 
-    status = _status(document["status"])
-    body = decoded_bytes(document["body"], maximum_bytes if status == 200 else error_maximum_bytes)
+    status = require_http_status(document["status"])
+    body = decoded_bytes(document["body"], maximum_bytes if is_completion_success(status) else error_maximum_bytes)
 
     return HttpResponse(status, _read_headers(document["headers"]), body)
