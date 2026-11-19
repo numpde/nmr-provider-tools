@@ -115,3 +115,37 @@ def wrap_anyio_stream(stream: anyio.abc.ByteStream) -> httpcore.AsyncNetworkStre
     """Expose the already-owned stream through the pinned backend interface."""
 
     return AnyIOStream(stream)
+
+
+class AnyIOByteStream(anyio.abc.ByteStream):
+    """Let AnyIO TLS use the already-owned HTTP network stream."""
+
+    def __init__(self, stream, close_raw):
+        self.stream = stream
+        self.close_raw = close_raw
+
+    @property
+    def extra_attributes(self):
+        return {
+            anyio.abc.SocketAttribute.local_address: lambda: self.stream.get_extra_info("client_addr"),
+            anyio.abc.SocketAttribute.remote_address: lambda: self.stream.get_extra_info("server_addr"),
+            anyio.abc.SocketAttribute.raw_socket: lambda: self.stream.get_extra_info("socket"),
+        }
+
+    # silent-defaults: allow-contract -- AnyIO ByteReceiveStream.receive specifies this optional 64 KiB bound; TLS callers may omit it.
+    async def receive(self, max_bytes=65536):
+        received_bytes = await self.stream.read(max_bytes)
+
+        if not (received_bytes):
+            raise anyio.EndOfStream
+
+        return received_bytes
+
+    async def send(self, item):
+        await self.stream.write(item)
+
+    async def send_eof(self):
+        raise NotImplementedError("TLS owns the closing exchange; raw half-close is not supported")
+
+    async def aclose(self):
+        await self.close_raw()

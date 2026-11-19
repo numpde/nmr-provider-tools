@@ -744,6 +744,15 @@ Shared wire support: retain the distinction from local policy
   Focused network/API-availability unit and TLS-shutdown/API-availability
   integration lanes passed with PRIVACY_TESTS=0 (19 tests); mapping AST and
   independent audit confirmed parity. Byte-stream and retry-policy review remain.
+  Byte-stream translation extracted 2026-11-19: the unchanged AnyIO bridge
+  now lives in the adapter. Attribute/EOF translation
+  delegates to the same owned stream and close callback; network keeps tracking
+  and physical retirement. Body/base AST comparison and independent audit passed;
+  focused network/availability unit and TLS/proxy integration passed with
+  PRIVACY_TESTS=0 (22 tests, one skip). Backend construction remains directly in
+  the network owner; no pass-through factory is needed. The twelve focused unit
+  tests were rerun after removing that unnecessary indirection and passed.
+  Retry/cause policy review remains.
 - [ ] Keep shared decoding rules distinct from caller-selected budgets
   core/decoded_body.py:81-220: Content-Encoding lists, gzip/deflate framing and
   decompression checks are HTTP/encoding support. Budget values are caller policy.
