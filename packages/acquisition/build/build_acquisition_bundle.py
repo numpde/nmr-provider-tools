@@ -38,7 +38,17 @@ SOURCE_FILES = (
 
 # The proxy and its logging formatter use the SDK's canonical sources.
 # repo-check: allow-module-constant
-PROXY_FILES = ("__init__.py", "container_guard.py", "bound_http_proxy.py", "diagnostic_text.py")
+PROXY_FILES = (
+    "__init__.py",
+    "container_guard.py",
+    "bound_http_proxy.py",
+    "diagnostic_text.py",
+    "adapters/__init__.py",
+    "adapters/dns.py",
+    "validation/__init__.py",
+    "validation/upstream/__init__.py",
+    "validation/upstream/dns.py",
+)
 
 # Consumers bake this qualified helper package and its inputs into tool images.
 # repo-check: allow-module-constant

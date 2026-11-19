@@ -777,6 +777,17 @@ Shared wire support: retain the distinction from local policy
   default ports, DNS question/response encoding and forwarding response bytes.
   Interface grants, DNS-source selection, concurrency limits and cleanup are
   local policies. core/provider_proxy.py mixes these with local destination grants.
+  DNS name admission now lives in validation/upstream/dns.py; adapters/dns.py
+  encodes the admitted labels. Configured authority checks no longer construct
+  and discard wire bytes. Existing IDNA, trailing-dot and byte-limit acceptance
+  and query timing are preserved. The cold acquisition closure includes both
+  modules and their package initializers; an extracted-bundle CLI test proves
+  imports work without the installed SDK. Focused DNS, bound proxy, Unix relay,
+  installation and acquisition bundle lanes passed (47 tests, three skips;
+  PRIVACY_TESTS=0). The provider-proxy lane has two failures also reproduced on
+  parent f7c3652: a stale message-prefix assertion and huge-integer overflow in
+  the local live-settings numeric helper. DNS response parsing, HTTP target
+  admission and forwarding wire construction still need separation.
 - [ ] Keep locally defined IPC schemas outside upstream API validation
   core/unix_http.py uses HTTP over a local socket. The service bodies/routes in
   delivery_ipc.py, shared_delivery_ipc.py, runner_protocol.py and chat_wire.py are

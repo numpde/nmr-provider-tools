@@ -1,0 +1,1 @@
+"""Supported shared protocol encodings."""

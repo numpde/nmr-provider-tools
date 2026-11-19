@@ -78,7 +78,7 @@ class AcquisitionBundleTests(unittest.TestCase):
 
         with zipfile.ZipFile(wheel, "w") as archive:
             for name in PROXY_FILES:
-                archive.writestr("provider_core/" + name, "# SDK source\n")
+                archive.writestr("provider_core/" + name, (ROOT / "packages/provider-core/src/provider_core" / name).read_bytes())
 
         identity = root / "linux_idmap-0.3.0-py3-none-any.whl"
 
@@ -159,6 +159,41 @@ class AcquisitionBundleTests(unittest.TestCase):
                 },
                 record["dependency_inputs"]
             )
+
+    def test_bundled_proxy_runs_without_the_installed_sdk(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = pathlib.Path(temporary)
+            (source, wheel, _identity, pin) = self.fixture(root)
+            archive_path = root / "bundle.tar.gz"
+
+            self.build(root, archive_path, source, wheel, pin)
+            extracted = root / "extracted"
+
+            extracted.mkdir()
+
+            with tarfile.open(archive_path) as archive:
+                archive.extractall(extracted, filter="data")
+
+            completed_process = subprocess.run(
+                [
+                    sys.executable,  # Use this contained interpreter
+                    "-I",  # Ignore host Python configuration
+                    "-B",  # Leave extracted sources unchanged
+                    "-c",  # Launch the extracted package with no checkout path
+                    "import runpy, sys; sys.path.insert(0, sys.argv.pop(1)); "
+                    "runpy.run_module('provider_core.bound_http_proxy', run_name='__main__')",
+                    str(extracted),  # Select the cold bundle's regular package
+                    "--help",  # Import the CLI without opening sockets
+                ],
+                cwd=extracted,
+                env=os.environ | {"PROVIDER_CORE_IN_CONTAINER": "1"},
+                capture_output=True,
+                text=True,
+                check=True,
+                timeout=10,
+            )
+
+            self.assertIn("--relay-socket", completed_process.stdout)
 
     def test_missing_owner_source_or_changed_identity_wheel_never_publishes_output(self):
         with tempfile.TemporaryDirectory() as temporary:

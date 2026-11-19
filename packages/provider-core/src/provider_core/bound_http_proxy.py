@@ -32,6 +32,7 @@ import time
 import pathlib
 from urllib.parse import urlsplit
 
+from provider_core.adapters.dns import encode_dns_name
 from provider_core.diagnostic_text import CredentialRedactingFormatter
 
 # Header admission owns this fixed byte ceiling independently of coalesced body
@@ -194,19 +195,6 @@ def parse_destination(header: bytes) -> tuple[str, str, int, bytes]:
     return (method, host, port, b"\r\n".join(lines))
 
 
-# DNS queries and destination connections both use the selected device.
-# https://github.com/numpde/magnet-deploy/blob/2d4ee50b0359e71900fce9289ea01f46d0f41249/scripts/image-build-proxy.py#L96-L298
-def _dns_name(name: str) -> bytes:
-    """Encode bounded IDNA labels in DNS wire form."""
-
-    labels = name.rstrip(".").encode("idna").split(b".")
-
-    if (len(name.encode("idna")) > 253) or (not labels) or (any((not label) or (len(label) > 63) for label in labels)):
-        raise ValueError("Cannot resolve proxy destination: require a DNS name of at most 253 bytes with labels of 1 through 63 bytes.")
-
-    return b"".join(bytes((len(label),)) + label for label in labels) + b"\0"
-
-
 # Each top-level name starts with no followed pointers; recursive calls below
 # supply depth + 1. Sixteen hops is this decoder's existing local bound.
 # silent-defaults: allow-contract -- A new DNS name starts its pointer recursion count at zero; proof=packages/provider-core/tests/unit/normative/test_bound_http_proxy.py::BoundProxyTests.test_dns_name_depth_starts_at_zero_and_bounds_compression
@@ -311,7 +299,7 @@ def _query_ipv4(
 
     _remaining(query_deadline, "DNS query")
     transaction = secrets.randbits(16)
-    question = _dns_name(host) + struct.pack("!HH", 1, 1)
+    question = encode_dns_name(host) + struct.pack("!HH", 1, 1)
     request = struct.pack("!HHHHHH", transaction, 0x0100, 1, 0, 0, 0) + question
 
     with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as resolver:

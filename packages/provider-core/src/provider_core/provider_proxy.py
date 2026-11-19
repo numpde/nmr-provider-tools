@@ -34,6 +34,7 @@ from dataclasses import dataclass
 from provider_core import bound_http_proxy
 from provider_core.diagnostic_text import CredentialRedactingFormatter
 from provider_core.tools import require_absolute_path, require_nonnegative_number
+from provider_core.validation.upstream.dns import read_dns_labels
 
 
 def _proxy_routine_record(record):
@@ -70,7 +71,7 @@ def authority_parts(authority):
         raise ServiceRefused("Cannot admit service proxy authority: require a canonical DNS name or IPv4 address and explicit port.")
 
     try:
-        bound_http_proxy._dns_name(host)
+        read_dns_labels(host)
         port = int(port_text)
     except (UnicodeError, ValueError):
         raise ServiceRefused("Cannot admit service proxy authority: its DNS name or port is malformed.") from None

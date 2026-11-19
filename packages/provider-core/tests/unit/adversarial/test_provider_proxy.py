@@ -15,6 +15,7 @@ from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
 
 from provider_core import bound_http_proxy, provider_proxy
+from provider_core.adapters.dns import encode_dns_name
 from provider_core.provider_proxy import ServicePolicy, ServiceProxyHandler, ServiceProxyServer, ServiceRefused, socket_grant
 from tests.fakes.proxy_logs import capture_proxy_logs
 
@@ -23,7 +24,7 @@ class ServiceProxyRefusalTests(unittest.TestCase):
     def _dns_decoder_refusals(self):
         transaction = 17
         policy = ServicePolicy.admit("external", ["private.example:443"], [])
-        question = bound_http_proxy._dns_name("other.private") + struct.pack("!HH", 1, 1)
+        question = encode_dns_name("other.private") + struct.pack("!HH", 1, 1)
 
         for (packet, expected) in (
             (struct.pack("!HHHHHH", transaction, 0x8003, 1, 0, 0, 0), "DNS server returned rcode 3"),

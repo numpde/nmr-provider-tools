@@ -28,6 +28,7 @@ from unittest.mock import MagicMock, Mock, patch
 
 # Exercise the installed owner; source checkout paths cannot satisfy this import.
 from provider_core import bound_http_proxy as _PROXY
+from provider_core.adapters.dns import encode_dns_name
 
 # A fixed adversarial marker proves that request-bearing errors stay private.
 # repo-check: allow-module-constant
@@ -226,7 +227,7 @@ class ImageBuildProxyTransportTests(unittest.TestCase):
         resolver.setsockopt.assert_called_once_with(_PROXY.socket.SOL_SOCKET, _PROXY.socket.SO_BINDTODEVICE, b"eth0\0")
         resolver.connect.assert_called_once_with(("203.0.113.53", 53))
         self.assertEqual([call.args[0] for call in resolver.settimeout.call_args_list], [3, 2.8, 2.4])
-        self.assertEqual(resolver.send.call_args.args[0][12:], _PROXY._dns_name("example.invalid") + struct.pack("!HH", 1, 1))
+        self.assertEqual(resolver.send.call_args.args[0][12:], encode_dns_name("example.invalid") + struct.pack("!HH", 1, 1))
 
     def test_dns_groups_only_received_a_records_by_owner(self):
         """Keep repeated A records in one bucket without inventing absent owners."""
@@ -245,12 +246,12 @@ class ImageBuildProxyTransportTests(unittest.TestCase):
             with self.subTest(records=records):
                 response = (
                     struct.pack("!HHHHHH", 111, 0x8180, 1, len(records), 0, 0)
-                    + _PROXY._dns_name("example.invalid")
+                    + encode_dns_name("example.invalid")
                     + struct.pack("!HH", 1, 1)
                 )
 
                 for (owner, address) in records:
-                    response += _PROXY._dns_name(owner) + struct.pack("!HHIH", 1, 1, 60, 4) + _PROXY.socket.inet_aton(address)
+                    response += encode_dns_name(owner) + struct.pack("!HHIH", 1, 1, 60, 4) + _PROXY.socket.inet_aton(address)
 
                 resolver = MagicMock()
                 resolver.__enter__.return_value = resolver
@@ -866,7 +867,7 @@ def _dns_response(host):
 
     return (
         struct.pack("!HHHHHH", 111, 0x8180, 1, 1, 0, 0)
-        + _PROXY._dns_name(host)
+        + encode_dns_name(host)
         + struct.pack("!HH", 1, 1)
         + b"\xc0\x0c"
         + struct.pack("!HHIH", 1, 1, 60, 4)
