@@ -16,8 +16,8 @@ from dataclasses import dataclass, field
 from datetime import datetime, timedelta
 
 from provider_core.response_json import ResponseRejected, read_document
+from provider_core.validation.upstream.nmr.v1.job_refs import require_job_ref
 from provider_core.validation.upstream.nmr.v1.timestamps import read_timestamp
-from provider_core.type_requirements import require_type
 
 # The pinned upload membership response has this byte ceiling.
 # repo-check: allow-module-constant
@@ -55,13 +55,6 @@ class ReadGrant:
     download_url: str = field(repr=False)
     capability: str = field(repr=False)
     expires_at: datetime
-
-
-def require_job_ref(value):
-    require_type(value, str)
-
-    if re.fullmatch(r"job:[A-Za-z0-9_.-]{1,124}", value) is None:
-        raise ValueError("Job reference must be job: followed by 1 through 124 letters, digits, underscores, dots or hyphens")
 
 
 def require_upload_ref(value):

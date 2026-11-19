@@ -17,6 +17,7 @@ import reprlib
 from dataclasses import dataclass, field
 
 from provider_core.response_json import ResponseRejected, read_document
+from provider_core.validation.upstream.nmr.v1.job_refs import JOB_REF_PATTERN
 
 # The admitted input profile has this fixed protocol identity.
 # repo-check: allow-module-constant
@@ -52,7 +53,7 @@ class FeedInputFacts:
         if not (type(self.job_ref) is (expected_type := str)):
             raise JobInputRejected(f"{type(self.job_ref)=} ≠ {expected_type=}")
 
-        if not re.fullmatch((expected_pattern := r"job:[A-Za-z0-9_.-]{1,124}"), self.job_ref):
+        if not re.fullmatch((expected_pattern := JOB_REF_PATTERN), self.job_ref):
             raise JobInputRejected(f"{reprlib.repr(self.job_ref)=} should match {expected_pattern=}")
 
         if not (self.input_schema_id == INPUT_SCHEMA):

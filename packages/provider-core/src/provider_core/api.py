@@ -54,6 +54,7 @@ from provider_core.adapters.nmr.v1.upload_request import membership_route, read_
 from provider_core.validation.upstream.nmr.v1.hello import HELLO_RESPONSE_BYTES, read_hello
 from provider_core.validation.upstream.nmr.v1.job_feed import PAGE_RESPONSE_BYTES, read_jobs_page
 from provider_core.validation.upstream.nmr.v1.job_input import MAX_RESPONSE_BYTES, FeedInputFacts, JobInputRejected, verify_job_input
+from provider_core.validation.upstream.nmr.v1.job_refs import require_job_ref
 from provider_core.response_json import ResponseRejected
 from provider_core.adapters.nmr.v1.signing import signed_request
 from provider_core.transport import ExchangeFailed
@@ -77,7 +78,6 @@ from provider_core.validation.upstream.nmr.v1.upload_response import (
     MEMBERSHIP_RESPONSE_BYTES,
     read_grant,
     read_membership,
-    require_job_ref,
     require_upload_ref,
 )
 

@@ -21,7 +21,7 @@ from provider_core.validation.upstream.nmr.v1.attempt_response import ATTEMPT_RE
 from provider_core.validation.upstream.nmr.v1.paging import MAX_PAGE_ITEMS, require_cursor
 from provider_core.response_json import ResponseRejected, read_document
 from provider_core.validation.upstream.nmr.v1.timestamps import read_timestamp
-from provider_core.validation.upstream.nmr.v1.upload_response import require_job_ref
+from provider_core.validation.upstream.nmr.v1.job_refs import require_job_ref
 
 
 @dataclass(frozen=True, slots=True)

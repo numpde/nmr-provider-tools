@@ -26,7 +26,7 @@ from provider_core.attempt_record import TerminalOperation
 from provider_core.validation.upstream.nmr.v1.attempt_request import read_complete_body, read_fail_body, require_provider_ref
 from provider_core.validation.upstream.nmr.v1.attempt_response import require_attempt_ref
 from provider_core.validation.upstream.nmr.v1.signing import https_origin
-from provider_core.validation.upstream.nmr.v1.upload_response import require_job_ref
+from provider_core.validation.upstream.nmr.v1.job_refs import require_job_ref
 from provider_core.type_requirements import require_type
 
 

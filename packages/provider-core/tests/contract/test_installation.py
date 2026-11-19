@@ -172,6 +172,7 @@ class InstallationContractTests(unittest.TestCase):
                 "provider_core/validation/upstream/nmr/__init__.py",
                 "provider_core/validation/upstream/nmr/v1/__init__.py",
                 "provider_core/validation/upstream/nmr/v1/signing.py",
+                "provider_core/validation/upstream/nmr/v1/job_refs.py",
                 "provider_core/transport.py",
                 "provider_core/http_response.py",
                 "provider_core/tools.py",

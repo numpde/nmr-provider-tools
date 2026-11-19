@@ -31,7 +31,8 @@ from provider_core.transport import ExchangeFailed, temporary_io_failure
 from provider_core.response_json import ResponseRejected
 from provider_core.tools import require_positive_number
 from provider_core.validation.upstream.http import has_transfer_encoding
-from provider_core.validation.upstream.nmr.v1.upload_response import require_job_ref, require_read_grant, require_upload_ref
+from provider_core.validation.upstream.nmr.v1.job_refs import require_job_ref
+from provider_core.validation.upstream.nmr.v1.upload_response import require_read_grant, require_upload_ref
 
 
 from provider_core.upload_file import (
