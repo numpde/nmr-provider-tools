@@ -211,7 +211,7 @@ class CapturedSSLContext(ssl.SSLContext):
         self._chat_materials = (*self._chat_materials, *materials)
 
     def set_default_verify_paths(self):
-        if any(name in os.environ for name in ("SSL_CERT_FILE", "SSL_CERT_DIR", "SSLKEYLOGFILE")):
+        if any((name in os.environ) for name in ("SSL_CERT_FILE", "SSL_CERT_DIR", "SSLKEYLOGFILE")):
             raise _refuse("ambient TLS configuration is not an explicit trust grant")
 
         if os.name != "posix":
@@ -224,7 +224,7 @@ class CapturedSSLContext(ssl.SSLContext):
 
     # silent-defaults: allow-contract -- Server authentication is SSLContext's normal client-root purpose.
     def load_default_certs(self, purpose=ssl.Purpose.SERVER_AUTH):
-        if any(name in os.environ for name in ("SSL_CERT_FILE", "SSL_CERT_DIR", "SSLKEYLOGFILE")):
+        if any((name in os.environ) for name in ("SSL_CERT_FILE", "SSL_CERT_DIR", "SSLKEYLOGFILE")):
             raise _refuse("ambient TLS configuration is not an explicit trust grant")
 
         if os.name != "posix":
@@ -288,7 +288,7 @@ def new_https_trust(raw):
         context.set_ciphers(_cipher_expression(reference))
 
         if (
-            any(getattr(context, name) != getattr(reference, name) for name in _FIELDS) or
+            any((getattr(context, name) != getattr(reference, name)) for name in _FIELDS) or
             (context.get_ciphers() != reference.get_ciphers()) or
             (context.security_level != reference.security_level)
         ):
@@ -509,7 +509,7 @@ def restore_trust(snapshot, *, directory=None):
     context = _SSL_CONTEXT(ssl.PROTOCOL_TLS_CLIENT)
     owned_directory = None
 
-    if any(kind == "capath" for (kind, _certificate_bytes) in materials):
+    if any((kind == "capath") for (kind, _certificate_bytes) in materials):
         if directory is None:
             owned_directory = tempfile.TemporaryDirectory(prefix="provider-model-trust-")
             directory = owned_directory.name
@@ -539,7 +539,7 @@ def restore_trust(snapshot, *, directory=None):
 
     if (
         (_facts(context) != snapshot["facts"]) or
-        any(getattr(context, name) != settings[name] for name in _FIELDS)
+        any((getattr(context, name) != settings[name]) for name in _FIELDS)
     ):
         raise _refuse("the original TLS authority or cipher settings cannot be reproduced exactly")
 

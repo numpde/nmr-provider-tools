@@ -44,7 +44,7 @@ class RemoteExchangeError(Exception):
 # Only these reviewed native types retain existing availability classification.
 # repo-check: allow-module-constant
 _ERROR_TYPES = {
-    kind.__module__ + "." + kind.__qualname__: kind for kind in (
+    (kind.__module__ + "." + kind.__qualname__): kind for kind in (
         Exception,
         RuntimeError,
         ValueError,
@@ -398,7 +398,7 @@ def _read_failure(document):
 
     require_type(cleanup, list)
 
-    if (len(cleanup) > _ERROR_NODES) or any(index is None for index in cleanup):
+    if (len(cleanup) > _ERROR_NODES) or any((index is None) for index in cleanup):
         raise ValueError("Interpreter child cleanup obligations are malformed")
 
     return ExchangeFailed(

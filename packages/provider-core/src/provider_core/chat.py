@@ -68,7 +68,7 @@ class ChatEndpointSpec:
         actual_api_key = self.api_key
         require_type(actual_api_key, str)
 
-        if (not (self.api_key)) or (any(not 32 < ord(char) < 127 for char in self.api_key)):
+        if (not (self.api_key)) or (any((not 32 < ord(char) < 127) for char in self.api_key)):
             raise ValueError("Cannot configure interpreter endpoint: an explicit header-safe API key is required.")
 
         if self.reasoning_effort is not None:
@@ -86,7 +86,7 @@ class ChatEndpointSpec:
 
         require_type(self.url, str)
 
-        if any(not 32 < ord(char) < 127 for char in self.url):
+        if any((not 32 < ord(char) < 127) for char in self.url):
             raise ValueError("Cannot configure interpreter endpoint: URL must be canonical ASCII HTTPS text.")
 
         try:

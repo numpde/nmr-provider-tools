@@ -389,7 +389,7 @@ class SupervisedChatTransport:
             else:
                 cause = exchange.cleanup_task.exception()
 
-                if (cause is not None) and (not any(cause is failure for failure in exchange.cleanup_failures)):
+                if (cause is not None) and (not any((cause is failure) for failure in exchange.cleanup_failures)):
                     self._fail(exchange, cause, "Cannot retire interpreter HTTP child: original cleanup failed")
                     exchange.cleanup_failures.append(cause)
 

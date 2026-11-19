@@ -56,7 +56,7 @@ class DeliveryNotices:
         # writes. Serialization/output failure affects diagnostics, never the
         # API receipt, queue transaction or another publication decision.
         try:
-            document = {name: self.redact(value) if type(value) is str else value for (name, value) in facts.items()}
+            document = {name: (self.redact(value) if type(value) is str else value) for (name, value) in facts.items()}
 
             if failure is not None:
                 document["failure"] = failure_evidence(failure, secrets=self.secrets)

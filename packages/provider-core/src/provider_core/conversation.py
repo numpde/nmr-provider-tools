@@ -183,7 +183,7 @@ class ToolConversation:
         for secret in secrets:
             require_type(secret, str)
 
-        if any(not secret for secret in secrets):
+        if any((not secret) for secret in secrets):
             raise ValueError("Cannot configure interpretation: known secrets must be an explicit tuple of nonempty strings.")
 
         if text_correction is not None:
@@ -257,7 +257,7 @@ class ToolConversation:
 
     def _require_no_secrets(self, value):
         if type(value) is str:
-            if any(secret in value for secret in self._secrets):
+            if any((secret in value) for secret in self._secrets):
                 raise ConversationFailed("Cannot continue interpretation: its outgoing context contains a configured credential.")
         elif type(value) is dict:
             for (key, item) in value.items():
@@ -424,7 +424,7 @@ class ToolConversation:
         # Identity comes from the trusted adapter, not model response fields.
         identity = json.loads(endpoint.identity)
 
-        identity = {key: self.redact(value) if type(value) is str else value for (key, value) in identity.items()}
+        identity = {key: (self.redact(value) if type(value) is str else value) for (key, value) in identity.items()}
 
         self._routes.append({"endpoint": identity, "turns_started": 0})
 

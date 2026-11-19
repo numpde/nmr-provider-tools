@@ -280,7 +280,7 @@ class Interpreter:
         for secret in secrets:
             require_instance(secret, str)
 
-        if any(not secret for secret in secrets):
+        if any((not secret) for secret in secrets):
             raise ValueError("Cannot configure interpretation: provide known credentials as an explicit tuple of nonempty strings.")
 
         self._factories = endpoint_factories
@@ -507,7 +507,7 @@ def _encode(value: object) -> bytes:
 
 def _no_secrets(value: object, secrets: tuple[str, ...]) -> None:
     if isinstance(value, str):
-        if any(secret in value for secret in secrets):
+        if any((secret in value) for secret in secrets):
             raise ConversationFailed("Cannot continue interpretation: captured context contains a configured credential.")
     elif isinstance(value, dict):
         for (key, item) in value.items():

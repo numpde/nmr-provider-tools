@@ -59,7 +59,7 @@ def without_echoes(text: str, echoes: tuple[str, ...]) -> str:
     parts.append(text[end:])
 
     # silent-defaults: allow-contract -- Normalize nonprinting characters while preserving the readable redacted structure.
-    return " ".join("".join(char if char.isprintable() else " " for char in "".join(parts)).split())
+    return " ".join("".join((char if char.isprintable() else " ") for char in "".join(parts)).split())
 
 
 class CredentialRedactingFormatter(logging.Formatter):

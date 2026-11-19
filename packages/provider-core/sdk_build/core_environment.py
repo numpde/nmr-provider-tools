@@ -189,7 +189,7 @@ def _build_candidate(source, runtime_lock, build_lock, pool, output, lock_fd):
             (set(output.iterdir()) != {wheel, sdist}) or
             any(
                 (
-                    (not distribution.is_file()) or (distribution.is_symlink())
+                    ((not distribution.is_file()) or (distribution.is_symlink()))
                     for distribution in (wheel, sdist)
                 ),
             )
@@ -491,7 +491,7 @@ def main():
 
         install_environment(args.root, args.lock, args.pool, expected_inputs)
     else:
-        if any(argument is None for argument in (args.source, args.runtime_lock, args.build_lock, args.output, args.revision)):
+        if any((argument is None) for argument in (args.source, args.runtime_lock, args.build_lock, args.output, args.revision)):
             parser.error("release requires --source, --runtime-lock, --build-lock, --output and --revision")
 
         release(args.source, args.runtime_lock, args.build_lock, args.pool, args.output, args.revision)

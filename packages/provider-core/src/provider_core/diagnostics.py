@@ -123,7 +123,7 @@ def failure_evidence(error, *, secrets, describe_owner=describe_core_failure, ow
             evidence["omitted_frame_count"] = count - len(frames)
 
         evidence.update(
-            {name: text(value, 1024) if type(value) is str else value for (name, value) in describe_owner(current, text, diagnostic_window).items()}
+            {name: (text(value, 1024) if type(value) is str else value) for (name, value) in describe_owner(current, text, diagnostic_window).items()}
         )
 
         if isinstance(current, OSError) and (type(current.errno) is int):
