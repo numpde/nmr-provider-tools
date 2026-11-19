@@ -143,9 +143,11 @@ class _Worker:
             analysis = self.analyses.get(analysis_id)
 
             if analysis is None:
+                # The embedded host's named form preserves the incoming
+                # analysis ID; its allocation-handle form generates a new ID.
                 analysis = self.host.open_analysis(
                     analysis_id=analysis_id,
-                    allocations=frozenset({self.hosted.allocation}),
+                    allocation_names=(self.hosted.allocation.allocation,),
                 )
                 self.analyses[analysis_id] = analysis
 
