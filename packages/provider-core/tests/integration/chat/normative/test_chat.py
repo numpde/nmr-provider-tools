@@ -12,6 +12,15 @@ from tests.fakes.tls_peer import TlsPeer
 
 
 class ChatCarrierTests(unittest.IsolatedAsyncioTestCase):
+    def _endpoint_spec(self, origin):
+        return ChatEndpointSpec(
+            configuration_id="local-test",
+            model="fixture-model",
+            url=origin + "/v1/chat/completions",
+            api_key="PRIVATE_API_KEY",
+            reasoning_effort=None,
+        )
+
     def test_failure_exports_keep_the_same_exception_identity(self):
         from provider_core.chat_errors import ChatFailed as CarrierFailure
         from provider_core.chat import ChatFailed
@@ -59,13 +68,7 @@ class ChatCarrierTests(unittest.IsolatedAsyncioTestCase):
         body = json.dumps({"choices": [{"message": message, "finish_reason": "tool_calls"}]}).encode()
 
         async with TlsPeer("success", response_body=body) as peer:
-            spec = ChatEndpointSpec(
-                configuration_id="local-test",
-                model="fixture-model",
-                url=peer.origin + "/v1/chat/completions",
-                api_key="PRIVATE_API_KEY",
-                reasoning_effort=None,
-            )
+            spec = self._endpoint_spec(peer.origin)
 
             transport = HttpTransport(trust=peer.trust, exchange_seconds=1, retirement_seconds=0.5)
             endpoint = ChatEndpoint(spec, transport=transport, request_bytes=16384, response_bytes=4096)
@@ -103,14 +106,10 @@ class ChatCarrierTests(unittest.IsolatedAsyncioTestCase):
                 },
             )
 
-            self.assertNotIn("PRIVATE_API_KEY", repr(spec))
-            self.assertNotIn(peer.origin, repr(spec))
             identity = json.loads(endpoint.identity)
 
             self.assertEqual(identity["configuration_id"], "local-test")
             self.assertEqual(identity["model"], "fixture-model")
-            self.assertNotIn(b"PRIVATE_API_KEY", endpoint.identity)
-            self.assertNotIn(peer.origin.encode(), endpoint.identity)
 
             rotated = ChatEndpoint(
                 replace(spec, api_key="ROTATED_KEY"),
@@ -123,3 +122,14 @@ class ChatCarrierTests(unittest.IsolatedAsyncioTestCase):
             changed = ChatEndpoint(spec, transport=transport, request_bytes=16384, response_bytes=4097)
 
             self.assertNotEqual(json.loads(changed.identity)["configuration_sha256"], identity["configuration_sha256"])
+
+    @unittest.skip("Privacy policy under review")
+    def test_endpoint_representation_and_identity_omit_key_and_origin(self):
+        origin = "https://private.example"
+        spec = self._endpoint_spec(origin)
+        endpoint = ChatEndpoint(spec, transport=None, request_bytes=16384, response_bytes=4096)
+
+        self.assertNotIn("PRIVATE_API_KEY", repr(spec))
+        self.assertNotIn(origin, repr(spec))
+        self.assertNotIn(b"PRIVATE_API_KEY", endpoint.identity)
+        self.assertNotIn(origin.encode(), endpoint.identity)

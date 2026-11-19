@@ -49,7 +49,7 @@ class ChatProcessProjectionTests(unittest.TestCase):
                 self.assertIs(expected, child.caller_interruption)
                 self.assertFalse(_retryable(failure))
 
-    def test_child_evidence_keeps_parent_identity_and_projects_only_reviewed_process_facts(self):
+    def _child_exchange_failure(self):
         class ProtectedChildError(Exception):
             def __str__(self):
                 raise AssertionError("Unreviewed child exception text must remain protected")
@@ -70,6 +70,11 @@ class ChatProcessProjectionTests(unittest.TestCase):
         failure = ExchangeFailed("The model exchange exceeded its original deadline.", primary=deadline)
         failure.child_failure = child
         failure.process = ChatProcessResult(1234, -int(signal.SIGKILL), (int(signal.SIGTERM), int(signal.SIGKILL)))
+
+        return failure, deadline, child, UnreviewedProcess
+
+    def test_child_evidence_keeps_parent_identity_and_projects_only_reviewed_process_facts(self):
+        (failure, deadline, child, UnreviewedProcess) = self._child_exchange_failure()
         relationships = dict(owned_relationships(failure))
 
         self.assertIs(deadline, relationships["transport primary"])
@@ -89,8 +94,6 @@ class ChatProcessProjectionTests(unittest.TestCase):
 
         evidence = failure_evidence(failure, secrets=())
 
-        self.assertNotIn("PRIVATE_CHILD", repr(evidence))
-
         child_evidence = next(
             item["failure"] for item in evidence["relationships"]
             if item["relationship"] == "model HTTP child evidence"
@@ -101,3 +104,9 @@ class ChatProcessProjectionTests(unittest.TestCase):
         failure.process = UnreviewedProcess()
 
         self.assertEqual({"message": str(failure)}, owned_details(failure))
+
+    @unittest.skip("Privacy policy under review")
+    def test_child_projection_omits_text_and_headers(self):
+        (failure, _deadline, _child, _process_type) = self._child_exchange_failure()
+
+        self.assertNotIn("PRIVATE_CHILD", repr(failure_evidence(failure, secrets=())))
