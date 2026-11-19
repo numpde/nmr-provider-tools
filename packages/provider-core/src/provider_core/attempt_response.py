@@ -69,30 +69,38 @@ def require_attempt_ref(value):
 
 
 def read_attempt(raw, *, execution_attempt_ref, job_ref):
-    document = read_document(raw, ATTEMPT_RESPONSE_BYTES)
+    attempt_response = read_document(raw, ATTEMPT_RESPONSE_BYTES)
 
-    if not (type(document) is (expected_type := dict)):
-        raise ResponseRejected(f"{type(document)=} ≠ {expected_type=}")
+    if not (type(attempt_response) is (expected_type := dict)):
+        raise ResponseRejected(f"{type(attempt_response)=} ≠ {expected_type=}")
 
-    if set(document) != {"schema_id", "execution_attempt_ref", "job_ref", "state", "job_state"}:
-        raise ResponseRejected("Response fields do not match the supported Execution Attempt read schema")
+    response_fields = set(attempt_response)
+    expected_fields = {"schema_id", "execution_attempt_ref", "job_ref", "state", "job_state"}
 
-    if document["schema_id"] != "nmr.provider.execution_attempt_read_response.v1":
-        raise ResponseRejected("Response schema does not match the Execution Attempt read contract")
+    if not (response_fields == expected_fields):
+        raise ResponseRejected(f"{response_fields=} should match {expected_fields=}")
 
-    if document["execution_attempt_ref"] != execution_attempt_ref or document["job_ref"] != job_ref:
-        raise ResponseRejected("Execution Attempt or Job identity differs from the request")
+    expected_schema_id = "nmr.provider.execution_attempt_read_response.v1"
 
-    if not (document["state"] in ("in_progress", "succeeded", "failed", "expired")):
-        raise ResponseRejected("Execution Attempt state must be in_progress, succeeded, failed or expired")
+    if not ((response_schema_id := attempt_response["schema_id"]) == expected_schema_id):
+        raise ResponseRejected(f"{response_schema_id=} should match {expected_schema_id=}")
 
-    if not (type((document_job_state := document["job_state"])) is (expected_type := str)):
-        raise ResponseRejected(f"{type(document_job_state)=} ≠ {expected_type=}")
+    if not ((observed_execution_attempt_ref := attempt_response["execution_attempt_ref"]) == execution_attempt_ref):
+        raise ResponseRejected(f"{observed_execution_attempt_ref=} should match {execution_attempt_ref=}")
 
-    if not (document["job_state"] in JOB_STATES):
-        raise ResponseRejected("Job state must be open, closed or cancelled")
+    if not ((observed_job_ref := attempt_response["job_ref"]) == job_ref):
+        raise ResponseRejected(f"{observed_job_ref=} should match {job_ref=}")
 
-    return AttemptObservation(execution_attempt_ref, job_ref, document["state"], document["job_state"])
+    if not ((observed_attempt_state := attempt_response["state"]) in ("in_progress", "succeeded", "failed", "expired")):
+        raise ResponseRejected(f"{observed_attempt_state=} should be 'in_progress', 'succeeded', 'failed' or 'expired'")
+
+    if not (type((observed_job_state := attempt_response["job_state"])) is (expected_type := str)):
+        raise ResponseRejected(f"{type(observed_job_state)=} ≠ {expected_type=}")
+
+    if not (observed_job_state in JOB_STATES):
+        raise ResponseRejected(f"{observed_job_state=} should be one of {JOB_STATES=}")
+
+    return AttemptObservation(execution_attempt_ref, job_ref, observed_attempt_state, observed_job_state)
 
 
 def read_start(raw, *, job_ref, analysis_kind_ref, provider_ref):
@@ -102,12 +110,15 @@ def read_start(raw, *, job_ref, analysis_kind_ref, provider_ref):
     execution_attempt_start_response.v1.schema.json. Provider identity is checked
     against composition's expectation, never inferred from a credential key name.
     """
-    document = read_document(raw, ATTEMPT_RESPONSE_BYTES)
 
-    if not (type(document) is (expected_document_type := dict)):
-        raise ResponseRejected(f"{type(document)=} ≠ {expected_document_type=}")
+    start_response = read_document(raw, ATTEMPT_RESPONSE_BYTES)
 
-    if set(document) != {
+    if not (type(start_response) is (expected_type := dict)):
+        raise ResponseRejected(f"{type(start_response)=} ≠ {expected_type=}")
+
+    response_fields = set(start_response)
+
+    expected_fields = {
         "schema_id",
         "execution_attempt_ref",
         "job_ref",
@@ -116,40 +127,46 @@ def read_start(raw, *, job_ref, analysis_kind_ref, provider_ref):
         "state",
         "started_at",
         "replayed",
-    }:
-        raise ResponseRejected("Response fields do not match the supported Execution Attempt start schema")
+    }
 
-    if document["schema_id"] != "nmr.provider.execution_attempt_start_response.v1":
-        raise ResponseRejected("Response schema does not match the Execution Attempt start contract")
+    if not (response_fields == expected_fields):
+        raise ResponseRejected(f"{response_fields=} should match {expected_fields=}")
 
-    if (document["job_ref"], document["analysis_kind_ref"], document["provider_ref"]) != (
-        job_ref,
-        analysis_kind_ref,
-        provider_ref,
-    ):
-        raise ResponseRejected("Started Attempt Job, analysis kind or provider identity differs from the expected start")
+    expected_schema_id = "nmr.provider.execution_attempt_start_response.v1"
+
+    if not ((response_schema_id := start_response["schema_id"]) == expected_schema_id):
+        raise ResponseRejected(f"{response_schema_id=} should match {expected_schema_id=}")
+
+    if not ((admitted_job_ref := start_response["job_ref"]) == job_ref):
+        raise ResponseRejected(f"{admitted_job_ref=} should match {job_ref=}")
+
+    if not ((admitted_analysis_kind_ref := start_response["analysis_kind_ref"]) == analysis_kind_ref):
+        raise ResponseRejected(f"{admitted_analysis_kind_ref=} should match {analysis_kind_ref=}")
+
+    if not ((admitted_provider_ref := start_response["provider_ref"]) == provider_ref):
+        raise ResponseRejected(f"{admitted_provider_ref=} should match {provider_ref=}")
 
     try:
-        require_attempt_ref(document["execution_attempt_ref"])
+        require_attempt_ref(start_response["execution_attempt_ref"])
     except (TypeError, ValueError) as cause:
         raise ResponseRejected(str(cause)) from None
 
-    if not (document["state"] in ("in_progress", "succeeded", "failed", "expired")):
-        raise ResponseRejected("Execution Attempt state must be in_progress, succeeded, failed or expired")
+    if not ((admitted_attempt_state := start_response["state"]) in ("in_progress", "succeeded", "failed", "expired")):
+        raise ResponseRejected(f"{admitted_attempt_state=} should be 'in_progress', 'succeeded', 'failed' or 'expired'")
 
-    if not (type((document_replayed := document["replayed"])) is (expected_type := bool)):
-        raise ResponseRejected(f"{type(document_replayed)=} ≠ {expected_type=}")
+    if not (type((start_replayed := start_response["replayed"])) is (expected_type := bool)):
+        raise ResponseRejected(f"{type(start_replayed)=} ≠ {expected_type=}")
 
-    timestamp = read_timestamp(document["started_at"])
+    timestamp = read_timestamp(start_response["started_at"])
 
     return AttemptAdmission(
-        document["execution_attempt_ref"],
+        start_response["execution_attempt_ref"],
         job_ref,
         analysis_kind_ref,
         provider_ref,
-        document["state"],
+        admitted_attempt_state,
         timestamp,
-        document["replayed"],
+        start_replayed,
     )
 
 
@@ -160,31 +177,40 @@ def read_progress(raw, *, execution_attempt_ref, phase, condition_code):
     Repeating stored facts may succeed after terminalization; updated_at remains
     their original observation time, not proof of continuing work or availability.
     """
-    document = read_document(raw, ATTEMPT_RESPONSE_BYTES)
 
-    if not (type(document) is (expected_type := dict)):
-        raise ResponseRejected(f"{type(document)=} ≠ {expected_type=}")
+    progress_response = read_document(raw, ATTEMPT_RESPONSE_BYTES)
 
-    if set(document) != {
+    if not (type(progress_response) is (expected_type := dict)):
+        raise ResponseRejected(f"{type(progress_response)=} ≠ {expected_type=}")
+
+    response_fields = set(progress_response)
+
+    expected_fields = {
         "schema_id",
         "execution_attempt_ref",
         "phase",
         "condition_code",
         "updated_at",
-    }:
-        raise ResponseRejected("Response fields do not match the supported Execution Attempt progress schema")
+    }
 
-    if document["schema_id"] != "nmr.provider.execution_attempt_progress_response.v1":
-        raise ResponseRejected("Response schema does not match the Execution Attempt progress contract")
+    if not (response_fields == expected_fields):
+        raise ResponseRejected(f"{response_fields=} should match {expected_fields=}")
 
-    if (document["execution_attempt_ref"], document["phase"], document["condition_code"]) != (
-        execution_attempt_ref,
-        phase,
-        condition_code,
-    ):
-        raise ResponseRejected("Acknowledged Attempt, phase or condition differs from the submitted progress observation")
+    expected_schema_id = "nmr.provider.execution_attempt_progress_response.v1"
 
-    return AttemptProgress(execution_attempt_ref, phase, condition_code, read_timestamp(document["updated_at"]))
+    if not ((response_schema_id := progress_response["schema_id"]) == expected_schema_id):
+        raise ResponseRejected(f"{response_schema_id=} should match {expected_schema_id=}")
+
+    if not ((acknowledged_execution_attempt_ref := progress_response["execution_attempt_ref"]) == execution_attempt_ref):
+        raise ResponseRejected(f"{acknowledged_execution_attempt_ref=} should match {execution_attempt_ref=}")
+
+    if not ((acknowledged_phase := progress_response["phase"]) == phase):
+        raise ResponseRejected(f"{acknowledged_phase=} should match {phase=}")
+
+    if not ((acknowledged_condition_code := progress_response["condition_code"]) == condition_code):
+        raise ResponseRejected(f"acknowledged_condition_code should match {condition_code=}")
+
+    return AttemptProgress(execution_attempt_ref, phase, condition_code, read_timestamp(progress_response["updated_at"]))
 
 
 @dataclass(frozen=True, slots=True)
@@ -213,47 +239,55 @@ class AttemptFailure:
 
 def _outcome_response(raw, operation, execution_attempt_ref, fields):
     # Authority: pinned provider/schemas/execution_attempt_{complete,fail}_response.v1.schema.json.
-    document = read_document(raw, ATTEMPT_RESPONSE_BYTES)
+    outcome_response = read_document(raw, ATTEMPT_RESPONSE_BYTES)
 
-    if not (type(document) is (expected_document_type := dict)):
-        raise ResponseRejected(f"{type(document)=} ≠ {expected_document_type=}")
+    if not (type(outcome_response) is (expected_type := dict)):
+        raise ResponseRejected(f"{type(outcome_response)=} ≠ {expected_type=}")
 
-    if set(document) != {"schema_id", "execution_attempt_ref", "committed_at", "replayed", *fields}:
-        raise ResponseRejected("Response fields do not match the supported Attempt outcome schema")
+    response_fields = set(outcome_response)
+    expected_fields = {"schema_id", "execution_attempt_ref", "committed_at", "replayed", *fields}
 
-    if (
-        (document["schema_id"] != f"nmr.provider.execution_attempt_{operation}_response.v1") or
-        (document["execution_attempt_ref"] != execution_attempt_ref)
-    ):
-        raise ResponseRejected("Outcome response schema or Attempt identity differs from the publication")
+    if not (response_fields == expected_fields):
+        raise ResponseRejected(f"{response_fields=} should match {expected_fields=}")
 
-    if not (type((document_replayed := document["replayed"])) is (expected_type := bool)):
-        raise ResponseRejected(f"{type(document_replayed)=} ≠ {expected_type=}")
+    expected_schema_id = f"nmr.provider.execution_attempt_{operation}_response.v1"
 
-    return document
+    if not ((response_schema_id := outcome_response["schema_id"]) == expected_schema_id):
+        raise ResponseRejected(f"{response_schema_id=} should match {expected_schema_id=}")
+
+    if not ((acknowledged_execution_attempt_ref := outcome_response["execution_attempt_ref"]) == execution_attempt_ref):
+        raise ResponseRejected(f"{acknowledged_execution_attempt_ref=} should match {execution_attempt_ref=}")
+
+    if not (type((outcome_replayed := outcome_response["replayed"])) is (expected_type := bool)):
+        raise ResponseRejected(f"{type(outcome_replayed)=} ≠ {expected_type=}")
+
+    return outcome_response
 
 
 def read_complete(raw, *, execution_attempt_ref, result_schema_id, result):
-    document = _outcome_response(
+    completion_response = _outcome_response(
         raw,
         "complete",
         execution_attempt_ref,
         ("analysis_result_ref", "result_schema_id", "result_fingerprint", "result_byte_length"),
     )
 
-    fingerprint = "sha256:" + sha256(result).hexdigest()
+    result_fingerprint = "sha256:" + sha256(result).hexdigest()
+    submitted_result_byte_length = len(result)
 
-    if (document["result_schema_id"], document["result_fingerprint"], document["result_byte_length"]) != (
-        result_schema_id,
-        fingerprint,
-        len(result),
-    ):
-        raise ResponseRejected("Completion acknowledgement does not match the retained result schema, SHA-256 or byte length")
+    if not (completion_response["result_schema_id"] == result_schema_id):
+        raise ResponseRejected("Completion response result_schema_id should match the retained result schema")
 
-    if not (type((document_result_byte_length := document["result_byte_length"])) is (expected_type := int)):
-        raise ResponseRejected(f"{type(document_result_byte_length)=} ≠ {expected_type=}")
+    if not ((acknowledged_result_fingerprint := completion_response["result_fingerprint"]) == result_fingerprint):
+        raise ResponseRejected(f"{acknowledged_result_fingerprint=} should match {result_fingerprint=}")
 
-    result_ref = document["analysis_result_ref"]
+    if not (type((acknowledged_result_byte_length := completion_response["result_byte_length"])) is (expected_type := int)):
+        raise ResponseRejected(f"{type(acknowledged_result_byte_length)=} ≠ {expected_type=}")
+
+    if not (acknowledged_result_byte_length == submitted_result_byte_length):
+        raise ResponseRejected(f"{acknowledged_result_byte_length=} should match {submitted_result_byte_length=}")
+
+    result_ref = completion_response["analysis_result_ref"]
 
     if not (type(result_ref) is (expected_type := str)):
         raise ResponseRejected(f"{type(result_ref)=} ≠ {expected_type=}")
@@ -265,23 +299,26 @@ def read_complete(raw, *, execution_attempt_ref, result_schema_id, result):
         execution_attempt_ref,
         result_ref,
         result_schema_id,
-        fingerprint,
-        len(result),
-        read_timestamp(document["committed_at"]),
-        document["replayed"],
+        result_fingerprint,
+        submitted_result_byte_length,
+        read_timestamp(completion_response["committed_at"]),
+        completion_response["replayed"],
     )
 
 
 def read_fail(raw, *, execution_attempt_ref, failure_code, failure_message):
-    document = _outcome_response(raw, "fail", execution_attempt_ref, ("failure_code", "failure_message"))
+    failure_response = _outcome_response(raw, "fail", execution_attempt_ref, ("failure_code", "failure_message"))
 
-    if (document["failure_code"], document["failure_message"]) != (failure_code, failure_message):
-        raise ResponseRejected("Failure acknowledgement does not match the retained failure code and message")
+    if not (failure_response["failure_code"] == failure_code):
+        raise ResponseRejected("Failure response failure_code should match the retained failure code")
+
+    if not (failure_response["failure_message"] == failure_message):
+        raise ResponseRejected("Failure response failure_message should match the published explanation")
 
     return AttemptFailure(
         execution_attempt_ref,
         failure_code,
         failure_message,
-        read_timestamp(document["committed_at"]),
-        document["replayed"]
+        read_timestamp(failure_response["committed_at"]),
+        failure_response["replayed"]
     )

@@ -52,19 +52,27 @@ def require_start_body(body, *, job_ref):
     """Check retained content; never replace it with a newly serialized document."""
 
     try:
-        document = read_document(body, 4096)
+        start_request = read_document(body, 4096)
     except ResponseRejected as cause:
         raise ValueError(f"Cannot start Execution Attempt: retained request is invalid: {cause}") from None
 
-    require_type(document, dict)
+    require_type(start_request, dict)
 
-    if set(document) != {"schema_id", "job_ref", "provider_attempt_key"}:
-        raise ValueError("Cannot start Execution Attempt: retained request fields do not match the start schema")
+    start_request_fields = set(start_request)
+    expected_fields = {"schema_id", "job_ref", "provider_attempt_key"}
 
-    if document["schema_id"] != "nmr.provider.execution_attempt_start_request.v1" or document["job_ref"] != job_ref:
-        raise ValueError("Cannot start Execution Attempt: retained request schema or Job differs from the expected start")
+    if not (start_request_fields == expected_fields):
+        raise ValueError(f"{start_request_fields=} should match {expected_fields=}")
 
-    require_provider_attempt_key(document["provider_attempt_key"])
+    expected_schema_id = "nmr.provider.execution_attempt_start_request.v1"
+
+    if not ((retained_schema_id := start_request["schema_id"]) == expected_schema_id):
+        raise ValueError(f"{retained_schema_id=} should match {expected_schema_id=}")
+
+    if not ((retained_job_ref := start_request["job_ref"]) == job_ref):
+        raise ValueError(f"{retained_job_ref=} should match {job_ref=}")
+
+    require_provider_attempt_key(start_request["provider_attempt_key"])
 
 
 def require_analysis_kind(value):
@@ -83,17 +91,19 @@ def progress_body(phase, condition_code):
     """
 
     if not (phase in ("preparing", "running")):
-        raise ValueError("Cannot report Attempt progress: phase must be preparing or running")
+        raise ValueError(f"{phase=} should be 'preparing' or 'running'")
 
     if condition_code is not None:
         if not (type(condition_code) is (expected_type := str)):
-            raise TypeError(f"Cannot report Attempt progress: {type(condition_code)=} ≠ {expected_type=}")
+            raise TypeError(f"{type(condition_code)=} ≠ {expected_type=}")
 
-        if not (len(condition_code) <= 128):
-            raise ValueError("Cannot report Attempt progress: condition code must be null or a lower snake-case public code of at most 128 characters")
+        condition_code_length = len(condition_code)
+
+        if not (condition_code_length <= 128):
+            raise ValueError(f"{condition_code_length=} should be at most 128")
 
         if re.fullmatch(r"[a-z][a-z0-9]*(?:_[a-z0-9]+)*", condition_code) is None:
-            raise ValueError("Cannot report Attempt progress: condition code must be null or a lower snake-case public code of at most 128 characters")
+            raise ValueError(f"{condition_code=} should be lowercase ASCII words separated by underscores, with digits allowed after the first letter")
 
     return (
         json
@@ -188,28 +198,33 @@ def fail_body(execution_attempt_ref, failure_code, failure_message):
 
 def _outcome_document(body, operation, limit, execution_attempt_ref, fields):
     try:
-        document = read_document(body, limit)
+        outcome_request = read_document(body, limit)
     except ResponseRejected as cause:
         raise ValueError(f"Cannot publish Attempt outcome: retained request is invalid: {cause}") from None
 
-    require_type(document, dict)
+    require_type(outcome_request, dict)
 
-    if set(document) != {"schema_id", "execution_attempt_ref", *fields}:
-        raise ValueError("Cannot publish Attempt outcome: retained fields do not match the terminal request schema")
+    outcome_request_fields = set(outcome_request)
+    expected_fields = {"schema_id", "execution_attempt_ref", *fields}
 
-    if (
-        (document["schema_id"] != f"nmr.provider.execution_attempt_{operation}_request.v1") or
-        (document["execution_attempt_ref"] != execution_attempt_ref)
-    ):
-        raise ValueError("Cannot publish Attempt outcome: retained schema or Attempt differs from the intended publication")
+    if not (outcome_request_fields == expected_fields):
+        raise ValueError(f"{outcome_request_fields=} should match {expected_fields=}")
 
-    return document
+    expected_schema_id = f"nmr.provider.execution_attempt_{operation}_request.v1"
+
+    if not ((retained_schema_id := outcome_request["schema_id"]) == expected_schema_id):
+        raise ValueError(f"{retained_schema_id=} should match {expected_schema_id=}")
+
+    if not ((retained_execution_attempt_ref := outcome_request["execution_attempt_ref"]) == execution_attempt_ref):
+        raise ValueError(f"{retained_execution_attempt_ref=} should match {execution_attempt_ref=}")
+
+    return outcome_request
 
 
 def read_complete_body(body, *, execution_attempt_ref):
     """Validate retained completion without changing the bytes to be sent."""
 
-    document = _outcome_document(
+    completion_request = _outcome_document(
         body,
         "complete",
         2097152,
@@ -217,8 +232,8 @@ def read_complete_body(body, *, execution_attempt_ref):
         ("result_schema_id", "canonical_result_base64")
     )
 
-    _scalar_text(document["result_schema_id"], "result schema identity")
-    encoded = document["canonical_result_base64"]
+    _scalar_text(completion_request["result_schema_id"], "result schema identity")
+    encoded = completion_request["canonical_result_base64"]
 
     require_type(encoded, str)
 
@@ -233,14 +248,14 @@ def read_complete_body(body, *, execution_attempt_ref):
     if (b64encode(result).decode("ascii") != encoded) or (not (1 <= len(result) <= 786432)):
         raise ValueError("Cannot publish Attempt result: base64 must be canonical and encode 1 through 786432 bytes")
 
-    return (document["result_schema_id"], result)
+    return (completion_request["result_schema_id"], result)
 
 
 def read_fail_body(body, *, execution_attempt_ref):
     """Admit exact public failure facts; do not normalize their text."""
-    document = _outcome_document(body, "fail", 16384, execution_attempt_ref, ("failure_code", "failure_message"))
+    failure_request = _outcome_document(body, "fail", 16384, execution_attempt_ref, ("failure_code", "failure_message"))
 
-    _failure_code(document["failure_code"])
-    _scalar_text(document["failure_message"], "failure message")
+    _failure_code(failure_request["failure_code"])
+    _scalar_text(failure_request["failure_message"], "failure message")
 
-    return (document["failure_code"], document["failure_message"])
+    return (failure_request["failure_code"], failure_request["failure_message"])
