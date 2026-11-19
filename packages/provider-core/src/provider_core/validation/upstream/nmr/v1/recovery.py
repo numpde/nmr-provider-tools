@@ -85,3 +85,9 @@ def read_grant_not_finalized(status: int | None, problem_code: str | None) -> bo
     """Recognize the grant conflict that permits a later fresh issuance attempt."""
 
     return (status == 409) and (problem_code == "upload_read_not_finalized")
+
+
+def terminal_publication_conflict(status: int | None, problem_code: str | None) -> bool:
+    """Recognize a reviewed conflict without deciding the retained row's disposition."""
+
+    return (status == 409) and (problem_code is not None)

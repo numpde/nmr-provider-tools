@@ -21,6 +21,8 @@ from provider_core.api_errors import ApiFailure
 from provider_core.attempt_record import TerminalOperation
 from provider_core.response_json import ResponseRejected
 from provider_core.tools import require_positive_number
+from provider_core.validation.upstream.nmr.v1.recovery import terminal_publication_conflict
+from provider_core.validation.upstream.nmr.v1.response_envelope import is_api_success
 
 if TYPE_CHECKING:
     from provider_core.delivery_client import DeliveryEndpoint
@@ -242,8 +244,8 @@ class DeliveryWorker:
                     # to this row. Trust, routing, topology and unknown refusals
                     # pause the binding, rather than holding every pending item.
                     item_refusal = (
-                        ((failure.status == 409) and (failure.problem_code is not None)) or
-                        (failure.status == 200 and type(failure.cause) is ResponseRejected)
+                        terminal_publication_conflict(failure.status, failure.problem_code) or
+                        (is_api_success(failure.status) and type(failure.cause) is ResponseRejected)
                     )
 
                     if not item_refusal:

@@ -140,7 +140,7 @@ def read_problem(response):
     return (problem["code"], reason)
 
 
-def is_api_success(status: int) -> bool:
+def is_api_success(status: int | None) -> bool:
     """Recognize the selected Provider API's successful response status."""
 
     return status == 200

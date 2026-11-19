@@ -1,7 +1,7 @@
 Separate external API rules from operational code
 ================================================
 
-2026-11-19 — proposed separation; implementation remains pending
+2026-11-19 — inventory and staged separation; checklist records verified progress
 
 Keep code that depends on an external API's rules in clearly owned areas. An API
 change should lead maintainers to its validators and adapters, rather than
@@ -50,8 +50,8 @@ Migration checklist — inventoried 2026-11-19
     [x] Group signing tests under their adapter owner
     [x] Group other encoder tests under their adapter owners
 
-The checked item records completed inventory work only. Check off an extraction
-after its callers, affected build closures and focused verification are complete.
+Check off an extraction after its callers, affected build closures and focused
+verification are complete.
 Keep the ownership and behavior constraints below throughout the work.
 
 Test separation, 2026-11-19: Job-input and credential parser cases now live in
@@ -454,23 +454,39 @@ NMR rules currently reached through operational code
   test_starting.py and integration test_execution.py passed on science with
   PRIVACY_TESTS=0 (38 tests). Independent audit confirmed all original conditions
   and state/effect ordering; no duplicate admission checks were added.
-- [ ] Separate delivery's API material and reply meanings from queue decisions
+- [x] Separate delivery's API material and reply meanings from queue decisions
   core/delivery_store.py:74-102: DeliveryOutcome borrows provider/Attempt reference
   checks and retained outcome readers. SQLite schema, queue limits and local
   acceptance receipts are SDK-owned. core/delivery_worker.py:215-244 selects API
   publication and interprets a verified 409 for holding a record; split upstream
   reply meaning from the local hold/remove/retry decision.
-- [ ] Update delivery IPC's embedded API data to use the upstream owner
+  Completed 2026-11-19: DeliveryOutcome uses upstream identity/body validators.
+  The worker delegates reviewed conflict and API success meanings to upstream
+  recovery/envelope owners; exact rejection type, retirement and replay gates,
+  per-row holding, binding pause and receipt/removal decisions stay local.
+- [x] Update delivery IPC's embedded API data to use the upstream owner
   core/delivery_client.py:17-24,66 and core/delivery_ipc.py:22 borrow upstream
   identifiers. Their own IPC fields/routes are local. core/delivery_handoff.py:68
   carries API publication material inside a local envelope; only the embedded
   API data depends on this upstream contract.
-- [ ] Update offline discard's API identity validation imports
+  Verified 2026-11-19: client/IPC identities use upstream validators and embedded
+  terminal/publication material uses the already separated admission owners.
+  Local relay routes/statuses, handoff schema/base64 and queue acknowledgements
+  remain SDK protocols; they were not moved into upstream validation.
+- [x] Update offline discard's API identity validation imports
   core/delivery_discard.py:22-23,50-55 directly borrows API origin/provider-ref
   validators before matching local bindings, despite making no API request.
   Validation imports need to follow the upstream owner; offline queue selection
   and discard authorization remain local. Evidence: test_shared_delivery_config.py
   and integration/delivery/normative/test_delivery_process.py.
+  Verified 2026-11-19: discard uses upstream origin/provider validators while
+  preserving offline selection, queue lock and discard authorization. Focused
+  delivery worker/IPC/process integration and store/handoff/shared-configuration
+  unit lanes passed on science with PRIVACY_TESTS=0 (60 tests, ten skips).
+  The real daemon lane exposed stale startup-reader label arguments; prerequisite
+  fix 3c00885 removes those arguments for credential/CA reads and retains the
+  original read limits/secret checks. Process assertions now show received
+  failure notices. Independent audits confirmed these ownership boundaries.
 
 OpenAI-compatible Chat Completions profile
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
