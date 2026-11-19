@@ -344,7 +344,7 @@ class ConfiguredIdentity:
         if self.configuration is not None:
             configuration = {"format": self.configuration.format, "digest": self.configuration.digest}
 
-        document = {
+        configured_identity_fields = {
             "schema_id": "provider-core.configured-identity.v2",
             "implementation": self.implementation,
             "contract_version": self.contract_version,
@@ -360,7 +360,7 @@ class ConfiguredIdentity:
             ],
         }
 
-        encoded = json.dumps(document, sort_keys=True, ensure_ascii=True, separators=(",", ":")).encode("ascii")
+        encoded = json.dumps(configured_identity_fields, sort_keys=True, ensure_ascii=True, separators=(",", ":")).encode("ascii")
 
         object.__setattr__(self, "revision", "configured-v2:sha256:" + hashlib.sha256(encoded).hexdigest())
 
@@ -716,12 +716,12 @@ class _MethodCall:
             arguments[self.control_parameter] = context.control
 
         arguments.update(context.state)
-        result = self.function(**arguments)
+        scientific_output = self.function(**arguments)
 
         if self.wrapped_result:
-            return result
+            return scientific_output
 
-        return ScientificReturn(value=result)
+        return ScientificReturn(value=scientific_output)
 
 
 class _CallOwner(Protocol):
