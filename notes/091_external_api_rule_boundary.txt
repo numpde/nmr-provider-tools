@@ -324,7 +324,7 @@ NMR Provider API: wire and validation owners
     in acquisition. Focused unit/integration test_upload_api.py and contract
     test_installation.py passed on science with PRIVACY_TESTS=0.
 
-[ ] N11 Verify the store profile and separate transfer admission from local policy
+[x] N11 Verify the store profile and separate transfer admission from local policy
     core/uploads.py:105,254-355,618-633,1193 onward
     A separate store transfer uses the granted URL and Bearer capability.
     _verify_store_headers checks 200, whole-file content type/length/digest,
@@ -339,6 +339,21 @@ NMR Provider API: wire and validation owners
     Provider HTTP schemas as its proof.
     Evidence: test_upload_head_admission.py, test_upload_acquisition.py,
     test_upload_transfer_retry.py and Upload recovery/cleanup integration tests.
+    Completed 2026-11-19: historical upload_transfer_http.py:538-548 and the
+    transfer contract's GET/path definitions were checked at 6a163b7a9cc1e2c7485b681c0b2b969c7c20e6c8.
+    Whole-file and bearer representation admission now live in
+    core/validation/upstream/nmr/v1/upload_store.py; route/request construction
+    and transfer-context rejection mapping live in the corresponding adapter.
+    Local origin/URL binding and expiry stay before construction; request/byte
+    budgets, file custody, retirement and retry decisions stay in acquisition.
+    Before-body and late-head rejection retain the exact UploadFailed/head
+    identities. The donor's 401/503/507 retry choice remains local policy.
+    Focused unit test_upload_head_admission.py, test_upload_transfer_retry.py and
+    test_upload_acquisition.py, contract test_installation.py and real
+    integration test_upload_acquisition.py passed on science with PRIVACY_TESTS=0.
+    SDK wheel discovery includes both modules; acquisition/wheelhouse bootstrap
+    closures do not import them. This verifies source parity, not live service
+    compatibility or a new upstream release selection.
 
 NMR rules currently reached through operational code
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~

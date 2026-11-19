@@ -12,7 +12,6 @@ from provider_core.container_guard import require_container
 require_container()
 
 import asyncio
-import base64
 import os
 import secrets
 import stat
@@ -26,6 +25,7 @@ import httpcore
 import httpx
 
 from provider_core.api_errors import ApiFailure
+from provider_core.adapters.nmr.v1.upload_store import download_request, download_target, verify_store_headers
 from provider_core.task_boundary import contain_task_exit
 from provider_core.transport import ExchangeFailed, temporary_io_failure
 from provider_core.response_json import ResponseRejected
@@ -337,7 +337,7 @@ class UploadTransfer:
 
             if head is not None:
                 try:
-                    _verify_store_headers(head, self._transfer_grant)
+                    verify_store_headers(head, self._transfer_grant)
                 # silent-defaults: allow-exception-outcome -- Unadmitted whole-file headers grant no retry; the original transfer failure remains retained.
                 except UploadFailed:
                     return False
@@ -619,7 +619,7 @@ class UploadTransfer:
         except ResponseRejected as failure:
             raise UploadFailed("the read grant is malformed or belongs to a different Job", cause=failure) from None
 
-        target = self._origin + "/upload/v1/uploads/" + grant.upload_ref + "/bytes"
+        target = download_target(self._origin, grant.upload_ref)
 
         if grant.download_url != target:
             raise UploadFailed("download grant does not name the configured store and exact Upload path")
@@ -627,15 +627,7 @@ class UploadTransfer:
         if grant.expires_at <= datetime.now(UTC):
             raise UploadFailed("download grant expired before transfer; inspect sources before explicitly requesting fresh access")
 
-        if (not grant.capability) or (any(ord(c) <= 32 or ord(c) >= 127 for c in grant.capability)):
-            raise UploadFailed("download bearer cannot be represented as a single HTTP authorization value")
-
-        request = httpx.Request("GET", target, headers={"Authorization": "Bearer " + grant.capability})
-
-        if str(request.url) != target:
-            raise UploadFailed("HTTP client rewrote the admitted store target")
-
-        return request
+        return download_request(target, capability=grant.capability)
 
     async def _transfer(self, grant, *, output_fd=None):
         request = self._download_request(grant)
@@ -646,7 +638,7 @@ class UploadTransfer:
 
         def admit(head):
             try:
-                _verify_store_headers(head, grant)
+                verify_store_headers(head, grant)
             except UploadFailed as failure:
                 self._header_failure = failure
 
@@ -1187,23 +1179,3 @@ class JobUploads:
 
         if self._received > self._limits.total_bytes:
             raise UploadFailed(f"download exhausted the source session's {self._limits.total_bytes}-byte budget")
-
-
-
-def _verify_store_headers(response, grant):
-    if response.status != 200:
-        raise UploadFailed(f"store returned HTTP {response.status}; no verified bytes were obtained", response=response)
-
-    digest = base64.b64encode(bytes.fromhex(grant.content_hash.removeprefix("sha256:")))
-
-    for (name, expected) in (
-        (b"content-type", b"application/octet-stream"),
-        (b"cache-control", b"no-store"),
-        (b"content-length", str(grant.byte_length).encode("ascii")),
-        (b"content-digest", b"sha-256=:" + digest + b":"),
-    ):
-        if [value for (key, value) in response.headers if key.lower() == name] != [expected]:
-            raise UploadFailed(f"store response {name.decode()} does not match the granted whole-file transfer", response=response)
-
-    if any(name.lower() in {b"content-encoding", b"content-range"} for (name, _) in response.headers):
-        raise UploadFailed("encoded or partial store responses are not admitted", response=response)
