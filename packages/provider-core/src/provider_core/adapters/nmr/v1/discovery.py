@@ -13,6 +13,18 @@ from provider_core.validation.upstream.nmr.v1.job_feed import require_jobs_query
 from provider_core.validation.upstream.nmr.v1.paging import require_page_inputs
 
 
+def jobs_route() -> tuple[str, str]:
+    """Declare the Job feed target independently of caller-selected query fields."""
+
+    return ("GET", "/provider/v1/jobs")
+
+
+def inventory_route() -> tuple[str, str]:
+    """Declare the provider-wide Attempt inventory target."""
+
+    return ("GET", "/provider/v1/execution-attempts")
+
+
 def paging_query(*, limit, cursor):
     """Encode the admitted page limit and optional cursor in their signed order."""
 

@@ -19,10 +19,17 @@ import httpcore
 from provider_core.api_errors import ApiFailure
 from provider_core.adapters.nmr.v1.response_envelope import require_api_envelope, require_api_headers
 
-from provider_core.adapters.nmr.v1.discovery import inventory_query, jobs_query
+from provider_core.adapters.nmr.v1.discovery import inventory_query, inventory_route, jobs_query, jobs_route
 from provider_core.validation.upstream.nmr.v1.attempt_inventory import read_attempt_inventory
 
-from provider_core.adapters.nmr.v1.attempt_request import progress_body
+from provider_core.adapters.nmr.v1.attempt_request import (
+    attempt_route,
+    complete_route,
+    fail_route,
+    progress_body,
+    progress_route,
+    start_route,
+)
 from provider_core.validation.upstream.nmr.v1.attempt_request import (
     read_complete_body,
     read_fail_body,
@@ -41,7 +48,9 @@ from provider_core.validation.upstream.nmr.v1.attempt_response import (
     require_attempt_ref,
 )
 
-from provider_core.adapters.nmr.v1.hello import hello_body
+from provider_core.adapters.nmr.v1.hello import hello_body, hello_route
+from provider_core.adapters.nmr.v1.job_input import job_input_query, job_input_route
+from provider_core.adapters.nmr.v1.upload_request import membership_route, read_grant_route
 from provider_core.validation.upstream.nmr.v1.hello import HELLO_RESPONSE_BYTES, read_hello
 from provider_core.validation.upstream.nmr.v1.job_feed import PAGE_RESPONSE_BYTES, read_jobs_page
 from provider_core.validation.upstream.nmr.v1.job_input import MAX_RESPONSE_BYTES, FeedInputFacts, JobInputRejected, verify_job_input
@@ -141,10 +150,13 @@ class ProviderAPI:
         if (
             (type(failure) is not ApiFailure) or
             (failure is not self.last_failure) or
-            (not self.retirement_confirmed) or
-            (failure.request_method != "POST") or
-            (failure.request_target != f"/provider/v1/jobs/{job_ref}/uploads/{upload_ref}/read-capability".encode("ascii"))
+            (not self.retirement_confirmed)
         ):
+            return False
+
+        request_method, request_path = read_grant_route(job_ref, upload_ref)
+
+        if (failure.request_method != request_method) or (failure.request_target != request_path.encode("ascii")):
             return False
 
         return (
@@ -166,10 +178,16 @@ class ProviderAPI:
         if (
             (type(failure) is not ApiFailure) or
             (failure is not self.last_failure) or
-            (not self.retirement_confirmed) or
-            (failure.request_method != "GET") or
+            (not self.retirement_confirmed)
+        ):
+            return False
+
+        request_method, request_path = jobs_route()
+
+        if (
+            (failure.request_method != request_method) or
             (failure.request_target is None) or
-            (failure.request_target.partition(b"?")[0] != b"/provider/v1/jobs")
+            (failure.request_target.partition(b"?")[0] != request_path.encode("ascii"))
         ):
             return False
 
@@ -187,13 +205,16 @@ class ProviderAPI:
         a paced current announcement, without promising service recovery.
         """
 
-        return (
-            (self._retryable_failure(failure) or
-             self._settled_status_failure(failure, 500) or
-             self._settled_status_failure(failure, 429)) and
-            (failure.request_method == "POST") and
-            (failure.request_target == b"/provider/v1/hello")
-        )
+        if not (
+            self._retryable_failure(failure) or
+            self._settled_status_failure(failure, 500) or
+            self._settled_status_failure(failure, 429)
+        ):
+            return False
+
+        request_method, request_path = hello_route()
+
+        return (failure.request_method == request_method) and (failure.request_target == request_path.encode("ascii"))
 
     def can_refresh_signature(self, failure):
         """Admit a settled no-effect request refusal for existing retry owners.
@@ -232,11 +253,12 @@ class ProviderAPI:
         source 12a53e720fc87e1a4144c76203f8853d5afaf753 (fixture manifest).
         """
 
-        return (
-            self._recoverable_attempt_failure(failure) and
-            (failure.request_method == "POST") and
-            (failure.request_target == b"/provider/v1/execution-attempts/start")
-        )
+        if not self._recoverable_attempt_failure(failure):
+            return False
+
+        request_method, request_path = start_route()
+
+        return (failure.request_method == request_method) and (failure.request_target == request_path.encode("ascii"))
 
     def can_defer_phase_progress(self, failure, *, execution_attempt_ref):
         """Admit settled send evidence for consumer-owned phase continuation.
@@ -266,11 +288,12 @@ class ProviderAPI:
     def _recoverable_progress_failure(self, failure, execution_attempt_ref):
         require_attempt_ref(execution_attempt_ref)
 
-        return (
-            self._recoverable_attempt_failure(failure) and
-            (failure.request_method == "PUT") and
-            (failure.request_target == f"/provider/v1/execution-attempts/{execution_attempt_ref}/progress".encode("ascii"))
-        )
+        if not self._recoverable_attempt_failure(failure):
+            return False
+
+        request_method, request_path = progress_route(execution_attempt_ref)
+
+        return (failure.request_method == request_method) and (failure.request_target == request_path.encode("ascii"))
 
     def can_replay_terminal(self, failure):
         """Permit exact durable COMPLETE/FAIL replay after settled send uncertainty.
@@ -290,12 +313,12 @@ class ProviderAPI:
         if (type(failure) is not ApiFailure) or (failure is not self.last_failure) or (not self.retirement_confirmed):
             return False
 
-        if (
-            (failure.request_method != "POST") or
-            (failure.request_target not in (
-                b"/provider/v1/execution-attempts/complete",
-                b"/provider/v1/execution-attempts/fail",
-            ))
+        complete_method, complete_path = complete_route()
+        fail_method, fail_path = fail_route()
+
+        if (failure.request_method, failure.request_target) not in (
+            (complete_method, complete_path.encode("ascii")),
+            (fail_method, fail_path.encode("ascii")),
         ):
             return False
 
@@ -437,13 +460,14 @@ class ProviderAPI:
         """
         require_provider_ref(provider_ref)
         body = hello_body(display_name=display_name, description=description, analysis_offerings=analysis_offerings)
+        request_method, request_path = hello_route()
         operation = "confirm provider Hello acceptance"
 
         try:
             response = await self._exchange(
                 operation,
-                method="POST",
-                path="/provider/v1/hello",
+                method=request_method,
+                path=request_path,
                 query=b"",
                 body=body,
                 maximum_bytes=HELLO_RESPONSE_BYTES,
@@ -473,12 +497,13 @@ class ProviderAPI:
             limit=limit,
             cursor=cursor,
         )
+        request_method, request_path = jobs_route()
 
         response = await self._exchange(
             "list Jobs",
             owner=owner,
-            method="GET",
-            path="/provider/v1/jobs",
+            method=request_method,
+            path=request_path,
             query=query,
             maximum_bytes=PAGE_RESPONSE_BYTES
         )
@@ -496,12 +521,13 @@ class ProviderAPI:
     async def execution_attempts(self, *, state, limit, cursor, owner=None):
         """Read one provider-wide inventory page; composition owns reconciliation."""
         query = inventory_query(state=state, limit=limit, cursor=cursor)
+        request_method, request_path = inventory_route()
 
         response = await self._exchange(
             "list in-progress Attempts",
             owner=owner,
-            method="GET",
-            path="/provider/v1/execution-attempts",
+            method=request_method,
+            path=request_path,
             query=query,
             maximum_bytes=ATTEMPT_RESPONSE_BYTES,
         )
@@ -524,12 +550,14 @@ class ProviderAPI:
 
         require_analysis_kind(analysis_kind_ref)
 
+        request_method, request_path = job_input_route(feed.job_ref)
+
         response = await self._exchange(
             "read Job input",
             owner=owner,
-            method="GET",
-            path=f"/provider/v1/jobs/{feed.job_ref}/input",
-            query=b"analysis_kind_ref=" + analysis_kind_ref.encode("ascii"),
+            method=request_method,
+            path=request_path,
+            query=job_input_query(analysis_kind_ref),
             maximum_bytes=MAX_RESPONSE_BYTES,
         )
 
@@ -541,11 +569,12 @@ class ProviderAPI:
     async def uploads(self, job_ref):
         """Observe current membership once; no historical or cached authority."""
         require_job_ref(job_ref)
+        request_method, request_path = membership_route(job_ref)
 
         response = await self._exchange(
             "read Job Upload membership",
-            method="GET",
-            path=f"/provider/v1/jobs/{job_ref}/uploads",
+            method=request_method,
+            path=request_path,
             query=b"",
             maximum_bytes=MEMBERSHIP_RESPONSE_BYTES,
         )
@@ -567,11 +596,12 @@ class ProviderAPI:
         """
         require_job_ref(job_ref)
         require_upload_ref(upload_ref)
+        request_method, request_path = read_grant_route(job_ref, upload_ref)
 
         response = await self._exchange(
             "issue Upload read grant",
-            method="POST",
-            path=f"/provider/v1/jobs/{job_ref}/uploads/{upload_ref}/read-capability",
+            method=request_method,
+            path=request_path,
             query=b"",
             maximum_bytes=GRANT_RESPONSE_BYTES,
             issuance=True,
@@ -594,12 +624,13 @@ class ProviderAPI:
         """
         require_attempt_ref(execution_attempt_ref)
         require_job_ref(job_ref)
+        request_method, request_path = attempt_route(execution_attempt_ref)
 
         response = await self._exchange(
             "read Execution Attempt",
             owner=owner,
-            method="GET",
-            path=f"/provider/v1/execution-attempts/{execution_attempt_ref}",
+            method=request_method,
+            path=request_path,
             query=b"",
             maximum_bytes=ATTEMPT_RESPONSE_BYTES,
         )
@@ -622,11 +653,12 @@ class ProviderAPI:
         require_analysis_kind(analysis_kind_ref)
         require_provider_ref(provider_ref)
         require_start_body(body, job_ref=job_ref)
+        request_method, request_path = start_route()
 
         response = await self._exchange(
             "start Execution Attempt",
-            method="POST",
-            path="/provider/v1/execution-attempts/start",
+            method=request_method,
+            path=request_path,
             owner=owner,
             query=b"",
             maximum_bytes=ATTEMPT_RESPONSE_BYTES,
@@ -651,12 +683,13 @@ class ProviderAPI:
         """
         require_attempt_ref(execution_attempt_ref)
         body = progress_body(phase, condition_code)
+        request_method, request_path = progress_route(execution_attempt_ref)
 
         response = await self._exchange(
             "report Attempt progress",
             owner=owner,
-            method="PUT",
-            path=f"/provider/v1/execution-attempts/{execution_attempt_ref}/progress",
+            method=request_method,
+            path=request_path,
             query=b"",
             maximum_bytes=ATTEMPT_RESPONSE_BYTES,
             body=body,
@@ -684,11 +717,12 @@ class ProviderAPI:
         """
         require_attempt_ref(execution_attempt_ref)
         (result_schema_id, submitted_result) = read_complete_body(body, execution_attempt_ref=execution_attempt_ref)
+        request_method, request_path = complete_route()
 
         response = await self._exchange(
             "complete Execution Attempt",
-            method="POST",
-            path="/provider/v1/execution-attempts/complete",
+            method=request_method,
+            path=request_path,
             owner=owner,
             query=b"",
             maximum_bytes=ATTEMPT_RESPONSE_BYTES,
@@ -717,11 +751,12 @@ class ProviderAPI:
         """
         require_attempt_ref(execution_attempt_ref)
         (failure_code, failure_message) = read_fail_body(body, execution_attempt_ref=execution_attempt_ref)
+        request_method, request_path = fail_route()
 
         response = await self._exchange(
             "publish Attempt failure",
-            method="POST",
-            path="/provider/v1/execution-attempts/fail",
+            method=request_method,
+            path=request_path,
             owner=owner,
             query=b"",
             maximum_bytes=ATTEMPT_RESPONSE_BYTES,

@@ -1,4 +1,4 @@
-"""Encode admitted Attempt facts once for exact delivery and retained replay.
+"""Render Attempt targets and encode facts for exact delivery and retained replay.
 
 The lifecycle owner retains the resulting bytes before dispatch. These encoders
 do not generate keys, interpret scientific results or authorize another send.
@@ -17,6 +17,36 @@ from provider_core.validation.upstream.nmr.v1.attempt_request import (
     require_progress_inputs,
     require_start_inputs,
 )
+
+
+def attempt_route(execution_attempt_ref: str) -> tuple[str, str]:
+    """Render the observation target from the caller's admitted Attempt identity."""
+
+    return ("GET", f"/provider/v1/execution-attempts/{execution_attempt_ref}")
+
+
+def start_route() -> tuple[str, str]:
+    """Declare the exact START target shared by dispatch and recovery matching."""
+
+    return ("POST", "/provider/v1/execution-attempts/start")
+
+
+def progress_route(execution_attempt_ref: str) -> tuple[str, str]:
+    """Render the current-observation target without granting phase or condition retry."""
+
+    return ("PUT", f"/provider/v1/execution-attempts/{execution_attempt_ref}/progress")
+
+
+def complete_route() -> tuple[str, str]:
+    """Declare the exact completion target for retained result publication."""
+
+    return ("POST", "/provider/v1/execution-attempts/complete")
+
+
+def fail_route() -> tuple[str, str]:
+    """Declare the exact failure target for retained failure publication."""
+
+    return ("POST", "/provider/v1/execution-attempts/fail")
 
 
 def start_body(job_ref, provider_attempt_key):

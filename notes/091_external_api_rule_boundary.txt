@@ -221,12 +221,21 @@ NMR Provider API: wire and validation owners
     test_attempt_progress.py, test_attempt_outcome.py and test_upload_api.py and
     contract test_installation.py passed on science with PRIVACY_TESTS=0.
 
-[ ] N5  Extract all eleven wire operations with their associated codecs
+[x] N5  Extract all eleven wire operations with their associated codecs
     core/api.py:713-1029,1091 onward
     Eleven dispatches construct routes, choose response ceilings, sign, admit
     replies and mark issuance/Attempt mutation evidence. Extract their wire
     knowledge together with the associated codecs below. Preserve the single
     exchange owner, cancellation, retirement and before/after-send distinctions.
+    Completed 2026-11-19: family adapters own all eleven method/path builders
+    and Job-input query encoding alongside the existing body/query codecs.
+    Dispatch and recovery use those same builders. API methods retain admission,
+    exchange ownership, response binding and issuance/mutation evidence; no
+    operation state or retry permission moved into a route builder.
+    Focused contract test_api_release.py and test_installation.py and unit
+    test_api_unavailability.py and test_api.py passed on science with
+    PRIVACY_TESTS=0 (48 tests, six skips). Independent audit found no route,
+    query, recovery-target, ownership-order or wheel-closure regression.
 
     Operation             Method/path after /provider/v1
     Hello                 POST /hello

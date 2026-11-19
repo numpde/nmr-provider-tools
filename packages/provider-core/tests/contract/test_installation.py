@@ -142,6 +142,8 @@ class InstallationContractTests(unittest.TestCase):
                 "provider_core/validation/upstream/nmr/v1/paging.py",
                 "provider_core/validation/upstream/nmr/v1/attempt_inventory.py",
                 "provider_core/adapters/nmr/v1/discovery.py",
+                "provider_core/adapters/nmr/v1/job_input.py",
+                "provider_core/adapters/nmr/v1/upload_request.py",
                 "provider_core/adapters/__init__.py",
                 "provider_core/adapters/nmr/__init__.py",
                 "provider_core/adapters/nmr/v1/__init__.py",

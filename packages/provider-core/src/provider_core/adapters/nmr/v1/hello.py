@@ -9,6 +9,12 @@ import json
 from provider_core.validation.upstream.nmr.v1.hello import require_hello_body_size, require_hello_inputs
 
 
+def hello_route() -> tuple[str, str]:
+    """Declare the announcement target shared by dispatch and recovery matching."""
+
+    return ("POST", "/provider/v1/hello")
+
+
 def hello_body(*, display_name, description, analysis_offerings):
     """Encode the caller's current complete snapshot, including empty offerings.
 
