@@ -119,11 +119,11 @@ class InterpreterFaultSequenceTests(unittest.IsolatedAsyncioTestCase):
                 owner = Interpreter(tuple(factories) + (unused,), interpretation_budget_seconds=240, reject_combined_messages_and_tools_over_bytes=1024 * 1024, **interpreter_test_limits(), secrets=())
 
                 with patch("provider_core.interpreter.asyncio.sleep", new=AsyncMock()):
-                    result = await owner.run([], TOOLS, dispatch)
+                    interpretation_result = await owner.run([], TOOLS, dispatch)
 
                 self.assertEqual(effects, ["one accepted preparation"])
-                self.assertEqual(result.value, effects[0])
-                self.assertEqual(result.model_visit, visits)
+                self.assertEqual(interpretation_result.value, effects[0])
+                self.assertEqual(interpretation_result.model_visit, visits)
                 self.assertTrue(owner.retirement_confirmed)
                 unused.assert_not_called()
                 self.assertEqual(sum((event[0] == "inspect") for event in events), expected_inspections)
@@ -131,6 +131,6 @@ class InterpreterFaultSequenceTests(unittest.IsolatedAsyncioTestCase):
 
                 self.assertTrue(all((event[0] == "retire") for event in events[accepted + 1:]))
 
-                for (visit, values) in deadlines.items():
-                    self.assertEqual(len(set(values)), 1)
+                for (visit, visit_deadlines) in deadlines.items():
+                    self.assertEqual(len(set(visit_deadlines)), 1)
                     self.assertEqual(models[visit].complete.await_count, models[visit].expected_requests)

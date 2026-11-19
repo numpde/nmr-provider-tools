@@ -71,9 +71,9 @@ class ObservationRetryAfterTests(unittest.IsolatedAsyncioTestCase):
         (executor, clock, reads, waits, notices) = await self.fixture(gap=3)
 
         with self.clock(clock, waits), patch("provider_core.execution.random.uniform", return_value=.1):
-            result = await executor._observe_until_available(clock.now + 3)
+            attempt_observation = await executor._observe_until_available(clock.now + 3)
 
-        self.assertEqual(result.state, "in_progress")
+        self.assertEqual(attempt_observation.state, "in_progress")
         self.assertEqual(reads, [100.0, 101.0])
         self.assertEqual(waits, [1.0])
         self.assertEqual(len(notices), 1)

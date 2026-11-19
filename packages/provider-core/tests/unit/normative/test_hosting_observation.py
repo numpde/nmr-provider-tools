@@ -140,7 +140,7 @@ class HostingObservationTests(unittest.IsolatedAsyncioTestCase):
         pending = pending_operation()
         newer = replace(pending, revision=7, allowance_expired=True)
 
-        result = ResultRef(
+        result_reference = ResultRef(
             operation=OperationRef(host="host", analysis="analysis", operation_id="calculation"),
             result_id="result",
         )
@@ -151,7 +151,7 @@ class HostingObservationTests(unittest.IsolatedAsyncioTestCase):
             finished=True,
             outcome=Outcome.SUCCEEDED,
             result_state=ResultState.AVAILABLE,
-            result=result,
+            result=result_reference,
         )
 
         operation = SimpleNamespace(
