@@ -7,6 +7,7 @@ import http.client
 import json
 import os
 import re
+import reprlib
 import secrets
 import stat
 import sys
@@ -122,12 +123,12 @@ def selected(lock, prefer_sdist, require_sdist=(), document=None, source_lock=No
 
         url = urllib.parse.urlsplit(artifact.url)
         artifact_filename = getattr(artifact, "filename", None) or urllib.parse.unquote(url.path.rsplit("/", 1)[-1])
-        digest = artifact.hashes.get("sha256")
+        artifact_sha256 = artifact.hashes.get("sha256")
 
         if source_requirements is not None:
             entry = source_requirements.get(package.name)
 
-            if (entry is None) or (digest not in entry[1]):
+            if (entry is None) or (artifact_sha256 not in entry[1]):
                 raise ValueError(f"Cannot use projected lock: {package.name=} differs from its source lock.")
 
             requirement = entry[0]
@@ -173,18 +174,20 @@ def selected(lock, prefer_sdist, require_sdist=(), document=None, source_lock=No
         if package.name in required:
             found_required.add(package.name)
 
-        if (type(digest) is not str) or (not re.fullmatch(r"[0-9a-f]{64}", digest)):
-            raise ValueError(f"Cannot acquire {artifact_filename=}: a SHA-256 lock hash is required.")
+        expected_sha256_pattern = r"[0-9a-f]{64}"
+
+        if not ((artifact_sha256 is not None) and re.fullmatch(expected_sha256_pattern, artifact_sha256)):
+            raise ValueError(f"{artifact_filename=}: {reprlib.repr(artifact_sha256)=} should match {expected_sha256_pattern=}")
 
         if (url.scheme not in ("https", "http")) or (not url.netloc) or (url.username is not None):
             raise ValueError(f"Cannot acquire {artifact_filename=}: expected an HTTP(S) artifact URL without credentials.")
 
-        if (artifact_filename in seen) and (seen[artifact_filename] != digest):
+        if (artifact_filename in seen) and (seen[artifact_filename] != artifact_sha256):
             raise ValueError(f"Cannot acquire {artifact_filename=}: the lock selects conflicting bytes for one filename.")
 
-        seen[artifact_filename] = digest
+        seen[artifact_filename] = artifact_sha256
 
-        artifacts.append((artifact_filename, digest, artifact.url, package, artifact))
+        artifacts.append((artifact_filename, artifact_sha256, artifact.url, package, artifact))
 
     if missing := required - found_required:
         missing_source_packages = sorted(missing)

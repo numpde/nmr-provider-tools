@@ -738,6 +738,15 @@ class WheelhouseTests(unittest.TestCase):
         with self.assertRaises(OSError):
             stream_context(self.pool, None, [], io.BytesIO(), [entry])
 
+        entry["path"] = str(self.lock)
+        entry["executable"] = "false"
+        tar_output = io.BytesIO()
+
+        with self.assertRaises(TypeError):
+            stream_context(self.pool, None, [], tar_output, [entry])
+
+        self.assertEqual(b"", tar_output.getvalue())
+
     def test_allowlisted_file_cannot_be_replaced_with_directory(self):
         entry = {"path": str(self.lock), "destination": "input", "sha256": "0" * 64, "executable": False}
         original_lock = tool.pool_lock

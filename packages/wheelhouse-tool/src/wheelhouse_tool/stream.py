@@ -11,6 +11,7 @@ import tarfile
 from pathlib import Path, PurePosixPath
 
 from packaging.pylock import PylockSelectError, PylockValidationError
+from type_requirements import require_type
 
 from wheelhouse_tool.__main__ import pool_lock, selected
 
@@ -58,8 +59,8 @@ def stream_context(pool, source, selections, output, source_allowlist=None):
     if any(not re.fullmatch(r"[0-9a-f]{64}", digest) for digest in source_hashes.values()):
         raise ValueError("Cannot stream build inputs: source files require SHA-256 hashes.")
 
-    if any((type(value) is not bool) for value in source_modes.values()):
-        raise ValueError("Cannot stream build inputs: source executable flags must be boolean.")
+    for executable_flag in source_modes.values():
+        require_type(executable_flag, bool)
 
     def fail_walk(error):
         raise error
