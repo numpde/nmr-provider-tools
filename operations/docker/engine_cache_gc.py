@@ -1,7 +1,6 @@
 """Install an engine-scoped user timer backed only by native daemon GC policy."""
 
 import hashlib
-import json
 import os
 import pathlib
 import stat
@@ -9,15 +8,18 @@ import subprocess
 import sys
 import tempfile
 
+if __name__ == "__main__":
+    # Add the checkout root omitted by isolated Python
+    sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[2]))
 
-# Installer profile only; live collection reads the operator's native file.
-# repo-check: allow-module-constant
-DEFAULTS = {
-    "enabled": True,
-    "defaultReservedSpace": "10GB",
-    "defaultMaxUsedSpace": "32GB",
-    "defaultMinFreeSpace": "20GB",
-}
+from operations.docker.adapters.cache_gc import configure_gc, validate_daemon_config_command, write_daemon_config
+from operations.docker.validation.upstream.cache_gc import (
+    builder_gc,
+    decode_daemon_config,
+    gc_enabled,
+    gc_has_custom_policy,
+    gc_thresholds,
+)
 
 
 def native_config(daemon_config_path):
@@ -31,69 +33,33 @@ def native_config(daemon_config_path):
         raise ValueError("Select the canonical caller-owned native daemon.json file.")
 
     configuration_bytes = daemon_config_path.read_bytes()
-    document = json.loads(configuration_bytes)
-
-    if not (type(document) is (expected_type := dict)):
-        raise TypeError(f"{type(document)=} ≠ {expected_type=}")
-
-    return (configuration_bytes, document)
+    return (configuration_bytes, decode_daemon_config(configuration_bytes))
 
 
 def configured(document):
-    # Only these native settings change. Route, storage, logging and unrelated
-    # builder settings remain their existing JSON values.
-    proposed_configuration = json.loads(json.dumps(document))
-
-    # silent-defaults: allow-contract -- Installation creates absent native GC objects; proof=tests/repository/test_checker_cache_gc.py::EngineCacheGCTests.test_native_policy_merge_preserves_unrelated_fields_and_runtime_reads_it
-    builder_settings = proposed_configuration.setdefault("builder", {})
-
-    if not (type(builder_settings) is (expected_type := dict)):
-        raise TypeError(f"{type(builder_settings)=} ≠ {expected_type=}")
-
-    # silent-defaults: allow-contract -- Installation creates absent native GC objects; proof=tests/repository/test_checker_cache_gc.py::EngineCacheGCTests.test_native_policy_merge_preserves_unrelated_fields_and_runtime_reads_it
-    gc_settings = builder_settings.setdefault("gc", {})
-
-    if not (type(gc_settings) is (expected_type := dict)):
-        raise TypeError(f"{type(gc_settings)=} ≠ {expected_type=}")
-
-    gc_settings.update(DEFAULTS)
+    # Installer profile only; live collection reads the operator's native file
+    proposed_configuration = configure_gc(
+        document,
+        enabled=True,
+        reserved_space="10GB",
+        max_used_space="32GB",
+        min_free_space="20GB",
+    )
     limits(proposed_configuration)
 
     return proposed_configuration
 
 
 def limits(document):
-    gc_settings = document["builder"]["gc"]
+    gc_settings = builder_gc(document)
 
-    if not (type(gc_settings) is (expected_type := dict)):
-        raise TypeError(f"{type(gc_settings)=} ≠ {expected_type=}")
-
-    if not (type((gc_settings_enabled := gc_settings.get("enabled"))) is (expected_type := bool)):
-        raise TypeError(f"{type(gc_settings_enabled)=} ≠ {expected_type=}")
-
-    if not gc_settings["enabled"]:
+    if not gc_enabled(gc_settings):
         return None
 
-    if gc_settings.get("policy"):
+    if gc_has_custom_policy(gc_settings):
         raise ValueError("A custom native GC policy cannot be reproduced by this single threshold-based prune timer.")
 
-    thresholds = []
-
-    for setting in ("defaultReservedSpace", "defaultMaxUsedSpace", "defaultMinFreeSpace"):
-        threshold = gc_settings.get(setting)
-
-        if not (type(threshold) in (expected_threshold_type := (str, int))):
-            raise TypeError(f"{type(threshold)=} ≠ {expected_threshold_type=}")
-
-        if (
-            (type(threshold) is str) and
-            ((not threshold) or (any(character.isspace() or ord(character) < 32 for character in threshold)))
-        ):
-            raise ValueError(f"Native builder.gc.{setting} requires its literal space threshold.")
-
-        thresholds.append(str(threshold))
-
-    return thresholds
+    return gc_thresholds(gc_settings)
 
 
 def argument(command_argument):
@@ -166,15 +132,14 @@ def install(root, context, endpoint, daemon_config_path):
     try:
         with os.fdopen(temporary_fd, "w", encoding="utf-8") as output:
             os.fchmod(output.fileno(), stat.S_IMODE(daemon_config_path.stat().st_mode))
-            json.dump(proposed_configuration, output, indent=2)
-            print(file=output)
+            write_daemon_config(proposed_configuration, output)
             output.flush()
             os.fsync(output.fileno())
 
         # Validation never starts or restarts the selected daemon. Reject the
         # candidate before changing the operator's native policy file.
         validation = subprocess.run(
-            ["dockerd", "--validate", "--config-file", str(temporary_path)],
+            validate_daemon_config_command(temporary_path),
             capture_output=True,
             timeout=30,
             check=False,

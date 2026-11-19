@@ -115,11 +115,15 @@ class EngineCacheGCTests(unittest.TestCase):
             for name in ("engine_cache_gc.sh", "engine_cache_gc.py", "docker_context.sh", "docker_client.sh"):
                 shutil.copyfile(ROOT / "operations/docker" / name, root / "operations/docker" / name)
 
-            (root / "operations/docker/adapters").mkdir()
-            shutil.copyfile(
-                ROOT / "operations/docker/adapters/docker_context.sh",
-                root / "operations/docker/adapters/docker_context.sh",
-            )
+            for path in (
+                "operations/docker/adapters/docker_context.sh",
+                "operations/docker/adapters/cache_gc.py",
+                "operations/docker/adapters/cache_gc.sh",
+                "operations/docker/validation/upstream/cache_gc.py",
+            ):
+                target = root / path
+                target.parent.mkdir(parents=True, exist_ok=True)
+                shutil.copyfile(ROOT / path, target)
 
             shutil.copyfile(ROOT / "host/tools/inference_native.sh", root / "host/tools/inference_native.sh")
 

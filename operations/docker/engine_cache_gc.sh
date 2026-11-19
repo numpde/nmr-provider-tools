@@ -32,6 +32,7 @@ case "$action" in
         if [[ $policy == disabled ]]; then exit; fi
         mapfile -t limits <<< "$policy"
         [[ ${#limits[@]} == 3 ]] || exit 2
+        source "$root/operations/docker/adapters/cache_gc.sh"
         source "$root/operations/docker/docker_client.sh"
         source "$root/host/tools/inference_native.sh"
         docker_client_directory= inference_diagnostic=
@@ -53,9 +54,9 @@ case "$action" in
         trap 'exit 130' INT
         trap 'exit 143' TERM
         docker_client_prepare run || { printf '%s' "$docker_client_diagnostic" >&2; exit 2; }
-        inference_native 'engine BuildKit cache GC' 300 stdio "${engine[@]}" buildx prune \
-            --builder default --all --force --reserved-space "${limits[0]}" \
-            --max-used-space "${limits[1]}" --min-free-space "${limits[2]}"
+        prune_arguments=()
+        docker_prune_all_cache_arguments prune_arguments default "${limits[0]}" "${limits[1]}" "${limits[2]}"
+        inference_native 'engine BuildKit cache GC' 300 stdio "${engine[@]}" "${prune_arguments[@]}"
         ;;
     *) exit 2 ;;
 esac
