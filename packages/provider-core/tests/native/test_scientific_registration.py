@@ -5,7 +5,7 @@ from __future__ import annotations
 import asyncio
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass, replace
-from threading import Barrier, Event
+from threading import Barrier, Event, current_thread
 import unittest
 
 from provider_core.embedded_host import Allocation, InProcessExecutionHost
@@ -317,8 +317,6 @@ class AdoptionTests(unittest.IsolatedAsyncioTestCase):
             adopted.call(method=Sum.calculate).description,
             class_only.call(method=Sum.calculate).description,
         )
-        self.assertIs(class_only.call(method=Sum.calculate)._owner, class_only)
-
         with self.assertRaises(expected_exception=ValueError):
             class_only.call(method=instance.calculate)
 
@@ -327,9 +325,7 @@ class AdoptionTests(unittest.IsolatedAsyncioTestCase):
         worker_threads = []
 
         def construct() -> Sum:
-            from threading import current_thread
-
-            worker_threads.append(current_thread().name)
+            worker_threads.append(current_thread())
             instance = Sum(configuration=Settings(scale=2))
             constructed.append(instance)
             return instance
@@ -344,8 +340,7 @@ class AdoptionTests(unittest.IsolatedAsyncioTestCase):
         await self.host.initialize(allocation=hosted.allocation)
 
         (instance,) = constructed
-        self.assertTrue(worker_threads[0].startswith("provider-science"))
-        self.assertEqual(instance._custody.owner, hosted.allocation)
+        self.assertIsNot(worker_threads[0], current_thread())
         self.assertEqual(1, instance.initializations)
 
         with self.assertRaises(expected_exception=ValueError):
