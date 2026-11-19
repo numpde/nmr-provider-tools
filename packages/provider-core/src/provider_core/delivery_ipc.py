@@ -70,7 +70,7 @@ def _socket_grant(path, socket_group_id):
         raise DeliveryUnavailable(
             "Cannot open delivery IPC: require a canonical daemon-owned parent, "
             + required_parent_mode
-            + f"observed uid {parent.st_uid}, gid {parent.st_gid}, mode {stat.S_IMODE(parent.st_mode):04o}, caller uid {os.geteuid()}."
+            + f"observed {parent.st_uid=}, {parent.st_gid=}, {stat.S_IMODE(parent.st_mode)=:04o}, caller {os.geteuid()=}."
         )
 
     descriptor = os.open(path.parent / ".socket.lock", os.O_RDWR | os.O_CREAT | os.O_NOFOLLOW | os.O_CLOEXEC, 0o600)

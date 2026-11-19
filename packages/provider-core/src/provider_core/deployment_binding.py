@@ -14,6 +14,7 @@ import argparse
 import ipaddress
 import json
 import re
+import reprlib
 import sys
 import tomllib
 import pathlib
@@ -31,28 +32,31 @@ from provider_core.tools import require_positive_number
 from provider_core.validation.upstream.docker_ids import is_full_network_id
 
 
-def _fields(table, expected, label):
+def _fields(table, expected, section_name):
     if not (type(table) is (expected_type := dict)):
-        raise BindingDefinitionRejected(f"{label=}; {type(table)=} ≠ {expected_type=}")
+        raise BindingDefinitionRejected(f"{section_name=}; {type(table)=} ≠ {expected_type=}")
 
     if set(table) != set(expected):
-        raise BindingDefinitionRejected(f"Cannot admit delivery bindings: {label} must contain exactly its documented fields.")
+        actual_field_names = sorted(table)
+        expected_field_names = sorted(expected)
+
+        raise BindingDefinitionRejected(f"{section_name=}: {actual_field_names=} should match {expected_field_names=}")
 
 
-def _absolute_path(value, label):
-    if not (type(value) is (expected_type := str)):
-        raise BindingDefinitionRejected(f"{label=}; {type(value)=} ≠ {expected_type=}")
+def _absolute_path(path_text, path_field):
+    if not (type(path_text) is (expected_type := str)):
+        raise BindingDefinitionRejected(f"{path_field=}; {type(path_text)=} ≠ {expected_type=}")
 
-    if not (value):
-        raise BindingDefinitionRejected(f"Cannot admit delivery bindings: {label} requires an absolute path without mount delimiters.")
+    if not (path_text):
+        raise BindingDefinitionRejected(f"{path_field=}: {path_text=} should be an absolute path")
 
-    if any((character in value) for character in ("\0", "\n", "\r", ",")):
-        raise BindingDefinitionRejected(f"Cannot admit delivery bindings: {label} requires an absolute path without mount delimiters.")
+    if any((character in path_text) for character in ("\0", "\n", "\r", ",")):
+        raise BindingDefinitionRejected(f"{path_field=}: {reprlib.repr(path_text)=} should contain no NUL, line breaks or commas")
 
-    path = pathlib.Path(value)
+    path = pathlib.Path(path_text)
 
-    if (path.anchor != "/") or (".." in path.parts) or (str(path) != value) or (not path.name):
-        raise BindingDefinitionRejected(f"Cannot admit delivery bindings: {label} must be an absolute normalized path.")
+    if (path.anchor != "/") or (".." in path.parts) or (str(path) != path_text) or (not path.name):
+        raise BindingDefinitionRejected(f"{path_field=}: {reprlib.repr(path_text)=} should be a normalized absolute path")
 
     return path
 
@@ -156,7 +160,8 @@ def _route(table, origin):
     if port is None:
         port = 443
 
-    policy = ServicePolicy.admit(mode, [f"{parsed.hostname}:{port}"], addresses)
+    service_authority = f"{parsed.hostname}:{port}"  # machine-string: service policy parses this exact hostname and port authority
+    policy = ServicePolicy.admit(mode, [service_authority], addresses)
 
     if (parsed.hostname == "0.0.0.0") or any(ipaddress.IPv4Address(address).is_unspecified for (_, address) in policy.addresses):
         raise BindingDefinitionRejected("Cannot admit API route: an unspecified address is not an API destination; select the intended peer address.")

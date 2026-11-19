@@ -192,9 +192,15 @@ class DeliveryQueue:
             os.close(descriptor)
             self._db = sqlite3.connect(directory / "delivery.sqlite3", check_same_thread=False, timeout=1)
 
-            self._db.execute("PRAGMA journal_mode=DELETE")
-            self._db.execute("PRAGMA synchronous=EXTRA")
-            self._db.execute("PRAGMA secure_delete=ON")
+            self._db.execute(
+                "PRAGMA journal_mode=DELETE"  # machine-string: SQLite selects the single-file journal mode required by delivery ownership
+            )
+            self._db.execute(
+                "PRAGMA synchronous=EXTRA"  # machine-string: SQLite enforces the configured durable commit policy
+            )
+            self._db.execute(
+                "PRAGMA secure_delete=ON"  # machine-string: SQLite erases deleted publication data as required by storage policy
+            )
             self._initialize()
         except (OSError, sqlite3.Error, DeliveryStorageFailed) as cause:
             self.close()
@@ -211,7 +217,7 @@ class DeliveryQueue:
             try:
                 facts = os.fstat(descriptor)
             except OSError as cause:
-                raise DeliveryStorageFailed(f"Cannot inspect private delivery file {path.name} before acquiring it.", cause=cause) from None
+                raise DeliveryStorageFailed(f"Cannot inspect private delivery file {path.name=} before acquiring it.", cause=cause) from None
 
             if (
                 (not stat.S_ISREG(facts.st_mode)) or
@@ -219,8 +225,8 @@ class DeliveryQueue:
                 (stat.S_IMODE(facts.st_mode) != 0o600)
             ):
                 raise DeliveryStorageFailed(
-                    f"Cannot open private delivery file {path.name}: require a caller-owned mode 0600 regular file; "
-                    f"observed uid {facts.st_uid}, mode {stat.S_IMODE(facts.st_mode):04o}, caller uid {os.geteuid()}."
+                    f"Cannot open private delivery file {path.name=}: require a caller-owned mode 0600 regular file; "
+                    f"observed {facts.st_uid=}, {stat.S_IMODE(facts.st_mode)=:04o}, caller {os.geteuid()=}."
                 )
         except BaseException:
             # Until return, this descriptor belongs here rather than self._lock
@@ -252,14 +258,18 @@ class DeliveryQueue:
                     PRIMARY KEY(api_origin, provider_ref, attempt_ref))"""
                 )
 
-                self._db.execute("PRAGMA user_version=1")
+                self._db.execute(
+                    "PRAGMA user_version=1"  # machine-string: SQLite records the initialized delivery schema version
+                )
 
             version = 1
 
         if version == 1:
             with self._transaction("upgrade"):
                 self._db.execute("ALTER TABLE outstanding ADD COLUMN publication BLOB")
-                self._db.execute("PRAGMA user_version=2")
+                self._db.execute(
+                    "PRAGMA user_version=2"  # machine-string: SQLite records the migrated delivery schema version
+                )
 
         # Detect incompatible/corrupt schema before serving any publication.
         self._db.execute("SELECT api_origin,provider_ref,attempt_ref,job_ref,operation,body,digest,state,created_at,held_reason,publication FROM outstanding LIMIT 0")
@@ -277,7 +287,7 @@ class DeliveryQueue:
                 yield
             except sqlite3.Error as cause:
                 self._failure = DeliveryStorageFailed(
-                    f"Cannot {operation} delivery storage. Preserve the database and restore storage before continuing; earlier delivery acknowledgements and API receipts are unchanged.",
+                    f"Cannot access delivery storage during {operation=}. Preserve the database and restore storage before continuing; earlier delivery acknowledgements and API receipts are unchanged.",
                     cause=cause,
                 )
 
@@ -406,7 +416,7 @@ class DeliveryQueue:
             return self._db.execute(
                 "UPDATE outstanding SET publication=?, state=CASE WHEN state='held' AND held_reason=? THEN 'pending' ELSE state END, "
                 "held_reason=CASE WHEN state='held' AND held_reason=? THEN NULL ELSE held_reason END "
-                "WHERE api_origin=? AND provider_ref=? AND publication IS NULL",
+                "WHERE api_origin=? AND provider_ref=? AND publication IS NULL",  # machine-string: SQLite applies this exact held-state schema transition
                 (publication_bytes(material), LEGACY_HOLD_REASON, LEGACY_HOLD_REASON, settings.identity.origin, provider_ref),
             ).rowcount
 

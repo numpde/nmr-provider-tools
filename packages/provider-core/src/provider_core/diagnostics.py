@@ -197,7 +197,7 @@ def write_stderr(content):
         written = os.write(descriptor, content)
 
         if written != len(content):
-            raise DiagnosticOutputRefused(f"Cannot finish stderr diagnostic output: wrote {written} of {len(content)} bytes.")
+            raise DiagnosticOutputRefused(f"Cannot finish stderr diagnostic output: wrote {written=} of {len(content)=} bytes.")
     finally:
         os.set_blocking(descriptor, blocking)
 

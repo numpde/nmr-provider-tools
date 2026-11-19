@@ -102,7 +102,7 @@ def _service(image, interpreter, namespace, key, uid, gid):
     return {
         "image": image,
         "pull_policy": "never",
-        "user": f"{uid}:{gid}",
+        "user": f"{uid}:{gid}",  # machine-string: Docker Compose parses the UID:GID container identity syntax
         "entrypoint": [interpreter, "-I", "-B", "-m", "provider_core.provider_proxy"],
         "init": True,
         "read_only": True,
@@ -122,7 +122,10 @@ def _service(image, interpreter, namespace, key, uid, gid):
             "org.nmr-provider-tools.route-role": "proxy",
             "org.nmr-provider-tools.binding": key
         },
-        "tmpfs": [f"/{name}:rw,nosuid,nodev,noexec,size=64m,mode=0700,uid={uid},gid={gid}" for name in ("tmp", "run")],
+        "tmpfs": [
+            f"/{name}:rw,nosuid,nodev,noexec,size=64m,mode=0700,uid={uid},gid={gid}"  # machine-string: Docker parses this tmpfs mount specification
+            for name in ("tmp", "run")
+        ],
         "logging": {
             "driver": "json-file",
             "options": {
@@ -151,7 +154,10 @@ def _named_initializer(image, interpreter, namespace, key, uid, gid, volume):
     service["labels"]["org.nmr-provider-tools.route-role"] = "initializer"
 
     # Root initializes only the route volume; its own scratch needs no provider identity.
-    service["tmpfs"] = [f"/{name}:rw,nosuid,nodev,noexec,size=64m,mode=0700" for name in ("tmp", "run")]
+    service["tmpfs"] = [
+        f"/{name}:rw,nosuid,nodev,noexec,size=64m,mode=0700"  # machine-string: Docker parses this initializer tmpfs mount specification
+        for name in ("tmp", "run")
+    ]
 
     return service
 
@@ -179,7 +185,7 @@ def _proxy_route(service, binding, interpreter, input_sources, role):
         "--status-directory",
         "/run",
         "--authority",
-        f"{parsed.hostname}:{port}"
+        f"{parsed.hostname}:{port}"  # machine-string: the route initializer parses this host authority as an argv value
     ]
 
     networks = {}

@@ -155,7 +155,7 @@ class DeliveryClient:
             raise self.last_failure
 
         if response.status != 200:
-            raise DeliveryRejected(f"The local delivery service refused this request (HTTP {response.status}); inspect its operator diagnostics.")
+            raise DeliveryRejected(f"The local delivery service refused this request (HTTP {response.status=}); inspect its operator diagnostics.")
 
         try:
             return read_document(response.body, MAX_IPC_RESPONSE_BYTES)
@@ -174,7 +174,7 @@ class DeliveryClient:
 
         reply = await self._request(
             "POST",
-            f"/submit/{item.operation.value}/{item.execution_attempt_ref}",
+            f"/submit/{item.operation.value}/{item.execution_attempt_ref}",  # machine-string: the local IPC client parses this operation and Attempt route exactly
             body=item.body,
             job_ref=item.job_ref
         )
@@ -271,7 +271,10 @@ class DeliveryClient:
 
     async def status(self, execution_attempt_ref):
         require_attempt_ref(execution_attempt_ref)
-        reply = await self._request("GET", f"/status/{execution_attempt_ref}")
+        reply = await self._request(
+            "GET",
+            f"/status/{execution_attempt_ref}",  # machine-string: the local IPC service parses this exact status route
+        )
 
         if reply is None:
             return None

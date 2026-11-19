@@ -25,8 +25,8 @@ class DeliveryConfigurationRejected(ValueError):
     """Safe configuration context; original admission evidence stays protected."""
 
     # A closed-field refusal has no underlying exception; parser and existing owner refusals retain their original cause.
-    def __init__(self, message, *, cause=None):
-        super().__init__(f"Cannot configure local delivery: {message}")
+    def __init__(self, reason, *, cause=None):
+        super().__init__(f"Cannot configure local delivery: {reason=}")
         self.cause = cause
 
 
@@ -35,7 +35,7 @@ def _fields(table, fields, label):
         raise DeliveryConfigurationRejected(f"{label=}; {type(table)=} ≠ {expected_type=}")
 
     if set(table) != fields:
-        raise DeliveryConfigurationRejected(f"{label} must contain exactly its documented fields.")
+        raise DeliveryConfigurationRejected(f"{label=} must contain exactly its documented fields.")
 
 
 def _binding(table):
