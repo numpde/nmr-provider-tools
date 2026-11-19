@@ -102,7 +102,7 @@ def receive_headers(client: socket.socket) -> tuple[bytes, bytes]:
     completes raises ConnectionError; an oversized header raises ValueError.
     """
     deadline = time.monotonic() + HEADER_SECONDS
-    data = bytearray()
+    request_buffer = bytearray()
 
     while True:
         # A fragment arriving after the deadline cannot complete admission.
@@ -116,19 +116,19 @@ def receive_headers(client: socket.socket) -> tuple[bytes, bytes]:
         if not (chunk):
             raise ConnectionError("Client closed before completing request headers")
 
-        data.extend(chunk)
+        request_buffer.extend(chunk)
 
-        header_end_offset = header_end(data)
+        header_end_offset = header_end(request_buffer)
 
         # Coalesced body bytes belong to forwarding, not header admission.
         # https://github.com/numpde/magnet-deploy/blob/2d4ee50b0359e71900fce9289ea01f46d0f41249/repository_checks/test_image_build_proxy.py#L88
-        header_byte_count = header_end_offset if header_end_offset is not None else len(data)
+        header_byte_count = header_end_offset if header_end_offset is not None else len(request_buffer)
 
         if not (header_byte_count <= MAX_HEADER_BYTES):
             raise ValueError(f"{header_byte_count=} should be at most {MAX_HEADER_BYTES=}")
 
         if header_end_offset is not None:
-            return (bytes(data[:header_byte_count]), bytes(data[header_byte_count:]))
+            return (bytes(request_buffer[:header_byte_count]), bytes(request_buffer[header_byte_count:]))
 
 
 def _dns_servers(resolver_file: pathlib.Path | None = None) -> tuple[str, ...]:
@@ -175,7 +175,7 @@ def _query_ipv4(
 
     _remaining(query_deadline, "DNS query")
     transaction = secrets.randbits(16)
-    request = dns_adapter.ipv4_query(host, transaction)
+    dns_query = dns_adapter.ipv4_query(host, transaction)
 
     with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as resolver:
         if interface != "system":
@@ -184,7 +184,7 @@ def _query_ipv4(
         resolver.settimeout(_remaining(query_deadline, "DNS query"))
         resolver.connect((server, dns_adapter.PORT))
         resolver.settimeout(_remaining(query_deadline, "DNS query"))
-        resolver.send(request)
+        resolver.send(dns_query)
         resolver.settimeout(_remaining(query_deadline, "DNS query"))
         response = resolver.recv(65535)
 
@@ -321,9 +321,9 @@ def relay(left: socket.socket, right: socket.socket) -> None:
 
             try:
                 source.settimeout(_remaining(deadline, "relay read"))
-                data = source.recv(BUFFER_BYTES)
+                relay_chunk = source.recv(BUFFER_BYTES)
 
-                if not data:
+                if not relay_chunk:
                     # EOF closes only this direction; the reverse direction
                     # can still carry a response to a completed client upload.
                     readers.remove(source)
@@ -333,12 +333,12 @@ def relay(left: socket.socket, right: socket.socket) -> None:
                     destination.shutdown(socket.SHUT_WR)
                     continue
 
-                operation = f"write {len(data) = }"
+                operation = f"write {len(relay_chunk) = }"
 
                 # select does not guarantee that a later write cannot stall.
                 destination.settimeout(_remaining(deadline, "relay write"))
 
-                destination.sendall(data)
+                destination.sendall(relay_chunk)
             except OSError as error:
                 # Keep the native exception and its traceback. The relay knows
                 # direction and operation, but cannot infer HTTP acceptance
