@@ -76,7 +76,7 @@ inspect_candidate() {
     IFS='|' read -r observed owner logical driver options created extra < "$receipt"
     [[ $observed == "$volume" && $owner == "$project" && $logical == "$volume" && $driver == local \
         && ( $options == null || $options == '{}' ) ]] \
-        && delivery_volume_fields_present "$created" "$extra" \
+        && [[ -n $created && -z $extra ]] \
         && cmp -s "$receipt" <(printf '%s|%s|%s|%s|%s|%s\n' "$observed" "$owner" "$logical" "$driver" "$options" "$created") \
         || { report_failure "ownership or storage settings of $volume could not be confirmed."; return 2; }
     delivery_list_volume_borrowers "$borrower" "$volume" \
