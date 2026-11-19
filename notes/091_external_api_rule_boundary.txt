@@ -203,6 +203,8 @@ NMR Provider API: wire and validation owners
     PRIVACY_TESTS=0.
 
 [ ] N4  Separate refusal/replay meanings from send and retirement decisions
+    [x] Extract current-send no-change refusal meanings
+    [ ] Separate retry/replay protocol predicates from local ownership gates
     core/api.py:394-701,1031-1090
     Retry/replay eligibility inspects methods, exact routes, statuses and problem
     codes. _remember_failure interprets which verified refusals establish no
@@ -210,6 +212,14 @@ NMR Provider API: wire and validation owners
     prior attempts, requiring retirement, choosing another send and retaining
     uncertainty belong to the operation owner. Do not move this block wholesale.
     Evidence: test_api_unavailability.py and test_attempt_{start,progress,outcome}.py.
+    No-change meanings completed 2026-11-19: pure status/code predicates now
+    live in core/validation/upstream/nmr/v1/refusals.py. _remember_failure still
+    owns method/target attachment, uncertainty flags, notes and the same failure
+    identity. No prior send history is passed to validation or cleared by a new
+    refusal. Unknown or malformed replies remain uncertain.
+    Focused unit test_api_unavailability.py, test_attempt_start.py,
+    test_attempt_progress.py, test_attempt_outcome.py and test_upload_api.py and
+    contract test_installation.py passed on science with PRIVACY_TESTS=0.
 
 [ ] N5  Extract all eleven wire operations with their associated codecs
     core/api.py:713-1029,1091 onward

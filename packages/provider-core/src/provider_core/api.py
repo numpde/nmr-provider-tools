@@ -50,6 +50,7 @@ from provider_core.adapters.nmr.v1.signing import signed_request
 from provider_core.transport import ExchangeFailed
 from provider_core.type_requirements import require_type
 from provider_core.validation.upstream.nmr.v1.topology import require_api_topology
+from provider_core.validation.upstream.nmr.v1.refusals import attempt_change_refused, issuance_refused
 from provider_core.network import network_availability
 
 from provider_core.validation.upstream.nmr.v1.upload_response import (
@@ -746,51 +747,14 @@ class ProviderAPI:
         failure.request_method = request_method
         failure.request_target = request_target
 
-        # Reviewed 401 and request-body timeout meanings establish no domain
-        # change for this send (security/problems.py).
-        # These two grant-specific 409 branches precede issuance in operations/
-        # provider_job_upload_read_capability.py; errors.py explicitly promises
-        # no new link. Generic 403/404/409 statuses make no such assertion.
-        no_domain_change = (
-            (failure.problem_code is not None) and
-            ((failure.status == 401) or
-             (failure.status == 408 and failure.problem_code == "request_body_timeout"))
-        )
-
-        refused = (
-            (no_domain_change) or
-            (failure.status == 409 and failure.problem_code in {"upload_read_not_finalized", "project_purge_in_progress"})
-        )
-
-        if (issuance) and (not refused):
+        if (issuance) and (not issuance_refused(failure.status, failure.problem_code)):
             failure.issuance_may_have_committed = True
 
             failure.add_note(
                 "Download access may already have been issued and extended Upload retention; no retry was attempted."
             )
 
-        # security/problems.py explicitly establishes no domain change for these
-        # start refusals. operations/errors.py also explicitly establishes no
-        # progress change for the two progress conflicts. These facts describe
-        # this send, never an earlier lost response.
-        attempt_refused = (
-            (no_domain_change) or
-            ((failure.status == 409) and
-             (failure.problem_code in {
-                 "provider_attempt_key_conflict",
-                 "job_provider_attempt_limit_reached",
-                 "job_attempt_limit_reached",
-                 "execution_attempt_progress_terminal",
-                 "execution_attempt_progress_regression",
-                 "execution_attempt_outcome_expired",
-                 "execution_attempt_completion_after_failure",
-                 "execution_attempt_failure_after_success",
-                 "execution_attempt_completion_replay_mismatch",
-                 "execution_attempt_failure_replay_mismatch",
-             }))
-        )
-
-        if (attempt_mutation) and (not attempt_refused):
+        if (attempt_mutation) and (not attempt_change_refused(failure.status, failure.problem_code)):
             failure.attempt_mutation_may_have_committed = True
 
             failure.add_note(
