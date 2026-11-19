@@ -12,6 +12,39 @@ from operations.docker.errors import RetirementRefused
 # repo-check: allow-module-constant
 IMAGE_ID = re.compile(r"sha256:[0-9a-f]{64}")
 
+# repo-check: allow-module-constant
+CONTAINER_ID = re.compile(r"[0-9a-f]{64}")
+
+
+def inventory_ids(raw: str, pattern: re.Pattern[str]) -> list[str]:
+    """Admit full Docker IDs without changing the inventory's order or multiplicity."""
+
+    reported_ids = raw.splitlines()
+
+    for reported_id in reported_ids:
+        if pattern.fullmatch(reported_id) is None:
+            raise RetirementRefused(f"{reprlib.repr(reported_id)=} should match {pattern.pattern=}")
+
+    return reported_ids
+
+
+def container_image_references(raw: str, expected_count: int) -> list[str]:
+    """Admit one immutable image ID per inspected container."""
+
+    container_images = decode_inspection_lines(raw)
+
+    if len(container_images) != expected_count:
+        raise RetirementRefused(f"{len(container_images)=} should match {expected_count=}")
+
+    for container_image_id in container_images:
+        if not (type(container_image_id) is (expected_type := str)):
+            raise RetirementRefused(f"{type(container_image_id)=} ≠ {expected_type=}")
+
+        if IMAGE_ID.fullmatch(container_image_id) is None:
+            raise RetirementRefused(f"{reprlib.repr(container_image_id)=} should match {IMAGE_ID.pattern=}")
+
+    return container_images
+
 
 def metadata(raw: str, expected: Collection[str]) -> list[dict[str, Any]]:
     """Admit the response only when its objects account for the requested IDs."""

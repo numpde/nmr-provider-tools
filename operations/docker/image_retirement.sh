@@ -23,6 +23,7 @@ if image_lifecycle_lock exclusive; then :; else
     exit "$status"
 fi
 source "$root/operations/docker/docker_client.sh"
+source "$root/operations/docker/validation/upstream/image_ids.sh"
 source "$root/host/tools/inference_native.sh"
 docker_client_directory= inference_diagnostic=
 inference_retirement_confirmed=true
@@ -47,7 +48,7 @@ staged=
 if [[ -v SHARED_RUNTIME_IMAGE_INPUT_ORIGIN && $SHARED_RUNTIME_IMAGE_INPUT_ORIGIN == 'command line' ]]; then
     [[ -v SHARED_RUNTIME_IMAGE_INPUT ]] || { printf '%s\n' 'The staged image input is missing.' >&2; exit 2; }
     staged=$SHARED_RUNTIME_IMAGE_INPUT
-    [[ $staged =~ ^sha256:[0-9a-f]{64}$ ]] || {
+    docker_full_image_id "$staged" || {
         printf '%s\n' 'The staged SHARED_RUNTIME_IMAGE must be an immutable image ID.' >&2; exit 2;
     }
 fi

@@ -22,10 +22,16 @@ if __name__ == "__main__":
 from operations.docker.adapters.docker_inspection import (
     CONTAINER_IMAGE_FORMAT,
     IMAGE_INSPECTION_FORMAT,
-    decode_inspection_lines,
 )
 from operations.docker.errors import RetirementRefused
-from operations.docker.validation.upstream.docker_inspection import IMAGE_ID, inspected_image_fields, metadata
+from operations.docker.validation.upstream.docker_inspection import (
+    CONTAINER_ID,
+    IMAGE_ID,
+    container_image_references,
+    inspected_image_fields,
+    inventory_ids,
+    metadata,
+)
 
 
 # repo-check: allow-module-constant
@@ -70,12 +76,7 @@ def capture_command_output(arguments):
 
 # silent-defaults: allow-contract -- The image-ID parser defaults to tagged images; container-mode IDs are a separately selected caller contract.
 def ids(raw, *, container=False):
-    reported_ids = raw.splitlines()
-    pattern = re.compile(r"[0-9a-f]{64}") if container else IMAGE_ID
-
-    if any(pattern.fullmatch(reported_id) is None for reported_id in reported_ids):
-        raise RetirementRefused("Docker returned an incomplete immutable-ID inventory.")
-
+    reported_ids = inventory_ids(raw, CONTAINER_ID if container else IMAGE_ID)
     return sorted(set(reported_ids))
 
 
@@ -216,7 +217,7 @@ def retire(root, docker, current, *, staged=(), operations=pathlib.Path("/tmp"))
     for offset in range(0, len(container_ids), 64):
         batch = container_ids[offset:offset + 64]
 
-        container_images = decode_inspection_lines(
+        container_images = container_image_references(
             docker(
                 "inspect",
                 "--type",
@@ -224,19 +225,9 @@ def retire(root, docker, current, *, staged=(), operations=pathlib.Path("/tmp"))
                 "--format",
                 CONTAINER_IMAGE_FORMAT,
                 *batch
-            )
+            ),
+            len(batch),
         )
-
-        if len(container_images) != len(batch):
-            raise RetirementRefused("Container image references were incomplete.")
-
-        for container_image_id in container_images:
-            if not (type(container_image_id) is (expected_type := str)):
-                raise RetirementRefused(f"{type(container_image_id)=} ≠ {expected_type=}")
-
-            if IMAGE_ID.fullmatch(container_image_id) is None:
-                raise RetirementRefused("Container image references were incomplete.")
-
         protected_images.update(container_images)
 
     owned_image_ids = set()
