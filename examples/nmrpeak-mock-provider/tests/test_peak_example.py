@@ -148,6 +148,38 @@ class PeakExampleTests(unittest.IsolatedAsyncioTestCase):
 
                 self.assertEqual(first=expected_inventory, second=observed_inventory)
 
+    async def test_process_backend_reuses_one_installed_child_for_two_predictions(self):
+        document = tomllib.loads(self.configuration.read_text(encoding="utf-8"))
+        document["science"] = {"hf": document["science"]["hf"]}
+        document["execution"]["backend"] = "process"
+        self.configuration.write_text(data=tomli_w.dumps(document), encoding="utf-8")
+        self.factory.proposals = (candidate(carbon=False),)
+
+        async with self.open_offerings() as offerings:
+            (offering,) = offerings
+            self.assertEqual("hf", offering.family)
+            worker = offering.execution_host.process
+            self.assertIsNone(worker.poll())
+            worker_pid = worker.pid
+
+            for _ in range(2):
+                receiver = RecordingReceiver()
+
+                async with offering.open_prediction(receive=receiver) as workflow:
+                    await workflow.interpret(source="One recorded proton spectrum")
+                    await workflow.deliver()
+
+                (payload,) = receiver.payloads
+                result = json.loads(s=payload)
+                self.assertEqual(
+                    document["science"]["hf"][0]["settings"]["checkpoint_sha256"],
+                    result["checkpoint_sha256"],
+                )
+                self.assertEqual(worker_pid, worker.pid)
+                self.assertIsNone(worker.poll())
+
+        self.assertEqual(0, worker.poll())
+
     async def test_configured_inventory_supports_single_families_and_multiple_models(self):
         original = self.configuration.read_text(encoding="utf-8")
 

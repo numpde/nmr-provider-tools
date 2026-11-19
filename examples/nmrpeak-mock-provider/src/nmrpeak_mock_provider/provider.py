@@ -17,6 +17,7 @@ import pathlib
 import tomllib
 
 from provider_core.embedded_host import InProcessExecutionHost
+from provider_core.process_host import ProcessExecutionHost
 from provider_core.contribution import CallBinding
 from provider_core.failure_collection import FailureCollector
 from provider_core.hosting import OperationPolicy, settle_cleanup
@@ -25,6 +26,7 @@ from provider_core.scientific import HostedContribution, ResourceRequirement
 
 from .application import PredictionWorkflow
 from .binding import Chf, Hf
+from .fake_model import Model as InstalledMockModel
 from .science import Model, Settings
 
 
@@ -37,7 +39,7 @@ PROVIDER_CONFIG_PATH = pathlib.Path("config/deployments/localhost/provider.toml"
 class Offering:
     """Open predictions for one hosted model using the shared execution host."""
 
-    execution_host: InProcessExecutionHost
+    execution_host: InProcessExecutionHost | ProcessExecutionHost
     operation_policy: OperationPolicy
     hosted_predictor: HostedContribution
     create_interpreter: Callable[[], Interpreter]
@@ -118,7 +120,22 @@ async def open_offerings(
     with PROVIDER_CONFIG_PATH.open(mode="rb") as source:
         provider_config = tomllib.load(source)
 
-    async with InProcessExecutionHost(**provider_config["execution"]["in_process_execution_host"]) as execution_host:
+    execution_mode = provider_config["execution"].get("backend", "thread")
+
+    if execution_mode == "thread":
+        host_type = InProcessExecutionHost
+    elif execution_mode == "process":
+        if sum(len(configurations) for configurations in provider_config["science"].values()) != 1:
+            raise ValueError("The first process backend supports one configured scientific offering")
+
+        if create_model is not InstalledMockModel:
+            raise ValueError("Process execution requires the installed NMRPeak mock model factory")
+
+        host_type = ProcessExecutionHost
+    else:
+        raise ValueError(f"Unknown scientific execution backend {execution_mode!r}")
+
+    async with host_type(**provider_config["execution"]["in_process_execution_host"]) as execution_host:
         operation_policy = OperationPolicy(**provider_config["execution"]["operation_policy"])
 
         resource_requirements = frozenset(
@@ -138,33 +155,42 @@ async def open_offerings(
             (predictor_class, interpretation_prompt_file) = predictor_families[family]
 
             for offering_config in offering_configs:
-                predictor = predictor_class(
-                    configuration=Settings(**offering_config["settings"]),
-                    checkpoint_path=PROVIDER_CONFIG_PATH.parent / offering_config["checkpoint_path"],
-                    create_model=create_model,
-                )
+                if execution_mode == "process":
+                    hosted_predictor = await execution_host.start(
+                        contribution_type=predictor_class,
+                        constructor="nmrpeak_mock_provider.process_factory:construct",
+                        startup={
+                            "contribution_class": predictor_class.__name__,
+                            "settings": offering_config["settings"],
+                            "checkpoint_path": str(PROVIDER_CONFIG_PATH.parent / offering_config["checkpoint_path"]),
+                        },
+                        requirements=resource_requirements,
+                    )
+                else:
+                    predictor = predictor_class(
+                        configuration=Settings(**offering_config["settings"]),
+                        checkpoint_path=PROVIDER_CONFIG_PATH.parent / offering_config["checkpoint_path"],
+                        create_model=create_model,
+                    )
 
-                hosted_predictor = execution_host.adopt(
-                    contribution=predictor,
-                    requirements=resource_requirements,
-                )
+                    hosted_predictor = execution_host.adopt(
+                        contribution=predictor,
+                        requirements=resource_requirements,
+                    )
                 preparation_call = hosted_predictor.call(method=predictor_class.prepare)
                 generation_call = hosted_predictor.call(method=predictor_class.generate)
 
                 offerings[hosted_predictor] = (family, interpretation_prompt_file, preparation_call, generation_call)
 
-        for offering in offerings:
-            try:
-                # The SDK calls this offering's initialize() on its worker thread.
-                # That creates the model, verifies its checkpoint and loads it.
-                # Wait for loading before making the provider available. A timeout
-                # does not stop loading; the host joins it during cleanup.
-                await execution_host.initialize(allocation=offering.allocation)
-            except Exception:
-                # Provider policy can decide here whether this offering should be
-                # retired and retried or left unavailable while others serve work.
-                # No such policy is chosen here; host shutdown still owns cleanup.
-                raise
+        if execution_mode == "thread":
+            for offering in offerings:
+                try:
+                    # The SDK loads each adopted model before advertising offerings.
+                    # A timeout retains the original thread until host cleanup.
+                    await execution_host.initialize(allocation=offering.allocation)
+                except Exception:
+                    # Startup failure leaves previously adopted models owned.
+                    raise
 
         create_interpreter = partial(
             Interpreter,
