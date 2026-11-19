@@ -110,9 +110,9 @@ class TypeExpectationTests(unittest.TestCase):
         with self.assertRaises(expected_exception=TypeError) as rejected:
             JsonDataclassCodec(format="test.invalid.v1", value_type=object)
 
-        self.assertNotIn(member="≠", container=str(rejected.exception))
+        self.assertIn(member="dataclass", container=str(rejected.exception))
 
         with self.assertRaises(expected_exception=TypeError) as rejected:
             JsonDataclassCodec(format="test.invalid.v1", value_type=object())
 
-        self.assertIn(member="≠", container=str(rejected.exception))
+        self.assertIn(member="expected instance of type", container=str(rejected.exception))
