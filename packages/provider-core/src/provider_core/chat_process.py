@@ -220,12 +220,12 @@ class SupervisedChatTransport:
 
         content = request.content
 
-        document = {
+        request_message = {
             "version": 1,
             "kind": "request",
             "method": request.method,
             "url": str(request.url),
-            "headers": [[encoded_bytes(name), encoded_bytes(value)] for (name, value) in request.headers.raw],
+            "headers": [[encoded_bytes(header_name), encoded_bytes(header_value)] for (header_name, header_value) in request.headers.raw],
             "body": encoded_bytes(content),
             "request_bytes": len(content),
             "trust": self._trust,
@@ -243,7 +243,7 @@ class SupervisedChatTransport:
         self._active = exchange
 
         try:
-            exchange.task = _owned(self._exchange_with_child(exchange, document, maximum_bytes, error_maximum_bytes))
+            exchange.task = _owned(self._exchange_with_child(exchange, request_message, maximum_bytes, error_maximum_bytes))
         except BaseException:
             self._active = None
 
@@ -271,10 +271,10 @@ class SupervisedChatTransport:
         child_process.stdin.write(framed(raw))
         await child_process.stdin.drain()
         child_process.stdin.close()
-        limit = METADATA_BYTES + 4 * ((max(maximum_bytes, error_maximum_bytes) + 2) // 3)
-        document = await read_message(child_process.stdout, limit)
-        reply = read_reply(document, maximum_bytes=maximum_bytes, error_maximum_bytes=error_maximum_bytes)
-        exchange.child_reply = reply
+        max_reply_message_bytes = METADATA_BYTES + 4 * ((max(maximum_bytes, error_maximum_bytes) + 2) // 3)
+        reply_message = await read_message(child_process.stdout, max_reply_message_bytes)
+        exchange_outcome = read_reply(reply_message, maximum_bytes=maximum_bytes, error_maximum_bytes=error_maximum_bytes)
+        exchange.child_reply = exchange_outcome
 
         if await child_process.stdout.read(1):
             raise ValueError("Interpreter child returned more than one reply")
@@ -284,7 +284,7 @@ class SupervisedChatTransport:
         if child_process.returncode != 0:
             raise RuntimeError("Interpreter HTTP child exited unsuccessfully")
 
-        return reply
+        return exchange_outcome
 
     async def _until_stop(self, exchange, task):
         stop = _owned(exchange.stop.wait())
@@ -309,7 +309,7 @@ class SupervisedChatTransport:
             stop.cancel()
             await asyncio.gather(stop, return_exceptions=True)
 
-    async def _exchange_with_child(self, exchange, document, maximum_bytes, error_maximum_bytes):
+    async def _exchange_with_child(self, exchange, request_message, maximum_bytes, error_maximum_bytes):
         try:
             if exchange.stopped_at is not None:
                 return
@@ -323,8 +323,8 @@ class SupervisedChatTransport:
             # captured copy. Its parent owner survives even a killed child.
             exchange.trust_directory = tempfile.TemporaryDirectory(prefix="provider-model-http-")
 
-            document["trust_directory"] = exchange.trust_directory.name
-            raw = message_bytes(document)
+            request_message["trust_directory"] = exchange.trust_directory.name
+            raw = message_bytes(request_message)
 
             if asyncio.get_running_loop().time() >= exchange.deadline:
                 self._stop(exchange, TimeoutError("Model HTTP exchange expired before child startup"), at=exchange.deadline)
@@ -357,14 +357,14 @@ class SupervisedChatTransport:
                 exchange.io = _owned(self._io(exchange, raw, maximum_bytes, error_maximum_bytes))
 
                 if await self._until_stop(exchange, exchange.io):
-                    reply = exchange.io.result()
+                    exchange_outcome = exchange.io.result()
 
-                    if isinstance(reply, ExchangeFailed):
-                        exchange.failure = reply
+                    if isinstance(exchange_outcome, ExchangeFailed):
+                        exchange.failure = exchange_outcome
 
-                        exchange.cleanup_failures.extend(reply.cleanup_failures)
+                        exchange.cleanup_failures.extend(exchange_outcome.cleanup_failures)
                     else:
-                        exchange.response = reply
+                        exchange.response = exchange_outcome
 
                     return
         except BaseException as cause:

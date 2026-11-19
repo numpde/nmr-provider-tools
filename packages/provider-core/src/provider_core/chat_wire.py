@@ -92,12 +92,12 @@ def decoded_bytes(value, maximum):
     if not (len(value) <= (4 * ((maximum + 2) // 3))):
         raise ValueError("Interpreter child byte field exceeds its admitted limit")
 
-    result = base64.b64decode(value, validate=True)
+    decoded_content = base64.b64decode(value, validate=True)
 
-    if not (len(result) <= maximum):
+    if not (len(decoded_content) <= maximum):
         raise ValueError("Interpreter child byte field exceeds its admitted limit")
 
-    return result
+    return decoded_content
 
 
 def message_bytes(document):
@@ -137,16 +137,16 @@ def read_request(stream, maximum_bytes):
     if (len(raw) != size) or stream.read(1):
         raise ValueError("Interpreter child requires one complete request message")
 
-    document = read_document(raw, maximum_bytes)
+    request_message = read_document(raw, maximum_bytes)
 
-    require_type(document, dict)
+    require_type(request_message, dict)
 
-    require_type((document_version := document.get("version")), int)
+    require_type((document_version := request_message.get("version")), int)
 
-    if (document["version"] != 1) or (document.get("kind") != "request"):
+    if (request_message["version"] != 1) or (request_message.get("kind") != "request"):
         raise ValueError("Interpreter child request has an unknown schema")
 
-    return document
+    return request_message
 
 
 async def read_message(reader, maximum_bytes):
@@ -156,7 +156,7 @@ async def read_message(reader, maximum_bytes):
 
 
 def _headers(headers):
-    return [[encoded_bytes(name), encoded_bytes(value)] for (name, value) in headers]
+    return [[encoded_bytes(header_name), encoded_bytes(header_value)] for (header_name, header_value) in headers]
 
 
 def _read_headers(headers):
@@ -165,7 +165,7 @@ def _read_headers(headers):
     if not (len(headers) <= 65536):
         raise ValueError("Interpreter child headers exceed their admitted limit")
 
-    result = []
+    decoded_headers = []
     remaining = METADATA_BYTES
 
     for pair in headers:
@@ -174,15 +174,15 @@ def _read_headers(headers):
         if len(pair) != 2:
             raise ValueError("Interpreter child header is malformed")
 
-        (name, value) = (decoded_bytes(part, remaining) for part in pair)
-        remaining -= len(name) + len(value)
+        (header_name, header_value) = (decoded_bytes(part, remaining) for part in pair)
+        remaining -= len(header_name) + len(header_value)
 
         if not (0 <= remaining):
             raise ValueError("Interpreter child headers exceed their admitted limit")
 
-        result.append((name, value))
+        decoded_headers.append((header_name, header_value))
 
-    return tuple(result)
+    return tuple(decoded_headers)
 
 
 def response_message(response):
@@ -310,7 +310,7 @@ def _read_failure(document):
             raise ValueError("Interpreter child failure description is malformed")
 
         if kind == "provider_core.decoded_body.DecodedBodyRejected":
-            result = DecodedBodyRejected(node["reason"])
+            reconstructed_error = DecodedBodyRejected(node["reason"])
         elif kind in ("builtins.ExceptionGroup", "builtins.BaseExceptionGroup"):
             children = node["children"]
 
@@ -319,7 +319,7 @@ def _read_failure(document):
             if not (0 < len(children) <= _ERROR_NODES):
                 raise ValueError("Interpreter child exception group is malformed")
 
-            result = BaseExceptionGroup(text, [error(child) for child in children])
+            reconstructed_error = BaseExceptionGroup(text, [error(child) for child in children])
         else:
             # silent-defaults: allow-contract -- Unreviewed child error types retain protected evidence without acquiring retry authority.
             constructor = _ERROR_TYPES.get(kind, RemoteExchangeError)
@@ -333,17 +333,17 @@ def _read_failure(document):
                     issubclass(constructor, OSError) or (constructor is RemoteExchangeError))):
                     raise ValueError("Interpreter child error number is malformed")
 
-            result = constructor(number, text) if (number is not None) and (issubclass(constructor, OSError)) else constructor(text)
+            reconstructed_error = constructor(number, text) if (number is not None) and (issubclass(constructor, OSError)) else constructor(text)
 
             if constructor is RemoteExchangeError:
-                result.remote_type = kind
-                result.remote_errno = number
+                reconstructed_error.remote_type = kind
+                reconstructed_error.remote_errno = number
 
-        errors[index] = result
+        errors[index] = reconstructed_error
 
         constructing.remove(index)
 
-        return result
+        return reconstructed_error
 
     for index in range(len(nodes)):
         error(index)
