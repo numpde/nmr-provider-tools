@@ -29,6 +29,7 @@ def configure_gc(
     gc_settings = require_gc_object(builder_settings.setdefault("gc", {}))
 
     gc_settings["enabled"] = enabled
+
     gc_settings.update(zip(GC_THRESHOLD_FIELDS, (reserved_space, max_used_space, min_free_space)))
 
     return proposed_configuration

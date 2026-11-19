@@ -196,6 +196,7 @@ class ConversationBoundaryTests(unittest.IsolatedAsyncioTestCase):
         message = call("shared", "submit", {})
         malformed = call("malformed", "submit", {})["tool_calls"][0]
         malformed["function"]["arguments"] = 123
+
         message["tool_calls"].append(malformed)
         first = endpoint("malformed", message)
         second = recording_endpoint("accepted", call("shared", "submit", {}))
@@ -320,6 +321,7 @@ class ConversationBoundaryTests(unittest.IsolatedAsyncioTestCase):
 
         await conversation.run([], [], dispatch)
         requests = json.dumps(model.complete.call_args.args)
+
         await conversation.retire()
 
         return requests

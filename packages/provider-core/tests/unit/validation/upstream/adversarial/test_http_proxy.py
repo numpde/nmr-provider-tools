@@ -31,6 +31,7 @@ class ProxyTargetTests(unittest.TestCase):
                 b"\r",
             ),
         )
+
         self.assertEqual(
             header_end(
                 b"\r\n"

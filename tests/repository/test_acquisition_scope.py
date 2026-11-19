@@ -28,6 +28,7 @@ class AcquisitionScopeTests(unittest.TestCase):
         (bundle / 'tools').mkdir()
         shutil.copyfile(repository / 'host/tools/inference_native.sh', bundle / 'tools/inference_native.sh')
         shutil.copyfile(repository / 'operations/docker/docker_client.sh', bundle / 'tools/docker_client.sh')
+
         shutil.copyfile(
             repository / 'operations/docker/validation/upstream/container_ids.sh',
             bundle / 'acquisition_tool/validation/upstream/container_ids.sh',

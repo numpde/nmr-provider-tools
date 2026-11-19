@@ -832,6 +832,7 @@ class WheelhouseTests(unittest.TestCase):
             'example==1.0 \\\n'
             '    --hash=sha256:' + 'a' * 64 + '\n'
         )
+
         diagnostic = io.StringIO()
 
         with (

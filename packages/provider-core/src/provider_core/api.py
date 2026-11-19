@@ -30,6 +30,7 @@ from provider_core.adapters.nmr.v1.attempt_request import (
     progress_route,
     start_route,
 )
+
 from provider_core.validation.upstream.nmr.v1.attempt_request import (
     read_complete_body,
     read_fail_body,
@@ -61,6 +62,7 @@ from provider_core.transport import ExchangeFailed
 from provider_core.type_requirements import require_type
 from provider_core.validation.upstream.nmr.v1.topology import edge_topology_matches, require_api_topology
 from provider_core.validation.upstream.nmr.v1.response_envelope import is_api_success
+
 from provider_core.validation.upstream.nmr.v1.recovery import (
     API_RECOVERY_STATUS,
     access_refused,
@@ -71,6 +73,7 @@ from provider_core.validation.upstream.nmr.v1.recovery import (
     read_grant_not_finalized,
     signature_refresh_allowed,
 )
+
 from provider_core.network import network_availability
 
 from provider_core.validation.upstream.nmr.v1.upload_response import (
@@ -493,6 +496,7 @@ class ProviderAPI:
             limit=limit,
             cursor=cursor,
         )
+
         request_method, request_path = jobs_route()
 
         response = await self._exchange(

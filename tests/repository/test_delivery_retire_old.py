@@ -32,6 +32,7 @@ class DeliveryRetireOldTests(unittest.TestCase):
                 'operations/docker/validation/upstream/image_ids.sh',
             ):
                 target = root / path
+
                 target.parent.mkdir(parents=True, exist_ok=True)
                 shutil.copyfile(ROOT / path, target)
 

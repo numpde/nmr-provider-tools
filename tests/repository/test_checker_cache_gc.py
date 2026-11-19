@@ -122,6 +122,7 @@ class EngineCacheGCTests(unittest.TestCase):
                 "operations/docker/validation/upstream/cache_gc.py",
             ):
                 target = root / path
+
                 target.parent.mkdir(parents=True, exist_ok=True)
                 shutil.copyfile(ROOT / path, target)
 

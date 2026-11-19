@@ -121,6 +121,7 @@ class ServiceProxyRefusalTests(unittest.TestCase):
         for (connect, resolve, _errors, request) in self._denied_targets():
             connect.assert_not_called()
             resolve.assert_not_called()
+
             request.sendall.assert_called_once_with(
                 b"HTTP/1.1 403 Forbidden\r\n"
                 b"Connection: close\r\n"

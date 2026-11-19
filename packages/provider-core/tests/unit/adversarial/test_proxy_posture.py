@@ -27,6 +27,7 @@ from unittest.mock import MagicMock, Mock, patch
 
 # Exercise the installed owner; source checkout paths cannot satisfy this import.
 from provider_core import bound_http_proxy as _PROXY
+
 from provider_core.adapters import http_proxy
 
 # A fixed adversarial marker proves that request-bearing errors stay private.

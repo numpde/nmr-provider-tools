@@ -91,6 +91,7 @@ class DeliveryReleaseTests(unittest.TestCase):
         runtime_sha256 = "a" * 64
         runtime_url = "https://files.pythonhosted.org/packages/" + runtime_wheel
         self.release["runtime_wheels"] = {runtime_wheel: runtime_sha256}
+
         metadata = {
             "urls": [
                 {"filename": "unrelated-1.0-py3-none-any.whl"},
@@ -107,6 +108,7 @@ class DeliveryReleaseTests(unittest.TestCase):
             delivery_image.acquire_release(None, None, self.pool, pathlib.Path("tool.pyz"))
 
         request.assert_called_once_with("https://pypi.org/pypi/example/2.0/json", timeout=30)
+
         self.assertEqual(
             publish.call_args.args[2],
             [

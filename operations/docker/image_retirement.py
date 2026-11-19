@@ -23,7 +23,9 @@ from operations.docker.adapters.docker_inspection import (
     CONTAINER_IMAGE_FORMAT,
     IMAGE_INSPECTION_FORMAT,
 )
+
 from operations.docker.errors import RetirementRefused
+
 from operations.docker.validation.upstream.docker_inspection import (
     CONTAINER_ID,
     IMAGE_ID,
@@ -77,6 +79,7 @@ def capture_command_output(arguments):
 # silent-defaults: allow-contract -- The image-ID parser defaults to tagged images; container-mode IDs are a separately selected caller contract.
 def ids(raw, *, container=False):
     reported_ids = inventory_ids(raw, CONTAINER_ID if container else IMAGE_ID)
+
     return sorted(set(reported_ids))
 
 
@@ -228,6 +231,7 @@ def retire(root, docker, current, *, staged=(), operations=pathlib.Path("/tmp"))
             ),
             len(batch),
         )
+
         protected_images.update(container_images)
 
     owned_image_ids = set()

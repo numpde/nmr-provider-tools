@@ -24,6 +24,7 @@ from provider_core.adapters.chat_completions.encoding import context_byte_count
 from provider_core.transport_errors import ExchangeFailed
 from provider_core.type_requirements import require_type
 from provider_core.validation.upstream.chat_completions.response import is_completion_success
+
 from provider_core.validation.upstream.chat_completions.tool_calls import (
     assistant_text_fields,
     read_arguments_text,

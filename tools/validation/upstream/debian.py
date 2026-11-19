@@ -18,6 +18,7 @@ def require_binary_package_filename(
 
     # https://manpages.debian.org/bookworm/dpkg-dev/dpkg-name.1.en.html
     archive_version = package_version.split(":", 1)[-1]
+
     expected_filename = f"{package_name}_{archive_version}_{architecture}.deb"  # machine-string: Debian binary archive filename
 
     if not (filename == expected_filename):

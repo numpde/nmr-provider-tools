@@ -562,6 +562,7 @@ class SourceUpdateTests(unittest.TestCase):
             patch.object(subprocess, "run", side_effect=AssertionError("Bootstrap downloading must not invoke external commands")),
         ):
             opener.return_value.open.side_effect = self.download
+
             downloads.update(self.source, self.pin)
 
         self.assertEqual(1, download.call_count)
@@ -576,6 +577,7 @@ class SourceUpdateTests(unittest.TestCase):
             self.assertRaises(ValueError),
         ):
             opener.return_value.open.return_value = io.BytesIO(b"untrusted response bytes")
+
             downloads.update(self.source, self.pin)
 
         self.assert_old_source()
@@ -630,6 +632,7 @@ class SourceUpdateTests(unittest.TestCase):
             self.assertRaises(PermissionError) as caught,
         ):
             opener.return_value.open.side_effect = self.download
+
             downloads.update(self.source, self.pin)
 
         self.assertIs(cleanup_failure, caught.exception)
@@ -653,6 +656,7 @@ class SourceUpdateTests(unittest.TestCase):
             self.assertRaises(ValueError),
         ):
             opener.return_value.open.side_effect = download_and_edit
+
             downloads.update(self.source, self.pin)
 
         self.assertEqual(b"edit during download", (self.source / "acquisition_tool/old.py").read_bytes())

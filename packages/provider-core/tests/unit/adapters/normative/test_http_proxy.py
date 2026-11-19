@@ -40,6 +40,7 @@ class ProxyRequestTests(unittest.TestCase):
                     result = parse_destination(header)
 
                     self.assertEqual(result[:3], (method, "example.invalid", port))
+
                     self.assertEqual(
                         result[3],
                         header if method == "CONNECT" else (
@@ -74,6 +75,7 @@ class ProxyRequestTests(unittest.TestCase):
                 (method, host, port, forwarded) = parse_destination(header)
 
                 self.assertEqual(("GET", "example.invalid", 80), (method, host, port))
+
                 self.assertEqual(
                     f"GET {origin} HTTP/1.1\r\n"
                     f"Host: example.invalid\r\n"
@@ -110,12 +112,14 @@ class ProxyRequestTests(unittest.TestCase):
             b"HTTP/1.1 200 Connection Established\r\n"
             b"\r\n",
         )
+
         self.assertEqual(
             closing_response(HTTPStatus.FORBIDDEN),
             b"HTTP/1.1 403 Forbidden\r\n"
             b"Connection: close\r\n"
             b"\r\n",
         )
+
         self.assertEqual(
             closing_response(HTTPStatus.BAD_GATEWAY),
             b"HTTP/1.1 502 Bad Gateway\r\n"

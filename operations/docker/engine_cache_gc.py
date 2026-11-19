@@ -13,6 +13,7 @@ if __name__ == "__main__":
     sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[2]))
 
 from operations.docker.adapters.cache_gc import configure_gc, validate_daemon_config_command, write_daemon_config
+
 from operations.docker.validation.upstream.cache_gc import (
     builder_gc,
     decode_daemon_config,
@@ -33,6 +34,7 @@ def native_config(daemon_config_path):
         raise ValueError("Select the canonical caller-owned native daemon.json file.")
 
     configuration_bytes = daemon_config_path.read_bytes()
+
     return (configuration_bytes, decode_daemon_config(configuration_bytes))
 
 
@@ -45,6 +47,7 @@ def configured(document):
         max_used_space="32GB",
         min_free_space="20GB",
     )
+
     limits(proposed_configuration)
 
     return proposed_configuration

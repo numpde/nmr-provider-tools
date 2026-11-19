@@ -114,12 +114,14 @@ class ChatEndpointFactory:
     def context_bytes(self):
         """Exact messages/tools capacity after reserving this carrier's envelope."""
         empty_context_byte_count = context_byte_count(messages=[], tools=[])
+
         empty_request = request_body(
             model=self.spec.model,
             messages=[],
             tools=[],
             reasoning_effort=self.spec.reasoning_effort,
         )
+
         overhead = len(empty_request) - empty_context_byte_count
 
         return self.request_bytes - overhead
@@ -220,6 +222,7 @@ class ChatEndpoint:
         entity. not_after bounds request work; the transport separately owns one
         configured cleanup allowance for the original exchange.
         """
+
         content = request_body(
             model=self.spec.model,
             messages=messages,

@@ -17,6 +17,7 @@ def update(source_dir: pathlib.Path, pin_file: pathlib.Path) -> dict:
     """Replace clean checked-in source through the maintenance package's importer."""
 
     source = pathlib.Path(source_dir).absolute()
+
     source_update.verify(source)
     pin = source_update.read_pin(pin_file)
     name = f"acquisition-owner-{pin['version']}.tar.gz"  # machine-string: acquisition source asset filename

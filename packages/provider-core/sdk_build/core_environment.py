@@ -29,6 +29,7 @@ from tools.adapters.pip_install import (
     hashed_requirement,
     install_locked_wheels_command,
 )
+
 from tools.artifacts import fsync_directory, regular_file
 from tools.installer import create_environment
 from tools.wheelhouse import digest, pool_read_lock, read_json, requirements, select_wheels, wheel_inputs_from_report
@@ -38,6 +39,7 @@ from type_requirements import require_type
 # These paths identify the canonical build input and its SDK package destination
 # repo-check: allow-module-constant
 TYPE_REQUIREMENTS_SOURCE = pathlib.Path("/workspace/packages/type-requirements/src/type_requirements.py")
+
 # repo-check: allow-module-constant
 SDK_TYPE_REQUIREMENTS = pathlib.Path("src/provider_core/_type_requirements.py")
 
