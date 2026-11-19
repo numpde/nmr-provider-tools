@@ -481,7 +481,7 @@ def main():
     args = parser.parse_args()
 
     if args.action == "install":
-        if args.root is None or args.lock is None:
+        if (args.root is None) or (args.lock is None):
             parser.error("install requires --root and --lock")
 
         expected_inputs = None

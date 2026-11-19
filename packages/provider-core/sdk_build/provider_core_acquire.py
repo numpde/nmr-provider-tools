@@ -151,7 +151,7 @@ def main():
         if not bootstrap_present(pool, bootstrap):
             state = "missing"
 
-        if sys.argv[1:] == ["verify"] and state != "complete":
+        if (sys.argv[1:] == ["verify"]) and (state != "complete"):
             raise ValueError(
                 "Provider-core build dependencies are missing. "
                 "Run make packages/provider-core/download for this wheelhouse."

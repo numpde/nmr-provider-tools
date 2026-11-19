@@ -45,7 +45,7 @@ def _discover_projects(*, project_root: pathlib.Path) -> list[tuple[pathlib.Path
             raise ValueError(f"{metadata.parent.name!r}: {distribution_name=} does not follow {pattern=}")
 
         # todo: separate
-        if distribution_name == "provider-core" or distribution_name in names:
+        if (distribution_name == "provider-core") or (distribution_name in names):
             raise ValueError(
                 f"Cannot install project {distribution_name!r}: distribution "
                 f"names must be unique and must not shadow provider-core."
@@ -334,7 +334,7 @@ def run_suite(suite: str, patterns: tuple[str, ...]) -> None:
             )
 
         # A named unit test file is a focused run, not a full native qualification.
-        if suite == "unit" and patterns == ("test*.py",):
+        if (suite == "unit") and (patterns == ("test*.py",)):
             native_lock = candidate_output / candidate_wheel.name.replace(
                 "-py3-none-any.whl",
                 "-native-install.lock",
