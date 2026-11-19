@@ -56,12 +56,12 @@ def qualify_wheelhouse_bundle(bundle, scratch):
     selection_lock = scratch / "pylock.toml"
 
     selection_lock.write_text(
-        'lock-version = "1.0"\n'
-        'created-by = "release qualification"\n'
-        '[[packages]]\n'
-        'name = "packaging"\n'
+        f'lock-version = "1.0"\n'
+        f'created-by = "release qualification"\n'
+        f'[[packages]]\n'
+        f'name = "packaging"\n'
         f'version = "{packaging_version}"\n'
-        '[[packages.wheels]]\n'
+        f'[[packages.wheels]]\n'
         f'url = "https://example.invalid/{packaging_wheel_name}"\n'
         f'hashes = {{ sha256 = "{packaging_digest}" }}\n'
     )

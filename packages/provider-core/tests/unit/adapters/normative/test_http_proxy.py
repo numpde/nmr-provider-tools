@@ -13,7 +13,7 @@ class ProxyRequestTests(unittest.TestCase):
                 parse_destination(
                     (
                         f"CONNECT example.invalid:{port} HTTP/1.1\r\n"
-                        "\r\n"
+                        f"\r\n"
                     ).encode(),
                 )
 

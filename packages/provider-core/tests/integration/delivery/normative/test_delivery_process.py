@@ -111,9 +111,9 @@ class DeliveryProcessTests(unittest.IsolatedAsyncioTestCase):
 
                 config.write_text(
                     f'schema_id = "{schema}"\n'
-                    'bindings = []\n'
+                    f'bindings = []\n'
                     f'state_directory = "{queue}"\n'
-                    'private_canary = "PRIVATE_CONFIGURATION_VALUE"\n'
+                    f'private_canary = "PRIVATE_CONFIGURATION_VALUE"\n'
                 )
 
                 config.chmod(0o600)

@@ -84,8 +84,8 @@ class UnixProxyTests(unittest.TestCase):
                             client.sendall(
                                 (
                                     f"GET http://127.0.0.1:{origin.server_address[1]}/proof HTTP/1.1\r\n"
-                                    "Host: fixture\r\n"
-                                    "\r\n"
+                                    f"Host: fixture\r\n"
+                                    f"\r\n"
                                 ).encode(),
                             )
 
@@ -122,9 +122,9 @@ class UnixProxyTests(unittest.TestCase):
                             client.sendall(
                                 (
                                     f"CONNECT 127.0.0.1:{origin.server_address[1]} HTTP/1.1\r\n"
-                                    "Host: fixture\r\n"
-                                    "\r\n"
-                                    "ping"
+                                    f"Host: fixture\r\n"
+                                    f"\r\n"
+                                    f"ping"
                                 ).encode(),
                             )
 

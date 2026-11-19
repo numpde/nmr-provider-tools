@@ -25,8 +25,8 @@ def exchange(proxy_port, origin_port, tunnel):
             client.sendall(
                 (
                     f"CONNECT 127.0.0.2:{origin_port} HTTP/1.1\r\n"
-                    "Host: fixture\r\n"
-                    "\r\n"
+                    f"Host: fixture\r\n"
+                    f"\r\n"
                 ).encode(),
             )
 
@@ -58,9 +58,9 @@ def exchange(proxy_port, origin_port, tunnel):
             client.sendall(
                 (
                     f"GET http://127.0.0.2:{origin_port}/proof HTTP/1.1\r\n"
-                    "Host: fixture\r\n"
-                    "Connection: close\r\n"
-                    "\r\n"
+                    f"Host: fixture\r\n"
+                    f"Connection: close\r\n"
+                    f"\r\n"
                 ).encode(),
             )
 

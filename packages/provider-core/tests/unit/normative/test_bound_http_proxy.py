@@ -438,7 +438,7 @@ class BoundProxyTests(unittest.TestCase):
 
         header = (
             f"{method} {target} HTTP/1.1\r\n"
-            "\r\n"
+            f"\r\n"
         ).encode("ascii")
 
         fragments = iter(((29, header[:-1]), (29.9, header[-1:])))

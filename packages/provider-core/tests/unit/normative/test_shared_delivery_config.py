@@ -78,14 +78,14 @@ class SharedDeliveryConfigurationTests(unittest.TestCase):
 
             def write(target, items, retry):
                 target.write_text(
-                    '[outbox]\n'
+                    f'[outbox]\n'
                     f'provider_items = {items}\n'
-                    'provider_bytes = 8192\n'
-                    'total_items = 4\n'
-                    'total_bytes = 16384\n'
+                    f'provider_bytes = 8192\n'
+                    f'total_items = 4\n'
+                    f'total_bytes = 16384\n'
                     f'retry_initial_seconds = {retry}\n'
-                    'retry_max_seconds = 10\n'
-                    'log_level = "INFO"\n'
+                    f'retry_max_seconds = 10\n'
+                    f'log_level = "INFO"\n'
                 )
 
             write(settings_path, 1, 1)

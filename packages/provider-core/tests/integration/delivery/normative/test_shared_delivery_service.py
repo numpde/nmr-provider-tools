@@ -70,14 +70,14 @@ class SharedDeliveryServiceTests(unittest.IsolatedAsyncioTestCase):
 
                 def settings(delay):
                     return ((
-                        '[outbox]\n'
-                        'provider_items = 4\n'
-                        'provider_bytes = 16384\n'
-                        'total_items = 8\n'
-                        'total_bytes = 32768\n'
+                        f'[outbox]\n'
+                        f'provider_items = 4\n'
+                        f'provider_bytes = 16384\n'
+                        f'total_items = 8\n'
+                        f'total_bytes = 32768\n'
                         f'retry_initial_seconds = {delay}\n'
                         f'retry_max_seconds = {delay}\n'
-                        'log_level = "INFO"\n'
+                        f'log_level = "INFO"\n'
                     ))
 
                 config.write_text(settings(60))

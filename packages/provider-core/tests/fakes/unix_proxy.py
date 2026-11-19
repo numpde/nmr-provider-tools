@@ -57,8 +57,8 @@ class UnixProxy:
             if self.mode in ("refuse", "malformed"):
                 reply = (
                     f"HTTP/1.1 {self.refusal_status} PRIVATE_PROXY_REASON\r\n"
-                    "Content-Length: 0\r\n"
-                    "\r\n"
+                    f"Content-Length: 0\r\n"
+                    f"\r\n"
                 ).encode()
 
                 if self.mode == "malformed":

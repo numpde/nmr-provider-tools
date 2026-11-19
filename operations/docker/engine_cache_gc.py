@@ -100,17 +100,17 @@ def unit_files(root, context, endpoint, config):
     )
 
     timer = (
-        "[Unit]\n"
-        "Description=Periodic unused BuildKit cache collection\n"
-        "\n"
-        "[Timer]\n"
-        "OnCalendar=hourly\n"
-        "RandomizedDelaySec=15min\n"
-        "Persistent=true\n"
+        f"[Unit]\n"
+        f"Description=Periodic unused BuildKit cache collection\n"
+        f"\n"
+        f"[Timer]\n"
+        f"OnCalendar=hourly\n"
+        f"RandomizedDelaySec=15min\n"
+        f"Persistent=true\n"
         f"Unit={name}.service\n"
-        "\n"
-        "[Install]\n"
-        "WantedBy=timers.target\n"
+        f"\n"
+        f"[Install]\n"
+        f"WantedBy=timers.target\n"
     )
 
     return (name, service, timer)

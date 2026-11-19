@@ -43,8 +43,8 @@ class DeliveryReleaseTests(unittest.TestCase):
         pin.write_text(json.dumps(self.release | {"install_lock_sha256": expected_install_lock_sha256}))
 
         install_lock_bytes = (
-            "\n"
-            "provider-core==1.2.3 \\\n"
+            f"\n"
+            f"provider-core==1.2.3 \\\n"
             f"    --hash=sha256:{self.digest}\n"
         ).encode()
 
@@ -141,14 +141,14 @@ class DeliveryReleaseTests(unittest.TestCase):
         wheel_url = "https://example.invalid/provider_core-1.2.3-py3-none-any.whl"
 
         expected_lock = (
-            'lock-version = "1.0"\n'
-            'created-by = "nmr-provider-tools delivery"\n'
-            '[[packages]]\n'
-            'name = "provider-core"\n'
-            'version = "1.2.3"\n'
-            '[packages.archive]\n'
+            f'lock-version = "1.0"\n'
+            f'created-by = "nmr-provider-tools delivery"\n'
+            f'[[packages]]\n'
+            f'name = "provider-core"\n'
+            f'version = "1.2.3"\n'
+            f'[packages.archive]\n'
             f'url = "{wheel_url}"\n'
-            '[packages.archive.hashes]\n'
+            f'[packages.archive.hashes]\n'
             f'sha256 = "{self.digest}"\n'
         ).encode("utf-8")
 

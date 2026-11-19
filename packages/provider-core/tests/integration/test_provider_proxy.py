@@ -123,7 +123,7 @@ class ActualServiceProxyTests(unittest.IsolatedAsyncioTestCase):
                         writer.write(
                             (
                                 f"CONNECT api.example:{port} HTTP/1.1\r\n"
-                                "\r\n"
+                                f"\r\n"
                             ).encode(),
                         )
 
@@ -175,11 +175,11 @@ class ActualServiceProxyTests(unittest.IsolatedAsyncioTestCase):
 
             def configuration(host):
                 return ((
-                    '[api_proxy]\n'
-                    'max_connections = 4\n'
-                    'log_level = "INFO"\n'
+                    f'[api_proxy]\n'
+                    f'max_connections = 4\n'
+                    f'log_level = "INFO"\n'
                     f'allowed_authorities = ["{host}:{port}"]\n'
-                    '[api_proxy.route]\n'
+                    f'[api_proxy.route]\n'
                     f'addresses = ["{host}=127.0.0.1"]\n'
                 ))
 
@@ -208,7 +208,7 @@ class ActualServiceProxyTests(unittest.IsolatedAsyncioTestCase):
                     writer.write(
                         (
                             f"CONNECT first.example:{port} HTTP/1.1\r\n"
-                            "\r\n"
+                            f"\r\n"
                         ).encode(),
                     )
 
@@ -244,7 +244,7 @@ class ActualServiceProxyTests(unittest.IsolatedAsyncioTestCase):
                     refused_writer.write(
                         (
                             f"CONNECT first.example:{port} HTTP/1.1\r\n"
-                            "\r\n"
+                            f"\r\n"
                         ).encode(),
                     )
 
@@ -268,7 +268,7 @@ class ActualServiceProxyTests(unittest.IsolatedAsyncioTestCase):
                     new_writer.write(
                         (
                             f"CONNECT second.example:{port} HTTP/1.1\r\n"
-                            "\r\n"
+                            f"\r\n"
                         ).encode(),
                     )
 
