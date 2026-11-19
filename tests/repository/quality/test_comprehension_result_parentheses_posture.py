@@ -23,22 +23,22 @@ def comprehension_result_findings(*, source: str) -> list[tuple[int, int, str]]:
 
     for comprehension in ast.walk(node=ast.parse(source=source)):
         if isinstance(comprehension, ast.DictComp):
-            results = (comprehension.key, comprehension.value)
+            produced_expressions = (comprehension.key, comprehension.value)
         elif isinstance(comprehension, (ast.GeneratorExp, ast.ListComp, ast.SetComp)):
-            results = (comprehension.elt,)
+            produced_expressions = (comprehension.elt,)
         else:
             continue
 
-        for result in results:
+        for produced_expression in produced_expressions:
             if (
-                isinstance(result, ast.UnaryOp) and
-                isinstance(result.op, ast.Not) and
-                isinstance(result.operand, ast.Call)
+                isinstance(produced_expression, ast.UnaryOp) and
+                isinstance(produced_expression.op, ast.Not) and
+                isinstance(produced_expression.operand, ast.Call)
             ):
                 continue
 
-            if needs_operator_grouping(result):
-                expressions.append(result)
+            if needs_operator_grouping(produced_expression):
+                expressions.append(produced_expression)
 
     return ungrouped_expression_findings(source=source, expressions=expressions)
 

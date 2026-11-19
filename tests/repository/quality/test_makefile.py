@@ -263,17 +263,17 @@ class MakeRecipeOwnershipTests(unittest.TestCase):
         ):
             self.assertIn(assignment, makefile)
 
-        result = self._dry_run(
+        makeflags_run = self._dry_run(
             "tests/repository",
             makeflags="SHELL=malicious",
         )
 
-        self.assertEqual(0, result.returncode, msg=result.stderr)
-        self.assertNotIn("malicious", result.stdout)
+        self.assertEqual(0, makeflags_run.returncode, msg=makeflags_run.stderr)
+        self.assertNotIn("malicious", makeflags_run.stdout)
 
         self.assertIn(
             "tests/repository/run.sh",
-            result.stdout,
+            makeflags_run.stdout,
         )
 
         default_goal = self._dry_run(
