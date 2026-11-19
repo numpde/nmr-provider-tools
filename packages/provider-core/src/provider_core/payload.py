@@ -211,9 +211,9 @@ def _validate_annotation(
 
             return
 
-        for (index, item) in enumerate(arguments):
+        for (index, element_annotation) in enumerate(arguments):
             _validate_annotation(
-                item,
+                element_annotation,
                 path=f"{path}[{index}]",  # machine-string: Recursive annotation checks extend this identifier with a tuple member selector
                 seen=seen,
             )
@@ -317,7 +317,7 @@ def _decode_value(value: object, annotation: object, *, path: str) -> object:
                 code=PayloadRejected.Code.INVALID_VALUE,
             )
 
-        expected_types = [type(item) for item in arguments]
+        expected_types = [type(literal_value) for literal_value in arguments]
 
         if not any((type(value) is expected_type) for expected_type in expected_types):
             raise PayloadRejected(
@@ -335,11 +335,11 @@ def _decode_value(value: object, annotation: object, *, path: str) -> object:
             # repo-check: allow-tuple-generator -- Decode the provider's variadic tuple annotation into the immutable type its scientific callable requires.
             return tuple(
                 _decode_value(
-                    item,
+                    encoded_element,
                     arguments[0],
                     path=_path_index(path, index),
                 )
-                for (index, item) in enumerate(value)
+                for (index, encoded_element) in enumerate(value)
             )
 
         if len(value) != len(arguments):
@@ -351,11 +351,11 @@ def _decode_value(value: object, annotation: object, *, path: str) -> object:
         # repo-check: allow-tuple-generator -- A fixed tuple annotation requires an immutable positional result with the declared element types.
         return tuple(
             _decode_value(
-                item,
-                expected,
+                encoded_element,
+                element_annotation,
                 path=_path_index(path, index),
             )
-            for (index, (item, expected)) in enumerate(
+            for (index, (encoded_element, element_annotation)) in enumerate(
                 zip(value, arguments, strict=True)
             )
         )
@@ -366,7 +366,7 @@ def _decode_value(value: object, annotation: object, *, path: str) -> object:
         if value is None:
             return None
 
-        member = next(item for item in members if item is not NoneType)
+        member = next(member_annotation for member_annotation in members if member_annotation is not NoneType)
 
         return _decode_value(value, member, path=path)
 
@@ -416,11 +416,11 @@ def _decode_dataclass(value: object, value_type: type[T], *, path: str) -> T:
 
     decoded_arguments = {
         name: _decode_value(
-            item,
+            encoded_field_value,
             annotations[name],
             path=_path_field(path, name),
         )
-        for (name, item) in value.items()
+        for (name, encoded_field_value) in value.items()
     }
 
     try:
@@ -475,7 +475,7 @@ def _encode_value(value: object, annotation: object, *, path: str) -> object:
         if not (value in arguments):
             raise TypeError(f"{path = } is not one of the declared literal values")
 
-        expected_types = [type(item) for item in arguments]
+        expected_types = [type(literal_value) for literal_value in arguments]
 
         if not any((type(value) is expected_type) for expected_type in expected_types):
             raise TypeError(f"{path=}; {type(value)=} ≠ {expected_types=}")
@@ -489,11 +489,11 @@ def _encode_value(value: object, annotation: object, *, path: str) -> object:
         if (len(arguments) == 2) and (arguments[1] is Ellipsis):
             return [
                 _encode_value(
-                    item,
+                    element_value,
                     arguments[0],
                     path=_path_index(path, index),
                 )
-                for (index, item) in enumerate(value)
+                for (index, element_value) in enumerate(value)
             ]
 
         if len(value) != len(arguments):
@@ -501,11 +501,11 @@ def _encode_value(value: object, annotation: object, *, path: str) -> object:
 
         return [
             _encode_value(
-                item,
-                expected,
+                element_value,
+                element_annotation,
                 path=_path_index(path, index),
             )
-            for (index, (item, expected)) in enumerate(
+            for (index, (element_value, element_annotation)) in enumerate(
                 zip(value, arguments, strict=True)
             )
         ]
@@ -516,7 +516,7 @@ def _encode_value(value: object, annotation: object, *, path: str) -> object:
         if value is None:
             return None
 
-        member = next(item for item in members if item is not NoneType)
+        member = next(member_annotation for member_annotation in members if member_annotation is not NoneType)
 
         return _encode_value(value, member, path=path)
 
