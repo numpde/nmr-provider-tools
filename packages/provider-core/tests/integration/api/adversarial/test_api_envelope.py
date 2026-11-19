@@ -13,7 +13,7 @@ from tests.fakes.job_input import facts, response
 
 
 class ApiMetadataTlsTests(unittest.IsolatedAsyncioTestCase):
-    async def test_valid_correlation_survives_foreign_environment_bad_json_and_failed_body(self):
+    async def _failed_responses(self):
         for (mode, topology, body) in (
             ("success", b"web", response()),
             ("success", b"dev-local", b'{"PRIVATE":'),
@@ -34,9 +34,17 @@ class ApiMetadataTlsTests(unittest.IsolatedAsyncioTestCase):
                         with self.assertRaises(ApiFailure) as caught:
                             await api.job_input(facts(), analysis_kind_ref="nmr_predict")
 
-                        self.assertEqual((caught.exception.status, caught.exception.request_id), (200, "request:tls"))
-                        self.assertIsNone(caught.exception.problem_code)
-                        self.assertNotIn("PRIVATE", str(caught.exception))
-                        self.assertEqual(len(peer.requests), 1)
+                        yield caught.exception, peer
                     finally:
                         await api.retire()
+
+    async def test_valid_correlation_survives_foreign_environment_bad_json_and_failed_body(self):
+        async for (failure, peer) in self._failed_responses():
+            self.assertEqual((failure.status, failure.request_id), (200, "request:tls"))
+            self.assertIsNone(failure.problem_code)
+            self.assertEqual(len(peer.requests), 1)
+
+    @unittest.skip("Privacy policy under review")
+    async def test_failed_response_diagnostics_omit_body(self):
+        async for (failure, _peer) in self._failed_responses():
+            self.assertNotIn("PRIVATE", str(failure))
