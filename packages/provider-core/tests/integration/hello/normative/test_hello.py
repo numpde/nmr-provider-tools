@@ -8,7 +8,7 @@ from http_sf import parse
 
 from provider_core.api import ProviderAPI
 from provider_core.credential import parse_provider_credential
-from provider_core.signing import SigningIdentity
+from provider_core.adapters.nmr.v1.signing import SigningIdentity
 from provider_core.transport import HttpTransport
 from tests.fakes.api_tls import api_tls_peer
 from tests.fakes.credential import document, encoded

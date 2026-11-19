@@ -7,7 +7,7 @@ from unittest.mock import AsyncMock, patch
 from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
 from http_sf import parse
 
-from provider_core.signing import SigningIdentity, signed_request
+from provider_core.adapters.nmr.v1.signing import SigningIdentity, signed_request
 from provider_core.transport import HttpTransport
 from tests.fakes.tls_peer import TlsPeer
 from tests.fakes.unix_proxy import UnixProxy

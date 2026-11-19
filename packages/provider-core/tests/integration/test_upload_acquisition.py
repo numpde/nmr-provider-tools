@@ -12,7 +12,7 @@ from unittest.mock import patch
 from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
 
 from provider_core.api import ProviderAPI
-from provider_core.signing import SigningIdentity
+from provider_core.adapters.nmr.v1.signing import SigningIdentity
 from provider_core.transport import HttpTransport
 from provider_core.uploads import JobUploads, UploadFailed, UploadLimits
 from tests.fakes.acquisition import private_source_directory, sources, store_headers

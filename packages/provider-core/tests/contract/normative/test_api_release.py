@@ -16,7 +16,7 @@ from http_sf import parse
 from provider_core.api import require_api_topology
 from provider_core.hello import AnalysisOffering, hello_body
 from provider_core.job_input import JobInputRejected, verify_job_input
-from provider_core.signing import SigningIdentity, signed_request
+from provider_core.adapters.nmr.v1.signing import SigningIdentity, signed_request
 from tests.contract.api_release import PinnedApiRelease
 from tests.contract.provider_calls import provider_calls
 from tests.fakes.api import Transport, reply

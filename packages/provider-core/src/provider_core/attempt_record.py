@@ -30,7 +30,7 @@ from provider_core.attempt_response import (
 
 from provider_core.job_input import FeedInputFacts
 from provider_core.response_json import ResponseRejected
-from provider_core.signing import _https_origin
+from provider_core.validation.upstream.nmr.v1.signing import https_origin
 from provider_core.type_requirements import require_type
 
 # Pending starts only: 4096 request bytes become at most 5464 base64 characters;
@@ -57,7 +57,7 @@ class RecoveryScope:
     generation_id: str
 
     def __post_init__(self):
-        (origin, _authority) = _https_origin(self.api_origin)
+        (origin, _authority) = https_origin(self.api_origin)
 
         if origin != self.api_origin:
             raise ValueError("Cannot bind recovery scope: API origin must be canonical HTTPS")

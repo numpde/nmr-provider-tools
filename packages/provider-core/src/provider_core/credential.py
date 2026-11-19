@@ -23,7 +23,7 @@ from cryptography.hazmat.primitives.serialization import Encoding, PublicFormat,
 
 from provider_core.attempt_request import require_provider_ref
 from provider_core.response_json import ResponseRejected, read_document
-from provider_core.signing import require_credential_ref
+from provider_core.validation.upstream.nmr.v1.signing import require_credential_ref
 
 # The issued credential artifact has a bounded startup envelope.
 # repo-check: allow-module-constant

@@ -14,7 +14,7 @@ import httpcore
 from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
 
 from provider_core.api import ApiFailure, ProviderAPI
-from provider_core.signing import SigningIdentity
+from provider_core.adapters.nmr.v1.signing import SigningIdentity
 from provider_core.transport import HttpTransport
 from provider_core.uploads import JobUploads, UploadFailed, UploadInputRejected, UploadLimits, UploadRecovery, UploadRecoveryExhausted
 from tests.fakes.acquisition import private_source_directory, store_headers

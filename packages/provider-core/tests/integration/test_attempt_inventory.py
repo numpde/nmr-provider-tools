@@ -7,7 +7,7 @@ from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
 from http_sf import parse
 
 from provider_core.api import ProviderAPI
-from provider_core.signing import SigningIdentity
+from provider_core.adapters.nmr.v1.signing import SigningIdentity
 from provider_core.transport import ExchangeFailed, HttpTransport
 from tests.fakes.api_tls import api_tls_peer
 from tests.fakes.attempt_inventory import attempt, response

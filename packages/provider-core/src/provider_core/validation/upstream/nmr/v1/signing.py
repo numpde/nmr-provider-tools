@@ -1,7 +1,9 @@
-"""Construct exact RFC 9421 requests without owning time, randomness or network I/O.
+"""Admit origins and exact signing inputs for the NMR v1 RFC 9421 profile.
 
-Protocol sources and the Magnet signing precedent are pinned in package README.
-The API caller supplies a fresh timestamp and nonce for each network attempt.
+Sources: NMR API 6a163b7a9cc1e2c7485b681c0b2b969c7c20e6c8,
+security/credential_refs.py and security/authentication/_rfc9421_profile.py.
+Origin normalization and exact-target admission retain the supported SDK profile;
+they grant neither network access nor permission to retry a signed request.
 """
 
 from provider_core.container_guard import require_container
@@ -9,20 +11,13 @@ from provider_core.container_guard import require_container
 require_container()
 
 import re
-from base64 import urlsafe_b64encode
-from dataclasses import dataclass, field
-from hashlib import sha256
 from ipaddress import IPv6Address, ip_address
 from urllib.parse import urlsplit
-
-import httpx
-from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
-from http_sf import ser
 
 from provider_core.type_requirements import require_type
 
 
-def _https_origin(value):
+def https_origin(value):
     """Admit one HTTPS origin; never reinterpret credentials or a URL path."""
 
     require_type(value, str)
@@ -56,7 +51,7 @@ def _https_origin(value):
         address = ip_address(host)
     except ValueError:
         # urlsplit also accepts bracketed IPvFuture literals. Treating one as a
-        # DNS hostname would silently change the configured destination.
+        # DNS hostname would silently change the configured destination
         if parsed.netloc.startswith("["):
             raise ValueError("Cannot configure signing: bracketed origins must contain an IPv6 address") from None
 
@@ -73,27 +68,6 @@ def _https_origin(value):
     return ("https://" + authority, authority)
 
 
-@dataclass(frozen=True, slots=True, repr=False)
-class SigningIdentity:
-    """One configured API origin and Ed25519 credential, independent of transport."""
-
-    origin: str
-    credential_ref: str
-    private_key: Ed25519PrivateKey
-    authority: str = field(init=False)
-
-    def __post_init__(self):
-        (origin, authority) = _https_origin(self.origin)
-
-        require_credential_ref(self.credential_ref)
-
-        if not isinstance((actual_private_key := self.private_key), (expected_type := Ed25519PrivateKey)):
-            raise TypeError(f"{type(actual_private_key)=} ≠ {expected_type=}")
-
-        object.__setattr__(self, "origin", origin)
-        object.__setattr__(self, "authority", authority)
-
-
 def require_credential_ref(value):
     """Admit the reference grammar shared by issued artifacts and signed requests."""
 
@@ -103,7 +77,7 @@ def require_credential_ref(value):
         raise ValueError("Cannot configure signing: credential reference must use bounded credential:name segments")
 
 
-def _request_target(method, path, query):
+def request_target(method, path, query):
     """Reject ambiguous target forms before a client can normalize signed bytes."""
 
     require_type(method, str)
@@ -133,14 +107,8 @@ def _request_target(method, path, query):
     return target
 
 
-def signed_request(identity, *, method, path, query, body, created, nonce):
-    """Sign the exact target and optional JSON bytes; reject HTTPX rewriting.
-
-    None denotes no body. Empty bytes are a body and therefore require a digest.
-    This function grants no replay policy: the operation owner retains body bytes
-    and chooses whether another attempt is allowed.
-    """
-    target = _request_target(method, path, query)
+def require_signature_inputs(*, body, created, nonce):
+    """Admit the body representation, structured-field time and nonce length."""
 
     if (body is not None) and (type(body) is not (expected_body_type := bytes)):
         raise TypeError(f"{type(body)=} ≠ {expected_body_type=}")
@@ -154,33 +122,3 @@ def signed_request(identity, *, method, path, query, body, created, nonce):
 
     if len(nonce) != 16:
         raise ValueError("Cannot sign request: nonce must contain exactly 16 random bytes")
-
-    headers = {"Accept": "application/json, application/problem+json"}
-    values = {"@method": method, "@authority": identity.authority, "@path": path, "@query": "?" + query.decode("ascii")}
-
-    if body is not None:
-        headers["Content-Type"] = "application/json"
-        headers["Content-Digest"] = ser({"sha-256": (sha256(body).digest(), {})})
-        values["content-type"] = headers["Content-Type"]
-        values["content-digest"] = headers["Content-Digest"]
-
-    member = (
-        [(name, {}) for name in values],
-        {
-            "created": created,
-            "expires": created + 300,
-            "nonce": urlsafe_b64encode(nonce).rstrip(b"=").decode("ascii"),
-            "keyid": identity.credential_ref,
-            "tag": "nmr-api-v1",
-        },
-    )
-
-    base = "\n".join([f'"{name}": {value}' for (name, value) in values.items()] + [f'"@signature-params": {ser([member])}'])
-    headers["Signature-Input"] = ser({"sig1": member})
-    headers["Signature"] = ser({"sig1": (identity.private_key.sign(base.encode("ascii")), {})})
-    request = httpx.Request(method, identity.origin + target.decode("ascii"), headers=headers, content=body)
-
-    if request.url.raw_path != target or request.headers["Host"] != identity.authority:
-        raise ValueError("Cannot sign request: HTTP client rewrote the target or authority")
-
-    return request

@@ -25,7 +25,7 @@ from dataclasses import dataclass, field
 from provider_core.attempt_record import TerminalOperation
 from provider_core.attempt_request import read_complete_body, read_fail_body, require_provider_ref
 from provider_core.attempt_response import require_attempt_ref
-from provider_core.signing import _https_origin
+from provider_core.validation.upstream.nmr.v1.signing import https_origin
 from provider_core.upload_response import require_job_ref
 from provider_core.type_requirements import require_type
 
@@ -80,7 +80,7 @@ class DeliveryOutcome:
     body: bytes = field(repr=False)
 
     def __post_init__(self):
-        if _https_origin(self.api_origin)[0] != self.api_origin:
+        if https_origin(self.api_origin)[0] != self.api_origin:
             raise ValueError("Delivery requires the configured canonical API origin.")
 
         require_provider_ref(self.provider_ref)
@@ -568,7 +568,7 @@ class DeliveryQueue:
     def discard_held(self, api_origin, provider_ref, attempt_ref, body_sha256):
         """Operator disposition only; removing held bytes proves no API receipt."""
 
-        if _https_origin(api_origin)[0] != api_origin:
+        if https_origin(api_origin)[0] != api_origin:
             raise ValueError("Discard requires the configured canonical API origin.")
 
         require_provider_ref(provider_ref)

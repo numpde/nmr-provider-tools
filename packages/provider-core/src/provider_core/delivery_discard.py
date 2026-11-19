@@ -19,7 +19,7 @@ from provider_core.delivery_store import DeliveryQueue, QueueLimits
 from provider_core.diagnostics import failure_evidence
 from provider_core.startup_file import read_startup_file
 from provider_core.shared_delivery_config import SharedDeliveryConfiguration
-from provider_core.signing import _https_origin
+from provider_core.validation.upstream.nmr.v1.signing import https_origin
 from provider_core.attempt_request import require_provider_ref
 
 
@@ -48,7 +48,7 @@ def main():
         if (options.state_directory is None) or (not options.state_directory.is_absolute()):
             parser.error("Shared delivery inspection requires its absolute state directory.")
 
-        if _https_origin(options.api_origin)[0] != options.api_origin:
+        if https_origin(options.api_origin)[0] != options.api_origin:
             parser.error("Held delivery inspection requires the canonical API origin.")
 
         require_provider_ref(options.provider_ref)

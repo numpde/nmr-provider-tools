@@ -293,6 +293,7 @@
     },
     {
       "path": "packages/provider-core/src/provider_core/signing.py",
+      "replacement_path": "packages/provider-core/src/provider_core/adapters/nmr/v1/signing.py",
       "mode": "100644",
       "git_blob": "f3074cfcf45eaa655c423162795454d894f9341a",
       "sha256": "13bc8e8eb4324ad27548f70124cd927d2674c99dc0b5c81a714bbc71a32100e5",

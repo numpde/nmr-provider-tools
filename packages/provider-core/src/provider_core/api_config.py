@@ -16,7 +16,7 @@ from dataclasses import dataclass
 from provider_core.api import require_api_topology
 from provider_core.chat_tls import CapturedSSLContext, new_https_trust
 from provider_core.credential import MAX_CREDENTIAL_BYTES, parse_provider_credential
-from provider_core.signing import SigningIdentity
+from provider_core.adapters.nmr.v1.signing import SigningIdentity
 from provider_core.transport import HttpTransport, require_transport_settings
 
 

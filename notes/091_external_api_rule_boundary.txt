@@ -80,7 +80,7 @@ Contract sources and uncertainty
 NMR Provider API: wire and validation owners
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-[ ] N1  Separate signing validation and request construction
+[x] N1  Separate signing validation and request construction
     core/signing.py:25-186
     Origin/authority and credential-reference forms; HTTP method and exact
     path/query bytes; signature inputs, nonce/time fields, content digest and
@@ -88,6 +88,18 @@ NMR Provider API: wire and validation owners
     construction. signed_request builds the wire request. Caller-owned time,
     randomness and permission to retry remain outside signing.
     Evidence: test_signing.py and contract test_api_release.py signature vectors.
+    Completed 2026-11-19: checks now live in
+    core/validation/upstream/nmr/v1/signing.py; construction and identity live in
+    core/adapters/nmr/v1/signing.py. All callers use those owners directly; the
+    old module is removed. HTTPX rewrite detection and private-key capability
+    checks remain beside request construction. Setuptools includes the nested
+    packages; no acquisition/wheelhouse bootstrap closure imports this code.
+    Focused Make lanes passed with DOCKER_CONTEXT=science and PRIVACY_TESTS=0:
+    unit test_signing.py and test_delivery_store.py; contract test_api_release.py
+    and test_installation.py. The installation payload list also now accounts
+    for the existing packaged type-requirements modules.
+    Repository test_provider_core_port.py still reports 22 stale donor entries;
+    a read-only comparison against e546a30 confirmed all 22 predate this move.
 
 [ ] N2  Separate issued credential admission from local startup policy
     core/credential.py:31-131; core/api_config.py:152-230

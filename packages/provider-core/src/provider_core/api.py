@@ -46,7 +46,7 @@ from provider_core.hello import HELLO_RESPONSE_BYTES, hello_body, read_hello
 from provider_core.job_feed import PAGE_RESPONSE_BYTES, jobs_query, read_jobs_page
 from provider_core.job_input import MAX_RESPONSE_BYTES, FeedInputFacts, JobInputRejected, verify_job_input
 from provider_core.response_json import ResponseRejected
-from provider_core.signing import signed_request
+from provider_core.adapters.nmr.v1.signing import signed_request
 from provider_core.tools import duplicate_json_fields
 from provider_core.transport import ExchangeFailed, response_request_id
 from provider_core.type_requirements import require_type

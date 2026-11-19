@@ -8,7 +8,7 @@ import os
 from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
 
 from provider_core.api import ApiFailure, ProviderAPI
-from provider_core.signing import SigningIdentity
+from provider_core.adapters.nmr.v1.signing import SigningIdentity
 from provider_core.transport import ExchangeFailed
 from tests.fakes.api import Transport, reply, response_headers
 from tests.fakes.uploads import UPLOAD_REF, encoded, grant, member, membership

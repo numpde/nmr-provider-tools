@@ -5,7 +5,7 @@ import os
 
 from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
 
-from provider_core.signing import SigningIdentity, signed_request
+from provider_core.adapters.nmr.v1.signing import SigningIdentity, signed_request
 
 
 class SigningRejectionTests(unittest.TestCase):
