@@ -29,7 +29,7 @@ from provider_core.hosting import (
     RequestConflict, ReservationRef, ResourceState, ResultRef, ResultState,
     _raise_context_failure, settle_cleanup,
 )
-from provider_core.process_wire import RemoteScienceError, receive, send
+from provider_core.process_wire import RemoteScienceError, frame, receive, send
 from provider_core.scientific import Contribution, HostedContribution
 
 
@@ -329,6 +329,18 @@ class ProcessExecutionHost:
         if self.process is not None or self.retiring:
             raise RuntimeError("This process host accepts exactly one allocation")
 
+        # Reject nonportable declarations and startup data before spawning a
+        # child or assigning any operating-system resources.
+        message = {
+            "action": "start",
+            "host_options": self.host_options,
+            "constructor": constructor,
+            "contribution_type": self._member_path(contribution_type),
+            "startup": dict(startup),
+            "requirements": tuple(requirements),
+        }
+        frame(message)
+
         parent, child = socket.socketpair()
         self.stderr = tempfile.TemporaryFile()
 
@@ -357,14 +369,6 @@ class ProcessExecutionHost:
             child.close()
 
         self.channel = _Channel(parent)
-        message = {
-            "action": "start",
-            "host_options": self.host_options,
-            "constructor": constructor,
-            "contribution_type": self._member_path(contribution_type),
-            "startup": dict(startup),
-            "requirements": tuple(requirements),
-        }
         self.start_task = asyncio.create_task(self._exchange_async(message, seconds=self.initialization_seconds + 5))
         ready = await asyncio.shield(self.start_task)
         allocation = ready["allocation"]

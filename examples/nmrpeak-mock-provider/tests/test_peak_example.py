@@ -180,6 +180,26 @@ class PeakExampleTests(unittest.IsolatedAsyncioTestCase):
 
         self.assertEqual(0, worker.poll())
 
+    async def test_process_backend_preserves_correctable_scientific_rejection(self):
+        document = tomllib.loads(self.configuration.read_text(encoding="utf-8"))
+        document["science"] = {"hf": document["science"]["hf"]}
+        document["execution"]["backend"] = "process"
+        self.configuration.write_text(data=tomli_w.dumps(document), encoding="utf-8")
+        invalid = candidate(carbon=False)
+        invalid["formula"] = ""
+        self.factory.proposals = (invalid, candidate(carbon=False))
+        receiver = RecordingReceiver()
+
+        async with self.open_offerings() as offerings:
+            (offering,) = offerings
+
+            async with offering.open_prediction(receive=receiver) as workflow:
+                await workflow.interpret(source="One recorded proton spectrum")
+                await workflow.deliver()
+
+            self.assertEqual(2, len(self.factory.endpoints[0].requests))
+            self.assertEqual(1, len(receiver.payloads))
+
     async def test_configured_inventory_supports_single_families_and_multiple_models(self):
         original = self.configuration.read_text(encoding="utf-8")
 
