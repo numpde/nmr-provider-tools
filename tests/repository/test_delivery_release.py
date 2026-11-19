@@ -5,6 +5,7 @@ from tools.container_guard import require_container
 require_container()
 
 import hashlib
+import io
 import json
 import tempfile
 import unittest
@@ -84,6 +85,57 @@ class DeliveryReleaseTests(unittest.TestCase):
 
         self.assertEqual(self.wheel.name, publish.call_args.args[2][0][0])
         self.assertEqual(self.digest, publish.call_args.args[2][0][1])
+
+    def test_runtime_pin_selects_only_its_pypi_file_before_publishing(self):
+        runtime_wheel = "example-2.0-py3-none-any.whl"
+        runtime_sha256 = "a" * 64
+        runtime_url = "https://files.pythonhosted.org/packages/" + runtime_wheel
+        self.release["runtime_wheels"] = {runtime_wheel: runtime_sha256}
+        metadata = {
+            "urls": [
+                {"filename": "unrelated-1.0-py3-none-any.whl"},
+                {"filename": runtime_wheel, "digests": {"sha256": "b" * 64}},
+                {"filename": runtime_wheel, "digests": {"sha256": runtime_sha256}, "url": runtime_url},
+            ],
+        }
+
+        with (
+            patch.object(delivery_image, "require_download_proxy"),
+            patch("tools.adapters.pypi_project_json.urllib.request.urlopen", return_value=io.BytesIO(json.dumps(metadata).encode())) as request,
+            patch.object(delivery_image, "publish_release_wheels") as publish,
+        ):
+            delivery_image.acquire_release(None, None, self.pool, pathlib.Path("tool.pyz"))
+
+        request.assert_called_once_with("https://pypi.org/pypi/example/2.0/json", timeout=30)
+        self.assertEqual(
+            publish.call_args.args[2],
+            [
+                (runtime_wheel, runtime_sha256, runtime_url),
+                (self.wheel.name, self.digest, "https://github.com/numpde/nmr-provider-tools/releases/download/v1.2.3/" + self.wheel.name),
+            ],
+        )
+
+    def test_pypi_mismatch_ambiguity_or_wrong_host_prevents_publication(self):
+        runtime_wheel = "example-2.0-py3-none-any.whl"
+        runtime_sha256 = "a" * 64
+        runtime_url = "https://files.pythonhosted.org/packages/" + runtime_wheel
+        self.release["runtime_wheels"] = {runtime_wheel: runtime_sha256}
+
+        for release_files in (
+            [{"filename": runtime_wheel, "digests": {"sha256": "b" * 64}}],
+            [{"filename": runtime_wheel, "digests": {"sha256": runtime_sha256}, "url": runtime_url}] * 2,
+            [{"filename": runtime_wheel, "digests": {"sha256": runtime_sha256}, "url": "https://other.example/file.whl"}],
+        ):
+            with (
+                self.subTest(release_files=release_files),
+                patch.object(delivery_image, "require_download_proxy"),
+                patch("tools.adapters.pypi_project_json.urllib.request.urlopen", return_value=io.BytesIO(json.dumps({"urls": release_files}).encode())),
+                patch.object(delivery_image, "publish_release_wheels") as publish,
+                self.assertRaises(ValueError),
+            ):
+                delivery_image.acquire_release(None, None, self.pool, pathlib.Path("tool.pyz"))
+
+            publish.assert_not_called()
 
     def test_publisher_receives_the_exact_toml_lock(self):
         wheel_url = "https://example.invalid/provider_core-1.2.3-py3-none-any.whl"

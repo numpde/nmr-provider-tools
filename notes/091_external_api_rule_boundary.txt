@@ -849,6 +849,22 @@ Other service and artifact interfaces in repository tooling
     digests. Package-index interpretation belongs at its upstream boundary;
     required hashes, trusted download hosts and source preferences are local.
     Evidence: tests/test_shared_wheelhouse.py, tests/repository/test_delivery_release.py.
+    Delivery's project/version JSON request now lives in
+    tools/adapters/pypi_project_json.py; its consumed fields live in
+    tools/validation/upstream/pypi_project_json.py. Field reads retain their
+    original order: an unrelated filename need not have digests, and a rejected
+    digest need not have a URL. Delivery still selects the exact pinned filename
+    and hash, requires one match, admits the download host and owns publication.
+    The worker's existing tools mount supplies the modules; the captured image
+    recipe and its fingerprint include all five new module/package files.
+    Focused delivery-release and conventions lanes passed (22 tests,
+    PRIVACY_TESTS=0), including exact request/timeout, ignored incomplete records
+    and mismatch/ambiguity/wrong-host refusal before publication. Independent
+    audit confirmed the source closure and field/effect ordering. The supported
+    service interface is documented at https://docs.pypi.org/api/json/#get-release;
+    this is an existing consumed profile, not a pinned full schema or new checks.
+    Wheelhouse's distinct Simple JSON profile remains to be separated; its
+    authority is https://packaging.python.org/en/latest/specifications/simple-repository-api/.
 
 [ ] P2  Separate GitHub service/CLI meanings from release and update ownership
     operations/release/publish.sh:214-245

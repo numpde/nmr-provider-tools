@@ -8,17 +8,19 @@ import argparse
 import hashlib
 import json
 import re
+import reprlib
 import subprocess
 import sys
 import tempfile
 import urllib.parse
-import urllib.request
 import pathlib
 
 from tools.artifacts import regular_file, require_download_proxy
+from tools.adapters import pypi_project_json as pypi_requests
 from tools.installer import release as installer_release
 from sdk_build.provider_core_acquire import acquire_tool, tool_present
 from tools.wheelhouse import digest, pool_lock, read_json, requirements, select_wheels
+from tools.validation.upstream import pypi_project_json as pypi_release
 
 
 def release_inputs(pin, runtime_lock):
@@ -140,16 +142,14 @@ def acquire_release(pin, runtime_lock, pool, tool):
         else:
             (distribution, version, *_) = wheel_name.split("-")
 
-            with urllib.request.urlopen(
-                f"https://pypi.org/pypi/{distribution}/{version}/json",  # machine-string: PyPI routes by distribution and version path segments; expression labels would change the endpoint.
-                timeout=30,
-            ) as response:
-                metadata = json.load(response)
+            metadata = pypi_requests.release_metadata(distribution, version, timeout_seconds=30)
 
             candidates = [
-                release_file["url"]
-                for release_file in metadata["urls"]
-                if release_file["filename"] == wheel_name and release_file["digests"]["sha256"] == expected_sha256
+                pypi_release.file_url(release_file)
+                for release_file in pypi_release.release_files(metadata)
+                if
+                (pypi_release.file_name(release_file) == wheel_name) and
+                (pypi_release.file_sha256(release_file) == expected_sha256)
             ]
 
             matching_downloads = len(candidates)
@@ -162,7 +162,7 @@ def acquire_release(pin, runtime_lock, pool, tool):
             expected_download_host = "files.pythonhosted.org"
 
             if not (download_host == expected_download_host):
-                raise ValueError(f"For {wheel_name=}, {download_host=} should match {expected_download_host=}")
+                raise ValueError(f"For {wheel_name=}, download_host={reprlib.repr(download_host)} should match {expected_download_host=}")
 
         artifacts.append((wheel_name, expected_sha256, url))
 

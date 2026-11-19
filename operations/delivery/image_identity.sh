@@ -2,6 +2,8 @@
 # Identity of the committed recipe, independent of any caller's wheelhouse path.
 source "$root/operations/docker/image_fingerprint.sh"
 delivery_recipe_inputs=(operations/docker/base_image.sh tools/container_guard.py tools/artifacts.py tools/wheelhouse.py
+    tools/adapters/__init__.py tools/adapters/pypi_project_json.py
+    tools/validation/__init__.py tools/validation/upstream/__init__.py tools/validation/upstream/pypi_project_json.py
     packages/provider-core/sdk_build/core_environment.py tools/installer.py requirements/installer-release.json
     packages/type-requirements/src/type_requirements.py
     operations/delivery/build_inputs.py operations/delivery/image/delivery_deployment.py packages/provider-core/sdk_build/provider_core_acquire.py host/tools/build_stream_inputs.py
