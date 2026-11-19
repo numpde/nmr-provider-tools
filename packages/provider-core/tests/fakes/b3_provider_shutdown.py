@@ -117,7 +117,7 @@ async def shutdown_scenario(schedule, seed, directory, facts):
     from provider_core.chat import ChatEndpointFactory, ChatEndpointSpec
     from provider_core.controller import AttemptController, ControllerFailed, LiveStartPolicy
     from provider_core.interpreter import Interpreter
-    from provider_core.job_input import verify_job_input
+    from provider_core.validation.upstream.nmr.v1.job_input import verify_job_input
     from provider_core.ownership import AttemptClaims, LiveAttemptLimits, LiveCapacityFull, OwnershipRefused
     from provider_core.transport_errors import ExchangeFailed
     from tests.fakes.api import Transport, api, reply

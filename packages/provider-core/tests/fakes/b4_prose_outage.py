@@ -28,7 +28,7 @@ from provider_core.delivery_store import DeliveryQueue, QueueLimits
 from provider_core.delivery_worker import DeliveryWorker
 from provider_core.diagnostics import failure_evidence
 from provider_core.interpreter import InterpretationFailed, Interpreter, ProseService
-from provider_core.job_input import verify_job_input
+from provider_core.validation.upstream.nmr.v1.job_input import verify_job_input
 from provider_core.ownership import AttemptClaims, LiveAttemptLimits
 from provider_core.transport import HttpTransport
 from tests.fakes.api import Transport, api, reply

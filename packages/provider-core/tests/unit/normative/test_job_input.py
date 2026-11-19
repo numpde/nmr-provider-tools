@@ -4,7 +4,7 @@ import unittest
 import os
 from dataclasses import FrozenInstanceError
 
-from provider_core.job_input import verify_job_input
+from provider_core.validation.upstream.nmr.v1.job_input import verify_job_input
 from tests.fakes.job_input import facts, response
 
 

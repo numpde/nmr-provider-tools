@@ -12,7 +12,7 @@ import httpcore
 from provider_core.chat import ChatEndpoint, ChatEndpointSpec, ChatFailed
 from provider_core.controller import ActiveStartReplayHeld, AttemptController, ControllerFailed, ControllerRefused, LiveStartPolicy, StartDeferred
 from provider_core.execution import ExecutionStopped
-from provider_core.job_input import verify_job_input
+from provider_core.validation.upstream.nmr.v1.job_input import verify_job_input
 from provider_core.delivery_client import DeliveryUnavailable
 from provider_core.delivery_store import DeliveryFull
 from provider_core.ownership import AttemptClaims, LiveAttemptLimits, LiveCapacityFull

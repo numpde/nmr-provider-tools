@@ -163,7 +163,7 @@ NMR Provider API: wire and validation owners
     Composition still chooses announcement content and whether to follow a page.
     Evidence: test_hello.py, test_job_feed.py, test_attempt_inventory.py.
 
-[ ] N7  Extract Job-input envelope admission and decoding
+[x] N7  Extract Job-input envelope admission and decoding
     core/job_input.py:43-178
     Job/input schema and fingerprint forms, input/response byte ceilings,
     exact feed identity, canonical base64, decoded length/hash and UTF-8.
@@ -171,6 +171,12 @@ NMR Provider API: wire and validation owners
     are specific to this API. Scientific acceptance of the instructions is local.
     Evidence: test_job_input.py, integration/test_api_input.py and the contract
     boundary-length test in contract/normative/test_api_release.py:31.
+    Completed 2026-11-19: checked input facts, envelope admission and exact-byte
+    verification now live in core/validation/upstream/nmr/v1/job_input.py. All
+    callers use that owner; no adapter wrapper or old module remains. The
+    request boundary also uses the existing analysis-kind validator before I/O.
+    Focused unit test_job_input.py and test_api.py, integration test_api_input.py
+    and contract test_installation.py passed on science with PRIVACY_TESTS=0.
 
 [x] N8  Separate Attempt request validation, encoding and retained-body admission
     core/attempt_request.py:24-290

@@ -25,7 +25,7 @@ from provider_core.api import ApiFailure
 from provider_core.attempt_record import AcknowledgedAttempt, RecoveryScope, StartPending
 from provider_core.delivery_worker import require_delivery_retry_settings
 from provider_core.producer_checkpoint import DeliveryAcceptedCheckpoint, SuppressedCheckpoint
-from provider_core.job_input import VerifiedJobInput
+from provider_core.validation.upstream.nmr.v1.job_input import VerifiedJobInput
 
 from provider_core.execution import (
     AttemptExecutor,

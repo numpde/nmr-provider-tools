@@ -7,7 +7,7 @@ from unittest.mock import Mock
 
 from provider_core.adapters.nmr.v1.attempt_request import start_body
 from provider_core.execution import AttemptExecutor, ExecutionFailed, ExecutionRefused
-from provider_core.job_input import verify_job_input
+from provider_core.validation.upstream.nmr.v1.job_input import verify_job_input
 from provider_core.ownership import AttemptClaims, LiveAttemptLimits, OwnershipRefused
 from provider_core.producer_checkpoint import DeliveryAcceptedCheckpoint
 from provider_core.starting import AttemptStarter

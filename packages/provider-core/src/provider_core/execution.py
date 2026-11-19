@@ -44,7 +44,7 @@ from provider_core.conversation import independent_interruption_failure
 from provider_core.delivery_client import DeliveryUnavailable
 from provider_core.delivery_store import DeliveryFull, DeliveryOutcome
 from provider_core.delivery_worker import require_delivery_retry_settings
-from provider_core.job_input import VerifiedJobInput
+from provider_core.validation.upstream.nmr.v1.job_input import VerifiedJobInput
 
 from provider_core.producer_checkpoint import (
     AcknowledgedCheckpoint,

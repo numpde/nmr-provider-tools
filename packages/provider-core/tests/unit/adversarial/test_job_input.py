@@ -6,7 +6,7 @@ import traceback
 import unittest
 import os
 
-from provider_core.job_input import FeedInputFacts, JobInputRejected, verify_job_input
+from provider_core.validation.upstream.nmr.v1.job_input import FeedInputFacts, JobInputRejected, verify_job_input
 from tests.fakes.job_input import facts, response
 
 

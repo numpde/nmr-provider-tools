@@ -209,6 +209,7 @@
     },
     {
       "path": "packages/provider-core/src/provider_core/job_input.py",
+      "replacement_path": "packages/provider-core/src/provider_core/validation/upstream/nmr/v1/job_input.py",
       "mode": "100644",
       "git_blob": "2aafabe3ab0729a9b0246624c01180ea104863e4",
       "sha256": "262ca951951b07aa844b82143f318394305a5021938e443207cf1f96c3177094",

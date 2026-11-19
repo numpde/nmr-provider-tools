@@ -17,7 +17,7 @@ from provider_core.execution import ExecutionStopped, ObservationRecovery
 from provider_core.failure_projection import owned_relationships
 from provider_core.interpreter import Interpreter
 from provider_core.producer_checkpoint import DeliveryAcceptedCheckpoint, EnteredCheckpoint
-from provider_core.job_input import verify_job_input
+from provider_core.validation.upstream.nmr.v1.job_input import verify_job_input
 from provider_core.ownership import AttemptClaims, LiveAttemptLimits, LiveCapacityFull, OwnershipRefused
 from tests.fakes.api import Transport, api, reply
 from tests.fakes.attempt_store import record, scope

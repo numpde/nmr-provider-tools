@@ -10,7 +10,7 @@ from tests.fakes.attempt_store import record, scope
 from tests.fakes.attempts import observation, progress_response, start_response
 from tests.fakes.job_input import response
 from tests.fakes.live_analysis import LiveSession
-from provider_core.job_input import verify_job_input
+from provider_core.validation.upstream.nmr.v1.job_input import verify_job_input
 from tests.unit.normative import test_live_controller as live_fixture
 
 

@@ -14,7 +14,7 @@ from dataclasses import dataclass, field
 from typing import Protocol
 
 from provider_core.attempt_record import AcknowledgedAttempt, ProtectedEvidence
-from provider_core.job_input import VerifiedJobInput
+from provider_core.validation.upstream.nmr.v1.job_input import VerifiedJobInput
 from provider_core.runner_session import RunnerSession
 from provider_core.type_requirements import require_instance, require_type
 

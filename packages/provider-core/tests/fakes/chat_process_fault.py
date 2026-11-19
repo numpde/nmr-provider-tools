@@ -214,7 +214,7 @@ async def scenario(marker, report):
     from provider_core.controller import AttemptController, LiveStartPolicy
     from provider_core.conversation import ConversationRetirementFailed, ToolFinished
     from provider_core.interpreter import InterpretationFailed, Interpreter
-    from provider_core.job_input import verify_job_input
+    from provider_core.validation.upstream.nmr.v1.job_input import verify_job_input
     from provider_core.ownership import AttemptClaims, LiveAttemptLimits
     from tests.fakes.api import Transport, api, reply
     from tests.fakes.attempt_store import record, scope

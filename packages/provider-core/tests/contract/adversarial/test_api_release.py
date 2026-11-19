@@ -10,7 +10,7 @@ import os
 import pathlib
 
 from provider_core.api import ApiFailure
-from provider_core.job_input import JobInputRejected, verify_job_input
+from provider_core.validation.upstream.nmr.v1.job_input import JobInputRejected, verify_job_input
 from tests.contract.api_release import RELEASE_ROOT, PinnedApiRelease
 from tests.contract.provider_calls import provider_calls
 from tests.fakes.api import Transport, reply

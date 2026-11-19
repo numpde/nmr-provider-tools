@@ -4,7 +4,7 @@ import base64
 import hashlib
 import json
 
-from provider_core.job_input import FeedInputFacts
+from provider_core.validation.upstream.nmr.v1.job_input import FeedInputFacts
 
 
 # silent-defaults: allow-contract -- The synthetic input body and its fingerprint describe the same fixture bytes.

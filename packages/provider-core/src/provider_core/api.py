@@ -44,7 +44,7 @@ from provider_core.attempt_response import (
 
 from provider_core.hello import HELLO_RESPONSE_BYTES, hello_body, read_hello
 from provider_core.job_feed import PAGE_RESPONSE_BYTES, jobs_query, read_jobs_page
-from provider_core.job_input import MAX_RESPONSE_BYTES, FeedInputFacts, JobInputRejected, verify_job_input
+from provider_core.validation.upstream.nmr.v1.job_input import MAX_RESPONSE_BYTES, FeedInputFacts, JobInputRejected, verify_job_input
 from provider_core.response_json import ResponseRejected
 from provider_core.adapters.nmr.v1.signing import signed_request
 from provider_core.tools import duplicate_json_fields
@@ -804,10 +804,7 @@ class ProviderAPI:
 
         require_type(feed, FeedInputFacts)
 
-        require_type(analysis_kind_ref, str)
-
-        if not ((len(analysis_kind_ref) <= 128) and (re.fullmatch('[a-z][a-z0-9]*(?:_[a-z0-9]+)*', analysis_kind_ref) is not None)):
-            raise ValueError("Cannot read Job input: analysis kind must be a lower snake-case catalog key of at most 128 characters")
+        require_analysis_kind(analysis_kind_ref)
 
         response = await self._exchange(
             "read Job input",

@@ -27,7 +27,7 @@ from provider_core.attempt_response import (
     read_start,
 )
 
-from provider_core.job_input import FeedInputFacts
+from provider_core.validation.upstream.nmr.v1.job_input import FeedInputFacts
 from provider_core.response_json import ResponseRejected
 from provider_core.validation.upstream.nmr.v1.signing import https_origin
 from provider_core.validation.evidence import require_evidence_schema_id

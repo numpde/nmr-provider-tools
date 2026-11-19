@@ -1,4 +1,4 @@
-"""Bind exact instructions to the authenticated Job/feed observations of the caller.
+"""Admit exact instructions bound to the caller's authenticated Job/feed facts.
 
 Wire authority: nmr-api-v1 6a163b7a9cc1e2c7485b681c0b2b969c7c20e6c8,
 nmr_api/provider/schemas/job_input_read_response.v1.schema.json. Response ceiling

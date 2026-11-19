@@ -8,7 +8,7 @@ from unittest.mock import Mock
 
 from provider_core.controller import AttemptController, ControllerFailed, LiveStartPolicy
 from provider_core.attempt_record import TerminalOperation
-from provider_core.job_input import verify_job_input
+from provider_core.validation.upstream.nmr.v1.job_input import verify_job_input
 from provider_core.ownership import AttemptClaims
 from provider_core.producer_checkpoint import DeliveryAcceptedCheckpoint
 from provider_core.failure_projection import owned_details, owned_relationships
