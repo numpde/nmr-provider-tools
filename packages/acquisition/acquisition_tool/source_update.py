@@ -42,7 +42,7 @@ class AcquisitionManifest(TypedDict):
 
 
 def _version(release_version):
-    return type(release_version) is str and re.fullmatch(r"(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)", release_version)
+    return (type(release_version) is str) and re.fullmatch(r"(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)", release_version)
 
 
 def is_checksum(candidate_checksum):

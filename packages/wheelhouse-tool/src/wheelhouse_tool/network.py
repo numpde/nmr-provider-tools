@@ -101,7 +101,7 @@ def retry_delay(error, attempt):
 
         if header:
             try:
-                if header.isdecimal() and len(header.lstrip("0")) > 2:
+                if header.isdecimal() and (len(header.lstrip("0")) > 2):
                     return -1
 
                 requested = int(header) if header.isdecimal() else max(0, (email.utils.parsedate_to_datetime(header) - datetime.datetime.now(datetime.timezone.utc)).total_seconds())

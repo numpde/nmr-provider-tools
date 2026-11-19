@@ -101,7 +101,7 @@ def current_inputs(root):
 
     identities = selected_inputs.splitlines()
 
-    if len(identities) != 3 or any(_HASH.fullmatch(identity) is None for identity in identities):
+    if (len(identities) != 3) or any(_HASH.fullmatch(identity) is None for identity in identities):
         raise RetirementRefused("Current checker/delivery identities are incomplete.")
 
     return tuple(identities)
@@ -146,7 +146,7 @@ def select_images(images, protected, current):
     for image in images:
         (image_id, image_labels, image_tags, image_digests) = inspected_image_fields(image)
 
-        if image_id in protected or image_digests or len(image_tags) > 1:
+        if (image_id in protected) or image_digests or (len(image_tags) > 1):
             continue
 
         if any(
@@ -189,12 +189,12 @@ def select_images(images, protected, current):
             }
         elif role == "wheelhouse-tool":
             allowed_tags = {"nmr-provider-tools/wheelhouse-tool:local"}
-        elif role == "checker-bootstrap" and type(recorded_inputs) is str and _HASH.fullmatch(recorded_inputs):
+        elif (role == "checker-bootstrap") and (type(recorded_inputs) is str) and _HASH.fullmatch(recorded_inputs):
             if recorded_inputs == current_bootstrap:
                 continue
 
             allowed_tags = {f"nmr-provider-tools/checker-bootstrap:{recorded_inputs}"}
-        elif role in (None, "checker") and type(recorded_inputs) is str and _HASH.fullmatch(recorded_inputs):
+        elif (role in (None, "checker")) and (type(recorded_inputs) is str) and _HASH.fullmatch(recorded_inputs):
             if recorded_inputs == current_checker:
                 continue
 
@@ -306,7 +306,7 @@ def main():
     try:
         (root, staged, *engine) = sys.argv[1:]
 
-        if (not engine) or (staged and IMAGE_ID.fullmatch(staged) is None):
+        if (not engine) or (staged and (IMAGE_ID.fullmatch(staged) is None)):
             raise RetirementRefused("No explicit engine or immutable staged image was supplied.")
 
         staged_images = ()

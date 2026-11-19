@@ -135,7 +135,7 @@ def selected(lock, prefer_sdist, require_sdist=(), document=None, source_lock=No
             if (requirement.url is not None) and (artifact.url != urllib.parse.urldefrag(requirement.url).url):
                 raise ValueError(f"Cannot use projected lock: {package.name} has a different locked URL.")
 
-            if requirement.url is None and ((package.version is None) or (not requirement.specifier.contains(package.version, prereleases=True))):
+            if (requirement.url is None) and ((package.version is None) or (not requirement.specifier.contains(package.version, prereleases=True))):
                 raise ValueError(f"Cannot use projected lock: {package.name} has a different locked version.")
 
         if (not name) or (name in (".", "..")) or ("/" in name) or ("\\" in name):
@@ -149,7 +149,7 @@ def selected(lock, prefer_sdist, require_sdist=(), document=None, source_lock=No
             except InvalidWheelFilename as error:
                 raise ValueError(f"Cannot acquire {package.name}: direct wheel filename is invalid.") from error
 
-            if wheel_name != package.name or ((package.version is not None) and (wheel_version != package.version)):
+            if (wheel_name != package.name) or ((package.version is not None) and (wheel_version != package.version)):
                 raise ValueError(f"Cannot acquire {package.name}: direct wheel does not match the locked package.")
 
             if not wheel_tags.intersection(sys_tags()):
@@ -161,7 +161,7 @@ def selected(lock, prefer_sdist, require_sdist=(), document=None, source_lock=No
             except InvalidSdistFilename as error:
                 raise ValueError(f"Cannot acquire {package.name}: direct source archive has no standard distribution filename.") from error
 
-            if source_name != package.name or ((package.version is not None) and (source_version != package.version)):
+            if (source_name != package.name) or ((package.version is not None) and (source_version != package.version)):
                 raise ValueError(f"Cannot acquire {package.name}: direct source archive does not match the locked package.")
 
         if (source) and (package.name not in preferences):
@@ -179,7 +179,7 @@ def selected(lock, prefer_sdist, require_sdist=(), document=None, source_lock=No
         if (url.scheme not in ("https", "http")) or (not url.netloc) or (url.username is not None):
             raise ValueError(f"Cannot acquire {name}: expected an HTTP(S) artifact URL without credentials.")
 
-        if name in seen and seen[name] != digest:
+        if (name in seen) and (seen[name] != digest):
             raise ValueError(f"Cannot acquire {name}: the lock selects conflicting bytes for one filename.")
 
         seen[name] = digest

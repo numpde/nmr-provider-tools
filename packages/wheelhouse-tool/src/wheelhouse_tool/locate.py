@@ -60,7 +60,7 @@ def read_requirements(path, configured_index=None):
             if requirement.url is None:
                 specifiers = list(requirement.specifier)
 
-                if len(specifiers) != 1 or specifiers[0].operator != "==" or "*" in specifiers[0].version:
+                if (len(specifiers) != 1) or (specifiers[0].operator != "==") or ("*" in specifiers[0].version):
                     raise ValueError(f"{reprlib.repr(requirement.specifier)=} should pin one exact version")
 
             records.append((requirement, set()))
@@ -225,7 +225,7 @@ def locate(path, index=None, allowed_sources=(), required_sources=(), direct_sou
         wheels = [item for item in wheels if not item[2]] or wheels
         sources = [item for item in sources if not item[2]] or sources
 
-        if (pool is not None) and (wheels) and (not (name in allowed_sources and sources)):
+        if (pool is not None) and (wheels) and (not ((name in allowed_sources) and sources)):
             # Freeze the reusable choices in this projection so later selection
             # cannot switch back to a different, uncached wheel.
             from wheelhouse_tool.__main__ import inspect_artifact, pool_lock
@@ -246,14 +246,14 @@ def locate(path, index=None, allowed_sources=(), required_sources=(), direct_sou
             if cached:
                 wheels = cached
 
-        candidates = sources if name in allowed_sources and sources else wheels
+        candidates = sources if (name in allowed_sources) and sources else wheels
 
         if candidates:
             version = max(item[3] for item in candidates)
             wheels = [item for item in wheels if item[3] == version]
             sources = [item for item in sources if item[3] == version]
 
-        selected_source = sources[0][1] if name in allowed_sources and sources else None
+        selected_source = sources[0][1] if (name in allowed_sources) and sources else None
 
         if (name in required_sources) and (selected_source is None):
             raise ValueError(f"Cannot locate {name}: its required source distribution is unavailable.")

@@ -152,7 +152,7 @@ def wheel_inputs_from_report(lock, pool, report, extra_pools=(), required_files=
         ):
             raise ValueError("Cannot select wheels: pip selected a file outside the supplied flat pool.")
 
-        if required_files and candidate.name in required_files:
+        if required_files and (candidate.name in required_files):
             selected_artifact = candidate.resolve()
             required_release_artifact = required_files[candidate.name].resolve()
 

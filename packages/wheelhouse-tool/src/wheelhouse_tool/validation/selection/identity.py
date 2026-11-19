@@ -25,14 +25,14 @@ def selected_artifacts(entries):
             (name in (".", "..")) or  # A directory reference cannot name an artifact
             ("/" in name) or  # Keep subdirectories in the directory field
             ("\\" in name) or  # Reject Windows path separators too
-            any(ord(character) < 32 or ord(character) == 127 for character in directory + name) or  # Keep control characters out of artifact paths
+            any((ord(character) < 32) or (ord(character) == 127) for character in directory + name) or  # Keep control characters out of artifact paths
             (not re.fullmatch(r"[0-9a-f]{64}", checksum))  # Require a complete lowercase SHA-256 digest
         ):
             raise ValueError("Cannot identify selection: expected relative directories, filenames and SHA-256 hashes.")
 
         key = (directory, name)
 
-        if key in selected and selected[key] != checksum:
+        if (key in selected) and (selected[key] != checksum):
             raise ValueError("Cannot identify selection: artifact entries conflict.")
 
         selected[key] = checksum
