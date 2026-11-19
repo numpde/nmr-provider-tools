@@ -109,7 +109,7 @@ def require_store_origin(value):
 
     require_type(value, str)
 
-    if any((ord(c) <= 32) or (ord(c) >= 127) for c in value):
+    if any(((ord(c) <= 32) or (ord(c) >= 127)) for c in value):
         raise ValueError("Cannot configure Upload store: origin must be visible ASCII HTTPS text")
 
     try:
@@ -817,7 +817,7 @@ class JobUploads:
             if (
                 isinstance(failure, BaseExceptionGroup) and
                 isinstance(self.last_failure, UploadFailed) and
-                any(cause is self.last_failure for cause in failure.exceptions)
+                any((cause is self.last_failure) for cause in failure.exceptions)
             ):
                 self._retain_grant_issuance(self.last_failure)
             elif self._grant_issued:

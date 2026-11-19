@@ -85,7 +85,7 @@ def _require_format(value: object) -> None:
 
     if not (
         (value) and
-        all((character.isprintable()) and (not character.isspace()) for character in value)
+        all(((character.isprintable()) and (not character.isspace())) for character in value)
     ):
         raise ValueError("A payload format must be a nonempty identity without whitespace")
 
@@ -166,7 +166,7 @@ def _dataclass_fields(value_type: type[object]):
 
     declared_fields = fields(value_type)
 
-    if any(not field.init for field in declared_fields):
+    if any((not field.init) for field in declared_fields):
         non_init_field = next(field.name for field in declared_fields if not field.init)
 
         raise TypeError(f"{value_type.__qualname__}.{non_init_field} must participate in construction")
@@ -319,7 +319,7 @@ def _decode_value(value: object, annotation: object, *, path: str) -> object:
 
         expected_types = [type(item) for item in arguments]
 
-        if not any(type(value) is expected_type for expected_type in expected_types):
+        if not any((type(value) is expected_type) for expected_type in expected_types):
             raise PayloadRejected(
                 f"{path=}; {type(value)=} ≠ {expected_types=}",
                 code=PayloadRejected.Code.INVALID_VALUE,
@@ -477,7 +477,7 @@ def _encode_value(value: object, annotation: object, *, path: str) -> object:
 
         expected_types = [type(item) for item in arguments]
 
-        if not any(type(value) is expected_type for expected_type in expected_types):
+        if not any((type(value) is expected_type) for expected_type in expected_types):
             raise TypeError(f"{path=}; {type(value)=} ≠ {expected_types=}")
 
         return value

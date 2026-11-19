@@ -38,7 +38,7 @@ def _identity(value, label):
     if not (type(value) is (expected_type := str)):
         raise TypeError(f"{label=}; {type(value)=} ≠ {expected_type=}")
 
-    if not (value and all((character.isprintable()) and (not character.isspace()) for character in value)):
+    if not (value and all(((character.isprintable()) and (not character.isspace())) for character in value)):
         raise ValueError(f"{label} must be a nonempty identity without whitespace or control characters")
 
 
@@ -77,7 +77,7 @@ class BackendCapabilities:
                 if not (type(value) is expected_type):
                     raise TypeError(f"{name=}; {type(value)=} ≠ {expected_type=}")
 
-        if any(version <= 0 for version in self.contract_versions):
+        if any((version <= 0) for version in self.contract_versions):
             raise ValueError(f"Backend contract versions must be positive; {self.contract_versions=}")
 
         require_type(self.progress, bool)

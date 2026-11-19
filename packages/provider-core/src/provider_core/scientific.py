@@ -442,10 +442,10 @@ def _compile_method(
     if (not parameters) or (parameters[0].kind is not inspect.Parameter.POSITIONAL_OR_KEYWORD):
         raise TypeError(f"Operation {name!r} requires an ordinary instance receiver")
 
-    if any(parameter.kind is not inspect.Parameter.KEYWORD_ONLY for parameter in parameters[1:]):
+    if any((parameter.kind is not inspect.Parameter.KEYWORD_ONLY) for parameter in parameters[1:]):
         raise TypeError(f"Operation {name!r} scientific arguments must be keyword-only")
 
-    if any(parameter.default is not inspect.Parameter.empty for parameter in parameters):
+    if any((parameter.default is not inspect.Parameter.empty) for parameter in parameters):
         raise TypeError(f"Operation {name!r} arguments must be explicit, without defaults")
 
     hints = get_type_hints(obj=function)

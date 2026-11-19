@@ -501,7 +501,7 @@ class AttemptExecutor:
             (self._delivery_outcome is None) and
             all(
                 (
-                    (error is stop) or ((type(error) is _SettlementPending) and (error.executor is self))
+                    ((error is stop) or ((type(error) is _SettlementPending) and (error.executor is self)))
                     for error in self.last_failure.cleanup_failures
                 ),
             ) and

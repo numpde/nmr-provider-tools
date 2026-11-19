@@ -370,7 +370,7 @@ class _Operation(_Changes):
             if existing_owner is not None:
                 if not any(
                     (
-                        self.state_owners[name] is existing_owner
+                        (self.state_owners[name] is existing_owner)
                         for name in consumed_state_names
                     ),
                 ):

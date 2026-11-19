@@ -18,7 +18,7 @@ def encode_dns_name(hostname: str) -> bytes:
 
     labels = read_dns_labels(hostname)
 
-    return b"".join(bytes((len(label),)) + label for label in labels) + b"\0"
+    return b"".join((bytes((len(label),)) + label) for label in labels) + b"\0"
 
 
 def ipv4_query(hostname: str, transaction: int) -> bytes:

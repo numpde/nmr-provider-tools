@@ -124,7 +124,7 @@ class StateOutputSlot[T]:
         """
         target = ref(call)
 
-        if not any(slot is self for slot in call._output_slots):
+        if not any((slot is self) for slot in call._output_slots):
             raise ValueError(f"One of {call._output_slots=} should be {self=}")
 
         observation = await operation.observe(after=None, wait_seconds=0)

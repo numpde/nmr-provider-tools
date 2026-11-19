@@ -38,7 +38,7 @@ def _identity(value: object, label: str) -> None:
 
     if not (
         (value) and
-        all((character.isprintable()) and (not character.isspace()) for character in value)
+        all(((character.isprintable()) and (not character.isspace())) for character in value)
     ):
         raise ValueError(
             f"{label} must be a nonempty identity without whitespace "
@@ -128,11 +128,10 @@ def _positional_parameters(
         (len(parameters) != count) or
         any(
             (
-                parameter.kind
-                not in (
+                (parameter.kind not in (
                     inspect.Parameter.POSITIONAL_ONLY,
                     inspect.Parameter.POSITIONAL_OR_KEYWORD,
-                )
+                ))
                 for parameter in parameters
             ),
         )
@@ -1192,7 +1191,7 @@ def ref[InputT, StateT, OutputT](call: CallBinding[InputT, StateT, OutputT]) -> 
     if owner is None:
         raise ValueError("Cannot reference a call before a configured binding owns it")
 
-    if not any(member is call for member in owner._calls):
+    if not any((member is call) for member in owner._calls):
         raise ValueError("Call does not belong to its configured binding")
 
     return CallRef(owner.description.binding_id, owner.description.binding_revision, call.description.name)

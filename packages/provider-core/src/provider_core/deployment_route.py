@@ -57,7 +57,7 @@ def _require_route_path(route_path):
         (".." in absolute_route_path.parts) or
         (str(absolute_route_path) != str(route_path)) or
         (absolute_route_path == pathlib.Path("/")) or
-        any((ord(character) < 32) or (ord(character) == 127) or (character == ",") for character in str(absolute_route_path))
+        any(((ord(character) < 32) or (ord(character) == 127) or (character == ",")) for character in str(absolute_route_path))
     ):
         raise RouteProjectionRejected("Cannot grant API route input: require a normalized absolute path below root without control characters or mount delimiters.")
 

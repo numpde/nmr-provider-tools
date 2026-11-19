@@ -97,7 +97,7 @@ class ApiPublicationMaterial:
 def _require_explicit_tls_environment():
     # CPython v3.12.12 Lib/ssl.py::create_default_context honors SSLKEYLOGFILE;
     # OpenSSL root overrides also require explicit startup grants.
-    if any(name in os.environ for name in ("SSL_CERT_FILE", "SSL_CERT_DIR", "SSLKEYLOGFILE")):
+    if any((name in os.environ) for name in ("SSL_CERT_FILE", "SSL_CERT_DIR", "SSLKEYLOGFILE")):
         raise ApiConfigurationRejected("remove ambient SSL_CERT_FILE, SSL_CERT_DIR and SSLKEYLOGFILE; configure each explicit ca_file instead.")
 
 

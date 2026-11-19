@@ -319,18 +319,20 @@ class InProcessExecutionHost:
         if analysis_id in self.analyses:
             raise RequestConflict("This analysis identity already has an owner.")
 
-        if any(name not in self.residents for name in allocation_names):
+        if any((name not in self.residents) for name in allocation_names):
             raise CapacityUnavailable("A requested allocation does not belong to this host.")
 
         selected_residents = [self.residents[name] for name in allocation_names]
 
         if any(
             (
-                (resident.analysis is not None) or
-                ((resident.initialization is not None) and (not resident.initialization.done())) or
-                (resident.failure is not None) or
-                (resident.retirement is not None) or
-                resident.retired
+                (
+                    (resident.analysis is not None) or
+                    ((resident.initialization is not None) and (not resident.initialization.done())) or
+                    (resident.failure is not None) or
+                    (resident.retirement is not None) or
+                    resident.retired
+                )
                 for resident in selected_residents
             ),
         ):

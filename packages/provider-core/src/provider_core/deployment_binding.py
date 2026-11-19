@@ -46,7 +46,7 @@ def _absolute_path(value, label):
     if not (value):
         raise BindingDefinitionRejected(f"Cannot admit delivery bindings: {label} requires an absolute path without mount delimiters.")
 
-    if any(character in value for character in ("\0", "\n", "\r", ",")):
+    if any((character in value) for character in ("\0", "\n", "\r", ",")):
         raise BindingDefinitionRejected(f"Cannot admit delivery bindings: {label} requires an absolute path without mount delimiters.")
 
     path = pathlib.Path(value)
