@@ -27,12 +27,12 @@ class ResolverCaptureTests(unittest.TestCase):
         )
 
         with patch.object(dns.socket, "if_nametoindex", return_value=2), \
-                patch.object(dns.subprocess, "run", return_value=response) as run, \
+                patch.object(dns.subprocess, "run", return_value=response) as nmcli_invocation, \
                 patch.object(pathlib.Path, "read_text") as read:
             self.assertEqual(("192.0.2.53", "192.0.2.54"), dns.capture_dns_servers("wlan0"))
 
-        self.assertEqual(1, run.call_count)
-        self.assertEqual(["nmcli", "--get-values", "IP4.DNS", "device", "show", "wlan0"], run.call_args.args[0])
+        self.assertEqual(1, nmcli_invocation.call_count)
+        self.assertEqual(["nmcli", "--get-values", "IP4.DNS", "device", "show", "wlan0"], nmcli_invocation.call_args.args[0])
         read.assert_not_called()
 
     def test_resolved_link_dns_is_used_when_networkmanager_has_no_usable_set(self):
@@ -72,11 +72,11 @@ class ResolverCaptureTests(unittest.TestCase):
             self.assertEqual(("192.0.2.53",), dns.capture_dns_servers("wlan0"))
 
     def test_system_route_uses_existing_global_configuration_without_manager_calls(self):
-        with patch.object(dns.subprocess, "run") as run, \
+        with patch.object(dns.subprocess, "run") as manager_invocation, \
                 patch.object(pathlib.Path, "read_text", return_value="nameserver 192.0.2.53\n"):
             self.assertEqual(("192.0.2.53",), dns.capture_dns_servers("system"))
 
-        run.assert_not_called()
+        manager_invocation.assert_not_called()
 
     def test_manager_timeout_is_explicit_and_does_not_choose_another_source(self):
         with patch.object(dns.socket, "if_nametoindex", return_value=2), \

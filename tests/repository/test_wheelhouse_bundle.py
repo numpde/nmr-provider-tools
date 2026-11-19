@@ -113,8 +113,8 @@ class WheelhouseBundleTests(unittest.TestCase):
                 check=True,
             )
 
-            for (name, data) in payload.items():
-                self.assertEqual(inventory[name]["sha256"], hashlib.sha256(data).hexdigest())
+            for (name, payload_bytes) in payload.items():
+                self.assertEqual(inventory[name]["sha256"], hashlib.sha256(payload_bytes).hexdigest())
 
             wheel.write_bytes(b"changed")
 
