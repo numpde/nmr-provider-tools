@@ -73,21 +73,21 @@ def owned_relationships(error):
 
     if kind is InterpretationFailed:
         for (visit, cause) in error.failures:
-            yield (f"interpreter model {visit} failure", cause)
+            yield (f"interpreter model {visit = } failure", cause)
 
         for (visit, turn, cause) in error.correction_failures:
-            yield (f"interpreter model {visit} turn {turn} correction failure", cause)
+            yield (f"interpreter model {visit = } turn {turn = } correction failure", cause)
 
     if kind is ConversationRetirementFailed:
         for (endpoint_index, cause) in error.failures:
-            yield (f"interpreter endpoint {endpoint_index} cleanup", cause)
+            yield (f"interpreter endpoint {endpoint_index = } cleanup", cause)
 
     if kind in (ConversationFailed, ConversationRetirementFailed):
         for (endpoint_index, cause) in error.endpoint_failures:
-            yield (f"interpreter endpoint {endpoint_index} failure", cause)
+            yield (f"interpreter endpoint {endpoint_index = } failure", cause)
 
         for (turn_index, cause) in error.correction_failures:
-            yield (f"interpreter turn {turn_index} correction failure", cause)
+            yield (f"interpreter turn {turn_index = } correction failure", cause)
 
     if kind in (
         CredentialRejected,

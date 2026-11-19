@@ -129,8 +129,8 @@ class ConditionRecoveryExpired(TimeoutError):
 
     def __init__(self, window_seconds, *, phase, condition_code, cause):
         super().__init__(
-            f"Cannot confirm the current analysis condition: its {window_seconds:g}-second retry window expired; "
-            f"retain the original API evidence and settle work before recovery"
+            f"Cannot confirm the current analysis condition: the retry window expired after {window_seconds=:g}; "
+            f"retain the original API evidence and settle work before recovery."
         )
 
         (self.window_seconds, self.phase, self.condition_code) = (window_seconds, phase, condition_code)
@@ -147,13 +147,13 @@ class ObservationGapExpired(TimeoutError):
 
     def __init__(self, gap_seconds, *, executor):
         # silent-defaults: allow-contract -- Diagnostic wording identifies whether the original server read had started.
-        blocked = (
+        wait_stage = (
             "after starting a server read" if executor._observation_read_started else "while waiting for API exchange access"
         )
 
         super().__init__(
-            f"Cannot obtain a fresh Attempt observation within {gap_seconds:g} seconds {blocked}; "
-            f"retain existing API owners and retire the original work before recovery"
+            f"Cannot obtain a fresh Attempt observation before {gap_seconds=:g} elapsed; {wait_stage=}; "
+            f"retain existing API owners and retire the original work before recovery."
         )
 
         (self.gap_seconds, self._executor) = (gap_seconds, executor)
@@ -254,8 +254,10 @@ class _ConditionReporter:
 
 class ExecutionStopped(RuntimeError):
     def __init__(self, observation):
+        attempt_state = observation.state
+        job_state = observation.job_state
         super().__init__(
-            f"Cannot proceed with analysis: observed Attempt {observation.state} and Job {observation.job_state}; preserve the current record"
+            f"Cannot proceed with analysis: observed {attempt_state = } and {job_state = }; preserve the current record."
         )
 
         self.observation = observation

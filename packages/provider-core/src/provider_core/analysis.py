@@ -89,7 +89,7 @@ class ObservedWorkerCrash(RuntimeError):
         (self.evidence, self.cause) = (evidence, cause)
 
         super().__init__(
-            f"Original worker exit observed (return code {original.returncode}); declared scientific phase: {phase}."
+            f"Original worker exit observed with {original.returncode = }; declared scientific {phase = }."
         )
 
     @classmethod
@@ -100,12 +100,17 @@ class ObservedWorkerCrash(RuntimeError):
         # A signal number does not establish why that signal was sent.
         phase = {"preparing": "preparation", "running": "calculation"}[self.phase]
 
-        code = self.native_exit.returncode
-        status = f"signal {-code}" if code < 0 else f"exit status {code}"
+        return_code = self.native_exit.returncode
+
+        if return_code < 0:
+            signal_number = -return_code
+            reason = f"Worker exited unexpectedly during {phase = } after receiving {signal_number = }. No verified outcome was returned."
+        else:
+            reason = f"Worker exited unexpectedly during {phase = } with {return_code = }. No verified outcome was returned."
 
         return AnalysisFailure(
             "worker_crashed",
-            f"Worker exited unexpectedly during {phase} ({status}). No verified outcome was returned.",
+            reason,
             self.evidence,
         )
 
