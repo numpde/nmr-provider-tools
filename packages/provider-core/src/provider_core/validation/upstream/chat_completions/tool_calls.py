@@ -26,7 +26,7 @@ def require_assistant(message: object) -> None:
     expected_role = "assistant"
 
     if not (message_role == expected_role):
-        raise ConversationFailed(f"message_role={reprlib.repr(message_role)} should equal {expected_role=}")
+        raise ConversationFailed(f"{reprlib.repr(message_role)=} should equal {expected_role=}")
 
 
 def assistant_text_fields(message: dict) -> Iterator[tuple[str, str | None]]:
@@ -76,7 +76,7 @@ def read_function_name(call: dict) -> str:
     expected_call_type = "function"
 
     if not (call_type == expected_call_type):
-        raise ConversationFailed(f"call_type={reprlib.repr(call_type)} should equal {expected_call_type=}")
+        raise ConversationFailed(f"{reprlib.repr(call_type)=} should equal {expected_call_type=}")
 
     function = call.get("function")
 

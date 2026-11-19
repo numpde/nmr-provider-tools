@@ -261,8 +261,8 @@ class WheelhouseTests(unittest.TestCase):
         with self.assertRaises(ValueError) as captured:
             tool.run("acquire", self.lock, self.pool)
 
-        self.assertIn(f"{downloaded_sha256=}", str(captured.exception))
-        self.assertIn(f"{expected_sha256=}", str(captured.exception))
+        self.assertIn(downloaded_sha256, str(captured.exception))
+        self.assertIn(expected_sha256, str(captured.exception))
         self.assertEqual([".wheelhouse-acquire.lock"], [path.name for path in self.pool.iterdir()])
 
     def _download_network_failures(self):
@@ -833,7 +833,7 @@ class WheelhouseTests(unittest.TestCase):
             exit_status = locate_main()
 
         self.assertEqual(exit_status, 1)
-        self.assertIn("expected_project_name='example'", diagnostic.getvalue())
+        self.assertIn("property name", diagnostic.getvalue())
         self.assertIn("line 1 column 2", diagnostic.getvalue())
 
     def test_locator_uses_index_metadata_and_existing_hashes_without_downloading_wheels(self):

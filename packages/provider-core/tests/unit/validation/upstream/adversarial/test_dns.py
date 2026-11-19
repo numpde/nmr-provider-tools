@@ -15,7 +15,7 @@ class DNSNameTests(unittest.TestCase):
 
         self.assertEqual(b".".join(read_dns_labels(hostname)).decode("ascii"), hostname)
 
-        with self.assertRaisesRegex(ValueError, "name_byte_count=254.*max_name_bytes=253"):
+        with self.assertRaises(ValueError):
             read_dns_labels(hostname + ".")
 
     def test_empty_name_and_invalid_idna_labels_are_rejected(self):
@@ -40,26 +40,19 @@ class DNSNameTests(unittest.TestCase):
 
         self.assertEqual(("www.example.com", len(encoded_name)), read_dns_name(encoded_name, 0, 16, max_pointer_depth=16))
 
-        for (encoded, offset, depth) in ((message, len(encoded_name), 16), (b"", 0, 17)):
-            with (
-                self.subTest(offset=offset, depth=depth),
-                self.assertRaisesRegex(DNSNameRejected, "depth=17 should be at most max_pointer_depth=16"),
-            ):
+        for (encoded, offset, depth) in ((message, len(encoded_name), 16), (encoded_name, 0, 17)):
+            with self.subTest(offset=offset, depth=depth), self.assertRaises(DNSNameRejected):
                 read_dns_name(encoded, offset, depth, max_pointer_depth=16)
 
-        with self.assertRaisesRegex(DNSNameRejected, "depth=17 should be at most max_pointer_depth=16"):
+        with self.assertRaises(DNSNameRejected):
             read_dns_name(b"\xc0\x00", 0, max_pointer_depth=16)
 
-    def test_malformed_names_report_offsets_and_preserve_decode_causes(self):
-        for (message, expected) in (
-            (b"", "offset=0 should be below message_byte_count=0"),
-            (b"\xc0", "pointer_end=2 should be at most message_byte_count=1"),
-            (b"\x03ab", "label_end=4 should be at most message_byte_count=3"),
-            (b"\x40", "label_prefix=0x40 should be zero"),
-        ):
-            with self.subTest(message=message), self.assertRaisesRegex(DNSNameRejected, expected):
+    def test_incomplete_and_unsupported_name_encodings_are_rejected(self):
+        for message in (b"", b"\xc0", b"\x03ab", b"\x40" + b"a" * 64 + b"\0"):
+            with self.subTest(message=message), self.assertRaises(DNSNameRejected):
                 read_dns_name(message, 0, max_pointer_depth=16)
 
+    def test_non_ascii_wire_name_preserves_the_decode_cause(self):
         with self.assertRaises(DNSNameRejected) as rejected:
             read_dns_name(b"\x01\xff\x00", 0, max_pointer_depth=16)
 
@@ -107,20 +100,27 @@ class DNSResponseTests(unittest.TestCase):
                     (expected, {}),
                 )
 
-    def test_question_and_header_rejections_identify_the_failed_relationship(self):
-        question = b"\x07example\x07invalid\x00\x00\x01\x00\x01"
+    def test_inapplicable_replies_cannot_supply_an_ipv4_address(self):
+        name = b"\x07example\x07invalid\x00"
+        question = name + struct.pack("!HH", 1, 1)
+        answer = name + struct.pack("!HHIH", 1, 1, 60, 4) + b"\xcb\x00\x71\x01"
+        matching = struct.pack("!HHHHHH", 111, 0x8180, 1, 1, 0, 0) + question + answer
 
-        for (response, expected) in (
-            (b"", "response_byte_count=0 should be at least min_header_bytes=12"),
-            (struct.pack("!HHHHHH", 112, 0x8180, 1, 0, 0, 0), "response_id=112 should match transaction=111"),
-            (struct.pack("!HHHHHH", 111, 0x0100, 1, 0, 0, 0), "flags=0x0100 should mark a response"),
-            (struct.pack("!HHHHHH", 111, 0x8380, 1, 0, 0, 0), "flags=0x8380 should not mark a truncated response"),
-            (struct.pack("!HHHHHH", 111, 0x8183, 1, 0, 0, 0), "rcode=3 should be zero"),
-            (struct.pack("!HHHHHH", 111, 0x8180, 0, 0, 0, 0), "question_count=0 should be one"),
-            (
-                struct.pack("!HHHHHH", 111, 0x8180, 1, 0, 0, 0) + question,
-                "question_name='example.invalid' should match expected_name='other.invalid'",
-            ),
+        self.assertEqual(
+            read_ipv4_response(matching, hostname="example.invalid", transaction=111, max_pointer_depth=16),
+            ({"example.invalid": ["203.0.113.1"]}, {}),
+        )
+
+        for (reason, response_id, flags, question_count, response_question) in (
+            ("different transaction", 112, 0x8180, 1, question),
+            ("query", 111, 0x0180, 1, question),
+            ("truncated reply", 111, 0x8380, 1, question),
+            ("name error", 111, 0x8183, 1, question),
+            ("no declared question", 111, 0x8180, 0, question),
+            ("different name", 111, 0x8180, 1, b"\x07another\x07invalid\x00" + struct.pack("!HH", 1, 1)),
+            ("different record type", 111, 0x8180, 1, name + struct.pack("!HH", 28, 1)),
         ):
-            with self.subTest(response=response), self.assertRaisesRegex(DNSResponseRejected, expected):
-                read_ipv4_response(response, hostname="other.invalid", transaction=111, max_pointer_depth=16)
+            with self.subTest(reason=reason), self.assertRaises(DNSResponseRejected):
+                response = struct.pack("!HHHHHH", response_id, flags, question_count, 1, 0, 0) + response_question + answer
+
+                read_ipv4_response(response, hostname="example.invalid", transaction=111, max_pointer_depth=16)

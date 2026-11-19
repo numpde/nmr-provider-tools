@@ -70,7 +70,7 @@ def read_choice(response_body: bytes, *, maximum_bytes: int) -> dict:
     expected_role = "assistant"
 
     if not (message_role == expected_role):
-        raise ResponseRejected(f"message_role={reprlib.repr(message_role)} should equal {expected_role=}")
+        raise ResponseRejected(f"{reprlib.repr(message_role)=} should equal {expected_role=}")
 
     return choice
 
@@ -81,4 +81,4 @@ def require_completed_finish_reason(finish_reason: object) -> None:
     expected_finish_reasons = ("stop", "tool_calls")
 
     if not (finish_reason in expected_finish_reasons):
-        raise ResponseRejected(f"finish_reason={reprlib.repr(finish_reason)} ∉ {expected_finish_reasons=}")
+        raise ResponseRejected(f"{reprlib.repr(finish_reason)=} ∉ {expected_finish_reasons=}")

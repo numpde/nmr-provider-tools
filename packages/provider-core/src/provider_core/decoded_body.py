@@ -43,7 +43,7 @@ class DecodedBodyRejected(ValueError):
         if not (reason in _MESSAGES):
             expected_reasons = tuple(_MESSAGES)
 
-            raise ValueError(f"reason={reprlib.repr(reason)} ∉ {expected_reasons=}")
+            raise ValueError(f"{reprlib.repr(reason)=} ∉ {expected_reasons=}")
 
         self.reason = reason
 

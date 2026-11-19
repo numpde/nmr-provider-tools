@@ -28,7 +28,7 @@ def _require_port(port: int) -> int:
     """Reject explicit zero rather than selecting an omitted-port default."""
 
     if not (MIN_PORT <= port <= MAX_PORT):
-        raise ValueError(f"port={reprlib.repr(port)} should be between {MIN_PORT=} and {MAX_PORT=}")
+        raise ValueError(f"{reprlib.repr(port)=} should be between {MIN_PORT=} and {MAX_PORT=}")
 
     return port
 
@@ -39,7 +39,7 @@ def read_connect_authority(target: str) -> tuple[str, int]:
     (host, separator, port_text) = target.rpartition(":")
 
     if not (separator and host):
-        raise ValueError(f"target={reprlib.repr(target)} should be host:port")
+        raise ValueError(f"{reprlib.repr(target)=} should be host:port")
 
     return (host, read_port(port_text))
 
@@ -50,7 +50,7 @@ def read_port(port_text: str) -> int:
     try:
         port = int(port_text)
     except ValueError as cause:
-        raise ValueError(f"port_text={reprlib.repr(port_text)} should encode an int between {MIN_PORT=} and {MAX_PORT=}") from cause
+        raise ValueError(f"{reprlib.repr(port_text)=} should encode an int between {MIN_PORT=} and {MAX_PORT=}") from cause
 
     return _require_port(port)
 
@@ -61,7 +61,7 @@ def read_absolute_http_port(target: SplitResult) -> int:
     expected_schemes = ("http", "https")
 
     if not (target.scheme in expected_schemes):
-        raise ValueError(f"target.scheme={reprlib.repr(target.scheme)} should be one of {expected_schemes=}")
+        raise ValueError(f"{reprlib.repr(target.scheme)=} should be one of {expected_schemes=}")
 
     if not target.hostname:
         raise ValueError(f"{target.hostname=} should be nonempty")
@@ -72,7 +72,7 @@ def read_absolute_http_port(target: SplitResult) -> int:
         # urllib rejects malformed and out-of-range ports before returning a number
         port_text = target.netloc.rpartition(":")[2]
 
-        raise ValueError(f"port_text={reprlib.repr(port_text)} should encode an int between {MIN_PORT=} and {MAX_PORT=}") from cause
+        raise ValueError(f"{reprlib.repr(port_text)=} should encode an int between {MIN_PORT=} and {MAX_PORT=}") from cause
 
     if port is None:
         # RFC 9110 sections 4.2.1 and 4.2.2 define omitted HTTP/HTTPS ports

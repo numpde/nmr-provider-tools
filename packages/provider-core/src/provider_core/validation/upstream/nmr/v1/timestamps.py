@@ -22,7 +22,7 @@ def read_timestamp(timestamp):
         raise ResponseRejected(f"{type(timestamp)=} ≠ {expected_type=}")
 
     if re.fullmatch(r"[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(?:\.(?!000000)[0-9]{6})?Z", timestamp) is None:
-        raise ResponseRejected(f"timestamp={reprlib.repr(timestamp)} should use canonical UTC seconds or nonzero microseconds")
+        raise ResponseRejected(f"{reprlib.repr(timestamp)=} should use canonical UTC seconds or nonzero microseconds")
 
     try:
         return datetime.fromisoformat(timestamp)

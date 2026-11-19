@@ -463,7 +463,7 @@ class ToolConversation:
             call_id = read_call_id(call)
 
             if not re.fullmatch((expected_pattern := r"[!-~]{1,128}"), call_id):
-                raise ConversationFailed(f"call_id={reprlib.repr(call_id)} should match {expected_pattern=}")
+                raise ConversationFailed(f"{reprlib.repr(call_id)=} should match {expected_pattern=}")
 
             if not ((call_id not in self._seen_ids) and (call_id not in identifiers)):
                 raise ConversationFailed(f"{call_id=} should be new in this conversation")
@@ -471,7 +471,7 @@ class ToolConversation:
             function_name = read_function_name(call)
 
             if not re.fullmatch((expected_pattern := r"[A-Za-z0-9_-]{1,64}"), function_name):
-                raise ConversationFailed(f"function_name={reprlib.repr(function_name)} should match {expected_pattern=}")
+                raise ConversationFailed(f"{reprlib.repr(function_name)=} should match {expected_pattern=}")
 
             function_arguments = read_arguments_text(call)
 

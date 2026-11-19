@@ -162,7 +162,7 @@ def acquire_release(pin, runtime_lock, pool, tool):
             expected_download_host = "files.pythonhosted.org"
 
             if not (download_host == expected_download_host):
-                raise ValueError(f"For {wheel_name=}, download_host={reprlib.repr(download_host)} should match {expected_download_host=}")
+                raise ValueError(f"For {wheel_name=}, {reprlib.repr(download_host)=} should match {expected_download_host=}")
 
         artifacts.append((wheel_name, expected_sha256, url))
 

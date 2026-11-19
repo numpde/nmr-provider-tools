@@ -164,7 +164,7 @@ def read_ipv4_response(
 
     if not (question_name == expected_name):
         # Compression can expand names beyond the packet size; keep previews bounded.
-        raise DNSResponseRejected(f"question_name={reprlib.repr(question_name)} should match expected_name={reprlib.repr(expected_name)}")
+        raise DNSResponseRejected(f"{reprlib.repr(question_name)=} should match {reprlib.repr(expected_name)=}")
 
     if not ((question_type, question_class) == expected_question):
         raise DNSResponseRejected(f"{(question_type, question_class)=} should match {expected_question=}")

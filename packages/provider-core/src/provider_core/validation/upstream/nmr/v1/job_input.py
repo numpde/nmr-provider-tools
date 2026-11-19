@@ -53,16 +53,16 @@ class FeedInputFacts:
             raise JobInputRejected(f"{type(self.job_ref)=} ≠ {expected_type=}")
 
         if not re.fullmatch((expected_pattern := r"job:[A-Za-z0-9_.-]{1,124}"), self.job_ref):
-            raise JobInputRejected(f"self.job_ref={reprlib.repr(self.job_ref)} should match {expected_pattern=}")
+            raise JobInputRejected(f"{reprlib.repr(self.job_ref)=} should match {expected_pattern=}")
 
         if not (self.input_schema_id == INPUT_SCHEMA):
-            raise JobInputRejected(f"self.input_schema_id={reprlib.repr(self.input_schema_id)} should match {INPUT_SCHEMA=}")
+            raise JobInputRejected(f"{reprlib.repr(self.input_schema_id)=} should match {INPUT_SCHEMA=}")
 
         if not (type(self.input_fingerprint) is (expected_type := str)):
             raise JobInputRejected(f"{type(self.input_fingerprint)=} ≠ {expected_type=}")
 
         if not re.fullmatch((expected_pattern := r"sha256:[0-9a-f]{64}"), self.input_fingerprint):
-            raise JobInputRejected(f"self.input_fingerprint={reprlib.repr(self.input_fingerprint)} should match {expected_pattern=}")
+            raise JobInputRejected(f"{reprlib.repr(self.input_fingerprint)=} should match {expected_pattern=}")
 
         if not (type(self.input_byte_length) is (expected_type := int)):
             raise JobInputRejected(f"{type(self.input_byte_length)=} ≠ {expected_type=}")
@@ -138,10 +138,10 @@ def verify_job_input(response_bytes, *, feed):
         unexpected_fields = response_fields - expected_fields
         missing_fields = expected_fields - response_fields
 
-        raise JobInputRejected(f"unexpected_fields={reprlib.repr(unexpected_fields)} and {missing_fields=} should be empty")
+        raise JobInputRejected(f"{reprlib.repr(unexpected_fields)=} and {missing_fields=} should be empty")
 
     if not ((response_schema_id := input_response["schema_id"]) == RESPONSE_SCHEMA):
-        raise JobInputRejected(f"response_schema_id={reprlib.repr(response_schema_id)} should match {RESPONSE_SCHEMA=}")
+        raise JobInputRejected(f"{reprlib.repr(response_schema_id)=} should match {RESPONSE_SCHEMA=}")
 
     observed_input = FeedInputFacts(
         *(input_response[name] for name in ("job_ref", "input_schema_id", "input_fingerprint", "input_byte_length"))

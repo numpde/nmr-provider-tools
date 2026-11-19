@@ -17,6 +17,7 @@ from unittest.mock import MagicMock, patch
 from provider_core import bound_http_proxy, provider_proxy
 from provider_core.adapters.dns import encode_dns_name
 from provider_core.provider_proxy import ServicePolicy, ServiceProxyHandler, ServiceProxyServer, ServiceRefused, socket_grant
+from provider_core.validation.upstream.dns import DNSNameRejected, DNSResponseRejected
 from tests.fakes.proxy_logs import capture_proxy_logs
 
 
@@ -26,16 +27,13 @@ class ServiceProxyRefusalTests(unittest.TestCase):
         policy = ServicePolicy.admit("external", ["private.example:443"], [])
         question = encode_dns_name("other.private") + struct.pack("!HH", 1, 1)
 
-        for (packet, expected) in (
-            (struct.pack("!HHHHHH", transaction, 0x8003, 1, 0, 0, 0), "rcode=3 should be zero"),
-            (b"PRIVATE", "response_byte_count=7 should be at least min_header_bytes=12"),
-            (
-                struct.pack("!HHHHHH", transaction, 0x8000, 1, 0, 0, 0) + question,
-                "question_name='other.private' should match expected_name='private.example'",
-            ),
-            (struct.pack("!HHHHHH", transaction, 0x8000, 1, 0, 0, 0) + b"\xc0", "pointer_end=14 should be at most message_byte_count=13"),
+        for (reason, packet, error_type) in (
+            ("name error", struct.pack("!HHHHHH", transaction, 0x8003, 1, 0, 0, 0), DNSResponseRejected),
+            ("incomplete header", b"PRIVATE", DNSResponseRejected),
+            ("different name", struct.pack("!HHHHHH", transaction, 0x8000, 1, 0, 0, 0) + question, DNSResponseRejected),
+            ("incomplete pointer", struct.pack("!HHHHHH", transaction, 0x8000, 1, 0, 0, 0) + b"\xc0", DNSNameRejected),
         ):
-            with self.subTest(reason=expected):
+            with self.subTest(reason=reason):
                 udp = MagicMock()
                 udp.__enter__.return_value = udp
                 udp.recv.return_value = packet
@@ -63,11 +61,11 @@ class ServiceProxyRefusalTests(unittest.TestCase):
                 ):
                     ServiceProxyHandler(request, "", SimpleNamespace(policy=policy, outbound_interface="eth0"))
 
-                yield expected, output.getvalue(), request, channels, udp
+                yield error_type, output.getvalue(), request, channels, udp
 
-    def test_real_dns_decoder_reasons_reach_operator(self):
-        for (expected, output, request, channels, udp) in self._dns_decoder_refusals():
-            self.assertIn(expected, output)
+    def test_dns_decoder_failure_reaches_operator_and_rejects_the_request(self):
+        for (error_type, output, request, channels, udp) in self._dns_decoder_refusals():
+            self.assertIn(error_type.__name__ + ":", output)
             self.assertIn("192.0.2.53", output)
 
             request.sendall.assert_called_once_with(
@@ -82,7 +80,7 @@ class ServiceProxyRefusalTests(unittest.TestCase):
 
     @unittest.skipIf(os.environ.get("PRIVACY_TESTS", "1") == "0", "Privacy tests disabled")
     def test_dns_decoder_logs_omit_packet_and_request_data(self):
-        for (_expected, output, _request, _channels, _udp) in self._dns_decoder_refusals():
+        for (_error_type, output, _request, _channels, _udp) in self._dns_decoder_refusals():
             for private in ("PRIVATE", "private.example", "other.private"):
                 self.assertNotIn(private, output)
 
@@ -120,11 +118,14 @@ class ServiceProxyRefusalTests(unittest.TestCase):
             yield connect, resolve, errors.getvalue(), request
 
     def test_denied_or_malformed_targets_never_reach_resolution_or_outbound_transport(self):
-        for (connect, resolve, errors, request) in self._denied_targets():
+        for (connect, resolve, _errors, request) in self._denied_targets():
             connect.assert_not_called()
             resolve.assert_not_called()
-            self.assertIn("Cannot admit service proxy request:", errors)
-            self.assertNotIn(b"200", request.sendall.call_args.args[0])
+            request.sendall.assert_called_once_with(
+                b"HTTP/1.1 403 Forbidden\r\n"
+                b"Connection: close\r\n"
+                b"\r\n",
+            )
 
     @unittest.skipIf(os.environ.get("PRIVACY_TESTS", "1") == "0", "Privacy tests disabled")
     def test_denied_target_logs_omit_request_data(self):
@@ -315,7 +316,7 @@ class ServiceProxyRefusalTests(unittest.TestCase):
         refusal, primary = self._filesystem_refusal()
 
         self.assertIs(refusal.__cause__, primary)
-        self.assertIn("PermissionError; errno=13", str(refusal))
+        self.assertIn(str(primary.errno), str(refusal))
 
     @unittest.skipIf(os.environ.get("PRIVACY_TESTS", "1") == "0", "Privacy tests disabled")
     def test_filesystem_refusal_omits_path(self):

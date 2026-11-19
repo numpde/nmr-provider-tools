@@ -24,7 +24,7 @@ from wheelhouse_tool.validation.upstream import simple_json as simple_metadata
 class HttpsRedirects(urllib.request.HTTPRedirectHandler):
     def redirect_request(self, request, fp, code, message, headers, url):
         if not ((redirect_scheme := urllib.parse.urlsplit(url).scheme) == (expected_scheme := "https")):
-            raise ValueError(f"redirect_scheme={reprlib.repr(redirect_scheme)} should match {expected_scheme=}")
+            raise ValueError(f"{reprlib.repr(redirect_scheme)=} should match {expected_scheme=}")
 
         return super().redirect_request(request, fp, code, message, headers, url)
 
@@ -228,7 +228,7 @@ def locate(path, index=None, allowed_sources=(), required_sources=(), direct_sou
                 (not parsed.query) and
                 (urllib.parse.unquote(parsed.path.rsplit("/", 1)[-1]) == filename)
             ):
-                raise ValueError(f"url={reprlib.repr(url)} should use HTTPS and name filename={reprlib.repr(filename)} without credentials or a query")
+                raise ValueError(f"{reprlib.repr(url)=} should use HTTPS and name {reprlib.repr(filename)=} without credentials or a query")
 
             item = {"url": url, "hashes": {"sha256": checksum}}
 

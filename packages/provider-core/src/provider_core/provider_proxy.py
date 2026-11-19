@@ -81,7 +81,7 @@ def authority_parts(authority):
         raise ServiceRefused("Cannot admit service proxy authority: its DNS name or port is malformed.") from cause
 
     if not (port_text == (expected_port_text := str(port))):
-        raise ServiceRefused(f"port_text={reprlib.repr(port_text)} should match {expected_port_text=}")
+        raise ServiceRefused(f"{reprlib.repr(port_text)=} should match {expected_port_text=}")
 
     return (host, port)
 
