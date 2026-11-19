@@ -15,6 +15,7 @@ require_container()
 
 import time
 
+from provider_core.adapters.chat_completions.diagnostics import endpoint_error_fields
 from provider_core.api_errors import ApiFailure
 from provider_core.analysis import AnalysisOutcomeUnresolved, ObservedWorkerCrash
 from provider_core.api_config import ApiConfigurationRejected
@@ -300,11 +301,8 @@ def owned_details(error):
         if error.endpoint_error is not None:
             details["endpoint_error_unverified"] = True
 
-            for name in ("message", "type", "code", "param", "detail_unavailable"):
-                value = error.endpoint_error.get(name)
-
-                if type(value) is str:
-                    details["endpoint_error_" + name] = value
+            for name, diagnostic_text in endpoint_error_fields(error.endpoint_error):
+                details["endpoint_error_" + name] = diagnostic_text
 
         head = error.response
 

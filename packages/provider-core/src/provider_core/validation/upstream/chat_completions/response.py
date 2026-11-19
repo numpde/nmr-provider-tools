@@ -14,6 +14,23 @@ import reprlib
 from provider_core.response_json import ResponseRejected, read_document
 
 
+# Reviewed optional service fields; other response members are not diagnostics
+# repo-check: allow-module-constant
+ERROR_TEXT_FIELDS = ("message", "type", "code", "param")
+
+
+def error_fields(completion_error: object) -> dict[str, str] | None:
+    """Select readable service fields, distinguishing a missing error object."""
+
+    # silent-defaults: allow-contract -- Non-object JSON has no service error object.
+    fields = completion_error.get("error") if type(completion_error) is dict else None
+
+    if type(fields) is not dict:
+        return None
+
+    return {name: fields[name] for name in ERROR_TEXT_FIELDS if type(fields.get(name)) is str}
+
+
 def read_choice(response_body: bytes, *, maximum_bytes: int) -> dict:
     """Admit the carrier shape before its finish reason is interpreted."""
 

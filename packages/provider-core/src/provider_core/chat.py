@@ -23,10 +23,14 @@ import httpx
 from provider_core.chat_errors import ChatFailed
 from provider_core.adapters.chat_completions.request import completion_request, request_body
 from provider_core.adapters.chat_completions.response import read_completion
-from provider_core.response_json import ResponseRejected, read_document
 from provider_core.transport import ExchangeFailed
 from provider_core.chat_process import SupervisedChatTransport
 from provider_core.type_requirements import require_type
+
+
+# Retain the existing local ceiling for optional service diagnostic JSON
+# repo-check: allow-module-constant
+_ERROR_DETAIL_BYTES = 8192
 
 
 def _json_bytes(value):
@@ -127,87 +131,6 @@ class ChatEndpointFactory:
             response_bytes=self.response_bytes,
             error_response_bytes=self.error_response_bytes,
         )
-
-
-def _request_echoes(messages, key):
-    texts = [key]
-
-    for message in messages:
-        if type(message) is not dict:
-            continue
-
-        texts.append(message.get("content"))
-        calls = message.get("tool_calls")
-
-        if type(calls) is list:
-            for call in calls:
-                if type(call) is dict and type(call.get("function")) is dict:
-                    texts.append(call["function"].get("arguments"))
-
-    # repo-check: allow-tuple-generator -- Capture fixed secret spellings once for redaction across the asynchronous exchange.
-    return tuple(
-        spelling for text in texts if type(text) is str and text
-        for spelling in (text, json.dumps(text, ensure_ascii=True)[1:-1])
-    )
-
-
-def _without_echoes(value, echoes):
-    # SECS7356c354368f2355d3ab5cef00cf48c67cea9c2c,
-    # src/secs_inference/provider/chat.py::_diagnostic_text: merge original
-    # matches so replacing a key cannot expose a larger overlapping prompt echo.
-    spans = []
-
-    for echo in echoes:
-        start = value.find(echo)
-
-        while start >= 0:
-            spans.append((start, start + len(echo)))
-            start = value.find(echo, start + 1)
-
-    (parts, end) = ([], 0)
-
-    for (start, stop) in sorted(spans):
-        if start >= end:
-            parts.extend((value[end:start], "[redacted]"))
-
-        end = max(end, stop)
-
-    parts.append(value[end:])
-
-    # silent-defaults: allow-contract -- Replace nonprinting diagnostic characters with spaces while retaining readable redacted structure.
-    return " ".join("".join(char if char.isprintable() else " " for char in "".join(parts)).split())
-
-
-def _endpoint_error(response, messages, key):
-    """Project optional error fields, never raw bodies or complete prompt echoes.
-
-    This ports SECS7356c354368f2355d3ab5cef00cf48c67cea9c2c,
-    src/secs_inference/provider/chat.py:211-288. Text remains unverified/protected;
-    paraphrased input is not detected. Consumers redact all configured secrets
-    before display limits; truncating here could expose another key's prefix.
-    """
-
-    try:
-        document = read_document(response.body, 8192)
-    # silent-defaults: allow-exception-outcome -- Unreadable optional service detail is explicitly unavailable and never replaces the HTTP refusal
-    except ResponseRejected:
-        return {"detail_unavailable": "The model service error detail was not complete readable JSON within 8192 bytes."}
-
-    # silent-defaults: allow-contract -- A non-object response supplies no usable error object.
-    fields = document.get("error") if type(document) is dict else None
-
-    if type(fields) is not dict:
-        return {"detail_unavailable": "The model service response contained no readable error object."}
-
-    echoes = _request_echoes(messages, key)
-
-    result = {
-        name: _without_echoes(fields[name], echoes)
-        for name in ("message", "type", "code", "param") if type(fields.get(name)) is str
-    }
-
-    # silent-defaults: allow-contract -- An empty reviewed diagnostic selection reports detail unavailable without exposing the response body.
-    return result or {"detail_unavailable": "The model service response contained no readable error fields."}
 
 
 def require_chat_limits(*, request_bytes, response_bytes):
@@ -332,12 +255,10 @@ class ChatEndpoint:
                 cause=cause,
             ) from None
 
-        if response.status != 200:
-            raise ChatFailed(
-                "http_status",
-                f"Cannot complete interpreter request: the model service returned HTTP {response.status}; no tool was accepted.",
-                response=response,
-                endpoint_error=_endpoint_error(response, messages, self.spec.api_key),
-            )
-
-        return read_completion(response, maximum_bytes=self._response_bytes)
+        return read_completion(
+            response,
+            maximum_bytes=self._response_bytes,
+            error_detail_maximum_bytes=_ERROR_DETAIL_BYTES,
+            messages=messages,
+            api_key=self.spec.api_key,
+        )

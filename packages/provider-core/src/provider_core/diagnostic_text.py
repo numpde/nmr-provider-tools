@@ -31,6 +31,37 @@ def redact_credential_fields(text):
     return _SECRET_FIELD.sub(r"\1[redacted]", _CREDENTIAL.sub("[redacted]", text))
 
 
+def without_echoes(text: str, echoes: tuple[str, ...]) -> str:
+    """Remove complete overlapping spellings before normalizing diagnostic text.
+
+    SECS7356c354368f2355d3ab5cef00cf48c67cea9c2c,
+    src/secs_inference/provider/chat.py::_diagnostic_text merges original
+    matches so replacing one spelling cannot expose a larger overlapping echo.
+    """
+
+    spans = []
+
+    for echo in echoes:
+        start = text.find(echo)
+
+        while start >= 0:
+            spans.append((start, start + len(echo)))
+            start = text.find(echo, start + 1)
+
+    (parts, end) = ([], 0)
+
+    for (start, stop) in sorted(spans):
+        if start >= end:
+            parts.extend((text[end:start], "[redacted]"))
+
+        end = max(end, stop)
+
+    parts.append(text[end:])
+
+    # silent-defaults: allow-contract -- Normalize nonprinting characters while preserving the readable redacted structure.
+    return " ".join("".join(char if char.isprintable() else " " for char in "".join(parts)).split())
+
+
 class CredentialRedactingFormatter(logging.Formatter):
     """Scrub the final output, including tracebacks, without changing errors."""
 
