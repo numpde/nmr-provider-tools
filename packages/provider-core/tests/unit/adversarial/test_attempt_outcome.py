@@ -95,7 +95,7 @@ class AttemptOutcomeFailureTests(unittest.IsolatedAsyncioTestCase):
             with self.subTest(changes=changes), self.assertRaises(ApiFailure) as caught:
                 await self.send(self.api(transport), completing, self.body(completing))
 
-            yield caught.exception, received, transport
+            yield (caught.exception, received, transport)
 
     async def test_mismatched_acknowledgements_retain_uncertainty(self):
         async for (failure, received, transport) in self._mismatched_outcome_failures():
@@ -177,7 +177,7 @@ class AttemptOutcomeFailureTests(unittest.IsolatedAsyncioTestCase):
             with self.assertRaises(ApiFailure) as current:
                 await self.send(api, completing, self.body(completing))
 
-            yield earlier.exception, current.exception, code
+            yield (earlier.exception, current.exception, code)
 
     async def test_terminal_conflicts_resolve_only_the_current_send(self):
         async for (earlier_failure, current_failure, code) in self._terminal_conflicts_after_lost_response():

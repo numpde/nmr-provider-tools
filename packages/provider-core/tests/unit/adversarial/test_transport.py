@@ -519,7 +519,7 @@ class TransportFailureTests(unittest.IsolatedAsyncioTestCase):
 
                 failure = caught.exception
 
-                yield failure, headers, client, stream.failure, primary
+                yield (failure, headers, client, stream.failure, primary)
 
     async def test_failed_body_keeps_received_head_without_admitting_a_partial_response(self):
         async for (failure, headers, client, stream_failure, primary) in self._failed_bodies():
@@ -594,7 +594,7 @@ class TransportFailureTests(unittest.IsolatedAsyncioTestCase):
             try:
                 await transport.exchange(request, maximum_bytes=4)
             except ExchangeFailed as failure:
-                yield failure, primary, cleanup, transport, factory
+                yield (failure, primary, cleanup, transport, factory)
             else:
                 self.fail("Failed read/close must not yield a response")
 

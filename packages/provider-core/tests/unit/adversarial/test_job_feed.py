@@ -68,7 +68,7 @@ class JobFeedFailureTests(unittest.IsolatedAsyncioTestCase):
                 cursor=None
             )
 
-        return failure.exception, raw
+        return (failure.exception, raw)
 
     async def test_wire_failure_retains_response_and_read_effect_truth(self):
         (failure, raw) = await self._wire_failure()

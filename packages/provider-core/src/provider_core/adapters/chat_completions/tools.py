@@ -108,4 +108,4 @@ def decode_arguments(argument_bytes: bytes) -> tuple[object, str]:
     arguments = read_document(argument_bytes, len(argument_bytes))
     canonical_arguments_text = json.dumps(arguments, allow_nan=False, ensure_ascii=True, sort_keys=True, separators=(",", ":"))
 
-    return arguments, canonical_arguments_text
+    return (arguments, canonical_arguments_text)

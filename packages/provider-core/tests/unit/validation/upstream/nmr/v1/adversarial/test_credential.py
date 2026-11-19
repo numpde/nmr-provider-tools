@@ -27,7 +27,7 @@ class ProviderCredentialBoundaryTests(unittest.TestCase):
         )
 
         for change in cases:
-            yield next(iter(change)), encoded(baseline | change), baseline["private_key_pkcs8_pem"]
+            yield (next(iter(change)), encoded(baseline | change), baseline["private_key_pkcs8_pem"])
 
     def test_closed_provider_artifact_rejects_untrusted_identity_fields(self):
         for (field, artifact_bytes, _private_key) in self._untrusted_identity_artifacts():
@@ -92,7 +92,7 @@ class ProviderCredentialBoundaryTests(unittest.TestCase):
             base64.b64encode(b"not DER").decode(),
             base64.b64encode(raw + b"trailing").decode(),
         ):
-            yield len(public), encoded(baseline | {"public_key_spki_der_b64": public})
+            yield (len(public), encoded(baseline | {"public_key_spki_der_b64": public}))
 
     def test_invalid_or_noncanonical_public_key_encodings_are_rejected(self):
         for (public_length, artifact_bytes) in self._invalid_public_key_artifacts():

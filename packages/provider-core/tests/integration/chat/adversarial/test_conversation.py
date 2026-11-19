@@ -166,7 +166,7 @@ class ConversationBoundaryTests(unittest.IsolatedAsyncioTestCase):
 
                 await conversation.retire()
 
-                yield result, feedback, dispatch
+                yield (result, feedback, dispatch)
 
     async def test_bad_arguments_and_multiple_calls_are_corrected_without_dispatch(self):
         async for (result, feedback, dispatch) in self._argument_corrections():
@@ -397,7 +397,7 @@ class ConversationBoundaryTests(unittest.IsolatedAsyncioTestCase):
 
         await conversation.retire()
 
-        return conversation, conversation_result, failures
+        return (conversation, conversation_result, failures)
 
     async def test_fallback_preserves_each_failure(self):
         (conversation, _conversation_result, failures) = await self._fallback_result()

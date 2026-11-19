@@ -43,7 +43,7 @@ class DeliveryDiagnosticsTests(unittest.TestCase):
             rendered = json.dumps(failure_evidence(failure, secrets=()))
             report = json.loads(rendered)
 
-            yield failure, code, report, rendered
+            yield (failure, code, report, rendered)
 
     def test_system_exit_unbounded_codes_and_objects_are_not_converted(self):
         for (failure, code, report, _rendered) in self._non_numeric_exit_reports():

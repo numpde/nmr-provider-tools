@@ -33,7 +33,7 @@ class DeliveryConfigurationRefusalTests(unittest.TestCase):
                     with self.assertRaises(DeliveryConfigurationRejected) as refused:
                         load_delivery_service(files.path, on_notice=Mock(), diagnostic_status=healthy_diagnostics)
 
-                    yield refused.exception, pathlib.Path(directory) / "state"
+                    yield (refused.exception, pathlib.Path(directory) / "state")
 
     def test_closed_fields_and_credential_binding_refuse_without_runtime_state(self):
         for (_refusal, state_directory) in self._configuration_refusals():

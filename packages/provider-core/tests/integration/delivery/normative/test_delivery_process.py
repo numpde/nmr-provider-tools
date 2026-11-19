@@ -138,7 +138,7 @@ class DeliveryProcessTests(unittest.IsolatedAsyncioTestCase):
                 try:
                     (stdout, stderr) = await asyncio.wait_for(child_process.communicate(), 3)
 
-                    yield child_process, stdout, stderr, expected, queue, root
+                    yield (child_process, stdout, stderr, expected, queue, root)
                 finally:
                     await _reap_daemon(child_process)
 

@@ -10,7 +10,7 @@ from urllib.parse import SplitResult
 # Retain the proxy's admitted TCP port range for both request-target forms
 # https://github.com/numpde/magnet-deploy/blob/2d4ee50b0359e71900fce9289ea01f46d0f41249/repository_checks/test_image_build_proxy.py#L41
 # repo-check: allow-module-constant
-MIN_PORT, MAX_PORT = 1, 65535
+(MIN_PORT, MAX_PORT) = (1, 65535)
 
 
 def header_end(received: bytes | bytearray) -> int | None:

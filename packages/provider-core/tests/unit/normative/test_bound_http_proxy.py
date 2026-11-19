@@ -346,7 +346,7 @@ class BoundProxyTests(unittest.TestCase):
                 ):
                     bound_http_proxy.ProxyHandler(request, ("127.0.0.1", 1), SimpleNamespace(outbound_interface="lo", dns_servers=None))
 
-                yield failure, request, connect, errors.getvalue(), private
+                yield (failure, request, connect, errors.getvalue(), private)
 
     def test_admission_failures_keep_fixed_http_status(self):
         for (failure, request, connect, rendered, _private) in self._admission_failure_replies():

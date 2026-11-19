@@ -373,7 +373,7 @@ class ToolConversation:
             call = calls[0]
 
             try:
-                arguments, canonical_arguments_text = self._arguments(chat_tools.call_arguments(call))
+                (arguments, canonical_arguments_text) = self._arguments(chat_tools.call_arguments(call))
             except ToolRejected as rejection:
                 # Invalid argument text may contain encoded credentials.
                 # Keep its call identity and safe correction, not that raw text.
@@ -438,7 +438,7 @@ class ToolConversation:
         require_assistant(message)
         canonical = chat_tools.assistant_message()
 
-        for text_field, assistant_text in assistant_text_fields(message):
+        for (text_field, assistant_text) in assistant_text_fields(message):
             self._require_no_secrets(assistant_text)
             canonical[text_field] = assistant_text
 
@@ -500,7 +500,7 @@ class ToolConversation:
             raise ToolRejected(f"{argument_byte_count=} should be at most {max_argument_bytes=}")
 
         try:
-            arguments, canonical_arguments_text = chat_tools.decode_arguments(argument_bytes)
+            (arguments, canonical_arguments_text) = chat_tools.decode_arguments(argument_bytes)
         except (ValueError, OverflowError, RecursionError) as cause:
             raise ToolRejected("arguments_text should encode JSON with unique fields and finite numbers") from cause
 
@@ -509,7 +509,7 @@ class ToolConversation:
 
         self._require_no_secrets(arguments)
 
-        return arguments, canonical_arguments_text
+        return (arguments, canonical_arguments_text)
 
     def _feedback(self, identifier, value):
         self._require_no_secrets(value)

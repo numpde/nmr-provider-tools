@@ -317,7 +317,7 @@ class HeldFailureTests(unittest.IsolatedAsyncioTestCase):
 
         refused = await asyncio.to_thread(asyncio.run, query_from_foreign_loop())
 
-        return refused, failure, controller, selected
+        return (refused, failure, controller, selected)
 
     async def test_foreign_loop_refusal_keeps_both_original_and_ownership_failures(self):
         (refused, failure, controller, selected) = await self._foreign_loop_refusal()

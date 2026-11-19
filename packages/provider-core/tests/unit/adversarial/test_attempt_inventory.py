@@ -54,7 +54,7 @@ class AttemptInventoryFailureTests(unittest.IsolatedAsyncioTestCase):
                 with self.assertRaises(ApiFailure) as failure:
                     await api(transport, "https://api.example").execution_attempts(state="in_progress", limit=1, cursor=None)
 
-                yield body, transport, failure.exception
+                yield (body, transport, failure.exception)
 
     async def test_bad_wire_retains_evidence_and_no_mutation_uncertainty(self):
         async for (body, transport, failure) in self._bad_wire_failures():

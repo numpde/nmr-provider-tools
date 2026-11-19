@@ -32,6 +32,6 @@ def edge_topology_matches(headers: tuple[tuple[bytes, bytes], ...], expected_top
     as API replies; an explicit mismatch or repeated marker still refuses.
     """
 
-    markers = [header_value for header_name, header_value in headers if header_name.lower() == b"nmr-api-topology"]
+    markers = [header_value for (header_name, header_value) in headers if header_name.lower() == b"nmr-api-topology"]
 
     return markers in ([], [expected_topology.encode("ascii")])

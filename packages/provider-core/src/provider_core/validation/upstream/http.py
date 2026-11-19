@@ -29,7 +29,7 @@ def read_visible_ascii_header(
     The caller selects the field and decides what an absent value means.
     """
 
-    values = [value for name, value in headers if name.lower() == header_name.lower()]
+    values = [value for (name, value) in headers if name.lower() == header_name.lower()]
 
     if (
         (len(values) == 1) and
@@ -46,7 +46,7 @@ def require_http_status(http_status: object) -> int:
 
     require_type(http_status, int)
 
-    min_http_status, max_http_status = 100, 599
+    (min_http_status, max_http_status) = (100, 599)
 
     if not (min_http_status <= http_status <= max_http_status):
         raise ValueError(f"{http_status=} should be between {min_http_status=} and {max_http_status=}")

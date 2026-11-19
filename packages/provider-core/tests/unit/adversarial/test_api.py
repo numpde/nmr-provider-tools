@@ -40,7 +40,7 @@ class ApiReadFailureTests(unittest.IsolatedAsyncioTestCase):
         with self.assertRaises(ApiFailure) as caught:
             await self.api(transport).job_input(facts(), analysis_kind_ref="nmr_prediction")
 
-        return caught.exception, observed, transport
+        return (caught.exception, observed, transport)
 
     async def test_http_failure_retains_body_without_retrying(self):
         (failure, observed, transport) = await self._http_failure()
@@ -101,7 +101,7 @@ class ApiReadFailureTests(unittest.IsolatedAsyncioTestCase):
             ):
                 await api.job_input(facts(), analysis_kind_ref="nmr_prediction")
 
-            yield api.last_failure, io_failure, transport
+            yield (api.last_failure, io_failure, transport)
 
     async def test_io_failure_and_cancellation_keep_operation_context(self):
         async for (failure, io_failure, transport) in self._interrupted_reads():

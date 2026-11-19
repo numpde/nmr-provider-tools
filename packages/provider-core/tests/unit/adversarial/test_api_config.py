@@ -57,7 +57,7 @@ class HttpsAdmissionTests(unittest.TestCase):
             with self.subTest(reason=reason), self.assertRaises(ApiConfigurationRejected) as caught:
                 self.settings(read_file)
 
-            yield caught.exception, reason, cause_type, calls
+            yield (caught.exception, reason, cause_type, calls)
 
     def test_encoding_and_certificate_failures_are_distinct_in_rendered_evidence(self):
         for (error, reason, cause_type, calls) in self._ca_parser_failures():
@@ -83,7 +83,7 @@ class HttpsAdmissionTests(unittest.TestCase):
                 self.assertRaises(ApiConfigurationRejected) as caught:
             self.settings(lambda path, **selection: b"PRIVATE_CA")
 
-        return caught.exception, cause
+        return (caught.exception, cause)
 
     def test_openssl_failure_retains_its_original_cause(self):
         (failure, cause) = self._openssl_failure()

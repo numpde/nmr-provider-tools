@@ -66,7 +66,7 @@ class AttemptReadRejectionTests(unittest.IsolatedAsyncioTestCase):
                 with self.assertRaises(ApiFailure) as caught:
                     await api.read_attempt(ATTEMPT_REF, job_ref="job:example")
 
-                yield caught.exception, response, api, transport
+                yield (caught.exception, response, api, transport)
 
     async def test_malformed_or_foreign_observations_retain_evidence(self):
         async for (failure, response, api, transport) in self._malformed_observation_failures():
@@ -89,7 +89,7 @@ class AttemptReadRejectionTests(unittest.IsolatedAsyncioTestCase):
             with self.assertRaises(ApiFailure) as caught:
                 await api.read_attempt(ATTEMPT_REF, job_ref="job:example")
 
-            yield caught.exception, api, transport
+            yield (caught.exception, api, transport)
 
     async def test_failed_reads_preserve_transport_and_http_evidence_without_retry(self):
         async for (failure, api, transport) in self._failed_reads():

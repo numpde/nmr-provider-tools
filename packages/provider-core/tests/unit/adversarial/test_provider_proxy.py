@@ -61,7 +61,7 @@ class ServiceProxyRefusalTests(unittest.TestCase):
                 ):
                     ServiceProxyHandler(request, "", SimpleNamespace(policy=policy, outbound_interface="eth0"))
 
-                yield error_type, output.getvalue(), request, channels, udp
+                yield (error_type, output.getvalue(), request, channels, udp)
 
     def test_dns_decoder_failure_reaches_operator_and_rejects_the_request(self):
         for (error_type, output, request, channels, udp) in self._dns_decoder_refusals():
@@ -115,7 +115,7 @@ class ServiceProxyRefusalTests(unittest.TestCase):
             ):
                 ServiceProxyHandler(request, "", SimpleNamespace(policy=policy, outbound_interface="lo"))
 
-            yield connect, resolve, errors.getvalue(), request
+            yield (connect, resolve, errors.getvalue(), request)
 
     def test_denied_or_malformed_targets_never_reach_resolution_or_outbound_transport(self):
         for (connect, resolve, _errors, request) in self._denied_targets():
@@ -311,17 +311,17 @@ class ServiceProxyRefusalTests(unittest.TestCase):
             with patch.object(pathlib.Path, "lstat", side_effect=primary), self.assertRaises(ServiceRefused) as caught, socket_grant(path, ready):
                 pass
 
-            return caught.exception, primary
+            return (caught.exception, primary)
 
     def test_filesystem_refusal_retains_errno_and_cause(self):
-        refusal, primary = self._filesystem_refusal()
+        (refusal, primary) = self._filesystem_refusal()
 
         self.assertIs(refusal.__cause__, primary)
         self.assertIn(str(primary.errno), str(refusal))
 
     @unittest.skipIf(os.environ.get("PRIVACY_TESTS", "1") == "0", "Privacy tests disabled")
     def test_filesystem_refusal_omits_path(self):
-        refusal, _primary = self._filesystem_refusal()
+        (refusal, _primary) = self._filesystem_refusal()
 
         self.assertNotIn("PRIVATE_PATH", str(refusal))
 
@@ -380,17 +380,17 @@ class ServiceProxyRefusalTests(unittest.TestCase):
         ):
             bound_http_proxy.resolve_ipv4_bound("PRIVATE_HOST", "eth0", deadline=30)
 
-        return caught.exception, primary
+        return (caught.exception, primary)
 
     def test_dns_owner_keeps_reason_and_original_query_failure(self):
-        refusal, primary = self._dns_query_refusal()
+        (refusal, primary) = self._dns_query_refusal()
 
         self.assertEqual(refusal.failures, (primary,))
         self.assertIn("configured DNS queries failed", str(refusal))
 
     @unittest.skipIf(os.environ.get("PRIVACY_TESTS", "1") == "0", "Privacy tests disabled")
     def test_dns_query_refusal_omits_query_data(self):
-        refusal, _primary = self._dns_query_refusal()
+        (refusal, _primary) = self._dns_query_refusal()
 
         self.assertNotIn("PRIVATE", str(refusal))
 
@@ -411,10 +411,10 @@ class ServiceProxyRefusalTests(unittest.TestCase):
         ):
             bound_http_proxy.resolve_ipv4_bound("PRIVATE_HOST", "eth0", deadline=30)
 
-        return caught.exception, primary, query
+        return (caught.exception, primary, query)
 
     def test_dns_deadline_keeps_prior_query_cause_without_starting_next_resolver(self):
-        refusal, primary, query = self._dns_deadline_refusal()
+        (refusal, primary, query) = self._dns_deadline_refusal()
 
         self.assertIsInstance(refusal, TimeoutError)
         self.assertIs(refusal.failures[0], primary)
@@ -424,6 +424,6 @@ class ServiceProxyRefusalTests(unittest.TestCase):
 
     @unittest.skipIf(os.environ.get("PRIVACY_TESTS", "1") == "0", "Privacy tests disabled")
     def test_dns_deadline_refusal_omits_query_data(self):
-        refusal, _primary, _query = self._dns_deadline_refusal()
+        (refusal, _primary, _query) = self._dns_deadline_refusal()
 
         self.assertNotIn("PRIVATE", str(refusal))

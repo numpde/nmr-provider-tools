@@ -43,7 +43,7 @@ class TextCorrectionBoundaryTests(unittest.IsolatedAsyncioTestCase):
         await conversation.run([], [], dispatch)
         await conversation.retire()
 
-        return model.requests[1], dispatch
+        return (model.requests[1], dispatch)
 
     async def test_argument_byte_limit_applies_before_decoding(self):
         (transcript, dispatch) = await self._oversized_arguments_repair()
@@ -122,7 +122,7 @@ class TextCorrectionBoundaryTests(unittest.IsolatedAsyncioTestCase):
 
         await conversation.retire()
 
-        return transcript, dispatch
+        return (transcript, dispatch)
 
     async def test_invalid_and_unparsed_arguments_receive_feedback_before_dispatch(self):
         (transcript, dispatch) = await self._invalid_arguments_repair()

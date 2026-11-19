@@ -36,7 +36,7 @@ class ApiMetadataTlsTests(unittest.IsolatedAsyncioTestCase):
                         with self.assertRaises(ApiFailure) as caught:
                             await api.job_input(facts(), analysis_kind_ref="nmr_predict")
 
-                        yield caught.exception, peer
+                        yield (caught.exception, peer)
                     finally:
                         await api.retire()
 

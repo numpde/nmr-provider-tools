@@ -79,7 +79,7 @@ class ReleasedApiRefusalTests(PinnedApiRelease, unittest.IsolatedAsyncioTestCase
                     with self.assertRaises(ApiFailure) as failed:
                         await getattr(client, call.method_name)(*call.arguments, **call.options)
 
-                    yield transport, client, failed.exception
+                    yield (transport, client, failed.exception)
 
     async def test_each_operation_refuses_changed_schema_and_unknown_top_level_response_fields(self):
         async for (transport, client, failure) in self._changed_responses():

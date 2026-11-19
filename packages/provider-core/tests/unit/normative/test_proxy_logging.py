@@ -31,7 +31,7 @@ class ProxyLoggingTests(unittest.TestCase):
 
         formatted = CredentialRedactingFormatter("%(message)s").format(record)
 
-        return formatted, record, failure, cause
+        return (formatted, record, failure, cause)
 
     def test_formatter_preserves_facts_record_and_exception(self):
         (formatted, record, failure, cause) = self._formatted_failure()

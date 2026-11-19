@@ -161,7 +161,7 @@ def verify_job_input(response_bytes, *, feed):
         raise JobInputRejected(f"{type(observed_input_base64)=} ≠ {expected_type=}")
 
     base64_character_count = len(observed_input_base64)
-    min_base64_characters, max_base64_characters = 1, 87384
+    (min_base64_characters, max_base64_characters) = (1, 87384)
 
     if not (min_base64_characters <= base64_character_count <= max_base64_characters):
         raise JobInputRejected(f"{base64_character_count=} should be between {min_base64_characters=} and {max_base64_characters=}")

@@ -38,7 +38,7 @@ class DeliveryLoggingTests(unittest.TestCase):
 
         notices(ExceptionGroup("Independent binding failures", failures), {"event": "delivery_failed"})
 
-        return output.getvalue(), notices
+        return (output.getvalue(), notices)
 
     def test_record_larger_than_pipe_atomic_limit_still_reaches_the_owned_stream(self):
         (rendered, notices) = self._large_log_record()

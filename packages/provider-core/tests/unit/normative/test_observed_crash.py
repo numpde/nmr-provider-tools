@@ -73,7 +73,7 @@ class ObservedCrashTests(unittest.IsolatedAsyncioTestCase):
                 controller = self.controller(session, transport)
                 accepted = await controller.run(record())
 
-                yield controller, calls, accepted, transport
+                yield (controller, calls, accepted, transport)
 
     async def test_each_active_phase_reports_crash_once_without_reading_the_outage(self):
         async for (controller, calls, accepted, transport) in self._reported_phase_crashes():

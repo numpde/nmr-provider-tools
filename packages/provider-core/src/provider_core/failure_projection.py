@@ -311,7 +311,7 @@ def owned_details(error):
         if error.endpoint_error is not None:
             details["endpoint_error_unverified"] = True
 
-            for name, diagnostic_text in endpoint_error_fields(error.endpoint_error):
+            for (name, diagnostic_text) in endpoint_error_fields(error.endpoint_error):
                 details["endpoint_error_" + name] = diagnostic_text
 
         head = error.response

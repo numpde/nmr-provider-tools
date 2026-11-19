@@ -41,7 +41,7 @@ class WheelhouseTests(unittest.TestCase):
             with self.assertRaisesRegex(OSError, "HTTP 404") as caught:
                 retry(operation, "Cannot acquire locked artifact")
 
-        return caught.exception, body, operation, sleep
+        return (caught.exception, body, operation, sleep)
 
     def test_permanent_http_error_closes_its_response_without_retry(self):
         (_failure, body, operation, sleep) = self._permanent_http_failure()
@@ -101,7 +101,7 @@ class WheelhouseTests(unittest.TestCase):
             with self.assertRaisesRegex(OSError, "HTTP 503.*could not close.*error number 5") as caught:
                 retry(operation, "Cannot acquire locked artifact")
 
-        return caught.exception, operation, sleep
+        return (caught.exception, operation, sleep)
 
     def test_response_close_failure_preserves_http_cause_and_stops_retry(self):
         (failure, operation, sleep) = self._response_close_failure()
@@ -287,7 +287,7 @@ class WheelhouseTests(unittest.TestCase):
                      patch('wheelhouse_tool.network.time.sleep'), redirect_stderr(output):
                     self.assertEqual(1, tool.main())
 
-                yield expected, output.getvalue()
+                yield (expected, output.getvalue())
 
     def test_download_failure_reports_network_evidence(self):
         for (expected, rendered) in self._download_network_failures():
@@ -381,7 +381,7 @@ class WheelhouseTests(unittest.TestCase):
             with self.assertRaises(OSError) as captured:
                 tool.run('acquire', self.lock, self.pool)
 
-        return captured.exception, sleep
+        return (captured.exception, sleep)
 
     def test_cleanup_failure_stops_retry_and_reports_both_failures(self):
         (failure, sleep) = self._temporary_file_cleanup_failure()
@@ -406,7 +406,7 @@ class WheelhouseTests(unittest.TestCase):
             with self.assertRaisesRegex(OSError, "HTTP 503.*could not remove the temporary file") as caught:
                 tool.run("acquire", self.lock, self.pool)
 
-        return caught.exception, body, open_url, sleep
+        return (caught.exception, body, open_url, sleep)
 
     def test_http_response_closes_when_partial_removal_fails(self):
         (_failure, body, open_url, sleep) = self._partial_removal_failure()
@@ -434,7 +434,7 @@ class WheelhouseTests(unittest.TestCase):
             with self.assertRaisesRegex(OSError, "HTTP 503.*could not close.*error number 5.*could not remove") as caught:
                 tool.run("acquire", self.lock, self.pool)
 
-        return caught.exception, open_url, close, sleep
+        return (caught.exception, open_url, close, sleep)
 
     def test_response_and_partial_cleanup_failures_preserve_http_cause(self):
         (failure, open_url, close, sleep) = self._response_and_partial_cleanup_failure()
@@ -954,7 +954,7 @@ class WheelhouseTests(unittest.TestCase):
 
         url = "https://example.invalid/torch-2.3.0%2Bcpu-cp312-cp312-linux_x86_64.whl#sha256=" + digest
 
-        return digest, url
+        return (digest, url)
 
     def test_locator_accepts_existing_direct_source_only_when_it_matches_the_pin(self):
         (digest, url) = self._pinned_direct_source()

@@ -17,7 +17,7 @@ def http_failure(response, operation):
     if problem is None:
         return ApiFailure(operation, f"API returned HTTP {response.status}; no verified response was obtained", response=response)
 
-    problem_code, reason = problem
+    (problem_code, reason) = problem
     failure = ApiFailure(operation, f"{reason} (HTTP {response.status})", response=response)
     failure.problem_code = problem_code
 

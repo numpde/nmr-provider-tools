@@ -37,7 +37,7 @@ class ChatCarrierRejectionTests(unittest.IsolatedAsyncioTestCase):
             with self.assertRaises(ChatFailed) as caught:
                 await endpoint.complete([], [])
 
-            yield caught.exception, endpoint, peer
+            yield (caught.exception, endpoint, peer)
 
     async def test_error_body_limit_keeps_received_status_and_original_failure(self):
         async for (failure, endpoint, peer) in self._oversized_error_failure():
@@ -111,7 +111,7 @@ class ChatCarrierRejectionTests(unittest.IsolatedAsyncioTestCase):
         with self.assertRaises(ChatFailed) as caught:
             await endpoint.complete([{"role": "user", "content": prompt}], [])
 
-        return caught.exception, response, transport
+        return (caught.exception, response, transport)
 
     async def test_http_rejection_keeps_error_fields(self):
         (failure, response, transport) = await self._http_rejection()
@@ -295,7 +295,7 @@ class ChatCarrierRejectionTests(unittest.IsolatedAsyncioTestCase):
                 with self.assertRaises(ChatFailed) as caught:
                     await endpoint.complete([], [])
 
-                yield caught.exception, response, transport
+                yield (caught.exception, response, transport)
 
     async def test_http_failure_and_malformed_replies_keep_raw_evidence(self):
         async for (failure, response, transport) in self._malformed_reply_failures():

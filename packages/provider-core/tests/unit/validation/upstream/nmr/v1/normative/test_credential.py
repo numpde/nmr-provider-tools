@@ -18,7 +18,7 @@ class ProviderCredentialTests(unittest.TestCase):
                 original = document(key=key, profile=profile)
                 credential = parse_provider_credential(encoded(original), maximum_bytes=CREDENTIAL_PARSER_BYTES)
 
-                yield credential, original, key, profile
+                yield (credential, original, key, profile)
 
     def test_original_artifact_preserves_identity_and_signing_capability(self):
         for (credential, _original, key, profile) in self._admitted_credentials():

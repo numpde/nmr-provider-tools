@@ -459,7 +459,7 @@ class ProviderAPI:
         """
         require_provider_ref(provider_ref)
         body = hello_body(display_name=display_name, description=description, analysis_offerings=analysis_offerings)
-        request_method, request_path = hello_route()
+        (request_method, request_path) = hello_route()
         operation = "confirm provider Hello acceptance"
 
         try:
@@ -497,7 +497,7 @@ class ProviderAPI:
             cursor=cursor,
         )
 
-        request_method, request_path = jobs_route()
+        (request_method, request_path) = jobs_route()
 
         response = await self._exchange(
             "list Jobs",
@@ -521,7 +521,7 @@ class ProviderAPI:
     async def execution_attempts(self, *, state, limit, cursor, owner=None):
         """Read one provider-wide inventory page; composition owns reconciliation."""
         query = inventory_query(state=state, limit=limit, cursor=cursor)
-        request_method, request_path = inventory_route()
+        (request_method, request_path) = inventory_route()
 
         response = await self._exchange(
             "list in-progress Attempts",
@@ -550,7 +550,7 @@ class ProviderAPI:
 
         require_analysis_kind(analysis_kind_ref)
 
-        request_method, request_path = job_input_route(feed.job_ref)
+        (request_method, request_path) = job_input_route(feed.job_ref)
 
         response = await self._exchange(
             "read Job input",
@@ -569,7 +569,7 @@ class ProviderAPI:
     async def uploads(self, job_ref):
         """Observe current membership once; no historical or cached authority."""
         require_job_ref(job_ref)
-        request_method, request_path = membership_route(job_ref)
+        (request_method, request_path) = membership_route(job_ref)
 
         response = await self._exchange(
             "read Job Upload membership",
@@ -596,7 +596,7 @@ class ProviderAPI:
         """
         require_job_ref(job_ref)
         require_upload_ref(upload_ref)
-        request_method, request_path = read_grant_route(job_ref, upload_ref)
+        (request_method, request_path) = read_grant_route(job_ref, upload_ref)
 
         response = await self._exchange(
             "issue Upload read grant",
@@ -624,7 +624,7 @@ class ProviderAPI:
         """
         require_attempt_ref(execution_attempt_ref)
         require_job_ref(job_ref)
-        request_method, request_path = attempt_route(execution_attempt_ref)
+        (request_method, request_path) = attempt_route(execution_attempt_ref)
 
         response = await self._exchange(
             "read Execution Attempt",
@@ -653,7 +653,7 @@ class ProviderAPI:
         require_analysis_kind(analysis_kind_ref)
         require_provider_ref(provider_ref)
         require_start_body(body, job_ref=job_ref)
-        request_method, request_path = start_route()
+        (request_method, request_path) = start_route()
 
         response = await self._exchange(
             "start Execution Attempt",
@@ -683,7 +683,7 @@ class ProviderAPI:
         """
         require_attempt_ref(execution_attempt_ref)
         body = progress_body(phase, condition_code)
-        request_method, request_path = progress_route(execution_attempt_ref)
+        (request_method, request_path) = progress_route(execution_attempt_ref)
 
         response = await self._exchange(
             "report Attempt progress",
@@ -717,7 +717,7 @@ class ProviderAPI:
         """
         require_attempt_ref(execution_attempt_ref)
         (result_schema_id, submitted_result) = read_complete_body(body, execution_attempt_ref=execution_attempt_ref)
-        request_method, request_path = complete_route()
+        (request_method, request_path) = complete_route()
 
         response = await self._exchange(
             "complete Execution Attempt",
@@ -751,7 +751,7 @@ class ProviderAPI:
         """
         require_attempt_ref(execution_attempt_ref)
         (failure_code, failure_message) = read_fail_body(body, execution_attempt_ref=execution_attempt_ref)
-        request_method, request_path = fail_route()
+        (request_method, request_path) = fail_route()
 
         response = await self._exchange(
             "publish Attempt failure",

@@ -123,7 +123,7 @@ def _require_outcome_text(scalar_text, field_name):
         raise TypeError(f"{field_name=}; {type(scalar_text)=} ≠ {expected_type=}")
 
     scalar_character_count = len(scalar_text)
-    min_scalar_characters, max_scalar_characters = 1, 1024
+    (min_scalar_characters, max_scalar_characters) = (1, 1024)
 
     if not (min_scalar_characters <= scalar_character_count <= max_scalar_characters):
         raise ValueError(f"{field_name=}; {scalar_character_count=} should be between {min_scalar_characters=} and {max_scalar_characters=}")
@@ -156,7 +156,7 @@ def require_complete_inputs(execution_attempt_ref, result_schema_id, result):
     require_type(result, bytes)
 
     result_byte_length = len(result)
-    min_result_bytes, max_result_bytes = 1, 786432
+    (min_result_bytes, max_result_bytes) = (1, 786432)
 
     if not (min_result_bytes <= result_byte_length <= max_result_bytes):
         raise ValueError(f"{result_byte_length=} should be between {min_result_bytes=} and {max_result_bytes=}")
@@ -213,7 +213,7 @@ def read_complete_body(body, *, execution_attempt_ref):
     require_type(retained_result_base64, str)
 
     retained_base64_character_count = len(retained_result_base64)
-    min_base64_characters, max_base64_characters = 1, 1048576
+    (min_base64_characters, max_base64_characters) = (1, 1048576)
 
     if not (min_base64_characters <= retained_base64_character_count <= max_base64_characters):
         raise ValueError(f"{retained_base64_character_count=} should be between {min_base64_characters=} and {max_base64_characters=}")
@@ -225,7 +225,7 @@ def read_complete_body(body, *, execution_attempt_ref):
         raise ValueError(f"{retained_result_base64[-4:]=} should match {expected_result_base64[-4:]=}")
 
     result_byte_length = len(result)
-    min_result_bytes, max_result_bytes = 1, 786432
+    (min_result_bytes, max_result_bytes) = (1, 786432)
 
     if not (min_result_bytes <= result_byte_length <= max_result_bytes):
         raise ValueError(f"{result_byte_length=} should be between {min_result_bytes=} and {max_result_bytes=}")

@@ -77,7 +77,7 @@ class ApiEnvelopeTests(unittest.IsolatedAsyncioTestCase):
             with self.subTest(ids=ids), self.assertRaises(ApiFailure) as caught:
                 await self.api(Transport(observed)).job_input(facts(), analysis_kind_ref="nmr_predict")
 
-            yield caught.exception, expected, observed
+            yield (caught.exception, expected, observed)
 
     async def test_bad_body_keeps_header_correlation_but_ambiguous_ids_are_never_trusted(self):
         async for (failure, expected, observed) in self._bad_body_failures():
@@ -150,7 +150,7 @@ class ApiEnvelopeTests(unittest.IsolatedAsyncioTestCase):
             with self.subTest(topology=topology, request_id=request_id), self.assertRaises(ApiFailure) as caught:
                 await self.api(transport).read_grant("job:example", UPLOAD_REF)
 
-            yield caught.exception, known, request_id
+            yield (caught.exception, known, request_id)
 
     async def test_reviewed_refusal_requires_environment_and_matching_header_body_correlation(self):
         async for (failure, known, request_id) in self._correlated_refusals():

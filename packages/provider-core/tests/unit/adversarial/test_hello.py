@@ -44,7 +44,7 @@ class HelloBoundaryTests(unittest.IsolatedAsyncioTestCase):
                 with self.assertRaises((ValueError, TypeError)) as caught:
                     await self.api(transport).publish_hello(**announcement(**change))
 
-                yield caught.exception, transport
+                yield (caught.exception, transport)
 
     async def test_invalid_snapshot_and_expected_identity_fail_before_send(self):
         async for (_failure, transport) in self._invalid_announcement_failures():
@@ -78,7 +78,7 @@ class HelloBoundaryTests(unittest.IsolatedAsyncioTestCase):
                 with self.assertRaises(ApiFailure) as caught:
                     await api.publish_hello(**announcement())
 
-                yield caught.exception, api, response, transport
+                yield (caught.exception, api, response, transport)
 
     async def test_invalid_acceptance_keeps_original_response_and_uncertainty(self):
         async for (failure, api, response, transport) in self._invalid_acceptance_failures():
@@ -104,7 +104,7 @@ class HelloBoundaryTests(unittest.IsolatedAsyncioTestCase):
             with self.assertRaises(ApiFailure) as caught:
                 await api.publish_hello(**announcement())
 
-            yield caught.exception, outcome, cause, transport
+            yield (caught.exception, outcome, cause, transport)
 
     async def test_http_or_transport_failure_is_one_send_with_protected_cause(self):
         async for (failure, outcome, cause, transport) in self._http_or_transport_failures():

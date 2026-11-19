@@ -72,7 +72,7 @@ class ChatProcessProjectionTests(unittest.TestCase):
         failure.child_failure = child
         failure.process = ChatProcessResult(1234, -int(signal.SIGKILL), (int(signal.SIGTERM), int(signal.SIGKILL)))
 
-        return failure, deadline, child, UnreviewedProcess
+        return (failure, deadline, child, UnreviewedProcess)
 
     def test_child_evidence_keeps_parent_identity_and_projects_only_reviewed_process_facts(self):
         (failure, deadline, child, UnreviewedProcess) = self._child_exchange_failure()

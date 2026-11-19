@@ -73,7 +73,7 @@ class TextCorrectionTests(unittest.IsolatedAsyncioTestCase):
 
         await conversation.retire()
 
-        return model.requests[1], conversation_result, value, diagnostic, rejection
+        return (model.requests[1], conversation_result, value, diagnostic, rejection)
 
     async def test_caller_rejection_preserves_safe_arguments_and_exact_diagnostic_then_instruction(self):
         (transcript, conversation_result, value, diagnostic, rejection) = await self._caller_rejection_correction()

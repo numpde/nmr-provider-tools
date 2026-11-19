@@ -56,7 +56,7 @@ class AttemptInventoryValidationTests(unittest.TestCase):
 
             inventory_page["attempts"].append({**inventory_page["attempts"][0], field: bad})
 
-            yield field, bad, json.dumps(inventory_page).encode()
+            yield (field, bad, json.dumps(inventory_page).encode())
 
     def test_every_row_is_admitted_before_a_page_is_exposed(self):
         for (field, bad, inventory_bytes) in self._invalid_inventory_rows():

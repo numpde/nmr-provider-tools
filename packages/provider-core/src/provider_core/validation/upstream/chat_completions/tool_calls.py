@@ -43,7 +43,7 @@ def assistant_text_fields(message: dict) -> Iterator[tuple[str, str | None]]:
             if (assistant_text is not None) and (not (type(assistant_text) is (expected_type := str))):
                 raise ConversationFailed(f"{text_field=}; {type(assistant_text)=} ≠ {expected_type=}")
 
-            yield text_field, assistant_text
+            yield (text_field, assistant_text)
 
 
 def require_tool_calls(tool_calls: object) -> list:

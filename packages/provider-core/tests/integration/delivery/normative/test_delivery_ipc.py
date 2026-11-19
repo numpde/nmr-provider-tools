@@ -224,7 +224,7 @@ class DeliveryIPCTests(unittest.IsolatedAsyncioTestCase):
         return self.failures.call_args.args
 
     async def test_wrong_binding_explains_refusal_to_operator(self):
-        cause, facts = await self._wrong_binding_refusal()
+        (cause, facts) = await self._wrong_binding_refusal()
 
         self.assertIs(type(cause), DeliveryRequestRejected)
         self.assertIn("another API/provider", str(cause))
@@ -235,7 +235,7 @@ class DeliveryIPCTests(unittest.IsolatedAsyncioTestCase):
 
     @unittest.skipIf(os.environ.get("PRIVACY_TESTS", "1") == "0", "Privacy tests disabled")
     async def test_wrong_binding_refusal_omits_request(self):
-        cause, _facts = await self._wrong_binding_refusal()
+        (cause, _facts) = await self._wrong_binding_refusal()
 
         self.assertNotIn("private-canary", str(cause))
 

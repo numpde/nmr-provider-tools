@@ -61,7 +61,7 @@ class UploadApiFailureTests(unittest.IsolatedAsyncioTestCase):
             with self.subTest(changes=changes), self.assertRaises(ApiFailure) as caught:
                 await self.api(transport).read_grant("job:example", UPLOAD_REF)
 
-            yield caught.exception, transport
+            yield (caught.exception, transport)
 
     async def test_bad_grants_preserve_possible_issuance(self):
         async for (failure, transport) in self._bad_grant_failures():
@@ -129,7 +129,7 @@ class UploadApiFailureTests(unittest.IsolatedAsyncioTestCase):
             with self.subTest(code=code), self.assertRaises(ApiFailure) as caught:
                 await self.api(transport).read_grant("job:example", UPLOAD_REF)
 
-            yield caught.exception, uncertain, code, transport
+            yield (caught.exception, uncertain, code, transport)
 
     async def test_only_reviewed_no_change_problem_resolves_this_issuance(self):
         async for (failure, uncertain, code, transport) in self._grant_refusals():

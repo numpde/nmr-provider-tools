@@ -55,7 +55,7 @@ class ProviderCorePortTests(unittest.TestCase):
 
                     self.assertLessEqual(set(splits), expected)
 
-                    for original, successors in splits.items():
+                    for (original, successors) in splits.items():
                         with self.subTest(original=original):
                             self.assertGreaterEqual(len(set(successors)), 2)
                             self.assertLessEqual(set(successors), present)

@@ -25,7 +25,7 @@ class UploadApiTests(unittest.IsolatedAsyncioTestCase):
 
         access = await api.read_grant("job:example", UPLOAD_REF)
 
-        return observed, access, transport
+        return (observed, access, transport)
 
     async def test_membership_and_grant_use_exact_bodyless_signed_routes(self):
         (observed, access, transport) = await self._membership_and_grant()

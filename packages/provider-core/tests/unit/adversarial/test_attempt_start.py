@@ -77,7 +77,7 @@ class AttemptStartFailureTests(unittest.IsolatedAsyncioTestCase):
             with self.subTest(changes=changes), self.assertRaises(ApiFailure) as caught:
                 await self.start(api)
 
-            yield caught.exception, response, api, transport
+            yield (caught.exception, response, api, transport)
 
     async def test_malformed_success_keeps_admission_uncertain(self):
         async for (failure, response, api, transport) in self._malformed_start_failures():
@@ -143,7 +143,7 @@ class AttemptStartFailureTests(unittest.IsolatedAsyncioTestCase):
             with self.assertRaises(ApiFailure) as current:
                 await self.start(api)
 
-            yield earlier.exception, current.exception, uncertain
+            yield (earlier.exception, current.exception, uncertain)
 
     async def test_current_send_refusal_does_not_erase_prior_uncertainty(self):
         async for (earlier_failure, current_failure, uncertain) in self._start_refusals_after_lost_response():

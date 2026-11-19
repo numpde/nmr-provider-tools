@@ -63,7 +63,7 @@ class AttemptProgressFailureTests(unittest.IsolatedAsyncioTestCase):
             with self.subTest(changes=changes), self.assertRaises(ApiFailure) as caught:
                 await api.progress_attempt(ATTEMPT_REF, phase="preparing", condition_code=None)
 
-            yield caught.exception, response, transport
+            yield (caught.exception, response, transport)
 
     async def test_foreign_or_malformed_success_retains_uncertainty_and_evidence(self):
         async for (failure, response, transport) in self._malformed_progress_failures():
@@ -97,7 +97,7 @@ class AttemptProgressFailureTests(unittest.IsolatedAsyncioTestCase):
             with self.assertRaises(ApiFailure) as caught:
                 await api.progress_attempt(ATTEMPT_REF, phase="preparing", condition_code=None)
 
-            yield caught.exception, code, transport
+            yield (caught.exception, code, transport)
 
     async def test_reviewed_conflicts_refuse_this_update_while_interruption_stays_uncertain(self):
         async for (failure, code, transport) in self._progress_conflict_failures():

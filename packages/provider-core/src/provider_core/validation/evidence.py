@@ -17,7 +17,7 @@ def require_evidence_schema_id(schema_id):
     require_type(schema_id, str)
 
     schema_character_count = len(schema_id)
-    min_schema_characters, max_schema_characters = 1, 1024
+    (min_schema_characters, max_schema_characters) = (1, 1024)
 
     if not (min_schema_characters <= schema_character_count <= max_schema_characters):
         raise ValueError(f"{schema_character_count=} should be between {min_schema_characters=} and {max_schema_characters=}")

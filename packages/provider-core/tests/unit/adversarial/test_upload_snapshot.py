@@ -184,7 +184,7 @@ class UploadSnapshotTests(unittest.TestCase):
             ):
                 read_upload_file(receipt, directory_fd=directory, maximum_bytes=8)
 
-            yield caught.exception, primary, cleanup, calls, root, receipt
+            yield (caught.exception, primary, cleanup, calls, root, receipt)
 
     def test_read_and_independent_close_failures_both_survive_without_retry_or_unlink(self):
         for (failure, primary, cleanup, calls, root, receipt) in self._read_and_close_failure():
@@ -221,7 +221,7 @@ class UploadSnapshotTests(unittest.TestCase):
             ):
                 read_upload_file(receipt, directory_fd=directory, maximum_bytes=8)
 
-            return caught.exception, cleanup, closing
+            return (caught.exception, cleanup, closing)
 
     def test_a_complete_copy_with_unconfirmed_close_is_not_handed_off(self):
         (failure, cleanup, closing) = self._unconfirmed_close_failure()
@@ -245,7 +245,7 @@ class UploadSnapshotTests(unittest.TestCase):
             with patch("provider_core.uploads.os.open", side_effect=primary), self.assertRaises(UploadFileReadFailed) as caught:
                 read_upload_file(receipt, directory_fd=directory, maximum_bytes=8)
 
-            return caught.exception, primary
+            return (caught.exception, primary)
 
     def test_open_failure_retains_original_cause(self):
         (failure, primary) = self._open_failure()
@@ -295,7 +295,7 @@ class UploadSnapshotTests(unittest.TestCase):
             ):
                 read_upload_file(receipt, directory_fd=directory, maximum_bytes=8)
 
-            return caught.exception, interruption, previous, cleanup, closing
+            return (caught.exception, interruption, previous, cleanup, closing)
 
     def test_interruption_with_close_failure_keeps_original_cancellation_and_previous_cause(self):
         (failure, interruption, previous, cleanup, closing) = self._interruption_with_close_failure()

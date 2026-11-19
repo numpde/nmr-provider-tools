@@ -38,19 +38,19 @@ class ResponseProblemTests(unittest.TestCase):
         ):
             body = json.dumps(document | changes).encode()
 
-            yield HttpResponse(401, headers, body), known
+            yield (HttpResponse(401, headers, body), known)
 
         duplicate = json.dumps(document)[:-1] + ',"code":"signature_expired"}'
 
-        yield HttpResponse(401, headers, duplicate.encode()), False
+        yield (HttpResponse(401, headers, duplicate.encode()), False)
 
     def test_problem_reason_is_local_and_rejects_unknown_or_ambiguous_problems(self):
-        for response, known in self._problem_replies():
+        for (response, known) in self._problem_replies():
             with self.subTest(body=response.body):
                 problem = read_problem(response)
 
                 if known:
-                    problem_code, reason = problem
+                    (problem_code, reason) = problem
 
                     self.assertEqual(problem_code, "signature_expired")
                     self.assertIn("expired", reason)

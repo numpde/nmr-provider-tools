@@ -159,7 +159,7 @@ def require_decoded_limit(maximum_bytes):
 
     require_type(maximum_bytes, int)
 
-    min_decoded_bytes, max_decoded_bytes = 1, sys.maxsize - 1
+    (min_decoded_bytes, max_decoded_bytes) = (1, sys.maxsize - 1)
 
     if not (min_decoded_bytes <= maximum_bytes <= max_decoded_bytes):
         raise ValueError(f"{maximum_bytes=} should be between {min_decoded_bytes=} and {max_decoded_bytes=}")

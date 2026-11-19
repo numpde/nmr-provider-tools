@@ -27,7 +27,7 @@ class JobFeedValidationTests(unittest.TestCase):
                 document = page()
                 document[field] = bad
 
-                yield field, json.dumps(document).encode()
+                yield (field, json.dumps(document).encode())
 
     def test_envelope_kind_view_cursor_and_schema_drift_are_rejected(self):
         for (field, response_bytes) in self._invalid_envelopes():

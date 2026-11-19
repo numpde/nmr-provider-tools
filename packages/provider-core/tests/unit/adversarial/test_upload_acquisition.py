@@ -153,7 +153,7 @@ class UploadAcquisitionTests(unittest.IsolatedAsyncioTestCase):
         with self.assertRaises(UploadFailed) as caught:
             await owner.acquire(UPLOAD_REF)
 
-        return caught.exception, store
+        return (caught.exception, store)
 
     async def test_foreign_url_never_receives_bearer(self):
         (failure, store) = await self._foreign_url_refusal()

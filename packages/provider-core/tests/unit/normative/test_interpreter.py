@@ -1108,7 +1108,7 @@ class InterpreterTests(unittest.IsolatedAsyncioTestCase):
                 await owner.retire()
                 records = feedback(second.complete.await_args.args[0])["value"]["records"]
 
-                yield failures, report, original, records, second, private
+                yield (failures, report, original, records, second, private)
 
     async def test_report_history_retains_protected_cause_and_model_summary(self):
         from provider_core.failure_projection import owned_details

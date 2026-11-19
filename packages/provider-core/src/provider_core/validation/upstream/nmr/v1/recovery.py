@@ -21,7 +21,7 @@ API_RECOVERY_STATUS = 500
 def encode_request_route(route: tuple[str, str]) -> tuple[str, bytes]:
     """Represent an expected method and path for comparison with a sent target."""
 
-    method, path = route
+    (method, path) = route
 
     return (method, path.encode("ascii"))
 
@@ -44,7 +44,7 @@ def matches_request_route(
 
         request_target = request_target.partition(b"?")[0]
 
-    _, expected_path = encode_request_route(expected_route)
+    (_, expected_path) = encode_request_route(expected_route)
 
     return request_target == expected_path
 

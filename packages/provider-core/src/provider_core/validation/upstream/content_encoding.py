@@ -21,7 +21,7 @@ def read_content_codings(
 
     codings = []
 
-    for name, header_value in headers:
+    for (name, header_value) in headers:
         if name.lower() == b"content-encoding":
             for coding in header_value.split(b",", max_codings):
                 coding = coding.strip(b" \t").lower()
