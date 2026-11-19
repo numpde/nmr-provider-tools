@@ -31,8 +31,18 @@ distinction between refusing before sending and losing a reply after sending.
 Keep validation at the same points relative to parsing, locks and effects.
 
 
-Inventory — 2026-11-19
----------------------
+Migration checklist — inventoried 2026-11-19
+-------------------------------------------
+
+[x] Inventory authored sources, contract pins and existing test evidence
+[ ] Resolve the authority gaps below without changing selected contracts
+[ ] Separate each API's checks into validation/upstream and its wire operations
+    into adapters; update callers and delete displaced implementations
+[ ] Verify and commit each coherent extraction with its focused Make lanes
+
+The checked item records completed inventory work only. Check off an extraction
+after its callers, affected build closures and focused verification are complete.
+Keep the ownership and behavior constraints below throughout the work.
 
 Source baseline: 175da21. This is a source inventory, not an implemented
 separation or a claim that the listed tests pass. Application code was unchanged.
@@ -48,7 +58,8 @@ into adapters. Mixed files need to be split by responsibility, not moved whole.
 Contract sources and uncertainty
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-- NMR Provider API: packages/provider-core/tests/contract/api_release.py:12-15
+- [ ] Establish the authority for each NMR rule being extracted
+  NMR Provider API: packages/provider-core/tests/contract/api_release.py:12-15
   selects release 719055db7751605c0e5325ca23bcbe66cde631376d4b2b99523c8e4db75f0d01
   and manifest dda8dc36db963f85ec9105567342dae4ba680476c7ab1114bd1e33acba65474b.
   The documents are in packages/provider-core/tests/fixtures/nmr_api_v1/.
@@ -56,18 +67,21 @@ Contract sources and uncertainty
   SDK source comments also cite the earlier API revision 6a163b7a9cc1e2c7485b681c0b2b969c7c20e6c8.
   README.md:752-800 inside packages/provider-core explains the donor history.
   Preserve these distinctions; the current sibling API checkout is not the pin.
-- Chat Completions: core/chat.py and the SDK README cite Magnet and SECS ports.
+- [ ] Distinguish the supported Chat profile from local restrictions
+  Chat Completions: core/chat.py and the SDK README cite Magnet and SECS ports.
   No comparable pinned, versioned OpenAI service schema was identified. Treat
   this as a supported compatible profile; separate API requirements from local
   restrictions instead of declaring every current restriction an upstream rule.
-- Package and release services: actual requests identify PyPI Simple JSON,
+- [ ] Record service-schema authority separately from installed tool/library pins
+  Package and release services: actual requests identify PyPI Simple JSON,
   PyPI project/version JSON and GitHub releases. No comparable service-schema
   fixture pin was identified. Installed tools/libraries have separate lock pins.
 
 NMR Provider API: wire and validation owners
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-N1  core/signing.py:25-186
+[ ] N1  Separate signing validation and request construction
+    core/signing.py:25-186
     Origin/authority and credential-reference forms; HTTP method and exact
     path/query bytes; signature inputs, nonce/time fields, content digest and
     RFC 9421 profile. _https_origin and _request_target mix admission with
@@ -75,7 +89,8 @@ N1  core/signing.py:25-186
     randomness and permission to retry remain outside signing.
     Evidence: test_signing.py and contract test_api_release.py signature vectors.
 
-N2  core/credential.py:31-131; core/api_config.py:152-230
+[ ] N2  Separate issued credential admission from local startup policy
+    core/credential.py:31-131; core/api_config.py:152-230
     Issued credential fields, schema/profile/algorithm, canonical JSON/newline,
     key encoding and key-pair consistency; topology/provider binding in config.
     Keep local configuration fields, CA-file capture and ambient TLS policy
@@ -83,7 +98,8 @@ N2  core/credential.py:31-131; core/api_config.py:152-230
     upstream requirement is not established by the field schema alone.
     Evidence: test_credential.py, test_api_config.py, test_api_publication_material.py.
 
-N3  core/api.py:65-339
+[ ] N3  Extract Provider response-envelope and problem interpretation
+    core/api.py:65-339
     ApiFailure metadata; Retry-After decoding; dev-local/dev/web topology;
     success/problem content types, no-store, forbidden content encoding,
     request correlation; RFC 9457 problem fields and reviewed status/code meanings.
@@ -91,7 +107,8 @@ N3  core/api.py:65-339
     Credential profile 'run' and response topology 'web' are different vocabularies.
     Evidence: test_api_envelope.py, test_api_unavailability.py, test_api.py.
 
-N4  core/api.py:394-701,1031-1090
+[ ] N4  Separate refusal/replay meanings from send and retirement decisions
+    core/api.py:394-701,1031-1090
     Retry/replay eligibility inspects methods, exact routes, statuses and problem
     codes. _remember_failure interprets which verified refusals establish no
     change for this send. Those meanings belong at the API boundary. Remembering
@@ -99,7 +116,8 @@ N4  core/api.py:394-701,1031-1090
     uncertainty belong to the operation owner. Do not move this block wholesale.
     Evidence: test_api_unavailability.py and test_attempt_{start,progress,outcome}.py.
 
-N5  core/api.py:713-1029,1091 onward
+[ ] N5  Extract all eleven wire operations with their associated codecs
+    core/api.py:713-1029,1091 onward
     Eleven dispatches construct routes, choose response ceilings, sign, admit
     replies and mark issuance/Attempt mutation evidence. Extract their wire
     knowledge together with the associated codecs below. Preserve the single
@@ -123,7 +141,8 @@ N5  core/api.py:713-1029,1091 onward
     required query names and closed top-level fields. This is not exhaustive
     validation of every nested schema rule.
 
-N6  core/hello.py:30-121; core/paging.py:23-51;
+[ ] N6  Extract Hello, paging, Job-feed and Attempt-inventory rules
+    core/hello.py:30-121; core/paging.py:23-51;
     core/job_feed.py:44-145; core/attempt_inventory.py:42-125
     Hello fields/offering limits and receipt binding; reference grammars;
     paging limit/cursor encoding; query keys; response schema IDs, row fields,
@@ -132,7 +151,8 @@ N6  core/hello.py:30-121; core/paging.py:23-51;
     Composition still chooses announcement content and whether to follow a page.
     Evidence: test_hello.py, test_job_feed.py, test_attempt_inventory.py.
 
-N7  core/job_input.py:43-178
+[ ] N7  Extract Job-input envelope admission and decoding
+    core/job_input.py:43-178
     Job/input schema and fingerprint forms, input/response byte ceilings,
     exact feed identity, canonical base64, decoded length/hash and UTF-8.
     JSON decoding is shared, but the six response fields and identity binding
@@ -140,14 +160,16 @@ N7  core/job_input.py:43-178
     Evidence: test_job_input.py, integration/test_api_input.py and the contract
     boundary-length test in contract/normative/test_api_release.py:31.
 
-N8  core/attempt_request.py:24-290
+[ ] N8  Separate Attempt request validation, encoding and retained-body admission
+    core/attempt_request.py:24-290
     Provider/key/analysis identifiers, progress/failure codes and phase values;
     request schemas/fields; result-schema and failure-message text constraints;
     result byte/base64 limits and canonical retained requests. Encoding and
     retained-body admission are mixed with validation in this file.
     Evidence: test_attempt_start.py, test_attempt_progress.py, test_attempt_outcome.py.
 
-N9  core/attempt_response.py:28-341
+[ ] N9  Extract Attempt response and acknowledgement admission
+    core/attempt_response.py:28-341
     Job/Attempt states, Attempt/result reference forms, all receipt field sets
     and schema IDs, observation identity, timestamps, replay flags and exact
     acknowledgement comparisons against submitted facts. Keep error classification
@@ -156,13 +178,15 @@ N9  core/attempt_response.py:28-341
     files. Large acknowledgement tests retain full response evidence while
     limiting displayed metadata.
 
-N10 core/upload_response.py:59-236
+[ ] N10 Extract Upload membership and grant admission
+    core/upload_response.py:59-236
     Job/Upload reference forms, membership/grant schemas and fields, collection
     limits, byte/hash facts, pending/null hashes, expiry rendering, capability
     and download-URL forms, and binding to the selected Job/Upload.
     Evidence: test_upload_api.py and integration/test_upload_api.py.
 
-N11 core/uploads.py:105,254-355,618-633,1193 onward
+[ ] N11 Verify the store profile and separate transfer admission from local policy
+    core/uploads.py:105,254-355,618-633,1193 onward
     A separate store transfer uses the granted URL and Bearer capability.
     _verify_store_headers checks 200, whole-file content type/length/digest,
     no-store, and rejects encoded/partial replies. Transfer retry classification
@@ -180,36 +204,44 @@ N11 core/uploads.py:105,254-355,618-633,1193 onward
 NMR rules currently reached through operational code
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-- core/attempt_record.py:59-109,172: validates retained wire bodies and rebuilds
+- [ ] Update retained Attempt records to use the extracted wire admission
+  core/attempt_record.py:59-109,172: validates retained wire bodies and rebuilds
   the API start acknowledgement. Its recovery scope and persistence envelope
   are SDK-owned. Extract the wire dependency, retaining local record ownership.
-- core/producer_checkpoint.py:53-79: imports _scalar_text from request code for
+- [ ] Resolve ownership of checkpoint evidence IDs before changing validation
+  core/producer_checkpoint.py:53-79: imports _scalar_text from request code for
   evidence schema IDs. Decide which API field, if any, those local identities
   represent before inheriting that field's limits. Checkpoint transitions and
   checkpoint JSON are local, not an upstream API.
-- core/ownership.py:19-20,65-83: borrows Job/Attempt reference checks and models
+- [ ] Update ownership's API reference checks without moving claim management
+  core/ownership.py:19-20,65-83: borrows Job/Attempt reference checks and models
   the API's start-key uniqueness scope. Capacity, claim ownership and release
   remain local. Evidence: test_ownership.py, test_live_ownership.py and
   test_attempt_record.py.
-- core/execution.py:42,311-323,1235: imports the wire Job-state vocabulary and
+- [ ] Separate execution's wire vocabulary and terminal-body construction
+  core/execution.py:42,311-323,1235: imports the wire Job-state vocabulary and
   builds terminal API bodies. Separate that knowledge from scientific dispatch,
   stop decisions, live permission, observation windows and retirement ordering.
-- core/execution.py:529,1053-1057 and core/controller.py:669,765,861,956 interpret
+- [ ] Separate API observation meanings from execution, admission and starting
+  core/execution.py:529,1053-1057 and core/controller.py:669,765,861,956 interpret
   'in_progress', 'expired' and 'cancelled' API observations inside execution and
   admission decisions. API state meaning and the local decision it informs need
   separate owners. core/starting.py:123 orchestrates start through ProviderAPI;
   its API-call/error imports must follow the adapter boundary, while ownership
   and retirement stay in the starting workflow.
-- core/delivery_store.py:74-102: DeliveryOutcome borrows provider/Attempt reference
+- [ ] Separate delivery's API material and reply meanings from queue decisions
+  core/delivery_store.py:74-102: DeliveryOutcome borrows provider/Attempt reference
   checks and retained outcome readers. SQLite schema, queue limits and local
   acceptance receipts are SDK-owned. core/delivery_worker.py:215-244 selects API
   publication and interprets a verified 409 for holding a record; split upstream
   reply meaning from the local hold/remove/retry decision.
-- core/delivery_client.py:17-24,66 and core/delivery_ipc.py:22 borrow upstream
+- [ ] Update delivery IPC's embedded API data to use the upstream owner
+  core/delivery_client.py:17-24,66 and core/delivery_ipc.py:22 borrow upstream
   identifiers. Their own IPC fields/routes are local. core/delivery_handoff.py:68
   carries API publication material inside a local envelope; only the embedded
   API data depends on this upstream contract.
-- core/delivery_discard.py:22-23,50-55 directly borrows API origin/provider-ref
+- [ ] Update offline discard's API identity validation imports
+  core/delivery_discard.py:22-23,50-55 directly borrows API origin/provider-ref
   validators before matching local bindings, despite making no API request.
   Validation imports need to follow the upstream owner; offline queue selection
   and discard authorization remain local. Evidence: test_shared_delivery_config.py
@@ -218,7 +250,8 @@ NMR rules currently reached through operational code
 OpenAI-compatible Chat Completions profile
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-C1  core/chat.py:35-88,189-221,237 onward
+[ ] C1  Separate Chat wire configuration, request encoding and reply admission
+    core/chat.py:35-88,189-221,237 onward
     Endpoint/model/key/reasoning settings mix local configuration and supported
     carrier restrictions. _encode_request owns model/messages/tools, tool_choice,
     parallel_tool_calls, stream and optional reasoning_effort. complete builds
@@ -228,7 +261,8 @@ C1  core/chat.py:35-88,189-221,237 onward
     Request/response budgets, TLS policy and one-shot ownership are local.
     Evidence: test_chat.py and integration/chat/ normative/adversarial suites.
 
-C2  core/conversation.py:250-254,374-397,443-571
+[ ] C2  Extract tool-call carrier rules from transcript ownership
+    core/conversation.py:250-254,374-397,443-571
     Reads and writes role/content/reasoning_content/tool_calls; admits tool-call
     id/type/function/name/arguments; decodes JSON arguments; creates tool replies
     with tool_call_id. These carrier rules are embedded in the transcript owner.
@@ -236,7 +270,8 @@ C2  core/conversation.py:250-254,374-397,443-571
     provenance review; local turn/correction/secret/dispatch policy stays local.
     Evidence: test_conversation.py and test_text_correction.py.
 
-C3  core/input_tool.py:22-64; core/interpreter.py:525
+[ ] C3  Separate the external tool envelope from local scientific schemas
+    core/input_tool.py:22-64; core/interpreter.py:525
     Builds the function-tool envelope around a scientific input codec's schema.
     Extract that external envelope; selected scientific calls and their types
     remain locally owned. core/_json_schema.py:19-44 adapts Pydantic's schema API;
@@ -244,14 +279,16 @@ C3  core/input_tool.py:22-64; core/interpreter.py:525
     service rule. core/payload.py:567 exports that local model schema.
     Evidence: test_input_tool.py; that file exercises generated parameter schemas.
 
-C4  core/interpreter.py:51,903-964
+[ ] C4  Separate received HTTP facts from Chat scheduling and child IPC
+    core/interpreter.py:51,903-964
     HTTP status and Retry-After interpretation appears in scheduling code.
     Separate received protocol facts from local retry counts, pacing, model
     windows and fallback decisions. core/chat_wire.py:440 also maps child-carried
     HTTP replies; its framing/version/kind protocol is internal SDK IPC.
     Evidence: test_interpreter.py, test_chat_wire.py and test_chat_process_contract.py.
 
-C5  core/failure_projection.py:293-306
+[ ] C5  Move service diagnostic-field interpretation with the Chat adapter
+    core/failure_projection.py:293-306
     Knows the model service's message/type/code/param diagnostic fields when
     projecting ChatFailed. Keep the received-field interpretation with the model
     adapter; the SDK diagnostic graph, cause traversal and presentation are local.
@@ -259,25 +296,30 @@ C5  core/failure_projection.py:293-306
 Shared wire support: retain the distinction from local policy
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-- core/response_json.py:22-68: strict JSON, duplicate/nonfinite parser hooks,
+- [ ] Separate the NMR timestamp grammar from shared JSON parsing
+  core/response_json.py:22-68: strict JSON, duplicate/nonfinite parser hooks,
   caller-selected byte ceilings, and a separate UTC timestamp grammar. JSON
   parsing is shared by API, Chat, credential and local IPC readers; the NMR
   timestamp profile is API-specific. Do not move this module whole or postpone
   duplicate-key checks until after a dict has already discarded the duplicates.
-- core/transport.py:34-97,222,363-438: HTTP request/head mapping, CONNECT metadata,
+- [ ] Separate HTTP/backend adaptation from transport effects and API profiles
+  core/transport.py:34-97,222,363-438: HTTP request/head mapping, CONNECT metadata,
   request correlation and httpcore trace/exception assumptions. core/network.py
   adapts the pinned backend interface. Native effect observations, stream/file
   ownership, deadlines, cancellation and retirement remain local responsibilities.
   response_request_id at :222 explicitly cites NMR request_ids.py but is also
   used for model diagnostics; its profile must not silently become a universal
   HTTP requirement.
-- core/decoded_body.py:81-220: Content-Encoding lists, gzip/deflate framing and
+- [ ] Keep shared decoding rules distinct from caller-selected budgets
+  core/decoded_body.py:81-220: Content-Encoding lists, gzip/deflate framing and
   decompression checks are HTTP/encoding support. Budget values are caller policy.
-- core/bound_http_proxy.py:100-267,301-390,548-631: HTTP/CONNECT target/header forms,
+- [ ] Separate proxy HTTP/DNS rules from grants and resource ownership
+  core/bound_http_proxy.py:100-267,301-390,548-631: HTTP/CONNECT target/header forms,
   default ports, DNS question/response encoding and forwarding response bytes.
   Interface grants, DNS-source selection, concurrency limits and cleanup are
   local policies. core/provider_proxy.py mixes these with local destination grants.
-- core/unix_http.py uses HTTP over a local socket. The service bodies/routes in
+- [ ] Keep locally defined IPC schemas outside upstream API validation
+  core/unix_http.py uses HTTP over a local socket. The service bodies/routes in
   delivery_ipc.py, shared_delivery_ipc.py, runner_protocol.py and chat_wire.py are
   locally defined protocols, not evidence of an external API contract.
   Evidence: test_decoded_body.py, test_transport.py, test_transport_proxy.py,
@@ -286,7 +328,8 @@ Shared wire support: retain the distinction from local policy
 Other service and artifact interfaces in repository tooling
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-P1  packages/wheelhouse-tool/src/wheelhouse_tool/locate.py:96,175 onward
+[ ] P1  Separate PyPI reply interpretation from artifact selection and approval
+    packages/wheelhouse-tool/src/wheelhouse_tool/locate.py:96,175 onward
     PyPI Simple JSON media type, project-name normalization, files metadata,
     filenames/hashes and artifact URLs. operations/delivery/build_inputs.py:127
     also calls PyPI's /pypi/{distribution}/{version}/json and reads urls/filename/
@@ -294,7 +337,8 @@ P1  packages/wheelhouse-tool/src/wheelhouse_tool/locate.py:96,175 onward
     required hashes, trusted download hosts and source preferences are local.
     Evidence: tests/test_shared_wheelhouse.py, tests/repository/test_delivery_release.py.
 
-P2  operations/release/publish.sh:214-245
+[ ] P2  Separate GitHub service/CLI meanings from release and update ownership
+    operations/release/publish.sh:214-245
     GitHub repository JSON selection, release-tag REST lookup, CLI/HTTP 404
     interpretation, release creation/download/publication and asset naming.
     Local destination approval, qualified-byte comparison and the decision to
@@ -305,7 +349,8 @@ P2  operations/release/publish.sh:214-245
     manifest, source-publication and rollback rules are locally owned.
     Evidence: tests/repository/test_acquisition_source_update.py.
 
-P3  operations/checker/image/dependencies.py:38-84,158-198
+[ ] P3  Separate Debian artifact/HTTP assumptions from dependency release policy
+    operations/checker/image/dependencies.py:38-84,158-198
     Debian artifact URL/filename/archive assumptions and HTTPS redirects are
     another repository-service edge. The dependency declaration, chosen versions,
     digest approval and cache publication are local release policy.
@@ -313,7 +358,8 @@ P3  operations/checker/image/dependencies.py:38-84,158-198
 
 Separate adjacent tool/package interfaces from service API rules:
 
-- pip: tools/installer.py:154-201 owns command construction. tools/wheelhouse.py:102-193
+- [ ] Separate pip/packaging formats from local pool and artifact policy
+  pip: tools/installer.py:154-201 owns command construction. tools/wheelhouse.py:102-193
   and wheelhouse_tool/report.py:11-65 consume installation-report version 1 and
   download_info/archive_info/hash fields. SDK build helpers and image_manifest.py
   use those results. Wheel filename/tag/requirement parsing depends on packaging;
@@ -322,45 +368,57 @@ Separate adjacent tool/package interfaces from service API rules:
   This is a tool/file-format boundary, distinct from
   PyPI HTTP. Pool confinement, lock ownership and artifact approval are local.
   Evidence: test_shared_wheelhouse.py, test_wheelhouse.py, test_wheelhouse_bundle.py.
-- Docker/Compose: operations/docker/docker_context.sh:22-57 interprets context
+- [ ] Separate Docker/Compose output interpretation from local operation grants
+  Docker/Compose: operations/docker/docker_context.sh:22-57 interprets context
   endpoint output; container_operation.sh and packages/acquisition/acquisition_tool/
   owner.sh interpret create/inspect/state/exit/readiness results; image_retirement.py:138
   admits image metadata. These are external CLI/engine interfaces, not Provider
   API routes. Preserve local grants, scope ownership and retirement sequencing.
   Evidence: test_acquisition_scope.py, test_acquisition_bootstrap.py, test_network_gate.py.
-- linux-idmap: packages/acquisition/acquisition_tool/identity_main.py:9-10,25-100
+- [ ] Keep linux-idmap adaptation distinct from local identity and cleanup policy
+  linux-idmap: packages/acquisition/acquisition_tool/identity_main.py:9-10,25-100
   uses pinned request/result types and mapping operations. It is a Python package
   interface, not an implemented remote API. Identity policy and probe cleanup
   stay local. Evidence: tests/acquisition_identity/test_identity.py.
-- Host resolver tools: packages/acquisition/acquisition_tool/dns.py:30-90 parses
+- [ ] Separate resolver output parsing from local DNS-source selection
+  Host resolver tools: packages/acquisition/acquisition_tool/dns.py:30-90 parses
   nmcli/resolvectl output and resolver files. External tool output syntax is a
   boundary; choosing an interface/source and rejecting loopback DNS are local.
 
-Coverage and migration cautions
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+Verification checklist for each affected extraction
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-- Existing contract tests authenticate fixture contents and exercise consumed
+- [ ] Verify the rule's source and close relevant authority gaps
+  Existing contract tests authenticate fixture contents and exercise consumed
   rules; they do not establish live server compatibility or complete schema
   enforcement. Chat, store and tooling evidence is distributed across focused
   tests and donor references. Fill source/version gaps before changing rules.
   The sixteen pinned HTTP schemas contain no private signing-credential artifact
   schema; that artifact's documented API source is a separate authority.
-- A source port from Magnet or SECS does not by itself establish an upstream
+- [ ] Retain local policy ownership when separating borrowed source
+  A source port from Magnet or SECS does not by itself establish an upstream
   contract. Local policies remain local even when borrowed from another project.
-- No separate service-wire implementation was identified in the searched
+- [ ] Update affected example/mock callers without creating wire authorities
+  No separate service-wire implementation was identified in the searched
   production examples/mocks. Their SDK calls and scientific schemas are callers
   and local models, not additional wire authorities.
-- Copied validation enters the SDK wheel, wheelhouse zipapp and acquisition
+- [ ] Update and verify every affected offline build closure and hash manifest
+  Copied validation enters the SDK wheel, wheelhouse zipapp and acquisition
   bundle through different offline build closures. The existing shared
   type-requirements source is a packaging precedent; moving checks must update
   each affected closure and hash manifest without requiring SDK installation
   during bootstrap.
   This inventory follows authored sources and build declarations; generated
   bootstrap bundles were not independently re-qualified or made new authorities.
-- For each extraction, separate the upstream check/interpretation from the
+- [ ] Verify preserved wire bytes, admission timing, evidence and effect ownership
+  For each extraction, separate the upstream check/interpretation from the
   adjacent operation. Preserve parser-hook timing, exact signed/retained bytes,
   error classification, full original response evidence, and uncertainty after
   sending. Keep lock, custody, retry, file and queue decisions with their owners.
-- Focused SDK lanes use TEST_PATTERN=test_<name>.py and PRIVACY_TESTS=0. Repository,
+- [ ] Run the affected focused Make lanes with privacy tests disabled
+  Focused SDK lanes use TEST_PATTERN=test_<name>.py and PRIVACY_TESTS=0. Repository,
   wheelhouse, acquisition and deployment lanes cover the other consumers. Test
   names above are evidence pointers; this inventory did not execute those lanes.
+
+- [ ] Review the diff, remove displaced implementations and commit a meaningful
+  verified chunk before starting the next extraction
