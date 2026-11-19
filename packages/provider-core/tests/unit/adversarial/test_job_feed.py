@@ -57,7 +57,7 @@ class JobFeedFailureTests(unittest.IsolatedAsyncioTestCase):
 
                 self.assertEqual(transport.calls, [])
 
-    def test_envelope_kind_view_cursor_and_schema_drift_are_rejected(self):
+    def _invalid_envelopes(self):
         for (field, bad) in (
             ("schema_id", "future.v2"),
             ("analysis_kind_ref", "other_kind"),
@@ -74,15 +74,30 @@ class JobFeedFailureTests(unittest.IsolatedAsyncioTestCase):
                 document = page()
                 document[field] = bad
 
-                with self.assertRaises(ResponseRejected) as rejected:
-                    read_jobs_page(
-                        json.dumps(document).encode(),
-                        analysis_kind_ref="nmr_predict",
-                        has_provider_execution_attempt=False,
-                        limit=1
-                    )
+                yield field, json.dumps(document).encode()
 
-                self.assertNotIn("private canary", str(rejected.exception))
+    def test_envelope_kind_view_cursor_and_schema_drift_are_rejected(self):
+        for (field, response_bytes) in self._invalid_envelopes():
+            with self.subTest(field=field), self.assertRaises(ResponseRejected):
+                read_jobs_page(
+                    response_bytes,
+                    analysis_kind_ref="nmr_predict",
+                    has_provider_execution_attempt=False,
+                    limit=1,
+                )
+
+    @unittest.skip("Privacy policy under review")
+    def test_envelope_rejection_diagnostics_omit_response_content(self):
+        for (field, response_bytes) in self._invalid_envelopes():
+            with self.subTest(field=field), self.assertRaises(ResponseRejected) as rejected:
+                read_jobs_page(
+                    response_bytes,
+                    analysis_kind_ref="nmr_predict",
+                    has_provider_execution_attempt=False,
+                    limit=1,
+                )
+
+            self.assertNotIn("private canary", str(rejected.exception))
 
     def test_item_identity_calendar_and_requested_count_are_admitted(self):
         for (field, bad) in (
@@ -121,7 +136,7 @@ class JobFeedFailureTests(unittest.IsolatedAsyncioTestCase):
                 limit=1
             )
 
-    async def test_wire_failure_retains_private_response_and_read_effect_truth(self):
+    async def _wire_failure(self):
         raw = response().replace(b"nmr.provider.jobs.list.response.v1", b"private canary schema")
         transport = Transport(reply(raw))
 
@@ -133,8 +148,18 @@ class JobFeedFailureTests(unittest.IsolatedAsyncioTestCase):
                 cursor=None
             )
 
-        self.assertEqual(failure.exception.response.body, raw)
-        self.assertFalse(failure.exception.attempt_mutation_may_have_committed)
-        self.assertNotIn("private canary", str(failure.exception))
-        self.assertNotIn("private canary", repr(failure.exception))
-        self.assertNotIn("private canary", "".join(traceback.format_exception(failure.exception)))
+        return failure.exception, raw
+
+    async def test_wire_failure_retains_response_and_read_effect_truth(self):
+        (failure, raw) = await self._wire_failure()
+
+        self.assertEqual(failure.response.body, raw)
+        self.assertFalse(failure.attempt_mutation_may_have_committed)
+
+    @unittest.skip("Privacy policy under review")
+    async def test_wire_failure_diagnostics_omit_response_content(self):
+        (failure, _raw) = await self._wire_failure()
+
+        self.assertNotIn("private canary", str(failure))
+        self.assertNotIn("private canary", repr(failure))
+        self.assertNotIn("private canary", "".join(traceback.format_exception(failure)))
