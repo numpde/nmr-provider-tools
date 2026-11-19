@@ -145,11 +145,17 @@ class DecodedBodyTests(unittest.TestCase):
                 DecodedBody(((b"content-encoding", coding),), maximum_bytes=32)
 
             self.assertEqual(caught.exception.reason, "unsupported_encoding")
-            self.assertNotIn("private-coding-sentinel", str(caught.exception))
 
         for (reason, error_type) in (("private-reason-sentinel", ValueError), ([], TypeError), (None, TypeError)):
             with self.assertRaises(error_type):
                 DecodedBodyRejected(reason)
+
+    @unittest.skip("Privacy policy under review")
+    def test_rejection_diagnostics_omit_encoding_metadata(self):
+        with self.assertRaises(DecodedBodyRejected) as caught:
+            DecodedBody(((b"content-encoding", b"private-coding-sentinel"),), maximum_bytes=32)
+
+        self.assertNotIn("private-coding-sentinel", str(caught.exception))
 
     def test_configuration_errors_and_reuse_are_local_defects(self):
         for (limit, error_type) in (

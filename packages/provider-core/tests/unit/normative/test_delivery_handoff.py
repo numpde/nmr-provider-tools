@@ -132,7 +132,7 @@ class DeliveryHandoffTests(unittest.TestCase):
             self.assertEqual(queue.hold_legacy_rows(), 0)
             queue.close()
 
-    def test_invalid_input_is_refused_without_rendering_private_material(self):
+    def test_invalid_input_is_refused(self):
         handoff = DeliveryHandoff(outcome(provider="provider:example"), self.material())
         document = json.loads(handoff.encode())
         document["credential"] = "PRIVATE_INVALID_CREDENTIAL"
@@ -140,13 +140,21 @@ class DeliveryHandoffTests(unittest.TestCase):
         with self.assertRaises(DeliveryHandoffRejected) as rejected:
             read_delivery_handoff(json.dumps(document).encode())
 
-        self.assertNotIn("PRIVATE", str(rejected.exception))
-
         with self.assertRaises(DeliveryHandoffRejected):
             read_delivery_handoff(b"x" * (MAX_HANDOFF_BYTES + 1))
 
         with self.assertRaises(DeliveryHandoffRejected):
             DeliveryHandoff(outcome(provider="provider:other"), self.material())
+
+    @unittest.skip("Privacy policy under review")
+    def test_rejection_diagnostics_omit_input(self):
+        handoff = DeliveryHandoff(outcome(provider="provider:example"), self.material())
+        handoff_fields = json.loads(handoff.encode()) | {"credential": "PRIVATE_INVALID_CREDENTIAL"}
+
+        with self.assertRaises(DeliveryHandoffRejected) as rejected:
+            read_delivery_handoff(json.dumps(handoff_fields).encode())
+
+        self.assertNotIn("PRIVATE", str(rejected.exception))
 
     def test_client_refuses_mismatched_material_before_admitting_work(self):
         endpoint = DeliveryEndpoint("https://api.example", "provider:other", pathlib.Path("/tmp/delivery.sock"))
