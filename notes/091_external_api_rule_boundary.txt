@@ -45,7 +45,7 @@ Migration checklist — inventoried 2026-11-19
     [ ] Separate remaining mixed discovery, Hello and Attempt test cases
         [x] Job-feed validation separated from API behavior
         [x] Attempt-inventory validation separated from API behavior
-        [ ] Hello validation separated from API/encoding behavior
+        [x] Hello validation separated from API/encoding behavior
         [ ] Attempt encoding/admission cases separated from lifecycle behavior
     [x] Group signing tests under their adapter owner
     [ ] Group other encoder tests under their adapter owners
@@ -72,6 +72,11 @@ Attempt-inventory reader cases are separated the same way, with all twelve
 existing tests discovered by test_attempt_inventory.py and passing on science
 with PRIVACY_TESTS=0. Moved method/helper ASTs are unchanged; API response/effect,
 native-cause and signed-query proofs remain operational.
+Hello offering admission cases now live under validation; direct Unicode and
+whitespace encoding cases live under adapters. API snapshot/receipt, no-send,
+uncertainty and cancellation cases stay operational. All fourteen existing tests
+were discovered by test_hello.py and passed on science with PRIVACY_TESTS=0;
+moved method/helper ASTs are unchanged.
 
 Source baseline: 175da21. This is a source inventory, not an implemented
 separation or a claim that the listed tests pass. Application code was unchanged.

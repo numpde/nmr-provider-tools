@@ -2511,7 +2511,11 @@
         "HelloTests.test_api_permitted_whitespace_is_preserved",
         "HelloTests.test_caller_chosen_announcements_preserve_complete_snapshot_and_receipt",
         "HelloTests.test_maximum_unicode_snapshot_stays_within_wire_cap_without_losing_scalars"
-      ]
+      ],
+      "retired_test_methods": {
+        "HelloTests.test_api_permitted_whitespace_is_preserved": "Moved unchanged to HelloEncodingTests in tests/unit/adapters/nmr/v1/normative/test_hello.py.",
+        "HelloTests.test_maximum_unicode_snapshot_stays_within_wire_cap_without_losing_scalars": "Moved unchanged to HelloEncodingTests in tests/unit/adapters/nmr/v1/normative/test_hello.py."
+      }
     },
     {
       "path": "packages/provider-core/tests/unit/normative/test_job_feed.py",
