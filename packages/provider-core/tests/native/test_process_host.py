@@ -1,11 +1,13 @@
-"""Check process launch preflight before any child or socket effects."""
+"""Exercise scientific request ownership and native acquisition preflight."""
 
 from __future__ import annotations
 
 import asyncio
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass, replace
+from pathlib import Path
 import socket
+import tempfile
 import time
 import unittest
 
@@ -16,6 +18,7 @@ from provider_core.hosting import (
 )
 from provider_core.process_host import ProcessExecutionHost, _Channel, _ProcessAnalysis, _ProcessOperation
 from provider_core.process_wire import MAX_PAYLOAD_BYTES, receive, receive_async, send, send_async
+from provider_core.runner_session import RunnerSession
 from provider_core.scientific import Contribution, HostedContribution, operation
 
 
@@ -48,35 +51,57 @@ class ProcessChannelTests(unittest.TestCase):
 
 
 class ProcessHostTests(unittest.IsolatedAsyncioTestCase):
-    async def test_local_contribution_class_is_refused_before_child_spawn(self):
+    async def test_local_contribution_class_is_refused_before_native_acquisition(self):
         class LocalContribution(Contribution):
             pass
 
-        host = ProcessExecutionHost(
-            input_bytes=4096,
-            result_bytes=4096,
-            state_values=2,
-            progress_records=1,
-            initialization_seconds=2,
-            retirement_seconds=2,
-        )
-
-        with self.assertRaises(expected_exception=ValueError):
-            await host.start(
-                contribution_type=LocalContribution,
-                constructor="provider_core.scientific:Contribution",
-                startup={},
-                requirements=frozenset(),
+        with tempfile.TemporaryDirectory(prefix="scientific-host-preflight-") as root:
+            session = RunnerSession(
+                Path(root) / "unused.sock",
+                role="scientific-test",
+                expected_lock_identity=(0, 0),
+                startup_seconds=2,
+                retirement_seconds=2,
             )
 
-        self.assertIsNone(host.process)
-        self.assertIsNone(host.channel)
-        self.assertIsNone(host.stderr)
+            async with ProcessExecutionHost(
+                session=session,
+                input_bytes=4096,
+                result_bytes=4096,
+                state_values=2,
+                progress_records=1,
+                initialization_seconds=2,
+                retirement_seconds=2,
+            ) as host:
+                with self.assertRaises(expected_exception=ValueError):
+                    await host.start(
+                        contribution_type=LocalContribution,
+                        constructor="provider_core.scientific:Contribution",
+                        startup={},
+                        requirements=frozenset(),
+                    )
+
+                self.assertFalse(session.control_connected)
+                self.assertFalse(session._connect_started)
+                self.assertIsNone(session.operation)
+                self.assertIsNone(session.science)
+                self.assertIsNone(host.channel)
+
+            self.assertEqual(-1, session.control.fileno())
 
 
 class ProcessOwnershipTests(unittest.IsolatedAsyncioTestCase):
     async def asyncSetUp(self):
+        self.temporary = tempfile.TemporaryDirectory(prefix="scientific-host-channel-")
+        self.session = RunnerSession(
+            Path(self.temporary.name) / "unused.sock",
+            role="scientific-test",
+            expected_lock_identity=(0, 0),
+            startup_seconds=2,
+            retirement_seconds=2,
+        )
         self.host = ProcessExecutionHost(
+            session=self.session,
             input_bytes=4096,
             result_bytes=4096,
             state_values=2,
@@ -106,11 +131,16 @@ class ProcessOwnershipTests(unittest.IsolatedAsyncioTestCase):
     async def asyncTearDown(self):
         self.peer.close()
 
+        if self.host.cleanups:
+            await asyncio.gather(*tuple(self.host.cleanups), return_exceptions=True)
+
         if self.host.exchanges:
             await asyncio.gather(*tuple(self.host.exchanges), return_exceptions=True)
 
         self.parent.close()
         self.host.exchange_executor.shutdown(wait=True)
+        self.session.close()
+        self.temporary.cleanup()
 
     async def test_submission_owns_work_before_peer_receipt_and_never_repeats_bad_acknowledgement(self):
         unsupported = replace(

@@ -22,6 +22,7 @@ from provider_core.contribution import CallBinding
 from provider_core.failure_collection import FailureCollector
 from provider_core.hosting import OperationPolicy, settle_cleanup
 from provider_core.interpreter import EndpointFactory, Interpreter
+from provider_core.runner_session import RunnerSession
 from provider_core.scientific import HostedContribution, ResourceRequirement
 
 from .application import PredictionWorkflow
@@ -107,6 +108,8 @@ async def open_offerings(
     create_model: Callable[[], Model],
     endpoint_factories: tuple[EndpointFactory, ...],
     secrets: tuple[str, ...],
+    # silent-defaults: allow-contract -- Thread startup needs no native session; process startup requires an explicit deployment-owned session.
+    process_session: RunnerSession | None = None,
 ) -> AsyncIterator[frozenset[Offering]]:
     """Read deployment settings, assemble science and retire the SDK on exit.
 
@@ -115,27 +118,38 @@ async def open_offerings(
     leaving this context. Models are loaded before offerings are yielded.
     Setup failure, body failure and independent cleanup failure
     retain their original causes.
+
+    Process deployment supplies the original native runner session. The host
+    takes ownership when it is constructed; configuration refusals before that
+    leave the unconnected session with the caller.
     """
 
     with PROVIDER_CONFIG_PATH.open(mode="rb") as source:
         provider_config = tomllib.load(source)
 
     execution_mode = provider_config["execution"].get("backend", "thread")
+    host_options = provider_config["execution"]["in_process_execution_host"]
 
     if execution_mode == "thread":
-        host_type = InProcessExecutionHost
+        if process_session is not None:
+            raise ValueError("Thread execution does not use a scientific process session")
+
+        execution_host = InProcessExecutionHost(**host_options)
     elif execution_mode == "process":
+        if process_session is None:
+            raise ValueError("Process execution requires a deployment-owned scientific runner session")
+
         if sum(len(configurations) for configurations in provider_config["science"].values()) != 1:
             raise ValueError("The first process backend supports one configured scientific offering")
 
         if create_model is not InstalledMockModel:
             raise ValueError("Process execution requires the installed NMRPeak mock model factory")
 
-        host_type = ProcessExecutionHost
+        execution_host = ProcessExecutionHost(session=process_session, **host_options)
     else:
         raise ValueError(f"Unknown scientific execution backend {execution_mode!r}")
 
-    async with host_type(**provider_config["execution"]["in_process_execution_host"]) as execution_host:
+    async with execution_host:
         operation_policy = OperationPolicy(**provider_config["execution"]["operation_policy"])
 
         resource_requirements = frozenset(
@@ -162,7 +176,7 @@ async def open_offerings(
                         startup={
                             "contribution_class": predictor_class.__name__,
                             "settings": offering_config["settings"],
-                            "checkpoint_path": str(PROVIDER_CONFIG_PATH.parent / offering_config["checkpoint_path"]),
+                            "checkpoint_path": str((PROVIDER_CONFIG_PATH.parent / offering_config["checkpoint_path"]).resolve()),
                         },
                         requirements=resource_requirements,
                     )

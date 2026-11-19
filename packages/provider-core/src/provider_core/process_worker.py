@@ -259,8 +259,13 @@ async def _serve(sock: socket.socket) -> None:
 def main(argv=None):
     parser = argparse.ArgumentParser(description="Serve one installed scientific allocation")
     parser.add_argument("--session-fd", required=True, type=int)
+    parser.add_argument("--lease-fd", required=True, type=int)
+    parser.add_argument("--operation", required=True)
     args = parser.parse_args(argv)
 
+    # The native runner passes its lifetime lease. Keep that descriptor open
+    # until process exit, including while scientific executor threads unwind.
+    os.fstat(args.lease_fd)
     sock = socket.socket(fileno=args.session_fd)
     asyncio.run(_serve(sock))
 

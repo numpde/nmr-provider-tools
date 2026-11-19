@@ -14,26 +14,23 @@ import asyncio
 from collections.abc import Mapping
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import replace
-import os
 import socket
-import subprocess
-import sys
-import tempfile
 import time
 from threading import Lock
 from uuid import uuid4
 
-from provider_core._embedded_support import _Changes, _Cleanup
-from provider_core.async_runner_session import await_original
+from provider_core._embedded_support import _Changes, _require_supported_binding
+from provider_core.async_runner_session import AsyncRunnerSession, await_original
 from provider_core.contribution import ConcurrencyRequirement, InterruptionSupport, IsolationRequirement, ResourceRequirement
 from provider_core.hosting import (
     AcceptanceState, AdmissionCode, AllocationRef, BackendCapabilities,
     CapacityUnavailable, CleanupObservation, DispatchState, Failure, Invocation,
-    NotAdmitted, Observation, OperationPolicy, OperationRef, Outcome,
+    NotAdmitted, Observation, OperationRef,
     RequestConflict, ReservationRef, ResourceState, ResultRef, ResultState,
     _raise_context_failure, _start_owned_task, settle_cleanup,
 )
 from provider_core.process_wire import MAX_PAYLOAD_BYTES, RemoteScienceError, frame, receive
+from provider_core.runner_session import RunnerSession, RunnerStartupStopped, RunnerStartupUnavailable
 from provider_core.scientific import Contribution, HostedContribution
 from provider_core.tools import require_nonnegative_number, require_positive_number
 from provider_core.type_requirements import require_type
@@ -108,6 +105,11 @@ class _Channel:
     def close(self):
         self.sock.close()
 
+    def interrupt(self):
+        """Wake owned I/O without closing or reusing its descriptor."""
+        self.fail(RemoteScienceError("Scientific communication was interrupted during retirement"))
+        self.sock.shutdown(socket.SHUT_RDWR)
+
 
 def _cleanup_observation(value):
     require_type(value, CleanupObservation)
@@ -129,7 +131,7 @@ async def _join_originals(tasks):
 class _ProcessCleanup(_Changes):
     """Start cleanup now; callers only observe this original retained action."""
 
-    def __init__(self, action, *, seconds, before=()):
+    def __init__(self, host, action, *, seconds, before=()):
         super().__init__()
         self.action = action
         self.seconds = seconds
@@ -138,6 +140,8 @@ class _ProcessCleanup(_Changes):
         self.expired = False
         self.failures = ()
         self.task = _start_owned_task(self._run)
+        host.cleanups.add(self.task)
+        self.task.add_done_callback(host.cleanups.discard)
 
     def _expire(self):
         self.expired = True
@@ -196,14 +200,15 @@ class _ProcessOperation:
 
     def _unavailable(self, cause):
         host = self.analysis.host
-        exited = host.process is not None and host.process.poll() is not None
+        exited = host.session.retirement is not None
 
         if self.failure_observation is not None:
-            if exited and not self.failure_observation.finished:
+            if (exited and not self.failure_observation.finished) or (host.retired and self.failure_observation.resources is not ResourceState.RELEASED):
                 self.failure_observation = replace(
                     self.failure_observation,
                     revision=self.failure_observation.revision + 1,
                     finished=True,
+                    resources=ResourceState.RELEASED if host.retired else ResourceState.UNKNOWN,
                 )
 
             return self.failure_observation
@@ -232,7 +237,7 @@ class _ProcessOperation:
             finished=observed.finished or exited,
             failures=(*observed.failures, Failure("backend", cause)),
             stop_requested=observed.stop_requested or self.stop_requested,
-            resources=(ResourceState.RELEASED if observed.resources is ResourceState.RELEASED else ResourceState.UNKNOWN),
+            resources=(ResourceState.RELEASED if host.retired or observed.resources is ResourceState.RELEASED else ResourceState.UNKNOWN),
         )
         self.failure_observation = observed
         return observed
@@ -362,9 +367,14 @@ class _ProcessOperation:
 
         if self.release is None:
             self._require_result(result)
+
+            if self.analysis.host.retiring:
+                raise ValueError("Host retirement already owns disposal of remaining results")
+
             before = (*self.analysis.host.exchanges, *self._pending(), *self._barriers())
             self.released_result = result
             self.release = _ProcessCleanup(
+                self.analysis.host,
                 lambda: self._release_remote(result),
                 seconds=self.invocation.policy.cleanup_overdue_flag_seconds,
                 before=before,
@@ -500,7 +510,7 @@ class _ProcessAnalysis:
                 if operation.release is not None:
                     before.append(operation.release.task)
 
-            self.cleanup = _ProcessCleanup(self._close_remote, seconds=seconds, before=tuple(before))
+            self.cleanup = _ProcessCleanup(self.host, self._close_remote, seconds=seconds, before=tuple(before))
 
         return self.cleanup
 
@@ -532,7 +542,12 @@ class _ProcessAnalysis:
 
 
 class ProcessExecutionHost:
-    """Own one installed scientific child, with no automatic replay or restart."""
+    """Own science through one deployment-supplied native runner session.
+
+    Deployment starts the existing runner with a fixed installed worker command
+    and owner-session lifetime. This host owns its fresh session from construction;
+    the native runner owns child termination, reaping and scratch cleanup.
+    """
 
     capabilities = BackendCapabilities(
         contract_versions=frozenset({1}),
@@ -543,7 +558,7 @@ class ProcessExecutionHost:
     )
 
     def __init__(
-        self, *, input_bytes: int, result_bytes: int, state_values: int,
+        self, *, session: RunnerSession, input_bytes: int, result_bytes: int, state_values: int,
         progress_records: int, initialization_seconds: float, retirement_seconds: float,
     ):
         for value in (input_bytes, result_bytes, state_values, progress_records):
@@ -554,6 +569,11 @@ class ProcessExecutionHost:
 
         for value in (initialization_seconds, retirement_seconds):
             require_positive_number(value)
+
+        require_type(session, RunnerSession)
+
+        if session._connect_started:
+            raise ValueError("Scientific hosting requires a fresh native runner session")
 
         self.host_options = dict(
             input_bytes=input_bytes,
@@ -566,14 +586,21 @@ class ProcessExecutionHost:
         self.initialization_seconds = initialization_seconds
         self.retirement_seconds = retirement_seconds
         self.loop = asyncio.get_running_loop()
+        self.session = session
+        self.native = None
         self.channel = None
-        self.process = None
-        self.stderr = None
+        self.process_id = None
         self.start_task = None
+        self.start_failure_observed = False
         self.hosted = None
         self.active_analysis = None
         self.retirement = None
         self.retiring = False
+        self.retired = False
+        self.draining = False
+        self.scientific_retirement = None
+        self.scientific_shutdown_task = None
+        self.cleanups = set()
         self.exchanges = set()
         self.exchange_executor = ThreadPoolExecutor(max_workers=1, thread_name_prefix="science-channel")
 
@@ -602,64 +629,78 @@ class ProcessExecutionHost:
                     startup: Mapping, requirements: frozenset[ResourceRequirement]):
         """Create the real model in a persistent child and retain its ownership."""
         self._require_loop()
-        if self.process is not None or self.retiring:
+        if self.start_task is not None or self.retiring:
             raise RuntimeError("This process host accepts exactly one allocation")
 
-        # Reject nonportable declarations and startup data before spawning a
-        # child or assigning any operating-system resources.
+        # Compile and validate before connecting: a control connection can
+        # acquire a worker even if its greeting or scientific reply is lost.
+        contribution_path = self._member_path(contribution_type)
+        declaration = HostedContribution(
+            contribution=None,
+            contribution_type=contribution_type,
+            host=uuid4().hex,
+            allocation_name=uuid4().hex,
+            requirements=requirements,
+        )
+        _require_supported_binding(declaration)
+        require_type(constructor, str)
+        module, separator, member = constructor.partition(":")
+
+        if not module or not separator or not member or "<locals>" in member:
+            raise ValueError("Scientific process requires an installed module:factory path")
+
         message = {
             "action": "start",
             "host_options": self.host_options,
             "constructor": constructor,
-            "contribution_type": self._member_path(contribution_type),
+            "contribution_type": contribution_path,
             "startup": dict(startup),
             "requirements": tuple(requirements),
         }
         frame(message)
-
-        parent, child = socket.socketpair()
-        self.stderr = tempfile.TemporaryFile()
-
-        environment = {
-            "PATH": os.environ.get("PATH", ""),
-            "PROVIDER_CORE_IN_CONTAINER": "1",
-            "NMR_PROVIDER_TOOLS_IN_CONTAINER": "1",
-            "PYTHONDONTWRITEBYTECODE": "1",
-        }
+        deadline = time.monotonic() + self.initialization_seconds
+        self.native = AsyncRunnerSession(self.session, setup_not_after=deadline)
+        self.start_task = _start_owned_task(lambda: self._start_session(message, declaration, deadline))
 
         try:
-            self.process = subprocess.Popen(
-                [sys.executable, "-I", "-B", "-m", "provider_core.process_worker", "--session-fd", str(child.fileno())],
-                pass_fds=(child.fileno(),),
-                close_fds=True,
-                stdin=subprocess.DEVNULL,
-                stdout=subprocess.DEVNULL,
-                stderr=self.stderr,
-                env=environment,
-            )
-        except BaseException:
-            parent.close()
-            self.stderr.close()
-            raise
-        finally:
-            child.close()
+            return await asyncio.shield(self.start_task)
+        except BaseException as cause:
+            if self.start_task.done() and not self.start_task.cancelled() and self.start_task.exception() is cause:
+                self.start_failure_observed = True
 
-        self.channel = _Channel(parent)
-        self.start_task = _start_owned_task(lambda: self._exchange_async(message, seconds=self.initialization_seconds + 5))
-        ready = await asyncio.shield(self.start_task)
+            raise
+
+    async def _start_session(self, message, declaration, deadline):
+        await self.native.connect(wait_seconds=self.initialization_seconds)
+        self.channel = _Channel(self.session.science)
+
+        def accept(ready):
+            if type(ready) is not dict or set(ready) != {"allocation", "binding_revision", "process_id"}:
+                raise ValueError("Scientific worker readiness has unexpected fields")
+
+            require_type(ready["allocation"], AllocationRef)
+            require_type(ready["process_id"], int)
+
+            if ready["process_id"] <= 0 or ready["binding_revision"] != declaration.description.binding_revision:
+                raise ValueError("Scientific worker readiness differs from the selected declaration")
+
+            return ready
+
+        ready = await self._exchange_async(message, seconds=max(0, deadline - time.monotonic()), accept=accept)
         allocation = ready["allocation"]
         hosted = HostedContribution(
             contribution=None,
-            contribution_type=contribution_type,
+            contribution_type=declaration.contribution_type,
             host=allocation.host,
             allocation_name=allocation.allocation,
-            requirements=requirements,
+            requirements=declaration.requirements,
         )
 
         if hosted.allocation != allocation or hosted.description.binding_revision != ready["binding_revision"]:
             raise RemoteScienceError("Parent and child scientific declaration revisions differ")
 
         self.hosted = hosted
+        self.process_id = ready["process_id"]
         return hosted
 
     @property
@@ -668,7 +709,7 @@ class ProcessExecutionHost:
 
     @property
     def allocations(self):
-        return frozenset() if self.hosted is None else frozenset({self.hosted.allocation})
+        return frozenset() if self.hosted is None or self.retired else frozenset({self.hosted.allocation})
 
     def _channel_failure(self, cause):
         if isinstance(cause, RemoteScienceError):
@@ -683,6 +724,9 @@ class ProcessExecutionHost:
         return failure
 
     def _exchange_frame(self, request, seconds=2, *, accept=None, deadline=None):
+        if self.draining:
+            raise RemoteScienceError("Scientific communication is retiring; this request was not sent")
+
         if self.channel is None:
             raise RemoteScienceError("No scientific process is connected")
 
@@ -696,6 +740,10 @@ class ProcessExecutionHost:
 
     async def _exchange_async(self, message, seconds=2, *, accept=None):
         self._require_loop()
+
+        if self.draining:
+            raise RemoteScienceError("Scientific communication is retiring; this request was not sent")
+
         request = frame(message)
         deadline = time.monotonic() + seconds
 
@@ -718,8 +766,7 @@ class ProcessExecutionHost:
             self.active_analysis is not None or
             self.channel is None or
             self.channel.failure is not None or
-            self.process is None or
-            self.process.poll() is not None
+            self.session.retirement is not None
         ):
             raise CapacityUnavailable("The scientific process allocation is unavailable or occupied")
 
@@ -767,63 +814,167 @@ class ProcessExecutionHost:
         self._require_loop()
         if self.retirement is None:
             self.retiring = True
-            self.retirement = _Cleanup(self.retirement_seconds)
-            self.retirement.start(self._shutdown)
+            self.retirement = _ProcessCleanup(self, self._shutdown, seconds=self.retirement_seconds)
 
         return self.retirement
 
     async def _shutdown(self):
         failures = []
 
-        if self.process is None:
-            self.exchange_executor.shutdown(wait=False)
-            return
+        def record(phase, cause):
+            if not any(item.cause is cause for item in failures):
+                failures.append(Failure(phase, cause))
 
-        if self.start_task is not None and not self.start_task.done():
-            self.process.terminate()
+        if self.start_task is None:
+            self.draining = True
+            self.session.close()
+            self.exchange_executor.shutdown(wait=True)
+            self.retired = True
+            return CleanupObservation(0, True, False, ())
 
+        # This is one scientific grace interval across startup, outstanding
+        # handoffs and contribution cleanup. An expired wait never cancels the
+        # original action. Native stop/join has the runner session's separate,
+        # original aggregate allowance; it is never renewed after stop.
+        science_deadline = time.monotonic() + self.retirement_seconds
+
+        async def close_science():
             try:
-                await asyncio.wait_for(asyncio.shield(self.start_task), timeout=self.retirement_seconds)
+                await asyncio.shield(self.start_task)
             except BaseException as cause:
-                failures.append(cause)
+                if not self.start_failure_observed:
+                    record("initialization", cause)
 
-        if self.channel is not None and self.channel.failure is None and not failures:
-            try:
-                observed = await self._exchange_async({"action": "retire"}, seconds=self.retirement_seconds)
+            if self.channel is None:
+                return
 
-                if not observed.settled:
-                    raise RemoteScienceError("Scientific cleanup was not confirmed")
-            except BaseException as cause:
-                failures.append(cause)
-        elif self.channel is not None and self.channel.failure is not None:
-            failures.append(RemoteScienceError("Scientific cleanup could not be confirmed after channel failure"))
+            if self.active_analysis is not None:
+                control = self.active_analysis.close()
+                await asyncio.shield(control.task)
+
+                for failure in control.failures:
+                    record(failure.phase, failure.cause)
+
+            await _join_originals(tuple(task for task in self.cleanups if task is not self.retirement.task))
+            observed = await self._exchange_async(
+                {"action": "retire"},
+                seconds=max(0, science_deadline - time.monotonic()),
+                accept=_cleanup_observation,
+            )
+            self.scientific_retirement = observed
+
+            for failure in observed.failures:
+                record(failure.phase, failure.cause)
+
+            if not observed.settled:
+                raise RemoteScienceError("Scientific cleanup did not confirm settlement")
+
+        self.scientific_shutdown_task = _start_owned_task(close_science)
 
         try:
-            returncode = await asyncio.to_thread(self.process.wait, timeout=self.retirement_seconds)
-        except subprocess.TimeoutExpired:
-            self.process.terminate()
+            await asyncio.wait_for(
+                asyncio.shield(self.scientific_shutdown_task),
+                timeout=max(0, science_deadline - time.monotonic()),
+            )
+        except BaseException as cause:
+            record("cleanup", cause)
 
+        self.draining = True
+        if self.scientific_retirement is None or not self.scientific_retirement.settled:
             try:
-                await asyncio.to_thread(self.process.wait, timeout=1)
-            except subprocess.TimeoutExpired:
-                self.process.kill()
-                await asyncio.to_thread(self.process.wait)
-
-            failures.append(RemoteScienceError("Scientific worker required forced termination; cleanup is unconfirmed"))
-        else:
-            if returncode != 0:
-                failures.append(RemoteScienceError(f"Scientific worker exited with {returncode=}"))
-        finally:
-            if self.exchanges:
-                await asyncio.gather(*(asyncio.shield(task) for task in tuple(self.exchanges)), return_exceptions=True)
-
-            self.exchange_executor.shutdown(wait=False)
+                # Stop intent is retained even when the original connect has
+                # not begun. A late setup must not acquire an unowned child.
+                self.native.request_stop()
+            except BaseException as cause:
+                record("native_stop", cause)
 
             if self.channel is not None:
-                self.channel.close()
+                try:
+                    self.channel.interrupt()
+                except OSError as cause:
+                    record("channel_stop", cause)
 
-            if self.stderr is not None:
-                self.stderr.close()
+        setup = self.native.setup
+        no_worker = (
+            setup is None or
+            (not self.session.control_connected and isinstance(self.native.setup_failure, (RunnerStartupStopped, RunnerStartupUnavailable)))
+        )
 
-        if failures:
-            raise BaseExceptionGroup("Scientific worker retirement left unresolved evidence", failures)
+        if not no_worker:
+            try:
+                if self.scientific_retirement is not None and self.scientific_retirement.settled:
+                    try:
+                        # Leave half of this original native allowance for
+                        # stop and join if interpreter exit itself stalls.
+                        await self.native.observe_retirement(wait_seconds=self.session.retirement_seconds / 2)
+                    except TimeoutError:
+                        try:
+                            self.native.request_stop()
+                        except BaseException as cause:
+                            record("native_stop", cause)
+
+                        remaining = self.native.retirement_deadline - time.monotonic()
+
+                        if remaining <= 0:
+                            raise TimeoutError("Native scientific retirement exceeded its original allowance")
+
+                        await self.native.join_retirement(wait_seconds=remaining)
+                else:
+                    await self.native.observe_retirement(wait_seconds=self.session.retirement_seconds)
+            except BaseException as cause:
+                record("native_retirement", cause)
+
+                try:
+                    self.native.request_stop()
+                except BaseException as stop:
+                    record("native_stop", stop)
+
+        # Both control readers retain their own fixed I/O deadlines. Join their
+        # originals, including after caller timeout, before closing their FDs.
+        for original in (self.native.setup, self.native.reader):
+            if original is not None:
+                try:
+                    await await_original(original, deadline=None)
+                except BaseException as cause:
+                    if (
+                        original is self.native.setup and self.start_failure_observed and
+                        self.start_task.done() and not self.start_task.cancelled() and
+                        self.start_task.exception() is cause
+                    ):
+                        continue
+
+                    record("native_retirement", cause)
+
+        await _join_originals((self.start_task, self.scientific_shutdown_task))
+        await _join_originals(tuple(task for task in self.cleanups if task is not self.retirement.task))
+        await _join_originals(tuple(self.exchanges))
+        self.exchange_executor.shutdown(wait=True)
+
+        receipt = self.session.retirement
+        # Stop can prove non-acquisition while the retained setup is joining.
+        # Classify its terminal evidence, not the earlier pending snapshot.
+        no_worker = (
+            self.native.setup is None or
+            (not self.session.control_connected and isinstance(self.native.setup_failure, (RunnerStartupStopped, RunnerStartupUnavailable)))
+        )
+        self.retired = no_worker or (receipt is not None and receipt.scratch_released)
+
+        if receipt is not None and receipt.returncode != 0:
+            record("worker", RemoteScienceError(f"Scientific worker exited with returncode={receipt.returncode}"))
+
+        if not self.retired:
+            record("native_retirement", RemoteScienceError("Scientific worker or scratch retirement remains unconfirmed"))
+
+        try:
+            self.session.close()
+        except BaseException as cause:
+            self.retired = False
+            record("channel_cleanup", cause)
+
+        if self.retired:
+            self.active_analysis = None
+
+        # Historical failures are evidence, not a claim that a confirmed-dead
+        # worker still occupies its allocation. settle_cleanup reports failures
+        # even when this resource settlement is independently confirmed.
+        return CleanupObservation(0, self.retired, False, tuple(failures))
