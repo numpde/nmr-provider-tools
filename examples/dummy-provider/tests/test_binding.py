@@ -205,7 +205,7 @@ class DummyBindingTests(unittest.IsolatedAsyncioTestCase):
 
     async def test_invalid_resource_values_are_rejected(self) -> None:
         with TemporaryDirectory() as directory:
-            root = Path(directory)
+            root = pathlib.Path(directory)
 
             (root / "provider.toml").write_text(
                 (
