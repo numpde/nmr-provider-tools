@@ -85,7 +85,7 @@ def _request(document):
     document_version = document["version"]
     require_type(document_version, int)
 
-    if document["version"] != 1 or document["kind"] != "request":
+    if (document["version"] != 1) or (document["kind"] != "request"):
         raise ValueError("Interpreter child request has an unknown schema")
 
     for field in ("method", "url"):

@@ -62,7 +62,7 @@ class ChatEndpointSpec:
 
         require_type(self.model, str)
 
-        if not (self.model.strip() and self.model.isprintable() and len(self.model.encode('utf-8')) <= 512):
+        if not (self.model.strip() and self.model.isprintable() and (len(self.model.encode('utf-8')) <= 512)):
             raise ValueError("Cannot configure interpreter endpoint: model must be nonblank printable UTF-8 text within 512 bytes.")
 
         actual_api_key = self.api_key

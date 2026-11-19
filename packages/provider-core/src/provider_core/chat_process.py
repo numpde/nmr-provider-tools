@@ -297,14 +297,14 @@ class SupervisedChatTransport:
 
             await asyncio.wait({task, stop}, timeout=remaining, return_when=asyncio.FIRST_COMPLETED)
 
-            if exchange.stopped_at is None and asyncio.get_running_loop().time() >= exchange.deadline:
+            if (exchange.stopped_at is None) and (asyncio.get_running_loop().time() >= exchange.deadline):
                 self._stop(
                     exchange,
                     TimeoutError("Model HTTP exchange exceeded its original absolute deadline"),
                     at=exchange.deadline
                 )
 
-            return task.done() and exchange.stopped_at is None
+            return task.done() and (exchange.stopped_at is None)
         finally:
             stop.cancel()
             await asyncio.gather(stop, return_exceptions=True)
@@ -395,7 +395,7 @@ class SupervisedChatTransport:
 
             self._update_failure(exchange)
 
-            if exchange.retired and self._active is exchange:
+            if exchange.retired and (self._active is exchange):
                 self._active = None
 
     async def _finish(self, exchange):

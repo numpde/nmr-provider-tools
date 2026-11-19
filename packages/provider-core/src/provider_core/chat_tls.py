@@ -115,7 +115,7 @@ def _require_material_budget(materials):
         else:
             total += len(value)
 
-    if count > MAX_TRUST_MATERIALS or total > MAX_TRUST_BYTES:
+    if (count > MAX_TRUST_MATERIALS) or (total > MAX_TRUST_BYTES):
         raise _refuse("captured trust material exceeds its fixed allowance")
 
 
@@ -190,7 +190,7 @@ class CapturedSSLContext(ssl.SSLContext):
 
         try:
             for (kind, raw) in materials:
-                if kind == "capath" and self._chat_directory is None:
+                if (kind == "capath") and (self._chat_directory is None):
                     self._chat_directory = tempfile.TemporaryDirectory(prefix="provider-model-trust-")
 
                     weakref.finalize(self, self._chat_directory.cleanup)
@@ -401,7 +401,7 @@ def restore_trust(snapshot, *, directory=None):
     if not (type(snapshot_version) is (expected_type := int)):
         raise _refuse(f"{type(snapshot_version)=} ≠ {expected_type=}")
 
-    if snapshot_version != 1 or snapshot["openssl_version"] != ssl.OPENSSL_VERSION:
+    if (snapshot_version != 1) or (snapshot["openssl_version"] != ssl.OPENSSL_VERSION):
         raise _refuse("the captured TLS schema or OpenSSL runtime does not match")
 
     settings = snapshot["settings"]
@@ -467,7 +467,7 @@ def restore_trust(snapshot, *, directory=None):
                 if not (type(name) is (expected_type := str)):
                     raise _refuse(f"{type(name)=} ≠ {expected_type=}")
 
-                if _HASHED_TRUST_FILE.fullmatch(name) is None or name in names:
+                if (_HASHED_TRUST_FILE.fullmatch(name) is None) or (name in names):
                     raise _refuse("a captured hashed trust name is invalid or repeated")
 
                 names.add(name)
@@ -475,7 +475,7 @@ def restore_trust(snapshot, *, directory=None):
                 _require_material_budget((*materials, ("capath", tuple(entries))))
 
             materials.append(("capath", tuple(entries)))
-        elif set(item) == {"kind", "data"} and item["kind"] in ("pem", "der", "file"):
+        elif (set(item) == {"kind", "data"}) and (item["kind"] in ("pem", "der", "file")):
             materials.append((item["kind"], _material_bytes(item["data"])))
         else:
             raise _refuse("a captured trust material record is invalid")

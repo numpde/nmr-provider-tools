@@ -134,7 +134,7 @@ def read_request(stream, maximum_bytes):
     size = _size(stream.read(4), maximum_bytes)
     raw = stream.read(size)
 
-    if len(raw) != size or stream.read(1):
+    if (len(raw) != size) or stream.read(1):
         raise ValueError("Interpreter child requires one complete request message")
 
     document = read_document(raw, maximum_bytes)
@@ -143,7 +143,7 @@ def read_request(stream, maximum_bytes):
 
     require_type((document_version := document.get("version")), int)
 
-    if document["version"] != 1 or document.get("kind") != "request":
+    if (document["version"] != 1) or (document.get("kind") != "request"):
         raise ValueError("Interpreter child request has an unknown schema")
 
     return document
@@ -218,7 +218,7 @@ def failure_message(failure):
             "type": kind,
             "text": str(error)[:_ERROR_TEXT],
                 # silent-defaults: allow-contract -- Only a real integer OSError errno is portable native evidence; None records its absence.
-            "errno": error.errno if isinstance(error, OSError) and type(error.errno) is int else None
+            "errno": error.errno if isinstance(error, OSError) and (type(error.errno) is int) else None
         }
 
         nodes.append(node)
@@ -330,7 +330,7 @@ def _read_failure(document):
                 require_type(number, int)
 
                 if (not (
-                    issubclass(constructor, OSError) or constructor is RemoteExchangeError)):
+                    issubclass(constructor, OSError) or (constructor is RemoteExchangeError))):
                     raise ValueError("Interpreter child error number is malformed")
 
             result = constructor(number, text) if (number is not None) and (issubclass(constructor, OSError)) else constructor(text)
@@ -398,7 +398,7 @@ def _read_failure(document):
 
     require_type(cleanup, list)
 
-    if len(cleanup) > _ERROR_NODES or any(index is None for index in cleanup):
+    if (len(cleanup) > _ERROR_NODES) or any(index is None for index in cleanup):
         raise ValueError("Interpreter child cleanup obligations are malformed")
 
     return ExchangeFailed(
