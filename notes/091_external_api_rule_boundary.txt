@@ -43,6 +43,10 @@ Migration checklist — inventoried 2026-11-19
     [x] Problem-shape admission separated from API failure/uncertainty checks
     [x] Job-input and credential admission have dedicated validation suites
     [ ] Separate remaining mixed discovery, Hello and Attempt test cases
+        [x] Job-feed validation separated from API behavior
+        [ ] Attempt-inventory validation separated from API behavior
+        [ ] Hello validation separated from API/encoding behavior
+        [ ] Attempt encoding/admission cases separated from lifecycle behavior
     [x] Group signing tests under their adapter owner
     [ ] Group other encoder tests under their adapter owners
 
@@ -60,6 +64,10 @@ PRIVACY_TESTS=0 and discover both moved suites. Remaining mixed cases are pendin
 Signing suites now live under tests/unit/adapters/nmr/v1/{normative,adversarial}/;
 their bodies are unchanged and focused test_signing.py passed on science with
 PRIVACY_TESTS=0.
+Job-feed schema/row/page validation cases now live in the validation suites;
+signed-query, no-send and response/effect tests remain with API behavior. Moved
+method/helper ASTs are unchanged. Focused test_job_feed.py passed on science with
+PRIVACY_TESTS=0 and discovered all ten existing tests across the separated suites.
 
 Source baseline: 175da21. This is a source inventory, not an implemented
 separation or a claim that the listed tests pass. Application code was unchanged.

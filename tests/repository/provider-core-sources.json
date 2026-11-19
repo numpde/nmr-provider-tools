@@ -1852,7 +1852,11 @@
         "JobFeedFailureTests.test_envelope_kind_view_cursor_and_schema_drift_are_rejected",
         "JobFeedFailureTests.test_item_identity_calendar_and_requested_count_are_admitted",
         "JobFeedFailureTests.test_wire_failure_retains_private_response_and_read_effect_truth"
-      ]
+      ],
+      "retired_test_methods": {
+        "JobFeedFailureTests.test_envelope_kind_view_cursor_and_schema_drift_are_rejected": "Moved unchanged to JobFeedValidationTests in tests/unit/validation/upstream/nmr/v1/adversarial/test_job_feed.py.",
+        "JobFeedFailureTests.test_item_identity_calendar_and_requested_count_are_admitted": "Moved unchanged to JobFeedValidationTests in tests/unit/validation/upstream/nmr/v1/adversarial/test_job_feed.py."
+      }
     },
     {
       "path": "packages/provider-core/tests/unit/adversarial/test_job_input.py",
@@ -2508,7 +2512,11 @@
         "JobFeedTests.test_empty_page_and_presence_view_are_retained",
         "JobFeedTests.test_maximum_page_and_exact_response_byte_boundary",
         "JobFeedTests.test_signed_query_is_explicit_and_page_does_not_auto_follow_cursor"
-      ]
+      ],
+      "retired_test_methods": {
+        "JobFeedTests.test_empty_page_and_presence_view_are_retained": "Moved unchanged to JobFeedValidationTests in tests/unit/validation/upstream/nmr/v1/normative/test_job_feed.py.",
+        "JobFeedTests.test_maximum_page_and_exact_response_byte_boundary": "Moved unchanged to JobFeedValidationTests in tests/unit/validation/upstream/nmr/v1/normative/test_job_feed.py."
+      }
     },
     {
       "path": "packages/provider-core/tests/unit/normative/test_job_input.py",
