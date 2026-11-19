@@ -454,9 +454,9 @@ acquisition_worker() {
     cmp -s "$_acq_scratch/$_acq_worker_role/mode" <(printf '%s\n' "$_acq_expected_mode") || { _acq_failed=true; return 2; }
     _acq_native 'acquisition worker attachment' "$_acq_budget" stdio "${_acq_engine[@]}" start --attach "${_acq_cids[$_acq_worker_role]}" || _acq_attach_status=$?
     "$_acq_native_retired" || { _acq_failed=true; return 2; }
-    _acq_capture "$_acq_scratch/$_acq_worker_role/state" inspect --format '{{.State.Running}} {{.State.ExitCode}}' "${_acq_cids[$_acq_worker_role]}" || { _acq_failed=true; return 2; }
+    _acq_inspect_container_state "$_acq_scratch/$_acq_worker_role/state" "${_acq_cids[$_acq_worker_role]}" || { _acq_failed=true; return 2; }
     read -r _acq_running _acq_exit _acq_extra < "$_acq_scratch/$_acq_worker_role/state" || return 2
-    if [[ $_acq_running != false || ! $_acq_exit =~ ^[0-9]+$ || -n $_acq_extra || $_acq_exit != "$_acq_attach_status" ]]; then
+    if ! _acq_docker_state_matches "$_acq_running" "$_acq_exit" "$_acq_extra" false "$_acq_attach_status"; then
         _acq_failed=true; return 2
     fi
     cmp -s "$_acq_scratch/$_acq_worker_role/state" <(printf '%s %s\n' "$_acq_running" "$_acq_exit") \
@@ -682,6 +682,8 @@ acquisition_scope() {
     declare -ga _acq_compose=()
     _acq_bundle=$(_acq_bundle_path) || return 2
     source "$_acq_bundle/acquisition_tool/compose.sh"
+    source "$_acq_bundle/acquisition_tool/adapters/docker_container.sh" || return 2
+    source "$_acq_bundle/acquisition_tool/validation/upstream/docker_container.sh" || return 2
     _acq_compose_topology=$_acq_bundle/compose/acquisition.yml
     [[ -f $_acq_compose_topology ]] || _acq_compose_topology=$_acq_bundle/../compose/acquisition.yml
     source "$_acq_bundle/tools/inference_native.sh"

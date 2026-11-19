@@ -1008,6 +1008,13 @@ Separate adjacent tool/package interfaces from service API rules:
   PyPI HTTP. Pool confinement, lock ownership and artifact approval are local.
   Evidence: test_shared_wheelhouse.py, test_wheelhouse.py, test_wheelhouse_bundle.py.
 - [ ] Separate Docker/Compose output interpretation from local operation grants
+  [x] Acquisition worker terminal-state inspection now uses an adapter-owned
+      Docker Go template and an upstream field validator. Callers select the
+      expected running/exit state and retain capture/read failure handling,
+      direct-only exact-byte checks, cleanup and result release. Both shell
+      helpers enter the authored source bundle. The owner lane ran 50 tests
+      with one skip; all nine Compose/bundle tests passed. Remaining Docker
+      create receipts, inventories, readiness and image metadata are pending.
   Docker/Compose: operations/docker/docker_context.sh:22-57 interprets context
   endpoint output; container_operation.sh and packages/acquisition/acquisition_tool/
   owner.sh interpret create/inspect/state/exit/readiness results; image_retirement.py:138

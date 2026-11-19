@@ -96,10 +96,9 @@ _acq_compose_worker() {
     _acq_native 'acquisition Compose worker' untimed stdio "${_acq_compose[@]}" run -T --no-deps --pull never \
         --name "$_acq_compose_project-worker" "$_acq_service" || _acq_status=$?
     "$_acq_native_retired" || return 2
-    _acq_capture "$_acq_compose_directory/result" inspect --format '{{.State.Running}} {{.State.ExitCode}}' \
-        "$_acq_compose_project-worker" || return 2
+    _acq_inspect_container_state "$_acq_compose_directory/result" "$_acq_compose_project-worker" || return 2
     read -r _acq_running _acq_worker_exit _acq_extra < "$_acq_compose_directory/result" || return 2
-    [[ $_acq_running == false && $_acq_worker_exit =~ ^[0-9]+$ && -z $_acq_extra && $_acq_worker_exit == "$_acq_status" ]] || {
+    _acq_docker_state_matches "$_acq_running" "$_acq_worker_exit" "$_acq_extra" false "$_acq_status" || {
         _acq_fail 'Cannot admit acquisition Compose worker result: client and terminal state disagree.'
         return 2
     }
