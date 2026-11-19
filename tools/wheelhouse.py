@@ -13,7 +13,7 @@ import fcntl
 import hashlib
 import json
 import os
-import re
+import reprlib
 import shutil
 import subprocess
 import sys
@@ -26,6 +26,7 @@ from contextlib import contextmanager
 from tools.adapters.pip_install import resolve_locked_wheels_command
 from tools.artifacts import fsync_directory, regular_file
 from tools.validation.upstream import pip_installation_report
+from tools.validation.upstream.pip_requirements import parse_lock_line
 
 # repo-check: allow-module-constant
 CHUNK_BYTES = 1024 * 1024
@@ -65,36 +66,34 @@ def read_json(path):
 def requirements(lock):
     """Read the fixed name/version and allowed SHA-256 values emitted by our lock lane."""
     packages = {}
-    current = None
+    package_identity = None
 
     with regular_file(lock) as stream:
         for raw in stream:
-            line = raw.decode().strip().removesuffix("\\").rstrip()
+            pin_or_hash = parse_lock_line(raw)
 
-            if (not line) or (line.startswith("#")):
+            if pin_or_hash is None:
                 continue
 
-            if match := re.fullmatch(r"--hash=sha256:([0-9a-f]{64})", line):
-                if current is None:
-                    raise ValueError("Cannot acquire wheels: hash precedes its locked package")
+            if isinstance(pin_or_hash, str):
+                if package_identity is None:
+                    raise ValueError(f"{pin_or_hash=} should follow a pinned requirement")
 
-                packages[current].add(match[1])
+                packages[package_identity].add(pin_or_hash)
                 continue
 
-            match = re.fullmatch(r"([A-Za-z0-9_.-]+)==([A-Za-z0-9][A-Za-z0-9.!+_-]*)", line)
+            package_identity = pin_or_hash
 
-            if match is None:
-                raise ValueError("Cannot acquire wheels: lock entries must contain only named pinned versions and SHA-256 hashes.")
+            if package_identity in packages:
+                raise ValueError(f"{reprlib.repr(package_identity)=} should occur only once")
 
-            current = (re.sub(r"[-_.]+", "-", match[1]).lower(), match[2])
+            packages[package_identity] = set()
 
-            if current in packages:
-                raise ValueError(f"Cannot acquire wheels: duplicate locked package {current}")
+    if not packages:
+        raise ValueError(f"{lock=} should contain pinned requirements")
 
-            packages[current] = set()
-
-    if (not packages) or (not all(packages.values())):
-        raise ValueError("Cannot acquire wheels: every locked package must have SHA-256 hashes")
+    if unhashed_packages := [identity for (identity, hashes) in packages.items() if not hashes]:
+        raise ValueError(f"{reprlib.repr(unhashed_packages)=} should have SHA-256 hashes")
 
     return packages
 

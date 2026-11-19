@@ -7,7 +7,8 @@ WORKDIR /opt/build
 COPY tools/container_guard.py tools/artifacts.py tools/wheelhouse.py tools/installer.py ./tools/
 COPY tools/adapters/__init__.py tools/adapters/pip_install.py ./tools/adapters/
 COPY tools/validation/__init__.py ./tools/validation/
-COPY tools/validation/upstream/__init__.py tools/validation/upstream/pip_installation_report.py ./tools/validation/upstream/
+COPY tools/validation/upstream/__init__.py tools/validation/upstream/pip_installation_report.py \
+     tools/validation/upstream/pip_requirements.py ./tools/validation/upstream/
 COPY packages/type-requirements/src/type_requirements.py ./
 COPY packages/provider-core/sdk_build/core_environment.py ./sdk_build/
 COPY requirements/installer-release.json /opt/provider-tools/installer/release.json

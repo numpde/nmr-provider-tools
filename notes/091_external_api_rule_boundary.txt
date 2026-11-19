@@ -1071,6 +1071,14 @@ Separate adjacent tool/package interfaces from service API rules:
       The shared wheelhouse lane passed 56 tests (10 privacy skips), both bundle
       tests passed, and the real offline wheelhouse image built. Hash-lock input
       readers and the one-pin bootstrap profile remain to be audited separately.
+  [x] Guarded hash-lock line decoding now lives in tools/validation/upstream/
+      pip_requirements.py. It preserves the consumed pin/hash grammar, exact
+      decode/normalization order and native UTF-8 failures. The wheelhouse owner
+      retains regular-file access, ordered accumulation, duplicates, unbound
+      hashes, nonempty closure and per-package hash coverage. Rejections identify
+      failed pin or missing-hash evidence. Delivery captures/copies the new leaf.
+      Guarded wheelhouse (6), artifact (15), delivery (10) and convention (12)
+      focused tests pass with privacy tests disabled.
   pip: tools/installer.py:154-201 owns command construction. tools/wheelhouse.py:102-193
   and wheelhouse_tool/report.py:11-65 consume installation-report version 1 and
   download_info/archive_info/hash fields. SDK build helpers and image_manifest.py
