@@ -43,13 +43,13 @@ class SamplesCodec[SampleInputT: science.PreparationInput | science.SumInput]:
         return self._json_codec.format
 
     def decode(self, payload: bytes) -> SampleInputT:
-        document = self._json_codec.decode(payload=payload)
+        json_samples = self._json_codec.decode(payload=payload)
 
-        return self.value_type(samples=np.asarray(a=document.samples, dtype=float))
+        return self.value_type(samples=np.asarray(a=json_samples.samples, dtype=float))
 
     def encode(self, value: SampleInputT) -> bytes:
         require_type(value, self.value_type)
 
-        document = _JsonSamples(samples=tuple(value.samples.tolist()))
+        json_samples = _JsonSamples(samples=tuple(value.samples.tolist()))
 
-        return self._json_codec.encode(value=document)
+        return self._json_codec.encode(value=json_samples)

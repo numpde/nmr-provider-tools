@@ -38,7 +38,7 @@ from .fakes import RecordingReceiver, ScriptedEndpointFactory
 
 
 def candidate(*, carbon):
-    document = {
+    candidate_payload = {
         "formula": "C2H6O",
         "proton_peaks": [
             {
@@ -51,9 +51,9 @@ def candidate(*, carbon):
     }
 
     if carbon:
-        document["carbon_peaks"] = ["18", "58"]
+        candidate_payload["carbon_peaks"] = ["18", "58"]
 
-    return document
+    return candidate_payload
 
 
 class PeakExampleTests(unittest.IsolatedAsyncioTestCase):
@@ -88,11 +88,11 @@ class PeakExampleTests(unittest.IsolatedAsyncioTestCase):
 
     def configure_science(self, *, variant: str, **changes) -> None:
         """Change raw external deployment input; real startup still owns admission."""
-        document = tomllib.loads(self.configuration.read_text(encoding="utf-8"))
-        (configured,) = document["science"][variant]
+        deployment_config = tomllib.loads(self.configuration.read_text(encoding="utf-8"))
+        (configured,) = deployment_config["science"][variant]
 
         configured["settings"].update(changes)
-        self.configuration.write_text(data=tomli_w.dumps(document), encoding="utf-8")
+        self.configuration.write_text(data=tomli_w.dumps(deployment_config), encoding="utf-8")
 
     async def test_external_deployment_settings_change_scientific_results(self):
         package = pathlib.Path(str(resources.files(anchor="nmrpeak_mock_provider")))
@@ -164,20 +164,20 @@ class PeakExampleTests(unittest.IsolatedAsyncioTestCase):
             (("hf", 1), ("hf", 1)),
         ):
             with self.subTest(configured_models=configured_models):
-                document = tomllib.loads(original)
+                deployment_config = tomllib.loads(original)
                 selected = {family: [] for (family, _) in configured_models}
 
                 for (family, beam_size) in configured_models:
                     # Each model needs independent nested settings before beam_size changes.
-                    configured = deepcopy(x=document["science"][family][0])
+                    configured = deepcopy(x=deployment_config["science"][family][0])
 
                     configured["settings"]["beam_size"] = beam_size
 
                     selected[family].append(configured)
 
-                document["science"] = selected
+                deployment_config["science"] = selected
 
-                self.configuration.write_text(data=tomli_w.dumps(document), encoding="utf-8")
+                self.configuration.write_text(data=tomli_w.dumps(deployment_config), encoding="utf-8")
 
                 expected_inventory = Counter(
                     (
@@ -212,10 +212,10 @@ class PeakExampleTests(unittest.IsolatedAsyncioTestCase):
                 self.assertEqual(first=expected_inventory, second=observed_inventory)
 
     async def test_deployment_correction_limit_controls_interpretation(self):
-        document = tomllib.loads(self.configuration.read_text(encoding="utf-8"))
-        document["interpreter"]["end_model_visit_after_rejections"] = 1
+        deployment_config = tomllib.loads(self.configuration.read_text(encoding="utf-8"))
+        deployment_config["interpreter"]["end_model_visit_after_rejections"] = 1
 
-        self.configuration.write_text(data=tomli_w.dumps(document), encoding="utf-8")
+        self.configuration.write_text(data=tomli_w.dumps(deployment_config), encoding="utf-8")
         rejected_proposal = candidate(carbon=False) | {"formula": ""}
         self.factory.proposals = (rejected_proposal, candidate(carbon=False))
 
@@ -229,10 +229,10 @@ class PeakExampleTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(first=1, second=len(self.factory.endpoints[0].requests))
 
     async def test_unknown_scientific_family_fails_during_real_startup(self):
-        document = tomllib.loads(self.configuration.read_text(encoding="utf-8"))
-        document["science"]["unknown"] = document["science"].pop("chf")
+        deployment_config = tomllib.loads(self.configuration.read_text(encoding="utf-8"))
+        deployment_config["science"]["unknown"] = deployment_config["science"].pop("chf")
 
-        self.configuration.write_text(data=tomli_w.dumps(document), encoding="utf-8")
+        self.configuration.write_text(data=tomli_w.dumps(deployment_config), encoding="utf-8")
 
         with self.assertRaisesRegex(expected_exception=ValueError, expected_regex="unsupported family='unknown'"):
             async with self.open_offerings():
