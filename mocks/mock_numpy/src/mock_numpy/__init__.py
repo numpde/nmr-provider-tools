@@ -26,7 +26,7 @@ def _unpack(array_input: object) -> tuple[tuple[int, ...], list]:
         children = [_unpack(array_input=child) for child in array_input]
         child_shape = children[0][0]
 
-        if not all(shape == child_shape for (shape, _) in children):
+        if not all((shape == child_shape) for (shape, _) in children):
             child_shapes = [shape for (shape, _) in children]
 
             raise ValueError(f"Array input must be rectangular; {child_shapes=}")
@@ -201,7 +201,7 @@ def dot(a: ndarray, b: ndarray) -> float:
     if not ((a.dtype.kind in "iuf") and (b.dtype.kind in "iuf")):
         raise NotImplementedError(f"Only real numeric dot products are implemented; {a.dtype=}; {b.dtype=}")
 
-    return builtins.sum((float(left) * float(right) for (left, right) in zip(a._scalars, b._scalars, strict=True)), start=0.0)
+    return builtins.sum(((float(left) * float(right)) for (left, right) in zip(a._scalars, b._scalars, strict=True)), start=0.0)
 
 
 def sum(a: ndarray, *, dtype: type) -> float:

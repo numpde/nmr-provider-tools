@@ -129,7 +129,7 @@ class DummyInstalledExecutionTests(unittest.IsolatedAsyncioTestCase):
             async with asyncio.timeout(10):
                 observation = await observe_completion(operation=operation)
 
-                self.assertTrue(any(observed_failure.cause is failure for observed_failure in observation.failures))
+                self.assertTrue(any((observed_failure.cause is failure) for observed_failure in observation.failures))
                 prepare_samples_mock.assert_not_called()
                 (model,) = loaded_models
 

@@ -479,12 +479,12 @@ class PeakExampleTests(unittest.IsolatedAsyncioTestCase):
         async with self.open_offerings(create_model=create_model) as offerings:
             self.assertEqual(first=2, second=len(offerings))
             self.assertEqual(first=2, second=len(created))
-            self.assertTrue(expr=all(model.tokenizer is not None for model in created))
+            self.assertTrue(expr=all((model.tokenizer is not None) for model in created))
 
         retirement = await next(iter(offerings)).execution_host.retire().observe(after=None, wait_seconds=0)
 
         self.assertTrue(expr=retirement.settled)
-        self.assertTrue(expr=all(model.tokenizer is None for model in created))
+        self.assertTrue(expr=all((model.tokenizer is None) for model in created))
 
     async def test_second_model_failure_closes_both_models_before_startup_fails(self):
         original = OSError("Second model failed to load")
@@ -510,7 +510,7 @@ class PeakExampleTests(unittest.IsolatedAsyncioTestCase):
         self.assertIs(expr1=original, expr2=raised.exception)
         self.assertEqual(first=2, second=len(models))
         self.assertEqual(first=set(models), second=set(closed))
-        self.assertTrue(expr=all(model.tokenizer is None for model in models))
+        self.assertTrue(expr=all((model.tokenizer is None) for model in models))
 
     async def test_cancelled_startup_joins_model_loading_before_cleanup(self):
         entered = Event()
@@ -550,7 +550,7 @@ class PeakExampleTests(unittest.IsolatedAsyncioTestCase):
                 await startup
 
             self.assertEqual(first=models, second=closed)
-            self.assertTrue(expr=all(model.tokenizer is None for model in models))
+            self.assertTrue(expr=all((model.tokenizer is None) for model in models))
         finally:
             release.set()
             await asyncio.gather(startup, return_exceptions=True)
@@ -694,7 +694,7 @@ class PeakExampleTests(unittest.IsolatedAsyncioTestCase):
             self.assertEqual(first=2, second=len(self.factory.endpoints))
             self.assertTrue(expr=all(endpoint.retirement_confirmed for endpoint in self.factory.endpoints))
 
-        self.assertTrue(expr=all(model.tokenizer is None for model in models))
+        self.assertTrue(expr=all((model.tokenizer is None) for model in models))
 
     async def test_occupied_offering_refuses_second_request_without_disrupting_first(self):
         self.factory.proposals = (candidate(carbon=False),)

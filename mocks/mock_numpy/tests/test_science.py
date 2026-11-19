@@ -183,7 +183,7 @@ class ArrayContractTests(unittest.TestCase):
             right_samples = [randomizer.uniform(a=-100, b=100) for _ in range(seed)]
             left_array = np.array(object=left_samples, dtype=float)
             right_array = np.array(object=right_samples, dtype=float)
-            expected_inner_product = math.fsum(left * right for (left, right) in zip(left_samples, right_samples, strict=True))
+            expected_inner_product = math.fsum((left * right) for (left, right) in zip(left_samples, right_samples, strict=True))
 
             with self.subTest(seed=seed):
                 self.assertAlmostEqual(first=expected_inner_product, second=np.dot(a=left_array, b=right_array), places=9)
