@@ -19,7 +19,6 @@ from pathlib import PurePosixPath
 import re
 import shutil
 import stat
-import subprocess
 import tarfile
 import tempfile
 from typing import TypedDict
@@ -468,50 +467,12 @@ def import_archive(source_dir, pin_file, archive):
     return _import_verified_old(source, read_pin(pin_file), archive)
 
 
-def update(source_dir, pin_file):
-    """Download the one pinned GitHub asset and use the same import boundary."""
-    source = pathlib.Path(source_dir).absolute()
-
-    verify(source)
-    pin = read_pin(pin_file)
-    name = f"acquisition-owner-{pin['version']}.tar.gz"
-    published = False
-
-    try:
-        with tempfile.TemporaryDirectory(prefix="provider-tools-release-") as temporary:
-            subprocess.run(
-                [
-                "gh",
-                "release",
-                "download",
-                f"v{pin['version']}",
-                "--repo",
-                "numpde/nmr-provider-tools",
-                "--dir",
-                temporary,
-                "--pattern",
-                name,
-            ],
-                check=True
-            )
-
-            manifest = _import_verified_old(source, pin, pathlib.Path(temporary) / name)
-            published = True
-    except BaseException as error:
-        if published:
-            error.add_note(f"Acquisition source was published at {source}; release-download cleanup failed.")
-
-        raise
-
-    return manifest
-
-
 def main():
-    """Expose source verification, pinned remote update and offline import."""
+    """Expose offline source verification and authenticated archive import."""
     parser = argparse.ArgumentParser(description=__doc__)
     commands = parser.add_subparsers(dest="operation", required=True)
 
-    for operation in ("verify", "update", "import"):
+    for operation in ("verify", "import"):
         command = commands.add_parser(operation)
 
         command.add_argument("--source-dir", type=pathlib.Path, required=True)
@@ -526,8 +487,6 @@ def main():
 
     if args.operation == "verify":
         verify(args.source_dir)
-    elif args.operation == "update":
-        update(args.source_dir, args.pin_file)
     else:
         import_archive(args.source_dir, args.pin_file, args.archive)
 

@@ -904,6 +904,26 @@ Other service and artifact interfaces in repository tooling
     GitHub release-tag/asset arguments for gh release download. Its archive,
     manifest, source-publication and rollback rules are locally owned.
     Evidence: tests/repository/test_acquisition_source_update.py.
+    Bootstrap maintenance is now separate from release publication. The maintained
+    update target launches acquisition_tool/source_download.py through maintain_source.sh.
+    Its public-release adapter streams the pinned asset over HTTPS using only the
+    standard library, including HTTPS-only redirects; no gh, Git or login is used.
+    The reviewed maintenance package verifies the target as data without executing
+    target code, captures the admitted pin before transfer and imports the
+    authenticated archive through its offline codec. The authored source_update.py now exposes
+    only offline verify/import operations. The frozen bootstrap snapshot and
+    issued archive pin retain their reviewed bytes; its historical network
+    command is no longer used by the maintained update target. Publication still
+    owns Git/gh authentication, destination approval and draft-to-public effects
+    under operations/release. Its remaining GitHub interface extraction is pending.
+    Focused source-update, bundle, frozen-bootstrap and conventions lanes passed
+    (54 tests; PRIVACY_TESTS=0). They verify no subprocess is invoked for download,
+    bad hashes leave old source intact, edits during transfer cannot retarget the
+    selected pin or overwrite changed source, target updater code is never executed,
+    and cleanup failure after replacement reports the actual published state.
+    Extracted bundle entrypoints run without an SDK. The maintained verification
+    target passed against the unchanged frozen snapshot. Independent audit accepted
+    the corrected trust ordering: only the reviewed invoking package executes code.
 
 [ ] P3  Separate Debian artifact/HTTP assumptions from dependency release policy
     operations/checker/image/dependencies.py:38-84,158-198

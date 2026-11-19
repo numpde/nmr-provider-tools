@@ -57,7 +57,7 @@ class AcquisitionBundleTests(unittest.TestCase):
                 path = source / "operations/docker/docker_client.sh"
 
             path.parent.mkdir(parents=True, exist_ok=True)
-            path.write_text("# cold source\n")
+            path.write_bytes((ROOT / path.relative_to(source)).read_bytes())
 
         (source / "packages/acquisition/compose").mkdir(parents=True)
         (source / "packages/acquisition/compose/acquisition.yml").write_bytes((ROOT / "packages/acquisition/compose/acquisition.yml").read_bytes())
@@ -160,7 +160,7 @@ class AcquisitionBundleTests(unittest.TestCase):
                 record["dependency_inputs"]
             )
 
-    def test_bundled_proxy_runs_without_the_installed_sdk(self):
+    def test_bundled_entrypoints_run_without_the_installed_sdk(self):
         with tempfile.TemporaryDirectory() as temporary:
             root = pathlib.Path(temporary)
             (source, wheel, _identity, pin) = self.fixture(root)
@@ -194,6 +194,22 @@ class AcquisitionBundleTests(unittest.TestCase):
             )
 
             self.assertIn("--relay-socket", completed_process.stdout)
+
+            update_help = subprocess.run(
+                [
+                    "bash",  # Run the issued maintenance launcher
+                    str(extracted / "acquisition_tool/maintain_source.sh"),  # Use the extracted source package
+                    "update",  # Select bootstrap downloading
+                    "--help",  # Import the downloader without starting a transfer
+                ],
+                cwd=extracted,
+                capture_output=True,
+                text=True,
+                check=True,
+                timeout=10,
+            )
+
+            self.assertIn("--pin-file", update_help.stdout)
 
     def test_missing_owner_source_or_changed_identity_wheel_never_publishes_output(self):
         with tempfile.TemporaryDirectory() as temporary:

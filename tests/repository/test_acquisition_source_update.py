@@ -16,7 +16,8 @@ import tempfile
 import unittest
 from unittest.mock import patch
 
-from acquisition_tool import source_update as updates
+from acquisition_tool import source_download as downloads, source_update as updates
+from acquisition_tool.adapters import public_release
 from tests.repository.quality.sources import ROOT
 
 
@@ -199,10 +200,11 @@ class SourceUpdateTests(unittest.TestCase):
         self.assertEqual([], list(self.root.glob(".acquisition-next-*")))
 
     def test_local_edit_refuses_update_before_download(self):
+        self.install_reviewed_updater()
         (self.source / "acquisition_tool/old.py").write_bytes(b"local edit")
 
-        with patch.object(updates.subprocess, "run") as download, self.assertRaises(ValueError):
-            updates.update(self.source, self.pin)
+        with patch.object(downloads, "download_asset") as download, self.assertRaises(ValueError):
+            downloads.update(self.source, self.pin)
 
         download.assert_not_called()
         self.assertEqual(b"local edit", (self.source / "acquisition_tool/old.py").read_bytes())
@@ -540,28 +542,76 @@ class SourceUpdateTests(unittest.TestCase):
         self.assertEqual((primary, cleanup), caught.exception.exceptions)
         self.assert_old_source()
 
-    def download(self, arguments, *, check):
-        self.assertTrue(check)
-        self.assertEqual(["gh", "release", "download", "v2.0.0", "--repo", "numpde/nmr-provider-tools"], arguments[:6])
-        self.assertEqual(["--pattern", "acquisition-owner-2.0.0.tar.gz"], arguments[-2:])
-        destination = pathlib.Path(arguments[arguments.index("--dir") + 1])
+    def install_reviewed_updater(self):
+        self.old["acquisition_tool/source_update.py"] = (ROOT / "bootstrap/acquisition/acquisition_tool/source_update.py").read_bytes()
 
-        (destination / arguments[-1]).write_bytes(self.archive.read_bytes())
-        self.download_directory = destination
+        self.write_snapshot(self.source, "1.0.0", self.old)
+
+    def download(self, url, *, timeout):
+        self.assertEqual(url, "https://github.com/numpde/nmr-provider-tools/releases/download/v2.0.0/acquisition-owner-2.0.0.tar.gz")
+        self.assertEqual(timeout, 60)
+
+        return io.BytesIO(self.archive.read_bytes())
 
     def test_remote_update_downloads_one_asset_through_the_common_admission_path(self):
+        self.install_reviewed_updater()
+
         with (
-            patch.object(updates.subprocess, "run", side_effect=self.download) as download,
-            patch.object(updates, "_admit_archive", wraps=updates._admit_archive) as admission,
+            patch.object(public_release.urllib.request, "build_opener") as opener,
+            patch.object(downloads, "download_asset", wraps=downloads.download_asset) as download,
+            patch.object(subprocess, "run", side_effect=AssertionError("Bootstrap downloading must not invoke external commands")),
         ):
-            updates.update(self.source, self.pin)
+            opener.return_value.open.side_effect = self.download
+            downloads.update(self.source, self.pin)
 
         self.assertEqual(1, download.call_count)
-        self.assertEqual(1, admission.call_count)
         self.assertEqual("2.0.0", updates.verify(self.source)["release_version"])
-        self.assertFalse(self.download_directory.exists())
+        self.assertFalse(download.call_args.args[3].parent.exists())
+
+    def test_downloaded_bytes_must_match_the_pin_before_source_replacement(self):
+        self.install_reviewed_updater()
+
+        with (
+            patch.object(public_release.urllib.request, "build_opener") as opener,
+            self.assertRaises(ValueError),
+        ):
+            opener.return_value.open.return_value = io.BytesIO(b"untrusted response bytes")
+            downloads.update(self.source, self.pin)
+
+        self.assert_old_source()
+        self.assertEqual([], list(self.root.glob(".acquisition-next-*")))
+
+    def test_target_updater_is_data_and_is_never_executed(self):
+        self.old["acquisition_tool/source_update.py"] = b"raise AssertionError('Target code must not execute')\n"
+
+        self.write_snapshot(self.source, "1.0.0", self.old)
+
+        with patch.object(public_release.urllib.request, "build_opener") as opener:
+            opener.return_value.open.side_effect = self.download
+            manifest = downloads.update(self.source, self.pin)
+
+        self.assertEqual("2.0.0", manifest["release_version"])
+
+    def test_pin_edit_during_download_does_not_retarget_the_selected_archive(self):
+        self.install_reviewed_updater()
+        changed_pin = {"version": "3.0.0", "archive_sha256": "0" * 64}
+
+        def download_and_change_pin(url, *, timeout):
+            response = self.download(url, timeout=timeout)
+
+            self.pin.write_text(json.dumps(changed_pin))
+
+            return response
+
+        with patch.object(public_release.urllib.request, "build_opener") as opener:
+            opener.return_value.open.side_effect = download_and_change_pin
+            manifest = downloads.update(self.source, self.pin)
+
+        self.assertEqual("2.0.0", manifest["release_version"])
+        self.assertEqual(changed_pin, json.loads(self.pin.read_text()))
 
     def test_download_cleanup_failure_reports_published_source(self):
+        self.install_reviewed_updater()
         download_directory = self.root / "download"
 
         download_directory.mkdir()
@@ -575,11 +625,12 @@ class SourceUpdateTests(unittest.TestCase):
                 raise cleanup_failure
 
         with (
-            patch.object(updates.tempfile, "TemporaryDirectory", return_value=DownloadDirectory()),
-            patch.object(updates.subprocess, "run", side_effect=self.download),
+            patch.object(downloads.tempfile, "TemporaryDirectory", return_value=DownloadDirectory()),
+            patch.object(public_release.urllib.request, "build_opener") as opener,
             self.assertRaises(PermissionError) as caught,
         ):
-            updates.update(self.source, self.pin)
+            opener.return_value.open.side_effect = self.download
+            downloads.update(self.source, self.pin)
 
         self.assertIs(cleanup_failure, caught.exception)
         self.assertIn("published", " ".join(cleanup_failure.__notes__))
@@ -587,13 +638,23 @@ class SourceUpdateTests(unittest.TestCase):
         self.assertEqual("2.0.0", updates.verify(self.source)["release_version"])
 
     def test_edit_during_download_is_not_overwritten(self):
-        def download_and_edit(arguments, *, check):
-            self.download(arguments, check=check)
+        self.install_reviewed_updater()
+
+        def download_and_edit(url, *, timeout):
+            response = self.download(url, timeout=timeout)
+
             (self.source / "acquisition_tool/old.py").write_bytes(b"edit during download")
 
-        with patch.object(updates.subprocess, "run", side_effect=download_and_edit), self.assertRaises(ValueError):
-            updates.update(self.source, self.pin)
+            return response
+
+        with (
+            patch.object(public_release.urllib.request, "build_opener") as opener,
+            patch.object(downloads, "download_asset", wraps=downloads.download_asset) as download,
+            self.assertRaises(ValueError),
+        ):
+            opener.return_value.open.side_effect = download_and_edit
+            downloads.update(self.source, self.pin)
 
         self.assertEqual(b"edit during download", (self.source / "acquisition_tool/old.py").read_bytes())
-        self.assertFalse(self.download_directory.exists())
+        self.assertFalse(download.call_args.args[3].parent.exists())
         self.assertEqual([], list(self.root.glob(".acquisition-next-*")))

@@ -454,14 +454,14 @@ tests/repository/bytecode:
 
 .PHONY: provider-tools/verify-checked-in-source-hashes provider-tools/update-checked-in-source-from-pinned-release provider-tools/import-checked-in-source
 provider-tools/verify-checked-in-source-hashes:
-	@python3 -I -S -B bootstrap/acquisition/acquisition_tool/source_update.py verify --source-dir bootstrap/acquisition
+	@bash packages/acquisition/acquisition_tool/maintain_source.sh verify --source-dir bootstrap/acquisition
 
 provider-tools/update-checked-in-source-from-pinned-release:
-	@python3 -I -S -B bootstrap/acquisition/acquisition_tool/source_update.py update --source-dir bootstrap/acquisition --pin-file requirements/provider-tools-source.json
+	@bash packages/acquisition/acquisition_tool/maintain_source.sh update --source-dir bootstrap/acquisition --pin-file requirements/provider-tools-source.json
 
 provider-tools/import-checked-in-source:
 	@[[ "$${SOURCE_ARCHIVE_INPUT_ORIGIN}" == 'command line' && -n "$${SOURCE_ARCHIVE_INPUT}" ]] || { printf '%s\n' 'Set INPUT_RELEASE_ARCHIVE=<archive path> on the Make command line.' >&2; exit 2; }
-	@python3 -I -S -B bootstrap/acquisition/acquisition_tool/source_update.py import --source-dir bootstrap/acquisition --pin-file requirements/provider-tools-source.json --archive "$${SOURCE_ARCHIVE_INPUT}"
+	@bash packages/acquisition/acquisition_tool/maintain_source.sh import --source-dir bootstrap/acquisition --pin-file requirements/provider-tools-source.json --archive "$${SOURCE_ARCHIVE_INPUT}"
 
 tests/repository/provisioning:
 	bash tests/repository/run.sh tests/repository/provisioning

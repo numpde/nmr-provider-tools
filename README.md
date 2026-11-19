@@ -61,7 +61,27 @@ connection whose delay has elapsed) or `fifo` (preserve arrival order, even
 when an earlier connection's delay holds up others). Both settings reload live.
 
 
-## Preparing a provider-core release
+## Updating checked-in bootstrap source
+
+`requirements/provider-tools-source.json` selects the acquisition source release
+and its archive SHA-256. After reviewing that pin, update the checked-in snapshot:
+
+```sh
+make provider-tools/update-checked-in-source-from-pinned-release
+```
+
+This maintenance command downloads the public archive directly over HTTPS using
+Python's standard library. The reviewed maintenance package verifies the target
+as data and checks the selected hash and archive before replacing clean source.
+The selected pin is captured before downloading; editing the pin during a transfer does not
+retarget that update. Bootstrap updating requires neither Git nor `gh`.
+
+
+## Preparing and publishing a provider-core release
+
+Release publication builds and qualifies new artifacts, then publishes them to
+GitHub using Git and `gh`. Its approval, draft verification and publication
+workflow is separate from downloading an existing bootstrap source release.
 
 `publish/prepare` writes a reviewed, versioned release bundle into an explicit
 `OUTPUT` directory; `WHEELHOUSE` is the separate shared dependency cache.
