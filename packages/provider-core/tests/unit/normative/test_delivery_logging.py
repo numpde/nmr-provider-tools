@@ -70,6 +70,7 @@ class DeliveryLoggingTests(unittest.TestCase):
 
         self.addCleanup(notices.close)
         notices(None, {"event": "delivery_published", "provider_ref": "provider:example"})
+
         return notices.status()
 
     def test_failed_output_retains_safe_health_and_never_raises_into_publication(self):

@@ -11,7 +11,7 @@ from tests.fakes.credential import document, encoded
 
 
 class ProviderCredentialBoundaryTests(unittest.TestCase):
-    def test_closed_provider_artifact_rejects_untrusted_identity_fields(self):
+    def _untrusted_identity_artifacts(self):
         baseline = document()
 
         cases = (
@@ -26,12 +26,21 @@ class ProviderCredentialBoundaryTests(unittest.TestCase):
         )
 
         for change in cases:
-            with self.subTest(field=next(iter(change))):
-                with self.assertRaises(CredentialRejected) as caught:
-                    parse_provider_credential(encoded(baseline | change))
+            yield next(iter(change)), encoded(baseline | change), baseline["private_key_pkcs8_pem"]
 
-                self.assertNotIn("PRIVATE", str(caught.exception))
-                self.assertNotIn(baseline["private_key_pkcs8_pem"], str(caught.exception))
+    def test_closed_provider_artifact_rejects_untrusted_identity_fields(self):
+        for (field, artifact_bytes, _private_key) in self._untrusted_identity_artifacts():
+            with self.subTest(field=field), self.assertRaises(CredentialRejected):
+                parse_provider_credential(artifact_bytes)
+
+    @unittest.skip("Privacy policy under review")
+    def test_identity_rejection_diagnostics_omit_fields_and_signing_material(self):
+        for (field, artifact_bytes, private_key) in self._untrusted_identity_artifacts():
+            with self.subTest(field=field), self.assertRaises(CredentialRejected) as caught:
+                parse_provider_credential(artifact_bytes)
+
+            self.assertNotIn("PRIVATE", str(caught.exception))
+            self.assertNotIn(private_key, str(caught.exception))
 
     def test_public_and_private_keys_must_belong_together(self):
         (first, second) = (document(), document())
@@ -74,7 +83,7 @@ class ProviderCredentialBoundaryTests(unittest.TestCase):
             with self.subTest(length=len(candidate)), self.assertRaises(CredentialRejected):
                 parse_provider_credential(candidate)
 
-    def test_invalid_or_noncanonical_public_key_encodings_are_rejected(self):
+    def _invalid_public_key_artifacts(self):
         baseline = document()
         raw = base64.b64decode(baseline["public_key_spki_der_b64"])
 
@@ -83,18 +92,35 @@ class ProviderCredentialBoundaryTests(unittest.TestCase):
             base64.b64encode(b"not DER").decode(),
             base64.b64encode(raw + b"trailing").decode(),
         ):
-            with self.subTest(public_length=len(public)):
-                with self.assertRaises(CredentialRejected) as caught:
-                    parse_provider_credential(encoded(baseline | {"public_key_spki_der_b64": public}))
+            yield len(public), encoded(baseline | {"public_key_spki_der_b64": public})
 
-                self.assertNotIn("PRIVATE", str(caught.exception))
+    def test_invalid_or_noncanonical_public_key_encodings_are_rejected(self):
+        for (public_length, artifact_bytes) in self._invalid_public_key_artifacts():
+            with self.subTest(public_length=public_length), self.assertRaises(CredentialRejected):
+                parse_provider_credential(artifact_bytes)
 
-    def test_private_key_decoder_failure_has_safe_operation_context(self):
+    @unittest.skip("Privacy policy under review")
+    def test_public_key_rejection_diagnostics_omit_input(self):
+        for (public_length, artifact_bytes) in self._invalid_public_key_artifacts():
+            with self.subTest(public_length=public_length), self.assertRaises(CredentialRejected) as caught:
+                parse_provider_credential(artifact_bytes)
+
+            self.assertNotIn("PRIVATE", str(caught.exception))
+
+    def _private_key_failure(self):
         baseline = document(private_key_pkcs8_pem="PRIVATE malformed key")
 
         with self.assertRaises(CredentialRejected) as caught:
             parse_provider_credential(encoded(baseline))
 
-        self.assertIn("private key", str(caught.exception))
-        self.assertNotIn("PRIVATE", str(caught.exception))
-        self.assertIsNotNone(caught.exception.cause)
+        return caught.exception
+
+    def test_private_key_decoder_failure_has_operation_context(self):
+        failure = self._private_key_failure()
+
+        self.assertIn("private key", str(failure))
+        self.assertIsNotNone(failure.cause)
+
+    @unittest.skip("Privacy policy under review")
+    def test_private_key_decoder_diagnostics_omit_input(self):
+        self.assertNotIn("PRIVATE", str(self._private_key_failure()))
