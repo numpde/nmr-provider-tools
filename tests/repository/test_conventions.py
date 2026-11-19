@@ -13,6 +13,7 @@ from tools.container_guard import require_container
 require_container()
 
 import ast
+from importlib.util import resolve_name
 import re
 import tempfile
 import unittest
@@ -54,10 +55,22 @@ def has_early_guard(source, *, package_marker=False, guard_module="tools.contain
 
     (imported, called) = statements[:2]
 
+    if not isinstance(imported, ast.ImportFrom):
+        return False
+
+    imported_module = imported.module
+
+    if imported.level:
+        if not package:
+            return False
+
+        try:
+            imported_module = resolve_name("." * imported.level + (imported.module or ""), package)
+        except ImportError:
+            return False
+
     return (
-        isinstance(imported, ast.ImportFrom) and
-        ((imported.level == 0 and imported.module == guard_module) or
-         ((imported.level == 1) and (package is not None) and (f"{package}.{imported.module}" == guard_module))) and
+        (imported_module == guard_module) and
         (len(imported.names) == 1) and
         (imported.names[0].name == "require_container") and
         (imported.names[0].asname is None) and
@@ -235,6 +248,12 @@ class ConventionDetectionTests(unittest.TestCase):
         self.assertTrue(has_early_guard(source, package="tools"))
         self.assertFalse(has_early_guard(source))
         self.assertFalse(has_early_guard(source, package="tools.nested"))
+
+        parent_guard = source.replace("from .", "from ..")
+
+        self.assertTrue(has_early_guard(parent_guard, package="tools.adapters"))
+        self.assertFalse(has_early_guard(parent_guard, package="consumer.adapters"))
+        self.assertFalse(has_early_guard(source.replace("from .", "from ..."), package="tools.adapters"))
 
         for invalid in (
                 source.replace("from .", "from .."),
