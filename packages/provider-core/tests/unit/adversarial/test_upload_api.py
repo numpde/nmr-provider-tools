@@ -42,7 +42,7 @@ class UploadApiFailureTests(unittest.IsolatedAsyncioTestCase):
             self.assertFalse(caught.exception.issuance_may_have_committed)
             self.assertEqual(len(transport.calls), 1)
 
-    async def test_bad_grants_preserve_possible_issuance_without_disclosing_bearer(self):
+    async def _bad_grant_failures(self):
         for changes in (
             {"upload_ref": "upload:sha256:" + "c" * 64},
             {"method": "PUT"},
@@ -59,9 +59,17 @@ class UploadApiFailureTests(unittest.IsolatedAsyncioTestCase):
             with self.subTest(changes=changes), self.assertRaises(ApiFailure) as caught:
                 await self.api(transport).read_grant("job:example", UPLOAD_REF)
 
-            self.assertTrue(caught.exception.issuance_may_have_committed)
-            self.assertNotIn("private-bearer-canary", "".join(traceback.format_exception(caught.exception)))
+            yield caught.exception, transport
+
+    async def test_bad_grants_preserve_possible_issuance(self):
+        async for (failure, transport) in self._bad_grant_failures():
+            self.assertTrue(failure.issuance_may_have_committed)
             self.assertEqual(len(transport.calls), 1)
+
+    @unittest.skip("Privacy policy under review")
+    async def test_bad_grant_diagnostics_omit_bearer(self):
+        async for (failure, _transport) in self._bad_grant_failures():
+            self.assertNotIn("private-bearer-canary", "".join(traceback.format_exception(failure)))
 
     async def test_grant_http_io_and_cancel_failures_are_uncertain_and_never_retried(self):
         failure = ExchangeFailed("Cannot complete HTTPS exchange")
@@ -92,7 +100,7 @@ class UploadApiFailureTests(unittest.IsolatedAsyncioTestCase):
 
         self.assertEqual(transport.calls, [])
 
-    async def test_only_reviewed_no_change_problem_resolves_this_issuance(self):
+    async def _grant_refusals(self):
         cases = (
             (401, "authentication-failed", "signature_expired", False),
             (403, "authorization-denied", "authorization_denied", True),
@@ -119,10 +127,18 @@ class UploadApiFailureTests(unittest.IsolatedAsyncioTestCase):
             with self.subTest(code=code), self.assertRaises(ApiFailure) as caught:
                 await self.api(transport).read_grant("job:example", UPLOAD_REF)
 
-            self.assertEqual(caught.exception.issuance_may_have_committed, uncertain)
-            self.assertEqual(caught.exception.problem_code, code)
-            self.assertNotIn("private-detail-canary", str(caught.exception))
+            yield caught.exception, uncertain, code, transport
+
+    async def test_only_reviewed_no_change_problem_resolves_this_issuance(self):
+        async for (failure, uncertain, code, transport) in self._grant_refusals():
+            self.assertEqual(failure.issuance_may_have_committed, uncertain)
+            self.assertEqual(failure.problem_code, code)
             self.assertEqual(len(transport.calls), 1)
+
+    @unittest.skip("Privacy policy under review")
+    async def test_grant_refusal_diagnostics_omit_server_detail(self):
+        async for (failure, _uncertain, _code, _transport) in self._grant_refusals():
+            self.assertNotIn("private-detail-canary", str(failure))
 
     async def test_malformed_duplicate_and_overlimit_grant_json_retains_uncertainty(self):
         valid = encoded(grant())

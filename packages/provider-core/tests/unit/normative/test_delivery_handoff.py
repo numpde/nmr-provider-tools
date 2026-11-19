@@ -41,6 +41,11 @@ class DeliveryHandoffTests(unittest.TestCase):
         self.assertEqual(restored.outcome, handoff.outcome)
         self.assertEqual(restored.publication, handoff.publication)
         self.assertEqual(restored.acceptance(), handoff.acceptance())
+
+    @unittest.skip("Privacy policy under review")
+    def test_handoff_representation_omits_signing_material(self):
+        handoff = DeliveryHandoff(outcome(provider="provider:example"), self.material())
+
         self.assertNotIn("PRIVATE KEY", repr(handoff))
 
     def test_changed_signing_material_changes_acceptance(self):

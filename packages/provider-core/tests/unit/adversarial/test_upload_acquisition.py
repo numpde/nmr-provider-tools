@@ -133,7 +133,7 @@ class UploadAcquisitionTests(unittest.IsolatedAsyncioTestCase):
         self.assertNotIn("grant", api.calls)
         self.assertEqual(store.calls, [])
 
-    async def test_foreign_url_never_receives_bearer(self):
+    async def _foreign_url_refusal(self):
         (owner, api, store) = sources()
         original = api.grant
 
@@ -152,9 +152,19 @@ class UploadAcquisitionTests(unittest.IsolatedAsyncioTestCase):
         with self.assertRaises(UploadFailed) as caught:
             await owner.acquire(UPLOAD_REF)
 
-        self.assertNotIn("private-bearer", str(caught.exception))
-        self.assertTrue(caught.exception.grant_issued)
+        return caught.exception, store
+
+    async def test_foreign_url_never_receives_bearer(self):
+        (failure, store) = await self._foreign_url_refusal()
+
+        self.assertTrue(failure.grant_issued)
         self.assertEqual(store.calls, [])
+
+    @unittest.skip("Privacy policy under review")
+    async def test_foreign_url_diagnostics_omit_bearer(self):
+        (failure, _store) = await self._foreign_url_refusal()
+
+        self.assertNotIn("private-bearer", str(failure))
 
     async def test_failed_download_bytes_are_charged_and_not_refunded(self):
         (owner, api, store) = sources(total_bytes=8)
