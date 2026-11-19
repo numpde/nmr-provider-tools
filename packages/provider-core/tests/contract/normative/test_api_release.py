@@ -13,7 +13,7 @@ from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey,
 from cryptography.hazmat.primitives.serialization import load_der_public_key
 from http_sf import parse
 
-from provider_core.api import require_api_topology
+from provider_core.validation.upstream.nmr.v1.topology import require_api_topology
 from provider_core.adapters.nmr.v1.hello import hello_body
 from provider_core.validation.upstream.nmr.v1.hello import AnalysisOffering
 from provider_core.validation.upstream.nmr.v1.job_input import JobInputRejected, verify_job_input

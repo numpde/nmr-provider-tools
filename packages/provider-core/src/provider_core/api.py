@@ -52,6 +52,7 @@ from provider_core.adapters.nmr.v1.signing import signed_request
 from provider_core.tools import duplicate_json_fields
 from provider_core.transport import ExchangeFailed, response_request_id
 from provider_core.type_requirements import require_type
+from provider_core.validation.upstream.nmr.v1.topology import require_api_topology
 from provider_core.network import network_availability
 
 from provider_core.validation.upstream.nmr.v1.upload_response import (
@@ -138,21 +139,6 @@ class ApiFailure(RuntimeError):
 
         # silent-defaults: allow-contract -- Nonfinite server timing advice is unavailable; local retry pacing remains authoritative.
         return seconds if math.isfinite(seconds) else None
-
-
-def require_api_topology(value):
-    """Admit the edge vocabulary, independently of credential deployment profiles.
-
-    API pin above, nmr_api/edge_topology.py::EdgeTopology. In particular, the
-    credential profile 'run' is not the response topology 'web'. No default.
-    """
-
-    require_type(value, str)
-
-    if not (value in {"dev-local", "dev", "web"}):
-        raise ValueError("Cannot configure Provider API: expected topology must be dev-local, dev or web")
-
-    return value
 
 
 # Reviewed subset of security/problems.py::PUBLIC_PROBLEM_CODES at the API

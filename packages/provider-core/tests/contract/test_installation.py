@@ -193,6 +193,7 @@ class InstallationContractTests(unittest.TestCase):
                 "provider_core/response_json.py",
                 "provider_core/validation/upstream/nmr/v1/upload_response.py",
                 "provider_core/validation/upstream/nmr/v1/timestamps.py",
+                "provider_core/validation/upstream/nmr/v1/topology.py",
                 "provider_core/uploads.py",
                 "provider_core/upload_file.py",
             },

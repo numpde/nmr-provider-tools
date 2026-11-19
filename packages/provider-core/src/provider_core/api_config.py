@@ -13,7 +13,7 @@ import os
 import ssl
 from dataclasses import dataclass
 
-from provider_core.api import require_api_topology
+from provider_core.validation.upstream.nmr.v1.topology import require_api_topology
 from provider_core.chat_tls import CapturedSSLContext, new_https_trust
 from provider_core.validation.upstream.nmr.v1.credential import parse_provider_credential
 from provider_core.adapters.nmr.v1.signing import SigningIdentity
