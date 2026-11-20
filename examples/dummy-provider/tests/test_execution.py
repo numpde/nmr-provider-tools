@@ -8,13 +8,12 @@ require_container()
 
 import asyncio
 import pathlib
-import shutil
-from tempfile import TemporaryDirectory
 import unittest
 
 import mock_numpy as np
 
 from unittest.mock import patch
+from tests.fakes.deployment import staged_configuration
 
 from dummy_provider import science
 from dummy_provider import provider as provider_setup
@@ -36,15 +35,10 @@ from provider_core.hosting import (
 
 class DummyInstalledExecutionTests(unittest.IsolatedAsyncioTestCase):
     async def asyncSetUp(self):
-        directory = pathlib.Path(self.enterContext(TemporaryDirectory()))
-        configuration = directory / "provider.toml"
-
-        shutil.copyfile(
-            src=pathlib.Path(__file__).parent.parent / "config/deployments/localhost/provider.toml",
-            dst=configuration,
-        )
-
-        self.enterContext(patch.object(target=provider_setup, attribute="PROVIDER_CONFIG_PATH", new=configuration))
+        configuration = self.enterContext(staged_configuration(
+            provider=provider_setup,
+            source=pathlib.Path(__file__).parent.parent / "config/deployments/localhost/provider.toml",
+        ))
 
     async def assert_succeeded(self, operation):
         """Wait for the operation's terminal observation and require success."""

@@ -7,10 +7,9 @@ require_container()
 from importlib import metadata, resources
 import pathlib
 import sys
-import shutil
-from tempfile import TemporaryDirectory
 import unittest
 from unittest.mock import patch
+from tests.fakes.deployment import staged_configuration
 
 from reference_provider import science
 from reference_provider.binding import ReferenceMatcher
@@ -19,15 +18,10 @@ from reference_provider import provider as provider_setup
 
 class ReferenceBindingTests(unittest.IsolatedAsyncioTestCase):
     async def asyncSetUp(self):
-        directory = pathlib.Path(self.enterContext(TemporaryDirectory()))
-        self.configuration = directory / "provider.toml"
-
-        shutil.copyfile(
-            src=pathlib.Path(__file__).parent.parent / "config/deployments/localhost/provider.toml",
-            dst=self.configuration,
-        )
-
-        self.enterContext(patch.object(target=provider_setup, attribute="PROVIDER_CONFIG_PATH", new=self.configuration))
+        self.configuration = self.enterContext(staged_configuration(
+            provider=provider_setup,
+            source=pathlib.Path(__file__).parent.parent / "config/deployments/localhost/provider.toml",
+        ))
 
     async def binding(self):
         provider = await self.enterAsyncContext(provider_setup.open_provider())

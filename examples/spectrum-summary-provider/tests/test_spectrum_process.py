@@ -7,11 +7,10 @@ require_container()
 import asyncio
 import os
 import pathlib
-import shutil
-from tempfile import TemporaryDirectory
 import tomllib
 import unittest
 from unittest.mock import patch
+from tests.fakes.deployment import configure_backend, staged_configuration
 
 import tomli_w
 
@@ -24,16 +23,13 @@ from spectrum_provider.science import Spectrum
 
 class SpectrumProcessTests(unittest.IsolatedAsyncioTestCase):
     async def asyncSetUp(self):
-        directory = pathlib.Path(self.enterContext(TemporaryDirectory()))
-        self.configuration = directory / "provider.toml"
-        shutil.copyfile(pathlib.Path(__file__).parent.parent / "config/deployments/localhost/provider.toml", self.configuration)
-        self.enterContext(patch.object(provider_setup, "PROVIDER_CONFIG_PATH", self.configuration))
+        self.configuration = self.enterContext(staged_configuration(
+            provider=provider_setup,
+            source=pathlib.Path(__file__).parent.parent / "config/deployments/localhost/provider.toml",
+        ))
 
     def configure(self, backend):
-        configuration = tomllib.loads(self.configuration.read_text(encoding="utf-8"))
-        configuration["execution"]["backend"] = backend
-        self.configuration.write_text(tomli_w.dumps(configuration), encoding="utf-8")
-        return configuration
+        return configure_backend(self.configuration, backend)
 
     def sessions(self):
         sessions = {}

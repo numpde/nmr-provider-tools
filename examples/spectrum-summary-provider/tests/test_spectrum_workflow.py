@@ -22,6 +22,7 @@ from threading import Event
 from types import SimpleNamespace
 import unittest
 from unittest.mock import AsyncMock, patch
+from tests.fakes.deployment import staged_configuration
 
 from provider_core.contribution import JsonDataclassCodec
 from provider_core.scientific import operation
@@ -49,15 +50,10 @@ from spectrum_provider.binding import BaselineCorrector
 
 class SpectrumWorkflowTests(unittest.IsolatedAsyncioTestCase):
     async def asyncSetUp(self):
-        directory = pathlib.Path(self.enterContext(TemporaryDirectory()))
-        self.configuration = directory / "provider.toml"
-
-        shutil.copyfile(
-            src=pathlib.Path(__file__).parent.parent / "config/deployments/localhost/provider.toml",
-            dst=self.configuration,
-        )
-
-        self.enterContext(patch.object(target=provider_setup, attribute="PROVIDER_CONFIG_PATH", new=self.configuration))
+        self.configuration = self.enterContext(staged_configuration(
+            provider=provider_setup,
+            source=pathlib.Path(__file__).parent.parent / "config/deployments/localhost/provider.toml",
+        ))
 
     async def test_lost_submission_reply_reuses_the_generated_invocation(self):
         (workflow, _, _) = await self.workflow(result_bytes=8192)

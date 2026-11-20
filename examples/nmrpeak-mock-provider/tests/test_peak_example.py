@@ -38,6 +38,7 @@ from provider_core.interpreter import InterpretationFailed, ModelWindowExpired, 
 from provider_core.process_wire import RemoteScienceError
 from provider_core.submission import Submission
 from tests.fakes.runner import make_scientific_session
+from tests.fakes.deployment import configure_backend
 
 from nmrpeak_mock_provider import provider as provider_setup
 from nmrpeak_mock_provider.binding import Chf, Hf, PeakContribution
@@ -451,10 +452,8 @@ class PeakExampleTests(unittest.IsolatedAsyncioTestCase):
                 self.fail(msg="Process startup must not invent a native supervisor")
 
     async def test_thread_backend_does_not_take_an_unused_runner_session(self):
-        (deployment_config, runner, session) = self.configure_process()
-        deployment_config["execution"]["backend"] = "thread"
-
-        self.configuration.write_text(data=tomli_w.dumps(deployment_config), encoding="utf-8")
+        (_, runner, session) = self.configure_process()
+        configure_backend(self.configuration, "thread")
 
         with self.assertRaisesRegex(expected_exception=ValueError, expected_regex="does not use scientific process sessions"):
             async with self.open_offerings(process_sessions={("hf", 0): session}):

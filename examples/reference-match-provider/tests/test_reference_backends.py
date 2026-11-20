@@ -8,10 +8,9 @@ import asyncio
 import json
 import os
 from pathlib import Path
-import shutil
-from tempfile import TemporaryDirectory
 import unittest
 from unittest.mock import patch
+from tests.fakes.deployment import configure_backend, staged_configuration
 
 from provider_core.contribution_errors import ScientificRejection
 from provider_core.hosting import NotAdmitted, Outcome, ResultState, observe_cleanup
@@ -26,14 +25,15 @@ from reference_provider.science import VectorInput
 
 class ReferenceBackendTests(unittest.IsolatedAsyncioTestCase):
     async def asyncSetUp(self):
-        directory = Path(self.enterContext(TemporaryDirectory()))
-        self.configuration = directory / "provider.toml"
-        shutil.copyfile(Path(__file__).parent.parent / "config/deployments/localhost/provider.toml", self.configuration)
-        self.enterContext(patch.object(provider_setup, "PROVIDER_CONFIG_PATH", self.configuration))
+        self.configuration = self.enterContext(staged_configuration(
+            provider=provider_setup,
+            source=Path(__file__).parent.parent / "config/deployments/localhost/provider.toml",
+        ))
         self.original_config = self.configuration.read_text()
 
     def configure(self, backend):
-        self.configuration.write_text(self.original_config.replace('backend = "thread"', f'backend = "{backend}"'))
+        self.configuration.write_text(self.original_config, encoding="utf-8")
+        configure_backend(self.configuration, backend)
         if backend == "thread":
             return None
         _, session = make_scientific_session(self)
@@ -139,7 +139,7 @@ class ReferenceBackendTests(unittest.IsolatedAsyncioTestCase):
                     self.assertEqual(["pattern-a"], received)
 
     async def test_process_startup_requires_an_explicit_native_owner(self):
-        self.configuration.write_text(self.original_config.replace('backend = "thread"', 'backend = "process"'))
+        configure_backend(self.configuration, "process")
         with self.assertRaisesRegex(ValueError, "deployment-owned scientific runner session"):
             async with provider_setup.open_provider():
                 self.fail("Process startup must require a native runner session")

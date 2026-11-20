@@ -6,9 +6,8 @@ require_container()
 
 import asyncio
 from pathlib import Path
-from tempfile import TemporaryDirectory
 import unittest
-from unittest.mock import patch
+from tests.fakes.deployment import configure_backend, staged_configuration
 
 import mock_numpy as np
 
@@ -93,56 +92,52 @@ class DummyStartupTests(unittest.IsolatedAsyncioTestCase):
             await settle_cleanup(control=analysis.close())
 
     async def test_thread_and_process_startup_keep_the_same_request_sequence(self):
-        configuration_text = (Path(__file__).parent.parent / "config/deployments/localhost/provider.toml").read_text(encoding="utf-8")
+        source = Path(__file__).parent.parent / "config/deployments/localhost/provider.toml"
 
         for backend in ("thread", "process"):
-            with self.subTest(backend=backend), TemporaryDirectory() as temporary:
-                configuration = Path(temporary) / "provider.toml"
-                configuration.write_text(configuration_text.replace('backend = "thread"', f'backend = "{backend}"'), encoding="utf-8")
+            with self.subTest(backend=backend), staged_configuration(provider=provider_setup, source=source) as configuration:
+                configure_backend(configuration, backend)
                 session = None
                 runner = None
 
                 if backend == "process":
                     runner, session = make_scientific_session(self)
 
-                with patch.object(provider_setup, "PROVIDER_CONFIG_PATH", configuration):
-                    async with asyncio.timeout(20):
-                        async with provider_setup.open_provider(process_session=session) as provider:
-                            if backend == "thread":
-                                model = provider.weighted.contribution.model
-                            else:
-                                process_id = provider.execution_host.process_id
+                async with asyncio.timeout(20):
+                    async with provider_setup.open_provider(process_session=session) as provider:
+                        if backend == "thread":
+                            model = provider.weighted.contribution.model
+                        else:
+                            process_id = provider.execution_host.process_id
 
-                            await self.run_request(provider)
-                            await self.run_request(provider)
-
-                            if backend == "thread":
-                                self.assertIs(model, provider.weighted.contribution.model)
-                                self.assertIsNotNone(model.loaded_coefficients)
-                            else:
-                                self.assertEqual(process_id, provider.execution_host.process_id)
+                        await self.run_request(provider)
+                        await self.run_request(provider)
 
                         if backend == "thread":
-                            self.assertIsNone(model.loaded_coefficients)
+                            self.assertIs(model, provider.weighted.contribution.model)
+                            self.assertIsNotNone(model.loaded_coefficients)
                         else:
-                            self.assertTrue(session.retirement.scratch_released)
-                            self.assertEqual([], list(runner.scratch.iterdir()))
+                            self.assertEqual(process_id, provider.execution_host.process_id)
+
+                    if backend == "thread":
+                        self.assertIsNone(model.loaded_coefficients)
+                    else:
+                        self.assertTrue(session.retirement.scratch_released)
+                        self.assertEqual([], list(runner.scratch.iterdir()))
 
     async def test_configuration_refusals_leave_the_unconnected_session_with_its_caller(self):
-        configuration_text = (Path(__file__).parent.parent / "config/deployments/localhost/provider.toml").read_text(encoding="utf-8")
+        source = Path(__file__).parent.parent / "config/deployments/localhost/provider.toml"
 
         for backend in ("thread", "unknown"):
-            with self.subTest(backend=backend), TemporaryDirectory() as temporary:
-                configuration = Path(temporary) / "provider.toml"
-                configuration.write_text(configuration_text.replace('backend = "thread"', f'backend = "{backend}"'), encoding="utf-8")
-                session = RunnerSession(Path(temporary) / "unused.sock", role="science", expected_lock_identity=(0, 0), startup_seconds=5, retirement_seconds=5)
+            with self.subTest(backend=backend), staged_configuration(provider=provider_setup, source=source) as configuration:
+                configure_backend(configuration, backend)
+                session = RunnerSession(configuration.parent / "unused.sock", role="science", expected_lock_identity=(0, 0), startup_seconds=5, retirement_seconds=5)
                 self.addCleanup(session.close)
                 original_descriptor = session.control.fileno()
 
-                with patch.object(provider_setup, "PROVIDER_CONFIG_PATH", configuration):
-                    with self.assertRaises(ValueError):
-                        async with provider_setup.open_provider(process_session=session):
-                            self.fail("Refused configuration yielded a provider")
+                with self.assertRaises(ValueError):
+                    async with provider_setup.open_provider(process_session=session):
+                        self.fail("Refused configuration yielded a provider")
 
                 self.assertFalse(session.control_connected)
                 self.assertEqual(original_descriptor, session.control.fileno())

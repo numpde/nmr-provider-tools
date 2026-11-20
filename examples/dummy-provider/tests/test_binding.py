@@ -9,13 +9,13 @@ import pathlib
 import os
 import subprocess
 import sys
-import shutil
 from tempfile import TemporaryDirectory
 import unittest
 
 import mock_numpy as np
 
 from unittest.mock import patch
+from tests.fakes.deployment import staged_configuration
 
 import provider_core.contribution as contribution
 from provider_core.embedded_host import InProcessExecutionHost
@@ -28,15 +28,10 @@ from dummy_provider.provider import read_resource_requirements
 
 class DummyBindingTests(unittest.IsolatedAsyncioTestCase):
     async def asyncSetUp(self):
-        directory = pathlib.Path(self.enterContext(TemporaryDirectory()))
-        self.configuration = directory / "provider.toml"
-
-        shutil.copyfile(
-            src=pathlib.Path(__file__).parent.parent / "config/deployments/localhost/provider.toml",
-            dst=self.configuration,
-        )
-
-        self.enterContext(patch.object(target=provider_setup, attribute="PROVIDER_CONFIG_PATH", new=self.configuration))
+        self.configuration = self.enterContext(staged_configuration(
+            provider=provider_setup,
+            source=pathlib.Path(__file__).parent.parent / "config/deployments/localhost/provider.toml",
+        ))
 
         self.host = InProcessExecutionHost(
             input_bytes=4096,
