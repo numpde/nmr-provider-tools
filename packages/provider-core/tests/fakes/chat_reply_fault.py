@@ -13,11 +13,11 @@ from provider_core.chat_worker import main
 def run():
     (mode, marker) = sys.argv[1:3]
 
-    def held_reply(stream, document):
-        if document["kind"] != "response":
-            raise AssertionError("The reply fault requires a successful real HTTP exchange")
+    def held_reply(stream, worker_message):
+        if not (worker_message["kind"] == (expected_message_kind := "response")):
+            raise AssertionError(f"{worker_message['kind']=} should be {expected_message_kind=}")
 
-        frame = framed(message_bytes(document))
+        frame = framed(message_bytes(worker_message))
 
         if mode == "header":
             count = 2
