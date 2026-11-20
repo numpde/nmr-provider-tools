@@ -65,7 +65,7 @@ def parse_provider_credential(raw, *, maximum_bytes):
 
     require_type(credential_fields, dict, error_factory=CredentialRejected)
 
-    if set(credential_fields) != _FIELDS:
+    if not (set(credential_fields) == _FIELDS):
         raise CredentialRejected("the seven API-issued fields must be present and contain text.")
 
     for (field_name, credential_value) in credential_fields.items():
@@ -82,13 +82,13 @@ def parse_provider_credential(raw, *, maximum_bytes):
     except UnicodeError as cause:
         raise CredentialRejected("artifact text must be valid UTF-8.", cause=cause) from None
 
-    if raw != canonical:
+    if not (raw == canonical):
         raise CredentialRejected("use the original canonical JSON document followed by one newline.")
 
-    if (
-        (credential_fields["schema_id"] != "nmr.provider.private_signing_credential.v1") or
-        (credential_fields["algorithm"] != "ed25519") or
-        (credential_fields["profile"] not in ("dev-local", "dev", "run"))
+    if not (
+        (credential_fields["schema_id"] == "nmr.provider.private_signing_credential.v1") and
+        (credential_fields["algorithm"] == "ed25519") and
+        (credential_fields["profile"] in ("dev-local", "dev", "run"))
     ):
         raise CredentialRejected("require the provider v1 artifact, Ed25519 and profile dev-local, dev or run.")
 
@@ -110,7 +110,7 @@ def _signing_key(credential_fields):
     try:
         public_der = base64.b64decode(credential_fields["public_key_spki_der_b64"], validate=True)
 
-        if base64.b64encode(public_der).decode("ascii") != credential_fields["public_key_spki_der_b64"]:
+        if not (base64.b64encode(public_der).decode("ascii") == credential_fields["public_key_spki_der_b64"]):
             raise ValueError("Public key base64 is not canonical.")
 
         public_key = load_der_public_key(public_der)
@@ -122,7 +122,7 @@ def _signing_key(credential_fields):
 
     require_instance(private_key, Ed25519PrivateKey, error_factory=CredentialRejected)
 
-    if private_key.public_key().public_bytes(Encoding.DER, PublicFormat.SubjectPublicKeyInfo) != public_der:
+    if not (private_key.public_key().public_bytes(Encoding.DER, PublicFormat.SubjectPublicKeyInfo) == public_der):
         raise CredentialRejected("public and private keys do not match.")
 
     return private_key
