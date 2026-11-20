@@ -19,7 +19,7 @@ IDENTIFIER = "sha256:" + "d" * 64
 
 
 def image(**changes):
-    value = {
+    image_metadata = {
         "Id": IDENTIFIER,
         "Labels": {"org.nmr-provider-tools.inputs": OLD},
         "RepoTags": ["nmr-provider-tools/checker:" + OLD],
@@ -27,7 +27,7 @@ def image(**changes):
         "Created": "2020-01-01T00:00:00Z"
     }
 
-    return value | changes
+    return image_metadata | changes
 
 
 class Engine:
@@ -56,15 +56,15 @@ class Engine:
 
         if arguments[:2] == ("image", "inspect"):
             self.inspections += 1
-            value = deepcopy(self.value)
+            image_metadata = deepcopy(self.value)
 
             if self.changed and (self.inspections > 1):
-                value["RepoTags"] = ["somebody-else/retained:latest"]
+                image_metadata["RepoTags"] = ["somebody-else/retained:latest"]
 
             if self.malformed:
                 return "{broken"
 
-            return json.dumps(value) + "\n"
+            return json.dumps(image_metadata) + "\n"
 
         if arguments == ("image", "rm", "--no-prune", IDENTIFIER):
             return ""
@@ -184,9 +184,9 @@ class ImageRetirementTests(unittest.TestCase):
             image(Labels={}, RepoTags=["nmr-provider-tools/wheelhouse-tool:local"]),
         ]
 
-        for value in cases:
-            with self.subTest(value=value):
-                self.assertEqual([], select_images([value], set(), CURRENT))
+        for image_case in cases:
+            with self.subTest(value=image_case):
+                self.assertEqual([], select_images([image_case], set(), CURRENT))
 
         self.assertEqual(
             select_images(

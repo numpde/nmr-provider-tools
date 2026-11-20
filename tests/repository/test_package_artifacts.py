@@ -241,10 +241,10 @@ class PackageArtifactTests(unittest.TestCase):
         source = self.root / "cold-import"
 
         for name in ("linux_idmap/probe.py", "provider_core/bound_http_proxy.py"):
-            path = source / name
+            source_file_path = source / name
 
-            path.parent.mkdir(parents=True, exist_ok=True)
-            path.write_text("QUALIFIED = True")
+            source_file_path.parent.mkdir(parents=True, exist_ok=True)
+            source_file_path.write_text("QUALIFIED = True")
 
         check_script = ROOT / "packages/acquisition/build/acquisition_import_check.py"
 
@@ -305,12 +305,12 @@ class PackageArtifactTests(unittest.TestCase):
             (source / name).write_text("authored\n")
 
         inventory = {
-            path.relative_to(source).as_posix(): {
-                "sha256": digest(path),
-                "size": path.stat().st_size,
-                "mode": path.stat().st_mode & 0o777
+            source_file_path.relative_to(source).as_posix(): {
+                "sha256": digest(source_file_path),
+                "size": source_file_path.stat().st_size,
+                "mode": source_file_path.stat().st_mode & 0o777
             }
-            for path in source.rglob("*") if path.is_file()
+            for source_file_path in source.rglob("*") if source_file_path.is_file()
         }
 
         metadata = source / "src/provider_core.egg-info"
@@ -359,8 +359,8 @@ class PackageArtifactTests(unittest.TestCase):
         ):
             with self.subTest(payload=payload):
                 with zipfile.ZipFile(wheel_path, "w") as archive:
-                    for (name, value) in payload.items():
-                        archive.writestr(name, value)
+                    for (name, payload_bytes) in payload.items():
+                        archive.writestr(name, payload_bytes)
 
                 with self.assertRaisesRegex(ValueError, "wheel"):
                     wheel_payload(wheel_path, expected, "0.2.0")
@@ -419,8 +419,8 @@ class PackageArtifactTests(unittest.TestCase):
         output.mkdir()
 
         original = {
-            path.relative_to(source): digest(path)
-            for path in source.rglob("*") if path.is_file()
+            source_file_path.relative_to(source): digest(source_file_path)
+            for source_file_path in source.rglob("*") if source_file_path.is_file()
         }
 
         def simulate_backend(command, *, check, env):
@@ -447,7 +447,10 @@ class PackageArtifactTests(unittest.TestCase):
 
         self.assertEqual(
             original,
-            {path.relative_to(source): digest(path) for path in source.rglob("*") if path.is_file()},
+            {
+                source_file_path.relative_to(source): digest(source_file_path)
+                for source_file_path in source.rglob("*") if source_file_path.is_file()
+            },
         )
 
         self.assertFalse((source / "build").exists())
