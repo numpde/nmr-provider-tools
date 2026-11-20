@@ -129,10 +129,10 @@ class DeliveryWorker:
 
         return {"state": "starting", "message": "The local publisher has not started yet."}
 
-    def _facts(self, event: str, item: DeliveryOutcome) -> dict[str, str]:
+    def _facts(self, event: str, delivery_outcome: DeliveryOutcome) -> dict[str, str]:
         """Identify the retained request in a publisher notice."""
 
-        return {"event": event, **item.acceptance()}
+        return {"event": event, **delivery_outcome.acceptance()}
 
     async def _backoff(self, delay: float, minimum: float, seconds: float) -> None:
         """Wait until the retry deadline or shutdown, applying changed retry policy.
@@ -164,7 +164,7 @@ class DeliveryWorker:
                 delay = min(max(delay, self.retry_initial_seconds), self.retry_max_seconds)
                 deadline = started + random.uniform(delay / 2, delay) + minimum
 
-    async def _deliver(self, item: DeliveryOutcome) -> None:
+    async def _deliver(self, delivery_outcome: DeliveryOutcome) -> None:
         """Publish one retained request using only API-authorized exact retries.
 
         A verified receipt permits local queue removal. An item-specific refusal
@@ -182,7 +182,7 @@ class DeliveryWorker:
             """
 
             return {
-                **self._facts(event, item),
+                **self._facts(event, delivery_outcome),
                 "publication_wait_seconds": loop.time() - publication_started
             }
 
@@ -214,8 +214,8 @@ class DeliveryWorker:
                 self._api_receipt_received = False
 
                 try:
-                    publish = self.api.complete_attempt if item.operation is TerminalOperation.COMPLETE else self.api.fail_attempt
-                    receipt = await publish(item.body, execution_attempt_ref=item.execution_attempt_ref, owner=self)
+                    publish = self.api.complete_attempt if delivery_outcome.operation is TerminalOperation.COMPLETE else self.api.fail_attempt
+                    receipt = await publish(delivery_outcome.body, execution_attempt_ref=delivery_outcome.execution_attempt_ref, owner=self)
                 except ApiFailure as failure:
                     if not self.api.retirement_confirmed:
                         await self.api.retire(owner=self)
@@ -257,7 +257,7 @@ class DeliveryWorker:
 
                     await self.inbox.storage(
                         self.inbox.queue.hold,
-                        item,
+                        delivery_outcome,
                         "The API did not return a matching publication receipt and exact replay is not authorized. Reconcile this retained request; never rerun science to replace it.",
                     )
 
@@ -267,7 +267,7 @@ class DeliveryWorker:
                 else:
                     self._api_receipt_received = True
 
-                    await self.inbox.storage(self.inbox.queue.remove_published, item)
+                    await self.inbox.storage(self.inbox.queue.remove_published, delivery_outcome)
 
                     self.on_notice(
                         None,
