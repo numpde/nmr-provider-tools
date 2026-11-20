@@ -42,8 +42,8 @@ class ExecutionSettings:
         backend = execution["backend"]
         require_type(backend, str)
 
-        if backend not in {"thread", "process"}:
-            raise ValueError(f"Cannot select execution with backend={reprlib.repr(backend)}; choose 'thread' or 'process'")
+        if not (backend in (expected_backends := {"thread", "process"})):
+            raise ValueError(f"{reprlib.repr(backend)=} ∉ {expected_backends=}")
 
         require_instance(execution["host"], Mapping)
         object.__setattr__(self, "backend", backend)
@@ -58,22 +58,24 @@ class ExecutionSettings:
         state nor connects or closes sessions; each host still checks freshness.
         """
         if self.backend == "thread":
-            if process_sessions is not None:
-                raise ValueError("Thread execution does not use scientific process sessions")
+            require_type(process_sessions, type(None), error_factory=ValueError)
+
             return
 
-        if process_sessions is None:
-            raise ValueError("Process execution requires deployment-owned scientific runner sessions")
+        if not (process_sessions is not None):
+            raise ValueError(f"{process_sessions=} should map configured keys to runner sessions")
 
         require_instance(process_sessions, Mapping)
-        expected = set(expected_keys)
-        if set(process_sessions) != expected:
-            raise ValueError(
-                f"Cannot configure process execution with session keys {reprlib.repr(set(process_sessions))}; "
-                f"supply exactly one runner session for each configured key {reprlib.repr(expected)}"
-            )
-        if len({id(session) for session in process_sessions.values()}) != len(process_sessions):
-            raise ValueError("Cannot configure process execution: independent hosts require distinct runner sessions")
+        expected_session_keys = set(expected_keys)
+        supplied_session_keys = set(process_sessions)
+
+        if not (supplied_session_keys == expected_session_keys):
+            raise ValueError(f"{reprlib.repr(supplied_session_keys)=} ≠ {reprlib.repr(expected_session_keys)=}")
+
+        distinct_session_count = len({id(session) for session in process_sessions.values()})
+
+        if not (distinct_session_count == len(process_sessions)):
+            raise ValueError(f"{distinct_session_count=} should equal {len(process_sessions)=}")
 
     # silent-defaults: allow-contract -- Threads take no session; omitted host overrides use this settings snapshot.
     def create_host(
@@ -87,15 +89,14 @@ class ExecutionSettings:
         Successful process-host construction transfers session custody. Refusal
         leaves it with its caller. No adoption, initialization or start occurs here.
         """
-        options = self.host if host is None else host
+        host_options = self.host if host is None else host
 
         if self.backend == "thread":
-            if process_session is not None:
-                raise ValueError("Cannot construct thread execution with a process session; threads do not use native runner sessions")
+            require_type(process_session, type(None), error_factory=ValueError)
 
-            return InProcessExecutionHost(**options)
+            return InProcessExecutionHost(**host_options)
 
-        if process_session is None:
-            raise ValueError("Cannot construct process execution without a deployment-owned scientific runner session")
+        if not (process_session is not None):
+            raise ValueError(f"{process_session=} should be a {RunnerSession=}")
 
-        return ProcessExecutionHost(session=process_session, **options)
+        return ProcessExecutionHost(session=process_session, **host_options)
