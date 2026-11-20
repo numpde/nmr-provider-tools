@@ -57,14 +57,14 @@ class TransportNotAfterTests(unittest.IsolatedAsyncioTestCase):
         tasks = []
 
         async def delayed_observer(selected, *, timeout):
-            result = await original_wait(selected, timeout=timeout)
+            completed_and_pending_tasks = await original_wait(selected, timeout=timeout)
 
             tasks.extend(selected)
 
             # Delay only observation after the actual original exchange completes.
             await asyncio.sleep(max(0, cap - loop.time()) + 0.01)
 
-            return result
+            return completed_and_pending_tasks
 
         with patch("provider_core.adapters.httpcore.httpcore.AsyncConnectionPool", return_value=client), patch(
             "provider_core.transport.asyncio.wait",

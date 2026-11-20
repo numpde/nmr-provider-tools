@@ -35,15 +35,15 @@ class RevocationObserverTests(unittest.IsolatedAsyncioTestCase):
             self.assertTrue(controller._claims.owns_job(scope(), record().input.job_ref))
             session.release.set()
 
-            results = await asyncio.wait_for(
+            observer_outcomes = await asyncio.wait_for(
                 asyncio.gather(first, second, return_exceptions=True),
                 1,
             )
 
-            for result in results:
+            for observer_outcome in observer_outcomes:
                 self.assertIs(
                     failure.cause.cause.observation,
-                    result,
+                    observer_outcome,
                     "Concurrent observers must share completed revocation, not compete for settlement",
                 )
 
@@ -139,13 +139,13 @@ class RevocationObserverTests(unittest.IsolatedAsyncioTestCase):
             self.assertTrue(controller._claims.owns_job(scope(), record().input.job_ref))
             session.release.set()
 
-            results = await asyncio.wait_for(
+            settlement_outcomes = await asyncio.wait_for(
                 asyncio.gather(continuation, external, return_exceptions=True),
                 1,
             )
 
-            self.assertIs(failure.cause.cause.observation, results[0])
-            self.assertNotIsInstance(results[1], BaseException)
+            self.assertIs(failure.cause.cause.observation, settlement_outcomes[0])
+            self.assertNotIsInstance(settlement_outcomes[1], BaseException)
             self.assertEqual((), controller._claims.live_owners())
             self.assertEqual(["prepare", "retire"], session.events)
             self.assertEqual([], controller.delivery.items)
