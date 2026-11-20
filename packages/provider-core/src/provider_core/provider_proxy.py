@@ -227,8 +227,8 @@ class LiveProxyConfiguration:
 
         try:
             require_nonnegative_number(max_admission_delay_seconds)
-        except (TypeError, ValueError) as cause:
-            raise ServiceRefused("Cannot configure proxy admission delay") from cause
+        except (TypeError, ValueError, OverflowError) as cause:
+            raise ServiceRefused("Cannot configure max_admission_delay_seconds") from cause
 
         if not (max_admission_delay_seconds <= bound_http_proxy.HEADER_SECONDS):
             raise ServiceRefused(f"{max_admission_delay_seconds=} should be at most {bound_http_proxy.HEADER_SECONDS=}")
