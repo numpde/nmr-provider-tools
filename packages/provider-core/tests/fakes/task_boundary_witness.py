@@ -521,13 +521,13 @@ if (__name__ == "__main__") and (len(sys.argv) == 3):
 elif __name__ == "__main__":
     for owner_kind in ("executor", "controller"):
         for failure_kind in ("system-exit", "keyboard-interrupt", "ordinary", "cancel"):
-            result = subprocess.run(
+            completed_child = subprocess.run(
                 [sys.executable, __file__, owner_kind, failure_kind],
                 capture_output=True,
                 text=True,
                 timeout=10
             )
 
-            assert result.returncode == 0, (owner_kind, failure_kind, result.returncode, result.stdout, result.stderr)
-            assert result.stderr == "", result.stderr
-            print(result.stdout, end="")
+            assert completed_child.returncode == 0, (owner_kind, failure_kind, completed_child.returncode, completed_child.stdout, completed_child.stderr)
+            assert completed_child.stderr == "", completed_child.stderr
+            print(completed_child.stdout, end="")
