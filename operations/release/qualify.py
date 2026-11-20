@@ -14,6 +14,7 @@ import hashlib
 import io
 import json
 import re
+import reprlib
 import shutil
 import subprocess
 import tarfile
@@ -53,7 +54,7 @@ def qualify_wheelhouse_bundle(bundle, scratch):
     packaging_digest = digest(pathlib.Path("/wheelhouse") / packaging_wheel_name)
 
     if not (packaging_digest in accepted_hashes):
-        raise ValueError("Cannot qualify wheelhouse bundle: cached packaging wheel differs from its lock.")
+        raise ValueError(f"{packaging_digest=} ∉ {accepted_hashes=}")
 
     selection_lock = scratch / "pylock.toml"
 
@@ -99,8 +100,10 @@ def qualify_wheelhouse_bundle(bundle, scratch):
         text=True,  # Read the JSON selection as text
     )
 
-    if json.loads(selected_wheels.stdout)["artifacts"][0]["sha256"] != packaging_digest:
-        raise ValueError("Cannot qualify wheelhouse bundle: target selection differs from the lock.")
+    selected_sha256 = json.loads(selected_wheels.stdout)["artifacts"][0]["sha256"]
+
+    if selected_sha256 != packaging_digest:
+        raise ValueError(f"{reprlib.repr(selected_sha256)=} ≠ {packaging_digest=}")
 
     subprocess.run(
         [
@@ -122,13 +125,20 @@ def qualify_wheelhouse_bundle(bundle, scratch):
     projected_artifact = tomllib.loads(projected_lock.read_text())["packages"][0]["wheels"][0]
     projected_hashes = projected_artifact.get("hashes")
 
-    if (projected_artifact.get("path") != ("/wheels/" + packaging_wheel_name)) or ("url" in projected_artifact):
-        raise ValueError("Cannot qualify wheelhouse bundle: projected artifact differs from the selected lock.")
+    projected_path = projected_artifact.get("path")
+    expected_path = "/wheels/" + packaging_wheel_name
+
+    if projected_path != expected_path:
+        raise ValueError(f"{reprlib.repr(projected_path)=} ≠ {expected_path=}")
+
+    if "url" in projected_artifact:
+        raise ValueError(f"{reprlib.repr(projected_artifact['url'])=} should be absent")
 
     require_type(projected_hashes, dict)
+    projected_sha256 = projected_hashes.get("sha256")
 
-    if projected_hashes.get("sha256") != packaging_digest:
-        raise ValueError("Cannot qualify wheelhouse bundle: projected artifact differs from the selected lock.")
+    if projected_sha256 != packaging_digest:
+        raise ValueError(f"{reprlib.repr(projected_sha256)=} ≠ {packaging_digest=}")
 
     dockerfile = scratch / "Dockerfile"
 
@@ -172,8 +182,10 @@ def qualify_wheelhouse_bundle(bundle, scratch):
         {"filename": packaging_wheel_name, "sha256": packaging_digest, "directory": "wheels"}
     ]
 
-    if json.loads(report_conversion.stdout) != expected_report:
-        raise ValueError("Cannot qualify wheelhouse bundle: pip report projection differs from the selected artifact.")
+    converted_report = json.loads(report_conversion.stdout)
+
+    if converted_report != expected_report:
+        raise ValueError(f"{reprlib.repr(converted_report)=} ≠ {expected_report=}")
 
     manifest.write_text(report_conversion.stdout)
 
@@ -200,8 +212,10 @@ def qualify_wheelhouse_bundle(bundle, scratch):
         .encode()
     )
 
-    if manifest_identity != hashlib.sha256(canonical_manifest).hexdigest():
-        raise ValueError("Cannot qualify wheelhouse bundle: selection identity differs from the selected artifact.")
+    expected_manifest_identity = hashlib.sha256(canonical_manifest).hexdigest()
+
+    if manifest_identity != expected_manifest_identity:
+        raise ValueError(f"{reprlib.repr(manifest_identity)=} ≠ {expected_manifest_identity=}")
 
     source_allowlist = scratch / "stream-sources.json"
 
@@ -234,12 +248,17 @@ def qualify_wheelhouse_bundle(bundle, scratch):
     ).stdout
 
     with tarfile.open(fileobj=io.BytesIO(streamed_context)) as archive:
-        if set(archive.getnames()) != {"Dockerfile", "wheels/" + packaging_wheel_name}:
-            raise ValueError("Cannot qualify wheelhouse bundle: streamed inputs differ from the selected context.")
+        streamed_member_names = set(archive.getnames())
+        expected_member_names = {"Dockerfile", "wheels/" + packaging_wheel_name}
+
+        if streamed_member_names != expected_member_names:
+            raise ValueError(f"{reprlib.repr(streamed_member_names)=} ≠ {expected_member_names=}")
 
         with archive.extractfile("wheels/" + packaging_wheel_name) as streamed_wheel:
-            if hashlib.file_digest(streamed_wheel, "sha256").hexdigest() != packaging_digest:
-                raise ValueError("Cannot qualify wheelhouse bundle: streamed wheel differs from the lock.")
+            streamed_packaging_sha256 = hashlib.file_digest(streamed_wheel, "sha256").hexdigest()
+
+            if streamed_packaging_sha256 != packaging_digest:
+                raise ValueError(f"{streamed_packaging_sha256=} ≠ {packaging_digest=}")
 
 
 def qualify_acquisition_bundle(bundle, scratch, expected_source_files):
@@ -248,7 +267,7 @@ def qualify_acquisition_bundle(bundle, scratch, expected_source_files):
     require_type(expected_source_files, dict)
 
     if not (expected_source_files):
-        raise ValueError("Cannot qualify acquisition source bundle: missing source inventory.")
+        raise ValueError(f"{expected_source_files=} should be nonempty")
 
     with tarfile.open(bundle, "r:gz") as archive:
         verified_sources = {}
