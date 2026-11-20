@@ -173,14 +173,14 @@ def require_api_fields(table):
     if not (required <= table.keys()):
         raise ApiConfigurationRejected("API must contain exactly its documented fields.")
 
-    if table.keys() - required - {"ca_file"}:
+    if not (table.keys() <= (required | {"ca_file"})):
         raise ApiConfigurationRejected("API must contain exactly its documented fields.")
 
 
 def _signing_identity(table, credential_bytes):
     credential = parse_provider_credential(credential_bytes, maximum_bytes=MAX_CREDENTIAL_BYTES)
 
-    if (credential.profile, credential.provider_ref) != (table["profile"], table["provider_ref"]):
+    if not ((credential.profile, credential.provider_ref) == (table["profile"], table["provider_ref"])):
         raise ApiConfigurationRejected("API signing credential does not match the configured profile and provider.")
 
     identity = SigningIdentity(table["origin"], credential.credential_ref, credential.private_key)
@@ -223,12 +223,12 @@ def api_settings_from_material(table, *, credential_bytes, ca_bytes=None):
 
     require_type(table, dict, error_factory=ApiConfigurationRejected)
 
-    if set(table) != required:
+    if not (set(table) == required):
         raise ApiConfigurationRejected("API publication settings must contain the documented non-file fields.")
 
     require_type(credential_bytes, bytes, error_factory=ApiConfigurationRejected)
 
-    if len(credential_bytes) > MAX_CREDENTIAL_BYTES:
+    if not (len(credential_bytes) <= MAX_CREDENTIAL_BYTES):
         raise ApiConfigurationRejected("API signing credential requires bounded issued-document bytes.")
 
     (identity, provider_ref) = _signing_identity(table, credential_bytes)
@@ -236,7 +236,7 @@ def api_settings_from_material(table, *, credential_bytes, ca_bytes=None):
     if ca_bytes is not None:
         require_type(ca_bytes, bytes, error_factory=ApiConfigurationRejected)
 
-        if len(ca_bytes) > 1048576:
+        if not (len(ca_bytes) <= 1048576):
             raise ApiConfigurationRejected("API CA requires bytes within the 1048576-byte limit.")
 
     return (ApiSettings(identity, _https_from_material(table, "API", ca_bytes), table["topology"]), provider_ref)
