@@ -173,8 +173,8 @@ def require_fail_inputs(execution_attempt_ref, failure_code, failure_message):
     _require_outcome_text(failure_message, "failure message")
 
 
-def _outcome_document(body, operation, limit, execution_attempt_ref, fields):
-    outcome_request = read_document(body, limit)
+def _outcome_document(body, operation, maximum_request_bytes, execution_attempt_ref, fields):
+    outcome_request = read_document(body, maximum_request_bytes)
 
     require_type(outcome_request, dict)
 
