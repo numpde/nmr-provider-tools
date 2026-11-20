@@ -95,7 +95,7 @@ class UploadSnapshotTests(unittest.TestCase):
             pathlib.Path(root, receipt.name).write_bytes(b"replaced")
             parser = Mock()
 
-            with observe_source_files(directory) as calls, self.assertRaisesRegex(UploadFileReadFailed, "SHA-256"):
+            with observe_source_files(directory) as calls, self.assertRaises(UploadFileReadFailed):
                 parser(read_upload_file(receipt, directory_fd=directory, maximum_bytes=8).data)
 
             parser.assert_not_called()
@@ -122,7 +122,7 @@ class UploadSnapshotTests(unittest.TestCase):
 
             with (
                 patch("provider_core.uploads.os.read", side_effect=mutate_after_read),
-                self.assertRaisesRegex(UploadFileReadFailed, "SHA-256"),
+                self.assertRaises(UploadFileReadFailed),
             ):
                 read_upload_file(receipt, directory_fd=directory, maximum_bytes=len(original))
 

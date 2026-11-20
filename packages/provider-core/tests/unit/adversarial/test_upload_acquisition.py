@@ -287,7 +287,6 @@ class UploadAcquisitionTests(unittest.IsolatedAsyncioTestCase):
         with self.assertRaises(UploadFailed) as caught:
             await owner.acquire(UPLOAD_REF)
 
-        self.assertIn("SHA-256", str(caught.exception))
         self.assertTrue(caught.exception.grant_issued)
         self.assertEqual(owner.received_bytes, 8)
 

@@ -7,6 +7,7 @@ require_container()
 import asyncio
 import hashlib
 import os
+import reprlib
 import stat
 from builtins import BaseExceptionGroup
 from dataclasses import dataclass, field
@@ -60,13 +61,15 @@ class VerifiedUpload:
     data: bytes = field(repr=False)
 
     def __post_init__(self):
-        require_type((actual_data := self.data), bytes, error_factory=UploadFailed)
+        require_type(self.data, bytes, error_factory=UploadFailed)
 
         if not (len(self.data) == self.byte_length):
-            raise UploadFailed("source byte length differs from its transfer receipt")
+            raise UploadFailed(f"{len(self.data)=} ≠ {self.byte_length=}")
 
-        if not (("sha256:" + hashlib.sha256(self.data).hexdigest()) == self.content_hash):
-            raise UploadFailed("source SHA-256 differs from its transfer receipt")
+        data_content_hash = "sha256:" + hashlib.sha256(self.data).hexdigest()
+
+        if not (data_content_hash == self.content_hash):
+            raise UploadFailed(f"{data_content_hash=} ≠ {self.content_hash=}")
 
 
 @dataclass(frozen=True, slots=True)
@@ -101,82 +104,82 @@ def read_upload_file(receipt, *, directory_fd, maximum_bytes):
     require_type(directory_fd, int, error_factory=UploadFileReadFailed)
 
     if not (directory_fd >= 0):
-        raise UploadFileReadFailed("reading a private source requires an explicit open directory descriptor")
+        raise UploadFileReadFailed(f"{directory_fd=} should be nonnegative")
 
     require_type(maximum_bytes, int, error_factory=UploadFileReadFailed)
 
     if not (maximum_bytes > 0):
-        raise UploadFileReadFailed("the reader's source byte ceiling must be a positive integer")
+        raise UploadFileReadFailed(f"{maximum_bytes=} should be positive")
 
-    require_type((actual_byte_length := receipt.byte_length), int, error_factory=UploadFileReadFailed)
+    require_type(receipt.byte_length, int, error_factory=UploadFileReadFailed)
 
     if not (0 <= receipt.byte_length <= maximum_bytes):
-        raise UploadFileReadFailed("the receipt's source byte length is outside the reader's explicit ceiling")
+        raise UploadFileReadFailed(f"{receipt.byte_length=} should be nonnegative and not exceed {maximum_bytes=}")
 
-    name = receipt.name
+    source_basename = receipt.name
 
-    require_type(name, str, error_factory=UploadFileReadFailed)
+    require_type(source_basename, str, error_factory=UploadFileReadFailed)
 
-    if not (name not in ("", ".", "..")):
-        raise UploadFileReadFailed("the private source locator must be one non-dot basename in the granted directory")
+    if not (source_basename not in (forbidden_basenames := ("", ".", ".."))):
+        raise UploadFileReadFailed(f"{reprlib.repr(source_basename)=} should not be one of {forbidden_basenames=}")
 
-    if not ("/" not in name):
-        raise UploadFileReadFailed("the private source locator must be one non-dot basename in the granted directory")
+    if not ("/" not in source_basename):
+        raise UploadFileReadFailed(f"{reprlib.repr(source_basename)=} should not contain '/'")
 
-    if not ("\0" not in name):
-        raise UploadFileReadFailed("the private source locator must be one non-dot basename in the granted directory")
+    if not ("\0" not in source_basename):
+        raise UploadFileReadFailed(f"{reprlib.repr(source_basename)=} should not contain NUL characters")
 
     try:
-        descriptor = os.open(name, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK | os.O_CLOEXEC, dir_fd=directory_fd)
+        upload_source_fd = os.open(source_basename, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK | os.O_CLOEXEC, dir_fd=directory_fd)
     except OSError as cause:
-        raise UploadFileReadFailed("the private source file could not be opened", cause=cause) from None
+        raise UploadFileReadFailed(f"Cannot open {reprlib.repr(source_basename)=} in {directory_fd=}", cause=cause) from None
 
-    primary = None
+    read_failure = None
 
     try:
-        return _read_upload_snapshot(descriptor, receipt)
+        return _read_upload_snapshot(upload_source_fd, receipt)
     except BaseException as cause:
         # This worker owns closure even when its synchronous read is interrupted.
-        primary = cause
+        read_failure = cause
 
         raise
     finally:
         try:
-            os.close(descriptor)
+            os.close(upload_source_fd)
         except OSError as cause:
-            cleanup = UploadFileReadFailed(
-                "private source file closure is unconfirmed; retire its reader worker before releasing the source",
+            close_failure = UploadFileReadFailed(
+                f"Cannot confirm closure of {upload_source_fd=}; retire its reader before releasing the source",
                 cause=cause,
             )
 
-            if type(primary) is UploadFileReadFailed:
-                primary.cleanup_failures = (*primary.cleanup_failures, cleanup)
-            elif isinstance(primary, asyncio.CancelledError):
+            if type(read_failure) is UploadFileReadFailed:
+                read_failure.cleanup_failures = (*read_failure.cleanup_failures, close_failure)
+            elif isinstance(read_failure, asyncio.CancelledError):
                 # Preserve the actual cancellation and its previous cause,
                 # as JobUploads._link_file_interruption does for acquired-file I/O.
                 retained = UploadFileReadFailed(
-                    "source reading was interrupted before confirmed file closure",
-                    cause=primary.__cause__,
-                    cleanup_failures=(cleanup,),
-                    interruption=primary,
+                    f"Reading {upload_source_fd=} was interrupted before confirmed closure",
+                    cause=read_failure.__cause__,
+                    cleanup_failures=(close_failure,),
+                    interruption=read_failure,
                 )
 
-                primary.__cause__ = retained
-            elif not (primary is None):
-                raise BaseExceptionGroup("Source reading and independent file closure failed", [primary, cleanup]) from None
+                read_failure.__cause__ = retained
+            elif not (read_failure is None):
+                raise BaseExceptionGroup(f"Reading and closing {upload_source_fd=} failed independently", [read_failure, close_failure]) from None
             else:
-                raise cleanup from None
+                raise close_failure from None
 
 
 def _read_upload_snapshot(upload_source_fd, receipt):
     try:
-        details = os.fstat(upload_source_fd)
+        upload_source_stat = os.fstat(upload_source_fd)
 
-        if not stat.S_ISREG(file_mode := details.st_mode):
+        if not stat.S_ISREG(file_mode := upload_source_stat.st_mode):
             raise UploadFileReadFailed(f"{upload_source_fd=} has bad {file_mode=}")
 
-        if not (details.st_size == receipt.byte_length):
-            raise UploadFileReadFailed("the private source file byte length differs from its transfer receipt")
+        if not (upload_source_stat.st_size == receipt.byte_length):
+            raise UploadFileReadFailed(f"{upload_source_stat.st_size=} ≠ {receipt.byte_length=}")
 
         chunks = []
         received = 0
@@ -201,6 +204,6 @@ def _read_upload_snapshot(upload_source_fd, receipt):
         # protected renderers to misreport as a failed grant operation.
         raise rejected
     except OSError as cause:
-        raise UploadFileReadFailed("the private source file could not be read", cause=cause) from None
+        raise UploadFileReadFailed(f"Cannot read {upload_source_fd=}", cause=cause) from None
 
 
