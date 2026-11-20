@@ -84,9 +84,7 @@ class PeakReport:
     peaks: tuple[Peak, ...]
 
     def __post_init__(self) -> None:
-        actual_peaks = self.peaks
-
-        require_type(actual_peaks, tuple)
+        require_type(self.peaks, tuple)
 
         for peak in self.peaks:
             require_type(peak, Peak)
@@ -115,8 +113,8 @@ def detect_peaks(spectrum: Spectrum, settings: PeakSettings) -> PeakReport:
 
     if not (min_sample_count <= sample_count):
         raise ScientificRejection(
-            "too_few_samples",
-            f"{sample_count=} should be at least {min_sample_count=}",
+            code="too_few_samples",
+            message=f"{sample_count=} should be at least {min_sample_count=}",
         )
 
     peaks = []
