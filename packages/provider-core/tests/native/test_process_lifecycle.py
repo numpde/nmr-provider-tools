@@ -11,6 +11,7 @@ from collections import Counter
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import replace
 import json
+import fcntl
 import os
 from pathlib import Path
 import signal
@@ -35,6 +36,7 @@ from provider_core.hosting import (
     observe_completion,
 )
 from provider_core.process_host import ProcessExecutionHost
+from provider_core.runner import LOCK_NAME
 from tests.fakes.runner import RunningSupervisor
 from tests.fakes.scientific_process import Number, WitnessedScience, wait_for_event, witness_events
 
@@ -137,6 +139,34 @@ class ProcessLifecycleTests(unittest.IsolatedAsyncioTestCase):
         self.assertTrue(expr=host.retired)
         self.assertEqual(first=frozenset(), second=host.allocations)
         self.assertEqual(first=[], second=list(runner.scratch.iterdir()))
+
+    async def test_unrelated_exec_cannot_retain_the_scientific_workers_lifetime_lease(self):
+        (host, runner, session) = self.make_host()
+        probe_started = False
+        try:
+            await self.start(host, scenario="exec-lease")
+            probe = await asyncio.to_thread(wait_for_event, self.root, "exec_probe_started")
+            probe_started = True
+            self.assertFalse(expr=probe["lease_present"])
+            await self.successful_cleanup(host.retire())
+            self.assert_native_retirement(host, runner, session)
+
+            # The supervisor also owns the lease while accepting sessions.
+            # Reap it without waiting for the probe's inherited stderr pipe.
+            runner.supervisor_process.terminate()
+            await asyncio.to_thread(runner.supervisor_process.wait, timeout=3)
+
+            (self.root / "worker-retired").touch()
+            await asyncio.to_thread(wait_for_event, self.root, "exec_survived_retirement")
+            descriptor = os.open(runner.endpoint / LOCK_NAME, os.O_RDWR | os.O_CLOEXEC)
+            try:
+                fcntl.flock(descriptor, fcntl.LOCK_EX | fcntl.LOCK_NB)
+            finally:
+                os.close(descriptor)
+        finally:
+            (self.root / "release-exec-probe").touch()
+            if probe_started:
+                await asyncio.to_thread(wait_for_event, self.root, "exec_probe_done")
 
     async def test_two_analyses_construct_and_initialize_once_with_explicit_child_grants(self):
         (host, runner, session) = self.make_host()

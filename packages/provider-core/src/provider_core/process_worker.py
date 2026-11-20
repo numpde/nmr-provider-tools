@@ -291,7 +291,8 @@ def main(argv=None):
 
     # The native runner passes its lifetime lease. Keep that descriptor open
     # until process exit, including while scientific executor threads unwind.
-    os.fstat(args.lease_fd)
+    # pass_fds cleared close-on-exec; unrelated executed processes must not own it.
+    os.set_inheritable(args.lease_fd, False)
 
     science_socket = socket.socket(fileno=args.session_fd)
 
