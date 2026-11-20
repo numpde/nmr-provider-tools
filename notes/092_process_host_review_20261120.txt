@@ -175,7 +175,12 @@ All these tests remain unrun in this session. There is no Docker executable or
 selected science engine here, so no installed/native pass or red/green pair is
 claimed. The repository's Docker requirement was not bypassed.
 
-## Next useful qualification
+## Qualification instructions at the original review checkpoint
+
+The current branch now includes main's focused native SDK target. Use the
+updated commands and integration record in
+[Note 093](093_process_host_main_alignment_20261120.txt). The commands below
+record the launcher that existed at this earlier review checkpoint.
 
 Use a clean checkout of this branch and the maintained science-context lanes.
 Run one command at a time, stopping on failure. The unfiltered unit command is
