@@ -19,7 +19,7 @@ class UnixTunnelTests(unittest.IsolatedAsyncioTestCase):
             origin = peer.origin.replace("127.0.0.1", "localhost")
             key = Ed25519PrivateKey.generate()
 
-            request = signed_request(
+            signed_http_request = signed_request(
                 SigningIdentity(origin, "credential:test", key),
                 method="GET",
                 path="/input",
@@ -32,7 +32,7 @@ class UnixTunnelTests(unittest.IsolatedAsyncioTestCase):
             transport = HttpTransport(trust=peer.trust, exchange_seconds=1, retirement_seconds=0.5, proxy_socket=proxy.path)
 
             with patch("httpcore.AnyIOBackend.connect_tcp", new=AsyncMock(side_effect=AssertionError("direct TCP attempted"))):
-                response = await transport.exchange(request, maximum_bytes=4)
+                response = await transport.exchange(signed_http_request, maximum_bytes=4)
 
             await transport.retire()
             self.assertEqual(response.body, b"data")
@@ -41,10 +41,10 @@ class UnixTunnelTests(unittest.IsolatedAsyncioTestCase):
             self.assertEqual(len(proxy.headers), 1)
 
             headers = {
-                name.lower(): value
+                header_name.lower(): header_value
                 for line in peer.requests[0].split(b"\r\n")[1:]
                 if line
-                for (name, value) in [line.split(b": ", 1)]
+                for (header_name, header_value) in [line.split(b": ", 1)]
             }
 
             self.assertEqual(headers[b"host"].decode(), origin.removeprefix("https://"))

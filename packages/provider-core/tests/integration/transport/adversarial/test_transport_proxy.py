@@ -91,7 +91,7 @@ class UnixTunnelFailureTests(unittest.IsolatedAsyncioTestCase):
         async with TlsPeer("success", response_body=None) as peer, UnixProxy(peer.origin, "tunnel") as proxy:
             transport = HttpTransport(trust=peer.trust, exchange_seconds=1, retirement_seconds=0.3, proxy_socket=proxy.path)
 
-            request = httpx.Request(
+            chat_request = httpx.Request(
                 "POST",
                 peer.origin + "/chat",
                 headers={"Authorization": "Bearer PRIVATE_MODEL_KEY"},
@@ -99,7 +99,7 @@ class UnixTunnelFailureTests(unittest.IsolatedAsyncioTestCase):
             )
 
             with self.assertRaises(ExchangeFailed):
-                await transport.exchange(request, maximum_bytes=4)
+                await transport.exchange(chat_request, maximum_bytes=4)
 
             await transport.retire()
             self.assertEqual(len(peer.requests), 1)
