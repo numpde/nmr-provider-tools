@@ -65,7 +65,7 @@ source "$ACQUISITION_SOURCE_ROOT/acquisition_tool/owner.sh"
             'ACQUISITION_SOURCE_ROOT': str(self.stage_acquisition_source(directory=root)),
         }
 
-        process = subprocess.Popen(
+        mapping_process = subprocess.Popen(
             ['bash', '-c', script],
             env=environment,
             stdout=subprocess.PIPE,
@@ -74,14 +74,14 @@ source "$ACQUISITION_SOURCE_ROOT/acquisition_tool/owner.sh"
         )
 
         def stop():
-            if process.poll() is None:
-                os.killpg(process.pid, signal.SIGKILL)
-                process.communicate()
+            if mapping_process.poll() is None:
+                os.killpg(mapping_process.pid, signal.SIGKILL)
+                mapping_process.communicate()
 
         self.addCleanup(stop)
-        (stdout, stderr) = process.communicate(timeout=20)
+        (stdout, stderr) = mapping_process.communicate(timeout=20)
 
-        return (process.returncode, stdout, stderr, root)
+        return (mapping_process.returncode, stdout, stderr, root)
 
     def test_mapping_uses_native_or_explicit_host_owner_pair(self):
         (status, stdout, stderr, root) = self.run_mapping(
@@ -473,7 +473,7 @@ acquisition_scope --endpoint unix:///var/run/docker.sock --bootstrap-image fixtu
             **injected
         }
 
-        process = subprocess.Popen(
+        owner_process = subprocess.Popen(
             ['bash', '-c', script],
             env=environment,
             stdout=subprocess.PIPE,
@@ -482,13 +482,13 @@ acquisition_scope --endpoint unix:///var/run/docker.sock --bootstrap-image fixtu
         )
 
         def stop():
-            if process.poll() is None:
-                os.killpg(process.pid, signal.SIGKILL)
-                process.communicate()
+            if owner_process.poll() is None:
+                os.killpg(owner_process.pid, signal.SIGKILL)
+                owner_process.communicate()
 
         self.addCleanup(stop)
 
-        return (process, root)
+        return (owner_process, root)
 
     def test_compose_workers_preserve_stdout_status_and_repeated_scope_calls(self):
         (caller_process, root) = self.launch(

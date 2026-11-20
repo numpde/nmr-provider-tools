@@ -86,7 +86,7 @@ def fixture_command(name):
         if target.name == "status":
             mutation = os.environ["NATIVE_STATUS_MUTATION"]
 
-            values = {
+            status_bytes_by_mutation = {
                 "nul": b"0\0\n",
                 "cr": b"0\r\n",
                 "missing-lf": b"0",
@@ -103,8 +103,8 @@ def fixture_command(name):
                 "text": b"unknown\n",
             }
 
-            if mutation in values:
-                source.write_bytes(values[mutation])
+            if mutation in status_bytes_by_mutation:
+                source.write_bytes(status_bytes_by_mutation[mutation])
 
             if mutation == "symlink":
                 target.symlink_to(source)
