@@ -12,6 +12,7 @@ from provider_core.container_guard import require_container
 require_container()
 
 import re
+import reprlib
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta
 
@@ -65,34 +66,36 @@ def require_upload_ref(value):
         raise ResponseRejected("Upload reference must be upload:sha256: followed by 64 lowercase hexadecimal digits")
 
 
-def _fields(document, names):
-    if not (type(document) is (expected_type := dict)):
-        raise ResponseRejected(f"{type(document)=} ≠ {expected_type=}")
+def _fields(upload_fields, expected_fields):
+    if not (type(upload_fields) is (expected_type := dict)):
+        raise ResponseRejected(f"{type(upload_fields)=} ≠ {expected_type=}")
 
-    if set(document) != names:
-        raise ResponseRejected("Response fields do not match the supported Upload wire schema")
+    if (received_fields := set(upload_fields)) != expected_fields:
+        raise ResponseRejected(f"{received_fields=} should match {expected_fields=}")
 
 
-def _byte_facts(document, *, pending_allowed):
-    require_upload_ref(document["upload_ref"])
-    length = document["byte_length"]
+def _byte_facts(upload_fields, *, pending_allowed):
+    require_upload_ref(upload_fields["upload_ref"])
+    upload_byte_length = upload_fields["byte_length"]
 
-    if not (type(length) is (expected_type := int)):
-        raise ResponseRejected(f"{type(length)=} ≠ {expected_type=}")
+    if not (type(upload_byte_length) is (expected_type := int)):
+        raise ResponseRejected(f"{type(upload_byte_length)=} ≠ {expected_type=}")
 
-    if not (1 <= length <= 9223372036854775807):
-        raise ResponseRejected("Upload byte_length must be a positive signed 64-bit integer")
+    (min_upload_bytes, max_upload_bytes) = (1, 9223372036854775807)
 
-    fingerprint = document["content_hash"]
+    if not (min_upload_bytes <= upload_byte_length <= max_upload_bytes):
+        raise ResponseRejected(f"upload_byte_length should be between {min_upload_bytes=} and {max_upload_bytes=}")
 
-    if pending_allowed and (fingerprint is None):
+    content_hash = upload_fields["content_hash"]
+
+    if pending_allowed and (content_hash is None):
         return
 
-    if not (type(fingerprint) is (expected_type := str)):
-        raise ResponseRejected(f"{type(fingerprint)=} ≠ {expected_type=}")
+    if not (type(content_hash) is (expected_type := str)):
+        raise ResponseRejected(f"{type(content_hash)=} ≠ {expected_type=}")
 
-    if re.fullmatch(r"sha256:[0-9a-f]{64}", fingerprint) is None:
-        raise ResponseRejected("Upload content_hash must be a lowercase SHA-256 fingerprint")
+    if re.fullmatch(r"sha256:[0-9a-f]{64}", content_hash) is None:
+        raise ResponseRejected(f"{reprlib.repr(content_hash)=} should be 'sha256:' followed by 64 lowercase hexadecimal digits")
 
 
 def _grant_target_and_token(download_url, token):
@@ -145,14 +148,14 @@ def require_read_grant(grant, *, job_ref):
 
 def read_membership(raw, *, job_ref):
     """Preserve ordered descriptions and pending hashes after exact Job binding."""
-    document = read_document(raw, MEMBERSHIP_RESPONSE_BYTES)
+    membership_response = read_document(raw, MEMBERSHIP_RESPONSE_BYTES)
 
-    _fields(document, {"schema_id", "job_ref", "uploads"})
+    _fields(membership_response, {"schema_id", "job_ref", "uploads"})
 
-    if (document["schema_id"] != "nmr.provider.job_upload_set.read.response.v1") or (document["job_ref"] != job_ref):
+    if (membership_response["schema_id"] != "nmr.provider.job_upload_set.read.response.v1") or (membership_response["job_ref"] != job_ref):
         raise ResponseRejected("Membership response schema or Job identity differs from the request")
 
-    members = document["uploads"]
+    members = membership_response["uploads"]
 
     if not (type(members) is (expected_type := list)):
         raise ResponseRejected(f"{type(members)=} ≠ {expected_type=}")
@@ -187,31 +190,31 @@ def read_membership(raw, *, job_ref):
 
 def read_grant(raw, *, job_ref, upload_ref):
     """Bind the returned resource; access scope and byte verification follow later."""
-    document = read_document(raw, GRANT_RESPONSE_BYTES)
+    grant_response = read_document(raw, GRANT_RESPONSE_BYTES)
 
     _fields(
-        document,
+        grant_response,
         {"schema_id", "upload_ref", "method", "download_url", "byte_length", "content_hash", "capability", "expires_at"}
     )
 
-    if (document["schema_id"] != "nmr.upload.read_capability.response.v1") or (document["upload_ref"] != upload_ref):
+    if (grant_response["schema_id"] != "nmr.upload.read_capability.response.v1") or (grant_response["upload_ref"] != upload_ref):
         raise ResponseRejected("Grant response schema or Upload identity differs from the request")
 
-    if document["method"] != "GET":
+    if grant_response["method"] != "GET":
         raise ResponseRejected("Download grant must authorize GET")
 
-    _byte_facts(document, pending_allowed=False)
-    url = document["download_url"]
-    token = document["capability"]
+    _byte_facts(grant_response, pending_allowed=False)
+    download_url = grant_response["download_url"]
+    capability = grant_response["capability"]
 
-    _grant_target_and_token(url, token)
+    _grant_target_and_token(download_url, capability)
 
     return ReadGrant(
         job_ref,
         upload_ref,
-        document["byte_length"],
-        document["content_hash"],
-        url,
-        token,
-        read_timestamp(document["expires_at"])
+        grant_response["byte_length"],
+        grant_response["content_hash"],
+        download_url,
+        capability,
+        read_timestamp(grant_response["expires_at"])
     )
