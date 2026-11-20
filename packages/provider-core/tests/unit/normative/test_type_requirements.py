@@ -23,12 +23,12 @@ class TypeRequirementsTests(unittest.TestCase):
         self.assertIn("int", str(raised.exception))
 
     def test_exact_type_tuple_message(self):
-        data = {"value": "hello"}
+        text_fields = {"value": "hello"}
 
         with self.assertRaises(TypeError) as raised:
-            require_type(data["value"], (int, float))
+            require_type(text_fields["value"], (int, float))
 
-        self.assertIn('data["value"]', str(raised.exception))
+        self.assertIn('text_fields["value"]', str(raised.exception))
         self.assertIn("int", str(raised.exception))
         self.assertIn("float", str(raised.exception))
         self.assertIn("str", str(raised.exception))
@@ -44,12 +44,12 @@ class TypeRequirementsTests(unittest.TestCase):
             require_type({}, Mapping)
 
     def test_instance_reports_source_expression(self):
-        data = {"value": "hello"}
+        text_fields = {"value": "hello"}
 
         with self.assertRaises(TypeError) as raised:
-            require_instance(data["value"], (int, float))
+            require_instance(text_fields["value"], (int, float))
 
-        self.assertIn('data["value"]', str(raised.exception))
+        self.assertIn('text_fields["value"]', str(raised.exception))
         self.assertIn("instance of", str(raised.exception))
         self.assertIn("int", str(raised.exception))
         self.assertIn("float", str(raised.exception))
@@ -76,40 +76,40 @@ class TypeRequirementsTests(unittest.TestCase):
         self.assertIn("float", str(raised.exception))
 
     def test_subclass_rejects_nonclass_first_argument(self):
-        value = "hello"
+        text_instance = "hello"
 
         with self.assertRaises(TypeError) as raised:
-            require_subclass(value, str)
+            require_subclass(text_instance, str)
 
-        self.assertIn("value", str(raised.exception))
+        self.assertIn("text_instance", str(raised.exception))
 
     def test_subclass_accepts_abstract_base_class(self):
         self.assertIsNone(require_subclass(dict, Mapping))
 
     def test_keyword_arguments(self):
-        data = {"value": "hello"}
+        text_fields = {"value": "hello"}
 
         with self.assertRaises(TypeError) as raised:
-            require_type(T=int, expr=data["value"])
+            require_type(T=int, expr=text_fields["value"])
 
-        self.assertIn('data["value"]', str(raised.exception))
+        self.assertIn('text_fields["value"]', str(raised.exception))
 
         with self.assertRaises(TypeError) as raised:
-            require_instance(T=int, expr=data["value"])
+            require_instance(T=int, expr=text_fields["value"])
 
-        self.assertIn('data["value"]', str(raised.exception))
+        self.assertIn('text_fields["value"]', str(raised.exception))
         self.assertIn("instance of", str(raised.exception))
 
     def test_multiline_call(self):
-        data = {"value": "hello"}
+        text_fields = {"value": "hello"}
 
         with self.assertRaises(TypeError) as raised:
             require_instance(
-                data.get("value"),
+                text_fields.get("value"),
                 (int, float),
             )
 
-        self.assertIn('data.get("value")', str(raised.exception))
+        self.assertIn('text_fields.get("value")', str(raised.exception))
 
     def test_multiple_calls_on_one_line(self):
         def error(action):
@@ -141,11 +141,11 @@ class TypeRequirementsTests(unittest.TestCase):
             def __repr__(self):
                 raise ValueError("Custom repr failed")
 
-        value = Unrenderable()
+        unrenderable_instance = Unrenderable()
 
         with patch.object(linecache, "getlines", return_value=[]):
             with self.assertRaises(TypeError) as raised:
-                require_type(value, int)
+                require_type(unrenderable_instance, int)
 
         self.assertIn("Unrenderable", str(raised.exception))
         self.assertNotIn("Custom repr failed", str(raised.exception))
@@ -160,13 +160,13 @@ class TypeRequirementsTests(unittest.TestCase):
     def test_expression_is_evaluated_once(self):
         calls = []
 
-        def value():
+        def produce_text():
             calls.append(1)
 
             return "hello"
 
         with self.assertRaises(TypeError) as raised:
-            require_instance(value(), int)
+            require_instance(produce_text(), int)
 
         self.assertEqual(calls, [1])
-        self.assertIn("value()", str(raised.exception))
+        self.assertIn("produce_text()", str(raised.exception))
