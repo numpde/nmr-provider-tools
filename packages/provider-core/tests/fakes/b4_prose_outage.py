@@ -622,5 +622,5 @@ async def run_outage(directory, *, mode, backlog, seed):
 
             await inbox.close()
             queue.close()
-            scientific_worker.process.stdin.close()
-            await asyncio.wait_for(scientific_worker.process.wait(), 3)
+            scientific_worker.worker_process.stdin.close()
+            await asyncio.wait_for(scientific_worker.worker_process.wait(), 3)

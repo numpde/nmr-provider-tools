@@ -153,7 +153,7 @@ def warm_worker():
 
 class WarmWorker:
     async def start(self):
-        self.process = await asyncio.create_subprocess_exec(
+        self.worker_process = await asyncio.create_subprocess_exec(
             sys.executable,
             "-I",
             "-B",
@@ -167,11 +167,11 @@ class WarmWorker:
         self.initial = await self.call("snapshot")
 
     async def call(self, operation, job=None):
-        self.process.stdin.write(json.dumps({"operation": operation, "job": job}).encode() + b"\n")
-        await self.process.stdin.drain()
+        self.worker_process.stdin.write(json.dumps({"operation": operation, "job": job}).encode() + b"\n")
+        await self.worker_process.stdin.drain()
 
         # Worker IPC is not the original model HTTP request's deadline.
-        line = await asyncio.wait_for(self.process.stdout.readline(), 3)
+        line = await asyncio.wait_for(self.worker_process.stdout.readline(), 3)
 
         if not (line):
             raise AssertionError("The persistent worker stopped before the recovery verdict")
