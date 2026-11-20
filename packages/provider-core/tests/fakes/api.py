@@ -54,12 +54,12 @@ class Transport:
             self.pending_owner = owner
 
         self.calls.append((request, maximum_bytes))
-        result = next(self.replies)
+        exchange_outcome = next(self.replies)
 
-        if isinstance(result, BaseException):
-            raise result
+        if isinstance(exchange_outcome, BaseException):
+            raise exchange_outcome
 
-        return result
+        return exchange_outcome
 
 
 # silent-defaults: allow-contract -- The ordinary synthetic HTTP response is successful; tests explicitly choose refusal status.
