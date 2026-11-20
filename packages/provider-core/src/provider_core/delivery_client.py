@@ -187,8 +187,7 @@ class DeliveryClient:
     def _metadata(self, delivery_metadata):
         fields = {"job_ref", "execution_attempt_ref", "operation", "body_sha256", "body_bytes", "state"}
 
-        if not (type(delivery_metadata) is (expected_type := dict)):
-            raise DeliveryRejected(f"{type(delivery_metadata)=} ≠ {expected_type=}")
+        require_type(delivery_metadata, dict, error_factory=DeliveryRejected)
 
         if not (fields <= delivery_metadata.keys()):
             raise DeliveryRejected("Delivery metadata is missing its Job, Attempt or retained-body identity.")
@@ -205,14 +204,12 @@ class DeliveryClient:
         if not (delivery_metadata["state"] in ("pending", "held")):
             raise DeliveryRejected("Delivery metadata has an unsupported operation, state or body identity.")
 
-        if not (type((metadata_body_sha256 := delivery_metadata["body_sha256"])) is (expected_type := str)):
-            raise DeliveryRejected(f"{type(metadata_body_sha256)=} ≠ {expected_type=}")
+        require_type((metadata_body_sha256 := delivery_metadata["body_sha256"]), str, error_factory=DeliveryRejected)
 
         if re.fullmatch(r"sha256:[0-9a-f]{64}", delivery_metadata["body_sha256"]) is None:
             raise DeliveryRejected("Delivery metadata has an unsupported operation, state or body identity.")
 
-        if not (type((metadata_body_bytes := delivery_metadata["body_bytes"])) is (expected_type := int)):
-            raise DeliveryRejected(f"{type(metadata_body_bytes)=} ≠ {expected_type=}")
+        require_type((metadata_body_bytes := delivery_metadata["body_bytes"]), int, error_factory=DeliveryRejected)
 
         if delivery_metadata["body_bytes"] <= 0:
             raise DeliveryRejected("Delivery metadata has an unsupported operation, state or body identity.")
@@ -222,8 +219,7 @@ class DeliveryClient:
     async def pending(self):
         pending_inventory = await self._exchange_ipc_request("GET", "/pending")
 
-        if not (type(pending_inventory) is (expected_type := dict)):
-            raise DeliveryRejected(f"{type(pending_inventory)=} ≠ {expected_type=}")
+        require_type(pending_inventory, dict, error_factory=DeliveryRejected)
 
         if not ({"api_origin", "provider_ref", "items", "capacity", "publisher"} <= pending_inventory.keys()):
             raise DeliveryRejected("The pending inventory does not belong to the configured delivery binding.")
@@ -231,13 +227,11 @@ class DeliveryClient:
         if (pending_inventory["api_origin"], pending_inventory["provider_ref"]) != (self.endpoint.api_origin, self.endpoint.provider_ref):
             raise DeliveryRejected("The pending inventory does not belong to the configured delivery binding.")
 
-        if not (type((pending_delivery_records := pending_inventory["items"])) is (expected_type := list)):
-            raise DeliveryRejected(f"{type(pending_delivery_records)=} ≠ {expected_type=}")
+        require_type((pending_delivery_records := pending_inventory["items"]), list, error_factory=DeliveryRejected)
 
         publisher = pending_inventory["publisher"]
 
-        if not (type(publisher) is (expected_type := dict)):
-            raise DeliveryRejected(f"{type(publisher)=} ≠ {expected_type=}")
+        require_type(publisher, dict, error_factory=DeliveryRejected)
 
         if not (publisher.get("state") in ("inbox_only", "starting", "running", "paused", "stopping", "stopped")):
             raise DeliveryRejected("Delivery inventory has an unsupported publisher state.")
@@ -246,20 +240,17 @@ class DeliveryClient:
         # prevent ownership or capacity observation; they grant no admission.
         capacity = pending_inventory["capacity"]
 
-        if not (type(capacity) is (expected_type := dict)):
-            raise DeliveryRejected(f"{type(capacity)=} ≠ {expected_type=}")
+        require_type(capacity, dict, error_factory=DeliveryRejected)
 
         if not ({"provider_items", "provider_bytes"} <= capacity.keys()):
             raise DeliveryRejected("Delivery inventory requires positive item and byte allowances.")
 
-        if not (type((capacity_provider_items := capacity['provider_items'])) is (expected_capacity_provider_items_type := int)):
-            raise DeliveryRejected(f"{type(capacity_provider_items)=} ≠ {expected_capacity_provider_items_type=}")
+        require_type((capacity_provider_items := capacity['provider_items']), int, error_factory=DeliveryRejected)
 
         if capacity['provider_items'] <= 0:
             raise DeliveryRejected("Delivery inventory requires positive item and byte allowances.")
 
-        if not (type((capacity_provider_bytes := capacity['provider_bytes'])) is (expected_capacity_provider_bytes_type := int)):
-            raise DeliveryRejected(f"{type(capacity_provider_bytes)=} ≠ {expected_capacity_provider_bytes_type=}")
+        require_type((capacity_provider_bytes := capacity['provider_bytes']), int, error_factory=DeliveryRejected)
 
         if capacity['provider_bytes'] <= 0:
             raise DeliveryRejected("Delivery inventory requires positive item and byte allowances.")
