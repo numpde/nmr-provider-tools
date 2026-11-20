@@ -242,7 +242,7 @@ class CapturedModelTrustTests(unittest.TestCase):
             restored = restore_trust(snapshot, directory=grant)
             files = list(pathlib.Path(grant).glob("capath-*/*"))
 
-            self.assertEqual([path.name for path in files], ["44a46a84.0"])
+            self.assertEqual([ca_certificate_path.name for ca_certificate_path in files], ["44a46a84.0"])
             self.assertEqual(files[0].read_bytes(), self.certificate)
             self.assertIn(handshake(restored, self.certificate, self.key, "model.fixture"), ("TLSv1.2", "TLSv1.3"))
 
@@ -259,11 +259,11 @@ class CapturedModelTrustTests(unittest.TestCase):
         native_directory = tempfile.TemporaryDirectory
 
         def observed_directory(*args, **kwargs):
-            result = native_directory(*args, **kwargs)
+            temporary_directory = native_directory(*args, **kwargs)
 
-            created.append(pathlib.Path(result.name))
+            created.append(pathlib.Path(temporary_directory.name))
 
-            return result
+            return temporary_directory
 
         with patch("provider_core.chat_tls.tempfile.TemporaryDirectory", side_effect=observed_directory):
             snapshot = capture_trust(trust)
