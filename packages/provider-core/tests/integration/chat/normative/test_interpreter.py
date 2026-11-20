@@ -25,7 +25,7 @@ class SharedInterpreterCarrierTests(unittest.IsolatedAsyncioTestCase):
             call("finish", "prepare", {})
         ]
 
-        async def response(request, body):
+        async def response(_request_head, _body):
             return json.dumps({"choices": [{"message": replies.pop(0), "finish_reason": "tool_calls"}]}).encode()
 
         async def dispatch(name, arguments, *, not_after):
@@ -52,7 +52,7 @@ class SharedInterpreterCarrierTests(unittest.IsolatedAsyncioTestCase):
             owner = Interpreter(
                 factories,
                 interpretation_budget_seconds=10,
-                reject_combined_messages_and_tools_over_bytes=min(item.context_bytes for item in factories),
+                reject_combined_messages_and_tools_over_bytes=min(endpoint_factory.context_bytes for endpoint_factory in factories),
                 **interpreter_test_limits(),
                 secrets=("PRIVATE_KEY",)
             )
@@ -62,10 +62,10 @@ class SharedInterpreterCarrierTests(unittest.IsolatedAsyncioTestCase):
                 for name in ("inspect", "prepare")
             ]
 
-            result = await owner.run([], tools, dispatch)
+            interpretation_result = await owner.run([], tools, dispatch)
 
-            self.assertEqual(result.value, "prepared")
-            self.assertEqual(result.model_visit, 2)
+            self.assertEqual(interpretation_result.value, "prepared")
+            self.assertEqual(interpretation_result.model_visit, 2)
             self.assertTrue(owner.retirement_confirmed)
             self.assertEqual(len(peer.request_bodies), 3)
             self.assertTrue(all((len(body) <= 6000) for body in peer.request_bodies))
@@ -77,7 +77,7 @@ class SharedInterpreterCarrierTests(unittest.IsolatedAsyncioTestCase):
     async def test_real_https_retry_schema_query_and_single_preparation(self):
         count = 0
 
-        async def response(request, body):
+        async def response(_request_head, _body):
             nonlocal count
             count += 1
 
@@ -124,16 +124,16 @@ class SharedInterpreterCarrierTests(unittest.IsolatedAsyncioTestCase):
                 }
             ]
 
-            result = await owner.run([], tools, dispatch)
+            interpretation_result = await owner.run([], tools, dispatch)
 
-            self.assertEqual(result.value, "prepared")
+            self.assertEqual(interpretation_result.value, "prepared")
             self.assertEqual(len(peer.requests), 3)
-            self.assertEqual(json.loads(result.observations[0])["turns_started"], 2)
+            self.assertEqual(json.loads(interpretation_result.observations[0])["turns_started"], 2)
             dispatch.assert_awaited_once_with("prepare", {"format": "text"}, not_after=ANY)
             self.assertTrue(owner.retirement_confirmed)
 
     async def test_setup_cap_does_not_become_a_response_timeout_direct_or_through_proxy(self):
-        async def slow_response(request, body):
+        async def slow_response(_request_head, _body):
             await asyncio.sleep(0.3)
 
             return b"data"
@@ -192,7 +192,7 @@ class SharedInterpreterCarrierTests(unittest.IsolatedAsyncioTestCase):
     async def test_lost_reply_after_successful_connect_retries_same_model_without_science_replay(self):
         count = 0
 
-        async def response(request, body):
+        async def response(_request_head, _body):
             nonlocal count
             count += 1
 
@@ -220,9 +220,9 @@ class SharedInterpreterCarrierTests(unittest.IsolatedAsyncioTestCase):
             owner = Interpreter((build,), interpretation_budget_seconds=10, reject_combined_messages_and_tools_over_bytes=16384, **interpreter_test_limits(), secrets=("PRIVATE_KEY",))
             dispatch = AsyncMock(return_value=ToolFinished("prepared"))
             tools = [{"type": "function", "function": {"name": "prepare", "parameters": {"type": "object"}}}]
-            result = await owner.run([], tools, dispatch)
+            interpretation_result = await owner.run([], tools, dispatch)
 
-            self.assertEqual(result.value, "prepared")
+            self.assertEqual(interpretation_result.value, "prepared")
             self.assertEqual(len(peer.requests), 2)
             self.assertEqual(len(proxy.headers), 2)
             dispatch.assert_awaited_once()
