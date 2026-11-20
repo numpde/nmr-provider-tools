@@ -9,7 +9,7 @@ from provider_core.validation.upstream.nmr.v1.job_input import FeedInputFacts
 
 # silent-defaults: allow-contract -- The synthetic input body and its fingerprint describe the same fixture bytes.
 def response(payload=b"private instructions", **changes):
-    document = {
+    input_response_fields = {
         "schema_id": "nmr.provider.job_input.read.response.v1",
         "job_ref": "job:example",
         "input_schema_id": "nmr.job.specification.text.v1",
@@ -18,9 +18,9 @@ def response(payload=b"private instructions", **changes):
         "canonical_input_base64": base64.b64encode(payload).decode("ascii"),
     }
 
-    document.update(changes)
+    input_response_fields.update(changes)
 
-    return json.dumps(document, ensure_ascii=False, sort_keys=True, separators=(",", ":")).encode()
+    return json.dumps(input_response_fields, ensure_ascii=False, sort_keys=True, separators=(",", ":")).encode()
 
 
 # silent-defaults: allow-contract -- The synthetic input response describes its selected fixture bytes and limits.

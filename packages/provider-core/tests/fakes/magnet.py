@@ -72,8 +72,14 @@ class MagnetSession:
             raise ValueError("Magnet fixture preparation requires its exact live admitted input")
 
         self.phases.append(type(self.store.records[0]))
-        value = await self.interpreter(instructions.specification_bytes)
-        model_input = {"smiles": value["smiles"], "h_solvent": value["solvent"], "c_solvent": value["solvent"]}
+        interpreted_candidate = await self.interpreter(instructions.specification_bytes)
+
+        model_input = {
+            "smiles": interpreted_candidate["smiles"],
+            "h_solvent": interpreted_candidate["solvent"],
+            "c_solvent": interpreted_candidate["solvent"],
+        }
+
         candidate = json.dumps(model_input, sort_keys=True, separators=(",", ":")).encode()
         handle = PreparedAnalysis(ProtectedEvidence("fixture.magnet.input.v1", sha256(candidate).hexdigest().encode("ascii")))
         key = json.loads(acknowledged.start.body)["provider_attempt_key"]
@@ -90,11 +96,11 @@ class MagnetSession:
         self._prepared = None
 
         self.phases.append(type(self.store.records[0]))
-        result = await self.worker(model_input)
+        prediction_fields = await self.worker(model_input)
 
         return AnalysisSuccess(
             RESULT_SCHEMA_ID,
-            self._encode_prediction_report(key, model_input, result),
+            self._encode_prediction_report(key, model_input, prediction_fields),
             ProtectedEvidence("fixture.magnet.evidence.v1", b"scripted async product result"),
         )
 
@@ -102,11 +108,16 @@ class MagnetSession:
         self._prepared = None
         self.retired = True
 
-    def _encode_prediction_report(self, key, model_input, result):
+    def _encode_prediction_report(self, key, model_input, prediction_fields):
         return (
             json
             .dumps(
-                {"schema_id": RESULT_SCHEMA_ID, "provider_attempt_key": key, "model_input": model_input, "prediction": result},
+                {
+                    "schema_id": RESULT_SCHEMA_ID,
+                    "provider_attempt_key": key,
+                    "model_input": model_input,
+                    "prediction": prediction_fields,
+                },
                 sort_keys=True,
                 separators=(",", ":"),
             )
