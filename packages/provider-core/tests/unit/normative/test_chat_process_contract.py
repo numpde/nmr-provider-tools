@@ -104,7 +104,7 @@ class ChatProcessContractTests(unittest.IsolatedAsyncioTestCase):
         response_started = None
         response_ready = None
 
-        async def reply(_request, _body):
+        async def delayed_completion(_request_head, _body):
             nonlocal response_started, response_ready
             response_started = loop.time() - started
 
@@ -113,7 +113,7 @@ class ChatProcessContractTests(unittest.IsolatedAsyncioTestCase):
 
             return completion()
 
-        async with TlsPeer("success", response_factory=reply) as peer, launched_children() as children:
+        async with TlsPeer("success", response_factory=delayed_completion) as peer, launched_children() as children:
             url = peer.origin.replace("127.0.0.1", "localhost") + "/configured/chat"
             factory = self.factory(url, peer.trust, error_response_bytes=128)
             endpoint = factory(exchange_seconds=3, connect_seconds=1)
@@ -136,7 +136,7 @@ class ChatProcessContractTests(unittest.IsolatedAsyncioTestCase):
                 started = loop.time()
 
                 try:
-                    result = await endpoint.complete(messages, tools, not_after=started + 3)
+                    completion_message = await endpoint.complete(messages, tools, not_after=started + 3)
                 except ChatFailed as error:
                     evidence = failure_evidence(error, secrets=(factory.spec.api_key, "Authored scientific input"))
 
@@ -153,14 +153,14 @@ class ChatProcessContractTests(unittest.IsolatedAsyncioTestCase):
                     error.add_note(json.dumps(evidence))
                     raise
 
-                self.assertEqual(json.loads(completion())["choices"][0]["message"], result)
+                self.assertEqual(json.loads(completion())["choices"][0]["message"], completion_message)
                 self.assertEqual(1, len(peer.requests))
                 self.assertTrue(peer.requests[0].startswith(b"POST /configured/chat HTTP/1.1\r\n"))
                 headers = dict(line.split(b": ", 1) for line in peer.requests[0].split(b"\r\n")[1:] if b": " in line)
 
                 self.assertEqual(
                     b"Bearer PRIVATE_FIXTURE_KEY",
-                    {name.lower(): value for (name, value) in headers.items()}[b"authorization"]
+                    {header_name.lower(): header_value for (header_name, header_value) in headers.items()}[b"authorization"]
                 )
 
                 self.assertEqual(["localhost"], peer.server_names)
@@ -371,12 +371,12 @@ class ChatProcessContractTests(unittest.IsolatedAsyncioTestCase):
                 return returncode
 
             async def observed_read(size):
-                value = await original_read(size)
+                reply_chunk = await original_read(size)
 
-                if (size == 1) and (not value):
+                if (size == 1) and (not reply_chunk):
                     reply_eof.set()
 
-                return value
+                return reply_chunk
 
             (child.wait, child.stdout.read) = (held_wait, observed_read)
 
@@ -425,7 +425,7 @@ class ChatProcessContractTests(unittest.IsolatedAsyncioTestCase):
             with self.subTest(first_reply=first_reply):
                 replies = 0
 
-                async def response(_request, _body):
+                async def response(_request_head, _body):
                     nonlocal replies
                     replies += 1
 
@@ -454,9 +454,9 @@ class ChatProcessContractTests(unittest.IsolatedAsyncioTestCase):
                     tools = [{"type": "function", "function": {"name": "prepare", "parameters": {"type": "object"}}}]
 
                     try:
-                        result = await owner.run([], tools, dispatch)
+                        interpretation_result = await owner.run([], tools, dispatch)
 
-                        self.assertEqual("prepared", result.value)
+                        self.assertEqual("prepared", interpretation_result.value)
                         self.assertEqual(2, len(peer.requests))
                         dispatch.assert_awaited_once()
                         self.assertTrue(owner.retirement_confirmed)
