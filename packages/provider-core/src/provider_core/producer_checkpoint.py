@@ -185,7 +185,7 @@ class SuppressedCheckpoint:
 
 
 
-def _document(checkpoint):
+def _checkpoint_fields(checkpoint):
     if type(checkpoint) is StartPending:
         return {"kind": "start_pending", "start": json.loads(_encode_pending(checkpoint))}
 
@@ -197,28 +197,28 @@ def _document(checkpoint):
         }
 
     if type(checkpoint) is EnteredCheckpoint:
-        return {"kind": "entered", "acknowledgement": _document(checkpoint.acknowledgement), "prepared": asdict(checkpoint.prepared)}
+        return {"kind": "entered", "acknowledgement": _checkpoint_fields(checkpoint.acknowledgement), "prepared": asdict(checkpoint.prepared)}
 
     if type(checkpoint) is TerminalSelectedCheckpoint:
         return {
             "kind": "terminal_selected",
-            "attempt": _document(checkpoint.attempt),
+            "attempt": _checkpoint_fields(checkpoint.attempt),
             "operation": checkpoint.operation.value,
             "body_sha256": checkpoint.body_sha256,
             "body_bytes": checkpoint.body_bytes
         }
 
     if type(checkpoint) is DeliveryAcceptedCheckpoint:
-        return {"kind": "delivery_accepted", "selection": _document(checkpoint.selection)}
+        return {"kind": "delivery_accepted", "selection": _checkpoint_fields(checkpoint.selection)}
 
     if type(checkpoint) is SuppressedCheckpoint:
-        return {"kind": "suppressed", "attempt": _document(checkpoint.attempt), "reason": checkpoint.reason.value}
+        return {"kind": "suppressed", "attempt": _checkpoint_fields(checkpoint.attempt), "reason": checkpoint.reason.value}
 
     raise ValueError("Cannot encode this value as a producer control checkpoint; scientific records are not accepted.")
 
 
 def encode_checkpoint(checkpoint):
-    raw = json.dumps({"schema_id": SCHEMA, **_document(checkpoint)}, sort_keys=True, separators=(",", ":"), allow_nan=False).encode()
+    raw = json.dumps({"schema_id": SCHEMA, **_checkpoint_fields(checkpoint)}, sort_keys=True, separators=(",", ":"), allow_nan=False).encode()
 
     if not (len(raw) <= MAX_CHECKPOINT_BYTES):
         raise ValueError("Producer control checkpoint exceeds its metadata byte limit.")
