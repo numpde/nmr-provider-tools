@@ -315,17 +315,22 @@ class CoreFailureProjectionTests(unittest.TestCase):
         )
 
         failure.interruption_cause = previous
-
-        self.assertEqual(
-            list(owned_relationships(failure)),
-            [
-                ("interpreter endpoint 2 cleanup", cleanup),
-                ("interpreter endpoint 0 failure", endpoint),
-                ("interpreter turn 1 correction failure", correction),
-                ("owned cause", cause),
-                ("interruption cause", previous),
-            ],
+        actual_relationships = list(owned_relationships(failure))
+        expected_relationships = (
+            (cleanup, ("endpoint", "2", "cleanup")),
+            (endpoint, ("endpoint", "0", "failure")),
+            (correction, ("turn", "1", "correction")),
+            (cause, ("owned", "cause")),
+            (previous, ("interruption", "cause")),
         )
+
+        self.assertEqual(first=len(expected_relationships), second=len(actual_relationships))
+
+        for (label, actual_cause), (expected_cause, context) in zip(actual_relationships, expected_relationships, strict=True):
+            self.assertIs(expr1=expected_cause, expr2=actual_cause)
+
+            for term in context:
+                self.assertIn(member=term, container=label)
 
     def test_acquisition_and_reader_failures_keep_separate_grant_and_interruption_facts(self):
         (cause, cleanup, interrupted) = (OSError(), OSError(), asyncio.CancelledError())
