@@ -272,8 +272,8 @@ def failure_message(failure):
     }
 
 
-def _read_failure(document):
-    nodes = document["nodes"]
+def _read_failure(failure_reply):
+    nodes = failure_reply["nodes"]
 
     require_type(nodes, list)
 
@@ -355,12 +355,12 @@ def _read_failure(document):
 
         current.__suppress_context__ = node["suppress_context"]
 
-    head = document["head"]
+    head = failure_reply["head"]
 
     if head is not None:
         head = HttpResponseHead(require_http_status(head["status"]), _read_headers(head["headers"]))
 
-    network = document["network"]
+    network = failure_reply["network"]
 
     if network is not None:
         for name in ("stage", "unix_path", "configured_unix_path"):
@@ -382,19 +382,19 @@ def _read_failure(document):
             deadline_cancelled=network["deadline_cancelled"],
         )
 
-    proxy_status = document["proxy_status"]
+    proxy_status = failure_reply["proxy_status"]
 
     if proxy_status is not None:
         require_http_status(proxy_status)
 
-    message = document["message"]
+    message = failure_reply["message"]
 
     require_type(message, str)
 
     if not (len(message) <= _ERROR_TEXT):
         raise ValueError("Interpreter child failure message is malformed")
 
-    cleanup = document["cleanup"]
+    cleanup = failure_reply["cleanup"]
 
     require_type(cleanup, list)
 
@@ -403,14 +403,14 @@ def _read_failure(document):
 
     return ExchangeFailed(
         message,
-        primary=error(document["primary"]),
+        primary=error(failure_reply["primary"]),
         cleanup_failures=[error(index) for index in cleanup],
-        interruption=error(document["interruption"]),
+        interruption=error(failure_reply["interruption"]),
         response_head=head,
         proxy_connect_status=proxy_status,
-        network_failure=error(document["network_failure"]),
+        network_failure=error(failure_reply["network_failure"]),
         network_io=network,
-        caller_interruption=error(document["caller_interruption"]),
+        caller_interruption=error(failure_reply["caller_interruption"]),
     )
 
 
