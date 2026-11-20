@@ -639,8 +639,7 @@ class AttemptController:
                 self._lifetime = _Lifetime.HELD
 
     def _reserve_start(self, pending):
-        if not (type(pending) is (expected_type := StartPending)):
-            raise ControllerRefused(f"{type(pending)=} ≠ {expected_type=}")
+        require_type(pending, StartPending, error_factory=ControllerRefused)
 
         if pending.scope != self.scope:
             raise ControllerRefused("Live START requires the selected API, provider, lane and generation")
