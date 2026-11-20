@@ -65,9 +65,9 @@ def _records(values: object, record_type: type[object], label: str) -> None:
     if not (type(values) is (expected_type := tuple)):
         raise TypeError(f"{label=}; {type(values)=} ≠ {expected_type=}")
 
-    for value in values:
-        if not (type(value) is (expected_type := record_type)):
-            raise TypeError(f"{label=}; {type(value)=} ≠ {expected_type=}")
+    for record in values:
+        if not (type(record) is (expected_type := record_type)):
+            raise TypeError(f"{label=}; {type(record)=} ≠ {expected_type=}")
 
 
 def _set_records(values: object, record_type: type[object], label: str) -> None:
@@ -76,13 +76,13 @@ def _set_records(values: object, record_type: type[object], label: str) -> None:
     if not (type(values) is (expected_type := frozenset)):
         raise TypeError(f"{label=}; {type(values)=} ≠ {expected_type=}")
 
-    for value in values:
-        if not (type(value) is (expected_type := record_type)):
-            raise TypeError(f"{label=}; {type(value)=} ≠ {expected_type=}")
+    for record in values:
+        if not (type(record) is (expected_type := record_type)):
+            raise TypeError(f"{label=}; {type(record)=} ≠ {expected_type=}")
 
 
 def _unique(values: Collection[object], key: Callable[[object], object], label: str) -> None:
-    if len({key(value) for value in values}) != len(values):
+    if len({key(record) for record in values}) != len(values):
         raise ValueError(f"Cannot configure {label = }: it cannot contain duplicates.")
 
 
@@ -536,9 +536,9 @@ class CallDescription:
         _identity(self.input_format, "Input format")
         _identity(self.result_format, "Result format")
         _records(self.state_inputs, StateParameter, "State parameters")
-        _unique(self.state_inputs, lambda value: value.name, "State parameters")
+        _unique(self.state_inputs, lambda state_parameter: state_parameter.name, "State parameters")
         _records(self.state_outputs, StateOutput, "State outputs")
-        _unique(self.state_outputs, lambda value: value.name, "State outputs")
+        _unique(self.state_outputs, lambda state_output: state_output.name, "State outputs")
         _require_resource_requirements(resource_requirements=self.resources)
 
         require_type(self.concurrency, ConcurrencyRequirement)
@@ -574,13 +574,13 @@ class ImplementationDescription:
             require_type(actual_configuration, ConfigurationDescription)
 
         _set_records(values=self.assets, record_type=AssetDescription, label="Scientific assets")
-        _unique(self.assets, lambda value: value.name, "Scientific assets")
+        _unique(self.assets, lambda asset: asset.name, "Scientific assets")
         _set_records(values=self.calls, record_type=CallDescription, label="Call descriptions")
 
         if not (self.calls):
             raise ValueError("An implementation must declare at least one call")
 
-        _unique(self.calls, lambda value: value.name, "Call descriptions")
+        _unique(self.calls, lambda call_description: call_description.name, "Call descriptions")
         _require_resource_requirements(resource_requirements=self.resident_resources)
 
         require_type(self.isolation, IsolationRequirement)
@@ -668,7 +668,7 @@ class ScientificReturn[OutputT]:
 
     def __post_init__(self) -> None:
         _records(self.states, ReturnedState, "Returned scientific states")
-        _unique(self.states, lambda value: value.name, "Returned scientific states")
+        _unique(self.states, lambda returned_state: returned_state.name, "Returned scientific states")
 
         if self.dispose_value is not None:
             _callback(self.dispose_value, "Scientific return disposal")
@@ -755,12 +755,10 @@ class CallBinding[InputT, StateT, OutputT]:
     def __post_init__(self) -> None:
         require_type(self.description, CallDescription)
 
-        for (codec, label) in (
-            (self.input_codec, "Input codec"),
-            (self.result_codec, "Result codec"),
-        ):
-            if not isinstance(codec, (expected_codec_type := PayloadCodec)):
-                raise TypeError(f"{label=}; {type(codec)=} ≠ {expected_codec_type=}")
+        (input_codec, result_codec) = (self.input_codec, self.result_codec)
+
+        require_instance(input_codec, PayloadCodec)
+        require_instance(result_codec, PayloadCodec)
 
         if self.input_codec.format != self.description.input_format:
             raise ValueError("Input codec format differs from the call description")
