@@ -78,8 +78,8 @@ def shared_item_lines(*, source: str) -> list[tuple[int, int, int]]:
                 opening_line = lines[frame.opening.start[0] - 1]
                 indent = len(opening_line) - len(opening_line.lstrip()) + 4
 
-                for item in frame.items:
-                    first = item[0]
+                for item_tokens in frame.items:
+                    first = item_tokens[0]
 
                     if not lines[first.start[0] - 1][:first.start[1]].strip():
                         indent = first.start[1]
