@@ -54,8 +54,7 @@ def read_jobs_page(raw, *, analysis_kind_ref, has_provider_execution_attempt, li
     """Bind a complete page to admitted request facts; preserve server ordering."""
     jobs_response = read_document(raw, PAGE_RESPONSE_BYTES)
 
-    if not (type(jobs_response) is (expected_type := dict)):
-        raise ResponseRejected(f"{type(jobs_response)=} ≠ {expected_type=}")
+    require_type(jobs_response, dict, error_factory=ResponseRejected)
 
     response_fields = set(jobs_response)
 
@@ -78,16 +77,14 @@ def read_jobs_page(raw, *, analysis_kind_ref, has_provider_execution_attempt, li
     if not ((observed_analysis_kind_ref := jobs_response["analysis_kind_ref"]) == analysis_kind_ref):
         raise ResponseRejected(f"{observed_analysis_kind_ref=} should match {analysis_kind_ref=}")
 
-    if not (type((observed_has_provider_execution_attempt := jobs_response["has_provider_execution_attempt"])) is (expected_type := bool)):
-        raise ResponseRejected(f"{type(observed_has_provider_execution_attempt)=} ≠ {expected_type=}")
+    require_type((observed_has_provider_execution_attempt := jobs_response["has_provider_execution_attempt"]), bool, error_factory=ResponseRejected)
 
     if not (observed_has_provider_execution_attempt == has_provider_execution_attempt):
         raise ResponseRejected(f"{observed_has_provider_execution_attempt=} should match {has_provider_execution_attempt=}")
 
     jobs = jobs_response["jobs"]
 
-    if not (type(jobs) is (expected_type := list)):
-        raise ResponseRejected(f"{type(jobs)=} ≠ {expected_type=}")
+    require_type(jobs, list, error_factory=ResponseRejected)
 
     job_count = len(jobs)
 
@@ -112,8 +109,7 @@ def read_jobs_page(raw, *, analysis_kind_ref, has_provider_execution_attempt, li
 
 
 def _read_job(job, analysis_kind_ref):
-    if not (type(job) is (expected_type := dict)):
-        raise ResponseRejected(f"{type(job)=} ≠ {expected_type=}")
+    require_type(job, dict, error_factory=ResponseRejected)
 
     job_fields = set(job)
 
