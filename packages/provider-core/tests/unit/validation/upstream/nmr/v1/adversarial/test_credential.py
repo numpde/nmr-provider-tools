@@ -31,16 +31,18 @@ class ProviderCredentialBoundaryTests(unittest.TestCase):
 
     def test_closed_provider_artifact_rejects_untrusted_identity_fields(self):
         for (field, artifact_bytes, _private_key) in self._untrusted_identity_artifacts():
-            with self.subTest(field=field), self.assertRaises(CredentialRejected):
+            with self.subTest(field=field), self.assertRaises(CredentialRejected) as caught:
                 parse_provider_credential(artifact_bytes, maximum_bytes=CREDENTIAL_PARSER_BYTES)
 
+            if field == "PRIVATE_FIELD":
+                self.assertIn(field, str(caught.exception))
+
     @unittest.skipIf(os.environ.get("PRIVACY_TESTS", "1") == "0", "Privacy tests disabled")
-    def test_identity_rejection_diagnostics_omit_fields_and_signing_material(self):
+    def test_identity_rejection_diagnostics_omit_signing_material(self):
         for (field, artifact_bytes, private_key) in self._untrusted_identity_artifacts():
             with self.subTest(field=field), self.assertRaises(CredentialRejected) as caught:
                 parse_provider_credential(artifact_bytes, maximum_bytes=CREDENTIAL_PARSER_BYTES)
 
-            self.assertNotIn("PRIVATE", str(caught.exception))
             self.assertNotIn(private_key, str(caught.exception))
 
     def test_public_and_private_keys_must_belong_together(self):

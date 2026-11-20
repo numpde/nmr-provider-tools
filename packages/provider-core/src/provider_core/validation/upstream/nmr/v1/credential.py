@@ -15,6 +15,7 @@ require_container()
 
 import base64
 import json
+import reprlib
 from dataclasses import dataclass, field
 
 from cryptography.exceptions import UnsupportedAlgorithm
@@ -26,9 +27,9 @@ from provider_core.response_json import ResponseRejected, read_document
 from provider_core.type_requirements import require_instance, require_type
 from provider_core.validation.upstream.nmr.v1.signing import require_credential_ref
 
-# The issued credential profile has a closed field set.
+# The issued credential profile has a closed field set
 # repo-check: allow-module-constant
-_FIELDS = {
+_EXPECTED_CREDENTIAL_FIELDS = {
     "schema_id",
     "profile",
     "principal_ref",
@@ -65,8 +66,13 @@ def parse_provider_credential(raw, *, maximum_bytes):
 
     require_type(credential_fields, dict, error_factory=CredentialRejected)
 
-    if not (set(credential_fields) == _FIELDS):
-        raise CredentialRejected("the seven API-issued fields must be present and contain text.")
+    credential_field_names = set(credential_fields)
+
+    if not (credential_field_names == _EXPECTED_CREDENTIAL_FIELDS):
+        missing_fields = sorted(_EXPECTED_CREDENTIAL_FIELDS - credential_field_names)
+        unexpected_fields = sorted(credential_field_names - _EXPECTED_CREDENTIAL_FIELDS)
+
+        raise CredentialRejected(f"{reprlib.repr(missing_fields)=}; {reprlib.repr(unexpected_fields)=} should be empty")
 
     for (field_name, credential_value) in credential_fields.items():
         require_type(
@@ -83,7 +89,7 @@ def parse_provider_credential(raw, *, maximum_bytes):
         raise CredentialRejected("artifact text must be valid UTF-8.", cause=cause) from None
 
     if not (raw == canonical):
-        raise CredentialRejected("use the original canonical JSON document followed by one newline.")
+        raise CredentialRejected("Expected canonical JSON with one trailing newline.")
 
     if not (
         (credential_fields["schema_id"] == "nmr.provider.private_signing_credential.v1") and
@@ -111,7 +117,7 @@ def _signing_key(credential_fields):
         public_der = base64.b64decode(credential_fields["public_key_spki_der_b64"], validate=True)
 
         if not (base64.b64encode(public_der).decode("ascii") == credential_fields["public_key_spki_der_b64"]):
-            raise ValueError("Public key base64 is not canonical.")
+            raise ValueError("Public key base64 should be canonical.")
 
         public_key = load_der_public_key(public_der)
         private_key = load_pem_private_key(credential_fields["private_key_pkcs8_pem"].encode("ascii"), password=None)
