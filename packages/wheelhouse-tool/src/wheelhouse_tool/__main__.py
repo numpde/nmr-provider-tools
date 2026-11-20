@@ -420,11 +420,11 @@ def main():
         if args.local_lock is not None:
             require_pylock_filename(args.local_lock.name)
 
-        document = read_lock(args.lock)
-        artifacts = selected(args.lock, prefer_sdist, require_sdist, document, args.source_lock)
+        dependency_lock = read_lock(args.lock)
+        artifacts = selected(args.lock, prefer_sdist, require_sdist, dependency_lock, args.source_lock)
 
         if args.action == "select":
-            result = {
+            artifact_report = {
                 "artifacts": [
                     {"package": str(package.name), "filename": name, "sha256": digest}
                     for (name, digest, _, package, _) in artifacts
@@ -434,10 +434,10 @@ def main():
             if args.pool is None:
                 raise ValueError("Cannot inspect wheelhouse: supply --pool.")
 
-            result = run(args.action, args.lock, args.pool, artifacts=artifacts)
+            artifact_report = run(args.action, args.lock, args.pool, artifacts=artifacts)
 
         if args.local_lock is not None:
-            output = local_lock(args.lock, args.local_root, document=document, artifacts=artifacts)
+            output = local_lock(args.lock, args.local_root, document=dependency_lock, artifacts=artifacts)
             stream = args.local_lock.open("x")
 
             try:
@@ -452,7 +452,7 @@ def main():
 
         return 1
 
-    print(json.dumps(result, sort_keys=True))
+    print(json.dumps(artifact_report, sort_keys=True))
 
     return 0
 
