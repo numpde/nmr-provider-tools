@@ -241,18 +241,20 @@ and unavailable. Preserve the original host and cleanup evidence until settled.
 
 The [NMRPeak startup](../../examples/nmrpeak-mock-provider/src/nmrpeak_mock_provider/provider.py)
 defaults to `backend = "thread"` when the setting is absent. Process selection is
-explicit: set `backend = "process"` under `[execution]`, retain exactly one
-configured `[[science.hf]]` or `[[science.chf]]` offering, and supply a fresh
-deployment-owned session. The shipped configuration contains two offerings and
-must be narrowed. Both modes read host options from the existing
-`[execution.in_process_execution_host]` table.
+explicit: set `backend = "process"` under `[execution]` and supply one fresh
+deployment-owned session per `(family, configuration index)` through
+`process_sessions`. Each configured model has its own one-allocation process host.
+The shipped HF/CHF configuration declares static `process_capacity` shares whose
+aggregate input/result/state totals must fit `[execution.in_process_execution_host]`.
+Progress history remains per-operation policy; hardware grants belong to deployment.
 
 Process mode requires the installed mock `Model` class exactly; an arbitrary
 injected model constructor is not a supported child factory. Its installed
 [factory](../../examples/nmrpeak-mock-provider/src/nmrpeak_mock_provider/process_factory.py)
 reconstructs settings in the child, and startup resolves the checkpoint path
 before the worker enters its private directory. With deployment-supplied endpoint
-factories, secrets, receiver and source text, the existing async request path is:
+factories, secrets, receiver, source text and the fresh session mapping, the async
+request path is:
 
 ```python
 from nmrpeak_mock_provider.fake_model import Model as MockModel
@@ -262,9 +264,9 @@ async with open_offerings(
     create_model=MockModel,
     endpoint_factories=endpoint_factories,
     secrets=secrets,
-    process_session=process_session,
+    process_sessions=process_sessions,
 ) as offerings:
-    (offering,) = offerings
+    offering = next(offering for offering in offerings if offering.family == "hf")
 
     async with offering.open_prediction(receive=receive_report) as prediction:
         await prediction.interpret(source=source_text)
@@ -273,7 +275,7 @@ async with open_offerings(
 
 The provider owns receiver, analysis and interpreter settlement in that order.
 Further predictions can use the same offering sequentially. Thread mode accepts
-the existing injected constructors and rejects an unused `process_session`.
+the existing injected constructors and rejects unused `process_sessions`.
 
 ## Retained scientific submissions
 

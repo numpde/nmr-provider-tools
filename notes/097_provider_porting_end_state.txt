@@ -38,3 +38,121 @@ configuration, using its unchanged workflow on both backends, with demonstrated
 reuse, failure and retirement. Copying execution machinery, modifying the SDK for
 ordinary integration, or adding backend branches inside the workflow indicates a
 remaining gap. Real-model/GPU and deployment qualification remain separate gates.
+
+## Dummy port: minimal startup and observed SDK friction
+
+Dummy now has explicit deployment-selected startup and an installed constructor
+for its weighted contribution. The same constructor captures scientific settings
+and coefficient arrays in either owner; only the selected process constructs its
+process-local contribution. Both startups initialize the model before yielding.
+The thread initializer is called explicitly after adoption; process start already
+performs initialization. Partial initialization and host retirement remain SDK-owned.
+
+ProcessExecutionHost accepts one contribution/allocation per native session. Dummy
+therefore selects one weighted offering; its separate stateless Sum remains a
+binding example rather than silently adding a second worker or resource allowance.
+The caller supplies the deployment-owned native RunnerSession for process startup.
+Configuration refusal before host construction leaves that session with its caller.
+
+Process hosted contributions have no parent scientific receiver. Portable callers
+use hosted.call and SDK Submission.from_call instead of submit_method. The same
+prepare/calculate sequence can then run on either backend with the custom sample
+codec and analysis-local scientific session unchanged. No application module is
+needed: Dummy has no additional request decision beyond those two scientific calls.
+The SDK retains each original Submission/operation; another wait or submit on that
+Submission does not create scientific work. Installed startup tests cover rejection
+and correction, state transfer, report consumption, model/child reuse and retirement.
+Development snapshots passed the maintained installed integration lane with
+DOCKER_CONTEXT=science, WHEELHOUSE=/home/ra/Downloads/wheelhouse and PRIVACY_TESTS=0:
+test_dummy_startup.py (2 Dummy tests, /tmp/dummy-startup-integration.log),
+test_binding.py (6 Dummy tests, /tmp/dummy-binding-integration.log), and
+test_execution.py (2 Dummy tests plus 1 core integration test with the same
+basename, /tmp/dummy-execution-integration.log). Repository checks were excluded.
+Full integration on the final clean committed revision remains pending.
+
+Spectrum port: concrete SDK friction (dirty-source development checks passed)
+
+Spectrum retains baseline subtraction followed by peak detection as two independent
+scientific stages. ProcessExecutionHost admits exactly one allocation, so provider
+composition owns two SDK hosts and two analysis lifetimes on both backends; no SDK
+composite executor or scheduler is introduced. The workflow uses the same retained
+submissions and portable baseline-result handoff on either backend.
+
+Each SDK host owns independent aggregate input_bytes, result_bytes and state_values
+counters. There is no enclosing SDK counter pool spanning process hosts. Spectrum
+therefore validates explicit static stage shares against one enclosing allowance
+before taking native runner sessions. It cannot borrow an idle stage's share. These
+are SDK accounting limits, not hardware grants; CPU/device availability remains
+deployment-owned. Copying a complete enclosing allowance to each host would silently
+multiply that allowance and is not the selected design.
+
+The SDK requires positive state_values even for stateless scientific contributions.
+The example configuration explicitly grants two slots, one per host, rather than
+silently increasing a previous one-slot allowance. progress_records bounds retained
+history per operation and is not summed as an aggregate host counter. Initialization
+and retirement time allowances remain per-host policy. Shared counter pooling and
+zero-state-slot hosts are concrete remaining SDK integration constraints, not
+reasons to add provider execution machinery.
+
+Reference port observations (2026-11-20, focused development evidence):
+- The installed Reference constructor receives explicit matching settings and
+  reference records. Both startup paths use it; scientific functions and the
+  query sequence have no backend branches. Process startup requires an external
+  RunnerSession rather than inventing native acquisition policy.
+- Portable analysis access uses reservation(allocation=...). The previous
+  Reference .reservations convenience was thread-specific; the existing common
+  lookup and Submission.from_call suffice without SDK changes.
+- Thread adoption retains lazy first-query index initialization. Persistent
+  process start initializes the child before yielding. This is an honest SDK
+  readiness difference, documented locally rather than hidden by extra machinery.
+- One Reference provider owns one host/allocation; sequential analyses reuse it.
+  Existing thread tests witness one index build and index identity reuse. The
+  installed process test witnesses unchanged query sequencing in the same live
+  child and native retirement; it adds no diagnostic scientific operation.
+- Focused maintained integration selections passed on dirty development source:
+  test_reference_backends.py (4 tests, both backends, including an interrupted
+  observation of the original submission, earlier result after later rejection,
+  shared application sequence, installed child construction and retirement) and
+  test_reference_workflow.py (3 tests, including previous delivery before later
+  failed-query cleanup). Logs: /tmp/reference-backends-final.log and
+  /tmp/reference-workflow.log. Snapshot evidence: /tmp/reference-development.diff,
+  /tmp/reference-development-sha256.txt and /tmp/reference-development-status.txt.
+  This is provisional focused evidence; final clean committed full integration,
+  real-model/GPU and deployment qualification remain separate gates.
+
+NMRPeak port: independent model ownership (dirty-source development checks passed)
+
+The previous process path admitted one configured model. Startup now composes one
+existing SDK process host per configured (family, index), supplied with a distinct
+deployment-owned session. The prediction workflow is unchanged. These positional
+keys select fresh startup entries; the surrounding service still owns durable
+offering identities and native deployment grants.
+
+Each model declares static process_capacity shares of the provider's aggregate
+input, result and state allowance. Startup rejects an overgrant, missing session
+or reused session before constructing any host. Progress retention remains per
+operation. Thread allocations keep their existing shared-host aggregate counters;
+process hosts cannot borrow another model's unused share. Hardware budgets remain
+deployment responsibilities, rather than being inferred from these SDK counters.
+
+Each entered host remains owned while a later model starts; AsyncExitStack unwinds
+every entered lifetime if a later child fails. Existing scientific workflows need
+no backend branch or parent model access. New installed cases exercise HF retirement
+while CHF serves sequential requests, pre-acquisition capacity refusal preserving
+caller descriptors, and failed CHF startup retiring the earlier HF child. The SDK
+supports this composition without a new supervisor, registry or scheduler.
+
+The maintained installed test_peak_example.py selection passed all 33 tests with
+no skips, including these three new composition cases and the original lifecycle
+regressions. Receipt: /tmp/nmr-port-peak-example.log. This is focused development
+evidence; final clean committed full integration remains pending.
+
+Spectrum development proof: maintained installed-consumer integration targets passed
+with DOCKER_CONTEXT=science, WHEELHOUSE=/home/ra/Downloads/wheelhouse and
+PRIVACY_TESTS=0, selecting exact filenames sequentially: test_spectrum_process.py
+(5 tests), test_spectrum_workflow.py (11), test_spectrum_binding.py (4), and
+test_spectrum_science.py (9). Logs: /tmp/spectrum-process-port-escalated.log,
+/tmp/spectrum-workflow-port.log, /tmp/spectrum-binding-port.log and
+/tmp/spectrum-science-port.log. These are dirty-source development checks; full
+integration against the final committed candidate remains pending. Repository
+checks were excluded. Real-model/GPU and deployment qualification remain separate.
