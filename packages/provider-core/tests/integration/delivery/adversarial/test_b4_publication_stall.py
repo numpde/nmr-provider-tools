@@ -114,7 +114,7 @@ class PublicationStorageStallTests(unittest.IsolatedAsyncioTestCase):
                         # operation/receipt facts, rather than a timeout error.
                         pass
 
-                    waiting = self.queue.next_pending(item.api_origin, item.provider_ref)
+                    waiting = self.queue.next_pending(delivery_outcome.api_origin, delivery_outcome.provider_ref)
                     notice_evidence = []
 
                     for (failure, facts, _) in notices:
@@ -133,7 +133,7 @@ class PublicationStorageStallTests(unittest.IsolatedAsyncioTestCase):
                             "api_retirement_confirmed": client.retirement_confirmed,
                             "original_storage_call_count": len(removal_calls),
                             "storage_released": release_removal.is_set(),
-                            "original_report_retained": waiting == item,
+                            "original_report_retained": waiting == delivery_outcome,
                             "request_count": len(peer.requests),
                             "notices": notice_evidence,
                         },
@@ -142,9 +142,9 @@ class PublicationStorageStallTests(unittest.IsolatedAsyncioTestCase):
 
                     self.assertFalse(original.done(), msg=evidence)
                     self.assertFalse(release_removal.is_set(), msg=evidence)
-                    self.assertEqual([item], removal_calls, msg=evidence)
-                    self.assertEqual(item, waiting, msg=evidence)
-                    self.assertEqual([item.body], peer.request_bodies, msg=evidence)
+                    self.assertEqual([delivery_outcome], removal_calls, msg=evidence)
+                    self.assertEqual(delivery_outcome, waiting, msg=evidence)
+                    self.assertEqual([delivery_outcome.body], peer.request_bodies, msg=evidence)
                     self.assertTrue(worker._api_receipt_received, msg=evidence)
                     self.assertTrue(client.retirement_confirmed, msg=evidence)
 
@@ -158,7 +158,7 @@ class PublicationStorageStallTests(unittest.IsolatedAsyncioTestCase):
 
                     self.assertIsNotNone(failure, msg="DeliveryNotices must emit this event at warning severity")
 
-                    for (name, value) in item.acceptance().items():
+                    for (name, value) in delivery_outcome.acceptance().items():
                         self.assertEqual(value, stalled[name], msg=evidence)
 
                     self.assertIs(stalled["api_receipt_received"], True, msg=evidence)
@@ -175,8 +175,8 @@ class PublicationStorageStallTests(unittest.IsolatedAsyncioTestCase):
                     await asyncio.sleep(alert_seconds + 0.02)
 
                     self.assertEqual(1, len(notices), msg=evidence)
-                    self.assertEqual([item], removal_calls, msg=evidence)
-                    self.assertEqual([item.body], peer.request_bodies, msg=evidence)
+                    self.assertEqual([delivery_outcome], removal_calls, msg=evidence)
+                    self.assertEqual([delivery_outcome.body], peer.request_bodies, msg=evidence)
                     release_removal.set()
                     await asyncio.wait_for(asyncio.shield(original), 3)
                 finally:
@@ -195,13 +195,13 @@ class PublicationStorageStallTests(unittest.IsolatedAsyncioTestCase):
             self.assertIs(published["recovered"], True)
             self.assertGreater(published["publication_wait_seconds"], stalled["publication_wait_seconds"])
 
-            for (name, value) in item.acceptance().items():
+            for (name, value) in delivery_outcome.acceptance().items():
                 self.assertEqual(value, published[name])
 
-            self.assertEqual([item], removal_calls)
-            self.assertEqual([item.body], peer.request_bodies)
-            verify_signed_request(peer.requests[0], item.body, origin=peer.origin, key=client.identity.private_key)
-            self.assertEqual([], self.queue.inventory(item.api_origin, item.provider_ref))
+            self.assertEqual([delivery_outcome], removal_calls)
+            self.assertEqual([delivery_outcome.body], peer.request_bodies)
+            verify_signed_request(peer.requests[0], delivery_outcome.body, origin=peer.origin, key=client.identity.private_key)
+            self.assertEqual([], self.queue.inventory(delivery_outcome.api_origin, delivery_outcome.provider_ref))
             self.assertTrue(client.retirement_confirmed)
 
     async def test_stop_and_failed_warning_output_preserve_the_original_storage_operation(self):
@@ -367,6 +367,6 @@ class PublicationStorageStallTests(unittest.IsolatedAsyncioTestCase):
             await asyncio.sleep(alert_seconds + 0.02)
 
             self.assertEqual(["delivery_published"], [facts["event"] for (_, facts) in notices])
-            self.assertEqual([delivery_outcome.body], peer.request_bodies)
-            self.assertEqual([], self.queue.inventory(delivery_outcome.api_origin, delivery_outcome.provider_ref))
+            self.assertEqual([item.body], peer.request_bodies)
+            self.assertEqual([], self.queue.inventory(item.api_origin, item.provider_ref))
             self.assertTrue(client.retirement_confirmed)
