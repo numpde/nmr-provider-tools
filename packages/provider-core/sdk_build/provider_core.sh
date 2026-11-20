@@ -7,14 +7,14 @@ printing=false
 if [[ $# -gt 0 && $1 == --print ]]; then printing=true; shift; fi
 if [[ $# != 1 ]]; then printf '%s\n' 'Supply one provider-core target from make help.' >&2; exit 2; fi
 action=$1
-case "$action" in download|check|unit|contract|integration|integration/delivery|fuzz|build|package) ;;
+case "$action" in download|check|unit|native|contract|integration|integration/delivery|fuzz|build|package) ;;
     *) printf 'Cannot select provider-core operation %q. Use make help.\n' "$action" >&2; exit 2 ;;
 esac
 # Only an explicit single test filename may narrow the installed suites.
 selected_pattern='test*.py'
 if [[ -v TEST_PATTERN_INPUT_ORIGIN && $TEST_PATTERN_INPUT_ORIGIN == 'command line' ]]; then
-    case $action in unit|contract|integration) ;;
-        *) printf '%s\n' 'TEST_PATTERN is accepted only by unit, contract or integration provider-core tests.' >&2; exit 2 ;;
+    case $action in unit|native|contract|integration) ;;
+        *) printf '%s\n' 'TEST_PATTERN is accepted only by unit, native, contract or integration provider-core tests.' >&2; exit 2 ;;
     esac
     if [[ ! -v TEST_PATTERN_INPUT || ! $TEST_PATTERN_INPUT =~ ^test_[A-Za-z0-9_]+\.py$ ]]; then
         printf '%s\n' 'Cannot select provider-core test: TEST_PATTERN must be one test_<name>.py filename.' >&2
@@ -139,7 +139,7 @@ case "$action" in
             --entrypoint python3 "$tool_image" -B -m sdk_build.provider_core_acquire verify)
         budget=60
         ;;
-    unit|contract|integration|integration/delivery|fuzz)
+    unit|native|contract|integration|integration/delivery|fuzz)
         # The installed cryptography extension requires executable mappings.
         # Only /runtime has that grant; build scratch remains noexec under /tmp.
         pattern=$selected_pattern

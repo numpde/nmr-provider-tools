@@ -242,9 +242,13 @@ def run_suite(suite: str, patterns: tuple[str, ...]) -> None:
             candidate_output,
         )
 
-        # Behavioral suites need their pinned test closure. Contract and native
-        # installation proofs remain dependency-pure.
-        install_lock = candidate_lock
+        native_lock = candidate_output / candidate_wheel.name.replace(
+            "-py3-none-any.whl",
+            "-native-install.lock",
+        )
+
+        # Keep optional API and test dependencies out of native test environments
+        install_lock = native_lock if suite == "native" else candidate_lock
 
         if suite in ("unit", "integration", "integration/delivery", "fuzz"):
             install_lock = behavioral_install_lock(
@@ -347,11 +351,6 @@ def run_suite(suite: str, patterns: tuple[str, ...]) -> None:
 
         # A named unit test file is a focused run, not a full native qualification.
         if (suite == "unit") and (patterns == ("test*.py",)):
-            native_lock = candidate_output / candidate_wheel.name.replace(
-                "-py3-none-any.whl",
-                "-native-install.lock",
-            )
-
             native_python = install_environment(
                 pathlib.Path("/runtime/native-proof"),
                 native_lock,
@@ -375,6 +374,7 @@ if __name__ == "__main__":
         "suite",
         choices=(
             "unit",
+            "native",
             "contract",
             "integration",
             "integration/delivery",

@@ -100,10 +100,10 @@ ifeq ($(origin TEST_PATTERN),command line)
 override TEST_PATTERN_INPUT := $(value TEST_PATTERN)
 export TEST_PATTERN_INPUT
 ifneq ($(words $(MAKECMDGOALS)),1)
-$(error TEST_PATTERN requires exactly one repository, repository-quality or unit, contract or integration provider-core target)
+$(error TEST_PATTERN requires exactly one repository, repository-quality or unit, native, contract or integration provider-core target)
 endif
-ifeq ($(filter $(MAKECMDGOALS),tests/repository tests/repository/quality tests/unit/provider-core tests/contract/provider-core tests/integration/provider-core),)
-$(error TEST_PATTERN requires exactly one repository, repository-quality or unit, contract or integration provider-core target)
+ifeq ($(filter $(MAKECMDGOALS),tests/repository tests/repository/quality tests/unit/provider-core tests/native/provider-core tests/contract/provider-core tests/integration/provider-core),)
+$(error TEST_PATTERN requires exactly one repository, repository-quality or unit, native, contract or integration provider-core target)
 endif
 endif
 
@@ -237,7 +237,7 @@ endif
 .PHONY: checks/base-image/download checks/dependencies/download checks/dependencies/check checks/image/build checks/prepare
 .PHONY: delivery/deployment/up delivery/deployment/update delivery/deployment/proxy/restart delivery/deployment/down delivery/deployment/status delivery/deployment/logs delivery/deployment/held delivery/deployment/discard delivery/deployment/retire-old
 .PHONY: delivery/prepare publish/prepare publish/release tests/deployment tests/deployment/route tests/deployment/route/literal delivery/image/build tests/package
-.PHONY: packages/provider-core/download packages/provider-core/check package/build tests/unit/provider-core tests/contract/provider-core tests/integration/provider-core tests/integration/provider-core/delivery tests/fuzz/provider-core
+.PHONY: packages/provider-core/download packages/provider-core/check package/build tests/unit/provider-core tests/native/provider-core tests/contract/provider-core tests/integration/provider-core tests/integration/provider-core/delivery tests/fuzz/provider-core
 .PHONY: wheelhouse/image/build wheelhouse/lock/locate wheelhouse/lock/acquire tests/wheelhouse tests/delivery/publisher
 .PHONY: checks/python-cache/clean
 
@@ -281,6 +281,7 @@ help:
 	  'make packages/provider-core/download WHEELHOUSE=<cache-dir> NETWORK_INTERFACE=<system|interface> Acquire checker/bootstrap tools, then locked SDK wheels.' \
 	  'make packages/provider-core/check WHEELHOUSE=<cache-dir> Verify locked wheels offline.' \
 	  'make tests/unit/provider-core WHEELHOUSE=<cache-dir> [TEST_PATTERN=test_<name>.py] Run one unit file when selected; otherwise run all unit and native tests.' \
+	  'make tests/native/provider-core WHEELHOUSE=<cache-dir> [TEST_PATTERN=test_<name>.py] Run installed SDK tests without optional API or test dependencies.' \
 	  'make tests/fuzz/provider-core WHEELHOUSE=<cache-dir> [FUZZ_PROFILE=extended] Run shrinking lifecycle sequences.' \
 	  'make tests/contract/provider-core WHEELHOUSE=<cache-dir> Qualify installed package contracts.' \
 	  'make tests/integration/provider-core WHEELHOUSE=<cache-dir> Run contained package integrations.' \
@@ -391,6 +392,9 @@ tests/package:
 
 tests/unit/provider-core:
 	bash packages/provider-core/sdk_build/provider_core.sh unit
+
+tests/native/provider-core:
+	bash packages/provider-core/sdk_build/provider_core.sh native
 
 tests/fuzz/provider-core:
 	bash packages/provider-core/sdk_build/provider_core.sh fuzz
