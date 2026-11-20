@@ -118,7 +118,7 @@ class ShutdownPeer:
         return backend
 
     def serve(self, trust):
-        for reply in self.replies:
+        for response_bytes in self.replies:
             while not self.release.is_set():
                 try:
                     (raw, _address) = self.listener.accept()
@@ -133,24 +133,24 @@ class ShutdownPeer:
                 raw.settimeout(3)
 
                 with trust.wrap_socket(raw, server_side=True) as connection:
-                    request = bytearray()
+                    request_head = bytearray()
 
-                    while not request.endswith(
+                    while not request_head.endswith(
                         b"\r\n"
                         b"\r\n",
                     ):
                         chunk = connection.recv(1)
 
-                        if (not chunk) or (len(request) >= 16384):
+                        if (not chunk) or (len(request_head) >= 16384):
                             raise AssertionError("TLS shutdown probe received an incomplete or oversized request")
 
-                        request.extend(chunk)
+                        request_head.extend(chunk)
 
-                    self.requests.append(bytes(request))
-                    step = len(reply) if self.fragment_size is None else self.fragment_size
+                    self.requests.append(bytes(request_head))
+                    step = len(response_bytes) if self.fragment_size is None else self.fragment_size
 
-                    for offset in range(0, len(reply), step):
-                        connection.sendall(reply[offset:offset + step])
+                    for offset in range(0, len(response_bytes), step):
+                        connection.sendall(response_bytes[offset:offset + step])
 
                     if (self.hold) and (not self.release.wait(3)):
                         raise AssertionError("TLS shutdown probe was not released during teardown")
