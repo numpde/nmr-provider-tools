@@ -89,8 +89,7 @@ def read_hello(raw, *, provider_ref):
     """Bind a closed receipt to composition's expected provider, never to key spelling."""
     hello_receipt = read_document(raw, HELLO_RESPONSE_BYTES)
 
-    if not (type(hello_receipt) is (expected_type := dict)):
-        raise ResponseRejected(f"{type(hello_receipt)=} ≠ {expected_type=}")
+    require_type(hello_receipt, dict, error_factory=ResponseRejected)
 
     receipt_fields = set(hello_receipt)
     expected_fields = {"schema_id", "provider_ref", "accepted_at"}
