@@ -128,20 +128,9 @@ class MultilineBooleanPostureTests(unittest.TestCase):
         )
 
     def test_directly_negated_call_in_a_multiline_filter(self) -> None:
-        source = (
-            "unguarded = [\n"
-            "    path\n"
-            "    for path in paths\n"
-            "    if\n"
-            "    (path != excluded) and\n"
-            "    not has_early_guard(\n"
-            "        path.read_text(),\n"
-            "        package_marker=path.name == '__init__.py',\n"
-            "    )\n"
-            "]\n"
-        )
+        fixture_path = ROOT / "tests/repository/fixtures/quality/multiline_boolean/negated_call_filter.py.fixture"
 
-        self.assertEqual(first=[], second=multiline_boolean_findings(source=source))
+        self.assertEqual(first=[], second=multiline_boolean_findings(source=fixture_path.read_text(encoding="utf-8")))
 
     def test_authored_python_uses_multiline_boolean_layout(self) -> None:
         findings = [

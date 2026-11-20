@@ -1,0 +1,10 @@
+unguarded = [
+    path
+    for path in paths
+    if
+    (path != excluded) and
+    not has_early_guard(
+        path.read_text(),
+        package_marker=path.name == '__init__.py',
+    )
+]
