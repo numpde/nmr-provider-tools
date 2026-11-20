@@ -190,13 +190,13 @@ class ExampleTomlExplanationTests(unittest.TestCase):
     def test_all_example_toml_settings_have_explanations(self):
         findings = []
 
-        for path in sorted(sources.ROOT.rglob("*.example.toml")):
-            if sources.is_skipped(path):
+        for example_path in sorted(sources.ROOT.rglob("*.example.toml")):
+            if sources.is_skipped(example_path):
                 continue
 
-            for line in unexplained_settings(path.read_text(encoding="utf-8")):
+            for line in unexplained_settings(example_path.read_text(encoding="utf-8")):
                 findings.append(
-                    f"{path.relative_to(sources.ROOT)}:{line}: explain this setting in a comment "
+                    f"{example_path.relative_to(sources.ROOT)}:{line}: explain this setting in a comment "
                     f"directly above it or on the same line"
                 )
 

@@ -134,14 +134,14 @@ class PythonBytecodePostureTests(unittest.TestCase):
                 "docs/example.sh",
                 ".git/hooks/run.sh"
             ):
-                path = root / name
+                fixture_path = root / name
 
-                path.parent.mkdir(parents=True, exist_ok=True)
-                path.write_text("# fixture\n")
+                fixture_path.parent.mkdir(parents=True, exist_ok=True)
+                fixture_path.write_text("# fixture\n")
 
             self.assertEqual(
                 {"host/tools/run.sh", "new_component/driver.py", "Makefile"},
-                {path.relative_to(root).as_posix() for path in production_files(root)}
+                {source_path.relative_to(root).as_posix() for source_path in production_files(root)}
             )
 
     def test_diagnostic_identifies_source_location(self):
