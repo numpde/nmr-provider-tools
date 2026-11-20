@@ -637,18 +637,18 @@ class HeldFailureTests(unittest.IsolatedAsyncioTestCase):
         failure = await self.failed_run(controller, selected)
         execution = failure.cause
 
-        for (field, value) in (
+        for (failure_attribute, replacement_failure) in (
             ("api_failure", ApiFailure("unrelated write", "unconfirmed")),
             ("interruption_cause", asyncio.CancelledError("real interruption"))
         ):
-            original = getattr(execution, field)
+            original = getattr(execution, failure_attribute)
 
-            setattr(execution, field, value)
+            setattr(execution, failure_attribute, replacement_failure)
 
             try:
                 self.assert_original_raised(controller, selected, failure)
             finally:
-                setattr(execution, field, original)
+                setattr(execution, failure_attribute, original)
 
         executor = controller.operation
         executor._outcome = session.outcome
