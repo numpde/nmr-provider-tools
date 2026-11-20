@@ -1,0 +1,48 @@
+# Provider execution assembly: redundancy-removal end-state
+
+Baseline: 2337787f, qualified main integration recorded in Note 098.
+
+The SDK owns common execution rules. Providers own scientific construction,
+configured inventories, selected capacity shares and request sequencing. Sharing
+mechanics must remove duplicate authority without hiding those provider decisions.
+
+Completion criteria:
+
+1. One SDK operation checks aggregate input/result/state shares, exact positive
+   integer values and summed allowances before any host or session is acquired.
+   Stage/model names and chosen shares remain provider-owned. Progress retention
+   is per operation; time allowances are per host. No scheduler or shared pool.
+2. One SDK operation selects and constructs a host, rejecting unknown backends,
+   missing process sessions and unused thread sessions. It neither starts science
+   nor enters lifetimes. Scientific factories, lazy/eager readiness, topology and
+   original cleanup ownership remain explicit in provider assembly.
+3. The examples use one execution-settings vocabulary: explicit backend, host,
+   operation_policy and resource_requirement. One narrow parser constructs the
+   existing SDK policy/requirement values. Provider-specific science and capacity
+   inventories remain outside it. No old-name fallback or generic config framework.
+4. One existing shared test fixture owns the installed scientific worker command,
+   minimal environment, native session allowances and cleanup registration. Tests
+   retain their actual failure barriers, witnesses and scientific assertions.
+5. Public host constructors remain independently safe entrypoints. Existing
+   constructor signatures and the one-allocation process profile remain intact;
+   extraction must not create a second retained options/state authority.
+6. Each provider's request workflow stays unchanged across backends. Reference's
+   lazy thread readiness, NMRPeak's injectable thread science, independent process
+   offerings and Spectrum's independent stages retain their documented behavior.
+7. Configuration/session refusals preserve caller custody; partial startup,
+   cancellation, uncertain replies, results and cleanup retain their original
+   owners. No new replay, retries, replacement or blanket exception translation.
+8. Demonstrated installed behavior validates each meaningful slice. The final
+   clean candidate passes contract, full unit/minimal-native and integration
+   qualification. Exact counts, skips, artifact identities and receipts are kept.
+
+Use the same thirteen criteria from Notes 094 and 098. Each independent panelist
+scores every criterion and a separate holistic verdict. Every deduction names a
+concrete trigger, consequence, owning location and smallest correction. Target:
+10/10 on every criterion from every reviewer, without averaging, conventional
+headroom, scope changes or score inflation. Fix verified findings and reiterate.
+
+Repository checks remain enabled, deferred and excluded. PRIVACY_TESTS=0 remains
+the selected campaign policy. Real-model/GPU and deployment qualification remain
+separate. Work proceeds in coherent audited commits; this note records the target,
+not completed implementation or passing qualification.
