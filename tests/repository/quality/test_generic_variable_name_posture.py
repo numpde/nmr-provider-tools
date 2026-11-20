@@ -36,6 +36,7 @@ def _generic_name(*, variable_name: str) -> bool:
     return variable_name.strip("_").casefold() in {
         "value",
         "values",
+        "text_value",
         "data",
         "document",
         "item",
@@ -178,9 +179,11 @@ class GenericVariableNamePostureTests(unittest.TestCase):
             "_limit = 1\n"
             "REPLY = None\n"
             "__request__ = None\n"
+            "text_value = 'example'\n"
+            "_TEXT_VALUE = 'example'\n"
         )
 
-        self.assertEqual(first=["_value", "VALUES", "__result__", "_limit", "REPLY", "__request__"], second=[finding.variable_name for finding in _findings(source=source)])
+        self.assertEqual(first=["_value", "VALUES", "__result__", "_limit", "REPLY", "__request__", "text_value", "_TEXT_VALUE"], second=[finding.variable_name for finding in _findings(source=source)])
 
     def test_purpose_names_reads_keys_comments_and_strings_are_not_bindings(self):
         source = (
