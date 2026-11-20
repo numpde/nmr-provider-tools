@@ -10,6 +10,7 @@ from provider_core.container_guard import require_container
 require_container()
 
 from enum import StrEnum
+import reprlib
 
 from provider_core.type_requirements import require_type
 
@@ -26,8 +27,6 @@ class ResultVerbosity(StrEnum):
         try:
             return cls(value)
         except ValueError:
-            allowed_values = ", ".join(item.value for item in cls)
+            allowed_verbosity_values = [verbosity_level.value for verbosity_level in cls]
 
-            raise ValueError(
-                f"Cannot parse {cls.__name__ = } from {value = }; allowed verbosity values: {allowed_values = }."
-            ) from None
+            raise ValueError(f"{reprlib.repr(value)=} should be one of {allowed_verbosity_values=}") from None
