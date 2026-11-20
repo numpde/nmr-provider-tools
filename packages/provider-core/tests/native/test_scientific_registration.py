@@ -993,7 +993,7 @@ class AdoptionTests(unittest.IsolatedAsyncioTestCase):
         with self.assertRaises(expected_exception=BaseExceptionGroup) as raised:
             await self.retire(host=host)
 
-        self.assertIs(expr1=instance, expr2=resident.value)
+        self.assertIs(expr1=instance, expr2=resident.instance)
         self.assertIs(expr1=instance.partial_resource, expr2=instance.cleanup_resource)
         self.assertIs(expr1=instance.cleanup_failure, expr2=raised.exception.exceptions[0])
         self.assertFalse(expr=resident.retired)

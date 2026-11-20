@@ -86,7 +86,7 @@ class _Operation(_Changes):
         self.finished = False
         self.outcome = None
         self.failures = ()
-        self.result = None
+        self.result_ref = None
         self.result_state = ResultState.NONE
         self.payload = None
         self.returned_states = ()
@@ -210,8 +210,8 @@ class _Operation(_Changes):
             phase = "calculation"
 
             scientific_return = self.call.invoke(
-                self.science.resident.value,
-                self.science.value,
+                self.science.resident.instance,
+                self.science.analysis_instance,
                 scientific_input,
                 {
                     name: owner.returned.value
@@ -249,7 +249,7 @@ class _Operation(_Changes):
                 raise ValueError(f"{encoded_result_bytes=} should be at most {maximum_encoded_result_bytes=}")
 
             self.payload = result_payload
-            self.result = ResultRef(self.reference, uuid4().hex)
+            self.result_ref = ResultRef(self.reference, uuid4().hex)
             self.result_state = ResultState.AVAILABLE
         except CallRejected as cause:
             if (self.outcome is None) and (phase in ("decoding", "calculation")):
@@ -452,7 +452,7 @@ class _Operation(_Changes):
         await self.wait(after, wait_seconds)
 
         # silent-defaults: allow-contract -- Result adoption can precede thread completion; only a finished operation may expose its result reference.
-        observable_result_ref = self.result if self.finished else None
+        observable_result_ref = self.result_ref if self.finished else None
 
         return Observation(
             operation=self.reference,
@@ -479,13 +479,13 @@ class _Operation(_Changes):
         require_type(result_ref, ResultRef)
 
         if not (
-            (result_ref == self.result) and
+            (result_ref == self.result_ref) and
             self.finished and
             (self.result_state is ResultState.AVAILABLE)
         ):
             raise ValueError(
                 f"{reprlib.repr(result_ref)=} should be this operation's available result after completion; "
-                f"{reprlib.repr(self.result)=}, {self.finished=}, {self.result_state=}"
+                f"{reprlib.repr(self.result_ref)=}, {self.finished=}, {self.result_state=}"
             )
 
     async def read_result(self, result):
@@ -502,7 +502,7 @@ class _Operation(_Changes):
         # The exact release remains observable after its payload is discarded.
         # Check identity before returning it; a cached owner grants no authority
         # over a different operation or result.
-        if (self.release is not None) and (type(result) is ResultRef) and (result == self.result):
+        if (self.release is not None) and (type(result) is ResultRef) and (result == self.result_ref):
             return self.release
 
         self._require_result(result)

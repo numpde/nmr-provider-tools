@@ -190,7 +190,7 @@ class InProcessExecutionHost:
                 raise ValueError(f"Cannot adopt this contribution again; {custody.owner=} already owns its lifetime")
 
             resident = _Resident(host_identity=self.identity, name=allocation_name, binding=hosted, assets=assets)
-            resident.value = contribution
+            resident.instance = contribution
             resident.constructed = True
             self.residents[allocation_name] = resident
             custody.owner = resident.reference
@@ -857,7 +857,7 @@ class InProcessAnalysisExecutor:
 
                         operation.changed()
 
-                        if operation.result is None:
+                        if operation.result_ref is None:
                             operation._release_capacity()
 
         if cleanup_failures:
@@ -899,7 +899,7 @@ class InProcessAnalysisExecutor:
             )
 
         if scientific_analysis.constructed:
-            scientific_analysis.resident.binding.close_analysis(analysis=scientific_analysis.value)
+            scientific_analysis.resident.binding.close_analysis(analysis=scientific_analysis.analysis_instance)
 
-        scientific_analysis.value = None
+        scientific_analysis.analysis_instance = None
         scientific_analysis.ready = False
