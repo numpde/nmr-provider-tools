@@ -10,6 +10,7 @@ from provider_core.container_guard import require_container
 require_container()
 
 import os
+import reprlib
 import ssl
 from dataclasses import dataclass
 
@@ -24,6 +25,10 @@ from provider_core.type_requirements import require_type
 # Startup bounds credential capture independently of the issued artifact's fields
 # repo-check: allow-module-constant
 MAX_CREDENTIAL_BYTES = 16384
+
+# File capture and retained CA material share the same byte ceiling
+# repo-check: allow-module-constant
+_MAX_CA_BYTES = 1048576
 
 
 class ApiConfigurationRejected(ValueError):
@@ -147,7 +152,7 @@ def _read_https_settings(table, trust_context, read_file):
     ca_bytes = None
 
     if "ca_file" in table:
-        ca_bytes = read_file(table["ca_file"], maximum_bytes=1048576)
+        ca_bytes = read_file(table["ca_file"], maximum_bytes=_MAX_CA_BYTES)
 
         require_type(
             ca_bytes,
@@ -166,22 +171,28 @@ def https_settings(table, label, read_file):
 
 
 def require_api_fields(table):
-    required = {"origin", "profile", "topology", "provider_ref", "credential_file", "exchange_seconds", "retirement_seconds"}
+    required_api_fields = {"origin", "profile", "topology", "provider_ref", "credential_file", "exchange_seconds", "retirement_seconds"}
+    allowed_api_fields = required_api_fields | {"ca_file"}
 
     require_type(table, dict, error_factory=ApiConfigurationRejected)
 
-    if not (required <= table.keys()):
-        raise ApiConfigurationRejected("API must contain exactly its documented fields.")
+    api_field_names = table.keys()
 
-    if not (table.keys() <= (required | {"ca_file"})):
-        raise ApiConfigurationRejected("API must contain exactly its documented fields.")
+    if not ((required_api_fields <= api_field_names) and (api_field_names <= allowed_api_fields)):
+        missing_fields = required_api_fields - api_field_names
+        unexpected_fields = api_field_names - allowed_api_fields
+
+        raise ApiConfigurationRejected(f"{reprlib.repr(missing_fields)=}; {reprlib.repr(unexpected_fields)=} should be empty")
 
 
 def _signing_identity(table, credential_bytes):
     credential = parse_provider_credential(credential_bytes, maximum_bytes=MAX_CREDENTIAL_BYTES)
 
     if not ((credential.profile, credential.provider_ref) == (table["profile"], table["provider_ref"])):
-        raise ApiConfigurationRejected("API signing credential does not match the configured profile and provider.")
+        raise ApiConfigurationRejected(
+            f"{credential.profile=} should match {reprlib.repr(table['profile'])=}; "
+            f"{credential.provider_ref=} should match {reprlib.repr(table['provider_ref'])=}"
+        )
 
     identity = SigningIdentity(table["origin"], credential.credential_ref, credential.private_key)
 
@@ -219,24 +230,24 @@ def api_settings_with_material(table, read_file):
 
 def api_settings_from_material(table, *, credential_bytes, ca_bytes=None):
     """Construct the API owner from retained credential and optional CA bytes."""
-    required = {"origin", "profile", "topology", "provider_ref", "exchange_seconds", "retirement_seconds"}
+    expected_api_fields = {"origin", "profile", "topology", "provider_ref", "exchange_seconds", "retirement_seconds"}
 
     require_type(table, dict, error_factory=ApiConfigurationRejected)
 
-    if not (set(table) == required):
-        raise ApiConfigurationRejected("API publication settings must contain the documented non-file fields.")
+    if not ((api_field_names := set(table)) == expected_api_fields):
+        raise ApiConfigurationRejected(f"{reprlib.repr(api_field_names)=} should match {expected_api_fields=}")
 
     require_type(credential_bytes, bytes, error_factory=ApiConfigurationRejected)
 
     if not (len(credential_bytes) <= MAX_CREDENTIAL_BYTES):
-        raise ApiConfigurationRejected("API signing credential requires bounded issued-document bytes.")
+        raise ApiConfigurationRejected(f"{len(credential_bytes)=} exceeds {MAX_CREDENTIAL_BYTES=}")
 
     (identity, provider_ref) = _signing_identity(table, credential_bytes)
 
     if ca_bytes is not None:
         require_type(ca_bytes, bytes, error_factory=ApiConfigurationRejected)
 
-        if not (len(ca_bytes) <= 1048576):
-            raise ApiConfigurationRejected("API CA requires bytes within the 1048576-byte limit.")
+        if not (len(ca_bytes) <= _MAX_CA_BYTES):
+            raise ApiConfigurationRejected(f"{len(ca_bytes)=} exceeds {_MAX_CA_BYTES=}")
 
     return (ApiSettings(identity, _https_from_material(table, "API", ca_bytes), table["topology"]), provider_ref)
