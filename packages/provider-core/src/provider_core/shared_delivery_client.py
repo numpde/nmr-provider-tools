@@ -39,7 +39,7 @@ class SharedDeliveryClient:
             raise ValueError("The outcome belongs to another configured provider.")
 
         handoff = DeliveryHandoff(item, self.publication)
-        acceptance_receipt = await self._client._request("POST", "/submit", body=handoff.encode())
+        acceptance_receipt = await self._client._exchange_ipc_request("POST", "/submit", body=handoff.encode())
 
         if acceptance_receipt != handoff.acceptance():
             raise DeliveryRejected("The durable acknowledgement does not match the submitted result and publication material.")

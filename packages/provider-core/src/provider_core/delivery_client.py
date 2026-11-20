@@ -99,7 +99,7 @@ class DeliveryClient:
         await self._transport.retire(owner=self)
 
     # silent-defaults: allow-contract -- Status reads have no body or Job header; submission supplies both explicitly.
-    async def _request(self, method, request_path, *, body=b"", job_ref=None):
+    async def _exchange_ipc_request(self, method, request_path, *, body=b"", job_ref=None):
         submitting = method == "POST"
 
         headers = {
@@ -172,7 +172,7 @@ class DeliveryClient:
         if item.key[:2] != (self.endpoint.api_origin, self.endpoint.provider_ref):
             raise ValueError("The accepted outcome belongs to another configured delivery binding.")
 
-        acceptance_receipt = await self._request(
+        acceptance_receipt = await self._exchange_ipc_request(
             "POST",
             f"/submit/{item.operation.value}/{item.execution_attempt_ref}",  # machine-string: the local IPC client parses this operation and Attempt route exactly
             body=item.body,
@@ -220,7 +220,7 @@ class DeliveryClient:
         return delivery_metadata
 
     async def pending(self):
-        pending_inventory = await self._request("GET", "/pending")
+        pending_inventory = await self._exchange_ipc_request("GET", "/pending")
 
         if not (type(pending_inventory) is (expected_type := dict)):
             raise DeliveryRejected(f"{type(pending_inventory)=} ≠ {expected_type=}")
@@ -272,7 +272,7 @@ class DeliveryClient:
     async def status(self, execution_attempt_ref):
         require_attempt_ref(execution_attempt_ref)
 
-        status_metadata = await self._request(
+        status_metadata = await self._exchange_ipc_request(
             "GET",
             f"/status/{execution_attempt_ref}",  # machine-string: the local IPC service parses this exact status route
         )
