@@ -160,13 +160,16 @@ class ScientificLintTests(unittest.TestCase):
         self.assertEqual([], findings, msg="\n".join(findings))
 
     def test_guard_exception_retains_late_module_import_rejection(self):
-        # Bootstrap identity has an intentional isolated import-path setup;
-        # it is qualified by the cold-bundle import tests, not this rule.
+        # The DNS entrypoint runs as an isolated script. It must add its
+        # verified bundle root before importing its own package adapters.
+        # The cold-bundle invocation is covered by test_acquisition_bundle.
         source_paths = source_files(root=ROOT, patterns=[f"{name}/**/*.py" for name in ("host/tools", "tools", "tests", "src", "packages")])
+        isolated_dns_entrypoint = ROOT / "packages/acquisition/acquisition_tool/dns.py"
 
         findings = [
             f"{source_path.relative_to(ROOT)}:{line}: module import follows operational statements"
             for source_path in sorted(source_paths)
+            if source_path != isolated_dns_entrypoint
             for line in late_module_imports(source_path.read_text(), package=".".join(source_path.parent.relative_to(ROOT).parts))
         ]
 
