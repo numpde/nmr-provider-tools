@@ -38,8 +38,8 @@ class PackageArtifactTests(unittest.TestCase):
         self.addCleanup(temporary.cleanup)
         self.root = pathlib.Path(temporary.name)
 
-    def _acquisition_archive(self, path, members):
-        with tarfile.open(path, "w:gz") as archive:
+    def _acquisition_archive(self, archive_path, members):
+        with tarfile.open(archive_path, "w:gz") as archive:
             for (name, payload, kind, mode) in members:
                 member = tarfile.TarInfo(name)
                 member.type = kind

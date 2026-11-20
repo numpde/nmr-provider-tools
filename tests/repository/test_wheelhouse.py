@@ -226,7 +226,7 @@ class WheelhouseTests(unittest.TestCase):
         shutil.copyfile(self.cached, candidate)
         report = self.root / "report.json"
 
-        def write_report(path):
+        def write_report(wheel_path):
             report.write_text(
                 json.dumps(
                     {
@@ -234,8 +234,8 @@ class WheelhouseTests(unittest.TestCase):
                         "install": [
                             {
                                 "download_info": {
-                                    "url": path.as_uri(),
-                                    "archive_info": {"hashes": {"sha256": hashlib.sha256(path.read_bytes()).hexdigest()}}
+                                    "url": wheel_path.as_uri(),
+                                    "archive_info": {"hashes": {"sha256": hashlib.sha256(wheel_path.read_bytes()).hexdigest()}}
                                 }
                             }
                         ]

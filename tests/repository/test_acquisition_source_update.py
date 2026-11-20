@@ -537,11 +537,11 @@ class SourceUpdateTests(unittest.TestCase):
         (primary, cleanup) = (ValueError("candidate stage failed"), PermissionError("stage cleanup failed"))
         verify = updates.verify
 
-        def reject_stage(path):
-            if pathlib.Path(path).name.startswith(".acquisition-next-"):
+        def reject_stage(source_path):
+            if pathlib.Path(source_path).name.startswith(".acquisition-next-"):
                 raise primary
 
-            return verify(path)
+            return verify(source_path)
 
         with (
             patch.object(updates, "verify", side_effect=reject_stage),
