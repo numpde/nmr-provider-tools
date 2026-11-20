@@ -596,9 +596,9 @@ class HttpTransport:
         require_http_status(success_status)
 
         def decoder_for(head):
-            limit = maximum_bytes if head.status == success_status else error_maximum_bytes
+            max_decoded_stage_bytes = maximum_bytes if head.status == success_status else error_maximum_bytes
 
-            return DecodedBody(head.headers, maximum_bytes=limit)
+            return DecodedBody(head.headers, maximum_bytes=max_decoded_stage_bytes)
 
         return await self._exchange(
             request,
