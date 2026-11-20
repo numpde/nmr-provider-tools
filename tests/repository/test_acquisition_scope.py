@@ -778,11 +778,11 @@ return 2
                     }
 
                     for (name, contents) in expected.items():
-                        path = evidence / name
+                        evidence_file_path = evidence / name
 
-                        self.assertEqual(contents, path.read_bytes(), msg=str(path))
-                        self.assertEqual(0o600, path.stat().st_mode & 0o777)
-                        self.assertLess(path.stat().st_size, 4096)
+                        self.assertEqual(contents, evidence_file_path.read_bytes(), msg=str(evidence_file_path))
+                        self.assertEqual(0o600, evidence_file_path.stat().st_mode & 0o777)
+                        self.assertLess(evidence_file_path.stat().st_size, 4096)
 
                     match = re.search(
                         r'--config (/tmp/nmrnet-docker-client\.[^/]+)/config',
@@ -875,7 +875,7 @@ return 2
                 self.assertEqual('1', (root / 'counter').read_text())
                 identifier = f'{1:064x}'
 
-                self.assertEqual({f'live-{identifier}'}, {path.name for path in root.glob('live-*')})
+                self.assertEqual({f'live-{identifier}'}, {live_marker_path.name for live_marker_path in root.glob('live-*')})
                 self.assertTrue(operation.is_dir())
                 self.assertTrue(private_client.is_dir())
                 self.assertEqual(identifier.encode() + b'\n', (operation / 'gateway/cid').read_bytes())
@@ -905,16 +905,16 @@ return 2
                 self.assertEqual(2, caller_process.returncode, msg=(stdout, stderr))
                 self.assertEqual(['2 yes'], (root / 'caller-exit').read_text().splitlines())
                 self.assertIn(f'Cannot create {role}: creation did not complete (status 23).'.encode(), stderr)
-                identifiers = [f'{value:064x}' for value in range(1, index + 1)]
+                identifiers = [f'{container_number:064x}' for container_number in range(1, index + 1)]
 
                 self.assertEqual(
                     {f'start-{identifier}' for identifier in identifiers[:-1]},
-                    {path.name for path in root.glob('start-*')}
+                    {start_marker_path.name for start_marker_path in root.glob('start-*')}
                 )
 
                 self.assertEqual(
                     {f'rm-{identifier}' for identifier in identifiers},
-                    {path.name for path in root.glob('rm-*')}
+                    {removal_marker_path.name for removal_marker_path in root.glob('rm-*')}
                 )
 
                 self.assertEqual(
@@ -965,11 +965,11 @@ return 2
                     self.assertTrue(operation.is_dir())
                     self.assertTrue(client.is_dir())
                     self.assertIn(f'Cannot create {role}: creation did not complete (status 23).'.encode(), stderr)
-                    identifiers = [f'{value:064x}' for value in range(1, index + 1)]
+                    identifiers = [f'{container_number:064x}' for container_number in range(1, index + 1)]
 
                     self.assertEqual(
                         {f'start-{identifier}' for identifier in identifiers[:-1]},
-                        {path.name for path in root.glob('start-*')}
+                        {start_marker_path.name for start_marker_path in root.glob('start-*')}
                     )
 
                     self.assertEqual([], list(root.glob('rm-*')))
@@ -977,7 +977,7 @@ return 2
 
                     self.assertEqual(
                         {f'live-{identifier}' for identifier in identifiers},
-                        {path.name for path in root.glob('live-*')}
+                        {live_marker_path.name for live_marker_path in root.glob('live-*')}
                     )
 
                     identifier = identifiers[-1].encode()
@@ -1032,7 +1032,7 @@ return 2
                         private_client = pathlib.Path(match.group(1))
 
                         self.addCleanup(shutil.rmtree, private_client, ignore_errors=True)
-                        identifiers = [f'{value:064x}' for value in range(1, index + 1)]
+                        identifiers = [f'{container_number:064x}' for container_number in range(1, index + 1)]
                         identifier = identifiers[-1].encode()
                         cid = operation / role / 'cid'
                         create_stdout = operation / role / 'stdout'
@@ -1065,16 +1065,16 @@ return 2
                         self.assertFalse(pathlib.Path('/proc', str(anchor_pid)).exists())
 
                         self.assertEqual(
-                            {f'start-{value}' for value in identifiers[:-1]},
-                            {path.name for path in root.glob('start-*')}
+                            {f'start-{container_id}' for container_id in identifiers[:-1]},
+                            {start_marker_path.name for start_marker_path in root.glob('start-*')}
                         )
 
                         self.assertEqual(str(index), (root / 'counter').read_text())
 
                         if output in ('empty', 'exact'):
                             self.assertEqual(
-                                {f'rm-{value}' for value in identifiers},
-                                {path.name for path in root.glob('rm-*')}
+                                {f'rm-{container_id}' for container_id in identifiers},
+                                {removal_marker_path.name for removal_marker_path in root.glob('rm-*')}
                             )
 
                             self.assertEqual(
@@ -1092,8 +1092,8 @@ return 2
                             self.assertFalse((root / 'removal-attempts').exists())
 
                             self.assertEqual(
-                                {f'live-{value}' for value in identifiers},
-                                {path.name for path in root.glob('live-*')}
+                                {f'live-{container_id}' for container_id in identifiers},
+                                {live_marker_path.name for live_marker_path in root.glob('live-*')}
                             )
 
                             self.assertFalse((root / 'retired').exists())
@@ -1162,7 +1162,7 @@ printf '%s %s\n' "$status" "$report_status"
 
         self.assertEqual(1, arguments.count('--resolver-file'))
         self.assertEqual(1, arguments.count('/gateway-resolv.conf'))
-        mounts = [value for value in arguments if 'dst=/gateway-resolv.conf' in value]
+        mounts = [mount_argument for mount_argument in arguments if 'dst=/gateway-resolv.conf' in mount_argument]
 
         self.assertEqual(1, len(mounts))
         self.assertTrue(mounts[0].endswith('/resolv.conf,dst=/gateway-resolv.conf,readonly'))
@@ -1615,7 +1615,7 @@ return "$first"
 
                 self.assertEqual(
                     {f'live-{index:064x}' for index in expected_live},
-                    {path.name for path in root.glob('live-*')}
+                    {live_marker_path.name for live_marker_path in root.glob('live-*')}
                 )
 
                 self.assertNotEqual(caller_process.returncode, 0, msg=(stdout, stderr))
