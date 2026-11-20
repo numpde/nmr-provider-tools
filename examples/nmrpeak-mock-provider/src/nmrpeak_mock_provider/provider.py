@@ -203,13 +203,9 @@ async def open_offerings(
 
         if execution_mode == "thread":
             for offering in offerings:
-                try:
-                    # The SDK loads each adopted model before advertising offerings.
-                    # A timeout retains the original thread until host cleanup.
-                    await execution_host.initialize(allocation=offering.allocation)
-                except Exception:
-                    # Startup failure leaves previously adopted models owned.
-                    raise
+                # The SDK loads each adopted model before advertising offerings.
+                # A timeout retains the original thread until host cleanup.
+                await execution_host.initialize(allocation=offering.allocation)
 
         create_interpreter = partial(
             Interpreter,
