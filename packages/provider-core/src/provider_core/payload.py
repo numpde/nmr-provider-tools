@@ -12,6 +12,7 @@ require_container()
 
 import json
 import math
+import reprlib
 from collections.abc import Mapping
 from dataclasses import MISSING, dataclass, fields, is_dataclass
 from enum import Enum, auto
@@ -80,14 +81,14 @@ class StateBinding[T](Protocol):
     def bind(self, values: Mapping[str, object]) -> T: ...
 
 
-def _require_format(value: object) -> None:
-    require_type(value, str)
+def _require_format(payload_format: object) -> None:
+    require_type(payload_format, str)
 
     if not (
-        (value) and
-        all(((character.isprintable()) and (not character.isspace())) for character in value)
+        (payload_format) and
+        all(((character.isprintable()) and (not character.isspace())) for character in payload_format)
     ):
-        raise ValueError("A payload format must be a nonempty identity without whitespace")
+        raise ValueError(f"{reprlib.repr(payload_format)=} should be nonempty printable text without whitespace")
 
 
 def _reject_constant(nonfinite_token: str) -> None:
@@ -585,7 +586,7 @@ class JsonDataclassCodec[T]:
         )
 
     def encode(self, value: T) -> bytes:
-        document = _encode_dataclass(
+        encoded_fields = _encode_dataclass(
             value,
             self.value_type,
             path="$",
@@ -594,7 +595,7 @@ class JsonDataclassCodec[T]:
         return (
             json
             .dumps(
-                document,
+                encoded_fields,
                 ensure_ascii=True,
                 allow_nan=False,
                 sort_keys=True,
