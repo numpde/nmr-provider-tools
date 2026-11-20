@@ -93,8 +93,8 @@ class LiveStartPolicy:
     window_seconds: float = 90
 
     def __post_init__(self):
-        for value in (self.cadence_seconds, self.window_seconds):
-            require_positive_number(value)
+        for start_policy_seconds in (self.cadence_seconds, self.window_seconds):
+            require_positive_number(start_policy_seconds)
 
         require_type(self.maximum_replays, int)
 
