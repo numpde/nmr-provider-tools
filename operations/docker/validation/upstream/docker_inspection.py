@@ -5,6 +5,8 @@ import reprlib
 from collections.abc import Collection
 from typing import Any
 
+from type_requirements import require_type
+
 from operations.docker.adapters.docker_inspection import decode_inspection_lines
 from operations.docker.errors import RetirementRefused
 
@@ -37,8 +39,7 @@ def container_image_references(raw: str, expected_count: int) -> list[str]:
         raise RetirementRefused(f"{len(container_images)=} should match {expected_count=}")
 
     for container_image_id in container_images:
-        if not (type(container_image_id) is (expected_type := str)):
-            raise RetirementRefused(f"{type(container_image_id)=} ≠ {expected_type=}")
+        require_type(container_image_id, str, error_factory=RetirementRefused)
 
         if IMAGE_ID.fullmatch(container_image_id) is None:
             raise RetirementRefused(f"{reprlib.repr(container_image_id)=} should match {IMAGE_ID.pattern=}")
@@ -55,8 +56,7 @@ def metadata(raw: str, expected: Collection[str]) -> list[dict[str, Any]]:
         raise RetirementRefused(f"{len(inspected_images)=} should match {len(expected)=}")
 
     for inspected_image in inspected_images:
-        if not (type(inspected_image) is (expected_type := dict)):
-            raise RetirementRefused(f"{type(inspected_image)=} ≠ {expected_type=}")
+        require_type(inspected_image, dict, error_factory=RetirementRefused)
 
     if (inspected_image_ids := {image.get("Id") for image in inspected_images}) != (expected_image_ids := set(expected)):
         raise RetirementRefused(f"{reprlib.repr(inspected_image_ids)=} should match {reprlib.repr(expected_image_ids)=}")
@@ -75,8 +75,7 @@ def inspected_image_fields(image: dict[str, Any]) -> tuple[str, dict[str, str], 
         image.get("RepoDigests"),
     )
 
-    if not (type(image_id) is (expected_type := str)):
-        raise RetirementRefused(f"{type(image_id)=} ≠ {expected_type=}")
+    require_type(image_id, str, error_factory=RetirementRefused)
 
     if IMAGE_ID.fullmatch(image_id) is None:
         raise RetirementRefused(f"{reprlib.repr(image_id)=} should match {IMAGE_ID.pattern=}")
@@ -89,26 +88,21 @@ def inspected_image_fields(image: dict[str, Any]) -> tuple[str, dict[str, str], 
 
     if image_labels is not None:
 
-        if not (type(image_labels) is (expected_image_labels_type := dict)):
-            raise RetirementRefused(f"{type(image_labels)=} ≠ {expected_image_labels_type=}")
+        require_type(image_labels, dict, error_factory=RetirementRefused)
 
         for (label_name, label_text) in image_labels.items():
-            if not (type(label_name) is (expected_type := str)):
-                raise RetirementRefused(f"{type(label_name)=} ≠ {expected_type=}")
+            require_type(label_name, str, error_factory=RetirementRefused)
 
-            if not (type(label_text) is (expected_type := str)):
-                raise RetirementRefused(f"{type(label_text)=} ≠ {expected_type=}")
+            require_type(label_text, str, error_factory=RetirementRefused)
 
     for image_aliases in (image_tags, image_digests):
         if image_aliases is None:
             continue
 
-        if not (type(image_aliases) is (expected_type := list)):
-            raise RetirementRefused(f"{type(image_aliases)=} ≠ {expected_type=}")
+        require_type(image_aliases, list, error_factory=RetirementRefused)
 
         for image_alias in image_aliases:
-            if not (type(image_alias) is (expected_type := str)):
-                raise RetirementRefused(f"{type(image_alias)=} ≠ {expected_type=}")
+            require_type(image_alias, str, error_factory=RetirementRefused)
 
     # silent-defaults: allow-contract -- Docker reports absent optional Labels as null. This absence means no labels.
     image_labels = {} if image_labels is None else image_labels

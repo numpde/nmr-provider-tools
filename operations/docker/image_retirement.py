@@ -16,8 +16,11 @@ import sys
 import tempfile
 
 if __name__ == "__main__":
-    # Add the checkout root omitted by isolated Python
-    sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[2]))
+    # Load the checkout and its pure type helper under isolated Python
+    repository_root = pathlib.Path(__file__).resolve().parents[2]
+
+    sys.path.insert(0, str(repository_root / "packages/type-requirements/src"))
+    sys.path.insert(0, str(repository_root))
 
 from operations.docker.adapters.docker_inspection import (
     CONTAINER_IMAGE_FORMAT,
