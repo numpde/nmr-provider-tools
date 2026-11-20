@@ -384,7 +384,7 @@ class ChatCarrierRejectionTests(unittest.IsolatedAsyncioTestCase):
         self.assertIs(retired.exception.cause, failure)
 
     async def test_lost_reply_does_not_repeat_the_potentially_billed_post(self):
-        async def lose_reply(_request, _body):
+        async def lose_reply(_request_head, _body):
             return None
 
         async with TlsPeer("success", response_factory=lose_reply) as peer:

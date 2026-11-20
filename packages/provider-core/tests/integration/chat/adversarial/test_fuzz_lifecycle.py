@@ -137,7 +137,7 @@ class LifecycleOrders(RuleBasedStateMachine):
         self.cases = { }
         self.replies = { }
 
-        async def model_reply(_request, _body, *, gate, identity):
+        async def model_reply(_request_head, _body, *, gate, identity):
             await gate.wait()
 
             return (

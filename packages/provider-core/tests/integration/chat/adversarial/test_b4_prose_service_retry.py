@@ -22,7 +22,7 @@ class ProseServiceRetryTests(unittest.IsolatedAsyncioTestCase):
         unavailable_reply_sent = asyncio.Event()
         (requests, tool_calls, interpreters) = ([], [], [])
 
-        async def response(_request, body):
+        async def response(_request_head, body):
             job = json.loads(body)["messages"][0]["content"]
 
             requests.append({"job": job, "at": loop.time(), "available": restored.is_set()})

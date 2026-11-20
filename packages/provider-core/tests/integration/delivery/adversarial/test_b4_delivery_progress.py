@@ -107,7 +107,7 @@ class DeliveryProgressNoticeTests(unittest.IsolatedAsyncioTestCase):
         restored = asyncio.Event()
         (request_times, request_owners) = ([], [])
 
-        def response_mode(_request, _body):
+        def response_mode(_request_head, _body):
             request_times.append(loop.time())
             request_owners.append(worker.api.pending_owner is worker)
 
@@ -118,7 +118,7 @@ class DeliveryProgressNoticeTests(unittest.IsolatedAsyncioTestCase):
 
             return "success"
 
-        async def response(_request, _body):
+        async def response(_request_head, _body):
             if not restored.is_set():
                 return self.unavailable(peer)
 
@@ -201,7 +201,7 @@ class DeliveryProgressNoticeTests(unittest.IsolatedAsyncioTestCase):
         restored = asyncio.Event()
         second = outcome(suffix="1")
 
-        async def response(_request, body):
+        async def response(_request_head, body):
             if len(peer.requests) == 1:
                 return self.unavailable(peer)
 

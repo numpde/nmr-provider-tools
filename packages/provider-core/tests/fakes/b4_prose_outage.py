@@ -217,7 +217,7 @@ async def run_outage(directory, *, mode, backlog, seed):
         .encode()
     )
 
-    def failed_service_mode(_request, body):
+    def failed_service_mode(_request_head, body):
         nonlocal peak_prose_connections
         job = json.loads(body)["messages"][0]["content"]
         available = restored.is_set()
@@ -233,7 +233,7 @@ async def run_outage(directory, *, mode, backlog, seed):
 
         return "success"
 
-    async def failed_service_response(_request, _body):
+    async def failed_service_response(_request_head, _body):
         if restored.is_set():
             (failed_peer.response_status, failed_peer.response_headers) = (200, None)
 

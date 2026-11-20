@@ -750,7 +750,7 @@ class ComposedLifecycleOwnershipTests(unittest.IsolatedAsyncioTestCase):
 
         release_reply = asyncio.Event()
 
-        async def held_reply(_request, _body):
+        async def held_reply(_request_head, _body):
             await release_reply.wait()
 
             return (
