@@ -77,10 +77,10 @@ class SharedDeliveryConfigurationTests(unittest.TestCase):
             (root / "state").mkdir(mode=0o700)
             settings_path = root / "settings.toml"
 
-            def write(target, items, retry):
+            def write(target, provider_item_limit, retry):
                 target.write_text(
                     f'[outbox]\n'
-                    f'provider_items = {items}\n'
+                    f'provider_items = {provider_item_limit}\n'
                     f'provider_bytes = 8192\n'
                     f'total_items = 4\n'
                     f'total_bytes = 16384\n'
