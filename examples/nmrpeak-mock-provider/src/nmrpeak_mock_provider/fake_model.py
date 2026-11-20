@@ -39,14 +39,14 @@ class Model:
         self.candidates = tuple(model_configuration["candidates"])
 
     def tokenize(self, *, candidate: HfInput | ChfInput) -> tuple[str, ...]:
-        if self.tokenizer is None:
-            raise RuntimeError("Load the tokenizer before validating scientific input")
+        if not (self.tokenizer is not None):
+            raise RuntimeError(f"{self.tokenizer=} should be initialized")
 
         return self.tokenizer.tokenize(candidate=candidate)
 
     def generate(self, *, tokens: tuple[str, ...], beam_size: int) -> tuple[str, ...]:
-        if self.candidates is None:
-            raise RuntimeError("Load the model before generating candidates")
+        if not (self.candidates is not None):
+            raise RuntimeError(f"{self.candidates=} should be loaded")
 
         offset = sum(len(token) for token in tokens) % len(self.candidates)
         ordered = self.candidates[offset:] + self.candidates[:offset]
