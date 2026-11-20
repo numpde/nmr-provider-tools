@@ -16,7 +16,6 @@ from collections.abc import Mapping
 from dataclasses import fields, is_dataclass
 from enum import Enum
 import json
-import math
 import socket
 import struct
 import time
@@ -44,6 +43,7 @@ from provider_core.hosting import (
     StateRef,
     StateResult,
 )
+from provider_core.tools import require_finite_number
 
 
 MAX_FRAME_BYTES = 8 * 1024 * 1024
@@ -61,9 +61,20 @@ class RemoteScienceError(RuntimeError):
 _RECORDS = {
     cls.__name__: cls
     for cls in (
-        CallRef, ProgressEvent, ResourceRequirement, AllocationRef,
-        CleanupObservation, Failure, Invocation, NotAdmitted, Observation,
-        OperationPolicy, OperationRef, ReservationRef, ResultRef, StateRef,
+        CallRef,
+        ProgressEvent,
+        ResourceRequirement,
+        AllocationRef,
+        CleanupObservation,
+        Failure,
+        Invocation,
+        NotAdmitted,
+        Observation,
+        OperationPolicy,
+        OperationRef,
+        ReservationRef,
+        ResultRef,
+        StateRef,
         StateResult,
     )
 }
@@ -71,31 +82,42 @@ _RECORDS = {
 _ENUMS = {
     cls.__name__: cls
     for cls in (
-        AcceptanceState, AdmissionCode, DispatchState, Outcome,
-        ResourceState, ResultState,
+        AcceptanceState,
+        AdmissionCode,
+        DispatchState,
+        Outcome,
+        ResourceState,
+        ResultState,
     )
 }
 
 _ERRORS = {
     cls.__name__: cls
     for cls in (
-        CallRejected, ScientificRejection, StartDeadlineExpired,
-        TypeError, ValueError, OSError, RuntimeError, TimeoutError,
+        CallRejected,
+        ScientificRejection,
+        StartDeadlineExpired,
+        TypeError,
+        ValueError,
+        OSError,
+        RuntimeError,
+        TimeoutError,
         PermissionError,
     )
 }
 
 
-def _diagnostic_text(value: str) -> str:
-    if len(value) <= MAX_DIAGNOSTIC_CHARACTERS:
-        return value
+def _diagnostic_text(diagnostic: str) -> str:
+    if len(diagnostic) <= MAX_DIAGNOSTIC_CHARACTERS:
+        return diagnostic
 
-    return value[:MAX_DIAGNOSTIC_CHARACTERS] + " [truncated]"
+    return diagnostic[:MAX_DIAGNOSTIC_CHARACTERS] + " [truncated]"
 
 
-def _pack_error(value: BaseException, *, seen: frozenset[int], remaining: list[int]) -> dict:
-    original_type = _diagnostic_text(f"{type(value).__module__}.{type(value).__qualname__}")
-    limited = (id(value) in seen) or (len(seen) >= MAX_FAILURE_DEPTH) or (remaining[0] == 0)
+def _pack_error(failure: BaseException, *, seen: frozenset[int], remaining: list[int]) -> dict:
+    original_type = f"{type(failure).__module__}.{type(failure).__qualname__}"  # machine-string: The wire original_type field and reconstructed remote_type retain a dotted Python type identity
+    original_type = _diagnostic_text(original_type)
+    limited = (id(failure) in seen) or (len(seen) >= MAX_FAILURE_DEPTH) or (remaining[0] == 0)
 
     if remaining[0]:
         remaining[0] -= 1
@@ -107,279 +129,296 @@ def _pack_error(value: BaseException, *, seen: frozenset[int], remaining: list[i
             "message": "Further failure evidence omitted: cycle or diagnostic limit",
         }
 
-    seen = seen | {id(value)}
+    seen = seen | {id(failure)}
     name = "remote"
 
-    if isinstance(value, CallRejected):
-        name = "ScientificRejection" if isinstance(value, ScientificRejection) else "CallRejected"
-    elif type(value) in _ERRORS.values():
-        name = type(value).__name__
-    elif isinstance(value, BaseExceptionGroup):
+    if isinstance(failure, CallRejected):
+        name = "ScientificRejection" if isinstance(failure, ScientificRejection) else "CallRejected"
+    elif type(failure) in _ERRORS.values():
+        name = type(failure).__name__
+    elif isinstance(failure, BaseExceptionGroup):
         name = "group"
 
-    if isinstance(value, (CallRejected, BaseExceptionGroup)):
-        message = value.message
+    if isinstance(failure, (CallRejected, BaseExceptionGroup)):
+        message = failure.message
     else:
         try:
-            message = str(value)
+            message = str(failure)
         except BaseException as cause:
-            message = f"Failure text unavailable: {type(cause).__module__}.{type(cause).__qualname__} raised by __str__"
+            message = f"Failure text unavailable: {type(cause)=} raised by __str__"
 
-    error = {
+    error_fields = {
         "error": name,
         "original_type": original_type,
         "message": _diagnostic_text(message),
     }
 
-    if isinstance(value, CallRejected):
-        error["code"] = value.code.value if isinstance(value.code, Enum) else value.code
+    if isinstance(failure, CallRejected):
+        error_fields["code"] = failure.code.value if isinstance(failure.code, Enum) else failure.code
 
     if name == "group":
         causes = []
 
-        for child in value.exceptions:
+        for child in failure.exceptions:
             causes.append(_pack_error(child, seen=seen, remaining=remaining))
 
             if remaining[0] == 0:
-                if len(causes) < len(value.exceptions):
-                    causes.append({
-                        "error": "remote",
-                        "original_type": original_type,
-                        "message": "Additional independent failures omitted by diagnostic limit",
-                    })
+                if len(causes) < len(failure.exceptions):
+                    causes.append(
+                        {
+                            "error": "remote",
+                            "original_type": original_type,
+                            "message": "Additional independent failures omitted by diagnostic limit",
+                        }
+                    )
 
                 break
 
-        error["causes"] = causes
+        error_fields["causes"] = causes
 
-    if value.__cause__ is not None:
-        error["cause"] = _pack_error(value.__cause__, seen=seen, remaining=remaining)
-    elif (value.__context__ is not None) and (not value.__suppress_context__):
-        error["context"] = _pack_error(value.__context__, seen=seen, remaining=remaining)
+    if failure.__cause__ is not None:
+        error_fields["cause"] = _pack_error(failure.__cause__, seen=seen, remaining=remaining)
+    elif (failure.__context__ is not None) and (not failure.__suppress_context__):
+        error_fields["context"] = _pack_error(failure.__context__, seen=seen, remaining=remaining)
 
-    return error
+    return error_fields
 
 
-def pack(value: object) -> object:
+def pack(sdk_value: object) -> object:
     """Convert one bounded SDK value to a JSON-compatible tree."""
-    if value is None or type(value) in (str, bool, int, float):
-        return value
 
-    if isinstance(value, bytes):
-        if len(value) > MAX_PAYLOAD_BYTES:
-            raise ValueError("Scientific process payload exceeds the supported byte limit")
+    if (sdk_value is None) or (type(sdk_value) in (str, bool, int, float)):
+        return sdk_value
 
-        return {"bytes": base64.b64encode(value).decode("ascii")}
+    if isinstance(sdk_value, bytes):
+        if not (len(sdk_value) <= MAX_PAYLOAD_BYTES):
+            raise ValueError(f"Scientific payload {len(sdk_value)=} should not exceed {MAX_PAYLOAD_BYTES=}")
 
-    if isinstance(value, Enum):
-        if _ENUMS.get(type(value).__name__) is not type(value):
-            raise TypeError(f"No process encoding for {type(value).__name__}")
+        return {"bytes": base64.b64encode(sdk_value).decode("ascii")}
 
-        return {"enum": type(value).__name__, "value": value.value}
+    if isinstance(sdk_value, Enum):
+        if not (_ENUMS.get(type(sdk_value).__name__) is type(sdk_value)):
+            raise TypeError(f"{type(sdk_value)=} should be an admitted scientific process enum type")
 
-    if isinstance(value, BaseException):
-        return _pack_error(value, seen=frozenset(), remaining=[MAX_FAILURE_NODES])
+        return {"enum": type(sdk_value).__name__, "value": sdk_value.value}
 
-    if is_dataclass(value) and not isinstance(value, type):
-        name = type(value).__name__
+    if isinstance(sdk_value, BaseException):
+        return _pack_error(sdk_value, seen=frozenset(), remaining=[MAX_FAILURE_NODES])
 
-        if name not in _RECORDS or type(value) is not _RECORDS[name]:
-            raise TypeError(f"No process encoding for {type(value).__name__}")
+    if is_dataclass(sdk_value) and not isinstance(sdk_value, type):
+        name = type(sdk_value).__name__
 
-        return {"record": name, "fields": {member.name: pack(getattr(value, member.name)) for member in fields(value) if member.init}}
+        if not ((name in _RECORDS) and (type(sdk_value) is _RECORDS[name])):
+            raise TypeError(f"{type(sdk_value)=} should be an admitted scientific process record type")
 
-    if isinstance(value, tuple):
-        return {"tuple": [pack(item) for item in value]}
+        return {
+            "record": name,
+            "fields": {
+                member.name: pack(getattr(sdk_value, member.name))
+                for member in fields(sdk_value)
+                if member.init
+            },
+        }
 
-    if isinstance(value, Mapping):
-        if not all(type(key) is str for key in value):
+    if isinstance(sdk_value, tuple):
+        return {"tuple": [pack(element) for element in sdk_value]}
+
+    if isinstance(sdk_value, Mapping):
+        if not all((type(key) is str) for key in sdk_value):
             raise TypeError("Process message mapping keys must be strings")
 
-        return {"mapping": {key: pack(item) for key, item in value.items()}}
+        return {"mapping": {key: pack(field_value) for (key, field_value) in sdk_value.items()}}
 
-    if isinstance(value, list):
-        return [pack(item) for item in value]
+    if isinstance(sdk_value, list):
+        return [pack(element) for element in sdk_value]
 
-    raise TypeError(f"No process encoding for {type(value).__name__}")
+    raise TypeError(f"{type(sdk_value)=} has no scientific process encoding")
 
 
-def unpack(value: object) -> object:
+def unpack(wire_value: object) -> object:
     """Reconstruct only admitted SDK records, never arbitrary Python objects."""
-    if value is None or type(value) in (str, bool, int, float):
-        if (type(value) is float) and (not math.isfinite(value)):
-            raise ValueError("Scientific process numbers must be finite")
 
-        return value
+    if (wire_value is None) or (type(wire_value) in (str, bool, int, float)):
+        if type(wire_value) is float:
+            require_finite_number(wire_value)
 
-    if type(value) is list:
-        return [unpack(item) for item in value]
+        return wire_value
 
-    if type(value) is not dict:
-        raise ValueError("Invalid scientific process value")
+    if type(wire_value) is list:
+        return [unpack(element) for element in wire_value]
 
-    if set(value) == {"bytes"}:
-        result = base64.b64decode(value["bytes"], validate=True)
+    if not (type(wire_value) is dict):
+        raise ValueError(f"Scientific process record {type(wire_value)=} should be dict")
 
-        if len(result) > MAX_PAYLOAD_BYTES:
-            raise ValueError("Scientific process payload exceeds the supported byte limit")
+    if set(wire_value) == {"bytes"}:
+        payload_bytes = base64.b64decode(wire_value["bytes"], validate=True)
 
-        return result
+        if not (len(payload_bytes) <= MAX_PAYLOAD_BYTES):
+            raise ValueError(f"Scientific payload {len(payload_bytes)=} should not exceed {MAX_PAYLOAD_BYTES=}")
 
-    if set(value) == {"tuple"} and type(value["tuple"]) is list:
-        return tuple(unpack(item) for item in value["tuple"])
+        return payload_bytes
 
-    if set(value) == {"mapping"} and type(value["mapping"]) is dict:
-        return {key: unpack(item) for key, item in value["mapping"].items()}
+    if (set(wire_value) == {"tuple"}) and (type(wire_value["tuple"]) is list):
+        return tuple(unpack(element) for element in wire_value["tuple"])
 
-    if set(value) == {"enum", "value"}:
-        return _ENUMS[value["enum"]](value["value"])
+    if (set(wire_value) == {"mapping"}) and (type(wire_value["mapping"]) is dict):
+        return {key: unpack(field_value) for (key, field_value) in wire_value["mapping"].items()}
 
-    if set(value) == {"record", "fields"} and type(value["fields"]) is dict:
-        record = _RECORDS[value["record"]]
+    if set(wire_value) == {"enum", "value"}:
+        return _ENUMS[wire_value["enum"]](wire_value["value"])
 
-        if set(value["fields"]) != {member.name for member in fields(record) if member.init}:
+    if (set(wire_value) == {"record", "fields"}) and (type(wire_value["fields"]) is dict):
+        record_type = _RECORDS[wire_value["record"]]
+
+        if not (set(wire_value["fields"]) == {member.name for member in fields(record_type) if member.init}):
             raise ValueError("Scientific process record fields differ from its declaration")
 
-        return record(**{key: unpack(item) for key, item in value["fields"].items()})
+        return record_type(**{key: unpack(field_value) for (key, field_value) in wire_value["fields"].items()})
 
-    if "error" in value:
-        return _unpack_error(value)
+    if "error" in wire_value:
+        return _unpack_error(wire_value)
 
     raise ValueError("Unknown scientific process record")
 
 
-def _unpack_error(value: dict) -> BaseException:
+def _unpack_error(error_fields: dict) -> BaseException:
     required = {"error", "message", "original_type"}
-    name = value["error"]
+    name = error_fields["error"]
 
     if name in ("CallRejected", "ScientificRejection"):
         required.add("code")
     elif name == "group":
         required.add("causes")
-    elif name != "remote" and name not in _ERRORS:
+    elif not ((name == "remote") or (name in _ERRORS)):
         raise ValueError("Unknown scientific process error kind")
 
-    if not required <= value.keys() or value.keys() - (required | {"cause", "context"}):
+    if not ((required <= error_fields.keys()) and (error_fields.keys() <= (required | {"cause", "context"}))):
         raise ValueError("Invalid scientific process error fields")
 
-    if "cause" in value and "context" in value:
+    if not (("cause" not in error_fields) or ("context" not in error_fields)):
         raise ValueError("Scientific process error has conflicting causal links")
 
-    if type(value["message"]) is not str or type(value["original_type"]) is not str:
-        raise ValueError("Scientific process error descriptions must be strings")
+    if not ((type(error_fields["message"]) is str) and (type(error_fields["original_type"]) is str)):
+        raise ValueError(
+            f"Scientific process descriptions {type(error_fields['message'])=} and "
+            f"{type(error_fields['original_type'])=} should both be str"
+        )
 
     if name == "group":
-        if type(value["causes"]) is not list:
-            raise ValueError("Scientific process error group needs a list of causes")
+        if not (type(error_fields["causes"]) is list):
+            raise ValueError(f"Scientific process error group {type(error_fields['causes'])=} should be list")
 
-        result = BaseExceptionGroup(value["message"], [unpack(error) for error in value["causes"]])
+        failure = BaseExceptionGroup(error_fields["message"], [unpack(cause) for cause in error_fields["causes"]])
     elif name in ("CallRejected", "ScientificRejection"):
-        result = _ERRORS[name](code=value["code"], message=value["message"])
+        failure = _ERRORS[name](code=error_fields["code"], message=error_fields["message"])
     elif name in _ERRORS:
-        result = _ERRORS[name](value["message"])
+        failure = _ERRORS[name](error_fields["message"])
     else:
-        result = RemoteScienceError(f"{value['original_type']}: {value['message']}")
+        original_type = error_fields["original_type"]
+        message = error_fields["message"]
+        failure = RemoteScienceError(f"Remote scientific failure: {original_type=}; {message=}")
 
-    result.remote_type = value["original_type"]
+    failure.remote_type = error_fields["original_type"]
 
-    if "cause" in value:
-        result.__cause__ = unpack(value["cause"])
-    elif "context" in value:
-        result.__context__ = unpack(value["context"])
+    if "cause" in error_fields:
+        failure.__cause__ = unpack(error_fields["cause"])
+    elif "context" in error_fields:
+        failure.__context__ = unpack(error_fields["context"])
 
-    return result
-
-
-def frame(value: object) -> bytes:
-    payload = json.dumps(pack(value), ensure_ascii=True, separators=(",", ":"), allow_nan=False).encode("ascii")
-
-    if len(payload) > MAX_FRAME_BYTES:
-        raise ValueError("Scientific process message exceeds the channel limit")
-
-    return struct.pack("!I", len(payload)) + payload
+    return failure
 
 
-def decode_frame(data: bytes) -> object:
-    if len(data) > MAX_FRAME_BYTES:
-        raise ValueError("Scientific process message exceeds the channel limit")
+def frame(sdk_value: object) -> bytes:
+    encoded_message = json.dumps(pack(sdk_value), ensure_ascii=True, separators=(",", ":"), allow_nan=False).encode("ascii")
+
+    if not (len(encoded_message) <= MAX_FRAME_BYTES):
+        raise ValueError(f"Scientific message {len(encoded_message)=} should not exceed {MAX_FRAME_BYTES=}")
+
+    return struct.pack("!I", len(encoded_message)) + encoded_message
+
+
+def decode_frame(encoded_message: bytes) -> object:
+    if not (len(encoded_message) <= MAX_FRAME_BYTES):
+        raise ValueError(f"Scientific message {len(encoded_message)=} should not exceed {MAX_FRAME_BYTES=}")
 
     try:
-        return unpack(json.loads(data.decode("ascii"), object_pairs_hook=_unique_fields))
+        return unpack(json.loads(encoded_message.decode("ascii"), object_pairs_hook=_unique_fields))
     except (ValueError, TypeError, LookupError, AttributeError, RecursionError, OverflowError) as cause:
         raise ValueError("Malformed scientific process message") from cause
 
 
-def _unique_fields(pairs) -> dict:
-    value = {}
+def _unique_fields(field_pairs) -> dict:
+    decoded_fields = {}
 
-    for key, item in pairs:
-        if key in value:
+    for (key, field_value) in field_pairs:
+        if not (key not in decoded_fields):
             raise ValueError("Scientific process object repeats a field")
 
-        value[key] = item
+        decoded_fields[key] = field_value
 
-    return value
+    return decoded_fields
 
 
 def _read_exact(sock: socket.socket, count: int, *, deadline: float | None) -> bytes:
-    result = bytearray()
+    received_bytes = bytearray()
 
-    while len(result) < count:
+    while len(received_bytes) < count:
         if deadline is not None:
             remaining = deadline - time.monotonic()
 
-            if remaining <= 0:
-                raise TimeoutError("Scientific process reply exceeded its original deadline")
+            if not (0 < remaining):
+                raise TimeoutError(f"Scientific process reply exceeded its original {deadline=}; {remaining=}")
 
             sock.settimeout(remaining)
 
-        part = sock.recv(count - len(result))
+        chunk = sock.recv(count - len(received_bytes))
 
-        if not part:
-            raise EOFError("Scientific process connection closed before a complete reply")
+        if not (chunk):
+            raise EOFError(f"Scientific process reply stopped at {len(received_bytes)=}; expected {count=}")
 
-        result.extend(part)
+        received_bytes.extend(chunk)
 
-    return bytes(result)
+    return bytes(received_bytes)
 
 
 def receive(sock: socket.socket, *, deadline: float | None = None) -> object:
     """Read a reply within one deadline; omitted deadlines keep socket policy."""
+
     (length,) = struct.unpack("!I", _read_exact(sock, 4, deadline=deadline))
 
-    if length > MAX_FRAME_BYTES:
-        raise ValueError("Scientific process frame exceeds the channel limit")
+    if not (length <= MAX_FRAME_BYTES):
+        raise ValueError(f"Scientific process frame {length=} should not exceed {MAX_FRAME_BYTES=}")
 
     return decode_frame(_read_exact(sock, length, deadline=deadline))
 
 
-def send(sock: socket.socket, value: object) -> None:
-    sock.sendall(frame(value))
+def send(sock: socket.socket, sdk_value: object) -> None:
+    sock.sendall(frame(sdk_value))
 
 
 async def receive_async(sock: socket.socket) -> object:
     loop = asyncio.get_running_loop()
 
     async def read_exact(count: int) -> bytes:
-        data = bytearray()
+        received_bytes = bytearray()
 
-        while len(data) < count:
-            part = await loop.sock_recv(sock, count - len(data))
+        while len(received_bytes) < count:
+            chunk = await loop.sock_recv(sock, count - len(received_bytes))
 
-            if not part:
-                raise EOFError("Scientific process connection closed before a complete request")
+            if not (chunk):
+                raise EOFError(f"Scientific process request stopped at {len(received_bytes)=}; expected {count=}")
 
-            data.extend(part)
+            received_bytes.extend(chunk)
 
-        return bytes(data)
+        return bytes(received_bytes)
 
     (length,) = struct.unpack("!I", await read_exact(4))
 
-    if length > MAX_FRAME_BYTES:
-        raise ValueError("Scientific process frame exceeds the channel limit")
+    if not (length <= MAX_FRAME_BYTES):
+        raise ValueError(f"Scientific process frame {length=} should not exceed {MAX_FRAME_BYTES=}")
 
     return decode_frame(await read_exact(length))
 
 
-async def send_async(sock: socket.socket, value: object) -> None:
-    await asyncio.get_running_loop().sock_sendall(sock, frame(value))
+async def send_async(sock: socket.socket, sdk_value: object) -> None:
+    await asyncio.get_running_loop().sock_sendall(sock, frame(sdk_value))

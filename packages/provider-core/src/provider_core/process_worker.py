@@ -13,10 +13,10 @@ require_container()
 
 import argparse
 import asyncio
+from collections.abc import Mapping
 import importlib
 import os
 import socket
-from collections.abc import Mapping
 
 from provider_core.embedded_host import InProcessExecutionHost
 from provider_core.hosting import (
@@ -29,20 +29,21 @@ from provider_core.hosting import (
 )
 from provider_core.process_wire import RemoteScienceError, frame, receive_async
 from provider_core.scientific import Contribution
+from provider_core.type_requirements import require_subclass
 
 
-def _installed_member(path: str):
-    module_name, separator, member_path = path.partition(":")
+def _installed_member(member_location: str):
+    (module_name, separator, member_path) = member_location.partition(":")
 
-    if not separator or not module_name or not member_path or "<locals>" in member_path:
-        raise ValueError("Scientific worker requires an installed module:member path")
+    if not (separator and module_name and member_path and ("<locals>" not in member_path)):
+        raise ValueError(f"Scientific worker {member_location=} should identify an installed module:member")
 
-    value = importlib.import_module(module_name)
+    installed_member = importlib.import_module(module_name)
 
     for name in member_path.split("."):
-        value = getattr(value, name)
+        installed_member = getattr(installed_member, name)
 
-    return value
+    return installed_member
 
 
 class _Worker:
@@ -54,18 +55,18 @@ class _Worker:
         self.operations = {}
 
     async def start(self, message: Mapping) -> dict:
-        if self.host is not None:
+        if not (self.host is None):
             raise RuntimeError("Scientific worker startup is single-use")
 
         host = InProcessExecutionHost(**message["host_options"])
         self.host = host
+
         await host.__aenter__()
 
         constructor = _installed_member(message["constructor"])
         contribution_type = _installed_member(message["contribution_type"])
 
-        if not issubclass(contribution_type, Contribution):
-            raise TypeError("Scientific worker declaration must be a Contribution class")
+        require_subclass(contribution_type, Contribution)
 
         startup = message["startup"]
 
@@ -79,7 +80,9 @@ class _Worker:
         )
 
         self.hosted = hosted
+
         await host.initialize(allocation=hosted.allocation)
+
         self.ready = True
 
         return {
@@ -89,8 +92,8 @@ class _Worker:
         }
 
     def _analysis(self, identity):
-        if self.analysis is None or self.analysis.identity != identity:
-            raise LookupError("This scientific analysis is not open in the worker")
+        if not ((self.analysis is not None) and (self.analysis.identity == identity)):
+            raise LookupError(f"Scientific analysis {identity=} should identify the worker's open analysis")
 
         return self.analysis
 
@@ -98,24 +101,28 @@ class _Worker:
         key = (message["analysis"], message["operation"])
         operation = self.operations.get(key)
 
-        if operation is None:
-            raise LookupError("This scientific operation is no longer available in the worker")
+        if not (operation is not None):
+            raise LookupError(f"Scientific operation {key=} should identify work retained by this worker")
 
         return operation
 
     async def _forget_analysis(self, analysis_id):
         """Release transferred evidence only after successful analysis cleanup."""
+
         analysis = self._analysis(analysis_id)
 
-        if analysis.cleanup is None:
+        if not (analysis.cleanup is not None):
             raise RuntimeError("Scientific analysis cleanup has not been requested")
 
         observed = await analysis.cleanup.observe(after=None, wait_seconds=0)
 
-        if not observed.settled or observed.failures:
-            raise RuntimeError("Scientific analysis cleanup has not settled successfully")
+        if not (observed.settled and (not observed.failures)):
+            raise RuntimeError(
+                f"Scientific analysis {analysis_id=} cleanup should settle successfully; "
+                f"{observed.settled=}, {len(observed.failures)=}"
+            )
 
-        for key, operation in list(self.operations.items()):
+        for (key, operation) in list(self.operations.items()):
             if key[0] != analysis_id:
                 continue
 
@@ -137,17 +144,18 @@ class _Worker:
         if action == "retire":
             return await self.retire()
 
-        if not self.ready:
+        if not (self.ready):
             raise RuntimeError("Scientific worker is not initialized")
 
         if action == "open_analysis":
-            if self.analysis is not None:
+            if not (self.analysis is None):
                 raise CapacityUnavailable("The scientific allocation already owns an analysis")
 
             self.analysis = self.host.open_analysis(
                 analysis_id=message["analysis"],
                 allocation_names=(self.hosted.allocation.allocation,),
             )
+
             return self.analysis.reservation(allocation=self.hosted.allocation)
 
         if action == "submit":
@@ -155,11 +163,13 @@ class _Worker:
             analysis_id = invocation.reservation.analysis
             analysis = self.analysis
 
-            if analysis is None or analysis.identity != analysis_id:
-                return {"refusal": NotAdmitted(
-                    AdmissionCode.INVALID_REFERENCE,
-                    "Scientific submission requires its explicitly opened analysis",
-                )}
+            if (analysis is None) or (analysis.identity != analysis_id):
+                return {
+                    "refusal": NotAdmitted(
+                        AdmissionCode.INVALID_REFERENCE,
+                        "Scientific submission requires its explicitly opened analysis",
+                    )
+                }
 
             decision = analysis.submit(invocation=invocation)
 
@@ -167,6 +177,7 @@ class _Worker:
                 return {"refusal": decision}
 
             self.operations[(analysis_id, invocation.operation_id)] = decision
+
             return {"operation": decision.reference}
 
         if action == "observe":
@@ -177,6 +188,7 @@ class _Worker:
 
         if action == "stop_operation":
             self._operation(message).request_stop()
+
             return None
 
         if action == "release_result":
@@ -185,8 +197,9 @@ class _Worker:
             observed = await control.observe(after=None, wait_seconds=0)
             current = await operation.observe(after=None, wait_seconds=0)
 
-            if observed.settled and (
-                self.analysis is None or self.analysis.identity != message["analysis"]
+            if (
+                observed.settled and
+                ((self.analysis is None) or (self.analysis.identity != message["analysis"]))
             ):
                 del self.operations[(message["analysis"], message["operation"])]
 
@@ -194,17 +207,20 @@ class _Worker:
 
         if action == "stop_analysis":
             self._analysis(message["analysis"]).request_stop()
+
             return None
 
         if action == "close_analysis":
             control = self._analysis(message["analysis"]).close()
+
             return await control.observe(after=None, wait_seconds=0)
 
         if action == "forget_analysis":
             await self._forget_analysis(message["analysis"])
+
             return None
 
-        raise ValueError(f"Unknown scientific worker action {action!r}")
+        raise ValueError(f"Scientific worker {action=} should name a supported command")
 
     async def retire(self):
         self.ready = False
@@ -215,35 +231,38 @@ class _Worker:
         return await settle_cleanup(control=self.host.retire())
 
 
-async def _serve(sock: socket.socket) -> None:
-    sock.setblocking(False)
+async def _serve(science_socket: socket.socket) -> None:
+    science_socket.setblocking(False)
+
     worker = _Worker()
+
     try:
         while True:
             try:
-                message = await receive_async(sock)
+                message = await receive_async(science_socket)
             except EOFError:
                 break
 
             try:
-                outcome = await worker.command(message)
+                command_result = await worker.command(message)
             except BaseException as cause:
-                reply = {"ok": False, "error": cause}
+                response_envelope = {"ok": False, "error": cause}
             else:
-                reply = {"ok": True, "value": outcome}
+                response_envelope = {"ok": True, "value": command_result}
 
             try:
-                encoded = frame(reply)
+                response_bytes = frame(response_envelope)
             except Exception as cause:
                 failure = RemoteScienceError(
                     "Scientific reply could not be encoded; retain the original work without repeating it"
                 )
+
                 failure.__cause__ = cause
-                encoded = frame({"ok": False, "error": failure})
+                response_bytes = frame({"ok": False, "error": failure})
 
             # Framing has no I/O effects. A failed send may have delivered a
             # partial reply and is never retried on this stream.
-            await asyncio.get_running_loop().sock_sendall(sock, encoded)
+            await asyncio.get_running_loop().sock_sendall(science_socket, response_bytes)
 
             if message["action"] == "retire":
                 break
@@ -253,11 +272,12 @@ async def _serve(sock: socket.socket) -> None:
             # factory import or partial model construction.
             await worker.retire()
         finally:
-            sock.close()
+            science_socket.close()
 
 
 def main(argv=None):
     parser = argparse.ArgumentParser(description="Serve one installed scientific allocation")
+
     parser.add_argument("--session-fd", required=True, type=int)
     parser.add_argument("--lease-fd", required=True, type=int)
     parser.add_argument("--operation", required=True)
@@ -266,8 +286,10 @@ def main(argv=None):
     # The native runner passes its lifetime lease. Keep that descriptor open
     # until process exit, including while scientific executor threads unwind.
     os.fstat(args.lease_fd)
-    sock = socket.socket(fileno=args.session_fd)
-    asyncio.run(_serve(sock))
+
+    science_socket = socket.socket(fileno=args.session_fd)
+
+    asyncio.run(_serve(science_socket))
 
 
 if __name__ == "__main__":
