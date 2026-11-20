@@ -620,8 +620,7 @@ class _History:
         if set(arguments) != {"records"}:
             raise ToolRejected("Provide records as a list of one to eight catalogue references with optional cursors.")
 
-        if not isinstance(queries, (expected_type := list)):
-            raise ToolRejected(f"{type(queries)=} ≠ {expected_type=}")
+        require_instance(queries, list, error_factory=ToolRejected)
 
         if not (1 <= len(queries) <= 8):
             raise ToolRejected("Provide records as a list of one to eight catalogue references with optional cursors.")
@@ -629,20 +628,17 @@ class _History:
         record_replies: list[Document] = []
 
         for query in queries:
-            if not isinstance(query, (expected_type := dict)):
-                raise ToolRejected(f"{type(query)=} ≠ {expected_type=}")
+            require_instance(query, dict, error_factory=ToolRejected)
 
             if set(query) - {"ref", "cursor"}:
                 raise ToolRejected("Each record request needs a ref and an optional integer cursor.")
 
-            if not isinstance((query_ref := query.get("ref")), (expected_type := str)):
-                raise ToolRejected(f"{type(query_ref)=} ≠ {expected_type=}")
+            require_instance((query_ref := query.get("ref")), str, error_factory=ToolRejected)
 
             # silent-defaults: allow-contract -- The input schema explicitly permits omitted cursors; zero selects the start of the captured history record.
             cursor = query["cursor"] if "cursor" in query else 0
 
-            if not (type(cursor) is (expected_type := int)):
-                raise ToolRejected(f"{type(cursor)=} ≠ {expected_type=}")
+            require_type(cursor, int, error_factory=ToolRejected)
 
             if cursor < 0:
                 raise ToolRejected("A history cursor must be a nonnegative integer offset in that record's JSON text.")
@@ -751,15 +747,13 @@ class _DescribeInputConstraints:
         if set(arguments) - {"tool", "field"}:
             raise ToolRejected("Name an available provider tool and optionally a nonempty field path.")
 
-        if not isinstance(name, (expected_type := str)):
-            raise ToolRejected(f"{type(name)=} ≠ {expected_type=}")
+        require_instance(name, str, error_factory=ToolRejected)
 
         if not (name in self._schemas):
             raise ToolRejected("Name an available provider tool and optionally a nonempty field path.")
 
         if field_path is not None:
-            if not isinstance(field_path, (expected_path_type := str)):
-                raise ToolRejected(f"{type(field_path)=} ≠ {expected_path_type=}")
+            require_instance(field_path, str, error_factory=ToolRejected)
 
             if not (field_path):
                 raise ToolRejected("Name an available provider tool and optionally a nonempty field path.")
