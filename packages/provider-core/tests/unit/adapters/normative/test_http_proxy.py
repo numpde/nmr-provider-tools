@@ -37,12 +37,12 @@ class ProxyRequestTests(unittest.TestCase):
                         f"\r\n"
                     ).encode("ascii")
 
-                    result = parse_destination(header)
+                    parsed_destination = parse_destination(header)
 
-                    self.assertEqual(result[:3], (method, "example.invalid", port))
+                    self.assertEqual(parsed_destination[:3], (method, "example.invalid", port))
 
                     self.assertEqual(
-                        result[3],
+                        parsed_destination[3],
                         header if method == "CONNECT" else (
                             b"GET /path?query=1 HTTP/1.1\r\n"
                             b"\r\n"

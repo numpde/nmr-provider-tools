@@ -40,9 +40,9 @@ class UploadAcquisitionTests(unittest.IsolatedAsyncioTestCase):
             self.assertEqual(store.maximum_bytes, 8)
             self.assertEqual(owner.requests_started, 4)
             self.assertEqual(api.calls, ["membership", "membership", "grant"])
-            request = store.calls[0]
+            download_http_request = store.calls[0]
 
-            self.assertEqual(request.headers["Authorization"], "Bearer private-bearer")
+            self.assertEqual(download_http_request.headers["Authorization"], "Bearer private-bearer")
 
             for forbidden in ("Signature", "Signature-Input", "Content-Type", "Content-Length", "Range"):
-                self.assertNotIn(forbidden, request.headers)
+                self.assertNotIn(forbidden, download_http_request.headers)
