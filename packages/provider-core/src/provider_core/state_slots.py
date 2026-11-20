@@ -192,11 +192,11 @@ class StateInputSlot[T]:
 
     def read(self, values: Mapping[str, object]) -> T:
         """Read a host-admitted live value while preserving its concrete type."""
-        value = values[self.name]
+        state_value = values[self.name]
 
-        require_type(value, self.kind.value_type)
+        require_type(state_value, self.kind.value_type)
 
-        return cast(T, value)
+        return cast(T, state_value)
 
 
 def state_references(*, states: Mapping[StateInputSlot, StateHandle]) -> dict[str, StateRef]:
