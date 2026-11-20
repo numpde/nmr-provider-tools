@@ -375,15 +375,15 @@ async def shutdown_scenario(schedule, seed, directory, facts):
                 if not observer.done():
                     observer.cancel()
 
-                (result,) = await asyncio.gather(observer, return_exceptions=True)
+                (join_observer_outcome,) = await asyncio.gather(observer, return_exceptions=True)
 
-                if isinstance(result, asyncio.CancelledError):
+                if isinstance(join_observer_outcome, asyncio.CancelledError):
                     cancelled_observers += 1
 
                 note(
                     "join_observer_finished",
                     observer_number=observer_number + 1,
-                    cancelled=isinstance(result, asyncio.CancelledError)
+                    cancelled=isinstance(join_observer_outcome, asyncio.CancelledError)
                 )
 
             await asyncio.wait_for(original_exchange.stop.wait(), 2)
@@ -539,9 +539,9 @@ async def shutdown_scenario(schedule, seed, directory, facts):
             release_time = loop.time()
 
             note("test_released_original_os_observations")
-            (result,) = await asyncio.wait_for(asyncio.gather(running, return_exceptions=True), 3)
+            (controller_outcome,) = await asyncio.wait_for(asyncio.gather(running, return_exceptions=True), 3)
 
-            note("original_controller_run_finished", result_type=type(result).__name__)
+            note("original_controller_run_finished", result_type=type(controller_outcome).__name__)
             settlement_failures = []
             settle_deadline = loop.time() + 2
 
@@ -566,7 +566,7 @@ async def shutdown_scenario(schedule, seed, directory, facts):
 
             facts.update(
                 {
-                    "controller_failure_types": failure_types(result),
+                    "controller_failure_types": failure_types(controller_outcome),
                     "settlement_failure_types": sorted(
                         {
                             name for failure in settlement_failures
@@ -583,7 +583,7 @@ async def shutdown_scenario(schedule, seed, directory, facts):
                     "prepare_calls": session.prepare_calls,
                     "execute_calls": session.execute_calls,
                     "tool_dispatches": session.tool_dispatches,
-                    "start_count": sum(request.url.path.endswith("/start") for (request, _) in jobs_api_replies.calls),
+                    "start_count": sum(jobs_request.url.path.endswith("/start") for (jobs_request, _) in jobs_api_replies.calls),
                     "http_request_count": len(peer.requests),
                     "child_count": len(children),
                     "child_pids": [child.pid for child in children],
