@@ -17,6 +17,7 @@ import reprlib
 from dataclasses import dataclass, field
 
 from provider_core.response_json import ResponseRejected, read_document
+from provider_core.type_requirements import require_type
 from provider_core.validation.upstream.nmr.v1.job_refs import JOB_REF_PATTERN
 
 # The admitted input profile has this fixed protocol identity.
@@ -50,8 +51,7 @@ class FeedInputFacts:
     input_byte_length: int
 
     def __post_init__(self):
-        if not (type(self.job_ref) is (expected_type := str)):
-            raise JobInputRejected(f"{type(self.job_ref)=} ≠ {expected_type=}")
+        require_type(self.job_ref, str, error_factory=JobInputRejected)
 
         if not re.fullmatch((expected_pattern := JOB_REF_PATTERN), self.job_ref):
             raise JobInputRejected(f"{reprlib.repr(self.job_ref)=} should match {expected_pattern=}")
@@ -59,14 +59,12 @@ class FeedInputFacts:
         if not (self.input_schema_id == INPUT_SCHEMA):
             raise JobInputRejected(f"{reprlib.repr(self.input_schema_id)=} should match {INPUT_SCHEMA=}")
 
-        if not (type(self.input_fingerprint) is (expected_type := str)):
-            raise JobInputRejected(f"{type(self.input_fingerprint)=} ≠ {expected_type=}")
+        require_type(self.input_fingerprint, str, error_factory=JobInputRejected)
 
         if not re.fullmatch((expected_pattern := r"sha256:[0-9a-f]{64}"), self.input_fingerprint):
             raise JobInputRejected(f"{reprlib.repr(self.input_fingerprint)=} should match {expected_pattern=}")
 
-        if not (type(self.input_byte_length) is (expected_type := int)):
-            raise JobInputRejected(f"{type(self.input_byte_length)=} ≠ {expected_type=}")
+        require_type(self.input_byte_length, int, error_factory=JobInputRejected)
 
         min_input_bytes = 1
 
@@ -82,11 +80,9 @@ class VerifiedJobInput:
     specification_bytes: bytes = field(repr=False)
 
     def __post_init__(self):
-        if not (type(self.identity) is (expected_type := FeedInputFacts)):
-            raise JobInputRejected(f"{type(self.identity)=} ≠ {expected_type=}")
+        require_type(self.identity, FeedInputFacts, error_factory=JobInputRejected)
 
-        if not (type(self.specification_bytes) is (expected_type := bytes)):
-            raise JobInputRejected(f"{type(self.specification_bytes)=} ≠ {expected_type=}")
+        require_type(self.specification_bytes, bytes, error_factory=JobInputRejected)
 
         specification_byte_length = len(self.specification_bytes)
 
@@ -121,16 +117,14 @@ def verify_job_input(response_bytes, *, feed):
     noncanonical base64 are rejected. The source payload is never reserialized.
     """
 
-    if not (type(feed) is (expected_type := FeedInputFacts)):
-        raise JobInputRejected(f"{type(feed)=} ≠ {expected_type=}")
+    require_type(feed, FeedInputFacts, error_factory=JobInputRejected)
 
     try:
         input_response = read_document(response_bytes, MAX_RESPONSE_BYTES)
     except ResponseRejected as cause:
         raise JobInputRejected(str(cause)) from cause
 
-    if not (type(input_response) is (expected_type := dict)):
-        raise JobInputRejected(f"{type(input_response)=} ≠ {expected_type=}")
+    require_type(input_response, dict, error_factory=JobInputRejected)
 
     response_fields = set(input_response)
     expected_fields = {"schema_id", "job_ref", "input_schema_id", "input_fingerprint", "input_byte_length", "canonical_input_base64"}
@@ -157,8 +151,7 @@ def verify_job_input(response_bytes, *, feed):
 
     observed_input_base64 = input_response["canonical_input_base64"]
 
-    if not (type(observed_input_base64) is (expected_type := str)):
-        raise JobInputRejected(f"{type(observed_input_base64)=} ≠ {expected_type=}")
+    require_type(observed_input_base64, str, error_factory=JobInputRejected)
 
     base64_character_count = len(observed_input_base64)
     (min_base64_characters, max_base64_characters) = (1, 87384)
