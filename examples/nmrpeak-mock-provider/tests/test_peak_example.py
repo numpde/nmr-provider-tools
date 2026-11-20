@@ -861,8 +861,8 @@ class PeakExampleTests(unittest.IsolatedAsyncioTestCase):
                 models.append(self)
                 entered.set()
 
-                if not release.wait(timeout=5):
-                    raise TimeoutError("Test did not release model loading")
+                if not (model_loading_released := release.wait(timeout=(release_timeout_seconds := 5))):
+                    raise TimeoutError(f"{model_loading_released=} after waiting {release_timeout_seconds=}")
 
                 super().load(checkpoint=checkpoint)
 

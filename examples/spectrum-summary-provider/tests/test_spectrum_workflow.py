@@ -316,8 +316,8 @@ class SpectrumWorkflowTests(unittest.IsolatedAsyncioTestCase):
         def held(spectrum, settings):
             entered.set()
 
-            if not proceed.wait(5):
-                raise TimeoutError("Test did not release the original baseline calculation")
+            if not (baseline_calculation_released := proceed.wait(timeout=(release_timeout_seconds := 5))):
+                raise TimeoutError(f"{baseline_calculation_released=} after waiting {release_timeout_seconds=}")
 
             return subtract(spectrum, settings)
 
