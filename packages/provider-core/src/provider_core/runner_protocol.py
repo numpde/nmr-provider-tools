@@ -8,6 +8,7 @@ import array
 import json
 import os
 import re
+import reprlib
 import socket
 import struct
 import time
@@ -40,26 +41,29 @@ def token(value):
 
 
 def _remaining(connection, deadline):
-    remaining = deadline - time.monotonic()
+    remaining_seconds = deadline - time.monotonic()
 
-    if remaining <= 0:
-        raise TimeoutError("Runner lifecycle deadline expired before its complete reply.")
+    if remaining_seconds <= 0:
+        raise TimeoutError(f"{deadline=} has expired with {remaining_seconds=}")
 
-    connection.settimeout(remaining)
+    connection.settimeout(remaining_seconds)
 
 
-def _read(connection, size, deadline):
+def _read(connection, expected_frame_bytes, deadline):
     frame_buffer = bytearray()
 
-    while len(frame_buffer) < size:
+    while len(frame_buffer) < expected_frame_bytes:
         _remaining(connection, deadline)
-        (chunk, ancillary, flags, _) = connection.recvmsg(size - len(frame_buffer), 0)
+        (chunk, ancillary, flags, _) = connection.recvmsg(expected_frame_bytes - len(frame_buffer), 0)
 
-        if (flags & socket.MSG_CTRUNC) or ancillary:
-            raise LifecycleRejected("Unexpected descriptor transfer in a lifecycle frame.")
+        if not ((flags & socket.MSG_CTRUNC) == 0):
+            raise LifecycleRejected(f"{flags=:#x} should exclude {socket.MSG_CTRUNC=:#x}")
+
+        if ancillary:
+            raise LifecycleRejected(f"{len(ancillary)=} should be zero in lifecycle frames")
 
         if not (chunk):
-            raise LifecycleRejected("Runner control closed before its complete lifecycle reply.")
+            raise LifecycleRejected(f"Lifecycle control closed at {len(frame_buffer)=}; expected {expected_frame_bytes=}")
 
         frame_buffer.extend(chunk)
 
@@ -67,25 +71,25 @@ def _read(connection, size, deadline):
 
 
 def send_document(connection, value, *, deadline):
-    raw = json.dumps(value, allow_nan=False, separators=(",", ":")).encode("ascii")
+    control_bytes = json.dumps(value, allow_nan=False, separators=(",", ":")).encode("ascii")
 
-    if len(raw) > MAXIMUM_CONTROL_BYTES:
-        raise LifecycleRejected("Runner lifecycle output exceeds its fixed byte limit.")
+    if not (len(control_bytes) <= MAXIMUM_CONTROL_BYTES):
+        raise LifecycleRejected(f"{len(control_bytes)=} should not exceed {MAXIMUM_CONTROL_BYTES=}")
 
     _remaining(connection, deadline)
-    connection.sendall(struct.pack("!I", len(raw)) + raw)
+    connection.sendall(struct.pack("!I", len(control_bytes)) + control_bytes)
 
 
 def receive_document(connection, *, deadline):
-    size = struct.unpack("!I", _read(connection, 4, deadline))[0]
+    control_byte_count = struct.unpack("!I", _read(connection, 4, deadline))[0]
 
-    if not (0 < size <= MAXIMUM_CONTROL_BYTES):
-        raise LifecycleRejected("Runner lifecycle reply has an invalid byte count.")
+    if not (0 < control_byte_count <= MAXIMUM_CONTROL_BYTES):
+        raise LifecycleRejected(f"{control_byte_count=} should be positive and not exceed {MAXIMUM_CONTROL_BYTES=}")
 
     try:
-        lifecycle_message = json.loads(_read(connection, size, deadline))
+        lifecycle_message = json.loads(_read(connection, control_byte_count, deadline))
     except (ValueError, UnicodeError) as cause:
-        raise LifecycleRejected("Runner lifecycle reply is not a complete JSON document.") from cause
+        raise LifecycleRejected(f"Cannot decode lifecycle reply with {control_byte_count=}") from cause
 
     require_type(lifecycle_message, dict, error_factory=LifecycleRejected)
 
@@ -97,8 +101,10 @@ def send_greeting(connection, value, science, *, deadline):
     # another endpoint, and asyncio buffering must not consume this first byte.
     _remaining(connection, deadline)
 
-    if connection.sendmsg([b"\0"], [(socket.SOL_SOCKET, socket.SCM_RIGHTS, array.array("i", [science.fileno()]))]) != 1:
-        raise LifecycleRejected("Runner could not transfer its scientific endpoint.")
+    transferred_greeting_bytes = connection.sendmsg([b"\0"], [(socket.SOL_SOCKET, socket.SCM_RIGHTS, array.array("i", [science.fileno()]))])
+
+    if not (transferred_greeting_bytes == (expected_greeting_bytes := 1)):
+        raise LifecycleRejected(f"{transferred_greeting_bytes=} ≠ {expected_greeting_bytes=}")
 
     send_document(connection, value, deadline=deadline)
 
@@ -110,13 +116,13 @@ def receive_greeting(connection, *, deadline):
     try:
         _remaining(connection, deadline)
 
-        (first, ancillary, flags, _) = connection.recvmsg(
+        (greeting_byte, ancillary, flags, _) = connection.recvmsg(
             1,
             socket.CMSG_SPACE(8 * array.array("i").itemsize),
             socket.MSG_CMSG_CLOEXEC
         )
 
-        unexpected = False
+        unexpected_ancillary_types = []
 
         for (level, kind, raw) in ancillary:
             if (level == socket.SOL_SOCKET) and (kind == socket.SCM_RIGHTS):
@@ -125,47 +131,67 @@ def receive_greeting(connection, *, deadline):
                 received_fds.frombytes(raw[:len(raw) - len(raw) % received_fds.itemsize])
                 descriptors.extend(received_fds)
             else:
-                unexpected = True
+                unexpected_ancillary_types.append((level, kind))
 
-        if (first != b"\0") or (flags & socket.MSG_CTRUNC) or unexpected or (len(descriptors) != 1):
-            raise LifecycleRejected("Runner greeting requires exactly one scientific endpoint.")
+        if not (greeting_byte == (expected_greeting_byte := b"\0")):
+            raise LifecycleRejected(f"{greeting_byte=} ≠ {expected_greeting_byte=}")
+
+        if not ((flags & socket.MSG_CTRUNC) == 0):
+            raise LifecycleRejected(f"{flags=:#x} should exclude {socket.MSG_CTRUNC=:#x}")
+
+        if not (unexpected_ancillary_types == []):
+            raise LifecycleRejected(f"{unexpected_ancillary_types=} should be empty")
+
+        if not (len(descriptors) == (expected_science_fd_count := 1)):
+            raise LifecycleRejected(f"{len(descriptors)=} ≠ {expected_science_fd_count=}")
 
         science = socket.socket(fileno=descriptors[0])
 
         descriptors.clear()
 
-        if (science.family != socket.AF_UNIX) or (science.type != socket.SOCK_STREAM):
-            raise LifecycleRejected("Runner supplied an unsupported scientific endpoint type.")
+        if not (science.family == socket.AF_UNIX):
+            raise LifecycleRejected(f"{science.family=} ≠ {socket.AF_UNIX=}")
+
+        if not (science.type == socket.SOCK_STREAM):
+            raise LifecycleRejected(f"{science.type=} ≠ {socket.SOCK_STREAM=}")
 
         greeting_message = receive_document(connection, deadline=deadline)
 
-        if not (
-            (set(greeting_message) == {"kind", "role", "generation", "operation", "lock"}) and
-            (greeting_message["kind"] == "opened") and
-            token(greeting_message["generation"]) and
-            token(greeting_message["operation"])
-        ):
-            raise LifecycleRejected("Runner greeting has invalid generation, operation or lock identity.")
+        if not (set(greeting_message) == (expected_greeting_fields := {"kind", "role", "generation", "operation", "lock"})):
+            raise LifecycleRejected(f"{reprlib.repr(set(greeting_message))=} ≠ {expected_greeting_fields=}")
+
+        if not (greeting_message["kind"] == (expected_greeting_kind := "opened")):
+            raise LifecycleRejected(f"{reprlib.repr(greeting_message['kind'])=} ≠ {expected_greeting_kind=}")
+
+        runner_generation = greeting_message["generation"]
+
+        if not token(runner_generation):
+            raise LifecycleRejected(f"{reprlib.repr(runner_generation)=} should match {_TOKEN.pattern=}")
+
+        runner_operation = greeting_message["operation"]
+
+        if not token(runner_operation):
+            raise LifecycleRejected(f"{reprlib.repr(runner_operation)=} should match {_TOKEN.pattern=}")
 
         role = greeting_message["role"]
 
         require_type(role, str, error_factory=LifecycleRejected)
 
         if not re.fullmatch(pattern := r"[a-z][a-z0-9_-]{0,47}", role):
-            raise LifecycleRejected(f"Runner {role=} does not follow {pattern=}.")
+            raise LifecycleRejected(f"{role=} should match {pattern=}")
 
-        lock = greeting_message["lock"]
+        lock_identity = greeting_message["lock"]
 
-        require_type(lock, list, error_factory=LifecycleRejected)
+        require_type(lock_identity, list, error_factory=LifecycleRejected)
 
-        if len(lock) != 2:
-            raise LifecycleRejected("Runner greeting has invalid generation, operation or lock identity.")
+        if not (len(lock_identity) == (expected_lock_parts := 2)):
+            raise LifecycleRejected(f"{len(lock_identity)=} ≠ {expected_lock_parts=}")
 
-        for part in lock:
-            require_type(part, int, error_factory=LifecycleRejected)
+        for lock_identity_component in lock_identity:
+            require_type(lock_identity_component, int, error_factory=LifecycleRejected)
 
-            if part < 0:
-                raise LifecycleRejected("Runner greeting has invalid generation, operation or lock identity.")
+            if not (0 <= lock_identity_component):
+                raise LifecycleRejected(f"{lock_identity_component=} should be nonnegative")
 
         return (greeting_message, science)
     except BaseException:
