@@ -24,10 +24,10 @@ class JobFeedValidationTests(unittest.TestCase):
             ("unexpected", "private canary")
         ):
             with self.subTest(field=field):
-                document = page()
-                document[field] = bad
+                job_feed_fields = page()
+                job_feed_fields[field] = bad
 
-                yield (field, json.dumps(document).encode())
+                yield (field, json.dumps(job_feed_fields).encode())
 
     def test_envelope_kind_view_cursor_and_schema_drift_are_rejected(self):
         for (field, response_bytes) in self._invalid_envelopes():
@@ -67,23 +67,23 @@ class JobFeedValidationTests(unittest.TestCase):
             ("unknown", "private canary")
         ):
             with self.subTest(field=field):
-                document = page()
-                document["jobs"][0][field] = bad
+                job_feed_fields = page()
+                job_feed_fields["jobs"][0][field] = bad
 
                 with self.assertRaises(ResponseRejected):
                     read_jobs_page(
-                        json.dumps(document).encode(),
+                        json.dumps(job_feed_fields).encode(),
                         analysis_kind_ref="nmr_predict",
                         has_provider_execution_attempt=False,
                         limit=1
                     )
 
-        document = page()
-        document["jobs"] *= 2
+        job_feed_fields = page()
+        job_feed_fields["jobs"] *= 2
 
         with self.assertRaises(ResponseRejected):
             read_jobs_page(
-                json.dumps(document).encode(),
+                json.dumps(job_feed_fields).encode(),
                 analysis_kind_ref="nmr_predict",
                 has_provider_execution_attempt=False,
                 limit=1

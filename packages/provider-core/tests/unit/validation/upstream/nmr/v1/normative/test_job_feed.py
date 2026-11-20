@@ -10,36 +10,36 @@ from tests.fakes.job_feed import page
 
 class JobFeedValidationTests(unittest.TestCase):
     def test_maximum_page_and_exact_response_byte_boundary(self):
-        document = page()
-        document["jobs"] = [{**document["jobs"][0], "job_ref": f"job:item-{index}"} for index in range(100)]
-        raw = json.dumps(document).encode()
+        job_feed_fields = page()
+        job_feed_fields["jobs"] = [{**job_feed_fields["jobs"][0], "job_ref": f"job:item-{index}"} for index in range(100)]
+        raw = json.dumps(job_feed_fields).encode()
         padded = raw + b" " * (PAGE_RESPONSE_BYTES - len(raw))
 
         self.assertEqual(len(padded), PAGE_RESPONSE_BYTES)
-        result = read_jobs_page(padded, analysis_kind_ref="nmr_predict", has_provider_execution_attempt=False, limit=100)
+        jobs_page = read_jobs_page(padded, analysis_kind_ref="nmr_predict", has_provider_execution_attempt=False, limit=100)
 
-        self.assertEqual([item.input.job_ref for item in result.jobs], [item["job_ref"] for item in document["jobs"]])
+        self.assertEqual([job.input.job_ref for job in jobs_page.jobs], [job_fields["job_ref"] for job_fields in job_feed_fields["jobs"]])
 
         with self.assertRaises(ResponseRejected):
             read_jobs_page(padded + b" ", analysis_kind_ref="nmr_predict", has_provider_execution_attempt=False, limit=100)
 
-        document["jobs"].append(document["jobs"][0])
+        job_feed_fields["jobs"].append(job_feed_fields["jobs"][0])
 
         with self.assertRaises(ResponseRejected):
-            read_jobs_page(json.dumps(document).encode(), analysis_kind_ref="nmr_predict", has_provider_execution_attempt=False, limit=100)
+            read_jobs_page(json.dumps(job_feed_fields).encode(), analysis_kind_ref="nmr_predict", has_provider_execution_attempt=False, limit=100)
 
     def test_empty_page_and_presence_view_are_retained(self):
-        document = page()
+        job_feed_fields = page()
 
-        document.update(jobs=[], next_cursor=None, has_provider_execution_attempt=True)
+        job_feed_fields.update(jobs=[], next_cursor=None, has_provider_execution_attempt=True)
 
-        result = read_jobs_page(
-            json.dumps(document).encode(),
+        jobs_page = read_jobs_page(
+            json.dumps(job_feed_fields).encode(),
             analysis_kind_ref="nmr_predict",
             has_provider_execution_attempt=True,
             limit=1
         )
 
-        self.assertEqual(result.jobs, ())
-        self.assertIsNone(result.next_cursor)
-        self.assertTrue(result.has_provider_execution_attempt)
+        self.assertEqual(jobs_page.jobs, ())
+        self.assertIsNone(jobs_page.next_cursor)
+        self.assertTrue(jobs_page.has_provider_execution_attempt)
