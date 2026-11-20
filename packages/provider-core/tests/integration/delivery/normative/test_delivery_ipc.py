@@ -185,14 +185,14 @@ class DeliveryIPCTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(pending["publisher"]["diagnostics"], "display format changed")
 
     async def test_lost_acknowledgement_does_not_change_or_duplicate_the_committed_body(self):
-        item = outcome()
+        delivery_outcome = outcome()
         respond = self.inbox._respond
         dropped = False
 
-        async def lose_first(connection, writer, status, document):
+        async def lose_first(connection, writer, status, response_fields):
             nonlocal dropped
 
-            if (not dropped) and (status == 200) and (document == item.acceptance()):
+            if (not dropped) and (status == 200) and (response_fields == delivery_outcome.acceptance()):
                 dropped = True
 
                 writer.close()
@@ -200,17 +200,17 @@ class DeliveryIPCTests(unittest.IsolatedAsyncioTestCase):
 
                 return
 
-            await respond(connection, writer, status, document)
+            await respond(connection, writer, status, response_fields)
 
         self.inbox._respond = lose_first
 
         with self.assertRaises(DeliveryUnavailable):
-            await self.client.submit(item)
+            await self.client.submit(delivery_outcome)
 
         await self.client.retire()
-        self.assertEqual(await self.client.submit(item), item.acceptance())
-        self.assertEqual(self.queue.next_pending(item.api_origin, item.provider_ref), item)
-        self.assertEqual(len(self.queue.inventory(item.api_origin, item.provider_ref)), 1)
+        self.assertEqual(await self.client.submit(delivery_outcome), delivery_outcome.acceptance())
+        self.assertEqual(self.queue.next_pending(delivery_outcome.api_origin, delivery_outcome.provider_ref), delivery_outcome)
+        self.assertEqual(len(self.queue.inventory(delivery_outcome.api_origin, delivery_outcome.provider_ref)), 1)
 
     async def _wrong_binding_refusal(self):
         endpoint = DeliveryEndpoint("https://private-canary.example", "provider:private-canary", self.endpoint.socket_path)
@@ -244,7 +244,7 @@ class DeliveryIPCTests(unittest.IsolatedAsyncioTestCase):
 
         await self.client.submit(delivery_outcome)
 
-        async def lose_status(connection, writer, status, document):
+        async def lose_status(connection, writer, status, response_fields):
             raise ConnectionResetError()
 
         self.inbox._respond = lose_status
@@ -261,7 +261,7 @@ class DeliveryIPCTests(unittest.IsolatedAsyncioTestCase):
 
     async def test_shutdown_joins_committing_write_after_waiter_cancellation(self):
         (started, release_storage) = (threading.Event(), threading.Event())
-        item = outcome()
+        delivery_outcome = outcome()
 
         def blocked_enqueue():
             started.set()
@@ -269,7 +269,7 @@ class DeliveryIPCTests(unittest.IsolatedAsyncioTestCase):
             if not release_storage.wait(timeout=(release_timeout_seconds := 2)):
                 raise TimeoutError(f"{release_storage.is_set()=} after waiting {release_timeout_seconds=}")
 
-            return self.queue.enqueue(item)
+            return self.queue.enqueue(delivery_outcome)
 
         waiter = asyncio.create_task(self.inbox.storage(blocked_enqueue))
 
@@ -294,12 +294,12 @@ class DeliveryIPCTests(unittest.IsolatedAsyncioTestCase):
         self.assertFalse(closing.done())
         release_storage.set()
         await closing
-        self.assertEqual(self.queue.next_pending(item.api_origin, item.provider_ref), item)
+        self.assertEqual(self.queue.next_pending(delivery_outcome.api_origin, delivery_outcome.provider_ref), delivery_outcome)
 
     async def test_stalled_connection_close_is_aborted_at_the_owned_deadline(self):
         self.inbox.request_seconds = 0.01
-        request = h11.Request(method="GET", target="/pending", headers=[("Host", "delivery.invalid")])
-        self.inbox._read = AsyncMock(return_value=(request, b""))
+        pending_request = h11.Request(method="GET", target="/pending", headers=[("Host", "delivery.invalid")])
+        self.inbox._read = AsyncMock(return_value=(pending_request, b""))
         self.inbox._dispatch = AsyncMock(return_value={})
         self.inbox._respond = AsyncMock()
 

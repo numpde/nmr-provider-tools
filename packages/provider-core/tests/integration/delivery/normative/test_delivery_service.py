@@ -111,13 +111,13 @@ class DeliveryServiceTests(unittest.IsolatedAsyncioTestCase):
             (started, release_commit) = (threading.Event(), threading.Event())
             enqueue = service.queue.enqueue
 
-            def delayed_enqueue(value):
+            def delayed_enqueue(offered_outcome):
                 started.set()
 
                 if not release_commit.wait(timeout=(release_timeout_seconds := 2)):
                     raise TimeoutError(f"{release_commit.is_set()=} after waiting {release_timeout_seconds=}")
 
-                return enqueue(value)
+                return enqueue(offered_outcome)
 
             service.queue.enqueue = delayed_enqueue
             submit = asyncio.create_task(client.submit(delivery_outcome))
@@ -158,8 +158,8 @@ class DeliveryServiceTests(unittest.IsolatedAsyncioTestCase):
     async def test_scoped_status_reports_paused_publisher_while_inbox_still_accepts(self):
         # silent-defaults: allow-contract -- Change only the topology header to exercise the wrong-environment refusal.
         headers = [
-            (name, b"web" if name.lower() == b"nmr-api-topology" else value)
-            for (name, value) in response_headers()
+            (header_name, b"web" if header_name.lower() == b"nmr-api-topology" else header_value)
+            for (header_name, header_value) in response_headers()
         ]
 
         async with api_tls_peer("success", response_headers=headers) as peer:
