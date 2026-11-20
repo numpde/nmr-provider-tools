@@ -20,6 +20,7 @@ from provider_core.delivery_service import MAX_BINDINGS, DeliveryBinding, Delive
 from provider_core.delivery_store import QueueLimits
 from provider_core.startup_file import StartupFileRejected, read_startup_file
 from provider_core.tools import require_absolute_path
+from provider_core.type_requirements import require_type
 
 
 class DeliveryConfigurationRejected(ValueError):
@@ -32,8 +33,11 @@ class DeliveryConfigurationRejected(ValueError):
 
 
 def _fields(table, expected_fields, section_name):
-    if not (type(table) is (expected_type := dict)):
-        raise DeliveryConfigurationRejected(f"{section_name=}; {type(table)=} ≠ {expected_type=}")
+    require_type(
+        table,
+        dict,
+        error_factory=lambda diagnostic: DeliveryConfigurationRejected(f"{section_name=}; " + diagnostic),
+    )
 
     if not ((actual_fields := set(table)) == expected_fields):
         raise DeliveryConfigurationRejected(f"{section_name=}; {reprlib.repr(actual_fields)=} should match {expected_fields=}")
@@ -89,8 +93,7 @@ def load_delivery_service(path, *, on_notice, diagnostic_status):
     _fields(service_configuration["limits"], {"provider_items", "provider_bytes", "total_items", "total_bytes"}, "limits")
     bindings = service_configuration["bindings"]
 
-    if not (type(bindings) is (expected_type := list)):
-        raise DeliveryConfigurationRejected(f"{type(bindings)=} ≠ {expected_type=}")
+    require_type(bindings, list, error_factory=DeliveryConfigurationRejected)
 
     if not (1 <= len(bindings) <= MAX_BINDINGS):
         raise DeliveryConfigurationRejected("require between one and sixteen explicit bindings.")
