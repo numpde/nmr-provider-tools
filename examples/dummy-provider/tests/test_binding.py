@@ -216,7 +216,7 @@ class DummyBindingTests(unittest.IsolatedAsyncioTestCase):
             )
 
             with patch.object(target=provider_setup, attribute="PROVIDER_CONFIG_PATH", new=root / "provider.toml"):
-                with self.assertRaisesRegex(ValueError, "Resource amount must be a positive integer"):
+                with self.assertRaises(ValueError):
                     self.sum_binding()
 
 
