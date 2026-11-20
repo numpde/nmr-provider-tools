@@ -67,7 +67,7 @@ class EnvFileEmptyDefaultsTest(unittest.TestCase):
                 patch.object(_repo_surfaces, "REPO_ROOT", root),
                 patch(__name__ + ".SILENT_DEFAULTS_PRIVATE_ENV_EXCLUSIONS", excluded),
             ):
-                scanned = {repo_path(path) for path in _env_files()}
+                scanned = {repo_path(env_file_path) for env_file_path in _env_files()}
 
             self.assertTrue(excluded.isdisjoint(scanned))
             self.assertIn(pathlib.Path("private.env.example"), scanned)
@@ -81,7 +81,7 @@ class EnvFileEmptyDefaultsTest(unittest.TestCase):
             )
 
     def test_surface_files_always_excludes_silent_defaults_tests(self) -> None:
-        scanned = {repo_path(path) for path in surface_files(("tests/repository/**/*.py",))}
+        scanned = {repo_path(source_path) for source_path in surface_files(("tests/repository/**/*.py",))}
 
         self.assertNotIn(
             pathlib.Path("tests/repository/quality/silent_defaults/test_env_file_empty_defaults.py"),
