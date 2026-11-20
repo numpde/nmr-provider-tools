@@ -260,7 +260,7 @@ class PeakExampleTests(unittest.IsolatedAsyncioTestCase):
         chf_runner, chf_session = make_scientific_session(self)
         descriptors = (hf_session.control.fileno(), chf_session.control.fileno())
 
-        with self.assertRaisesRegex(ValueError, "model shares must fit the provider allowance"):
+        with self.assertRaisesRegex(ValueError, "state_values.*assigned.*allowance"):
             async with self.open_offerings(process_sessions={("hf", 0): hf_session, ("chf", 0): chf_session}):
                 self.fail("Overcommitted process shares must not start either model")
 

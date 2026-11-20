@@ -130,7 +130,7 @@ class SpectrumProcessTests(unittest.IsolatedAsyncioTestCase):
         self.configuration.write_text(tomli_w.dumps(configuration), encoding="utf-8")
         sessions = self.sessions()
         descriptors = {stage: session.control.fileno() for stage, session in sessions.items()}
-        with self.assertRaisesRegex(ValueError, "result_bytes.*enclosing"):
+        with self.assertRaisesRegex(ValueError, "result_bytes.*assigned.*allowance"):
             async with provider_setup.open_provider(process_sessions=sessions):
                 self.fail("Overallocated stage shares were accepted")
         self.assertFalse(sessions["baseline"]._connect_started)

@@ -21,6 +21,7 @@ from provider_core.contribution import CallBinding, ImplementationBinding, Isola
 from provider_core.scientific import AssetAccess, NoAssets, Contribution, HostedContribution
 
 from provider_core.hosting import (
+    _require_positive_capacity,
     AdmissionCode,
     AllocationRef,
     AnalysisCleanup,
@@ -88,10 +89,7 @@ class InProcessExecutionHost:
             ("state_values", state_values),
             ("progress_records", progress_records),
         ):
-            require_type(capacity, int)
-
-            if not (0 < capacity):
-                raise ValueError(f"{name=}; {capacity=} should be positive")
+            _require_positive_capacity(capacity, name=name)
 
         require_positive_number(initialization_seconds)
         require_positive_number(retirement_seconds)

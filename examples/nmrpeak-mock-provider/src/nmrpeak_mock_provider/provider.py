@@ -19,7 +19,7 @@ import tomllib
 from provider_core.embedded_host import InProcessExecutionHost
 from provider_core.contribution import CallBinding
 from provider_core.failure_collection import FailureCollector
-from provider_core.hosting import OperationPolicy, settle_cleanup
+from provider_core.hosting import OperationPolicy, require_capacity_partition, settle_cleanup
 from provider_core.interpreter import EndpointFactory, Interpreter
 from provider_core.process_host import ProcessExecutionHost
 from provider_core.runner_session import RunnerSession
@@ -104,31 +104,15 @@ class Offering:
 
 def _process_capacity_options(science_config: Mapping, host_options: Mapping) -> dict:
     """Partition aggregate capacities before any deployment session is acquired."""
-    capacities = ("input_bytes", "result_bytes", "state_values")
-    options = {}
-
-    for family, configurations in science_config.items():
-        for index, configuration in enumerate(configurations):
-            share = configuration["process_capacity"]
-
-            if set(share) != set(capacities):
-                raise ValueError(f"Cannot configure process capacity for {family=}, {index=}: declare input_bytes, result_bytes and state_values")
-
-            for name, value in share.items():
-                if type(value) is not int or value <= 0:
-                    raise ValueError(f"Cannot configure process capacity with {family=}, {index=}, {name=}, {value=}; shares must be positive integers")
-
-            options[family, index] = {**host_options, **share}
-
-    for name in capacities:
-        total = host_options[name]
-        assigned = sum(option[name] for option in options.values())
-
-        if type(total) is not int or total <= 0 or assigned > total:
-            raise ValueError(f"Cannot configure process capacity with {name=}, {assigned=}, {total=}; model shares must fit the provider allowance")
+    shares = {
+        (family, index): configuration["process_capacity"]
+        for family, configurations in science_config.items()
+        for index, configuration in enumerate(configurations)
+    }
+    require_capacity_partition(total=host_options, shares=shares)
 
     # Progress is retained per operation; startup/retirement are host allowances.
-    return options
+    return {key: {**host_options, **share} for key, share in shares.items()}
 
 
 @asynccontextmanager

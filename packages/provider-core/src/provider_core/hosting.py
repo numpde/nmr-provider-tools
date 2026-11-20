@@ -34,6 +34,47 @@ from provider_core.tools import require_finite_number, require_positive_number
 from provider_core.type_requirements import require_instance, require_type
 
 
+# These counters bound host-wide retained work; progress history is per operation.
+# repo-check: allow-module-constant
+_AGGREGATE_CAPACITIES = ("input_bytes", "result_bytes", "state_values")
+
+
+def _require_positive_capacity(capacity, *, name):
+    require_type(capacity, int, error_factory=lambda message: TypeError(f"Cannot configure {name=}: {message}"))
+
+    if not (0 < capacity):
+        raise ValueError(f"Cannot configure execution capacity with {name=}, {capacity=}; capacity should be positive")
+
+
+def require_capacity_partition(*, total: Mapping, shares: Mapping) -> None:
+    """Check static aggregate shares without acquiring or copying any owner.
+
+    Providers choose share identities and amounts. Nonaggregate host options are
+    neither partitioned nor interpreted here; constructors validate them on entry.
+    """
+    require_instance(total, Mapping)
+    require_instance(shares, Mapping)
+
+    for name in _AGGREGATE_CAPACITIES:
+        _require_positive_capacity(total[name], name=name)
+
+    for key, share in shares.items():
+        require_instance(share, Mapping)
+
+        if set(share) != set(_AGGREGATE_CAPACITIES):
+            raise ValueError(f"Cannot partition execution capacity for share {reprlib.repr(key)}: fields must be {_AGGREGATE_CAPACITIES!r}")
+
+        for name in _AGGREGATE_CAPACITIES:
+            _require_positive_capacity(share[name], name=f"{name} for share {reprlib.repr(key)}")
+
+    for name in _AGGREGATE_CAPACITIES:
+        assigned = sum(share[name] for share in shares.values())
+        allowance = total[name]
+
+        if assigned > allowance:
+            raise ValueError(f"Cannot partition execution capacity with {name=}, {assigned=}, {allowance=}; shares exceed the provider allowance")
+
+
 def _identity(identity_text, identity_role):
     require_type(identity_text, str)
 

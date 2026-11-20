@@ -23,6 +23,7 @@ from provider_core._embedded_support import EMBEDDED_CAPABILITIES, _Changes, _re
 from provider_core.async_runner_session import AsyncRunnerSession, await_original
 from provider_core.contribution import ResourceRequirement
 from provider_core.hosting import (
+    _require_positive_capacity,
     AcceptanceState,
     AdmissionCode,
     AllocationRef,
@@ -713,10 +714,7 @@ class ProcessExecutionHost:
             ("state_values", state_values),
             ("progress_records", progress_records),
         ):
-            require_type(capacity, int)
-
-            if not (0 < capacity):
-                raise ValueError(f"{capacity_name=}; {capacity=} should be positive")
+            _require_positive_capacity(capacity, name=capacity_name)
 
         require_positive_number(initialization_seconds)
         require_positive_number(retirement_seconds)

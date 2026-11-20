@@ -8,7 +8,7 @@ import tomllib
 
 from provider_core.contribution import CallBinding, ref
 from provider_core.embedded_host import InProcessExecutionHost
-from provider_core.hosting import Invocation, OperationPolicy
+from provider_core.hosting import Invocation, OperationPolicy, require_capacity_partition
 from provider_core.process_host import ProcessExecutionHost
 from provider_core.runner_session import RunnerSession
 from provider_core.scientific import HostedContribution, ResourceRequirement
@@ -75,22 +75,7 @@ def _stage_options(execution: Mapping) -> dict[str, dict]:
     if set(shares) != {"baseline", "peaks"}:
         raise ValueError("Cannot configure spectrum execution: stage_capacity must name baseline and peaks.")
 
-    capacities = ("input_bytes", "result_bytes", "state_values")
-
-    for stage, share in shares.items():
-        if set(share) != set(capacities):
-            raise ValueError(f"Cannot configure spectrum execution: {stage=} must declare input_bytes, result_bytes and state_values.")
-
-        for name, value in share.items():
-            if type(value) is not int or value <= 0:
-                raise ValueError(f"Cannot configure spectrum execution with {stage=}, {name=}, {value=}; stage capacity must be a positive integer.")
-
-    for name in capacities:
-        allowance = total[name]
-        assigned = sum(share[name] for share in shares.values())
-
-        if type(allowance) is not int or allowance <= 0 or assigned > allowance:
-            raise ValueError(f"Cannot configure spectrum execution with {name=}, {assigned=}, {allowance=}; stage shares must fit the enclosing positive integer allowance.")
+    require_capacity_partition(total=total, shares=shares)
 
     # Progress history is bounded per operation; deadlines are per-host policy.
     return {stage: {**total, **share} for stage, share in shares.items()}
