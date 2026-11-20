@@ -63,9 +63,6 @@ class PeakWorkflow:
     async def finish(self) -> Observation | NotAdmitted:
         """Resume observation or downstream admission without repeating science."""
 
-        if self.baseline_submission.operation is None:
-            raise RuntimeError("Start the baseline operation before waiting for peaks.")
-
         if self.peak_detection_refusal is not None:
             return self.peak_detection_refusal
 
