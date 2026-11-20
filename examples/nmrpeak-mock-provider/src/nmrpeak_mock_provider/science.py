@@ -92,20 +92,26 @@ class PreparedInput:
 def prepare(*, model: Model, candidate: HfInput | ChfInput, settings: Settings) -> PreparedInput:
     """Use the loaded tokenizer to reject an input before generation starts."""
 
-    if (not candidate.formula) or (not candidate.proton_peaks):
-        raise ScientificRejection(code="missing_science", message="Supply a formula and proton peaks")
+    if not (candidate.formula):
+        raise ScientificRejection(code="missing_science", message=f"{candidate.formula=} should be nonempty")
+
+    if not (candidate.proton_peaks):
+        raise ScientificRejection(code="missing_science", message=f"{candidate.proton_peaks=} should be nonempty")
 
     # repo-check: retain-type-guard -- Carbon peaks are required only for this scientific input variant
     if (isinstance(candidate, ChfInput)) and (not candidate.carbon_peaks):
-        raise ScientificRejection(code="missing_carbon", message="CHF requires carbon peaks")
+        raise ScientificRejection(code="missing_carbon", message=f"{candidate.carbon_peaks=} should be nonempty")
 
     tokens = model.tokenize(candidate=candidate)
     token_count = len(tokens)
 
-    if not (tokens and (token_count <= settings.maximum_input_tokens)):
+    if not (tokens):
+        raise ScientificRejection(code="token_limit", message=f"{token_count=} should be positive")
+
+    if not (token_count <= settings.maximum_input_tokens):
         raise ScientificRejection(
             code="token_limit",
-            message=f"Cannot generate with {token_count=}; requires 1 through {settings.maximum_input_tokens=}",
+            message=f"{token_count=} should be no greater than {settings.maximum_input_tokens=}",
         )
 
     return PreparedInput(tokens=tokens)
@@ -122,13 +128,16 @@ def validate_candidates(*, candidates: tuple[str, ...], settings: Settings) -> N
 
     candidate_count = len(candidates)
 
-    if not (1 <= candidate_count <= settings.beam_size):
-        raise ValueError(f"Expected: 1 ≤ {candidate_count=} ≤ {settings.beam_size=}")
+    if not ((min_candidate_count := 1) <= candidate_count <= settings.beam_size):
+        raise ValueError(f"{candidate_count=} should be between {min_candidate_count=} and {settings.beam_size=}")
 
-    for candidate in candidates:
-        require_type(candidate, str)
+    for candidate_smiles in candidates:
+        require_type(candidate_smiles, str)
 
-        character_count = len(candidate)
+        candidate_character_count = len(candidate_smiles)
 
-        if not (1 <= character_count <= settings.maximum_candidate_characters):
-            raise ValueError(f"Expected: 1 ≤ {character_count=} ≤ {settings.maximum_candidate_characters=}")
+        if not ((min_candidate_characters := 1) <= candidate_character_count <= settings.maximum_candidate_characters):
+            raise ValueError(
+                f"{candidate_character_count=} should be between {min_candidate_characters=} "
+                f"and {settings.maximum_candidate_characters=}"
+            )
