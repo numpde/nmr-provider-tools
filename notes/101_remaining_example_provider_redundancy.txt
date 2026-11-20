@@ -1,0 +1,61 @@
+# Remaining duplication across the four example providers
+
+Source review of main at 67d1419e, following Notes 099 and 100.
+
+Stop the production consolidation pass here. The four examples already use the
+SDK for host construction, capacity validation, session preflight and execution
+ownership. The clearest remaining duplication is in how tests launch installed
+Python modules. Two probes of the same property have already diverged.
+
+## Two places to revisit in tests
+
+1. Dummy and Spectrum both run their science module with isolated Python to
+   check that it imports without a launcher. Dummy removes both
+   NMR_PROVIDER_TOOLS_IN_CONTAINER and PROVIDER_CORE_IN_CONTAINER from the child
+   environment. Spectrum removes only the latter. Its probe can therefore pass
+   with the repository launcher marker present. To prove launcher independence
+   consistently, clear both markers in both probes. A small shared test helper
+   could own the child environment and invocation once. Keep a case for each
+   module, since either module can acquire an import dependency independently.
+   See dummy-provider/tests/test_binding.py and
+   spectrum-summary-provider/tests/test_spectrum_science.py under examples/.
+
+2. Reference and Spectrum's command tests both copy the shipped config tree
+   into a temporary directory and run the installed module there with
+   sys.executable, -I, -B, captured output and a 30-second timeout. Only the
+   module and expected report differ. If the launch contract changes, update one
+   test helper and keep the scientific assertions at each call site. The existing
+   staged_configuration fixture patches a module in the test process. The CLI
+   child needs the actual deployment files at the expected working-directory path.
+   See test_reference_workflow.py and test_spectrum_workflow.py, in their
+   respective CommandTests classes.
+
+## Why the similar production code can stay local
+
+- Capacity options. Spectrum's _stage_options and NMRPeak's
+  _process_capacity_options both overlay each validated share on the enclosing
+  host options. The shared SDK validator already owns the arithmetic. The
+  remaining comprehension works on two different inventories, fixed scientific
+  stages and configured model entries. One local simplification is visible in
+  Spectrum's open_provider. It could pass stage_options.keys() to require_sessions
+  because _stage_options has already enforced the exact baseline/peaks set.
+  NMRPeak already derives the expected keys from process_options.
+- Startup. All four read deployment TOML. Dummy and Reference also use a local
+  factory for threads and an installed factory reference for processes. Dummy
+  initializes its threaded model before yielding. Reference builds its threaded
+  index on first use. A common startup wrapper would need to expose that decision.
+- Results and cleanup. Reference delivers earlier reports when a later query
+  fails. Spectrum retains its baseline result across a retryable peak admission
+  refusal. NMRPeak retains one receiver attempt per prediction. Submission and
+  ResultConsumption already implement the shared mechanics. Each sequence
+  determines when a particular result may be released.
+- Scientific values. Reference channels must be nonnegative. Spectrum accepts
+  finite negative intensities and validates strictly increasing positions.
+  Both use SDK numeric guards and apply their own scientific constraints.
+  Likewise, the two demo commands can each write and flush a report to stdout
+  without introducing an SDK output policy.
+
+Reopen the SDK question when a real provider port has to reproduce a lifecycle
+rule that the existing SDK owners cannot express. This note records a source
+comparison. The installed qualification results for the preceding change are in
+Note 100.
