@@ -233,7 +233,7 @@ class ProcessOwnershipTests(unittest.IsolatedAsyncioTestCase):
 
         # Hold an original reply while both cleanup owners are created. Their
         # ordering must drain that exchange without making it wait for them.
-        earlier_observer = asyncio.create_task(original.observe(after=None, wait_seconds=0))
+        earlier_observer = asyncio.create_task(original.observe(after=None, wait_seconds=5))
         request = await asyncio.wait_for(receive_async(self.peer), timeout=5)
         self.assertEqual("observe", request["action"])
         release = original.release_result(result)
@@ -247,7 +247,7 @@ class ProcessOwnershipTests(unittest.IsolatedAsyncioTestCase):
 
         async def observe_after_close():
             later_started.set()
-            return await original.observe(after=None, wait_seconds=0)
+            return await original.observe(after=None, wait_seconds=5)
 
         later_observer = asyncio.create_task(observe_after_close())
         await later_started.wait()
@@ -279,11 +279,51 @@ class ProcessOwnershipTests(unittest.IsolatedAsyncioTestCase):
         with self.assertRaises(expected_exception=BlockingIOError):
             self.peer.recv(1)
 
+    async def test_zero_wait_returns_pending_facts_without_abandoning_the_remote_reply(self):
+        self.peer.setblocking(False)
+        operation = _ProcessOperation(self.analysis, self.invocation, acknowledged=True)
+        self.analysis.operations[self.invocation.operation_id] = operation
+
+        # No peer reply is available. Zero-wait observation must nevertheless
+        # return; the original remote request must remain owned.
+        initial = await asyncio.wait_for(
+            operation.observe(after=None, wait_seconds=0), timeout=0.5,
+        )
+        self.assertEqual(0, initial.revision)
+        self.assertIs(AcceptanceState.OWNED, initial.acceptance)
+        self.assertIs(DispatchState.UNKNOWN, initial.dispatch)
+        self.assertFalse(initial.finished)
+        request = await asyncio.wait_for(receive_async(self.peer), timeout=5)
+        self.assertEqual("observe", request["action"])
+
+        # A bounded later observer is also free to leave while the reply is
+        # delayed; neither call sends another request.
+        still_pending = await asyncio.wait_for(
+            operation.observe(after=initial.revision, wait_seconds=0.01), timeout=0.5,
+        )
+        self.assertEqual(initial, still_pending)
+        self.assertIsNotNone(operation.observation_task)
+        self.assertFalse(operation.observation_task.done())
+
+        completed = replace(
+            initial, revision=1, finished=True, outcome=Outcome.REJECTED,
+        )
+        await send_async(self.peer, {"ok": True, "value": completed})
+        observed = await operation.observe(after=initial.revision, wait_seconds=1)
+        self.assertEqual(completed, observed)
+        self.assertIsNone(self.host.channel.failure)
+
+        with self.assertRaises(expected_exception=BlockingIOError):
+            self.peer.recv(1)
+
+        with self.assertRaisesRegex(ValueError, "cursor"):
+            await operation.observe(after=observed.revision + 1, wait_seconds=0)
+
     async def test_cancelled_observation_retains_reply_before_subsequent_channel_loss(self):
         self.peer.setblocking(False)
         original = _ProcessOperation(self.analysis, self.invocation, acknowledged=True)
         self.analysis.operations[self.invocation.operation_id] = original
-        observer = asyncio.create_task(original.observe(after=None, wait_seconds=0))
+        observer = asyncio.create_task(original.observe(after=None, wait_seconds=5))
         request = await asyncio.wait_for(receive_async(self.peer), timeout=5)
         self.assertEqual("observe", request["action"])
         observer.cancel()
@@ -313,7 +353,7 @@ class ProcessOwnershipTests(unittest.IsolatedAsyncioTestCase):
         await send_async(self.peer, {"ok": True, "value": completed})
         await asyncio.wait_for(asyncio.shield(original.observation_task), timeout=5)
         self.peer.close()
-        observed = await original.observe(after=None, wait_seconds=0)
+        observed = await original.observe(after=None, wait_seconds=5)
 
         self.assertIs(Outcome.SUCCEEDED, observed.outcome)
         self.assertEqual(result, observed.result)

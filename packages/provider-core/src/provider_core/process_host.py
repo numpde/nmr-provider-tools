@@ -198,6 +198,33 @@ class _ProcessOperation:
     def _message(self, action, **extra):
         return {"action": action, "analysis": self.analysis.identity, "operation": self.reference.operation_id, **extra}
 
+    def _snapshot(self):
+        """Latest retained evidence, including before the worker's first reply."""
+        if self.failure_observation is not None:
+            return self.failure_observation
+
+        if self.last_observation is not None:
+            return self.last_observation
+
+        return Observation(
+            operation=self.reference,
+            target=self.invocation.target,
+            revision=0,
+            acceptance=AcceptanceState.OWNED if self.acknowledged else AcceptanceState.UNCERTAIN,
+            dispatch=DispatchState.UNKNOWN,
+            finished=False,
+            outcome=None,
+            result_state=ResultState.NONE,
+            result=None,
+            states=(),
+            progress=(),
+            progress_dropped=0,
+            failures=(),
+            stop_requested=self.stop_requested,
+            allowance_expired=False,
+            resources=ResourceState.UNKNOWN,
+        )
+
     def _unavailable(self, cause):
         host = self.analysis.host
         exited = host.session.retirement is not None
@@ -213,24 +240,7 @@ class _ProcessOperation:
 
             return self.failure_observation
 
-        observed = self.last_observation or Observation(
-            operation=self.reference,
-            target=self.invocation.target,
-            revision=0,
-            acceptance=AcceptanceState.OWNED if self.acknowledged else AcceptanceState.UNCERTAIN,
-            dispatch=DispatchState.UNKNOWN,
-            finished=exited,
-            outcome=None,
-            result_state=ResultState.NONE,
-            result=None,
-            states=(),
-            progress=(),
-            progress_dropped=0,
-            failures=(),
-            stop_requested=False,
-            allowance_expired=False,
-            resources=ResourceState.UNKNOWN,
-        )
+        observed = self.last_observation or self._snapshot()
         observed = replace(
             observed,
             revision=observed.revision + 1,
@@ -279,38 +289,63 @@ class _ProcessOperation:
 
     async def _observe_remote(self, before):
         await _join_originals(before)
-        return await self._peek_remote()
+
+        try:
+            return await self._peek_remote()
+        except (RemoteScienceError, LookupError) as cause:
+            # Original I/O publishes failure even if its observer left first.
+            observed = self._unavailable(cause)
+
+            if not observed.finished:
+                raise RemoteScienceError(
+                    "Scientific operation may still be running in an unobservable worker"
+                ) from cause
+
+            return observed
 
     async def observe(self, *, after, wait_seconds):
         self.analysis.host._require_loop()
         require_nonnegative_number(wait_seconds)
+        current = self._snapshot()
+
+        if after is not None:
+            require_type(after, int)
+
+            if not 0 <= after <= current.revision:
+                raise ValueError("Observation cursor must belong to this operation's current history")
+
+        if self.submission_failure is not None:
+            raise self.submission_failure
+
+        if self.detached or (current.finished and wait_seconds == 0):
+            return current
+
         loop = asyncio.get_running_loop()
         deadline = loop.time() + wait_seconds
 
         while True:
+            if self.observation_task is None or self.observation_task.done():
+                before = self._barriers()
+                self.observation_task = _start_owned_task(lambda: self._observe_remote(before))
+
+            # Return cached facts when the caller's wait is exhausted. The
+            # original remote observation remains owned and will publish later.
+            if wait_seconds == 0 or (after is not None and after != current.revision):
+                return current
+
             try:
-                if self.submission_failure is not None:
-                    raise self.submission_failure
-
-                if self.observation_task is None or self.observation_task.done():
-                    before = self._barriers()
-                    self.observation_task = _start_owned_task(lambda: self._observe_remote(before))
-
-                observed = await asyncio.shield(self.observation_task)
-            except (RemoteScienceError, LookupError) as cause:
-                observed = self._unavailable(cause)
-
-                if not observed.finished:
-                    # The channel is gone, not the scientific owner. Give the
-                    # workflow its original uncertainty instead of polling forever.
-                    raise RemoteScienceError(
-                        "Scientific operation may still be running in an unobservable worker"
-                    ) from cause
+                observed = await asyncio.wait_for(
+                    asyncio.shield(self.observation_task),
+                    timeout=max(0, deadline - loop.time()),
+                )
+            except TimeoutError:
+                return self._snapshot()
 
             if (after is None or after != observed.revision or observed.finished or
                     loop.time() >= deadline):
                 return observed
 
+            current = observed
             await asyncio.sleep(min(0.1, max(0, deadline - loop.time())))
 
     def request_stop(self):
