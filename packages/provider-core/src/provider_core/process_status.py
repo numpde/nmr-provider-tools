@@ -12,6 +12,7 @@ require_container()
 import argparse
 import json
 import os
+import reprlib
 import stat
 import time
 import pathlib
@@ -22,20 +23,31 @@ from provider_core.type_requirements import require_type
 
 def _start_ticks(pid):
     proc_stat_path = f"/proc/{pid}/stat"  # machine-string: the Linux procfs reader opens this exact /proc/<pid>/stat path.
-    raw = pathlib.Path(proc_stat_path).read_text()
-    fields = raw[raw.rfind(")") + 2:].split()
+    proc_stat_text = pathlib.Path(proc_stat_path).read_text()
+    proc_stat_fields = proc_stat_text[proc_stat_text.rfind(")") + 2:].split()
+    process_state = proc_stat_fields[0]
 
-    if fields[0] in ("Z", "X"):
-        raise ValueError("Process status identifies an exited process.")
+    if not (process_state not in ("Z", "X")):
+        raise ValueError(f"{pid=} has exited with {process_state=}")
 
-    return int(fields[19])
+    return int(proc_stat_fields[19])
 
 
-def _private_file(descriptor):
-    observed = os.fstat(descriptor)
+def _private_file(status_fd):
+    status_stat = os.fstat(status_fd)
 
-    if (not stat.S_ISREG(observed.st_mode)) or (observed.st_uid != os.geteuid()) or (stat.S_IMODE(observed.st_mode) != 0o600):
-        raise PermissionError("Process status requires a caller-owned mode 0600 regular file.")
+    if not stat.S_ISREG(file_mode := status_stat.st_mode):
+        raise PermissionError(f"{status_fd=} has bad {file_mode=}")
+
+    effective_uid = os.geteuid()
+
+    if not (status_stat.st_uid == effective_uid):
+        raise PermissionError(f"{status_fd=}; {status_stat.st_uid=} ≠ {effective_uid=}")
+
+    file_permissions = stat.S_IMODE(file_mode)
+
+    if not (file_permissions == (required_permissions := 0o600)):
+        raise PermissionError(f"{status_fd=}; {file_permissions=:#o} ≠ {required_permissions=:#o}")
 
 
 class ProcessStatus:
@@ -87,53 +99,54 @@ def read_status(path, role):
         _private_file(descriptor)
 
         with os.fdopen(descriptor, "rb", closefd=False) as source:
-            raw = source.read(4097)
+            max_status_bytes = 4096
+            status_bytes = source.read(max_status_bytes + 1)
 
-        if not (len(raw) <= 4096):
-            raise ValueError("Process status exceeds its fixed byte limit.")
+        if not (len(status_bytes) <= max_status_bytes):
+            raise ValueError(f"{len(status_bytes)=} should not exceed {max_status_bytes=}")
 
-        status_record = json.loads(raw)
+        status_record = json.loads(status_bytes)
     finally:
         os.close(descriptor)
 
-    fields = { "role", "pid", "start_ticks", "updated_monotonic", "phase" }
+    required_status_fields = { "role", "pid", "start_ticks", "updated_monotonic", "phase" }
 
     require_type(status_record, dict)
 
-    if not (set(status_record) in (fields, fields | { "details" })):
-        raise ValueError("Process status has an unsupported shape.")
+    if not (set(status_record) in (required_status_fields, required_status_fields | { "details" })):
+        raise ValueError(f"{reprlib.repr(set(status_record))=} should contain only {required_status_fields=} and optional 'details'")
 
     if "details" in status_record:
-        value_details = status_record["details"]
+        require_type(status_record["details"], dict)
 
-        require_type(value_details, dict)
+    if not (status_record["role"] == role):
+        raise ValueError(f"{reprlib.repr(status_record['role'])=} ≠ {reprlib.repr(role)=}")
 
-    if status_record["role"] != role:
-        raise ValueError("Process status has a different role or invalid process identity.")
+    status_pid = status_record['pid']
 
-    value_pid = status_record['pid']
+    require_type(status_pid, int)
 
-    require_type(value_pid, int)
+    if not (0 < status_pid):
+        raise ValueError(f"{status_pid=} should be positive")
 
-    if not (0 < status_record['pid']):
-        raise ValueError("Process status has a different role or invalid process identity.")
+    status_start_ticks = status_record['start_ticks']
 
-    value_start_ticks = status_record['start_ticks']
+    require_type(status_start_ticks, int)
 
-    require_type(value_start_ticks, int)
-
-    if not (0 < status_record['start_ticks']):
-        raise ValueError("Process status has a different role or invalid process identity.")
+    if not (0 < status_start_ticks):
+        raise ValueError(f"{status_start_ticks=} should be positive")
 
     status_updated_at = status_record["updated_monotonic"]
 
     require_nonnegative_number(status_updated_at)
 
-    if not (_start_ticks(status_record["pid"]) == status_record["start_ticks"]):
-        raise ValueError("Process status belongs to a different process identity.")
+    observed_start_ticks = _start_ticks(status_pid)
+
+    if not (observed_start_ticks == status_start_ticks):
+        raise ValueError(f"{status_pid=}; {observed_start_ticks=} ≠ {status_start_ticks=}")
 
     if not (status_record["phase"] in (phases := ("ready", "working", "starting", "stopping", "held", "api-unconfirmed"))):
-        raise ValueError(f"{status_record['phase']=} ∉ {phases=}.")
+        raise ValueError(f"{status_record['phase']=} ∉ {phases=}")
 
     return status_record
 
@@ -141,13 +154,14 @@ def read_status(path, role):
 def check_status(path, role):
     status_record = read_status(path, role)
 
-    if not (0 <= (time.monotonic() - status_record["updated_monotonic"]) <= 30):
-        raise ValueError("Process status observation expired or has an invalid timestamp.")
+    observation_age_seconds = time.monotonic() - status_record["updated_monotonic"]
+    max_observation_age_seconds = 30
 
-    if not (status_record["phase"] in ("ready", "working")):
-        process_phase = status_record["phase"]
+    if not (0 <= observation_age_seconds <= max_observation_age_seconds):
+        raise ValueError(f"{observation_age_seconds=} should be nonnegative and not exceed {max_observation_age_seconds=}")
 
-        raise ValueError(f"Process is not ready: {process_phase = }.")
+    if not (status_record["phase"] in (ready_phases := ("ready", "working"))):
+        raise ValueError(f"{status_record['phase']=} ∉ {ready_phases=}")
 
     return status_record
 
@@ -168,13 +182,13 @@ def main():
     try:
         if options.describe:
             status_record = read_status(options.path, options.role)
-            age = time.monotonic() - status_record["updated_monotonic"]
+            observation_age_seconds = time.monotonic() - status_record["updated_monotonic"]
 
-            if not (0 <= age):
-                raise ValueError("Process status observation has a future timestamp.")
+            if not (0 <= observation_age_seconds):
+                raise ValueError(f"{observation_age_seconds=} should be nonnegative")
 
             process_phase = status_record["phase"]
-            age_milliseconds = int(age * 1000)
+            age_milliseconds = int(observation_age_seconds * 1000)
             process_id = status_record["pid"]
             start_ticks = status_record["start_ticks"]
 
@@ -186,7 +200,7 @@ def main():
 
             if options.details:
                 if not ("details" in status_record):
-                    raise ValueError("Process has not published operator details.")
+                    raise ValueError(f"{status_record.keys()=} should include 'details'")
 
                 age = time.monotonic() - status_record["updated_monotonic"]
                 details = dict(status_record["details"])
