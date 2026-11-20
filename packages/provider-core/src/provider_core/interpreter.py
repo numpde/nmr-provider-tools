@@ -266,8 +266,7 @@ class Interpreter:
             ("retain_history_up_to_bytes", retain_history_up_to_bytes),
             ("retain_history_up_to_records", retain_history_up_to_records),
         ):
-            if not (type(setting_value) is (expected_type := int)):
-                raise TypeError(f"{setting_name=}; {type(setting_value)=} ≠ {expected_type=}")
+            require_type(setting_value, int)
 
             if not (0 < setting_value):
                 raise ValueError(f"Interpreter setting must be positive: {setting_name=}; {setting_value=}")
