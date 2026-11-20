@@ -52,7 +52,7 @@ def _require_text(announcement_text, field_name, maximum_characters):
         raise ValueError(f"Cannot announce provider: {field_name=} has {len(announcement_text)=} characters; expected 1 through {maximum_characters=} Unicode scalars")
 
     # These API fields forbid NUL; U+D800–U+DFFF are surrogates, not Unicode scalar values
-    if ("\0" in announcement_text) or any((0xD800 <= ord(character) <= 0xDFFF) for character in announcement_text):
+    if not (("\0" not in announcement_text) and not any((0xD800 <= ord(character) <= 0xDFFF) for character in announcement_text)):
         raise ValueError(f"Cannot announce provider: {field_name=} must not contain NUL or surrogate characters")
 
 
@@ -72,7 +72,7 @@ def require_hello_inputs(*, display_name, description, analysis_offerings):
     for offering in analysis_offerings:
         require_type(offering, AnalysisOffering)
 
-        if offering.analysis_kind_ref in kinds:
+        if not (offering.analysis_kind_ref not in kinds):
             raise ValueError("Cannot announce provider: analysis kinds must not repeat")
 
         kinds.add(offering.analysis_kind_ref)
@@ -94,13 +94,13 @@ def read_hello(raw, *, provider_ref):
     receipt_fields = set(hello_receipt)
     expected_fields = {"schema_id", "provider_ref", "accepted_at"}
 
-    if receipt_fields != expected_fields:
+    if not (receipt_fields == expected_fields):
         raise ResponseRejected(f"{receipt_fields=} should match {expected_fields=}")
 
-    if hello_receipt["schema_id"] != (expected_schema_id := "nmr.provider.hello_response.v1"):
+    if not (hello_receipt["schema_id"] == (expected_schema_id := "nmr.provider.hello_response.v1")):
         raise ResponseRejected(f"{reprlib.repr(hello_receipt['schema_id'])=} should match {expected_schema_id=}")
 
-    if hello_receipt["provider_ref"] != provider_ref:
+    if not (hello_receipt["provider_ref"] == provider_ref):
         raise ResponseRejected(f"{reprlib.repr(hello_receipt['provider_ref'])=} should match {provider_ref=}")
 
     return HelloAccepted(provider_ref, read_timestamp(hello_receipt["accepted_at"]))
