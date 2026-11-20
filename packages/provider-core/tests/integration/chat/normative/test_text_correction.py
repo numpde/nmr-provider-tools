@@ -59,8 +59,8 @@ class TextCorrectionTests(unittest.IsolatedAsyncioTestCase):
 
         rejection = ToolRejected(diagnostic)
         rejection.__cause__ = ValueError("PRIVATE scientific admission cause")
-        value = {"z": 1, "a": "5.801"}
-        model = recording_endpoint("only", call("bad", "submit", value), call("good", "submit", {}))
+        rejected_arguments = {"z": 1, "a": "5.801"}
+        model = recording_endpoint("only", call("bad", "submit", rejected_arguments), call("good", "submit", {}))
 
         conversation = ToolConversation(
             (model,),
@@ -73,22 +73,22 @@ class TextCorrectionTests(unittest.IsolatedAsyncioTestCase):
 
         await conversation.retire()
 
-        return (model.requests[1], conversation_result, value, diagnostic, rejection)
+        return (model.requests[1], conversation_result, rejected_arguments, diagnostic, rejection)
 
     async def test_caller_rejection_preserves_safe_arguments_and_exact_diagnostic_then_instruction(self):
-        (transcript, conversation_result, value, diagnostic, rejection) = await self._caller_rejection_correction()
+        (transcript, conversation_result, rejected_arguments, diagnostic, rejection) = await self._caller_rejection_correction()
         (assistant, tool, user) = transcript
 
         self.assertEqual("assistant", assistant["role"])
         self.assertEqual("fixture reasoning", assistant["reasoning_content"])
-        self.assertEqual(value, json.loads(assistant["tool_calls"][0]["function"]["arguments"]))
+        self.assertEqual(rejected_arguments, json.loads(assistant["tool_calls"][0]["function"]["arguments"]))
         self.assertEqual({"role": "tool", "tool_call_id": "bad", "content": diagnostic}, tool)
         self.assertEqual({"role": "user", "content": "correction-v1\n"}, user)
         self.assertEqual(((1, rejection),), conversation_result.correction_failures)
 
     @unittest.skipIf(os.environ.get("PRIVACY_TESTS", "1") == "0", "Privacy tests disabled")
     async def test_correction_observation_omits_diagnostics_and_scientific_cause(self):
-        (_transcript, conversation_result, _value, diagnostic, _rejection) = await self._caller_rejection_correction()
+        (_transcript, conversation_result, _rejected_arguments, diagnostic, _rejection) = await self._caller_rejection_correction()
 
         self.assertNotIn(diagnostic.encode(), conversation_result.observation)
         self.assertNotIn(b"PRIVATE", conversation_result.observation)
