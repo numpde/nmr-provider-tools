@@ -1738,7 +1738,7 @@
       ],
       "split_test_methods": {
         "ProviderCredentialBoundaryTests.test_private_key_decoder_failure_has_safe_operation_context": [
-          "ProviderCredentialBoundaryTests.test_private_key_decoder_failure_has_operation_context",
+          "ProviderCredentialBoundaryTests.test_private_key_decoder_failure_retains_native_cause",
           "ProviderCredentialBoundaryTests.test_private_key_decoder_diagnostics_omit_input"
         ]
       }
