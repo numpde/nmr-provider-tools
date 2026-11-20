@@ -101,8 +101,7 @@ def require_attempt_ref(execution_attempt_ref):
 def read_attempt(raw, *, execution_attempt_ref, job_ref):
     attempt_response = read_document(raw, ATTEMPT_RESPONSE_BYTES)
 
-    if not (type(attempt_response) is (expected_type := dict)):
-        raise ResponseRejected(f"{type(attempt_response)=} ≠ {expected_type=}")
+    require_type(attempt_response, dict, error_factory=ResponseRejected)
 
     response_fields = set(attempt_response)
     expected_fields = {"schema_id", "execution_attempt_ref", "job_ref", "state", "job_state"}
@@ -127,8 +126,7 @@ def read_attempt(raw, *, execution_attempt_ref, job_ref):
     if not ((observed_attempt_state := attempt_response["state"]) in ATTEMPT_STATES):
         raise ResponseRejected(f"{reprlib.repr(observed_attempt_state)=} should be one of {ATTEMPT_STATES=}")
 
-    if not (type((observed_job_state := attempt_response["job_state"])) is (expected_type := str)):
-        raise ResponseRejected(f"{type(observed_job_state)=} ≠ {expected_type=}")
+    require_type((observed_job_state := attempt_response["job_state"]), str, error_factory=ResponseRejected)
 
     if not (observed_job_state in JOB_STATES):
         raise ResponseRejected(f"{reprlib.repr(observed_job_state)=} should be one of {JOB_STATES=}")
@@ -146,8 +144,7 @@ def read_start(raw, *, job_ref, analysis_kind_ref, provider_ref):
 
     start_response = read_document(raw, ATTEMPT_RESPONSE_BYTES)
 
-    if not (type(start_response) is (expected_type := dict)):
-        raise ResponseRejected(f"{type(start_response)=} ≠ {expected_type=}")
+    require_type(start_response, dict, error_factory=ResponseRejected)
 
     response_fields = set(start_response)
 
@@ -190,8 +187,7 @@ def read_start(raw, *, job_ref, analysis_kind_ref, provider_ref):
     if not ((admitted_attempt_state := start_response["state"]) in ATTEMPT_STATES):
         raise ResponseRejected(f"{reprlib.repr(admitted_attempt_state)=} should be one of {ATTEMPT_STATES=}")
 
-    if not (type((start_replayed := start_response["replayed"])) is (expected_type := bool)):
-        raise ResponseRejected(f"{type(start_replayed)=} ≠ {expected_type=}")
+    require_type((start_replayed := start_response["replayed"]), bool, error_factory=ResponseRejected)
 
     started_at = read_timestamp(start_response["started_at"])
 
@@ -216,8 +212,7 @@ def read_progress(raw, *, execution_attempt_ref, phase, condition_code):
 
     progress_response = read_document(raw, ATTEMPT_RESPONSE_BYTES)
 
-    if not (type(progress_response) is (expected_type := dict)):
-        raise ResponseRejected(f"{type(progress_response)=} ≠ {expected_type=}")
+    require_type(progress_response, dict, error_factory=ResponseRejected)
 
     response_fields = set(progress_response)
 
@@ -280,8 +275,7 @@ def _outcome_response(raw, operation, execution_attempt_ref, fields):
     # Authority: pinned provider/schemas/execution_attempt_{complete,fail}_response.v1.schema.json.
     outcome_response = read_document(raw, ATTEMPT_RESPONSE_BYTES)
 
-    if not (type(outcome_response) is (expected_type := dict)):
-        raise ResponseRejected(f"{type(outcome_response)=} ≠ {expected_type=}")
+    require_type(outcome_response, dict, error_factory=ResponseRejected)
 
     response_fields = set(outcome_response)
     expected_fields = {"schema_id", "execution_attempt_ref", "committed_at", "replayed", *fields}
@@ -300,8 +294,7 @@ def _outcome_response(raw, operation, execution_attempt_ref, fields):
     if not ((acknowledged_execution_attempt_ref := outcome_response["execution_attempt_ref"]) == execution_attempt_ref):
         raise ResponseRejected(f"{reprlib.repr(acknowledged_execution_attempt_ref)=} should match {execution_attempt_ref=}")
 
-    if not (type((outcome_replayed := outcome_response["replayed"])) is (expected_type := bool)):
-        raise ResponseRejected(f"{type(outcome_replayed)=} ≠ {expected_type=}")
+    require_type((outcome_replayed := outcome_response["replayed"]), bool, error_factory=ResponseRejected)
 
     return outcome_response
 
@@ -323,16 +316,14 @@ def read_complete(raw, *, execution_attempt_ref, result_schema_id, result):
     if not ((acknowledged_result_fingerprint := completion_response["result_fingerprint"]) == result_fingerprint):
         raise ResponseRejected(f"{reprlib.repr(acknowledged_result_fingerprint)=} should match {result_fingerprint=}")
 
-    if not (type((acknowledged_result_byte_length := completion_response["result_byte_length"])) is (expected_type := int)):
-        raise ResponseRejected(f"{type(acknowledged_result_byte_length)=} ≠ {expected_type=}")
+    require_type((acknowledged_result_byte_length := completion_response["result_byte_length"]), int, error_factory=ResponseRejected)
 
     if not (acknowledged_result_byte_length == submitted_result_byte_length):
         raise ResponseRejected(f"{reprlib.repr(acknowledged_result_byte_length)=} should match {submitted_result_byte_length=}")
 
     analysis_result_ref = completion_response["analysis_result_ref"]
 
-    if not (type(analysis_result_ref) is (expected_type := str)):
-        raise ResponseRejected(f"{type(analysis_result_ref)=} ≠ {expected_type=}")
+    require_type(analysis_result_ref, str, error_factory=ResponseRejected)
 
     if not re.fullmatch((expected_pattern := r"analysis_result:sha256:[0-9a-f]{64}"), analysis_result_ref):
         raise ResponseRejected(f"{reprlib.repr(analysis_result_ref)=} should match {expected_pattern=}")
