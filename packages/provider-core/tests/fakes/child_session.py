@@ -99,13 +99,13 @@ class ChildSession:
         fingerprint = instructions.identity.input_fingerprint
 
         await self.child.send({"operation": "prepare", "source_fingerprint": fingerprint})
-        reply = await self.child.receive()
+        preparation_reply = await self.child.receive()
         evidence = ProtectedEvidence("fixture.child.evidence.v1", b"scripted preparation, not chemical validation")
 
-        if reply == {"state": "rejected"}:
+        if preparation_reply == {"state": "rejected"}:
             return AnalysisFailure("input_rejected", "The scripted peer rejected preparation before generation.", evidence)
 
-        if reply != {"state": "prepared", "source_fingerprint": fingerprint}:
+        if preparation_reply != {"state": "prepared", "source_fingerprint": fingerprint}:
             raise ValueError("Scripted preparation did not acknowledge the exact source")
 
         self._prepared = PreparedAnalysis(ProtectedEvidence("fixture.child.input.v1", fingerprint.encode("ascii")))
@@ -128,11 +128,11 @@ class ChildSession:
             raise ValueError("Scripted child did not acknowledge generation")
 
         self.generation_started.set()
-        result = await self.child.receive()
+        generation_reply = await self.child.receive()
 
         return AnalysisSuccess(
             "fixture.child.result.v1",
-            json.dumps(result).encode(),
+            json.dumps(generation_reply).encode(),
             ProtectedEvidence("fixture.child.evidence.v1", b"one scripted generation"),
         )
 

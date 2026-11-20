@@ -66,9 +66,9 @@ def main():
         prepared.update(content_hash=snapshot.content_hash, marker=json.loads(snapshot.data)["marker"])
 
     emit(prepared)
-    request = json.loads(sys.stdin.readline())
+    generation_command = json.loads(sys.stdin.readline())
 
-    if request != {"operation": "generate"}:
+    if generation_command != {"operation": "generate"}:
         raise ValueError("Scripted child expected exactly one generation request")
 
     emit({"state": "generating"})
