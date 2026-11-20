@@ -1,8 +1,8 @@
 # Provider deployment-test staging and session preflight
 
 Baseline: e84adebc (main). Scope: two remaining mechanical duplications identified
-by source review after Note 099. This is an implementation target, not a passing
-qualification record.
+by source review after Note 099. The completion record below assesses this target
+on an identified committed source revision.
 
 Completion criteria:
 
@@ -42,3 +42,191 @@ binary patch receipt: /tmp/nmr-provider-redundancy-unrelated.patch; SHA-256
 Final revision qualification will use a temporary committed-source export so those
 uncommitted changes cannot be attributed to this work. Development stays in this
 checkout; the export is test input only. No push or deployment is authorized.
+
+## Implementation and review
+
+Qualified source candidate: 8e6f5f076647993049c3119fe05a39c3163c280e.
+Source tree: 6c23c96f40ae02a5a559ac242a0d78698227d167.
+Development remained in the original shared checkout. The final source export
+at /tmp/nmr-provider-preflight-qualified-20261120 was produced by git archive from
+that committed revision; /tmp/nmr-provider-preflight-qualified-candidate.txt retains its
+revision/tree identity. No implementation occurred in another checkout.
+
+Coherent commits:
+
+- bd494fd3: fixed the target, exclusions and unrelated-edit preservation.
+- 8d8c3b25: shared test-only staged_configuration and configure_backend. Eight
+  setup blocks now enter the same context; Dummy's per-subtest contexts use it
+  with their original scope. The provider path is restored before the temporary
+  document disappears. Backend edits parse TOML rather than replacing source text.
+- 65dff2e3: shared ExecutionSettings.require_sessions for thread refusal and
+  process inventory/identity checks, with local stage/model keys and standalone
+  host constructor safety. Both multi-host providers invoke it before construction.
+- 8e6f5f07: isolate aggregate-deadline evidence in an existing API cancellation
+  witness after full unit qualification demonstrated a race between equal timers.
+
+NMRPeak retains explicit configuration/model tree staging and relative checkpoint
+paths. Its compound scientific configuration edits remain local; only its
+backend-only edit uses the helper. Dummy's raw resource-only documents remain raw.
+No generic fixture class, scheduler, registry, ownership record, recovery or
+scientific workflow change was introduced.
+
+Session inventory checks do not inspect session state, acquire/connect, close or
+transfer anything. Freshness remains a host-constructor obligation. Providers still choose capacity
+shares and scientific readiness. NMRPeak now checks capacity
+before reporting absent process sessions if both inputs are invalid; no diagnostic
+precedence contract was identified, and no effect or custody transfer precedes
+either refusal. Independent review accepted this rather than duplicating a guard.
+
+The new native process-inventory proof uses real RunnerSession descriptors across
+missing/empty/mismatched/duplicate inventories and valid string/tuple key sets.
+It verifies no connection, retirement or descriptor change. Installed Spectrum and
+NMRPeak entrypoint proofs verify incorrect inventories retain both original owners;
+NMRPeak also checks empty scratch. Existing actual-child partial startup, reuse,
+independent retirement, cancellation, output and cleanup witnesses remain intact.
+No implementation-shaped fixture test was added merely to raise grades; nested
+standard contexts directly express restoration and file lifetime, and existing
+installed provider behavior exercises the shared fixture.
+
+Each actual slice received independent read-only audit. No ownership defect
+was found in the two refactor slices. The staging auditor identified the remaining
+Reference backend text replacement; it was also moved to parsed TOML before the staging commit. Review
+kept NMRPeak's distinct asset setup local rather than adding fixture options.
+
+Focused maintained installed selections passed without skips:
+
+- Dummy startup: 2, /tmp/nmr-staging-focused-dummy.log.
+- Reference backends: 4, /tmp/nmr-staging-focused-reference.log.
+- Minimal native execution setup: 6, /tmp/nmr-session-focused-native.log.
+- Spectrum process: 6, /tmp/nmr-session-focused-spectrum.log.
+- NMRPeak example: 34, /tmp/nmr-session-focused-peak.log.
+
+Focused inputs were committed-source exports plus explicit owned patches; the
+three unrelated dirty SDK files were never included. The final lanes below use
+only the committed candidate, including all final fixture call-site changes.
+
+## Observed unit qualification failure and correction
+
+The first full unit run on 65dff2e3 counted 1116 tests (1024 executed, 92 privacy
+skips), with one failure in 173.269s. The unchanged API cancellation witness
+expected aggregate-deadline evidence while both aggregate and inner httpcore read
+limits were 20ms. If the inner read timeout won, it truthfully started gated
+cleanup before the aggregate timer could cancel pending network I/O; the test
+then incorrectly required aggregate-cancellation evidence. Its close-started
+barrier did not distinguish which timer authored that cleanup.
+
+The neighboring explicit-native-cancellation witness already suppresses the inner
+read deadline to select aggregate cancellation. The same narrow test-only patch
+now applies to the failing witness. All original caller-interruption identity,
+owned relationships, transport retirement, aggregate evidence and retry assertions
+remain. No production transport or deadline changed. Three independent reviewers
+accepted the actual correction. The unchanged isolated selection passed ten tests,
+consistent with intermittence; the corrected selection also passed all ten.
+A passing isolated rerun did not erase the failed full receipt.
+
+Original receipt: /tmp/nmr-preflight-final-unit.log. Isolation receipts:
+/tmp/nmr-preflight-unit-timing-isolation.log and
+/tmp/nmr-preflight-unit-timing-corrected.log. The original independent full
+integration on 65dff2e3 also passed: 438 total, 408 executed, 30 privacy skips,
+263.588s (/tmp/nmr-preflight-final-integration.log). A separate native run passed
+196/196 in 11.831s (/tmp/nmr-preflight-independent-native.log). The final lanes
+below reran the corrected committed candidate rather than transferring grades.
+
+## Final installed qualification
+
+All final commands ran from /tmp/nmr-provider-preflight-qualified-20261120:
+
+    make tests/contract/provider-core DOCKER_CONTEXT=science WHEELHOUSE=/home/ra/Downloads/wheelhouse PRIVACY_TESTS=0
+    make tests/unit/provider-core DOCKER_CONTEXT=science WHEELHOUSE=/home/ra/Downloads/wheelhouse PRIVACY_TESTS=0
+    make tests/integration/provider-core DOCKER_CONTEXT=science WHEELHOUSE=/home/ra/Downloads/wheelhouse PRIVACY_TESTS=0
+
+Contract and full unit were launched independently. Full integration began after
+both focused provider selections passed. Each lane has its own installed
+environment; the unit target also constructs a separate minimal native install.
+The export was unchanged throughout qualification. The unrelated working-tree
+changes are excluded from these results, not silently qualified by them.
+
+| Lane | Total | Executed | Skipped | Result | Suite seconds |
+| --- | ---: | ---: | ---: | --- | ---: |
+| Contract | 18 | 16 | 2 | OK | 3.840 |
+| Full unit | 1116 | 1024 | 92 | OK | 174.106 |
+| Separate minimal native | 196 | 196 | 0 | OK | 14.545 |
+| Full integration | 438 | 408 | 30 | OK | 267.708 |
+
+Totals include skips. All 124 skips explicitly say "Privacy tests disabled";
+skipped tests are not executed successes. Suite seconds exclude preparation.
+All three final Make invocations exited zero.
+
+Science engine ID: 3212a927-9058-4b2e-92bf-69971ec922c3, Docker 29.10.0.
+Admitted checker fingerprint:
+51258286bd82af5ee47f4acf568c87402be4b51ac7376340908b7e556a795250.
+Immutable checker image:
+sha256:9a77d4d76552519319b362dab3c0f7343d136db38aa3c150008f80c2126768f1.
+Read-only inspection receipts: /tmp/nmr-preflight-engine.txt and
+/tmp/nmr-preflight-image.txt.
+
+All three final lanes built the same SDK wheel SHA-256:
+aa8c7f35ba18ca0ddf2534fee1e6c0fccb6ee621838685cfc89be67c2b13e532.
+
+Installed example wheel SHA-256 from final integration:
+
+- dummy-provider-example: c4b4f9a665a299ad99748fdd7672db25c3b32a4355698354ec2af0fed0e5f2cc.
+- nmrpeak-mock-provider-example: cf1eb3d5c44e5820fa9d63243667bef15174e43fda60ee943241f5fd95a60593.
+- reference-match-provider-example: 07bac979c48ef4d62e79191053f33f63b6e397d5434185726e957bef77fef2e6.
+- spectrum-summary-provider-example: 757fb6c749bd98991376b3e3f8226ba632ec49b109efb80e532f15e755e78472.
+
+Final local raw qualification receipts and SHA-256:
+
+- /tmp/nmr-preflight-qualified-contract.log: 6f2ba2b3df713854019b481708a0dcd578d54e0392fb766e087627aae4a9c5f2.
+- /tmp/nmr-preflight-qualified-unit.log: b52ae95f0faa8f9f76a6c40b4ce82d1d62fed24aab869d65a4ac5435d8a24317.
+- /tmp/nmr-preflight-qualified-integration.log: 5a9f7c6cda3bd8cf6751f060f1a5b7649c76141bd2a27a2fcfa286bfbf3fdd5e.
+
+Original failed unit receipt SHA-256: 23d0ac76d17dc61e19f67c2ea1d8a3b3810515c1ce1e5efd6e38278d0c4e295f.
+
+Raw receipts remain local, not permanent Git artifacts. The documentation commit
+containing this record differs from the tested source revision only in this note.
+The final unrelated-files patch was rechecked against its initial SHA-256 above
+and is identical. Those changes remain unstaged and were never tested or committed
+as part of this qualification. No push or deployment occurred.
+
+## Final independent panel
+
+Three fresh GPT-6.1-Sol medium reviewers independently inspected the complete
+committed diff from e84adebc, the test-only timing correction and final installed
+receipts for 8e6f5f07. Each graded all thirteen criteria and a separate holistic
+overall. No peer score was provided before its final verdict; earlier scores
+were not transferred. All deductions required an actionable trigger, consequence,
+location and smallest correction. The failed first unit run kept C3 pending until
+the corrected candidate passed; a successful focused rerun did not substitute for
+full qualification.
+
+| Criterion | Panel A | Panel B | Panel C |
+| --- | ---: | ---: | ---: |
+| A1 Single authority; mechanism versus policy | 10/10 | 10/10 | 10/10 |
+| A2 Common contract; honest backend differences | 10/10 | 10/10 | 10/10 |
+| A3 Change locality and replaceability | 10/10 | 10/10 | 10/10 |
+| A4 Names, usage and diagnostics clarity | 10/10 | 10/10 | 10/10 |
+| A5 Parsimony and explanatory comments | 10/10 | 10/10 | 10/10 |
+| B1 Ownership, cancellation, handoffs and termination | 10/10 | 10/10 | 10/10 |
+| B2 Uncertainty, no replay and independent outcomes | 10/10 | 10/10 | 10/10 |
+| B3 Allocation, analysis, operation and state authority; expiry | 10/10 | 10/10 | 10/10 |
+| B4 Time, capacity, retention and stall control | 10/10 | 10/10 | 10/10 |
+| C1 Narrow code/data, environment and descriptor grants | 10/10 | 10/10 | 10/10 |
+| C2 Economical, discriminating behavioral tests | 10/10 | 10/10 | 10/10 |
+| C3 Reproducible installed qualification and provenance | 10/10 | 10/10 | 10/10 |
+| C4 Diagnostics and truthful public guidance | 10/10 | 10/10 | 10/10 |
+| Separate holistic overall | 10/10 | 10/10 | 10/10 |
+
+No remaining actionable scoped gap was identified. All reviewers trace one
+inventory authority with provider-owned policy, caller custody across refusal,
+independently safe constructors, unchanged scientific lifetime owners and narrow
+test staging. The deadline-witness correction preserves truthful attribution and
+original interruption/cleanup assertions. These are independent bounded judgments,
+not averages or claims of exhaustive correctness.
+
+The target above is met. Configuration-file loading, scientific factories,
+scientific sequencing, model assets and standalone packaging remain local; their
+small similarities do not justify a provider framework. Repository checks remain
+enabled, deferred and excluded from the scores. Privacy execution, real-model/GPU
+behavior, unattended operation, deployment and whole-repository merge readiness
+remain outside this qualification.
