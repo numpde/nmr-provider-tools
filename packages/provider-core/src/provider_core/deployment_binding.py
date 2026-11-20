@@ -107,7 +107,9 @@ class DeploymentBindings:
             if binding.name == name:
                 return binding
 
-        raise BindingDefinitionRejected("Cannot select delivery binding: the selected name is absent from the definition.")
+        binding_names = [binding.name for binding in self.bindings]
+
+        raise BindingDefinitionRejected(f"{reprlib.repr(name)=} ∉ {binding_names=}")
 
 
 def _route(table, origin):
@@ -118,28 +120,30 @@ def _route(table, origin):
     )
 
     if not ("mode" in table):
-        raise BindingDefinitionRejected("Cannot admit delivery route: choose local, mapped or external mode explicitly.")
+        raise BindingDefinitionRejected(f"{reprlib.repr(set(table))=} should include 'mode'")
 
     mode = table["mode"]
-    required = {"mode", "interface", "log_level"}
+    route_extra_fields = {
+        "local": {"network_id", "addresses"},
+        "mapped": {"addresses"},
+        "external": {"resolver_file"},
+    }
 
-    if mode == "local":
-        required |= {"network_id", "addresses"}
-    elif mode == "mapped":
-        required |= {"addresses"}
-    elif mode == "external":
-        required |= {"resolver_file"}
-    else:
-        raise BindingDefinitionRejected("Cannot admit delivery route: choose local, mapped or external mode explicitly.")
+    require_type(mode, str, error_factory=BindingDefinitionRejected)
+
+    if not (mode in route_extra_fields):
+        raise BindingDefinitionRejected(f"{reprlib.repr(mode)=} ∉ {set(route_extra_fields)=}")
+
+    required = {"mode", "interface", "log_level"} | route_extra_fields[mode]
 
     _fields(table, required, "route")
 
-    require_type((table_interface := table["interface"]), str, error_factory=BindingDefinitionRejected)
+    require_type(table["interface"], str, error_factory=BindingDefinitionRejected)
 
     require_interface_name(table["interface"])
 
-    if not (table["log_level"] in ("INFO", "DEBUG", "WARNING")):
-        raise BindingDefinitionRejected("Cannot admit delivery route: log_level must be INFO, DEBUG or WARNING.")
+    if not (table["log_level"] in (expected_log_levels := ("INFO", "DEBUG", "WARNING"))):
+        raise BindingDefinitionRejected(f"{reprlib.repr(table['log_level'])=} ∉ {expected_log_levels=}")
 
     if mode == "local":
         require_type(
@@ -149,7 +153,7 @@ def _route(table, origin):
         )
 
         if not is_full_network_id(table_network_id):
-            raise BindingDefinitionRejected("Cannot admit local delivery route: network_id must be the full immutable Docker network ID.")
+            raise BindingDefinitionRejected(f"{reprlib.repr(table_network_id)=} should be a full immutable Docker network ID")
 
     if mode == "external":
         _absolute_path(table["resolver_file"], "resolver file")
@@ -181,11 +185,17 @@ def _route(table, origin):
     service_authority = f"{parsed.hostname}:{port}"  # machine-string: service policy parses this exact hostname and port authority
     policy = ServicePolicy.admit(mode, [service_authority], addresses)
 
-    if (parsed.hostname == "0.0.0.0") or any(ipaddress.IPv4Address(address).is_unspecified for (_, address) in policy.addresses):
-        raise BindingDefinitionRejected("Cannot admit API route: an unspecified address is not an API destination; select the intended peer address.")
+    if not (parsed.hostname != "0.0.0.0"):
+        raise BindingDefinitionRejected(f"{parsed.hostname=} should identify a specific API peer")
 
-    if (mode == "local") and any(ipaddress.IPv4Address(address).is_loopback for (_, address) in policy.addresses):
-        raise BindingDefinitionRejected("Cannot admit local API route: loopback belongs to this proxy; select the API peer on the declared network or mapped routing for host loopback.")
+    for (_, peer_address) in policy.addresses:
+        if not (not ipaddress.IPv4Address(peer_address).is_unspecified):
+            raise BindingDefinitionRejected(f"{peer_address=} should identify a specific API peer")
+
+    if mode == "local":
+        for (_, peer_address) in policy.addresses:
+            if not (not ipaddress.IPv4Address(peer_address).is_loopback):
+                raise BindingDefinitionRejected(f"Loopback {peer_address=} identifies this proxy for {mode=}")
 
     return dict(table)
 
@@ -205,8 +215,8 @@ def _parse_deployment_bindings(raw):
         error_factory=lambda diagnostic: BindingDefinitionRejected("Cannot admit delivery bindings: " + diagnostic),
     )
 
-    if not (re.fullmatch(r"[a-z0-9][a-z0-9_-]{0,62}", project) is not None):
-        raise BindingDefinitionRejected("Cannot admit delivery bindings: project requires a lowercase Compose name of up to 63 characters.")
+    if not (re.fullmatch(project_pattern := r"[a-z0-9][a-z0-9_-]{0,62}", project) is not None):
+        raise BindingDefinitionRejected(f"{reprlib.repr(project)=} should match {project_pattern=}")
 
     require_type(
         uid,
@@ -240,23 +250,23 @@ def _parse_deployment_bindings(raw):
     try:
         limits = QueueLimits(**deployment_definition["limits"])
     except ValueError as cause:
-        # QueueLimits owns these fixed, input-free refusal messages.
-        raise BindingDefinitionRejected(str(cause)) from cause
+        # QueueLimits owns the item and byte relationships
+        raise BindingDefinitionRejected("Cannot configure the delivery queue") from cause
 
-    rows = deployment_definition["bindings"]
+    binding_rows = deployment_definition["bindings"]
 
     require_type(
-        rows,
+        binding_rows,
         list,
         error_factory=lambda diagnostic: BindingDefinitionRejected("Cannot admit delivery bindings: " + diagnostic),
     )
 
-    if not (1 <= len(rows) <= MAX_BINDINGS):
-        raise BindingDefinitionRejected("Cannot admit delivery bindings: require one through sixteen explicit bindings.")
+    if not (1 <= len(binding_rows) <= MAX_BINDINGS):
+        raise BindingDefinitionRejected(f"{len(binding_rows)=} should be positive and not exceed {MAX_BINDINGS=}")
 
-    (bindings, names, identities) = ([], set(), set())
+    (bindings, binding_names, endpoint_identities) = ([], set(), set())
 
-    for row in rows:
+    for row in binding_rows:
         _fields(row, {"name", "socket_path", "api", "route"}, "binding")
         name = row["name"]
 
@@ -266,11 +276,11 @@ def _parse_deployment_bindings(raw):
             error_factory=lambda diagnostic: BindingDefinitionRejected("Cannot admit delivery bindings: " + diagnostic),
         )
 
-        if not (re.fullmatch(r"[a-zA-Z0-9][a-zA-Z0-9_-]{0,62}", name) is not None):
-            raise BindingDefinitionRejected("Cannot admit delivery bindings: names must be unique ASCII identifiers of up to 63 characters.")
+        if not (re.fullmatch(binding_name_pattern := r"[a-zA-Z0-9][a-zA-Z0-9_-]{0,62}", name) is not None):
+            raise BindingDefinitionRejected(f"{reprlib.repr(name)=} should match {binding_name_pattern=}")
 
-        if not (name not in names):
-            raise BindingDefinitionRejected("Cannot admit delivery bindings: names must be unique ASCII identifiers of up to 63 characters.")
+        if not (name not in binding_names):
+            raise BindingDefinitionRejected(f"{name=} already identifies a binding")
 
         require_api_fields(row["api"])
 
@@ -280,23 +290,30 @@ def _parse_deployment_bindings(raw):
 
         binding = DeploymentBinding(name, project, gid, _absolute_path(row["socket_path"], "provider socket"), dict(row["api"]), {})
 
-        if binding.socket_path.parent == pathlib.Path("/"):
-            raise BindingDefinitionRejected("Cannot admit provider socket: select a socket leaf inside its own directory below the filesystem root.")
+        if not (binding.socket_path.parent != (filesystem_root := pathlib.Path("/"))):
+            raise BindingDefinitionRejected(f"{binding.socket_path=} should have a parent below {filesystem_root=}")
 
         endpoint = binding.endpoint
-        identity = (endpoint.api_origin, endpoint.provider_ref)
+        endpoint_identity = (endpoint.api_origin, endpoint.provider_ref)
 
-        if identity in identities:
-            raise BindingDefinitionRejected("Cannot admit delivery bindings: two bindings claim the same API/provider identity.")
+        if not (endpoint_identity not in endpoint_identities):
+            raise BindingDefinitionRejected(f"{reprlib.repr(endpoint_identity)=} already belongs to another binding")
 
         binding = DeploymentBinding(name, project, gid, binding.socket_path, binding.api, _route(row["route"], endpoint.api_origin))
 
-        names.add(name)
-        identities.add(identity)
+        binding_names.add(name)
+        endpoint_identities.add(endpoint_identity)
         bindings.append(binding)
 
-    if not (((len(bindings) * limits.provider_items) <= limits.total_items) and ((len(bindings) * limits.provider_bytes) <= limits.total_bytes)):
-        raise BindingDefinitionRejected("Cannot admit delivery bindings: host queue limits must cover all provider shares.")
+    required_host_items = len(bindings) * limits.provider_items
+
+    if not (required_host_items <= limits.total_items):
+        raise BindingDefinitionRejected(f"{required_host_items=} should not exceed {limits.total_items=}")
+
+    required_host_bytes = len(bindings) * limits.provider_bytes
+
+    if not (required_host_bytes <= limits.total_bytes):
+        raise BindingDefinitionRejected(f"{required_host_bytes=} should not exceed {limits.total_bytes=}")
 
     return DeploymentBindings(project, uid, gid, deployment_definition["request_seconds"], deployment_definition["retry_initial_seconds"], deployment_definition["retry_max_seconds"], dict(deployment_definition["limits"]), tuple(bindings))
 
@@ -309,16 +326,16 @@ def parse_deployment_bindings(raw):
     except BindingDefinitionRejected:
         raise
     except (ApiConfigurationRejected, ServiceRefused) as cause:
-        raise BindingDefinitionRejected(str(cause)) from cause
+        raise BindingDefinitionRejected("Cannot configure delivery bindings") from cause
     except (ValueError, TypeError) as cause:
-        raise BindingDefinitionRejected("Cannot admit delivery bindings: API identity or route values do not satisfy the documented types and bounds.") from cause
+        raise BindingDefinitionRejected("Cannot configure delivery bindings") from cause
 
 
 def load_deployment_bindings(path):
     try:
         raw = read_startup_file(path, maximum_bytes=65536)
     except StartupFileRejected as cause:
-        raise BindingDefinitionRejected(str(cause)) from cause
+        raise BindingDefinitionRejected(f"Cannot load {reprlib.repr(path)=}") from cause
 
     return parse_deployment_bindings(raw)
 
