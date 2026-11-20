@@ -285,12 +285,12 @@ def main():
 
         suite.addTests(selected)
 
-    result = unittest.TextTestRunner(verbosity=2, resultclass=_FailureSummaryResult).run(suite)
+    suite_result = unittest.TextTestRunner(verbosity=2, resultclass=_FailureSummaryResult).run(suite)
 
-    _print_failure_summary(result, selection, sys.stderr)
+    _print_failure_summary(suite_result, selection, sys.stderr)
 
     # silent-defaults: allow-contract -- Unittest success determines the process success or failure exit status.
-    return 0 if result.wasSuccessful() else 1
+    return 0 if suite_result.wasSuccessful() else 1
 
 
 if __name__ == "__main__":
