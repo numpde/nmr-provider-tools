@@ -45,7 +45,7 @@ class ChildRetirementTests(unittest.IsolatedAsyncioTestCase):
                 await self._run_owned_executor(cleanup, executor, acknowledged)
 
             self.assertIsInstance(failed.exception.cause, ChildChannelClosed)
-            child_process = session.child.process
+            child_process = session.child.child_process
 
             self.assertIsNone(child_process.returncode)
             self.assertEqual(session.source_reply["content_hash"], session.source.content_hash)
@@ -78,7 +78,7 @@ class ChildRetirementTests(unittest.IsolatedAsyncioTestCase):
                 claim.release(owner=claim.lifecycle_owner)
 
             await executor.settle()
-            self.assertIs(session.child.process, child_process)
+            self.assertIs(session.child.child_process, child_process)
             self.assertIsNotNone(child_process.returncode)
             self.assertTrue(session.child.pipes_closed)
             self.assertFalse(source.exists())
@@ -101,7 +101,7 @@ class ChildRetirementTests(unittest.IsolatedAsyncioTestCase):
 
             cleanup.push_async_callback(self._cancel_executor, task)
             await asyncio.wait_for(session.reading_started.wait(), 2)
-            child_process = session.child.process
+            child_process = session.child.child_process
 
             self.assertIsNone(child_process.returncode)
             self.assertTrue(source.exists())
@@ -112,7 +112,7 @@ class ChildRetirementTests(unittest.IsolatedAsyncioTestCase):
             with self.assertRaises(asyncio.CancelledError):
                 await self._finished(task)
 
-            self.assertIs(session.child.process, child_process)
+            self.assertIs(session.child.child_process, child_process)
             self.assertIsNotNone(child_process.returncode)
             self.assertTrue(session.child.pipes_closed)
             self.assertTrue(session.source_cleanup_observed_stopped_child)
@@ -136,7 +136,7 @@ class ChildRetirementTests(unittest.IsolatedAsyncioTestCase):
                         await self._run_owned_executor(cleanup, executor, acknowledged)
 
                     self.assertIsInstance(failed.exception.cause, ValueError)
-                    self.assertIsNone(session.child.process)
+                    self.assertIsNone(session.child.child_process)
                     self.assertFalse(session.source_cleanup_observed_stopped_child)
                     self.assertFalse(source.exists())
                     self.assertEqual(session.source_removals, 1)
@@ -181,7 +181,7 @@ class ChildRetirementTests(unittest.IsolatedAsyncioTestCase):
             self.assertEqual(session.phases, [AcknowledgedCheckpoint, EnteredCheckpoint])
             self.assertEqual(session.generations, 1)
             self.assertTrue(session.child.pipes_closed)
-            self.assertIsNotNone(session.child.process.returncode)
+            self.assertIsNotNone(session.child.child_process.returncode)
             body = json.loads(executor.delivery.delivery_outcomes[0].body)
             generation_reply = json.loads(base64.b64decode(body["canonical_result_base64"], validate=True))
 
@@ -202,7 +202,7 @@ class ChildRetirementTests(unittest.IsolatedAsyncioTestCase):
             self.assertIs(terminal.selection.operation, TerminalOperation.FAIL)
             self.assertIs(type(terminal.selection.attempt), AcknowledgedCheckpoint)
             self.assertEqual(session.generations, 0)
-            self.assertIsNotNone(session.child.process.returncode)
+            self.assertIsNotNone(session.child.child_process.returncode)
             self.assertTrue(session.child.pipes_closed)
             claim.release(owner=claim.lifecycle_owner)
 
@@ -214,7 +214,7 @@ class ChildRetirementTests(unittest.IsolatedAsyncioTestCase):
 
             cleanup.push_async_callback(self._cancel_executor, task)
             await asyncio.wait_for(session.generation_started.wait(), 2)
-            original_process = session.child.process
+            original_process = session.child.child_process
 
             self.assertIsNone(original_process.returncode)
             task.cancel()
@@ -222,7 +222,7 @@ class ChildRetirementTests(unittest.IsolatedAsyncioTestCase):
             with self.assertRaises(asyncio.CancelledError):
                 await self._finished(task)
 
-            self.assertIs(session.child.process, original_process)
+            self.assertIs(session.child.child_process, original_process)
             self.assertIsNotNone(original_process.returncode)
             self.assertTrue(session.child.pipes_closed)
             self.assertEqual(session.generations, 1)
@@ -238,7 +238,7 @@ class ChildRetirementTests(unittest.IsolatedAsyncioTestCase):
             with self.assertRaises(ExecutionFailed) as failed:
                 await self._run_owned_executor(cleanup, executor, acknowledged)
 
-            original_process = session.child.process
+            original_process = session.child.child_process
 
             self.assertIsInstance(failed.exception.cause, ChildChannelClosed)
             self.assertIsNone(original_process.returncode)
@@ -258,7 +258,7 @@ class ChildRetirementTests(unittest.IsolatedAsyncioTestCase):
                 claim.release(owner=claim.lifecycle_owner)
 
             self.assertIsNone(await executor.settle())
-            self.assertIs(session.child.process, original_process)
+            self.assertIs(session.child.child_process, original_process)
             self.assertIsNotNone(original_process.returncode)
             self.assertTrue(session.child.pipes_closed)
             self.assertEqual(session.generations, 1)

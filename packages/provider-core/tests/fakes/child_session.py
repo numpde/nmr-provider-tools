@@ -29,15 +29,15 @@ class ChildStopUnconfirmed(RuntimeError):
 
 class ScriptedChild:
     def __init__(self):
-        self.process = None
+        self.child_process = None
         self.pipes_closed = False
 
     # silent-defaults: allow-contract -- Ordinary child tests lend no descriptors; the Upload lifetime witness explicitly lends its source directory.
     async def start(self, mode, *, pass_fds=()):
-        if not (self.process is None):
+        if not (self.child_process is None):
             raise RuntimeError("Scripted child already exists; retain and stop it instead of replacing it")
 
-        self.process = await asyncio.create_subprocess_exec(
+        self.child_process = await asyncio.create_subprocess_exec(
             sys.executable,
             "-I",
             "-B",
@@ -51,11 +51,11 @@ class ScriptedChild:
         )
 
     async def send(self, value):
-        self.process.stdin.write(json.dumps(value).encode() + b"\n")
-        await self.process.stdin.drain()
+        self.child_process.stdin.write(json.dumps(value).encode() + b"\n")
+        await self.child_process.stdin.drain()
 
     async def receive(self):
-        line = await self.process.stdout.readline()
+        line = await self.child_process.stdout.readline()
 
         if not (line):
             raise ChildChannelClosed("Scripted child closed its result channel; confirm that same process stopped before reuse")
@@ -63,18 +63,18 @@ class ScriptedChild:
         return json.loads(line)
 
     async def stop(self):
-        if (self.process is None) or self.pipes_closed:
+        if (self.child_process is None) or self.pipes_closed:
             return
 
-        if self.process.returncode is None:
+        if self.child_process.returncode is None:
             # A raced kill cannot attest exit. Still await the retained child
             # and drain its owned pipes below; no replacement process exists.
             with suppress(ProcessLookupError):
-                self.process.kill()
+                self.child_process.kill()
 
-        await asyncio.wait_for(self.process.wait(), 1)
-        await asyncio.wait_for(self.process.communicate(), 1)
-        await asyncio.wait_for(self.process.stdin.wait_closed(), 1)
+        await asyncio.wait_for(self.child_process.wait(), 1)
+        await asyncio.wait_for(self.child_process.communicate(), 1)
+        await asyncio.wait_for(self.child_process.stdin.wait_closed(), 1)
         self.pipes_closed = True
 
 

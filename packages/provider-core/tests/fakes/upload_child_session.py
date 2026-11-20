@@ -91,7 +91,7 @@ class UploadChildSession(ChildSession):
 
         if self.source_removals == 0:
             if self._launch is not None:
-                self.source_cleanup_observed_stopped_child = (self.child.process.returncode is not None) and (self.child.pipes_closed)
+                self.source_cleanup_observed_stopped_child = (self.child.child_process.returncode is not None) and (self.child.pipes_closed)
 
                 if not (self.source_cleanup_observed_stopped_child):
                     raise AssertionError("Test binding attempted source cleanup before its exact child stopped")
