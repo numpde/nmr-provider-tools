@@ -37,6 +37,7 @@ from provider_core import bound_http_proxy
 from provider_core.adapters import http_proxy
 from provider_core.diagnostic_text import CredentialRedactingFormatter
 from provider_core.tools import require_absolute_path, require_nonnegative_number
+from provider_core.type_requirements import require_type
 from provider_core.validation.upstream.dns import read_dns_labels
 from provider_core.validation.upstream.http_proxy import read_port
 
@@ -205,8 +206,7 @@ class LiveProxyConfiguration:
 
         proxy_fields = proxy_configuration.get("api_proxy")
 
-        if not (type(proxy_fields) is (expected_type := dict)):
-            raise ServiceRefused(f"{type(proxy_fields)=} ≠ {expected_type=}")
+        require_type(proxy_fields, dict, error_factory=ServiceRefused)
 
         max_connections = proxy_fields.get("max_connections")
         log_level = proxy_fields.get("log_level")
@@ -219,8 +219,7 @@ class LiveProxyConfiguration:
 
         authorities = proxy_fields.get("allowed_authorities")
 
-        if not (type(max_connections) is (expected_max_connections_type := int)):
-            raise ServiceRefused(f"{type(max_connections)=} ≠ {expected_max_connections_type=}")
+        require_type(max_connections, int, error_factory=ServiceRefused)
 
         if max_connections <= 0:
             raise ServiceRefused(f"{max_connections=} should be positive")
@@ -239,28 +238,23 @@ class LiveProxyConfiguration:
         if not (log_level in ("INFO", "DEBUG", "WARNING")):
             raise ServiceRefused("Proxy log_level must be INFO, DEBUG or WARNING.")
 
-        if not (type(authorities) is (expected_authorities_type := list)):
-            raise ServiceRefused(f"{type(authorities)=} ≠ {expected_authorities_type=}")
+        require_type(authorities, list, error_factory=ServiceRefused)
 
         for authority in authorities:
-            if not (type(authority) is (expected_type := str)):
-                raise ServiceRefused(f"{type(authority)=} ≠ {expected_type=}")
+            require_type(authority, str, error_factory=ServiceRefused)
 
         # silent-defaults: allow-contract -- External routes need no mapped address table.
         route = proxy_fields.get("route", {})  # silent-defaults: allow-empty-get -- External routes need no mapping table.
 
-        if not (type(route) is (expected_type := dict)):
-            raise ServiceRefused(f"{type(route)=} ≠ {expected_type=}")
+        require_type(route, dict, error_factory=ServiceRefused)
 
         # silent-defaults: allow-contract -- External routes have no mapped addresses.
         addresses = route.get("addresses", [])  # silent-defaults: allow-empty-get -- External routes have no mapped addresses.
 
-        if not (type(addresses) is (expected_addresses_type := list)):
-            raise ServiceRefused(f"{type(addresses)=} ≠ {expected_addresses_type=}")
+        require_type(addresses, list, error_factory=ServiceRefused)
 
         for route_address in addresses:
-            if not (type(route_address) is (expected_type := str)):
-                raise ServiceRefused(f"{type(route_address)=} ≠ {expected_type=}")
+            require_type(route_address, str, error_factory=ServiceRefused)
 
         if (self.mode == "external") and addresses:
             raise ServiceRefused("External service proxy does not accept local address mappings.")
@@ -485,8 +479,11 @@ def socket_grant(path, ready, *, socket_group_id=None):
             shared = socket_group_id is not None
 
             if shared:
-                if not (type(socket_group_id) is (expected_type := int)):
-                    raise ServiceRefused(f"Cannot start service proxy: {type(socket_group_id)=} ≠ {expected_type=}")
+                require_type(
+                    socket_group_id,
+                    int,
+                    error_factory=lambda diagnostic: ServiceRefused("Cannot start service proxy: " + diagnostic),
+                )
 
                 if socket_group_id <= 0:
                     raise ServiceRefused("Cannot start service proxy: the shared socket group must be the proxy's primary GID.")
