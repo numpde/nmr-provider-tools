@@ -101,7 +101,7 @@ class RunningSupervisor:
         self._start()
 
     def _start(self):
-        self.process = subprocess.Popen(
+        self.supervisor_process = subprocess.Popen(
             self.command,
             stdin=subprocess.DEVNULL,
             stdout=subprocess.DEVNULL,
@@ -111,7 +111,7 @@ class RunningSupervisor:
         deadline = time.monotonic() + 5
 
         while not self.socket_path.exists():
-            if (self.process.poll() is not None) or (time.monotonic() > deadline):
+            if (self.supervisor_process.poll() is not None) or (time.monotonic() > deadline):
                 self.close()
                 raise RuntimeError("Disposable supervisor did not open its endpoint")
 
@@ -119,7 +119,7 @@ class RunningSupervisor:
 
     def restart_with_fresh_scratch(self):
         """Fixture supplies a new scratch grant; this does not prove Docker teardown."""
-        self.process.communicate(timeout=2)
+        self.supervisor_process.communicate(timeout=2)
         self.socket_path.unlink()
         self.scratch = self.root / "successor-scratch"
 
@@ -139,14 +139,14 @@ class RunningSupervisor:
 
         self._closed = True
 
-        if self.process.poll() is None:
-            self.process.terminate()
+        if self.supervisor_process.poll() is None:
+            self.supervisor_process.terminate()
 
         try:
-            (_, self.diagnostic) = self.process.communicate(timeout=3)
+            (_, self.diagnostic) = self.supervisor_process.communicate(timeout=3)
         except subprocess.TimeoutExpired:
-            self.process.kill()
-            (_, self.diagnostic) = self.process.communicate(timeout=3)
+            self.supervisor_process.kill()
+            (_, self.diagnostic) = self.supervisor_process.communicate(timeout=3)
 
             raise
         finally:

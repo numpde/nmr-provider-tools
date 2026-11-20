@@ -45,7 +45,7 @@ class AsyncNativeProcessTests(unittest.IsolatedAsyncioTestCase):
         with self.assertRaises(ProcessLookupError):
             os.kill(pid, 0)
 
-        self.assertIsNone(self.runner.process.poll())
+        self.assertIsNone(self.runner.supervisor_process.poll())
 
     async def test_eof_with_live_child_observes_then_stops_and_joins_original_reader(self):
         pid = await asyncio.to_thread(worker_pid, self.session.science, b"E")
@@ -259,14 +259,14 @@ class AsyncNativeWireTests(unittest.IsolatedAsyncioTestCase):
         self.listener = socket.socket(socket.AF_UNIX)
 
         self.addCleanup(self.listener.close)
-        self.path = str(pathlib.Path(self.temporary.name) / "runner.sock")
+        self.socket_path = str(pathlib.Path(self.temporary.name) / "runner.sock")
 
-        self.listener.bind(self.path)
+        self.listener.bind(self.socket_path)
         self.listener.listen()
         self.listener.settimeout(2)
 
         self.session = RunnerSession(
-            self.path,
+            self.socket_path,
             role="fixture",
             expected_lock_identity=(0, 0),
             startup_seconds=2,

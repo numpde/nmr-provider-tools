@@ -51,7 +51,7 @@ class RunnerTests(unittest.TestCase):
         self.assertEqual(first.generation, second.generation)
         self.assertEqual(first.lock_identity, second.lock_identity)
         self.assertNotEqual(first.operation, second.operation)
-        self.assertIsNone(self.runner.process.poll())
+        self.assertIsNone(self.runner.supervisor_process.poll())
         self.assertEqual(list(self.runner.scratch.iterdir()), [])
 
         for pid in (one, two):
@@ -168,7 +168,7 @@ class OwnerSessionLifetimeTests(unittest.TestCase):
         with self.assertRaises(ProcessLookupError):
             os.kill(pid, 0)
 
-        self.assertIsNone(self.runner.process.poll())
+        self.assertIsNone(self.runner.supervisor_process.poll())
 
     def test_native_child_exit_retires_its_owner_session_without_a_stop_request(self):
         pid = worker_pid(self.session.science)
@@ -203,12 +203,12 @@ class OwnerSessionLifetimeTests(unittest.TestCase):
     def test_supervisor_shutdown_retires_a_term_ignoring_child_and_releases_scratch(self):
         pid = worker_pid(self.session.science, b"H")
 
-        self.runner.process.terminate()
+        self.runner.supervisor_process.terminate()
         self.session.observe_retirement()
         self.assertEqual(-9, self.session.retirement.returncode)
         self.assertEqual("shutdown", self.session.retirement.reason)
         self.assertTrue(self.session.retirement.scratch_released)
-        self.assertEqual(0, self.runner.process.wait(timeout=2))
+        self.assertEqual(0, self.runner.supervisor_process.wait(timeout=2))
         self.assertEqual([], list(self.runner.scratch.iterdir()))
 
         with self.assertRaises(ProcessLookupError):

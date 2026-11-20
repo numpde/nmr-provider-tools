@@ -380,8 +380,8 @@ class RunnerRefusalTests(unittest.TestCase):
         pid = worker_pid(session.science, b"H")
 
         self.addCleanup(self._kill_if_live, pid)
-        runner.process.kill()
-        runner.process.wait(timeout=2)
+        runner.supervisor_process.kill()
+        runner.supervisor_process.wait(timeout=2)
 
         with (runner.endpoint / ".owner-session.lock").open("rb") as contender:
             with self.assertRaises(BlockingIOError):
@@ -453,7 +453,7 @@ class RunnerRefusalTests(unittest.TestCase):
         with self.assertRaises(LifecycleRejected):
             session.retire()
 
-        self.assertNotEqual(runner.process.wait(timeout=2), 0)
+        self.assertNotEqual(runner.supervisor_process.wait(timeout=2), 0)
 
     @staticmethod
     def _kill_if_live(pid):
