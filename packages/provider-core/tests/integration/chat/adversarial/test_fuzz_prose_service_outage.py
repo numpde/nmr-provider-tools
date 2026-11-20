@@ -11,11 +11,11 @@ from tests.fakes.b4_prose_outage import run_outage
 class ProseServiceOutageTests(unittest.IsolatedAsyncioTestCase):
     def assert_outage_recovered(self, result):
         evidence = json.dumps(result, sort_keys=True)
-        (requests, jobs) = (result["requests"], result["jobs"])
+        (request_observations, jobs) = (result["requests"], result["jobs"])
         affected = [job for job in jobs if job["name"].startswith("affected-")]
         post_restoration = [job for job in affected if job["started_at"] >= result["restored_at"]]
         successful = [job for job in post_restoration if not job["failed"]]
-        unavailable_requests = [request for request in requests if not request["available"]]
+        unavailable_requests = [request_observation for request_observation in request_observations if not request_observation["available"]]
 
         self.assertGreater(result["backlog"], result["maximum_attempts"], msg=evidence)
         self.assertEqual(result["backlog"], len(affected), msg=evidence)
@@ -125,41 +125,42 @@ class ProseServiceOutageTests(unittest.IsolatedAsyncioTestCase):
     async def test_retry_after_ceiling_does_not_grow_with_tenfold_backlog(self):
         for backlog in (12, 120):
             with self.subTest(backlog=backlog), tempfile.TemporaryDirectory() as directory:
-                result = await run_outage(pathlib.Path(directory) / "outbox", mode="retry_after", backlog=backlog, seed=17)
+                outage_report = await run_outage(pathlib.Path(directory) / "outbox", mode="retry_after", backlog=backlog, seed=17)
 
-                self.assert_outage_recovered(result)
-                evidence = json.dumps(result, sort_keys=True)
+                self.assert_outage_recovered(outage_report)
+                evidence = json.dumps(outage_report, sort_keys=True)
 
                 # The peer seeing a request does not establish that the client
                 # received its complete 503 and Retry-After. In particular,
                 # an exchange that times out before the HTTP response is available
                 # correctly uses the SDK's shorter fallback. Only a confirmed
                 # client-side 503 with Retry-After binds subsequent requests.
-                for observation in result["retry_observations"]:
+                for observation in outage_report["retry_observations"]:
                     if observation["status"] != 503:
                         continue
 
                     self.assertEqual(observation["retry_after"], ["1"], msg=evidence)
 
-                    following = next(
+                    following_request_observation = next(
                         (
-                            request for request in result["requests"]
-                            if request["at"] > observation["at"]
+                            request_observation
+                            for request_observation in outage_report["requests"]
+                            if request_observation["at"] > observation["at"]
                         ),
                         None
                     )
 
-                    if following is not None:
-                        self.assertGreaterEqual(following["at"] - observation["at"], 1, msg=evidence)
+                    if following_request_observation is not None:
+                        self.assertGreaterEqual(following_request_observation["at"] - observation["at"], 1, msg=evidence)
 
     async def test_seeded_outage_modes_preserve_original_publication_and_warm_science(self):
         for (mode, seed) in (("unavailable", 14), ("invalid_retry_after", 41), ("disconnect", 97), ("blocked", 23)):
             with self.subTest(mode=mode, seed=seed), tempfile.TemporaryDirectory() as directory:
-                result = await run_outage(pathlib.Path(directory) / "outbox", mode=mode, backlog=12, seed=seed)
+                outage_report = await run_outage(pathlib.Path(directory) / "outbox", mode=mode, backlog=12, seed=seed)
 
-                self.assert_outage_recovered(result)
+                self.assert_outage_recovered(outage_report)
 
                 if mode == "blocked":
-                    diagnostics = json.dumps([job["diagnostic"] for job in result["jobs"] if job["failed"]])
+                    diagnostics = json.dumps([job["diagnostic"] for job in outage_report["jobs"] if job["failed"]])
 
                     self.assertIn('"exception_type": "TimeoutError"', diagnostics)
