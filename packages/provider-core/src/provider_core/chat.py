@@ -34,8 +34,8 @@ from provider_core.type_requirements import require_type
 _ERROR_DETAIL_BYTES = 8192
 
 
-def _json_bytes(value):
-    return json.dumps(value, allow_nan=False, ensure_ascii=True, sort_keys=True, separators=(",", ":")).encode("ascii")
+def _json_bytes(json_content):
+    return json.dumps(json_content, allow_nan=False, ensure_ascii=True, sort_keys=True, separators=(",", ":")).encode("ascii")
 
 
 @dataclass(frozen=True, slots=True, kw_only=True)
