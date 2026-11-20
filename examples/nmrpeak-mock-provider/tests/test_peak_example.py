@@ -252,6 +252,27 @@ class PeakExampleTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual([], list(hf_runner.scratch.iterdir()))
         self.assertEqual([], list(chf_runner.scratch.iterdir()))
 
+    async def test_invalid_process_inventory_leaves_both_model_sessions_with_the_caller(self):
+        configure_backend(self.configuration, "process")
+        hf_runner, hf_session = make_scientific_session(self)
+        chf_runner, chf_session = make_scientific_session(self)
+        descriptors = (hf_session.control.fileno(), chf_session.control.fileno())
+        for supplied in (
+            {("hf", 1): hf_session, ("chf", 0): chf_session},
+            {("hf", 0): hf_session, ("chf", 0): hf_session},
+        ):
+            with self.subTest(keys=tuple(supplied)):
+                with self.assertRaises(ValueError):
+                    async with self.open_offerings(process_sessions=supplied):
+                        self.fail("Invalid model inventories must not start either model")
+                self.assertEqual(descriptors, (hf_session.control.fileno(), chf_session.control.fileno()))
+                self.assertFalse(hf_session.control_connected)
+                self.assertFalse(chf_session.control_connected)
+                self.assertIsNone(hf_session.retirement)
+                self.assertIsNone(chf_session.retirement)
+                self.assertEqual([], list(hf_runner.scratch.iterdir()))
+                self.assertEqual([], list(chf_runner.scratch.iterdir()))
+
     async def test_process_overgrant_refuses_before_taking_any_session(self):
         deployment_config = tomllib.loads(self.configuration.read_text(encoding="utf-8"))
         deployment_config["execution"]["backend"] = "process"

@@ -70,3 +70,39 @@ class ExecutionSetupTests(unittest.IsolatedAsyncioTestCase):
         async with settings.create_host(host=dict(settings.host, state_values=1)) as host:
             self.assertEqual(1, host.state_values)
             self.assertEqual(2, settings.host["state_values"])
+
+    def test_thread_inventory_requires_no_sessions_including_an_empty_mapping(self):
+        settings = ExecutionSettings(_configuration())
+        settings.require_sessions(process_sessions=None, expected_keys={"baseline", "peaks"})
+        for sessions in ({}, {"baseline": object()}):
+            with self.subTest(sessions=sessions), self.assertRaises(ValueError):
+                settings.require_sessions(process_sessions=sessions, expected_keys={"baseline", "peaks"})
+
+    def test_process_inventory_refusal_preserves_every_callers_session(self):
+        configuration = _configuration()
+        configuration["backend"] = "process"
+        settings = ExecutionSettings(configuration)
+        with tempfile.TemporaryDirectory() as root:
+            sessions = [RunnerSession(Path(root) / f"unused-{index}.sock", role="science",
+                                      expected_lock_identity=(0, 0), startup_seconds=2, retirement_seconds=2)
+                        for index in range(2)]
+            for session in sessions:
+                self.addCleanup(session.close)
+            first, second = sessions
+            descriptors = [session.control.fileno() for session in sessions]
+            for supplied in (None, {}, {"baseline": first}, {"baseline": first, "peaks": second, "extra": first},
+                             {"baseline": first, "peaks": first}):
+                with self.subTest(keys=None if supplied is None else tuple(supplied)):
+                    with self.assertRaises(ValueError):
+                        settings.require_sessions(process_sessions=supplied, expected_keys={"baseline", "peaks"})
+                    self.assertEqual(descriptors, [session.control.fileno() for session in sessions])
+                    self.assertTrue(all(not session.control_connected for session in sessions))
+                    self.assertTrue(all(session.retirement is None for session in sessions))
+
+            # Keys express provider topology, including model-family/index pairs.
+            for keys in (("baseline", "peaks"), (("hf", 0), ("chf", 0))):
+                inventory = dict(zip(keys, sessions, strict=True))
+                settings.require_sessions(process_sessions=inventory, expected_keys=keys)
+                self.assertEqual(descriptors, [session.control.fileno() for session in sessions])
+                self.assertTrue(all(not session.control_connected for session in sessions))
+                self.assertTrue(all(session.retirement is None for session in sessions))

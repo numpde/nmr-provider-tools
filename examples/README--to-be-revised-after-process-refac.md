@@ -50,6 +50,8 @@ assembly enters its lifetime and adopts or starts its science. Multi-host
 providers keep their session inventories and capacity shares local, checking
 aggregate shares with `require_capacity_partition` before taking any session.
 Public host constructors remain independently usable and validate their options.
+Multi-host assembly supplies its own expected keys to `require_sessions` before
+constructing any host; the SDK checks session inventory without taking custody.
 
 Use `science.py` for scientific values/calculations, `binding.py` for SDK operation
 declarations and scientific resource cleanup, and `provider.py` for configuration,

@@ -100,15 +100,7 @@ async def open_provider(
     baseline_settings = science.BaselineSettings(**provider_config["science"]["baseline"]["settings"])
     peak_settings = science.PeakSettings(**provider_config["science"]["peaks"]["settings"])
 
-    if backend == "thread":
-        if process_sessions is not None:
-            raise ValueError("Cannot start thread spectrum execution with process_sessions; thread hosts do not use native runner sessions.")
-    elif backend == "process":
-        if process_sessions is None or set(process_sessions) != {"baseline", "peaks"}:
-            raise ValueError("Cannot start process spectrum execution: supply separate baseline and peaks native runner sessions.")
-
-        if process_sessions["baseline"] is process_sessions["peaks"]:
-            raise ValueError("Cannot start process spectrum execution: baseline and peaks require distinct native runner sessions.")
+    execution_settings.require_sessions(process_sessions=process_sessions, expected_keys={"baseline", "peaks"})
 
     async with AsyncExitStack() as lifetime:
         hosts = {}

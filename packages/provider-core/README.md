@@ -245,6 +245,11 @@ section (`backend`, `host`, `operation_policy`, `resource_requirement`). Its
 entering its lifetime or starting science. A successful process-host construction
 takes session custody; a refused construction leaves custody with the caller.
 Providers retain scientific startup, readiness and multi-host inventories.
+For multiple hosts, `require_sessions(process_sessions=..., expected_keys=...)`
+checks that process sessions exactly match the provider's keys and are distinct;
+threads accept no session mapping. Call this before constructing the first host.
+Preflight leaves all sessions with their caller; constructors still check session
+freshness before taking custody.
 `provider_core.hosting.require_capacity_partition(total=..., shares=...)` checks
 exact positive integer input/result/state shares against aggregate allowances
 before host construction; it reserves no hardware and schedules no work.

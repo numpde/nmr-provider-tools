@@ -10,7 +10,7 @@ from provider_core.container_guard import require_container
 
 require_container()
 
-from collections.abc import Mapping
+from collections.abc import Collection, Mapping
 from dataclasses import dataclass
 import reprlib
 from types import MappingProxyType
@@ -50,6 +50,30 @@ class ExecutionSettings:
         object.__setattr__(self, "host", MappingProxyType(dict(execution["host"])))
         object.__setattr__(self, "operation_policy", OperationPolicy(**execution["operation_policy"]))
         object.__setattr__(self, "resource_requirements", parse_resource_requirements(execution["resource_requirement"]))
+
+    def require_sessions(self, *, process_sessions: Mapping | None, expected_keys: Collection) -> None:
+        """Check a provider's inventory before any host takes session custody.
+
+        Keys belong to provider assembly. This preflight neither inspects session
+        state nor connects or closes sessions; each host still checks freshness.
+        """
+        if self.backend == "thread":
+            if process_sessions is not None:
+                raise ValueError("Thread execution does not use scientific process sessions")
+            return
+
+        if process_sessions is None:
+            raise ValueError("Process execution requires deployment-owned scientific runner sessions")
+
+        require_instance(process_sessions, Mapping)
+        expected = set(expected_keys)
+        if set(process_sessions) != expected:
+            raise ValueError(
+                f"Cannot configure process execution with session keys {reprlib.repr(set(process_sessions))}; "
+                f"supply exactly one runner session for each configured key {reprlib.repr(expected)}"
+            )
+        if len({id(session) for session in process_sessions.values()}) != len(process_sessions):
+            raise ValueError("Cannot configure process execution: independent hosts require distinct runner sessions")
 
     # silent-defaults: allow-contract -- Threads take no session; omitted host overrides use this settings snapshot.
     def create_host(

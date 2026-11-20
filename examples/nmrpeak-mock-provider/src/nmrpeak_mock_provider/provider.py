@@ -147,21 +147,11 @@ async def open_offerings(
     host_options = execution_settings.host
 
     if execution_mode == "thread":
-        if process_sessions is not None:
-            raise ValueError("Thread execution does not use scientific process sessions")
-
+        execution_settings.require_sessions(process_sessions=process_sessions, expected_keys=())
         execution_host = execution_settings.create_host()
     elif execution_mode == "process":
-        if process_sessions is None:
-            raise ValueError("Process execution requires deployment-owned scientific runner sessions")
-
         process_options = _process_capacity_options(provider_config["science"], host_options)
-
-        if set(process_sessions) != set(process_options):
-            raise ValueError("Process execution requires exactly one runner session for each configured (family, index) pair")
-
-        if len({id(session) for session in process_sessions.values()}) != len(process_sessions):
-            raise ValueError("Process execution requires distinct runner sessions for independent models")
+        execution_settings.require_sessions(process_sessions=process_sessions, expected_keys=process_options.keys())
 
         if not (create_model is InstalledMockModel):
             raise ValueError(f"Process execution requires {create_model=} to be {InstalledMockModel=}")

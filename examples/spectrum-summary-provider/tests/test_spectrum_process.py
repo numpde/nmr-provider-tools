@@ -39,6 +39,23 @@ class SpectrumProcessTests(unittest.IsolatedAsyncioTestCase):
 
         return sessions
 
+    async def test_invalid_session_inventory_refuses_before_taking_either_stage(self):
+        self.configure("process")
+        sessions = self.sessions()
+        descriptors = {stage: session.control.fileno() for stage, session in sessions.items()}
+        for supplied in (
+            {"baseline": sessions["baseline"]},
+            {**sessions, "extra": sessions["baseline"]},
+            {"baseline": sessions["baseline"], "peaks": sessions["baseline"]},
+        ):
+            with self.subTest(keys=tuple(supplied)):
+                with self.assertRaises(ValueError):
+                    async with provider_setup.open_provider(process_sessions=supplied):
+                        self.fail("Invalid stage inventories must not yield a provider")
+                self.assertEqual(descriptors, {stage: session.control.fileno() for stage, session in sessions.items()})
+                self.assertTrue(all(not session.control_connected for session in sessions.values()))
+                self.assertTrue(all(session.retirement is None for session in sessions.values()))
+
     async def test_same_workflow_reuses_independent_stages_and_retains_delivery_on_both_backends(self):
         for backend in ("thread", "process"):
             with self.subTest(backend=backend):
