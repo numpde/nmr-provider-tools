@@ -159,7 +159,7 @@ class DecodedBodyTests(unittest.TestCase):
         self.assertNotIn("private-coding-sentinel", str(caught.exception))
 
     def test_configuration_errors_and_reuse_are_local_defects(self):
-        for (limit, error_type) in (
+        for (maximum_bytes, error_type) in (
             (0, ValueError),
             (-1, ValueError),
             (True, TypeError),
@@ -167,8 +167,8 @@ class DecodedBodyTests(unittest.TestCase):
             (sys.maxsize, ValueError),
             (sys.maxsize + 1, ValueError),
         ):
-            with self.subTest(limit=limit), self.assertRaises(error_type):
-                DecodedBody((), maximum_bytes=limit)
+            with self.subTest(limit=maximum_bytes), self.assertRaises(error_type):
+                DecodedBody((), maximum_bytes=maximum_bytes)
 
         decoder = DecodedBody((), maximum_bytes=1)
 
