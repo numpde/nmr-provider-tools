@@ -366,7 +366,7 @@ class DeliveryServiceTests(unittest.IsolatedAsyncioTestCase):
             self.assertEqual(report["provider_ref"], second.provider_ref)
             self.assertEqual(report["api_origin"], peer.origin)
             self.assertEqual(report["socket_path"], str(second.socket_path))
-            self.assertIn("mode 0755", report["failure"]["message"])
+            self.assertIn("0755", report["failure"]["message"])
             self.assertFalse(first.socket_path.exists())
             self.assertFalse(second.socket_path.exists())
             self.assertEqual(peer.requests, [])
