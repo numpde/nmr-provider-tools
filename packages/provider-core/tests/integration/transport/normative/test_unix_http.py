@@ -12,7 +12,7 @@ from tests.fakes.unix_http import UnixHTTPPeer
 class UnixHTTPTests(unittest.IsolatedAsyncioTestCase):
     async def test_exact_body_uses_only_the_admitted_unix_socket(self):
         async with UnixHTTPPeer() as peer:
-            transport = UnixHttpTransport(socket_path=peer.path, exchange_seconds=1, retirement_seconds=0.3)
+            transport = UnixHttpTransport(socket_path=peer.socket_path, exchange_seconds=1, retirement_seconds=0.3)
 
             with patch("httpcore.AnyIOBackend.connect_tcp", new=AsyncMock(side_effect=AssertionError("TCP fallback"))) as tcp:
                 http_response = await transport.exchange(

@@ -52,7 +52,7 @@ class TlsShutdownTests(unittest.IsolatedAsyncioTestCase):
 
             if through_proxy:
                 proxy = await stack.enter_async_context(UnixProxy(origin, "tunnel"))
-                proxy_path = proxy.path
+                proxy_path = proxy.socket_path
 
             def serve():
                 # A strict TLS socket distinguishes a proper goodbye from raw

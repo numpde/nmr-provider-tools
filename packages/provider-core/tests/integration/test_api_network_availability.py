@@ -107,8 +107,8 @@ class ApiNetworkAvailabilityTests(unittest.IsolatedAsyncioTestCase):
             async with UnixProxy(peer.origin, "tunnel") as proxy:
                 proxy.server.close()
                 await proxy.server.wait_closed()
-                pathlib.Path(proxy.path).unlink()
-                transport = HttpTransport(trust=peer.trust, exchange_seconds=1, retirement_seconds=.2, proxy_socket=proxy.path)
+                pathlib.Path(proxy.socket_path).unlink()
+                transport = HttpTransport(trust=peer.trust, exchange_seconds=1, retirement_seconds=.2, proxy_socket=proxy.socket_path)
 
                 api = ProviderAPI(
                     SigningIdentity(peer.origin, "credential:test", Ed25519PrivateKey.generate()),
@@ -124,9 +124,9 @@ class ApiNetworkAvailabilityTests(unittest.IsolatedAsyncioTestCase):
 
                     self.assertTrue(api.retirement_confirmed)
                     self.assertEqual(failure.cause.network_io.stage, "connect_unix")
-                    self.assertEqual(failure.cause.network_io.unix_path, proxy.path)
+                    self.assertEqual(failure.cause.network_io.unix_path, proxy.socket_path)
                     self.assertTrue(api.can_retry_read(failure))
-                    proxy.server = await asyncio.start_unix_server(proxy.handle, proxy.path, limit=16384)
+                    proxy.server = await asyncio.start_unix_server(proxy.handle, proxy.socket_path, limit=16384)
                     upload_membership = await api.uploads("job:example")
 
                     self.assertEqual(upload_membership.job_ref, "job:example")

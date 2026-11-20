@@ -18,7 +18,7 @@ class MalformedProxyResponseTests(unittest.IsolatedAsyncioTestCase):
                     trust=peer.trust,
                     exchange_seconds=2,
                     retirement_seconds=1,
-                    proxy_socket=proxy.path
+                    proxy_socket=proxy.socket_path
                 )
 
                 client = api(transport, peer.origin)

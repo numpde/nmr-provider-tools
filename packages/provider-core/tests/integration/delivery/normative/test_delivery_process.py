@@ -66,7 +66,7 @@ def _configured_binding(root, peer, proxy, *, provider):
     files.key.write_bytes(encoded(credential))
     raw = files.raw.replace(b"https://api.example", peer.origin.encode())
     raw = raw.replace(b'provider_ref = "provider:example"', ("provider_ref = " + json.dumps(provider)).encode())
-    raw = raw.replace(json.dumps(str(root / "api/http.sock")).encode(), json.dumps(proxy.path).encode())
+    raw = raw.replace(json.dumps(str(root / "api/http.sock")).encode(), json.dumps(proxy.socket_path).encode())
     raw += b"ca_file = " + json.dumps(str(pathlib.Path(peer.scratch.name) / "cert.pem")).encode() + b"\n"
 
     files.write(raw)
@@ -172,7 +172,7 @@ class DeliveryProcessTests(unittest.IsolatedAsyncioTestCase):
                     (root / "state").mkdir(mode=0o700)
                     (root / "ipc").mkdir(mode=0o710)
                     raw = files.raw.replace(b"https://api.example", peer.origin.encode())
-                    raw = raw.replace(json.dumps(str(root / "api/http.sock")).encode(), json.dumps(proxy.path).encode())
+                    raw = raw.replace(json.dumps(str(root / "api/http.sock")).encode(), json.dumps(proxy.socket_path).encode())
                     raw += b"ca_file = " + json.dumps(str(pathlib.Path(peer.scratch.name) / "cert.pem")).encode() + b"\n"
 
                     files.write(raw)

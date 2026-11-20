@@ -24,10 +24,10 @@ class UnixProxy:
 
     async def __aenter__(self):
         self.scratch = tempfile.TemporaryDirectory()
-        self.path = str(pathlib.Path(self.scratch.name) / "proxy.sock")
+        self.socket_path = str(pathlib.Path(self.scratch.name) / "proxy.sock")
 
         try:
-            self.server = await asyncio.start_unix_server(self.handle, self.path, limit=16384)
+            self.server = await asyncio.start_unix_server(self.handle, self.socket_path, limit=16384)
         except BaseException:
             self.scratch.cleanup()
             raise

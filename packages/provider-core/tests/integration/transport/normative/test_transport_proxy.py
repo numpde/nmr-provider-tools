@@ -29,7 +29,7 @@ class UnixTunnelTests(unittest.IsolatedAsyncioTestCase):
                 nonce=bytes(16),
             )
 
-            transport = HttpTransport(trust=peer.trust, exchange_seconds=1, retirement_seconds=0.5, proxy_socket=proxy.path)
+            transport = HttpTransport(trust=peer.trust, exchange_seconds=1, retirement_seconds=0.5, proxy_socket=proxy.socket_path)
 
             with patch("httpcore.AnyIOBackend.connect_tcp", new=AsyncMock(side_effect=AssertionError("direct TCP attempted"))):
                 response = await transport.exchange(signed_http_request, maximum_bytes=4)

@@ -15,7 +15,7 @@ from tests.fakes.unix_http import UnixHTTPPeer
 class UnixHTTPRefusalTests(unittest.IsolatedAsyncioTestCase):
     async def test_request_cannot_select_a_tcp_destination_or_another_origin(self):
         async with UnixHTTPPeer() as peer:
-            transport = UnixHttpTransport(socket_path=peer.path, exchange_seconds=1, retirement_seconds=0.3)
+            transport = UnixHttpTransport(socket_path=peer.socket_path, exchange_seconds=1, retirement_seconds=0.3)
 
             with patch("httpcore.AnyIOBackend.connect_tcp", new=AsyncMock(side_effect=AssertionError("TCP fallback"))):
                 for origin in ("https://delivery.invalid", "http://other.invalid", "http://delivery.invalid:81"):
@@ -26,7 +26,7 @@ class UnixHTTPRefusalTests(unittest.IsolatedAsyncioTestCase):
 
     async def test_response_limit_retains_origin_head_without_connect_evidence(self):
         async with UnixHTTPPeer() as peer:
-            transport = UnixHttpTransport(socket_path=peer.path, exchange_seconds=1, retirement_seconds=0.3)
+            transport = UnixHttpTransport(socket_path=peer.socket_path, exchange_seconds=1, retirement_seconds=0.3)
 
             with self.assertRaises(ExchangeFailed) as caught:
                 await transport.exchange(httpx.Request("GET", DELIVERY_ORIGIN), maximum_bytes=1)
@@ -37,7 +37,7 @@ class UnixHTTPRefusalTests(unittest.IsolatedAsyncioTestCase):
 
     async def test_cancelled_submit_retains_original_cleanup_until_it_settles(self):
         async with UnixHTTPPeer(stall=True) as peer:
-            transport = UnixHttpTransport(socket_path=peer.path, exchange_seconds=1, retirement_seconds=0.05)
+            transport = UnixHttpTransport(socket_path=peer.socket_path, exchange_seconds=1, retirement_seconds=0.05)
             owner = object()
             (closing, release) = (asyncio.Event(), asyncio.Event())
             close = _OwnedStream.aclose

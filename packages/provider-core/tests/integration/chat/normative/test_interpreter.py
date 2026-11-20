@@ -144,7 +144,7 @@ class SharedInterpreterCarrierTests(unittest.IsolatedAsyncioTestCase):
                     proxy_socket = None
 
                     if use_proxy:
-                        proxy_socket = proxy.path
+                        proxy_socket = proxy.socket_path
 
                     transport = HttpTransport(
                         trust=peer.trust,
@@ -169,7 +169,7 @@ class SharedInterpreterCarrierTests(unittest.IsolatedAsyncioTestCase):
                         exchange_seconds=3,
                         retirement_seconds=0.5,
                         connect_seconds=0.15,
-                        proxy_socket=proxy.path
+                        proxy_socket=proxy.socket_path
                     )
 
                     start = asyncio.get_running_loop().time()
@@ -211,7 +211,7 @@ class SharedInterpreterCarrierTests(unittest.IsolatedAsyncioTestCase):
                     reasoning_effort=None
                 ),
                 trust=peer.trust,
-                proxy_socket=proxy.path,
+                proxy_socket=proxy.socket_path,
                 retirement_seconds=0.5,
                 request_bytes=32768,
                 response_bytes=8192,

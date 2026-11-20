@@ -55,7 +55,7 @@ class ShutdownPeer:
 
         if self.tunnel:
             proxy = await self.stack.enter_async_context(UnixProxy(self.origin, "tunnel"))
-            proxy_path = proxy.path
+            proxy_path = proxy.socket_path
 
         self.stack.enter_context(patch("provider_core.transport.OwnedNetworkBackend", self.backend))
         unwrap = TLSStream.unwrap

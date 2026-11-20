@@ -26,7 +26,7 @@ class UnixTunnelFailureTests(unittest.IsolatedAsyncioTestCase):
                             trust=peer.trust,
                             exchange_seconds=1,
                             retirement_seconds=0.3,
-                            proxy_socket=proxy.path
+                            proxy_socket=proxy.socket_path
                         )
 
                         with self.assertRaises(ExchangeFailed) as caught:
@@ -48,7 +48,7 @@ class UnixTunnelFailureTests(unittest.IsolatedAsyncioTestCase):
                             trust=peer.trust,
                             exchange_seconds=1,
                             retirement_seconds=0.3,
-                            proxy_socket=proxy.path
+                            proxy_socket=proxy.socket_path
                         )
 
                         with (
@@ -89,7 +89,7 @@ class UnixTunnelFailureTests(unittest.IsolatedAsyncioTestCase):
 
     async def _lost_post_reply(self):
         async with TlsPeer("success", response_body=None) as peer, UnixProxy(peer.origin, "tunnel") as proxy:
-            transport = HttpTransport(trust=peer.trust, exchange_seconds=1, retirement_seconds=0.3, proxy_socket=proxy.path)
+            transport = HttpTransport(trust=peer.trust, exchange_seconds=1, retirement_seconds=0.3, proxy_socket=proxy.socket_path)
 
             chat_request = httpx.Request(
                 "POST",
@@ -128,7 +128,7 @@ class UnixTunnelFailureTests(unittest.IsolatedAsyncioTestCase):
                             trust=peer.trust,
                             exchange_seconds=0.15,
                             retirement_seconds=0.3,
-                            proxy_socket=proxy.path
+                            proxy_socket=proxy.socket_path
                         )
 
                         started = asyncio.get_running_loop().time()
@@ -175,7 +175,7 @@ class UnixTunnelFailureTests(unittest.IsolatedAsyncioTestCase):
                     trust=unrelated.trust,
                     exchange_seconds=1,
                     retirement_seconds=0.3,
-                    proxy_socket=proxy.path
+                    proxy_socket=proxy.socket_path
                 )
 
                 with self.assertRaises(ExchangeFailed) as caught:

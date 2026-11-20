@@ -16,8 +16,8 @@ class UnixHTTPPeer:
 
     async def __aenter__(self):
         self.scratch = tempfile.TemporaryDirectory()
-        self.path = str(pathlib.Path(self.scratch.name) / "http.sock")
-        self.server = await asyncio.start_unix_server(self.handle, self.path)
+        self.socket_path = str(pathlib.Path(self.scratch.name) / "http.sock")
+        self.server = await asyncio.start_unix_server(self.handle, self.socket_path)
 
         return self
 
