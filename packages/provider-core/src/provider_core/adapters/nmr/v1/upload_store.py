@@ -4,6 +4,8 @@ from provider_core.container_guard import require_container
 
 require_container()
 
+import reprlib
+
 import httpx
 
 from provider_core.response_json import ResponseRejected
@@ -27,12 +29,12 @@ def download_request(target: str, *, capability: str) -> httpx.Request:
     except ResponseRejected as rejection:
         raise UploadFailed(str(rejection)) from None
 
-    request = httpx.Request("GET", target, headers={"Authorization": "Bearer " + capability})
+    download_http_request = httpx.Request("GET", target, headers={"Authorization": "Bearer " + capability})
 
-    if str(request.url) != target:
-        raise UploadFailed("HTTP client rewrote the admitted store target")
+    if str(download_http_request.url) != target:
+        raise UploadFailed(f"{reprlib.repr(str(download_http_request.url))=} should match {reprlib.repr(target)=}")
 
-    return request
+    return download_http_request
 
 
 def verify_store_headers(response: HttpResponse | HttpResponseHead, grant: ReadGrant) -> None:
