@@ -95,10 +95,10 @@ by new analyses on the same loaded model. This is an execution boundary within
 the existing containment, not an additional security sandbox.
 
 **Qualification remains outstanding on `feature/process-scientific-host-20261119`.**
-This workspace has no Docker executable, and no installed/native or integration
-run establishes this branch's runtime behavior. Use the maintained qualification
-commands and evidence requirements in
-[Note 093](../../notes/093_process_host_main_alignment_20261120.txt).
+At the 20 November 2026 grading checkpoint, Docker was unavailable and no
+installed/native or integration run established this branch's runtime behavior.
+Use the maintained qualification commands, independent grades and evidence
+requirements in [Note 094](../../notes/094_process_boundary_grading_20261120.txt).
 Source review and authored tests do not establish real-model/GPU suitability,
 cross-version compatibility, additional platforms or unattended recovery.
 
