@@ -49,10 +49,10 @@ def _workflow_blank_env_entries_from_lines(lines: list[str], source: str) -> lis
     return findings
 
 
-def _workflow_blank_env_entries(path: pathlib.Path) -> list[str]:
+def _workflow_blank_env_entries(source_path: pathlib.Path) -> list[str]:
     return _workflow_blank_env_entries_from_lines(
-        path.read_text(encoding="utf-8").splitlines(),
-        repo_source(path),
+        source_path.read_text(encoding="utf-8").splitlines(),
+        repo_source(source_path),
     )
 
 
@@ -97,8 +97,8 @@ class WorkflowEmptyDefaultsTest(unittest.TestCase):
     def test_workflows_do_not_publish_blank_env_entries(self) -> None:
         findings: list[str] = []
 
-        for path in surface_files(WORKFLOW_GLOBS):
-            findings.extend(_workflow_blank_env_entries(path))
+        for source_path in surface_files(WORKFLOW_GLOBS):
+            findings.extend(_workflow_blank_env_entries(source_path))
 
         self.assertEqual([], findings)
 

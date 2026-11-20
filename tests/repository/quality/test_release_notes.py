@@ -56,9 +56,9 @@ def scan_release_notes(root: pathlib.Path) -> list[str]:
     """Return file:line diagnostics for every matching release note."""
 
     return [
-        f"{path.relative_to(root).as_posix()}:{number}: {_GUIDANCE}"
-        for path in sorted((root / "notes").glob("*_release_v*.md"))
-        for number in wrapped_lines(path.read_text(encoding="utf-8"))
+        f"{release_note_path.relative_to(root).as_posix()}:{number}: {_GUIDANCE}"
+        for release_note_path in sorted((root / "notes").glob("*_release_v*.md"))
+        for number in wrapped_lines(release_note_path.read_text(encoding="utf-8"))
     ]
 
 
