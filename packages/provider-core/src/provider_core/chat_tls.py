@@ -19,7 +19,7 @@ import ssl
 import tempfile
 import weakref
 
-from provider_core.type_requirements import require_instance
+from provider_core.type_requirements import require_instance, require_type
 
 
 # Fixed serialization allowances bound a single immutable TLS grant.
@@ -335,8 +335,7 @@ def _material_message(kind, trust_material):
 def capture_trust(context):
     """Freeze supported context state; refuse authority that cannot be copied."""
 
-    if not (type(context) is (expected_type := CapturedSSLContext)):
-        raise _refuse(f"{type(context)=} ≠ {expected_type=}")
+    require_type(context, CapturedSSLContext, error_factory=_refuse)
 
     if not (context._chat_opaque is None):
         raise _refuse(context._chat_opaque)
@@ -381,8 +380,7 @@ def capture_trust(context):
 
 
 def _material_bytes(encoded_trust_material):
-    if not (type(encoded_trust_material) is (expected_type := str)):
-        raise _refuse(f"{type(encoded_trust_material)=} ≠ {expected_type=}")
+    require_type(encoded_trust_material, str, error_factory=_refuse)
 
     max_encoded_trust_characters = ((MAX_TRUST_BYTES + 2) // 3) * 4
 
@@ -400,24 +398,21 @@ def restore_trust(snapshot, *, directory=None):
     """Recreate captured TLS without reading default roots or original paths."""
     expected = {"version", "openssl_version", "materials", "settings", "cipher_expression", "alpn", "ecdh_curve", "facts"}
 
-    if not (type(snapshot) is (expected_type := dict)):
-        raise _refuse(f"{type(snapshot)=} ≠ {expected_type=}")
+    require_type(snapshot, dict, error_factory=_refuse)
 
     if set(snapshot) != expected:
         raise _refuse("the captured TLS schema or OpenSSL runtime does not match")
 
     snapshot_version = snapshot["version"]
 
-    if not (type(snapshot_version) is (expected_type := int)):
-        raise _refuse(f"{type(snapshot_version)=} ≠ {expected_type=}")
+    require_type(snapshot_version, int, error_factory=_refuse)
 
     if (snapshot_version != 1) or (snapshot["openssl_version"] != ssl.OPENSSL_VERSION):
         raise _refuse("the captured TLS schema or OpenSSL runtime does not match")
 
     settings = snapshot["settings"]
 
-    if not (type(settings) is (expected_type := dict)):
-        raise _refuse(f"{type(settings)=} ≠ {expected_type=}")
+    require_type(settings, dict, error_factory=_refuse)
 
     if set(settings) != set(_FIELDS):
         raise _refuse("the captured verification settings are incomplete")
@@ -425,19 +420,24 @@ def restore_trust(snapshot, *, directory=None):
     for name in _FIELDS[:4]:
         setting = settings[name]
 
-        if not (type(setting) in (expected_types := (int, ssl.Options, ssl.VerifyFlags, ssl.TLSVersion))):
-            raise _refuse(f"{name=}; {type(setting)=} ≠ {expected_types=}")
+        require_type(
+            setting,
+            (int, ssl.Options, ssl.VerifyFlags, ssl.TLSVersion),
+            error_factory=lambda diagnostic: _refuse(f"{name=}; " + diagnostic),
+        )
 
     for name in _FIELDS[4:]:
         setting = settings[name]
 
-        if not (type(setting) is (expected_type := bool)):
-            raise _refuse(f"{name=}; {type(setting)=} ≠ {expected_type=}")
+        require_type(
+            setting,
+            bool,
+            error_factory=lambda diagnostic: _refuse(f"{name=}; " + diagnostic),
+        )
 
     material_records = snapshot["materials"]
 
-    if not (type(material_records) is (expected_type := list)):
-        raise _refuse(f"{type(material_records)=} ≠ {expected_type=}")
+    require_type(material_records, list, error_factory=_refuse)
 
     if len(material_records) > MAX_TRUST_MATERIALS:
         raise _refuse("the captured trust material collection is invalid")
@@ -445,8 +445,7 @@ def restore_trust(snapshot, *, directory=None):
     materials = []
 
     for material_record in material_records:
-        if not (type(material_record) is (expected_type := dict)):
-            raise _refuse(f"{type(material_record)=} ≠ {expected_type=}")
+        require_type(material_record, dict, error_factory=_refuse)
 
         if not ("kind" in material_record):
             raise _refuse("a captured trust material record is invalid")
@@ -457,8 +456,7 @@ def restore_trust(snapshot, *, directory=None):
 
             captured_entries = material_record["entries"]
 
-            if not (type(captured_entries) is (expected_type := list)):
-                raise _refuse(f"{type(captured_entries)=} ≠ {expected_type=}")
+            require_type(captured_entries, list, error_factory=_refuse)
 
             if len(captured_entries) > MAX_TRUST_MATERIALS:
                 raise _refuse("a captured hashed trust collection is invalid")
@@ -466,16 +464,14 @@ def restore_trust(snapshot, *, directory=None):
             (hashed_trust_files, names) = ([], set())
 
             for entry in captured_entries:
-                if not (type(entry) is (expected_type := dict)):
-                    raise _refuse(f"{type(entry)=} ≠ {expected_type=}")
+                require_type(entry, dict, error_factory=_refuse)
 
                 if set(entry) != {"name", "data"}:
                     raise _refuse("a captured hashed trust name is invalid or repeated")
 
                 name = entry["name"]
 
-                if not (type(name) is (expected_type := str)):
-                    raise _refuse(f"{type(name)=} ≠ {expected_type=}")
+                require_type(name, str, error_factory=_refuse)
 
                 if (_HASHED_TRUST_FILE.fullmatch(name) is None) or (name in names):
                     raise _refuse("a captured hashed trust name is invalid or repeated")
@@ -495,8 +491,7 @@ def restore_trust(snapshot, *, directory=None):
     _require_material_budget(materials)
     cipher_expression = snapshot["cipher_expression"]
 
-    if not (type(cipher_expression) is (expected_type := str)):
-        raise _refuse(f"{type(cipher_expression)=} ≠ {expected_type=}")
+    require_type(cipher_expression, str, error_factory=_refuse)
 
     if not (0 < len(cipher_expression) <= 65536):
         raise _refuse("the captured cipher selection is invalid")
@@ -504,17 +499,15 @@ def restore_trust(snapshot, *, directory=None):
     alpn = snapshot["alpn"]
 
     if alpn is not None:
-        if not (type(alpn) is (expected_type := list)):
-            raise _refuse(f"{type(alpn)=} ≠ {expected_type=}")
+        require_type(alpn, list, error_factory=_refuse)
 
         for alpn_protocol in alpn:
-            if not (type(alpn_protocol) is (expected_type := str)):
-                raise _refuse(f"{type(alpn_protocol)=} ≠ {expected_type=}")
+            require_type(alpn_protocol, str, error_factory=_refuse)
 
     curve = snapshot["ecdh_curve"]
 
-    if (curve is not None) and (not (type(curve) is (expected_type := str))):
-        raise _refuse(f"{type(curve)=} ≠ {expected_type=}")
+    if curve is not None:
+        require_type(curve, str, error_factory=_refuse)
 
     context = _SSL_CONTEXT(ssl.PROTOCOL_TLS_CLIENT)
     owned_directory = None
@@ -527,8 +520,7 @@ def restore_trust(snapshot, *, directory=None):
 
             weakref.finalize(context, owned_directory.cleanup)
         else:
-            if not (type(directory) is (expected_type := str)):
-                raise _refuse(f"{type(directory)=} ≠ {expected_type=}")
+            require_type(directory, str, error_factory=_refuse)
 
             if not (pathlib.Path(directory).is_absolute() and pathlib.Path(directory).is_dir()):
                 raise _refuse("the captured trust directory grant is invalid")
