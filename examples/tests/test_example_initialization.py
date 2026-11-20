@@ -1,4 +1,4 @@
-"""Apply the host's startup and retirement contract to real example contributions."""
+"""Apply the host's startup and retirement contract to installed examples."""
 
 from provider_core.container_guard import require_container
 

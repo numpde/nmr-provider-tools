@@ -347,6 +347,11 @@ def run_suite(suite: str, patterns: tuple[str, ...]) -> None:
                             dst=example_tree / directory_name,
                         )
 
+            shutil.copytree(
+                pathlib.Path("/examples/tests"),
+                test_tree / "tests/integration/example_contracts",
+            )
+
         # silent-defaults: allow-contract -- Fuzz selects both owned suites; every other admitted selector names one suite.
         selections = ("integration", "unit") if suite == "fuzz" else (suite,)
 
