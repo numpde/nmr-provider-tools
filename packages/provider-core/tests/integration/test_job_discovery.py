@@ -30,9 +30,9 @@ class JobDiscoveryIntegrationTests(unittest.IsolatedAsyncioTestCase):
         }
 
         for order in ((original, other), (other, original)):
-            document = feed_page()
-            document["jobs"] = order
-            replies = [json.dumps(document).encode(), input_response(payload, job_ref="job:second")]
+            feed_fields = feed_page()
+            feed_fields["jobs"] = order
+            replies = [json.dumps(feed_fields).encode(), input_response(payload, job_ref="job:second")]
 
             async with api_tls_peer("success", response_bodies=replies) as peer:
                 transport = HttpTransport(trust=peer.trust, exchange_seconds=1, retirement_seconds=0.5)
@@ -45,8 +45,19 @@ class JobDiscoveryIntegrationTests(unittest.IsolatedAsyncioTestCase):
 
                 page = await client.jobs(analysis_kind_ref="nmr_predict", has_provider_execution_attempt=False, limit=2, cursor=None)
 
-                self.assertEqual([item.input.job_ref for item in page.jobs], [item["job_ref"] for item in order])
-                selected = next(item for item in page.jobs if item.input.job_ref == "job:second")
+                self.assertEqual(
+                    [discovered_job.input.job_ref for discovered_job in page.jobs],
+                    [job_fields["job_ref"] for job_fields in order],
+                )
+
+                selected = next(
+                    (
+                        discovered_job
+                        for discovered_job in page.jobs
+                        if discovered_job.input.job_ref == "job:second"
+                    ),
+                )
+
                 verified = await client.job_input(selected.input, analysis_kind_ref=selected.analysis_kind_ref)
 
                 self.assertEqual(verified.specification_bytes, payload)
@@ -68,7 +79,7 @@ class JobDiscoveryIntegrationTests(unittest.IsolatedAsyncioTestCase):
             self.assertEqual(verified.specification_bytes, b"private instructions")
             self.assertEqual(len(peer.requests), 2)
 
-            for (request, expected_target) in zip(
+            for (request_head, expected_target) in zip(
                 peer.requests,
                 (
                     b"/provider/v1/jobs?analysis_kind_ref=nmr_predict&has_provider_execution_attempt=false&limit=1",
@@ -76,21 +87,21 @@ class JobDiscoveryIntegrationTests(unittest.IsolatedAsyncioTestCase):
                 ),
                 strict=True
             ):
-                self.assertEqual(request.split(b"\r\n")[0], b"GET " + expected_target + b" HTTP/1.1")
+                self.assertEqual(request_head.split(b"\r\n")[0], b"GET " + expected_target + b" HTTP/1.1")
 
                 headers = {
-                    name.lower(): value.strip() for line in request.split(b"\r\n")[1:] if b":" in line
-                    for (name, value) in [line.split(b":", 1)]
+                    header_name.lower(): header_value.strip() for line in request_head.split(b"\r\n")[1:] if b":" in line
+                    for (header_name, header_value) in [line.split(b":", 1)]
                 }
 
-                (path, query) = expected_target.split(b"?", 1)
+                (expected_path, expected_query) = expected_target.split(b"?", 1)
 
                 base = b"\n".join(
                     [
                         b'"@method": GET',
                         b'"@authority": ' + peer.origin.removeprefix("https://").encode(),
-                        b'"@path": ' + path,
-                        b'"@query": ?' + query,
+                        b'"@path": ' + expected_path,
+                        b'"@query": ?' + expected_query,
                         b'"@signature-params": ' + headers[b"signature-input"].split(b"=", 1)[1]
                     ]
                 )
