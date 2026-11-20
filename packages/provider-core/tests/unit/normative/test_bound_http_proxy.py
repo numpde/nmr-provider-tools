@@ -197,8 +197,8 @@ class BoundProxyTests(unittest.TestCase):
 
         for reply_failure in (OSError("failure reply could not be written"), RuntimeError("unexpected-reply-marker")):
             with self.subTest(reply_failure=type(reply_failure).__name__):
-                request = MagicMock()
-                request.sendall.side_effect = reply_failure
+                client_socket = MagicMock()
+                client_socket.sendall.side_effect = reply_failure
                 errors = io.StringIO()
 
                 with (
@@ -207,19 +207,19 @@ class BoundProxyTests(unittest.TestCase):
                     capture_proxy_logs(errors),
                 ):
                     if isinstance(reply_failure, OSError):
-                        bound_http_proxy.ProxyHandler(request, ("127.0.0.1", 1), SimpleNamespace(outbound_interface="lo", dns_servers=None))
+                        bound_http_proxy.ProxyHandler(client_socket, ("127.0.0.1", 1), SimpleNamespace(outbound_interface="lo", dns_servers=None))
                         self.assertIn(str(original), errors.getvalue())
                         self.assertIn("failure reply could not be written", errors.getvalue())
                     else:
                         with self.assertRaises(RuntimeError) as rejected:
-                            bound_http_proxy.ProxyHandler(request, ("127.0.0.1", 1), SimpleNamespace(outbound_interface="lo", dns_servers=None))
+                            bound_http_proxy.ProxyHandler(client_socket, ("127.0.0.1", 1), SimpleNamespace(outbound_interface="lo", dns_servers=None))
 
                         self.assertIs(reply_failure, rejected.exception)
                         self.assertEqual("", errors.getvalue())
 
                 connect.assert_not_called()
 
-                request.sendall.assert_called_once_with(
+                client_socket.sendall.assert_called_once_with(
                     b"HTTP/1.1 502 Bad Gateway\r\n"
                     b"Connection: close\r\n"
                     b"\r\n"
@@ -430,7 +430,7 @@ class BoundProxyTests(unittest.TestCase):
     def _assert_forwarding_write_budget(self, method):
         """Observe each peer's timeout at the actual first forwarding write."""
         (clock, observed) = ([0], [])
-        (request, outbound) = (MagicMock(), MagicMock())
+        (client_socket, outbound) = (MagicMock(), MagicMock())
         outbound.__enter__.return_value = outbound
 
         # silent-defaults: allow-contract -- The GET and CONNECT cases choose their respective request-target forms before observing both peers' first-write timeout settings; proof=tests/repository/test_bound_http_proxy.py::BoundProxyTests.test_forwarding_owns_write_budget_after_header_deadline_nearly_expires
@@ -449,10 +449,10 @@ class BoundProxyTests(unittest.TestCase):
             return fragment
 
         def sent(_request_bytes):
-            observed.append((request.settimeout.call_args.args[0], outbound.settimeout.call_args.args[0]))
+            observed.append((client_socket.settimeout.call_args.args[0], outbound.settimeout.call_args.args[0]))
 
-        request.recv.side_effect = receive
-        writer = outbound if method == "GET" else request
+        client_socket.recv.side_effect = receive
+        writer = outbound if method == "GET" else client_socket
         writer.sendall.side_effect = sent
 
         with (
@@ -460,9 +460,9 @@ class BoundProxyTests(unittest.TestCase):
             patch.object(bound_http_proxy, "connect_bound", return_value=outbound),
             patch.object(bound_http_proxy, "relay"),
         ):
-            bound_http_proxy.ProxyHandler(request, ("127.0.0.1", 1), SimpleNamespace(outbound_interface="lo", dns_servers=None))
+            bound_http_proxy.ProxyHandler(client_socket, ("127.0.0.1", 1), SimpleNamespace(outbound_interface="lo", dns_servers=None))
 
-        self.assertEqual([call.args[0] for call in request.settimeout.call_args_list], [30, 1, 120])
+        self.assertEqual([call.args[0] for call in client_socket.settimeout.call_args_list], [30, 1, 120])
         self.assertEqual(observed, [(120, 120)])
 
     def test_connect_binds_before_connecting(self):
