@@ -117,8 +117,8 @@ class ConditionRecovery:
     on_recovered: Callable[[AcknowledgedAttempt, str, str | None, ApiFailure], None] = field(repr=False)
 
     def __post_init__(self):
-        for value in (self.window_seconds, self.backoff_max_seconds):
-            require_positive_number(value)
+        for recovery_seconds in (self.window_seconds, self.backoff_max_seconds):
+            require_positive_number(recovery_seconds)
 
         if (not callable(self.on_retry)) or (not callable(self.on_recovered)):
             raise ValueError("Condition recovery requires protected retry and recovery observers")
@@ -817,12 +817,12 @@ class AttemptExecutor:
             task = self._task
             self._task = None
 
-            result = task.result()
+            phase_return = task.result()
 
             self._require_live_permission()
 
             if (self._observed_crash is not None) and (self._observed_crash.phase == phase):
-                return result
+                return phase_return
 
             # A known binding failure needs no acceptance read. For a successful
             # return, finish observation before accepting the handle or outcome.
@@ -830,7 +830,7 @@ class AttemptExecutor:
 
             self._require_live_permission()
 
-            return result
+            return phase_return
         finally:
             reporter.active = False
 
