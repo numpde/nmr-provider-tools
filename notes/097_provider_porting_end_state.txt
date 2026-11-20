@@ -22,16 +22,17 @@ observations and cleanup survive cancelled waits and uncertain replies. Independ
 process offerings retain independent lifetimes and availability. Shared resource
 allowances belong to an enclosing owner and cannot multiply when workers are added.
 
-The examples should demonstrate complementary parts of this contract: Dummy for
+The examples demonstrate complementary parts of this contract: Dummy for
 minimal integration, Reference for persistent resource reuse on either backend,
 Spectrum for multiple scientific stages, and NMRPeak for interpretation, checkpoint
-loading, consumed state and delivery. This is a desired alignment, not a claim that
-all examples already support both backends.
+loading, consumed state and delivery. Each example exercises both backends in the
+installed integration suite. Real-provider and device qualification remain separate.
 
-Next, port Reference to both backends and use that second implementation to expose
-remaining NMRPeak assumptions. Then align the other examples and write the porting
-guide from the working code. Preserve one allocation per process host; multiple
-scientific stages require explicit provider composition and resource ownership.
+The implementation followed Reference as the second backend-portable provider,
+then aligned Dummy, Spectrum and NMRPeak. Each example now documents its actual
+responsibilities and installed startup. One allocation per process host remains
+the primitive; multiple stages/models use explicit provider composition and
+resource ownership. A real scientific model still needs its own qualification.
 
 Acceptance: another provider can be integrated through provider code and
 configuration, using its unchanged workflow on both backends, with demonstrated
@@ -156,3 +157,61 @@ test_spectrum_science.py (9). Logs: /tmp/spectrum-process-port-escalated.log,
 /tmp/spectrum-science-port.log. These are dirty-source development checks; full
 integration against the final committed candidate remains pending. Repository
 checks were excluded. Real-model/GPU and deployment qualification remain separate.
+
+Final combined qualification and audit (2026-11-20)
+
+Clean tested candidate: 44639313d7ae81e7bc4f7c1f7efc922488d5e79d.
+All example source and shared guidance were frozen before this run. The earlier
+development-stage pending statements describe their individual snapshots; this
+combined result closes the final installed integration gate for those changes.
+
+    make tests/integration/provider-core \
+        DOCKER_CONTEXT=science \
+        WHEELHOUSE="$HOME/Downloads/wheelhouse" \
+        PRIVACY_TESTS=0
+
+Result: 435 tests in 258.857 seconds, OK, 30 skips. Every skip explicitly reports
+"Privacy tests disabled". The installed example portion comprises 23 Dummy tests,
+33 NMRPeak tests, 17 Reference tests and 29 Spectrum tests; all 102 passed.
+The remaining tests exercise maintained SDK integrations. All four examples
+execute their same request sequence on thread and persistent-process backends.
+
+Full local receipt: /tmp/nmr-provider-porting-44639313-integration.log.
+Receipt SHA-256: 2fac79b49433aab00b9e99348c7ba90ebd87d54d6ce7d9b5fe3f6286b9cd3021.
+Installed wheel SHA-256 identities:
+
+- provider-core: 6f8827f281110ba13cc7cfe9ff4eac79c924e5c9d2aef1ad3c1e4926482fa0d0.
+- dummy-provider-example: 80966518bc27b1b1df9ff962e9c1f2dd1ab4aa6dc8407f7af4e179ae09c14d9d.
+- nmrpeak-mock-provider-example: 59f366d70ce3622d14624e1233f33cf7eae99866eabc1ce1d62e1130180adfc5.
+- reference-match-provider-example: 142de8879b00805829535b86815f3319c14143269690d1378d265a8b4e275829.
+- spectrum-summary-provider-example: 4d275229bb43d981ba75a023492b1b5c7fc5ce3791b0b2ad89e448792df1bf19.
+
+Raw receipts remain local /tmp files, not permanent Git artifacts. The commit
+adding this qualification paragraph changes documentation only; the tests ran
+at the candidate above. SDK executable source, SDK tests and dependency locks
+were not changed by these ports. Earlier contract/unit/native evidence remains
+attributed to its original candidates in Notes 095 and 096; those lanes were not
+rerun or claimed as fresh results here. The SDK wheel changed with README metadata.
+
+Three GPT-6.1-Sol agents at medium effort owned Dummy, Reference and Spectrum;
+the coordinator owned NMRPeak. Each agent edited only its own example and its
+serialized friction entry here. The coordinator alone made commits and updated
+shared guidance. Agents cross-reviewed other examples read-only, and the final
+clean candidate received independent boundary, custody and capacity/proof audits.
+
+Accepted corrections included startup-owned Reference call selection, cancellation
+after observation actually entered, caller descriptor preservation on refusal,
+real surviving-stage science after retirement, and observing provider-started
+cleanup rather than initiating cleanup from the test. A proposed remote_type
+warning was rejected after tracing its assignment to the SDK wire decoder.
+No reviewer found a remaining actionable source or guidance issue in the supported
+scope. The final full integration run supplies the previously pending runtime gate.
+
+The examples now provide the demonstrated porting pattern described above without
+adding SDK execution machinery, a scheduler or a universal provider registry.
+Remaining friction is explicit: static shares do not borrow idle capacity, SDK
+hosts require positive state capacity, Reference thread/process readiness differs,
+and enclosing deployment owns native sessions and hardware grants. Repository
+checks remain enabled, unchanged, deferred and excluded. Real-model/GPU execution,
+unattended recovery, full repository qualification and merge readiness remain
+separate decisions.
