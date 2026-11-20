@@ -188,15 +188,15 @@ class TlsPeer:
 
                 return
 
-            request = await reader.readuntil(
+            request_head = await reader.readuntil(
                 b"\r\n"
                 b"\r\n",
             )
 
-            self.requests.append(request)
+            self.requests.append(request_head)
 
             lengths = [
-                int(line.split(b":", 1)[1]) for line in request.split(b"\r\n") if line.lower().startswith(b"content-length:")
+                int(line.split(b":", 1)[1]) for line in request_head.split(b"\r\n") if line.lower().startswith(b"content-length:")
             ]
 
             # silent-defaults: allow-contract -- Absent Content-Length means this fixture request has no framed body.
@@ -210,11 +210,11 @@ class TlsPeer:
             mode = self.mode
 
             if self.response_mode is not None:
-                mode = self.response_mode(request, self.request_bodies[-1])
+                mode = self.response_mode(request_head, self.request_bodies[-1])
 
             if mode == "success":
                 if self.response_factory is not None:
-                    body = await self.response_factory(request, self.request_bodies[-1])
+                    body = await self.response_factory(request_head, self.request_bodies[-1])
                 else:
                     body = self.response_body if self.response_bodies is None else self.response_bodies.pop(0)
 
@@ -235,7 +235,7 @@ class TlsPeer:
 
                 writer.write(
                     f"HTTP/1.1 {self.response_status} {HTTPStatus(self.response_status).phrase}\r\n".encode("ascii")
-                    + b"".join((name + b": " + value + b"\r\n") for (name, value) in headers)
+                    + b"".join((header_name + b": " + header_value + b"\r\n") for (header_name, header_value) in headers)
                     + b"Content-Length: "
                     + str(len(body)).encode("ascii")
                     + (
@@ -257,7 +257,7 @@ class TlsPeer:
 
                 writer.write(
                     b"HTTP/1.1 200 OK\r\n"
-                    + b"".join((name + b": " + value + b"\r\n") for (name, value) in headers)
+                    + b"".join((header_name + b": " + header_value + b"\r\n") for (header_name, header_value) in headers)
                     + (
                         b"Content-Length: 100\r\n"
                         b"\r\n"
@@ -317,14 +317,14 @@ class TlsPeer:
             # closing handler also belongs to this fixture, including failures.
             handlers = tuple(self.handlers)
 
-            results = await asyncio.wait_for(asyncio.gather(*handlers, return_exceptions=True), 2)
+            handler_outcomes = await asyncio.wait_for(asyncio.gather(*handlers, return_exceptions=True), 2)
         finally:
             self.scratch.cleanup()
 
         failures = [
-            result
-            for (task, result) in zip(handlers, results, strict=True)
-            if (isinstance(result, BaseException)) and (not ((task in cancelled) and isinstance(result, asyncio.CancelledError)))
+            handler_outcome
+            for (task, handler_outcome) in zip(handlers, handler_outcomes, strict=True)
+            if (isinstance(handler_outcome, BaseException)) and (not ((task in cancelled) and isinstance(handler_outcome, asyncio.CancelledError)))
         ]
 
         if failures:
