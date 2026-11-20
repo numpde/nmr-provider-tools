@@ -213,32 +213,34 @@ class DeliveryQueue:
 
             raise DeliveryStorageFailed("Cannot open delivery storage; restore its private database and single-writer ownership.", cause=cause) from None
 
-    def _private_file(self, path):
-        descriptor = os.open(path, os.O_RDWR | os.O_CREAT | os.O_NOFOLLOW | os.O_CLOEXEC, 0o600)
+    def _private_file(self, delivery_file_path):
+        expected_file_mode = 0o600
+
+        delivery_file_fd = os.open(delivery_file_path, os.O_RDWR | os.O_CREAT | os.O_NOFOLLOW | os.O_CLOEXEC, expected_file_mode)
 
         try:
             try:
-                facts = os.fstat(descriptor)
+                file_metadata = os.fstat(delivery_file_fd)
             except OSError as cause:
-                raise DeliveryStorageFailed(f"Cannot inspect private delivery file {path.name=} before acquiring it.", cause=cause) from None
+                raise DeliveryStorageFailed(f"Cannot inspect {delivery_file_path=}", cause=cause) from None
 
             if (
-                (not stat.S_ISREG(facts.st_mode)) or
-                (facts.st_uid != os.geteuid()) or
-                (stat.S_IMODE(facts.st_mode) != 0o600)
+                (not stat.S_ISREG(file_metadata.st_mode)) or
+                (file_metadata.st_uid != os.geteuid()) or
+                (stat.S_IMODE(file_metadata.st_mode) != expected_file_mode)
             ):
                 raise DeliveryStorageFailed(
-                    f"Cannot open private delivery file {path.name=}: require a caller-owned mode 0600 regular file; "
-                    f"observed {facts.st_uid=}, {stat.S_IMODE(facts.st_mode)=:04o}, caller {os.geteuid()=}."
+                    f"{delivery_file_path=} should be a regular file owned by {os.geteuid()=} with {expected_file_mode=:#o}; "
+                    f"{file_metadata.st_uid=}, {file_metadata.st_mode=:#o}"
                 )
         except BaseException:
             # Until return, this descriptor belongs here rather than self._lock
             # or SQLite. A close failure retains the admission failure as context.
-            os.close(descriptor)
+            os.close(delivery_file_fd)
 
             raise
 
-        return descriptor
+        return delivery_file_fd
 
     def _initialize(self):
         version = self._db.execute("PRAGMA user_version").fetchone()[0]
@@ -313,7 +315,7 @@ class DeliveryQueue:
 
         return self._enqueue(handoff.outcome, handoff.publication_bytes(), handoff.acceptance())
 
-    def _enqueue(self, item, publication, acceptance):
+    def _enqueue(self, delivery_outcome, publication, acceptance):
         with self._transaction("enqueue into"):
             limits = self.limits
 
@@ -321,29 +323,29 @@ class DeliveryQueue:
                 self._db
                 .execute(
                     "SELECT job_ref,operation,body,publication FROM outstanding WHERE api_origin=? AND provider_ref=? AND attempt_ref=?",
-                    item.key,
+                    delivery_outcome.key,
                 )
                 .fetchone()
             )
 
             if existing is not None:
-                if existing != (item.job_ref, item.operation.value, item.body, publication):
-                    raise DeliveryConflict("This Attempt already has a different outstanding terminal request; the original remains unchanged.")
+                if existing != (delivery_outcome.job_ref, delivery_outcome.operation.value, delivery_outcome.body, publication):
+                    raise DeliveryConflict(f"{delivery_outcome.execution_attempt_ref=} already has a different outstanding terminal request")
 
                 return acceptance
 
             for (where, parameters, maximum_items, maximum_bytes) in (
-                (" WHERE api_origin=? AND provider_ref=?", item.key[:2], limits.provider_items, limits.provider_bytes),
+                (" WHERE api_origin=? AND provider_ref=?", delivery_outcome.key[:2], limits.provider_items, limits.provider_bytes),
                 ("", (), limits.total_items, limits.total_bytes),
             ):
                 (count, size) = self._db.execute("SELECT COUNT(*),COALESCE(SUM(length(body)),0) FROM outstanding" + where, parameters).fetchone()
 
-                if (count >= maximum_items) or ((size + len(item.body)) > maximum_bytes):
+                if (count >= maximum_items) or ((size + len(delivery_outcome.body)) > maximum_bytes):
                     raise DeliveryFull("Delivery capacity is full. Keep this outcome, wait for space and stop admitting more computation.")
 
             self._db.execute(
                 "INSERT INTO outstanding (api_origin,provider_ref,attempt_ref,job_ref,operation,body,digest,state,created_at,held_reason,publication) VALUES (?,?,?,?,?,?,?,'pending',?,NULL,?)",
-                (*item.key, item.job_ref, item.operation.value, item.body, item.body_sha256, time.time(), publication)
+                (*delivery_outcome.key, delivery_outcome.job_ref, delivery_outcome.operation.value, delivery_outcome.body, delivery_outcome.body_sha256, time.time(), publication)
             )
 
         return acceptance
@@ -549,8 +551,8 @@ class DeliveryQueue:
                 for (job_ref, attempt_ref, operation, digest, size, state, created, reason) in rows
             ]
 
-    def _match(self, item):
-        return (*item.key, item.job_ref, item.operation.value, item.body)
+    def _match(self, delivery_outcome):
+        return (*delivery_outcome.key, delivery_outcome.job_ref, delivery_outcome.operation.value, delivery_outcome.body)
 
     def remove_published(self, item):
         """Delete only after the API owner validated its matching terminal receipt.
