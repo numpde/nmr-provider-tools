@@ -54,6 +54,7 @@ async def run_demo() -> None:
                     policy=operation_policy,
                 )
 
+                # repo-check: retain-type-guard -- Report the submit owner's refusal outcome
                 if isinstance(match_operation, NotAdmitted):
                     raise RuntimeError(f"Reference match admission refused: {match_operation=!s}")
 

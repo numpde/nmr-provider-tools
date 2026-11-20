@@ -61,6 +61,7 @@ def gc_thresholds(gc_settings: dict[str, Any]) -> list[str]:
 
         require_type(gc_threshold, (str, int))
 
+        # repo-check: retain-type-guard -- Text thresholds need whitespace checks; integer thresholds use their numeric representation
         if (
             (type(gc_threshold) is str) and
             ((not gc_threshold) or (any((character.isspace() or (ord(character) < 32)) for character in gc_threshold)))

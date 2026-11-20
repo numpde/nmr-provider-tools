@@ -584,6 +584,7 @@ class AttemptExecutor:
                 self._link_interruption(interruption)
                 raise
 
+            # repo-check: retain-type-guard -- Non-Exception process-control failures are grouped with retained cleanup evidence
             if not isinstance(cause, (expected_type := Exception)):
                 raise BaseExceptionGroup(f"{type(cause)=} ≠ {expected_type=}", (cause, self.last_failure)) from None
 

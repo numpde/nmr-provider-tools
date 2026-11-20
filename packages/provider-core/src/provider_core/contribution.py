@@ -1042,6 +1042,7 @@ class ImplementationBinding[InstanceT, AnalysisT]:
             annotation = member_hints.get(member.name)
 
             if get_origin(annotation) is not CallBinding:
+                # repo-check: retain-type-guard -- Reject a concrete CallBinding field unless its generic port types are declared
                 if type(declaration) is CallBinding:
                     raise TypeError(f"Call member {member.name = } must declare its concrete CallBinding types.")
 

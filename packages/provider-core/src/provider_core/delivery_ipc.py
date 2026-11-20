@@ -223,6 +223,7 @@ class DeliveryInbox:
                     body.extend(event.data)
                 elif isinstance(event, h11.EndOfMessage):
                     return (ipc_request, bytes(body))
+                # repo-check: retain-type-guard -- This protocol event means the peer closed before completing its request
                 elif isinstance(event, h11.ConnectionClosed):
                     raise ConnectionError("Delivery client disconnected before its complete request.")
 

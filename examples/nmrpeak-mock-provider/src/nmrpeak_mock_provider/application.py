@@ -154,6 +154,7 @@ class PredictionWorkflow:
 
             self.generation_submission = generation_submission
 
+        # repo-check: retain-type-guard -- Report a refused submission with its original code and message
         if isinstance((generation_admission := generation_submission.submit()), NotAdmitted):
             raise RuntimeError(f"Cannot generate candidates: {generation_admission=!s}")
 

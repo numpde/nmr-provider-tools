@@ -44,12 +44,14 @@ async def run_demo() -> None:
             analysis_executor = workflow.analysis_executor
             baseline_admission = workflow.start()
 
+            # repo-check: retain-type-guard -- A refused baseline submission is reported rather than treated as an operation
             if isinstance(baseline_admission, NotAdmitted):
                 raise RuntimeError(f"Baseline admission refused: {baseline_admission=!s}")
 
             async with asyncio.timeout(15):
                 peak_observation = await workflow.finish()
 
+            # repo-check: retain-type-guard -- A refused observation request is reported rather than treated as an operation
             if isinstance(peak_observation, NotAdmitted):
                 raise RuntimeError(f"Peak admission refused: {peak_observation=!s}")
 

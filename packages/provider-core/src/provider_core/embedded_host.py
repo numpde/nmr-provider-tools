@@ -577,6 +577,7 @@ class InProcessAnalysisExecutor:
 
         call = hosted.call(method=method)
 
+        # repo-check: retain-type-guard -- NoInput is a distinct sentinel rejected when the declared call requires scientific input
         if (type(scientific_input) is NoInput) and (call.input_codec.value_type is not NoInput):
             raise TypeError(f"Unexpected {type(scientific_input)=}; {call.description.name=} requires {call.input_codec.value_type=}")
 

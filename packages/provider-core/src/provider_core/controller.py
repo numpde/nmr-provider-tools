@@ -384,12 +384,15 @@ class AttemptController:
         if not (failure is self.last_failure):
             raise ControllerRefused("Cannot confirm a held Attempt: this controller has no matching retained execution failure.") from self.last_failure
 
+        # repo-check: retain-type-guard -- This refusal must chain the retained controller failure as its explicit cause
         if not (type(failure) is (expected_failure_type := ControllerFailed)):
             raise ControllerRefused(f"Cannot confirm a held Attempt: {type(failure)=} ≠ {expected_failure_type=}") from self.last_failure
 
+        # repo-check: retain-type-guard -- This refusal must chain the retained controller failure as its explicit cause
         if not (type(executor) is (expected_executor_type := AttemptExecutor)):
             raise ControllerRefused(f"Cannot confirm a held Attempt: {type(executor)=} ≠ {expected_executor_type=}") from self.last_failure
 
+        # repo-check: retain-type-guard -- This refusal must chain the retained controller failure as its explicit cause
         if not (type((actual_cause := failure.cause)) is (expected_cause_type := ExecutionFailed)):
             raise ControllerRefused(f"Cannot confirm a held Attempt: {type(actual_cause)=} ≠ {expected_cause_type=}") from self.last_failure
 
@@ -399,6 +402,7 @@ class AttemptController:
         execution = failure.cause
         reason = execution.cause
 
+        # repo-check: retain-type-guard -- This refusal chains the original held failure whose reason is being classified
         if not (type(reason) in (expected_type := (AnalysisOutcomeUnresolved, UploadRecoveryExhausted, ObservationGapExpired))):
             raise ControllerRefused(f"{type(reason)=} ≠ {expected_type=}") from failure
 
@@ -454,9 +458,11 @@ class AttemptController:
             # active claim; two separate inventory queries cannot prove that link.
             claim.require_start(pending)
 
+            # repo-check: retain-type-guard -- This refusal must retain the held failure as its explicit cause
             if not (type((actual_attempt := execution.attempt)) is (expected_attempt_type := AcknowledgedAttempt)):
                 raise ControllerRefused(f"Cannot confirm a held Attempt: {type(actual_attempt)=} ≠ {expected_attempt_type=}") from failure
 
+            # repo-check: retain-type-guard -- This refusal must retain the held failure as its explicit cause
             if not (type((actual_acknowledged := self._acknowledged)) is (expected_acknowledged_type := AcknowledgedAttempt)):
                 raise ControllerRefused(f"Cannot confirm a held Attempt: {type(actual_acknowledged)=} ≠ {expected_acknowledged_type=}") from failure
 
@@ -514,6 +520,7 @@ class AttemptController:
                 self._link_interruption(cause)
                 raise
 
+            # repo-check: retain-type-guard -- Non-Exception process-control failures are grouped with cleanup evidence
             if not isinstance(cause, (expected_type := Exception)):
                 raise BaseExceptionGroup(f"{type(cause)=} ≠ {expected_type=}", (cause, self.last_failure)) from None
 
@@ -618,6 +625,7 @@ class AttemptController:
                 self._link_interruption(interruption)
                 raise
 
+            # repo-check: retain-type-guard -- Non-Exception process-control failures are grouped with cleanup evidence
             if not isinstance(cause, (expected_type := Exception)):
                 raise BaseExceptionGroup(f"{type(cause)=} ≠ {expected_type=}", (cause, self.last_failure)) from None
 
@@ -748,6 +756,7 @@ class AttemptController:
             if not (executor.retirement_confirmed):
                 raise ControllerRefused("Cannot release live ownership before the executor settles cleanup and records a delivery, suppression or server revocation disposition")
 
+            # repo-check: retain-type-guard -- Settled revocation is an alternate disposition when no terminal checkpoint exists
             if (
                 (type((actual_checkpoint := executor._checkpoint)) not in (expected_type := (DeliveryAcceptedCheckpoint, SuppressedCheckpoint))) and
                 (executor.settled_revocation is None)
@@ -930,6 +939,7 @@ class AttemptController:
                         raise cause
 
                 for cause in failures:
+                    # repo-check: retain-type-guard -- Non-Exception process-control failures are grouped with settlement evidence
                     if not isinstance(cause, (expected_type := Exception)):
                         raise BaseExceptionGroup(f"{type(cause)=} ≠ {expected_type=}", (cause, self.last_failure)) from None
 
@@ -944,6 +954,7 @@ class AttemptController:
             except (Exception, BaseExceptionGroup) as cause:
                 self._remember(cause, cleanup=True)
 
+                # repo-check: retain-type-guard -- Non-Exception process-control failures are grouped with retirement evidence
                 if not isinstance(cause, (expected_type := Exception)):
                     raise BaseExceptionGroup(f"{type(cause)=} ≠ {expected_type=}", (cause, self.last_failure)) from None
 

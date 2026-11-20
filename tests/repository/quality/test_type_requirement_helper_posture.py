@@ -7,6 +7,8 @@ their value checks, evaluation order, bindings, and failure semantics.
 Aliases and shadowed builtins are outside this syntactic check's resolution.
 The canonical implementation owns builtin checks; calling its own requirements
 there would recurse or replace the original caller's diagnostic context.
+Semantic dispatch and explicit cause chains may retain one guard with an
+immediately preceding retain-type-guard comment explaining why it must remain.
 """
 
 from tools.container_guard import require_container
@@ -14,7 +16,9 @@ from tools.container_guard import require_container
 require_container()
 
 import ast
+import io
 import pathlib
+import tokenize
 import unittest
 
 from operations.checker.findings import assert_no_findings
@@ -22,6 +26,8 @@ from operations.checker.findings import assert_no_findings
 from .sources import ROOT, python_sources
 from .test_type_error_posture import _builtin, _type_call
 from .type_checks import raising_guards, unwrap_binding
+
+_RETAIN_TYPE_GUARD = "# repo-check: retain-type-guard -- "
 
 
 def _required_helpers(expression: ast.expr) -> set[str]:
@@ -54,16 +60,35 @@ def _required_helpers(expression: ast.expr) -> set[str]:
     return set()
 
 
+def _retained_guard_indents(source: str) -> dict[int, int]:
+    """Map adjacent guard lines to the indentation of real, reasoned comments."""
+
+    return {
+        (token.start[0] + 1): token.start[1]
+        for token in tokenize.generate_tokens(io.StringIO(source).readline)
+        if
+        (token.type == tokenize.COMMENT) and
+        (not token.line[:token.start[1]].strip()) and
+        token.string.startswith(_RETAIN_TYPE_GUARD) and
+        token.string.removeprefix(_RETAIN_TYPE_GUARD).strip()
+    }
+
+
 # silent-defaults: allow-contract -- Anonymous fixtures get no implementation exemption; authored scans pass their actual file path
 def guard_findings(*, source: str, source_path: pathlib.Path | None = None) -> list[tuple[int, tuple[str, ...]]]:
-    """Report single-raise type guards, excluding recovery and existing failures."""
+    """Report single-raise type guards unless one adjacent reason retains that guard."""
 
     if source_path == (ROOT / "packages/type-requirements/src/type_requirements.py"):
         return []
 
+    tree = ast.parse(source=source)
+    retained_indents = _retained_guard_indents(source)
     findings = []
 
-    for statement in raising_guards(parsed_source=ast.parse(source=source)):
+    for statement in raising_guards(parsed_source=tree):
+        if retained_indents.get(statement.lineno) == statement.col_offset:
+            continue
+
         helpers = _required_helpers(statement.test)
 
         if helpers:
@@ -80,6 +105,63 @@ class TypeRequirementHelperPostureTests(unittest.TestCase):
         )
 
         self.assertEqual([(1, ("require_type",))], guard_findings(source=source))
+
+    def test_positive_refusal_dispatch_remains_visible_without_a_reason(self):
+        source = (
+            "if isinstance((submission_outcome := submission.submit()), Refused):\n"
+            "    raise RuntimeError(f'{submission_outcome=!s}')\n"
+        )
+
+        self.assertEqual([(1, ("require_instance",))], guard_findings(source=source))
+
+    def test_adjacent_documented_retention_applies_to_only_one_guard(self):
+        source = (
+            "if not isinstance(candidate, Parent):\n"
+            "    raise TypeError('wrong type')\n"
+            "# repo-check: retain-type-guard -- Report a returned refusal outcome\n"
+            "elif isinstance((submission_outcome := submission.submit()), Refused):\n"
+            "    raise RuntimeError(f'{submission_outcome=!s}')\n"
+        )
+
+        self.assertEqual([(1, ("require_instance",))], guard_findings(source=source))
+
+    def test_retention_near_matches_do_not_suppress_type_guards(self):
+        cases = (
+            (
+                "blank line",
+                "# repo-check: retain-type-guard -- deliberate semantic dispatch\n"
+                "\n"
+                "if isinstance(value, Refused):\n"
+                "    raise RuntimeError()\n",
+                3,
+            ),
+            (
+                "distant comment",
+                "# repo-check: retain-type-guard -- deliberate semantic dispatch\n"
+                "ordinary_value = 1\n"
+                "if isinstance(value, Refused):\n"
+                "    raise RuntimeError()\n",
+                3,
+            ),
+            (
+                "string lookalike",
+                "'# repo-check: retain-type-guard -- deliberate semantic dispatch'\n"
+                "if isinstance(value, Refused):\n"
+                "    raise RuntimeError()\n",
+                2,
+            ),
+            (
+                "empty reason",
+                "# repo-check: retain-type-guard --   \n"
+                "if isinstance(value, Refused):\n"
+                "    raise RuntimeError()\n",
+                2,
+            ),
+        )
+
+        for (case_name, source, guard_line) in cases:
+            with self.subTest(case_name=case_name):
+                self.assertEqual([(guard_line, ("require_instance",))], guard_findings(source=source))
 
     def test_only_the_canonical_implementation_owns_builtin_checks(self):
         source = (
@@ -218,7 +300,8 @@ class TypeRequirementHelperPostureTests(unittest.TestCase):
             for (line, helpers) in guard_findings(source=source_path.read_text(encoding="utf-8"), source_path=source_path):
                 findings.append(
                     f"{source_path.relative_to(ROOT)}:{line}: use {', '.join(helpers)} for the accepted type; "
-                    f"preserve value checks, bindings, and failure semantics"
+                    f"preserve value checks, bindings, and failure semantics; semantic dispatch or a cause chain "
+                    f"that cannot be retained by the helper requires an adjacent documented {_RETAIN_TYPE_GUARD!r} comment"
                 )
 
         assert_no_findings(findings)

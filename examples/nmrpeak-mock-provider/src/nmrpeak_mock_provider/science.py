@@ -95,6 +95,7 @@ def prepare(*, model: Model, candidate: HfInput | ChfInput, settings: Settings) 
     if (not candidate.formula) or (not candidate.proton_peaks):
         raise ScientificRejection(code="missing_science", message="Supply a formula and proton peaks")
 
+    # repo-check: retain-type-guard -- Carbon peaks are required only for this scientific input variant
     if (isinstance(candidate, ChfInput)) and (not candidate.carbon_peaks):
         raise ScientificRejection(code="missing_carbon", message="CHF requires carbon peaks")
 

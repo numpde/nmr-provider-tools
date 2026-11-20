@@ -199,6 +199,7 @@ class PreparationTool[PreparedT]:
 
                 raise ModelWindowExpired() from cause
 
+            # repo-check: retain-type-guard -- Report the submit owner's explicit refusal outcome
             if isinstance(preparation_admission, NotAdmitted):
                 raise RuntimeError(f"Cannot prepare scientific input: {preparation_admission=!s}")
 

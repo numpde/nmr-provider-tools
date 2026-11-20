@@ -329,6 +329,7 @@ def _read_failure(failure_reply):
             if number is not None:
                 require_type(number, int)
 
+                # repo-check: retain-type-guard -- Errno reconstruction accepts only OS errors or the wire's dedicated remote-error type
                 if (not (
                     issubclass(constructor, OSError) or (constructor is RemoteExchangeError))):
                     raise ValueError("Interpreter child error number is malformed")
