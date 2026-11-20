@@ -8,9 +8,9 @@ from tests.fakes.attempts import ATTEMPT_REF
 
 class AttemptRequestEncodingTests(unittest.TestCase):
     def test_invalid_builder_inputs_do_not_create_publication(self):
-        for (data, error_type) in ((b"", ValueError), (b"x" * 786433, ValueError), (bytearray(b"x"), TypeError)):
+        for (result_payload, error_type) in ((b"", ValueError), (b"x" * 786433, ValueError), (bytearray(b"x"), TypeError)):
             with self.assertRaises(error_type):
-                complete_body(ATTEMPT_REF, "schema", data)
+                complete_body(ATTEMPT_REF, "schema", result_payload)
 
         for message in ("", "\x00", "\udfff", "x" * 1025):
             with self.assertRaises(ValueError):

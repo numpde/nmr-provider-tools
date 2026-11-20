@@ -23,8 +23,8 @@ class AttemptRequestEncodingTests(unittest.TestCase):
         )
 
     def test_builders_preserve_maximum_payloads_and_scalar_text(self):
-        result = b"x" * 786432
-        body = complete_body(ATTEMPT_REF, "雪" * 1024, result)
+        result_payload = b"x" * 786432
+        body = complete_body(ATTEMPT_REF, "雪" * 1024, result_payload)
 
         self.assertLessEqual(len(body), 2097152)
         self.assertEqual(len(json.loads(body)["canonical_result_base64"]), 1048576)
