@@ -132,7 +132,7 @@ class TransportFailureTests(unittest.IsolatedAsyncioTestCase):
 
         owner = object()
 
-        def held_write(descriptor, data):
+        def held_write(descriptor, write_buffer):
             loop.call_soon_threadsafe(entered.set)
 
             if not release_write.wait(timeout=(release_timeout_seconds := 3)):
@@ -141,7 +141,7 @@ class TransportFailureTests(unittest.IsolatedAsyncioTestCase):
             if not (late_failure is None):
                 raise late_failure
 
-            return original_write(descriptor, data)
+            return original_write(descriptor, write_buffer)
 
         with (
             tempfile.TemporaryFile() as output,

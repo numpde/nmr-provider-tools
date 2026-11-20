@@ -470,7 +470,7 @@ class UploadFileAcquisitionTests(unittest.IsolatedAsyncioTestCase):
 
         await owner.inspect()
 
-        def held_write(descriptor, data):
+        def held_write(descriptor, write_buffer):
             loop.call_soon_threadsafe(entered.set)
 
             if not release_store_write.wait(timeout=(release_timeout_seconds := 3)):
@@ -479,7 +479,7 @@ class UploadFileAcquisitionTests(unittest.IsolatedAsyncioTestCase):
             if not (late_failure is None):
                 raise late_failure
 
-            return write(descriptor, data)
+            return write(descriptor, write_buffer)
 
         with (
             private_source_directory() as (root, directory),
