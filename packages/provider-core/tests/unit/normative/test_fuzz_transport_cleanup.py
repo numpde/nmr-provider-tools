@@ -92,7 +92,7 @@ class CleanupFaultSequenceTests(unittest.IsolatedAsyncioTestCase):
             client = Client(HeldClose([], stall=asyncio.Event()))
             transport = HttpTransport(trust=trust, exchange_seconds=1, retirement_seconds=0.06)
             owner = object()
-            request = httpx.Request("GET", "https://synthetic.example/held")
+            http_request = httpx.Request("GET", "https://synthetic.example/held")
             actions = ["retire", "replacement", "wrong-owner"] * random.Random(seed).randint(1, 3)
 
             random.Random(seed).shuffle(actions)
@@ -103,7 +103,7 @@ class CleanupFaultSequenceTests(unittest.IsolatedAsyncioTestCase):
             ):
                 task = asyncio.create_task(
                     transport.exchange(
-                        request,
+                        http_request,
                         maximum_bytes=32,
                         owner=owner,
                         not_after=asyncio.get_running_loop().time() + 5,
@@ -131,7 +131,7 @@ class CleanupFaultSequenceTests(unittest.IsolatedAsyncioTestCase):
                             elif action == "wrong-owner":
                                 await transport.retire(owner=object())
                             else:
-                                await transport.exchange(request, maximum_bytes=32, owner=object())
+                                await transport.exchange(http_request, maximum_bytes=32, owner=object())
 
                         self.assertIs(transport._active, original)
                         self.assertIs(transport.pending_owner, owner)

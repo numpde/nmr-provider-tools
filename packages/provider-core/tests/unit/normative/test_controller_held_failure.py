@@ -198,7 +198,7 @@ class HeldFailureTests(unittest.IsolatedAsyncioTestCase):
             self.assertIn("retain this Attempt", rendered)
             runs.append((controller, selected, failure, transport))
 
-        self.assertEqual(set(claims.live_owners()), {run[0] for run in runs})
+        self.assertEqual(set(claims.live_owners()), {held_run[0] for held_run in runs})
 
         with self.assertRaises(LiveCapacityFull):
             claims.claim_live(pending("c"), lifecycle_owner=LiveAttemptProbe())
