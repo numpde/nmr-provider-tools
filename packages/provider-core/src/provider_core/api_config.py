@@ -131,11 +131,11 @@ def https_trust(raw, *, label):
     return trust
 
 
-def _https_from_material(table, label, raw):
-    return HttpsSettings(https_trust(raw, label=label), table["exchange_seconds"], table["retirement_seconds"])
+def _https_from_material(table, trust_context, raw):
+    return HttpsSettings(https_trust(raw, label=trust_context), table["exchange_seconds"], table["retirement_seconds"])
 
 
-def _read_https_settings(table, label, read_file):
+def _read_https_settings(table, trust_context, read_file):
     _require_explicit_tls_environment()
     ca_bytes = None
 
@@ -143,9 +143,9 @@ def _read_https_settings(table, label, read_file):
         ca_bytes = read_file(table["ca_file"], maximum_bytes=1048576)
 
         if not (type(ca_bytes) is (expected_type := bytes)):
-            raise ApiConfigurationRejected(f"{label=}; CA reader: {type(ca_bytes)=} ≠ {expected_type=}")
+            raise ApiConfigurationRejected(f"{trust_context=}; {type(ca_bytes)=} ≠ {expected_type=}")
 
-    return (_https_from_material(table, label, ca_bytes), ca_bytes)
+    return (_https_from_material(table, trust_context, ca_bytes), ca_bytes)
 
 
 def https_settings(table, label, read_file):
