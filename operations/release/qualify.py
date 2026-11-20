@@ -449,57 +449,61 @@ def unpack_source(archive, destination, version):
     return destination / expected_source_root
 
 
-def source_payload(source, inventory):
-    require_type(inventory, dict)
+def source_payload(source, source_inventory):
+    require_type(source_inventory, dict)
 
-    if not (inventory):
-        raise ValueError("Cannot qualify package: the pre-build source inventory is missing.")
+    if not (source_inventory):
+        raise ValueError(f"{source_inventory=} should be nonempty")
 
-    for (name, facts) in inventory.items():
-        member_path = PurePosixPath(name)
+    expected_metadata_names = {"README.md", "MANIFEST.in", "pyproject.toml"}
+    expected_source_prefixes = ("src/provider_core/", "tests/")
+    expected_source_member_fields = {"sha256", "size", "mode"}
+
+    for (source_member_name, source_member_metadata) in source_inventory.items():
+        source_member_path = PurePosixPath(source_member_name)
 
         if (
-            member_path.is_absolute() or
-            (".." in member_path.parts) or
-            (member_path.as_posix() != name) or
+            source_member_path.is_absolute() or
+            (".." in source_member_path.parts) or
+            (source_member_path.as_posix() != source_member_name) or
             (not (
-                (name in {"README.md", "MANIFEST.in", "pyproject.toml"}) or
-                name.startswith(("src/provider_core/", "tests/"))
+                (source_member_name in expected_metadata_names) or
+                source_member_name.startswith(expected_source_prefixes)
             ))
         ):
             raise ValueError(
-                "Cannot qualify package: the recorded source inventory "
-                "has unsupported entries."
+                f"{reprlib.repr(source_member_name)=} should be a canonical relative path "
+                f"in {expected_metadata_names=} or under {expected_source_prefixes=}"
             )
 
-        require_type(facts, dict)
+        require_type(source_member_metadata, dict)
+        source_member_fields = set(source_member_metadata)
 
-        if set(facts) != {"sha256", "size", "mode"}:
+        if source_member_fields != expected_source_member_fields:
             raise ValueError(
-                "Cannot qualify package: the recorded source inventory "
-                "has unsupported entries."
+                f"{reprlib.repr(source_member_name)=}: {reprlib.repr(source_member_fields)=} ≠ {expected_source_member_fields=}"
             )
 
-        source_file = source / name
+        source_file = source / source_member_name
 
         if not source_file.is_file():
             raise ValueError(f"{source_file=} should be a regular file")
 
         source_sha256 = digest(source_file)
-        expected_sha256 = facts["sha256"]
+        expected_sha256 = source_member_metadata["sha256"]
 
         if not (source_sha256 == expected_sha256):
             raise ValueError(f"{source_file=}: {source_sha256=} should match {expected_sha256=}")
 
         source_stat = source_file.stat()
         source_size_bytes = source_stat.st_size
-        expected_size_bytes = facts["size"]
+        expected_size_bytes = source_member_metadata["size"]
 
         if not (source_size_bytes == expected_size_bytes):
             raise ValueError(f"{source_file=}: {source_size_bytes=} should match {expected_size_bytes=}")
 
         source_mode = source_stat.st_mode & 0o777
-        expected_mode = facts["mode"]
+        expected_mode = source_member_metadata["mode"]
 
         if not (source_mode == expected_mode):
             raise ValueError(f"{source_file=}: {source_mode=} should match {expected_mode=}")
@@ -521,16 +525,20 @@ def source_payload(source, inventory):
         if source_member_path.is_file()
     }
 
-    if observed_files != (set(inventory) | generated_metadata_files):
+    expected_source_files = set(source_inventory) | generated_metadata_files
+
+    if observed_files != expected_source_files:
+        missing_source_files = sorted(expected_source_files - observed_files)
+        unexpected_source_files = sorted(observed_files - expected_source_files)
+
         raise ValueError(
-            "Cannot qualify package: source distribution has missing "
-            "or unrecorded authored files."
+            f"{reprlib.repr(missing_source_files)=} and {reprlib.repr(unexpected_source_files)=} should be empty"
         )
 
     return {
-        name.removeprefix("src/"): (source / name).read_bytes()
-        for name in inventory
-        if name.startswith("src/provider_core/")
+        source_member_name.removeprefix("src/"): (source / source_member_name).read_bytes()
+        for source_member_name in source_inventory
+        if source_member_name.startswith("src/provider_core/")
     }
 
 
