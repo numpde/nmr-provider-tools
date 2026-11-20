@@ -251,12 +251,12 @@ async def scenario(marker, report, seed):
 
         def __init__(self, inbox, endpoint, publisher):
             (self.inbox, self.endpoint, self.publisher) = (inbox, endpoint, publisher)
-            self.items = []
+            self.delivery_outcomes = []
 
             (self.retirement_confirmed, self.last_failure) = (True, None)
 
         async def submit(self, item):
-            self.items.append(item)
+            self.delivery_outcomes.append(item)
             accepted = await self.inbox.storage(self.inbox.queue.enqueue, item)
 
             self.publisher.wake()
@@ -427,7 +427,7 @@ async def scenario(marker, report, seed):
                     return (session, control_transport, controller)
 
                 async def wait_for_publication():
-                    wanted = {delivery_outcome.execution_attempt_ref for delivery_outcome in local_delivery.items}
+                    wanted = {delivery_outcome.execution_attempt_ref for delivery_outcome in local_delivery.delivery_outcomes}
                     deadline = time.monotonic() + 6
 
                     while (not (wanted <= published)) and (time.monotonic() < deadline):
@@ -468,7 +468,7 @@ async def scenario(marker, report, seed):
                     await run_job("original-result", "/ready")
                     await asyncio.wait_for(completed_result_received.wait(), 8)
                     await _settled_peer_handlers(prose_peer)
-                    original_result = local_delivery.items[0]
+                    original_result = local_delivery.delivery_outcomes[0]
                     pending_delivery_descriptors = _descriptors()
 
                     scenario_report.update(
@@ -539,7 +539,7 @@ async def scenario(marker, report, seed):
                         original_result_receipt_reference=completion_receipts[0].execution_attempt_ref,
                         original_result_receipt_result="analysis_result:sha256:" + sha256(original_result.body).hexdigest(),
                         original_result_receipt_verified=completion_receipts[0].analysis_result_ref,
-                        delivery_request_bodies_match=[delivery_outcome.body for delivery_outcome in local_delivery.items] == jobs_api_peer.request_bodies,
+                        delivery_request_bodies_match=[delivery_outcome.body for delivery_outcome in local_delivery.delivery_outcomes] == jobs_api_peer.request_bodies,
                         published_attempts=sorted(published),
                         notices=notices,
                         queue_inventory=queue.inventory(selected_scope.api_origin, selected_scope.provider_ref),
