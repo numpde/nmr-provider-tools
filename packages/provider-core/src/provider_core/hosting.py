@@ -15,7 +15,6 @@ from collections.abc import Awaitable, Callable, Mapping
 from dataclasses import dataclass, field
 from enum import Enum
 from functools import partial
-import math
 import re
 import reprlib
 from types import MappingProxyType
@@ -31,7 +30,7 @@ from provider_core.contribution import (
 )
 
 from provider_core.task_boundary import contain_task_exit
-from provider_core.tools import require_positive_number
+from provider_core.tools import require_finite_number, require_positive_number
 from provider_core.type_requirements import require_instance, require_type
 
 
@@ -269,10 +268,7 @@ class Invocation:
 
     def __post_init__(self):
         if self.start_not_after is not None:
-            require_type(self.start_not_after, (int, float))
-
-            if not math.isfinite(self.start_not_after):
-                raise ValueError(f"Cannot set a start deadline with {self.start_not_after=}; expected a finite execution-clock value")
+            require_finite_number(self.start_not_after)
 
         require_type(self.operation_id, str)
 
