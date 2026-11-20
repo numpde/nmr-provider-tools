@@ -134,22 +134,22 @@ class AdoptionTests(unittest.IsolatedAsyncioTestCase):
             "retirement_seconds": 5,
         }
 
-        for name in options:
-            for value in (True, "5"):
-                with self.subTest(name=name, value=value):
+        for policy_name in options:
+            for policy_setting in (True, "5"):
+                with self.subTest(name=policy_name, value=policy_setting):
                     with self.assertRaises(expected_exception=TypeError):
-                        InProcessExecutionHost(**(options | {name: value}))
+                        InProcessExecutionHost(**(options | {policy_name: policy_setting}))
 
-            for value in (0, -1):
-                with self.subTest(name=name, value=value):
+            for policy_setting in (0, -1):
+                with self.subTest(name=policy_name, value=policy_setting):
                     with self.assertRaises(expected_exception=ValueError):
-                        InProcessExecutionHost(**(options | {name: value}))
+                        InProcessExecutionHost(**(options | {policy_name: policy_setting}))
 
-        for name in ("initialization_seconds", "retirement_seconds"):
-            for value in (float("inf"), float("nan")):
-                with self.subTest(name=name, value=value):
+        for policy_name in ("initialization_seconds", "retirement_seconds"):
+            for policy_setting in (float("inf"), float("nan")):
+                with self.subTest(name=policy_name, value=policy_setting):
                     with self.assertRaises(expected_exception=ValueError):
-                        InProcessExecutionHost(**(options | {name: value}))
+                        InProcessExecutionHost(**(options | {policy_name: policy_setting}))
 
     async def test_released_local_operations_leave_no_submission_history(self):
         hosted = adopt(host=self.host, contribution=Sum(configuration=Settings(scale=2)))
@@ -226,7 +226,7 @@ class AdoptionTests(unittest.IsolatedAsyncioTestCase):
         kind = StateType(value_type=Total)
 
         class Ports:
-            produced = kind.output(dispose=lambda value: None)
+            produced = kind.output(dispose=lambda unused_total: None)
             candidate = kind.input(use=StateUse.CONSUME)
 
         class Inherited(Ports):
@@ -312,9 +312,14 @@ class AdoptionTests(unittest.IsolatedAsyncioTestCase):
         self.assertIs(expr1=marker, expr2=instance.marker)
         self.assertEqual(first=1, second=instance.initializations)
         self.assertEqual(first=1, second=instance.calls)
-        result = hosted.call(method=instance.calculate).decode_result(payload=await operation.read_result(result=observed.result))
 
-        self.assertEqual(first=Total(value=6), second=result)
+        calculated_total = (
+            hosted
+            .call(method=instance.calculate)
+            .decode_result(payload=await operation.read_result(result=observed.result))
+        )
+
+        self.assertEqual(first=Total(value=6), second=calculated_total)
 
     async def test_direct_scientific_methods_remain_ordinary_python(self):
         instance = Sum(configuration=Settings(scale=2))
@@ -385,12 +390,18 @@ class AdoptionTests(unittest.IsolatedAsyncioTestCase):
         )
 
         self.assertEqual(first=first.description.binding_revision, second=repeated.description.binding_revision)
-        document = description_document(description=first.description)
+        description_fields = description_document(description=first.description)
 
-        for exported in (document["resident_resources"], document["calls"][0]["resources"]):
+        for exported_requirements in (
+            description_fields["resident_resources"],
+            description_fields["calls"][0]["resources"],
+        ):
             self.assertEqual(
                 first=[("cpu", None), ("cpu", "avx"), ("host-memory", None)],
-                second=[(item["kind"], item["selector"]) for item in exported],
+                second=[
+                    (requirement_fields["kind"], requirement_fields["selector"])
+                    for requirement_fields in exported_requirements
+                ],
             )
 
     async def test_requirement_conflicts_refuse_adoption_without_claiming_the_object(self):
@@ -891,14 +902,23 @@ class AdoptionTests(unittest.IsolatedAsyncioTestCase):
         with ThreadPoolExecutor(max_workers=2) as executor:
             futures = [executor.submit(compete) for _ in range(2)]
 
-            results = await asyncio.gather(
+            adoption_outcomes = await asyncio.gather(
                 *[asyncio.wrap_future(future=future) for future in futures],
                 return_exceptions=True,
             )
 
-        self.assertCountEqual(first=[HostedContribution, ValueError], second=[type(result) for result in results])
+        self.assertCountEqual(
+            first=[HostedContribution, ValueError],
+            second=[type(adoption_outcome) for adoption_outcome in adoption_outcomes],
+        )
+
         self.assertCountEqual(first=[0, 1], second=allocation_counts)
-        (failure,) = [result for result in results if isinstance(result, ValueError)]
+
+        (failure,) = [
+            adoption_outcome
+            for adoption_outcome in adoption_outcomes
+            if isinstance(adoption_outcome, ValueError)
+        ]
 
         self.assertIn(member="already owns", container=str(failure))
         self.assertEqual(first=0, second=instance.initializations)
