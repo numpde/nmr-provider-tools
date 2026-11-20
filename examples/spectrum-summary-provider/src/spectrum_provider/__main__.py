@@ -26,7 +26,7 @@ async def run_demo() -> None:
     """
 
     async with open_provider() as provider:
-        analysis_executor = None
+        analysis_executors = ()
         workflow = None
         failure_collector = FailureCollector(message="The example and its cleanup reported failures.")
 
@@ -41,7 +41,7 @@ async def run_demo() -> None:
                 spectrum=Spectrum(positions=(0, 1, 2, 3, 4), intensities=(1, 4, 2, 5, 1)),
             )
 
-            analysis_executor = workflow.analysis_executor
+            analysis_executors = (workflow.baseline_analysis_executor, workflow.peak_analysis_executor)
             baseline_admission = workflow.start()
 
             # repo-check: retain-type-guard -- A refused baseline submission is reported rather than treated as an operation
@@ -65,7 +65,7 @@ async def run_demo() -> None:
                 async with asyncio.timeout(15):
                     await result_consumer.consume()
 
-        if analysis_executor is not None:
+        for analysis_executor in analysis_executors:
             with failure_collector.capture():
                 analysis_executor.request_stop()
 
@@ -75,7 +75,7 @@ async def run_demo() -> None:
                     await observe_cleanup(control=workflow.baseline_report_release)
 
         # Preserve analysis cleanup failures; host retirement follows on scope exit.
-        if analysis_executor is not None:
+        for analysis_executor in analysis_executors:
             with failure_collector.capture():
                 control = analysis_executor.close()
 

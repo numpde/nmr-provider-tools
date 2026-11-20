@@ -1,6 +1,7 @@
 """Core projects owned facts; consumers retain redaction and graph traversal."""
 
 import asyncio
+import json
 import unittest
 import os
 
@@ -16,6 +17,7 @@ from provider_core.conversation import ConversationRetirementFailed, ToolRejecte
 from provider_core.execution import ExecutionFailed
 from provider_core.failure_projection import owned_details, owned_relationships
 from provider_core.diagnostics import failure_evidence
+from provider_core.process_wire import MAX_TRACEBACK_FRAMES, RemoteScienceError, decode_frame, frame
 from provider_core.starting import StartFailed
 from provider_core.transport import ExchangeFailed, HttpResponse, HttpResponseHead
 from provider_core.uploads import UploadFailed, UploadFileReadFailed, UploadInputRejected, UploadRecoveryExhausted
@@ -24,6 +26,153 @@ from tests.fakes.attempts import ATTEMPT_REF
 
 
 class CoreFailureProjectionTests(unittest.TestCase):
+    def test_decoded_child_failure_reaches_protected_evidence_with_redacted_locations(self):
+        secret = "child-private-canary"
+        child_error_type = type("ChildSpectrumFailure", (Exception,), {"__module__": "science." + secret})
+
+        def child_spectrum_calculation():
+            _local_payload = "unserialized-scientific-payload"
+            _live_model = object()
+            raise child_error_type("Spectrum convergence failed with " + secret)
+
+        filename = "/science/child-" + secret + ".py"
+        child_spectrum_calculation.__code__ = child_spectrum_calculation.__code__.replace(co_filename=filename)
+
+        try:
+            child_spectrum_calculation()
+        except child_error_type as child_failure:
+            location = child_failure.__traceback__
+
+            while location.tb_next is not None:
+                location = location.tb_next
+
+            expected_line = location.tb_lineno
+            operation_failure = RuntimeError("Scientific operation failed")
+            operation_failure.__cause__ = child_failure
+            received = decode_frame(frame(ExceptionGroup("Scientific failures", [operation_failure]))[4:])
+
+        received_child = received.exceptions[0].__cause__
+        received_child.remote_frames = [{"file": "FORGED_MUTABLE_FRAME"}]
+        evidence = failure_evidence(received, secrets=(secret,))
+        child_evidence = evidence["relationships"][0]["failure"]["relationships"][0]["failure"]
+        rendered = json.dumps(evidence)
+
+        self.assertIs(type(received_child), RemoteScienceError)
+        self.assertEqual(child_evidence["remote_type"], "science.[redacted].ChildSpectrumFailure")
+        self.assertEqual(child_evidence["message"], "Spectrum convergence failed with [redacted]")
+
+        self.assertEqual(
+            child_evidence["remote_frames"][-1],
+            {"file": "/science/child-[redacted].py", "function": "child_spectrum_calculation", "line": expected_line},
+        )
+
+        self.assertFalse(child_evidence["remote_frames_omitted"])
+        self.assertNotIn(secret, rendered)
+        self.assertNotIn("unserialized-scientific-payload", rendered)
+        self.assertNotIn("_live_model", rendered)
+        self.assertNotIn("FORGED", rendered)
+
+    def test_decoded_evidence_ignores_mutable_attributes_and_unreviewed_foreign_properties(self):
+        class HostileEvidence:
+            @property
+            def message(self):
+                raise AssertionError("Unreviewed evidence property was executed")
+
+            def __str__(self):
+                raise AssertionError("Unreviewed exception text was rendered")
+
+        class ForeignFailure(RemoteScienceError):
+            @property
+            def _process_error_evidence(self):
+                raise AssertionError("Foreign provenance property was executed")
+
+            @property
+            def remote_frames(self):
+                raise AssertionError("Foreign frame property was executed")
+
+            def __str__(self):
+                raise AssertionError("Foreign exception text was rendered")
+
+        received = decode_frame(frame(LookupError("Decoder-owned spectrum failure"))[4:])
+        received.remote_type = "FORGED_REMOTE_TYPE"
+        received.remote_frames = HostileEvidence()
+        received.remote_frames_omitted = True
+        received.__notes__ = ["FORGED_NOTE"]
+        received.args = (HostileEvidence(),)
+        evidence = failure_evidence(received, secrets=())
+
+        self.assertEqual(evidence["message"], "Decoder-owned spectrum failure")
+        self.assertEqual(evidence["remote_type"], "builtins.LookupError")
+        self.assertEqual(evidence["remote_frames"], [])
+        self.assertFalse(evidence["remote_frames_omitted"])
+        self.assertNotIn("FORGED", repr(evidence))
+
+        forged = RuntimeError("UNREVIEWED_MESSAGE")
+        forged._process_error_evidence = HostileEvidence()
+
+        for failure in (forged, ForeignFailure(), RemoteScienceError("UNREVIEWED_MESSAGE")):
+            with self.subTest(kind=type(failure)):
+                evidence = failure_evidence(failure, secrets=())
+
+                self.assertNotIn("message", evidence)
+                self.assertNotIn("remote_type", evidence)
+                self.assertNotIn("remote_frames", evidence)
+
+    def test_decoded_protected_evidence_redacts_before_its_field_limits(self):
+        secret = "protected-boundary-canary"
+        wire_failure = json.loads(frame(RuntimeError("Child failure"))[4:])
+        wire_failure["original_type"] = "t" * 120 + secret + "ChildFailure"
+        wire_failure["message"] = "Spectrum failed: " + "m" * 1000 + secret + " trailing explanation"
+        wire_failure["frames"] = [
+            {"file": "f" * 120 + secret + ".py", "function": "g" * 120 + secret, "line": 12}
+            for _ in range(MAX_TRACEBACK_FRAMES)
+        ]
+        wire_failure["frames_omitted"] = True
+        received = decode_frame(json.dumps(wire_failure).encode("ascii"))
+        evidence = failure_evidence(received, secrets=(secret,))
+
+        self.assertNotIn(secret, json.dumps(evidence))
+        self.assertNotIn("protect", json.dumps(evidence))
+        self.assertTrue(evidence["message"].startswith("Spectrum failed:"))
+        self.assertIn("truncated", evidence["message"])
+        self.assertLessEqual(len(evidence["message"]), 1024 + len("[truncated]"))
+        self.assertLessEqual(len(evidence["remote_type"]), 128 + len("[truncated]"))
+        self.assertEqual(len(evidence["remote_frames"]), MAX_TRACEBACK_FRAMES)
+        self.assertTrue(evidence["remote_frames_omitted"])
+
+        for location in evidence["remote_frames"]:
+            self.assertEqual(set(location), {"file", "function", "line"})
+            self.assertLessEqual(len(location["file"]), 128 + len("[truncated]"))
+            self.assertLessEqual(len(location["function"]), 128 + len("[truncated]"))
+
+    def test_wire_omission_prevents_secret_fragments_reaching_protected_evidence(self):
+        secret = "wire-private-canary-" + "z" * 2200
+        child_error_type = type("ChildSpectrumFailure", (Exception,), {"__module__": "science." + secret})
+
+        def child_opaque_calculation():
+            try:
+                raise ValueError("Spectrum calibration is missing")
+            except ValueError as cause:
+                raise child_error_type("Spectrum failed: " + "m" * 900 + secret) from cause
+
+        try:
+            child_opaque_calculation()
+        except child_error_type as child_failure:
+            received = decode_frame(frame(child_failure)[4:])
+
+        evidence = failure_evidence(received, secrets=(secret,))
+        rendered = json.dumps(evidence)
+
+        self.assertIn(member="Diagnostic text omitted", container=evidence["message"])
+        self.assertIn(member="Diagnostic text omitted", container=evidence["remote_type"])
+        self.assertNotIn(member="wire-private-canary", container=rendered)
+        self.assertNotIn(member=secret, container=rendered)
+        self.assertIn(member="child_opaque_calculation", container=rendered)
+        self.assertEqual(
+            first="Spectrum calibration is missing",
+            second=evidence["relationships"][0]["failure"]["message"],
+        )
+
     def _hostile_observation_failure(self):
         class HostileObservation:
             @property
@@ -166,17 +315,22 @@ class CoreFailureProjectionTests(unittest.TestCase):
         )
 
         failure.interruption_cause = previous
-
-        self.assertEqual(
-            list(owned_relationships(failure)),
-            [
-                ("interpreter endpoint 2 cleanup", cleanup),
-                ("interpreter endpoint 0 failure", endpoint),
-                ("interpreter turn 1 correction failure", correction),
-                ("owned cause", cause),
-                ("interruption cause", previous),
-            ],
+        actual_relationships = list(owned_relationships(failure))
+        expected_relationships = (
+            (cleanup, ("endpoint", "2", "cleanup")),
+            (endpoint, ("endpoint", "0", "failure")),
+            (correction, ("turn", "1", "correction")),
+            (cause, ("owned", "cause")),
+            (previous, ("interruption", "cause")),
         )
+
+        self.assertEqual(first=len(expected_relationships), second=len(actual_relationships))
+
+        for (label, actual_cause), (expected_cause, context) in zip(actual_relationships, expected_relationships, strict=True):
+            self.assertIs(expr1=expected_cause, expr2=actual_cause)
+
+            for term in context:
+                self.assertIn(member=term, container=label)
 
     def test_acquisition_and_reader_failures_keep_separate_grant_and_interruption_facts(self):
         (cause, cleanup, interrupted) = (OSError(), OSError(), asyncio.CancelledError())

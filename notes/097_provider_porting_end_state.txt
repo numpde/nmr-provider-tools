@@ -1,0 +1,273 @@
+# Provider porting: desired end-state
+
+A provider supplies its science, declares its operations once, and assembles its
+configuration and request workflow. The SDK supplies execution, retained request
+ownership, observation and cleanup. Startup selects thread or persistent-process
+execution without changing the prediction workflow.
+
+Examples should use consistent responsibility boundaries:
+
+- science.py: scientific types and calculations.
+- binding.py: operation declarations, scientific initialization and cleanup.
+- provider.py: configuration, scientific selection, backend and lifetime assembly.
+- application.py: provider-specific request sequencing, where needed.
+- process_factory.py: installed child construction, where process execution exists.
+
+Optional files should represent actual optional responsibilities. Scientific
+differences remain explicit; examples need not share a prepare/generate sequence,
+model registry or interpretation layer.
+
+Models and prepared state stay with their scientific owner. Original submissions,
+observations and cleanup survive cancelled waits and uncertain replies. Independent
+process offerings retain independent lifetimes and availability. Shared resource
+allowances belong to an enclosing owner and cannot multiply when workers are added.
+
+The examples demonstrate complementary parts of this contract: Dummy for
+minimal integration, Reference for persistent resource reuse on either backend,
+Spectrum for multiple scientific stages, and NMRPeak for interpretation, checkpoint
+loading, consumed state and delivery. Each example exercises both backends in the
+installed integration suite. Real-provider and device qualification remain separate.
+
+The implementation followed Reference as the second backend-portable provider,
+then aligned Dummy, Spectrum and NMRPeak. Each example now documents its actual
+responsibilities and installed startup. One allocation per process host remains
+the primitive; multiple stages/models use explicit provider composition and
+resource ownership. A real scientific model still needs its own qualification.
+
+Acceptance: another provider can be integrated through provider code and
+configuration, using its unchanged workflow on both backends, with demonstrated
+reuse, failure and retirement. Copying execution machinery, modifying the SDK for
+ordinary integration, or adding backend branches inside the workflow indicates a
+remaining gap. Real-model/GPU and deployment qualification remain separate gates.
+
+## Dummy port: minimal startup and observed SDK friction
+
+Dummy now has explicit deployment-selected startup and an installed constructor
+for its weighted contribution. The same constructor captures scientific settings
+and coefficient arrays in either owner; only the selected process constructs its
+process-local contribution. Both startups initialize the model before yielding.
+The thread initializer is called explicitly after adoption; process start already
+performs initialization. Partial initialization and host retirement remain SDK-owned.
+
+ProcessExecutionHost accepts one contribution/allocation per native session. Dummy
+therefore selects one weighted offering; its separate stateless Sum remains a
+binding example rather than silently adding a second worker or resource allowance.
+The caller supplies the deployment-owned native RunnerSession for process startup.
+Configuration refusal before host construction leaves that session with its caller.
+
+Process hosted contributions have no parent scientific receiver. Portable callers
+use hosted.call and SDK Submission.from_call instead of submit_method. The same
+prepare/calculate sequence can then run on either backend with the custom sample
+codec and analysis-local scientific session unchanged. No application module is
+needed: Dummy has no additional request decision beyond those two scientific calls.
+The SDK retains each original Submission/operation; another wait or submit on that
+Submission does not create scientific work. Installed startup tests cover rejection
+and correction, state transfer, report consumption, model/child reuse and retirement.
+Development snapshots passed the maintained installed integration lane with
+DOCKER_CONTEXT=science, WHEELHOUSE=/home/ra/Downloads/wheelhouse and PRIVACY_TESTS=0:
+test_dummy_startup.py (2 Dummy tests, /tmp/dummy-startup-integration.log),
+test_binding.py (6 Dummy tests, /tmp/dummy-binding-integration.log), and
+test_execution.py (2 Dummy tests plus 1 core integration test with the same
+basename, /tmp/dummy-execution-integration.log). Repository checks were excluded.
+Full integration on the final clean committed revision remains pending.
+
+Spectrum port: concrete SDK friction (dirty-source development checks passed)
+
+Spectrum retains baseline subtraction followed by peak detection as two independent
+scientific stages. ProcessExecutionHost admits exactly one allocation, so provider
+composition owns two SDK hosts and two analysis lifetimes on both backends; no SDK
+composite executor or scheduler is introduced. The workflow uses the same retained
+submissions and portable baseline-result handoff on either backend.
+
+Each SDK host owns independent aggregate input_bytes, result_bytes and state_values
+counters. There is no enclosing SDK counter pool spanning process hosts. Spectrum
+therefore validates explicit static stage shares against one enclosing allowance
+before taking native runner sessions. It cannot borrow an idle stage's share. These
+are SDK accounting limits, not hardware grants; CPU/device availability remains
+deployment-owned. Copying a complete enclosing allowance to each host would silently
+multiply that allowance and is not the selected design.
+
+The SDK requires positive state_values even for stateless scientific contributions.
+The example configuration explicitly grants two slots, one per host, rather than
+silently increasing a previous one-slot allowance. progress_records bounds retained
+history per operation and is not summed as an aggregate host counter. Initialization
+and retirement time allowances remain per-host policy. Shared counter pooling and
+zero-state-slot hosts are concrete remaining SDK integration constraints, not
+reasons to add provider execution machinery.
+
+Reference port observations (2026-11-20, focused development evidence):
+- The installed Reference constructor receives explicit matching settings and
+  reference records. Both startup paths use it; scientific functions and the
+  query sequence have no backend branches. Process startup requires an external
+  RunnerSession rather than inventing native acquisition policy.
+- Portable analysis access uses reservation(allocation=...). The previous
+  Reference .reservations convenience was thread-specific; the existing common
+  lookup and Submission.from_call suffice without SDK changes.
+- Thread adoption retains lazy first-query index initialization. Persistent
+  process start initializes the child before yielding. This is an honest SDK
+  readiness difference, documented locally rather than hidden by extra machinery.
+- One Reference provider owns one host/allocation; sequential analyses reuse it.
+  Existing thread tests witness one index build and index identity reuse. The
+  installed process test witnesses unchanged query sequencing in the same live
+  child and native retirement; it adds no diagnostic scientific operation.
+- Focused maintained integration selections passed on dirty development source:
+  test_reference_backends.py (4 tests, both backends, including an interrupted
+  observation of the original submission, earlier result after later rejection,
+  shared application sequence, installed child construction and retirement) and
+  test_reference_workflow.py (3 tests, including previous delivery before later
+  failed-query cleanup). Logs: /tmp/reference-backends-final.log and
+  /tmp/reference-workflow.log. Snapshot evidence: /tmp/reference-development.diff,
+  /tmp/reference-development-sha256.txt and /tmp/reference-development-status.txt.
+  This is provisional focused evidence; final clean committed full integration,
+  real-model/GPU and deployment qualification remain separate gates.
+
+NMRPeak port: independent model ownership (dirty-source development checks passed)
+
+The previous process path admitted one configured model. Startup now composes one
+existing SDK process host per configured (family, index), supplied with a distinct
+deployment-owned session. The prediction workflow is unchanged. These positional
+keys select fresh startup entries; the surrounding service still owns durable
+offering identities and native deployment grants.
+
+Each model declares static process_capacity shares of the provider's aggregate
+input, result and state allowance. Startup rejects an overgrant, missing session
+or reused session before constructing any host. Progress retention remains per
+operation. Thread allocations keep their existing shared-host aggregate counters;
+process hosts cannot borrow another model's unused share. Hardware budgets remain
+deployment responsibilities, rather than being inferred from these SDK counters.
+
+Each entered host remains owned while a later model starts; AsyncExitStack unwinds
+every entered lifetime if a later child fails. Existing scientific workflows need
+no backend branch or parent model access. New installed cases exercise HF retirement
+while CHF serves sequential requests, pre-acquisition capacity refusal preserving
+caller descriptors, and failed CHF startup retiring the earlier HF child. The SDK
+supports this composition without a new supervisor, registry or scheduler.
+
+The maintained installed test_peak_example.py selection passed all 33 tests with
+no skips, including these three new composition cases and the original lifecycle
+regressions. Receipt: /tmp/nmr-port-peak-example.log. This is focused development
+evidence; final clean committed full integration remains pending.
+
+Spectrum development proof: maintained installed-consumer integration targets passed
+with DOCKER_CONTEXT=science, WHEELHOUSE=/home/ra/Downloads/wheelhouse and
+PRIVACY_TESTS=0, selecting exact filenames sequentially: test_spectrum_process.py
+(5 tests), test_spectrum_workflow.py (11), test_spectrum_binding.py (4), and
+test_spectrum_science.py (9). Logs: /tmp/spectrum-process-port-escalated.log,
+/tmp/spectrum-workflow-port.log, /tmp/spectrum-binding-port.log and
+/tmp/spectrum-science-port.log. These are dirty-source development checks; full
+integration against the final committed candidate remains pending. Repository
+checks were excluded. Real-model/GPU and deployment qualification remain separate.
+
+Final combined qualification and audit (2026-11-20)
+
+Clean tested candidate: 44639313d7ae81e7bc4f7c1f7efc922488d5e79d.
+All example source and shared guidance were frozen before this run. The earlier
+development-stage pending statements describe their individual snapshots; this
+combined result closes the final installed integration gate for those changes.
+
+    make tests/integration/provider-core \
+        DOCKER_CONTEXT=science \
+        WHEELHOUSE="$HOME/Downloads/wheelhouse" \
+        PRIVACY_TESTS=0
+
+Result: 435 tests in 258.857 seconds, OK, 30 skips. Every skip explicitly reports
+"Privacy tests disabled". The installed example portion comprises 23 Dummy tests,
+33 NMRPeak tests, 17 Reference tests and 29 Spectrum tests; all 102 passed.
+The remaining tests exercise maintained SDK integrations. All four examples
+execute their same request sequence on thread and persistent-process backends.
+
+Full local receipt: /tmp/nmr-provider-porting-44639313-integration.log.
+Receipt SHA-256: 2fac79b49433aab00b9e99348c7ba90ebd87d54d6ce7d9b5fe3f6286b9cd3021.
+Installed wheel SHA-256 identities:
+
+- provider-core: 6f8827f281110ba13cc7cfe9ff4eac79c924e5c9d2aef1ad3c1e4926482fa0d0.
+- dummy-provider-example: 80966518bc27b1b1df9ff962e9c1f2dd1ab4aa6dc8407f7af4e179ae09c14d9d.
+- nmrpeak-mock-provider-example: 59f366d70ce3622d14624e1233f33cf7eae99866eabc1ce1d62e1130180adfc5.
+- reference-match-provider-example: 142de8879b00805829535b86815f3319c14143269690d1378d265a8b4e275829.
+- spectrum-summary-provider-example: 4d275229bb43d981ba75a023492b1b5c7fc5ce3791b0b2ad89e448792df1bf19.
+
+Raw receipts remain local /tmp files, not permanent Git artifacts. The commit
+adding this qualification paragraph changes documentation only; the tests ran
+at the candidate above. SDK executable source, SDK tests and dependency locks
+were not changed by these ports. Earlier contract/unit/native evidence remains
+attributed to its original candidates in Notes 095 and 096; those lanes were not
+rerun or claimed as fresh results here. The SDK wheel changed with README metadata.
+
+Three GPT-6.1-Sol agents at medium effort owned Dummy, Reference and Spectrum;
+the coordinator owned NMRPeak. Each agent edited only its own example and its
+serialized friction entry here. The coordinator alone made commits and updated
+shared guidance. Agents cross-reviewed other examples read-only, and the final
+clean candidate received independent boundary, custody and capacity/proof audits.
+
+Accepted corrections included startup-owned Reference call selection, cancellation
+after observation actually entered, caller descriptor preservation on refusal,
+real surviving-stage science after retirement, and observing provider-started
+cleanup rather than initiating cleanup from the test. A proposed remote_type
+warning was rejected after tracing its assignment to the SDK wire decoder.
+No reviewer found a remaining actionable source or guidance issue in the supported
+scope. The final full integration run supplies the previously pending runtime gate.
+
+The examples now provide the demonstrated porting pattern described above without
+adding SDK execution machinery, a scheduler or a universal provider registry.
+Remaining friction is explicit: static shares do not borrow idle capacity, SDK
+hosts require positive state capacity, Reference thread/process readiness differs,
+and enclosing deployment owns native sessions and hardware grants. Repository
+checks remain enabled, unchanged, deferred and excluded. Real-model/GPU execution,
+unattended recovery, full repository qualification and merge readiness remain
+separate decisions.
+
+Independent scored panel: every reviewer, every criterion (2026-11-20)
+
+Frozen reviewed candidate: 1929654335dd3a430b1561878688e69aa0f93ce0.
+It differs from the tested 44639313 candidate only in this qualification note.
+Three fresh GPT-6.1-Sol medium reviewers, none of whom authored these ports,
+independently assessed all thirteen criteria. Architecture, lifecycle and
+evidence were emphasis areas, not divisions of grading responsibility. Reviewers
+received no peers' findings or scores before returning their own complete matrices.
+
+The scope and rubric were fixed before review. Each deduction had to identify
+an actionable gap, concrete trigger/consequence, owning source and smallest
+durable correction. Conventional headroom, speculative capability expansion,
+averaging and score inflation were excluded. A scoped 10 means no actionable
+remaining gap was found in that criterion; it does not claim exhaustive proof.
+
+| Criterion | Panel 1 | Panel 2 | Panel 3 |
+| --- | ---: | ---: | ---: |
+| A1 Single authority; mechanism versus policy | 10/10 | 10/10 | 10/10 |
+| A2 Common semantic contract; honest backend differences | 10/10 | 10/10 | 10/10 |
+| A3 Change locality; replaceability | 10/10 | 10/10 | 10/10 |
+| A4 Names, usage and diagnostics clarity | 10/10 | 10/10 | 10/10 |
+| A5 Parsimony and explanatory comments | 10/10 | 10/10 | 10/10 |
+| B1 Continuous ownership, cancellation, handoffs and termination | 10/10 | 10/10 | 10/10 |
+| B2 Uncertainty, no replay, monotone facts and independent outcomes | 10/10 | 10/10 | 10/10 |
+| B3 Allocation, analysis, operation and state authority; expiry | 10/10 | 10/10 | 10/10 |
+| B4 Bounded time, capacity, retention and control under stalls | 10/10 | 10/10 | 10/10 |
+| C1 Narrow code/data, environment and descriptor grants; security scope | 10/10 | 10/10 | 10/10 |
+| C2 Economical, discriminating behavioral tests | 10/10 | 10/10 | 10/10 |
+| C3 Reproducible installed qualification and provenance | 10/10 | 10/10 | 10/10 |
+| C4 Useful diagnostics and truthful operational guidance | 10/10 | 10/10 | 10/10 |
+| Holistic overall verdict, independently assessed | 10/10 | 10/10 | 10/10 |
+
+All three traced provider/factory/workflow boundaries and SDK consumers rather
+than treating the green count as blanket proof. A1-A5 evidence included startup
+call selection, installed construction, backend-free request sequencing, genuine
+optional modules and the absence of copied SDK execution machinery. B1-B4 evidence
+included original submissions and receiver ownership, retained earlier results,
+entered-host cleanup after later startup failure, exact state/allocation ownership,
+pre-custody capacity refusal and real surviving-stage/model execution.
+
+C1-C4 evidence included explicit scientific startup data and deployment sessions,
+descriptor-preservation witnesses, discriminating cancellation and retirement
+tests, installed wheel identities, the maintained lane and accurate local/shared
+guidance. Each reviewer independently verified the raw integration receipt hash,
+435-test result, thirty explicit privacy skips and the documentation-only delta
+between the tested and reviewed candidates. Their individual reviews also checked
+the distinction between SDK accounting limits and hardware grants, per-operation
+progress versus aggregate counters, and observer caps versus completed retirement.
+
+Prioritized actionable findings: none in each of the three reviews. No source
+change, additional test or numerical redefinition was requested to close this
+round. The recorded matrices are separate verdicts, not an average. No executable
+tests were rerun for this read-only panel or its documentation successor.
+Repository checks and all previously stated qualification exclusions remain
+unchanged; these scores establish no repository-wide, merge or deployment claim.

@@ -1,130 +1,96 @@
 # Spectrum summary provider
 
-This standalone provider illustrates the contribution and execution boundaries
-in [the end-state design](../../notes/066_provider_execution_end_state.txt).
-It runs with the SDK's real local `InProcessExecutionHost`. It does not implement the
-planned common Jobs service, worker pool, durable delivery queue or remote backend.
+This installed example composes two independent scientific stages: baseline
+subtraction followed by peak detection. `science.py` owns scientific values and
+calculations, `binding.py` declares the operations, and `provider.py` selects the
+backend and owns the stage lifetimes. `application.py` owns the scientific sequence.
+`process_factory.py` constructs each stage inside its installed worker.
 
-## Responsibilities
+`open_provider()` reads `config/deployments/localhost/provider.toml` from the
+application's working directory. `execution.backend` explicitly selects `thread`
+or `process`. Both modes open two independent SDK hosts and run the same
+`PeakWorkflow`. Class-bound call declarations supply codecs and references;
+process execution constructs no scientific contribution in the parent.
 
-```text
-config/deployments/localhost/provider.toml   science, resources and execution policy
-src/spectrum_provider/
-├── science.py       portable spectra, settings and ordinary calculations
-├── binding.py       configured contributions, codecs and stable revisions
-├── provider.py      settings, direct adoption and per-request composition
-├── application.py   the provider's fixed baseline → peaks sequence
-└── __main__.py      two-stage demonstration and stdout consumption
-```
+For process execution, deployment supplies
+`open_provider(process_sessions={"baseline": baseline_session, "peaks": peak_session})`.
+Each fresh `RunnerSession` must select an existing science runner whose installed
+command is `python -I -B -m provider_core.process_worker`. Deployment owns runner
+endpoints, identity and native startup/retirement grants. Each host takes custody
+of its own session when constructed and retires its one persistent child on exit.
+Configuration and stage partition refusals precede that handoff. A stage that has
+already entered its host lifetime is retired if later stage startup fails; sessions
+not yet handed to a host remain with the caller.
 
-`open_provider()` reads the external deployment document once and adopts each
-scientific object directly into its
-baseline or peaks workflow role. These roles define the scientific sequence;
-they are not an unordered offering inventory. The SDK retains each exact object
-and owns its execution lifetime.
+## Capacity ownership
 
-`PeakWorkflow` chooses the scientific sequence using only the public execution
-contract. It does not import scientific types, codecs or the local backend.
-The baseline output and peak input share the same portable `Spectrum` format.
-The workflow reads the retained baseline result and passes those exact bytes to
-the peak invocation. An accepted downstream operation owns those input bytes;
-only then is the intermediate result released. No worker-bound `StateRef`
-crosses between registrations.
+`execution.in_process_execution_host` declares the enclosing input-byte,
+result-byte and scientific-state allowances. `execution.stage_capacity.baseline`
+and `.peaks` explicitly partition those allowances; startup rejects nonpositive
+shares and any sum exceeding the enclosing allowance. The same static partition
+applies to both backends. This example does not borrow idle capacity between stages
+or implement a scheduler. Each stage's result share must cover
+`operation_policy.reject_encoded_result_over_bytes` to admit a normal operation.
+A smaller share deliberately refuses that stage's operation.
 
-The workflow retains the intermediate release handle separately. Its cleanup
-failure must not hide an accepted peak operation or a usable final report; the
-composition observes that release independently during cleanup.
+The SDK requires positive state capacity even for these stateless contributions,
+so this deployment explicitly grants two state slots, one per host. This minimum
+is SDK friction, not a scientific requirement. `progress_records` bounds retained
+history per operation; it is not an aggregate shared capacity. Initialization and
+retirement deadlines are per-host policy. Declared CPU requirements describe the
+science and do not allocate hardware.
 
-The SDK owns generic observation waits, dispatch, execution-owned cancellation and start-deadline checks,
-result consumption, retained results and observable cleanup. The bootstrap
-chooses the scientific objects and SDK buffer and time limits. Resource
-requirements describe what science needs; they do not grant hardware access.
-One analysis reserves both allocations; this example makes no claim about fair
-scheduling or sharing those allocations between concurrent analyses.
+## Request and delivery ownership
+
+`Provider.create_workflow(spectrum=...)` encodes input before opening two stage
+analyses. The caller owns both `baseline_analysis_executor` and
+`peak_analysis_executor`: request stop and observe their cleanup before provider
+exit. If opening peak execution fails, the original baseline host retains its
+requested analysis cleanup. Both scientific stages keep independent lifetimes;
+retiring one does not retire the other.
+
+`start()` submits the retained baseline invocation. `finish()` observes that
+original work, reads its retained result, and submits those exact portable bytes
+to peak detection. It releases the intermediate only after downstream admission,
+or after downstream execution closes. A capacity refusal retains the baseline
+result for a later admission attempt. Scientific success and result encoding are
+separate outcomes, so failed encoding never repeats science. Intermediate release
+failure cannot hide an accepted peak operation or final report.
+
+Cancelling a wait leaves the original submission and operation owned by the
+workflow. The final result remains readable after analysis cleanup until release.
+SDK `ResultConsumption` retains one receiver attempt across cancelled waits,
+releases only after acceptance, and preserves the result if the receiver fails.
+A caller must reconcile uncertain external acceptance before authorizing another
+attempt. `__main__.py` demonstrates local flushed stdout consumption and joins the
+receiver before closing both analyses and retiring the hosts. It also observes
+intermediate-result cleanup independently. These owners are in memory; this
+example makes no crash-recovery or durable-delivery claim.
 
 ## Run and check
 
 From the repository root, use the maintained installed-consumer lane:
 
 ```sh
-make tests/integration/provider-core DOCKER_CONTEXT=science WHEELHOUSE=/home/ra/Downloads/wheelhouse
+make tests/integration/provider-core DOCKER_CONTEXT=science WHEELHOUSE=/home/ra/Downloads/wheelhouse PRIVACY_TESTS=0 TEST_PATTERN=test_spectrum_process.py
 ```
 
-The lane builds the candidate SDK and each standalone example, installs their
-wheels, and runs copied tests outside their source directories. No checkout
-import or editable installation substitutes for the installed packages.
+The lane builds the candidate SDK and standalone example wheels, then runs copied
+tests outside their source directories. The other Spectrum test filenames cover
+scientific rules, binding declarations, delivery and cancellation.
 
-With the example and its matching candidate SDK installed in a permitted
-container, run:
+With the wheel and matching SDK installed in a permitted container, run the demo
+from a directory containing the deployment configuration:
 
 ```sh
 python -I -B -m spectrum_provider
 ```
 
-Input intensities `(1, 4, 2, 5, 1)` at positions `(0, 1, 2, 3, 4)` become
-`(0, 3, 1, 4, 0)` after subtracting the configured baseline of `1`. Interior
-strict maxima at or above `2` produce:
+The configured baseline of `1` changes intensities `(1, 4, 2, 5, 1)` to
+`(0, 3, 1, 4, 0)`. Interior strict maxima at or above `2` produce:
 
 ```json
 {"peaks": [{"position": 1.0, "height": 3.0}, {"position": 3.0, "height": 4.0}]}
 ```
 
-## Ownership when waiting or delivery fails
-
-`start()` stores the original operation before any await. Cancelling or timing
-out `finish()` ends that wait; calling it again observes the original work.
-Scientific success and encoded-result availability are checked separately, so
-an encoding failure never triggers scientific replay. A downstream admission
-refusal leaves the intermediate result retained.
-
-The controller calls workflow methods serially. The bootstrap gives the final
-operation, exact result reference and consumer to SDK `ResultConsumption`.
-It retains one read/consumer task before awaiting it; cancelling a waiter and
-resuming consumption observes that same task. The result is released only after
-the consumer returns successfully. Known acceptance survives a release-request
-failure, so re-observation never invokes the acknowledged consumer again.
-Consumer failure remains the original failure and leaves the result retained;
-the SDK never automatically resends it. Any acknowledgement uncertainty requires
-receiver-specific reconciliation before the caller authorizes another attempt.
-The demo's flushed stdout is local consumption, not durable queue acceptance or
-central API publication.
-
-Results remain readable after analysis cleanup until explicitly released.
-Analysis close and host retirement are separately requested and observed;
-independent cleanup failures retain their original causes. All operation and
-result ownership here is in memory. Stable identifiers do not establish crash
-recovery, forced interruption or remote deduplication.
-The bootstrap calls the shared owner's shutdown join, `settle()`, before
-analysis/host teardown. It finishes acceptance and the exact release observation
-even if shutdown is cancelled again, then propagates the recorded interruptions
-and failures. This join has no new timeout; the demo receiver is a local stdout
-write. A caller needing a bounded wait must retain the owner and its resources.
-
-
-Provider constructor settings are ordinary object attributes. The SDK does not
-serialize or hash them. Call identity refers to the adopted allocation; scientific
-provenance remains provider-owned. Local submission uses the actual receiver
-(e.g. `method=contribution.generate`). Adoption takes `requirements=...`;
-hardware availability must be established by the environment running the provider.
-
-The SDK supplies execution identities. Use allocation handles with
-`host.open_analysis(allocations=frozenset({hosted.allocation}))`, retain returned operation
-handles, and observe those handles to resume waiting. Each new submission means
-new work. State kinds and ports derive their names from Python types and class
-attributes rather than manually assigned labels.
-
-Adoption records resource requirements and establishes scientific-object ownership.
-It does not discover or allocate CPU/GPU hardware. The returned allocation handle
-identifies an execution owner, not a hardware grant.
-
-The SDK host context joins original retirement after receiver settlement,
-intermediate-result release and analysis cleanup. Those explicit observations
-keep their caller timeouts; final host settlement can wait longer rather than
-abandon pending SDK cleanup. Cleanup failure remains an error, not confirmation
-that resources were released.
-
-Deployment settings stay outside the wheel. Run the installed demo from a directory
-containing `config/deployments/localhost/provider.toml`; `PROVIDER_CONFIG_PATH` in
-`provider.py` selects that document. Host capacity, operation allowances, CPU needs
-and scientific settings come from it. Provider setup passes typed scientific
-settings to the contributions; the SDK receives its own execution parameters.
+Real-model, GPU and deployment qualification remain separate gates.

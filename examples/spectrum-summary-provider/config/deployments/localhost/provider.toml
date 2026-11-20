@@ -1,8 +1,11 @@
+[execution]
+backend = "thread"
+
 # Capacity for scientific execution in this deployment.
 [execution.in_process_execution_host]
 input_bytes = 8192
 result_bytes = 8192
-state_values = 1
+state_values = 2
 progress_records = 1
 initialization_seconds = 5
 retirement_seconds = 5
@@ -29,3 +32,15 @@ baseline = 1.0
 
 [science.peaks.settings]
 minimum_height = 2.0
+
+# Static shares of the enclosing execution capacity, identical on both backends.
+# The SDK requires one state slot per host even though neither stage emits state.
+[execution.stage_capacity.baseline]
+input_bytes = 4096
+result_bytes = 4096
+state_values = 1
+
+[execution.stage_capacity.peaks]
+input_bytes = 4096
+result_bytes = 4096
+state_values = 1

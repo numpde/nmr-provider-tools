@@ -189,6 +189,8 @@ def boundary_imports(root):
 
             # These operations run in the checker container
             if source_path in (
+                    root / "operations/checker/findings.py",
+                    root / "operations/checker/report.py",
                     root / "operations/checker/image/dependencies.py",
                     root / "operations/delivery/build_inputs.py",
                     root / "operations/release/qualify.py",

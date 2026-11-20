@@ -26,6 +26,7 @@ from collections import deque
 from provider_core.failure_projection import owned_details as core_owned_details
 from provider_core.failure_projection import owned_relationships as core_owned_relationships
 from provider_core.diagnostic_text import redact_credential_fields
+from provider_core.process_wire import decoded_error_evidence
 
 # Bound protected failure-graph traversal and diagnostic output.
 # repo-check: allow-module-constant
@@ -128,6 +129,17 @@ def failure_evidence(error, *, secrets, describe_owner=describe_core_failure, ow
                 for (owner_fact_name, owner_fact) in describe_owner(current, text, diagnostic_window).items()
             },
         )
+
+        remote = decoded_error_evidence(current)
+
+        if remote is not None:
+            evidence["remote_type"] = text(remote.original_type, 128)
+            evidence["message"] = text(remote.message, 1024)
+            evidence["remote_frames"] = [
+                {"file": text(file, 128), "function": text(function, 128), "line": line}
+                for (file, function, line) in remote.frames
+            ]
+            evidence["remote_frames_omitted"] = remote.frames_omitted
 
         if isinstance(current, OSError) and (type(current.errno) is int):
             evidence["errno"] = current.errno

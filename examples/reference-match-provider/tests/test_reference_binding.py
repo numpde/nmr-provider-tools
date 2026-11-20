@@ -41,7 +41,7 @@ class ReferenceBindingTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(package, pathlib.Path(distribution.locate_file("reference_provider")).resolve())
         self.assertTrue(package.is_relative_to(pathlib.Path(sys.prefix).resolve()))
 
-        for name in ("science.py", "binding.py", "provider.py"):
+        for name in ("science.py", "binding.py", "provider.py", "application.py", "process_factory.py"):
             self.assertTrue(package.joinpath(name).is_file())
             self.assertIn(f"reference_provider/{name}", {str(distribution_file) for distribution_file in distribution.files})
 

@@ -60,7 +60,7 @@ class SpectrumWorkflowTests(unittest.IsolatedAsyncioTestCase):
 
     async def test_lost_submission_reply_reuses_the_generated_invocation(self):
         (workflow, _, _) = await self.workflow(result_bytes=8192)
-        submit = workflow.analysis_executor.submit
+        submit = workflow.peak_analysis_executor.submit
         accepted = []
         cause = OSError("The reply was lost after submission")
 
@@ -74,7 +74,7 @@ class SpectrumWorkflowTests(unittest.IsolatedAsyncioTestCase):
 
             return operation
 
-        with patch.object(target=workflow.analysis_executor, attribute="submit", side_effect=lose_first_reply):
+        with patch.object(target=workflow.peak_analysis_executor, attribute="submit", side_effect=lose_first_reply):
             with self.assertRaises(expected_exception=OSError) as raised:
                 await workflow.finish()
 
@@ -97,7 +97,7 @@ class SpectrumWorkflowTests(unittest.IsolatedAsyncioTestCase):
 
         self.assertNotIsInstance(obj=workflow.start(), cls=NotAdmitted)
 
-        return (workflow, workflow.analysis_executor, provider.peak_detector.call(method=provider.peak_detector.contribution.run).result_codec)
+        return (workflow, workflow.peak_analysis_executor, provider.peak_call.result_codec)
 
     async def test_result_survives_analysis_close_until_consumer_accepts(self):
         (workflow, analysis, codec) = await self.workflow(result_bytes=8192)
@@ -347,7 +347,10 @@ class SpectrumWorkflowTests(unittest.IsolatedAsyncioTestCase):
             self.assertEqual(1, calculate.call_count)
 
     async def test_downstream_refusal_keeps_intermediate_result_owned(self):
-        (workflow, _, _) = await self.workflow(result_bytes=4096)
+        configuration = tomllib.loads(self.configuration.read_text(encoding="utf-8"))
+        configuration["execution"]["stage_capacity"]["peaks"]["result_bytes"] = 2048
+        self.configuration.write_text(data=tomli_w.dumps(configuration), encoding="utf-8")
+        (workflow, _, _) = await self.workflow(result_bytes=8192)
 
         async with asyncio.timeout(10):
             refused = await workflow.finish()

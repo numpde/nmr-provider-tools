@@ -196,6 +196,51 @@ class InProcessExecutionHost:
 
         return hosted
 
+    # A class factory is created only on the owned worker. Exact-object adoption
+    # above keeps its original, independent custody contract.
+    def adopt_class(
+        self,
+        *,
+        contribution_type: type[Contribution],
+        constructor: Callable[[], Contribution],
+        requirements: frozenset[ResourceRequirement],
+        assets: AssetAccess = NoAssets(),
+        resident_resources: frozenset[ResourceRequirement] = frozenset(),
+        isolation: IsolationRequirement = IsolationRequirement.SHARED_PROCESS,
+    ) -> HostedContribution:
+        """Retain a factory before construction or initialization has effects."""
+
+        self._require_loop()
+
+        if self.retiring:
+            raise CapacityUnavailable("Cannot adopt a contribution while the host is retiring.")
+
+        if not callable(constructor):
+            raise TypeError(f"{type(constructor)=} should provide a callable contribution factory")
+
+        allocation_name = uuid4().hex
+        hosted = HostedContribution(
+            contribution=None,
+            contribution_type=contribution_type,
+            constructor=constructor,
+            host=self.identity,
+            allocation_name=allocation_name,
+            requirements=requirements,
+            resident_resources=resident_resources,
+            isolation=isolation,
+        )
+
+        _require_supported_binding(hosted)
+
+        self.residents[allocation_name] = _Resident(
+            host_identity=self.identity,
+            name=allocation_name,
+            binding=hosted,
+            assets=assets,
+        )
+
+        return hosted
+
     @property
     def allocations(self) -> frozenset[AllocationRef]:
         """Snapshot hosted or unsettled allocations; omit successful retirements."""
@@ -572,7 +617,7 @@ class InProcessAnalysisExecutor:
 
         require_instance(hosted, HostedContribution)
 
-        if not (getattr(method, "__self__", None) is hosted.contribution):
+        if (hosted.contribution is None) or (getattr(method, "__self__", None) is not hosted.contribution):
             raise ValueError("Submit an exported bound method of the reserved contribution")
 
         call = hosted.call(method=method)

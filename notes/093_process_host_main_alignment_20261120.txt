@@ -1,0 +1,112 @@
+# Scientific process host: alignment with current main
+
+Branch: feature/process-scientific-host-20261119.
+Starting feature checkpoint: 8243e20759b7567574f78a3c78a8eb5887f7d650.
+Integrated main: 4abaee127128e7147d6a85702e8dd0ca6a251922.
+Code checkpoint: de336b6939647c6c832504147cf627fa18574596.
+Code tree: 7cdb54765ea1c1703a40187ed55fe72145ce7a8e.
+
+The documentation commit containing this record does not change code.
+The source integration is complete for this checkpoint. Installed behavioral
+qualification remains outstanding; this is not a merge or release qualification.
+
+## Why this revision was needed
+
+The scheduled review had reported 114 commits of divergence. At this revision's
+fresh fetch, main contained 296 commits absent from the feature branch. They
+included private scientific-owner naming, clearer diagnostics, source conventions,
+and a maintained native-only SDK test target. Keeping the old feature base would
+obscure which SDK contracts and qualification commands actually apply.
+
+Main was merged into the existing feature branch, preserving both histories.
+The sole textual conflict was provider adoption: thread startup still adopts
+its exact object; both startup paths then select their call bindings. Main's
+statement separation was retained. The remote main reference was checked again
+after the code revisions and remained 4abaee12. The code checkpoint is zero
+commits behind that main reference.
+
+## Commits and resulting boundaries
+
+- 53738ea4 integrates main. Its instance, analysis_instance and result_ref
+  ownership names remain intact, as do its declaration helper signatures.
+  Public SDK records and declaration digests require no schema migration.
+- 0ef9ab3f uses the existing SDK type helpers and named custody evidence for
+  class-only construction. An optional declared type remains one contribution
+  class; it does not become a tuple of alternative classes. Exact-object
+  adoption and factory-based construction retain distinct custody paths.
+- 52e866a8 documents the deliberate thread default and clarifies provider
+  configuration, checkpoint, report and result-reference names. Offering identity,
+  assembly-selected metadata/bindings, prompt-reading timing and the independent
+  receiver -> analysis -> interpreter cleanup order remain unchanged.
+- 8449f9ff distinguishes SDK values, tagged wire records, encoded messages and
+  response envelopes. It reuses finite-number and contribution-class helpers.
+  Wire tags, field order, bounds and scientific failure categories remain intact;
+  diagnostic prose now identifies types, counts, deadlines and identities.
+- de336b69 reuses EMBEDDED_CAPABILITIES, which already governs the child's
+  execution and admission. The parent no longer maintains a duplicate capability
+  list. Host and test names distinguish requests, observations and retained result
+  references; the original observation, close/release and native retirement
+  owners remain in place.
+
+The parent retains request identities, observations and cleanup obligations.
+The installed child owns scientific receivers and live state. The existing
+native runner owns termination, reaping and scratch cleanup. No second supervisor,
+declaration registry, transport adapter or generalized workflow was introduced.
+Public SDK keyword contracts and serialized field names were preserved.
+
+## Review and verification actually performed
+
+Three critical reviewers examined SDK compatibility, provider/test integration,
+and transport/worker boundaries. The merged SDK and provider paths received
+independent inspection; the host's subsequent naming, guard and capability edits
+also received an independent review for accidental semantic changes. No concrete
+merge-induced incompatibility was found in those inspected paths.
+
+Python 3.12.14 ast.parse accepted all 12 feature Python files in the final combined
+tree, using host-python -I -B. No repository module was imported or executed.
+git diff --check passed across the complete revision. The integrated main is an
+ancestor of the code checkpoint. Makefile, SDK build/test infrastructure and
+repository-check infrastructure match integrated main exactly.
+
+The existing tests were adjusted for names, statement boundaries and assertion
+conventions; no new behavioral test framework or scenario expansion was needed
+for this integration. The convention suites themselves were not executed, so
+source alignment is not a claim that every repository check passes.
+
+This workspace still has no Docker executable. No installed/native, integration,
+fuzz or repository suite was run. No red/green pair or passing-test count is
+claimed. The earlier unsupported execution claims remain withdrawn in Note 092.
+
+## Next useful qualification
+
+Main now exposes tests/native/provider-core directly. TEST_PATTERN can select
+one exact test_<name>.py filename in that lane. A named unit selection still
+does not run native tests; there is no need to use that indirect route here.
+Installed integration continues to stage SDK fixtures before the example tests.
+
+Run on the maintained science engine, stopping on the first failure:
+
+    make tests/native/provider-core \
+        DOCKER_CONTEXT=science \
+        WHEELHOUSE="$HOME/Downloads/wheelhouse" \
+        PRIVACY_TESTS=0 && \
+    make tests/integration/provider-core \
+        DOCKER_CONTEXT=science \
+        WHEELHOUSE="$HOME/Downloads/wheelhouse" \
+        PRIVACY_TESTS=0 \
+        TEST_PATTERN=test_peak_example.py
+
+For a concrete host failure, the first command can be narrowed with
+TEST_PATTERN=test_process_host.py. The complete native command also covers
+the wire, worker, registration and unchanged SDK contracts.
+
+Record the exact tested revision, commands and results. Repair demonstrated
+failures in small commits; run the affected repository and broader gates at
+the qualification checkpoint. Syntax parsing and source review do not replace
+those results.
+
+The outstanding actual-child evidence from Notes 090 and 092 is unchanged:
+cancelled startup; independent initialization and cleanup failures; a lost reply
+after an independently observed scientific effect; worker death during active
+work; and one model initialization across multiple requests. Existing socket
+tests and two predictions in one PID do not establish all these guarantees.

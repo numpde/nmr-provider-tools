@@ -1,19 +1,22 @@
 # Dummy provider example
 
 This standalone Python project shows how scientific functions and a binding
-adapter use the installed `provider_core` interface. The scientific package
-contains `science.py`, `binding.py`, `payloads.py` and its package marker.
+adapter use the installed `provider_core` interface. Production startup selects
+thread or persistent-process execution for the same scientific contribution.
 
 ```text
-config/deployments/localhost/provider.toml   declared CPU requirements
+config/deployments/localhost/provider.toml   science, backend, capacity and policy
 src/dummy_provider/
     science.py         scientific types, functions and state lifetimes
     binding.py         configured scientific call and lifecycle registrations
     payloads.py        JSON sample lists to scientific arrays, and back
+    provider.py        deployment selection and SDK host lifetime
+    process_factory.py installed contribution construction from startup values
 tests/
     test_science.py    direct calculations and scientific rejection/correction
     test_binding.py    binding declarations and installed package boundary
     test_execution.py prepare/calculate and partial-loading cleanup through the host
+    test_dummy_startup.py same request sequence on threads and persistent processes
 ```
 
 The example imports `mock_numpy as np` and uses arrays for coefficient weights,
@@ -41,7 +44,7 @@ Their exported methods use keyword-only scientific arguments and read settings
 from `self.configuration`. Provider assembly constructs the object and calls
 `host.adopt(contribution=..., requirements=...)`. The host retains
 that exact object before lazy initialization; the returned `HostedContribution`
-contains its derived call inventory. Local execution uses
+contains its derived call inventory. Thread callers can also use
 `analysis.submit_method(method=weighted.prepare, ...)`;
 the SDK derives the data-only reference and encodes the typed input internally.
 The producer's `normalized` output connects to the consumer's
@@ -60,7 +63,13 @@ capture settings and bookkeeping; `close` also supports retirement before use.
 
 Copy this project into a new provider repository, rename the distribution and
 import package, implement its scientific functions, and construct your scientific
-objects before passing them directly to `host.adopt`. For this toy example,
+objects in the installed constructor. `open_provider()` reads the deployment
+configuration and initializes its selected weighted model before yielding a
+`Provider`. The provider exposes the hosted contribution, execution host and
+operation policy. Callers open an analysis and use `hosted.call(...)` with SDK
+`Submission.from_call(...)` for both backends. Keep the returned submission and
+operation to resume observation; a new submission requests new scientific work.
+For this toy example,
 install `mocks/mock_numpy` first; a real provider replaces the stand-in with its
 actual scientific dependency. Test scientific behavior directly; test the production binding
 through the execution backend that the provider actually uses.
@@ -82,12 +91,14 @@ make tests/integration/provider-core \
   WHEELHOUSE=/path/to/wheelhouse
 ```
 
-The embedded-host test demonstrates the installed contribution/execution
-interface. It uses SDK `ResultConsumption` for preparation and calculation
+The installed startup test runs the same request sequence twice on each backend,
+including scientific rejection and correction within one analysis. It checks
+model or child reuse, the custom codec, state transfer, progress and retirement.
+It uses SDK `ResultConsumption` for preparation and calculation
 reports, releasing each exact result only after its typed consumer succeeds.
 Releasing the preparation report leaves its separate worker-local state available
-to calculate. Worker-process and deployed-service tests belong to their respective
-backend and provider repositories.
+to calculate. Real scientific dependencies and deployed-service qualification
+belong to their respective provider repositories.
 
 
 Provider constructor settings are ordinary object attributes. The SDK does not
@@ -107,6 +118,17 @@ It does not discover or allocate CPU/GPU hardware. The returned allocation handl
 identifies an execution owner, not a hardware grant.
 
 `read_resource_requirements()` reads the external deployment document selected by
-`PROVIDER_CONFIG_PATH` in `binding.py`. The configuration stays outside the wheel.
-This component example leaves host capacity and operation policy to its caller;
-it does not create a provider service merely to load resource requirements.
+`PROVIDER_CONFIG_PATH` in `provider.py`. The configuration stays outside the wheel.
+
+Set `execution.backend` to `thread` or `process` at startup. Process startup
+requires an explicit deployment-owned `RunnerSession`; the SDK takes its ownership
+when the process host is constructed. Earlier configuration refusals leave an
+unconnected session with the caller. Thread startup rejects an unused process
+session. The provider initializes its thread allocation explicitly; process
+`start()` constructs and initializes the installed child before returning.
+
+One process host owns one allocation, so startup selects the weighted offering.
+`Sum` remains a separate stateless binding example. A native supervisor and its
+hardware grant belong to deployment. Finish request analyses before leaving
+`open_provider()`; the host then retires the scientific owner. No application
+wrapper is needed for Dummy's direct prepare/calculate sequence.

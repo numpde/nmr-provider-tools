@@ -12,11 +12,16 @@ require_container()
 import asyncio
 from collections import Counter
 from copy import deepcopy
+from dataclasses import replace
 from functools import partial
+import hashlib
 from importlib import metadata, resources
 import json
+import os
 import pathlib
 import shutil
+import signal
+import sys
 from tempfile import TemporaryDirectory
 from threading import Event
 import tomllib
@@ -27,8 +32,13 @@ from unittest.mock import Mock, patch
 # Tests edit temporary deployment files to exercise real provider startup.
 import tomli_w
 
-from provider_core.hosting import AdmissionCode, CapacityUnavailable, NotAdmitted, ResultState, StartDeadlineExpired
+from provider_core.contribution_errors import CallRejected
+from provider_core.diagnostics import failure_evidence
+from provider_core.hosting import AdmissionCode, CapacityUnavailable, NotAdmitted, ResultState, StartDeadlineExpired, settle_cleanup
 from provider_core.interpreter import InterpretationFailed, ModelWindowExpired, ProseService
+from provider_core.process_wire import RemoteScienceError
+from provider_core.submission import Submission
+from tests.fakes.runner import RunningSupervisor
 
 from nmrpeak_mock_provider import provider as provider_setup
 from nmrpeak_mock_provider.binding import Chf, Hf, PeakContribution
@@ -94,6 +104,35 @@ class PeakExampleTests(unittest.IsolatedAsyncioTestCase):
         configured["settings"].update(changes)
         self.configuration.write_text(data=tomli_w.dumps(deployment_config), encoding="utf-8")
 
+    def configure_process(self):
+        """Supply the existing native supervisor through provider startup."""
+        deployment_config = tomllib.loads(self.configuration.read_text(encoding="utf-8"))
+        deployment_config["science"] = {"hf": deployment_config["science"]["hf"]}
+        deployment_config["execution"]["backend"] = "process"
+
+        self.configuration.write_text(data=tomli_w.dumps(deployment_config), encoding="utf-8")
+
+        runner, session = self.make_process_session()
+
+        return (deployment_config, runner, session)
+
+    def make_process_session(self):
+        """Give each configured model its own existing native supervisor."""
+
+        runner = RunningSupervisor(
+            operation_seconds=None,
+            role="science",
+            worker_argv=(sys.executable, "-I", "-B", "-m", "provider_core.process_worker"),
+            environment={"PROVIDER_CORE_IN_CONTAINER": os.environ["PROVIDER_CORE_IN_CONTAINER"]},
+        )
+
+        self.addCleanup(runner.close)
+        session = runner.session(startup_seconds=5, retirement_seconds=5)
+
+        self.addCleanup(session.close)
+
+        return (runner, session)
+
     async def test_external_deployment_settings_change_scientific_results(self):
         package = pathlib.Path(str(resources.files(anchor="nmrpeak_mock_provider")))
         distribution = metadata.distribution(distribution_name="nmrpeak-mock-provider-example")
@@ -151,6 +190,296 @@ class PeakExampleTests(unittest.IsolatedAsyncioTestCase):
                             ] += 1
 
                 self.assertEqual(first=expected_inventory, second=observed_inventory)
+
+    async def test_process_backend_reuses_one_installed_child_for_two_predictions(self):
+        (deployment_config, runner, session) = self.configure_process()
+        self.factory.proposals = (candidate(carbon=False),)
+
+        async with self.open_offerings(process_sessions={("hf", 0): session}) as offerings:
+            (offering,) = offerings
+
+            self.assertEqual("hf", offering.family)
+            worker_pid = offering.execution_host.process_id
+
+            self.assertNotEqual(os.getpid(), worker_pid)
+            os.kill(worker_pid, 0)
+
+            for _ in range(2):
+                receiver = RecordingReceiver()
+
+                async with offering.open_prediction(receive=receiver) as workflow:
+                    await workflow.interpret(source="One recorded proton spectrum")
+                    await workflow.deliver()
+
+                (payload,) = receiver.payloads
+                prediction_report = json.loads(s=payload)
+
+                self.assertEqual(
+                    deployment_config["science"]["hf"][0]["settings"]["checkpoint_sha256"],
+                    prediction_report["checkpoint_sha256"],
+                )
+
+                self.assertEqual(worker_pid, offering.execution_host.process_id)
+                self.assertIsNone(session.retirement)
+                os.kill(worker_pid, 0)
+
+        self.assertEqual(0, session.retirement.returncode)
+        self.assertTrue(session.retirement.scratch_released)
+        self.assertEqual([], list(runner.scratch.iterdir()))
+        self.assertEqual(frozenset(), offering.execution_host.allocations)
+
+        with self.assertRaises(expected_exception=ProcessLookupError):
+            os.kill(worker_pid, 0)
+
+    async def test_independent_process_offerings_keep_chf_available_after_hf_retirement(self):
+        deployment_config = tomllib.loads(self.configuration.read_text(encoding="utf-8"))
+        deployment_config["execution"]["backend"] = "process"
+        self.configuration.write_text(data=tomli_w.dumps(deployment_config), encoding="utf-8")
+        hf_runner, hf_session = self.make_process_session()
+        chf_runner, chf_session = self.make_process_session()
+        sessions = {("hf", 0): hf_session, ("chf", 0): chf_session}
+        self.factory.proposals = (candidate(carbon=True),)
+
+        async with self.open_offerings(process_sessions=sessions) as offerings:
+            by_family = {offering.family: offering for offering in offerings}
+            hf_host = by_family["hf"].execution_host
+            chf_host = by_family["chf"].execution_host
+
+            self.assertNotEqual(hf_host.process_id, chf_host.process_id)
+
+            for capacity in ("input_bytes", "result_bytes", "state_values"):
+                assigned = sum(offering.execution_host.host_options[capacity] for offering in offerings)
+                self.assertEqual(deployment_config["execution"]["in_process_execution_host"][capacity], assigned)
+
+            await settle_cleanup(control=hf_host.retire())
+            self.assertTrue(hf_session.retirement.scratch_released)
+            self.assertIsNone(chf_session.retirement)
+
+            for _ in range(2):
+                receiver = RecordingReceiver()
+
+                async with by_family["chf"].open_prediction(receive=receiver) as workflow:
+                    await workflow.interpret(source="Formula, proton and carbon spectra")
+                    await workflow.deliver()
+
+                self.assertEqual(1, len(receiver.payloads))
+                os.kill(chf_host.process_id, 0)
+
+        self.assertTrue(chf_session.retirement.scratch_released)
+        self.assertEqual([], list(hf_runner.scratch.iterdir()))
+        self.assertEqual([], list(chf_runner.scratch.iterdir()))
+
+    async def test_process_overgrant_refuses_before_taking_any_session(self):
+        deployment_config = tomllib.loads(self.configuration.read_text(encoding="utf-8"))
+        deployment_config["execution"]["backend"] = "process"
+        deployment_config["science"]["hf"][0]["process_capacity"]["state_values"] = 2
+        self.configuration.write_text(data=tomli_w.dumps(deployment_config), encoding="utf-8")
+        hf_runner, hf_session = self.make_process_session()
+        chf_runner, chf_session = self.make_process_session()
+        descriptors = (hf_session.control.fileno(), chf_session.control.fileno())
+
+        with self.assertRaisesRegex(ValueError, "model shares must fit the provider allowance"):
+            async with self.open_offerings(process_sessions={("hf", 0): hf_session, ("chf", 0): chf_session}):
+                self.fail("Overcommitted process shares must not start either model")
+
+        self.assertFalse(hf_session.control_connected)
+        self.assertFalse(chf_session.control_connected)
+        self.assertEqual(descriptors, (hf_session.control.fileno(), chf_session.control.fileno()))
+        self.assertEqual([], list(hf_runner.scratch.iterdir()))
+        self.assertEqual([], list(chf_runner.scratch.iterdir()))
+
+    async def test_failed_second_process_start_retires_the_first_model(self):
+        deployment_config = tomllib.loads(self.configuration.read_text(encoding="utf-8"))
+        deployment_config["execution"]["backend"] = "process"
+        checkpoint = self.configuration.parent / deployment_config["science"]["chf"][0]["checkpoint_path"]
+        checkpoint.write_bytes(b"not-json")
+        deployment_config["science"]["chf"][0]["settings"]["checkpoint_sha256"] = hashlib.sha256(b"not-json").hexdigest()
+        self.configuration.write_text(data=tomli_w.dumps(deployment_config), encoding="utf-8")
+        hf_runner, hf_session = self.make_process_session()
+        chf_runner, chf_session = self.make_process_session()
+
+        with self.assertRaises(RemoteScienceError) as raised:
+            async with self.open_offerings(process_sessions={("hf", 0): hf_session, ("chf", 0): chf_session}):
+                self.fail("The provider must not advertise partially started offerings")
+
+        self.assertEqual("json.decoder.JSONDecodeError", raised.exception.remote_type)
+        self.assertEqual(0, hf_session.retirement.returncode)
+        self.assertTrue(hf_session.retirement.scratch_released)
+        self.assertTrue(chf_session.retirement.scratch_released)
+        self.assertEqual([], list(hf_runner.scratch.iterdir()))
+        self.assertEqual([], list(chf_runner.scratch.iterdir()))
+
+    async def test_process_backend_preserves_correctable_scientific_rejection(self):
+        (_, _, session) = self.configure_process()
+        invalid = candidate(carbon=False)
+        invalid["formula"] = ""
+        self.factory.proposals = (invalid, candidate(carbon=False))
+        receiver = RecordingReceiver()
+
+        async with self.open_offerings(process_sessions={("hf", 0): session}) as offerings:
+            (offering,) = offerings
+
+            async with offering.open_prediction(receive=receiver) as workflow:
+                await workflow.interpret(source="One recorded proton spectrum")
+                await workflow.deliver()
+
+            self.assertEqual(2, len(self.factory.endpoints[0].requests))
+            self.assertEqual(1, len(receiver.payloads))
+
+    async def test_process_backend_retires_partially_loaded_model_after_checkpoint_parse_failure(self):
+        (deployment_config, runner, session) = self.configure_process()
+        (configured,) = deployment_config["science"]["hf"]
+        checkpoint_path = self.configuration.parent / configured["checkpoint_path"]
+        malformed_checkpoint_bytes = b'{"candidates": ['
+
+        checkpoint_path.write_bytes(malformed_checkpoint_bytes)
+        configured["settings"]["checkpoint_sha256"] = hashlib.sha256(malformed_checkpoint_bytes).hexdigest()
+
+        self.configuration.write_text(data=tomli_w.dumps(deployment_config), encoding="utf-8")
+
+        # Verification must admit these bytes. The installed Model.load creates
+        # and retains its tokenizer before JSON parsing raises in the child.
+        provider_lifetime = self.open_offerings(process_sessions={("hf", 0): session})
+
+        with self.assertRaises(expected_exception=RemoteScienceError) as raised:
+            await provider_lifetime.__aenter__()
+
+        self.assertEqual("json.decoder.JSONDecodeError", raised.exception.remote_type)
+        self.assertNotIsInstance(raised.exception, CallRejected)
+
+        # Treat this installed filename as known protected text. The renderer
+        # must redact the child's location while retaining its load and cause.
+        protected_filename = Model.load.__code__.co_filename
+        evidence = failure_evidence(raised.exception, secrets=(protected_filename,))
+        report = json.dumps(evidence)
+        load_locations = [location for location in evidence["remote_frames"] if location["function"] == "load"]
+
+        self.assertEqual(first="json.decoder.JSONDecodeError", second=evidence["remote_type"])
+        self.assertIn(member="Expecting value", container=evidence["message"])
+        self.assertTrue(expr=load_locations)
+        self.assertTrue(expr=any((location["file"] == "[redacted]") for location in load_locations))
+        self.assertTrue(expr=all((location["line"] > 0) for location in load_locations))
+        self.assertNotIn(member=protected_filename, container=report)
+        self.assertNotIn(member="fake_model.py", container=report)
+        self.assertTrue(session.control_connected)
+        self.assertIsNotNone(session.retirement)
+        self.assertEqual(0, session.retirement.returncode)
+        self.assertTrue(session.retirement.scratch_released)
+        self.assertEqual([], list(runner.scratch.iterdir()))
+
+    async def test_process_backend_keeps_consumed_state_unavailable(self):
+        (_, _, session) = self.configure_process()
+        self.factory.proposals = (candidate(carbon=False),)
+
+        async with self.open_offerings(process_sessions={("hf", 0): session}) as offerings:
+            (offering,) = offerings
+            receiver = RecordingReceiver()
+
+            async with offering.open_prediction(receive=receiver) as workflow:
+                await workflow.interpret(source="One recorded proton spectrum")
+                prepared = workflow.preparation_tool.prepared_state_handle
+                wrong_reference = replace(prepared.reference, allocation="another-allocation")
+                wrong_handle = replace(prepared, reference=wrong_reference)
+
+                wrong_allocation = Submission.from_call(
+                    analysis_executor=workflow.analysis_executor,
+                    call_binding=offering.generation_call,
+                    states={PeakContribution.candidate: wrong_handle},
+                    reservation_ref=workflow.reservation_ref,
+                    operation_policy=workflow.operation_policy,
+                ).submit()
+
+                self.assertIsInstance(obj=wrong_allocation, cls=NotAdmitted)
+                self.assertIs(expr1=AdmissionCode.INVALID_REFERENCE, expr2=wrong_allocation.code)
+                result_ref = await workflow.finish()
+
+                self.assertEqual(result_ref, await workflow.finish())
+
+                duplicate = Submission.from_call(
+                    analysis_executor=workflow.analysis_executor,
+                    call_binding=offering.generation_call,
+                    states={PeakContribution.candidate: workflow.preparation_tool.prepared_state_handle},
+                    reservation_ref=workflow.reservation_ref,
+                    operation_policy=workflow.operation_policy,
+                ).submit()
+
+                self.assertIsInstance(duplicate, NotAdmitted)
+                self.assertIs(AdmissionCode.INVALID_REFERENCE, duplicate.code)
+                await workflow.deliver()
+
+            self.assertEqual(1, len(receiver.payloads))
+
+    async def test_process_backend_worker_death_never_replays_original_generation(self):
+        (_, runner, session) = self.configure_process()
+        self.factory.proposals = (candidate(carbon=False),)
+        receiver = RecordingReceiver()
+
+        # Enter startup outside all expected failures. Only teardown may report
+        # missing scientific cleanup; native retirement remains independently
+        # observable on the original supervisor session.
+        provider_lifetime = self.open_offerings(process_sessions={("hf", 0): session})
+        offerings = await provider_lifetime.__aenter__()
+
+        try:
+            (offering,) = offerings
+            prediction_lifetime = offering.open_prediction(receive=receiver)
+            workflow = await prediction_lifetime.__aenter__()
+
+            try:
+                await workflow.interpret(source="One recorded proton spectrum")
+                os.kill(offering.execution_host.process_id, signal.SIGKILL)
+
+                with self.assertRaises(expected_exception=RemoteScienceError):
+                    await workflow.finish()
+
+                original_operation = workflow.generation_submission.operation
+
+                self.assertIsNotNone(original_operation)
+
+                with self.assertRaises(expected_exception=RemoteScienceError):
+                    await workflow.finish()
+
+                self.assertIs(original_operation, workflow.generation_submission.operation)
+            finally:
+                with self.assertRaises(expected_exception=RemoteScienceError):
+                    await prediction_lifetime.__aexit__(None, None, None)
+        finally:
+            with self.assertRaises(expected_exception=(RemoteScienceError, ExceptionGroup)) as raised:
+                await provider_lifetime.__aexit__(None, None, None)
+
+            if isinstance(raised.exception, ExceptionGroup):
+                (scientific_failure, _) = raised.exception.split(RemoteScienceError)
+
+                self.assertIsNotNone(scientific_failure)
+
+        self.assertEqual([], receiver.payloads)
+        self.assertEqual(-signal.SIGKILL, session.retirement.returncode)
+        self.assertTrue(session.retirement.scratch_released)
+        self.assertEqual([], list(runner.scratch.iterdir()))
+
+    async def test_process_backend_requires_an_explicit_runner_session(self):
+        deployment_config = tomllib.loads(self.configuration.read_text(encoding="utf-8"))
+        deployment_config["science"] = {"hf": deployment_config["science"]["hf"]}
+        deployment_config["execution"]["backend"] = "process"
+
+        self.configuration.write_text(data=tomli_w.dumps(deployment_config), encoding="utf-8")
+
+        with self.assertRaisesRegex(expected_exception=ValueError, expected_regex="requires deployment-owned scientific runner sessions"):
+            async with self.open_offerings():
+                self.fail(msg="Process startup must not invent a native supervisor")
+
+    async def test_thread_backend_does_not_take_an_unused_runner_session(self):
+        (deployment_config, runner, session) = self.configure_process()
+        deployment_config["execution"]["backend"] = "thread"
+
+        self.configuration.write_text(data=tomli_w.dumps(deployment_config), encoding="utf-8")
+
+        with self.assertRaisesRegex(expected_exception=ValueError, expected_regex="does not use scientific process sessions"):
+            async with self.open_offerings(process_sessions={("hf", 0): session}):
+                self.fail(msg="Thread startup must refuse an unrelated native owner")
+
+        self.assertFalse(session.control_connected)
+        self.assertEqual([], list(runner.scratch.iterdir()))
 
     async def test_configured_inventory_supports_single_families_and_multiple_models(self):
         original = self.configuration.read_text(encoding="utf-8")

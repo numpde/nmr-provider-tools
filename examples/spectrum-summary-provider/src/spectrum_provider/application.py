@@ -38,14 +38,16 @@ class PeakWorkflow:
     def __init__(
         self,
         *,
-        analysis_executor: AnalysisExecution,
+        baseline_analysis_executor: AnalysisExecution,
+        peak_analysis_executor: AnalysisExecution,
         baseline_invocation: Invocation,
         peak_detection_call_ref: CallRef,
         peak_detection_reservation_ref: ReservationRef,
         operation_policy: OperationPolicy,
     ) -> None:
-        self.analysis_executor = analysis_executor
-        self.baseline_submission = Submission(analysis_executor=analysis_executor, invocation=baseline_invocation)
+        self.baseline_analysis_executor = baseline_analysis_executor
+        self.peak_analysis_executor = peak_analysis_executor
+        self.baseline_submission = Submission(analysis_executor=baseline_analysis_executor, invocation=baseline_invocation)
         self.peak_detection_call_ref = peak_detection_call_ref
         self.peak_detection_reservation_ref = peak_detection_reservation_ref
         self.operation_policy = operation_policy
@@ -78,7 +80,7 @@ class PeakWorkflow:
 
             if self.peak_detection_submission is None:
                 self.peak_detection_submission = Submission(
-                    analysis_executor=self.analysis_executor,
+                    analysis_executor=self.peak_analysis_executor,
                     invocation=Invocation(
                         target=self.peak_detection_call_ref,
                         payload=corrected_spectrum_payload,

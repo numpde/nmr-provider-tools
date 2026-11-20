@@ -572,7 +572,11 @@ def _compile_method(
 
 @dataclass(frozen=True, slots=True, kw_only=True, eq=False)
 class HostedContribution:
-    """SDK handle for one adopted scientific object and its exported methods.
+    """SDK handle for a scientific contribution and its exported methods.
+
+    A class-only handle compiles the same declarations without creating an
+    object in the parent process. Exact-object adoption supplies contribution;
+    remote construction supplies contribution_type and no live receiver.
 
     Equality and hashing use this handle's identity, not the scientific object's
     values. Provider-owned objects can be mutable, unhashable or define their own
@@ -586,10 +590,12 @@ class HostedContribution:
     this contract neither identifies code bytes nor proves method purity.
     """
 
-    contribution: Contribution
+    contribution: Contribution | None
     host: InitVar[str]
     allocation_name: InitVar[str]
     requirements: frozenset[ResourceRequirement]
+    contribution_type: type[Contribution] | None = None
+    constructor: Callable[[], Contribution] | None = field(default=None, repr=False, compare=False)
     resident_resources: frozenset[ResourceRequirement] = frozenset()
     isolation: IsolationRequirement = IsolationRequirement.SHARED_PROCESS
     description: ImplementationDescription = field(init=False)
@@ -602,9 +608,21 @@ class HostedContribution:
     _analysis_close: _LifecycleMethod | None = field(init=False, repr=False, compare=False)
 
     def __post_init__(self, host: str, allocation_name: str) -> None:
-        require_instance(self.contribution, Contribution)
+        if self.contribution is None:
+            require_subclass(self.contribution_type, Contribution)
 
-        contribution_type = type(self.contribution)
+            contribution_type = self.contribution_type
+        else:
+            require_instance(self.contribution, Contribution)
+
+            contribution_type = type(self.contribution)
+
+            if self.constructor is not None:
+                raise TypeError(f"{type(self.constructor)=}; exact-object adoption should not supply a constructor")
+
+            if self.contribution_type is not None:
+                require_subclass(self.contribution_type, Contribution)
+                require_type(self.contribution, self.contribution_type)
 
         _require_resource_requirements(resource_requirements=self.requirements)
         object.__setattr__(self, "_initialize", _lifecycle(owner=contribution_type, method_name="initialize", expected_parameters={"assets": AssetAccess}))
@@ -690,7 +708,7 @@ class HostedContribution:
         """Select an exported method of this receiver without string dispatch."""
 
         if inspect.ismethod(object=method):
-            if not (method.__self__ is self.contribution):
+            if (self.contribution is None) or (method.__self__ is not self.contribution):
                 raise ValueError("Cannot select a method bound to another contribution instance")
 
             method = method.__func__
@@ -703,6 +721,29 @@ class HostedContribution:
 
     def reference(self, *, method: Callable) -> CallRef:
         return ref(call=self.call(method=method))
+
+    def construct_instance(self) -> Contribution:
+        """Construct on the host-owned worker after its lifetime is retained."""
+
+        if self.contribution is not None:
+            return self.contribution
+
+        if self.constructor is None:
+            raise RuntimeError(f"{self.contribution_type=} has no constructor; {self.allocation=}")
+
+        instance = self.constructor()
+
+        require_type(instance, self.contribution_type)
+
+        custody = instance._custody
+
+        with custody.lock:
+            if custody.owner is not None:
+                raise ValueError(f"Cannot claim {self.allocation=}; {custody.owner=} already owns the constructed contribution")
+
+            custody.owner = self.allocation
+
+        return instance
 
     def initialize_instance(self, *, instance: Contribution, assets: AssetAccess) -> None:
         self._initialize.invoke(instance=instance, assets=assets)

@@ -1,3 +1,6 @@
+[execution]
+backend = "thread"
+
 # Capacity for scientific execution in this deployment.
 [execution.in_process_execution_host]
 input_bytes = 8192

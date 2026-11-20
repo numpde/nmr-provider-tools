@@ -1,0 +1,206 @@
+# Scientific process boundary: critical grading and revision
+
+Date: 20 November 2026 (Africa/Nairobi).
+Branch: feature/process-scientific-host-20261119.
+Review baseline: 29121c9f4bb5436abf9a0fdcf78533a99e125af0.
+Integrated main: 4abaee127128e7147d6a85702e8dd0ca6a251922.
+Final code checkpoint: f9a7d535ef86942a65d9bfc5fe4f79e509417687.
+Final code tree: a398c2dff43a8751f3c5f0e7821a5c1f7755ce6c.
+
+The commit containing this record changes documentation only. It preserves the
+reviewed code checkpoint. This is a source-reviewed candidate for qualification,
+not a passing installed qualification or a merge/release approval.
+
+## Goal, scope and independent panel
+
+The requested stopping condition is at least 9.5/10 on every criterion.
+That condition is NOT met. All identified material source corrections from
+this panel are addressed; actual installed behavioral evidence is absent.
+Scores have not been raised to compensate for that absence.
+
+Three independent reviewers examined architecture, lifecycle/ownership, and
+evidence/operability. They did not author the implementation or edit files.
+Each supplied its own verdict on a frozen candidate before seeing peers'
+verdicts for that round. A separate author implemented the actual-child proofs;
+the root implemented the product corrections and reconciled the reviews.
+
+Reference standards were read from numpde/hello-world at
+5818d38b8deedc4728c6e72ed4e74210462ba8d5:
+
+- notes/000_portable_engineering_practices.txt, especially A2, A5, A7-A9
+  and C1-C5: input boundaries, delivered-artifact evidence, bounded ownership,
+  useful protected diagnostics, behavioral tests and coherent commits.
+- notes/003_infrastructure_hierarchy.txt: one owner per mechanism, explicit
+  dependency direction, replaceable adapters, and no speculative framework.
+
+These are review standards, not evidence that proposed hello-world machinery
+or this process profile has passed checks. The process scope remains the same
+installed Linux/native profile, one allocation and one active analysis, with
+the existing runner. No additional platform, descendant containment, real-model
+GPU qualification, cross-version compatibility or automatic recovery is claimed.
+
+The priority is continuous ownership and truthful effects/failures first;
+precise authority and bounded cleanup next; then installed behavioral evidence
+and usable diagnostics. Extra abstractions, scenario matrices and repeated
+source reviews cannot substitute for the missing execution evidence.
+
+## Fixed rubric and actual grades
+
+A criteria are explicitly source-level architectural judgments. B and C also
+grade the evidence for promised runtime behavior. Overall scores are each
+reviewer's holistic verdict, not arithmetic averages or an aggregate pass.
+The threshold applies to every individual criterion.
+
+Round 1 reviewed the baseline above. Round 2 reviewed tree
+271f23d06e71df2f39613734cf70c521fac06583, published as 7662a2fa.
+Round 3 reviewed the final code tree above, published as f9a7d535.
+
+| ID | Criterion | Round 1 | Round 2 | Round 3 |
+| --- | --- | ---: | ---: | ---: |
+| A1 | Single authority; mechanism versus policy | 9.5 | 9.5 | 9.5 |
+| A2 | Common semantic contract; honest backend differences | 8.0 | 9.5 | 9.5 |
+| A3 | Change locality; future replaceability | 9.5 | 9.5 | 9.5 |
+| A4 | Usage clarity, naming and diagnostics | 9.0 | 9.5 | 9.5 |
+| A5 | Parsimony, source/test complexity and explanatory comments | 9.5 | 9.5 | 9.5 |
+| B1 | Continuous ownership, cancellation, handoffs and actual termination | 9.0 | 9.2 | 9.2 |
+| B2 | Truthful uncertainty, no replay, monotone evidence, independent outcomes | 8.3 | 9.2 | 9.2 |
+| B3 | Allocation, analysis, operation and state authority; expiry | 8.8 | 9.3 | 9.3 |
+| B4 | Time, capacity, retention and control during stalls | 8.8 | 9.0 | 9.2 |
+| C1 | Narrow code/data boundary; environment/FD grants; security scope | 8.0 | 9.2 | 9.2 |
+| C2 | Behavioral, economical and discriminating tests | 6.0 | 8.5 | 9.0 |
+| C3 | Reproducible installed qualification; truthful evidence/commits | 6.0 | 6.0 | 6.0 |
+| C4 | Operational diagnostics and maintainable public guidance | 7.5 | 8.5 | 9.2 |
+
+| Reviewer | Round 1 overall | Round 2 overall | Round 3 overall |
+| --- | ---: | ---: | ---: |
+| Architecture | 8.8 | 9.5 | 9.5 |
+| Lifecycle/ownership | 8.7 | 9.2 | 9.2 |
+| Evidence/operability | 6.5 | 7.5 | 7.8 |
+
+All three final reviewers found no further material source correction to request
+in their inspected paths. All recommended proceeding to maintained execution,
+with repairs driven by demonstrated failures. This does not establish that no
+undiscovered defect exists. The low C3 score is deliberate: candid reporting
+does not supply missing qualification.
+
+## Findings and revisions
+
+1. A confirmed StartDeadlineExpired response was being treated as ambiguous
+   delivery. The parent now propagates that actual SDK pre-admission refusal,
+   removes its provisional owner, and keeps the channel usable. Other uncertain
+   acknowledgements still retain their original operation without replay.
+
+2. Cached completion could hide an already known channel failure, and a lost
+   acknowledgement could hide subsequent native retirement forever. Parent
+   observations now reconcile remote scientific facts with local communication,
+   stop and native-retirement facts. Child exit expires child-only result bytes;
+   native resource release does not invent a scientific result or disposer success.
+
+3. Interim review caught equal child revisions containing newly known scientific
+   facts. The parent accepts those facts while canonical decoded failure evidence
+   prevents equivalent reconstructed exceptions from manufacturing revisions.
+   Known native receipt also prevents needless positive-wait I/O after retirement.
+
+4. Remote diagnostics lacked useful child locations. The wire now retains bounded
+   file/function/line facts and causal records, with no source or locals. One
+   immutable decoded record serves both observation comparison and the protected
+   diagnostic consumer. Foreign mutable attributes do not supply those facts.
+
+5. Round 2 identified a source-derived secret-fragment counterexample: truncating
+   an oversized message before known-secret redaction can remove the rest of a
+   secret. Oversized type/message/note text is now omitted whole with an explicit
+   fixed marker. Bounded independent causes and structured frames remain. The
+   loss of a useful oversized prefix is an intentional tradeoff; there is no
+   second redaction protocol or transfer of parent secrets into the worker.
+
+6. Missing actual-child proof designs now use independent witnesses and explicit
+   barriers: construction/initialization once across analyses, cancelled startup
+   after partial acquisition, independent initialization/close failures, active
+   worker death, an effect before acknowledgement loss, confirmed start expiry,
+   retained-result expiry, and host-driven retirement of still-held science.
+   Re-observation checks original ownership and allowances without restarting work.
+
+7. The test launchers now grant their scientific environment explicitly and check
+   excluded environment/descriptor identity. This is deployment policy exercised
+   by tests, not a claim that RunnerSession sanitizes a supervisor's environment.
+   The existing native runner remains the only termination/reaping owner.
+
+8. The installed NMRPeak test now checks foreign-allocation state and projects a
+   real child parse failure through protected diagnostics. The latter proves
+   proposed load-location/filename-redaction assertions, not an actual-child
+   opaque-message-secret scenario. That scenario has its own wire-to-consumer
+   unit regression. The API-dependent diagnostic assertion stays outside the
+   standard-library-only native lane.
+
+9. The current SDK/examples guide now describes session custody, installed
+   factories, supported data, common bindings, payload/frame limits, synchronous
+   control limits, scientific/native retirement and outstanding qualification.
+
+## Small published commits
+
+- b417f1b8: preserve known process admission expiry.
+- 1bbc672e: retain bounded scientific failure locations and received facts.
+- 833e94dc: reconcile observations with known communication/retirement facts.
+- 42add55b: witness scientific child ownership and uncertain handoffs.
+- 7662a2fa: document the scientific process hosting contract.
+- 8b0a89f3: omit oversized diagnostic scalars before secret redaction.
+- f9a7d535: exercise host-driven retirement and protected child locations.
+
+Each records Problem, Rationale, Change, actual Tests and Limits. Publication
+advanced the existing feature branch without force or history rewriting.
+Main was freshly checked at 4abaee12 and remains an ancestor. No merge or
+release was performed.
+
+## Verification actually performed
+
+Python 3.12.14 ast.parse covered all 11 changed Python files. The five Python
+files revised for round 3 were parsed again after their final edits. Parsing
+used isolated host-python -I -B; no repository module was imported or executed.
+git diff --check passed for staged batches and the complete code revision.
+Published Git trees matched the independently reviewed snapshots.
+
+The workspace has no Docker executable. No host fallback, dependency installation
+or container-guard bypass was used. No installed/native, unit, integration,
+fuzz or repository tests were run here. No passing count or red/green pair is
+claimed. The earlier evidence correction in Note 092 remains in force.
+
+GitHub was queried for code checkpoint f9a7d535: zero commit statuses, zero
+check runs and zero workflow runs were returned at this checkpoint. These empty
+results are not passing CI. No CI result establishes the candidate's behavior.
+
+## Required next qualification and re-grade
+
+Use a clean checkout of the published feature branch on the maintained science
+engine. Record git rev-parse HEAD before running. Stop at the first failure:
+
+    make tests/native/provider-core \
+        DOCKER_CONTEXT=science \
+        WHEELHOUSE="$HOME/Downloads/wheelhouse" \
+        PRIVACY_TESTS=0 && \
+    make tests/unit/provider-core \
+        DOCKER_CONTEXT=science \
+        WHEELHOUSE="$HOME/Downloads/wheelhouse" \
+        PRIVACY_TESTS=0 \
+        TEST_PATTERN=test_failure_projection.py && \
+    make tests/integration/provider-core \
+        DOCKER_CONTEXT=science \
+        WHEELHOUSE="$HOME/Downloads/wheelhouse" \
+        PRIVACY_TESTS=0 \
+        TEST_PATTERN=test_peak_example.py && \
+    make tests/repository \
+        DOCKER_CONTEXT=science \
+        WHEELHOUSE="$HOME/Downloads/wheelhouse" \
+        PRIVACY_TESTS=0
+
+PRIVACY_TESTS=0 preserves the selected qualification policy; the new synthetic
+secret-boundary regressions are not skipped by that setting. The complete native
+lane includes lifecycle, host, wire, worker and existing native-owner cases.
+The selected unit test alone does not qualify native behavior.
+
+For B1-B4 and C1-C4, retain the exact revision, commands, discovered test counts,
+outcomes and full failures. Repair demonstrated failures in small commits, rerun
+affected gates, and satisfy any broader required qualification gates before
+claiming merge readiness. Re-grade the same rubric using those observations.
+
+The final source-review stopping point is reached. The requested all-9.5
+completion remains blocked on installed execution and any corrections it reveals.

@@ -1,0 +1,190 @@
+# Scientific process host: bounded installed qualification
+
+Date: 20 November 2026 (Africa/Nairobi).
+Branch: feature/process-scientific-host-20261119.
+Campaign baseline: c2a2c555a204c93d63bac76b7d5e0ee51ea873a3.
+Tested candidate: b1fca04f046c2be1f7fae8476f4f2ca18faffc3f.
+SDK executable-source tree: f72530b67af8244050bb109aa73e9bec0b7e2d12.
+SDK test tree: 2f11c4ab814ff76b54bf40202007f864e858d242.
+
+Installed contract, full unit, native and full integration qualification passed
+on the tested candidate. The commit containing this record changes documentation
+only; it is not the revision on which the tests ran. README changes can
+change wheel metadata even when executable source remains identical.
+
+## Scope and environment
+
+This campaign qualifies the scientific execution boundary. All repository checks
+are deferred and excluded from grading by explicit user direction. They remain
+enabled and unchanged. Repository qualification, merge readiness, publication and
+deployment are separate decisions; none is established by this record.
+
+The selected context is science, using
+unix:///run/user/1000/docker-engines/science/docker.sock.
+Engine ID: 3212a927-9058-4b2e-92bf-69971ec922c3.
+Docker 29.10.0; rootless Linux x86_64; Ubuntu 24.04.5 LTS;
+kernel 7.0.0-43-generic.
+Checker image: sha256:d3304b132bf168b51e8626eda6e7698b0454c803bef9c81028fa489779866d95.
+Wheelhouse: /home/ra/Downloads/wheelhouse, mounted read-only by the maintained lanes.
+Python 3.12; provider_core-0.6.19-py3-none-any.whl.
+Tested wheel SHA-256: f588c404fdc98266d17469e3095519ad136f20c352e6481638ea785596510711.
+
+Tests ran through maintained Make targets, in installed isolated Python
+environments. The full unit target also installs the SDK without optional API
+or test dependencies and runs the native suite separately. No host test fallback,
+dependency acquisition, repository-check execution or runtime-code change was used.
+
+## Commands and observed results
+
+Run these sequentially, without TEST_PATTERN, from the clean tested candidate:
+
+    make tests/contract/provider-core DOCKER_CONTEXT=science WHEELHOUSE="$HOME/Downloads/wheelhouse" PRIVACY_TESTS=0
+    make tests/unit/provider-core DOCKER_CONTEXT=science WHEELHOUSE="$HOME/Downloads/wheelhouse" PRIVACY_TESTS=0
+    make tests/integration/provider-core DOCKER_CONTEXT=science WHEELHOUSE="$HOME/Downloads/wheelhouse" PRIVACY_TESTS=0
+
+| Installed lane | Discovered | Skipped | Result |
+| --- | ---: | ---: | --- |
+| Contract | 18 | 2 | PASS |
+| Full unit | 1113 | 92 | PASS |
+| Native, separate minimal installation within full unit target | 185 | 0 | PASS |
+| Full integration, including maintained provider examples | 421 | 30 | PASS |
+
+All 124 skips are explicitly reported as "Privacy tests disabled". They are
+exclusions, not executed privacy qualification. The synthetic wire-secret and
+protected-child location regressions are not disabled by this setting.
+
+Full raw logs are local receipts under /tmp/nmr-b1fca04f-{contract,unit,integration}.log.
+They are not committed artifacts. The final record retains their SHA-256 values,
+counts, commands and revision; preserving the raw local files remains necessary
+for inspecting their complete output without rerunning.
+
+| Local receipt | SHA-256 |
+| --- | --- |
+| /tmp/nmr-b1fca04f-contract.log | 98563f41ad6770081a28dd4e2637afd9d492a3ae5226a0c05f72feb4dd8fe4e9 |
+| /tmp/nmr-b1fca04f-unit.log | 0b95ba23d9b39e8335c2ae262083e49fb90eedc93818cd8b301449f20af9fde0 |
+| /tmp/nmr-b1fca04f-integration.log | 11f03b05e975a5d920ce723c75e7bdafbb4a99eb050b2e17b4373500215f5008 |
+
+Observed suite times were 3.036 seconds contract, 172.507 seconds unit,
+10.925 seconds native and 251.209 seconds integration, excluding lane setup.
+
+## Demonstrated failures and corrections
+
+At c2a2c555, contract ran 18 tests with one failure and two skips: its closed
+wheel inventory omitted the three intended scientific process modules.
+b0360923 adds exactly those entries, preserving rejection of unexpected payloads.
+
+At b0360923, full unit ran 1113 tests with seven failing subcases and 92 skips.
+df7afc32 reuses the existing production-formatter logger capture in three proxy
+test helpers. 0e4c7d47 preserves write direction/count, partial delivery, original
+exception and deadline assertions without freezing incidental diagnostic rendering.
+Focused results: proxy posture 27 tests, six skips; proxy logging four tests,
+one skip; upload recovery 17 tests, no skips; all passed.
+
+At 0e4c7d47, full integration ran 421 tests with two errors and 30 skips.
+dc529536 selects credential/CA fixture bytes by explicit configured paths rather
+than an obsolete reader keyword. b1fca04f updates two dummy-example accesses to
+the existing analysis_instance owner, preserving exact-session reuse assertions.
+Focused cancellation ran one test and execution selection ran three tests; both
+passed without skips. Independent reviewers inspected each integrated correction.
+
+The campaign changed six test files and no runtime source. No new test case,
+general framework, weakened repository guard or architecture expansion was added.
+
+## What the existing behavioral evidence establishes
+
+The actual-child native lifecycle cases witness one construction/initialization
+across two analyses; restricted environment and descriptor grants; cancelled
+startup with partial cleanup; independent initialization and close failures;
+worker death during science; an effect before lost acknowledgement without replay;
+host-driven scientific grace expiry followed by native termination; and admission
+expiry followed by valid use of the same worker.
+Environment grants come from deployment/test launchers; RunnerSession does not
+sanitize its supervisor's inherited environment.
+
+Host observation cases retain known scientific facts while reconciling channel
+failure and native retirement, expire child-only results, and preserve original
+cleanup owners and deadlines. Scientific outcome, cleanup success, child exit and
+native resource release remain separate facts.
+
+Installed NMRPeak cases exercise the same provider workflow with startup-selected
+backends, sequential process reuse, consumed and foreign-allocation state refusal,
+worker death and partial checkpoint loading. Protected diagnostics retain the
+actual child's load locations and causes while redacting configured filename text.
+These are mock-model proofs, not real-checkpoint/GPU deployment evidence.
+
+## Independent grading
+
+Three read-only reviewers assessed architecture, lifecycle/ownership and
+evidence/operability independently, without receiving peers' verdicts. The
+coordinator owned every edit. Reviewers also diagnosed and audited the small
+test corrections described above; no reviewer authored runtime code.
+They examined existing tests first and requested no additional test or runtime
+change to raise grades. Source architecture grades transferred across the
+test-only commits; lifecycle/evidence grades waited for the final runtime logs.
+
+The same thirteen criteria as Note 094 apply, with repository hygiene excluded
+explicitly. Scores are reviewer judgments for the tested scope, not claims of
+exhaustive fault coverage. Each criterion meets the requested 9.5 threshold;
+there is no averaged or aggregate passing score.
+
+| ID | Criterion | Reviewer | Grade |
+| --- | --- | --- | ---: |
+| A1 | Single authority; mechanism versus policy | Architecture | 9.5 |
+| A2 | Common semantic contract; honest backend differences | Architecture | 9.5 |
+| A3 | Change locality; future replaceability | Architecture | 9.5 |
+| A4 | Usage clarity, naming and diagnostics | Architecture | 9.5 |
+| A5 | Parsimony, source/test complexity and explanatory comments | Architecture | 9.5 |
+| B1 | Continuous ownership, cancellation, handoffs and actual termination | Lifecycle | 9.5 |
+| B2 | Truthful uncertainty, no replay, monotone evidence, independent outcomes | Lifecycle | 9.5 |
+| B3 | Allocation, analysis, operation and state authority; expiry | Lifecycle | 9.5 |
+| B4 | Time, capacity, retention and control during stalls | Lifecycle | 9.5 |
+| C1 | Narrow code/data boundary; environment/FD grants; security scope | Evidence | 9.5 |
+| C2 | Behavioral, economical and discriminating tests | Evidence | 9.5 |
+| C3 | Reproducible installed qualification; truthful evidence/commits | Evidence | 9.5 |
+| C4 | Operational diagnostics and maintainable public guidance | Evidence | 9.5 |
+
+Architecture evidence: NMRPeak provider.py selects backend and class bindings;
+application.py uses AnalysisExecution without a backend branch or live model.
+scientific.py shares declarations across exact-object and class-only construction.
+process_worker.py delegates scientific execution to InProcessExecutionHost;
+process_host.py retains parent requests and existing AsyncRunnerSession native
+ownership. The public guide states actual startup, data and control limits.
+
+Lifecycle evidence: process_host.py retains startup before acquisition and
+operations before transmission. _snapshot/_publish reconcile science, transport
+and native facts without replay or fictitious outcomes. Original cleanup and
+handoff owners outlive cancelled observers; confirmed admission expiry has its
+own path. Native lifecycle logs include all seven actual-child cases; installed
+NMRPeak integration includes all six process-specific cases. The B grades include
+the documented synchronous control allowance, not fully asynchronous control.
+
+Evidence/operability: process_wire.py uses bounded closed data and failure
+records; runner.py remains the only native termination owner. Independent child
+witnesses and installed-provider cases establish distinct effects and cleanup
+facts. Complete installed receipts identify one revision and one wheel hash.
+Protected rendering preserves bounded remote causes and locations, redacts known
+secrets before display limits, and omits oversized wire scalars whole. Disabled
+privacy cases, repository hygiene and real-model/GPU behavior are not silently
+counted as executed evidence.
+
+## Supported v1 and next boundary
+
+The supported v1 profile is thread or persistent process execution of the
+existing declared Contribution operations through portable bindings. Process
+construction uses an installed factory and explicit bounded startup data. Each
+process host owns one allocation and one active analysis; prepared state stays
+worker-owned and reference-addressed. Communication uses the bounded private
+protocol and pinned installed Linux/container code. Unknown replies retain the
+original operation; no automatic replay is granted. Shutdown retains original
+scientific cleanup followed by native retirement.
+
+The documented two-second synchronous control allowance, 1 MiB encoded input/
+result limit and 8 MiB frame limit remain explicit constraints. This is an
+execution boundary within existing containment, not another security sandbox.
+
+Independent offerings, real-model/GPU execution, controlled replacement,
+unattended parent-death containment, broader concurrency, cross-version workers,
+additional platforms and automatic recovery remain outside this qualification.
+Next, demonstrate two independent offering lifetimes without multiplying shared
+capacity, then adopt one real scientific model. Repository checks must receive
+their own disposition before any eventual merge-readiness claim.

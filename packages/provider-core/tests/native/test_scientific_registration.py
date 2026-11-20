@@ -5,7 +5,7 @@ from __future__ import annotations
 import asyncio
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass, replace
-from threading import Barrier, Event
+from threading import Barrier, Event, current_thread
 import unittest
 
 from provider_core.embedded_host import Allocation, InProcessExecutionHost
@@ -298,6 +298,99 @@ class AdoptionTests(unittest.IsolatedAsyncioTestCase):
     async def retire(self, *, host):
         async with asyncio.timeout(10):
             await observe_cleanup(control=host.retire())
+
+    async def test_class_declaration_compiles_without_constructing_a_receiver(self):
+        requirements = frozenset({ResourceRequirement(kind="cpu", amount=1, unit="thread")})
+        class_only = HostedContribution(
+            contribution=None,
+            contribution_type=Sum,
+            host="remote-host",
+            allocation_name="prediction",
+            requirements=requirements,
+        )
+        instance = Sum(configuration=Settings(scale=2))
+        adopted = self.host.adopt(contribution=instance, requirements=requirements)
+
+        self.assertIsNone(obj=class_only.contribution)
+        self.assertEqual(first=adopted.description.binding_revision, second=class_only.description.binding_revision)
+        self.assertEqual(
+            first=adopted.call(method=Sum.calculate).description,
+            second=class_only.call(method=Sum.calculate).description,
+        )
+
+        with self.assertRaises(expected_exception=ValueError):
+            class_only.call(method=instance.calculate)
+
+    async def test_class_handle_does_not_turn_an_unbound_method_into_a_receiver(self):
+        instance = Sum(configuration=Settings(scale=2))
+        hosted = self.host.adopt_class(
+            contribution_type=Sum,
+            constructor=lambda: instance,
+            requirements=frozenset(),
+        )
+        analysis = self.host.open_analysis(allocations=frozenset({hosted.allocation}))
+        reservation = analysis.reservation(allocation=hosted.allocation)
+
+        with self.assertRaises(expected_exception=ValueError):
+            analysis.submit_method(
+                method=Sum.calculate,
+                scientific_input=Numbers(values=(1, 2)),
+                states={},
+                reservation=reservation,
+                policy=deadline_policy(),
+            )
+
+        self.assertEqual(first=0, second=instance.calls)
+
+        call = hosted.call(method=Sum.calculate)
+        operation = analysis.submit_call(
+            call=call,
+            payload=call.encode_input(value=Numbers(values=(1, 2))),
+            states={},
+            reservation=reservation,
+            policy=deadline_policy(),
+        )
+        observed = await observe_completion(operation=operation)
+
+        self.assertIs(expr1=Outcome.SUCCEEDED, expr2=observed.outcome)
+        self.assertEqual(first=1, second=instance.calls)
+
+        await observe_cleanup(control=operation.release_result(result=observed.require_result()))
+        await observe_cleanup(control=analysis.close())
+
+    async def test_host_owned_construction_starts_after_factory_custody(self):
+        constructed_instances = []
+        worker_threads = []
+
+        def construct() -> Sum:
+            worker_threads.append(current_thread())
+
+            instance = Sum(configuration=Settings(scale=2))
+
+            constructed_instances.append(instance)
+
+            return instance
+
+        hosted = self.host.adopt_class(
+            contribution_type=Sum,
+            constructor=construct,
+            requirements=frozenset({ResourceRequirement(kind="cpu", amount=1, unit="thread")}),
+        )
+
+        self.assertEqual(first=[], second=constructed_instances)
+
+        await self.host.initialize(allocation=hosted.allocation)
+
+        (instance,) = constructed_instances
+
+        self.assertIsNot(expr1=current_thread(), expr2=worker_threads[0])
+        self.assertEqual(first=1, second=instance.initializations)
+
+        with self.assertRaises(expected_exception=ValueError):
+            self.host.adopt(
+                contribution=instance,
+                requirements=frozenset({ResourceRequirement(kind="cpu", amount=1, unit="thread")}),
+            )
 
     async def test_adoption_does_not_initialize_or_replace_the_supplied_receiver(self):
         instance = Sum(configuration=Settings(scale=2))

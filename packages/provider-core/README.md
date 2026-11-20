@@ -7,6 +7,7 @@ inference, offerings, model configuration and their execution policy.
 ## Contents
 
 - [Scientific contributions](#scientific-contributions)
+- [Scientific process hosting](#scientific-process-hosting)
 - [Type requirements](#type-requirements)
 - [Scientific input tools](#scientific-input-tools)
 - [Attempts and capacity](#attempts-and-capacity)
@@ -29,12 +30,17 @@ Optional `initialize(assets=...)` and `close()` methods own loaded instance
 resources. An optional `Analysis[ContributionType]` owns a separate scientific
 session for each analysis.
 
-Provider setup passes each exact object to `host.adopt(contribution=...,
-requirements=...)`. The returned hosted handle exposes its compiled methods and
-allocation. Workflows submit actual bound methods through
+With `InProcessExecutionHost`, provider setup passes each exact object to
+`host.adopt(contribution=..., requirements=...)`. The returned hosted handle
+exposes its compiled methods and allocation. Workflows can submit actual bound
+methods through
 `InProcessAnalysisExecutor.submit_method(method=..., scientific_input=..., reservation=...,
 policy=...)`. Portable `Invocation` callers obtain addresses with
-`hosted.reference(method=...)`.
+`hosted.reference(method=...)`. For a workflow shared with the process backend,
+select exported class methods with `hosted.call(method=ContributionType.prepare)`
+and pass those bindings to `Submission` or `PreparationTool`. See
+[scientific process hosting](#scientific-process-hosting) for child construction,
+deployment requirements and the current supported scope.
 
 Configured-v3 revisions summarize the declared execution contract and input/result
 schemas. Settings, model provenance and installed code identity remain provider
@@ -77,6 +83,199 @@ cleanup. Use `settle_cleanup(control=...)` when shutdown must finish observing t
 cleanup before outer resources can close. Settlement can wait indefinitely;
 cleanup's overdue flag does not cancel a scientific thread or end the join. Both
 functions observe an existing control without repeating its cleanup request.
+
+## Scientific process hosting
+
+`provider_core.process_host.ProcessExecutionHost` owns one persistent scientific
+child through a deployment-supplied `RunnerSession`. The current profile uses
+the existing Linux/native container runtime, with parent and child using the
+same pinned installed SDK and provider code. One host accepts one allocation
+and one active analysis at a time; successfully closed analyses can be followed
+by new analyses on the same loaded model. This is an execution boundary within
+the existing containment, not an additional security sandbox.
+
+**Installed SDK qualification passed for candidate `b1fca04f`.**
+[Note 095](../../notes/095_scientific_process_qualification_20261120.txt) records
+the exact installed artifact, complete contract/unit/native/integration results,
+privacy skips and independent grades for the bounded profile above. Repository
+checks remain deferred and excluded from this campaign; merge and release
+readiness are separate decisions. These results do not establish real-model/GPU
+suitability, cross-version compatibility, additional platforms or unattended recovery.
+
+[Note 096](../../notes/096_scientific_boundary_final_audit_20261120.txt) records
+the renewed 10/10 audit and the 30-test installed NMRPeak follow-up at `78ee7cf1`
+after removing a redundant startup exception handler. It distinguishes that
+affected-suite result from the earlier complete qualification matrix.
+
+### Deployment and startup
+
+Deployment starts the existing `provider_core.runner` with
+`--owner-session-lifetime` and a fixed installed worker command after `--`:
+
+```sh
+python -I -B -m provider_core.process_worker
+```
+
+The runner still requires its role, socket, scratch and status-directory paths
+and explicit startup, TERM, KILL and cleanup budgets. See
+[Runner lifecycle](#runner-lifecycle). Deployment provisions the private
+directories, verifies the stable lifetime lock identity, and supplies a fresh,
+unconnected `RunnerSession(path, role=..., expected_lock_identity=...,
+startup_seconds=..., retirement_seconds=...)`. The expected identity is the
+lock's `(st_dev, st_ino)` pair. `ProcessExecutionHost` uses that session; it does
+not launch or discover a supervisor.
+
+The deployment must grant only the environment, files and descriptors needed
+by this worker. The runner inherits its supervisor's environment and sets
+`TMPDIR`; injecting a session does not sanitize unrelated credentials or service
+configuration. Its child launch uses `close_fds=True` and passes the science
+socket and lifetime lease; standard output/error and external file access still
+need appropriate deployment grants. The worker keeps the lease through process
+exit. Direct-worker termination does not establish descendant containment.
+
+Construct and control the host on its owning event loop. Ownership of the fresh
+session transfers only after the host constructor returns successfully. A
+configuration or constructor refusal before that leaves the session with its
+caller. Put the host in an async context before starting science; its exit owns
+original retirement even when startup raises or its waiter is cancelled.
+
+`host.start(...)` requires an installed contribution class for metadata, an
+installed `module:factory` constructor path, a startup mapping and resource
+requirements as a `frozenset[ResourceRequirement]`. The child calls
+`factory(startup=startup)`. There is no constructor
+discovery or live-object transfer. Startup values use the bounded data encoding:
+string-keyed mappings, lists/tuples, finite scalar values, bytes and explicitly
+admitted SDK records. Convert provider settings to plain data and paths to
+strings; arbitrary dataclasses, models and callables are not serialized.
+
+Inside async startup, the existing NMRPeak assembly starts its HF contribution
+as follows.
+`host_options` contains the required `input_bytes`, `result_bytes`, `state_values`,
+`progress_records`, `initialization_seconds` and `retirement_seconds`; the remaining
+values come from its deployment configuration and supplied session.
+
+```python
+from nmrpeak_mock_provider.binding import Hf
+from provider_core.process_host import ProcessExecutionHost
+
+async with ProcessExecutionHost(session=process_session, **host_options) as host:
+    hosted = await host.start(
+        contribution_type=Hf,
+        constructor="nmrpeak_mock_provider.process_factory:construct",
+        startup={
+            "contribution_class": Hf.__name__,
+            "settings": offering_config["settings"],
+            "checkpoint_path": str((PROVIDER_CONFIG_PATH.parent / offering_config["checkpoint_path"]).resolve()),
+        },
+        requirements=resource_requirements,
+    )
+
+    preparation_call = hosted.call(method=Hf.prepare)
+    generation_call = hosted.call(method=Hf.generate)
+    # Run and settle request lifetimes here, using these portable bindings.
+```
+
+Keep the contribution constructor lightweight. Acquire model resources in
+`initialize(assets=...)`, after the SDK owns the contribution, and retain partial
+acquisitions for `close()`. Resources hidden inside a failing constructor cannot
+be recovered by the SDK. `start()` returns after initialization and declaration
+agreement; cancelling its waiter leaves the original startup owned by the host.
+Do not call `start()` again to replace that work. The returned hosted handle has
+class metadata and allocation references, with no live parent receiver.
+
+### Requests, limits and retirement
+
+Provider assembly selects the preparation/generation bindings and prompt.
+Request code uses `host.open_analysis(allocations=frozenset({hosted.allocation}))`,
+its explicit reservation, `AnalysisExecution`, `PreparationTool` and
+`Submission.from_call(...)` on either backend. Keep live-model lookups and
+`submit_method()` out of that shared workflow. Prepared scientific values stay
+in their worker; only encoded inputs/results and scoped state references cross
+the channel. Consumption remains single-use, and a replacement allocation
+cannot inherit old state handles.
+
+All control stays on the original event loop. `open_analysis()`, `submit()` and
+operation/analysis `request_stop()` are synchronous channel exchanges and can
+block that loop for their two-second transport allowance. Async startup,
+observations, result reads and cleanup retain their own I/O, but this backend
+does not provide fully asynchronous, continuously responsive control.
+
+The process channel permits at most **1 MiB per encoded input or result** and
+**8 MiB per encoded frame**. Per-operation input/result allowances above 1 MiB
+are refused before transmission, even if the host's aggregate budgets are larger.
+There is no chunked transfer. Size checks on an input precede science; result
+encoding can fail after scientific work has happened.
+
+Retain a `Submission` before delivery and observe its original operation.
+A validated `NotAdmitted` reply or the SDK's confirmed pre-admission
+`StartDeadlineExpired` is distinct from an unknown reply. A lost, malformed or
+timed-out reply retains the original operation and makes the channel unavailable;
+it never grants permission to repeat science. Known completion/result facts
+survive a later channel failure. Infrastructure failure does not become
+correctable scientific input rejection, and arbitrary Python exception identity
+does not survive transport. There is no automatic replay, restart or replacement.
+
+Remote failures retain bounded causes and child file/function/line locations.
+Oversized diagnostic text is omitted whole before transport so it cannot leave
+a configured secret fragment. Protected operator diagnostics redact configured
+secrets before their display limits; ordinary Python tracebacks remain raw
+protected evidence.
+
+Finish receiver/request tasks within the host lifetime. Result release and
+analysis close start retained cleanup; observe them with `observe_cleanup` or
+settle them with `settle_cleanup`. An expired wait or cancelled observer does
+not restart cleanup or cancel its original work. Analysis capacity becomes
+available again only after successful scientific close and its final handoff.
+Retained results have their own release lifetime.
+
+Host retirement gives outstanding startup, handoffs and scientific cleanup one
+grace interval, then uses the runner session's separate native retirement
+allowance. Deployment must budget for TERM, KILL, reaping and scratch cleanup.
+Confirmed worker termination and scratch release settle native resources;
+they do not establish that `Contribution.close()` succeeded or that science
+produced a result. Scientific cleanup failures remain reported even after native
+resources retire. Unconfirmed worker or scratch ownership remains unresolved
+and unavailable. Preserve the original host and cleanup evidence until settled.
+
+### Selecting the NMRPeak mock backend
+
+The [NMRPeak startup](../../examples/nmrpeak-mock-provider/src/nmrpeak_mock_provider/provider.py)
+defaults to `backend = "thread"` when the setting is absent. Process selection is
+explicit: set `backend = "process"` under `[execution]` and supply one fresh
+deployment-owned session per `(family, configuration index)` through
+`process_sessions`. Each configured model has its own one-allocation process host.
+The shipped HF/CHF configuration declares static `process_capacity` shares whose
+aggregate input/result/state totals must fit `[execution.in_process_execution_host]`.
+Progress history remains per-operation policy; hardware grants belong to deployment.
+
+Process mode requires the installed mock `Model` class exactly; an arbitrary
+injected model constructor is not a supported child factory. Its installed
+[factory](../../examples/nmrpeak-mock-provider/src/nmrpeak_mock_provider/process_factory.py)
+reconstructs settings in the child, and startup resolves the checkpoint path
+before the worker enters its private directory. With deployment-supplied endpoint
+factories, secrets, receiver, source text and the fresh session mapping, the async
+request path is:
+
+```python
+from nmrpeak_mock_provider.fake_model import Model as MockModel
+from nmrpeak_mock_provider.provider import open_offerings
+
+async with open_offerings(
+    create_model=MockModel,
+    endpoint_factories=endpoint_factories,
+    secrets=secrets,
+    process_sessions=process_sessions,
+) as offerings:
+    offering = next(offering for offering in offerings if offering.family == "hf")
+
+    async with offering.open_prediction(receive=receive_report) as prediction:
+        await prediction.interpret(source=source_text)
+        await prediction.deliver()
+```
+
+The provider owns receiver, analysis and interpreter settlement in that order.
+Further predictions can use the same offering sequentially. Thread mode accepts
+the existing injected constructors and rejects unused `process_sessions`.
 
 ## Retained scientific submissions
 
@@ -146,7 +345,7 @@ remain ordinary frozen/slotted dataclasses.
 from provider_core.preparation_tool import PreparationTool
 
 preparation_tool = PreparationTool(
-    call_binding=hosted_predictor.call(method=hosted_predictor.contribution.prepare),
+    call_binding=hosted_predictor.call(method=ScientificContribution.prepare),
     state_output_slot=ScientificContribution.validated,
     analysis_executor=analysis_executor,
     reservation_ref=analysis_executor.reservation(allocation=hosted_predictor.allocation),
