@@ -9,6 +9,7 @@ from provider_core.container_guard import require_container
 
 require_container()
 
+import reprlib
 import tomllib
 from dataclasses import replace
 
@@ -30,12 +31,12 @@ class DeliveryConfigurationRejected(ValueError):
         self.cause = cause
 
 
-def _fields(table, fields, label):
+def _fields(table, expected_fields, section_name):
     if not (type(table) is (expected_type := dict)):
-        raise DeliveryConfigurationRejected(f"{label=}; {type(table)=} ≠ {expected_type=}")
+        raise DeliveryConfigurationRejected(f"{section_name=}; {type(table)=} ≠ {expected_type=}")
 
-    if set(table) != fields:
-        raise DeliveryConfigurationRejected(f"{label=} must contain exactly its documented fields.")
+    if not ((actual_fields := set(table)) == expected_fields):
+        raise DeliveryConfigurationRejected(f"{section_name=}; {reprlib.repr(actual_fields)=} should match {expected_fields=}")
 
 
 def _binding(table):
