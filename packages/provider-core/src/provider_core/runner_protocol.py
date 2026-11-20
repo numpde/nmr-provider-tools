@@ -12,6 +12,8 @@ import socket
 import struct
 import time
 
+from provider_core.type_requirements import require_type
+
 # Bound the runner control message before parsing or dispatch.
 # repo-check: allow-module-constant
 MAXIMUM_CONTROL_BYTES = 4096
@@ -85,8 +87,7 @@ def receive_document(connection, *, deadline):
     except (ValueError, UnicodeError) as cause:
         raise LifecycleRejected("Runner lifecycle reply is not a complete JSON document.") from cause
 
-    if not (type(lifecycle_message) is (expected_type := dict)):
-        raise LifecycleRejected(f"{type(lifecycle_message)=} ≠ {expected_type=}")
+    require_type(lifecycle_message, dict, error_factory=LifecycleRejected)
 
     return lifecycle_message
 
@@ -148,23 +149,20 @@ def receive_greeting(connection, *, deadline):
 
         role = greeting_message["role"]
 
-        if not (type(role) is (expected_type := str)):
-            raise LifecycleRejected(f"{type(role)=} ≠ {expected_type=}")
+        require_type(role, str, error_factory=LifecycleRejected)
 
         if not re.fullmatch(pattern := r"[a-z][a-z0-9_-]{0,47}", role):
             raise LifecycleRejected(f"Runner {role=} does not follow {pattern=}.")
 
         lock = greeting_message["lock"]
 
-        if not (type(lock) is (expected_type := list)):
-            raise LifecycleRejected(f"{type(lock)=} ≠ {expected_type=}")
+        require_type(lock, list, error_factory=LifecycleRejected)
 
         if len(lock) != 2:
             raise LifecycleRejected("Runner greeting has invalid generation, operation or lock identity.")
 
         for part in lock:
-            if not (type(part) is (expected_type := int)):
-                raise LifecycleRejected(f"{type(part)=} ≠ {expected_type=}")
+            require_type(part, int, error_factory=LifecycleRejected)
 
             if part < 0:
                 raise LifecycleRejected("Runner greeting has invalid generation, operation or lock identity.")
