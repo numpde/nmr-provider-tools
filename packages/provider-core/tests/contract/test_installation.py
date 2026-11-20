@@ -101,6 +101,7 @@ class InstallationContractTests(unittest.TestCase):
                 "provider_core/contribution_declaration.py",
                 "provider_core/contribution_errors.py",
                 "provider_core/hosting.py",
+                "provider_core/execution_setup.py",
                 "provider_core/failure_collection.py",
                 "provider_core/input_tool.py",
                 "provider_core/preparation_tool.py",

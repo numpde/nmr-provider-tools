@@ -8,6 +8,7 @@ import tomllib
 
 from provider_core.embedded_host import InProcessExecutionHost
 from provider_core.hosting import OperationPolicy
+from provider_core.execution_setup import ExecutionSettings, parse_resource_requirements
 from provider_core.process_host import ProcessExecutionHost
 from provider_core.runner_session import RunnerSession
 from provider_core.scientific import HostedContribution, ResourceRequirement
@@ -27,10 +28,7 @@ def read_resource_requirements() -> frozenset[ResourceRequirement]:
     with PROVIDER_CONFIG_PATH.open(mode="rb") as source:
         configuration = tomllib.load(source)
 
-    return frozenset(
-        ResourceRequirement(**requirement)
-        for requirement in configuration["execution"]["resource_requirement"]
-    )
+    return parse_resource_requirements(configuration["execution"]["resource_requirement"])
 
 
 @dataclass(frozen=True, slots=True, kw_only=True, eq=False)
@@ -57,32 +55,15 @@ async def open_provider(
         configuration = tomllib.load(source)
 
     execution = configuration["execution"]
-    backend = execution["backend"]
-    operation_policy = OperationPolicy(**execution["operation_policy"])
-    requirements = frozenset(
-        ResourceRequirement(**requirement)
-        for requirement in execution["resource_requirement"]
-    )
+    settings = ExecutionSettings(execution)
     weighted = configuration["science"]["weighted"]
-
-    if backend == "thread":
-        if process_session is not None:
-            raise ValueError("Cannot start thread execution with a scientific process session; threads do not use that session")
-
-        execution_host = InProcessExecutionHost(**execution["host"])
-    elif backend == "process":
-        if process_session is None:
-            raise ValueError("Cannot start process execution without a deployment-owned scientific runner session")
-
-        execution_host = ProcessExecutionHost(session=process_session, **execution["host"])
-    else:
-        raise ValueError(f"Cannot start dummy provider with {backend = !r}; choose 'thread' or 'process'")
+    execution_host = settings.create_host(process_session=process_session)
 
     async with execution_host:
-        if backend == "thread":
+        if settings.backend == "thread":
             hosted = execution_host.adopt(
                 contribution=construct(startup=weighted),
-                requirements=requirements,
+                requirements=settings.resource_requirements,
             )
             await execution_host.initialize(allocation=hosted.allocation)
         else:
@@ -90,7 +71,7 @@ async def open_provider(
                 contribution_type=WeightedSum,
                 constructor="dummy_provider.process_factory:construct",
                 startup=weighted,
-                requirements=requirements,
+                requirements=settings.resource_requirements,
             )
 
-        yield Provider(execution_host=execution_host, weighted=hosted, operation_policy=operation_policy)
+        yield Provider(execution_host=execution_host, weighted=hosted, operation_policy=settings.operation_policy)
