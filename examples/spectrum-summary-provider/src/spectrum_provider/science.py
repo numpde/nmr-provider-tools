@@ -32,7 +32,10 @@ class Spectrum:
         position_count = len(positions)
         intensity_count = len(intensities)
 
-        if (not positions) or (position_count != intensity_count):
+        if not (
+            (positions) and
+            (position_count == intensity_count)
+        ):
             raise ValueError(
                 f"A spectrum requires nonempty, equally sized positions and intensities; "
                 f"received {position_count=} and {intensity_count=}"
@@ -113,7 +116,7 @@ def subtract_baseline(spectrum: Spectrum, settings: BaselineSettings) -> Spectru
 def detect_peaks(spectrum: Spectrum, settings: PeakSettings) -> PeakReport:
     """Find interior strict maxima at or above the configured minimum height."""
 
-    if len(spectrum.positions) < 3:
+    if not (len(spectrum.positions) >= 3):
         raise ScientificRejection(
             "too_few_samples",
             "Peak detection requires at least three samples to compare an interior point with both neighbours",

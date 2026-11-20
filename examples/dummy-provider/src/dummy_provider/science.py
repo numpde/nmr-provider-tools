@@ -164,7 +164,7 @@ class PreparedSamples:
 
     @property
     def sample_count(self) -> int:
-        if self.samples is None:
+        if not (self.samples is not None):
             raise RuntimeError("The prepared samples have already been consumed or disposed")
 
         return self.samples.size
@@ -176,7 +176,7 @@ class PreparedSamples:
         if not (analysis.accepted_preparation is self):
             raise RuntimeError("The prepared samples are not this analysis's accepted preparation")
 
-        if self.samples is None:
+        if not (self.samples is not None):
             raise RuntimeError("The prepared samples have already been consumed or disposed")
 
         prepared_samples = self.samples
@@ -235,10 +235,10 @@ def create_analysis(model: WeightedSumModel) -> WeightedSumAnalysis:
 
 
 def initialize_analysis(analysis: WeightedSumAnalysis) -> None:
-    if analysis.is_open:
+    if not (analysis.is_open is False):
         raise RuntimeError("The analysis is already initialized")
 
-    if analysis.model.loaded_coefficients is None:
+    if not (analysis.model.loaded_coefficients is not None):
         raise RuntimeError("Cannot initialize an analysis before loading model coefficients")
 
     analysis.is_open = True
@@ -269,13 +269,13 @@ def prepare(
 
     loaded_coefficients = analysis.model.loaded_coefficients
 
-    if loaded_coefficients is None:
+    if not (loaded_coefficients is not None):
         raise RuntimeError("Cannot prepare input because model coefficients are not loaded")
 
     actual_sample_count = candidate.samples.size
     expected_sample_count = loaded_coefficients.size
 
-    if actual_sample_count != expected_sample_count:
+    if not (actual_sample_count == expected_sample_count):
         raise ScientificInputRejected(
             f"{actual_sample_count = }, {expected_sample_count = }",
             code=ScientificInputRejected.Code.WRONG_COUNT,
@@ -298,7 +298,7 @@ def calculate(
 
     loaded_coefficients = analysis.model.loaded_coefficients
 
-    if loaded_coefficients is None:
+    if not (loaded_coefficients is not None):
         raise RuntimeError("Cannot calculate because model coefficients are not loaded")
 
     prepared_samples = state.prepared.consume(analysis=analysis)

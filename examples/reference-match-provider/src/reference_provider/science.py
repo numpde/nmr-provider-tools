@@ -72,7 +72,7 @@ class ReferenceSet:
         dimensions = len(self.entries[0].values)
 
         for reference in self.entries:
-            if (reference.label in labels) or (len(reference.values) != dimensions):
+            if not ((reference.label not in labels) and (len(reference.values) == dimensions)):
                 raise ValueError("Matching references require unique labels and equal vector dimensions")
 
             labels.add(reference.label)
@@ -106,7 +106,7 @@ class MatchReport:
 def _normalize(channel_weights: tuple[float, ...]) -> tuple[float, ...]:
     scale = max(channel_weights)
 
-    if scale == 0:
+    if not (scale != 0):
         raise ScientificRejection("zero_vector", "Cosine matching requires a nonzero vector")
 
     scaled = []
@@ -151,7 +151,7 @@ def match(index: ReferenceIndex, settings: MatchSettings, candidate: VectorInput
     """Return the highest cosine score; exact ties choose the smallest label."""
     dimensions = len(index.postings)
 
-    if len(candidate.values) != dimensions:
+    if not (len(candidate.values) == dimensions):
         raise ScientificRejection(
             "wrong_dimensions",
             f"{len(candidate.values)=} should match {dimensions=}",
@@ -167,10 +167,10 @@ def match(index: ReferenceIndex, settings: MatchSettings, candidate: VectorInput
     best_index = min(range(len(scores)), key=lambda position: (-scores[position], index.labels[position]))
     score = min(1.0, scores[best_index])
 
-    if score == 0:
+    if not (score != 0):
         raise ScientificRejection("no_overlap", "The query shares no positive channels with the reference library")
 
-    if score < settings.minimum_score:
+    if not (score >= settings.minimum_score):
         raise ScientificRejection("below_threshold", "No reference reaches the configured minimum cosine score")
 
     return MatchReport(label=index.labels[best_index], score=score)
