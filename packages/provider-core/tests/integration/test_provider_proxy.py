@@ -27,7 +27,7 @@ class ActualServiceProxyTests(unittest.IsolatedAsyncioTestCase):
     async def test_discovery_waits_for_a_busy_proxy_without_retrying(self):
         kind = "mol_from_1h_spectrum_formula"
 
-        async def response(_request, _body):
+        async def response(_request_head, _body):
             return (
                 json
                 .dumps(
@@ -67,7 +67,7 @@ class ActualServiceProxyTests(unittest.IsolatedAsyncioTestCase):
                     )
 
                     try:
-                        request = asyncio.create_task(
+                        discovery_task = asyncio.create_task(
                             client.jobs(
                                 analysis_kind_ref=kind,
                                 has_provider_execution_attempt=False,
@@ -77,9 +77,9 @@ class ActualServiceProxyTests(unittest.IsolatedAsyncioTestCase):
                         )
 
                         await asyncio.sleep(0.05)
-                        self.assertFalse(request.done())
+                        self.assertFalse(discovery_task.done())
                         server._slots.release()
-                        page = await asyncio.wait_for(request, 2)
+                        page = await asyncio.wait_for(discovery_task, 2)
 
                         self.assertEqual(page.jobs, ())
                         self.assertEqual(len(peer.requests), 1)
@@ -91,8 +91,8 @@ class ActualServiceProxyTests(unittest.IsolatedAsyncioTestCase):
     async def test_full_proxy_waits_for_capacity_without_changing_the_client(self):
         async def echo(reader, writer):
             try:
-                while data := await reader.read(1024):
-                    writer.write(data)
+                while tunnel_chunk := await reader.read(1024):
+                    writer.write(tunnel_chunk)
                     await writer.drain()
             finally:
                 writer.close()
@@ -158,8 +158,8 @@ class ActualServiceProxyTests(unittest.IsolatedAsyncioTestCase):
     async def test_live_reload_changes_new_tunnels_without_interrupting_existing_tunnel(self):
         async def echo(reader, writer):
             try:
-                while data := await reader.read(1024):
-                    writer.write(data)
+                while tunnel_chunk := await reader.read(1024):
+                    writer.write(tunnel_chunk)
                     await writer.drain()
             finally:
                 writer.close()
