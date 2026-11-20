@@ -44,8 +44,8 @@ def _predicates(*, expression: ast.expr, rejecting: bool, comprehension_names: f
     if isinstance(expression, ast.BoolOp):
         return [
             predicate
-            for value in expression.values
-            for predicate in _predicates(expression=value, rejecting=rejecting, comprehension_names=comprehension_names)
+            for operand in expression.values
+            for predicate in _predicates(expression=operand, rejecting=rejecting, comprehension_names=comprehension_names)
         ]
 
     if isinstance(expression, ast.Call):

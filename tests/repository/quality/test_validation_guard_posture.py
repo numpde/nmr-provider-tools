@@ -221,15 +221,15 @@ def _mixed_ordering_finding(
         isinstance(statement.test.op, (ast.Or, ast.And)) and
         any(
             (
-                (isinstance(value, ast.Compare) and (len(value.ops) == 1) and isinstance(value.ops[0], _ORDERED_REJECTION_OPERATORS))
-                for value in statement.test.values
+                (isinstance(operand, ast.Compare) and (len(operand.ops) == 1) and isinstance(operand.ops[0], _ORDERED_REJECTION_OPERATORS))
+                for operand in statement.test.values
             ),
         ) and
         (_split_range_finding(source_path=source_path, statement=statement) is None)
     ):
         return None
 
-    accepted_atoms = [_accepted_atom(value) for value in statement.test.values]
+    accepted_atoms = [_accepted_atom(operand) for operand in statement.test.values]
 
     if any((atom is None) for atom in accepted_atoms):
         return None

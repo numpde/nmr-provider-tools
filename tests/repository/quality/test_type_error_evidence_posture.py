@@ -57,11 +57,11 @@ def _message_type_subjects(*, source: str, message: ast.expr, type_aliases: dict
     # controls formatting rather than presenting the rejected type to the reader.
     subjects = set()
 
-    for value in message.values:
-        if (not isinstance(value, ast.FormattedValue)) or (not _is_debug_expression(source=source, formatted=value)):
+    for message_part in message.values:
+        if (not isinstance(message_part, ast.FormattedValue)) or (not _is_debug_expression(source=source, formatted=message_part)):
             continue
 
-        expression = value.value
+        expression = message_part.value
 
         if isinstance(expression, ast.Name) and (expression.id in type_aliases):
             expression = type_aliases[expression.id]
@@ -144,12 +144,12 @@ def _expectation_name(*, expression: ast.expr) -> str | None:
 
 
 def _has_type_pair(*, source: str, message: ast.JoinedStr, subject: ast.expr, expected_name: str, membership: bool) -> bool:
-    for (index, value) in enumerate(message.values):
+    for (index, message_part) in enumerate(message.values):
         if not (
-            isinstance(value, ast.FormattedValue) and
-            _type_call(expression=value.value) and
-            (_subject_key(expression=value.value.args[0]) == _subject_key(expression=subject)) and
-            _is_debug_expression(source=source, formatted=value)
+            isinstance(message_part, ast.FormattedValue) and
+            _type_call(expression=message_part.value) and
+            (_subject_key(expression=message_part.value.args[0]) == _subject_key(expression=subject)) and
+            _is_debug_expression(source=source, formatted=message_part)
         ):
             continue
 
@@ -216,7 +216,7 @@ def _expectation_findings(*, source_path: pathlib.Path, source: str) -> list[str
             messages = []
 
             if isinstance(rejection.exc, ast.Call):
-                messages.extend(value for value in [*rejection.exc.args, *(keyword.value for keyword in rejection.exc.keywords)] if isinstance(value, ast.JoinedStr))
+                messages.extend(message_argument for message_argument in [*rejection.exc.args, *(keyword.value for keyword in rejection.exc.keywords)] if isinstance(message_argument, ast.JoinedStr))
 
             for predicate in predicates:
                 subject = diagnostic_subject(subject=predicate.subject)
