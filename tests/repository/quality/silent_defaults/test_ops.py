@@ -243,9 +243,9 @@ class OpsSilentDefaultsTest(unittest.TestCase):
         findings.extend(self.shell_silent_success_findings(files))
         findings.extend(line_findings(files, WORKFLOW_DEFAULT_FIELD_RE, "workflow dispatch default"))
 
-        for path in files:
-            source = path.read_text(encoding="utf-8")
-            exported_names = shell_exported_names(source) if path.suffix == ".sh" else None
+        for source_path in files:
+            source = source_path.read_text(encoding="utf-8")
+            exported_names = shell_exported_names(source) if source_path.suffix == ".sh" else None
             environment_indent: int | None = None
 
             for (line_number, line) in enumerate(source.splitlines(), start=1):
@@ -273,7 +273,7 @@ class OpsSilentDefaultsTest(unittest.TestCase):
                     ((exported_names is None) or (assignment_match.group("name") in exported_names))
                 ):
                     findings.append(
-                        f"{path.relative_to(ROOT)}:{line_number}: blank env assignment: "
+                        f"{source_path.relative_to(ROOT)}:{line_number}: blank env assignment: "
                         f"{assignment_match.group('name')}={assignment_match.group('value')}"
                     )
 
@@ -281,14 +281,14 @@ class OpsSilentDefaultsTest(unittest.TestCase):
 
                 if yaml_list_match and (yaml_list_match.group("value").strip() in {"", '""', "''"}):
                     findings.append(
-                        f"{path.relative_to(ROOT)}:{line_number}: blank compose env assignment: {yaml_list_match.group('name')}="
+                        f"{source_path.relative_to(ROOT)}:{line_number}: blank compose env assignment: {yaml_list_match.group('name')}="
                     )
 
                 yaml_mapping_match = YAML_ENV_MAPPING_BLANK_RE.match(line) if environment_indent is not None else None
 
                 if yaml_mapping_match:
                     findings.append(
-                        f"{path.relative_to(ROOT)}:{line_number}: blank compose env mapping: {yaml_mapping_match.group('name')}:"
+                        f"{source_path.relative_to(ROOT)}:{line_number}: blank compose env mapping: {yaml_mapping_match.group('name')}:"
                     )
 
         self.assertEqual([], findings)
@@ -566,16 +566,16 @@ class OpsSilentDefaultsTest(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             root = pathlib.Path(directory)
 
-            for (label, source, diagnostic) in cases:
-                with self.subTest(label=label, source=source):
-                    path = root / label
+            for (fixture_name, source, diagnostic) in cases:
+                with self.subTest(label=fixture_name, source=source):
+                    fixture_path = root / fixture_name
 
-                    path.write_text(source, encoding="utf-8")
+                    fixture_path.write_text(source, encoding="utf-8")
 
                     with (
                         patch(__name__ + ".ROOT", root),
                         patch(__package__ + ".test_shared_scanner.ROOT", root),
-                        patch(__name__ + ".ops_files", return_value=[path]),
+                        patch(__name__ + ".ops_files", return_value=[fixture_path]),
                     ):
                         if diagnostic is None:
                             self.test_ops_files_do_not_publish_silent_defaults()
@@ -610,11 +610,11 @@ class OpsSilentDefaultsTest(unittest.TestCase):
             ("ARG MARKER=1", "operations/checker/image/Dockerfile", "unreviewed", "ARG"),
         )
 
-        for (source, path, classification, instruction) in changes:
-            with self.subTest(source=source, path=path):
+        for (source, source_name, classification, instruction) in changes:
+            with self.subTest(source=source, path=source_name):
                 self.assertEqual(
-                    [f"{path}:1: {classification} Docker {instruction} default: {source}"],
-                    docker_default_findings_for_source(source + "\n", path, allowed),
+                    [f"{source_name}:1: {classification} Docker {instruction} default: {source}"],
+                    docker_default_findings_for_source(source + "\n", source_name, allowed),
                 )
 
     def test_allowed_shell_defaults_are_present_with_exact_values(self) -> None:
@@ -625,15 +625,15 @@ class OpsSilentDefaultsTest(unittest.TestCase):
     def shell_silent_success_findings(self, files: list[pathlib.Path]) -> list[str]:
         findings: list[str] = []
 
-        for path in files:
-            for (line_number, line) in enumerate(path.read_text(encoding="utf-8").splitlines(), start=1):
+        for source_path in files:
+            for (line_number, line) in enumerate(source_path.read_text(encoding="utf-8").splitlines(), start=1):
                 if line.lstrip().startswith("#"):
                     continue
 
                 if not SHELL_SILENT_SUCCESS_RE.search(line):
                     continue
 
-                findings.append(f"{path.relative_to(ROOT)}:{line_number}: shell silent success fallback: {line.strip()}")
+                findings.append(f"{source_path.relative_to(ROOT)}:{line_number}: shell silent success fallback: {line.strip()}")
 
         return findings
 
@@ -642,10 +642,10 @@ def make_function_default_findings(files: list[pathlib.Path]) -> list[str]:
     """Retain raw Make fallback matches except complete literal origin gates."""
     findings = []
 
-    for path in files:
-        source = path.relative_to(ROOT).as_posix()
+    for source_path in files:
+        source = source_path.relative_to(ROOT).as_posix()
 
-        for (line_number, line) in enumerate(path.read_text(encoding="utf-8").splitlines(), start=1):
+        for (line_number, line) in enumerate(source_path.read_text(encoding="utf-8").splitlines(), start=1):
             if line.lstrip().startswith("#") or is_literal_make_origin_gate(source, line):
                 continue
 
@@ -658,9 +658,9 @@ def make_function_default_findings(files: list[pathlib.Path]) -> list[str]:
 def make_default_assignment_findings(files: list[pathlib.Path]) -> list[str]:
     findings: list[str] = []
 
-    for path in files:
+    for source_path in files:
         findings.extend(
-            make_default_assignment_findings_for_source(path.read_text(encoding="utf-8"), str(path.relative_to(ROOT)))
+            make_default_assignment_findings_for_source(source_path.read_text(encoding="utf-8"), str(source_path.relative_to(ROOT)))
         )
 
     return findings
@@ -679,12 +679,12 @@ def make_default_assignment_findings_for_source(source: str, label: str) -> list
             continue
 
         name = match.group("name")
-        value = match.group("value")
+        default_text = match.group("value")
         expected = ALLOWED_MAKE_DEFAULTS.get(name)
 
         if expected is None:
             findings.append(f"{label}:{line_number}: unreviewed Make default assignment: {line.strip()}")
-        elif expected != value:
+        elif expected != default_text:
             findings.append(f"{label}:{line_number}: changed Make default assignment: {line.strip()}")
 
     return findings
@@ -693,10 +693,10 @@ def make_default_assignment_findings_for_source(source: str, label: str) -> list
 def docker_default_findings(files: list[pathlib.Path]) -> list[str]:
     findings: list[str] = []
 
-    for path in files:
-        label = path.relative_to(ROOT).as_posix()
+    for source_path in files:
+        source_name = source_path.relative_to(ROOT).as_posix()
 
-        findings.extend(docker_default_findings_for_source(path.read_text(encoding="utf-8"), label, ALLOWED_DOCKER_DEFAULTS))
+        findings.extend(docker_default_findings_for_source(source_path.read_text(encoding="utf-8"), source_name, ALLOWED_DOCKER_DEFAULTS))
 
     return findings
 
@@ -713,8 +713,8 @@ def docker_default_findings_for_source(
 
         if (arg_match) and (arg_match.group("value") is not None):
             name = arg_match.group("name")
-            value = arg_match.group("value")
-            entry = ("ARG", label, name, value)
+            default_text = arg_match.group("value")
+            entry = ("ARG", label, name, default_text)
 
             if entry not in allowed:
                 classification = docker_default_classification(entry, allowed)
@@ -736,8 +736,8 @@ def docker_default_findings_for_source(
 
         if all(DOCKER_KEY_VALUE_ENV_TOKEN_RE.match(token) for token in tokens):
             for token in tokens:
-                (name, value) = token.split("=", 1)
-                entry = ("ENV", label, name, value)
+                (name, default_text) = token.split("=", 1)
+                entry = ("ENV", label, name, default_text)
 
                 if entry not in allowed:
                     classification = docker_default_classification(entry, allowed)
@@ -753,8 +753,8 @@ def docker_default_findings_for_source(
             continue
 
         name = legacy_match.group("name")
-        value = legacy_match.group("value")
-        entry = ("ENV", label, name, value)
+        default_text = legacy_match.group("value")
+        entry = ("ENV", label, name, default_text)
 
         if entry not in allowed:
             classification = docker_default_classification(entry, allowed)
@@ -813,9 +813,9 @@ def shell_default_findings(files: list[pathlib.Path]) -> list[str]:
 
     for entry in sorted(defaults):
         if entry not in ALLOWED_SHELL_DEFAULTS:
-            (path, name, operator, value) = entry
+            (source_name, name, operator, default_text) = entry
 
-            findings.append(f"{path}: unreviewed shell default expansion: ${{{name}{operator}{value}}}")
+            findings.append(f"{source_name}: unreviewed shell default expansion: ${{{name}{operator}{default_text}}}")
 
     return findings
 
@@ -835,14 +835,14 @@ def make_defaults(path: pathlib.Path) -> dict[str, str]:
 def docker_defaults(files: list[pathlib.Path]) -> set[tuple[str, str, str, str]]:
     defaults: set[tuple[str, str, str, str]] = set()
 
-    for path in files:
-        label = path.relative_to(ROOT).as_posix()
+    for source_path in files:
+        source_name = source_path.relative_to(ROOT).as_posix()
 
-        for (_line_number, line) in docker_logical_lines(path.read_text(encoding="utf-8")):
+        for (_line_number, line) in docker_logical_lines(source_path.read_text(encoding="utf-8")):
             arg_match = DOCKER_ARG_DEFAULT_RE.match(line)
 
             if (arg_match) and (arg_match.group("value") is not None):
-                defaults.add(("ARG", label, arg_match.group("name"), arg_match.group("value")))
+                defaults.add(("ARG", source_name, arg_match.group("name"), arg_match.group("value")))
                 continue
 
             env_match = DOCKER_ENV_ASSIGNMENT_RE.match(line)
@@ -855,16 +855,16 @@ def docker_defaults(files: list[pathlib.Path]) -> set[tuple[str, str, str, str]]
 
             if tokens and all(DOCKER_KEY_VALUE_ENV_TOKEN_RE.match(token) for token in tokens):
                 for token in tokens:
-                    (name, value) = token.split("=", 1)
+                    (name, default_text) = token.split("=", 1)
 
-                    defaults.add(("ENV", label, name, value))
+                    defaults.add(("ENV", source_name, name, default_text))
 
                 continue
 
             legacy_match = DOCKER_LEGACY_ENV_TOKEN_RE.match(body)
 
             if legacy_match:
-                defaults.add(("ENV", label, legacy_match.group("name"), legacy_match.group("value")))
+                defaults.add(("ENV", source_name, legacy_match.group("name"), legacy_match.group("value")))
 
     return defaults
 
@@ -872,14 +872,14 @@ def docker_defaults(files: list[pathlib.Path]) -> set[tuple[str, str, str, str]]
 def shell_defaults(files: list[pathlib.Path]) -> set[tuple[str, str, str, str]]:
     defaults: set[tuple[str, str, str, str]] = set()
 
-    for path in files:
-        label = path.relative_to(ROOT).as_posix()
+    for source_path in files:
+        source_name = source_path.relative_to(ROOT).as_posix()
 
-        for line in path.read_text(encoding="utf-8").splitlines():
+        for line in source_path.read_text(encoding="utf-8").splitlines():
             if line.lstrip().startswith("#"):
                 continue
 
             for match in SHELL_DEFAULT_EXPANSION_RE.finditer(line):
-                defaults.add((label, match.group("name"), match.group("operator"), match.group("value")))
+                defaults.add((source_name, match.group("name"), match.group("operator"), match.group("value")))
 
     return defaults
