@@ -17,6 +17,8 @@ import tempfile
 import tomllib
 import pathlib
 
+from type_requirements import require_instance
+
 from sdk_build.core_environment import (
     behavioral_install_lock,
     build_candidate,
@@ -38,8 +40,7 @@ def _discover_projects(*, project_root: pathlib.Path) -> list[tuple[pathlib.Path
         distribution_name = project["name"]
         distribution_version = project["version"]
 
-        if not isinstance(distribution_name, (expected_type := str)):
-            raise TypeError(f"{metadata.parent.name=}; {type(distribution_name)=} ≠ {expected_type=}")
+        require_instance(distribution_name, str)
 
         if not re.fullmatch(pattern := r"[a-z0-9]+(?:-[a-z0-9]+)*", distribution_name):
             raise ValueError(f"{metadata.parent.name=}: {distribution_name=} does not follow {pattern=}")
@@ -51,8 +52,7 @@ def _discover_projects(*, project_root: pathlib.Path) -> list[tuple[pathlib.Path
                 f"names must be unique and must not shadow provider-core."
             )
 
-        if not isinstance(distribution_version, (expected_type := str)):
-            raise TypeError(f"{distribution_name=}; {type(distribution_version)=} ≠ {expected_type=}")
+        require_instance(distribution_version, str)
 
         # todo: format like elsewhere
         if re.fullmatch(
