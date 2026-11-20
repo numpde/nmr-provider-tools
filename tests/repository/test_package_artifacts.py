@@ -268,6 +268,7 @@ class PackageArtifactTests(unittest.TestCase):
 
     def test_source_archive_refuses_traversal_links_duplicate_and_special_members_before_extraction(self):
         for (name, kind) in (
+            (".", tarfile.REGTYPE),
             ("provider_core-0.2.0/../../outside", tarfile.REGTYPE),
             ("/absolute", tarfile.REGTYPE),
             ("provider_core-0.2.0/link", tarfile.SYMTYPE),
@@ -290,7 +291,7 @@ class PackageArtifactTests(unittest.TestCase):
 
                 destination = self.root / "extracted"
 
-                with self.assertRaisesRegex(ValueError, "source archive"):
+                with self.assertRaises(ValueError):
                     unpack_source(source_archive_path, destination, "0.2.0")
 
                 self.assertFalse(destination.exists())

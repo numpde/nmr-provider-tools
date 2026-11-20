@@ -397,7 +397,7 @@ def qualify_acquisition_bundle(bundle, scratch, expected_source_files):
 
 def unpack_source(archive, destination, version):
     """Admit the complete tar inventory before creating any extracted file."""
-    root_name = f"provider_core-{version}"  # machine-string: Source archive admission requires this exact distribution root directory
+    expected_source_root = f"provider_core-{version}"  # machine-string: Source archive admission requires this exact distribution root directory
 
     with tarfile.open(archive, "r:gz") as source_archive:
         members = source_archive.getmembers()
@@ -406,20 +406,30 @@ def unpack_source(archive, destination, version):
         for member in members:
             member_path = PurePosixPath(member.name)
 
-            if (
-                (member.name in member_names) or
-                (not member.name) or
-                member_path.is_absolute() or
-                (".." in member_path.parts) or
-                (member_path.as_posix() != member.name) or
-                (member_path.parts[0] != root_name) or
-                (not (member.isfile() or member.isdir())) or
-                (member.mode & 0o022)
+            if not (member.name not in member_names):
+                raise ValueError(f"{archive=}: {reprlib.repr(member.name)=} should appear only once")
+
+            if not (
+                (member.name) and
+                (member_path.parts) and  # Path('.') has no distribution-root component
+                (not member_path.is_absolute()) and  # Extraction remains below its destination
+                (".." not in member_path.parts) and  # Parent traversal cannot escape that destination
+                (member_path.as_posix() == member.name) and  # Reject aliases normalized by the path parser
+                (member_path.parts[0] == expected_source_root)  # Keep one issued distribution root
             ):
                 raise ValueError(
-                    "Cannot qualify package: source archive has duplicate, "
-                    "unsafe or unsupported members."
+                    f"{archive=}: {reprlib.repr(member.name)=} should be a canonical relative path "
+                    f"under {expected_source_root=}"
                 )
+
+            if not (member.isfile() or member.isdir()):
+                raise ValueError(
+                    f"{archive=}: {reprlib.repr(member.name)=} has {member.type=}; "
+                    f"expected a regular file or directory"
+                )
+
+            if not ((shared_write_bits := member.mode & 0o022) == 0):
+                raise ValueError(f"{archive=}: {reprlib.repr(member.name)=} has {shared_write_bits=:#o}; should be zero")
 
             member_names.add(member.name)
 
@@ -436,7 +446,7 @@ def unpack_source(archive, destination, version):
 
                 extracted_path.chmod(member.mode & 0o777)
 
-    return destination / root_name
+    return destination / expected_source_root
 
 
 def source_payload(source, inventory):
