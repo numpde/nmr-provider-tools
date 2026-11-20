@@ -31,9 +31,9 @@ def is_literal_make_origin_gate(source: str, line: str) -> bool:
     whitespace inside arguments or after the value as literal payload bytes.
     https://github.com/numpde/magnet-deploy/blob/2d4ee50b0359e71900fce9289ea01f46d0f41249/Makefile#L74-L78
     """
-    path = pathlib.Path(source)
+    source_path = pathlib.Path(source)
 
-    if (path.name != "Makefile") and (path.suffix != ".mk"):
+    if (source_path.name != "Makefile") and (source_path.suffix != ".mk"):
         return False
 
     return (
@@ -60,13 +60,13 @@ def line_findings(
 ) -> list[str]:
     findings: list[str] = []
 
-    for path in paths:
-        for (line_number, line) in enumerate(path.read_text(encoding="utf-8").splitlines(), start=1):
+    for source_path in paths:
+        for (line_number, line) in enumerate(source_path.read_text(encoding="utf-8").splitlines(), start=1):
             if skip_comments and line.lstrip().startswith("#"):
                 continue
 
             for match in matcher.finditer(line):
-                findings.append(f"{path.relative_to(ROOT)}:{line_number}: {label}: {match.group(0).strip()}")
+                findings.append(f"{source_path.relative_to(ROOT)}:{line_number}: {label}: {match.group(0).strip()}")
 
     return findings
 
@@ -100,12 +100,12 @@ class SharedScannerTest(unittest.TestCase):
         self.assertEqual([], repo_files(("NMRNetplusplus/node_modules/**/*.ts",)))
 
     def test_line_findings_reports_relative_paths_and_skips_comments(self) -> None:
-        path = pathlib.Path(__file__).resolve()
-        findings = line_findings([path], re.compile(r"^SCANNER_TEST_MARKER = "), "marker")
+        scanner_source_path = pathlib.Path(__file__).resolve()
+        findings = line_findings([scanner_source_path], re.compile(r"^SCANNER_TEST_MARKER = "), "marker")
 
         marker_line = next(
             line_number
-            for (line_number, line) in enumerate(path.read_text(encoding="utf-8").splitlines(), start=1)
+            for (line_number, line) in enumerate(scanner_source_path.read_text(encoding="utf-8").splitlines(), start=1)
             if line.startswith("SCANNER_TEST_MARKER = ")
         )
 
