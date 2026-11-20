@@ -34,8 +34,7 @@ from provider_core.payload import (
 
 
 def _identity(identity_text: object, identity_role: str) -> None:
-    if not (type(identity_text) is (expected_type := str)):
-        raise TypeError(f"{identity_role=}; {type(identity_text)=} ≠ {expected_type=}")
+    require_type(identity_text, str)
 
     if not (
         (identity_text) and
@@ -45,8 +44,7 @@ def _identity(identity_text: object, identity_role: str) -> None:
 
 
 def _digest(digest_text: object, digest_role: str) -> None:
-    if not (type(digest_text) is (expected_type := str)):
-        raise TypeError(f"{digest_role=}; {type(digest_text)=} ≠ {expected_type=}")
+    require_type(digest_text, str)
 
     expected_digest_pattern = r"sha256:[0-9a-f]{64}\Z"
 
@@ -63,24 +61,20 @@ def _binding_revision(binding_revision: object) -> None:
         raise ValueError(f"{reprlib.repr(binding_revision)=} should match {expected_revision_pattern=}")
 
 
-def _records(records: object, record_type: type[object], record_role: str) -> None:
-    if not (type(records) is (expected_type := tuple)):
-        raise TypeError(f"{record_role=}; {type(records)=} ≠ {expected_type=}")
+def _records(records: object, record_type: type[object]) -> None:
+    require_type(records, tuple)
 
     for record in records:
-        if not (type(record) is (expected_type := record_type)):
-            raise TypeError(f"{record_role=}; {type(record)=} ≠ {expected_type=}")
+        require_type(record, record_type)
 
 
-def _set_records(records: object, record_type: type[object], record_role: str) -> None:
+def _set_records(records: object, record_type: type[object]) -> None:
     """Require an immutable unordered inventory with records of the declared type."""
 
-    if not (type(records) is (expected_type := frozenset)):
-        raise TypeError(f"{record_role=}; {type(records)=} ≠ {expected_type=}")
+    require_type(records, frozenset)
 
     for record in records:
-        if not (type(record) is (expected_type := record_type)):
-            raise TypeError(f"{record_role=}; {type(record)=} ≠ {expected_type=}")
+        require_type(record, record_type)
 
 
 def _unique(records: Collection[object], key: Callable[[object], object], record_role: str) -> None:
@@ -342,7 +336,7 @@ class ConfiguredIdentity:
 
             require_type(actual_configuration, ConfigurationDescription)
 
-        _set_records(records=self.assets, record_type=AssetDescription, record_role="Scientific assets")
+        _set_records(records=self.assets, record_type=AssetDescription)
         _unique(self.assets, lambda asset: asset.name, "Scientific assets")
         configuration = None
 
@@ -540,9 +534,9 @@ class CallDescription:
         _identity(self.name, "Call name")
         _identity(self.input_format, "Input format")
         _identity(self.result_format, "Result format")
-        _records(self.state_inputs, StateParameter, "State parameters")
+        _records(self.state_inputs, StateParameter)
         _unique(self.state_inputs, lambda state_parameter: state_parameter.name, "State parameters")
-        _records(self.state_outputs, StateOutput, "State outputs")
+        _records(self.state_outputs, StateOutput)
         _unique(self.state_outputs, lambda state_output: state_output.name, "State outputs")
         _require_resource_requirements(resource_requirements=self.resources)
 
@@ -578,9 +572,9 @@ class ImplementationDescription:
 
             require_type(actual_configuration, ConfigurationDescription)
 
-        _set_records(records=self.assets, record_type=AssetDescription, record_role="Scientific assets")
+        _set_records(records=self.assets, record_type=AssetDescription)
         _unique(self.assets, lambda asset: asset.name, "Scientific assets")
-        _set_records(records=self.calls, record_type=CallDescription, record_role="Call descriptions")
+        _set_records(records=self.calls, record_type=CallDescription)
 
         if not (self.calls):
             raise ValueError("An implementation must declare at least one call")
@@ -672,7 +666,7 @@ class ScientificReturn[OutputT]:
     )
 
     def __post_init__(self) -> None:
-        _records(self.states, ReturnedState, "Returned scientific states")
+        _records(self.states, ReturnedState)
         _unique(self.states, lambda returned_state: returned_state.name, "Returned scientific states")
 
         if self.dispose_value is not None:
