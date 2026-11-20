@@ -15,7 +15,7 @@ def install_binary_packages(paths: list[pathlib.Path]) -> None:
         [
             "dpkg",
             "--install",  # Unpack and configure the supplied archives
-            *[str(path) for path in paths],
+            *[str(binary_package_path) for binary_package_path in paths],
         ],
         check=True,
     )
