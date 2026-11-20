@@ -87,16 +87,20 @@ def load_delivery_service(path, *, on_notice, diagnostic_status):
         "configuration"
     )
 
-    if not (service_configuration["schema_id"] == "provider-core.delivery.v1"):
-        raise DeliveryConfigurationRejected("require schema provider-core.delivery.v1.")
+    expected_schema_id = "provider-core.delivery.v1"
+
+    if not (service_configuration["schema_id"] == expected_schema_id):
+        raise DeliveryConfigurationRejected(f"{reprlib.repr(service_configuration['schema_id'])=} should match {expected_schema_id=}")
 
     _fields(service_configuration["limits"], {"provider_items", "provider_bytes", "total_items", "total_bytes"}, "limits")
     bindings = service_configuration["bindings"]
 
     require_type(bindings, list, error_factory=DeliveryConfigurationRejected)
 
-    if not (1 <= len(bindings) <= MAX_BINDINGS):
-        raise DeliveryConfigurationRejected("require between one and sixteen explicit bindings.")
+    min_bindings = 1
+
+    if not (min_bindings <= len(bindings) <= MAX_BINDINGS):
+        raise DeliveryConfigurationRejected(f"Expected {min_bindings=} ≤ {len(bindings)=} ≤ {MAX_BINDINGS=}")
 
     try:
         # Only existing code-owned admission errors cross this translation.
