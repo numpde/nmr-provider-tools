@@ -3,8 +3,10 @@
 import linecache
 import unittest
 from collections.abc import Mapping
-from unittest.mock import patch
+from functools import partial
+from unittest.mock import Mock, patch
 
+from provider_core.payload import PayloadRejected
 from provider_core.type_requirements import require_instance, require_subclass, require_type
 
 
@@ -170,3 +172,33 @@ class TypeRequirementsTests(unittest.TestCase):
 
         self.assertEqual(calls, [1])
         self.assertIn("produce_text()", str(raised.exception))
+
+    def test_exception_factory_preserves_domain_code_and_source_expression(self):
+        reject = partial(PayloadRejected, code=PayloadRejected.Code.INVALID_TYPE)
+
+        cases = [
+            (require_type, True),
+            (require_instance, "not a number"),
+            (require_subclass, str),
+            (require_subclass, "not a class"),
+        ]
+
+        for (requirement, rejected_operand) in cases:
+            with self.subTest(requirement=requirement.__name__, rejected_operand=rejected_operand):
+                with self.assertRaises(PayloadRejected) as raised:
+                    requirement(rejected_operand, int, error_factory=reject)
+
+                self.assertIs(PayloadRejected.Code.INVALID_TYPE, raised.exception.code)
+                self.assertIn("rejected_operand", str(raised.exception))
+
+    def test_factory_is_unused_for_matches_and_invalid_expected_types(self):
+        reject = Mock(side_effect=AssertionError("Domain rejection should not be constructed"))
+
+        for requirement in [require_type, require_instance, require_subclass]:
+            with self.subTest(requirement=requirement.__name__):
+                self.assertIsNone(requirement(type, type, error_factory=reject))
+
+                with self.assertRaises(TypeError):
+                    requirement(type, (type, "not a type"), error_factory=reject)
+
+        reject.assert_not_called()
