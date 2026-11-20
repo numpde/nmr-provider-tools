@@ -26,7 +26,7 @@ from tests.fakes.delivery_config import DeliveryConfigFiles
 from tests.fakes.unix_proxy import UnixProxy
 
 
-async def _launch_daemon(path):
+async def _launch_daemon(configuration_path):
     return await asyncio.create_subprocess_exec(
         sys.executable,
         "-I",
@@ -34,15 +34,15 @@ async def _launch_daemon(path):
         "-m",
         "provider_core.delivery_main",
         "--config",
-        str(path),
+        str(configuration_path),
         stdout=asyncio.subprocess.PIPE,
         stderr=asyncio.subprocess.PIPE,
     )
 
 
-async def _receive_notice(process, event, notices):
+async def _receive_notice(daemon_process, event, notices):
     async with asyncio.timeout(3):
-        while line := await process.stderr.readline():
+        while line := await daemon_process.stderr.readline():
             report = json.loads(line)
 
             notices.append(report)
@@ -78,24 +78,24 @@ def _configured_binding(root, peer, proxy, *, provider):
     )
 
 
-async def _reap_daemon(process):
+async def _reap_daemon(daemon_process):
     """Retire the original child even when an assertion or client cleanup fails.
 
     Ports tests/fakes/runner.py::close's TERM/KILL and original-handle wait;
     communicate drains the two pipes while waiting for this same process.
     """
 
-    if process.returncode is None:
+    if daemon_process.returncode is None:
         with suppress(ProcessLookupError):
-            process.terminate()
+            daemon_process.terminate()
 
     try:
-        await asyncio.wait_for(process.communicate(), 3)
+        await asyncio.wait_for(daemon_process.communicate(), 3)
     except TimeoutError:
         with suppress(ProcessLookupError):
-            process.kill()
+            daemon_process.kill()
 
-        await asyncio.wait_for(process.communicate(), 3)
+        await asyncio.wait_for(daemon_process.communicate(), 3)
 
 
 class DeliveryProcessTests(unittest.IsolatedAsyncioTestCase):
@@ -177,7 +177,7 @@ class DeliveryProcessTests(unittest.IsolatedAsyncioTestCase):
 
                     files.write(raw)
 
-                    process = await asyncio.create_subprocess_exec(
+                    daemon_process = await asyncio.create_subprocess_exec(
                         sys.executable,
                         "-I",
                         "-B",
@@ -195,7 +195,7 @@ class DeliveryProcessTests(unittest.IsolatedAsyncioTestCase):
 
                     async def receive(event):
                         async with asyncio.timeout(3):
-                            while line := await process.stderr.readline():
+                            while line := await daemon_process.stderr.readline():
                                 report = json.loads(line)
 
                                 notices.append(report)
@@ -218,11 +218,11 @@ class DeliveryProcessTests(unittest.IsolatedAsyncioTestCase):
                         self.assertEqual((await client.pending())["items"], [])
                         self.assertEqual(peer.request_bodies, [delivery_outcome.body])
                         self.assertEqual(len(proxy.headers), 1)
-                        process.send_signal(signal.SIGTERM)
+                        daemon_process.send_signal(signal.SIGTERM)
                         stopped = await receive("delivery_stopped")
 
                         self.assertTrue(stopped["retirement_confirmed"])
-                        self.assertEqual(await asyncio.wait_for(process.wait(), 3), 0)
+                        self.assertEqual(await asyncio.wait_for(daemon_process.wait(), 3), 0)
                         self.assertFalse(endpoint.socket_path.exists())
                         reopened = DeliveryQueue(root / "state", limits=QueueLimits(4, 16384, 8, 32768))
 
@@ -234,7 +234,7 @@ class DeliveryProcessTests(unittest.IsolatedAsyncioTestCase):
                         try:
                             await client.retire()
                         finally:
-                            await _reap_daemon(process)
+                            await _reap_daemon(daemon_process)
 
         return notices
 
@@ -296,24 +296,24 @@ class DeliveryProcessTests(unittest.IsolatedAsyncioTestCase):
         not a deployed API's transaction implementation or scientific correctness.
         """
         (effects, received) = ({}, [])
-        item = credential = None
+        delivery_outcome = credential = None
 
-        async def accept_then_lose(request, body):
-            self.assertEqual(request.split(b"\r\n", 1)[0], b"POST /provider/v1/execution-attempts/complete HTTP/1.1")
-            self.assertEqual(body, item.body)
-            verify_signed_request(request, body, origin=peer.origin, key=credential.private_key)
-            received.append(request)
-            replayed = item.key in effects
+        async def accept_then_lose(request_head, body):
+            self.assertEqual(request_head.split(b"\r\n", 1)[0], b"POST /provider/v1/execution-attempts/complete HTTP/1.1")
+            self.assertEqual(body, delivery_outcome.body)
+            verify_signed_request(request_head, body, origin=peer.origin, key=credential.private_key)
+            received.append(request_head)
+            replayed = delivery_outcome.key in effects
 
             if replayed:
-                self.assertEqual(effects[item.key], body)
+                self.assertEqual(effects[delivery_outcome.key], body)
             else:
-                effects[item.key] = body
+                effects[delivery_outcome.key] = body
 
                 return None  # Full body received; lose only this API acknowledgement.
 
             return complete_response(
-                execution_attempt_ref=item.execution_attempt_ref,
+                execution_attempt_ref=delivery_outcome.execution_attempt_ref,
                 result_schema_id="fixture.result",
                 replayed=True
             )
@@ -338,12 +338,12 @@ class DeliveryProcessTests(unittest.IsolatedAsyncioTestCase):
                     )
 
                     configured = files.path.read_bytes()
-                    item = replace(outcome(provider=endpoint.provider_ref), api_origin=peer.origin)
+                    delivery_outcome = replace(outcome(provider=endpoint.provider_ref), api_origin=peer.origin)
 
-                    item = replace(
-                        item,
+                    delivery_outcome = replace(
+                        delivery_outcome,
                         operation=TerminalOperation.COMPLETE,
-                        body=complete_body(item.execution_attempt_ref, "fixture.result", b"result bytes") + b"\n"
+                        body=complete_body(delivery_outcome.execution_attempt_ref, "fixture.result", b"result bytes") + b"\n"
                     )
 
                     client = DeliveryClient(endpoint, exchange_seconds=1, retirement_seconds=0.2)
@@ -354,7 +354,7 @@ class DeliveryProcessTests(unittest.IsolatedAsyncioTestCase):
                         first = await _launch_daemon(files.path)
 
                         await _receive_notice(first, "delivery_ready", notices)
-                        self.assertEqual(await client.submit(item), item.acceptance())
+                        self.assertEqual(await client.submit(delivery_outcome), delivery_outcome.acceptance())
                         retry = await _receive_notice(first, "delivery_retry", notices)
 
                         self.assertGreaterEqual(retry["retry_seconds"], 15)
@@ -366,12 +366,12 @@ class DeliveryProcessTests(unittest.IsolatedAsyncioTestCase):
                         retained = DeliveryQueue(files.root / "state", limits=QueueLimits(4, 16384, 8, 32768))
 
                         try:
-                            self.assertEqual(retained.next_pending(item.api_origin, item.provider_ref), item)
-                            self.assertEqual(len(retained.inventory(item.api_origin, item.provider_ref)), 1)
+                            self.assertEqual(retained.next_pending(delivery_outcome.api_origin, delivery_outcome.provider_ref), delivery_outcome)
+                            self.assertEqual(len(retained.inventory(delivery_outcome.api_origin, delivery_outcome.provider_ref)), 1)
                         finally:
                             retained.close()
 
-                        self.assertEqual(peer.request_bodies, [item.body])
+                        self.assertEqual(peer.request_bodies, [delivery_outcome.body])
                         self.assertEqual(files.path.read_bytes(), configured)
                         second = await _launch_daemon(files.path)
 
@@ -380,9 +380,9 @@ class DeliveryProcessTests(unittest.IsolatedAsyncioTestCase):
 
                         self.assertTrue(published["replayed"])
                         self.assertEqual((await client.pending())["items"], [])
-                        self.assertEqual(peer.request_bodies, [item.body, item.body])
-                        self.assertEqual(effects, {item.key: item.body})
-                        signatures = [request.split(b"Signature-Input: ")[1].split(b"\r\n")[0] for request in received]
+                        self.assertEqual(peer.request_bodies, [delivery_outcome.body, delivery_outcome.body])
+                        self.assertEqual(effects, {delivery_outcome.key: delivery_outcome.body})
+                        signatures = [request_head.split(b"Signature-Input: ")[1].split(b"\r\n")[0] for request_head in received]
 
                         self.assertNotEqual(signatures[0], signatures[1])
                         second.send_signal(signal.SIGTERM)
@@ -392,9 +392,9 @@ class DeliveryProcessTests(unittest.IsolatedAsyncioTestCase):
                         try:
                             await client.retire()
                         finally:
-                            for process in (first, second):
-                                if process is not None:
-                                    await _reap_daemon(process)
+                            for daemon_process in (first, second):
+                                if daemon_process is not None:
+                                    await _reap_daemon(daemon_process)
 
         return notices
 
@@ -412,10 +412,10 @@ class DeliveryProcessTests(unittest.IsolatedAsyncioTestCase):
         effects = {"a": 0, "b": 0}
         first = second = credential_a = credential_b = None
 
-        async def api_a(request, body):
-            self.assertEqual(request.split(b"\r\n", 1)[0], b"POST /provider/v1/execution-attempts/fail HTTP/1.1")
+        async def api_a(request_head, body):
+            self.assertEqual(request_head.split(b"\r\n", 1)[0], b"POST /provider/v1/execution-attempts/fail HTTP/1.1")
             self.assertEqual(body, first.body)
-            verify_signed_request(request, body, origin=peer_a.origin, key=credential_a.private_key)
+            verify_signed_request(request_head, body, origin=peer_a.origin, key=credential_a.private_key)
 
             if not recover.is_set():
                 peer_a.response_status = 503
@@ -446,10 +446,10 @@ class DeliveryProcessTests(unittest.IsolatedAsyncioTestCase):
                 failure_message="PRIVATE_BINDING_A_PAYLOAD"
             )
 
-        async def api_b(request, body):
-            self.assertEqual(request.split(b"\r\n", 1)[0], b"POST /provider/v1/execution-attempts/fail HTTP/1.1")
+        async def api_b(request_head, body):
+            self.assertEqual(request_head.split(b"\r\n", 1)[0], b"POST /provider/v1/execution-attempts/fail HTTP/1.1")
             self.assertEqual(body, second.body)
-            verify_signed_request(request, body, origin=peer_b.origin, key=credential_b.private_key)
+            verify_signed_request(request_head, body, origin=peer_b.origin, key=credential_b.private_key)
             effects["b"] += 1
 
             return fail_response(
@@ -475,10 +475,10 @@ class DeliveryProcessTests(unittest.IsolatedAsyncioTestCase):
                     second = replace(outcome(provider=endpoint_b.provider_ref, message="PRIVATE_BINDING_B_PAYLOAD"), api_origin=peer_b.origin)
                     clients = [DeliveryClient(endpoint, exchange_seconds=1, retirement_seconds=0.2) for endpoint in (endpoint_a, endpoint_b)]
                     foreign = DeliveryClient(replace(endpoint_b, socket_path=endpoint_a.socket_path), exchange_seconds=1, retirement_seconds=0.2)
-                    (process, notices) = (await _launch_daemon(files.path), [])
+                    (daemon_process, notices) = (await _launch_daemon(files.path), [])
 
                     try:
-                        self.assertEqual((await _receive_notice(process, "delivery_ready", notices))["binding_count"], 2)
+                        self.assertEqual((await _receive_notice(daemon_process, "delivery_ready", notices))["binding_count"], 2)
 
                         with self.assertRaises(DeliveryRejected):
                             await foreign.submit(second)
@@ -489,14 +489,14 @@ class DeliveryProcessTests(unittest.IsolatedAsyncioTestCase):
                         self.assertEqual(peer_b.requests, [])
                         self.assertEqual(effects, {"a": 0, "b": 0})
                         self.assertEqual(await clients[0].submit(first), first.acceptance())
-                        outage = await _receive_notice(process, "delivery_retry", notices)
+                        outage = await _receive_notice(daemon_process, "delivery_retry", notices)
 
                         self.assertEqual((outage["api_origin"], outage["provider_ref"]), (peer_a.origin, endpoint_a.provider_ref))
                         self.assertEqual(await clients[1].submit(second), second.acceptance())
-                        healthy = await _receive_notice(process, "delivery_published", notices)
+                        healthy = await _receive_notice(daemon_process, "delivery_published", notices)
 
                         self.assertEqual((healthy["api_origin"], healthy["provider_ref"]), (peer_b.origin, endpoint_b.provider_ref))
-                        self.assertIsNone(process.returncode)
+                        self.assertIsNone(daemon_process.returncode)
                         pending_a = await clients[0].pending()
 
                         self.assertEqual([(row["body_sha256"], row["state"]) for row in pending_a["items"]], [(first.body_sha256, "pending")])
@@ -504,7 +504,7 @@ class DeliveryProcessTests(unittest.IsolatedAsyncioTestCase):
                         self.assertEqual(peer_b.request_bodies, [second.body])
                         self.assertEqual(effects, {"a": 0, "b": 1})
                         recover.set()
-                        recovered = await _receive_notice(process, "delivery_published", notices)
+                        recovered = await _receive_notice(daemon_process, "delivery_published", notices)
 
                         self.assertEqual((recovered["api_origin"], recovered["provider_ref"]), (peer_a.origin, endpoint_a.provider_ref))
                         self.assertEqual((await clients[0].pending())["items"], [])
@@ -512,17 +512,17 @@ class DeliveryProcessTests(unittest.IsolatedAsyncioTestCase):
                         self.assertTrue(all((body == first.body) for body in peer_a.request_bodies))
                         self.assertEqual(peer_b.request_bodies, [second.body])
                         self.assertEqual(effects, {"a": 1, "b": 1})
-                        self.assertIsNone(process.returncode)
+                        self.assertIsNone(daemon_process.returncode)
 
-                        process.send_signal(signal.SIGTERM)
-                        self.assertTrue((await _receive_notice(process, "delivery_stopped", notices))["retirement_confirmed"])
-                        self.assertEqual(await asyncio.wait_for(process.wait(), 3), 0)
+                        daemon_process.send_signal(signal.SIGTERM)
+                        self.assertTrue((await _receive_notice(daemon_process, "delivery_stopped", notices))["retirement_confirmed"])
+                        self.assertEqual(await asyncio.wait_for(daemon_process.wait(), 3), 0)
                     finally:
                         try:
                             for client in (*clients, foreign):
                                 await client.retire()
                         finally:
-                            await _reap_daemon(process)
+                            await _reap_daemon(daemon_process)
 
         return notices
 
