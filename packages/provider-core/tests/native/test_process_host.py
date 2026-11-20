@@ -12,11 +12,26 @@ import time
 import unittest
 
 from provider_core.hosting import (
-    AcceptanceState, AdmissionCode, CleanupObservation, DispatchState,
-    Invocation, NotAdmitted, Observation, OperationPolicy, Outcome,
-    ResourceState, ResultRef, ResultState, observe_cleanup,
+    AcceptanceState,
+    AdmissionCode,
+    CleanupObservation,
+    DispatchState,
+    Invocation,
+    NotAdmitted,
+    Observation,
+    OperationPolicy,
+    Outcome,
+    ResourceState,
+    ResultRef,
+    ResultState,
+    observe_cleanup,
 )
-from provider_core.process_host import ProcessExecutionHost, _Channel, _ProcessAnalysis, _ProcessOperation
+from provider_core.process_host import (
+    ProcessExecutionHost,
+    _Channel,
+    _ProcessAnalysis,
+    _ProcessOperation,
+)
 from provider_core.process_wire import MAX_PAYLOAD_BYTES, receive, receive_async, send, send_async
 from provider_core.runner_session import RunnerSession
 from provider_core.scientific import Contribution, HostedContribution, operation
@@ -35,19 +50,22 @@ class DeclaredScience(Contribution):
 
 class ProcessChannelTests(unittest.TestCase):
     def test_local_framing_failure_sends_nothing_and_preserves_channel(self):
-        (parent, child) = socket.socketpair()
-        self.addCleanup(parent.close)
-        self.addCleanup(child.close)
-        channel = _Channel(parent)
+        (parent_science_socket, peer_science_socket) = socket.socketpair()
+
+        self.addCleanup(parent_science_socket.close)
+        self.addCleanup(peer_science_socket.close)
+
+        channel = _Channel(parent_science_socket)
 
         with self.assertRaises(expected_exception=TypeError):
             channel.exchange({"action": "submit", "unsupported": object()})
 
-        self.assertIsNone(channel.failure)
-        child.settimeout(0.01)
+        self.assertIsNone(obj=channel.failure)
+
+        peer_science_socket.settimeout(0.01)
 
         with self.assertRaises(expected_exception=TimeoutError):
-            child.recv(1)
+            peer_science_socket.recv(1)
 
 
 class ProcessHostTests(unittest.IsolatedAsyncioTestCase):
@@ -55,9 +73,9 @@ class ProcessHostTests(unittest.IsolatedAsyncioTestCase):
         class LocalContribution(Contribution):
             pass
 
-        with tempfile.TemporaryDirectory(prefix="scientific-host-preflight-") as root:
+        with tempfile.TemporaryDirectory(prefix="scientific-host-preflight-") as temporary_root:
             session = RunnerSession(
-                Path(root) / "unused.sock",
+                Path(temporary_root) / "unused.sock",
                 role="scientific-test",
                 expected_lock_identity=(0, 0),
                 startup_seconds=2,
@@ -81,13 +99,13 @@ class ProcessHostTests(unittest.IsolatedAsyncioTestCase):
                         requirements=frozenset(),
                     )
 
-                self.assertFalse(session.control_connected)
-                self.assertFalse(session._connect_started)
-                self.assertIsNone(session.operation)
-                self.assertIsNone(session.science)
-                self.assertIsNone(host.channel)
+                self.assertFalse(expr=session.control_connected)
+                self.assertFalse(expr=session._connect_started)
+                self.assertIsNone(obj=session.operation)
+                self.assertIsNone(obj=session.science)
+                self.assertIsNone(obj=host.channel)
 
-            self.assertEqual(-1, session.control.fileno())
+            self.assertEqual(first=-1, second=session.control.fileno())
 
 
 class ProcessOwnershipTests(unittest.IsolatedAsyncioTestCase):
@@ -109,8 +127,8 @@ class ProcessOwnershipTests(unittest.IsolatedAsyncioTestCase):
             initialization_seconds=2,
             retirement_seconds=2,
         )
-        self.parent, self.peer = socket.socketpair()
-        self.host.channel = _Channel(self.parent)
+        (self.parent_science_socket, self.peer_science_socket) = socket.socketpair()
+        self.host.channel = _Channel(self.parent_science_socket)
         self.host.hosted = HostedContribution(
             contribution=None,
             contribution_type=DeclaredScience,
@@ -129,7 +147,7 @@ class ProcessOwnershipTests(unittest.IsolatedAsyncioTestCase):
         )
 
     async def asyncTearDown(self):
-        self.peer.close()
+        self.peer_science_socket.close()
 
         if self.host.cleanups:
             await asyncio.gather(*tuple(self.host.cleanups), return_exceptions=True)
@@ -137,7 +155,7 @@ class ProcessOwnershipTests(unittest.IsolatedAsyncioTestCase):
         if self.host.exchanges:
             await asyncio.gather(*tuple(self.host.exchanges), return_exceptions=True)
 
-        self.parent.close()
+        self.parent_science_socket.close()
         self.host.exchange_executor.shutdown(wait=True)
         self.session.close()
         self.temporary.cleanup()
@@ -148,69 +166,89 @@ class ProcessOwnershipTests(unittest.IsolatedAsyncioTestCase):
             policy=replace(self.invocation.policy, reject_encoded_result_over_bytes=MAX_PAYLOAD_BYTES + 1),
         )
         refusal = self.analysis.submit(unsupported)
-        self.assertIs(type(refusal), NotAdmitted)
-        self.assertIs(AdmissionCode.UNSUPPORTED, refusal.code)
+
+        self.assertIs(expr1=NotAdmitted, expr2=type(refusal))
+        self.assertIs(expr1=AdmissionCode.UNSUPPORTED, expr2=refusal.code)
 
         def reply_with_wrong_identity():
-            request = receive(self.peer, deadline=time.monotonic() + 5)
-            owned_at_receipt = self.analysis.operations[request["invocation"].operation_id]
-            send(self.peer, {"ok": True, "value": {"operation": "another-operation"}})
+            worker_command = receive(self.peer_science_socket, deadline=time.monotonic() + 5)
+            owned_at_receipt = self.analysis.operations[worker_command["invocation"].operation_id]
+
+            send(self.peer_science_socket, {"ok": True, "value": {"operation": "another-operation"}})
+
             return owned_at_receipt
 
         with ThreadPoolExecutor(max_workers=1) as peer_executor:
-            receipt = peer_executor.submit(reply_with_wrong_identity)
+            peer_receipt = peer_executor.submit(reply_with_wrong_identity)
             original = self.analysis.submit(self.invocation)
-            self.assertIs(original, receipt.result(timeout=5))
 
-        self.assertIs(original, self.analysis.submit(self.invocation))
-        self.assertIsNotNone(self.host.channel.failure)
-        self.peer.setblocking(False)
+            self.assertIs(expr1=original, expr2=peer_receipt.result(timeout=5))
+
+        self.assertIs(expr1=original, expr2=self.analysis.submit(self.invocation))
+        self.assertIsNotNone(obj=self.host.channel.failure)
+
+        self.peer_science_socket.setblocking(False)
 
         try:
-            additional_bytes = self.peer.recv(1)
+            additional_bytes = self.peer_science_socket.recv(1)
         except BlockingIOError:
             additional_bytes = b""
 
-        self.assertEqual(b"", additional_bytes)
+        self.assertEqual(first=b"", second=additional_bytes)
 
     async def test_close_starts_without_observation_and_survives_cancelled_observer(self):
-        self.peer.setblocking(False)
+        self.peer_science_socket.setblocking(False)
+
         cleanup = self.analysis.close()
-        request = await asyncio.wait_for(receive_async(self.peer), timeout=5)
-        self.assertEqual("close_analysis", request["action"])
+        worker_command = await asyncio.wait_for(receive_async(self.peer_science_socket), timeout=5)
+
+        self.assertEqual(first="close_analysis", second=worker_command["action"])
+
         observing = asyncio.Event()
 
         async def observe_original_cleanup():
             observing.set()
+
             return await observe_cleanup(cleanup)
 
         observer = asyncio.create_task(observe_original_cleanup())
+
         await observing.wait()
         observer.cancel()
 
-        with self.assertRaises(asyncio.CancelledError):
+        with self.assertRaises(expected_exception=asyncio.CancelledError):
             await observer
 
-        self.assertFalse(cleanup.task.done())
-        await send_async(self.peer, {
-            "ok": True,
-            "value": CleanupObservation(1, True, False, ()),
-        })
-        request = await asyncio.wait_for(receive_async(self.peer), timeout=5)
-        self.assertEqual("forget_analysis", request["action"])
-        await send_async(self.peer, {"ok": True, "value": None})
+        self.assertFalse(expr=cleanup.task.done())
+
+        await send_async(
+            self.peer_science_socket,
+            {
+                "ok": True,
+                "value": CleanupObservation(1, True, False, ()),
+            },
+        )
+
+        worker_command = await asyncio.wait_for(receive_async(self.peer_science_socket), timeout=5)
+
+        self.assertEqual(first="forget_analysis", second=worker_command["action"])
+
+        await send_async(self.peer_science_socket, {"ok": True, "value": None})
         await asyncio.wait_for(asyncio.shield(cleanup.task), timeout=5)
+
         observed = await cleanup.observe(after=None, wait_seconds=0)
-        self.assertTrue(observed.settled)
-        self.assertEqual((), observed.failures)
-        self.assertIs(cleanup, self.analysis.close())
-        self.assertIsNone(self.host.active_analysis)
+
+        self.assertTrue(expr=observed.settled)
+        self.assertEqual(first=(), second=observed.failures)
+        self.assertIs(expr1=cleanup, expr2=self.analysis.close())
+        self.assertIsNone(obj=self.host.active_analysis)
 
     async def test_close_and_release_transfer_final_evidence_after_original_observation(self):
-        self.peer.setblocking(False)
+        self.peer_science_socket.setblocking(False)
+
         original = _ProcessOperation(self.analysis, self.invocation, acknowledged=True)
         self.analysis.operations[self.invocation.operation_id] = original
-        result = ResultRef(original.reference, "known-result")
+        result_ref = ResultRef(original.reference, "known-result")
         completed = Observation(
             operation=original.reference,
             target=self.invocation.target,
@@ -220,7 +258,7 @@ class ProcessOwnershipTests(unittest.IsolatedAsyncioTestCase):
             finished=True,
             outcome=Outcome.SUCCEEDED,
             result_state=ResultState.AVAILABLE,
-            result=result,
+            result=result_ref,
             states=(),
             progress=(),
             progress_dropped=0,
@@ -234,104 +272,141 @@ class ProcessOwnershipTests(unittest.IsolatedAsyncioTestCase):
         # Hold an original reply while both cleanup owners are created. Their
         # ordering must drain that exchange without making it wait for them.
         earlier_observer = asyncio.create_task(original.observe(after=None, wait_seconds=5))
-        request = await asyncio.wait_for(receive_async(self.peer), timeout=5)
-        self.assertEqual("observe", request["action"])
-        release = original.release_result(result)
-        cleanup = self.analysis.close()
-        await send_async(self.peer, {"ok": True, "value": completed})
-        self.assertEqual(completed, await asyncio.wait_for(earlier_observer, timeout=5))
+        worker_command = await asyncio.wait_for(receive_async(self.peer_science_socket), timeout=5)
 
-        request = await asyncio.wait_for(receive_async(self.peer), timeout=5)
-        self.assertEqual("release_result", request["action"])
+        self.assertEqual(first="observe", second=worker_command["action"])
+
+        release = original.release_result(result_ref)
+        cleanup = self.analysis.close()
+
+        await send_async(self.peer_science_socket, {"ok": True, "value": completed})
+        self.assertEqual(first=completed, second=await asyncio.wait_for(earlier_observer, timeout=5))
+
+        worker_command = await asyncio.wait_for(receive_async(self.peer_science_socket), timeout=5)
+
+        self.assertEqual(first="release_result", second=worker_command["action"])
+
         later_started = asyncio.Event()
 
         async def observe_after_close():
             later_started.set()
+
             return await original.observe(after=None, wait_seconds=5)
 
         later_observer = asyncio.create_task(observe_after_close())
+
         await later_started.wait()
-        self.assertFalse(later_observer.done())
+        self.assertFalse(expr=later_observer.done())
+
         released = replace(completed, revision=3, result_state=ResultState.RELEASED)
-        await send_async(self.peer, {
-            "ok": True,
-            "value": {"cleanup": CleanupObservation(1, True, False, ()), "operation": released},
-        })
 
-        request = await asyncio.wait_for(receive_async(self.peer), timeout=5)
-        self.assertEqual("close_analysis", request["action"])
-        await send_async(self.peer, {"ok": True, "value": CleanupObservation(2, True, False, ())})
-        request = await asyncio.wait_for(receive_async(self.peer), timeout=5)
-        self.assertEqual("observe", request["action"])
+        await send_async(
+            self.peer_science_socket,
+            {
+                "ok": True,
+                "value": {"cleanup": CleanupObservation(1, True, False, ()), "operation": released},
+            },
+        )
+
+        worker_command = await asyncio.wait_for(receive_async(self.peer_science_socket), timeout=5)
+
+        self.assertEqual(first="close_analysis", second=worker_command["action"])
+
+        await send_async(self.peer_science_socket, {"ok": True, "value": CleanupObservation(2, True, False, ())})
+
+        worker_command = await asyncio.wait_for(receive_async(self.peer_science_socket), timeout=5)
+
+        self.assertEqual(first="observe", second=worker_command["action"])
+
         final = replace(released, revision=4, resources=ResourceState.RELEASED)
-        await send_async(self.peer, {"ok": True, "value": final})
-        request = await asyncio.wait_for(receive_async(self.peer), timeout=5)
-        self.assertEqual("forget_analysis", request["action"])
-        await send_async(self.peer, {"ok": True, "value": None})
 
-        self.assertEqual(final, await asyncio.wait_for(later_observer, timeout=5))
-        self.assertTrue((await observe_cleanup(release)).settled)
-        self.assertTrue((await observe_cleanup(cleanup)).settled)
-        self.assertEqual(final, await original.observe(after=None, wait_seconds=0))
-        self.assertIsNone(self.host.active_analysis)
-        self.assertIsNone(self.host.channel.failure)
+        await send_async(self.peer_science_socket, {"ok": True, "value": final})
+
+        worker_command = await asyncio.wait_for(receive_async(self.peer_science_socket), timeout=5)
+
+        self.assertEqual(first="forget_analysis", second=worker_command["action"])
+
+        await send_async(self.peer_science_socket, {"ok": True, "value": None})
+
+        self.assertEqual(first=final, second=await asyncio.wait_for(later_observer, timeout=5))
+        self.assertTrue(expr=(await observe_cleanup(release)).settled)
+        self.assertTrue(expr=(await observe_cleanup(cleanup)).settled)
+        self.assertEqual(first=final, second=await original.observe(after=None, wait_seconds=0))
+        self.assertIsNone(obj=self.host.active_analysis)
+        self.assertIsNone(obj=self.host.channel.failure)
 
         with self.assertRaises(expected_exception=BlockingIOError):
-            self.peer.recv(1)
+            self.peer_science_socket.recv(1)
 
     async def test_zero_wait_returns_pending_facts_without_abandoning_the_remote_reply(self):
-        self.peer.setblocking(False)
+        self.peer_science_socket.setblocking(False)
+
         operation = _ProcessOperation(self.analysis, self.invocation, acknowledged=True)
         self.analysis.operations[self.invocation.operation_id] = operation
 
         # No peer reply is available. Zero-wait observation must nevertheless
         # return; the original remote request must remain owned.
         initial = await asyncio.wait_for(
-            operation.observe(after=None, wait_seconds=0), timeout=0.5,
+            operation.observe(after=None, wait_seconds=0),
+            timeout=0.5,
         )
-        self.assertEqual(0, initial.revision)
-        self.assertIs(AcceptanceState.OWNED, initial.acceptance)
-        self.assertIs(DispatchState.UNKNOWN, initial.dispatch)
-        self.assertFalse(initial.finished)
-        request = await asyncio.wait_for(receive_async(self.peer), timeout=5)
-        self.assertEqual("observe", request["action"])
+
+        self.assertEqual(first=0, second=initial.revision)
+        self.assertIs(expr1=AcceptanceState.OWNED, expr2=initial.acceptance)
+        self.assertIs(expr1=DispatchState.UNKNOWN, expr2=initial.dispatch)
+        self.assertFalse(expr=initial.finished)
+
+        worker_command = await asyncio.wait_for(receive_async(self.peer_science_socket), timeout=5)
+
+        self.assertEqual(first="observe", second=worker_command["action"])
 
         # A bounded later observer is also free to leave while the reply is
         # delayed; neither call sends another request.
         still_pending = await asyncio.wait_for(
-            operation.observe(after=initial.revision, wait_seconds=0.01), timeout=0.5,
+            operation.observe(after=initial.revision, wait_seconds=0.01),
+            timeout=0.5,
         )
-        self.assertEqual(initial, still_pending)
-        self.assertIsNotNone(operation.observation_task)
-        self.assertFalse(operation.observation_task.done())
+
+        self.assertEqual(first=initial, second=still_pending)
+        self.assertIsNotNone(obj=operation.observation_task)
+        self.assertFalse(expr=operation.observation_task.done())
 
         completed = replace(
-            initial, revision=1, finished=True, outcome=Outcome.REJECTED,
+            initial,
+            revision=1,
+            finished=True,
+            outcome=Outcome.REJECTED,
         )
-        await send_async(self.peer, {"ok": True, "value": completed})
+
+        await send_async(self.peer_science_socket, {"ok": True, "value": completed})
+
         observed = await operation.observe(after=initial.revision, wait_seconds=1)
-        self.assertEqual(completed, observed)
-        self.assertIsNone(self.host.channel.failure)
+
+        self.assertEqual(first=completed, second=observed)
+        self.assertIsNone(obj=self.host.channel.failure)
 
         with self.assertRaises(expected_exception=BlockingIOError):
-            self.peer.recv(1)
+            self.peer_science_socket.recv(1)
 
-        with self.assertRaisesRegex(ValueError, "cursor"):
+        with self.assertRaisesRegex(expected_exception=ValueError, expected_regex="cursor"):
             await operation.observe(after=observed.revision + 1, wait_seconds=0)
 
     async def test_cancelled_observation_retains_reply_before_subsequent_channel_loss(self):
-        self.peer.setblocking(False)
+        self.peer_science_socket.setblocking(False)
+
         original = _ProcessOperation(self.analysis, self.invocation, acknowledged=True)
         self.analysis.operations[self.invocation.operation_id] = original
         observer = asyncio.create_task(original.observe(after=None, wait_seconds=5))
-        request = await asyncio.wait_for(receive_async(self.peer), timeout=5)
-        self.assertEqual("observe", request["action"])
+        worker_command = await asyncio.wait_for(receive_async(self.peer_science_socket), timeout=5)
+
+        self.assertEqual(first="observe", second=worker_command["action"])
+
         observer.cancel()
 
-        with self.assertRaises(asyncio.CancelledError):
+        with self.assertRaises(expected_exception=asyncio.CancelledError):
             await observer
 
-        result = ResultRef(original.reference, "known-result")
+        result_ref = ResultRef(original.reference, "known-result")
         completed = Observation(
             operation=original.reference,
             target=self.invocation.target,
@@ -341,7 +416,7 @@ class ProcessOwnershipTests(unittest.IsolatedAsyncioTestCase):
             finished=True,
             outcome=Outcome.SUCCEEDED,
             result_state=ResultState.AVAILABLE,
-            result=result,
+            result=result_ref,
             states=(),
             progress=(),
             progress_dropped=0,
@@ -350,15 +425,17 @@ class ProcessOwnershipTests(unittest.IsolatedAsyncioTestCase):
             allowance_expired=False,
             resources=ResourceState.OCCUPIED,
         )
-        await send_async(self.peer, {"ok": True, "value": completed})
+
+        await send_async(self.peer_science_socket, {"ok": True, "value": completed})
         await asyncio.wait_for(asyncio.shield(original.observation_task), timeout=5)
-        self.peer.close()
+        self.peer_science_socket.close()
+
         observed = await original.observe(after=None, wait_seconds=5)
 
-        self.assertIs(Outcome.SUCCEEDED, observed.outcome)
-        self.assertEqual(result, observed.result)
-        self.assertIs(ResultState.AVAILABLE, observed.result_state)
-        self.assertEqual("backend", observed.failures[-1].phase)
+        self.assertIs(expr1=Outcome.SUCCEEDED, expr2=observed.outcome)
+        self.assertEqual(first=result_ref, second=observed.result)
+        self.assertIs(expr1=ResultState.AVAILABLE, expr2=observed.result_state)
+        self.assertEqual(first="backend", second=observed.failures[-1].phase)
 
 
 if __name__ == "__main__":

@@ -19,15 +19,29 @@ import time
 from threading import Lock
 from uuid import uuid4
 
-from provider_core._embedded_support import _Changes, _require_supported_binding
+from provider_core._embedded_support import EMBEDDED_CAPABILITIES, _Changes, _require_supported_binding
 from provider_core.async_runner_session import AsyncRunnerSession, await_original
-from provider_core.contribution import ConcurrencyRequirement, InterruptionSupport, IsolationRequirement, ResourceRequirement
+from provider_core.contribution import ResourceRequirement
 from provider_core.hosting import (
-    AcceptanceState, AdmissionCode, AllocationRef, BackendCapabilities,
-    CapacityUnavailable, CleanupObservation, DispatchState, Failure, Invocation,
-    NotAdmitted, Observation, OperationRef,
-    RequestConflict, ReservationRef, ResourceState, ResultRef, ResultState,
-    _raise_context_failure, _start_owned_task, settle_cleanup,
+    AcceptanceState,
+    AdmissionCode,
+    AllocationRef,
+    CapacityUnavailable,
+    CleanupObservation,
+    DispatchState,
+    Failure,
+    Invocation,
+    NotAdmitted,
+    Observation,
+    OperationRef,
+    RequestConflict,
+    ReservationRef,
+    ResourceState,
+    ResultRef,
+    ResultState,
+    _raise_context_failure,
+    _start_owned_task,
+    settle_cleanup,
 )
 from provider_core.process_wire import MAX_PAYLOAD_BYTES, RemoteScienceError, frame, receive
 from provider_core.runner_session import RunnerSession, RunnerStartupStopped, RunnerStartupUnavailable
@@ -53,52 +67,53 @@ class _Channel:
     def exchange(self, message, seconds=2, *, accept=None):
         # Framing is a local refusal. Once bytes may have been sent, all
         # failures belong to the original retained request.
-        request = frame(message)
-        return self.exchange_frame(request, deadline=time.monotonic() + seconds, accept=accept)
+        request_frame = frame(message)
 
-    def exchange_frame(self, request, *, deadline, accept=None):
+        return self.exchange_frame(request_frame, deadline=time.monotonic() + seconds, accept=accept)
+
+    def exchange_frame(self, request_frame, *, deadline, accept=None):
         remaining = max(0, deadline - time.monotonic())
 
         if not self.lock.acquire(timeout=remaining):
             raise TimeoutError("Scientific channel was occupied; this exchange sent no bytes")
 
         try:
-            if self.failure is not None:
+            if not (self.failure is None):
                 raise RemoteScienceError("Original scientific process channel is unavailable") from self.failure
 
             remaining = deadline - time.monotonic()
 
-            if remaining <= 0:
+            if not (0 < remaining):
                 raise TimeoutError("Scientific exchange exceeded its original deadline before sending")
 
             try:
                 self.sock.settimeout(remaining)
-                self.sock.sendall(request)
-                reply = receive(self.sock, deadline=deadline)
+                self.sock.sendall(request_frame)
+                response_envelope = receive(self.sock, deadline=deadline)
 
-                if type(reply) is not dict or type(reply.get("ok")) is not bool:
+                if not ((type(response_envelope) is dict) and (type(response_envelope.get("ok")) is bool)):
                     raise ValueError("Scientific process replied with an unexpected envelope")
 
-                if reply["ok"]:
-                    if set(reply) != {"ok", "value"}:
+                if response_envelope["ok"]:
+                    if not (set(response_envelope) == {"ok", "value"}):
                         raise ValueError("Scientific process success envelope has unexpected fields")
 
-                    return reply["value"] if accept is None else accept(reply["value"])
+                    return response_envelope["value"] if accept is None else accept(response_envelope["value"])
 
-                if set(reply) != {"ok", "error"} or not isinstance(reply["error"], BaseException):
+                if not ((set(response_envelope) == {"ok", "error"}) and isinstance(response_envelope["error"], BaseException)):
                     raise ValueError("Scientific process failure envelope has no failure evidence")
             except BaseException as cause:
                 failure = self.fail(cause)
 
-                if isinstance(cause, Exception):
-                    raise failure from cause
+                if not isinstance(cause, Exception):
+                    raise
 
-                raise
+                raise failure from cause
 
             # A well-formed remote failure is evidence, not a corrupt frame.
             # Mutating callers decide whether their request is now uncertain.
-            if not reply["ok"]:
-                raise reply["error"]
+            if not (response_envelope["ok"]):
+                raise response_envelope["error"]
         finally:
             self.lock.release()
 
@@ -111,13 +126,14 @@ class _Channel:
         self.sock.shutdown(socket.SHUT_RDWR)
 
 
-def _cleanup_observation(value):
-    require_type(value, CleanupObservation)
-    return value
+def _cleanup_observation(observation):
+    require_type(observation, CleanupObservation)
+
+    return observation
 
 
-def _acknowledged(value):
-    if value is not None:
+def _acknowledged(acknowledgement):
+    if not (acknowledgement is None):
         raise ValueError("Scientific control acknowledgement has unexpected content")
 
 
@@ -139,15 +155,17 @@ class _ProcessCleanup(_Changes):
         self.settled = False
         self.expired = False
         self.failures = ()
-        self.task = _start_owned_task(self._run)
+        self.task = _start_owned_task(self._run_cleanup)
+
         host.cleanups.add(self.task)
         self.task.add_done_callback(host.cleanups.discard)
 
     def _expire(self):
         self.expired = True
+
         self.changed()
 
-    async def _run(self):
+    async def _run_cleanup(self):
         timer = self.loop.call_later(self.seconds, self._expire)
 
         try:
@@ -158,6 +176,7 @@ class _ProcessCleanup(_Changes):
                 self.settled = observed.settled
                 self.expired = self.expired or observed.allowance_expired
                 self.failures = observed.failures
+
                 self.changed()
 
                 if self.settled or self.failures:
@@ -166,12 +185,14 @@ class _ProcessCleanup(_Changes):
                 await asyncio.sleep(0.05)
         except BaseException as cause:
             self.failures = (*self.failures, Failure("cleanup", cause))
+
             self.changed()
         finally:
             timer.cancel()
 
     async def observe(self, *, after, wait_seconds):
         await self.wait(after, wait_seconds)
+
         return CleanupObservation(self.revision, self.settled, self.expired, self.failures)
 
 
@@ -185,6 +206,7 @@ class _ProcessOperation:
             analysis=analysis.identity,
             operation_id=invocation.operation_id,
         )
+
         self.last_observation = None
         self.failure_observation = None
         self.submission_failure = None
@@ -230,7 +252,10 @@ class _ProcessOperation:
         exited = host.session.retirement is not None
 
         if self.failure_observation is not None:
-            if (exited and not self.failure_observation.finished) or (host.retired and self.failure_observation.resources is not ResourceState.RELEASED):
+            if (
+                (exited and (not self.failure_observation.finished)) or
+                (host.retired and (self.failure_observation.resources is not ResourceState.RELEASED))
+            ):
                 self.failure_observation = replace(
                     self.failure_observation,
                     revision=self.failure_observation.revision + 1,
@@ -247,15 +272,17 @@ class _ProcessOperation:
             finished=observed.finished or exited,
             failures=(*observed.failures, Failure("backend", cause)),
             stop_requested=observed.stop_requested or self.stop_requested,
-            resources=(ResourceState.RELEASED if host.retired or observed.resources is ResourceState.RELEASED else ResourceState.UNKNOWN),
+            resources=ResourceState.RELEASED if (host.retired or (observed.resources is ResourceState.RELEASED)) else ResourceState.UNKNOWN,
         )
+
         self.failure_observation = observed
+
         return observed
 
     def _accept_observation(self, observed):
         require_type(observed, Observation)
 
-        if observed.operation != self.reference or observed.target != self.invocation.target:
+        if not ((observed.operation == self.reference) and (observed.target == self.invocation.target)):
             raise ValueError("Scientific worker observation identifies different work")
 
         return observed
@@ -265,14 +292,16 @@ class _ProcessOperation:
             return self.last_observation
 
         observed = await self.analysis.host._exchange_async(
-            self._message("observe"), accept=self._accept_observation,
+            self._message("observe"),
+            accept=self._accept_observation,
         )
+
         # The original task publishes its evidence even when its caller stopped
         # waiting before the reply arrived.
         return self._publish(observed)
 
     def _publish(self, observed):
-        if self.last_observation is None or observed.revision >= self.last_observation.revision:
+        if (self.last_observation is None) or (observed.revision >= self.last_observation.revision):
             self.last_observation = observed
             self.failure_observation = None
 
@@ -280,7 +309,8 @@ class _ProcessOperation:
 
     def _barriers(self):
         return tuple(
-            control.task for control in (self.analysis.cleanup, self.release)
+            control.task
+            for control in (self.analysis.cleanup, self.release)
             if control is not None
         )
 
@@ -296,10 +326,8 @@ class _ProcessOperation:
             # Original I/O publishes failure even if its observer left first.
             observed = self._unavailable(cause)
 
-            if not observed.finished:
-                raise RemoteScienceError(
-                    "Scientific operation may still be running in an unobservable worker"
-                ) from cause
+            if not (observed.finished):
+                raise RemoteScienceError("Scientific operation may still be running in an unobservable worker") from cause
 
             return observed
 
@@ -311,26 +339,26 @@ class _ProcessOperation:
         if after is not None:
             require_type(after, int)
 
-            if not 0 <= after <= current.revision:
+            if not (0 <= after <= current.revision):
                 raise ValueError("Observation cursor must belong to this operation's current history")
 
-        if self.submission_failure is not None:
+        if not (self.submission_failure is None):
             raise self.submission_failure
 
-        if self.detached or (current.finished and wait_seconds == 0):
+        if self.detached or (current.finished and (wait_seconds == 0)):
             return current
 
         loop = asyncio.get_running_loop()
         deadline = loop.time() + wait_seconds
 
         while True:
-            if self.observation_task is None or self.observation_task.done():
+            if (self.observation_task is None) or self.observation_task.done():
                 before = self._barriers()
                 self.observation_task = _start_owned_task(lambda: self._observe_remote(before))
 
             # Return cached facts when the caller's wait is exhausted. The
             # original remote observation remains owned and will publish later.
-            if wait_seconds == 0 or (after is not None and after != current.revision):
+            if (wait_seconds == 0) or ((after is not None) and (after != current.revision)):
                 return current
 
             try:
@@ -341,11 +369,16 @@ class _ProcessOperation:
             except TimeoutError:
                 return self._snapshot()
 
-            if (after is None or after != observed.revision or observed.finished or
-                    loop.time() >= deadline):
+            if (
+                (after is None) or
+                (after != observed.revision) or
+                observed.finished or
+                (loop.time() >= deadline)
+            ):
                 return observed
 
             current = observed
+
             await asyncio.sleep(min(0.1, max(0, deadline - loop.time())))
 
     def request_stop(self):
@@ -354,45 +387,52 @@ class _ProcessOperation:
         if not self.stop_requested:
             self.stop_requested = True
 
-            if not self.analysis.closed and not (self.last_observation is not None and self.last_observation.finished):
+            if (not self.analysis.closed) and (not ((self.last_observation is not None) and self.last_observation.finished)):
                 self.analysis.host._exchange(self._message("stop_operation"), accept=_acknowledged)
 
     async def read_result(self, result: ResultRef) -> bytes:
         self.analysis.host._require_loop()
         self._require_result(result)
 
-        if self.release is not None:
+        if not (self.release is None):
             raise ValueError("Release of this exact result has already been authorized")
 
         before = self._barriers()
 
         async def read():
             await _join_originals(before)
+
             return await self.analysis.host._exchange_async(
-                self._message("read_result", result=result), accept=self._accept_result,
+                self._message("read_result", result=result),
+                accept=self._accept_result,
             )
 
         task = _start_owned_task(read)
+
         self.read_tasks.add(task)
         task.add_done_callback(self.read_tasks.discard)
+
         return await asyncio.shield(task)
 
     def _accept_result(self, payload):
         require_type(payload, bytes)
 
-        if len(payload) > self.invocation.policy.reject_encoded_result_over_bytes:
+        if not (len(payload) <= self.invocation.policy.reject_encoded_result_over_bytes):
             raise ValueError("Scientific worker result exceeds its admitted allowance")
 
         return payload
 
-    def _require_result(self, result):
-        require_type(result, ResultRef)
+    def _require_result(self, result_ref):
+        require_type(result_ref, ResultRef)
+
         observed = self.last_observation
 
-        if (
-            result.operation != self.reference or observed is None or
-            result != observed.result or not observed.finished or
-            observed.result_state is not ResultState.AVAILABLE
+        if not (
+            (result_ref.operation == self.reference) and
+            (observed is not None) and
+            (result_ref == observed.result) and
+            observed.finished and
+            (observed.result_state is ResultState.AVAILABLE)
         ):
             raise ValueError("Result reference does not name this operation's available result")
 
@@ -403,7 +443,7 @@ class _ProcessOperation:
         if self.release is None:
             self._require_result(result)
 
-            if self.analysis.host.retiring:
+            if not (self.analysis.host.retiring is False):
                 raise ValueError("Host retirement already owns disposal of remaining results")
 
             before = (*self.analysis.host.exchanges, *self._pending(), *self._barriers())
@@ -414,29 +454,32 @@ class _ProcessOperation:
                 seconds=self.invocation.policy.cleanup_overdue_flag_seconds,
                 before=before,
             )
-        elif self.released_result != result:
+        elif not (self.released_result == result):
             raise ValueError("Result release identifies another operation result")
 
         return self.release
 
-    def _accept_release(self, value):
-        if type(value) is not dict or set(value) != {"cleanup", "operation"}:
+    def _accept_release(self, release_observation):
+        if not ((type(release_observation) is dict) and (set(release_observation) == {"cleanup", "operation"})):
             raise ValueError("Scientific result release has an unexpected reply")
 
-        _cleanup_observation(value["cleanup"])
-        self._accept_observation(value["operation"])
-        return value
+        _cleanup_observation(release_observation["cleanup"])
+        self._accept_observation(release_observation["operation"])
 
-    async def _release_remote(self, result):
-        reply = await self.analysis.host._exchange_async(
-            self._message("release_result", result=result), accept=self._accept_release,
+        return release_observation
+
+    async def _release_remote(self, result_ref):
+        release_observation = await self.analysis.host._exchange_async(
+            self._message("release_result", result=result_ref),
+            accept=self._accept_release,
         )
-        self._publish(reply["operation"])
 
-        if reply["cleanup"].settled and self.analysis.forgotten:
+        self._publish(release_observation["operation"])
+
+        if release_observation["cleanup"].settled and self.analysis.forgotten:
             self.detached = True
 
-        return reply["cleanup"]
+        return release_observation["cleanup"]
 
 
 class _ProcessAnalysis:
@@ -450,6 +493,7 @@ class _ProcessAnalysis:
             binding_id=host.hosted.description.binding_id,
             binding_revision=host.hosted.description.binding_revision,
         )
+
         self.closed = False
         self.forgotten = False
         self.operations = {}
@@ -457,7 +501,8 @@ class _ProcessAnalysis:
 
     def reservation(self, *, allocation: AllocationRef) -> ReservationRef:
         self.host._require_loop()
-        if allocation != self.host.hosted.allocation:
+
+        if not (allocation == self.host.hosted.allocation):
             raise ValueError("This analysis does not own the specified allocation")
 
         return self.reservation_ref
@@ -472,14 +517,16 @@ class _ProcessAnalysis:
         if invocation.reservation != self.reservation_ref:
             return NotAdmitted(AdmissionCode.INVALID_REFERENCE, "Scientific reservation differs from this analysis")
 
-        if ((invocation.target.binding_id, invocation.target.binding_revision) !=
-                (self.reservation_ref.binding_id, self.reservation_ref.binding_revision)):
+        if (
+            (invocation.target.binding_id, invocation.target.binding_revision) !=
+            (self.reservation_ref.binding_id, self.reservation_ref.binding_revision)
+        ):
             return NotAdmitted(AdmissionCode.INVALID_REQUEST, "Scientific call does not belong to this allocation")
 
         existing = self.operations.get(invocation.operation_id)
 
         if existing is not None:
-            if existing.invocation != invocation:
+            if not (existing.invocation == invocation):
                 raise RequestConflict("Scientific operation identity already refers to different work")
 
             return existing
@@ -491,31 +538,37 @@ class _ProcessAnalysis:
         ) > MAX_PAYLOAD_BYTES:
             return NotAdmitted(AdmissionCode.UNSUPPORTED, "Scientific process byte allowance exceeds its supported payload limit")
 
-        request = frame({"action": "submit", "invocation": invocation})
+        request_frame = frame({"action": "submit", "invocation": invocation})
         operation = _ProcessOperation(self, invocation, acknowledged=False)
         self.operations[invocation.operation_id] = operation
 
-        def accept(outcome):
-            if type(outcome) is dict and set(outcome) == {"refusal"}:
-                require_type(outcome["refusal"], NotAdmitted)
-                return outcome["refusal"]
+        def accept(admission_response):
+            if (type(admission_response) is dict) and (set(admission_response) == {"refusal"}):
+                require_type(admission_response["refusal"], NotAdmitted)
 
-            if type(outcome) is not dict or set(outcome) != {"operation"} or outcome["operation"] != operation.reference:
+                return admission_response["refusal"]
+
+            if not (
+                (type(admission_response) is dict) and
+                (set(admission_response) == {"operation"}) and
+                (admission_response["operation"] == operation.reference)
+            ):
                 raise ValueError("Scientific worker admitted another operation identity")
 
             return operation
 
         try:
-            outcome = self.host._exchange_frame(request, accept=accept)
+            admitted_operation = self.host._exchange_frame(request_frame, accept=accept)
         except BaseException as cause:
             operation.submission_failure = self.host._channel_failure(cause)
 
             if not isinstance(cause, Exception):
                 raise
         else:
-            if isinstance(outcome, NotAdmitted):
+            if isinstance(admitted_operation, NotAdmitted):
                 del self.operations[invocation.operation_id]
-                return outcome
+
+                return admitted_operation
 
             operation.acknowledged = True
 
@@ -526,6 +579,7 @@ class _ProcessAnalysis:
 
         if not self.closed:
             self.closed = True
+
             self.host._exchange({"action": "stop_analysis", "analysis": self.identity}, accept=_acknowledged)
 
     def close(self):
@@ -537,6 +591,7 @@ class _ProcessAnalysis:
                 (operation.invocation.policy.cleanup_overdue_flag_seconds for operation in self.operations.values()),
                 default=self.host.retirement_seconds,
             )
+
             before = list(self.host.exchanges)
 
             for operation in self.operations.values():
@@ -555,7 +610,7 @@ class _ProcessAnalysis:
             accept=_cleanup_observation,
         )
 
-        if not observed.settled or observed.failures:
+        if (not observed.settled) or observed.failures:
             return observed
 
         # Each reply is independently bounded. New public reads/releases wait
@@ -567,12 +622,14 @@ class _ProcessAnalysis:
             {"action": "forget_analysis", "analysis": self.identity},
             accept=_acknowledged,
         )
+
         self.forgotten = True
 
         for operation in self.operations.values():
             operation.detached = operation.last_observation.result_state is not ResultState.AVAILABLE
 
         self.host._release_analysis(self)
+
         return observed
 
 
@@ -584,30 +641,37 @@ class ProcessExecutionHost:
     the native runner owns child termination, reaping and scratch cleanup.
     """
 
-    capabilities = BackendCapabilities(
-        contract_versions=frozenset({1}),
-        isolation=frozenset({IsolationRequirement.SHARED_PROCESS}),
-        concurrency=frozenset({ConcurrencyRequirement.INSTANCE_SERIAL, ConcurrencyRequirement.PARALLEL}),
-        interruption=frozenset({InterruptionSupport.NONE, InterruptionSupport.COOPERATIVE}),
-        progress=True,
-    )
+    # The child executes through the embedded host and uses its admission rules.
+    capabilities = EMBEDDED_CAPABILITIES
 
     def __init__(
-        self, *, session: RunnerSession, input_bytes: int, result_bytes: int, state_values: int,
-        progress_records: int, initialization_seconds: float, retirement_seconds: float,
+        self,
+        *,
+        session: RunnerSession,
+        input_bytes: int,
+        result_bytes: int,
+        state_values: int,
+        progress_records: int,
+        initialization_seconds: float,
+        retirement_seconds: float,
     ):
-        for value in (input_bytes, result_bytes, state_values, progress_records):
-            require_type(value, int)
+        for (capacity_name, capacity) in (
+            ("input_bytes", input_bytes),
+            ("result_bytes", result_bytes),
+            ("state_values", state_values),
+            ("progress_records", progress_records),
+        ):
+            require_type(capacity, int)
 
-            if value <= 0:
-                raise ValueError("Scientific process capacities must be positive integers")
+            if not (0 < capacity):
+                raise ValueError(f"{capacity_name=}; {capacity=} should be positive")
 
-        for value in (initialization_seconds, retirement_seconds):
-            require_positive_number(value)
+        require_positive_number(initialization_seconds)
+        require_positive_number(retirement_seconds)
 
         require_type(session, RunnerSession)
 
-        if session._connect_started:
+        if not (session._connect_started is False):
             raise ValueError("Scientific hosting requires a fresh native runner session")
 
         self.host_options = dict(
@@ -618,6 +682,7 @@ class ProcessExecutionHost:
             initialization_seconds=initialization_seconds,
             retirement_seconds=retirement_seconds,
         )
+
         self.initialization_seconds = initialization_seconds
         self.retirement_seconds = retirement_seconds
         self.loop = asyncio.get_running_loop()
@@ -640,11 +705,12 @@ class ProcessExecutionHost:
         self.exchange_executor = ThreadPoolExecutor(max_workers=1, thread_name_prefix="science-channel")
 
     def _require_loop(self):
-        if asyncio.get_running_loop() is not self.loop:
+        if not (asyncio.get_running_loop() is self.loop):
             raise RuntimeError("Control this scientific host on its original event loop")
 
     async def __aenter__(self):
         self._require_loop()
+
         return self
 
     async def __aexit__(self, exception_type, exception, traceback):
@@ -655,16 +721,24 @@ class ProcessExecutionHost:
 
     @staticmethod
     def _member_path(member) -> str:
-        if "<locals>" in member.__qualname__:
+        if not ("<locals>" not in member.__qualname__):
             raise ValueError("Scientific process requires an installed top-level class or factory")
 
-        return f"{member.__module__}:{member.__qualname__}"
+        return f"{member.__module__}:{member.__qualname__}"  # machine-string: The installed-member resolver requires module:qualified_name without expression labels.
 
-    async def start(self, *, contribution_type: type[Contribution], constructor: str,
-                    startup: Mapping, requirements: frozenset[ResourceRequirement]):
+    async def start(
+        self,
+        *,
+        contribution_type: type[Contribution],
+        constructor: str,
+        startup: Mapping,
+        requirements: frozenset[ResourceRequirement],
+    ):
         """Create the real model in a persistent child and retain its ownership."""
+
         self._require_loop()
-        if self.start_task is not None or self.retiring:
+
+        if not ((self.start_task is None) and (not self.retiring)):
             raise RuntimeError("This process host accepts exactly one allocation")
 
         # Compile and validate before connecting: a control connection can
@@ -677,11 +751,13 @@ class ProcessExecutionHost:
             allocation_name=uuid4().hex,
             requirements=requirements,
         )
+
         _require_supported_binding(declaration)
         require_type(constructor, str)
-        module, separator, member = constructor.partition(":")
 
-        if not module or not separator or not member or "<locals>" in member:
+        (module, separator, member) = constructor.partition(":")
+
+        if not (module and separator and member and ("<locals>" not in member)):
             raise ValueError("Scientific process requires an installed module:factory path")
 
         message = {
@@ -692,6 +768,7 @@ class ProcessExecutionHost:
             "startup": dict(startup),
             "requirements": tuple(requirements),
         }
+
         frame(message)
         deadline = time.monotonic() + self.initialization_seconds
         self.native = AsyncRunnerSession(self.session, setup_not_after=deadline)
@@ -700,7 +777,7 @@ class ProcessExecutionHost:
         try:
             return await asyncio.shield(self.start_task)
         except BaseException as cause:
-            if self.start_task.done() and not self.start_task.cancelled() and self.start_task.exception() is cause:
+            if self.start_task.done() and not self.start_task.cancelled() and (self.start_task.exception() is cause):
                 self.start_failure_observed = True
 
             raise
@@ -710,13 +787,13 @@ class ProcessExecutionHost:
         self.channel = _Channel(self.session.science)
 
         def accept(ready):
-            if type(ready) is not dict or set(ready) != {"allocation", "binding_revision", "process_id"}:
+            if not ((type(ready) is dict) and (set(ready) == {"allocation", "binding_revision", "process_id"})):
                 raise ValueError("Scientific worker readiness has unexpected fields")
 
             require_type(ready["allocation"], AllocationRef)
             require_type(ready["process_id"], int)
 
-            if ready["process_id"] <= 0 or ready["binding_revision"] != declaration.description.binding_revision:
+            if not ((0 < ready["process_id"]) and (ready["binding_revision"] == declaration.description.binding_revision)):
                 raise ValueError("Scientific worker readiness differs from the selected declaration")
 
             return ready
@@ -731,11 +808,12 @@ class ProcessExecutionHost:
             requirements=declaration.requirements,
         )
 
-        if hosted.allocation != allocation or hosted.description.binding_revision != ready["binding_revision"]:
+        if not ((hosted.allocation == allocation) and (hosted.description.binding_revision == ready["binding_revision"])):
             raise RemoteScienceError("Parent and child scientific declaration revisions differ")
 
         self.hosted = hosted
         self.process_id = ready["process_id"]
+
         return hosted
 
     @property
@@ -744,7 +822,7 @@ class ProcessExecutionHost:
 
     @property
     def allocations(self):
-        return frozenset() if self.hosted is None or self.retired else frozenset({self.hosted.allocation})
+        return frozenset() if ((self.hosted is None) or self.retired) else frozenset({self.hosted.allocation})
 
     def _channel_failure(self, cause):
         if isinstance(cause, RemoteScienceError):
@@ -758,17 +836,17 @@ class ProcessExecutionHost:
 
         return failure
 
-    def _exchange_frame(self, request, seconds=2, *, accept=None, deadline=None):
-        if self.draining:
+    def _exchange_frame(self, request_frame, seconds=2, *, accept=None, deadline=None):
+        if not (self.draining is False):
             raise RemoteScienceError("Scientific communication is retiring; this request was not sent")
 
-        if self.channel is None:
+        if not (self.channel is not None):
             raise RemoteScienceError("No scientific process is connected")
 
         if deadline is None:
             deadline = time.monotonic() + seconds
 
-        return self.channel.exchange_frame(request, deadline=deadline, accept=accept)
+        return self.channel.exchange_frame(request_frame, deadline=deadline, accept=accept)
 
     def _exchange(self, message, seconds=2, *, accept=None):
         return self._exchange_frame(frame(message), seconds, accept=accept)
@@ -776,43 +854,50 @@ class ProcessExecutionHost:
     async def _exchange_async(self, message, seconds=2, *, accept=None):
         self._require_loop()
 
-        if self.draining:
+        if not (self.draining is False):
             raise RemoteScienceError("Scientific communication is retiring; this request was not sent")
 
-        request = frame(message)
+        request_frame = frame(message)
         deadline = time.monotonic() + seconds
 
         async def exchange():
             original = self.exchange_executor.submit(
-                self._exchange_frame, request, accept=accept, deadline=deadline,
+                self._exchange_frame,
+                request_frame,
+                accept=accept,
+                deadline=deadline,
             )
+
             return await await_original(original, deadline=None)
 
         task = _start_owned_task(exchange)
+
         self.exchanges.add(task)
         task.add_done_callback(self.exchanges.discard)
+
         return await asyncio.shield(task)
 
     def open_analysis(self, *, allocations: frozenset[AllocationRef]):
         self._require_loop()
-        if (
-            self.retiring or
-            self.hosted is None or
-            self.active_analysis is not None or
-            self.channel is None or
-            self.channel.failure is not None or
-            self.session.retirement is not None
+
+        if not (
+            (not self.retiring) and
+            (self.hosted is not None) and
+            (self.active_analysis is None) and
+            (self.channel is not None) and
+            (self.channel.failure is None) and
+            (self.session.retirement is None)
         ):
             raise CapacityUnavailable("The scientific process allocation is unavailable or occupied")
 
-        if allocations != frozenset({self.hosted.allocation}):
+        if not (allocations == frozenset({self.hosted.allocation})):
             raise ValueError("Process analysis requires its exact hosted allocation")
 
         analysis = _ProcessAnalysis(self)
         self.active_analysis = analysis
 
         def accept(reservation):
-            if reservation != analysis.reservation_ref:
+            if not (reservation == analysis.reservation_ref):
                 raise ValueError("Scientific worker opened a different analysis reservation")
 
             return reservation
@@ -824,13 +909,13 @@ class ProcessExecutionHost:
             # though the caller has not received its analysis handle.
             failure = self._channel_failure(cause)
 
-            if isinstance(cause, Exception):
-                if failure is cause:
-                    raise
+            if not isinstance(cause, Exception):
+                raise
 
-                raise failure from cause
+            if not (failure is not cause):
+                raise
 
-            raise
+            raise failure from cause
 
         return analysis
 
@@ -840,13 +925,15 @@ class ProcessExecutionHost:
 
     def retire_allocation(self, reference):
         self._require_loop()
-        if self.hosted is None or reference != self.hosted.allocation:
+
+        if not ((self.hosted is not None) and (reference == self.hosted.allocation)):
             raise ValueError("Process retirement requires the current allocation reference")
 
         return self.retire()
 
     def retire(self):
         self._require_loop()
+
         if self.retirement is None:
             self.retiring = True
             self.retirement = _ProcessCleanup(self, self._shutdown, seconds=self.retirement_seconds)
@@ -857,14 +944,16 @@ class ProcessExecutionHost:
         failures = []
 
         def record(phase, cause):
-            if not any(item.cause is cause for item in failures):
+            if not any((failure.cause is cause) for failure in failures):
                 failures.append(Failure(phase, cause))
 
         if self.start_task is None:
             self.draining = True
+
             self.session.close()
             self.exchange_executor.shutdown(wait=True)
             self.retired = True
+
             return CleanupObservation(0, True, False, ())
 
         # This is one scientific grace interval across startup, outstanding
@@ -885,6 +974,7 @@ class ProcessExecutionHost:
 
             if self.active_analysis is not None:
                 control = self.active_analysis.close()
+
                 await asyncio.shield(control.task)
 
                 for failure in control.failures:
@@ -896,12 +986,13 @@ class ProcessExecutionHost:
                 seconds=max(0, science_deadline - time.monotonic()),
                 accept=_cleanup_observation,
             )
+
             self.scientific_retirement = observed
 
             for failure in observed.failures:
                 record(failure.phase, failure.cause)
 
-            if not observed.settled:
+            if not (observed.settled):
                 raise RemoteScienceError("Scientific cleanup did not confirm settlement")
 
         self.scientific_shutdown_task = _start_owned_task(close_science)
@@ -915,7 +1006,8 @@ class ProcessExecutionHost:
             record("cleanup", cause)
 
         self.draining = True
-        if self.scientific_retirement is None or not self.scientific_retirement.settled:
+
+        if (self.scientific_retirement is None) or (not self.scientific_retirement.settled):
             try:
                 # Stop intent is retained even when the original connect has
                 # not begun. A late setup must not acquire an unowned child.
@@ -931,13 +1023,13 @@ class ProcessExecutionHost:
 
         setup = self.native.setup
         no_worker = (
-            setup is None or
-            (not self.session.control_connected and isinstance(self.native.setup_failure, (RunnerStartupStopped, RunnerStartupUnavailable)))
+            (setup is None) or
+            ((not self.session.control_connected) and isinstance(self.native.setup_failure, (RunnerStartupStopped, RunnerStartupUnavailable)))
         )
 
         if not no_worker:
             try:
-                if self.scientific_retirement is not None and self.scientific_retirement.settled:
+                if (self.scientific_retirement is not None) and self.scientific_retirement.settled:
                     try:
                         # Leave half of this original native allowance for
                         # stop and join if interpreter exit itself stalls.
@@ -950,7 +1042,7 @@ class ProcessExecutionHost:
 
                         remaining = self.native.retirement_deadline - time.monotonic()
 
-                        if remaining <= 0:
+                        if not (0 < remaining):
                             raise TimeoutError("Native scientific retirement exceeded its original allowance")
 
                         await self.native.join_retirement(wait_seconds=remaining)
@@ -972,9 +1064,11 @@ class ProcessExecutionHost:
                     await await_original(original, deadline=None)
                 except BaseException as cause:
                     if (
-                        original is self.native.setup and self.start_failure_observed and
-                        self.start_task.done() and not self.start_task.cancelled() and
-                        self.start_task.exception() is cause
+                        (original is self.native.setup) and
+                        self.start_failure_observed and
+                        self.start_task.done() and
+                        not self.start_task.cancelled() and
+                        (self.start_task.exception() is cause)
                     ):
                         continue
 
@@ -986,16 +1080,18 @@ class ProcessExecutionHost:
         self.exchange_executor.shutdown(wait=True)
 
         receipt = self.session.retirement
+
         # Stop can prove non-acquisition while the retained setup is joining.
         # Classify its terminal evidence, not the earlier pending snapshot.
         no_worker = (
-            self.native.setup is None or
-            (not self.session.control_connected and isinstance(self.native.setup_failure, (RunnerStartupStopped, RunnerStartupUnavailable)))
+            (self.native.setup is None) or
+            ((not self.session.control_connected) and isinstance(self.native.setup_failure, (RunnerStartupStopped, RunnerStartupUnavailable)))
         )
-        self.retired = no_worker or (receipt is not None and receipt.scratch_released)
 
-        if receipt is not None and receipt.returncode != 0:
-            record("worker", RemoteScienceError(f"Scientific worker exited with returncode={receipt.returncode}"))
+        self.retired = no_worker or ((receipt is not None) and receipt.scratch_released)
+
+        if (receipt is not None) and (receipt.returncode != 0):
+            record("worker", RemoteScienceError(f"Scientific worker exited with {receipt.returncode=}"))
 
         if not self.retired:
             record("native_retirement", RemoteScienceError("Scientific worker or scratch retirement remains unconfirmed"))
@@ -1004,6 +1100,7 @@ class ProcessExecutionHost:
             self.session.close()
         except BaseException as cause:
             self.retired = False
+
             record("channel_cleanup", cause)
 
         if self.retired:
