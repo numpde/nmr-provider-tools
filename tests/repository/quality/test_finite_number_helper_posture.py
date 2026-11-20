@@ -118,23 +118,9 @@ class FiniteNumberHelperPostureTests(unittest.TestCase):
         )
 
     def test_filters_vector_predicates_and_existing_failures_are_not_requirements(self):
-        sources = (
-            "if math.isfinite(seconds):\n    raise ValueError('expected unbounded')\n",
-            "if not (not math.isfinite(seconds)):\n    raise ValueError('expected unbounded')\n",
-            "if not math.isfinite(seconds):\n    return None\n",
-            "if not math.isfinite(seconds):\n    raise\n",
-            "if not math.isfinite(seconds):\n    raise failure\n",
-            "if not math.isfinite(seconds):\n    raise failure.with_traceback(traceback)\n",
-            "if not math.isfinite(seconds):\n    cleanup()\n    raise ValueError()\n",
-            "if not np.isfinite(samples).all():\n    raise ValueError()\n",
-            "if not custom.isfinite(seconds):\n    raise ValueError()\n",
-            "if not admitted(math.isfinite(seconds)):\n    raise ValueError()\n",
-            "if not all(math.isfinite(second) for second in samples):\n    raise ValueError()\n",
-        )
+        fixture_path = ROOT / "tests/repository/fixtures/quality/finite_number/nonrequirements.py.fixture"
 
-        for source in sources:
-            with self.subTest(source=source):
-                self.assertEqual([], guard_findings(source=source))
+        self.assertEqual([], guard_findings(source=fixture_path.read_text(encoding="utf-8")))
 
     def test_authored_finite_number_guards_use_the_shared_requirement(self):
         findings = []

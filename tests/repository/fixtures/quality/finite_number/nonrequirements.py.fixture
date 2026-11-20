@@ -1,0 +1,54 @@
+def reject_finite(seconds):
+    if math.isfinite(seconds):
+        raise ValueError("expected unbounded")
+
+
+def reject_finite_with_double_negation(seconds):
+    if not (not math.isfinite(seconds)):
+        raise ValueError("expected unbounded")
+
+
+def filter_nonfinite(seconds):
+    if not math.isfinite(seconds):
+        return None
+
+
+def reraise_nonfinite(seconds):
+    if not math.isfinite(seconds):
+        raise
+
+
+def raise_existing_failure(seconds, failure):
+    if not math.isfinite(seconds):
+        raise failure
+
+
+def preserve_failure_traceback(seconds, failure, traceback):
+    if not math.isfinite(seconds):
+        raise failure.with_traceback(traceback)
+
+
+def cleanup_before_rejection(seconds):
+    if not math.isfinite(seconds):
+        cleanup()
+        raise ValueError()
+
+
+def reject_nonfinite_vector(samples):
+    if not np.isfinite(samples).all():
+        raise ValueError()
+
+
+def use_unrelated_numeric_library(seconds):
+    if not custom.isfinite(seconds):
+        raise ValueError()
+
+
+def pass_predicate_to_another_call(seconds):
+    if not admitted(math.isfinite(seconds)):
+        raise ValueError()
+
+
+def reject_nonfinite_collection(samples):
+    if not all(math.isfinite(second) for second in samples):
+        raise ValueError()
