@@ -9,7 +9,6 @@ import json
 import os
 from pathlib import Path
 import shutil
-import sys
 from tempfile import TemporaryDirectory
 import unittest
 from unittest.mock import patch
@@ -17,7 +16,7 @@ from unittest.mock import patch
 from provider_core.contribution_errors import ScientificRejection
 from provider_core.hosting import NotAdmitted, Outcome, ResultState, observe_cleanup
 from provider_core.submission import Submission
-from tests.fakes.runner import RunningSupervisor
+from tests.fakes.runner import make_scientific_session
 
 from reference_provider.application import run_queries
 from reference_provider.binding import ReferenceMatcher
@@ -37,15 +36,7 @@ class ReferenceBackendTests(unittest.IsolatedAsyncioTestCase):
         self.configuration.write_text(self.original_config.replace('backend = "thread"', f'backend = "{backend}"'))
         if backend == "thread":
             return None
-        runner = RunningSupervisor(
-            operation_seconds=None,
-            role="science",
-            worker_argv=(sys.executable, "-I", "-B", "-m", "provider_core.process_worker"),
-            environment={"PROVIDER_CORE_IN_CONTAINER": os.environ["PROVIDER_CORE_IN_CONTAINER"]},
-        )
-        self.addCleanup(runner.close)
-        session = runner.session(startup_seconds=5, retirement_seconds=5)
-        self.addCleanup(session.close)
+        _, session = make_scientific_session(self)
         return session
 
     async def test_same_request_sequence_delivers_both_reports_and_retires_the_worker(self):

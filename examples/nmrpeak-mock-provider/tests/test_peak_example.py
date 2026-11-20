@@ -21,7 +21,6 @@ import os
 import pathlib
 import shutil
 import signal
-import sys
 from tempfile import TemporaryDirectory
 from threading import Event
 import tomllib
@@ -38,7 +37,7 @@ from provider_core.hosting import AdmissionCode, CapacityUnavailable, NotAdmitte
 from provider_core.interpreter import InterpretationFailed, ModelWindowExpired, ProseService
 from provider_core.process_wire import RemoteScienceError
 from provider_core.submission import Submission
-from tests.fakes.runner import RunningSupervisor
+from tests.fakes.runner import make_scientific_session
 
 from nmrpeak_mock_provider import provider as provider_setup
 from nmrpeak_mock_provider.binding import Chf, Hf, PeakContribution
@@ -112,26 +111,9 @@ class PeakExampleTests(unittest.IsolatedAsyncioTestCase):
 
         self.configuration.write_text(data=tomli_w.dumps(deployment_config), encoding="utf-8")
 
-        runner, session = self.make_process_session()
+        runner, session = make_scientific_session(self)
 
         return (deployment_config, runner, session)
-
-    def make_process_session(self):
-        """Give each configured model its own existing native supervisor."""
-
-        runner = RunningSupervisor(
-            operation_seconds=None,
-            role="science",
-            worker_argv=(sys.executable, "-I", "-B", "-m", "provider_core.process_worker"),
-            environment={"PROVIDER_CORE_IN_CONTAINER": os.environ["PROVIDER_CORE_IN_CONTAINER"]},
-        )
-
-        self.addCleanup(runner.close)
-        session = runner.session(startup_seconds=5, retirement_seconds=5)
-
-        self.addCleanup(session.close)
-
-        return (runner, session)
 
     async def test_external_deployment_settings_change_scientific_results(self):
         package = pathlib.Path(str(resources.files(anchor="nmrpeak_mock_provider")))
@@ -235,8 +217,8 @@ class PeakExampleTests(unittest.IsolatedAsyncioTestCase):
         deployment_config = tomllib.loads(self.configuration.read_text(encoding="utf-8"))
         deployment_config["execution"]["backend"] = "process"
         self.configuration.write_text(data=tomli_w.dumps(deployment_config), encoding="utf-8")
-        hf_runner, hf_session = self.make_process_session()
-        chf_runner, chf_session = self.make_process_session()
+        hf_runner, hf_session = make_scientific_session(self)
+        chf_runner, chf_session = make_scientific_session(self)
         sessions = {("hf", 0): hf_session, ("chf", 0): chf_session}
         self.factory.proposals = (candidate(carbon=True),)
 
@@ -274,8 +256,8 @@ class PeakExampleTests(unittest.IsolatedAsyncioTestCase):
         deployment_config["execution"]["backend"] = "process"
         deployment_config["science"]["hf"][0]["process_capacity"]["state_values"] = 2
         self.configuration.write_text(data=tomli_w.dumps(deployment_config), encoding="utf-8")
-        hf_runner, hf_session = self.make_process_session()
-        chf_runner, chf_session = self.make_process_session()
+        hf_runner, hf_session = make_scientific_session(self)
+        chf_runner, chf_session = make_scientific_session(self)
         descriptors = (hf_session.control.fileno(), chf_session.control.fileno())
 
         with self.assertRaisesRegex(ValueError, "model shares must fit the provider allowance"):
@@ -295,8 +277,8 @@ class PeakExampleTests(unittest.IsolatedAsyncioTestCase):
         checkpoint.write_bytes(b"not-json")
         deployment_config["science"]["chf"][0]["settings"]["checkpoint_sha256"] = hashlib.sha256(b"not-json").hexdigest()
         self.configuration.write_text(data=tomli_w.dumps(deployment_config), encoding="utf-8")
-        hf_runner, hf_session = self.make_process_session()
-        chf_runner, chf_session = self.make_process_session()
+        hf_runner, hf_session = make_scientific_session(self)
+        chf_runner, chf_session = make_scientific_session(self)
 
         with self.assertRaises(RemoteScienceError) as raised:
             async with self.open_offerings(process_sessions={("hf", 0): hf_session, ("chf", 0): chf_session}):

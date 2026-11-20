@@ -5,10 +5,7 @@ from provider_core.container_guard import require_container
 require_container()
 
 import asyncio
-from contextlib import closing
-import os
 from pathlib import Path
-import sys
 from tempfile import TemporaryDirectory
 import unittest
 from unittest.mock import patch
@@ -18,7 +15,7 @@ import mock_numpy as np
 from provider_core.hosting import NotAdmitted, Outcome, ResultConsumption, settle_cleanup
 from provider_core.runner_session import RunnerSession
 from provider_core.submission import Submission
-from tests.fakes.runner import RunningSupervisor
+from tests.fakes.runner import make_scientific_session
 
 from dummy_provider import provider as provider_setup
 from dummy_provider import science
@@ -106,14 +103,7 @@ class DummyStartupTests(unittest.IsolatedAsyncioTestCase):
                 runner = None
 
                 if backend == "process":
-                    runner = self.enterContext(closing(RunningSupervisor(
-                        operation_seconds=None,
-                        role="science",
-                        worker_argv=(sys.executable, "-I", "-B", "-m", "provider_core.process_worker"),
-                        environment={"PROVIDER_CORE_IN_CONTAINER": os.environ["PROVIDER_CORE_IN_CONTAINER"]},
-                    )))
-                    session = runner.session(startup_seconds=5, retirement_seconds=5)
-                    self.addCleanup(session.close)
+                    runner, session = make_scientific_session(self)
 
                 with patch.object(provider_setup, "PROVIDER_CONFIG_PATH", configuration):
                     async with asyncio.timeout(20):

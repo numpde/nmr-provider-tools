@@ -8,7 +8,6 @@ import asyncio
 import os
 import pathlib
 import shutil
-import sys
 from tempfile import TemporaryDirectory
 import tomllib
 import unittest
@@ -18,7 +17,7 @@ import tomli_w
 
 from provider_core.submission import Submission
 from provider_core.hosting import CapacityUnavailable, NotAdmitted, Outcome, ResultConsumption, ResultState, observe_cleanup, settle_cleanup
-from tests.fakes.runner import RunningSupervisor
+from tests.fakes.runner import make_scientific_session
 from spectrum_provider import provider as provider_setup
 from spectrum_provider.science import Spectrum
 
@@ -40,15 +39,7 @@ class SpectrumProcessTests(unittest.IsolatedAsyncioTestCase):
         sessions = {}
 
         for stage in ("baseline", "peaks"):
-            runner = RunningSupervisor(
-                operation_seconds=None,
-                role="science",
-                worker_argv=(sys.executable, "-I", "-B", "-m", "provider_core.process_worker"),
-                environment={"PROVIDER_CORE_IN_CONTAINER": os.environ["PROVIDER_CORE_IN_CONTAINER"]},
-            )
-            self.addCleanup(runner.close)
-            sessions[stage] = runner.session(startup_seconds=5, retirement_seconds=5)
-            self.addCleanup(sessions[stage].close)
+            _, sessions[stage] = make_scientific_session(self)
 
         return sessions
 

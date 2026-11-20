@@ -1,5 +1,6 @@
 """Real child processes exercise lifecycle without importing scientific libraries."""
 
+import os
 import subprocess
 import sys
 import tempfile
@@ -7,6 +8,21 @@ import time
 import pathlib
 
 from provider_core.runner_session import RunnerSession
+
+
+def make_scientific_session(test_case):
+    """Retain a restricted scientific runner and its fresh, unconnected session."""
+    runner = RunningSupervisor(
+        operation_seconds=None,
+        role="science",
+        worker_argv=(sys.executable, "-I", "-B", "-m", "provider_core.process_worker"),
+        environment={"PROVIDER_CORE_IN_CONTAINER": os.environ["PROVIDER_CORE_IN_CONTAINER"]},
+    )
+    test_case.addCleanup(runner.close)
+    session = runner.session(startup_seconds=5, retirement_seconds=5)
+    test_case.addCleanup(session.close)
+
+    return runner, session
 
 
 WORKER = """
