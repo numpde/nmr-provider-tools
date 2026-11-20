@@ -18,6 +18,7 @@ pattern='test*.py'
 case "$1" in
     tests/repository) suite=tests/repository ;;
     tests/repository/quality) suite=tests/repository/quality ;;
+    tests/repository/quality/report) suite=tests/repository/quality ;;
     tests/repository/bytecode) suite=bytecode ;;
     tests/repository/provisioning) suite=tests/repository; pattern='test_checker*.py' ;;
     tests/repository/release) suite=release ;;
@@ -30,7 +31,7 @@ case "$1" in
     *) printf 'Cannot select repository checks: unknown target %q. Use make help.\n' "$1" >&2; exit 2 ;;
 esac
 if [[ -v TEST_PATTERN_INPUT_ORIGIN && $TEST_PATTERN_INPUT_ORIGIN == 'command line' ]]; then
-    if [[ $1 != tests/repository && $1 != tests/repository/quality ]]; then
+    if [[ $1 != tests/repository && $suite != tests/repository/quality ]]; then
         printf '%s\n' 'Cannot select repository test: TEST_PATTERN requires tests/repository or tests/repository/quality.' >&2
         exit 2
     fi
@@ -93,7 +94,21 @@ arguments=(--init --pull=never --network=none --read-only
     --env "NMR_PROVIDER_TOOLS_EXPECTED_UID=$uid" --env "NMR_PROVIDER_TOOLS_EXPECTED_GID=$gid"
     "${mounts[@]}"
     --mount "type=bind,src=$metadata,dst=/repository-source-inventory/root-entries,readonly"
-    --entrypoint python3 "$image" -B -m unittest)
+    --entrypoint python3 "$image" -B -m)
+if [[ $1 == tests/repository/quality/report ]]; then
+    # HTML travels over stdout; the checker receives no writable host mount
+    report_revision=PRINT
+    report_context=PRINT
+    if [[ $printing == 0 ]]; then
+        report_revision=$(git describe --always --dirty)
+        report_context=$DOCKER_CONTEXT_INPUT
+    fi
+    arguments=(--env "CHECK_REPORT_REVISION=$report_revision"
+        --env "CHECK_REPORT_CONTEXT=$report_context" --env "CHECK_REPORT_PATTERN=$pattern"
+        "${arguments[@]}" operations.checker.report)
+else
+    arguments+=(unittest)
+fi
 if [[ $suite == release ]]; then
     arguments+=(tests.repository.test_publish tests.repository.test_package_artifacts tests.repository.test_wheelhouse_bundle tests.repository.test_acquisition_bundle tests.repository.test_acquisition_source_update
                 tests.repository.test_delivery_release tests.repository.test_wheelhouse -v)

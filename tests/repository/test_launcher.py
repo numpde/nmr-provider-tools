@@ -39,6 +39,16 @@ class LauncherTests(unittest.TestCase):
 
                 self.assertEqual(expected, arguments[arguments.index("-p") + 1])
 
+        command[-1] = "tests/repository/quality/report"
+        completed_process = subprocess.run(command, cwd=ROOT, env=environment, capture_output=True, text=True, check=False)
+
+        self.assertEqual(0, completed_process.returncode, msg=completed_process.stderr)
+        arguments = shlex.split(completed_process.stdout)
+
+        self.assertEqual("operations.checker.report", arguments[arguments.index("-m") + 1])
+        self.assertEqual(pattern, arguments[arguments.index("-p") + 1])
+        command[-1] = "tests/repository/quality"
+
         for pattern in ("test_missing_quality_file.py", "../test_escape.py", "test_*.py", ""):
             with self.subTest(pattern=pattern):
                 environment.update(TEST_PATTERN_INPUT_ORIGIN="command line", TEST_PATTERN_INPUT=pattern)

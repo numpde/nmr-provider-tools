@@ -102,7 +102,7 @@ export TEST_PATTERN_INPUT
 ifneq ($(words $(MAKECMDGOALS)),1)
 $(error TEST_PATTERN requires exactly one repository, repository-quality or unit, native, contract or integration provider-core target)
 endif
-ifeq ($(filter $(MAKECMDGOALS),tests/repository tests/repository/quality tests/unit/provider-core tests/native/provider-core tests/contract/provider-core tests/integration/provider-core),)
+ifeq ($(filter $(MAKECMDGOALS),tests/repository tests/repository/quality tests/repository/quality/report tests/unit/provider-core tests/native/provider-core tests/contract/provider-core tests/integration/provider-core),)
 $(error TEST_PATTERN requires exactly one repository, repository-quality or unit, native, contract or integration provider-core target)
 endif
 endif
@@ -335,6 +335,7 @@ help:
 	  'make engine/cache/gc DOCKER_CONTEXT=<context> ENGINE_CONFIG=/absolute/daemon.json Apply the native cache thresholds now.' \
 	  'make tests/repository [TEST_PATTERN=test_<name>.py] Run repository conventions and detector fixtures offline.' \
 	  'make tests/repository/quality [TEST_PATTERN=test_<name>.py] Run code and operator convention checks offline.' \
+	  'make tests/repository/quality/report > report.html Run quality checks and emit a standalone HTML report.' \
   'make tests/repository/installer  Verify the pinned installer and checker bootstrap offline.' \
 	  'make tests/repository/bytecode   Check maintained Python launches suppress source bytecode.' \
 	  'make checks/python-cache/clean    Explicitly remove generated first-party .pyc/.pyo files and empty __pycache__ directories.' \
@@ -451,6 +452,10 @@ tests/repository:
 
 tests/repository/quality:
 	bash tests/repository/run.sh tests/repository/quality
+
+.PHONY: tests/repository/quality/report
+tests/repository/quality/report:
+	@bash tests/repository/run.sh tests/repository/quality/report
 
 .PHONY: tests/repository/bytecode
 tests/repository/bytecode:

@@ -1,0 +1,118 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Repository quality checks</title>
+  <style>
+    :root { color-scheme: light; --green: #18864b; --red: #cf343b; --gray: #b7bec8; }
+    * { box-sizing: border-box; }
+    body { margin: 0; background: #f5f6f8; color: #202733; font: 15px/1.5 system-ui, sans-serif; }
+    main { max-width: 880px; margin: 36px auto; padding: 28px; background: white; border: 1px solid #dde1e7; border-radius: 12px; }
+    h1 { margin: 0; font-size: 27px; }
+    h2 { margin: 28px 0 16px; font-size: 18px; font-weight: 650; }
+    .meta, .counts, footer { color: #596372; font-size: 13px; }
+    .meta { margin: 6px 0 22px; }
+    .totals { display: flex; flex-wrap: wrap; gap: 12px 28px; margin-bottom: 14px; font-variant-numeric: tabular-nums; }
+    .totals strong { font-size: 23px; color: #202733; }
+    .bar { display: flex; height: 11px; overflow: hidden; border-radius: 6px; background: #e8ebef; }
+    .bar > span { min-width: 0; }
+    .pass { background: var(--green); }
+    .fail { background: var(--red); }
+    .skip { background: var(--gray); }
+    .legend { display: flex; flex-wrap: wrap; gap: 18px; margin-top: 9px; font-size: 13px; }
+    .legend i { display: inline-block; width: 9px; height: 9px; margin-right: 5px; border-radius: 2px; }
+    .counts { white-space: nowrap; font-variant-numeric: tabular-nums; }
+    footer { margin-top: 26px; padding-top: 18px; border-top: 1px solid #dde1e7; }
+    code { overflow-wrap: anywhere; font-size: 12px; }
+    @media (max-width: 600px) {
+      main { margin: 0; padding: 20px; border-radius: 0; }
+      .counts { font-size: 12px; }
+    }
+  </style>
+</head>
+<body>
+<main>
+  <h1>Repository quality checks</h1>
+  <noscript>Enable JavaScript to display the embedded check results.</noscript>
+</main>
+<script id="results" type="application/json">REPORT_JSON</script>
+<script>
+  const report = JSON.parse(document.getElementById("results").textContent);
+  const main = document.querySelector("main");
+  const format = number => number.toLocaleString("en-GB");
+  const outcomes = {"passed": "pass", "failed": "fail", "error": "fail",
+    "skipped": "skip", "expected failure": "skip", "unexpected success": "fail"};
+
+  function element(tag, text, className) {
+    const node = document.createElement(tag);
+    if (text !== undefined) node.textContent = text;
+    if (className) node.className = className;
+    return node;
+  }
+
+  function bar(counts, description) {
+    const node = element("div", undefined, "bar");
+    node.setAttribute("role", "img");
+    node.setAttribute("aria-label", description);
+    for (const [status, count] of Object.entries(counts)) {
+      if (!count) continue;
+      const segment = element("span", undefined, status);
+      segment.style.flex = count;
+      node.append(segment);
+    }
+    return node;
+  }
+
+  const counts = {};
+  const modules = new Map();
+  for (const [id, outcome] of Object.entries(report.checks)) {
+    counts[outcome] = (counts[outcome] ?? 0) + 1;
+    const moduleName = id.split(".").slice(0, -2).join(".") || id;
+    if (!modules.has(moduleName)) modules.set(moduleName, []);
+    modules.get(moduleName).push(outcome);
+  }
+
+  const created = new Date(report.created).toLocaleString("en-GB");
+  main.append(element("p", `${created} · ${report.revision} · Docker: ${report.context} · Privacy tests: ${report.privacyTests ? "on" : "off"} · Selection: ${report.pattern}`, "meta"));
+  const totals = element("div", undefined, "totals");
+  for (const [name, count] of Object.entries(counts)) {
+    const total = element("span");
+    total.append(element("strong", format(count)), ` ${name}`);
+    totals.append(total);
+  }
+  const summary = Object.entries(counts).map(([name, count]) => `${format(count)} ${name}`).join(", ") || "No checks discovered";
+  const segments = {pass: 0, fail: 0, skip: 0};
+  for (const [outcome, count] of Object.entries(counts)) segments[outcomes[outcome]] += count;
+  main.append(totals, bar(segments, summary));
+  const legend = element("div", undefined, "legend");
+  for (const [outcome, count] of Object.entries(counts)) {
+    const label = element("span");
+    label.append(element("i", undefined, outcomes[outcome]), `${format(count)} ${outcome}`);
+    legend.append(label);
+  }
+  main.append(legend);
+
+  const sortedModules = [...modules].sort(([a, checksA], [b, checksB]) => {
+    const red = checks => checks.some(outcome => outcomes[outcome] === "fail");
+    return Number(red(checksB)) - Number(red(checksA)) || a.localeCompare(b);
+  });
+  for (const [moduleName, checks] of sortedModules) {
+    const section = element("section");
+    const name = moduleName.replace("tests.repository.quality.", "").replaceAll("test_", "").replaceAll("_", " ");
+    section.append(element("h2", name));
+    const moduleCounts = {pass: 0, fail: 0, skip: 0};
+    for (const outcome of checks) moduleCounts[outcomes[outcome]]++;
+    const description = Object.entries(moduleCounts).filter(([, count]) => count)
+      .map(([status, count]) => `${format(count)} ${{pass: "passed", fail: "failed", skip: "skipped"}[status]}`).join(" · ");
+    section.append(element("p", description, "counts"), bar(moduleCounts, `${name}: ${description}`));
+    main.append(section);
+  }
+
+  const footer = element("footer");
+  const selection = report.pattern === "test*.py" ? "" : ` TEST_PATTERN=${report.pattern}`;
+  footer.append(element("code", `make tests/repository/quality/report DOCKER_CONTEXT=${report.context} PRIVACY_TESTS=${Number(report.privacyTests)}${selection} > notes/092_repo_checks_status.html`));
+  main.append(footer);
+</script>
+</body>
+</html>
