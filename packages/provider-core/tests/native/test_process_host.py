@@ -9,6 +9,7 @@ from pathlib import Path
 import socket
 import tempfile
 import time
+import traceback
 import unittest
 
 from provider_core.hosting import (
@@ -214,11 +215,13 @@ class ProcessOwnershipTests(unittest.IsolatedAsyncioTestCase):
         self.assertIs(expr1=NotAdmitted, expr2=type(refusal))
         self.assertIs(expr1=AdmissionCode.UNSUPPORTED, expr2=refusal.code)
 
+        wrong_operation_identity = "another-operation:" + ("x" * 65536)
+
         def reply_with_wrong_identity():
             worker_command = receive(self.peer_science_socket, deadline=time.monotonic() + 5)
             owned_at_receipt = self.analysis.operations[worker_command["invocation"].operation_id]
 
-            send(self.peer_science_socket, {"ok": True, "value": {"operation": "another-operation"}})
+            send(self.peer_science_socket, {"ok": True, "value": {"operation": wrong_operation_identity}})
 
             return owned_at_receipt
 
@@ -247,6 +250,11 @@ class ProcessOwnershipTests(unittest.IsolatedAsyncioTestCase):
         self.assertFalse(expr=uncertain.finished)
         self.assertIsNone(obj=uncertain.outcome)
         self.assertEqual(first=1, second=len(uncertain.failures))
+
+        # Render the real retained failure chain; a malformed reply must not fill logs with its identifier
+        rendered_failure = "".join(traceback.format_exception(uncertain.failures[0].cause))
+
+        self.assertLess(a=len(rendered_failure), b=8192)
 
         with self.assertRaises(expected_exception=RemoteScienceError):
             await observe_completion(operation=original)
