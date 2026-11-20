@@ -86,14 +86,14 @@ class TlsPeer:
     ):
         # One test-server TLS policy, distinct from HttpTransport's outbound
         # connect/exchange budget and the supervised interpreter child lifetime.
-        for (label, seconds) in (
+        for (timeout_name, timeout_seconds) in (
             ("handshake_seconds", handshake_seconds),
             ("shutdown_seconds", shutdown_seconds),
         ):
             try:
-                require_positive_number(seconds)
+                require_positive_number(timeout_seconds)
             except (TypeError, ValueError) as cause:
-                raise ValueError(f"TlsPeer {label} must be finite positive seconds") from cause
+                raise ValueError(f"TlsPeer {timeout_name} must be finite positive seconds") from cause
 
         (self.handshake_seconds, self.shutdown_seconds) = (handshake_seconds, shutdown_seconds)
         self.mode = mode

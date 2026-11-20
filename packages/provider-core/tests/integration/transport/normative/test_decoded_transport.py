@@ -295,12 +295,12 @@ class TransportDecodedTests(unittest.IsolatedAsyncioTestCase):
         bad = ((0, ValueError), (-1, ValueError), (True, TypeError), (1.0, TypeError), ('5', TypeError), (2**100, ValueError))
 
         with patch.object(m.httpcore, 'AsyncConnectionPool', side_effect=AssertionError('I/O dispatched')):
-            for (value, error_type) in bad:
+            for (byte_limit, error_type) in bad:
                 for field in ('maximum_bytes', 'error_maximum_bytes'):
                     kwargs = dict(maximum_bytes=10, error_maximum_bytes=10)
-                    kwargs[field] = value
+                    kwargs[field] = byte_limit
 
-                    with self.subTest(field=field, value=value), self.assertRaises(error_type):
+                    with self.subTest(field=field, value=byte_limit), self.assertRaises(error_type):
                         await transport.exchange_decoded(self.request(), **kwargs)
 
             for (status, error_type) in ((True, TypeError), (99, ValueError), (600, ValueError), ('200', TypeError), (200.0, TypeError)):
@@ -314,9 +314,9 @@ class TransportDecodedTests(unittest.IsolatedAsyncioTestCase):
             with self.assertRaises(ValueError):
                 await self.transport().exchange_decoded(self.request('http://model.example/chat'), maximum_bytes=10, error_maximum_bytes=10)
 
-        for value in (0, 1, None, 'yes'):
-            with self.subTest(value=value), self.assertRaises(TypeError):
-                self.transport(allow_http=value)
+        for allow_http_setting in (0, 1, None, 'yes'):
+            with self.subTest(value=allow_http_setting), self.assertRaises(TypeError):
+                self.transport(allow_http=allow_http_setting)
 
         with self.assertRaises(ValueError):
             self.transport(allow_http=True, proxy_socket='/tmp/proxy.sock')
