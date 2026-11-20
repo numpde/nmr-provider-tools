@@ -1,0 +1,18 @@
+def check_calculated_total(computed_total):
+    if not math.isfinite(computed_total):
+        raise ArithmeticError("Calculation overflowed")
+
+
+def check_qualified_arithmetic_failure(computed_total):
+    if not math.isfinite(computed_total):
+        raise builtins.OverflowError("Calculation overflowed")
+
+
+def validate_received_number(received_number):
+    if not math.isfinite(received_number):
+        raise ValueError("Input should be finite")
+
+
+def preserve_unresolved_exception_identity(computed_total):
+    if not math.isfinite(computed_total):
+        raise foreign.ArithmeticError("Not a known builtin exception")

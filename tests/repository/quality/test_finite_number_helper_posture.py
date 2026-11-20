@@ -3,6 +3,8 @@
 Inspect direct math.isfinite clauses under not and Boolean operators, preserving
 their polarity. Finite filters, vector predicates and unrelated call arguments
 are outside this rule. Aliases and shadowed module names are not resolved.
+Calculation postconditions retain their builtin arithmetic exceptions. This
+classification follows the raised exception type, not operand provenance.
 Findings need review of exception classification, bindings and evaluation order;
 require_finite_number already includes the numeric type requirement.
 """
@@ -19,6 +21,7 @@ import unittest
 from operations.checker.findings import assert_no_findings
 
 from .sources import ROOT, python_sources
+from .test_type_error_posture import _builtin
 from .type_checks import raising_guards, unwrap_binding
 
 
@@ -63,6 +66,12 @@ def guard_findings(*, source: str, source_path: pathlib.Path | None = None) -> l
             (predicate.lineno, ast.unparse(predicate.args[0]))
             for statement in raising_guards(parsed_source=parsed_source)
             if statement not in owned_nodes
+            if not any(
+                (
+                    _builtin(expression=statement.body[0].exc.func, name=exception_name)
+                    for exception_name in ["ArithmeticError", "FloatingPointError", "OverflowError", "ZeroDivisionError"]
+                ),
+            )
             for predicate in _finite_predicates(expression=statement.test, rejecting=True)
         ),
         key=lambda finding: finding[0],
@@ -121,6 +130,14 @@ class FiniteNumberHelperPostureTests(unittest.TestCase):
         fixture_path = ROOT / "tests/repository/fixtures/quality/finite_number/nonrequirements.py.fixture"
 
         self.assertEqual([], guard_findings(source=fixture_path.read_text(encoding="utf-8")))
+
+    def test_arithmetic_postconditions_are_distinct_from_input_validation(self):
+        fixture_path = ROOT / "tests/repository/fixtures/quality/finite_number/arithmetic_boundaries.py.fixture"
+
+        self.assertEqual(
+            [(12, "received_number"), (17, "computed_total")],
+            guard_findings(source=fixture_path.read_text(encoding="utf-8")),
+        )
 
     def test_authored_finite_number_guards_use_the_shared_requirement(self):
         findings = []
