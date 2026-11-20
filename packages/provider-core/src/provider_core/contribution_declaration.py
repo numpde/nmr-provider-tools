@@ -20,16 +20,16 @@ def _sha256_digest(content: bytes) -> str:
 
 
 def _json_dataclass_bytes[T](
-    value: T,
+    portable_dataclass: T,
     *,
     format_id: str,
-) -> tuple[str, bytes]:
+) -> bytes:
     codec = JsonDataclassCodec(
         format=format_id,
-        value_type=type(value),
+        value_type=type(portable_dataclass),
     )
 
-    return (codec.format, codec.encode(value))
+    return codec.encode(portable_dataclass)
 
 
 def json_configuration[T](
@@ -39,13 +39,13 @@ def json_configuration[T](
 ) -> ConfigurationDescription:
     """Describe one immutable JSON configuration value."""
 
-    (actual_format, encoded_value) = _json_dataclass_bytes(
+    encoded_value = _json_dataclass_bytes(
         value,
         format_id=format_id,
     )
 
     return ConfigurationDescription(
-        format=actual_format,
+        format=format_id,
         digest=_sha256_digest(encoded_value),
     )
 
@@ -59,7 +59,7 @@ def json_asset[T](
 ) -> AssetDescription:
     """Describe one immutable JSON asset value."""
 
-    (_, encoded_value) = _json_dataclass_bytes(
+    encoded_value = _json_dataclass_bytes(
         value,
         format_id=format_id,
     )
