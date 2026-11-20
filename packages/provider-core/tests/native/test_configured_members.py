@@ -52,7 +52,9 @@ class ConfiguredMemberTests(unittest.TestCase):
         binding = sum_binding()
         unbound = replace(binding.run)
 
-        with self.assertRaisesRegex(ValueError, "before a configured binding owns it"):
+        self.assertIsNone(unbound._owner)
+
+        with self.assertRaises(ValueError):
             contribution.ref(unbound)
 
         self.assertEqual("run", contribution.ref(binding.run).name)
@@ -63,7 +65,7 @@ class ConfiguredMemberTests(unittest.TestCase):
         self.assertEqual(first.description, sibling.description)
         self.assertEqual(contribution.ref(first.run), contribution.ref(sibling.run))
 
-        with self.assertRaisesRegex(ValueError, "another configured binding"):
+        with self.assertRaises(ValueError):
             sibling.ref(first.run)
 
     def test_reusing_a_declaration_creates_independent_owned_members(self):
@@ -79,10 +81,12 @@ class ConfiguredMemberTests(unittest.TestCase):
         self.assertEqual(contribution.ref(first.run), contribution.ref(second.run))
         self.assertEqual(contribution.ref(original.run), original.ref(original.run))
 
-        with self.assertRaisesRegex(ValueError, "before a configured binding owns it"):
+        self.assertIsNone(declaration._owner)
+
+        with self.assertRaises(ValueError):
             contribution.ref(declaration)
 
-        with self.assertRaisesRegex(ValueError, "another configured binding"):
+        with self.assertRaises(ValueError):
             first.ref(second.run)
 
     def test_declared_call_cannot_be_absent(self):
@@ -94,7 +98,7 @@ class ConfiguredMemberTests(unittest.TestCase):
     def test_member_annotation_must_match_its_actual_codec_types(self):
         binding = sum_binding()
 
-        with self.assertRaisesRegex(TypeError, "codecs differ from its declared types"):
+        with self.assertRaises(TypeError):
             MismatchedBinding(
                 identity=binding.identity,
                 instance=None,

@@ -456,7 +456,7 @@ class TypedContributionTests(unittest.TestCase):
         )
 
         for parameter in variants:
-            with self.subTest(parameter=parameter), self.assertRaisesRegex(ValueError, "kind/use"):
+            with self.subTest(parameter=parameter), self.assertRaises(ValueError):
                 replace(call, description=replace(call.description, state_inputs=(parameter,)))
 
     def test_one_state_kind_cannot_mean_different_python_types(self):
@@ -475,7 +475,7 @@ class TypedContributionTests(unittest.TestCase):
 
         wrong_call = replace(binding.calculate, state_binding=wrong_state)
 
-        with self.assertRaisesRegex(TypeError, "different Python types"):
+        with self.assertRaises(TypeError):
             replace(binding, calculate=wrong_call)
 
     def test_binding_rejects_codec_format_mismatch(self):

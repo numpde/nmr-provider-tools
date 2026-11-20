@@ -216,10 +216,17 @@ def _scientific_call_shape(
     resolved_annotations = _resolved_callable_hints(scientific_call, callable_role="Scientific call")
     context_type = resolved_annotations.get(parameters[0].name)
 
-    if (get_origin(context_type) is not CallContext) or (len(get_args(context_type)) != 4):
-        raise TypeError("Scientific call must accept one CallContext[Instance, Analysis, Input, State]")
+    context_origin = get_origin(context_type)
 
-    (instance_type, analysis_type, input_type, state_type) = get_args(context_type)
+    if not (context_origin is (expected_context_origin := CallContext)):
+        raise TypeError(f"{reprlib.repr(context_type)=} should originate from {expected_context_origin=}")
+
+    context_arguments = get_args(context_type)
+
+    if not (len(context_arguments) == (expected_context_parameters := 4)):
+        raise TypeError(f"{reprlib.repr(context_type)=}; {len(context_arguments)=} ≠ {expected_context_parameters=}")
+
+    (instance_type, analysis_type, input_type, state_type) = context_arguments
 
     require_instance(instance_type, type)
 
@@ -231,10 +238,17 @@ def _scientific_call_shape(
 
     return_annotation = resolved_annotations.get("return")
 
-    if (get_origin(return_annotation) is not ScientificReturn) or (len(get_args(return_annotation)) != 1):
-        raise TypeError("Scientific call return annotation must be ScientificReturn[OutputT]")
+    return_origin = get_origin(return_annotation)
 
-    (output_type,) = get_args(return_annotation)
+    if not (return_origin is (expected_return_origin := ScientificReturn)):
+        raise TypeError(f"{reprlib.repr(return_annotation)=} should originate from {expected_return_origin=}")
+
+    return_arguments = get_args(return_annotation)
+
+    if not (len(return_arguments) == (expected_return_parameters := 1)):
+        raise TypeError(f"{reprlib.repr(return_annotation)=}; {len(return_arguments)=} ≠ {expected_return_parameters=}")
+
+    (output_type,) = return_arguments
 
     require_instance(output_type, type)
 
@@ -765,11 +779,15 @@ class CallBinding[InputT, StateT, OutputT]:
         require_instance(input_codec, PayloadCodec)
         require_instance(result_codec, PayloadCodec)
 
-        if self.input_codec.format != self.description.input_format:
-            raise ValueError("Input codec format differs from the call description")
+        input_codec_format = self.input_codec.format
 
-        if self.result_codec.format != self.description.result_format:
-            raise ValueError("Result codec format differs from the call description")
+        if not (input_codec_format == self.description.input_format):
+            raise ValueError(f"{reprlib.repr(input_codec_format)=} ≠ {reprlib.repr(self.description.input_format)=}")
+
+        result_codec_format = self.result_codec.format
+
+        if not (result_codec_format == self.description.result_format):
+            raise ValueError(f"{reprlib.repr(result_codec_format)=} ≠ {reprlib.repr(self.description.result_format)=}")
 
         require_instance(self.state_binding, StateBinding)
 
@@ -779,17 +797,24 @@ class CallBinding[InputT, StateT, OutputT]:
             for parameter in self.description.state_inputs
         )
 
-        if self.state_binding.names != declared_state_names:
-            raise ValueError("State binding fields differ from the call's declared state inputs")
+        bound_state_names = self.state_binding.names
+
+        if not (bound_state_names == declared_state_names):
+            raise ValueError(f"{reprlib.repr(bound_state_names)=} ≠ {reprlib.repr(declared_state_names)=}")
 
         if self.description.state_inputs:
             require_instance(self.state_binding, DeclaredStateBinding)
 
-            if self.state_binding.parameters != self.description.state_inputs:
-                raise ValueError("State binding kind/use differs from the call's declared inputs")
+            bound_state_parameters = self.state_binding.parameters
 
-            if set(self.state_binding.input_types) != set(declared_state_names):
-                raise ValueError("State binding types must match the declared input names")
+            if not (bound_state_parameters == self.description.state_inputs):
+                raise ValueError(f"{bound_state_parameters=} ≠ {self.description.state_inputs=}")
+
+            bound_input_type_names = set(self.state_binding.input_types)
+            declared_input_type_names = set(declared_state_names)
+
+            if not (bound_input_type_names == declared_input_type_names):
+                raise ValueError(f"{reprlib.repr(bound_input_type_names)=} ≠ {reprlib.repr(declared_input_type_names)=}")
 
         _callback(self.scientific_call, "Scientific call")
 
@@ -804,8 +829,10 @@ class CallBinding[InputT, StateT, OutputT]:
 
             output_descriptions.append(slot.description)
 
-        if tuple(output_descriptions) != self.description.state_outputs:
-            raise ValueError("Scientific output slots must match the declared outputs")
+        bound_output_descriptions = tuple(output_descriptions)
+
+        if not (bound_output_descriptions == self.description.state_outputs):
+            raise ValueError(f"{bound_output_descriptions=} ≠ {self.description.state_outputs=}")
 
         call_shape = _scientific_call_shape(self.scientific_call)
 
@@ -844,19 +871,18 @@ class CallBinding[InputT, StateT, OutputT]:
         """Connect concrete codecs and a typed context callback at construction."""
 
         if input_type is NoInput:
-            if not (input_format is None):
-                raise ValueError("Omit input_format when the scientific call has no input")
+            require_type(input_format, NoneType, error_factory=ValueError)
 
             admitted_input_format = "provider-core.no-input.v1"
         else:
-            if input_format is None:
-                raise ValueError("A scientific call with input requires input_format")
+            if not (input_format is not None):
+                raise ValueError(f"{input_format=} should identify the input codec format")
 
             admitted_input_format = input_format
 
         if state_binding is None:
-            if not (state_type is NoState):
-                raise TypeError("Stateful calls require an explicit typed state binding")
+            if not (state_type is (expected_state_type := NoState)):
+                raise TypeError(f"{state_type=} should be {expected_state_type=} when {state_binding=}")
 
             state_parameters = ()
         else:
@@ -1050,7 +1076,7 @@ class ImplementationBinding[InstanceT, AnalysisT]:
             if get_origin(annotation) is not CallBinding:
                 # repo-check: retain-type-guard -- Reject a concrete CallBinding field unless its generic port types are declared
                 if type(declaration) is CallBinding:
-                    raise TypeError(f"Call member {member.name = } must declare its concrete CallBinding types.")
+                    raise TypeError(f"{member.name=}; {reprlib.repr(annotation)=} should specify input, state and output types")
 
                 continue
 
@@ -1064,8 +1090,8 @@ class ImplementationBinding[InstanceT, AnalysisT]:
                 declaration.result_codec.value_type,
             )
 
-            if expected_types != actual_types:
-                raise TypeError(f"Call member {member.name = } codecs differ from its declared types.")
+            if not (expected_types == actual_types):
+                raise TypeError(f"{member.name=}; {actual_types=} ≠ {expected_types=}")
 
             bound = replace(declaration)
 
@@ -1076,7 +1102,7 @@ class ImplementationBinding[InstanceT, AnalysisT]:
         calls = tuple(bound_calls)
 
         if not (calls):
-            raise ValueError("A binding must declare at least one named call field")
+            raise ValueError(f"{calls=} should not be empty for {reprlib.repr(self.identity.binding_id)=}")
 
         _unique(calls, lambda call: call.description.name, "Call bindings")
         object.__setattr__(self, "_calls", calls)
@@ -1151,23 +1177,17 @@ class ImplementationBinding[InstanceT, AnalysisT]:
         for call in calls:
             call_shape = call._shape
 
-            if (call_shape.instance is not None) and (call_shape.instance is not instance_type):
-                raise TypeError(
-                    f"Call {call.description.name = } instance annotation must be "
-                    f"{instance_type.__qualname__ = }."
-                )
+            if not ((call_shape.instance is None) or (call_shape.instance is instance_type)):
+                raise TypeError(f"{call.description.name=}; {call_shape.instance=} ≠ {instance_type=}")
 
-            if (call_shape.analysis is not None) and (call_shape.analysis is not analysis_type):
-                raise TypeError(
-                    f"Call {call.description.name = } analysis annotation must be "
-                    f"{analysis_type.__qualname__ = }."
-                )
+            if not ((call_shape.analysis is None) or (call_shape.analysis is analysis_type)):
+                raise TypeError(f"{call.description.name=}; {call_shape.analysis=} ≠ {analysis_type=}")
 
     def ref[InputT, StateT, OutputT](self, call: CallBinding[InputT, StateT, OutputT]) -> CallRef:
         """Reference one of this exact binding's members, rejecting siblings."""
 
         if not (call._owner is self):
-            raise ValueError("Call belongs to another configured binding")
+            raise ValueError(f"{reprlib.repr(call.description.name)=}; {id(call._owner)=} ≠ {id(self)=}")
 
         return ref(call)
 
@@ -1186,23 +1206,28 @@ def _require_state_kinds(*, calls: tuple[CallBinding, ...]) -> None:
             declared_types.append((parameter.kind, call.state_binding.input_types[parameter.name]))
 
         for (kind, value_type) in declared_types:
-            if (kind in state_types) and (state_types[kind] is not value_type):
-                raise TypeError(f"Scientific state {kind = } cannot name different Python types.")
+            if kind in state_types:
+                expected_state_type = state_types[kind]
+
+                if not (value_type is expected_state_type):
+                    raise TypeError(f"{kind=}; {value_type=} ≠ {expected_state_type=}")
 
             state_types[kind] = value_type
 
 
 def ref[InputT, StateT, OutputT](call: CallBinding[InputT, StateT, OutputT]) -> CallRef:
     """Project an actual owned member to its data-only execution identity."""
-    owner = call._owner
+    call_owner = call._owner
 
-    if owner is None:
-        raise ValueError("Cannot reference a call before a configured binding owns it")
+    if not (call_owner is not None):
+        raise ValueError(f"{call_owner=} should identify a configured binding before referencing {reprlib.repr(call.description.name)=}")
 
-    if not any((member is call) for member in owner._calls):
-        raise ValueError("Call does not belong to its configured binding")
+    if not any((member is call) for member in call_owner._calls):
+        owned_member_ids = {id(member) for member in call_owner._calls}
 
-    return CallRef(owner.description.binding_id, owner.description.binding_revision, call.description.name)
+        raise ValueError(f"{id(call)=} should be one of {owned_member_ids=}")
+
+    return CallRef(call_owner.description.binding_id, call_owner.description.binding_revision, call.description.name)
 
 
 def description_document(description: ImplementationDescription) -> dict[str, object]:
