@@ -21,7 +21,7 @@ def _message_without_cause(node: ast.expr, caught_name: str | None) -> bool:
         return _message_without_cause(node.left, caught_name) and _message_without_cause(node.right, caught_name)
 
     if isinstance(node, ast.JoinedStr):
-        return not any((isinstance(item, ast.Name) and (item.id == caught_name)) for item in ast.walk(node))
+        return not any((isinstance(ast_node, ast.Name) and (ast_node.id == caught_name)) for ast_node in ast.walk(node))
 
     return False
 
@@ -98,18 +98,18 @@ def _raw_cli_exception_text(source: str) -> list[int]:
 
             for node in (node for arg in call.args for node in ast.walk(arg)):
                 if isinstance(node, ast.FormattedValue):
-                    value = node.value
+                    message_expression = node.value
                 elif (
                     isinstance(node, ast.Call) and
                     isinstance(node.func, ast.Name) and
                     (node.func.id in {"str", "repr"}) and
                     (len(node.args) == 1)
                 ):
-                    value = node.args[0]
+                    message_expression = node.args[0]
                 else:
                     continue
 
-                if isinstance(value, ast.Name) and (value.id == handler.name):
+                if isinstance(message_expression, ast.Name) and (message_expression.id == handler.name):
                     findings.append(statement.lineno)
                     break
 

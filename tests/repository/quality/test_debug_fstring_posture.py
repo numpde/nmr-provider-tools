@@ -71,14 +71,14 @@ def _interpolation_findings(*, source_path: pathlib.Path, source: str, joined: a
     return [
         _Finding(
             source_path=source_path,
-            line=value.value.lineno,
-            expression=ast.unparse(ast_obj=value.value),
+            line=formatted_value.value.lineno,
+            expression=ast.unparse(ast_obj=formatted_value.value),
             shape="interpolation without debug syntax",
         )
-        for value in joined.values
+        for formatted_value in joined.values
         if
-        isinstance(value, ast.FormattedValue) and
-        (not _is_debug_expression(source=source, formatted=value))
+        isinstance(formatted_value, ast.FormattedValue) and
+        (not _is_debug_expression(source=source, formatted=formatted_value))
     ]
 
 
