@@ -7,6 +7,7 @@ from provider_core.container_guard import require_container
 require_container()
 
 import asyncio
+import reprlib
 import threading
 from concurrent.futures import Future
 from uuid import uuid4
@@ -472,17 +473,20 @@ class _Operation(_Changes):
             resources=self.resources,
         )
 
-    def _require_result(self, result):
+    def _require_result(self, result_ref):
         self.require_loop()
 
-        require_type(result, ResultRef)
+        require_type(result_ref, ResultRef)
 
         if not (
-            (result == self.result) and
+            (result_ref == self.result) and
             self.finished and
             (self.result_state is ResultState.AVAILABLE)
         ):
-            raise ValueError("Result reference does not name this operation's available result.")
+            raise ValueError(
+                f"{reprlib.repr(result_ref)=} should be this operation's available result after completion; "
+                f"{reprlib.repr(self.result)=}, {self.finished=}, {self.result_state=}"
+            )
 
     async def read_result(self, result):
         self._require_result(result)
