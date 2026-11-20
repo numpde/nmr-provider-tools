@@ -12,6 +12,7 @@ from provider_core.container_guard import require_container
 require_container()
 
 import asyncio
+import reprlib
 
 from provider_core.api_errors import ApiFailure
 from provider_core.attempt_record import RecoveryScope, StartPending, acknowledge_start
@@ -54,7 +55,7 @@ class AttemptStarter:
         require_type(scope, RecoveryScope)
 
         if api.origin != scope.api_origin:
-            raise ValueError("Cannot configure Attempt start: signing origin differs from the selected scope")
+            raise ValueError(f"{reprlib.repr(api.origin)=} should match {reprlib.repr(scope.api_origin)=}")
 
         self.api = api
         self.scope = scope
@@ -100,11 +101,11 @@ class AttemptStarter:
 
             # Return the actual received admission. Historical disk metadata is
             # deliberately a different type and cannot recreate this live path.
-            result = self._unretained
+            acknowledged_attempt = self._unretained
 
             self._unretained = None
 
-            return result
+            return acknowledged_attempt
         except asyncio.CancelledError as cause:
             self._remember("Attempt start was cancelled; preserve its exact request and settle owned I/O before reuse", cause)
             raise
