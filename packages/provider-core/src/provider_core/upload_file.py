@@ -11,6 +11,8 @@ import stat
 from builtins import BaseExceptionGroup
 from dataclasses import dataclass, field
 
+from provider_core.type_requirements import require_type
+
 
 class UploadFailed(RuntimeError):
     """Safe reason with private response, cause, interruption and cleanup evidence.
@@ -58,8 +60,7 @@ class VerifiedUpload:
     data: bytes = field(repr=False)
 
     def __post_init__(self):
-        if not (type((actual_data := self.data)) is (expected_type := bytes)):
-            raise UploadFailed(f"{type(actual_data)=} ≠ {expected_type=}")
+        require_type((actual_data := self.data), bytes, error_factory=UploadFailed)
 
         if len(self.data) != self.byte_length:
             raise UploadFailed("source byte length differs from its transfer receipt")
@@ -95,31 +96,26 @@ def read_upload_file(receipt, *, directory_fd, maximum_bytes):
     Composition retains the source until reader quiescence or confirmed stop.
     """
 
-    if not (type(receipt) is (expected_type := VerifiedUploadFile)):
-        raise UploadFileReadFailed(f"{type(receipt)=} ≠ {expected_type=}")
+    require_type(receipt, VerifiedUploadFile, error_factory=UploadFileReadFailed)
 
-    if not (type(directory_fd) is (expected_directory_fd_type := int)):
-        raise UploadFileReadFailed(f"{type(directory_fd)=} ≠ {expected_directory_fd_type=}")
+    require_type(directory_fd, int, error_factory=UploadFileReadFailed)
 
     if directory_fd < 0:
         raise UploadFileReadFailed("reading a private source requires an explicit open directory descriptor")
 
-    if not (type(maximum_bytes) is (expected_maximum_bytes_type := int)):
-        raise UploadFileReadFailed(f"{type(maximum_bytes)=} ≠ {expected_maximum_bytes_type=}")
+    require_type(maximum_bytes, int, error_factory=UploadFileReadFailed)
 
     if maximum_bytes <= 0:
         raise UploadFileReadFailed("the reader's source byte ceiling must be a positive integer")
 
-    if not (type((actual_byte_length := receipt.byte_length)) is (expected_byte_length_type := int)):
-        raise UploadFileReadFailed(f"{type(actual_byte_length)=} ≠ {expected_byte_length_type=}")
+    require_type((actual_byte_length := receipt.byte_length), int, error_factory=UploadFileReadFailed)
 
     if not (0 <= receipt.byte_length <= maximum_bytes):
         raise UploadFileReadFailed("the receipt's source byte length is outside the reader's explicit ceiling")
 
     name = receipt.name
 
-    if not (type(name) is (expected_name_type := str)):
-        raise UploadFileReadFailed(f"{type(name)=} ≠ {expected_name_type=}")
+    require_type(name, str, error_factory=UploadFileReadFailed)
 
     if name in ("", ".", ".."):
         raise UploadFileReadFailed("the private source locator must be one non-dot basename in the granted directory")
