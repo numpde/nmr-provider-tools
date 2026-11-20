@@ -39,6 +39,7 @@ from provider_core.hosting import (
     ResourceState,
     ResultRef,
     ResultState,
+    StartDeadlineExpired,
     _raise_context_failure,
     _start_owned_task,
     settle_cleanup,
@@ -559,6 +560,12 @@ class _ProcessAnalysis:
 
         try:
             admitted_operation = self.host._exchange_frame(request_frame, accept=accept)
+        except StartDeadlineExpired:
+            # The worker raises this SDK outcome before creating an operation.
+            # A received refusal proves non-admission; transport loss does not.
+            del self.operations[invocation.operation_id]
+
+            raise
         except BaseException as cause:
             operation.submission_failure = self.host._channel_failure(cause)
 

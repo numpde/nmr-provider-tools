@@ -24,6 +24,7 @@ from provider_core.hosting import (
     ResourceState,
     ResultRef,
     ResultState,
+    StartDeadlineExpired,
     observe_cleanup,
 )
 from provider_core.process_host import (
@@ -159,6 +160,47 @@ class ProcessOwnershipTests(unittest.IsolatedAsyncioTestCase):
         self.host.exchange_executor.shutdown(wait=True)
         self.session.close()
         self.temporary.cleanup()
+
+    async def test_known_start_expiry_preserves_nonadmission_and_the_channel(self):
+        expired = replace(self.invocation, start_not_after=time.monotonic() - 1)
+
+        def refuse_expired_start():
+            command = receive(self.peer_science_socket, deadline=time.monotonic() + 5)
+
+            send(
+                sock=self.peer_science_socket,
+                sdk_value={"ok": False, "error": StartDeadlineExpired("The worker's start window expired")},
+            )
+
+            return command["invocation"]
+
+        with ThreadPoolExecutor(max_workers=1) as peer_executor:
+            received = peer_executor.submit(refuse_expired_start)
+
+            with self.assertRaises(expected_exception=StartDeadlineExpired):
+                self.analysis.submit(expired)
+
+            self.assertEqual(first=expired, second=received.result(timeout=5))
+
+        self.assertEqual(first={}, second=self.analysis.operations)
+        self.assertIsNone(obj=self.host.channel.failure)
+
+        def admit_fresh_start():
+            command = receive(self.peer_science_socket, deadline=time.monotonic() + 5)
+            original = self.analysis.operations[command["invocation"].operation_id]
+
+            send(self.peer_science_socket, {"ok": True, "value": {"operation": original.reference}})
+
+            return original
+
+        with ThreadPoolExecutor(max_workers=1) as peer_executor:
+            admitted = peer_executor.submit(admit_fresh_start)
+            original = self.analysis.submit(self.invocation)
+
+            self.assertIs(expr1=original, expr2=admitted.result(timeout=5))
+
+        self.assertTrue(expr=original.acknowledged)
+        self.assertIsNone(obj=self.host.channel.failure)
 
     async def test_submission_owns_work_before_peer_receipt_and_never_repeats_bad_acknowledgement(self):
         unsupported = replace(
