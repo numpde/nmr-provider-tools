@@ -400,8 +400,7 @@ class UploadTransfer:
             if not callable(grant_factory):
                 raise TypeError(f"{grant_factory=} should be callable")
 
-            if not (type(directory_fd) is (expected_type := int)):
-                raise UploadFailed(f"{type(directory_fd)=} ≠ {expected_type=}")
+            require_type(directory_fd, int, error_factory=UploadFailed)
 
             if directory_fd < 0:
                 raise UploadFailed("private-file acquisition requires an open directory descriptor")
