@@ -7,6 +7,7 @@ import contextlib
 import io
 import json
 import pathlib
+import tomllib
 from types import SimpleNamespace
 from unittest.mock import Mock, patch
 
@@ -146,3 +147,4 @@ class SharedDeliveryConfigurationTests(unittest.TestCase):
             self.assertEqual(worker.retry_initial_seconds, 3)
             self.assertEqual(len(service.queue.inventory("https://api.example", "provider:example")), 2)
             self.assertEqual(notices.call_args.args[1]["event"], "delivery_reload_failed")
+            self.assertIsInstance(notices.call_args.args[0].__cause__, tomllib.TOMLDecodeError)

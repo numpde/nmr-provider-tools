@@ -33,35 +33,46 @@ class SharedDeliveryConfiguration:
             if not stat.S_ISREG(file_mode := os.fstat(outbox_settings_fd).st_mode):
                 raise ValueError(f"{outbox_settings_fd=} has bad {file_mode=}")
 
-            raw = bytearray()
+            outbox_settings_bytes = bytearray()
+            max_settings_bytes = 65536
 
-            while len(raw) <= 65536:
-                part = os.read(outbox_settings_fd, 65537 - len(raw))
+            while len(outbox_settings_bytes) <= max_settings_bytes:
+                settings_chunk = os.read(outbox_settings_fd, (max_settings_bytes + 1) - len(outbox_settings_bytes))
 
-                if not part:
+                if not settings_chunk:
                     break
 
-                raw.extend(part)
+                outbox_settings_bytes.extend(settings_chunk)
         finally:
             os.close(outbox_settings_fd)
 
-        if not (len(raw) <= 65536):
-            raise ValueError("Outbox settings exceed the supported file size.")
+        if not ((settings_byte_count := len(outbox_settings_bytes)) <= max_settings_bytes):
+            raise ValueError(f"{settings_byte_count=} should be at most {max_settings_bytes=}")
 
         try:
-            document = tomllib.loads(raw.decode("utf-8"))
-            table = document["outbox"]
+            operator_settings = tomllib.loads(outbox_settings_bytes.decode("utf-8"))
+            outbox_settings = operator_settings["outbox"]
 
-            require_type(table, dict)
+            require_type(outbox_settings, dict)
 
-            limits = QueueLimits(table["provider_items"], table["provider_bytes"], table["total_items"], table["total_bytes"])
-            (initial, maximum, level) = (table["retry_initial_seconds"], table["retry_max_seconds"], table["log_level"])
+            queue_limits = QueueLimits(
+                outbox_settings["provider_items"],
+                outbox_settings["provider_bytes"],
+                outbox_settings["total_items"],
+                outbox_settings["total_bytes"],
+            )
 
-            require_delivery_retry_settings(initial, maximum)
+            (retry_initial_seconds, retry_max_seconds, log_level) = (
+                outbox_settings["retry_initial_seconds"],
+                outbox_settings["retry_max_seconds"],
+                outbox_settings["log_level"],
+            )
 
-            if not (level in ("INFO", "DEBUG", "WARNING")):
-                raise ValueError
-        except (KeyError, TypeError, ValueError, UnicodeError, RecursionError, OverflowError):
-            raise ValueError("Outbox settings are invalid; require supported queue, retry and log settings.") from None
+            require_delivery_retry_settings(retry_initial_seconds, retry_max_seconds)
 
-        return SharedDeliverySettings(limits, initial, maximum, level)
+            if not (log_level in (expected_log_levels := ("INFO", "DEBUG", "WARNING"))):
+                raise ValueError(f"log_level should be one of {expected_log_levels=}")
+        except (KeyError, TypeError, ValueError, UnicodeError, RecursionError, OverflowError) as cause:
+            raise ValueError(f"Cannot read outbox settings from {self.path=}") from cause
+
+        return SharedDeliverySettings(queue_limits, retry_initial_seconds, retry_max_seconds, log_level)

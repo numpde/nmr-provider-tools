@@ -71,20 +71,22 @@ class SharedGrants:
 
 def shared_grants(path):
     try:
-        document = tomllib.loads(read_startup_file(path, maximum_bytes=65536).decode("utf-8"))
-        (project, gid) = (document["deployment"]["project"], document["deployment"]["gid"])
+        operator_settings = tomllib.loads(read_startup_file(path, maximum_bytes=65536).decode("utf-8"))
+        (project, gid) = (operator_settings["deployment"]["project"], operator_settings["deployment"]["gid"])
 
         require_type(project, str)
 
-        if not (re.fullmatch(r"[a-z0-9][a-z0-9_-]{0,48}", project) is not None):
-            raise ValueError
+        if not (re.fullmatch((expected_project_pattern := r"[a-z0-9][a-z0-9_-]{0,48}"), project) is not None):
+            raise ValueError(f"{project=} should match {expected_project_pattern=}")
 
         require_type(gid, int)
 
-        if not (0 < gid <= 4294967294):
-            raise ValueError
-    except (KeyError, TypeError, ValueError, UnicodeError, RecursionError):
-        raise ValueError("Shared socket grants require the operator project's name and nonzero group ID.") from None
+        (min_gid, max_gid) = (1, 4294967294)
+
+        if not (min_gid <= gid <= max_gid):
+            raise ValueError(f"gid should be between {min_gid=} and {max_gid=}")
+    except (KeyError, TypeError, ValueError, UnicodeError, RecursionError) as cause:
+        raise ValueError(f"Cannot read shared socket grants from {path=}") from cause
 
     return SharedGrants(project, gid)
 
