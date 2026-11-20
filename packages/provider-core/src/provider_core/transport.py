@@ -307,17 +307,17 @@ class HttpTransport:
     def _connection_pool(self, options):
         return backend_wire.connection_pool(options, via_unix_proxy=self._proxy_socket is not None)
 
-    def _require_destination(self, request):
-        if (request.url.scheme == "http") and self._allow_http:
+    def _require_destination(self, http_request):
+        if (http_request.url.scheme == "http") and self._allow_http:
             return
 
-        if not (request.url.scheme == (expected_scheme := "https")):
-            raise ValueError(f"{request.url.scheme=} should equal {expected_scheme=}")
+        if not (http_request.url.scheme == (expected_scheme := "https")):
+            raise ValueError(f"{http_request.url.scheme=} should equal {expected_scheme=}")
 
         if self._proxy_socket is not None:
-            backend_wire.require_connect_host(request.url.raw_host)
+            backend_wire.require_connect_host(http_request.url.raw_host)
 
-    async def _perform(self, request, maximum_bytes, account_bytes, outcome, output_fd, before_body, decoder_factory, not_after):
+    async def _perform(self, http_request, maximum_bytes, account_bytes, outcome, output_fd, before_body, decoder_factory, not_after):
         if (not_after is not None) and (asyncio.get_running_loop().time() >= not_after):
             outcome.primary = TimeoutError("HTTP exchange absolute deadline expired before task entry")
 
@@ -374,7 +374,7 @@ class HttpTransport:
                         outcome.proxy_connect_status = connect_status
 
             wire_request = backend_wire.request_for_backend(
-                request,
+                http_request,
                 io_timeout_seconds=self._exchange_seconds,
                 connect_timeout_seconds=connect_timeout_seconds,
                 trace=observe_setup,
@@ -639,7 +639,7 @@ class HttpTransport:
             not_after=not_after,
         )
 
-    async def _exchange(self, request, *, maximum_bytes, account_bytes, owner, output_fd, before_body, decoder_factory, not_after):
+    async def _exchange(self, http_request, *, maximum_bytes, account_bytes, owner, output_fd, before_body, decoder_factory, not_after):
         if not (self._active is None):
             raise ExchangeFailed("Cannot start HTTP exchange: an earlier exchange is active or its retirement is unconfirmed")
 
@@ -648,7 +648,7 @@ class HttpTransport:
         if not (0 <= maximum_bytes):
             raise ValueError("Cannot receive HTTP response: byte limit must be a non-negative integer")
 
-        self._require_destination(request)
+        self._require_destination(http_request)
 
         if not_after is not None:
             require_positive_number(not_after)
@@ -670,7 +670,7 @@ class HttpTransport:
         received = _Outcome()
 
         task = asyncio.create_task(
-            self._perform(request, maximum_bytes, account_bytes, received, output_fd, before_body, decoder_factory, not_after),
+            self._perform(http_request, maximum_bytes, account_bytes, received, output_fd, before_body, decoder_factory, not_after),
             name="provider-core-http-exchange"
         )
 
