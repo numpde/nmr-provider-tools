@@ -13,13 +13,13 @@ import reprlib
 from datetime import datetime
 
 from provider_core.response_json import ResponseRejected
+from provider_core.type_requirements import require_type
 
 
 def read_timestamp(timestamp):
     """Admit UTC seconds or a nonzero six-digit fraction and a real calendar date."""
 
-    if not (type(timestamp) is (expected_type := str)):
-        raise ResponseRejected(f"{type(timestamp)=} ≠ {expected_type=}")
+    require_type(timestamp, str, error_factory=ResponseRejected)
 
     if re.fullmatch(r"[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(?:\.(?!000000)[0-9]{6})?Z", timestamp) is None:
         raise ResponseRejected(f"{reprlib.repr(timestamp)=} should use canonical UTC seconds or nonzero microseconds")
