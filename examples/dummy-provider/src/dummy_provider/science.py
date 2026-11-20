@@ -38,10 +38,10 @@ class WeightedSumSettings:
 
     def __post_init__(self) -> None:
         if not np.isfinite(self.scale):
-            raise ValueError(f"Expected a finite scale; {self.scale=}")
+            raise ValueError(f"{self.scale=} should be finite")
 
         if not np.isfinite(self.offset):
-            raise ValueError(f"Expected a finite offset; {self.offset=}")
+            raise ValueError(f"{self.offset=} should be finite")
 
 
 @dataclass(frozen=True, slots=True, kw_only=True, eq=False)
@@ -55,13 +55,17 @@ class PreparationInput:
 
     def __post_init__(self) -> None:
         if not (self.samples.ndim == 1):
-            raise ValueError(f"Expected a preparation vector; {self.samples.shape=}")
+            raise ValueError(f"{self.samples.shape=} should be a vector")
 
         if not (self.samples.dtype.kind in "iuf"):
-            raise ValueError(f"Expected real numeric samples; {self.samples.dtype=}")
+            raise ValueError(f"{self.samples.dtype=} should be real numeric")
 
-        if not np.isfinite(self.samples).all():
-            raise ValueError("Preparation samples must all be finite")
+        sample_finiteness = np.isfinite(self.samples)
+
+        if not sample_finiteness.all():
+            nonfinite_sample_index = next(index for index in range(self.samples.size) if not (sample_finiteness[index]))
+
+            raise ValueError(f"{nonfinite_sample_index=}; {self.samples[nonfinite_sample_index]=} should be finite")
 
 
 @dataclass(frozen=True, slots=True, kw_only=True, eq=False)
@@ -70,13 +74,17 @@ class SumInput:
 
     def __post_init__(self) -> None:
         if not (self.samples.ndim == 1):
-            raise ValueError(f"Expected a summation vector; {self.samples.shape=}")
+            raise ValueError(f"{self.samples.shape=} should be a vector")
 
         if not (self.samples.dtype.kind in "iuf"):
-            raise ValueError(f"Expected real numeric samples; {self.samples.dtype=}")
+            raise ValueError(f"{self.samples.dtype=} should be real numeric")
 
-        if not np.isfinite(self.samples).all():
-            raise ValueError("Summation samples must all be finite")
+        sample_finiteness = np.isfinite(self.samples)
+
+        if not sample_finiteness.all():
+            nonfinite_sample_index = next(index for index in range(self.samples.size) if not (sample_finiteness[index]))
+
+            raise ValueError(f"{nonfinite_sample_index=}; {self.samples[nonfinite_sample_index]=} should be finite")
 
 
 @dataclass(frozen=True, slots=True, kw_only=True)
@@ -89,7 +97,7 @@ class PreparationResult:
         require_type(actual_count, int)
 
         if not (0 < self.count):
-            raise ValueError(f"Expected a positive {self.count=}")
+            raise ValueError(f"{self.count=} should be positive")
 
 
 @dataclass(frozen=True, slots=True, kw_only=True)
@@ -99,14 +107,14 @@ class PredictionResult:
 
     def __post_init__(self) -> None:
         if not np.isfinite(self.total):
-            raise ValueError(f"Expected a finite prediction; {self.total=}")
+            raise ValueError(f"{self.total=} should be finite")
 
         actual_count = self.count
 
         require_type(actual_count, int)
 
         if not (0 < self.count):
-            raise ValueError(f"Expected a positive {self.count=}")
+            raise ValueError(f"{self.count=} should be positive")
 
 
 @dataclass(frozen=True, slots=True, kw_only=True)
@@ -116,14 +124,14 @@ class SumResult:
 
     def __post_init__(self) -> None:
         if not np.isfinite(self.total):
-            raise ValueError(f"Expected a finite sum; {self.total=}")
+            raise ValueError(f"{self.total=} should be finite")
 
         actual_count = self.count
 
         require_type(actual_count, int)
 
         if not (0 < self.count):
-            raise ValueError(f"Expected a positive {self.count=}")
+            raise ValueError(f"{self.count=} should be positive")
 
 
 @dataclass(slots=True, kw_only=True, eq=False)
@@ -152,32 +160,36 @@ class PreparedSamples:
         self.samples = self.samples.copy()
 
         if not ((self.samples.ndim == 1) and (self.samples.size > 0)):
-            raise ValueError(f"Expected a nonempty prepared vector; {self.samples.shape=}")
+            raise ValueError(f"{self.samples.shape=} should be a nonempty vector")
 
         if not (self.samples.dtype.kind in "iuf"):
-            raise ValueError(f"Expected real numeric samples; {self.samples.dtype=}")
+            raise ValueError(f"{self.samples.dtype=} should be real numeric")
 
         self.samples = np.asarray(a=self.samples, dtype=float)
 
-        if not np.isfinite(self.samples).all():
-            raise ValueError("Prepared samples must all be finite")
+        sample_finiteness = np.isfinite(self.samples)
+
+        if not sample_finiteness.all():
+            nonfinite_sample_index = next(index for index in range(self.samples.size) if not (sample_finiteness[index]))
+
+            raise ValueError(f"{nonfinite_sample_index=}; {self.samples[nonfinite_sample_index]=} should be finite")
 
     @property
     def sample_count(self) -> int:
         if not (self.samples is not None):
-            raise RuntimeError("The prepared samples have already been consumed or disposed")
+            raise RuntimeError(f"{self.samples=} should be set")
 
         return self.samples.size
 
     def consume(self, *, analysis: WeightedSumAnalysis) -> np.ndarray:
         if not (self.analysis is analysis):
-            raise RuntimeError("The prepared samples belong to another analysis")
+            raise RuntimeError(f"{id(self.analysis)=} ≠ {id(analysis)=}")
 
         if not (analysis.accepted_preparation is self):
-            raise RuntimeError("The prepared samples are not this analysis's accepted preparation")
+            raise RuntimeError(f"{id(analysis.accepted_preparation)=} ≠ {id(self)=}")
 
         if not (self.samples is not None):
-            raise RuntimeError("The prepared samples have already been consumed or disposed")
+            raise RuntimeError(f"{self.samples=} should be set")
 
         prepared_samples = self.samples
         analysis.accepted_preparation = None
@@ -207,21 +219,25 @@ def create_model(
 
 def load_model(model: WeightedSumModel) -> None:
     if not (model.loaded_coefficients is None):
-        raise RuntimeError("The model coefficients are already loaded")
+        raise RuntimeError(f"{id(model)=} already has loaded coefficients")
 
     # Validate the copy the model will retain; assembly still owns its array.
     coefficient_weights = model.coefficients.weights.copy()
 
     if not ((coefficient_weights.ndim == 1) and (coefficient_weights.size > 0)):
-        raise ValueError(f"Expected a nonempty coefficient vector; {coefficient_weights.shape=}")
+        raise ValueError(f"{coefficient_weights.shape=} should be a nonempty vector")
 
     if not (coefficient_weights.dtype.kind in "iuf"):
-        raise ValueError(f"Expected real numeric weights; {coefficient_weights.dtype=}")
+        raise ValueError(f"{coefficient_weights.dtype=} should be real numeric")
 
     coefficient_weights = np.asarray(a=coefficient_weights, dtype=float)
 
-    if not np.isfinite(coefficient_weights).all():
-        raise ValueError("Coefficient weights must all be finite")
+    coefficient_finiteness = np.isfinite(coefficient_weights)
+
+    if not coefficient_finiteness.all():
+        nonfinite_coefficient_index = next(index for index in range(coefficient_weights.size) if not (coefficient_finiteness[index]))
+
+        raise ValueError(f"{nonfinite_coefficient_index=}; {coefficient_weights[nonfinite_coefficient_index]=} should be finite")
 
     model.loaded_coefficients = coefficient_weights
 
@@ -239,7 +255,7 @@ def initialize_analysis(analysis: WeightedSumAnalysis) -> None:
         raise RuntimeError(f"{analysis.is_open=} should be false")
 
     if not (analysis.model.loaded_coefficients is not None):
-        raise RuntimeError("Cannot initialize an analysis before loading model coefficients")
+        raise RuntimeError(f"{analysis.model.loaded_coefficients=} should be set")
 
     analysis.is_open = True
 
@@ -253,24 +269,24 @@ def prepare(
     require_type(candidate, PreparationInput)
 
     if not (analysis.is_open):
-        raise RuntimeError("Cannot prepare input for a closed analysis")
+        raise RuntimeError(f"{analysis.is_open=} should be true")
 
     if not (candidate.samples.size > 0):
         raise ScientificInputRejected(
-            "Preparation input must contain at least one sample",
+            f"{candidate.samples.size=} should be positive",
             code=ScientificInputRejected.Code.EMPTY_INPUT,
         )
 
     if not (analysis.accepted_preparation is None):
         raise ScientificInputRejected(
-            "Calculate or discard the accepted preparation before preparing another",
+            f"{id(analysis.accepted_preparation)=} should be consumed or disposed before another preparation",
             code=ScientificInputRejected.Code.ALREADY_PREPARED,
         )
 
     loaded_coefficients = analysis.model.loaded_coefficients
 
     if not (loaded_coefficients is not None):
-        raise RuntimeError("Cannot prepare input because model coefficients are not loaded")
+        raise RuntimeError(f"{loaded_coefficients=} should be set")
 
     actual_sample_count = candidate.samples.size
     expected_sample_count = loaded_coefficients.size
@@ -294,12 +310,12 @@ def calculate(
     require_type(state, CalculationState)
 
     if not (analysis.is_open):
-        raise RuntimeError("Cannot calculate for a closed analysis")
+        raise RuntimeError(f"{analysis.is_open=} should be true")
 
     loaded_coefficients = analysis.model.loaded_coefficients
 
     if not (loaded_coefficients is not None):
-        raise RuntimeError("Cannot calculate because model coefficients are not loaded")
+        raise RuntimeError(f"{loaded_coefficients=} should be set")
 
     prepared_samples = state.prepared.consume(analysis=analysis)
 
@@ -310,7 +326,7 @@ def calculate(
     prediction_total = analysis.model.settings.offset + analysis.model.settings.scale * weighted_sum
 
     if not np.isfinite(prediction_total):
-        raise ArithmeticError(f"The weighted {prediction_total=} is not finite")
+        raise ArithmeticError(f"{prediction_total=} should be finite")
 
     return PredictionResult(total=prediction_total, count=prepared_samples.size)
 
@@ -320,7 +336,7 @@ def sum_values(summation: SumInput) -> SumResult:
 
     if not (summation.samples.size > 0):
         raise ScientificInputRejected(
-            "Sum input must contain at least one sample",
+            f"{summation.samples.size=} should be positive",
             code=ScientificInputRejected.Code.EMPTY_INPUT,
         )
 
@@ -329,7 +345,7 @@ def sum_values(summation: SumInput) -> SumResult:
     sum_total = float(np.sum(a=summation.samples, dtype=float))
 
     if not np.isfinite(sum_total):
-        raise ArithmeticError(f"The {sum_total=} is not finite")
+        raise ArithmeticError(f"{sum_total=} should be finite")
 
     return SumResult(total=sum_total, count=summation.samples.size)
 
