@@ -82,7 +82,7 @@ class SpectrumScienceTests(unittest.TestCase):
             )
 
         self.assertEqual("too_few_samples", rejected.exception.code)
-        self.assertIn("at least three samples", rejected.exception.message)
+        self.assertIn("sample_count=2", rejected.exception.message)
 
     def test_spectrum_rejects_empty_mismatched_and_unordered_samples(self) -> None:
         for (positions, intensities) in (
@@ -110,7 +110,7 @@ class SpectrumScienceTests(unittest.TestCase):
                         constructor()
 
     def test_baseline_subtraction_rejects_numerical_overflow(self) -> None:
-        with self.assertRaisesRegex(ArithmeticError, "Baseline subtraction.*nonfinite"):
+        with self.assertRaisesRegex(ArithmeticError, "corrected_intensity"):
             science.subtract_baseline(
                 science.Spectrum(positions=(0,), intensities=(1e308,)),
                 science.BaselineSettings(baseline=-1e308),

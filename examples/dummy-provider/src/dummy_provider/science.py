@@ -236,7 +236,7 @@ def create_analysis(model: WeightedSumModel) -> WeightedSumAnalysis:
 
 def initialize_analysis(analysis: WeightedSumAnalysis) -> None:
     if not (analysis.is_open is False):
-        raise RuntimeError("The analysis is already initialized")
+        raise RuntimeError(f"{analysis.is_open=} should be false")
 
     if not (analysis.model.loaded_coefficients is not None):
         raise RuntimeError("Cannot initialize an analysis before loading model coefficients")
@@ -277,7 +277,7 @@ def prepare(
 
     if not (actual_sample_count == expected_sample_count):
         raise ScientificInputRejected(
-            f"{actual_sample_count = }, {expected_sample_count = }",
+            f"{actual_sample_count=} should equal {expected_sample_count=}",
             code=ScientificInputRejected.Code.WRONG_COUNT,
         )
 

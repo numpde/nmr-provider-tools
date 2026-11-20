@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 import math
+import reprlib
 
 from provider_core.contribution_errors import ScientificRejection
 from provider_core.tools import require_nonnegative_number
@@ -50,7 +51,7 @@ class Reference:
         object.__setattr__(self, "values", VectorInput(values=self.values).values)
 
         if not any(self.values):
-            raise ValueError("A matching reference requires at least one positive channel value")
+            raise ValueError(f"{reprlib.repr(self.label)=} should have a positive channel")
 
 
 @dataclass(frozen=True, slots=True, kw_only=True)
@@ -66,14 +67,17 @@ class ReferenceSet:
             require_type(entry, Reference)
 
         if not (self.entries):
-            raise ValueError("A reference library requires a nonempty immutable tuple of references")
+            raise ValueError(f"{self.entries=} should contain a reference")
 
         labels = set()
-        dimensions = len(self.entries[0].values)
+        expected_channel_count = len(self.entries[0].values)
 
         for reference in self.entries:
-            if not ((reference.label not in labels) and (len(reference.values) == dimensions)):
-                raise ValueError("Matching references require unique labels and equal vector dimensions")
+            if not ((reference.label not in labels) and (len(reference.values) == expected_channel_count)):
+                raise ValueError(
+                    f"{reprlib.repr(reference.label)=} should be unique; "
+                    f"{len(reference.values)=} should match {expected_channel_count=}"
+                )
 
             labels.add(reference.label)
 
@@ -84,9 +88,11 @@ class MatchSettings:
 
     def __post_init__(self) -> None:
         score = _finite(self.minimum_score)
+        min_score = 0
+        max_score = 1
 
-        if not (0 <= score <= 1):
-            raise ValueError("Minimum cosine match score must be between 0 and 1")
+        if not (min_score <= score <= max_score):
+            raise ValueError(f"Expected {min_score=} ≤ {score=} ≤ {max_score=}")
 
         object.__setattr__(self, "minimum_score", score)
 
@@ -107,7 +113,7 @@ def _normalize(channel_weights: tuple[float, ...]) -> tuple[float, ...]:
     scale = max(channel_weights)
 
     if not (scale != 0):
-        raise ScientificRejection("zero_vector", "Cosine matching requires a nonzero vector")
+        raise ScientificRejection("zero_vector", f"{scale=} should be nonzero")
 
     scaled = []
 
@@ -149,12 +155,12 @@ def build_index(reference_set: ReferenceSet) -> ReferenceIndex:
 
 def match(index: ReferenceIndex, settings: MatchSettings, candidate: VectorInput) -> MatchReport:
     """Return the highest cosine score; exact ties choose the smallest label."""
-    dimensions = len(index.postings)
+    expected_channel_count = len(index.postings)
 
-    if not (len(candidate.values) == dimensions):
+    if not (len(candidate.values) == expected_channel_count):
         raise ScientificRejection(
             "wrong_dimensions",
-            f"{len(candidate.values)=} should match {dimensions=}",
+            f"{len(candidate.values)=} should match {expected_channel_count=}",
         )
 
     scores = [0.0] * len(index.labels)
@@ -168,9 +174,15 @@ def match(index: ReferenceIndex, settings: MatchSettings, candidate: VectorInput
     score = min(1.0, scores[best_index])
 
     if not (score != 0):
-        raise ScientificRejection("no_overlap", "The query shares no positive channels with the reference library")
+        raise ScientificRejection(
+            "no_overlap",
+            f"{score=} should be nonzero",
+        )
 
     if not (score >= settings.minimum_score):
-        raise ScientificRejection("below_threshold", "No reference reaches the configured minimum cosine score")
+        raise ScientificRejection(
+            "below_threshold",
+            f"{score=} should reach {settings.minimum_score=}",
+        )
 
     return MatchReport(label=index.labels[best_index], score=score)

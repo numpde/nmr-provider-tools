@@ -36,20 +36,14 @@ class Spectrum:
             (positions) and
             (position_count == intensity_count)
         ):
-            raise ValueError(
-                f"A spectrum requires nonempty, equally sized positions and intensities; "
-                f"received {position_count=} and {intensity_count=}"
-            )
+            raise ValueError(f"{position_count=} should be positive and equal to {intensity_count=}")
 
         for position_index in range(1, len(positions)):
             previous_position = positions[position_index - 1]
             current_position = positions[position_index]
 
             if not (previous_position < current_position):
-                raise ValueError(
-                    f"Spectrum positions must strictly increase; "
-                    f"{position_index=}; {previous_position=}; {current_position=}"
-                )
+                raise ValueError(f"{position_index=}: {previous_position=} should be less than {current_position=}")
 
         object.__setattr__(self, "positions", positions)
         object.__setattr__(self, "intensities", intensities)
@@ -106,7 +100,7 @@ def subtract_baseline(spectrum: Spectrum, settings: BaselineSettings) -> Spectru
         corrected_intensity = intensity - settings.baseline
 
         if not math.isfinite(corrected_intensity):
-            raise ArithmeticError(f"Baseline subtraction produced a nonfinite {corrected_intensity=}")
+            raise ArithmeticError(f"{corrected_intensity=} should be finite")
 
         corrected.append(corrected_intensity)
 
@@ -116,10 +110,13 @@ def subtract_baseline(spectrum: Spectrum, settings: BaselineSettings) -> Spectru
 def detect_peaks(spectrum: Spectrum, settings: PeakSettings) -> PeakReport:
     """Find interior strict maxima at or above the configured minimum height."""
 
-    if not (len(spectrum.positions) >= 3):
+    sample_count = len(spectrum.positions)
+    min_sample_count = 3
+
+    if not (min_sample_count <= sample_count):
         raise ScientificRejection(
             "too_few_samples",
-            "Peak detection requires at least three samples to compare an interior point with both neighbours",
+            f"{sample_count=} should be at least {min_sample_count=}",
         )
 
     peaks = []
