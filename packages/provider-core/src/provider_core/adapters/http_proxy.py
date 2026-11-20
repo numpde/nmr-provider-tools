@@ -59,12 +59,12 @@ def parse_destination(header: bytes) -> tuple[str, str, int, bytes]:
     # RFC 9112 section 3.2.1: forward the path and query, not the absolute URI
     # https://www.rfc-editor.org/rfc/rfc9112.html#section-3.2.1
     # silent-defaults: allow-contract -- Origin-form requires / for an empty URI path.
-    path = parsed.path or "/"
+    origin_form_target = parsed.path or "/"
 
     if parsed.query:
-        path += "?" + parsed.query
+        origin_form_target += "?" + parsed.query
 
-    forwarded_request_line = f"{method} {path} {version}"  # machine-string: the proxy peer parses this exact HTTP request line
+    forwarded_request_line = f"{method} {origin_form_target} {version}"  # machine-string: the proxy peer parses this exact HTTP request line
     lines[0] = forwarded_request_line.encode("ascii")
 
     return (method, host, port, b"\r\n".join(lines))
