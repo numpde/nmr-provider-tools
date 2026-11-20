@@ -278,10 +278,10 @@ class SharedDeliveryService(DeliveryService):
         for worker in tuple(self.workers.values()):
             worker.request_stop()
 
-        settled = await asyncio.gather(*(asyncio.shield(task) for task in tuple(self._worker_tasks.values())), return_exceptions=True)
+        worker_outcomes = await asyncio.gather(*(asyncio.shield(task) for task in tuple(self._worker_tasks.values())), return_exceptions=True)
 
         # repo-check: allow-tuple-generator -- Retain the final independent worker failures as immutable shutdown evidence.
-        self.worker_failures = tuple(value for value in settled if isinstance(value, BaseException))
+        self.worker_failures = tuple(worker_outcome for worker_outcome in worker_outcomes if isinstance(worker_outcome, BaseException))
 
         for worker in tuple(self.workers.values()):
             if (worker.api is not None) and (not worker.api.retirement_confirmed):
