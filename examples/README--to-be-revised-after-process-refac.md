@@ -30,7 +30,7 @@ its current process profile requires exactly one configured offering, the instal
 mock `Model` and a deployment-supplied fresh `RunnerSession`. See the
 [current process-host guide](../packages/provider-core/README.md#scientific-process-hosting)
 for startup/request usage, deployment grants, payload and control-call limits,
-cleanup semantics and outstanding runtime qualification.
+cleanup semantics and recorded installed qualification.
 
 Spectrum retains the baseline and peaks roles required by its fixed scientific
 sequence. An unordered collection should not erase those roles.

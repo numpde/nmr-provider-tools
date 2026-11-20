@@ -94,13 +94,13 @@ and one active analysis at a time; successfully closed analyses can be followed
 by new analyses on the same loaded model. This is an execution boundary within
 the existing containment, not an additional security sandbox.
 
-**Qualification remains outstanding on `feature/process-scientific-host-20261119`.**
-At the 20 November 2026 grading checkpoint, Docker was unavailable and no
-installed/native or integration run established this branch's runtime behavior.
-Use the maintained qualification commands, independent grades and evidence
-requirements in [Note 094](../../notes/094_process_boundary_grading_20261120.txt).
-Source review and authored tests do not establish real-model/GPU suitability,
-cross-version compatibility, additional platforms or unattended recovery.
+**Installed SDK qualification passed for candidate `b1fca04f`.**
+[Note 095](../../notes/095_scientific_process_qualification_20261120.txt) records
+the exact installed artifact, complete contract/unit/native/integration results,
+privacy skips and independent grades for the bounded profile above. Repository
+checks remain deferred and excluded from this campaign; merge and release
+readiness are separate decisions. These results do not establish real-model/GPU
+suitability, cross-version compatibility, additional platforms or unattended recovery.
 
 ### Deployment and startup
 
