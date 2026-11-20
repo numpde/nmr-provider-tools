@@ -40,9 +40,11 @@ class SharedServiceCancellationTests(unittest.IsolatedAsyncioTestCase):
                 "ca_file": "/fixture/ca"
             }
 
+            startup_file_contents = {fields["credential_file"]: credential, fields["ca_file"]: ca}
+
             (settings, _, material) = api_settings_with_material(
                 fields,
-                lambda _credential_or_ca_path, **options: credential if options["label"] == "API signing credential" else ca
+                lambda startup_file_path, **_file_read_options: startup_file_contents[startup_file_path]
             )
 
             handoff = DeliveryHandoff(delivery_outcome, material)
