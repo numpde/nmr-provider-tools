@@ -1,483 +1,483 @@
-# Adopting the scientific execution host in all four real providers
+# Can the four real providers do their jobs through the new SDK?
 
-2026-11-20. Source investigation and proposed end-state.
+2026-11-20. Source investigation, adoption decisions and critical review.
 
-## Decision and completion contract
+## Goal and feasibility
 
-Adopt the SDK scientific host throughout SECS, NMRNet, NMRPeak HF/CHF and
-Magnet E01/E02/G01. Each provider declares its actual scientific operations once.
-Its service adapter submits those operations through the same interface for every
-supported backend. The scientific execution owner retains models and prepared
-objects. The parent retains original submissions, observations, Attempt identities
-and report obligations. The native runner owns process termination and scratch
-release.
+Yes. The inspected scientific entry points fit the SDK's Contribution, Analysis,
+operation, state and result ownership model. Each provider can accept its supported
+inputs, perform the intended calculation and deliver its result through that model.
+The work is concrete provider adaptation, installed integration and the bounded
+SDK/deployment decisions below. Real-model execution through the proposed adapters
+still needs demonstration.
 
-Completion means all maintained input routes and offerings reach those declared
-operations through their real service entry points. It also means the displaced
-scientific protocol and lifetime machinery has been removed from those paths.
-Each provider's parsing, scientific choices, public outcomes and resource policy
-must be preserved or explicitly changed and qualified. A first HF or E01 slice is
-a work sequence, with the rest of the inventory still outstanding.
+| Provider | Job the adapted provider must do |
+| --- | --- |
+| NMRPeak HF | Interpret or directly admit formula/proton input and generate ordered molecular candidates with the selected HF model. |
+| NMRPeak CHF | Perform the corresponding calculation with formula, proton and carbon input and its own CHF model. |
+| SECS | Select and verify dense proton spectrum data and formula evidence, prepare the spectrum, then retrieve/search candidates using the selected model and index. |
+| NMRNet | Obtain supplied or generated molecular coordinates and return correctly associated per-atom H/C predictions for the requested geometries. |
+| Magnet E01/E02 | Admit the respective NMR inputs and generate candidates with the selected models, generation settings and seed. |
+| Magnet G01 | Predict forward NMR properties for the admitted molecular graph and solvent, retaining atom correspondence and meaningful output arrays. |
 
-Thread/process portability applies to calls and request sequencing. A thread
-cannot forcibly retire a blocked native calculation independently of its enclosing
-process. Backend selection also requires a compatible installed image, model
-assets, device grants and memory allowance. Every advertised backend/profile needs
-its own qualified stopping contract. Reject an incompatible selection before
-acquiring scientific resources.
+Existing code is evidence of present behavior. It can contain defects or unnecessary
+restrictions. Retain justified scientific meanings, accepted public obligations
+and truthful ownership. Internal protocols, accidental exit behavior, repeated
+loading, warning suppression and private exception classes can change. Investigate
+baseline discrepancies against the intended calculation and public contract before
+deciding which implementation is correct.
 
-The existing examples establish useful SDK patterns. Their qualification does
-not establish any real provider's adoption, numerical parity or device behavior.
+Use portable SDK call bindings and select the host at startup. Process execution
+is the recommended first deployed profile for native/GPU workloads. The same
+workflow can use threads in a compatible profile. Advertising threads requires
+appropriate dependencies, grants, global-state handling and stopping behavior.
+A blocked thread cannot be forcibly retired independently of its enclosing process.
 
-## Evidence boundary
+## Reviewed sources and evidence limits
 
-The following local source revisions were inspected. Provider checkout status was
-clean except for the separate Magnet research checkout described below.
+| Repository | Inspected revision |
+| --- | --- |
+| nmr-provider-tools | cd318cf26895151fb71b8c9da4a657d8f85b2d56 |
+| nmrpeak-repro | 8009e408e1e8280f661c2ffa672791bd20a3bec4 |
+| secs-repro | 7dcedfee86303d8aeead27d2227f1f4b7b524ee8 |
+| nmrnet-repro | 16f3cbb312e48f2eeffef8101027d2bf32b97e21 |
+| magnet-deploy | e0f2cf9447ad59628f9f0903215c95d7a7efc687 |
+| magnet research checkout | ced3df3dca095fb633be8bab95d9742accbe96d1 |
 
-| Repository | Revision | Role in this investigation |
-| --- | --- | --- |
-| nmr-provider-tools | cd318cf26895151fb71b8c9da4a657d8f85b2d56 | Candidate SDK and four examples |
-| nmrpeak-repro | 8009e408e1e8280f661c2ffa672791bd20a3bec4 | Both production model bindings and service |
-| secs-repro | 7dcedfee86303d8aeead27d2227f1f4b7b524ee8 | Scientific worker, service and deployment |
-| nmrnet-repro | 16f3cbb312e48f2eeffef8101027d2bf32b97e21 | Source preparation, prediction and deployment |
-| magnet-deploy | e0f2cf9447ad59628f9f0903215c95d7a7efc687 | E01/E02/G01 exported science, bindings and deployment |
-| magnet | ced3df3dca095fb633be8bab95d9742accbe96d1 | Research context only, dirty checkout |
+The provider deployment repositories were clean when inspected. Magnet's separate
+research checkout has tracked/untracked work. Use magnet-deploy's exported model
+source and pinned assets as its adoption baseline. A checkout identifies source,
+with deployed image identity requiring separate evidence.
 
-Magnet's migration baseline is the exported model source and pinned assets in
-magnet-deploy. The separate research checkout contains additional tracked and
-untracked work, so its HEAD cannot identify the deployed scientific component.
+The SDK source at 63916098 is identical to cd318cf2. That later commit added this
+note's first version. Pre-existing local edits in analysis.py, response_json.py
+and upload_file.py are outside this work. Review used the committed analysis contract.
 
-The SDK checkout has pre-existing edits in analysis.py, response_json.py and
-upload_file.py. The committed analysis contract was read for this investigation.
-This note neither incorporates nor qualifies those edits.
+This investigation inspected source and existing tests. It executed no scientific
+calculations or new runtime qualification. Note 100 records earlier installed SDK
+results at 8e6f5f07, with totals including skips of contract 18/2, unit 1116/92,
+minimal native 196/0 and integration 438/30. The 124 skips were disabled privacy
+tests. Those receipts apply to that SDK/example candidate. Repository checks remain
+enabled, deferred and excluded from this campaign.
 
-The coordinator inspected NMRPeak and the SDK. Three independent reviewers traced
-SECS, NMRNet and Magnet, including their existing tests. Findings below describe
-source behavior and proposed acceptance cases. No new runtime tests, scientific
-calculations, installations or deployments were performed for this note.
-
-Note 100 records the earlier installed SDK qualification at 8e6f5f07. It reports
-contract 18/2 skipped, unit 1116/92 skipped, minimal native 196/0 skipped, and
-integration 438/30 skipped. These totals include skips. The 124 skips were privacy
-tests disabled for that campaign. Repository checks remain deferred and excluded.
-Those results belong to that candidate and its fixtures.
-
-All four real provider repositories select released provider-core 0.6.19. The
-native wheel digest inspected is
+All four real deployments' source locks select released provider-core 0.6.19. Their
+inspected native wheel digest is
 cd4b58d353218dd5b895bd404f213c156e3813e19ad187d10eb52d632a00a761.
 The local annotated v0.6.19 tag points to commit
-37cf5484ba77eb8b74d89648367004cf0fabc442.
-ProcessExecutionHost, ExecutionSettings and scientific.py were added afterward,
-while the candidate package metadata still says 0.6.19. Therefore the version
-string alone cannot identify the migration candidate. Record the source revision
-and actual wheel digest for development qualification. An eventual release must
-have coherent release metadata and provider lock updates for both parent and
-scientific images.
+37cf5484ba77eb8b74d89648367004cf0fabc442. The new process host/scientific declarations
+were added afterward, while candidate metadata still says 0.6.19. Identify development
+candidates by source revision and wheel digest. Release consumption needs coherent
+version/release records and parent/child installation locks.
 
-## What the SDK already provides, and what the adapter must establish
+## Common adaptation
 
-The current process profile supports one allocation and one active analysis per
-host, installed construction, typed calls, worker-owned state, retained operations,
-bounded result transport and native retirement. Successfully closed analyses can
-reuse the allocation. Separate models or stages can have separate hosts. Shared
-input/result/state capacities are partitioned explicitly across those hosts.
-Hardware grants remain deployment-owned.
+Each provider keeps a small AnalysisSession service adapter. It binds an acknowledged
+Attempt to its input, checks current permission, calls science, builds the public
+result and settles its resources. Existing SDK controller/delivery owners handle the
+surrounding service obligations.
 
-The actual service boundary remains AnalysisSession.prepare/execute/retire. Its
-PreparedAnalysis binds the public Attempt to admitted input. A scientific StateRef
-identifies an object inside one allocation/analysis. The adapter needs the former
-for service ownership and the latter when science retains prepared objects.
-Likewise, AnalysisSuccess and ResultConsumption serve different consumers. Transfer
-the exact result bytes and evidence into service ownership before releasing the
-scientific result. The service retains its selected report until the existing
-delivery owner accepts it. A child result reference alone cannot preserve bytes
-after child retirement.
+A Contribution owns its scientific implementation and operations. Use SDK Analysis
+for actual request-local scientific state, and produced state with CONSUME/BORROW
+according to how science uses it. Installed factories construct lightweight objects.
+Initialization acquires resources under SDK ownership and retains partial acquisitions.
 
-Call report_condition.require_execution immediately before each new submission,
-after any awaited work. Connect withdrawal of permission to the original analysis
-and settle admitted work. Pass the original start deadline where applicable.
-Submission creates no permission, and observing a timeout creates no replay right.
-The dispatch-order tests in each provider must exercise this connection through
-the new adapter.
+SDK submissions, observations and reference checks replace private scientific framing
+and mirrored operation state. SDK cleanup and native runner retirement replace duplicated
+lifetime machinery. Contributions call numerical implementations directly. Wrapping
+an old scientific worker client inside a contribution would retain two execution owners.
 
-Several concrete integration constraints need resolution.
+Keep the mapping between Attempt, allocation, analysis, operation and verified assets
+in the adapter. Check permission immediately before submission after awaits. Retain
+the original Submission before sending and use the original deadline. Cancellation
+ends a wait without erasing admitted work. A new invocation means a new calculation.
 
-| Constraint | Consequence for the ports |
+Transfer exact result bytes/evidence into service ownership before releasing their
+scientific result. Service retains the report through delivery. A child reference
+cannot preserve bytes after death. Public ResultConsumption supports a retained
+read/receiver handoff followed by release.
+
+| Observed fact | Target treatment |
 | --- | --- |
-| 1 MiB per encoded input/result, 8 MiB per frame, no chunking | Measure supported maximal payloads with the actual codec. NMRNet has a concrete sizing conflict to resolve. SECS already passes file receipts for large uploads. |
-| Arbitrary exceptions become bounded remote evidence | Custom exception attributes and exact Python type checks need explicit outcome contracts. Existing scientific retry decisions cannot depend on a generic remote error. |
-| Generic error transport includes exception text and causes | SECS's stricter privacy projection needs adaptation before claiming equivalent diagnostics. |
-| Declaration revision covers exported schemas and execution contract | It does not identify checkpoint bytes, device, scientific settings or installed code. Preserve each provider's verification and observed runtime facts. |
-| Process startup accepts plain startup data and an installed factory | AssetAccess objects and live models cannot be sent to the child. Grant files through deployment and verify them in their execution owner. |
-| Control submissions/open/stop can synchronously block the event loop for their two-second allowance | Assess the effect on controller observation and sibling availability under a slow child. |
-| Scientific failure does not inherently poison every allocation | The provider must explicitly withdraw and retire models whose failure policy requires retirement before reuse. |
-| Thread timeouts request stopping | Independent forced termination requires process containment. Thread deployments need explicit qualification of blocking and global-state behavior. |
+| Scientifically unsuitable input with a reviewed reason | Input rejection, with interpreter correction where appropriate. |
+| Correlated scientific operation definitively failed | Retain operation/stage facts and use a reviewed provider failure mapping, with safe wording and independent resource settlement. |
+| Computation completed but encoding/report assembly failed | Retain known completion and available data. Repair reporting where possible. Reporting failure grants no scientific replay. |
+| Operational failure lacks a reviewed public mapping | Preserve the evidence and keep public disposition unresolved. Distinguish that from unknown scientific execution. |
+| Reply lost and completion cannot be established | Retain execution uncertainty and original ownership. No fabricated outcome or automatic replay. |
+| Native exit observed before deliberate interruption | Use original-exit evidence and the controller's Attempt/phase checks if publishing a crash outcome. |
+| Deliberate stopping or exit observed only afterward | Retain interruption/retirement facts without reconstructing an original crash. |
 
-Crash attribution also needs a deliberate integration. ObservedWorkerCrash requires
-RunnerSession.original_exit observed before deliberate interruption. The generic
-process host's failed-cleanup path requests native stop before its retirement
-observation. Its retirement receipt therefore cannot by itself reproduce the
-providers' existing pre-interruption crash classification. Establish an original,
-retained, non-stopping observation when appropriate, coordinated with the host's
-native reader. A second concurrent control reader would violate that ownership.
-This is a source-level integration concern to test, with uncertain outcomes kept
-explicit until their evidence permits classification.
+An ordinary fault need not be turned into a process crash. It also does not prove
+safe model reuse. The scientific owner decides reuse from actual mutation/device
+behavior. Withdraw uncertain or poisoned allocations before new admission and retain
+their cleanup evidence.
 
-Sources in this repository include packages/provider-core/README.md, especially
-Scientific process hosting, and src/provider_core under that package,
-analysis.py::AnalysisSession, scientific.py::HostedContribution,
-submission.py::Submission, process_host.py::_ProcessAnalysis.submit and _shutdown,
-process_worker.py::_Worker.start, process_wire.py::_pack_error and _unpack_error,
-runner_session.py::_observe_retirement. HostedContribution.description currently
-has configuration=None and an empty asset inventory. Process startup returns an
-allocation and PID and checks declaration agreement. Provider model verification
-must be explicit even when that handshake succeeds.
+The initial adaptation should use no automatic scientific retry unless a provider
+has a demonstrated availability requirement. Migrate existing retry configuration
+explicitly, including rejecting unsupported nonzero settings. Any retained retry
+needs a reviewed known failure, fixed scientific inputs, original-owner settlement
+and renewed permission for a fresh execution. Transport deduplication and
+re-observation continue to address the original operation.
 
-## NMRPeak, including HF and CHF
+SDK sources are packages/provider-core/src/provider_core/analysis.py::AnalysisSession,
+scientific.py::Contribution and Analysis, submission.py::Submission,
+hosting.py::ResultConsumption, process_host.py and process_wire.py. Declaration
+agreement covers the call contract. Contributions still verify actual checkpoints
+and settings, and deployment identifies installed code and grants.
 
-Current flow is provider_process lane -> NmrpeakAnalysisSession -> private
-RunnerSession -> family runner_worker -> NmrpeakRuntime. Structured input goes
-directly through product parsing. Prose uses the interpreter and loaded-tokenizer
-validation. HF uses formula and proton peaks. CHF adds carbon peaks. Both model
-wrappers select CPU and load their own verified checkpoints.
+## NMRPeak HF and CHF
 
-The child currently retains a validated request document and tokenizes again for
-generation. The parent retains an owner-bound ValidatedRunnerRequest. An over-limit
-input is correctable. Empty tokenizer output and dictionary mismatch are model
-faults that retire the runner. Results retain candidate order and duplicates, pass
-bounded vocabulary validation, and gain provider-owned provenance.
+Use a separate contribution/allocation for each model, common family science and
+distinct input declarations. Prepare model tokens, retain them as consumed state,
+and generate from those admitted tokens. This gives preparation a concrete product
+and removes repeated tokenization. Verify deterministic tokenization for the admitted
+input/assets and dispose abandoned tokens. Keep structured and interpreter-assisted
+prose routes for both families.
 
-Proposed mapping is one contribution per configured HF or CHF model, with common
-family science and distinct input declarations. Initialization retains the model,
-dictionary and tokenizer. Preparation returns a report plus consumed state for
-generation. Initially that state can retain the admitted document and preserve
-the existing tokenize-again behavior. Retaining tokens instead is a deliberate
-optimization requiring parity evidence. Add explicit partial-load and close
-ownership because current process exit supplies ultimate release.
+Retain HF/CHF scientific materialization, verified checkpoint/dictionary loading,
+decode choices, candidate ordering and meaningful provenance. Add explicit partial
+initialization/close ownership. Remove private VALIDATE/GENERATE framing and mirrored
+parent/child preparation bookkeeping as SDK state takes custody.
 
-NmrpeakAnalysisSession retains the structured/prose routes, original Attempt
-correlation, public preparation failure policy, result validation and provenance.
-It uses portable bindings and retained SDK submissions. Replace the private
-VALIDATE/GENERATE framing, parent prepared capability and worker pending-command
-state once their consumers use SDK state and operation owners. Preserve scientific
-projection functions and the verified checkpoint loader.
+Change ordinary exception handling. The current family worker sends FailedFrame
+and rethrows, allowing the parent to classify the ensuing native exit as a crash.
+The SDK retains a calculation failure while the worker remains alive. The target
+uses a correlated scientific-fault outcome and a reviewed safe public mapping.
+NMRPeak's current policy covers source issues, loaded-input rejection and interpreter
+unavailability, so add scientific-fault publication rules in the adapter. Empty
+tokenization and dictionary mismatch belong to the operational path. Over-limit
+input can be corrected.
 
-Two independent hosts are necessary for HF/CHF availability, and service policy
-also needs adjustment. provider_process.run places both lane loops in a TaskGroup.
-An unhandled lane error propagates into provider-wide stopping, and _lane_loop
-raises when its runner retires. To meet independent-offering acceptance, withdraw
-and settle the failed lane while the healthy lane continues discovery and serving.
-Provider-wide API, identity or shutdown failures still have their own scope.
-Readiness/advertisement must reflect which offerings are available.
+Keep actual native death distinct. Use original-exit evidence when available and
+retain uncertainty otherwise. Retirement follows resource health and cleanup needs
+independently of public classification. Reproducing exception-to-crash behavior
+would add no scientific value.
 
-The mock differs in material ways. It treats empty tokens as correctable, retains
-tokens directly, and delivers a small candidate/digest document. Its independence
-test calls offerings directly. It does not exercise the real service TaskGroup,
-public Attempt adapter, structured route or provider provenance contract.
+Change service availability handling. Both current lane loops share a TaskGroup
+that propagates a lane error into provider-wide stopping. Withdraw/settle the failed
+lane while healthy science continues serving, with readiness/advertisement reflecting
+available offerings. API, identity and shutdown failures retain their proper scope.
 
-Acceptance must cover both HF and CHF, each structured and prose route, checkpoint
-and tokenizer identity, fixed decode policy, candidate order/duplicates, two
-requests on one loaded model, foreign/consumed state refusal, model-fault retirement,
-and abandonment after validation. Decide explicitly whether confirmed state
-disposal permits warm reuse after abandonment. Exercise HF failure while CHF
-completes and admits another request, and the reverse, through the real service.
+| Route | Calls and existing evidence |
+| --- | --- |
+| HF structured formula/proton input | Parse, prepare HF tokens, generate. tests/unit/test_analysis_session.py::test_both_lanes_return_exact_results_and_release_healthy_warm_owner |
+| CHF structured formula/proton/carbon input | Parse, prepare CHF tokens, generate. Same two-lane witness and tests/unit/test_product_result.py |
+| HF/CHF prose | Interpret with loaded-tokenizer feedback, then generate. test_analysis_session.py::test_prose_uses_the_async_interpreter_validation_port and tests/integration/test_shared_provider_process.py |
 
-Primary sources in nmrpeak-repro are nmrpeak_provider/analysis_session.py,
-provider_process.py::run and _lane_loop, runner_session.py::_validate and
-_ready_matches_provider_facts, product_result.py::canonical_result_bytes,
-families/nmrpeak/runner_worker.py and runner_runtime.py, and both
-models/nmrpeak_{hf,chf}_v1/runner/runtime.py. Reuse the behavioral assertions in
-tests/unit/test_analysis_session.py, test_runner_session.py, test_product_result.py,
-tests/integration/test_native_runner_session.py and test_shared_provider_process.py.
-Existing tests cover permission withdrawal, loaded-model rejection versus drift,
-warm reuse, original exit attribution, held outcomes and delivery backpressure.
+Qualify both real checkpoints, two sequential requests, rejected/abandoned preparation
+and sibling availability through the real service. Compare intended science against
+pinned reference calculations. Replace the expectation that ordinary model exceptions
+become worker_crashed with known-fault, actual-death, live-child communication-loss
+and deliberate-stop witnesses.
+
+Sources in nmrpeak-repro are nmrpeak_provider/analysis_session.py, provider_process.py,
+preparation_failure_policy.py, runner_session.py::observe_failure, product_result.py,
+families/nmrpeak/runner_runtime.py and runner_worker.py, and both
+models/nmrpeak_{hf,chf}_v1/runner/runtime.py. The native-session tests distinguish
+original exit from stopping. The crash-label expectation in
+test_matching_failure_frame_requires_observed_original_exit is a mechanism to revise.
 
 ## SECS
 
-The service creates one resident WorkerClient and allows one live Attempt. Each
-Attempt owns sources and a SecsSession. Interpretation inspects available data and
-chooses a representation and formula. Source membership is reconciled before
-preparation. The scientific child loads SecsInference and the FAISS candidate
-index once, then implements inspect, prepare and execute.
+Use one contribution holding the model and FAISS index, with inspect, prepare and
+execute. A per-analysis InputAdapter owns representation discovery and claims.
+Its token key, Attempt scope and claim registry represent selection state before
+a prepared spectrum exists. Repeated inspection/preparation shares that owner.
+Analysis close disposes claims. Replacement requires fresh inspection before a
+selection is usable. The existing opaque claims may later simplify to SDK-owned
+references if they retain source correlation and changed-source rejection.
 
-Preparation materializes an immutable spectrum and canonical formula. Execution
-clears its integer prepared handle before running GraphGA with request-specific
-settings and seed. The search uses the warm model/index. A genuine absence of
-starting candidates is a reviewed public failure. Missing replies and model
-failures follow different paths.
+Preparation returns an immutable materialized spectrum and canonical formula as
+consumed state. Execution creates a per-execution GraphGA optimizer from frozen
+worker settings and seed. Keep one configuration authority. Variable per-request
+settings would be a separate product choice. Model/index acquisitions require
+separate retained owners for partial initialization and cleanup.
 
-Use one contribution with these same three operations. Its consumed prepared state
-holds the materialized spectrum and formula. A disposer releases that state.
-Contribution initialization acquires model and index separately and retains each
-successful acquisition immediately. The current loader holds the model in a local
-while loading the index, and SecsInference has no explicit close method in the
-inspected implementation. Thread cleanup requires real implementation work here.
+Keep source acquisition and membership reconciliation in the service. Send verified
+receipt/path metadata and check identity, digest and size before reading. Current
+limits of 128 MiB/upload and 256 MiB aggregate already use a file boundary. Delete
+files only after original readers settle. Successfully materialized spectrum state
+is independent of those files. Remove integer preparation counters, string-command
+dispatch and duplicated channel/native ownership.
 
-Keep AttemptSources responsible for verified downloads, membership, aggregate
-budgets and workspace lifetime. The configured limits are 128 MiB per upload and
-256 MiB aggregate. Send the existing bounded receipt/path metadata through calls.
-The scientific owner continues verifying file identity, digest and length before
-reading. An arbitrary path string alone does not establish a granted source.
-Successful preparation already produces a spectrum independent of source files.
-Source deletion must still wait for all original readers to settle, including
-failed preparation and uncertain cleanup.
+This inventory snapshots input_formats.prepare_representation and
+support_catalog.SUPPORT_CLAIMS, which remain the sources for future additions.
 
-Replace private framing, string-command dispatch, integer handle counters and
-duplicated scientific-channel ownership. SecsSession keeps interpretation,
-permission checks, source reconciliation, result assembly and failure policy.
-Keep deliberate replacement of a confirmed-dead idle worker for fresh work.
+| Supported work | Scientific obligation and existing evidence |
+| --- | --- |
+| JCAMP processed data/FID, supported LINK and numeric encodings | Prepare the selected block with declared processing. tests/input/normative/test_selection.py and test_discovery.py |
+| Bruker processed 1r/procs, Bruker fid/acqus, Varian fid/procpar | Resolve companions and enforce supported acquisition/reference profiles. test_vendor_datasets.py and tests/input/adversarial/test_vendor_companions.py |
+| NMRium v21 embedded/resource-backed data | Retain selected resource identity and apply stored shifts once. test_selection.py and tests/input/adversarial/test_nmrium_resources.py |
+| Processed JEOL with ppm axis | Prepare supported dense proton data. test_vendor_datasets.py, with synthetic-fixture evidence explicitly limited |
+| Formula from instructions or selected MOL/SDF/SMILES | Validate quoted or derived formula evidence. tests/input/scenarios/test_scientific_jobs.py and adversarial/test_selection_refusals.py |
+| Multiple uploads, ZIP experiments and NMReDATA relationships | Preserve selection and linked-resource meaning. Annotations supply context. Peak tables, 2D/carbon data and unsupported profiles cannot substitute for executable dense 1D proton data. normative/test_uploads.py, test_annotations.py and adversarial source/selection suites |
 
-Two changes need particular care. Current model-failure evidence has closed
-modality/stage fields. Its diagnostic projection excludes arbitrary exception
-messages, arguments and notes. Generic SDK remote errors lose those fields and
-can carry private text from the cause chain. Define a small safe outcome/evidence
-contract for known model faults, or demonstrate the need for a narrow SDK error
-projection extension. Preserve operational-failure meaning and required causal
-facts. A remote class name or arbitrary text must not decide public failure.
-The privacy obligation also covers unexpected startup, preparation, execution and
-cleanup exceptions. A safe result type for known model faults alone leaves the
-generic exception path unresolved. The final design must preserve the existing
-safe diagnostic projection at every such exit.
+Use safe model-failure evidence. Modality/stage and bounded causal structure are
+useful facts. Arbitrary exception text is unsafe as a public diagnostic. Current
+SECS projection omits it entirely, while generic SDK transport carries text and
+drops custom attributes. The bounded decision below defines the disclosure boundary.
 
-The provider's pending terminal allowance is 2 MiB, so measure maximal scientific
-results against the SDK's 1 MiB limit. That allowance alone does not demonstrate
-an oversized result. Thread deployment also requires scientific dependencies,
-checkpoint/cache/source mounts and device resources in its actual process. The
-existing scientific container has its own 64 GiB grant and forced-stop policy.
+Acceptance includes correct prepared spectra/search, source/formula evidence,
+cross-analysis and changed-source claim refusal, abandonment, replacement between
+inspection/preparation, model/index reuse and independent source/model cleanup.
+Genuine no-candidate results remain meaningful. Distinguish known faults and unknown
+completion.
 
-Acceptance includes all maintained spectrum/representation routes, fixed prepared
-spectrum semantics, candidates/scores/search facts, model/index reuse, source
-retention under uncertain reads, consumed-state failure, and model-load failure
-after partial acquisition. Reuse the test that injects private model text and
-requires its absence from transported diagnostics. Confirm forced native release
-and separately qualify actual GPU release for the selected deployment.
-
-Primary sources in secs-repro are src/secs_inference/provider/main.py::run_provider,
-runtime.py, session.py, worker_model.py::ScientificHandler, sources.py::AttemptSources,
-worker_protocol.py and diagnostics.py, plus compose/provider.yml. Existing proofs
-include tests/integration/test_selected_spectrum.py, test_native_worker.py,
-test_model_forward_failure.py, tests/provider/test_sdk_session.py and
-test_worker_config_snapshot.py. Their assertions cover prepared-source independence,
-single consumption, unchanged frozen replacement configuration, and refusal to
-release source files while scientific readers remain unconfirmed.
+Sources in secs-repro are src/secs_inference/provider/main.py::run_provider,
+session.py, worker_model.py::ScientificHandler, input_adapter.py::InputAdapter,
+input_formats.py, support_catalog.py, sources.py and diagnostics.py. Additional
+witnesses are tests/integration/test_selected_spectrum.py, test_native_worker.py,
+test_model_forward_failure.py and tests/provider/test_worker_config_snapshot.py.
+Revise mechanism-shaped assertions while retaining scientific/ownership checks.
 
 ## NMRNet
 
-The complete workflow includes upload/member selection, pasted table/XYZ input,
-SMILES conformer generation and ordered per-atom H/C prediction. InputPreparation
-owns interpretation and source acquisition. Reader and generator workers retire
-before a successful candidate becomes selectable. NMRNetSession.prepare acquires
-prediction, builds ResultPlan, reserves evidence/result capacity and retains the
-ordered raw batch under a service PreparedAnalysis. After that service handle is
-consumed, execute invokes scientific batch preparation and then prediction, with
-permission checked again before execution. Dictionary/tensor admission therefore
-currently occurs in the service execution phase. Preserve that phase and failure
-attribution when introducing SDK scientific state. ResultPlan assembles the public
-result and private unrounded evidence. ResultAssemblyFailed preserves completed
-science when later assembly fails.
+Use contributions for source reading, conformer generation and prediction with their
+actual environments/grants. Keep source selection, interpretation and ResultPlan
+in the service. Service preparation currently acquires prediction, reserves report/
+evidence capacity and retains ordered inputs. Service execution performs scientific
+batch preparation and prediction. Declare the scientific calls explicitly and keep
+phase/effect facts truthful if their scheduling changes.
 
-Map reader operations, conformer generation and prediction to their natural
-contributions. Preserve separate deployment environments and grants. Prediction
-gets 4 GiB today, reader/SMILES roles get 512 MiB each. Initial reader/generator
-allocations may retain their existing short lifetimes. Persistent reuse is a
-choice to qualify, especially for native parser state and diagnostic capture.
+Prediction uses a fresh scientific Analysis and consumed state for a complete
+admitted batch. The contribution initially owns loader configuration/resources.
+Per-geometry/head model/scaler loading is a conservative memory baseline under the
+current 4 GiB grant. It is a resource choice open to measured improvement. Persistent
+allocations can serve fresh analyses without implying both heads remain cached.
 
-Prediction needs an SDK Analysis owning a fresh ReleasedPredictionSession and a
-consumed preparation state. Contribution initialization can retain immutable
-loader configuration and allocation resources. Current whole-batch admission
-precedes model loading. Models/scalers load and release per geometry/head, H before
-C. Preserve this ordering and the observed-asset/warning scope. A persistent child
-can serve fresh analysis sessions while keeping this loading policy. Caching both
-heads would change the memory and evidence policy and needs separate measurement.
+The NMRNet deployment owner must change lifetime configuration for persistent
+roles. deployment.py currently renders --operation-seconds from a one-request
+budget; that native deadline starts at child launch. Use --owner-session-lifetime
+for a persistent host while retaining bounded request, startup and retirement
+policies. If a maximum allocation age is desired, withdraw it deliberately before
+expiry. Qualify a later request beyond the old child cap, or demonstrate planned
+withdrawal with truthful settlement. Two quick requests cannot prove this boundary.
 
-State references belong to their allocation. Geometry moving from a reader to a
-prediction worker therefore needs explicit values or an owned file handoff.
-Preserve atom order, units, hydrogens, conformer IDs and source identity in that
-handoff. Scientific functions can remain shared even where stage lifetimes differ.
+A literal persistent port exposes a diagnostic defect. Scaler warnings currently
+follow Python's process-global suppression, while new loader objects reset only
+their captured list. Report relevant verified asset compatibility facts for every
+calculation using those assets, independently of repeated Python emission. Keep
+incidental warnings as separate scoped operator evidence. Qualify consecutive use
+and warnings-as-errors behavior before reuse. The scientific owner also resolves
+global warning/native logging capture for thread coexistence.
 
-Payload fit is a concrete migration issue. Existing framing allows 2 MiB, raw
-prediction/source admission allows up to 1 MiB, and a batch can contain up to 128
-geometries with 128 atoms each, subject to aggregate bounds. Some replies contain
-source data and parsed records together. New encoding overhead can put an admitted
-request or reply beyond 1 MiB. Measure actual legal maxima and eliminate redundant
-encoding first. If needed, design a bounded verified file handoff or a justified
-SDK payload extension. Preserve the supported public limits and complete-batch
-semantics in the selected solution.
+| Route | Intended work and existing evidence |
+| --- | --- |
+| Direct upload/exact ZIP member, JSON/table | Read declared coordinates with units and atom order. tests/test_provider_geometry_worker.py and tests/unit/{normative,adversarial}/test_provider_geometry_archive.py |
+| XYZ, MOL, SDF, PDB and MOL2 uploads/members | Preserve record selection/order, PDB alternate locations and atom correspondence. test_provider_pdb.py, test_provider_mol2.py and tests/integration/rdkit_runtime/test_geometry_worker.py |
+| Pasted table/XYZ | Admit the source and exactly one geometry, including multiplicity rejection. tests/integration/provider_core/normative/test_nmrnet_formats_lifecycle.py and input-preparation tests |
+| SMILES | Generate requested conformers with declared settings and actual IDs, atoms, hydrogens/stereo. tests/integration/rdkit_runtime/test_smiles_worker.py and provider_core normative/adversarial SMILES suites |
+| Prepared batch | Admit the whole batch, then produce associated H/C results with complete-batch success semantics. tests/test_provider_worker.py and tests/integration/prediction_parity/ |
 
-The provider permits one configured retry only after an exact ModelCallFailed,
-confirmed original retirement, renewed permission and matching replacement runtime.
-ConformerShortfall and ConformerOutputLimit also carry structured partial evidence.
-These facts need explicit transportable outcomes. An interrupted or lost reply,
-unrelated exception or report-assembly failure grants no scientific retry. Reuse
-the same frozen scientific request when the specific retry policy authorizes a
-fresh execution, and retain both executions' evidence.
+The authoritative route inventory is geometry_protocol.require_read_options and
+InputPreparation. Changes there must reach service acceptance cases. Bounded process
+containment remains useful for native parser/generator stalls. Choose short-lived
+or persistent allocations according to measured lifetimes.
 
-Thread support has concrete obstacles. Parser stalls and native conformer calls
-currently have process termination boundaries. Scaler loading temporarily replaces
-process-global warnings.showwarning under a serial-worker assumption. RDKit paths
-capture native diagnostics. Qualify coexistence and stopping before advertising a
-thread profile. The production roles also use different Python environments.
+Move meaningful partial-work facts to explicit records. Later-geometry failure
+retains failed geometry, completed count, completed request hashes and observed
+assets. Conformer shortfalls retain actual partial-generation facts. Some current
+facts use exception attributes/add_note that generic SDK transport drops. Keep
+these bounded facts without publishing private coordinates or arbitrary notes.
+A report-assembly failure after completed prediction retains the original result.
 
-Replace private worker framing, wire preparation tokens and scientific portions
-of worker/geometry/SMILES clients and NativeOperation after their callers migrate.
-Retain parsers, source selection, conformer algorithms, verified model loaders,
-batch prediction, result planning, retry decisions and source/provenance evidence.
-Persistent workers require owner-session lifetime deployment. Existing per-child
-overall timers must be replaced by deliberate host/request policies if reuse is
-selected, otherwise a later request could lose its worker to the old timer.
+Measure payload fit using the actual codec. Old frames allow 2 MiB, raw sources
+up to 1 MiB, and some replies contain source plus parsed records. The SDK permits
+1 MiB per encoded input/result. Remove redundant/base64 nesting first and use a
+verified file handoff for naturally file-backed sources. Measure maximal supported
+batches/results before deciding on an SDK limit change. State references cannot
+cross allocation owners.
 
-Acceptance covers every supported input route, member selection, complete batch
-ordering, H/C assets and shifts, maximum encoded sizes, partial conformer evidence,
-report failure after completed science, allowed versus forbidden retries, original
-retirement before replacement and source/resource release. Establish per-atom
-numerical tolerances from the existing parity baseline before evaluating a port.
+Remove private preparation tokens, framing and duplicated client/NativeOperation
+lifetimes. Replace exact ModelCallFailed type dependence with deliberate retry
+policy if retry is required. Transport uncertainty and report failure authorize
+no repeated prediction.
 
-Primary sources in nmrnet-repro are nmrnet_provider/session.py, input_preparation.py,
-geometry_worker.py, smiles_protocol.py, worker_client.py, native_child.py,
-deployment.py, nmrnet_inference/worker.py, release.py and predict.py. Existing
-evidence includes tests/test_provider_worker.py, tests/integration/prediction_parity,
-tests/integration/provider_core/normative/test_nmrnet_prediction_recovery.py,
-test_nmrnet_smiles_session.py, test_nmrnet_runner_child.py, the adversarial
-test_nmrnet_smiles_failure.py and test_nmrnet_service_recovery.py, and
-tests/integration/rdkit_runtime/test_smiles_worker.py.
+Sources in nmrnet-repro are nmrnet_provider/session.py, input_preparation.py,
+geometry_protocol.py, smiles_protocol.py, worker_client.py, deployment.py,
+nmrnet_inference/worker.py, release.py and predict.py. tests/test_prediction_input.py
+asserts completed-prefix evidence on later failure. Recovery tests in
+tests/integration/provider_core/normative/test_nmrnet_prediction_recovery.py provide
+ownership cases if retry is retained. Acceptance covers every route, per-atom
+numerical correctness, compatibility facts, payload limits, partial evidence,
+result retention and actual resource use.
 
-## Magnet, including E01, E02 and G01
+## Magnet E01, E02 and G01
 
-Each model already supplies an AnalysisImplementation and an SDK AnalysisSession.
-The scientific child holds the numerical model. NativeRunnerBootOwner and
-SingleRunnerBootOwner add private READY checks, framing, serial reuse and
-replacement over the existing SDK native runner.
+E01/E02 use initialize/close, validate(input) and generate(input, settings, seed).
+Loaded-model validation supports interpretation correction. It currently retains
+no intermediate, so the initial port needs no prepared-state token. Add state only
+for a useful retained scientific product. G01 exposes predict(graph, solvent).
 
-E01 and E02 validate interpreted input against the loaded codec/capacity, then
-generate using fixed decode policy and an Attempt-derived seed. E01 requires
-reported solvent and frequency with formula/proton input. E02 requires proton and
-carbon peaks and preserves its nullable-value and implicit-hydrogen rules. Their
-current validation retains no child prepared object. Generation resends input and
-revalidates it. Both validate/generate declarations and a genuinely consumed
-prepare/generate design are possible. The latter needs a deliberate treatment of
-state disposal and re-preparation after an authorized replacement.
+Retain chemical meaning. E01 requires reported solvent/frequency with formula/proton
+data. E02 requires proton/carbon input with its nullable-value and implicit-hydrogen
+rules. G01's public path requests both heads for one shared solvent and produces
+atom-associated shifts, multiplicities, coupling candidates and count probabilities.
 
-G01 naturally exposes one predict operation for a molecular graph and solvent.
-The public path requests both heads with a shared solvent. Preserve its atom
-mapping, shifts, multiplicities and probability arrays. This path has neither
-conformer generation nor a scientific retry policy. Introduce preparation only
-if an actual retained scientific object requires it.
+Each contribution loads its model under explicit ownership and calls exported
+numerical code directly. Review partial acquisitions inside from_checkpoint too.
+Remove old serving loops, transport wrappers and duplicate native boot owners.
+Keep interpretation, scientific admission, result projection and service policy.
 
-Use one scientific allocation per model owner. Installed factories construct
-lightweight contributions whose methods call the exported numerical implementations.
-Load models in initialize and retain partial acquisitions for close. Existing
-from_checkpoint loaders can fail while resources are still local, so their loaders
-also need explicit ownership review for thread cleanup. Replace private scientific
-serving loops, per-model transport adapters and duplicated exchange/lifetime
-bookkeeping. Keep scientific input constructors, loaded-codec admission, model
-calls, result projection, interpreter capability, seed/decode choices, Attempt
-identity and public failure policy. Parent metadata imports must avoid eager
-Torch/model initialization.
+Preserve meaningful E01/E02 ordering, log probabilities, token counts, termination
+facts, settings/seed and G01 aligned arrays. Verbosity changes report detail without
+changing the calculation. E01/E02 explicitly synchronize CUDA before success.
+G01's output materialization needs its own device-settlement evidence.
 
-E01/E02 have a precise retry contract. At most one retry is configured, only a
-confirmed model_operation failure from a CPU worker qualifies, and the original
-boot must retire with scratch release first. Replacement has its own operation
-identity while supervisor generation and lifetime lock still match. The input,
-seed, decode policy and result context stay fixed. Check current permission before
-replacement and submission, and retain the first failure through later failures.
-Map this policy onto explicit SDK outcomes and retained host cleanup. The SDK
-itself supplies no automatic replacement or replay.
+Change blanket retirement after every failure where justified. Known rejection or
+completed projection failure need not poison healthy science. Unknown integrity,
+poisoned device state and unconfirmed cleanup prevent reuse and require containment.
+The old one-retry CPU policy is an availability choice subject to the common retry
+decision. G01 needs no invented retry policy.
 
-Execution failure poisons these model boots. Withdraw the allocation before a
-new request can enter it. E01/E02 CUDA success currently includes explicit
-synchronization and device-placement checks. Preserve those checks inside the
-scientific owner. G01 checks placement and materializes outputs through a different
-path, with no explicit worker-level CUDA synchronization call. Qualify its device
-settlement separately.
-Thread execution cannot independently kill a poisoned CUDA context. G01 also has
-private molecular causes and native RDKit logging controls to preserve in the
-diagnostic boundary.
+Current E01/E02 frames cap at 262,144 bytes and G01 at 1,048,576. Check codec overhead.
+Too-large results retain known computation completion. Independently configured
+offerings need independent owners within an explicit enclosing resource budget.
 
-Result transport must preserve E01/E02 candidate order, log probabilities, token
-counts, termination flags, generation settings and seed. G01 retains atom indices,
-aligned output arrays and canonical numerical representations. Verbosity is an
-output projection. A result-too-large outcome follows completed calculation and
-must retain that fact. E01/E02 frames currently cap at 262,144 bytes and G01 at
-1,048,576. Check new codec overhead against the SDK input/result limit.
-
-The current provider container has a 256 MiB allowance and scientific containers
-generally have 4 GiB with separate device overlays. A thread profile requires
-installation and resource changes in its actual owner. Independently hosted
-offerings also need explicit aggregate budgeting and service-level isolation.
-
-Acceptance covers E01, E02 and G01 individually, their real result fields,
-scientific admission, original seed/settings, repeated use, permitted CPU retry,
-rejection of other retry causes, CUDA synchronization and poisoned-worker fencing.
-Test retirement of one configured offering while another completes and accepts
-new work. Retained model failures and uncertain outcomes must continue through the
-existing service controller and delivery ownership.
-
-Primary sources in magnet-deploy are magnet_provider/native_runner_boot_owner.py,
+Sources in magnet-deploy are magnet_provider/native_runner_boot_owner.py,
 single_runner_boot_owner.py, runner_session.py, generation_result.py, and each
 models/{e_01_jvae_nmrexp,e_02_ch_nmrexp,g_01_nmr_forward}/provider/
-magnet_provider_bindings/<model>/processor.py plus runner/serving_worker.py.
-E01/E02 runner.py and unix_runner_backend.py own the existing retry decisions.
-Existing evidence includes tests/integration/test_cpu_retry_native.py,
-test_interpreter_lane_isolation.py, tests/unit/test_g01_runner_session.py and each
-model's runner/test_serving_worker.py. The CPU retry tests already assert distinct
-child PIDs, original child absence, supervisor identity and unchanged requests.
+magnet_provider_bindings/<model>/processor.py and runner/serving_worker.py.
+Use tests/integration/test_cpu_retry_native.py, test_interpreter_lane_isolation.py,
+tests/unit/test_g01_runner_session.py and model runner/test_serving_worker.py.
+Adapt assertions for intended science, output meaning, known/unknown effects and
+settled resources. Remove assertions that merely freeze old transport/exit behavior.
 
-## Implementation sequence and evidence required to close it
+## Bounded decisions needed for usable ports
 
-First establish one exact candidate SDK artifact and record the complete provider
-inventory above. Implement the service adapter and scientific declaration together
-for each offering or stage. A numerical function called only by an example cannot
-complete a real service port. As each replacement becomes usable, remove its
-displaced protocol and ownership code after moving the relevant behavioral tests.
+| Decision and owner | Direction and completion gate |
+| --- | --- |
+| Scientific/public failure mapping, provider adapter owners | Map correlated rejection, known faults and report failures to reviewed safe outcomes. Keep unclassified public disposition separate from unknown execution. Exercise ordinary exceptions, completion followed by reporting failure, reply loss and stopping through real service paths. NMRPeak adds scientific-fault rules instead of manufacturing crashes. |
+| Structured evidence/disclosure, science/adapter owners with SDK wire owner | Use bounded provider records for meaningful partial/failed science. Specify which evidence may cross the private channel and which may be published/logged. Check SECS modality/stage and injected private text, NMRNet completed-prefix/compatibility facts, and unexpected initialization/inspection/calculation/cleanup exits. Add a narrow SDK projection only if generic transport crosses a prohibited boundary. Parent redaction cannot protect a channel that itself forbids that text. |
+| Payload fit, NMRNet adapter owner, then SDK wire owner if necessary | Measure encoded maxima for inspection/read, member replies, prepared batches, results and evidence. Choose compact encoding or verified files with a named file owner and reader lifetime. Extend SDK bounds only if required payloads still cannot fit. Complete supported sizes/routes without silent limit reduction or partial-batch success. SECS/Magnet also measure maximal results. |
+| Native observation, SDK host owner and service adapters | Use the host's single AsyncRunnerSession reader, with retirement joining retained observation. Keep uncertainty when original-exit facts are absent. Add a public host operation only if required classification cannot be obtained through existing ownership. Distinguish death-before-observation, stop-before-observation and live-child EOF without competing readers. |
+| Responsiveness, service owners | Choose allowable delay from configured observation/withdrawal deadlines and the intended sibling-service budget. Test a delayed child during synchronous open/submit/stop, each capable of blocking for two seconds. Require observations, withdrawal and healthy offerings within those budgets. Change SDK control I/O if this concrete test fails. |
+| Reuse/global state, scientific owners | Verify consecutive calculations and cleanup. NMRNet measures memory and compatibility reporting before changing caching. Thread profiles account for RNG, warning hooks and native logging. Compare intended results/diagnostics and measure resource release. |
+| Installation/authority, deployment owners | Install an identified SDK/provider pair and define environment, assets, sources, scratch, credentials, network, descriptors, device and memory grants. Verify the rendered and installed profile before advertisement. Threads share their process authority, so combined grants must be deliberate. |
 
-NMRPeak HF is a useful first installed slice because its current CPU input/result
-bounds are small. Complete CHF and service-level independence as part of the same
-provider milestone. SECS follows with verified source grants and retained spectrum
-state. NMRNet requires the payload and per-analysis loader decisions. Magnet can
-start with E01, then complete E02 and G01 with their distinct contracts. This order
-is a recommendation. The end-state covers the entire inventory regardless of order.
+One concrete small SDK entrypoint issue needs attention during adoption. Magnet
+workers make the inherited lifetime lease non-inheritable. SDK process_worker.main
+currently only fstats it. The runner passes science/lease descriptors with
+close_fds=True and inherits its own environment. Make lease close-on-exec policy
+explicit in the SDK worker and verify it with an installed exec probe before
+relying on replacement. This prevents unrelated execs from retaining that lease.
+General descendant containment would require separate evidence.
 
-Resolve the cross-provider error/evidence requirement with a concrete first port.
-Prefer a small provider outcome type when it expresses actual science. If that
-would conceal operational failure or lose required cause/effect evidence, use the
-demonstrated cases to design a narrow shared projection. Review thread/process
-classification parity before reusing that decision in the other providers.
+Current budgets illustrate the deployment decisions. NMRPeak has a 256 MiB provider
+and separate 32 GiB HF/CHF runners. SECS has a networkless 64 GiB scientific worker.
+NMRNet uses 4 GiB prediction and 512 MiB reader/SMILES roles in different environments.
+Magnet has a 256 MiB provider and generally 4 GiB science containers with different
+credential/network grants. Reassess these budgets against need. Adding hosts or
+selecting threads cannot implicitly multiply/transfer the grants.
 
-The completion review should require evidence for all of the following.
+Grant sources are provider compose files, NMRNet deployment.py and the SDK runner.py
+child launch. Inspect actual environment/mount/descriptor inventories and probe
+denied accesses for boundaries the selected profile claims. SDK process_worker.py::main
+and Magnet E01/G01 runner/serving_worker.py::main show the lease-policy difference.
+Parent metadata imports must work without eager model/library initialization.
 
-1. Every offering and maintained input route reaches the declared SDK calls through
-   the real AnalysisSession and service admission path.
-2. Public result schemas, scientific ordering, source identities and model settings
-   agree with the pinned baseline, under declared numerical tolerances.
-3. Models and prepared objects have one live owner, with disposal after consumption,
-   abandoned preparation and partial initialization.
-4. Reuse follows the provider's chosen policy. NMRNet preserves fresh analysis/head
-   loading unless caching is separately selected and qualified.
-5. Permission is checked at submission, original deadlines remain bounded, and
-   cancellation preserves admitted work and its original observations.
-6. Rejection, completed model failure, oversized output, lost communication and
-   original native death retain their distinct meanings and safe diagnostics.
-7. Explicit scientific retries preserve their exact eligibility, fixed inputs,
-   first failure and retirement-before-replacement requirements.
-8. File readers settle before workspace deletion. Actual process/scratch release
-   and GPU release are observed separately from successful scientific cleanup.
-9. Independent offerings remain available after sibling retirement through the
-   real service, within enclosing resource grants.
-10. Supported payload maxima fit the selected transport, and every advertised
-    backend/profile has an installed deployment and qualified stop behavior.
-11. New ordinary models require provider science, declarations, construction and
-    configuration. Their addition requires no duplicated execution state machine.
-12. The migrated paths contain one scientific execution owner. Remaining custom
-    code has an identified scientific, service or deployment responsibility.
+## Implementation and completion
 
-Reuse the existing tests listed above by changing their integration entry points.
-Add a test when a specific uncovered failure or changed lifetime warrants it.
-Run installed qualification on the maintained science Docker context, with exact
-source/artifact identities, test counts, failures and skips recorded. Real-model
-and device evidence follow the supported profile. Repository checks remain enabled
-and deferred for this campaign, with their merge/release disposition tracked
-separately.
+Start with an exact installed SDK candidate. Port one real service route together
+with its contribution and result/failure mapping. HF is a small first slice because
+current CPU payloads are well below the SDK ceiling. Complete CHF and real service
+independence in the same provider milestone. Then adapt SECS, NMRNet's full workflow
+and all three Magnet models. This is a suggested order, with the full inventory
+remaining the completion target.
 
-This investigation identifies concrete work beyond the examples. It supports
-proceeding with real adoption. It supplies no new runtime qualification or numerical
-score for the four providers.
+Use deterministic science through real adapters first to prove permission,
+correlation, outcomes, handoffs and cleanup. Then run pinned actual models/input
+routes against reference calculations with explicit numerical tolerances. Existing
+scientific/reproduction tests supply evidence. Investigate disagreements, including
+possible defects in today's provider. Adapt behavioral tests and remove obsolete
+mechanism assertions.
+
+Record tested source revision, wheel/image identity, model/configuration identity,
+profile, command, counts, failures and skips. Installed SDK lanes use
+DOCKER_CONTEXT=science and WHEELHOUSE=/home/ra/Downloads/wheelhouse, with
+PRIVACY_TESTS=0 for the existing campaign. Focused disclosure checks required by a
+port still need evidence before its profile is claimed. Repository checks remain
+deferred with separate merge/release disposition.
+
+A provider is adapted when its real entry point performs every declared supported
+job, returns intended scientific information, handles known/unknown effects honestly
+and settles owned resources. Migrated paths contain one scientific execution
+authority. Adding an ordinary model changes provider science, declarations,
+construction and configuration, without a new execution state machine. Witness
+device release and responsiveness for advertised profiles, and exercise sibling
+availability through the real service.
+
+## Critical panel criteria
+
+These fixed criteria grade the correctness and usefulness of the adoption proposal.
+They use Note 100's A1-C4 structure for the clarified goal of making providers do
+their jobs through the SDK. Each reviewer scores every criterion /10 and gives
+a separate holistic score.
+
+| Criterion | Requirement for 10/10 on this proposal |
+| --- | --- |
+| A1 Authority and purpose | Retained owners/mechanisms have a scientific, product or resource reason. Current code alone creates no preservation requirement. |
+| A2 Functional coverage and SDK fit | Every offering/route has a concrete feasible mapping with honest backend limits. |
+| A3 Change locality and replaceability | Implementers can identify retain/change/remove decisions and how a new model or replacement enters the final design. |
+| A4 Precision and clarity | Inputs, phases, identities, outcomes and cleanup are unambiguous and traceable to source. |
+| A5 Parsimony | Operations/state are necessary and SDK extensions address demonstrated requirements. |
+| B1 Lifecycle correctness | Startup, partial acquisition, cancellation, state/result handoff and cleanup have complete owners and acceptance conditions. |
+| B2 Honest failures and replay | Scientific faults, public disposition, unknown effects, actual death and retries have justified meanings/evidence. |
+| B3 Identity and state | Attempts, allocations, analyses, operations, claims, scientific state and assets have explicit ownership and expiry. |
+| B4 Resource feasibility | Payloads, time, memory, reuse and stalls have owners, deciding measurements and gates. |
+| C1 Deployment authority | Installed code, environment, files, credentials, descriptors, network and devices are deliberate profile choices. |
+| C2 Useful evidence | Behavioral evidence maps to the proposed path. New checks address concrete changes. Numerical correctness is judged against intended science. |
+| C3 Provenance and reproducibility | Sources/artifacts are identified, historic results scoped and future qualification requires repeatable receipts. |
+| C4 Truthful actionable guidance | Facts, selected changes and open decisions are clear. Feasibility covers all four providers and grades retain their evidence limits. |
+
+Every deduction needs a defect or missing decision, consequence, source evidence
+and smallest correction. Open choices need an owner, deciding evidence and gate.
+A 10/10 proposal can identify implementation still to do. Runtime claims require
+runtime evidence. Repository hygiene is excluded.
+
+The first scoring round assessed a preservation-focused draft. Holistic grades
+were A 8.5/10, B 8.5/10 and C 9/10. The user clarified that providers may be wrong
+today and the question is whether they can be adapted to do their jobs. That
+clarification superseded the preservation premise. This revision retains verified
+findings and replaces parity demands with justified target behavior. Subsequent
+grades assess the clarified rubric afresh.
+
+## Independent review receipt
+
+Three read-only reviewers inspected the dirty proposal and relevant source:
+A covered SDK/NMRPeak ownership and failure; B covered SECS/NMRNet science and
+evidence; C covered Magnet, deployment and simplicity. Each assessed the full
+rubric independently. The coordinator checked findings and made all edits.
+
+The clarified draft received holistic scores A 9.5, B 9.5 and C 10. A and B
+identified the missing migration of NMRNet's overall child timer. Source checks
+confirmed that defect; the lifetime paragraph now assigns the change and the
+later-request acceptance case. All three reviewed the corrected proposal with
+SHA-256 45c319e9084922384d859e94fab85435edb4706474de84e20658714bd71e4a86.
+That hash covers this file before this review receipt was appended.
+
+| Criterion | Panel A /10 | Panel B /10 | Panel C /10 |
+| --- | ---: | ---: | ---: |
+| A1 Authority and purpose | 10 | 10 | 10 |
+| A2 Functional coverage and SDK fit | 10 | 10 | 10 |
+| A3 Change locality and replaceability | 10 | 10 | 10 |
+| A4 Precision and clarity | 10 | 10 | 10 |
+| A5 Parsimony | 10 | 10 | 10 |
+| B1 Lifecycle correctness | 10 | 10 | 10 |
+| B2 Honest failures and replay | 10 | 10 | 10 |
+| B3 Identity and state | 10 | 10 | 10 |
+| B4 Resource feasibility | 10 | 10 | 10 |
+| C1 Deployment authority | 10 | 10 | 10 |
+| C2 Useful evidence | 10 | 10 | 10 |
+| C3 Provenance and reproducibility | 10 | 10 | 10 |
+| C4 Truthful actionable guidance | 10 | 10 | 10 |
+| Holistic proposal assessment | 10 | 10 | 10 |
+
+The coordinator accepted the verified route/state, failure-evidence, warning,
+configuration, grant, descriptor, responsiveness and lifetime findings. Demands
+to reproduce ordinary-exception crashes, warning emissions or loading/retry
+mechanisms solely because they exist today were rejected after the goal correction.
+Selected operating policies still require the stated scientific/resource evidence.
+
+These scores record the reviewers' assessment of a source-supported adaptation
+proposal. They establish neither implemented ports nor scientific, GPU or deployed
+runtime qualification. No tests or calculations were run for this review.
