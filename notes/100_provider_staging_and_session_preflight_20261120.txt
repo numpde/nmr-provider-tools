@@ -1,0 +1,44 @@
+# Provider deployment-test staging and session preflight
+
+Baseline: e84adebc (main). Scope: two remaining mechanical duplications identified
+by source review after Note 099. This is an implementation target, not a passing
+qualification record.
+
+Completion criteria:
+
+1. One narrow test fixture stages the selected example configuration and patches
+   its production configuration path, with original teardown ordering. Backend
+   changes edit parsed TOML rather than assuming its formatting. Provider-specific
+   science edits, checkpoint/model assets, failure barriers and raw resource-only
+   documents remain explicit in their tests. No generic fixture framework.
+2. One SDK preflight checks multi-host session presence, exact inventory and
+   distinct session identities before construction. Providers supply their actual
+   stage/model keys. Threads reject unused sessions. The check neither connects,
+   closes, consumes nor replaces a supplied session. Public host constructors keep
+   their own freshness and option checks; no extra scheduler or ownership record.
+3. Four provider workflows, topology, lazy/eager readiness, model injection,
+   capacity shares and failure/cleanup ordering remain unchanged. Configuration
+   loading, scientific factories and packaging remain local.
+4. Actual dirty diffs receive independent review, with coordinator-only edits and
+   coherent commits using Problem/Rationale/Change/Tests/Limits bodies. Review
+   deductions require concrete triggers, consequences, locations and corrections.
+5. Focused maintained installed tests prove each slice; the final committed source
+   passes full contract, unit/minimal-native and integration lanes on science with
+   WHEELHOUSE=/home/ra/Downloads/wheelhouse and PRIVACY_TESTS=0. Exact counts,
+   skipped tests, revision and artifact/receipt identities are recorded.
+6. Three independent GPT-6.1-Sol medium reviewers each score all thirteen criteria
+   from Notes 094/099 and a separate holistic overall. Target every criterion
+   10/10 without averaging, inherited scores, conventional headroom or inflation;
+   fix actionable scoped gaps and reiterate. No tests merely to raise scores.
+
+Repository checks remain enabled, deferred and excluded from grading. Privacy
+execution, real-model/GPU behavior, unattended deployment and merge readiness
+remain separate.
+
+The shared checkout initially contains unrelated edits to SDK analysis.py,
+response_json.py and upload_file.py. They remain untouched and unstaged. Initial
+binary patch receipt: /tmp/nmr-provider-redundancy-unrelated.patch; SHA-256
+2c3dd0a69d5a2ca096f90cfcdced95fe8026835653e1c9f002cdd6e6db5f1ed6.
+Final revision qualification will use a temporary committed-source export so those
+uncommitted changes cannot be attributed to this work. Development stays in this
+checkout; the export is test input only. No push or deployment is authorized.
