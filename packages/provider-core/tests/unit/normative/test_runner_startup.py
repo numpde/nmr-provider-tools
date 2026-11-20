@@ -23,11 +23,11 @@ class RunnerStartupTests(unittest.TestCase):
         temporary = tempfile.TemporaryDirectory()
 
         self.addCleanup(temporary.cleanup)
-        self.path = pathlib.Path(temporary.name) / "runner.sock"
+        self.socket_path = pathlib.Path(temporary.name) / "runner.sock"
         self.listener = socket.socket(socket.AF_UNIX)
 
         self.addCleanup(self.listener.close)
-        self.listener.bind(str(self.path))
+        self.listener.bind(str(self.socket_path))
         self.listener.listen()
         self.listener.settimeout(1)
 
@@ -42,7 +42,7 @@ class RunnerStartupTests(unittest.TestCase):
     def session(self, control_type):
         with patch.object(socket, "socket", control_type):
             session = RunnerSession(
-                self.path,
+                self.socket_path,
                 role="fixture",
                 expected_lock_identity=(0, 0),
                 startup_seconds=3,
@@ -75,7 +75,7 @@ class RunnerStartupTests(unittest.TestCase):
 
     def test_stop_interrupts_missing_endpoint_retries(self):
         self.listener.close()
-        self.path.unlink()
+        self.socket_path.unlink()
         self.assert_retry_stops(errno.ENOENT)
 
     def test_stop_interrupts_refused_endpoint_retries(self):
@@ -84,7 +84,7 @@ class RunnerStartupTests(unittest.TestCase):
 
     def test_missing_endpoint_deadline_is_an_owned_unavailable_outcome(self):
         self.listener.close()
-        self.path.unlink()
+        self.socket_path.unlink()
         self.assert_deadline_unavailable(errno.ENOENT)
 
     def test_refused_endpoint_deadline_is_an_owned_unavailable_outcome(self):

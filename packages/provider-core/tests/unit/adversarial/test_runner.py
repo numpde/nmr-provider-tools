@@ -419,7 +419,7 @@ class RunnerRefusalTests(unittest.TestCase):
                 observed = (runner.endpoint / ".owner-session.lock").stat()
 
                 session = RunnerSession(
-                    runner.path,
+                    runner.socket_path,
                     role=role,
                     expected_lock_identity=(observed.st_dev, observed.st_ino + inode_delta),
                     startup_seconds=2,

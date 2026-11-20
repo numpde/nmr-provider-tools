@@ -67,7 +67,7 @@ class RunningSupervisor:
 
         self.status.mkdir(mode=0o700)
         (self.endpoint / ".owner-session.lock").touch(mode=0o600)
-        self.path = self.endpoint / "runner.sock"
+        self.socket_path = self.endpoint / "runner.sock"
 
         # silent-defaults: allow-contract -- This fixture's explicit None selects owner-session lifetime; numeric budgets select the finite CLI.
         lifetime = ["--owner-session-lifetime"] if operation_seconds is None else ["--operation-seconds", str(operation_seconds)]
@@ -80,7 +80,7 @@ class RunningSupervisor:
             "--role",
             self.role,
             "--socket",
-            str(self.path),
+            str(self.socket_path),
             "--scratch",
             str(self.scratch),
             "--status-directory",
@@ -110,7 +110,7 @@ class RunningSupervisor:
 
         deadline = time.monotonic() + 5
 
-        while not self.path.exists():
+        while not self.socket_path.exists():
             if (self.process.poll() is not None) or (time.monotonic() > deadline):
                 self.close()
                 raise RuntimeError("Disposable supervisor did not open its endpoint")
@@ -120,7 +120,7 @@ class RunningSupervisor:
     def restart_with_fresh_scratch(self):
         """Fixture supplies a new scratch grant; this does not prove Docker teardown."""
         self.process.communicate(timeout=2)
-        self.path.unlink()
+        self.socket_path.unlink()
         self.scratch = self.root / "successor-scratch"
 
         self.scratch.mkdir(mode=0o700)
@@ -131,7 +131,7 @@ class RunningSupervisor:
     def session(self, **budgets):
         observed = (self.endpoint / ".owner-session.lock").stat()
 
-        return RunnerSession(self.path, role=self.role, expected_lock_identity=(observed.st_dev, observed.st_ino), **budgets)
+        return RunnerSession(self.socket_path, role=self.role, expected_lock_identity=(observed.st_dev, observed.st_ino), **budgets)
 
     def close(self):
         if self._closed:
