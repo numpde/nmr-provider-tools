@@ -78,8 +78,8 @@ def _source_snippet(source: str, node: ast.AST) -> str:
     return " ".join(segment.split())
 
 
-def _finding(path: pathlib.Path, source: str, node: ast.AST) -> str:
-    return f"{repo_source(path)}:{node.lineno}: {_source_snippet(source, node)}"
+def _finding(source_path: pathlib.Path, source: str, node: ast.AST) -> str:
+    return f"{repo_source(source_path)}:{node.lineno}: {_source_snippet(source, node)}"
 
 
 def _is_env_subscript(node: ast.AST) -> bool:
@@ -144,8 +144,8 @@ def _is_env_validation_predicate(node: ast.AST) -> bool:
 
 def _is_env_or_default_expression(node: ast.BoolOp) -> bool:
     return (
-        any(_contains_env_access(value) for value in node.values) and
-        any(not _is_env_validation_predicate(value) for value in node.values)
+        any(_contains_env_access(boolean_operand) for boolean_operand in node.values) and
+        any(not _is_env_validation_predicate(boolean_operand) for boolean_operand in node.values)
     )
 
 
@@ -181,7 +181,7 @@ def _is_falsy_default_boolop(node: ast.AST) -> bool:
     if (not isinstance(node, ast.BoolOp)) or (not isinstance(node.op, ast.Or)):
         return False
 
-    return any(_is_falsy_default_literal(value) for value in node.values[1:])
+    return any(_is_falsy_default_literal(boolean_operand) for boolean_operand in node.values[1:])
 
 
 def _is_empty_get_default_call(node: ast.AST) -> bool:
@@ -241,17 +241,17 @@ def _is_env_default_if_expression(node: ast.AST) -> bool:
 
 
 def _assigned_values_by_target(statements: list[ast.stmt]) -> dict[str, ast.AST]:
-    values: dict[str, ast.AST] = {}
+    assigned_expressions: dict[str, ast.AST] = {}
 
     for statement in statements:
         if isinstance(statement, ast.Assign):
             for target in statement.targets:
-                values[ast.dump(target)] = statement.value
+                assigned_expressions[ast.dump(target)] = statement.value
 
         if (isinstance(statement, ast.AnnAssign)) and (statement.value is not None):
-            values[ast.dump(statement.target)] = statement.value
+            assigned_expressions[ast.dump(statement.target)] = statement.value
 
-    return values
+    return assigned_expressions
 
 
 def _has_same_target_fallback_assignment(
@@ -367,7 +367,7 @@ def _is_args_attribute_or_default_expression(node: ast.AST) -> bool:
 
     return (
         _contains_args_attribute_access(node.values[0]) and
-        any(_is_literal_non_absence_default(value) for value in node.values[1:])
+        any(_is_literal_non_absence_default(boolean_operand) for boolean_operand in node.values[1:])
     )
 
 
@@ -453,94 +453,94 @@ def _is_args_default_if_statement(node: ast.AST) -> bool:
     )
 
 
-def _env_default_findings(path: pathlib.Path) -> list[str]:
-    source = path.read_text(encoding="utf-8")
-    tree = ast.parse(source, filename=str(path))
+def _env_default_findings(source_path: pathlib.Path) -> list[str]:
+    source = source_path.read_text(encoding="utf-8")
+    tree = ast.parse(source, filename=str(source_path))
     findings: list[str] = []
 
     for node in ast.walk(tree):
         if isinstance(node, ast.Call) and _is_explicit_env_default_call(node):
-            findings.append(_finding(path, source, node))
+            findings.append(_finding(source_path, source, node))
 
         if _is_argparse_default_call(node):
-            findings.append(_finding(path, source, node))
+            findings.append(_finding(source_path, source, node))
 
         if _is_argparse_optional_positional(node):
-            findings.append(_finding(path, source, node))
+            findings.append(_finding(source_path, source, node))
 
         if isinstance(node, ast.BoolOp) and isinstance(node.op, ast.Or) and _is_env_or_default_expression(node):
-            findings.append(_finding(path, source, node))
+            findings.append(_finding(source_path, source, node))
 
         if _is_env_default_if_expression(node):
-            findings.append(_finding(path, source, node))
+            findings.append(_finding(source_path, source, node))
 
         if _is_env_default_if_statement(node):
-            findings.append(_finding(path, source, node))
+            findings.append(_finding(source_path, source, node))
 
         if _is_env_default_keyerror_handler(node):
-            findings.append(_finding(path, source, node))
+            findings.append(_finding(source_path, source, node))
 
         if _is_args_default_assignment(node):
-            findings.append(_finding(path, source, node))
+            findings.append(_finding(source_path, source, node))
 
         if _is_args_attribute_or_default_expression(node):
-            findings.append(_finding(path, source, node))
+            findings.append(_finding(source_path, source, node))
 
         if _is_args_default_if_expression(node):
-            findings.append(_finding(path, source, node))
+            findings.append(_finding(source_path, source, node))
 
         if _is_args_default_if_statement(node):
-            findings.append(_finding(path, source, node))
+            findings.append(_finding(source_path, source, node))
 
     return findings
 
 
-def _falsy_default_findings(path: pathlib.Path) -> list[str]:
-    source = path.read_text(encoding="utf-8")
-    tree = ast.parse(source, filename=str(path))
+def _falsy_default_findings(source_path: pathlib.Path) -> list[str]:
+    source = source_path.read_text(encoding="utf-8")
+    tree = ast.parse(source, filename=str(source_path))
     findings: list[str] = []
 
     for node in ast.walk(tree):
         if _is_falsy_default_boolop(node):
-            findings.append(_finding(path, source, node))
+            findings.append(_finding(source_path, source, node))
 
     return findings
 
 
-def _empty_get_default_findings(path: pathlib.Path) -> list[str]:
-    source = path.read_text(encoding="utf-8")
+def _empty_get_default_findings(source_path: pathlib.Path) -> list[str]:
+    source = source_path.read_text(encoding="utf-8")
     source_lines = source.splitlines()
-    tree = ast.parse(source, filename=str(path))
+    tree = ast.parse(source, filename=str(source_path))
     findings: list[str] = []
 
     for node in ast.walk(tree):
         if (_is_empty_get_default_call(node)) and (not _has_empty_get_waiver(source_lines, node)):
-            findings.append(_finding(path, source, node))
+            findings.append(_finding(source_path, source, node))
 
     return findings
 
 
-def _zero_getattr_default_findings(path: pathlib.Path) -> list[str]:
-    source = path.read_text(encoding="utf-8")
-    tree = ast.parse(source, filename=str(path))
+def _zero_getattr_default_findings(source_path: pathlib.Path) -> list[str]:
+    source = source_path.read_text(encoding="utf-8")
+    tree = ast.parse(source, filename=str(source_path))
     findings: list[str] = []
 
     for node in ast.walk(tree):
         if _is_zero_getattr_default_call(node):
-            findings.append(_finding(path, source, node))
+            findings.append(_finding(source_path, source, node))
 
     return findings
 
 
-def _pop_default_findings(path: pathlib.Path) -> list[str]:
-    source = path.read_text(encoding="utf-8")
+def _pop_default_findings(source_path: pathlib.Path) -> list[str]:
+    source = source_path.read_text(encoding="utf-8")
     source_lines = source.splitlines()
-    tree = ast.parse(source, filename=str(path))
+    tree = ast.parse(source, filename=str(source_path))
     findings: list[str] = []
 
     for node in ast.walk(tree):
         if (_is_pop_default_call(node)) and (not _has_pop_default_waiver(source_lines, node)):
-            findings.append(_finding(path, source, node))
+            findings.append(_finding(source_path, source, node))
 
     return findings
 
