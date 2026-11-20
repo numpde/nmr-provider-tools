@@ -29,7 +29,7 @@ class TransportFaultSequenceTests(unittest.IsolatedAsyncioTestCase):
                     )
 
                     owner = object()
-                    request = httpx.Request("GET", peer.origin + "/fault-sequence")
+                    http_request = httpx.Request("GET", peer.origin + "/fault-sequence")
 
                     # silent-defaults: allow-contract -- Aggregate-only cases intentionally omit the inherited cap.
                     deadline = asyncio.get_running_loop().time() + 0.3 if inherited else None
@@ -39,11 +39,11 @@ class TransportFaultSequenceTests(unittest.IsolatedAsyncioTestCase):
                             options = {"maximum_bytes": 4096, "owner": owner, "not_after": deadline}
 
                             if mode == "file":
-                                operation = transport.exchange_file(request, output_fd=output.fileno(), **options)
+                                operation = transport.exchange_file(http_request, output_fd=output.fileno(), **options)
                             elif mode == "decoded":
-                                operation = transport.exchange_decoded(request, error_maximum_bytes=4096, **options)
+                                operation = transport.exchange_decoded(http_request, error_maximum_bytes=4096, **options)
                             else:
-                                operation = transport.exchange(request, **options)
+                                operation = transport.exchange(http_request, **options)
 
                             with self.assertRaises(ExchangeFailed) as caught:
                                 await asyncio.wait_for(operation, 2)
