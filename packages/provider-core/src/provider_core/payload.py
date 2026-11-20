@@ -269,20 +269,38 @@ def _validate_dataclass(
 
 def _decode_value(json_value: object, annotation: object, *, value_path: str) -> object:
     if annotation is str:
-        if not (type(json_value) is (expected_type := str)):
-            raise PayloadRejected(f"{value_path=}; {type(json_value)=} ≠ {expected_type=}", code=PayloadRejected.Code.INVALID_TYPE)
+        require_type(
+            json_value,
+            str,
+            error_factory=lambda diagnostic: PayloadRejected(
+                f"{value_path=}; " + diagnostic,
+                code=PayloadRejected.Code.INVALID_TYPE,
+            ),
+        )
 
         return json_value
 
     if annotation is bool:
-        if not (type(json_value) is (expected_type := bool)):
-            raise PayloadRejected(f"{value_path=}; {type(json_value)=} ≠ {expected_type=}", code=PayloadRejected.Code.INVALID_TYPE)
+        require_type(
+            json_value,
+            bool,
+            error_factory=lambda diagnostic: PayloadRejected(
+                f"{value_path=}; " + diagnostic,
+                code=PayloadRejected.Code.INVALID_TYPE,
+            ),
+        )
 
         return json_value
 
     if annotation is int:
-        if not (type(json_value) is (expected_type := int)):
-            raise PayloadRejected(f"{value_path=}; {type(json_value)=} ≠ {expected_type=}", code=PayloadRejected.Code.INVALID_TYPE)
+        require_type(
+            json_value,
+            int,
+            error_factory=lambda diagnostic: PayloadRejected(
+                f"{value_path=}; " + diagnostic,
+                code=PayloadRejected.Code.INVALID_TYPE,
+            ),
+        )
 
         return json_value
 
@@ -298,8 +316,14 @@ def _decode_value(json_value: object, annotation: object, *, value_path: str) ->
         return float(json_value)
 
     if annotation is NoneType:
-        if not (type(json_value) is (expected_type := NoneType)):
-            raise PayloadRejected(f"{value_path=}; {type(json_value)=} ≠ {expected_type=}", code=PayloadRejected.Code.INVALID_TYPE)
+        require_type(
+            json_value,
+            NoneType,
+            error_factory=lambda diagnostic: PayloadRejected(
+                f"{value_path=}; " + diagnostic,
+                code=PayloadRejected.Code.INVALID_TYPE,
+            ),
+        )
 
         return None
 
@@ -324,8 +348,14 @@ def _decode_value(json_value: object, annotation: object, *, value_path: str) ->
         return json_value
 
     if origin is tuple:
-        if not (type(json_value) is (expected_type := list)):
-            raise PayloadRejected(f"{value_path=}; {type(json_value)=} ≠ {expected_type=}", code=PayloadRejected.Code.INVALID_TYPE)
+        require_type(
+            json_value,
+            list,
+            error_factory=lambda diagnostic: PayloadRejected(
+                f"{value_path=}; " + diagnostic,
+                code=PayloadRejected.Code.INVALID_TYPE,
+            ),
+        )
 
         if (len(arguments) == 2) and (arguments[1] is Ellipsis):
             # repo-check: allow-tuple-generator -- Decode the provider's variadic tuple annotation into the immutable type its scientific callable requires.
@@ -382,8 +412,14 @@ def _decode_value(json_value: object, annotation: object, *, value_path: str) ->
 
 
 def _decode_dataclass(json_value: object, value_type: type[T], *, value_path: str) -> T:
-    if not (type(json_value) is (expected_type := dict)):
-        raise PayloadRejected(f"{value_path=}; {type(json_value)=} ≠ {expected_type=}", code=PayloadRejected.Code.INVALID_TYPE)
+    require_type(
+        json_value,
+        dict,
+        error_factory=lambda diagnostic: PayloadRejected(
+            f"{value_path=}; " + diagnostic,
+            code=PayloadRejected.Code.INVALID_TYPE,
+        ),
+    )
 
     (declared_fields, annotations) = _dataclass_fields(value_type)
     fields_by_name = {field.name: field for field in declared_fields}
@@ -432,20 +468,29 @@ def _decode_dataclass(json_value: object, value_type: type[T], *, value_path: st
 
 def _encode_value(portable_value: object, annotation: object, *, value_path: str) -> object:
     if annotation is str:
-        if not (type(portable_value) is (expected_type := str)):
-            raise TypeError(f"{value_path=}; {type(portable_value)=} ≠ {expected_type=}")
+        require_type(
+            portable_value,
+            str,
+            error_factory=lambda diagnostic: TypeError(f"{value_path=}; " + diagnostic),
+        )
 
         return portable_value
 
     if annotation is bool:
-        if not (type(portable_value) is (expected_type := bool)):
-            raise TypeError(f"{value_path=}; {type(portable_value)=} ≠ {expected_type=}")
+        require_type(
+            portable_value,
+            bool,
+            error_factory=lambda diagnostic: TypeError(f"{value_path=}; " + diagnostic),
+        )
 
         return portable_value
 
     if annotation is int:
-        if not (type(portable_value) is (expected_type := int)):
-            raise TypeError(f"{value_path=}; {type(portable_value)=} ≠ {expected_type=}")
+        require_type(
+            portable_value,
+            int,
+            error_factory=lambda diagnostic: TypeError(f"{value_path=}; " + diagnostic),
+        )
 
         return portable_value
 
@@ -458,8 +503,11 @@ def _encode_value(portable_value: object, annotation: object, *, value_path: str
         return float(portable_value)
 
     if annotation is NoneType:
-        if not (type(portable_value) is (expected_type := NoneType)):
-            raise TypeError(f"{value_path=}; {type(portable_value)=} ≠ {expected_type=}")
+        require_type(
+            portable_value,
+            NoneType,
+            error_factory=lambda diagnostic: TypeError(f"{value_path=}; " + diagnostic),
+        )
 
         return None
 
@@ -478,8 +526,11 @@ def _encode_value(portable_value: object, annotation: object, *, value_path: str
         return portable_value
 
     if origin is tuple:
-        if not (type(portable_value) is (expected_type := tuple)):
-            raise TypeError(f"{value_path=}; {type(portable_value)=} ≠ {expected_type=}")
+        require_type(
+            portable_value,
+            tuple,
+            error_factory=lambda diagnostic: TypeError(f"{value_path=}; " + diagnostic),
+        )
 
         if (len(arguments) == 2) and (arguments[1] is Ellipsis):
             return [
@@ -516,8 +567,11 @@ def _encode_value(portable_value: object, annotation: object, *, value_path: str
         return _encode_value(portable_value, member, value_path=value_path)
 
     if isinstance(annotation, type) and issubclass(annotation, Enum):
-        if not (type(portable_value) is (expected_type := annotation)):
-            raise TypeError(f"{value_path=}; {type(portable_value)=} ≠ {expected_type=}")
+        require_type(
+            portable_value,
+            annotation,
+            error_factory=lambda diagnostic: TypeError(f"{value_path=}; " + diagnostic),
+        )
 
         return portable_value.value
 
@@ -533,8 +587,11 @@ def _encode_dataclass(
     *,
     value_path: str,
 ) -> dict[str, object]:
-    if not (type(portable_dataclass) is (expected_type := value_type)):
-        raise TypeError(f"{value_path=}; {type(portable_dataclass)=} ≠ {expected_type=}")
+    require_type(
+        portable_dataclass,
+        value_type,
+        error_factory=lambda diagnostic: TypeError(f"{value_path=}; " + diagnostic),
+    )
 
     (declared_fields, hints) = _dataclass_fields(value_type)
 
@@ -633,7 +690,10 @@ class DataclassStateBinding[T]:
         for (name, state_value) in values.items():
             expected_type = annotations[name]
 
-            if not (type(state_value) is expected_type):
-                raise TypeError(f"{name=}; {type(state_value)=} ≠ {expected_type=}")
+            require_type(
+                state_value,
+                expected_type,
+                error_factory=lambda diagnostic: TypeError(f"{name=}; " + diagnostic),
+            )
 
         return self.value_type(**values)
