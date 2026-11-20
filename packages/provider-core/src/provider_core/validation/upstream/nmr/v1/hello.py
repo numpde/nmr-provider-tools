@@ -47,13 +47,14 @@ class HelloAccepted:
 
 def _require_text(announcement_text, field_name, maximum_characters):
     require_type(announcement_text, str)
+    min_characters = 1
 
-    if not (1 <= len(announcement_text) <= maximum_characters):
-        raise ValueError(f"Cannot announce provider: {field_name=} has {len(announcement_text)=} characters; expected 1 through {maximum_characters=} Unicode scalars")
+    if not (min_characters <= len(announcement_text) <= maximum_characters):
+        raise ValueError(f"Cannot announce provider: {field_name=}: expected {min_characters=} ≤ {len(announcement_text)=} ≤ {maximum_characters=}")
 
     # These API fields forbid NUL; U+D800–U+DFFF are surrogates, not Unicode scalar values
     if not (("\0" not in announcement_text) and not any((0xD800 <= ord(character) <= 0xDFFF) for character in announcement_text)):
-        raise ValueError(f"Cannot announce provider: {field_name=} must not contain NUL or surrogate characters")
+        raise ValueError(f"Cannot announce provider: {field_name=} should contain no NUL or surrogate characters")
 
 
 def require_hello_inputs(*, display_name, description, analysis_offerings):
@@ -63,9 +64,10 @@ def require_hello_inputs(*, display_name, description, analysis_offerings):
     _require_text(description, "description", 1024)
 
     require_type(analysis_offerings, tuple)
+    max_analysis_offering_count = 64
 
-    if not (len(analysis_offerings) <= 64):
-        raise ValueError("Cannot announce provider: analysis offerings must be a tuple of at most 64 entries")
+    if not (len(analysis_offerings) <= max_analysis_offering_count):
+        raise ValueError(f"Cannot announce provider: {len(analysis_offerings)=} exceeds {max_analysis_offering_count=}")
 
     kinds = set()
 
@@ -73,16 +75,17 @@ def require_hello_inputs(*, display_name, description, analysis_offerings):
         require_type(offering, AnalysisOffering)
 
         if not (offering.analysis_kind_ref not in kinds):
-            raise ValueError("Cannot announce provider: analysis kinds must not repeat")
+            raise ValueError(f"Cannot announce provider: {offering.analysis_kind_ref=} should be unique")
 
         kinds.add(offering.analysis_kind_ref)
 
 
 def require_hello_body_size(body):
     """Apply the route ceiling to the actual UTF-8 encoding, not character counts."""
+    max_hello_bytes = 512 * 1024
 
-    if not (len(body) <= (512 * 1024)):
-        raise ValueError("Cannot announce provider: encoded Hello exceeds the 524288-byte route limit")
+    if not (len(body) <= max_hello_bytes):
+        raise ValueError(f"Cannot announce provider: {len(body)=} exceeds {max_hello_bytes=}")
 
 
 def read_hello(raw, *, provider_ref):
