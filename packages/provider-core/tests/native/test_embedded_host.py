@@ -51,7 +51,7 @@ from tests.fakes.dummy_provider.binding import (
 
 
 def _host_options(**changes) -> dict[str, int | float]:
-    values = {
+    host_options = {
         "input_bytes": 32768,
         "result_bytes": 32768,
         "state_values": 16,
@@ -60,9 +60,9 @@ def _host_options(**changes) -> dict[str, int | float]:
         "retirement_seconds": 5,
     }
 
-    values.update(changes)
+    host_options.update(changes)
 
-    return values
+    return host_options
 
 
 def _operation_policy() -> OperationPolicy:
@@ -243,9 +243,9 @@ class EmbeddedHostTests(unittest.IsolatedAsyncioTestCase):
         )
 
         self.assertIsNot(operation, another)
-        (_, result) = await self.success(operation, binding.run.result_codec)
+        (_, sum_result) = await self.success(operation, binding.run.result_codec)
 
-        self.assertEqual(science.SumResult(total=9, count=2), result)
+        self.assertEqual(science.SumResult(total=9, count=2), sum_result)
 
     async def test_local_submission_rejects_unbound_and_nonmember_targets(self):
         binding = sum_binding()
@@ -540,7 +540,7 @@ class EmbeddedHostTests(unittest.IsolatedAsyncioTestCase):
 
         self.assertIsInstance(foreign, NotAdmitted)
 
-        (_, result) = await self.success(
+        (_, prediction) = await self.success(
             first.submit(
                 _invocation(
                     first,
@@ -554,7 +554,7 @@ class EmbeddedHostTests(unittest.IsolatedAsyncioTestCase):
             calculate_call.result_codec,
         )
 
-        self.assertEqual(science.PredictionResult(total=8, count=2), result)
+        self.assertEqual(science.PredictionResult(total=8, count=2), prediction)
 
         self.assertIsInstance(
             first.submit(
@@ -632,8 +632,8 @@ class EmbeddedHostTests(unittest.IsolatedAsyncioTestCase):
             ),
         )
 
-        for (label, reference, observation, message) in mismatches:
-            with self.subTest(mismatch=label):
+        for (mismatch_name, reference, observation, message) in mismatches:
+            with self.subTest(mismatch=mismatch_name):
                 view = SimpleNamespace(
                     reference=reference,
                     observe=AsyncMock(return_value=observation),
@@ -672,12 +672,12 @@ class EmbeddedHostTests(unittest.IsolatedAsyncioTestCase):
 
         self.assertEqual(first=first_order, second=second_order)
 
-        (_, result) = await self.success(
+        (_, prediction) = await self.success(
             analysis.submit(invocation),
             binding.calculate.result_codec,
         )
 
-        self.assertEqual(science.PredictionResult(total=8, count=2), result)
+        self.assertEqual(science.PredictionResult(total=8, count=2), prediction)
 
     async def test_stopped_consumer_dispatch_preserves_the_original_typed_state(self):
         binding = weighted_sum_binding(
@@ -724,7 +724,7 @@ class EmbeddedHostTests(unittest.IsolatedAsyncioTestCase):
             await binding.prepared_output.reference(binding.prepare, producer),
         )
 
-        (_, result) = await self.success(
+        (_, prediction) = await self.success(
             analysis.submit(
                 _invocation(
                     analysis,
@@ -738,7 +738,7 @@ class EmbeddedHostTests(unittest.IsolatedAsyncioTestCase):
             binding.calculate.result_codec,
         )
 
-        self.assertEqual(science.PredictionResult(total=8, count=2), result)
+        self.assertEqual(science.PredictionResult(total=8, count=2), prediction)
 
     async def test_wrong_concrete_returned_state_is_owned_and_projection_preserves_failure(self):
         original = weighted_sum_binding(
@@ -1188,12 +1188,12 @@ class EmbeddedHostTests(unittest.IsolatedAsyncioTestCase):
         await asyncio.wait_for(entered.wait(), timeout=5)
         operation.request_stop()
 
-        (completed, result) = await self.success(
+        (completed, cooperative_sum) = await self.success(
             operation,
             cooperative_call.result_codec,
         )
 
-        self.assertEqual(science.SumResult(total=0, count=1), result)
+        self.assertEqual(science.SumResult(total=0, count=1), cooperative_sum)
         self.assertEqual((ProgressEvent(stage="stopping"),), completed.progress)
         self.assertTrue(completed.stop_requested)
 
