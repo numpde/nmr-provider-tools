@@ -99,10 +99,10 @@ class SharedDeliveryIPCTests(unittest.IsolatedAsyncioTestCase):
         respond = self.inbox._respond
         dropped = False
 
-        async def lose_first(connection, writer, status, document):
+        async def lose_first(connection, writer, status, response_payload):
             nonlocal dropped
 
-            if (not dropped) and (status == 200) and (document == expected.acceptance()):
+            if (not dropped) and (status == 200) and (response_payload == expected.acceptance()):
                 dropped = True
 
                 writer.close()
@@ -110,7 +110,7 @@ class SharedDeliveryIPCTests(unittest.IsolatedAsyncioTestCase):
 
                 return
 
-            await respond(connection, writer, status, document)
+            await respond(connection, writer, status, response_payload)
 
         self.inbox._respond = lose_first
 

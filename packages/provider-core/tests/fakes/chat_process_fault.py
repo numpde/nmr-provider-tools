@@ -57,16 +57,16 @@ def install_fault(stack, path):
     active = ContextVar("test_model_cleanup_fault", default=None)
     (perform, read, close) = (HttpTransport._perform, _OwnedStream.read, _OwnedStream.aclose)
 
-    async def marked_perform(self, request, *args, **kwargs):
+    async def marked_perform(self, http_request, *args, **kwargs):
         state = None
 
-        if request.url.path == "/hang":
+        if http_request.url.path == "/hang":
             state = {"cancelled": False, "engaged": False}
 
         token = active.set(state)
 
         try:
-            return await perform(self, request, *args, **kwargs)
+            return await perform(self, http_request, *args, **kwargs)
         finally:
             active.reset(token)
 
