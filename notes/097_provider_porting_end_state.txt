@@ -215,3 +215,59 @@ and enclosing deployment owns native sessions and hardware grants. Repository
 checks remain enabled, unchanged, deferred and excluded. Real-model/GPU execution,
 unattended recovery, full repository qualification and merge readiness remain
 separate decisions.
+
+Independent scored panel: every reviewer, every criterion (2026-11-20)
+
+Frozen reviewed candidate: 1929654335dd3a430b1561878688e69aa0f93ce0.
+It differs from the tested 44639313 candidate only in this qualification note.
+Three fresh GPT-6.1-Sol medium reviewers, none of whom authored these ports,
+independently assessed all thirteen criteria. Architecture, lifecycle and
+evidence were emphasis areas, not divisions of grading responsibility. Reviewers
+received no peers' findings or scores before returning their own complete matrices.
+
+The scope and rubric were fixed before review. Each deduction had to identify
+an actionable gap, concrete trigger/consequence, owning source and smallest
+durable correction. Conventional headroom, speculative capability expansion,
+averaging and score inflation were excluded. A scoped 10 means no actionable
+remaining gap was found in that criterion; it does not claim exhaustive proof.
+
+| Criterion | Panel 1 | Panel 2 | Panel 3 |
+| --- | ---: | ---: | ---: |
+| A1 Single authority; mechanism versus policy | 10/10 | 10/10 | 10/10 |
+| A2 Common semantic contract; honest backend differences | 10/10 | 10/10 | 10/10 |
+| A3 Change locality; replaceability | 10/10 | 10/10 | 10/10 |
+| A4 Names, usage and diagnostics clarity | 10/10 | 10/10 | 10/10 |
+| A5 Parsimony and explanatory comments | 10/10 | 10/10 | 10/10 |
+| B1 Continuous ownership, cancellation, handoffs and termination | 10/10 | 10/10 | 10/10 |
+| B2 Uncertainty, no replay, monotone facts and independent outcomes | 10/10 | 10/10 | 10/10 |
+| B3 Allocation, analysis, operation and state authority; expiry | 10/10 | 10/10 | 10/10 |
+| B4 Bounded time, capacity, retention and control under stalls | 10/10 | 10/10 | 10/10 |
+| C1 Narrow code/data, environment and descriptor grants; security scope | 10/10 | 10/10 | 10/10 |
+| C2 Economical, discriminating behavioral tests | 10/10 | 10/10 | 10/10 |
+| C3 Reproducible installed qualification and provenance | 10/10 | 10/10 | 10/10 |
+| C4 Useful diagnostics and truthful operational guidance | 10/10 | 10/10 | 10/10 |
+| Holistic overall verdict, independently assessed | 10/10 | 10/10 | 10/10 |
+
+All three traced provider/factory/workflow boundaries and SDK consumers rather
+than treating the green count as blanket proof. A1-A5 evidence included startup
+call selection, installed construction, backend-free request sequencing, genuine
+optional modules and the absence of copied SDK execution machinery. B1-B4 evidence
+included original submissions and receiver ownership, retained earlier results,
+entered-host cleanup after later startup failure, exact state/allocation ownership,
+pre-custody capacity refusal and real surviving-stage/model execution.
+
+C1-C4 evidence included explicit scientific startup data and deployment sessions,
+descriptor-preservation witnesses, discriminating cancellation and retirement
+tests, installed wheel identities, the maintained lane and accurate local/shared
+guidance. Each reviewer independently verified the raw integration receipt hash,
+435-test result, thirty explicit privacy skips and the documentation-only delta
+between the tested and reviewed candidates. Their individual reviews also checked
+the distinction between SDK accounting limits and hardware grants, per-operation
+progress versus aggregate counters, and observer caps versus completed retirement.
+
+Prioritized actionable findings: none in each of the three reviews. No source
+change, additional test or numerical redefinition was requested to close this
+round. The recorded matrices are separate verdicts, not an average. No executable
+tests were rerun for this read-only panel or its documentation successor.
+Repository checks and all previously stated qualification exclusions remain
+unchanged; these scores establish no repository-wide, merge or deployment claim.
