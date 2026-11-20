@@ -74,11 +74,11 @@ class UnixHTTPPeer:
             if not task.done():
                 task.cancel()
 
-        results = await asyncio.gather(*self.tasks, return_exceptions=True)
+        handler_outcomes = await asyncio.gather(*self.tasks, return_exceptions=True)
 
         await self.server.wait_closed()
         self.scratch.cleanup()
-        failures = [failure for failure in results if isinstance(failure, Exception)]
+        failures = [failure for failure in handler_outcomes if isinstance(failure, Exception)]
 
         if failures:
             raise ExceptionGroup("Unix HTTP peer failed", failures)
