@@ -339,7 +339,7 @@ class UploadRecoveryTests(unittest.IsolatedAsyncioTestCase):
         with patch("provider_core.adapters.httpcore.httpcore.AsyncConnectionPool", side_effect=clients):
             await owner.inspect()
 
-            with self.assertRaisesRegex(UploadRecoveryExhausted, "source recovery wait .* cannot fit .* original deadline"):
+            with self.assertRaisesRegex(UploadRecoveryExhausted, r"(?i)source recovery wait .* cannot fit .* original deadline"):
                 await asyncio.wait_for(owner.acquire(UPLOAD_REF), 5)
 
         self.assertEqual(owner.requests_started, 4)

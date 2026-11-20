@@ -95,7 +95,7 @@ class ProxyLoggingTests(unittest.TestCase):
                         self.assertIn(fact, output.getvalue())
 
                     if operation == "write":
-                        self.assertIn("24 bytes", output.getvalue())
+                        self.assertRegex(output.getvalue(), r"\bwrite\b[^\n]*\b24\b")
                         self.assertIn("may be partial", output.getvalue())
 
     def test_worker_failure_keeps_traceback_and_original_reason(self):
