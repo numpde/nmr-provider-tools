@@ -32,68 +32,88 @@ def read_startup_file(path, *, maximum_bytes, secret=False):
         raise StartupFileRejected("Cannot admit a startup file path", cause=cause) from None
 
     try:
-        descriptor = os.open(path, os.O_RDONLY | os.O_CLOEXEC | os.O_NOFOLLOW | os.O_NONBLOCK)
+        startup_file_fd = os.open(path, os.O_RDONLY | os.O_CLOEXEC | os.O_NOFOLLOW | os.O_NONBLOCK)
     except OSError as cause:
         raise StartupFileRejected(f"{path=} could not be opened as a regular file without a final symlink.", cause=cause) from None
 
-    (content, primary, cleanup) = (None, None, None)
+    (startup_bytes, read_failure, close_failure) = (None, None, None)
 
     try:
-        status = os.fstat(descriptor)
-        mode = stat.S_IMODE(status.st_mode)
+        file_stat = os.fstat(startup_file_fd)
+        file_mode = file_stat.st_mode
+        permissions = stat.S_IMODE(file_mode)
 
-        if not (stat.S_ISREG(status.st_mode) and (not (status.st_size > maximum_bytes))):
-            raise StartupFileRejected(f"{path=} must be a regular file within {maximum_bytes = } bytes.")
+        if not stat.S_ISREG(file_mode):
+            raise StartupFileRejected(f"{path=} should be a regular file; {file_mode=:#o}")
+
+        # Negating > preserves the existing handling of unordered bounds such as NaN
+        if not (not (file_stat.st_size > maximum_bytes)):
+            raise StartupFileRejected(f"{path=}: {file_stat.st_size=} exceeds {maximum_bytes=}")
 
         if secret:
-            if not ((status.st_uid == os.geteuid()) and (mode in (0o400, 0o600))):
-                raise StartupFileRejected(f"{path=} must belong to the container user with mode 0400 or 0600.")
-        elif not ((status.st_uid in (0, os.geteuid())) and ((mode & 0o022) == 0)):
-            raise StartupFileRejected(f"{path=} must belong to root or the container user and forbid group/other writes.")
+            expected_owner_id = os.geteuid()
 
-        content = bytearray()
+            if not (file_stat.st_uid == expected_owner_id):
+                raise StartupFileRejected(f"{path=}: {file_stat.st_uid=} should match {expected_owner_id=}")
 
-        while len(content) <= maximum_bytes:
-            part = os.read(descriptor, maximum_bytes + 1 - len(content))
+            allowed_permissions = (0o400, 0o600)
+
+            if not (permissions in allowed_permissions):
+                allowed_permission_modes = [oct(permission) for permission in allowed_permissions]
+
+                raise StartupFileRejected(f"{path=}: {permissions=:#o} ∉ {allowed_permission_modes=}")
+        else:
+            allowed_owner_ids = (0, os.geteuid())
+
+            if not (file_stat.st_uid in allowed_owner_ids):
+                raise StartupFileRejected(f"{path=}: {file_stat.st_uid=} ∉ {allowed_owner_ids=}")
+
+            if not ((permissions & 0o022) == 0):
+                raise StartupFileRejected(f"{path=}: {permissions=:#o} should forbid group and other writes")
+
+        startup_bytes = bytearray()
+
+        while len(startup_bytes) <= maximum_bytes:
+            part = os.read(startup_file_fd, maximum_bytes + 1 - len(startup_bytes))
 
             if not part:
                 break
 
-            content.extend(part)
+            startup_bytes.extend(part)
 
-        if not ((len(content) == status.st_size) and (not (len(content) > maximum_bytes))):
-            raise StartupFileRejected(f"{path=} changed length during its bounded startup read.")
+        if not ((len(startup_bytes) == file_stat.st_size) and (not (len(startup_bytes) > maximum_bytes))):
+            raise StartupFileRejected(f"{path=}: {len(startup_bytes)=} should match {file_stat.st_size=} within {maximum_bytes=}")
 
-        content = bytes(content)
+        startup_bytes = bytes(startup_bytes)
     except BaseException as cause:
-        primary = cause
+        read_failure = cause
 
     try:
-        os.close(descriptor)
+        os.close(startup_file_fd)
     except OSError as cause:
-        cleanup = cause
+        close_failure = cause
 
-    if not ((primary is None) or isinstance(primary, Exception)):
-        if not (cleanup is None):
-            raise primary from StartupFileRejected(
+    if not ((read_failure is None) or isinstance(read_failure, Exception)):
+        if not (close_failure is None):
+            raise read_failure from StartupFileRejected(
                 f"{path=} close also failed during interruption.",
-                cause=primary.__cause__,
-                cleanup_failures=(cleanup,)
+                cause=read_failure.__cause__,
+                cleanup_failures=(close_failure,)
             )
 
-        raise primary
+        raise read_failure
 
-    if not ((primary is None) and (cleanup is None)):
-        if not ((not isinstance(primary, StartupFileRejected)) or (cleanup is not None)):
-            raise primary
+    if not ((read_failure is None) and (close_failure is None)):
+        if not ((not isinstance(read_failure, StartupFileRejected)) or (close_failure is not None)):
+            raise read_failure
 
         # silent-defaults: allow-contract -- A successful close contributes no cleanup failure; the original read failure remains primary.
-        cleanup_failures = () if cleanup is None else (cleanup,)
+        cleanup_failures = () if close_failure is None else (close_failure,)
 
         raise StartupFileRejected(
             f"{path=} could not be read and closed; no runtime resources were acquired.",
-            cause=primary,
+            cause=read_failure,
             cleanup_failures=cleanup_failures,
         ) from None
 
-    return content
+    return startup_bytes

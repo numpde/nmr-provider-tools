@@ -55,7 +55,7 @@ class DeliveryConfigurationRefusalTests(unittest.TestCase):
             for mode in (0o640, 0o644, 0o666):
                 files.key.chmod(mode)
 
-                with self.subTest(mode=oct(mode)), self.assertRaisesRegex(DeliveryConfigurationRejected, "0400 or 0600"):
+                with self.subTest(mode=oct(mode)), self.assertRaisesRegex(DeliveryConfigurationRejected, "permissions="):
                     load_delivery_service(files.configuration_path, on_notice=Mock(), diagnostic_status=healthy_diagnostics)
 
             self.assertFalse((pathlib.Path(directory) / "state").exists())
