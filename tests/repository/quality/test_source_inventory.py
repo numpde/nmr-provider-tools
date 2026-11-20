@@ -74,16 +74,16 @@ def root_entry_visibility_findings(manifest, root):
             findings.append(f"{name}: public source root is not a regular file or directory")
             continue
 
-        path = root / name
+        root_entry_path = root / name
 
-        if not path.exists():
+        if not root_entry_path.exists():
             findings.append(f"{name}: public source root is invisible to repository checks")
-        elif path.is_symlink() or ((kind == "f") and (not path.is_file())) or ((kind == "d") and (not path.is_dir())):
+        elif root_entry_path.is_symlink() or ((kind == "f") and (not root_entry_path.is_file())) or ((kind == "d") and (not root_entry_path.is_dir())):
             findings.append(f"{name}: visible source root type disagrees with host inventory")
 
-    for path in sorted(root.iterdir()):
-        if path.name not in expected:
-            findings.append(f"{path.name}: visible root entry is absent from host inventory")
+    for root_entry_path in sorted(root.iterdir()):
+        if root_entry_path.name not in expected:
+            findings.append(f"{root_entry_path.name}: visible root entry is absent from host inventory")
 
     return findings
 
@@ -159,9 +159,9 @@ class SourceInventoryUnitTests(unittest.TestCase):
             private = root / "release-artifacts/private.txt"
             authored = root / "tools/release-artifacts/authored.sh"
 
-            for path in (private, authored):
-                path.parent.mkdir(parents=True)
-                path.write_text("fixture\n")
+            for fixture_path in (private, authored):
+                fixture_path.parent.mkdir(parents=True)
+                fixture_path.write_text("fixture\n")
 
             with patch.object(sources, "ROOT", root):
                 observed = sources.iter_repo_text_files()
@@ -187,10 +187,10 @@ class SourceInventoryUnitTests(unittest.TestCase):
                 "packages/example/tests/test_owner.py",
                 "unowned/ignored.py",
             ):
-                path = root / name
+                fixture_path = root / name
 
-                path.parent.mkdir(parents=True, exist_ok=True)
-                path.write_text("pass\n")
+                fixture_path.parent.mkdir(parents=True, exist_ok=True)
+                fixture_path.write_text("pass\n")
 
             with patch.object(sources, "ROOT", root):
                 self.assertEqual(
@@ -385,7 +385,7 @@ class SourceInventoryRepositoryTests(unittest.TestCase):
         )
 
         arguments = shlex.split(completed_process.stdout)
-        mounts = [arguments[index + 1] for (index, value) in enumerate(arguments) if value == "--mount"]
+        mounts = [arguments[index + 1] for (index, command_argument) in enumerate(arguments) if command_argument == "--mount"]
 
         for subtree in ("host", "tools", "tests", "requirements", "containers", "notes"):
             self.assertIn(f"type=bind,src={ROOT / subtree},dst=/workspace/{subtree},readonly", mounts)
