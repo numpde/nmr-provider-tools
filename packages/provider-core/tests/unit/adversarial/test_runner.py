@@ -112,7 +112,7 @@ class RunnerRefusalTests(unittest.TestCase):
                 with sender:
                     (session.generation, session.operation) = ("generation", "operation")
 
-                    reply = {
+                    retirement_reply = {
                         "kind": "retired",
                         "generation": "generation",
                         "operation": "operation",
@@ -121,9 +121,9 @@ class RunnerRefusalTests(unittest.TestCase):
                     }
 
                     if reason is not None:
-                        reply["reason"] = reason
+                        retirement_reply["reason"] = reason
 
-                    send_document(sender, reply, deadline=time.monotonic() + 1)
+                    send_document(sender, retirement_reply, deadline=time.monotonic() + 1)
 
                     with self.assertRaises(LifecycleRejected):
                         session.observe_retirement()
@@ -213,14 +213,14 @@ class RunnerRefusalTests(unittest.TestCase):
 
     def test_failed_greeting_cannot_admit_a_retirement_with_null_operation_identity(self):
         with tempfile.TemporaryDirectory() as temporary, socket.socket(socket.AF_UNIX) as listener:
-            path = str(pathlib.Path(temporary) / "runner.sock")
+            runner_socket_path = str(pathlib.Path(temporary) / "runner.sock")
 
-            listener.bind(path)
+            listener.bind(runner_socket_path)
             listener.listen()
             listener.settimeout(1)
 
             session = RunnerSession(
-                path,
+                runner_socket_path,
                 role="fixture",
                 expected_lock_identity=(0, 0),
                 startup_seconds=1,
@@ -231,7 +231,7 @@ class RunnerRefusalTests(unittest.TestCase):
             (science, remote) = socket.socketpair()
 
             with science, remote:
-                def reply():
+                def send_malformed_greeting_and_retirement():
                     (peer, _) = listener.accept()
 
                     with peer:
@@ -251,7 +251,7 @@ class RunnerRefusalTests(unittest.TestCase):
                         )
 
                 with ThreadPoolExecutor(max_workers=1) as executor:
-                    original = executor.submit(reply)
+                    original = executor.submit(send_malformed_greeting_and_retirement)
 
                     with self.assertRaises(LifecycleRejected) as setup:
                         session.connect()
@@ -270,14 +270,14 @@ class RunnerRefusalTests(unittest.TestCase):
 
     def test_partial_greeting_timeout_closes_its_descriptor_and_blocks_another_frame_read(self):
         with tempfile.TemporaryDirectory() as temporary, socket.socket(socket.AF_UNIX) as listener:
-            path = str(pathlib.Path(temporary) / "runner.sock")
+            runner_socket_path = str(pathlib.Path(temporary) / "runner.sock")
 
-            listener.bind(path)
+            listener.bind(runner_socket_path)
             listener.listen()
             listener.settimeout(1)
 
             session = RunnerSession(
-                path,
+                runner_socket_path,
                 role="fixture",
                 expected_lock_identity=(0, 0),
                 startup_seconds=0.2,
