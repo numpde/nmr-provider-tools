@@ -66,14 +66,14 @@ class TypedContributionTests(unittest.TestCase):
             candidate=science.PreparationInput(values=(2, 4, 6)),
         )
 
-        result = science.calculate(
+        prediction = science.calculate(
             analysis=analysis,
             state=science.CalculationState(prepared=prepared),
         )
 
         self.assertEqual(
             science.PredictionResult(total=57, count=3),
-            result,
+            prediction,
         )
 
     def test_provider_types_survive_payload_state_and_result_boundaries(self):
@@ -265,9 +265,9 @@ class TypedContributionTests(unittest.TestCase):
         self.assertIs(science.ScientificInputRejected.Code.EMPTY_INPUT, sum_rejection.exception.code)
 
     def test_nonfinite_values_are_rejected_during_portable_construction(self):
-        for value in (math.nan, math.inf, -math.inf, True):
-            with self.subTest(value=value), self.assertRaises(ValueError):
-                science.PreparationInput(values=(value,))
+        for rejected_input_component in (math.nan, math.inf, -math.inf, True):
+            with self.subTest(value=rejected_input_component), self.assertRaises(ValueError):
+                science.PreparationInput(values=(rejected_input_component,))
 
     def test_state_binding_constructs_provider_state(self):
         model = science.create_model(

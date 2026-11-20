@@ -28,8 +28,8 @@ def _finite_values(values: object, *, label: str) -> tuple[float, ...]:
 
     # repo-check: allow-tuple-generator -- Scientific values are normalized into the immutable tuple required by the model contract.
     return tuple(
-        _finite_float(value, label=f"{label}[{index}]")
-        for (index, value) in enumerate(values)
+        _finite_float(numeric_component, label=f"{label}[{index}]")
+        for (index, numeric_component) in enumerate(values)
     )
 
 
@@ -317,8 +317,8 @@ def calculate(
     # State is consumed before numerical work. A later failure does not make the
     # old state reference usable again.
     weighted_sum = math.fsum(
-        (coefficient * value)
-        for (coefficient, value) in zip(
+        (coefficient * prepared_value)
+        for (coefficient, prepared_value) in zip(
             loaded_coefficients,
             prepared_values,
             strict=True,
