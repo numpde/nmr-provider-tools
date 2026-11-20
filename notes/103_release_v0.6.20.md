@@ -1,0 +1,11 @@
+# provider-core 0.6.20
+
+Scientific contributions can now run in a persistent native child through `ProcessExecutionHost`, using the same analysis, operation, observation and result contracts as thread execution. Deployment supplies a fresh owner-session runner. The installed worker constructs the model, retains scientific state and sends portable SDK records and encoded data across its private channel. A lost reply leaves the original work owned; it does not authorize another scientific invocation.
+
+Process shutdown retains and joins the original startup, communication and cleanup work before releasing native ownership. Observations preserve scientific completion separately from communication failure and native retirement. Child failure evidence retains exception relationships and bounded traceback locations without serializing live scientific objects.
+
+Dummy, NMRPeak, Reference and Spectrum examples select their execution backend during provider assembly. Shared execution settings check the configured session inventory before acquisition, including distinct sessions for repeated model offerings. Workflows receive their execution dependencies explicitly and keep result delivery and scientific cleanup under their existing owners. Real provider deployment and scientific model adoption remain separate consumer work.
+
+The SDK carries the shared type-requirement helpers, including optional domain exception factories. External API validation has its own upstream modules. Diagnostics identify failed references, values and bounds, preserve original causes and distinguish independent cleanup failures. Repository quality inventories remain tracked in `notes/092_repo_checks_status.html`; this release does not claim that those inventories are all green.
+
+Build, acquisition and container operations now have separate repository locations. Consumer refresh of a pinned acquisition archive uses direct download; GitHub publication remains a separate operator action. The release includes the SDK wheel and source distribution, complete and minimal-native installation locks, wheelhouse executable bundle, acquisition-owner archive, source record and hash manifest. Attached build and qualification logs record the exact artifacts tested, executed suites and privacy-test skips.
