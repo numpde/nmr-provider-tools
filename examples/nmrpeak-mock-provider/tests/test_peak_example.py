@@ -34,7 +34,7 @@ import tomli_w
 
 from provider_core.contribution_errors import CallRejected
 from provider_core.diagnostics import failure_evidence
-from provider_core.hosting import AdmissionCode, CapacityUnavailable, NotAdmitted, ResultState, StartDeadlineExpired
+from provider_core.hosting import AdmissionCode, CapacityUnavailable, NotAdmitted, ResultState, StartDeadlineExpired, settle_cleanup
 from provider_core.interpreter import InterpretationFailed, ModelWindowExpired, ProseService
 from provider_core.process_wire import RemoteScienceError
 from provider_core.submission import Submission
@@ -112,6 +112,13 @@ class PeakExampleTests(unittest.IsolatedAsyncioTestCase):
 
         self.configuration.write_text(data=tomli_w.dumps(deployment_config), encoding="utf-8")
 
+        runner, session = self.make_process_session()
+
+        return (deployment_config, runner, session)
+
+    def make_process_session(self):
+        """Give each configured model its own existing native supervisor."""
+
         runner = RunningSupervisor(
             operation_seconds=None,
             role="science",
@@ -124,7 +131,7 @@ class PeakExampleTests(unittest.IsolatedAsyncioTestCase):
 
         self.addCleanup(session.close)
 
-        return (deployment_config, runner, session)
+        return (runner, session)
 
     async def test_external_deployment_settings_change_scientific_results(self):
         package = pathlib.Path(str(resources.files(anchor="nmrpeak_mock_provider")))
@@ -188,7 +195,7 @@ class PeakExampleTests(unittest.IsolatedAsyncioTestCase):
         (deployment_config, runner, session) = self.configure_process()
         self.factory.proposals = (candidate(carbon=False),)
 
-        async with self.open_offerings(process_session=session) as offerings:
+        async with self.open_offerings(process_sessions={("hf", 0): session}) as offerings:
             (offering,) = offerings
 
             self.assertEqual("hf", offering.family)
@@ -224,6 +231,84 @@ class PeakExampleTests(unittest.IsolatedAsyncioTestCase):
         with self.assertRaises(expected_exception=ProcessLookupError):
             os.kill(worker_pid, 0)
 
+    async def test_independent_process_offerings_keep_chf_available_after_hf_retirement(self):
+        deployment_config = tomllib.loads(self.configuration.read_text(encoding="utf-8"))
+        deployment_config["execution"]["backend"] = "process"
+        self.configuration.write_text(data=tomli_w.dumps(deployment_config), encoding="utf-8")
+        hf_runner, hf_session = self.make_process_session()
+        chf_runner, chf_session = self.make_process_session()
+        sessions = {("hf", 0): hf_session, ("chf", 0): chf_session}
+        self.factory.proposals = (candidate(carbon=True),)
+
+        async with self.open_offerings(process_sessions=sessions) as offerings:
+            by_family = {offering.family: offering for offering in offerings}
+            hf_host = by_family["hf"].execution_host
+            chf_host = by_family["chf"].execution_host
+
+            self.assertNotEqual(hf_host.process_id, chf_host.process_id)
+
+            for capacity in ("input_bytes", "result_bytes", "state_values"):
+                assigned = sum(offering.execution_host.host_options[capacity] for offering in offerings)
+                self.assertEqual(deployment_config["execution"]["in_process_execution_host"][capacity], assigned)
+
+            await settle_cleanup(control=hf_host.retire())
+            self.assertTrue(hf_session.retirement.scratch_released)
+            self.assertIsNone(chf_session.retirement)
+
+            for _ in range(2):
+                receiver = RecordingReceiver()
+
+                async with by_family["chf"].open_prediction(receive=receiver) as workflow:
+                    await workflow.interpret(source="Formula, proton and carbon spectra")
+                    await workflow.deliver()
+
+                self.assertEqual(1, len(receiver.payloads))
+                os.kill(chf_host.process_id, 0)
+
+        self.assertTrue(chf_session.retirement.scratch_released)
+        self.assertEqual([], list(hf_runner.scratch.iterdir()))
+        self.assertEqual([], list(chf_runner.scratch.iterdir()))
+
+    async def test_process_overgrant_refuses_before_taking_any_session(self):
+        deployment_config = tomllib.loads(self.configuration.read_text(encoding="utf-8"))
+        deployment_config["execution"]["backend"] = "process"
+        deployment_config["science"]["hf"][0]["process_capacity"]["state_values"] = 2
+        self.configuration.write_text(data=tomli_w.dumps(deployment_config), encoding="utf-8")
+        hf_runner, hf_session = self.make_process_session()
+        chf_runner, chf_session = self.make_process_session()
+        descriptors = (hf_session.control.fileno(), chf_session.control.fileno())
+
+        with self.assertRaisesRegex(ValueError, "model shares must fit the provider allowance"):
+            async with self.open_offerings(process_sessions={("hf", 0): hf_session, ("chf", 0): chf_session}):
+                self.fail("Overcommitted process shares must not start either model")
+
+        self.assertFalse(hf_session.control_connected)
+        self.assertFalse(chf_session.control_connected)
+        self.assertEqual(descriptors, (hf_session.control.fileno(), chf_session.control.fileno()))
+        self.assertEqual([], list(hf_runner.scratch.iterdir()))
+        self.assertEqual([], list(chf_runner.scratch.iterdir()))
+
+    async def test_failed_second_process_start_retires_the_first_model(self):
+        deployment_config = tomllib.loads(self.configuration.read_text(encoding="utf-8"))
+        deployment_config["execution"]["backend"] = "process"
+        checkpoint = self.configuration.parent / deployment_config["science"]["chf"][0]["checkpoint_path"]
+        checkpoint.write_bytes(b"not-json")
+        deployment_config["science"]["chf"][0]["settings"]["checkpoint_sha256"] = hashlib.sha256(b"not-json").hexdigest()
+        self.configuration.write_text(data=tomli_w.dumps(deployment_config), encoding="utf-8")
+        hf_runner, hf_session = self.make_process_session()
+        chf_runner, chf_session = self.make_process_session()
+
+        with self.assertRaises(RemoteScienceError) as raised:
+            async with self.open_offerings(process_sessions={("hf", 0): hf_session, ("chf", 0): chf_session}):
+                self.fail("The provider must not advertise partially started offerings")
+
+        self.assertEqual("json.decoder.JSONDecodeError", raised.exception.remote_type)
+        self.assertEqual(0, hf_session.retirement.returncode)
+        self.assertTrue(hf_session.retirement.scratch_released)
+        self.assertTrue(chf_session.retirement.scratch_released)
+        self.assertEqual([], list(hf_runner.scratch.iterdir()))
+        self.assertEqual([], list(chf_runner.scratch.iterdir()))
+
     async def test_process_backend_preserves_correctable_scientific_rejection(self):
         (_, _, session) = self.configure_process()
         invalid = candidate(carbon=False)
@@ -231,7 +316,7 @@ class PeakExampleTests(unittest.IsolatedAsyncioTestCase):
         self.factory.proposals = (invalid, candidate(carbon=False))
         receiver = RecordingReceiver()
 
-        async with self.open_offerings(process_session=session) as offerings:
+        async with self.open_offerings(process_sessions={("hf", 0): session}) as offerings:
             (offering,) = offerings
 
             async with offering.open_prediction(receive=receiver) as workflow:
@@ -254,7 +339,7 @@ class PeakExampleTests(unittest.IsolatedAsyncioTestCase):
 
         # Verification must admit these bytes. The installed Model.load creates
         # and retains its tokenizer before JSON parsing raises in the child.
-        provider_lifetime = self.open_offerings(process_session=session)
+        provider_lifetime = self.open_offerings(process_sessions={("hf", 0): session})
 
         with self.assertRaises(expected_exception=RemoteScienceError) as raised:
             await provider_lifetime.__aenter__()
@@ -286,7 +371,7 @@ class PeakExampleTests(unittest.IsolatedAsyncioTestCase):
         (_, _, session) = self.configure_process()
         self.factory.proposals = (candidate(carbon=False),)
 
-        async with self.open_offerings(process_session=session) as offerings:
+        async with self.open_offerings(process_sessions={("hf", 0): session}) as offerings:
             (offering,) = offerings
             receiver = RecordingReceiver()
 
@@ -332,7 +417,7 @@ class PeakExampleTests(unittest.IsolatedAsyncioTestCase):
         # Enter startup outside all expected failures. Only teardown may report
         # missing scientific cleanup; native retirement remains independently
         # observable on the original supervisor session.
-        provider_lifetime = self.open_offerings(process_session=session)
+        provider_lifetime = self.open_offerings(process_sessions={("hf", 0): session})
         offerings = await provider_lifetime.__aenter__()
 
         try:
@@ -379,7 +464,7 @@ class PeakExampleTests(unittest.IsolatedAsyncioTestCase):
 
         self.configuration.write_text(data=tomli_w.dumps(deployment_config), encoding="utf-8")
 
-        with self.assertRaisesRegex(expected_exception=ValueError, expected_regex="requires a deployment-owned scientific runner session"):
+        with self.assertRaisesRegex(expected_exception=ValueError, expected_regex="requires deployment-owned scientific runner sessions"):
             async with self.open_offerings():
                 self.fail(msg="Process startup must not invent a native supervisor")
 
@@ -389,8 +474,8 @@ class PeakExampleTests(unittest.IsolatedAsyncioTestCase):
 
         self.configuration.write_text(data=tomli_w.dumps(deployment_config), encoding="utf-8")
 
-        with self.assertRaisesRegex(expected_exception=ValueError, expected_regex="does not use a scientific process session"):
-            async with self.open_offerings(process_session=session):
+        with self.assertRaisesRegex(expected_exception=ValueError, expected_regex="does not use scientific process sessions"):
+            async with self.open_offerings(process_sessions={("hf", 0): session}):
                 self.fail(msg="Thread startup must refuse an unrelated native owner")
 
         self.assertFalse(session.control_connected)
