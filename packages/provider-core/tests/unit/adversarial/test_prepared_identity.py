@@ -28,9 +28,9 @@ class PreparedIdentityRefusalTests(unittest.TestCase):
         with self.assertRaises(TypeError):
             mark_execution_entered(acknowledged)
 
-        for value in (None, b"unbound identity", object()):
-            with self.subTest(value_type=type(value).__name__), self.assertRaises(TypeError):
-                mark_execution_entered(acknowledged, value)
+        for invalid_identity in (None, b"unbound identity", object()):
+            with self.subTest(value_type=type(invalid_identity).__name__), self.assertRaises(TypeError):
+                mark_execution_entered(acknowledged, invalid_identity)
 
     def test_identity_cannot_be_attached_before_execution_entry(self):
         acknowledged = acknowledge_start(record(), admission())
@@ -41,9 +41,9 @@ class PreparedIdentityRefusalTests(unittest.TestCase):
     def test_checkpoint_entry_requires_its_actual_prepared_digest(self):
         acknowledged = AcknowledgedCheckpoint(record(), admission())
 
-        for value in (None, b"unbound identity", ProtectedEvidence("fixture.input.v1", b"identity")):
-            with self.subTest(value_type=type(value).__name__), self.assertRaises(TypeError):
-                EnteredCheckpoint(acknowledged, value)
+        for invalid_digest in (None, b"unbound identity", ProtectedEvidence("fixture.input.v1", b"identity")):
+            with self.subTest(value_type=type(invalid_digest).__name__), self.assertRaises(TypeError):
+                EnteredCheckpoint(acknowledged, invalid_digest)
 
 
 

@@ -61,11 +61,11 @@ class AttemptOutcomeFailureTests(unittest.IsolatedAsyncioTestCase):
             (False, {"extra": True}),
             (True, {"execution_attempt_ref": "execution_attempt:sha256:" + "c" * 64}),
         ):
-            document = json.loads(self.body(completing)) | changes
+            outcome_document = json.loads(self.body(completing)) | changes
             transport = Transport()
 
             with self.subTest(changes=changes), self.assertRaises(ValueError):
-                await self.send(self.api(transport), completing, json.dumps(document).encode())
+                await self.send(self.api(transport), completing, json.dumps(outcome_document).encode())
 
             self.assertEqual(transport.calls, [])
 

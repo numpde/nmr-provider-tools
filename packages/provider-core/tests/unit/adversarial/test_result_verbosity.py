@@ -8,17 +8,17 @@ from provider_core.result_verbosity import ResultVerbosity
 
 class ResultVerbosityRejectionTests(unittest.TestCase):
     def test_only_exact_json_string_values_are_admitted(self):
-        for value in (None, True, 0, 1.0, [], {}, ResultVerbosity.LOW):
-            with self.subTest(value=value):
+        for invalid_preference in (None, True, 0, 1.0, [], {}, ResultVerbosity.LOW):
+            with self.subTest(value=invalid_preference):
                 with self.assertRaises(TypeError) as caught:
-                    ResultVerbosity.parse(value)
+                    ResultVerbosity.parse(invalid_preference)
 
-                self.assertIn(type(value).__name__, str(caught.exception))
+                self.assertIn(type(invalid_preference).__name__, str(caught.exception))
 
-        for value in ("", "compact", "full", "MAX", " medium", "PRIVATE_CANARY"):
-            with self.subTest(value=value):
+        for invalid_preference in ("", "compact", "full", "MAX", " medium", "PRIVATE_CANARY"):
+            with self.subTest(value=invalid_preference):
                 with self.assertRaises(ValueError) as caught:
-                    ResultVerbosity.parse(value)
+                    ResultVerbosity.parse(invalid_preference)
 
                 message = str(caught.exception)
 
