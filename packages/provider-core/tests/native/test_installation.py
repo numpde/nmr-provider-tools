@@ -135,7 +135,7 @@ class NativeInstallationTests(unittest.TestCase):
         self.assertIsNotNone(distribution_files)
 
         packaged_python = {
-            tuple(installed_member.parts)
+            installed_member.parts
             for installed_member in distribution_files
             if installed_member.suffix == ".py"
         }

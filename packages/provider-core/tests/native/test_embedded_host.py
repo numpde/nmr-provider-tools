@@ -152,7 +152,7 @@ class _FailingResultCodec[T]:
 class EmbeddedHostTests(unittest.IsolatedAsyncioTestCase):
     def host(self, bindings, *, options=None):
         host = InProcessExecutionHost(
-            # repo-check: allow-tuple-generator -- Each host is constructed from a fixed immutable allocation inventory.
+            # repo-check: allow-tuple-generator -- Host validation and installation make separate passes; fixed membership prevents installation of an unvalidated binding
             allocations=tuple(
                 Allocation(
                     name=name,
