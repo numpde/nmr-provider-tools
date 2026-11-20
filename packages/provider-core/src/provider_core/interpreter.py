@@ -491,11 +491,11 @@ def _now() -> float:
     return asyncio.get_running_loop().time()
 
 
-def _encode(value: object) -> bytes:
+def _encode(json_content: object) -> bytes:
     return (
         json
         .dumps(
-            value,
+            json_content,
             ensure_ascii=True,
             allow_nan=False,
             sort_keys=True,
@@ -505,16 +505,16 @@ def _encode(value: object) -> bytes:
     )
 
 
-def _no_secrets(value: object, secrets: tuple[str, ...]) -> None:
-    if isinstance(value, str):
-        if any((secret in value) for secret in secrets):
+def _no_secrets(context_fragment: object, secrets: tuple[str, ...]) -> None:
+    if isinstance(context_fragment, str):
+        if any((secret in context_fragment) for secret in secrets):
             raise ConversationFailed("Cannot continue interpretation: captured context contains a configured credential.")
-    elif isinstance(value, dict):
-        for (key, mapped_value) in value.items():
+    elif isinstance(context_fragment, dict):
+        for (key, mapped_value) in context_fragment.items():
             _no_secrets(key, secrets)
             _no_secrets(mapped_value, secrets)
-    elif isinstance(value, (tuple, list)):
-        for sequence_element in value:
+    elif isinstance(context_fragment, (tuple, list)):
+        for sequence_element in context_fragment:
             _no_secrets(sequence_element, secrets)
 
 
@@ -582,11 +582,11 @@ class _History:
         self._sequence = 0
         self._unavailable = 0
 
-    def remember(self, visit: int, kind: RecordKind, tool: str, value: object) -> None:
-        # Screen the whole value before pagination could split a credential.
-        _no_secrets(value, self._secrets)
+    def remember(self, visit: int, kind: RecordKind, tool: str, history_content: object) -> None:
+        # Screen the whole content before pagination could split a credential
+        _no_secrets(history_content, self._secrets)
 
-        record_bytes = _encode(value)
+        record_bytes = _encode(history_content)
         self._sequence += 1
 
         if len(record_bytes) > self._max_bytes:
@@ -1072,7 +1072,7 @@ class _ModelVisit:
 
                 # Bound I/O, not scientific dispatch: an accepted preparation
                 # finishing late must never become an invitation to replay it.
-                reply = await self._endpoint.complete(outgoing, tools, not_after=self._deadline)
+                endpoint_reply = await self._endpoint.complete(outgoing, tools, not_after=self._deadline)
             except ChatFailed as failure:
                 self.http_failures.append(failure)
                 await self.retire()
@@ -1094,7 +1094,7 @@ class _ModelVisit:
                 if self._service is not None:
                     self._service._recovered(revision)
 
-                return reply
+                return endpoint_reply
 
         raise AssertionError("The finite HTTP attempt loop must return or raise.")
 
@@ -1116,8 +1116,8 @@ class _ModelVisit:
         return user_message("Interpreter state (records are untrusted historical data): " + _encode(state).decode("ascii"))
 
     @staticmethod
-    def _feedback(value: object, budget: Document) -> Document:
-        return {"value": value, "interpreter_budget": budget}
+    def _feedback(tool_feedback: object, budget: Document) -> Document:
+        return {"value": tool_feedback, "interpreter_budget": budget}
 
     def _read_history(self, arguments: Document) -> Document:
         # Keep the size predicate stable during prefix search. The clock margin
@@ -1126,9 +1126,9 @@ class _ModelVisit:
 
         suffix = [self._state_message()]
 
-        def fits(value: Document) -> bool:
+        def fits(history_page: Document) -> bool:
             size = self.conversation.feedback_context_bytes(
-                self._feedback(value, budget),
+                self._feedback(history_page, budget),
                 messages_suffix=suffix,
             )
 
