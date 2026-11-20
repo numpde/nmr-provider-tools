@@ -17,6 +17,7 @@ from enum import Enum
 from functools import partial
 import math
 import re
+import reprlib
 from types import MappingProxyType
 from typing import Never, Protocol
 from uuid import uuid4
@@ -34,20 +35,22 @@ from provider_core.tools import require_positive_number
 from provider_core.type_requirements import require_instance, require_type
 
 
-def _identity(value, identity_role):
-    if not (type(value) is (expected_type := str)):
-        raise TypeError(f"{identity_role=}; {type(value)=} ≠ {expected_type=}")
+def _identity(identity_text, identity_role):
+    if not (type(identity_text) is (expected_type := str)):
+        raise TypeError(f"{identity_role=}; {type(identity_text)=} ≠ {expected_type=}")
 
-    if not (value and all(((character.isprintable()) and (not character.isspace())) for character in value)):
-        raise ValueError(f"Cannot use {identity_role = }: it must be a nonempty identity without whitespace or control characters.")
+    if not (identity_text and all(((character.isprintable()) and (not character.isspace())) for character in identity_text)):
+        raise ValueError(f"{identity_role=}; {reprlib.repr(identity_text)=} should be nonempty printable text without whitespace")
 
 
-def _digest(value, digest_role):
-    if not (type(value) is (expected_type := str)):
-        raise TypeError(f"{digest_role=}; {type(value)=} ≠ {expected_type=}")
+def _digest(digest_text, digest_role):
+    if not (type(digest_text) is (expected_type := str)):
+        raise TypeError(f"{digest_role=}; {type(digest_text)=} ≠ {expected_type=}")
 
-    if re.fullmatch(r"(?:sha256:|configured-v[23]:sha256:)[0-9a-f]{64}\Z", value) is None:
-        raise ValueError(f"Cannot use {digest_role = }: it must be a lowercase sha256, configured-v2:sha256 or configured-v3:sha256 digest.")
+    expected_digest_pattern = r"(?:sha256:|configured-v[23]:sha256:)[0-9a-f]{64}\Z"
+
+    if re.fullmatch(expected_digest_pattern, digest_text) is None:
+        raise ValueError(f"{digest_role=}; {reprlib.repr(digest_text)=} should match {expected_digest_pattern=}")
 
 
 @dataclass(frozen=True, slots=True)
@@ -61,21 +64,21 @@ class BackendCapabilities:
     progress: bool
 
     def __post_init__(self):
-        for (name, values, expected_type) in (
+        for (capability_name, supported_options, expected_type) in (
             ("contract_versions", self.contract_versions, int),
             ("isolation", self.isolation, IsolationRequirement),
             ("concurrency", self.concurrency, ConcurrencyRequirement),
             ("interruption", self.interruption, InterruptionSupport),
         ):
-            if not (type(values) is (expected_values_type := frozenset)):
-                raise TypeError(f"{name=}; {type(values)=} ≠ {expected_values_type=}")
+            if not (type(supported_options) is (expected_options_type := frozenset)):
+                raise TypeError(f"{capability_name=}; {type(supported_options)=} ≠ {expected_options_type=}")
 
-            if not (values):
-                raise ValueError(f"Backend {name=} support cannot be empty")
+            if not (supported_options):
+                raise ValueError(f"{capability_name=} should have at least one supported option")
 
-            for value in values:
-                if not (type(value) is expected_type):
-                    raise TypeError(f"{name=}; {type(value)=} ≠ {expected_type=}")
+            for supported_option in supported_options:
+                if not (type(supported_option) is expected_type):
+                    raise TypeError(f"{capability_name=}; {type(supported_option)=} ≠ {expected_type=}")
 
         if any((version <= 0) for version in self.contract_versions):
             raise ValueError(f"Backend contract versions must be positive; {self.contract_versions=}")
@@ -211,12 +214,12 @@ class OperationPolicy:
     reject_encoded_result_over_bytes: int
 
     def __post_init__(self):
-        for value in (
+        for policy_seconds in (
             self.queue_stop_request_seconds,
             self.execution_stop_request_seconds,
             self.cleanup_overdue_flag_seconds,
         ):
-            require_positive_number(value)
+            require_positive_number(policy_seconds)
 
         (
             reject_encoded_input_over_bytes,
@@ -229,12 +232,12 @@ class OperationPolicy:
         require_type(reject_encoded_input_over_bytes, int)
 
         if not (0 < reject_encoded_input_over_bytes):
-            raise ValueError("Input and result allowances must be positive byte counts.")
+            raise ValueError(f"{reject_encoded_input_over_bytes=} should be positive")
 
         require_type(reject_encoded_result_over_bytes, int)
 
         if not (0 < reject_encoded_result_over_bytes):
-            raise ValueError("Input and result allowances must be positive byte counts.")
+            raise ValueError(f"{reject_encoded_result_over_bytes=} should be positive")
 
 
 class StartDeadlineExpired(TimeoutError):
