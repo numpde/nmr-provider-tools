@@ -16,13 +16,24 @@ modules inside the shared runtime package.
 - [`nmrpeak-mock-provider`](nmrpeak-mock-provider/) demonstrates HF/CHF interpretation,
   checkpoint loading, tokenizer validation, consumed preparation and candidate
   delivery, using real SDK owners with lightweight model and service stand-ins.
+  Its startup can explicitly select one persistent scientific process; thread
+  execution remains the default.
 
-Provider setup constructs ordinary scientific objects and gives each one directly
-to `host.adopt`. The SDK owns validation, custody, execution and retirement;
+Thread setup constructs ordinary scientific objects and gives each one directly
+to `host.adopt`. Process setup supplies class metadata, an installed factory and
+startup data to `ProcessExecutionHost.start`; the model is constructed and retained
+in the child. Both paths select portable call bindings for the same request
+workflow. The SDK owns validation, custody, execution and retirement;
 provider-specific TOML parsing and scientific class selection stay in the provider.
-NMRPeak iterates a configurable inventory, allowing several models of one input
-family. Spectrum instead retains the baseline and peaks roles required by its
-fixed scientific sequence. An unordered collection should not erase those roles.
+NMRPeak's thread configuration can offer several models of one input family;
+its current process profile requires exactly one configured offering, the installed
+mock `Model` and a deployment-supplied fresh `RunnerSession`. See the
+[current process-host guide](../packages/provider-core/README.md#scientific-process-hosting)
+for startup/request usage, deployment grants, payload and control-call limits,
+cleanup semantics and outstanding runtime qualification.
+
+Spectrum retains the baseline and peaks roles required by its fixed scientific
+sequence. An unordered collection should not erase those roles.
 
 Deployment choices live outside wheels in `config/deployments/localhost/provider.toml`.
 Each example selects its document with `PROVIDER_CONFIG_PATH`. Spectrum, Reference
