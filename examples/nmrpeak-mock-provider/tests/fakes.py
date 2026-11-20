@@ -29,23 +29,23 @@ class ScriptedEndpoint:
         )
 
     async def complete(self, messages: list[dict], tools: list[dict], *, not_after: float) -> dict:
-        index = len(self.requests)
+        response_index = len(self.requests)
 
         # Retain the messages as received, independent of later history mutation.
         self.requests.append(deepcopy(x=messages))
 
-        if index >= len(self.proposals):
-            raise RuntimeError("The recorded interpreter has no further response")
+        if response_index >= len(self.proposals):
+            raise RuntimeError(f"{response_index=} should be less than {len(self.proposals)=}")
 
         return {
             "role": "assistant",
             "tool_calls": [
                 {
-                    "id": str(index),
+                    "id": str(response_index),
                     "type": "function",
                     "function": {
                         "name": "prepare",
-                        "arguments": json.dumps(obj=self.proposals[index]),
+                        "arguments": json.dumps(obj=self.proposals[response_index]),
                     },
                 }
             ]
