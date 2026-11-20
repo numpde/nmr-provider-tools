@@ -67,13 +67,21 @@ class BackendCapabilities:
             ("concurrency", self.concurrency, ConcurrencyRequirement),
             ("interruption", self.interruption, InterruptionSupport),
         ):
-            require_type(supported_options, frozenset)
+            require_type(
+                supported_options,
+                frozenset,
+                error_factory=lambda diagnostic: TypeError(f"{capability_name=}; " + diagnostic),
+            )
 
             if not (supported_options):
                 raise ValueError(f"{capability_name=} should have at least one supported option")
 
             for supported_option in supported_options:
-                require_type(supported_option, expected_type)
+                require_type(
+                    supported_option,
+                    expected_type,
+                    error_factory=lambda diagnostic: TypeError(f"{capability_name=}; " + diagnostic),
+                )
 
         if any((version <= 0) for version in self.contract_versions):
             raise ValueError(f"Backend contract versions must be positive; {self.contract_versions=}")
