@@ -523,8 +523,7 @@ class AttemptExecutor:
         if self._started:
             raise ExecutionRefused("This executor already accepted a run; settlement cannot authorize another execution")
 
-        if not (type(acknowledged) is (expected_acknowledged_type := AcknowledgedAttempt)):
-            raise ExecutionRefused(f"{type(acknowledged)=} ≠ {expected_acknowledged_type=}")
+        require_type(acknowledged, AcknowledgedAttempt, error_factory=ExecutionRefused)
 
         if not (acknowledged.local_phase is LocalExecutionPhase.NOT_ENTERED):
             raise ExecutionRefused("Execution requires a matching active acknowledgement that has never entered science")
@@ -747,8 +746,11 @@ class AttemptExecutor:
         if not (self._outcome is None):
             raise ExecutionRefused("Cannot report this crash: its original Attempt, active phase or native worker association does not match this owner")
 
-        if not (type((actual_checkpoint := self._checkpoint)) in (expected_type := (AcknowledgedCheckpoint, EnteredCheckpoint))):
-            raise ExecutionRefused(f"Cannot report this crash: {type(actual_checkpoint)=} ≠ {expected_type=}")
+        require_type(
+            (actual_checkpoint := self._checkpoint),
+            (AcknowledgedCheckpoint, EnteredCheckpoint),
+            error_factory=lambda diagnostic: ExecutionRefused("Cannot report this crash: " + diagnostic),
+        )
 
         if not (crash.runner.original_exit is native):
             raise ExecutionRefused("Cannot report this crash: its original Attempt, active phase or native worker association does not match this owner")
@@ -1534,11 +1536,17 @@ class AttemptExecutor:
         if self.last_failure is None:
             raise ExecutionRefused("Cannot record suppression: this interrupted executor has no unselected returned analysis")
 
-        if not (type((actual_outcome := self._outcome)) in (expected_type := (AnalysisSuccess, AnalysisFailure))):
-            raise ExecutionRefused(f"Cannot record suppression: {type(actual_outcome)=} ≠ {expected_type=}")
+        require_type(
+            (actual_outcome := self._outcome),
+            (AnalysisSuccess, AnalysisFailure),
+            error_factory=lambda diagnostic: ExecutionRefused("Cannot record suppression: " + diagnostic),
+        )
 
-        if not (type((actual_checkpoint := self._checkpoint)) in (expected_type := (AcknowledgedCheckpoint, EnteredCheckpoint))):
-            raise ExecutionRefused(f"Cannot record suppression: {type(actual_checkpoint)=} ≠ {expected_type=}")
+        require_type(
+            (actual_checkpoint := self._checkpoint),
+            (AcknowledgedCheckpoint, EnteredCheckpoint),
+            error_factory=lambda diagnostic: ExecutionRefused("Cannot record suppression: " + diagnostic),
+        )
 
         if (
             (self._task is not None) or
