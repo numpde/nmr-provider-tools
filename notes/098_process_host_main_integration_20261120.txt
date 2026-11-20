@@ -1,0 +1,120 @@
+# Scientific process host: integration with current main
+
+Date: 20 November 2026 (Africa/Nairobi).
+Qualified merge: a20de96068adbcf20c1e30b83c07156fd8917df7.
+First parent, fetched main: 7c470206ea51f56a0eb731cbd0dcda54f8c468ff.
+Second parent, feature: 119635f7247bf0eacefd36cc80efb99988d97b51.
+
+## Integration decision and preserved changes
+
+Fresh main contained 102 commits absent from the feature; the feature contained
+57 absent from main. Both histories are preserved by a non-fast-forward merge
+prepared on integrate/process-host-main-20261120. Main was re-fetched after the
+qualification run and remained at the first parent above.
+
+Main's type-helper API and error factories, scientific guards, standalone helper
+bundling, installed-test builder and fixture names remain intact. Feature process
+ownership, worker construction, bounded diagnostics and portable provider examples
+remain intact. Three independent read-only integration audits traced the overlaps.
+
+The only textual conflict was Reference's command entrypoint. The resolution keeps
+the extracted application workflow; main's refusal-guard rationale moves beside
+the corresponding NotAdmitted branch in application.py. That branch distinguishes
+a valid returned refusal outcome rather than validating an argument's type.
+Automatic merges preserve Spectrum's two analysis owners and main's refusal
+annotations, embedded-host class adoption and shared type checks, and both the
+supervisor fixture rename and explicit environment grant.
+
+## Fresh installed qualification
+
+The following maintained lanes ran sequentially from the clean committed merge,
+on the science engine and existing wheelhouse, stopping on any failure:
+
+    make tests/contract/provider-core DOCKER_CONTEXT=science WHEELHOUSE="$HOME/Downloads/wheelhouse" PRIVACY_TESTS=0
+    make tests/unit/provider-core DOCKER_CONTEXT=science WHEELHOUSE="$HOME/Downloads/wheelhouse" PRIVACY_TESTS=0
+    make tests/integration/provider-core DOCKER_CONTEXT=science WHEELHOUSE="$HOME/Downloads/wheelhouse" PRIVACY_TESTS=0
+
+The full unit target also creates a separate minimal native installation.
+Totals below include skips; skipped tests are not counted as executed successes.
+
+| Lane | Total | Executed | Skipped | Result |
+| --- | ---: | ---: | ---: | --- |
+| Contract | 18 | 16 | 2 | OK |
+| Full unit | 1116 | 1024 | 92 | OK |
+| Separate minimal native | 185 | 185 | 0 | OK |
+| Full integration | 436 | 406 | 30 | OK |
+
+All 124 skips explicitly report "Privacy tests disabled". Observed suite times
+were 3.907 seconds contract, 204.457 seconds unit, 12.441 seconds native and
+362.046 seconds integration, excluding lane preparation. No demonstrated runtime
+failure required a correction after the reviewed merge resolution.
+
+Engine ID: 3212a927-9058-4b2e-92bf-69971ec922c3, Docker 29.10.0.
+Checker input fingerprint: 51258286bd82af5ee47f4acf568c87402be4b51ac7376340908b7e556a795250.
+Immutable checker image: sha256:9a77d4d76552519319b362dab3c0f7343d136db38aa3c150008f80c2126768f1.
+Coordinator inspection receipts: /tmp/nmr-merge-a20de960-engine-identity.txt,
+/tmp/nmr-merge-a20de960-checker-image.txt and /tmp/nmr-merge-checker-fingerprint.
+These are read-only engine/image observations, separate from test output.
+All three lanes built the same provider-core wheel:
+6d3a7e21ce14949c1b786b173ad6966513fe195c23890a37e94e680ebee77acd.
+
+Installed example wheel SHA-256 identities from the full integration run:
+
+- Dummy: 18c1282ca1e7b08459120396613b8c57105f953ea2d120839b7efea7eb63aed2.
+- NMRPeak: a089caec02fae10648589c99a7c08f84ff2f08f8343db44dcbf5ede8f9cdf33c.
+- Reference: f85f8d229c582b1e5d7c7c1098f93eb588f59ae7eaf2400f17cdbe7a6ea75947.
+- Spectrum: b5515f56ab7c62d6bcd1b31bcba78f4d8a5b6eb861aeedc4ca11d8af93302a8a.
+
+Local raw receipts and SHA-256:
+
+- /tmp/nmr-merge-a20de960-contract.log: bd95de7203e59922dc05e224d847c74f3e6feb45d4aeaba3a0decb04361fb2a8.
+- /tmp/nmr-merge-a20de960-unit.log: ce37e305f8d6c4f5fb5f385235c83b2de11e01232ec1e49d32827f85dd404876.
+- /tmp/nmr-merge-a20de960-integration.log: e6cd0eec8354096343370e5d76d8f414a2c49ccf0efaaa30b14a15f9e16334c7.
+
+These raw files remain local receipts, not permanent Git artifacts. The commit
+containing this record changes documentation only and is not the tested revision.
+Earlier feature qualification remains attributed to its original candidates.
+
+## Post-merge independent scored panel
+
+The same three independent GPT-6.1-Sol medium reviewers re-examined the clean
+merged candidate after the fresh lanes completed. Each scored every criterion;
+their emphasis areas did not divide grading responsibility. Peer scores were
+not shared before their individual verdicts. Earlier feature scores were not
+used as current merge scores. Every deduction required an actionable trigger,
+consequence, owning location and smallest correction. None was identified.
+
+| Criterion | Panel 1 | Panel 2 | Panel 3 |
+| --- | ---: | ---: | ---: |
+| A1 Single authority; mechanism versus policy | 10/10 | 10/10 | 10/10 |
+| A2 Common contract; honest backend differences | 10/10 | 10/10 | 10/10 |
+| A3 Change locality and replaceability | 10/10 | 10/10 | 10/10 |
+| A4 Names, usage and diagnostics clarity | 10/10 | 10/10 | 10/10 |
+| A5 Parsimony and explanatory comments | 10/10 | 10/10 | 10/10 |
+| B1 Continuous ownership, cancellation, handoffs and termination | 10/10 | 10/10 | 10/10 |
+| B2 Uncertainty, no replay, monotone facts and independent outcomes | 10/10 | 10/10 | 10/10 |
+| B3 Allocation, analysis, operation and state authority; expiry | 10/10 | 10/10 | 10/10 |
+| B4 Time, capacity, retention and stall control | 10/10 | 10/10 | 10/10 |
+| C1 Narrow code/data, environment and descriptor grants | 10/10 | 10/10 | 10/10 |
+| C2 Economical, discriminating behavioral tests | 10/10 | 10/10 | 10/10 |
+| C3 Reproducible installed qualification and provenance | 10/10 | 10/10 | 10/10 |
+| C4 Useful diagnostics and truthful public guidance | 10/10 | 10/10 | 10/10 |
+| Independent holistic overall verdict | 10/10 | 10/10 | 10/10 |
+
+Reviewers traced current SDK producers/consumers, retained original tasks and
+cleanup, bounded wire evidence, scientific/native retirement and provider capacity
+composition. They independently verified parent identities, raw receipt hashes,
+skip counts, identical SDK wheel identities and installed helper bundling. No
+score was averaged, inflated or reserved as conventional headroom; a scoped 10
+means no actionable gap was found, not exhaustive proof against all defects.
+
+The promotion procedure is a fast-forward of local main from its verified
+upstream parent to this qualified merge and its documentation-only successor.
+The feature history is retained; no rebase, squash or force update is required.
+Local main tracks origin/main. Its fetch refspec is added alongside the existing
+feature-only refspec so future ordinary fetches also refresh the main reference.
+
+Repository checks remain enabled and deferred under the user's explicit scope
+decision. This integration and its scores do not claim full repository checks,
+executed privacy qualification, real-model/GPU suitability, unattended deployment,
+release publication or broader execution capabilities. Those remain separate.
