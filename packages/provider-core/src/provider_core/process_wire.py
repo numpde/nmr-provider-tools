@@ -19,6 +19,7 @@ from collections.abc import Mapping
 from dataclasses import dataclass, fields, is_dataclass
 from enum import Enum
 import json
+import reprlib
 import socket
 import struct
 import time
@@ -46,7 +47,8 @@ from provider_core.hosting import (
     StateRef,
     StateResult,
 )
-from provider_core.tools import require_finite_number
+from provider_core.tools import duplicate_json_fields, require_finite_number
+from provider_core.type_requirements import require_type
 
 
 MAX_FRAME_BYTES = 8 * 1024 * 1024
@@ -303,8 +305,8 @@ def pack(sdk_value: object) -> object:
         return {"tuple": [pack(element) for element in sdk_value]}
 
     if isinstance(sdk_value, Mapping):
-        if not all((type(key) is str) for key in sdk_value):
-            raise TypeError("Process message mapping keys must be strings")
+        for mapping_key in sdk_value:
+            require_type(mapping_key, str)
 
         return {"mapping": {key: pack(field_value) for (key, field_value) in sdk_value.items()}}
 
@@ -326,8 +328,7 @@ def unpack(wire_value: object) -> object:
     if type(wire_value) is list:
         return [unpack(element) for element in wire_value]
 
-    if not (type(wire_value) is dict):
-        raise ValueError(f"Scientific process record {type(wire_value)=} should be dict")
+    require_type(wire_value, dict, error_factory=ValueError)
 
     if set(wire_value) == {"bytes"}:
         payload_bytes = base64.b64decode(wire_value["bytes"], validate=True)
@@ -337,98 +338,132 @@ def unpack(wire_value: object) -> object:
 
         return payload_bytes
 
-    if (set(wire_value) == {"tuple"}) and (type(wire_value["tuple"]) is list):
+    if set(wire_value) == {"tuple"}:
+        require_type(wire_value["tuple"], list, error_factory=ValueError)
+
         return tuple(unpack(element) for element in wire_value["tuple"])
 
-    if (set(wire_value) == {"mapping"}) and (type(wire_value["mapping"]) is dict):
+    if set(wire_value) == {"mapping"}:
+        require_type(wire_value["mapping"], dict, error_factory=ValueError)
+
         return {key: unpack(field_value) for (key, field_value) in wire_value["mapping"].items()}
 
     if set(wire_value) == {"enum", "value"}:
         return _ENUMS[wire_value["enum"]](wire_value["value"])
 
-    if (set(wire_value) == {"record", "fields"}) and (type(wire_value["fields"]) is dict):
+    if set(wire_value) == {"record", "fields"}:
+        require_type(wire_value["fields"], dict, error_factory=ValueError)
+
         record_type = _RECORDS[wire_value["record"]]
 
-        if not (set(wire_value["fields"]) == {member.name for member in fields(record_type) if member.init}):
-            raise ValueError("Scientific process record fields differ from its declaration")
+        record_field_names = set(wire_value["fields"])
+        declared_field_names = {member.name for member in fields(record_type) if member.init}
+
+        if not (record_field_names == declared_field_names):
+            raise ValueError(f"{record_type=}; {reprlib.repr(record_field_names)=} ≠ {declared_field_names=}")
 
         return record_type(**{key: unpack(field_value) for (key, field_value) in wire_value["fields"].items()})
 
     if "error" in wire_value:
         # The sender can append explicit limit markers beyond its retained-node budget.
-        return _unpack_error(wire_value, depth=0, remaining=[2 * MAX_FAILURE_NODES])
+        return _unpack_error(wire_value, depth=0, remaining_failure_nodes=[2 * MAX_FAILURE_NODES])
 
-    raise ValueError("Unknown scientific process record")
+    raise ValueError(f"{reprlib.repr(set(wire_value))=} should identify a scientific process record")
 
 
-def _unpack_error(error_fields: dict, *, depth: int, remaining: list[int]) -> BaseException:
-    if not ((depth <= MAX_FAILURE_DEPTH) and (0 < remaining[0])):
-        raise ValueError("Scientific process failure graph exceeds diagnostic limits")
+def _unpack_error(error_fields: dict, *, depth: int, remaining_failure_nodes: list[int]) -> BaseException:
+    if not (depth <= MAX_FAILURE_DEPTH):
+        raise ValueError(f"{depth=} should not exceed {MAX_FAILURE_DEPTH=}")
 
-    remaining[0] -= 1
+    if not (0 < remaining_failure_nodes[0]):
+        raise ValueError(f"{remaining_failure_nodes[0]=} should be positive")
 
-    if not ((type(error_fields) is dict) and (type(error_fields.get("error")) is str)):
-        raise ValueError("Scientific process failure needs an error record with a string kind")
+    remaining_failure_nodes[0] -= 1
 
-    required = {"error", "message", "original_type", "frames", "frames_omitted"}
-    name = error_fields["error"]
+    require_type(error_fields, dict, error_factory=ValueError)
+    require_type(error_fields.get("error"), str, error_factory=ValueError)
 
-    if name in ("CallRejected", "ScientificRejection"):
-        required.add("code")
-    elif name == "group":
-        required.add("causes")
-    elif not ((name == "remote") or (name in _ERRORS)):
-        raise ValueError("Unknown scientific process error kind")
+    required_error_fields = {"error", "message", "original_type", "frames", "frames_omitted"}
+    error_kind = error_fields["error"]
 
-    if not ((required <= error_fields.keys()) and (error_fields.keys() <= (required | {"cause", "context"}))):
-        raise ValueError("Invalid scientific process error fields")
+    if error_kind in ("CallRejected", "ScientificRejection"):
+        required_error_fields.add("code")
+    elif error_kind == "group":
+        required_error_fields.add("causes")
+    elif not ((error_kind == "remote") or (error_kind in _ERRORS)):
+        raise ValueError(f"{reprlib.repr(error_kind)=} should be 'remote', 'group' or one of {set(_ERRORS)=}")
+
+    if not (
+        (required_error_fields <= error_fields.keys()) and
+        (error_fields.keys() <= (required_error_fields | {"cause", "context"}))
+    ):
+        missing_error_fields = required_error_fields - error_fields.keys()
+        unexpected_error_fields = error_fields.keys() - (required_error_fields | {"cause", "context"})
+
+        raise ValueError(f"{missing_error_fields=} and {reprlib.repr(unexpected_error_fields)=} should be empty")
 
     if not (("cause" not in error_fields) or ("context" not in error_fields)):
-        raise ValueError("Scientific process error has conflicting causal links")
+        raise ValueError(f"{set(error_fields) & {'cause', 'context'}=} should contain at most one causal link")
 
-    if not ((type(error_fields["message"]) is str) and (type(error_fields["original_type"]) is str)):
-        raise ValueError(
-            f"Scientific process descriptions {type(error_fields['message'])=} and "
-            f"{type(error_fields['original_type'])=} should both be str"
-        )
+    require_type(error_fields["message"], str, error_factory=ValueError)
+    require_type(error_fields["original_type"], str, error_factory=ValueError)
 
-    if not all(len(error_fields[field]) <= MAX_DIAGNOSTIC_CHARACTERS for field in ("message", "original_type")):
-        raise ValueError("Scientific process descriptions exceed diagnostic limits")
+    for description_field in ("message", "original_type"):
+        if not (len(error_fields[description_field]) <= MAX_DIAGNOSTIC_CHARACTERS):
+            raise ValueError(f"{description_field=}; {len(error_fields[description_field])=} should not exceed {MAX_DIAGNOSTIC_CHARACTERS=}")
 
     frames = error_fields["frames"]
     frames_omitted = error_fields["frames_omitted"]
 
-    if not ((type(frames) is list) and (len(frames) <= MAX_TRACEBACK_FRAMES) and (type(frames_omitted) is bool)):
-        raise ValueError("Scientific process traceback needs a bounded frame list and a boolean omission marker")
+    require_type(frames, list, error_factory=ValueError)
+
+    if not (len(frames) <= MAX_TRACEBACK_FRAMES):
+        raise ValueError(f"{len(frames)=} should not exceed {MAX_TRACEBACK_FRAMES=}")
+
+    require_type(frames_omitted, bool, error_factory=ValueError)
 
     for location in frames:
-        if not ((type(location) is dict) and (set(location) == {"file", "function", "line"})):
-            raise ValueError("Scientific process traceback frame must contain only file, function and line")
+        require_type(location, dict, error_factory=ValueError)
 
-        (file, function, line) = (location["file"], location["function"], location["line"])
+        if not (set(location) == (expected_location_fields := {"file", "function", "line"})):
+            raise ValueError(f"{reprlib.repr(set(location))=} ≠ {expected_location_fields=}")
 
-        if not (
-            (type(file) is str)
-            and (0 < len(file) <= MAX_TRACEBACK_LOCATION_CHARACTERS)
-            and (type(function) is str)
-            and (0 < len(function) <= MAX_TRACEBACK_LOCATION_CHARACTERS)
-            and (type(line) is int)
-            and (0 < line <= MAX_TRACEBACK_LINE)
-        ):
-            raise ValueError("Scientific process traceback locations must have bounded names and positive integer lines")
+        (traceback_file, traceback_function, traceback_line) = (location["file"], location["function"], location["line"])
+
+        require_type(traceback_file, str, error_factory=ValueError)
+
+        if not (0 < len(traceback_file) <= MAX_TRACEBACK_LOCATION_CHARACTERS):
+            raise ValueError(f"{len(traceback_file)=} should be positive and not exceed {MAX_TRACEBACK_LOCATION_CHARACTERS=}")
+
+        require_type(traceback_function, str, error_factory=ValueError)
+
+        if not (0 < len(traceback_function) <= MAX_TRACEBACK_LOCATION_CHARACTERS):
+            raise ValueError(f"{len(traceback_function)=} should be positive and not exceed {MAX_TRACEBACK_LOCATION_CHARACTERS=}")
+
+        require_type(traceback_line, int, error_factory=ValueError)
+
+        if not (0 < traceback_line <= MAX_TRACEBACK_LINE):
+            raise ValueError(f"{traceback_line=} should be positive and not exceed {MAX_TRACEBACK_LINE=}")
 
     group_failures = ()
 
-    if name == "group":
-        if not ((type(error_fields["causes"]) is list) and (0 < len(error_fields["causes"]) <= MAX_FAILURE_NODES)):
-            raise ValueError("Scientific process error group needs a nonempty bounded failure list")
+    if error_kind == "group":
+        require_type(error_fields["causes"], list, error_factory=ValueError)
 
-        group_failures = tuple(_unpack_error(cause, depth=depth + 1, remaining=remaining) for cause in error_fields["causes"])
+        if not (0 < len(error_fields["causes"]) <= MAX_FAILURE_NODES):
+            raise ValueError(f"{len(error_fields['causes'])=} should be positive and not exceed {MAX_FAILURE_NODES=}")
+
+        # repo-check: allow-tuple-generator -- Retain reconstructed child failures for both the exception group and its immutable evidence
+        group_failures = tuple(
+            _unpack_error(cause, depth=depth + 1, remaining_failure_nodes=remaining_failure_nodes)
+            for cause in error_fields["causes"]
+        )
+
         failure = BaseExceptionGroup(error_fields["message"], group_failures)
-    elif name in ("CallRejected", "ScientificRejection"):
-        failure = _ERRORS[name](code=error_fields["code"], message=error_fields["message"])
-    elif name in _ERRORS:
-        failure = _ERRORS[name](error_fields["message"])
+    elif error_kind in ("CallRejected", "ScientificRejection"):
+        failure = _ERRORS[error_kind](code=error_fields["code"], message=error_fields["message"])
+    elif error_kind in _ERRORS:
+        failure = _ERRORS[error_kind](error_fields["message"])
     else:
         original_type = error_fields["original_type"]
         message = error_fields["message"]
@@ -449,12 +484,12 @@ def _unpack_error(error_fields: dict, *, depth: int, remaining: list[int]) -> Ba
         failure.add_note(_diagnostic_text("\n".join(note_lines)))
 
     if "cause" in error_fields:
-        failure.__cause__ = _unpack_error(error_fields["cause"], depth=depth + 1, remaining=remaining)
+        failure.__cause__ = _unpack_error(error_fields["cause"], depth=depth + 1, remaining_failure_nodes=remaining_failure_nodes)
     elif "context" in error_fields:
-        failure.__context__ = _unpack_error(error_fields["context"], depth=depth + 1, remaining=remaining)
+        failure.__context__ = _unpack_error(error_fields["context"], depth=depth + 1, remaining_failure_nodes=remaining_failure_nodes)
 
     failure._process_error_evidence = _DecodedErrorEvidence(
-        kind=name,
+        kind=error_kind,
         original_type=error_fields["original_type"],
         message=error_fields["message"],
         code=error_fields["code"] if "code" in error_fields else None,
@@ -484,19 +519,16 @@ def decode_frame(encoded_message: bytes) -> object:
     try:
         return unpack(json.loads(encoded_message.decode("ascii"), object_pairs_hook=_unique_fields))
     except (ValueError, TypeError, LookupError, AttributeError, RecursionError, OverflowError) as cause:
-        raise ValueError("Malformed scientific process message") from cause
+        raise ValueError(f"Cannot decode scientific process message with {len(encoded_message)=}") from cause
 
 
 def _unique_fields(field_pairs) -> dict:
-    decoded_fields = {}
+    extra_field_occurrences = duplicate_json_fields(field_pairs)
 
-    for (key, field_value) in field_pairs:
-        if not (key not in decoded_fields):
-            raise ValueError("Scientific process object repeats a field")
+    if not (extra_field_occurrences == {}):
+        raise ValueError(f"{reprlib.repr(extra_field_occurrences)=} should be empty")
 
-        decoded_fields[key] = field_value
-
-    return decoded_fields
+    return dict(field_pairs)
 
 
 def _read_exact(sock: socket.socket, count: int, *, deadline: float | None) -> bytes:
