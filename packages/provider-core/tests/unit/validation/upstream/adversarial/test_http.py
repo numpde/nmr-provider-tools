@@ -7,7 +7,7 @@ from provider_core.validation.upstream.http import read_retry_after
 
 class RetryAfterTests(unittest.TestCase):
     def test_retry_after_accepts_http_time_forms(self):
-        for (value, expected) in (
+        for (retry_after_value, expected) in (
             (b"120", 120),
             (b"0", 0),
             (b"Sun, 06 Nov 1994 08:49:37 GMT", 0),
@@ -20,9 +20,9 @@ class RetryAfterTests(unittest.TestCase):
             (b"9" * 400, None),
             (b"\xff", None),
         ):
-            with self.subTest(value=value):
+            with self.subTest(value=retry_after_value):
                 self.assertEqual(
-                    read_retry_after(((b"retry-after", value),), wall_clock=lambda: 784111777),
+                    read_retry_after(((b"retry-after", retry_after_value),), wall_clock=lambda: 784111777),
                     expected,
                 )
 

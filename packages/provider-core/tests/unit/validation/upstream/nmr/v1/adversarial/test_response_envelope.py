@@ -9,7 +9,7 @@ from provider_core.validation.upstream.nmr.v1.response_envelope import read_prob
 
 class ResponseProblemTests(unittest.TestCase):
     def _problem_replies(self):
-        document = {
+        problem_fields = {
             "type": "urn:nmr-api:problem:authentication-failed",
             "title": "private-title-canary",
             "status": 401,
@@ -36,11 +36,11 @@ class ResponseProblemTests(unittest.TestCase):
                 False
             ),
         ):
-            body = json.dumps(document | changes).encode()
+            body = json.dumps(problem_fields | changes).encode()
 
             yield (HttpResponse(401, headers, body), known)
 
-        duplicate = json.dumps(document)[:-1] + ',"code":"signature_expired"}'
+        duplicate = json.dumps(problem_fields)[:-1] + ',"code":"signature_expired"}'
 
         yield (HttpResponse(401, headers, duplicate.encode()), False)
 
