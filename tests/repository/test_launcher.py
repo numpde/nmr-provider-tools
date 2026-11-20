@@ -122,8 +122,8 @@ class LauncherTests(unittest.TestCase):
         fixture = ROOT / "tests/repository/fixtures/docker-context"
 
         environment = {
-            key: value
-            for (key, value) in os.environ.items()
+            key: environment_value
+            for (key, environment_value) in os.environ.items()
             if key not in {"DOCKER_CONTEXT_INPUT_ORIGIN", "DOCKER_CONTEXT_INPUT", "NMR_SELECTED_DOCKER_CONTEXT", "NMR_SELECTED_DOCKER_ENDPOINT"}
         }
 
@@ -192,8 +192,8 @@ class LauncherTests(unittest.TestCase):
             log = pathlib.Path(directory) / "context-inspections"
 
             environment = {
-                key: value
-                for (key, value) in os.environ.items()
+                key: environment_value
+                for (key, environment_value) in os.environ.items()
                 if key not in {"MAKEFLAGS", "MFLAGS", "MAKEOVERRIDES", "GNUMAKEFLAGS", "MAKELEVEL"}
             }
 
@@ -220,10 +220,10 @@ class LauncherTests(unittest.TestCase):
                                 except OSError:
                                     terminal_closed = True
 
-                            (finished, value) = os.waitpid(pid, os.WNOHANG)
+                            (finished, wait_status) = os.waitpid(pid, os.WNOHANG)
 
                             if finished:
-                                status = value
+                                status = wait_status
 
                                 break
 

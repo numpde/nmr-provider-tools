@@ -95,13 +95,13 @@ if operation_run "$budget" inert-image; then exit 0; else exit "$?"; fi
         return (["bash", "-c", script, "bash", str(ROOT)], self.environment | {"PROBE_SCENARIO": scenario})
 
     def owned_paths(self):
-        paths = [pathlib.Path(line) for line in (self.directory / "report").read_text().splitlines()]
+        operation_directories = [pathlib.Path(line) for line in (self.directory / "report").read_text().splitlines()]
 
-        for path in paths:
-            self.assertEqual(pathlib.Path("/tmp"), path.parent)
-            self.addCleanup(shutil.rmtree, path, ignore_errors=True)
+        for operation_directory in operation_directories:
+            self.assertEqual(pathlib.Path("/tmp"), operation_directory.parent)
+            self.addCleanup(shutil.rmtree, operation_directory, ignore_errors=True)
 
-        return paths
+        return operation_directories
 
     def run_probe(self, scenario):
         (command, environment) = self.invocation(scenario)

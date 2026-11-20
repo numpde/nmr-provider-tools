@@ -76,7 +76,7 @@ class CheckerDependencyTests(unittest.TestCase):
 
         unrelated.write_bytes(b"unrelated")
         dependencies.capture([self.package], self.pool, self.capture)
-        self.assertEqual([self.package["file"]], [path.name for path in self.capture.iterdir()])
+        self.assertEqual([self.package["file"]], [captured_artifact.name for captured_artifact in self.capture.iterdir()])
         self.assertEqual(b"make", (self.capture / self.package["file"]).read_bytes())
         self.assertEqual(b"unrelated", unrelated.read_bytes())
         self.artifact.write_bytes(b"late")

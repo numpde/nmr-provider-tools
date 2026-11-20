@@ -518,28 +518,28 @@ class PackageArtifactTests(unittest.TestCase):
         wheel_calls = []
         shared_callers = []
 
-        paths = source_files(root=ROOT, patterns=("tools/*.py", "packages/provider-core/sdk_build/*.py"))
+        source_paths = source_files(root=ROOT, patterns=("tools/*.py", "packages/provider-core/sdk_build/*.py"))
 
-        for path in paths:
-            module = ast.parse(path.read_text(), filename=str(path))
+        for source_path in source_paths:
+            module = ast.parse(source_path.read_text(), filename=str(source_path))
 
             for function in (node for node in ast.walk(module) if isinstance(node, ast.FunctionDef)):
                 for call in (node for node in ast.walk(function) if isinstance(node, ast.Call)):
                     if isinstance(call.func, ast.Name) and (call.func.id == "build_source_wheel"):
-                        shared_callers.append((path.name, function.name))
+                        shared_callers.append((source_path.name, function.name))
 
                     if (
                         isinstance(call.func, ast.Attribute) and
                         (call.func.attr == "run") and
                         any(
-                            ((isinstance(item, ast.Constant) and (item.value == "wheel")) or
-                            (isinstance(item, ast.Call) and
-                             isinstance(item.func, ast.Name) and
-                             (item.func.id == "build_wheel_command")))
-                            for item in ast.walk(call)
+                            ((isinstance(ast_node, ast.Constant) and (ast_node.value == "wheel")) or
+                            (isinstance(ast_node, ast.Call) and
+                             isinstance(ast_node.func, ast.Name) and
+                             (ast_node.func.id == "build_wheel_command")))
+                            for ast_node in ast.walk(call)
                         )
                     ):
-                        wheel_calls.append((path.name, function.name))
+                        wheel_calls.append((source_path.name, function.name))
 
         self.assertEqual([("core_environment.py", "build_source_wheel")], wheel_calls)
 
