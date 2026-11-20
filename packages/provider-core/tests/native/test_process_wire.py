@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import json
+from dataclasses import dataclass
+from enum import Enum
 import socket
 import traceback
 import unittest
@@ -46,6 +48,30 @@ def roundtrip(sdk_value):
 
 
 class ProcessWireTests(unittest.TestCase):
+    def test_foreign_enum_and_record_names_do_not_grant_wire_admission(self):
+        # Identical names and fields do not grant access to the SDK wire registry
+        @dataclass(frozen=True, slots=True)
+        class CallRef:
+            binding_id: str
+            binding_revision: str
+            name: str
+
+        @dataclass(frozen=True, slots=True)
+        class UnregisteredRecord:
+            measurement: int
+
+        foreign_outcome = Enum("Outcome", {"SUCCEEDED": Outcome.SUCCEEDED.value}, module="provider_fixture")
+        unregistered_outcome = Enum("UnregisteredOutcome", {"SUCCEEDED": Outcome.SUCCEEDED.value}, module="provider_fixture")
+
+        for wire_candidate in [
+            foreign_outcome.SUCCEEDED,
+            unregistered_outcome.SUCCEEDED,
+            CallRef("binding", "sha256:" + ("a" * 64), "calculate"),
+            UnregisteredRecord(1),
+        ]:
+            with self.subTest(wire_type=type(wire_candidate)), self.assertRaises(expected_exception=TypeError):
+                frame(wire_candidate)
+
     def test_invocation_preserves_bytes_identity_and_policy(self):
         reservation = ReservationRef("host", "analysis", "allocation", "binding", "sha256:" + ("a" * 64))
         policy = OperationPolicy(5, 5, 5, 1000, 1000)

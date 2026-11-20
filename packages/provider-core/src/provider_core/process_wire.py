@@ -278,22 +278,28 @@ def pack(sdk_value: object) -> object:
         return {"bytes": base64.b64encode(sdk_value).decode("ascii")}
 
     if isinstance(sdk_value, Enum):
-        if not (_ENUMS.get(type(sdk_value).__name__) is type(sdk_value)):
-            raise TypeError(f"{type(sdk_value)=} should be an admitted scientific process enum type")
+        enum_name = type(sdk_value).__name__
 
-        return {"enum": type(sdk_value).__name__, "value": sdk_value.value}
+        if not (enum_name in _ENUMS):
+            raise TypeError(f"{type(sdk_value)=} has no tag in {set(_ENUMS)=}")
+
+        require_type(sdk_value, _ENUMS[enum_name])
+
+        return {"enum": enum_name, "value": sdk_value.value}
 
     if isinstance(sdk_value, BaseException):
         return _pack_error(sdk_value, seen=frozenset(), remaining=[MAX_FAILURE_NODES])
 
     if is_dataclass(sdk_value) and not isinstance(sdk_value, type):
-        name = type(sdk_value).__name__
+        record_name = type(sdk_value).__name__
 
-        if not ((name in _RECORDS) and (type(sdk_value) is _RECORDS[name])):
-            raise TypeError(f"{type(sdk_value)=} should be an admitted scientific process record type")
+        if not (record_name in _RECORDS):
+            raise TypeError(f"{type(sdk_value)=} has no tag in {set(_RECORDS)=}")
+
+        require_type(sdk_value, _RECORDS[record_name])
 
         return {
-            "record": name,
+            "record": record_name,
             "fields": {
                 member.name: pack(getattr(sdk_value, member.name))
                 for member in fields(sdk_value)
