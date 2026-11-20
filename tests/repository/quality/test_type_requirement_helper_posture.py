@@ -16,14 +16,13 @@ from tools.container_guard import require_container
 require_container()
 
 import ast
-import io
 import pathlib
-import tokenize
 import unittest
 
 from operations.checker.findings import assert_no_findings
 
 from .sources import ROOT, python_sources
+from .guard_directives import documented_guard_indents
 from .test_type_error_posture import _builtin, _type_call
 from .type_checks import raising_guards, unwrap_binding
 
@@ -60,20 +59,6 @@ def _required_helpers(expression: ast.expr) -> set[str]:
     return set()
 
 
-def _retained_guard_indents(source: str) -> dict[int, int]:
-    """Map adjacent guard lines to the indentation of real, reasoned comments."""
-
-    return {
-        (token.start[0] + 1): token.start[1]
-        for token in tokenize.generate_tokens(io.StringIO(source).readline)
-        if
-        (token.type == tokenize.COMMENT) and
-        (not token.line[:token.start[1]].strip()) and
-        token.string.startswith(_RETAIN_TYPE_GUARD) and
-        token.string.removeprefix(_RETAIN_TYPE_GUARD).strip()
-    }
-
-
 # silent-defaults: allow-contract -- Anonymous fixtures get no implementation exemption; authored scans pass their actual file path
 def guard_findings(*, source: str, source_path: pathlib.Path | None = None) -> list[tuple[int, tuple[str, ...]]]:
     """Report single-raise type guards unless one adjacent reason retains that guard."""
@@ -82,7 +67,7 @@ def guard_findings(*, source: str, source_path: pathlib.Path | None = None) -> l
         return []
 
     tree = ast.parse(source=source)
-    retained_indents = _retained_guard_indents(source)
+    retained_indents = documented_guard_indents(source, prefix=_RETAIN_TYPE_GUARD)
     findings = []
 
     for statement in raising_guards(parsed_source=tree):
