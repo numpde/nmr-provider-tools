@@ -33,11 +33,17 @@ class UploadAcquisitionIntegrationTests(unittest.IsolatedAsyncioTestCase):
         fingerprint = "sha256:" + hashlib.sha256(body).hexdigest()
 
         # repo-check: allow-tuple-generator -- This fixed header specimen deliberately omits Content-Length for framing qualification.
-        headers = tuple((key, value) for (key, value) in store_headers(body) if key != b"content-length")
+        headers = tuple(
+            (
+                (header_name, header_value)
+                for (header_name, header_value) in store_headers(body)
+                if header_name != b"content-length"
+            ),
+        )
 
         async with TlsPeer("success", response_body=body, response_headers=headers) as store_peer:
             upload = member(byte_length=len(body), content_hash=fingerprint)
-            document = encoded(membership(uploads=[upload]))
+            membership_response_bytes = encoded(membership(uploads=[upload]))
 
             access = encoded(
                 grant(
@@ -47,7 +53,10 @@ class UploadAcquisitionIntegrationTests(unittest.IsolatedAsyncioTestCase):
                 )
             )
 
-            async with api_tls_peer("success", response_bodies=[document, document, access]) as api_peer:
+            async with api_tls_peer(
+                "success",
+                response_bodies=[membership_response_bytes, membership_response_bytes, access],
+            ) as api_peer:
                 api_transport = HttpTransport(trust=api_peer.trust, exchange_seconds=1, retirement_seconds=0.3)
                 store_transport = HttpTransport(trust=store_peer.trust, exchange_seconds=1, retirement_seconds=0.3)
 
@@ -72,22 +81,26 @@ class UploadAcquisitionIntegrationTests(unittest.IsolatedAsyncioTestCase):
 
                     if file_output:
                         with private_source_directory() as (root, directory):
-                            verified = await owner.acquire_file(UPLOAD_REF, directory_fd=directory, retirement_seconds=0.3)
+                            verified_upload = await owner.acquire_file(UPLOAD_REF, directory_fd=directory, retirement_seconds=0.3)
 
-                            self.assertEqual(pathlib.Path(root, verified.name).read_bytes(), body)
-                            self.assertEqual(stat.S_IMODE(pathlib.Path(root, verified.name).stat().st_mode), 0o600)
+                            self.assertEqual(pathlib.Path(root, verified_upload.name).read_bytes(), body)
+                            self.assertEqual(stat.S_IMODE(pathlib.Path(root, verified_upload.name).stat().st_mode), 0o600)
                     else:
-                        verified = await owner.acquire(UPLOAD_REF)
+                        verified_upload = await owner.acquire(UPLOAD_REF)
 
-                        self.assertEqual(verified.data, body)
+                        self.assertEqual(verified_upload.data, body)
 
-                self.assertEqual((verified.job_ref, verified.upload_ref, verified.byte_length), ("job:example", UPLOAD_REF, 8))
-                self.assertEqual(verified.content_hash, fingerprint)
+                self.assertEqual(
+                    (verified_upload.job_ref, verified_upload.upload_ref, verified_upload.byte_length),
+                    ("job:example", UPLOAD_REF, 8),
+                )
+
+                self.assertEqual(verified_upload.content_hash, fingerprint)
                 self.assertEqual((owner.received_bytes, owner.requests_started), (8, 4))
                 self.assertEqual(len(api_peer.requests), 3)
                 self.assertEqual(len(store_peer.requests), 1)
-                self.assertTrue(all((b"Signature:" in request) for request in api_peer.requests))
-                self.assertTrue(all((b"private-bearer-canary" not in request) for request in api_peer.requests))
+                self.assertTrue(all((b"Signature:" in request_head) for request_head in api_peer.requests))
+                self.assertTrue(all((b"private-bearer-canary" not in request_head) for request_head in api_peer.requests))
                 self.assertIn(b"Authorization: Bearer private-bearer-canary", store_peer.requests[0])
                 self.assertNotIn(b"Signature", store_peer.requests[0])
                 self.assertNotIn(b"credential:test", store_peer.requests[0])
@@ -98,7 +111,12 @@ class UploadAcquisitionIntegrationTests(unittest.IsolatedAsyncioTestCase):
     async def test_deadline_and_cancellation_charge_partial_bytes_and_close_store(self):
         body = b"x" * 100
         fingerprint = "sha256:" + hashlib.sha256(body).hexdigest()
-        headers = [(key, value) for (key, value) in store_headers(body) if key != b"content-length"]
+
+        headers = [
+            (header_name, header_value)
+            for (header_name, header_value) in store_headers(body)
+            if header_name != b"content-length"
+        ]
 
         for cancel in (False, True):
             with self.subTest(cancel=cancel):
@@ -149,7 +167,11 @@ class UploadAcquisitionIntegrationTests(unittest.IsolatedAsyncioTestCase):
                     await transport.retire()
 
     async def test_oversized_store_head_is_rejected_before_body_budget_is_spent(self):
-        headers = [(key, value) for (key, value) in store_headers(b"geometry") if key != b"content-length"]
+        headers = [
+            (header_name, header_value)
+            for (header_name, header_value) in store_headers(b"geometry")
+            if header_name != b"content-length"
+        ]
 
         async with TlsPeer("success", response_body=b"oversized", response_headers=headers) as peer:
             (_, api, _) = sources()
