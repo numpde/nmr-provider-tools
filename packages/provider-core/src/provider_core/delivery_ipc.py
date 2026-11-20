@@ -393,9 +393,9 @@ class DeliveryInbox:
 
         for tasks in (self._clients, self._storage_tasks):
             if tasks:
-                settled = await asyncio.gather(*(asyncio.shield(task) for task in tuple(tasks)), return_exceptions=True)
+                task_outcomes = await asyncio.gather(*(asyncio.shield(task) for task in tuple(tasks)), return_exceptions=True)
 
-                failures.extend(value for value in settled if isinstance(value, BaseException))
+                failures.extend(task_outcome for task_outcome in task_outcomes if isinstance(task_outcome, BaseException))
 
         self._grants.close()
 
