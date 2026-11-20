@@ -10,9 +10,8 @@ from provider_core.tools import require_finite_number
 from provider_core.type_requirements import require_type
 
 
-def _finite_samples(raw_samples: object, *, series_name: str) -> tuple[float, ...]:
-    if not (type(raw_samples) is (expected_type := tuple)):
-        raise TypeError(f"{series_name=}; {type(raw_samples)=} ≠ {expected_type=}")
+def _finite_samples(raw_samples: object) -> tuple[float, ...]:
+    require_type(raw_samples, tuple)
 
     samples = []
 
@@ -28,8 +27,8 @@ class Spectrum:
     intensities: tuple[float, ...]
 
     def __post_init__(self) -> None:
-        positions = _finite_samples(self.positions, series_name="positions")
-        intensities = _finite_samples(self.intensities, series_name="intensities")
+        positions = _finite_samples(self.positions)
+        intensities = _finite_samples(self.intensities)
         position_count = len(positions)
         intensity_count = len(intensities)
 
