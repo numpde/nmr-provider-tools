@@ -299,7 +299,7 @@ class AssetDescription:
         require_type(self.size_bytes, int)
 
         if not (0 < self.size_bytes):
-            raise ValueError("Asset byte count must be a positive integer")
+            raise ValueError(f"{self.size_bytes=} should be positive")
 
 
 @dataclass(frozen=True, slots=True, kw_only=True)
@@ -324,12 +324,12 @@ class ConfiguredIdentity:
         _identity(self.implementation, "Implementation identity")
 
         if not self.implementation.isascii():
-            raise ValueError("Implementation identity must be ASCII")
+            raise ValueError(f"{reprlib.repr(self.implementation)=} should be ASCII")
 
         require_type(self.contract_version, int)
 
         if not (0 < self.contract_version):
-            raise ValueError("Contract version must be a positive integer")
+            raise ValueError(f"{self.contract_version=} should be positive")
 
         if self.configuration is not None:
             actual_configuration = self.configuration
@@ -388,7 +388,7 @@ class ResourceRequirement:
         require_type(self.amount, int)
 
         if not (0 < self.amount):
-            raise ValueError("Resource amount must be a positive integer")
+            raise ValueError(f"{reprlib.repr(self.kind)=}, {reprlib.repr(self.unit)=}; {self.amount=} should be positive")
 
         if self.selector is not None:
             _identity(self.selector, "Resource selector")
@@ -464,16 +464,22 @@ class ProgressEvent:
     def __post_init__(self) -> None:
         _identity(self.stage, "Progress stage")
 
-        if (self.completed is None) != (self.total is None):
-            raise ValueError("Progress completed and total must be supplied together")
+        if not ((self.completed is None) == (self.total is None)):
+            raise ValueError(f"{self.completed=} and {self.total=} should be supplied together")
 
         if self.completed is not None:
             require_type(self.completed, int)
 
             require_type(self.total, int)
 
-            if not ((0 <= self.completed <= self.total) and (0 < self.total)):
-                raise ValueError("Progress counts must satisfy 0 <= completed <= total and total > 0")
+            if not (0 <= self.completed):
+                raise ValueError(f"{self.completed=} should be nonnegative")
+
+            if not (self.completed <= self.total):
+                raise ValueError(f"{self.completed=} should not exceed {self.total=}")
+
+            if not (0 < self.total):
+                raise ValueError(f"{self.total=} should be positive")
 
 
 class ScientificControl(Protocol):
@@ -502,8 +508,8 @@ class CallContext[InstanceT, AnalysisT, InputT, StateT]:
     def require_control(self) -> ScientificControl:
         """Obtain only the progress/stop capability this call actually declared."""
 
-        if self.control is None:
-            raise RuntimeError("This scientific call did not declare progress or cooperative stopping")
+        if not (self.control is not None):
+            raise RuntimeError(f"{self.control=} should be available for progress or cooperative stopping")
 
         return self.control
 
@@ -565,7 +571,7 @@ class ImplementationDescription:
         require_type(self.contract_version, int)
 
         if not (1 <= self.contract_version):
-            raise ValueError("Contract version must be a positive integer")
+            raise ValueError(f"{self.contract_version=} should be positive")
 
         if self.configuration is not None:
             actual_configuration = self.configuration
@@ -577,7 +583,7 @@ class ImplementationDescription:
         _set_records(records=self.calls, record_type=CallDescription)
 
         if not (self.calls):
-            raise ValueError("An implementation must declare at least one call")
+            raise ValueError(f"{self.calls=} should not be empty")
 
         _unique(self.calls, lambda call_description: call_description.name, "Call descriptions")
         _require_resource_requirements(resource_requirements=self.resident_resources)
