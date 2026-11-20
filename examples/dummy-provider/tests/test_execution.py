@@ -195,7 +195,7 @@ class DummyInstalledExecutionTests(unittest.IsolatedAsyncioTestCase):
         rejection = await observe_completion(operation=rejected)
 
         self.assertIs(Outcome.REJECTED, rejection.outcome)
-        original_session = analysis.science[weighted_binding.allocation.allocation].value
+        original_session = analysis.science[weighted_binding.allocation.allocation].analysis_instance
 
         self.assertTrue(original_session.scientific_session.is_open)
 
@@ -211,7 +211,7 @@ class DummyInstalledExecutionTests(unittest.IsolatedAsyncioTestCase):
 
         preparation_observation = await self.assert_succeeded(preparation_operation)
 
-        self.assertIs(original_session, analysis.science[weighted_binding.allocation.allocation].value)
+        self.assertIs(original_session, analysis.science[weighted_binding.allocation.allocation].analysis_instance)
         self.assertEqual(1, len(preparation_observation.states))
         self.assertEqual("normalized", preparation_observation.states[0].name)
 
