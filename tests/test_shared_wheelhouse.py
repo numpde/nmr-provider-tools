@@ -148,14 +148,14 @@ class WheelhouseTests(unittest.TestCase):
 
         self.assertEqual(
             {self.name, unrelated.name, ".wheelhouse-acquire.lock"},
-            {path.name for path in self.pool.iterdir()},
+            {pool_entry_path.name for pool_entry_path in self.pool.iterdir()},
         )
 
         self.assertEqual(1, self.requests.count(f"/{self.name}"))
-        failed_requests = [path for path in self.requests if path != f"/{self.name}"]
+        failed_request_targets = [request_target for request_target in self.requests if request_target != f"/{self.name}"]
 
-        self.assertTrue(failed_requests)
-        self.assertTrue(all((path == f"/{second_name}") for path in failed_requests))
+        self.assertTrue(failed_request_targets)
+        self.assertTrue(all((request_target == f"/{second_name}") for request_target in failed_request_targets))
 
         (self.root / second_name).write_bytes(second_content)
         self.requests.clear()
@@ -168,7 +168,7 @@ class WheelhouseTests(unittest.TestCase):
 
         self.assertEqual(
             {self.name, second_name, unrelated.name, ".wheelhouse-acquire.lock"},
-            {path.name for path in self.pool.iterdir()},
+            {pool_entry_path.name for pool_entry_path in self.pool.iterdir()},
         )
 
     def setUp(self):
@@ -217,12 +217,12 @@ class WheelhouseTests(unittest.TestCase):
 
     def test_missing_is_downloaded_once_and_cached_without_replacement(self):
         tool.run("acquire", self.lock, self.pool)
-        path = self.pool / self.name
-        inode = path.stat().st_ino
+        cached_artifact_path = self.pool / self.name
+        inode = cached_artifact_path.stat().st_ino
 
         tool.run("acquire", self.lock, self.pool)
-        self.assertEqual(self.content, path.read_bytes())
-        self.assertEqual(inode, path.stat().st_ino)
+        self.assertEqual(self.content, cached_artifact_path.read_bytes())
+        self.assertEqual(inode, cached_artifact_path.stat().st_ino)
         self.assertEqual([f"/{self.name}"], self.requests)
 
     def test_warm_acquisition_does_not_need_a_writer_lock(self):
@@ -232,13 +232,13 @@ class WheelhouseTests(unittest.TestCase):
             tool.run("acquire", self.lock, self.pool)
 
         self.assertEqual([], self.requests)
-        self.assertEqual([self.name], [path.name for path in self.pool.iterdir()])
+        self.assertEqual([self.name], [pool_entry_path.name for pool_entry_path in self.pool.iterdir()])
 
     def test_conflict_is_preserved_without_network(self):
-        path = self.pool / self.name
+        cached_artifact_path = self.pool / self.name
 
-        path.write_bytes(b"different")
-        inode = path.stat().st_ino
+        cached_artifact_path.write_bytes(b"different")
+        inode = cached_artifact_path.stat().st_ino
 
         with self.assertRaises(ValueError) as captured:
             tool.run("acquire", self.lock, self.pool)
@@ -249,7 +249,7 @@ class WheelhouseTests(unittest.TestCase):
         self.assertIn(f"{cached_sha256=}", str(captured.exception))
         self.assertIn(f"{expected_sha256=}", str(captured.exception))
         self.assertIn("retained", str(captured.exception))
-        self.assertEqual((b"different", inode), (path.read_bytes(), path.stat().st_ino))
+        self.assertEqual((b"different", inode), (cached_artifact_path.read_bytes(), cached_artifact_path.stat().st_ino))
         self.assertEqual([], self.requests)
 
     def test_invalid_download_leaves_no_final_or_temporary_file(self):
@@ -263,7 +263,7 @@ class WheelhouseTests(unittest.TestCase):
 
         self.assertIn(downloaded_sha256, str(captured.exception))
         self.assertIn(expected_sha256, str(captured.exception))
-        self.assertEqual([".wheelhouse-acquire.lock"], [path.name for path in self.pool.iterdir()])
+        self.assertEqual([".wheelhouse-acquire.lock"], [pool_entry_path.name for pool_entry_path in self.pool.iterdir()])
 
     def _download_network_failures(self):
         errors = [
@@ -292,7 +292,7 @@ class WheelhouseTests(unittest.TestCase):
     def test_download_failure_reports_network_evidence(self):
         for (expected, rendered) in self._download_network_failures():
             self.assertIn(expected, rendered)
-            self.assertEqual(['.wheelhouse-acquire.lock'], [path.name for path in self.pool.iterdir()])
+            self.assertEqual(['.wheelhouse-acquire.lock'], [pool_entry_path.name for pool_entry_path in self.pool.iterdir()])
 
     @unittest.skipIf(os.environ.get("PRIVACY_TESTS", "1") == "0", "Privacy tests disabled")
     def test_download_failure_diagnostics_omit_native_text_and_url(self):
@@ -321,7 +321,7 @@ class WheelhouseTests(unittest.TestCase):
     def test_download_read_timeout_cleans_up_partial_file(self):
         self._download_read_timeout()
 
-        self.assertEqual(['.wheelhouse-acquire.lock'], [path.name for path in self.pool.iterdir()])
+        self.assertEqual(['.wheelhouse-acquire.lock'], [pool_entry_path.name for pool_entry_path in self.pool.iterdir()])
 
     @unittest.skipIf(os.environ.get("PRIVACY_TESTS", "1") == "0", "Privacy tests disabled")
     def test_download_read_timeout_is_reported_without_private_text(self):
@@ -343,7 +343,7 @@ class WheelhouseTests(unittest.TestCase):
         self.assertEqual(2, open_url.call_count)
         sleep.assert_called_once_with(1)
         self.assertEqual(self.content, (self.pool / self.name).read_bytes())
-        self.assertEqual({self.name, '.wheelhouse-acquire.lock'}, {path.name for path in self.pool.iterdir()})
+        self.assertEqual({self.name, '.wheelhouse-acquire.lock'}, {pool_entry_path.name for pool_entry_path in self.pool.iterdir()})
 
     def test_short_response_retries_when_content_length_proves_truncation(self):
         first = io.BytesIO(b'partial')
@@ -657,12 +657,12 @@ class WheelhouseTests(unittest.TestCase):
 
         source.mkdir()
         (source / "Dockerfile").write_text("FROM scratch\n")
-        result = io.BytesIO()
+        context_stream = io.BytesIO()
 
-        stream_context(self.pool, source, [{"lock": str(self.lock), "directory": "wheels/main"}], result)
-        result.seek(0)
+        stream_context(self.pool, source, [{"lock": str(self.lock), "directory": "wheels/main"}], context_stream)
+        context_stream.seek(0)
 
-        with tarfile.open(fileobj=result) as archive:
+        with tarfile.open(fileobj=context_stream) as archive:
             self.assertEqual({"Dockerfile", "wheels/main/" + self.name}, set(archive.getnames()))
             self.assertEqual(self.content, archive.extractfile("wheels/main/" + self.name).read())
 
@@ -777,9 +777,9 @@ class WheelhouseTests(unittest.TestCase):
                 ]
             }
 
-        result = report_manifest(report("file:///pool/torch-1.0%2Bcpu.whl"), "/pool", "wheels", set())
+        artifact_entries = report_manifest(report("file:///pool/torch-1.0%2Bcpu.whl"), "/pool", "wheels", set())
 
-        self.assertEqual("torch-1.0+cpu.whl", result[0]["filename"])
+        self.assertEqual("torch-1.0+cpu.whl", artifact_entries[0]["filename"])
 
         for url in (
             "https://host/pool/a.whl",
@@ -1254,4 +1254,4 @@ class WheelhouseTests(unittest.TestCase):
             with self.assertRaisesRegex(FileNotFoundError, "disappeared"):
                 tool.run("acquire", self.lock, self.pool)
 
-        self.assertEqual([".wheelhouse-acquire.lock"], [path.name for path in self.pool.iterdir()])
+        self.assertEqual([".wheelhouse-acquire.lock"], [pool_entry_path.name for pool_entry_path in self.pool.iterdir()])
