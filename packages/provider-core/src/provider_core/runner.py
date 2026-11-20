@@ -157,8 +157,8 @@ def _remove_scratch(parent, name, deadline):
     child = os.open(name, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW | os.O_CLOEXEC, dir_fd=parent)
 
     try:
-        with os.scandir(child) as entries:
-            for entry in entries:
+        with os.scandir(child) as scratch_entries:
+            for entry in scratch_entries:
                 _remove_scratch(child, entry.name, deadline)
     finally:
         os.close(child)
