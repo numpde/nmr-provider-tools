@@ -13,6 +13,7 @@ from dataclasses import dataclass
 
 from provider_core.runner_protocol import LifecycleRejected, receive_document, receive_greeting
 from provider_core.tools import require_positive_number
+from provider_core.type_requirements import require_type
 
 
 @dataclass(frozen=True, slots=True)
@@ -237,11 +238,17 @@ class RunnerSession:
         if retirement_message["operation"] != self.operation:
             raise LifecycleRejected(f"{retirement_message['operation']=} should match {self.operation=}")
 
-        if not (type((retirement_returncode := retirement_message["returncode"])) is (expected_type := int)):
-            raise LifecycleRejected(f"{type(retirement_returncode)=} ≠ {expected_type=}")
+        require_type(
+            (retirement_returncode := retirement_message["returncode"]),
+            int,
+            error_factory=LifecycleRejected,
+        )
 
-        if not (type((retirement_scratch_released := retirement_message["scratch_released"])) is (expected_type := bool)):
-            raise LifecycleRejected(f"{type(retirement_scratch_released)=} ≠ {expected_type=}")
+        require_type(
+            (retirement_scratch_released := retirement_message["scratch_released"]),
+            bool,
+            error_factory=LifecycleRejected,
+        )
 
         if not (retirement_message["reason"] in (expected_reasons := ("exited", "owner_lost", "deadline", "shutdown"))):
             raise LifecycleRejected(f"{retirement_message['reason']=} should be one of {expected_reasons=}")
