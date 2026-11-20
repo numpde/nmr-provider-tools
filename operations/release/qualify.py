@@ -480,9 +480,7 @@ def source_payload(source, source_inventory):
         source_member_fields = set(source_member_metadata)
 
         if source_member_fields != expected_source_member_fields:
-            raise ValueError(
-                f"{reprlib.repr(source_member_name)=}: {reprlib.repr(source_member_fields)=} ≠ {expected_source_member_fields=}"
-            )
+            raise ValueError(f"{reprlib.repr(source_member_name)=}: {reprlib.repr(source_member_fields)=} ≠ {expected_source_member_fields=}")
 
         source_file = source / source_member_name
 
@@ -531,9 +529,7 @@ def source_payload(source, source_inventory):
         missing_source_files = sorted(expected_source_files - observed_files)
         unexpected_source_files = sorted(observed_files - expected_source_files)
 
-        raise ValueError(
-            f"{reprlib.repr(missing_source_files)=} and {reprlib.repr(unexpected_source_files)=} should be empty"
-        )
+        raise ValueError(f"{reprlib.repr(missing_source_files)=} and {reprlib.repr(unexpected_source_files)=} should be empty")
 
     return {
         source_member_name.removeprefix("src/"): (source / source_member_name).read_bytes()
