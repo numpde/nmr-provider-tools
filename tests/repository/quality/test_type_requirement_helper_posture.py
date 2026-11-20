@@ -19,7 +19,7 @@ import unittest
 
 from .sources import ROOT, python_sources
 from .test_type_error_posture import _builtin, _type_call
-from .type_checks import unwrap_binding
+from .type_checks import raising_guards, unwrap_binding
 
 
 def _required_helpers(expression: ast.expr) -> set[str]:
@@ -61,20 +61,7 @@ def guard_findings(*, source: str, source_path: pathlib.Path | None = None) -> l
 
     findings = []
 
-    for statement in ast.walk(node=ast.parse(source=source)):
-        if (not isinstance(statement, ast.If)) or (len(statement.body) != 1):
-            continue
-
-        rejection = statement.body[0]
-
-        if (not isinstance(rejection, ast.Raise)) or (not isinstance(rejection.exc, ast.Call)):
-            continue
-
-        constructor = rejection.exc.func
-
-        if isinstance(constructor, ast.Attribute) and (constructor.attr == "with_traceback"):
-            continue
-
+    for statement in raising_guards(parsed_source=ast.parse(source=source)):
         helpers = _required_helpers(statement.test)
 
         if helpers:
@@ -84,6 +71,14 @@ def guard_findings(*, source: str, source_path: pathlib.Path | None = None) -> l
 
 
 class TypeRequirementHelperPostureTests(unittest.TestCase):
+    def test_type_clause_is_reported_inside_a_numeric_rejection(self):
+        source = (
+            "if (type(value) not in (int, float)) or (not math.isfinite(value)):\n"
+            "    raise ValueError(f'{label} must be a finite number')\n"
+        )
+
+        self.assertEqual([(1, ("require_type",))], guard_findings(source=source))
+
     def test_only_the_canonical_implementation_owns_builtin_checks(self):
         source = (
             "if not isinstance(candidate, Parent):\n"
