@@ -68,18 +68,12 @@ class ApiNetworkAvailabilityTests(unittest.IsolatedAsyncioTestCase):
             self.assertTrue(api.can_retry_read(failure))
             peer.server.close()
             await peer.server.wait_closed()
-            trust=ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
-
-            trust.load_cert_chain(pathlib.Path(peer.scratch.name)/"cert.pem",pathlib.Path(peer.scratch.name)/"key.pem")
             peer.closed=asyncio.Event()
 
             peer.server=await asyncio.start_server(
-                peer.handle,
+                peer.accept,
                 "127.0.0.1",
                 port,
-                ssl=trust,
-                ssl_handshake_timeout=0.5,
-                ssl_shutdown_timeout=0.5
             )
 
             upload_membership=await api.uploads("job:example")

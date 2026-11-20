@@ -187,58 +187,34 @@ class ChatCarrierRejectionTests(unittest.IsolatedAsyncioTestCase):
         transport.exchange_decoded.assert_awaited_once()
 
     async def test_peer_retires_an_observed_tls_handshake_that_never_reaches_its_http_handler(self):
-        # A partial TLS handshake has no HTTP handler task. The asyncio
-        # accept task reports the expected transport-creation failure instead.
-        # Capture only this test's diagnostic; any other event still fails.
-        with self.assertLogs("asyncio", level="ERROR") as recorded:
-            writer = None
+        writer = None
 
-            try:
-                async with TlsPeer("success", handshake_seconds=0.25) as peer:
-                    (incoming, outgoing) = (ssl.MemoryBIO(), ssl.MemoryBIO())
-                    client = peer.trust.wrap_bio(incoming, outgoing, server_side=False, server_hostname="localhost")
+        try:
+            async with TlsPeer("success", handshake_seconds=0.25) as peer:
+                (incoming, outgoing) = (ssl.MemoryBIO(), ssl.MemoryBIO())
+                client = peer.trust.wrap_bio(incoming, outgoing, server_side=False, server_hostname="localhost")
 
-                    with self.assertRaises(ssl.SSLWantReadError):
-                        client.do_handshake()
+                with self.assertRaises(ssl.SSLWantReadError):
+                    client.do_handshake()
 
-                    port = peer.server.sockets[0].getsockname()[1]
-                    (reader, writer) = await asyncio.open_connection("127.0.0.1", port)
+                port = peer.server.sockets[0].getsockname()[1]
+                (reader, writer) = await asyncio.open_connection("127.0.0.1", port)
 
-                    writer.write(outgoing.read())
-                    await writer.drain()
-                    await asyncio.wait_for(peer.handshake_received.wait(), 1)
-                    self.assertEqual(peer.server_names, ["localhost"])
-                    self.assertEqual(peer.handlers, set())
+                writer.write(outgoing.read())
+                await writer.drain()
+                await asyncio.wait_for(peer.handshake_received.wait(), 1)
+                self.assertEqual(peer.server_names, ["localhost"])
+                self.assertEqual(1, len(peer.handlers))
 
-                await asyncio.wait_for(reader.read(), 1)
-                self.assertEqual(peer.requests, [])
-            finally:
-                if writer is not None:
-                    writer.close()
-                    await writer.wait_closed()
-
-        self.assertEqual(
-            1,
-            len(recorded.records),
-            msg=[record.getMessage() for record in recorded.records]
-        )
-
-        event = recorded.records[0]
-
-        self.assertEqual("ERROR", event.levelname)
-
-        self.assertEqual(
-            "Error on transport creation for incoming connection",
-            event.getMessage().split("\n", 1)[0]
-        )
-
-        self.assertIsNotNone(event.exc_info)
-        error = event.exc_info[1]
-
-        self.assertIn(type(error), (ConnectionAbortedError, ConnectionResetError))
-
-        if type(error) is ConnectionAbortedError:
-            self.assertIn("SSL handshake is taking longer than 0.25 seconds", str(error))
+            # Retirement joins the handshake owner even without an HTTP request
+            self.assertTrue(all(task.done() for task in peer.handlers))
+            await asyncio.wait_for(reader.read(), 1)
+            self.assertTrue(reader.at_eof())
+            self.assertEqual(peer.requests, [])
+        finally:
+            if writer is not None:
+                writer.close()
+                await writer.wait_closed()
 
     def spec(self, url):
         return ChatEndpointSpec(

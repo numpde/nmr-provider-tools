@@ -154,17 +154,45 @@ class TlsPeer:
         server_trust.set_servername_callback(observe_server_name)
         self.trust = https_trust((root / "cert.pem").read_bytes(), label="Test peer")
 
-        def accept(reader, writer):
-            if self.mode != "tls-stall":
-                # Hold ClientHello bytes until the owned task installs TLS
-                writer.transport.pause_reading()
-
-            self.handlers.add(asyncio.create_task(self.handle(reader, writer)))
-
-        self.server = await asyncio.start_server(accept, self.bind_host, 0)
+        self.server = await asyncio.start_server(self.accept, self.bind_host, 0)
         self.origin = f"https://127.0.0.1:{self.server.sockets[0].getsockname()[1]}"
 
         return self
+
+    def accept(self, reader, writer):
+        """Own the connection before TLS while retaining the HTTP handler hook."""
+
+        if self.mode != "tls-stall":
+            # Hold ClientHello bytes until the owned task installs TLS
+            writer.transport.pause_reading()
+
+        self.handlers.add(asyncio.create_task(self._serve(reader, writer)))
+
+    async def _serve(self, reader, writer):
+        transport = writer.transport
+
+        try:
+            if self._closing:
+                return
+
+            if self.mode != "tls-stall":
+                try:
+                    await writer.start_tls(
+                        self.server_trust,
+                        ssl_handshake_timeout=self.handshake_seconds,
+                        ssl_shutdown_timeout=self.shutdown_seconds,
+                    )
+                except (ConnectionError, ssl.SSLError, TimeoutError):
+                    # A peer can disappear or reject its certificate before HTTP
+                    self.closed.set()
+
+                    return
+
+            await self.handle(reader, writer)
+        finally:
+            # Failed TLS startup never connects the app protocol's close waiter
+            # Retire its original TCP transport; server.wait_closed observes it
+            transport.close()
 
     async def handle(self, reader, writer):
         try:
@@ -175,18 +203,6 @@ class TlsPeer:
                 await reader.readexactly(1)
                 self.received.set()
                 await reader.read()
-                self.closed.set()
-
-                return
-
-            try:
-                await writer.start_tls(
-                    self.server_trust,
-                    ssl_handshake_timeout=self.handshake_seconds,
-                    ssl_shutdown_timeout=self.shutdown_seconds,
-                )
-            except (ConnectionError, ssl.SSLError, TimeoutError):
-                # A peer can disappear or reject its certificate before HTTP
                 self.closed.set()
 
                 return
@@ -292,7 +308,7 @@ class TlsPeer:
 
             try:
                 await writer.wait_closed()
-            except (ConnectionError, ssl.SSLError, TimeoutError):
+            except ConnectionError:
                 self.closed.set()
 
     async def __aexit__(self, *exception):
