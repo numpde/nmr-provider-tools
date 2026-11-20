@@ -43,10 +43,10 @@ def _inputs(args):
         ):
             raise ValueError("Supply both host-owner IDs, or use --map with explicit probe policy.")
 
-        request = ProbeRequest(args.endpoint, args.image, "/usr/local/bin/python3", 0, 0)
+        probe_request = ProbeRequest(args.endpoint, args.image, "/usr/local/bin/python3", 0, 0)
 
         return (
-            request,
+            probe_request,
             (
                 ("uid", "inverse", Identifier(args.host_uid)),
                 ("gid", "inverse", Identifier(args.host_gid))
@@ -70,7 +70,7 @@ def _inputs(args):
 
         projections.append((axis, direction, Identifier.of(identifier)))
 
-    request = ProbeRequest(
+    probe_request = ProbeRequest(
         args.endpoint,
         args.image,
         args.interpreter,
@@ -80,9 +80,9 @@ def _inputs(args):
     )
 
     if args.userns is not None:
-        request = replace(request, userns_mode=args.userns)
+        probe_request = replace(probe_request, userns_mode=args.userns)
 
-    return (request, projections)
+    return (probe_request, projections)
 
 
 def _project(observation, projections):
@@ -126,9 +126,9 @@ def main(argv=None):
 
     try:
         retired = True
-        (request, projections) = _inputs(args)
+        (probe_request, projections) = _inputs(args)
         retired = False
-        observation = probe_identity(request, cancel=cancellation)
+        observation = probe_identity(probe_request, cancel=cancellation)
         retired = True
         translated_ids = _project(observation, projections)
     except ProbeFailure as failure:
