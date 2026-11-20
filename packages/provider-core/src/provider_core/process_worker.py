@@ -16,6 +16,7 @@ import asyncio
 from collections.abc import Mapping
 import importlib
 import os
+import reprlib
 import socket
 
 from provider_core.embedded_host import InProcessExecutionHost
@@ -29,14 +30,14 @@ from provider_core.hosting import (
 )
 from provider_core.process_wire import RemoteScienceError, frame, receive_async
 from provider_core.scientific import Contribution
-from provider_core.type_requirements import require_subclass
+from provider_core.type_requirements import require_subclass, require_type
 
 
 def _installed_member(member_location: str):
     (module_name, separator, member_path) = member_location.partition(":")
 
     if not (separator and module_name and member_path and ("<locals>" not in member_path)):
-        raise ValueError(f"Scientific worker {member_location=} should identify an installed module:member")
+        raise ValueError(f"{reprlib.repr(member_location)=} should identify an installed module:member")
 
     installed_member = importlib.import_module(module_name)
 
@@ -55,8 +56,7 @@ class _Worker:
         self.operations = {}
 
     async def start(self, message: Mapping) -> dict:
-        if not (self.host is None):
-            raise RuntimeError("Scientific worker startup is single-use")
+        require_type(self.host, type(None), error_factory=RuntimeError)
 
         host = InProcessExecutionHost(**message["host_options"])
         self.host = host
@@ -91,18 +91,21 @@ class _Worker:
             "process_id": os.getpid(),
         }
 
-    def _analysis(self, identity):
-        if not ((self.analysis is not None) and (self.analysis.identity == identity)):
-            raise LookupError(f"Scientific analysis {identity=} should identify the worker's open analysis")
+    def _analysis(self, analysis_id):
+        if not (self.analysis is not None):
+            raise LookupError(f"{self.analysis=} should identify an open analysis")
+
+        if not (self.analysis.identity == analysis_id):
+            raise LookupError(f"{reprlib.repr(analysis_id)=} ≠ {self.analysis.identity=}")
 
         return self.analysis
 
     def _operation(self, message):
-        key = (message["analysis"], message["operation"])
-        operation = self.operations.get(key)
+        operation_key = (message["analysis"], message["operation"])
+        operation = self.operations.get(operation_key)
 
         if not (operation is not None):
-            raise LookupError(f"Scientific operation {key=} should identify work retained by this worker")
+            raise LookupError(f"{reprlib.repr(operation_key)=} should identify work retained by this worker")
 
         return operation
 
@@ -112,15 +115,15 @@ class _Worker:
         analysis = self._analysis(analysis_id)
 
         if not (analysis.cleanup is not None):
-            raise RuntimeError("Scientific analysis cleanup has not been requested")
+            raise RuntimeError(f"{analysis.cleanup=} should identify requested cleanup for {analysis_id=}")
 
         observed = await analysis.cleanup.observe(after=None, wait_seconds=0)
 
-        if not (observed.settled and (not observed.failures)):
-            raise RuntimeError(
-                f"Scientific analysis {analysis_id=} cleanup should settle successfully; "
-                f"{observed.settled=}, {len(observed.failures)=}"
-            )
+        if not (observed.settled):
+            raise RuntimeError(f"{analysis_id=}; {observed.settled=} should be True before forgetting cleanup evidence")
+
+        if not (not observed.failures):
+            raise RuntimeError(f"{analysis_id=}; {len(observed.failures)=} should be zero before forgetting cleanup evidence")
 
         for (key, operation) in list(self.operations.items()):
             if key[0] != analysis_id:
@@ -145,11 +148,11 @@ class _Worker:
             return await self.retire()
 
         if not (self.ready):
-            raise RuntimeError("Scientific worker is not initialized")
+            raise RuntimeError(f"{self.ready=} should be True before {reprlib.repr(action)=}")
 
         if action == "open_analysis":
             if not (self.analysis is None):
-                raise CapacityUnavailable("The scientific allocation already owns an analysis")
+                raise CapacityUnavailable(f"Analysis {self.analysis.identity=} still occupies the scientific allocation")
 
             self.analysis = self.host.open_analysis(
                 analysis_id=message["analysis"],
@@ -163,13 +166,16 @@ class _Worker:
             analysis_id = invocation.reservation.analysis
             analysis = self.analysis
 
-            if (analysis is None) or (analysis.identity != analysis_id):
+            if not (analysis is not None):
                 return {
                     "refusal": NotAdmitted(
                         AdmissionCode.INVALID_REFERENCE,
-                        "Scientific submission requires its explicitly opened analysis",
+                        f"{analysis=} should identify an open analysis before submission",
                     )
                 }
+
+            if not (analysis.identity == analysis_id):
+                return {"refusal": NotAdmitted(AdmissionCode.INVALID_REFERENCE, f"{reprlib.repr(analysis_id)=} ≠ {analysis.identity=}")}
 
             decision = analysis.submit(invocation=invocation)
 
@@ -220,7 +226,7 @@ class _Worker:
 
             return None
 
-        raise ValueError(f"Scientific worker {action=} should name a supported command")
+        raise ValueError(f"{reprlib.repr(action)=} should name a supported scientific command")
 
     async def retire(self):
         self.ready = False
