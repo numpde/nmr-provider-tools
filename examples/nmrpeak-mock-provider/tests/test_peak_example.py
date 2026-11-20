@@ -33,6 +33,7 @@ from unittest.mock import Mock, patch
 import tomli_w
 
 from provider_core.contribution_errors import CallRejected
+from provider_core.diagnostics import failure_evidence
 from provider_core.hosting import AdmissionCode, CapacityUnavailable, NotAdmitted, ResultState, StartDeadlineExpired
 from provider_core.interpreter import InterpretationFailed, ModelWindowExpired, ProseService
 from provider_core.process_wire import RemoteScienceError
@@ -260,6 +261,21 @@ class PeakExampleTests(unittest.IsolatedAsyncioTestCase):
 
         self.assertEqual("json.decoder.JSONDecodeError", raised.exception.remote_type)
         self.assertNotIsInstance(raised.exception, CallRejected)
+
+        # Treat this installed filename as known protected text. The renderer
+        # must redact the child's location while retaining its load and cause.
+        protected_filename = Model.load.__code__.co_filename
+        evidence = failure_evidence(raised.exception, secrets=(protected_filename,))
+        report = json.dumps(evidence)
+        load_locations = [location for location in evidence["remote_frames"] if location["function"] == "load"]
+
+        self.assertEqual(first="json.decoder.JSONDecodeError", second=evidence["remote_type"])
+        self.assertIn(member="Expecting value", container=evidence["message"])
+        self.assertTrue(expr=load_locations)
+        self.assertTrue(expr=any((location["file"] == "[redacted]") for location in load_locations))
+        self.assertTrue(expr=all((location["line"] > 0) for location in load_locations))
+        self.assertNotIn(member=protected_filename, container=report)
+        self.assertNotIn(member="fake_model.py", container=report)
         self.assertTrue(session.control_connected)
         self.assertIsNotNone(session.retirement)
         self.assertEqual(0, session.retirement.returncode)

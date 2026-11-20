@@ -48,7 +48,8 @@ class ProcessLifecycleTests(unittest.IsolatedAsyncioTestCase):
 
         self.enterContext(patch.dict(os.environ, {"SCIENTIFIC_PROCESS_UNRELATED": "parent-only"}))
 
-    def make_host(self):
+    # silent-defaults: allow-contract -- Ordinary proofs use five seconds; the active-retirement proof shortens only the scientific grace.
+    def make_host(self, *, scientific_retirement_seconds=5):
         worker = Path(__file__).parent.parent / "fakes/scientific_process_worker.py"
 
         runner = RunningSupervisor(
@@ -71,7 +72,7 @@ class ProcessLifecycleTests(unittest.IsolatedAsyncioTestCase):
             state_values=1,
             progress_records=1,
             initialization_seconds=5,
-            retirement_seconds=5,
+            retirement_seconds=scientific_retirement_seconds,
         )
 
         self.addAsyncCleanup(self.retire_host, host)
@@ -345,6 +346,75 @@ class ProcessLifecycleTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(first=1, second=self.counts()["effect"])
         self.assertEqual(first=1, second=self.counts()["reply_dropped"])
         self.assert_native_retirement(host, runner, session)
+
+    async def test_retirement_expires_original_science_grace_before_native_stop(self):
+        (host, runner, session) = self.make_host(scientific_retirement_seconds=0.2)
+        hosted = await self.start(host, scenario="active-kill")
+
+        self.addCleanup((self.root / "release-calculation").touch)
+        analysis = host.open_analysis(allocations=frozenset({hosted.allocation}))
+        invocation = self.invocation(hosted, analysis)
+        original = analysis.submit(invocation)
+
+        await asyncio.to_thread(wait_for_event, self.root, "calculation_started")
+        active = await original.observe(after=None, wait_seconds=1)
+
+        self.assertIs(expr1=DispatchState.STARTED, expr2=active.dispatch)
+        self.assertFalse(expr=active.finished)
+        retirement = host.retire()
+
+        self.assertIs(expr1=retirement, expr2=host.retire())
+        cleanup = await self.cleanup_observation(retirement)
+
+        self.assertTrue(expr=cleanup.settled)
+        self.assertTrue(expr=cleanup.allowance_expired)
+        self.assertTrue(
+            expr=any(
+                ((failure.phase == "cleanup") and isinstance(failure.cause, TimeoutError))
+                for failure in cleanup.failures
+            ),
+        )
+
+        self.assertIsNone(obj=host.scientific_retirement)
+        self.assertEqual(first="owner_lost", second=session.retirement.reason)
+        self.assertIn(member=session.retirement.returncode, container={-signal.SIGTERM, -signal.SIGKILL})
+        self.assertIsNone(obj=session.original_exit)
+        self.assert_native_retirement(host, runner, session)
+        retired = await original.observe(after=None, wait_seconds=0)
+
+        self.assertEqual(first=original.reference, second=retired.operation)
+        self.assertIs(expr1=AcceptanceState.OWNED, expr2=retired.acceptance)
+        self.assertIs(expr1=DispatchState.STARTED, expr2=retired.dispatch)
+        self.assertTrue(expr=retired.finished)
+        self.assertIsNone(obj=retired.outcome)
+        self.assertIsNone(obj=retired.result)
+        self.assertIs(expr1=ResultState.NONE, expr2=retired.result_state)
+        self.assertIs(expr1=ResourceState.RELEASED, expr2=retired.resources)
+        self.assertTrue(expr=retired.failures)
+        native_deadline = host.native.retirement_deadline
+        native_reader = host.native.reader
+        native_receipt = session.retirement
+
+        self.assertIsNotNone(obj=native_deadline)
+        self.assertIsNotNone(obj=native_reader)
+
+        for wait_seconds in (0, 1):
+            self.assertIs(expr1=retirement, expr2=host.retire())
+            unchanged_cleanup = await retirement.observe(after=None, wait_seconds=wait_seconds)
+            unchanged_operation = await original.observe(after=retired.revision, wait_seconds=wait_seconds)
+
+            self.assertEqual(first=cleanup, second=unchanged_cleanup)
+            self.assertEqual(first=retired, second=unchanged_operation)
+            self.assertEqual(first=native_deadline, second=host.native.retirement_deadline)
+            self.assertIs(expr1=native_reader, expr2=host.native.reader)
+            self.assertIs(expr1=native_receipt, expr2=session.retirement)
+
+        self.assertFalse(expr=(self.root / "release-calculation").exists())
+        self.assertEqual(first=1, second=self.counts()["constructed"])
+        self.assertEqual(first=1, second=self.counts()["submit_received"])
+        self.assertEqual(first=1, second=self.counts()["calculation_started"])
+        self.assertEqual(first=0, second=self.counts()["effect"])
+        self.assertEqual(first=0, second=self.counts()["close_entered"])
 
     async def test_child_refuses_expired_start_and_accepts_valid_original_identity(self):
         (host, runner, session) = self.make_host()
