@@ -15,6 +15,7 @@ import inspect
 import hashlib
 import json
 import re
+import reprlib
 from collections.abc import Callable, Collection, Mapping
 from dataclasses import dataclass, field, fields, replace
 from enum import StrEnum
@@ -32,33 +33,34 @@ from provider_core.payload import (
 )
 
 
-def _identity(value: object, label: str) -> None:
-    if not (type(value) is (expected_type := str)):
-        raise TypeError(f"{label=}; {type(value)=} ≠ {expected_type=}")
+def _identity(identity_text: object, identity_role: str) -> None:
+    if not (type(identity_text) is (expected_type := str)):
+        raise TypeError(f"{identity_role=}; {type(identity_text)=} ≠ {expected_type=}")
 
     if not (
-        (value) and
-        all(((character.isprintable()) and (not character.isspace())) for character in value)
+        (identity_text) and
+        all(((character.isprintable()) and (not character.isspace())) for character in identity_text)
     ):
-        raise ValueError(
-            f"Cannot use {label = }: it must be a nonempty identity without whitespace "
-            f"or control characters."
-        )
+        raise ValueError(f"{identity_role=}; {reprlib.repr(identity_text)=} should be nonempty printable text without whitespace")
 
 
-def _digest(value: object, label: str) -> None:
-    if not (type(value) is (expected_type := str)):
-        raise TypeError(f"{label=}; {type(value)=} ≠ {expected_type=}")
+def _digest(digest_text: object, digest_role: str) -> None:
+    if not (type(digest_text) is (expected_type := str)):
+        raise TypeError(f"{digest_role=}; {type(digest_text)=} ≠ {expected_type=}")
 
-    if re.fullmatch(pattern=r"sha256:[0-9a-f]{64}\Z", string=value) is None:
-        raise ValueError(f"Cannot use {label = }: it must be a lowercase sha256:<64 hex characters> digest.")
+    expected_digest_pattern = r"sha256:[0-9a-f]{64}\Z"
+
+    if re.fullmatch(pattern=expected_digest_pattern, string=digest_text) is None:
+        raise ValueError(f"{digest_role=}; {reprlib.repr(digest_text)=} should match {expected_digest_pattern=}")
 
 
-def _binding_revision(value: object) -> None:
-    require_type(value, str)
+def _binding_revision(binding_revision: object) -> None:
+    require_type(binding_revision, str)
 
-    if re.fullmatch(pattern=r"(?:sha256:|configured-v[23]:sha256:)[0-9a-f]{64}\Z", string=value) is None:
-        raise ValueError("Binding revision must be a lowercase sha256, configured-v2:sha256 or configured-v3:sha256 digest")
+    expected_revision_pattern = r"(?:sha256:|configured-v[23]:sha256:)[0-9a-f]{64}\Z"
+
+    if re.fullmatch(pattern=expected_revision_pattern, string=binding_revision) is None:
+        raise ValueError(f"{reprlib.repr(binding_revision)=} should match {expected_revision_pattern=}")
 
 
 def _records(values: object, record_type: type[object], label: str) -> None:
