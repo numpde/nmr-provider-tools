@@ -35,8 +35,8 @@ from provider_core.validation.upstream.chat_completions.tool_calls import (
 )
 
 
-def _encode(value):
-    return json.dumps(value, allow_nan=False, ensure_ascii=True, sort_keys=True, separators=(",", ":")).encode("ascii")
+def _encode(json_content):
+    return json.dumps(json_content, allow_nan=False, ensure_ascii=True, sort_keys=True, separators=(",", ":")).encode("ascii")
 
 
 @dataclass(frozen=True, slots=True)
@@ -256,16 +256,16 @@ class ToolConversation:
             tools=self._tools,
         )
 
-    def _require_no_secrets(self, value):
-        if type(value) is str:
-            if any((secret in value) for secret in self._secrets):
+    def _require_no_secrets(self, context_fragment):
+        if type(context_fragment) is str:
+            if any((secret in context_fragment) for secret in self._secrets):
                 raise ConversationFailed("Cannot continue interpretation: its outgoing context contains a configured credential.")
-        elif type(value) is dict:
-            for (key, mapped_value) in value.items():
+        elif type(context_fragment) is dict:
+            for (key, mapped_value) in context_fragment.items():
                 self._require_no_secrets(key)
                 self._require_no_secrets(mapped_value)
-        elif type(value) in (tuple, list):
-            for sequence_element in value:
+        elif type(context_fragment) in (tuple, list):
+            for sequence_element in context_fragment:
                 self._require_no_secrets(sequence_element)
 
     async def run(self, messages, tools, dispatch):
@@ -428,7 +428,10 @@ class ToolConversation:
         # Identity comes from the trusted adapter, not model response fields.
         identity = json.loads(endpoint.identity)
 
-        identity = {key: (self.redact(value) if type(value) is str else value) for (key, value) in identity.items()}
+        identity = {
+            identity_field: (self.redact(identity_fact) if type(identity_fact) is str else identity_fact)
+            for (identity_field, identity_fact) in identity.items()
+        }
 
         self._routes.append({"endpoint": identity, "turns_started": 0})
 
@@ -513,9 +516,9 @@ class ToolConversation:
 
         return (arguments, canonical_arguments_text)
 
-    def _feedback(self, identifier, value):
-        self._require_no_secrets(value)
-        self._messages.append(chat_tools.tool_message(identifier, _encode(value).decode("ascii")))
+    def _feedback(self, identifier, tool_feedback):
+        self._require_no_secrets(tool_feedback)
+        self._messages.append(chat_tools.tool_message(identifier, _encode(tool_feedback).decode("ascii")))
 
     def _correct_turn(self, calls, rejection):
         reason = str(rejection)
