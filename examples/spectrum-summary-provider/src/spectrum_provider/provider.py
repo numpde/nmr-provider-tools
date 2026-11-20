@@ -4,6 +4,7 @@ from collections.abc import AsyncIterator, Mapping
 from contextlib import AsyncExitStack, asynccontextmanager
 from dataclasses import dataclass
 import pathlib
+import reprlib
 import tomllib
 
 from provider_core.contribution import CallBinding, ref
@@ -72,9 +73,11 @@ def _stage_options(execution: Mapping) -> dict[str, dict]:
     """Check static stage shares before constructing hosts or taking sessions."""
     total = execution["host"]
     shares = execution["stage_capacity"]
+    stage_names = set(shares)
+    expected_stage_names = {"baseline", "peaks"}
 
-    if set(shares) != {"baseline", "peaks"}:
-        raise ValueError("Cannot configure spectrum execution: stage_capacity must name baseline and peaks.")
+    if stage_names != expected_stage_names:
+        raise ValueError(f"{reprlib.repr(stage_names)=} ≠ {expected_stage_names=}")
 
     require_capacity_partition(total=total, shares=shares)
 
