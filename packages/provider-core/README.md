@@ -102,6 +102,11 @@ checks remain deferred and excluded from this campaign; merge and release
 readiness are separate decisions. These results do not establish real-model/GPU
 suitability, cross-version compatibility, additional platforms or unattended recovery.
 
+[Note 096](../../notes/096_scientific_boundary_final_audit_20261120.txt) records
+the renewed 10/10 audit and the 30-test installed NMRPeak follow-up at `78ee7cf1`
+after removing a redundant startup exception handler. It distinguishes that
+affected-suite result from the earlier complete qualification matrix.
+
 ### Deployment and startup
 
 Deployment starts the existing `provider_core.runner` with

@@ -1,0 +1,120 @@
+# Scientific boundary: renewed final audit
+
+Date: 20 November 2026 (Africa/Nairobi).
+User target: 10/10 on every applicable criterion from Note 094.
+Previous qualification record: Note 095, documentation commit 6c703381.
+Corrected and affected-suite-tested candidate: 78ee7cf10168be98eeb5bbead6889ffe5337c9a4.
+
+## Scope and meaning of the scores
+
+The thirteen criteria and supported scientific profile are unchanged. A score
+of 10 means the reviewer found no remaining actionable gap within that bounded
+criterion after examining source and relevant executable evidence. It does not
+mean exhaustive fault coverage or a guarantee that no undiscovered defect exists.
+
+Repository checks remain enabled, unchanged, deferred and excluded. The explicit
+PRIVACY_TESTS=0 campaign policy remains in force. Independent offerings,
+real-model/GPU execution, broader concurrency, cross-version workers, controlled
+replacement and unattended containment/recovery remain outside this audit.
+
+The three independent read-only reviewers were asked to identify a concrete
+trigger, consequence and smallest correction for every deduction, rather than
+raise scores to meet the target. They clarified that their earlier half-point
+deductions reserved conventional headroom; those deductions had not identified
+unmet falsifiable requirements. This record preserves that distinction instead
+of claiming new runtime improvements for a numerical reassessment.
+
+## One actionable correction
+
+Renewed architecture review identified an unnecessary exception layer in
+examples/nmrpeak-mock-provider/src/nmrpeak_mock_provider/provider.py.
+Thread startup wrapped its initialization await in except Exception: raise.
+The catch performed no action, and its comment obscured the real cleanup owner.
+
+Commit 78ee7cf1 removes the wrapper and preserves the direct await and useful
+timeout explanation. InProcessExecutionHost.initialize retains the original
+load; the surrounding async host context joins original retirement on failure
+or cancellation. Previously adopted models remain owned without interception.
+Architecture and lifecycle reviewers independently audited the integrated diff.
+The coordinator made the edit. No new test, abstraction or capability was added.
+
+## Executable evidence and its exact limits
+
+The complete contract/unit/native/integration receipts remain those observed at
+b1fca04f in Note 095: contract 18 tests with two skips; full unit 1113 with
+92 skips; separate minimal native installation 185 with no skips; full integration
+421 with 30 skips; all passing. No claim is made that this full matrix ran again
+at 78ee7cf1 or at the documentation-only successor containing this record.
+
+The SDK executable-source and test trees are identical at both tested candidates:
+
+- packages/provider-core/src: f72530b67af8244050bb109aa73e9bec0b7e2d12.
+- packages/provider-core/tests: 2f11c4ab814ff76b54bf40202007f864e858d242.
+- NMRPeak test tree, also unchanged: 6847b62c0a86d77cb483e6da42dd3cd1c7ae115c.
+
+For the only changed provider, the maintained installed integration selection ran
+at the clean committed candidate 78ee7cf1 on the same science engine/wheelhouse:
+
+    make tests/integration/provider-core \
+        DOCKER_CONTEXT=science \
+        WHEELHOUSE="$HOME/Downloads/wheelhouse" \
+        PRIVACY_TESTS=0 \
+        TEST_PATTERN=test_peak_example.py
+
+Result: 30 tests in 5.247 seconds, OK, no skips. Existing cases establish original
+error identity after partial loading, cleanup of both models after second-model
+failure, cancellation joining the original startup, ordinary setup/retirement,
+and the six process-specific cases. No test was added merely to raise a grade.
+
+Local raw receipt: /tmp/nmr-78ee7cf1-peak-example.log.
+Receipt SHA-256: 8533aed5bbd9968b209cb35b8931c8bde353b33675c159206a40ac0b61c1e750.
+Installed SDK wheel SHA-256: 4bb2ebc88b666f53b918ccbe5cb0955e5adbcd2473f5912b3d37dacab2183f36.
+Installed NMRPeak wheel SHA-256: e28dc603579537a491fcfe657dd4f121c919f0056ff1449d7d09a079b6e4e9d4.
+Corrected NMRPeak source tree: 0aa442e98868ebbd0ff921a89fe37b7430e2bb32.
+
+The SDK wheel differs from the earlier receipt because its README metadata was
+updated by the qualification record; SDK executable source is unchanged. A later
+guide update can change that metadata again. Raw receipts remain local files,
+with the same explicit retention limitation described in Note 095.
+
+## Independent final verdicts
+
+Reviewers did not receive peers' verdicts. Architecture assessed A1-A5; lifecycle
+assessed B1-B4; evidence/operability assessed C1-C4. They inspected existing proofs
+before considering new ones. None requested another test or broader capability.
+
+| ID | Criterion | Final grade |
+| --- | --- | ---: |
+| A1 | Single authority; mechanism versus policy | 10 |
+| A2 | Common semantic contract; honest backend differences | 10 |
+| A3 | Change locality; future replaceability | 10 |
+| A4 | Usage clarity, naming and diagnostics | 10 |
+| A5 | Parsimony, source/test complexity and explanatory comments | 10 |
+| B1 | Continuous ownership, cancellation, handoffs and actual termination | 10 |
+| B2 | Truthful uncertainty, no replay, monotone evidence, independent outcomes | 10 |
+| B3 | Allocation, analysis, operation and state authority; expiry | 10 |
+| B4 | Time, capacity, retention and control during stalls | 10 |
+| C1 | Narrow code/data boundary; environment/FD grants; security scope | 10 |
+| C2 | Behavioral, economical and discriminating tests | 10 |
+| C3 | Reproducible installed qualification; truthful evidence/commits | 10 |
+| C4 | Operational diagnostics and maintainable public guidance | 10 |
+
+Architecture found one authority for each real mechanism, shared call declarations
+and a backend-independent request workflow, local startup composition, honest
+limits and useful protected diagnostics. Removing the empty catch closed its
+only renewed parsimony finding.
+
+Lifecycle rechecked cancelled startup, delayed setup, acknowledgement loss after
+an actual effect, equal scientific revisions, communication loss after completion,
+worker death, result expiry, state authority, original cleanup barriers and
+unchanged science/native allowances. Existing independent witnesses and installed
+receipts address the distinct ownership transitions without a fault cross-product.
+
+Evidence review rechecked closed bounded wire data, explicit construction/grants,
+actual-child environment/FD witnesses, discriminating effect/cleanup evidence,
+revision/artifact identities, local receipt hashes and truthful public guidance.
+It found no requirement for an archival subsystem or additional validation layer.
+
+No actionable finding remains in the inspected supported profile. These are
+separate criterion verdicts, not an averaged pass. This record does not establish
+repository-wide qualification, merge readiness, publication or deployment.
