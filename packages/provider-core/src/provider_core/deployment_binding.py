@@ -53,12 +53,12 @@ def _absolute_path(path_text, path_field):
     if any((character in path_text) for character in ("\0", "\n", "\r", ",")):
         raise BindingDefinitionRejected(f"{path_field=}: {reprlib.repr(path_text)=} should contain no NUL, line breaks or commas")
 
-    path = pathlib.Path(path_text)
+    binding_path = pathlib.Path(path_text)
 
-    if (path.anchor != "/") or (".." in path.parts) or (str(path) != path_text) or (not path.name):
+    if (binding_path.anchor != "/") or (".." in binding_path.parts) or (str(binding_path) != path_text) or (not binding_path.name):
         raise BindingDefinitionRejected(f"{path_field=}: {reprlib.repr(path_text)=} should be a normalized absolute path")
 
-    return path
+    return binding_path
 
 
 @dataclass(frozen=True, slots=True, repr=False)
@@ -362,8 +362,8 @@ def main():
                 )
             )
         else:
-            for path in input_paths(bindings):
-                sys.stdout.buffer.write(path.encode("utf-8") + b"\0")
+            for binding_input_path in input_paths(bindings):
+                sys.stdout.buffer.write(binding_input_path.encode("utf-8") + b"\0")
 
         return 0
     # silent-defaults: allow-exception-outcome -- This executable reports safe retained evidence and refuses malformed private definitions
