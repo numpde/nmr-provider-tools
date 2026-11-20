@@ -32,7 +32,7 @@ from tests.fakes.uploads import UPLOAD_REF
 
 
 def unavailable_problem(**changes):
-    document = {
+    problem_fields = {
         "type": "urn:nmr-api:problem:service-unavailable",
         "title": "Service unavailable",
         "status": 503,
@@ -42,7 +42,7 @@ def unavailable_problem(**changes):
         "detail": "PRIVATE_SERVER_DETAIL",
     }
 
-    return json.dumps(document | changes).encode()
+    return json.dumps(problem_fields | changes).encode()
 
 
 def body_timeout_problem(**changes):
@@ -147,11 +147,11 @@ class ApiAvailabilityTests(unittest.IsolatedAsyncioTestCase):
 
         self.assertFalse(api.can_retry_job_discovery(failure))
 
-        for (method, path) in (("GET", "/provider/v1/jobs/other"), ("POST", "/provider/v1/jobs")):
+        for (method, request_path) in (("GET", "/provider/v1/jobs/other"), ("POST", "/provider/v1/jobs")):
             transport.replies = iter((reply(b"maintenance", status=503),))
 
             with self.assertRaises(ApiFailure) as caught:
-                await api._exchange("list Jobs", method=method, path=path, query=b"", maximum_bytes=4096)
+                await api._exchange("list Jobs", method=method, path=request_path, query=b"", maximum_bytes=4096)
 
             self.assertFalse(api.can_retry_job_discovery(caught.exception))
 
@@ -513,9 +513,9 @@ class ApiAvailabilityTests(unittest.IsolatedAsyncioTestCase):
 
         transport.replies = iter([reply(b"maintenance", status=503)] * len(operations))
 
-        for (method, path, query) in operations:
-            with self.subTest(method=method, path=path, query=query), self.assertRaises(ApiFailure) as caught:
-                await api._exchange("untrusted label", method=method, path=path, query=query, maximum_bytes=4096, body=b"{}")
+        for (method, request_path, query) in operations:
+            with self.subTest(method=method, path=request_path, query=query), self.assertRaises(ApiFailure) as caught:
+                await api._exchange("untrusted label", method=method, path=request_path, query=query, maximum_bytes=4096, body=b"{}")
 
             self.assertFalse(api.can_defer_phase_progress(caught.exception, execution_attempt_ref=ATTEMPT_REF))
             self.assertFalse(api.can_defer_phase_progress(original, execution_attempt_ref=ATTEMPT_REF))
@@ -536,9 +536,9 @@ class ApiAvailabilityTests(unittest.IsolatedAsyncioTestCase):
 
         transport.replies = iter([reply(b"maintenance", status=503)] * len(operations))
 
-        for (method, path, query) in operations:
-            with self.subTest(method=method, path=path, query=query), self.assertRaises(ApiFailure) as caught:
-                await api._exchange("untrusted label", method=method, path=path, query=query, maximum_bytes=4096, body=b"{}")
+        for (method, request_path, query) in operations:
+            with self.subTest(method=method, path=request_path, query=query), self.assertRaises(ApiFailure) as caught:
+                await api._exchange("untrusted label", method=method, path=request_path, query=query, maximum_bytes=4096, body=b"{}")
 
             self.assertFalse(api.can_replay_terminal(caught.exception))
             self.assertFalse(api.can_replay_terminal(old))
@@ -558,12 +558,12 @@ class ApiAvailabilityTests(unittest.IsolatedAsyncioTestCase):
 
         transport.replies = iter([reply(b"maintenance", status=503)] * len(operations))
 
-        for (method, path, query) in operations:
-            with self.subTest(method=method, path=path, query=query), self.assertRaises(ApiFailure) as caught:
+        for (method, request_path, query) in operations:
+            with self.subTest(method=method, path=request_path, query=query), self.assertRaises(ApiFailure) as caught:
                 await api._exchange(
                     "start Execution Attempt",
                     method=method,
-                    path=path,
+                    path=request_path,
                     query=query,
                     maximum_bytes=4096,
                     body=b"{}"
