@@ -111,8 +111,11 @@ class DeploymentBindings:
 
 
 def _route(table, origin):
-    if not (type(table) is (expected_table_type := dict)):
-        raise BindingDefinitionRejected(f"Cannot admit delivery route: {type(table)=} ≠ {expected_table_type=}")
+    require_type(
+        table,
+        dict,
+        error_factory=lambda diagnostic: BindingDefinitionRejected("Cannot admit delivery route: " + diagnostic),
+    )
 
     if not ("mode" in table):
         raise BindingDefinitionRejected("Cannot admit delivery route: choose local, mapped or external mode explicitly.")
@@ -131,8 +134,7 @@ def _route(table, origin):
 
     _fields(table, required, "route")
 
-    if not (type((table_interface := table["interface"])) is (expected_type := str)):
-        raise BindingDefinitionRejected(f"{type(table_interface)=} ≠ {expected_type=}")
+    require_type((table_interface := table["interface"]), str, error_factory=BindingDefinitionRejected)
 
     require_interface_name(table["interface"])
 
@@ -140,8 +142,11 @@ def _route(table, origin):
         raise BindingDefinitionRejected("Cannot admit delivery route: log_level must be INFO, DEBUG or WARNING.")
 
     if mode == "local":
-        if not (type((table_network_id := table["network_id"])) is (expected_table_network_id_type := str)):
-            raise BindingDefinitionRejected(f"Cannot admit local delivery route: {type(table_network_id)=} ≠ {expected_table_network_id_type=}")
+        require_type(
+            (table_network_id := table["network_id"]),
+            str,
+            error_factory=lambda diagnostic: BindingDefinitionRejected("Cannot admit local delivery route: " + diagnostic),
+        )
 
         if not is_full_network_id(table_network_id):
             raise BindingDefinitionRejected("Cannot admit local delivery route: network_id must be the full immutable Docker network ID.")
@@ -152,12 +157,18 @@ def _route(table, origin):
     else:
         addresses = table["addresses"]
 
-        if not (type(addresses) is (expected_addresses_type := list)):
-            raise BindingDefinitionRejected(f"Cannot admit delivery route: {type(addresses)=} ≠ {expected_addresses_type=}")
+        require_type(
+            addresses,
+            list,
+            error_factory=lambda diagnostic: BindingDefinitionRejected("Cannot admit delivery route: " + diagnostic),
+        )
 
         for address in addresses:
-            if not (type(address) is (expected_type := str)):
-                raise BindingDefinitionRejected(f"Cannot admit delivery route: {type(address)=} ≠ {expected_type=}")
+            require_type(
+                address,
+                str,
+                error_factory=lambda diagnostic: BindingDefinitionRejected("Cannot admit delivery route: " + diagnostic),
+            )
 
     parsed = urlsplit(origin)
 
@@ -188,22 +199,31 @@ def _parse_deployment_bindings(raw):
     _fields(deployment_definition, {"project", "uid", "gid", "request_seconds", "retry_initial_seconds", "retry_max_seconds", "limits", "bindings"}, "definition")
     (project, uid, gid) = (deployment_definition["project"], deployment_definition["uid"], deployment_definition["gid"])
 
-    if not (type(project) is (expected_type := str)):
-        raise BindingDefinitionRejected(f"Cannot admit delivery bindings: {type(project)=} ≠ {expected_type=}")
+    require_type(
+        project,
+        str,
+        error_factory=lambda diagnostic: BindingDefinitionRejected("Cannot admit delivery bindings: " + diagnostic),
+    )
 
     if not (re.fullmatch(r"[a-z0-9][a-z0-9_-]{0,62}", project) is not None):
         raise BindingDefinitionRejected("Cannot admit delivery bindings: project requires a lowercase Compose name of up to 63 characters.")
 
-    if not (type(uid) is (expected_uid_type := int)):
-        raise BindingDefinitionRejected(f"Cannot admit delivery bindings: {type(uid)=} ≠ {expected_uid_type=}")
+    require_type(
+        uid,
+        int,
+        error_factory=lambda diagnostic: BindingDefinitionRejected("Cannot admit delivery bindings: " + diagnostic),
+    )
 
     (min_owner_id, max_owner_id) = (1, 4294967294)
 
     if not (min_owner_id <= uid <= max_owner_id):
         raise BindingDefinitionRejected(f"{uid=} should be between {min_owner_id=} and {max_owner_id=}")
 
-    if not (type(gid) is (expected_gid_type := int)):
-        raise BindingDefinitionRejected(f"Cannot admit delivery bindings: {type(gid)=} ≠ {expected_gid_type=}")
+    require_type(
+        gid,
+        int,
+        error_factory=lambda diagnostic: BindingDefinitionRejected("Cannot admit delivery bindings: " + diagnostic),
+    )
 
     if not (min_owner_id <= gid <= max_owner_id):
         raise BindingDefinitionRejected(f"{gid=} should be between {min_owner_id=} and {max_owner_id=}")
@@ -225,8 +245,11 @@ def _parse_deployment_bindings(raw):
 
     rows = deployment_definition["bindings"]
 
-    if not (type(rows) is (expected_type := list)):
-        raise BindingDefinitionRejected(f"Cannot admit delivery bindings: {type(rows)=} ≠ {expected_type=}")
+    require_type(
+        rows,
+        list,
+        error_factory=lambda diagnostic: BindingDefinitionRejected("Cannot admit delivery bindings: " + diagnostic),
+    )
 
     if not (1 <= len(rows) <= MAX_BINDINGS):
         raise BindingDefinitionRejected("Cannot admit delivery bindings: require one through sixteen explicit bindings.")
@@ -237,8 +260,11 @@ def _parse_deployment_bindings(raw):
         _fields(row, {"name", "socket_path", "api", "route"}, "binding")
         name = row["name"]
 
-        if not (type(name) is (expected_type := str)):
-            raise BindingDefinitionRejected(f"Cannot admit delivery bindings: {type(name)=} ≠ {expected_type=}")
+        require_type(
+            name,
+            str,
+            error_factory=lambda diagnostic: BindingDefinitionRejected("Cannot admit delivery bindings: " + diagnostic),
+        )
 
         if not (re.fullmatch(r"[a-zA-Z0-9][a-zA-Z0-9_-]{0,62}", name) is not None):
             raise BindingDefinitionRejected("Cannot admit delivery bindings: names must be unique ASCII identifiers of up to 63 characters.")
