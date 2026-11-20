@@ -260,10 +260,10 @@ class InterpreterTests(unittest.IsolatedAsyncioTestCase):
         dispatch = AsyncMock(return_value=ToolFinished("ready"))
 
         await interpreter(model).run([], TOOLS, dispatch)
-        reply = feedback(model.complete.await_args_list[-1].args[0])["value"]
+        field_constraints = feedback(model.complete.await_args_list[-1].args[0])["value"]
 
-        self.assertEqual(reply["schema"]["enum"], ["quiet", "full"])
-        self.assertTrue(reply["required"])
+        self.assertEqual(field_constraints["schema"]["enum"], ["quiet", "full"])
+        self.assertTrue(field_constraints["required"])
         dispatch.assert_awaited_once_with("prepare", {"verbosity": "quiet"}, not_after=ANY)
 
     async def test_dynamic_constraints_remain_provider_owned(self):
@@ -480,11 +480,11 @@ class InterpreterTests(unittest.IsolatedAsyncioTestCase):
         interpretation_result = await interpreter(first, second, context=32768).run([], TOOLS, dispatch)
 
         self.assertEqual(interpretation_result.correction_failures, ())
-        reply = feedback(captures[1])["value"]["records"][0]
+        history_fragment = feedback(captures[1])["value"]["records"][0]
 
-        self.assertFalse(reply["complete"])
-        self.assertEqual(reply["next_cursor"], len(reply["json_text"]))
-        self.assertLess(reply["next_cursor"], reply["bytes"])
+        self.assertFalse(history_fragment["complete"])
+        self.assertEqual(history_fragment["next_cursor"], len(history_fragment["json_text"]))
+        self.assertLess(history_fragment["next_cursor"], history_fragment["bytes"])
         self.assertEqual(dispatch.await_count, 2)
 
     async def test_history_evictions_and_missing_references_are_explicit(self):
@@ -517,10 +517,10 @@ class InterpreterTests(unittest.IsolatedAsyncioTestCase):
 
         self.assertEqual(catalogue["unavailable_records"], 1)
         self.assertEqual([record["ref"] for record in catalogue["records"]], ["record-2"])
-        reply = feedback(captures[1])["value"]["records"]
+        history_records = feedback(captures[1])["value"]["records"]
 
-        self.assertEqual(reply[0], {"ref": "record-1", "status": "unavailable"})
-        self.assertTrue(reply[1]["complete"])
+        self.assertEqual(history_records[0], {"ref": "record-1", "status": "unavailable"})
+        self.assertTrue(history_records[1]["complete"])
 
     async def test_decoded_credential_in_history_is_never_forwarded_or_retrieved(self):
         model = endpoint("fixture", call("inspect", "inspect", {}))
@@ -1122,8 +1122,8 @@ class InterpreterTests(unittest.IsolatedAsyncioTestCase):
     @unittest.skipIf(os.environ.get("PRIVACY_TESTS", "1") == "0", "Privacy tests disabled")
     async def test_report_history_excludes_private_arguments(self):
         async for (_failures, _report, _original, records, second, private) in self._report_history():
-            for request in second.complete.await_args_list:
-                self.assertNotIn(private, json.dumps(request.args))
+            for completion_call in second.complete.await_args_list:
+                self.assertNotIn(private, json.dumps(completion_call.args))
 
             for record in records:
                 self.assertNotIn("arguments", json.loads(record["json_text"]))
@@ -1236,13 +1236,13 @@ class InterpreterTests(unittest.IsolatedAsyncioTestCase):
         first = endpoint("first", call("prepare", "prepare", {}))
         unused = endpoint("unused")
 
-        async def prepare(name, arguments, *, not_after):
+        async def held_preparation(name, arguments, *, not_after):
             entered.set()
             await finish.wait()
 
             return ToolFinished(None)
 
-        dispatch = AsyncMock(side_effect=prepare)
+        dispatch = AsyncMock(side_effect=held_preparation)
         owner = interpreter(first, unused)
         running = asyncio.create_task(owner.run([], TOOLS, dispatch))
 
@@ -1281,12 +1281,12 @@ class InterpreterTests(unittest.IsolatedAsyncioTestCase):
                     describe_constraints=reader,
                 )
 
-                value = feedback(model.complete.await_args.args[0])["value"]
+                constraint_description = feedback(model.complete.await_args.args[0])["value"]
 
                 if metadata is NotImplemented:
-                    self.assertEqual(value["schema"]["enum"], ["quiet", "full"])
+                    self.assertEqual(constraint_description["schema"]["enum"], ["quiet", "full"])
                 else:
-                    self.assertIsNone(value)
+                    self.assertIsNone(constraint_description)
 
                 self.assertEqual(
                     reader.await_args.kwargs["not_after"],
