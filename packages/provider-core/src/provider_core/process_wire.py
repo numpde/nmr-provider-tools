@@ -2,6 +2,8 @@
 
 Only SDK records cross the channel. The sender never serializes a live model,
 Python callable, state value, or exception object with pickle.
+Reconstructed errors retain bounded child locations for protected diagnostics;
+the added exception note renders those facts without child source or locals.
 """
 
 from __future__ import annotations
@@ -12,8 +14,9 @@ require_container()
 
 import asyncio
 import base64
+from collections import deque
 from collections.abc import Mapping
-from dataclasses import fields, is_dataclass
+from dataclasses import dataclass, fields, is_dataclass
 from enum import Enum
 import json
 import socket
@@ -52,10 +55,26 @@ MAX_PAYLOAD_BYTES = 1024 * 1024
 MAX_FAILURE_NODES = 32
 MAX_FAILURE_DEPTH = 8
 MAX_DIAGNOSTIC_CHARACTERS = 2048
+MAX_TRACEBACK_FRAMES = 8
+MAX_TRACEBACK_LOCATION_CHARACTERS = 512
+MAX_TRACEBACK_LINE = (2 ** 31) - 1
 
 
 class RemoteScienceError(RuntimeError):
     """Foreign failure evidence, never permission to correct or repeat science."""
+
+
+@dataclass(frozen=True, slots=True)
+class _DecodedErrorEvidence:
+    kind: str
+    original_type: str
+    message: str
+    code: str | None
+    frames: tuple[tuple[str, str, int], ...]
+    frames_omitted: bool
+    causes: tuple[_DecodedErrorEvidence, ...]
+    cause: _DecodedErrorEvidence | None
+    context: _DecodedErrorEvidence | None
 
 
 _RECORDS = {
@@ -107,11 +126,64 @@ _ERRORS = {
 }
 
 
+def decoded_error_evidence(failure: BaseException) -> _DecodedErrorEvidence | None:
+    """Expose decoder-owned facts to protected consumers, which must redact them.
+
+    Exact reconstructed types and a private immutable record distinguish these
+    facts from arbitrary exception attributes, properties and mutable notes.
+    """
+
+    kind = type(failure)
+
+    if not (
+        (kind is RemoteScienceError)
+        or (kind is BaseExceptionGroup)
+        or (kind is ExceptionGroup)
+        or any(kind is admitted_type for admitted_type in _ERRORS.values())
+    ):
+        return None
+
+    attributes = BaseException.__getattribute__(failure, "__dict__")
+    evidence = dict.get(attributes, "_process_error_evidence")
+
+    return evidence if type(evidence) is _DecodedErrorEvidence else None
+
+
 def _diagnostic_text(diagnostic: str) -> str:
     if len(diagnostic) <= MAX_DIAGNOSTIC_CHARACTERS:
         return diagnostic
 
     return diagnostic[:MAX_DIAGNOSTIC_CHARACTERS] + " [truncated]"
+
+
+def _pack_traceback(failure: BaseException) -> dict:
+    """Keep innermost child locations without reading source, locals or globals."""
+
+    frames = deque(maxlen=MAX_TRACEBACK_FRAMES)
+    frames_omitted = False
+    current = failure.__traceback__
+
+    while current is not None:
+        code = current.tb_frame.f_code
+        (file, function, line) = (code.co_filename, code.co_name, current.tb_lineno)
+        current = current.tb_next
+
+        if not (
+            (0 < len(file) <= MAX_TRACEBACK_LOCATION_CHARACTERS)
+            and (0 < len(function) <= MAX_TRACEBACK_LOCATION_CHARACTERS)
+            and (type(line) is int)
+            and (0 < line <= MAX_TRACEBACK_LINE)
+        ):
+            frames_omitted = True
+
+            continue
+
+        if len(frames) == MAX_TRACEBACK_FRAMES:
+            frames_omitted = True
+
+        frames.append({"file": file, "function": function, "line": line})
+
+    return {"frames": list(frames), "frames_omitted": frames_omitted}
 
 
 def _pack_error(failure: BaseException, *, seen: frozenset[int], remaining: list[int]) -> dict:
@@ -127,6 +199,8 @@ def _pack_error(failure: BaseException, *, seen: frozenset[int], remaining: list
             "error": "remote",
             "original_type": original_type,
             "message": "Further failure evidence omitted: cycle or diagnostic limit",
+            "frames": [],
+            "frames_omitted": True,
         }
 
     seen = seen | {id(failure)}
@@ -151,6 +225,7 @@ def _pack_error(failure: BaseException, *, seen: frozenset[int], remaining: list
         "error": name,
         "original_type": original_type,
         "message": _diagnostic_text(message),
+        **_pack_traceback(failure),
     }
 
     if isinstance(failure, CallRejected):
@@ -169,6 +244,8 @@ def _pack_error(failure: BaseException, *, seen: frozenset[int], remaining: list
                             "error": "remote",
                             "original_type": original_type,
                             "message": "Additional independent failures omitted by diagnostic limit",
+                            "frames": [],
+                            "frames_omitted": True,
                         }
                     )
 
@@ -276,13 +353,22 @@ def unpack(wire_value: object) -> object:
         return record_type(**{key: unpack(field_value) for (key, field_value) in wire_value["fields"].items()})
 
     if "error" in wire_value:
-        return _unpack_error(wire_value)
+        # The sender can append explicit limit markers beyond its retained-node budget.
+        return _unpack_error(wire_value, depth=0, remaining=[2 * MAX_FAILURE_NODES])
 
     raise ValueError("Unknown scientific process record")
 
 
-def _unpack_error(error_fields: dict) -> BaseException:
-    required = {"error", "message", "original_type"}
+def _unpack_error(error_fields: dict, *, depth: int, remaining: list[int]) -> BaseException:
+    if not ((depth <= MAX_FAILURE_DEPTH) and (0 < remaining[0])):
+        raise ValueError("Scientific process failure graph exceeds diagnostic limits")
+
+    remaining[0] -= 1
+
+    if not ((type(error_fields) is dict) and (type(error_fields.get("error")) is str)):
+        raise ValueError("Scientific process failure needs an error record with a string kind")
+
+    required = {"error", "message", "original_type", "frames", "frames_omitted"}
     name = error_fields["error"]
 
     if name in ("CallRejected", "ScientificRejection"):
@@ -304,11 +390,39 @@ def _unpack_error(error_fields: dict) -> BaseException:
             f"{type(error_fields['original_type'])=} should both be str"
         )
 
-    if name == "group":
-        if not (type(error_fields["causes"]) is list):
-            raise ValueError(f"Scientific process error group {type(error_fields['causes'])=} should be list")
+    if not all(len(error_fields[field]) <= MAX_DIAGNOSTIC_CHARACTERS + len(" [truncated]") for field in ("message", "original_type")):
+        raise ValueError("Scientific process descriptions exceed diagnostic limits")
 
-        failure = BaseExceptionGroup(error_fields["message"], [unpack(cause) for cause in error_fields["causes"]])
+    frames = error_fields["frames"]
+    frames_omitted = error_fields["frames_omitted"]
+
+    if not ((type(frames) is list) and (len(frames) <= MAX_TRACEBACK_FRAMES) and (type(frames_omitted) is bool)):
+        raise ValueError("Scientific process traceback needs a bounded frame list and a boolean omission marker")
+
+    for location in frames:
+        if not ((type(location) is dict) and (set(location) == {"file", "function", "line"})):
+            raise ValueError("Scientific process traceback frame must contain only file, function and line")
+
+        (file, function, line) = (location["file"], location["function"], location["line"])
+
+        if not (
+            (type(file) is str)
+            and (0 < len(file) <= MAX_TRACEBACK_LOCATION_CHARACTERS)
+            and (type(function) is str)
+            and (0 < len(function) <= MAX_TRACEBACK_LOCATION_CHARACTERS)
+            and (type(line) is int)
+            and (0 < line <= MAX_TRACEBACK_LINE)
+        ):
+            raise ValueError("Scientific process traceback locations must have bounded names and positive integer lines")
+
+    group_failures = ()
+
+    if name == "group":
+        if not ((type(error_fields["causes"]) is list) and (0 < len(error_fields["causes"]) <= MAX_FAILURE_NODES)):
+            raise ValueError("Scientific process error group needs a nonempty bounded failure list")
+
+        group_failures = tuple(_unpack_error(cause, depth=depth + 1, remaining=remaining) for cause in error_fields["causes"])
+        failure = BaseExceptionGroup(error_fields["message"], group_failures)
     elif name in ("CallRejected", "ScientificRejection"):
         failure = _ERRORS[name](code=error_fields["code"], message=error_fields["message"])
     elif name in _ERRORS:
@@ -320,10 +434,34 @@ def _unpack_error(error_fields: dict) -> BaseException:
 
     failure.remote_type = error_fields["original_type"]
 
+    if frames or frames_omitted:
+        note_lines = ["Remote traceback (innermost first):"]
+
+        if frames_omitted:
+            note_lines.append("Some remote traceback frames omitted by diagnostic limits")
+
+        for location in reversed(frames):
+            (file, function, line) = (location["file"], location["function"], location["line"])
+            note_lines.append(f"  {file = !a}, {line = }, {function = !a}")
+
+        failure.add_note(_diagnostic_text("\n".join(note_lines)))
+
     if "cause" in error_fields:
-        failure.__cause__ = unpack(error_fields["cause"])
+        failure.__cause__ = _unpack_error(error_fields["cause"], depth=depth + 1, remaining=remaining)
     elif "context" in error_fields:
-        failure.__context__ = unpack(error_fields["context"])
+        failure.__context__ = _unpack_error(error_fields["context"], depth=depth + 1, remaining=remaining)
+
+    failure._process_error_evidence = _DecodedErrorEvidence(
+        kind=name,
+        original_type=error_fields["original_type"],
+        message=error_fields["message"],
+        code=error_fields["code"] if "code" in error_fields else None,
+        frames=tuple((location["file"], location["function"], location["line"]) for location in frames),
+        frames_omitted=frames_omitted,
+        causes=tuple(child._process_error_evidence for child in group_failures),
+        cause=failure.__cause__._process_error_evidence if failure.__cause__ is not None else None,
+        context=failure.__context__._process_error_evidence if failure.__context__ is not None else None,
+    )
 
     return failure
 

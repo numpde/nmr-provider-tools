@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
+import json
 import socket
+import traceback
 import unittest
 from unittest.mock import patch
 
@@ -24,10 +26,16 @@ from provider_core.hosting import (
 )
 from provider_core.process_wire import (
     MAX_DIAGNOSTIC_CHARACTERS,
+    MAX_FAILURE_DEPTH,
+    MAX_FAILURE_NODES,
     MAX_FRAME_BYTES,
     MAX_PAYLOAD_BYTES,
+    MAX_TRACEBACK_FRAMES,
+    MAX_TRACEBACK_LINE,
+    MAX_TRACEBACK_LOCATION_CHARACTERS,
     RemoteScienceError,
     decode_frame,
+    decoded_error_evidence,
     frame,
     receive,
 )
@@ -166,6 +174,217 @@ class ProcessWireTests(unittest.TestCase):
         failure.__suppress_context__ = True
 
         self.assertIsNone(obj=roundtrip(failure).__context__)
+
+    def test_child_traceback_locations_survive_causes_and_groups_without_local_payloads(self):
+        def child_spectrum_calculation():
+            _private_payload = {"sample": "child-local-payload-canary"}
+            _live_model = object()
+            raise ValueError("Distinctive child spectrum failure")
+
+        try:
+            child_spectrum_calculation()
+        except ValueError as child_failure:
+            location = child_failure.__traceback__
+
+            while location.tb_next is not None:
+                location = location.tb_next
+
+            expected_location = {
+                "file": location.tb_frame.f_code.co_filename,
+                "function": location.tb_frame.f_code.co_name,
+                "line": location.tb_lineno,
+            }
+
+            operation_failure = RuntimeError("Child operation failed")
+            operation_failure.__cause__ = child_failure
+            encoded = frame(ExceptionGroup("Child and cleanup failures", [operation_failure, OSError("Cleanup failed")]))
+
+        received_group = decode_frame(encoded[4:])
+        received = received_group.exceptions[0].__cause__
+        evidence = decoded_error_evidence(received)
+        wire_failure = json.loads(encoded[4:])["causes"][0]["cause"]
+        rendered = "".join(traceback.format_exception(received_group))
+
+        self.assertIs(expr1=ValueError, expr2=type(received))
+        self.assertEqual(first="Distinctive child spectrum failure", second=str(received))
+        self.assertEqual(
+            first=(expected_location["file"], expected_location["function"], expected_location["line"]),
+            second=evidence.frames[-1],
+        )
+
+        self.assertFalse(expr=evidence.frames_omitted)
+        self.assertIsNone(obj=received.__traceback__)
+
+        for location in wire_failure["frames"]:
+            self.assertEqual(first={"file", "function", "line"}, second=set(location))
+
+        for diagnostic in (encoded[4:].decode("ascii"), rendered):
+            self.assertIn(member="child_spectrum_calculation", container=diagnostic)
+            self.assertNotIn(member="child-local-payload-canary", container=diagnostic)
+            self.assertNotIn(member="_live_model", container=diagnostic)
+
+        self.assertIn(member=expected_location["file"], container=rendered)
+        self.assertIn(member=str(expected_location["line"]), container=rendered)
+
+    def test_child_traceback_limits_keep_innermost_frames_and_mark_omissions(self):
+        for filename_length in (MAX_TRACEBACK_LOCATION_CHARACTERS, MAX_TRACEBACK_LOCATION_CHARACTERS + 1):
+            with self.subTest(filename_length=filename_length):
+                def child_recursive_calculation(depth):
+                    if depth:
+                        child_recursive_calculation(depth - 1)
+                    else:
+                        raise RuntimeError("Deep child failure")
+
+                filename = "s" * filename_length
+                child_recursive_calculation.__code__ = child_recursive_calculation.__code__.replace(co_filename=filename)
+
+                try:
+                    child_recursive_calculation(MAX_TRACEBACK_FRAMES + 4)
+                except RuntimeError as child_failure:
+                    encoded = frame(child_failure)
+
+                received = decode_frame(encoded[4:])
+                evidence = decoded_error_evidence(received)
+                note = "\n".join(received.__notes__)
+
+                self.assertTrue(expr=evidence.frames_omitted)
+                self.assertIn(member="omitted", container=note)
+                self.assertLessEqual(a=len(evidence.frames), b=MAX_TRACEBACK_FRAMES)
+                self.assertLessEqual(a=len(note), b=MAX_DIAGNOSTIC_CHARACTERS + len(" [truncated]"))
+                self.assertLess(a=len(encoded), b=MAX_DIAGNOSTIC_CHARACTERS * MAX_TRACEBACK_FRAMES)
+
+                for (file, function, _) in evidence.frames:
+                    self.assertLessEqual(a=len(file), b=MAX_TRACEBACK_LOCATION_CHARACTERS)
+                    self.assertLessEqual(a=len(function), b=MAX_TRACEBACK_LOCATION_CHARACTERS)
+
+                if filename_length == MAX_TRACEBACK_LOCATION_CHARACTERS:
+                    self.assertEqual(first=MAX_TRACEBACK_FRAMES, second=len(evidence.frames))
+                    self.assertEqual(first=filename, second=evidence.frames[-1][0])
+                    self.assertEqual(first="child_recursive_calculation", second=evidence.frames[-1][1])
+                    self.assertIn(member="truncated", container=note)
+                else:
+                    self.assertNotIn(member=filename, container=encoded[4:].decode("ascii"))
+
+    def test_remote_traceback_notes_render_location_controls_as_literal_text(self):
+        wire_failure = json.loads(frame(RuntimeError("Child failure"))[4:])
+        wire_failure["frames"] = [{"file": "child\ncalculation.py", "function": "worker\x1b[31m", "line": 12}]
+        received = decode_frame(json.dumps(wire_failure).encode("ascii"))
+        note = "\n".join(received.__notes__)
+
+        self.assertEqual(first=("child\ncalculation.py", "worker\x1b[31m", 12), second=decoded_error_evidence(received).frames[0])
+        self.assertNotIn(member="child\ncalculation.py", container=note)
+        self.assertNotIn(member="\x1b", container=note)
+        self.assertIn(member=r"child\ncalculation.py", container=note)
+        self.assertIn(member=r"worker\x1b[31m", container=note)
+
+    def test_malformed_remote_traceback_evidence_is_refused(self):
+        wire_failure = json.loads(frame(RuntimeError("Child failure"))[4:])
+        valid_location = {"file": "child.py", "function": "child_calculation", "line": 12}
+        invalid_frames = [None, {}, "frames", [None], [valid_location] * (MAX_TRACEBACK_FRAMES + 1)]
+
+        for field in valid_location:
+            invalid_frames.append([{key: value for (key, value) in valid_location.items() if key != field}])
+
+        for extra_field in ("locals", "source"):
+            invalid_frames.append([{**valid_location, extra_field: "private child evidence"}])
+
+        for field in ("file", "function"):
+            for value in (None, False, 12, [], {}, "", "x" * (MAX_TRACEBACK_LOCATION_CHARACTERS + 1)):
+                invalid_frames.append([{**valid_location, field: value}])
+
+        for value in (None, False, True, 0, -1, 1.5, "12", MAX_TRACEBACK_LINE + 1):
+            invalid_frames.append([{**valid_location, "line": value}])
+
+        invalid_evidence = [{**wire_failure, "frames": frames} for frames in invalid_frames]
+        invalid_evidence.extend({**wire_failure, "frames_omitted": value} for value in (None, 0, 1, "false", [], {}))
+
+        for missing_field in ("frames", "frames_omitted"):
+            invalid_evidence.append({key: value for (key, value) in wire_failure.items() if key != missing_field})
+
+        for error_fields in invalid_evidence:
+            with self.subTest(error_fields=error_fields), self.assertRaises(expected_exception=ValueError):
+                decode_frame(json.dumps(error_fields).encode("ascii"))
+
+    def test_decoded_failure_facts_compare_across_replies_and_distinguish_changed_causes(self):
+        rejection = ScientificRejection(code="missing_spectrum", message="Supply a spectrum")
+        rejection.__cause__ = ValueError("Spectrum calibration is missing")
+        encoded = frame(ExceptionGroup("Scientific failures", [rejection]))[4:]
+        first = decode_frame(encoded)
+        repeated = decode_frame(encoded)
+        evidence = decoded_error_evidence(first)
+
+        self.assertIsNot(expr1=first.exceptions[0], expr2=repeated.exceptions[0])
+        self.assertEqual(first=evidence, second=decoded_error_evidence(repeated))
+        self.assertIsNone(obj=decoded_error_evidence(ValueError("Local failure")))
+
+        for change in ("code", "cause_message", "causal_relationship", "frame"):
+            with self.subTest(change=change):
+                changed = json.loads(encoded)
+                child = changed["causes"][0]
+
+                if change == "code":
+                    child["code"] = "invalid_spectrum"
+                elif change == "cause_message":
+                    child["cause"]["message"] = "Spectrum calibration is inconsistent"
+                elif change == "causal_relationship":
+                    child["context"] = child.pop("cause")
+                else:
+                    child["cause"]["frames"] = [{"file": "child.py", "function": "calibrate_spectrum", "line": 12}]
+
+                received = decode_frame(json.dumps(changed).encode("ascii"))
+
+                self.assertNotEqual(first=evidence, second=decoded_error_evidence(received))
+
+    def test_decoder_graph_bounds_admit_encoder_limit_markers(self):
+        failure = RuntimeError("Deep scientific failure")
+
+        for _ in range(MAX_FAILURE_DEPTH):
+            failure = ExceptionGroup(
+                "Independent failure " * MAX_DIAGNOSTIC_CHARACTERS,
+                [failure] + [OSError("Cleanup failed") for _ in range(MAX_FAILURE_NODES)],
+            )
+            failure.__cause__ = RuntimeError("Group cause " * MAX_DIAGNOSTIC_CHARACTERS)
+
+        received = roundtrip(failure)
+        pending = [decoded_error_evidence(received)]
+        (count, omissions) = (0, 0)
+
+        while pending:
+            evidence = pending.pop()
+            count += 1
+            omissions += evidence.frames_omitted
+            pending.extend(evidence.causes)
+
+            for cause in (evidence.cause, evidence.context):
+                if cause is not None:
+                    pending.append(cause)
+
+        self.assertIn(member="truncated", container=received.message)
+        self.assertGreater(a=count, b=MAX_FAILURE_NODES)
+        self.assertLessEqual(a=count, b=2 * MAX_FAILURE_NODES)
+        self.assertGreater(a=omissions, b=0)
+
+    def test_malformed_failure_graphs_and_oversized_descriptions_are_refused(self):
+        leaf = json.loads(frame(RuntimeError("Child failure"))[4:])
+        group = json.loads(frame(ExceptionGroup("Scientific failures", [RuntimeError("Child failure")]))[4:])
+        too_deep = leaf
+
+        for _ in range(MAX_FAILURE_DEPTH + 1):
+            too_deep = {**leaf, "cause": too_deep}
+
+        invalid_evidence = [
+            {**leaf, "message": "m" * (MAX_DIAGNOSTIC_CHARACTERS + len(" [truncated]") + 1)},
+            {**leaf, "original_type": "t" * (MAX_DIAGNOSTIC_CHARACTERS + len(" [truncated]") + 1)},
+            {**leaf, "cause": {"mapping": {}}},
+            {**leaf, "context": None},
+            {**group, "causes": [leaf] * (MAX_FAILURE_NODES + 1)},
+            {**group, "causes": [{**group, "causes": [leaf] * MAX_FAILURE_NODES}] * 3},
+            too_deep,
+        ]
+
+        for error_fields in invalid_evidence:
+            with self.subTest(error_fields=error_fields), self.assertRaises(expected_exception=ValueError):
+                decode_frame(json.dumps(error_fields).encode("ascii"))
 
     def test_cyclic_and_large_failures_leave_bounded_explicit_diagnostics(self):
         failure = RuntimeError("failure " * MAX_DIAGNOSTIC_CHARACTERS)
