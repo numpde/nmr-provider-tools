@@ -87,7 +87,7 @@ def load_delivery_service(path, *, on_notice, diagnostic_status):
         "configuration"
     )
 
-    if service_configuration["schema_id"] != "provider-core.delivery.v1":
+    if not (service_configuration["schema_id"] == "provider-core.delivery.v1"):
         raise DeliveryConfigurationRejected("require schema provider-core.delivery.v1.")
 
     _fields(service_configuration["limits"], {"provider_items", "provider_bytes", "total_items", "total_bytes"}, "limits")
