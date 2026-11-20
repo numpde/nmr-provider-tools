@@ -13,6 +13,8 @@ import unittest
 import pathlib
 from collections.abc import Callable, Iterator
 
+from operations.checker.findings import assert_no_findings
+
 from ..sources import ROOT
 from .test_shared_scanner import repo_files
 
@@ -969,7 +971,7 @@ class PythonSilentDefaultsTest(unittest.TestCase):
         for source_path in python_files():
             findings.extend(python_operator_default_findings(source_path))
 
-        self.assertEqual([], findings)
+        assert_no_findings(findings)
 
 
 def python_source_has_default(source: str) -> bool:

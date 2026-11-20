@@ -13,6 +13,8 @@ import builtins
 import pathlib
 import unittest
 
+from operations.checker.findings import assert_no_findings
+
 from .sources import ROOT, python_sources
 
 
@@ -441,4 +443,4 @@ raise ChildRejected("Explain the failure", code=Rejected.Code.INVALID_INPUT)
 
         diagnostics = [f"{source_path}:{line}: {reason}" for (source_path, line, reason) in findings]
 
-        self.assertEqual(first=[], second=diagnostics, msg="\n".join(diagnostics))
+        assert_no_findings(diagnostics)

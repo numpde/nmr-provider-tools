@@ -16,6 +16,8 @@ require_container()
 import io
 import tokenize
 import unittest
+
+from operations.checker.findings import assert_no_findings
 import pathlib
 from dataclasses import dataclass
 
@@ -159,8 +161,4 @@ class EscapedNewlinePostureTests(unittest.TestCase):
             for finding in _findings(source_path=source_path.relative_to(REPOSITORY_ROOT), source=source_path.read_text(encoding="utf-8"))
         ]
 
-        if findings:
-            self.fail(
-                f"Escaped newline census: {len(findings)=}\n"
-                + "\n".join(finding.diagnostic() for finding in findings)
-            )
+        assert_no_findings([finding.diagnostic() for finding in findings])

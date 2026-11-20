@@ -11,7 +11,7 @@
     main { max-width: 880px; margin: 36px auto; padding: 28px; background: white; border: 1px solid #dde1e7; border-radius: 12px; }
     h1 { margin: 0; font-size: 27px; }
     h2 { margin: 28px 0 16px; font-size: 18px; font-weight: 650; }
-    .meta, .counts, footer { color: #596372; font-size: 13px; }
+    .meta, .counts, .command { color: #596372; font-size: 13px; }
     .meta { margin: 6px 0 22px; }
     .totals { display: flex; flex-wrap: wrap; gap: 12px 28px; margin-bottom: 14px; font-variant-numeric: tabular-nums; }
     .totals strong { font-size: 23px; color: #202733; }
@@ -20,10 +20,9 @@
     .pass { background: var(--green); }
     .fail { background: var(--red); }
     .skip { background: var(--gray); }
-    .legend { display: flex; flex-wrap: wrap; gap: 18px; margin-top: 9px; font-size: 13px; }
-    .legend i { display: inline-block; width: 9px; height: 9px; margin-right: 5px; border-radius: 2px; }
+    .totals i { display: inline-block; width: 9px; height: 9px; margin-right: 5px; border-radius: 2px; }
     .counts { white-space: nowrap; font-variant-numeric: tabular-nums; }
-    footer { margin-top: 26px; padding-top: 18px; border-top: 1px solid #dde1e7; }
+    .command { margin: 12px 0; }
     code { overflow-wrap: anywhere; font-size: 12px; }
     @media (max-width: 600px) {
       main { margin: 0; padding: 20px; border-radius: 0; }
@@ -42,7 +41,7 @@
   const main = document.querySelector("main");
   const format = number => number.toLocaleString("en-GB");
   const outcomes = {"passed": "pass", "failed": "fail", "error": "fail",
-    "skipped": "skip", "expected failure": "skip", "unexpected success": "fail"};
+    "unexpected success": "fail", "skipped": "skip", "expected failure": "skip"};
 
   function element(tag, text, className) {
     const node = document.createElement(tag);
@@ -64,55 +63,59 @@
     return node;
   }
 
-  const counts = {};
+  const counts = Object.fromEntries(Object.keys(outcomes).map(outcome => [outcome, 0]));
   const modules = new Map();
-  for (const [id, outcome] of Object.entries(report.checks)) {
-    counts[outcome] = (counts[outcome] ?? 0) + 1;
+  for (const [id, check] of Object.entries(report.checks)) {
+    const outcome = check.outcome;
+    counts[outcome]++;
     const moduleName = id.split(".").slice(0, -2).join(".") || id;
     if (!modules.has(moduleName)) modules.set(moduleName, []);
-    modules.get(moduleName).push(outcome);
+    modules.get(moduleName).push({id, ...check});
   }
+  const findingCount = checks => checks.reduce((total, check) => total + (check.findings ?? 0), 0);
 
   const created = new Date(report.created).toLocaleString("en-GB");
+  const selection = report.pattern === "test*.py" ? "" : ` TEST_PATTERN=${report.pattern}`;
+  const command = element("p", undefined, "command");
+  command.append(element("code", `make tests/repository/quality/report DOCKER_CONTEXT=${report.context} PRIVACY_TESTS=${Number(report.privacyTests)}${selection} > notes/092_repo_checks_status.html`));
+  main.append(command);
   main.append(element("p", `${created} · ${report.revision} · Docker: ${report.context} · Privacy tests: ${report.privacyTests ? "on" : "off"} · Selection: ${report.pattern}`, "meta"));
   const totals = element("div", undefined, "totals");
+  const findings = element("span");
+  findings.append(element("strong", format(findingCount(Object.values(report.checks)))), " reported findings");
+  totals.append(findings);
   for (const [name, count] of Object.entries(counts)) {
+    if (!count) continue;
     const total = element("span");
-    total.append(element("strong", format(count)), ` ${name}`);
+    total.append(element("i", undefined, outcomes[name]), element("strong", format(count)), ` ${name} checks`);
     totals.append(total);
   }
-  const summary = Object.entries(counts).map(([name, count]) => `${format(count)} ${name}`).join(", ") || "No checks discovered";
+  const summary = Object.entries(counts).filter(([, count]) => count)
+    .map(([name, count]) => `${format(count)} ${name}`).join(", ") || "No checks discovered";
   const segments = {pass: 0, fail: 0, skip: 0};
   for (const [outcome, count] of Object.entries(counts)) segments[outcomes[outcome]] += count;
   main.append(totals, bar(segments, summary));
-  const legend = element("div", undefined, "legend");
-  for (const [outcome, count] of Object.entries(counts)) {
-    const label = element("span");
-    label.append(element("i", undefined, outcomes[outcome]), `${format(count)} ${outcome}`);
-    legend.append(label);
-  }
-  main.append(legend);
 
   const sortedModules = [...modules].sort(([a, checksA], [b, checksB]) => {
-    const red = checks => checks.some(outcome => outcomes[outcome] === "fail");
-    return Number(red(checksB)) - Number(red(checksA)) || a.localeCompare(b);
+    const failureCount = checks => checks.filter(check => outcomes[check.outcome] === "fail").length;
+    return findingCount(checksB) - findingCount(checksA) || failureCount(checksB) - failureCount(checksA) || a.localeCompare(b);
   });
   for (const [moduleName, checks] of sortedModules) {
     const section = element("section");
     const name = moduleName.replace("tests.repository.quality.", "").replaceAll("test_", "").replaceAll("_", " ");
     section.append(element("h2", name));
     const moduleCounts = {pass: 0, fail: 0, skip: 0};
-    for (const outcome of checks) moduleCounts[outcomes[outcome]]++;
+    for (const check of checks) moduleCounts[outcomes[check.outcome]]++;
     const description = Object.entries(moduleCounts).filter(([, count]) => count)
       .map(([status, count]) => `${format(count)} ${{pass: "passed", fail: "failed", skip: "skipped"}[status]}`).join(" · ");
     section.append(element("p", description, "counts"), bar(moduleCounts, `${name}: ${description}`));
+    for (const check of checks.filter(check => check.findings !== undefined)) {
+      const checkName = check.id.split(".").at(-1).replace(/^test_/, "").replaceAll("_", " ");
+      section.append(element("p", `${format(check.findings)} findings · ${checkName}`, "counts"));
+    }
     main.append(section);
   }
 
-  const footer = element("footer");
-  const selection = report.pattern === "test*.py" ? "" : ` TEST_PATTERN=${report.pattern}`;
-  footer.append(element("code", `make tests/repository/quality/report DOCKER_CONTEXT=${report.context} PRIVACY_TESTS=${Number(report.privacyTests)}${selection} > notes/092_repo_checks_status.html`));
-  main.append(footer);
 </script>
 </body>
 </html>

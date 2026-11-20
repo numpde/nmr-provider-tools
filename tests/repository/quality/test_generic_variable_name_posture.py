@@ -15,6 +15,8 @@ import pathlib
 import unittest
 from dataclasses import dataclass
 
+from operations.checker.findings import assert_no_findings
+
 from .sources import ROOT, python_sources
 
 
@@ -257,5 +259,5 @@ class GenericVariableNamePostureTests(unittest.TestCase):
             for finding in _findings(source=source_path.read_text(encoding="utf-8"))
         ]
 
-        self.assertEqual(first=[], second=findings, msg="\n".join(findings))
+        assert_no_findings(findings)
 

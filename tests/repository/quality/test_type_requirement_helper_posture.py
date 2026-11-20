@@ -17,6 +17,8 @@ import ast
 import pathlib
 import unittest
 
+from operations.checker.findings import assert_no_findings
+
 from .sources import ROOT, python_sources
 from .test_type_error_posture import _builtin, _type_call
 from .type_checks import raising_guards, unwrap_binding
@@ -219,5 +221,4 @@ class TypeRequirementHelperPostureTests(unittest.TestCase):
                     f"preserve value checks, bindings, and failure semantics"
                 )
 
-        if findings:
-            self.fail(f"{len(findings)} handwritten raising type guards:\n" + "\n".join(findings))
+        assert_no_findings(findings)

@@ -16,6 +16,8 @@ from collections.abc import Iterator
 import pathlib
 import unittest
 
+from operations.checker.findings import assert_no_findings
+
 from .sources import ROOT, python_sources
 from .type_checks import raising_guards, unwrap_binding
 
@@ -144,5 +146,4 @@ class FiniteNumberHelperPostureTests(unittest.TestCase):
                     f"preserve exception classification, bindings and evaluation order"
                 )
 
-        if findings:
-            self.fail(f"{len(findings)} handwritten finite-number guards:\n" + "\n".join(findings))
+        assert_no_findings(findings)

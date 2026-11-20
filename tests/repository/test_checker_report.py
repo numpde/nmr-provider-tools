@@ -24,13 +24,17 @@ class CheckerReportTests(unittest.TestCase):
                 textwrap.dedent(
                     '''
                 import unittest
+                from operations.checker.findings import assert_no_findings
 
                 class Outcomes(unittest.TestCase):
                     def test_success(self):
-                        pass
+                        assert_no_findings([])
 
                     def test_failure(self):
                         self.fail("fixture rejection")
+
+                    def test_inventory(self):
+                        assert_no_findings(["first finding", "second finding", "third finding"])
 
                     def test_error(self):
                         raise RuntimeError("fixture error")
@@ -51,6 +55,10 @@ class CheckerReportTests(unittest.TestCase):
                         for number in [0, 1]:
                             with self.subTest(number=number):
                                 self.assertEqual(0, number)
+
+                        for finding in ["fourth finding", "fifth finding"]:
+                            with self.subTest(finding=finding):
+                                assert_no_findings([finding])
 
                 class BrokenSetup(unittest.TestCase):
                     @classmethod
@@ -85,11 +93,13 @@ class CheckerReportTests(unittest.TestCase):
         report = json.loads(report_json)
 
         self.assertEqual(
-            {"passed": 1, "failed": 2, "error": 2, "skipped": 1, "expected failure": 1, "unexpected success": 1},
-            Counter(report["checks"].values()),
+            {"passed": 1, "failed": 3, "error": 2, "skipped": 1, "expected failure": 1, "unexpected success": 1},
+            Counter(check["outcome"] for check in report["checks"].values()),
         )
 
         self.assertEqual("fixture-revision", report["revision"])
         self.assertEqual("fixture</script>context", report["context"])
         self.assertFalse(report["privacyTests"])
+        self.assertEqual(3, report["checks"]["test_report_fixture.Outcomes.test_inventory"]["findings"])
+        self.assertEqual(2, report["checks"]["test_report_fixture.Outcomes.test_subtests"]["findings"])
         self.assertFalse(any(("test_unreachable" in check_id) for check_id in report["checks"]))

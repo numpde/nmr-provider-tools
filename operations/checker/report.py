@@ -14,6 +14,8 @@ import os
 import pathlib
 import unittest
 
+from operations.checker.findings import FindingsFailure
+
 
 class ReportResult(unittest.TextTestResult):
     """Retain outcomes alongside unittest's ordinary diagnostics and exit status."""
@@ -24,38 +26,49 @@ class ReportResult(unittest.TextTestResult):
 
     def startTest(self, test):
         super().startTest(test)
-        self.checks[test.id()] = "passed"
+        self.checks[test.id()] = {"outcome": "passed"}
 
     def addFailure(self, test, err):
         super().addFailure(test, err)
-        self.checks[test.id()] = "failed"
+        self.checks[test.id()] = {"outcome": "failed"}
+
+        if isinstance(err[1], FindingsFailure):
+            self.checks[test.id()]["findings"] = len(err[1].findings)
 
     def addError(self, test, err):
         super().addError(test, err)
-        self.checks[test.id()] = "error"
+        self.checks[test.id()] = {"outcome": "error"}
 
     def addSkip(self, test, reason):
         super().addSkip(test, reason)
-        self.checks[test.id()] = "skipped"
+        self.checks[test.id()] = {"outcome": "skipped"}
 
     def addExpectedFailure(self, test, err):
         super().addExpectedFailure(test, err)
-        self.checks[test.id()] = "expected failure"
+        self.checks[test.id()] = {"outcome": "expected failure"}
 
     def addUnexpectedSuccess(self, test):
         super().addUnexpectedSuccess(test)
-        self.checks[test.id()] = "unexpected success"
+        self.checks[test.id()] = {"outcome": "unexpected success"}
 
     def addSubTest(self, test, subtest, err):
         super().addSubTest(test, subtest, err)
 
         if err is not None:
             # A failing subtest makes its parent check red without counting it twice
-            if self.checks[test.id()] != "error":
+            if self.checks[test.id()]["outcome"] != "error":
                 if issubclass(err[0], test.failureException):
-                    self.checks[test.id()] = "failed"
+                    self.checks[test.id()]["outcome"] = "failed"
                 else:
-                    self.checks[test.id()] = "error"
+                    self.checks[test.id()]["outcome"] = "error"
+
+            if isinstance(err[1], FindingsFailure):
+                parent = self.checks[test.id()]
+
+                if "findings" in parent:
+                    parent["findings"] += len(err[1].findings)
+                else:
+                    parent["findings"] = len(err[1].findings)
 
 
 class ReportRunner(unittest.TextTestRunner):
