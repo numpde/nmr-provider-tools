@@ -63,34 +63,37 @@ def _binding_revision(binding_revision: object) -> None:
         raise ValueError(f"{reprlib.repr(binding_revision)=} should match {expected_revision_pattern=}")
 
 
-def _records(values: object, record_type: type[object], label: str) -> None:
-    if not (type(values) is (expected_type := tuple)):
-        raise TypeError(f"{label=}; {type(values)=} ≠ {expected_type=}")
+def _records(records: object, record_type: type[object], record_role: str) -> None:
+    if not (type(records) is (expected_type := tuple)):
+        raise TypeError(f"{record_role=}; {type(records)=} ≠ {expected_type=}")
 
-    for record in values:
+    for record in records:
         if not (type(record) is (expected_type := record_type)):
-            raise TypeError(f"{label=}; {type(record)=} ≠ {expected_type=}")
+            raise TypeError(f"{record_role=}; {type(record)=} ≠ {expected_type=}")
 
 
-def _set_records(values: object, record_type: type[object], label: str) -> None:
+def _set_records(records: object, record_type: type[object], record_role: str) -> None:
     """Require an immutable unordered inventory with records of the declared type."""
 
-    if not (type(values) is (expected_type := frozenset)):
-        raise TypeError(f"{label=}; {type(values)=} ≠ {expected_type=}")
+    if not (type(records) is (expected_type := frozenset)):
+        raise TypeError(f"{record_role=}; {type(records)=} ≠ {expected_type=}")
 
-    for record in values:
+    for record in records:
         if not (type(record) is (expected_type := record_type)):
-            raise TypeError(f"{label=}; {type(record)=} ≠ {expected_type=}")
+            raise TypeError(f"{record_role=}; {type(record)=} ≠ {expected_type=}")
 
 
-def _unique(values: Collection[object], key: Callable[[object], object], label: str) -> None:
-    if len({key(record) for record in values}) != len(values):
-        raise ValueError(f"Cannot configure {label = }: it cannot contain duplicates.")
+def _unique(records: Collection[object], key: Callable[[object], object], record_role: str) -> None:
+    unique_key_count = len({key(record) for record in records})
+    record_count = len(records)
+
+    if not (unique_key_count == record_count):
+        raise ValueError(f"{record_role=}; {unique_key_count=} should equal {record_count=}")
 
 
-def _callback(value: object, label: str) -> None:
-    if not callable(value):
-        raise TypeError(f"Cannot configure {label = }: it must be callable.")
+def _callback(callback: object, callback_role: str) -> None:
+    if not callable(callback):
+        raise TypeError(f"{callback_role=} should be callable; {type(callback)=}")
 
 
 @dataclass(frozen=True, slots=True)
@@ -339,7 +342,7 @@ class ConfiguredIdentity:
 
             require_type(actual_configuration, ConfigurationDescription)
 
-        _set_records(values=self.assets, record_type=AssetDescription, label="Scientific assets")
+        _set_records(records=self.assets, record_type=AssetDescription, record_role="Scientific assets")
         _unique(self.assets, lambda asset: asset.name, "Scientific assets")
         configuration = None
 
@@ -412,9 +415,9 @@ def _require_resource_requirements(resource_requirements: object) -> None:
         require_type(resource_requirement, ResourceRequirement)
 
     _unique(
-        values=resource_requirements,
+        records=resource_requirements,
         key=lambda resource_requirement: resource_requirement.identity,
-        label="Resource requirements",
+        record_role="Resource requirements",
     )
 
 
@@ -575,9 +578,9 @@ class ImplementationDescription:
 
             require_type(actual_configuration, ConfigurationDescription)
 
-        _set_records(values=self.assets, record_type=AssetDescription, label="Scientific assets")
+        _set_records(records=self.assets, record_type=AssetDescription, record_role="Scientific assets")
         _unique(self.assets, lambda asset: asset.name, "Scientific assets")
-        _set_records(values=self.calls, record_type=CallDescription, label="Call descriptions")
+        _set_records(records=self.calls, record_type=CallDescription, record_role="Call descriptions")
 
         if not (self.calls):
             raise ValueError("An implementation must declare at least one call")
