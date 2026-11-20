@@ -108,8 +108,8 @@ def unguarded_sources(root):
     portable_roots = (core_root, root / "operations/delivery/image", root / "tests/deployment")
 
     portable_sources = {
-        path
-        for path in source_files(
+        source_path
+        for source_path in source_files(
             root=root,
             patterns=(
                 "packages/provider-core/src/provider_core/**/*.py",
@@ -117,7 +117,7 @@ def unguarded_sources(root):
                 "tests/deployment/**/*.py",
             ),
         )
-        if any(path.is_relative_to(directory) for directory in portable_roots)
+        if any(source_path.is_relative_to(directory) for directory in portable_roots)
     }
 
     sources.difference_update(portable_sources)
@@ -132,25 +132,25 @@ def unguarded_sources(root):
     portable_sources.discard(core_root / "type_requirements.py")
 
     failures = [
-        str(path.relative_to(root))
-        for path in sorted(sources)
+        str(source_path.relative_to(root))
+        for source_path in sorted(sources)
         if not has_early_guard(
-            path.read_text(),
-            package_marker=path.name in { "__init__.py", "__init__.py.fixture" },
-            package=".".join(path.parent.relative_to(root).parts),
+            source_path.read_text(),
+            package_marker=source_path.name in { "__init__.py", "__init__.py.fixture" },
+            package=".".join(source_path.parent.relative_to(root).parts),
         )
     ]
 
     failures.extend(
         # This is a generator:
         (
-            str(path.relative_to(root))
-            for path in sorted(portable_sources)
+            str(portable_source.relative_to(root))
+            for portable_source in sorted(portable_sources)
             if
-            (path != (core_root / "container_guard.py")) and
+            (portable_source != (core_root / "container_guard.py")) and
             not has_early_guard(
-                path.read_text(),
-                package_marker=path.name in { "__init__.py", "__init__.py.fixture" },
+                portable_source.read_text(),
+                package_marker=portable_source.name in { "__init__.py", "__init__.py.fixture" },
                 guard_module="provider_core.container_guard",
             )
         ),
@@ -183,19 +183,19 @@ def boundary_imports(root):
             (root / "tools", "host"),
             (root / "tools", "operations"),
     ):
-        for path in source_files(root=root, patterns=(f"{directory.relative_to(root)}/**/*.py",)):
-            if not path.is_relative_to(directory):
+        for source_path in source_files(root=root, patterns=(f"{directory.relative_to(root)}/**/*.py",)):
+            if not source_path.is_relative_to(directory):
                 continue
 
             # These operations run in the checker container
-            if path in (
+            if source_path in (
                     root / "operations/checker/image/dependencies.py",
                     root / "operations/delivery/build_inputs.py",
                     root / "operations/release/qualify.py",
             ):
                 continue
 
-            for statement in ast.walk(ast.parse(path.read_text())):
+            for statement in ast.walk(ast.parse(source_path.read_text())):
                 if isinstance(statement, ast.ImportFrom):
                     modules = (statement.module,)
                 elif isinstance(statement, ast.Import):
@@ -204,7 +204,7 @@ def boundary_imports(root):
                     continue
 
                 if any(((module is not None) and (module.split(".", 1)[0] == forbidden)) for module in modules):
-                    violations.append(str(path.relative_to(root)))
+                    violations.append(str(source_path.relative_to(root)))
 
     return sorted(set(violations))
 
@@ -293,10 +293,10 @@ class ConventionDetectionTests(unittest.TestCase):
             )
 
             for name in portable:
-                path = root / name
+                portable_source = root / name
 
-                path.parent.mkdir(parents=True, exist_ok=True)
-                path.write_text(self.GUARD)
+                portable_source.parent.mkdir(parents=True, exist_ok=True)
+                portable_source.write_text(self.GUARD)
 
             ordinary = root / "tools/nested/worker.py"
 
@@ -372,10 +372,10 @@ class ConventionDetectionTests(unittest.TestCase):
                     "src/input_geometry.py",
                     "tests/repository/nested/test_new.py",
             ):
-                path = root / name
+                fixture_source = root / name
 
-                path.parent.mkdir(parents=True, exist_ok=True)
-                path.write_text("import pickle\n")
+                fixture_source.parent.mkdir(parents=True, exist_ok=True)
+                fixture_source.write_text("import pickle\n")
 
             self.assertEqual(
                 [
