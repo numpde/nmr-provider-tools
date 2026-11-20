@@ -137,11 +137,12 @@ class InstalledDeploymentTests(unittest.TestCase):
                     self.assertTrue(all((mount["source"] != "/synthetic/resolver") for mount in plan["services"]["delivery"]["volumes"]))
 
     def test_initializer_preserves_correct_nonempty_queue_and_ipc_roots(self):
-        (queue, ipc) = (self.root / "queue", self.root / "ipc")
+        queue = self.root / "queue"
+        ipc = self.root / "ipc"
 
-        for (path, mode) in ((queue, 0o700), (ipc, 0o710)):
-            path.mkdir(mode=mode)
-            (path / "retained").write_bytes(b"retained state")
+        for (owned_directory, mode) in {queue: 0o700, ipc: 0o710}.items():
+            owned_directory.mkdir(mode=mode)
+            (owned_directory / "retained").write_bytes(b"retained state")
 
         with patch.object(freezer.os, "geteuid", return_value=0), patch.object(freezer.os, "fchown") as chown:
             freezer.initialize(self.uid, self.gid, queue, [ipc])
@@ -153,8 +154,8 @@ class InstalledDeploymentTests(unittest.TestCase):
             with self.assertRaisesRegex(freezer.DeliveryDeploymentRejected, "Refusing to change"):
                 freezer.initialize(self.uid, self.gid, queue, [ipc])
 
-        for path in (queue, ipc):
-            self.assertEqual(b"retained state", (path / "retained").read_bytes())
+        for owned_directory in [queue, ipc]:
+            self.assertEqual(b"retained state", (owned_directory / "retained").read_bytes())
 
     def test_runtime_refuses_changed_definition_before_materializing_sdk_input(self):
         self.write_definition(self.raw)

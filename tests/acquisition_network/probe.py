@@ -109,10 +109,10 @@ def check_routes():
     ):
         raise RuntimeError("IPv4 default route exists")
 
-    path = pathlib.Path("/proc/net/ipv6_route")
+    ipv6_route_path = pathlib.Path("/proc/net/ipv6_route")
 
-    if path.exists():
-        for line in path.read_text().splitlines():
+    if ipv6_route_path.exists():
+        for line in ipv6_route_path.read_text().splitlines():
             parts = line.split()
 
             # Linux emits a non-forwarding unreachable default route on lo.
