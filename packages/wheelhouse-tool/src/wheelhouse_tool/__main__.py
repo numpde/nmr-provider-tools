@@ -345,19 +345,19 @@ def run(action, lock, pool, prefer_sdist=(), require_sdist=(), artifacts=None):
         # A complete pool needs no writer lock and may be mounted read-only.
         with pool_lock(pool, exclusive=False) as directory_fd:
             try:
-                return _run("check", pool, artifacts, directory_fd)
+                return _check_or_acquire_artifacts("check", pool, artifacts, directory_fd)
             # silent-defaults: allow-contract -- A missing cached artifact is the only expected read-only preflight failure; write-lock acquisition follows.
             except FileNotFoundError:
                 pass
 
         with acquisition_lock(pool) as directory_fd:
-            return _run(action, pool, artifacts, directory_fd)
+            return _check_or_acquire_artifacts(action, pool, artifacts, directory_fd)
 
     with pool_lock(pool, exclusive=False) as directory_fd:
-        return _run(action, pool, artifacts, directory_fd)
+        return _check_or_acquire_artifacts(action, pool, artifacts, directory_fd)
 
 
-def _run(action, pool, artifacts, directory_fd):
+def _check_or_acquire_artifacts(action, pool, artifacts, directory_fd):
     for (artifact_filename, digest, url, _package, _artifact) in artifacts:
         if not inspect_artifact(pool, artifact_filename, digest, directory_fd):
             if action == "check":
