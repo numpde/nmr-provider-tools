@@ -12,6 +12,7 @@ require_container()
 import reprlib
 
 from provider_core.response_json import ResponseRejected, read_document
+from provider_core.type_requirements import require_type
 
 
 # The supported completion profile uses HTTP 200 for successful replies
@@ -47,13 +48,11 @@ def read_choice(response_body: bytes, *, maximum_bytes: int) -> dict:
 
     completion = read_document(response_body, maximum_bytes)
 
-    if not (type(completion) is (expected_type := dict)):
-        raise ResponseRejected(f"{type(completion)=} ≠ {expected_type=}")
+    require_type(completion, dict, error_factory=ResponseRejected)
 
     choices = completion.get("choices")
 
-    if not (type(choices) is (expected_type := list)):
-        raise ResponseRejected(f"{type(choices)=} ≠ {expected_type=}")
+    require_type(choices, list, error_factory=ResponseRejected)
 
     choice_count = len(choices)
     expected_choice_count = 1
@@ -63,13 +62,11 @@ def read_choice(response_body: bytes, *, maximum_bytes: int) -> dict:
 
     choice = choices[0]
 
-    if not (type(choice) is (expected_type := dict)):
-        raise ResponseRejected(f"{type(choice)=} ≠ {expected_type=}")
+    require_type(choice, dict, error_factory=ResponseRejected)
 
     assistant_message = choice.get("message")
 
-    if not (type(assistant_message) is (expected_type := dict)):
-        raise ResponseRejected(f"{type(assistant_message)=} ≠ {expected_type=}")
+    require_type(assistant_message, dict, error_factory=ResponseRejected)
 
     message_role = assistant_message.get("role")
     expected_role = "assistant"
