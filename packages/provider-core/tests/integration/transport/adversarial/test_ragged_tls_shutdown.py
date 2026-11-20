@@ -127,13 +127,17 @@ class RejectedResponseShutdownTests(unittest.IsolatedAsyncioTestCase):
         for tunnel in (False, True):
             with self.subTest(tunnel=tunnel):
                 async with ShutdownPeer([wire], tunnel=tunnel) as peer:
-                    request = httpx.Request("GET", peer.origin)
+                    http_request = httpx.Request("GET", peer.origin)
 
                     with self.assertRaises(ExchangeFailed) as caught:
                         if decoded:
-                            await peer.transport.exchange_decoded(request, maximum_bytes=maximum_bytes, error_maximum_bytes=4096)
+                            await peer.transport.exchange_decoded(
+                                http_request,
+                                maximum_bytes=maximum_bytes,
+                                error_maximum_bytes=4096,
+                            )
                         else:
-                            await peer.transport.exchange(request, maximum_bytes=maximum_bytes)
+                            await peer.transport.exchange(http_request, maximum_bytes=maximum_bytes)
 
                     self.assertIsNotNone(caught.exception.primary)
 

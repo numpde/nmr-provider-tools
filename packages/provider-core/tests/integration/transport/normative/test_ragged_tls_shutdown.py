@@ -15,22 +15,22 @@ class CompleteResponseShutdownTests(unittest.IsolatedAsyncioTestCase):
         for tunnel in (False, True):
             with self.subTest(tunnel=tunnel):
                 async with ShutdownPeer([wire], tunnel=tunnel, fragment_size=fragment_size) as peer:
-                    request = httpx.Request(method, peer.origin)
+                    http_request = httpx.Request(method, peer.origin)
                     options = {"maximum_bytes": 4096}
 
                     if decoded:
-                        response = await peer.transport.exchange_decoded(request, error_maximum_bytes=4096, **options)
+                        response = await peer.transport.exchange_decoded(http_request, error_maximum_bytes=4096, **options)
 
                         self.assertEqual(expected, response.body)
                     elif file:
                         with tempfile.TemporaryFile() as output:
-                            response = await peer.transport.exchange_file(request, output_fd=output.fileno(), **options)
+                            response = await peer.transport.exchange_file(http_request, output_fd=output.fileno(), **options)
 
                             output.seek(0)
                             self.assertEqual(expected, output.read())
                             self.assertEqual(len(expected), response.byte_length)
                     else:
-                        response = await peer.transport.exchange(request, **options)
+                        response = await peer.transport.exchange(http_request, **options)
 
                         self.assertEqual(expected, response.body)
 
