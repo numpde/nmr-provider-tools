@@ -226,9 +226,9 @@ class BoundProxyTests(unittest.TestCase):
                 )
 
     def test_header_limit_accepts_exact_boundary_and_rejects_one_extra_byte(self):
-        limit = bound_http_proxy.MAX_HEADER_BYTES
+        max_header_bytes = bound_http_proxy.MAX_HEADER_BYTES
 
-        header = b"x" * (limit - 4) + (
+        header = b"x" * (max_header_bytes - 4) + (
             b"\r\n"
             b"\r\n"
         )
@@ -239,11 +239,11 @@ class BoundProxyTests(unittest.TestCase):
         self.assertEqual(bound_http_proxy.receive_headers(client), (header, b""))
 
         for oversized in (
-            b"x" * (limit - 3) + (
+            b"x" * (max_header_bytes - 3) + (
                 b"\r\n"
                 b"\r\n"
             ),
-            b"x" * (limit + 1)
+            b"x" * (max_header_bytes + 1)
         ):
             with self.subTest(
                 terminated=oversized.endswith(
@@ -299,16 +299,16 @@ class BoundProxyTests(unittest.TestCase):
                     with self.assertRaises(ValueError) as rejected:
                         http_proxy.parse_destination(header)
 
-                    request = MagicMock()
-                    request.recv.return_value = header
+                    client_socket = MagicMock()
+                    client_socket.recv.return_value = header
                     errors = io.StringIO()
 
                     with capture_proxy_logs(errors):
-                        bound_http_proxy.ProxyHandler(request, ("127.0.0.1", 1), SimpleNamespace(outbound_interface="lo", dns_servers=None))
+                        bound_http_proxy.ProxyHandler(client_socket, ("127.0.0.1", 1), SimpleNamespace(outbound_interface="lo", dns_servers=None))
 
                     connect.assert_not_called()
 
-                    request.sendall.assert_called_once_with(
+                    client_socket.sendall.assert_called_once_with(
                         b"HTTP/1.1 502 Bad Gateway\r\n"
                         b"Connection: close\r\n"
                         b"\r\n"
@@ -336,7 +336,7 @@ class BoundProxyTests(unittest.TestCase):
 
         for failure in (ValueError("Bearer " + private), OSError("Bearer " + private), UnicodeError("Bearer " + private)):
             with self.subTest(kind=type(failure).__name__):
-                request = MagicMock()
+                client_socket = MagicMock()
                 errors = io.StringIO()
 
                 with (
@@ -344,15 +344,15 @@ class BoundProxyTests(unittest.TestCase):
                     patch.object(bound_http_proxy, "connect_bound") as connect,
                     capture_proxy_logs(errors),
                 ):
-                    bound_http_proxy.ProxyHandler(request, ("127.0.0.1", 1), SimpleNamespace(outbound_interface="lo", dns_servers=None))
+                    bound_http_proxy.ProxyHandler(client_socket, ("127.0.0.1", 1), SimpleNamespace(outbound_interface="lo", dns_servers=None))
 
-                yield (failure, request, connect, errors.getvalue(), private)
+                yield (failure, client_socket, connect, errors.getvalue(), private)
 
     def test_admission_failures_keep_fixed_http_status(self):
-        for (failure, request, connect, rendered, _private) in self._admission_failure_replies():
+        for (failure, client_socket, connect, rendered, _private) in self._admission_failure_replies():
             connect.assert_not_called()
 
-            request.sendall.assert_called_once_with(
+            client_socket.sendall.assert_called_once_with(
                 b"HTTP/1.1 502 Bad Gateway\r\n"
                 b"Connection: close\r\n"
                 b"\r\n"
@@ -363,7 +363,7 @@ class BoundProxyTests(unittest.TestCase):
 
     @unittest.skipIf(os.environ.get("PRIVACY_TESTS", "1") == "0", "Privacy tests disabled")
     def test_admission_failure_logs_scrub_credentials(self):
-        for (_failure, _request, _connect, rendered, private) in self._admission_failure_replies():
+        for (_failure, _client_socket, _connect, rendered, private) in self._admission_failure_replies():
             self.assertNotIn(private, rendered)
 
     def test_forwarding_attempt_failure_never_appends_an_http_status(self):
@@ -371,7 +371,7 @@ class BoundProxyTests(unittest.TestCase):
 
         for phase in ("http_header", "connect_status", "connect_remainder", "relay"):
             with self.subTest(phase=phase):
-                (request, outbound) = (MagicMock(), MagicMock())
+                (client_socket, outbound) = (MagicMock(), MagicMock())
                 outbound.__enter__.return_value = outbound
 
                 # silent-defaults: allow-contract -- The failure-phase table selects HTTP header forwarding or the CONNECT handshake; each case checks which write can occur before failure; proof=tests/repository/test_bound_http_proxy.py::BoundProxyTests.test_forwarding_attempt_failure_never_appends_an_http_status
@@ -389,7 +389,7 @@ class BoundProxyTests(unittest.TestCase):
                 body = b"body" if phase == "connect_remainder" else b""
 
                 if phase == "connect_status":
-                    request.sendall.side_effect = OSError(private)
+                    client_socket.sendall.side_effect = OSError(private)
                 elif phase in {"http_header", "connect_remainder"}:
                     outbound.sendall.side_effect = OSError(private)
 
@@ -401,18 +401,18 @@ class BoundProxyTests(unittest.TestCase):
                     patch.object(bound_http_proxy, "relay", side_effect=OSError(private)) as relay,
                     capture_proxy_logs(errors),
                 ):
-                    bound_http_proxy.ProxyHandler(request, ("127.0.0.1", 1), SimpleNamespace(outbound_interface="lo", dns_servers=None))
+                    bound_http_proxy.ProxyHandler(client_socket, ("127.0.0.1", 1), SimpleNamespace(outbound_interface="lo", dns_servers=None))
 
                 if phase == "http_header":
-                    request.sendall.assert_not_called()
+                    client_socket.sendall.assert_not_called()
                 else:
-                    request.sendall.assert_called_once_with(
+                    client_socket.sendall.assert_called_once_with(
                         b"HTTP/1.1 200 Connection Established\r\n"
                         b"\r\n"
                     )
 
                 if phase == "relay":
-                    relay.assert_called_once_with(request, outbound)
+                    relay.assert_called_once_with(client_socket, outbound)
                 else:
                     relay.assert_not_called()
 

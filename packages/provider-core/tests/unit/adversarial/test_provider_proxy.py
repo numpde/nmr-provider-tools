@@ -37,7 +37,7 @@ class ServiceProxyRefusalTests(unittest.TestCase):
                 udp = MagicMock()
                 udp.__enter__.return_value = udp
                 udp.recv.return_value = packet
-                request = MagicMock()
+                client_socket = MagicMock()
                 output = io.StringIO()
 
                 with (
@@ -59,16 +59,16 @@ class ServiceProxyRefusalTests(unittest.TestCase):
                     patch.object(socket, "socket", return_value=udp) as channels,
                     capture_proxy_logs(output),
                 ):
-                    ServiceProxyHandler(request, "", SimpleNamespace(policy=policy, outbound_interface="eth0"))
+                    ServiceProxyHandler(client_socket, "", SimpleNamespace(policy=policy, outbound_interface="eth0"))
 
-                yield (error_type, output.getvalue(), request, channels, udp)
+                yield (error_type, output.getvalue(), client_socket, channels, udp)
 
     def test_dns_decoder_failure_reaches_operator_and_rejects_the_request(self):
-        for (error_type, output, request, channels, udp) in self._dns_decoder_refusals():
+        for (error_type, output, client_socket, channels, udp) in self._dns_decoder_refusals():
             self.assertIn(error_type.__name__ + ":", output)
             self.assertIn("192.0.2.53", output)
 
-            request.sendall.assert_called_once_with(
+            client_socket.sendall.assert_called_once_with(
                 b"HTTP/1.1 502 Bad Gateway\r\n"
                 b"Connection: close\r\n"
                 b"\r\n",
@@ -80,7 +80,7 @@ class ServiceProxyRefusalTests(unittest.TestCase):
 
     @unittest.skipIf(os.environ.get("PRIVACY_TESTS", "1") == "0", "Privacy tests disabled")
     def test_dns_decoder_logs_omit_packet_and_request_data(self):
-        for (_error_type, output, _request, _channels, _udp) in self._dns_decoder_refusals():
+        for (_error_type, output, _client_socket, _channels, _udp) in self._dns_decoder_refusals():
             for private in ("PRIVATE", "private.example", "other.private"):
                 self.assertNotIn(private, output)
 
@@ -104,7 +104,7 @@ class ServiceProxyRefusalTests(unittest.TestCase):
             b"CONNECT PRIVATE\xff HTTP/1.1\r\n"
             b"\r\n",
         ):
-            request = MagicMock()
+            client_socket = MagicMock()
             errors = io.StringIO()
 
             with (
@@ -113,16 +113,16 @@ class ServiceProxyRefusalTests(unittest.TestCase):
                 patch.object(bound_http_proxy, "resolve_ipv4_bound") as resolve,
                 capture_proxy_logs(errors),
             ):
-                ServiceProxyHandler(request, "", SimpleNamespace(policy=policy, outbound_interface="lo"))
+                ServiceProxyHandler(client_socket, "", SimpleNamespace(policy=policy, outbound_interface="lo"))
 
-            yield (connect, resolve, errors.getvalue(), request)
+            yield (connect, resolve, errors.getvalue(), client_socket)
 
     def test_denied_or_malformed_targets_never_reach_resolution_or_outbound_transport(self):
-        for (connect, resolve, _errors, request) in self._denied_targets():
+        for (connect, resolve, _errors, client_socket) in self._denied_targets():
             connect.assert_not_called()
             resolve.assert_not_called()
 
-            request.sendall.assert_called_once_with(
+            client_socket.sendall.assert_called_once_with(
                 b"HTTP/1.1 403 Forbidden\r\n"
                 b"Connection: close\r\n"
                 b"\r\n",
@@ -130,7 +130,7 @@ class ServiceProxyRefusalTests(unittest.TestCase):
 
     @unittest.skipIf(os.environ.get("PRIVACY_TESTS", "1") == "0", "Privacy tests disabled")
     def test_denied_target_logs_omit_request_data(self):
-        for (_connect, _resolve, errors, _request) in self._denied_targets():
+        for (_connect, _resolve, errors, _client_socket) in self._denied_targets():
             self.assertNotIn("PRIVATE", errors)
             self.assertNotIn("private.example", errors)
 
@@ -262,7 +262,7 @@ class ServiceProxyRefusalTests(unittest.TestCase):
 
     def test_invalid_interface_has_an_owned_diagnostic_before_socket_or_readiness(self):
         with tempfile.TemporaryDirectory() as directory:
-            (path, ready) = (pathlib.Path(directory) / "proxy.sock", pathlib.Path(directory) / "ready")
+            (proxy_socket_path, readiness_path) = (pathlib.Path(directory) / "proxy.sock", pathlib.Path(directory) / "ready")
 
             argv = [
                 "provider_proxy",
@@ -273,9 +273,9 @@ class ServiceProxyRefusalTests(unittest.TestCase):
                 "--authority",
                 "api.example:443",
                 "--socket",
-                str(path),
+                str(proxy_socket_path),
                 "--ready-file",
-                str(ready),
+                str(readiness_path),
                 "--status-directory",
                 directory,
                 "--log-level",
@@ -300,15 +300,15 @@ class ServiceProxyRefusalTests(unittest.TestCase):
             self.assertEqual(caught.exception.code, 1)
             self.assertIn("Cannot start proxy: the selected network interface does not exist.", output.getvalue())
             channel.assert_not_called()
-            self.assertFalse(path.exists())
-            self.assertFalse(ready.exists())
+            self.assertFalse(proxy_socket_path.exists())
+            self.assertFalse(readiness_path.exists())
 
     def _filesystem_refusal(self):
         with tempfile.TemporaryDirectory() as directory:
-            (path, ready) = (pathlib.Path(directory) / "proxy.sock", pathlib.Path(directory) / "ready")
+            (proxy_socket_path, readiness_path) = (pathlib.Path(directory) / "proxy.sock", pathlib.Path(directory) / "ready")
             primary = PermissionError(13, "PRIVATE_PATH")
 
-            with patch.object(pathlib.Path, "lstat", side_effect=primary), self.assertRaises(ServiceRefused) as caught, socket_grant(path, ready):
+            with patch.object(pathlib.Path, "lstat", side_effect=primary), self.assertRaises(ServiceRefused) as caught, socket_grant(proxy_socket_path, readiness_path):
                 pass
 
             return (caught.exception, primary)
@@ -326,7 +326,7 @@ class ServiceProxyRefusalTests(unittest.TestCase):
         self.assertNotIn("PRIVATE_PATH", str(refusal))
 
     def test_owned_dns_reasons_and_original_query_causes_reach_operator(self):
-        request = MagicMock()
+        client_socket = MagicMock()
         policy = ServicePolicy.admit("external", ["api.example:443"], [])
 
         for (failure, expected) in (
@@ -361,7 +361,7 @@ class ServiceProxyRefusalTests(unittest.TestCase):
                 patch.object(bound_http_proxy, "connect_bound", side_effect=failure),
                 capture_proxy_logs(errors),
             ):
-                ServiceProxyHandler(request, "", SimpleNamespace(policy=policy, outbound_interface="lo"))
+                ServiceProxyHandler(client_socket, "", SimpleNamespace(policy=policy, outbound_interface="lo"))
 
             self.assertIn(expected, errors.getvalue())
 
