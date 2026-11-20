@@ -24,6 +24,7 @@ from urllib.parse import urlsplit
 
 from provider_core.deployment_binding import BindingDefinitionRejected, DeploymentBinding, input_paths, load_deployment_bindings
 from provider_core.deployment_errors import RouteProjectionRejected
+from provider_core.type_requirements import require_type
 from provider_core.validation.upstream.docker_ids import is_full_image_id
 
 
@@ -65,14 +66,20 @@ def _require_route_path(route_path):
 
 
 def _identity(uid, gid):
-    if not (type(uid) is (expected_type := int)):
-        raise RouteProjectionRejected(f"Cannot grant API route identity: {type(uid)=} ≠ {expected_type=}")
+    require_type(
+        uid,
+        int,
+        error_factory=lambda diagnostic: RouteProjectionRejected("Cannot grant API route identity: " + diagnostic),
+    )
 
     if not (1 <= uid <= 4294967294):
         raise RouteProjectionRejected("Cannot grant API route identity: require explicit nonzero Linux UID and GID.")
 
-    if not (type(gid) is (expected_type := int)):
-        raise RouteProjectionRejected(f"Cannot grant API route identity: {type(gid)=} ≠ {expected_type=}")
+    require_type(
+        gid,
+        int,
+        error_factory=lambda diagnostic: RouteProjectionRejected("Cannot grant API route identity: " + diagnostic),
+    )
 
     if not (1 <= gid <= 4294967294):
         raise RouteProjectionRejected("Cannot grant API route identity: require explicit nonzero Linux UID and GID.")
@@ -239,24 +246,32 @@ def render_api_route(binding, *, image, interpreter, namespace, uid, gid, storag
     Omitted service_name preserves delivery's identity-derived service roles.
     """
 
-    if not (type(binding) is (expected_type := DeploymentBinding)):
-        raise RouteProjectionRejected(f"{type(binding)=} ≠ {expected_type=}")
+    require_type(binding, DeploymentBinding, error_factory=RouteProjectionRejected)
 
-    if not (type(image) is (expected_image_type := str)):
-        raise RouteProjectionRejected(f"Cannot render API route: {type(image)=} ≠ {expected_image_type=}")
+    require_type(
+        image,
+        str,
+        error_factory=lambda diagnostic: RouteProjectionRejected("Cannot render API route: " + diagnostic),
+    )
 
     if not is_full_image_id(image):
         raise RouteProjectionRejected(f"Cannot render API route: {reprlib.repr(image)=} should be an immutable full image ID.")
 
-    if not (type(namespace) is (expected_namespace_type := str)):
-        raise RouteProjectionRejected(f"Cannot render API route: {type(namespace)=} ≠ {expected_namespace_type=}")
+    require_type(
+        namespace,
+        str,
+        error_factory=lambda diagnostic: RouteProjectionRejected("Cannot render API route: " + diagnostic),
+    )
 
     if re.fullmatch(r"[a-z0-9][a-z0-9_-]*", namespace) is None:
         raise RouteProjectionRejected("Cannot render API route: select a lowercase Compose namespace containing letters, digits, hyphens or underscores.")
 
     if service_name is not None:
-        if not (type(service_name) is (expected_service_name_type := str)):
-            raise RouteProjectionRejected(f"Cannot render API route: {type(service_name)=} ≠ {expected_service_name_type=}")
+        require_type(
+            service_name,
+            str,
+            error_factory=lambda diagnostic: RouteProjectionRejected("Cannot render API route: " + diagnostic),
+        )
 
         if re.fullmatch(r"[a-z0-9][a-z0-9_-]*", service_name) is None:
             raise RouteProjectionRejected("Cannot render API route: an explicit service name requires lowercase letters, digits, hyphens or underscores.")
@@ -264,8 +279,11 @@ def render_api_route(binding, *, image, interpreter, namespace, uid, gid, storag
     _identity(uid, gid)
     interpreter = _require_route_path(interpreter)
 
-    if not (type(input_sources) is (expected_input_sources_type := dict)):
-        raise RouteProjectionRejected(f"Cannot relocate API route inputs: {type(input_sources)=} ≠ {expected_input_sources_type=}")
+    require_type(
+        input_sources,
+        dict,
+        error_factory=lambda diagnostic: RouteProjectionRejected("Cannot relocate API route inputs: " + diagnostic),
+    )
 
     if not (set(input_sources) <= set(input_paths((binding,)))):
         raise RouteProjectionRejected("Cannot relocate API route inputs: only files granted by the selected binding may be mapped.")
