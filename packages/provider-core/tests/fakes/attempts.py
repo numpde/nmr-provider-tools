@@ -7,7 +7,7 @@ ATTEMPT_REF = "execution_attempt:sha256:" + "a" * 64
 
 
 def observation(**changes):
-    document = {
+    observation_fields = {
         "schema_id": "nmr.provider.execution_attempt_read_response.v1",
         "execution_attempt_ref": ATTEMPT_REF,
         "job_ref": "job:example",
@@ -15,9 +15,9 @@ def observation(**changes):
         "job_state": "open",
     }
 
-    document.update(changes)
+    observation_fields.update(changes)
 
-    return json.dumps(document).encode()
+    return json.dumps(observation_fields).encode()
 
 
 def start_response(**changes):
