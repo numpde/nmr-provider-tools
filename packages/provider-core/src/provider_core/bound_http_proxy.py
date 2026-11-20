@@ -20,6 +20,7 @@ import ipaddress
 import logging
 import os
 import re
+import reprlib
 import secrets
 import select
 import socket
@@ -135,13 +136,13 @@ def _dns_servers(resolver_file: pathlib.Path | None = None) -> tuple[str, ...]:
     """Read explicit captured resolvers, or existing service resolver configuration."""
 
     if resolver_file is not None:
-        paths = (resolver_file,)
+        resolver_paths = (resolver_file,)
     else:
-        paths = (pathlib.Path("/run/systemd/resolve/resolv.conf"), pathlib.Path("/etc/resolv.conf"))
+        resolver_paths = (pathlib.Path("/run/systemd/resolve/resolv.conf"), pathlib.Path("/etc/resolv.conf"))
 
-    for path in paths:
+    for resolver_path in resolver_paths:
         try:
-            resolver_text = path.read_text(encoding="ascii")
+            resolver_text = resolver_path.read_text(encoding="ascii")
         except OSError:
             continue
 
@@ -159,7 +160,7 @@ def _dns_servers(resolver_file: pathlib.Path | None = None) -> tuple[str, ...]:
         if servers:
             return tuple(dict.fromkeys(servers))
 
-    raise ProxyResolutionFailed("Cannot resolve proxy destination: no non-loopback IPv4 DNS server is configured.")
+    raise ProxyResolutionFailed(f"No non-loopback IPv4 DNS server found in {reprlib.repr(resolver_paths)=}")
 
 
 def _query_ipv4(
