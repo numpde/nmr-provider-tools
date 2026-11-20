@@ -99,7 +99,7 @@ class DeliveryClient:
         await self._transport.retire(owner=self)
 
     # silent-defaults: allow-contract -- Status reads have no body or Job header; submission supplies both explicitly.
-    async def _request(self, method, path, *, body=b"", job_ref=None):
+    async def _request(self, method, request_path, *, body=b"", job_ref=None):
         submitting = method == "POST"
 
         headers = {
@@ -115,7 +115,7 @@ class DeliveryClient:
 
         try:
             response = await self._transport.exchange(
-                httpx.Request(method, DELIVERY_ORIGIN + path, headers=headers, content=body),
+                httpx.Request(method, DELIVERY_ORIGIN + request_path, headers=headers, content=body),
                 maximum_bytes=MAX_IPC_RESPONSE_BYTES,
                 owner=self,
             )

@@ -38,7 +38,7 @@ class DeliveryRequestRejected(ValueError):
 
 
 @contextmanager
-def _socket_grant(path, socket_group_id):
+def _socket_grant(socket_path, socket_group_id):
     """Hold one private directory lock before replacing its retired listener.
 
     Ports tools/provider_proxy.py::socket_grant at NMRNet 8e14575. This new
@@ -55,10 +55,10 @@ def _socket_grant(path, socket_group_id):
     if shared and (socket_group_id != os.getegid()):
         raise DeliveryUnavailable("Cannot open delivery IPC: the configured socket group must be the daemon's primary GID.")
 
-    parent = path.parent.lstat()
+    parent = socket_path.parent.lstat()
 
     if (
-        (path.parent.resolve() != path.parent) or
+        (socket_path.parent.resolve() != socket_path.parent) or
         (not stat.S_ISDIR(parent.st_mode)) or
         (parent.st_uid != os.geteuid()) or
         (stat.S_IMODE(parent.st_mode) not in parent_modes) or
@@ -73,7 +73,7 @@ def _socket_grant(path, socket_group_id):
             + f"observed {parent.st_uid=}, {parent.st_gid=}, {stat.S_IMODE(parent.st_mode)=:04o}, caller {os.geteuid()=}."
         )
 
-    descriptor = os.open(path.parent / ".socket.lock", os.O_RDWR | os.O_CREAT | os.O_NOFOLLOW | os.O_CLOEXEC, 0o600)
+    descriptor = os.open(socket_path.parent / ".socket.lock", os.O_RDWR | os.O_CREAT | os.O_NOFOLLOW | os.O_CLOEXEC, 0o600)
     listener = None
 
     try:
@@ -85,7 +85,7 @@ def _socket_grant(path, socket_group_id):
         fcntl.flock(descriptor, fcntl.LOCK_EX | fcntl.LOCK_NB)
 
         try:
-            old = path.lstat()
+            old = socket_path.lstat()
         except FileNotFoundError:
             old = None
 
@@ -98,7 +98,7 @@ def _socket_grant(path, socket_group_id):
             ):
                 raise DeliveryUnavailable("Cannot replace delivery IPC: the prior leaf is not its private socket. Leave it unchanged for inspection.")
 
-            path.unlink()
+            socket_path.unlink()
 
         listener = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
 
@@ -107,21 +107,21 @@ def _socket_grant(path, socket_group_id):
         previous = os.umask(0o117 if shared else 0o177)
 
         try:
-            listener.bind(str(path))
+            listener.bind(str(socket_path))
         finally:
             os.umask(previous)
 
-        identity = path.lstat()
+        identity = socket_path.lstat()
 
         listener.listen(MAX_CONNECTIONS)
         listener.setblocking(False)
         yield listener
-        current = path.lstat()
+        current = socket_path.lstat()
 
         if (current.st_dev, current.st_ino) != (identity.st_dev, identity.st_ino):
             raise DeliveryUnavailable("Delivery IPC changed while owned; its replacement was left untouched.")
 
-        path.unlink()
+        socket_path.unlink()
     finally:
         if listener is not None:
             listener.close()
