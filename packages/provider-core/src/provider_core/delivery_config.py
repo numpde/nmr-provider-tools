@@ -64,12 +64,12 @@ def load_delivery_service(path, *, on_notice, diagnostic_status):
         raise DeliveryConfigurationRejected(str(cause), cause=cause) from None
 
     try:
-        document = tomllib.loads(raw.decode("utf-8"))
+        service_configuration = tomllib.loads(raw.decode("utf-8"))
     except (UnicodeError, ValueError) as cause:
         raise DeliveryConfigurationRejected("require UTF-8 TOML within 65536 bytes.", cause=cause) from None
 
     _fields(
-        document,
+        service_configuration,
         {
             "schema_id",
             "state_directory",
@@ -82,11 +82,11 @@ def load_delivery_service(path, *, on_notice, diagnostic_status):
         "configuration"
     )
 
-    if document["schema_id"] != "provider-core.delivery.v1":
+    if service_configuration["schema_id"] != "provider-core.delivery.v1":
         raise DeliveryConfigurationRejected("require schema provider-core.delivery.v1.")
 
-    _fields(document["limits"], {"provider_items", "provider_bytes", "total_items", "total_bytes"}, "limits")
-    bindings = document["bindings"]
+    _fields(service_configuration["limits"], {"provider_items", "provider_bytes", "total_items", "total_bytes"}, "limits")
+    bindings = service_configuration["bindings"]
 
     if not (type(bindings) is (expected_type := list)):
         raise DeliveryConfigurationRejected(f"{type(bindings)=} ≠ {expected_type=}")
@@ -98,13 +98,13 @@ def load_delivery_service(path, *, on_notice, diagnostic_status):
         # Only existing code-owned admission errors cross this translation.
         # TOML parsing is outside it so parser excerpts never become messages.
         return DeliveryService(
-            require_absolute_path(document["state_directory"]),
-            limits=QueueLimits(**document["limits"]),
+            require_absolute_path(service_configuration["state_directory"]),
+            limits=QueueLimits(**service_configuration["limits"]),
             # repo-check: allow-tuple-generator -- Freeze the completely admitted binding set before constructing its service.
             bindings=tuple(_binding(table) for table in bindings),
-            request_seconds=document["request_seconds"],
-            retry_initial_seconds=document["retry_initial_seconds"],
-            retry_max_seconds=document["retry_max_seconds"],
+            request_seconds=service_configuration["request_seconds"],
+            retry_initial_seconds=service_configuration["retry_initial_seconds"],
+            retry_max_seconds=service_configuration["retry_max_seconds"],
             on_notice=on_notice,
             diagnostic_status=diagnostic_status,
         )
