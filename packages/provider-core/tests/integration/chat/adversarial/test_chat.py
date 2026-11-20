@@ -259,9 +259,10 @@ class ChatCarrierRejectionTests(unittest.IsolatedAsyncioTestCase):
             response_bytes=4096
         )
 
-        with self.assertRaisesRegex(ChatFailed, "request.*byte limit"):
+        with self.assertRaises(ChatFailed) as caught:
             await endpoint.complete([{"role": "user", "content": "PRIVATE_SOURCE" * 100}], [])
 
+        self.assertEqual("request_limit", caught.exception.reason)
         transport.exchange_decoded.assert_not_awaited()
 
     async def _malformed_reply_failures(self):
