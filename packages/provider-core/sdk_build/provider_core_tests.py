@@ -201,7 +201,7 @@ def _build_and_install_project(
 def _run_installed_suite(
     *,
     python: pathlib.Path,
-    run: pathlib.Path,
+    staged_test_root: pathlib.Path,
     selection: str,
     patterns: tuple[str, ...],
 ) -> None:
@@ -210,11 +210,11 @@ def _run_installed_suite(
             str(python),  # Use the SDK's installed test environment
             "-I",  # Ignore PYTHON* settings and the user site
             "-B",  # Suppress bytecode writes
-            str(run / "tests/run_suite.py"),  # Discover tests from the staged suite
+            str(staged_test_root / "tests/run_suite.py"),  # Discover tests from the staged suite
             selection,  # Choose the unit, contract, integration, or native suite
             *patterns,  # Apply the caller's filename selection
         ],
-        cwd=run,  # Run against the staged suite rather than the checkout
+        cwd=staged_test_root,  # Run against the staged suite rather than the checkout
         check=False,  # Translate the suite's return code into its named failure
     )
 
@@ -344,7 +344,7 @@ def run_suite(suite: str, patterns: tuple[str, ...]) -> None:
         for selection in selections:
             _run_installed_suite(
                 python=runtime_python,
-                run=test_tree,
+                staged_test_root=test_tree,
                 selection=selection,
                 patterns=patterns,
             )
@@ -361,7 +361,7 @@ def run_suite(suite: str, patterns: tuple[str, ...]) -> None:
 
             _run_installed_suite(
                 python=native_python,
-                run=test_tree,
+                staged_test_root=test_tree,
                 selection="native",
                 patterns=("test*.py",),
             )
