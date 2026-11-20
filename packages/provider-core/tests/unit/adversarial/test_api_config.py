@@ -23,14 +23,22 @@ class HttpsAdmissionTests(unittest.TestCase):
         roots.assert_not_called()
 
     def test_captured_trust_rejects_ambient_tls_authority(self):
-        for variable in ("SSL_CERT_FILE", "SSL_CERT_DIR", "SSLKEYLOGFILE"):
+        tls_variables = ("SSL_CERT_FILE", "SSL_CERT_DIR", "SSLKEYLOGFILE")
+
+        for variable in tls_variables:
             for material in (None, b"CAPTURED_CA"):
                 with self.subTest(variable=variable, explicit=material is not None), \
                         patch.dict("os.environ", {variable: "PRIVATE_PATH"}, clear=True), \
                         patch("provider_core.api_config.CapturedSSLContext") as context, \
                         patch("provider_core.api_config.new_https_trust") as roots, \
-                        self.assertRaises(ApiConfigurationRejected):
+                        self.assertRaises(ApiConfigurationRejected) as rejected:
                     https_trust(material, label="Interpreter")
+
+                self.assertIn(variable, str(rejected.exception))
+
+                for unset_variable in tls_variables:
+                    if unset_variable != variable:
+                        self.assertNotIn(unset_variable, str(rejected.exception))
 
                 context.assert_not_called()
                 roots.assert_not_called()
