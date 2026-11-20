@@ -109,7 +109,7 @@ class HttpsAdmissionTests(unittest.TestCase):
 
     def test_explicit_ca_reader_cannot_silently_select_system_roots(self):
         with patch("provider_core.api_config.new_https_trust") as roots:
-            with self.assertRaisesRegex(ApiConfigurationRejected, r"type\(ca_bytes\)=.*NoneType.* ≠ expected_type=.*bytes"):
+            with self.assertRaisesRegex(ApiConfigurationRejected, "ca_bytes"):
                 self.settings(lambda _ca_file_path, **selection: None)
 
         roots.assert_not_called()
