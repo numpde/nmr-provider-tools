@@ -96,6 +96,6 @@ class Submission:
         """Observe original admitted work without submitting or releasing anything."""
 
         if self.operation is None:
-            raise RuntimeError("Submit this request and acquire its operation before waiting")
+            raise RuntimeError(f"{self.operation=} should be set")
 
         return await observe_completion(operation=self.operation)
