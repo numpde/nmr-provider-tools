@@ -101,8 +101,10 @@ class PreparationResult:
     count: int
 
     def __post_init__(self) -> None:
-        if not ((type(self.count) is int) and (0 < self.count)):
-            raise ValueError("count must be a positive integer")
+        require_type(self.count, int, error_factory=ValueError)
+
+        if not (0 < self.count):
+            raise ValueError(f"{self.count=} should be positive")
 
 
 @dataclass(frozen=True, slots=True, kw_only=True)
@@ -117,8 +119,10 @@ class PredictionResult:
             float(require_finite_number(self.total)),
         )
 
-        if not ((type(self.count) is int) and (0 < self.count)):
-            raise ValueError("count must be a positive integer")
+        require_type(self.count, int, error_factory=ValueError)
+
+        if not (0 < self.count):
+            raise ValueError(f"{self.count=} should be positive")
 
 
 @dataclass(frozen=True, slots=True, kw_only=True)
@@ -133,8 +137,10 @@ class SumResult:
             float(require_finite_number(self.total)),
         )
 
-        if not ((type(self.count) is int) and (0 < self.count)):
-            raise ValueError("count must be a positive integer")
+        require_type(self.count, int, error_factory=ValueError)
+
+        if not (0 < self.count):
+            raise ValueError(f"{self.count=} should be positive")
 
 
 @dataclass(slots=True, kw_only=True)
