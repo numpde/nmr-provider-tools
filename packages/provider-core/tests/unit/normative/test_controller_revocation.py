@@ -115,7 +115,7 @@ class PreparedHandleRevocationTests(unittest.IsolatedAsyncioTestCase):
                     self.assertIs(session.handle, session.retired_handle)
                     self.assertEqual(1, session.retirement_calls)
                     self.assertEqual(["prepare", "retire"], session.events)
-                    self.assertEqual([], controller.delivery.items)
+                    self.assertEqual([], controller.delivery.delivery_outcomes)
                     self.assertEqual((), claims.live_owners())
 
     async def test_revocation_after_entry_retains_ownership_without_dispatching_the_handle(self):
@@ -149,5 +149,5 @@ class PreparedHandleRevocationTests(unittest.IsolatedAsyncioTestCase):
                 self.assertIs(session.handle, session.retired_handle)
                 self.assertEqual(1, session.retirement_calls)
                 self.assertEqual(["prepare", "retire"], session.events)
-                self.assertEqual([], controller.delivery.items)
+                self.assertEqual([], controller.delivery.delivery_outcomes)
                 self.assertEqual((controller,), claims.live_owners())

@@ -73,7 +73,7 @@ class ExecutionFailureAgeTests(unittest.IsolatedAsyncioTestCase):
 
         self.assertTrue(controller.shutdown_ready)
         self.assertEqual(0, len(claims.live_owners()))
-        self.assertEqual(1, len(delivery.items))
+        self.assertEqual(1, len(delivery.delivery_outcomes))
         self.assertEqual(["prepare", "execute"], [event[0] for event in session.events if event[0] != "retire"])
         self.assertIs(controller.operation.last_failure, original)
         released_evidence = failure_evidence(original, secrets=())

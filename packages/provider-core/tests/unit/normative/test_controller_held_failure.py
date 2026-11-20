@@ -124,7 +124,7 @@ class HeldFailureTests(unittest.IsolatedAsyncioTestCase):
 
         self.assertEqual(["prepare", "retire"], [event[0] for event in session.events])
         self.assertEqual((controller,), claims.live_owners())
-        self.assertEqual([], delivery.items)
+        self.assertEqual([], delivery.delivery_outcomes)
 
     async def test_server_revocation_after_scientific_entry_keeps_an_unreturned_outcome_owned(self):
         (claims, selected) = (AttemptClaims.live(), pending("a"))
@@ -158,7 +158,7 @@ class HeldFailureTests(unittest.IsolatedAsyncioTestCase):
 
         self.assertEqual(["prepare", "execute", "retire"], [event[0] for event in session.events])
         self.assertEqual((controller,), claims.live_owners())
-        self.assertEqual([], delivery.items)
+        self.assertEqual([], delivery.delivery_outcomes)
 
     async def test_two_actual_controllers_retain_jobs_attempts_and_capacity_without_fail(self):
         claims = AttemptClaims.live(
@@ -186,7 +186,7 @@ class HeldFailureTests(unittest.IsolatedAsyncioTestCase):
             self.assertTrue(controller.shutdown_ready)
             controller._claim.require(selected.scope, reference)
             self.assertEqual([event[0] for event in session.events], ["prepare", "execute", "retire"])
-            self.assertEqual(delivery.items, [])
+            self.assertEqual(delivery.delivery_outcomes, [])
 
             with self.assertRaises(OwnershipRefused):
                 claims.claim_live(selected, lifecycle_owner=LiveAttemptProbe())
@@ -390,7 +390,7 @@ class HeldFailureTests(unittest.IsolatedAsyncioTestCase):
                 else:
                     self.assert_original_raised(controller, selected, failure)
 
-                self.assertEqual(delivery.items, [])
+                self.assertEqual(delivery.delivery_outcomes, [])
 
     async def test_actual_source_acquisition_exhaustion_retains_its_job_without_science(self):
         selected = pending("a")
@@ -450,7 +450,7 @@ class HeldFailureTests(unittest.IsolatedAsyncioTestCase):
         self.assertTrue(all(client.closed for client in clients))
         self.assertIs(controller.require_held_failure(selected, failure), failure)
         self.assertEqual([event[0] for event in session.events], ["prepare", "retire"])
-        self.assertEqual(delivery.items, [])
+        self.assertEqual(delivery.delivery_outcomes, [])
         self.assertTrue(claims.owns_job(selected.scope, selected.input.job_ref))
 
     async def test_observation_gap_admits_only_its_own_retired_read_outage(self):
@@ -483,7 +483,7 @@ class HeldFailureTests(unittest.IsolatedAsyncioTestCase):
         self.assertIsNotNone(gap.cause)
         self.assertIs(controller.require_held_failure(selected, failure), failure)
         self.assertEqual([event[0] for event in session.events], ["retire"])
-        self.assertEqual(delivery.items, [])
+        self.assertEqual(delivery.delivery_outcomes, [])
         original_outage = failure.cause.api_failure
 
         for unrelated in (None, ApiFailure("unrelated operation", "dependency unavailable")):
@@ -545,7 +545,7 @@ class HeldFailureTests(unittest.IsolatedAsyncioTestCase):
         self.assertFalse(controller.shutdown_ready)
         self.assert_original_raised(controller, selected, failure)
         self.assertEqual([event[0] for event in session.events], ["prepare", "execute", "retire"])
-        self.assertEqual(delivery.items, [])
+        self.assertEqual(delivery.delivery_outcomes, [])
         self.assertTrue(claims.owns_job(selected.scope, selected.input.job_ref))
         self.assertIs(controller.operation._outcome, session.outcome)
 
@@ -622,7 +622,7 @@ class HeldFailureTests(unittest.IsolatedAsyncioTestCase):
                 else:
                     self.assertIs(controller.require_held_failure(selected, failure), failure)
 
-                self.assertEqual(delivery.items, [])
+                self.assertEqual(delivery.delivery_outcomes, [])
 
     async def test_unrelated_control_interruption_and_pending_outcome_cannot_continue(self):
         selected = pending("a")
@@ -692,7 +692,7 @@ class HeldFailureTests(unittest.IsolatedAsyncioTestCase):
         self.assertIsNone(failure.cause.api_failure)
         self.assertIs(controller.require_held_failure(selected, failure), failure)
         self.assertEqual([event[0] for event in session.events], ["retire"])
-        self.assertEqual(delivery.items, [])
+        self.assertEqual(delivery.delivery_outcomes, [])
 
     async def test_cancelled_observer_and_requested_stop_do_not_become_an_unresolved_hold(self):
         selected = pending("a")
@@ -745,7 +745,7 @@ class HeldFailureTests(unittest.IsolatedAsyncioTestCase):
                 controller.require_held_failure(selected, caught.exception)
 
             self.assertEqual([event[0] for event in session.events], ["prepare", "execute", "retire"])
-            self.assertEqual(delivery.items, [])
+            self.assertEqual(delivery.delivery_outcomes, [])
         finally:
             session.release.set()
             controller.request_stop()

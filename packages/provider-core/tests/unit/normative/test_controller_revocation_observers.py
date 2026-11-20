@@ -49,7 +49,7 @@ class RevocationObserverTests(unittest.IsolatedAsyncioTestCase):
 
             self.assertEqual((), controller._claims.live_owners())
             self.assertEqual(["prepare", "retire"], session.events)
-            self.assertEqual([], controller.delivery.items)
+            self.assertEqual([], controller.delivery.delivery_outcomes)
         finally:
             session.release.set()
             await asyncio.gather(first, second, return_exceptions=True)
@@ -106,7 +106,7 @@ class RevocationObserverTests(unittest.IsolatedAsyncioTestCase):
             self.assertFalse(delivery_interrupted.is_set())
             self.assertEqual((), controller._claims.live_owners())
             self.assertEqual(["prepare", "retire"], session.events)
-            self.assertEqual([], controller.delivery.items)
+            self.assertEqual([], controller.delivery.delivery_outcomes)
         finally:
             session.release.set()
             delivery_release.set()
@@ -148,7 +148,7 @@ class RevocationObserverTests(unittest.IsolatedAsyncioTestCase):
             self.assertNotIsInstance(settlement_outcomes[1], BaseException)
             self.assertEqual((), controller._claims.live_owners())
             self.assertEqual(["prepare", "retire"], session.events)
-            self.assertEqual([], controller.delivery.items)
+            self.assertEqual([], controller.delivery.delivery_outcomes)
         finally:
             session.release.set()
 

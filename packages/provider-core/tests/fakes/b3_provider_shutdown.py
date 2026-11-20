@@ -448,7 +448,7 @@ async def shutdown_scenario(schedule, seed, directory, facts):
                         "executions": independent.session.science.executions,
                         "retirements": independent.session.science.retirements,
                         "interpreter_retired": independent.session.interpreter.retirement_confirmed,
-                        "local_terminal_acks": len(independent.delivery.items),
+                        "local_terminal_acks": len(independent.delivery.delivery_outcomes),
                         "child_pids": [child.pid for child in independent_children],
                         "child_returncodes": [child.returncode for child in independent_children],
                         "child_stdin_closed": [child.stdin.is_closing() for child in independent_children],

@@ -94,7 +94,7 @@ class ObservedCrashRecoveryTests(unittest.IsolatedAsyncioTestCase):
 
         self.assertIsNotNone(session.native.original_exit)
         self.assertIsInstance(controller.operation.last_failure.cause, ExecutionStopped)
-        self.assertEqual([], controller.delivery.items)
+        self.assertEqual([], controller.delivery.delivery_outcomes)
         self.assertNotIn("execute", session.events)
         self.assertEqual(4, len(transport.calls))
 
@@ -113,8 +113,8 @@ class ObservedCrashRecoveryTests(unittest.IsolatedAsyncioTestCase):
         retry.assert_called_once()
         recovered.assert_not_called()
         self.assertEqual(4, len(transport.calls))
-        self.assertEqual(1, len(controller.delivery.items))
-        self.assertEqual("worker_crashed", json.loads(controller.delivery.items[0].body)["failure_code"])
+        self.assertEqual(1, len(controller.delivery.delivery_outcomes))
+        self.assertEqual("worker_crashed", json.loads(controller.delivery.delivery_outcomes[0].body)["failure_code"])
         self.assertTrue(controller.shutdown_ready)
         self.assertNotIn("execute", session.events)
 
@@ -142,7 +142,7 @@ class ObservedCrashRecoveryTests(unittest.IsolatedAsyncioTestCase):
         self.assertIsNotNone(session.native.original_exit)
         self.assertIsNone(controller.operation.observed_crash)
         self.assertIsInstance(controller.operation.last_failure.cause, ObservationGapExpired)
-        self.assertEqual([], controller.delivery.items)
+        self.assertEqual([], controller.delivery.delivery_outcomes)
         self.assertNotIn("execute", session.events)
 
     async def test_crash_report_does_not_release_failed_retirement_original_io_owner(self):
@@ -175,8 +175,8 @@ class ObservedCrashRecoveryTests(unittest.IsolatedAsyncioTestCase):
                 await asyncio.wait_for(controller.run(record()), 3)
 
             self.assertIsNotNone(controller.operation.observed_crash)
-            self.assertEqual(1, len(controller.delivery.items))
-            exact_body = controller.delivery.items[0].body
+            self.assertEqual(1, len(controller.delivery.delivery_outcomes))
+            exact_body = controller.delivery.delivery_outcomes[0].body
 
             self.assertEqual("worker_crashed", json.loads(exact_body)["failure_code"])
             self.assertIs(transport.pending_owner, controller.operation)
@@ -187,7 +187,7 @@ class ObservedCrashRecoveryTests(unittest.IsolatedAsyncioTestCase):
             await controller.settle()
 
         self.assertTrue(controller.shutdown_ready)
-        self.assertEqual([exact_body], [delivery_outcome.body for delivery_outcome in controller.delivery.items])
+        self.assertEqual([exact_body], [delivery_outcome.body for delivery_outcome in controller.delivery.delivery_outcomes])
         self.assertEqual(4, len(transport.calls))
         self.assertNotIn("execute", session.events)
 
@@ -214,6 +214,6 @@ class ObservedCrashRecoveryTests(unittest.IsolatedAsyncioTestCase):
         retry.assert_not_called()
         recovered.assert_not_called()
         self.assertEqual(len(transport.calls), 4)
-        self.assertEqual(len(controller.delivery.items), 1)
-        self.assertEqual(json.loads(controller.delivery.items[0].body)["failure_code"], "worker_crashed")
+        self.assertEqual(len(controller.delivery.delivery_outcomes), 1)
+        self.assertEqual(json.loads(controller.delivery.delivery_outcomes[0].body)["failure_code"], "worker_crashed")
         self.assertTrue(controller.shutdown_ready)

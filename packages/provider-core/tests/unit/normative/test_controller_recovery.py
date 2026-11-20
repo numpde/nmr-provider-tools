@@ -60,7 +60,7 @@ class ControllerRecoveryTests(unittest.IsolatedAsyncioTestCase):
 
         self.assertIs(type(accepted), DeliveryAcceptedCheckpoint)
         self.assertEqual(elapsed, 31)
-        self.assertEqual(attempted, [delivery.items[0].body] * 2)
+        self.assertEqual(attempted, [delivery.delivery_outcomes[0].body] * 2)
         self.assertEqual(len(transport.calls), 8)
         self.assertEqual([event[0] for event in session.events], ["prepare", "execute", "retire"])
         self.assertEqual(store.records, ())
@@ -101,8 +101,8 @@ class ControllerRecoveryTests(unittest.IsolatedAsyncioTestCase):
         accepted = await controller.run(record())
 
         self.assertIs(type(accepted), DeliveryAcceptedCheckpoint)
-        self.assertEqual(attempted, [delivery.items[0].body] * 3)
-        self.assertEqual(accepted.selection.body_sha256, delivery.items[0].body_sha256)
+        self.assertEqual(attempted, [delivery.delivery_outcomes[0].body] * 3)
+        self.assertEqual(accepted.selection.body_sha256, delivery.delivery_outcomes[0].body_sha256)
         self.assertEqual(retry.call_count, 2)
         self.assertEqual(retry.call_args.args[0].start, record())
         self.assertEqual(len(transport.calls), 8)

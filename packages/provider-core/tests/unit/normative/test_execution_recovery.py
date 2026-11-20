@@ -91,7 +91,7 @@ class ObservationRecoveryTests(unittest.IsolatedAsyncioTestCase):
             terminal = await asyncio.wait_for(executor.run(acknowledged), 3)
 
             self.assertIs(terminal.selection.operation, TerminalOperation.COMPLETE)
-            self.assertEqual(terminal.selection.body_sha256, executor.delivery.items[0].body_sha256)
+            self.assertEqual(terminal.selection.body_sha256, executor.delivery.delivery_outcomes[0].body_sha256)
             self.assertIsNone(executor._outcome)
             self.assertEqual(store.records, (terminal,))
             self.assertEqual([notice[0] for notice in notices], ["retry", "recovered"])

@@ -420,7 +420,7 @@ class LiveControllerTests(unittest.IsolatedAsyncioTestCase):
             await asyncio.wait_for(task, 1)
 
         self.assertEqual(["prepare", "retire"], session.events)
-        self.assertEqual([], controller.delivery.items)
+        self.assertEqual([], controller.delivery.delivery_outcomes)
 
     async def test_replay_limit_preserves_earlier_commit_uncertainty_after_refusal(self):
         transport = Transport(reply(b"maintenance", status=503), reply(signature_window_problem(), status=401))
@@ -685,7 +685,7 @@ class LiveControllerTests(unittest.IsolatedAsyncioTestCase):
 
                         self.assertIsInstance(failure, ControllerFailed)
                         self.assertIsInstance(failure.cause.cause, ExecutionStopped)
-                        self.assertEqual([], controller.delivery.items)
+                        self.assertEqual([], controller.delivery.delivery_outcomes)
 
                         if cycle == 0:
                             self.assertFalse(claims.owns_job(scope(), job))
@@ -715,7 +715,7 @@ class LiveControllerTests(unittest.IsolatedAsyncioTestCase):
 
                         self.assertIs(type(accepted), DeliveryAcceptedCheckpoint)
                         self.assertEqual(["prepare", "execute", "retire"], next_job.session.events)
-                        self.assertEqual(1, len(next_job.delivery.items))
+                        self.assertEqual(1, len(next_job.delivery.delivery_outcomes))
 
                     self.assertEqual([(None, ()), (None, ())], settlements)
                     self.assertEqual((), claims.live_owners())
@@ -781,7 +781,7 @@ class LiveControllerTests(unittest.IsolatedAsyncioTestCase):
         self.assertIs(type(failure.operation_interruption.__cause__), ChatFailed)
         self.assertTrue(client.closed)
         self.assertTrue(controller.shutdown_ready)
-        self.assertEqual([], controller.delivery.items)
+        self.assertEqual([], controller.delivery.delivery_outcomes)
         self.assertEqual((), claims.live_owners())
 
     async def test_revocation_does_not_absorb_an_independent_preparation_failure(self):
@@ -831,7 +831,7 @@ class LiveControllerTests(unittest.IsolatedAsyncioTestCase):
                 self.assertIsInstance(failed.exception.cause.cause, ExecutionStopped)
                 self.assertIsNone(controller.operation.settled_revocation)
                 self.assertEqual((controller,), claims.live_owners())
-                self.assertEqual([], controller.delivery.items)
+                self.assertEqual([], controller.delivery.delivery_outcomes)
 
     async def test_capacity_refusal_is_typed_and_rejected_controller_can_settle(self):
         claims = AttemptClaims.live(limits=LiveAttemptLimits(maximum_control_bytes=1))

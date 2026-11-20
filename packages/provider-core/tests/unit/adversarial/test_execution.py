@@ -336,7 +336,7 @@ class ExecutionFailureTests(unittest.IsolatedAsyncioTestCase):
         self.assertIsInstance(failed.exception.cause, ExecutionStopped)
         self.assertIs(type(store.records[0]), EnteredCheckpoint)
         self.assertEqual([event[0] for event in session.events], ["prepare", "retire"])
-        self.assertEqual([], executor.delivery.items)
+        self.assertEqual([], executor.delivery.delivery_outcomes)
         claim.release(owner=claim.lifecycle_owner)
 
     async def test_failed_retirement_preserves_approved_delivery_and_requires_cleanup_before_reuse(self):
@@ -370,8 +370,8 @@ class ExecutionFailureTests(unittest.IsolatedAsyncioTestCase):
         (retained,) = store.records
 
         self.assertIs(type(retained), DeliveryAcceptedCheckpoint)
-        self.assertEqual(len(delivery.items), 1)
-        self.assertEqual(retained.selection.body_sha256, delivery.items[0].body_sha256)
+        self.assertEqual(len(delivery.delivery_outcomes), 1)
+        self.assertEqual(retained.selection.body_sha256, delivery.delivery_outcomes[0].body_sha256)
 
         with self.assertRaises(OwnershipRefused):
             claim.release(owner=claim.lifecycle_owner)
@@ -379,5 +379,5 @@ class ExecutionFailureTests(unittest.IsolatedAsyncioTestCase):
         session.retirement_failure = None
 
         self.assertEqual(await executor.settle(), retained)
-        self.assertEqual(len(delivery.items), 1)
+        self.assertEqual(len(delivery.delivery_outcomes), 1)
         claim.release(owner=claim.lifecycle_owner)

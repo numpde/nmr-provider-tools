@@ -202,7 +202,7 @@ async def child(owner_kind, failure_kind):
     assert [event[0] for event in session.events] == ["prepare", "retire"]
     assert delivery.retire_calls >= 1
     assert (len(child_processes) == 1) and (child_processes[0].returncode is not None), "the original child must actually be reaped"
-    assert not delivery.items, "an authored Python process exit must not synthesize terminal FAIL"
+    assert not delivery.delivery_outcomes, "an authored Python process exit must not synthesize terminal FAIL"
     assert len(transport.calls) == (3 + len(prefix)), "no science replay or later API publication"
     assert not original.cancelled()
 
@@ -337,7 +337,7 @@ async def owned_port_child(stage, failure_kind):
     if stage == "condition":
         assert swallowed and (owner.last_failure.cause is swallowed[0])
         assert [event[0] for event in session.events] == ["prepare", "retire"]
-        assert (delivery.submit_calls == 0) and (not delivery.items)
+        assert (delivery.submit_calls == 0) and (not delivery.delivery_outcomes)
         assert len(transport.calls) == 3
     else:
         assert [event[0] for event in session.events] == ["prepare", "execute", "retire"]
@@ -345,10 +345,10 @@ async def owned_port_child(stage, failure_kind):
         assert delivery.submit_calls == 1
 
         if stage == "retirement":
-            assert (len(delivery.items) == 1) and (delivery.items[0].operation is TerminalOperation.COMPLETE)
+            assert (len(delivery.delivery_outcomes) == 1) and (delivery.delivery_outcomes[0].operation is TerminalOperation.COMPLETE)
             assert (owner._outcome is None) and (not owner.retirement_confirmed)
         else:
-            assert not delivery.items
+            assert not delivery.delivery_outcomes
             assert (owner._outcome is session.outcome) and owner.retirement_confirmed
 
     print(stage + "/" + failure_kind + ": exact fatal retained, independent cleanup and selected-report duties preserved")
@@ -504,7 +504,7 @@ async def graph_child(stage, variant):
     else:
         raise AssertionError("owned failure did not escape")
 
-    assert not delivery.items
+    assert not delivery.delivery_outcomes
     assert len(transport.calls) <= 3
     print(stage + "/" + variant + ": outward evidence retains independent cleanup and original causes")
 

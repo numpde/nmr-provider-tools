@@ -114,7 +114,7 @@ class DeliveryLifecycleInterleavings(unittest.IsolatedAsyncioTestCase):
 
                 await asyncio.wait_for(ack_recorded(), 6)
                 self.assertTrue(original.controller.operation.delivery_accepted)
-                self.assertEqual([selected], delivery.items)
+                self.assertEqual([selected], delivery.delivery_outcomes)
                 self.assertEqual(0, original.controller._claim._pending_terminal_bytes)
                 self.assertFalse(original.session.retirement_completed)
                 self.assertFalse(original.controller.shutdown_ready)
@@ -138,7 +138,7 @@ class DeliveryLifecycleInterleavings(unittest.IsolatedAsyncioTestCase):
                 )
 
                 self.assertEqual(1, successor.start_count)
-                self.assertEqual(1, len(successor.controller.delivery.items))
+                self.assertEqual(1, len(successor.controller.delivery.delivery_outcomes))
                 self.assertEqual((original.controller,), claims.live_owners())
                 self.assertFalse(original.session.retirement_completed)
 
@@ -211,15 +211,15 @@ class DeliveryLifecycleInterleavings(unittest.IsolatedAsyncioTestCase):
                             (second.key, second.body_sha256, second.body)
                         )
 
-                        self.assertEqual([], delivery.items)
+                        self.assertEqual([], delivery.delivery_outcomes)
                         self.assertEqual((reply_run.controller,), claims.live_owners())
                         self.assertFalse(reply_run.controller.shutdown_ready)
                         delivery.answer("accepted")
                         accepted_checkpoint = await asyncio.wait_for(asyncio.shield(driver), 6)
 
                         self.assertIs(type(accepted_checkpoint), DeliveryAcceptedCheckpoint)
-                        self.assertEqual(1, len(delivery.items))
-                        self.assertIs(delivery.items[0], first)
+                        self.assertEqual(1, len(delivery.delivery_outcomes))
+                        self.assertIs(delivery.delivery_outcomes[0], first)
                         self.assertEqual(2, len(delivery.offers))
 
                         self.assertEqual(
@@ -278,7 +278,7 @@ class DeliveryLifecycleInterleavings(unittest.IsolatedAsyncioTestCase):
                         self.assertIs(reply_run.controller.operation._delivery_outcome, original)
 
                         # silent-defaults: allow-contract -- A lost acknowledgement follows acceptance; an unavailable receiver has accepted no report.
-                        self.assertEqual([original] if disposition == "lost" else [], delivery.items)
+                        self.assertEqual([original] if disposition == "lost" else [], delivery.delivery_outcomes)
 
                         self.assertTrue(reply_run.controller.work_settled)
                         self.assertFalse(reply_run.controller.shutdown_ready)

@@ -89,7 +89,7 @@ class LiveExecutionTests(unittest.IsolatedAsyncioTestCase):
                 if preverified:
                     self.assertIs(verified, session.instructions)
 
-                self.assertEqual(delivery.items[0].body_sha256, accepted.selection.body_sha256)
+                self.assertEqual(delivery.delivery_outcomes[0].body_sha256, accepted.selection.body_sha256)
                 self.assertIsNone(claim.operation_owner)
                 self.assertTrue(claims.owns_job(scope(), acknowledged.start.input.job_ref))
                 self.assertTrue(executor.retirement_confirmed)
@@ -118,7 +118,7 @@ class LiveExecutionTests(unittest.IsolatedAsyncioTestCase):
             await replacement.run(acknowledged)
 
         self.assertEqual(1, session.events.count("execute"))
-        self.assertEqual(1, len(delivery.items))
+        self.assertEqual(1, len(delivery.delivery_outcomes))
 
     async def test_oversized_result_keeps_scientific_outcome_without_retaining_a_pending_report(self):
         (claims, claim, acknowledged, executor, session, delivery, verified) = await self.setup_execution(True, terminal_bytes=16384)
@@ -127,7 +127,7 @@ class LiveExecutionTests(unittest.IsolatedAsyncioTestCase):
         with self.assertRaises(ExecutionFailed):
             await executor.run(acknowledged)
 
-        self.assertEqual([], delivery.items)
+        self.assertEqual([], delivery.delivery_outcomes)
         self.assertIsNone(executor._delivery_outcome)
         self.assertEqual(session.content, executor._outcome.content)
         self.assertTrue(executor.retirement_confirmed)

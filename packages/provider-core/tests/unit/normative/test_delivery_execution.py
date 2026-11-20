@@ -77,8 +77,8 @@ class DeliveryExecutionTests(unittest.IsolatedAsyncioTestCase):
         self.assertIs(type(session.events[1][1]), EnteredCheckpoint)
         self.assertEqual(session.events[1][1].prepared, EvidenceDigest.from_evidence(session.handle.identity))
         self.assertEqual([event[0] for event in session.events], ["prepare", "execute", "retire"])
-        self.assertEqual(len(delivery.items), 1)
-        self.assertEqual(delivery.items[0].body_sha256, accepted.selection.body_sha256)
+        self.assertEqual(len(delivery.delivery_outcomes), 1)
+        self.assertEqual(delivery.delivery_outcomes[0].body_sha256, accepted.selection.body_sha256)
         self.assertEqual(store.records, (accepted,))
         self.assertIsNone(executor._outcome)
         self.assertIsNone(executor._delivery_outcome)
@@ -99,7 +99,7 @@ class DeliveryExecutionTests(unittest.IsolatedAsyncioTestCase):
             delivery.release.set()
             await asyncio.wait_for(task, 1)
             self.assertGreaterEqual(len(delivery.attempted), 2)
-            self.assertEqual(set(delivery.attempted), {delivery.items[0].body})
+            self.assertEqual(set(delivery.attempted), {delivery.delivery_outcomes[0].body})
             self.assertEqual([event[0] for event in session.events].count("execute"), 1)
             self.assertGreaterEqual(executor._on_delivery_retry.call_count, 1)
             claim.release(owner=claim.lifecycle_owner)
@@ -129,12 +129,12 @@ class DeliveryExecutionTests(unittest.IsolatedAsyncioTestCase):
         self.assertIsNotNone(failed.exception.delivery_acceptance)
         self.assertTrue(executor.delivery_accepted)
         self.assertIsNone(failed.exception.outcome)
-        self.assertEqual(len(delivery.items), 1)
+        self.assertEqual(len(delivery.delivery_outcomes), 1)
         self.assertFalse(executor.retirement_confirmed)
         session.retirement_failure = None
 
         self.assertIs(type(await executor.settle()), DeliveryAcceptedCheckpoint)
-        self.assertEqual(len(delivery.items), 1)
+        self.assertEqual(len(delivery.delivery_outcomes), 1)
         self.assertEqual([event[0] for event in session.events].count("execute"), 1)
         claim.release(owner=claim.lifecycle_owner)
 
@@ -170,8 +170,8 @@ class DeliveryExecutionTests(unittest.IsolatedAsyncioTestCase):
 
             self.assertIs(type(await executor.settle()), DeliveryAcceptedCheckpoint)
             self.assertIsNone(executor._outcome)
-            self.assertEqual(len(delivery.items), 1)
-            self.assertEqual(set(delivery.attempted), {delivery.items[0].body})
+            self.assertEqual(len(delivery.delivery_outcomes), 1)
+            self.assertEqual(set(delivery.attempted), {delivery.delivery_outcomes[0].body})
             self.assertEqual([event[0] for event in session.events].count("execute"), 1)
             claim.release(owner=claim.lifecycle_owner)
         finally:
@@ -244,7 +244,7 @@ class DeliveryExecutionTests(unittest.IsolatedAsyncioTestCase):
                 await executor.settle()
 
             self.assertEqual(len(delivery.attempted), count)
-            self.assertEqual(delivery.items, [])
+            self.assertEqual(delivery.delivery_outcomes, [])
             self.assertFalse(executor.delivery_accepted)
             self.assertIsNotNone(executor._outcome)
         finally:
@@ -266,7 +266,7 @@ class DeliveryExecutionTests(unittest.IsolatedAsyncioTestCase):
         with self.assertRaises(asyncio.CancelledError):
             await executor.run(acknowledged)
 
-        self.assertEqual(len(delivery.items), 1)
+        self.assertEqual(len(delivery.delivery_outcomes), 1)
         self.assertIsNone(executor._outcome)
         self.assertFalse(executor.retirement_confirmed)
         self.assertIsNotNone(executor.last_failure.delivery_acceptance)

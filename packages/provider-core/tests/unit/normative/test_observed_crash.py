@@ -79,8 +79,8 @@ class ObservedCrashTests(unittest.IsolatedAsyncioTestCase):
         async for (controller, calls, accepted, transport) in self._reported_phase_crashes():
             self.assertIs(type(accepted), DeliveryAcceptedCheckpoint)
             self.assertEqual(calls, len(transport.calls))
-            self.assertEqual(1, len(controller.delivery.items))
-            delivery_outcome = controller.delivery.items[0]
+            self.assertEqual(1, len(controller.delivery.delivery_outcomes))
+            delivery_outcome = controller.delivery.delivery_outcomes[0]
 
             self.assertIs(TerminalOperation.FAIL, delivery_outcome.operation)
             body = json.loads(delivery_outcome.body)
@@ -97,7 +97,7 @@ class ObservedCrashTests(unittest.IsolatedAsyncioTestCase):
     @unittest.skipIf(os.environ.get("PRIVACY_TESTS", "1") == "0", "Privacy tests disabled")
     async def test_crash_publication_omits_native_detail(self):
         async for (controller, _calls, _accepted, _transport) in self._reported_phase_crashes():
-            body = json.loads(controller.delivery.items[0].body)
+            body = json.loads(controller.delivery.delivery_outcomes[0].body)
 
             self.assertNotIn("PRIVATE", body["failure_message"])
 
@@ -120,7 +120,7 @@ class ObservedCrashTests(unittest.IsolatedAsyncioTestCase):
                 with self.assertRaises(ControllerFailed):
                     await controller.run(record())
 
-                self.assertEqual([], controller.delivery.items)
+                self.assertEqual([], controller.delivery.delivery_outcomes)
                 self.assertNotIn("execute", session.events)
 
     async def test_crash_admitted_before_pending_monitor_read_fails_still_reaches_delivery(self):
@@ -142,7 +142,7 @@ class ObservedCrashTests(unittest.IsolatedAsyncioTestCase):
         accepted = await controller.run(record())
 
         self.assertIs(type(accepted), DeliveryAcceptedCheckpoint)
-        self.assertEqual("worker_crashed", json.loads(controller.delivery.items[0].body)["failure_code"])
+        self.assertEqual("worker_crashed", json.loads(controller.delivery.delivery_outcomes[0].body)["failure_code"])
 
     async def test_recovery_logging_failure_cannot_veto_an_already_admitted_crash(self):
         session = self.session("preparing")
@@ -180,7 +180,7 @@ class ObservedCrashTests(unittest.IsolatedAsyncioTestCase):
 
         self.assertIs(type(accepted), DeliveryAcceptedCheckpoint)
         recovery.on_retry.assert_not_called()
-        self.assertEqual(1, len(controller.delivery.items))
+        self.assertEqual(1, len(controller.delivery.delivery_outcomes))
 
     async def test_delivery_logging_failure_cannot_cancel_the_selected_exact_crash_report(self):
         class FullOnce(RecordingDelivery):
@@ -207,7 +207,7 @@ class ObservedCrashTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(2, len(delivery.attempted))
         self.assertIs(delivery.attempted[0], delivery.attempted[1])
         self.assertIs(diagnostic, controller.operation.delivery_diagnostic_failure)
-        self.assertEqual(1, len(delivery.items))
+        self.assertEqual(1, len(delivery.delivery_outcomes))
 
     async def test_native_cleanup_crash_preserves_already_chosen_complete_or_fail(self):
         evidence = ProtectedEvidence("fixture.outcome.v1", b"original scientific outcome")
@@ -242,10 +242,10 @@ class ObservedCrashTests(unittest.IsolatedAsyncioTestCase):
                 with self.assertRaises(ControllerFailed):
                     await controller.run(record())
 
-                self.assertEqual(1, len(delivery.items))
-                self.assertIs(expected, delivery.items[0].operation)
+                self.assertEqual(1, len(delivery.delivery_outcomes))
+                self.assertIs(expected, delivery.delivery_outcomes[0].operation)
 
                 if expected is TerminalOperation.FAIL:
-                    self.assertEqual("input_rejected", json.loads(delivery.items[0].body)["failure_code"])
+                    self.assertEqual("input_rejected", json.loads(delivery.delivery_outcomes[0].body)["failure_code"])
 
                 self.assertIsNone(controller.operation.observed_crash)

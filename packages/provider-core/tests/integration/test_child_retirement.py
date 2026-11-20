@@ -182,7 +182,7 @@ class ChildRetirementTests(unittest.IsolatedAsyncioTestCase):
             self.assertEqual(session.generations, 1)
             self.assertTrue(session.child.pipes_closed)
             self.assertIsNotNone(session.child.process.returncode)
-            body = json.loads(executor.delivery.items[0].body)
+            body = json.loads(executor.delivery.delivery_outcomes[0].body)
             generation_reply = json.loads(base64.b64decode(body["canonical_result_base64"], validate=True))
 
             self.assertEqual(

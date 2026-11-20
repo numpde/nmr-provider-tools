@@ -91,7 +91,7 @@ class ExecutionPermissionTests(unittest.IsolatedAsyncioTestCase):
                     self.assertTrue(session.checked)
                     self.assertIs(type(caught.exception.cause.cause), ExecutionStopRequested)
                     self.assertEqual(session.dispatches, 0)
-                    self.assertEqual(delivery.items, [])
+                    self.assertEqual(delivery.delivery_outcomes, [])
                     self.assertTrue(controller.shutdown_ready)
                 finally:
                     session.release.set()
@@ -116,7 +116,7 @@ class ExecutionPermissionTests(unittest.IsolatedAsyncioTestCase):
             session.release.set()
             await asyncio.wait_for(running, 2)
             self.assertEqual(session.dispatches, 1)
-            self.assertEqual(len(delivery.items), 1)
+            self.assertEqual(len(delivery.delivery_outcomes), 1)
             calls = len(transport.calls)
 
             with self.assertRaises(ExecutionRefused):
@@ -293,7 +293,7 @@ class ExecutionPermissionAdditionalTests(unittest.IsolatedAsyncioTestCase):
         await self.run_controller(controller, transport)
         self.assertEqual(session.dispatches, ["prepare", "execute"])
         self.assertEqual([event[0] for event in session.events], ["prepare", "execute", "retire"])
-        self.assertEqual(len(delivery.items), 1)
+        self.assertEqual(len(delivery.delivery_outcomes), 1)
         self.assertTrue(controller.shutdown_ready)
 
     async def test_caught_actual_condition_failure_poison_blocks_next_scientific_effect(self):
@@ -310,7 +310,7 @@ class ExecutionPermissionAdditionalTests(unittest.IsolatedAsyncioTestCase):
         self.assertIs(caught.exception.cause.cause, session.report_failure)
         self.assertEqual(session.dispatches, 0)
         self.assertEqual([event[0] for event in session.events], ["prepare", "retire"])
-        self.assertEqual(delivery.items, [])
+        self.assertEqual(delivery.delivery_outcomes, [])
         self.assertTrue(controller.shutdown_ready)
 
     async def test_caught_in_flight_condition_refusal_cannot_publish_after_report_settles(self):
@@ -325,7 +325,7 @@ class ExecutionPermissionAdditionalTests(unittest.IsolatedAsyncioTestCase):
         self.assertIs(caught.exception.cause.cause, session.dispatch_failure)
         self.assertEqual(session.dispatches, 0)
         self.assertEqual([event[0] for event in session.events], ["prepare", "retire"])
-        self.assertEqual(delivery.items, [])
+        self.assertEqual(delivery.delivery_outcomes, [])
         self.assertTrue(controller.shutdown_ready)
 
     async def test_expired_actual_observation_window_blocks_dispatch_before_timer_callback(self):
@@ -355,5 +355,5 @@ class ExecutionPermissionAdditionalTests(unittest.IsolatedAsyncioTestCase):
         self.assertIs(caught.exception.cause.cause, session.dispatch_failure)
         self.assertIs(session.dispatch_failure._executor, controller.operation)
         self.assertEqual(session.dispatches, 0)
-        self.assertEqual(delivery.items, [])
+        self.assertEqual(delivery.delivery_outcomes, [])
         self.assertTrue(controller.shutdown_ready)

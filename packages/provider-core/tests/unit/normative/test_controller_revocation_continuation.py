@@ -52,7 +52,7 @@ class RevocationContinuationTests(unittest.IsolatedAsyncioTestCase):
                 self.assertIs(observed, await controller.settle_revocation(failure))
                 self.assertEqual((), controller._claims.live_owners())
                 self.assertEqual(["prepare", "retire"], session.events)
-                self.assertEqual([], controller.delivery.items)
+                self.assertEqual([], controller.delivery.delivery_outcomes)
                 self.assertIs(failure, controller.last_failure)
 
     async def test_late_retirement_stays_owned_until_the_original_resource_closes(self):

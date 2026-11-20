@@ -24,13 +24,13 @@ class RecordingDelivery:
 
     def __init__(self):
         self.endpoint = DeliveryEndpoint(scope().api_origin, scope().provider_ref, pathlib.Path("/tmp/relay.sock"))
-        self.items = []
+        self.delivery_outcomes = []
         self.retirement_confirmed = True
         self.last_failure = None
         self.accepted = asyncio.Event()
 
     async def submit(self, item):
-        self.items.append(item)
+        self.delivery_outcomes.append(item)
         self.accepted.set()
 
         return item.acceptance()
@@ -108,7 +108,7 @@ class CausalDelivery(RecordingDelivery):
         if disposition == "lost":
             # The relay may have accepted these immutable bytes; the producer
             # saw no verified ACK and may not infer or replace the outcome.
-            self.items.append(item)
+            self.delivery_outcomes.append(item)
 
             failure = DeliveryUnavailable("The exact local acknowledgement was lost")
             self.last_failure = failure

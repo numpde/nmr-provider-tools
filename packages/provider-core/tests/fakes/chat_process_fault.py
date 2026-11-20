@@ -514,7 +514,7 @@ async def scenario(marker, report):
                 "tool_calls": sum(session.tool_calls for session in sessions),
                 "claim_count": len(claims.live_owners()),
                 "failure_types": sorted(failures),
-                "deliveries": [delivery_outcome.operation.value for controller in controllers for delivery_outcome in controller.delivery.items],
+                "deliveries": [delivery_outcome.operation.value for controller in controllers for delivery_outcome in controller.delivery.delivery_outcomes],
                 "fault": {
                     "read_cancelled": any((event["kind"] == "read_cancelled") for event in events),
                     "cleanup_engaged": bool(engaged),

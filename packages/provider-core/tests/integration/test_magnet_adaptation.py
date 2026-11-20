@@ -62,7 +62,7 @@ class MagnetAdaptationTests(unittest.IsolatedAsyncioTestCase):
             self.assertIs(type(terminal), DeliveryAcceptedCheckpoint)
             interpreter.assert_awaited_once_with(SOURCE)
             worker.assert_awaited_once_with({"smiles": "  CCO  ", "h_solvent": "CDCl3", "c_solvent": "CDCl3"})
-            sent = json.loads(executor.delivery.items[0].body)
+            sent = json.loads(executor.delivery.delivery_outcomes[0].body)
             content = base64.b64decode(sent["canonical_result_base64"])
 
             self.assertEqual(content, expected_bytes)

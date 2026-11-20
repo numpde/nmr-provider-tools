@@ -198,7 +198,7 @@ class ControllerRecoveryFailureTests(unittest.IsolatedAsyncioTestCase):
 
                     if disposition == "available":
                         await task
-                        self.assertEqual(attempted, [delivery.items[0].body] * 2)
+                        self.assertEqual(attempted, [delivery.delivery_outcomes[0].body] * 2)
                         retry.assert_called_once()
                         self.assertEqual(store.records, ())
                     else:

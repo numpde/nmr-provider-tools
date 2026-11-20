@@ -50,7 +50,7 @@ class ExecutionTests(unittest.IsolatedAsyncioTestCase):
         self.assertIs(type(session.events[1][1]), EnteredCheckpoint)
         self.assertEqual(store.records, (terminal,))
         self.assertIs(terminal.selection.operation, TerminalOperation.COMPLETE)
-        self.assertEqual(terminal.selection.body_sha256, executor.delivery.items[0].body_sha256)
+        self.assertEqual(terminal.selection.body_sha256, executor.delivery.delivery_outcomes[0].body_sha256)
         self.assertIsNone(executor._outcome)
         self.assertEqual(len(transport.calls), 7)
         claim.release(owner=claim.lifecycle_owner)

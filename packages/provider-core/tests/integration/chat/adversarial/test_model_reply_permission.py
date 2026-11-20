@@ -457,7 +457,7 @@ class ModelReplyPermissionTests(unittest.IsolatedAsyncioTestCase):
             self.assertEqual(0, session.science.executions)
             self.assertTrue(session.interpreter.retirement_confirmed)
             self.assertTrue(controller.work_settled)
-            self.assertEqual([], controller.delivery.items)
+            self.assertEqual([], controller.delivery.delivery_outcomes)
 
             self.assertEqual(
                 0,
@@ -849,7 +849,7 @@ class ComposedLifecycleOwnershipTests(unittest.IsolatedAsyncioTestCase):
                     )
                 )
 
-                self.assertEqual(1, len(healthy.controller.delivery.items))
+                self.assertEqual(1, len(healthy.controller.delivery.delivery_outcomes))
                 self.assertEqual(1, len(healthy_peer.requests))
                 self.assertEqual(1, len(stalled_peer.requests))
 
@@ -874,7 +874,7 @@ class ComposedLifecycleOwnershipTests(unittest.IsolatedAsyncioTestCase):
                 self.assertTrue(held.session.retirement_completed)
                 self.assertTrue(held.controller.shutdown_ready)
                 self.assertEqual((), claims.live_owners())
-                self.assertEqual([], held.controller.delivery.items)
+                self.assertEqual([], held.controller.delivery.delivery_outcomes)
                 self.assertEqual(0, held.session.science.executions)
             finally:
                 release_reply.set()
@@ -941,7 +941,7 @@ class ComposedLifecycleOwnershipTests(unittest.IsolatedAsyncioTestCase):
                     )
                 )
 
-                self.assertEqual([], original.controller.delivery.items)
+                self.assertEqual([], original.controller.delivery.delivery_outcomes)
                 self.assertEqual((original.controller,), claims.live_owners())
                 self.assertIsNone(await original.controller.settle_revocation(caught.exception))
 
@@ -1059,7 +1059,7 @@ class PreparedPermissionInterleavingTests(unittest.IsolatedAsyncioTestCase):
                         self.assertEqual((1, 0), (session.science.retirements, session.science.executions))
                         self.assertTrue(session.interpreter.retirement_confirmed)
                         self.assertEqual(1, running.start_count)
-                        self.assertEqual([], controller.delivery.items)
+                        self.assertEqual([], controller.delivery.delivery_outcomes)
                     finally:
                         session.release_execution.set()
                         session.release_retirement.set()
@@ -1179,6 +1179,6 @@ class LateOriginalOwnerIsolationTests(unittest.IsolatedAsyncioTestCase):
             )
 
             self.assertIs(new.session.science.retired_handle, new.session.science.handle)
-            self.assertEqual(1, len(new.controller.delivery.items))
+            self.assertEqual(1, len(new.controller.delivery.delivery_outcomes))
             self.assertTrue(new.controller.shutdown_ready)
             self.assertEqual((), claims.live_owners())

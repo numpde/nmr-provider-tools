@@ -64,7 +64,7 @@ class PhaseProgressTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual([event[0] for event in session.events], ["prepare", "execute", "retire"])
         self.assertIs(type(session.events[1][1]), EnteredCheckpoint)
         self.assertIs(terminal.selection.operation, TerminalOperation.COMPLETE)
-        self.assertEqual(terminal.selection.body_sha256, executor.delivery.items[0].body_sha256)
+        self.assertEqual(terminal.selection.body_sha256, executor.delivery.delivery_outcomes[0].body_sha256)
         self.assertIsNone(executor._outcome)
         self.assertEqual(store.records, (terminal,))
         commands = [json.loads(progress_request.content) for (progress_request, _) in transport.calls if progress_request.method == "PUT"]

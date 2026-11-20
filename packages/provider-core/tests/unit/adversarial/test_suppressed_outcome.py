@@ -125,7 +125,7 @@ class SuppressionOutcomeTests(unittest.IsolatedAsyncioTestCase):
         self.assertIsNone(executor.last_failure.outcome)
         self.assertNotIn(session.outcome.content, encode_checkpoint(retained))
         self.assertNotIn(session.outcome.evidence.content, encode_checkpoint(retained))
-        self.assertEqual(executor.delivery.items, [])
+        self.assertEqual(executor.delivery.delivery_outcomes, [])
         self.assertEqual(len(transport.calls), 7)
         claim.release(owner=claim.lifecycle_owner)
 
@@ -164,7 +164,7 @@ class SuppressionOutcomeTests(unittest.IsolatedAsyncioTestCase):
         self.assertIs(retained.reason, SuppressionReason.SERVER_STOP)
         self.assertIsNone(executor.last_failure.outcome)
         self.assertFalse(hasattr(retained, "candidate"))
-        self.assertEqual(executor.delivery.items, [])
+        self.assertEqual(executor.delivery.delivery_outcomes, [])
         self.assertEqual([event[0] for event in session.events], ["prepare", "retire"])
         self.assertEqual(len(transport.calls), 4)
         claim.release(owner=claim.lifecycle_owner)
