@@ -210,13 +210,14 @@ class InProcessExecutionHost:
         isolation: IsolationRequirement = IsolationRequirement.SHARED_PROCESS,
     ) -> HostedContribution:
         """Retain a factory before construction or initialization has effects."""
+
         self._require_loop()
 
         if self.retiring:
             raise CapacityUnavailable("Cannot adopt a contribution while the host is retiring.")
 
         if not callable(constructor):
-            raise TypeError("Scientific construction requires a callable factory")
+            raise TypeError(f"{type(constructor)=} should provide a callable contribution factory")
 
         allocation_name = uuid4().hex
         hosted = HostedContribution(
@@ -231,6 +232,7 @@ class InProcessExecutionHost:
         )
 
         _require_supported_binding(hosted)
+
         self.residents[allocation_name] = _Resident(
             host_identity=self.identity,
             name=allocation_name,

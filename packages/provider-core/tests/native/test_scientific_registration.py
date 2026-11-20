@@ -311,12 +311,13 @@ class AdoptionTests(unittest.IsolatedAsyncioTestCase):
         instance = Sum(configuration=Settings(scale=2))
         adopted = self.host.adopt(contribution=instance, requirements=requirements)
 
-        self.assertIsNone(class_only.contribution)
-        self.assertEqual(adopted.description.binding_revision, class_only.description.binding_revision)
+        self.assertIsNone(obj=class_only.contribution)
+        self.assertEqual(first=adopted.description.binding_revision, second=class_only.description.binding_revision)
         self.assertEqual(
-            adopted.call(method=Sum.calculate).description,
-            class_only.call(method=Sum.calculate).description,
+            first=adopted.call(method=Sum.calculate).description,
+            second=class_only.call(method=Sum.calculate).description,
         )
+
         with self.assertRaises(expected_exception=ValueError):
             class_only.call(method=instance.calculate)
 
@@ -340,6 +341,7 @@ class AdoptionTests(unittest.IsolatedAsyncioTestCase):
             )
 
         self.assertEqual(first=0, second=instance.calls)
+
         call = hosted.call(method=Sum.calculate)
         operation = analysis.submit_call(
             call=call,
@@ -352,17 +354,21 @@ class AdoptionTests(unittest.IsolatedAsyncioTestCase):
 
         self.assertIs(expr1=Outcome.SUCCEEDED, expr2=observed.outcome)
         self.assertEqual(first=1, second=instance.calls)
+
         await observe_cleanup(control=operation.release_result(result=observed.require_result()))
         await observe_cleanup(control=analysis.close())
 
     async def test_host_owned_construction_starts_after_factory_custody(self):
-        constructed = []
+        constructed_instances = []
         worker_threads = []
 
         def construct() -> Sum:
             worker_threads.append(current_thread())
+
             instance = Sum(configuration=Settings(scale=2))
-            constructed.append(instance)
+
+            constructed_instances.append(instance)
+
             return instance
 
         hosted = self.host.adopt_class(
@@ -371,12 +377,14 @@ class AdoptionTests(unittest.IsolatedAsyncioTestCase):
             requirements=frozenset({ResourceRequirement(kind="cpu", amount=1, unit="thread")}),
         )
 
-        self.assertEqual([], constructed)
+        self.assertEqual(first=[], second=constructed_instances)
+
         await self.host.initialize(allocation=hosted.allocation)
 
-        (instance,) = constructed
-        self.assertIsNot(worker_threads[0], current_thread())
-        self.assertEqual(1, instance.initializations)
+        (instance,) = constructed_instances
+
+        self.assertIsNot(expr1=current_thread(), expr2=worker_threads[0])
+        self.assertEqual(first=1, second=instance.initializations)
 
         with self.assertRaises(expected_exception=ValueError):
             self.host.adopt(
