@@ -158,13 +158,13 @@ def _findings_in_body(
             )
 
         names = _assigned_names(statement)
-        value = _assigned_value(statement)
+        assigned_expression = _assigned_value(statement)
 
-        if (value is None) or (not names):
+        if (assigned_expression is None) or (not names):
             continue
 
         source_location_depth = _source_location_depth(
-            value,
+            assigned_expression,
             source_location_depths,
         )
 
@@ -174,7 +174,7 @@ def _findings_in_body(
                     source_path=source_path,
                     line=statement.lineno,
                     target=name,
-                    expression=ast.unparse(value),
+                    expression=ast.unparse(assigned_expression),
                 )
                 for name in names
                 if _root_target_uses_source_layout(name, source_location_depth)
