@@ -174,12 +174,12 @@ def _route(table, origin):
 
 def _parse_deployment_bindings(raw):
     try:
-        document = tomllib.loads(raw.decode("utf-8"))
+        deployment_definition = tomllib.loads(raw.decode("utf-8"))
     except (UnicodeError, ValueError) as cause:
         raise BindingDefinitionRejected("Cannot read delivery bindings: require a UTF-8 TOML definition.") from cause
 
-    _fields(document, {"project", "uid", "gid", "request_seconds", "retry_initial_seconds", "retry_max_seconds", "limits", "bindings"}, "definition")
-    (project, uid, gid) = (document["project"], document["uid"], document["gid"])
+    _fields(deployment_definition, {"project", "uid", "gid", "request_seconds", "retry_initial_seconds", "retry_max_seconds", "limits", "bindings"}, "definition")
+    (project, uid, gid) = (deployment_definition["project"], deployment_definition["uid"], deployment_definition["gid"])
 
     if not (type(project) is (expected_type := str)):
         raise BindingDefinitionRejected(f"Cannot admit delivery bindings: {type(project)=} ≠ {expected_type=}")
@@ -190,32 +190,33 @@ def _parse_deployment_bindings(raw):
     if not (type(uid) is (expected_uid_type := int)):
         raise BindingDefinitionRejected(f"Cannot admit delivery bindings: {type(uid)=} ≠ {expected_uid_type=}")
 
-    if not (1 <= uid <= 4294967294):
-        raise BindingDefinitionRejected("Cannot admit delivery bindings: uid and gid must be explicit nonzero Linux identities.")
+    (min_owner_id, max_owner_id) = (1, 4294967294)
+
+    if not (min_owner_id <= uid <= max_owner_id):
+        raise BindingDefinitionRejected(f"{uid=} should be between {min_owner_id=} and {max_owner_id=}")
 
     if not (type(gid) is (expected_gid_type := int)):
         raise BindingDefinitionRejected(f"Cannot admit delivery bindings: {type(gid)=} ≠ {expected_gid_type=}")
 
-    if not (1 <= gid <= 4294967294):
-        raise BindingDefinitionRejected("Cannot admit delivery bindings: uid and gid must be explicit nonzero Linux identities.")
+    if not (min_owner_id <= gid <= max_owner_id):
+        raise BindingDefinitionRejected(f"{gid=} should be between {min_owner_id=} and {max_owner_id=}")
 
-    for key in ("request_seconds", "retry_initial_seconds", "retry_max_seconds"):
-        value = document[key]
+    require_positive_number(deployment_definition["request_seconds"])
+    require_positive_number(deployment_definition["retry_initial_seconds"])
+    require_positive_number(deployment_definition["retry_max_seconds"])
 
-        require_positive_number(value)
+    if not (deployment_definition["retry_initial_seconds"] <= deployment_definition["retry_max_seconds"]):
+        raise BindingDefinitionRejected(f"{deployment_definition['retry_initial_seconds']=} should be at most {deployment_definition['retry_max_seconds']=}")
 
-    if not (document["retry_initial_seconds"] <= document["retry_max_seconds"]):
-        raise BindingDefinitionRejected("Cannot admit delivery bindings: initial retry delay must not exceed maximum delay.")
-
-    _fields(document["limits"], {"provider_items", "provider_bytes", "total_items", "total_bytes"}, "limits")
+    _fields(deployment_definition["limits"], {"provider_items", "provider_bytes", "total_items", "total_bytes"}, "limits")
 
     try:
-        limits = QueueLimits(**document["limits"])
+        limits = QueueLimits(**deployment_definition["limits"])
     except ValueError as cause:
         # QueueLimits owns these fixed, input-free refusal messages.
         raise BindingDefinitionRejected(str(cause)) from cause
 
-    rows = document["bindings"]
+    rows = deployment_definition["bindings"]
 
     if not (type(rows) is (expected_type := list)):
         raise BindingDefinitionRejected(f"Cannot admit delivery bindings: {type(rows)=} ≠ {expected_type=}")
@@ -264,7 +265,7 @@ def _parse_deployment_bindings(raw):
     if not (((len(bindings) * limits.provider_items) <= limits.total_items) and ((len(bindings) * limits.provider_bytes) <= limits.total_bytes)):
         raise BindingDefinitionRejected("Cannot admit delivery bindings: host queue limits must cover all provider shares.")
 
-    return DeploymentBindings(project, uid, gid, document["request_seconds"], document["retry_initial_seconds"], document["retry_max_seconds"], dict(document["limits"]), tuple(bindings))
+    return DeploymentBindings(project, uid, gid, deployment_definition["request_seconds"], deployment_definition["retry_initial_seconds"], deployment_definition["retry_max_seconds"], dict(deployment_definition["limits"]), tuple(bindings))
 
 
 def parse_deployment_bindings(raw):
