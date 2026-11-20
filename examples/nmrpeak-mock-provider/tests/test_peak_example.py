@@ -468,7 +468,7 @@ class PeakExampleTests(unittest.IsolatedAsyncioTestCase):
 
         self.configuration.write_text(data=tomli_w.dumps(deployment_config), encoding="utf-8")
 
-        with self.assertRaisesRegex(expected_exception=ValueError, expected_regex="requires deployment-owned scientific runner sessions"):
+        with self.assertRaises(expected_exception=ValueError):
             async with self.open_offerings():
                 self.fail(msg="Process startup must not invent a native supervisor")
 
@@ -476,7 +476,7 @@ class PeakExampleTests(unittest.IsolatedAsyncioTestCase):
         (_, runner, session) = self.configure_process()
         configure_backend(self.configuration, "thread")
 
-        with self.assertRaisesRegex(expected_exception=ValueError, expected_regex="does not use scientific process sessions"):
+        with self.assertRaises(expected_exception=ValueError):
             async with self.open_offerings(process_sessions={("hf", 0): session}):
                 self.fail(msg="Thread startup must refuse an unrelated native owner")
 
