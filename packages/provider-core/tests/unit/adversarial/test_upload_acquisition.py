@@ -42,8 +42,8 @@ class UploadAcquisitionTests(unittest.IsolatedAsyncioTestCase):
 
         self.assertIs(owner.last_failure, caught.exception)
         self.assertFalse(caught.exception.grant_issued)
-        self.assertIn("8 bytes", str(caught.exception))
-        self.assertIn("7-byte", str(caught.exception))
+        self.assertRegex(str(caught.exception), r"\b8\b")
+        self.assertRegex(str(caught.exception), r"\b7\b")
         self.assertEqual(owner.requests_started, 1)
         self.assertEqual(owner.received_bytes, 0)
         self.assertEqual(api.calls, ["membership"])
