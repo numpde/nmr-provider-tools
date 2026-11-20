@@ -17,13 +17,14 @@ import pathlib
 import tomllib
 
 from provider_core.embedded_host import InProcessExecutionHost
+from provider_core.execution_setup import ExecutionSettings
 from provider_core.contribution import CallBinding
 from provider_core.failure_collection import FailureCollector
 from provider_core.hosting import OperationPolicy, require_capacity_partition, settle_cleanup
 from provider_core.interpreter import EndpointFactory, Interpreter
 from provider_core.process_host import ProcessExecutionHost
 from provider_core.runner_session import RunnerSession
-from provider_core.scientific import HostedContribution, ResourceRequirement
+from provider_core.scientific import HostedContribution
 
 from .application import PredictionWorkflow
 from .binding import Chf, Hf
@@ -141,16 +142,15 @@ async def open_offerings(
     with PROVIDER_CONFIG_PATH.open(mode="rb") as source:
         provider_config = tomllib.load(source)
 
-    # silent-defaults: allow-contract -- Existing deployment files select threads by omitting backend; process execution is explicit.
-    execution_mode = provider_config["execution"].get("backend", "thread")
-
-    host_options = provider_config["execution"]["in_process_execution_host"]
+    execution_settings = ExecutionSettings(provider_config["execution"])
+    execution_mode = execution_settings.backend
+    host_options = execution_settings.host
 
     if execution_mode == "thread":
         if process_sessions is not None:
             raise ValueError("Thread execution does not use scientific process sessions")
 
-        execution_host = InProcessExecutionHost(**host_options)
+        execution_host = execution_settings.create_host()
     elif execution_mode == "process":
         if process_sessions is None:
             raise ValueError("Process execution requires deployment-owned scientific runner sessions")
@@ -166,18 +166,10 @@ async def open_offerings(
         if not (create_model is InstalledMockModel):
             raise ValueError(f"Process execution requires {create_model=} to be {InstalledMockModel=}")
 
-    else:
-        raise ValueError(f"Unsupported scientific {execution_mode=}")
-
     async with AsyncExitStack() as lifetime:
         if execution_mode == "thread":
             await lifetime.enter_async_context(execution_host)
-        operation_policy = OperationPolicy(**provider_config["execution"]["operation_policy"])
-
-        resource_requirements = frozenset(
-            ResourceRequirement(**resource_requirement)
-            for resource_requirement in provider_config["execution"]["resource_requirement"]
-        )
+        resource_requirements = execution_settings.resource_requirements
 
         predictor_families = {"hf": (Hf, "hf_prompt.txt"), "chf": (Chf, "chf_prompt.txt")}
         offerings = {}
@@ -192,7 +184,10 @@ async def open_offerings(
 
             for index, offering_config in enumerate(offering_configs):
                 if execution_mode == "process":
-                    execution_host = ProcessExecutionHost(session=process_sessions[family, index], **process_options[family, index])
+                    execution_host = execution_settings.create_host(
+                        process_session=process_sessions[family, index],
+                        host=process_options[family, index],
+                    )
                     await lifetime.enter_async_context(execution_host)
                     hosted_predictor = await execution_host.start(
                         contribution_type=predictor_class,
@@ -237,7 +232,7 @@ async def open_offerings(
         yield frozenset(
             Offering(
                 execution_host=execution_host,
-                operation_policy=operation_policy,
+                operation_policy=execution_settings.operation_policy,
                 hosted_predictor=hosted_predictor,
                 create_interpreter=create_interpreter,
                 family=family,

@@ -231,7 +231,7 @@ class PeakExampleTests(unittest.IsolatedAsyncioTestCase):
 
             for capacity in ("input_bytes", "result_bytes", "state_values"):
                 assigned = sum(offering.execution_host.host_options[capacity] for offering in offerings)
-                self.assertEqual(deployment_config["execution"]["in_process_execution_host"][capacity], assigned)
+                self.assertEqual(deployment_config["execution"]["host"][capacity], assigned)
 
             await settle_cleanup(control=hf_host.retire())
             self.assertTrue(hf_session.retirement.scratch_released)

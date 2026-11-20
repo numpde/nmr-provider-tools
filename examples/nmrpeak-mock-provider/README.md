@@ -11,7 +11,7 @@ HF accepts proton spectra; CHF accepts proton and carbon spectra. Their startup
 mapping pairs each scientific contribution with its interpretation prompt. It is
 specific to this provider, rather than an SDK model registry.
 
-Thread execution is the default. For process execution set
+The shipped configuration explicitly selects `execution.backend = "thread"`. For process execution set
 `execution.backend = "process"` and supply `process_sessions` to `open_offerings`.
 The mapping has exactly one fresh deployment-owned `RunnerSession` for each
 `(family, zero-based configuration index)` pair, for example `("hf", 0)` and
@@ -20,7 +20,7 @@ they are not durable request or offering identities.
 
 Each process owns one model and one allocation. Every configured entry declares
 `process_capacity` shares for aggregate input bytes, result bytes and state values.
-Their sums must fit the provider allowances in `execution.in_process_execution_host`.
+Their sums must fit the provider allowances in `execution.host`.
 An unused share cannot be borrowed by another worker. Progress history is capped
 per operation; initialization and retirement allowances apply per host. Hardware
 memory, GPU and CPU grants still belong to deployment; these SDK counters do not

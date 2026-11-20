@@ -239,13 +239,23 @@ and unavailable. Preserve the original host and cleanup evidence until settled.
 
 ### Selecting the NMRPeak mock backend
 
+`provider_core.execution_setup.ExecutionSettings` snapshots the common execution
+section (`backend`, `host`, `operation_policy`, `resource_requirement`). Its
+`create_host(process_session=..., host=...)` selects and constructs a host without
+entering its lifetime or starting science. A successful process-host construction
+takes session custody; a refused construction leaves custody with the caller.
+Providers retain scientific startup, readiness and multi-host inventories.
+`provider_core.hosting.require_capacity_partition(total=..., shares=...)` checks
+exact positive integer input/result/state shares against aggregate allowances
+before host construction; it reserves no hardware and schedules no work.
+
 The [NMRPeak startup](../../examples/nmrpeak-mock-provider/src/nmrpeak_mock_provider/provider.py)
-defaults to `backend = "thread"` when the setting is absent. Process selection is
+requires an explicit `execution.backend`; the shipped configuration selects threads. Process selection is
 explicit: set `backend = "process"` under `[execution]` and supply one fresh
 deployment-owned session per `(family, configuration index)` through
 `process_sessions`. Each configured model has its own one-allocation process host.
 The shipped HF/CHF configuration declares static `process_capacity` shares whose
-aggregate input/result/state totals must fit `[execution.in_process_execution_host]`.
+aggregate input/result/state totals must fit `[execution.host]`.
 Progress history remains per-operation policy; hardware grants belong to deployment.
 
 Process mode requires the installed mock `Model` class exactly; an arbitrary

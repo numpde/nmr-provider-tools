@@ -43,6 +43,14 @@ Each example selects its document with `PROVIDER_CONFIG_PATH` in `provider.py` a
 reads execution parameters and scientific settings at startup. Tests stage that
 same configuration layout and invoke the production setup paths.
 
+All four examples decode the common execution section with SDK
+`ExecutionSettings`: explicit `backend`, `host`, `operation_policy` and
+`resource_requirement`. `create_host()` constructs the selected host; provider
+assembly enters its lifetime and adopts or starts its science. Multi-host
+providers keep their session inventories and capacity shares local, checking
+aggregate shares with `require_capacity_partition` before taking any session.
+Public host constructors remain independently usable and validate their options.
+
 Use `science.py` for scientific values/calculations, `binding.py` for SDK operation
 declarations and scientific resource cleanup, and `provider.py` for configuration,
 backend and lifetime assembly. Installed `process_factory.py` modules reconstruct

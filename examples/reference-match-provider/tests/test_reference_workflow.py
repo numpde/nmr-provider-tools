@@ -17,6 +17,7 @@ import unittest
 from unittest.mock import patch
 
 from provider_core.embedded_host import InProcessExecutionHost
+from provider_core import execution_setup
 
 from provider_core.hosting import (
     NotAdmitted,
@@ -114,6 +115,7 @@ class ReferenceWorkflowTests(unittest.IsolatedAsyncioTestCase):
         calls = []
         cause = OSError("The second reference query failed")
         output = io.BytesIO()
+        cleanup_checked = []
 
         def fail_second(*, index, settings, candidate):
             calls.append(candidate)
@@ -140,6 +142,7 @@ class ReferenceWorkflowTests(unittest.IsolatedAsyncioTestCase):
                         # Report acceptance is independent of the failed query's
                         # cleanup. Do not delay it behind that cleanup's wait.
                         self.assertTrue(expr=bool(output.getvalue()), msg="Deliver the prior report before failed-query cleanup")
+                        cleanup_checked.append(True)
 
                         return original_close()
 
@@ -153,7 +156,7 @@ class ReferenceWorkflowTests(unittest.IsolatedAsyncioTestCase):
 
         with (
             patch("reference_provider.science.match", side_effect=fail_second),
-            patch.object(provider_setup, "InProcessExecutionHost", side_effect=observed_host),
+            patch.object(execution_setup, "InProcessExecutionHost", side_effect=observed_host),
             patch.object(demo, "sys", SimpleNamespace(stdout=SimpleNamespace(buffer=output))),
         ):
             async with asyncio.timeout(15):
@@ -161,6 +164,7 @@ class ReferenceWorkflowTests(unittest.IsolatedAsyncioTestCase):
                     await demo.run_demo()
 
         self.assertIs(cause, raised.exception)
+        self.assertEqual([True], cleanup_checked)
         report = json.loads(output.getvalue())
 
         self.assertEqual("pattern-a", report["label"])

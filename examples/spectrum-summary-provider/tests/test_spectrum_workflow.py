@@ -26,6 +26,7 @@ from unittest.mock import AsyncMock, patch
 from provider_core.contribution import JsonDataclassCodec
 from provider_core.scientific import operation
 from provider_core.embedded_host import InProcessExecutionHost
+from provider_core import execution_setup
 
 from provider_core.hosting import (
     AdmissionCode,
@@ -86,7 +87,7 @@ class SpectrumWorkflowTests(unittest.IsolatedAsyncioTestCase):
 
     async def workflow(self, *, result_bytes):
         configuration = tomllib.loads(self.configuration.read_text(encoding="utf-8"))
-        configuration["execution"]["in_process_execution_host"]["result_bytes"] = result_bytes
+        configuration["execution"]["host"]["result_bytes"] = result_bytes
 
         self.configuration.write_text(data=tomli_w.dumps(configuration), encoding="utf-8")
         provider = await self.enterAsyncContext(provider_setup.open_provider())
@@ -276,7 +277,7 @@ class SpectrumWorkflowTests(unittest.IsolatedAsyncioTestCase):
 
         with (
             patch.object(demo, "ResultConsumption", HeldConsumption),
-            patch.object(provider_setup, "InProcessExecutionHost", side_effect=observed_host),
+            patch.object(execution_setup, "InProcessExecutionHost", side_effect=observed_host),
             patch.object(demo, "sys", SimpleNamespace(stdout=SimpleNamespace(buffer=output))),
         ):
             task = asyncio.create_task(demo.run_demo())

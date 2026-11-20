@@ -8,10 +8,11 @@ import tomllib
 
 from provider_core.contribution import CallBinding, ref
 from provider_core.embedded_host import InProcessExecutionHost
+from provider_core.execution_setup import ExecutionSettings
 from provider_core.hosting import Invocation, OperationPolicy, require_capacity_partition
 from provider_core.process_host import ProcessExecutionHost
 from provider_core.runner_session import RunnerSession
-from provider_core.scientific import HostedContribution, ResourceRequirement
+from provider_core.scientific import HostedContribution
 
 from .application import PeakWorkflow
 from .binding import BaselineCorrector, PeakDetector
@@ -69,7 +70,7 @@ class Provider:
 
 def _stage_options(execution: Mapping) -> dict[str, dict]:
     """Check static stage shares before constructing hosts or taking sessions."""
-    total = execution["in_process_execution_host"]
+    total = execution["host"]
     shares = execution["stage_capacity"]
 
     if set(shares) != {"baseline", "peaks"}:
@@ -92,10 +93,10 @@ async def open_provider(
         provider_config = tomllib.load(source)
 
     execution = provider_config["execution"]
-    backend = execution["backend"]
+    execution_settings = ExecutionSettings(execution)
+    backend = execution_settings.backend
     stage_options = _stage_options(execution)
-    operation_policy = OperationPolicy(**execution["operation_policy"])
-    requirements = frozenset(ResourceRequirement(**requirement) for requirement in execution["resource_requirement"])
+    requirements = execution_settings.resource_requirements
     baseline_settings = science.BaselineSettings(**provider_config["science"]["baseline"]["settings"])
     peak_settings = science.PeakSettings(**provider_config["science"]["peaks"]["settings"])
 
@@ -108,8 +109,6 @@ async def open_provider(
 
         if process_sessions["baseline"] is process_sessions["peaks"]:
             raise ValueError("Cannot start process spectrum execution: baseline and peaks require distinct native runner sessions.")
-    else:
-        raise ValueError(f"Cannot start spectrum execution with {backend=}; choose thread or process.")
 
     async with AsyncExitStack() as lifetime:
         hosts = {}
@@ -119,10 +118,10 @@ async def open_provider(
             ("baseline", BaselineCorrector, baseline_settings),
             ("peaks", PeakDetector, peak_settings),
         ):
-            if backend == "process":
-                host = ProcessExecutionHost(session=process_sessions[stage], **stage_options[stage])
-            else:
-                host = InProcessExecutionHost(**stage_options[stage])
+            host = execution_settings.create_host(
+                process_session=process_sessions[stage] if backend == "process" else None,
+                host=stage_options[stage],
+            )
 
             await lifetime.enter_async_context(host)
             hosts[stage] = host
@@ -145,5 +144,5 @@ async def open_provider(
             peak_detector=hosted["peaks"],
             baseline_call=hosted["baseline"].call(method=BaselineCorrector.run),
             peak_call=hosted["peaks"].call(method=PeakDetector.run),
-            operation_policy=operation_policy,
+            operation_policy=execution_settings.operation_policy,
         )

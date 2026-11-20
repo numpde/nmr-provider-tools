@@ -24,7 +24,7 @@ not yet handed to a host remain with the caller.
 
 ## Capacity ownership
 
-`execution.in_process_execution_host` declares the enclosing input-byte,
+`execution.host` declares the enclosing input-byte,
 result-byte and scientific-state allowances. `execution.stage_capacity.baseline`
 and `.peaks` explicitly partition those allowances; startup rejects nonpositive
 shares and any sum exceeding the enclosing allowance. The same static partition
