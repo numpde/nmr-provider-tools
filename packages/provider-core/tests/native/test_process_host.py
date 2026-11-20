@@ -16,6 +16,7 @@ from provider_core.hosting import (
     AdmissionCode,
     CleanupObservation,
     DispatchState,
+    Failure,
     Invocation,
     NotAdmitted,
     Observation,
@@ -26,6 +27,7 @@ from provider_core.hosting import (
     ResultState,
     StartDeadlineExpired,
     observe_cleanup,
+    observe_completion,
 )
 from provider_core.process_host import (
     ProcessExecutionHost,
@@ -33,8 +35,8 @@ from provider_core.process_host import (
     _ProcessAnalysis,
     _ProcessOperation,
 )
-from provider_core.process_wire import MAX_PAYLOAD_BYTES, receive, receive_async, send, send_async
-from provider_core.runner_session import RunnerSession
+from provider_core.process_wire import MAX_PAYLOAD_BYTES, RemoteScienceError, decode_frame, frame, receive, receive_async, send, send_async
+from provider_core.runner_session import Retirement, RunnerSession
 from provider_core.scientific import Contribution, HostedContribution, operation
 
 
@@ -238,6 +240,164 @@ class ProcessOwnershipTests(unittest.IsolatedAsyncioTestCase):
 
         self.assertEqual(first=b"", second=additional_bytes)
 
+        uncertain = await original.observe(after=None, wait_seconds=0)
+
+        self.assertIs(expr1=AcceptanceState.UNCERTAIN, expr2=uncertain.acceptance)
+        self.assertIs(expr1=DispatchState.UNKNOWN, expr2=uncertain.dispatch)
+        self.assertFalse(expr=uncertain.finished)
+        self.assertIsNone(obj=uncertain.outcome)
+        self.assertEqual(first=1, second=len(uncertain.failures))
+
+        with self.assertRaises(expected_exception=RemoteScienceError):
+            await observe_completion(operation=original)
+
+        # This socket test supplies native evidence only to exercise projection;
+        # the actual-child lifecycle suite separately owns the retirement proof.
+        self.session.retirement = Retirement(returncode=-9, scratch_released=True, reason="exited")
+        self.host.retired = True
+        retired = await original.observe(after=uncertain.revision, wait_seconds=1)
+
+        self.assertTrue(expr=retired.finished)
+        self.assertIs(expr1=AcceptanceState.UNCERTAIN, expr2=retired.acceptance)
+        self.assertIs(expr1=DispatchState.UNKNOWN, expr2=retired.dispatch)
+        self.assertIsNone(obj=retired.outcome)
+        self.assertIs(expr1=ResourceState.RELEASED, expr2=retired.resources)
+        self.assertEqual(first=uncertain.failures, second=retired.failures)
+        self.assertLess(a=uncertain.revision, b=retired.revision)
+        self.assertEqual(first=retired, second=await original.observe(after=None, wait_seconds=0))
+
+    async def test_zero_wait_reports_known_read_failure_without_erasing_scientific_success(self):
+        self.peer_science_socket.setblocking(False)
+        original = _ProcessOperation(self.analysis, self.invocation, acknowledged=True)
+        result_ref = ResultRef(original.reference, "known-result")
+
+        completed = replace(
+            original._snapshot(),
+            revision=2,
+            dispatch=DispatchState.STARTED,
+            finished=True,
+            outcome=Outcome.SUCCEEDED,
+            result_state=ResultState.AVAILABLE,
+            result=result_ref,
+            resources=ResourceState.OCCUPIED,
+        )
+
+        original._publish(completed)
+        reading = asyncio.create_task(original.read_result(result_ref))
+        command = await asyncio.wait_for(receive_async(self.peer_science_socket), timeout=5)
+
+        self.assertEqual(first="read_result", second=command["action"])
+        self.peer_science_socket.close()
+
+        with self.assertRaises(expected_exception=RemoteScienceError):
+            await asyncio.wait_for(reading, timeout=5)
+
+        observed = await observe_completion(operation=original)
+
+        self.assertIs(expr1=Outcome.SUCCEEDED, expr2=observed.outcome)
+        self.assertEqual(first=result_ref, second=observed.result)
+        self.assertIs(expr1=ResultState.AVAILABLE, expr2=observed.result_state)
+        self.assertEqual(first="backend", second=observed.failures[-1].phase)
+
+        with self.assertRaises(expected_exception=RemoteScienceError):
+            observed.require_result()
+
+        self.assertEqual(first=observed, second=await original.observe(after=None, wait_seconds=0))
+        self.assertIsNone(obj=original.observation_task)
+
+    async def test_native_exit_expires_result_authority_for_every_observation_wait(self):
+        self.peer_science_socket.setblocking(False)
+        original = _ProcessOperation(self.analysis, self.invocation, acknowledged=True)
+        result_ref = ResultRef(original.reference, "known-result")
+
+        completed = replace(
+            original._snapshot(),
+            revision=2,
+            dispatch=DispatchState.STARTED,
+            finished=True,
+            outcome=Outcome.SUCCEEDED,
+            result_state=ResultState.AVAILABLE,
+            result=result_ref,
+            resources=ResourceState.OCCUPIED,
+        )
+
+        original._publish(completed)
+        self.session.retirement = Retirement(returncode=0, scratch_released=True, reason="exited")
+        self.host.draining = True
+        exited = await original.observe(after=completed.revision, wait_seconds=1)
+
+        self.assertIs(expr1=Outcome.SUCCEEDED, expr2=exited.outcome)
+        self.assertIs(expr1=ResultState.RELEASED, expr2=exited.result_state)
+        self.assertIs(expr1=ResourceState.UNKNOWN, expr2=exited.resources)
+        self.assertEqual(first=(), second=exited.failures)
+
+        # Native receipt and completion of the parent's own I/O joins are
+        # separate facts. Only their host owner publishes final retirement.
+        self.host.retired = True
+        retired = await original.observe(after=exited.revision, wait_seconds=0)
+
+        self.assertIs(expr1=ResourceState.RELEASED, expr2=retired.resources)
+        self.assertLess(a=exited.revision, b=retired.revision)
+        self.assertEqual(first=(), second=retired.failures)
+
+        for wait_seconds in (0, 1):
+            with self.subTest(wait_seconds=wait_seconds):
+                self.assertEqual(first=retired, second=await original.observe(after=None, wait_seconds=wait_seconds))
+
+        with self.assertRaises(expected_exception=RuntimeError):
+            retired.require_result()
+
+        with self.assertRaises(expected_exception=ValueError):
+            await original.read_result(result_ref)
+
+        self.assertIsNone(obj=original.observation_task)
+
+        with self.assertRaises(expected_exception=BlockingIOError):
+            self.peer_science_socket.recv(1)
+
+    async def test_equal_child_revisions_preserve_new_facts_and_identical_failure_identity(self):
+        original = _ProcessOperation(self.analysis, self.invocation, acknowledged=True)
+        pending = original._snapshot()
+
+        original._publish(pending)
+
+        # The embedded executor can adopt scientific output before encoding
+        # completes and its event-loop completion callback advances the revision.
+        succeeded = replace(pending, dispatch=DispatchState.STARTED, outcome=Outcome.SUCCEEDED)
+        observed_success = original._publish(succeeded)
+
+        self.assertIs(expr1=Outcome.SUCCEEDED, expr2=observed_success.outcome)
+        self.assertLess(a=pending.revision, b=observed_success.revision)
+
+        encoding_failed = replace(
+            succeeded,
+            finished=True,
+            result_state=ResultState.ENCODING_FAILED,
+            failures=(Failure("result_encoding", ValueError("Scientific output could not be encoded")),),
+        )
+
+        first_reply = decode_frame(frame(encoding_failed)[4:])
+        repeated_reply = decode_frame(frame(encoding_failed)[4:])
+
+        self.assertIsNot(expr1=first_reply.failures[0].cause, expr2=repeated_reply.failures[0].cause)
+        first = original._publish(first_reply)
+        repeated = original._publish(repeated_reply)
+
+        self.assertIs(expr1=first, expr2=repeated)
+        self.assertIs(expr1=first.failures[0].cause, expr2=repeated.failures[0].cause)
+
+        transport_failure = OSError("Scientific channel was lost")
+
+        self.host.channel.fail(transport_failure)
+        unavailable = await original.observe(after=None, wait_seconds=0)
+        late = original._publish(replace(repeated_reply, revision=repeated_reply.revision + 1, resources=ResourceState.RELEASED))
+
+        self.assertIs(expr1=Outcome.SUCCEEDED, expr2=late.outcome)
+        self.assertEqual(first=unavailable.failures, second=late.failures)
+        self.assertIs(expr1=ResourceState.RELEASED, expr2=late.resources)
+        self.assertLess(a=unavailable.revision, b=late.revision)
+        self.assertEqual(first=late, second=await original.observe(after=None, wait_seconds=0))
+
     async def test_close_starts_without_observation_and_survives_cancelled_observer(self):
         self.peer_science_socket.setblocking(False)
 
@@ -309,7 +469,7 @@ class ProcessOwnershipTests(unittest.IsolatedAsyncioTestCase):
             allowance_expired=False,
             resources=ResourceState.OCCUPIED,
         )
-        original.last_observation = completed
+        original._publish(completed)
 
         # Hold an original reply while both cleanup owners are created. Their
         # ordering must drain that exchange without making it wait for them.

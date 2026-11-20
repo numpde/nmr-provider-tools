@@ -44,7 +44,7 @@ from provider_core.hosting import (
     _start_owned_task,
     settle_cleanup,
 )
-from provider_core.process_wire import MAX_PAYLOAD_BYTES, RemoteScienceError, frame, receive
+from provider_core.process_wire import MAX_PAYLOAD_BYTES, RemoteScienceError, decoded_error_evidence, frame, receive
 from provider_core.runner_session import RunnerSession, RunnerStartupStopped, RunnerStartupUnavailable
 from provider_core.scientific import Contribution, HostedContribution
 from provider_core.tools import require_nonnegative_number, require_positive_number
@@ -145,6 +145,18 @@ async def _join_originals(tasks):
         await asyncio.gather(*(asyncio.shield(task) for task in tasks), return_exceptions=True)
 
 
+def _same_failure_evidence(first, second):
+    if first.phase != second.phase:
+        return False
+
+    if first.cause is second.cause:
+        return True
+
+    first_evidence = decoded_error_evidence(first.cause)
+
+    return (first_evidence is not None) and (first_evidence == decoded_error_evidence(second.cause))
+
+
 class _ProcessCleanup(_Changes):
     """Start cleanup now; callers only observe this original retained action."""
 
@@ -208,9 +220,9 @@ class _ProcessOperation:
             operation_id=invocation.operation_id,
         )
 
-        self.last_observation = None
-        self.failure_observation = None
-        self.submission_failure = None
+        self.remote_observation = None
+        self.observation = None
+        self.communication_failure = None
         self.stop_requested = False
         self.observation_task = None
         self.read_tasks = set()
@@ -222,63 +234,80 @@ class _ProcessOperation:
         return {"action": action, "analysis": self.analysis.identity, "operation": self.reference.operation_id, **extra}
 
     def _snapshot(self):
-        """Latest retained evidence, including before the worker's first reply."""
-        if self.failure_observation is not None:
-            return self.failure_observation
+        """Combine scientific facts with already known transport/native evidence.
 
-        if self.last_observation is not None:
-            return self.last_observation
-
-        return Observation(
-            operation=self.reference,
-            target=self.invocation.target,
-            revision=0,
-            acceptance=AcceptanceState.OWNED if self.acknowledged else AcceptanceState.UNCERTAIN,
-            dispatch=DispatchState.UNKNOWN,
-            finished=False,
-            outcome=None,
-            result_state=ResultState.NONE,
-            result=None,
-            states=(),
-            progress=(),
-            progress_dropped=0,
-            failures=(),
-            stop_requested=self.stop_requested,
-            allowance_expired=False,
-            resources=ResourceState.UNKNOWN,
-        )
-
-    def _unavailable(self, cause):
+        The child owns its scientific revision. This handle owns the published
+        revision, including later stop, communication and native-retirement facts.
+        Reconciliation performs no I/O and never retracts an observed failure.
+        """
         host = self.analysis.host
+        observed = self.remote_observation
+
+        if observed is None:
+            observed = Observation(
+                operation=self.reference,
+                target=self.invocation.target,
+                revision=0,
+                acceptance=AcceptanceState.OWNED if self.acknowledged else AcceptanceState.UNCERTAIN,
+                dispatch=DispatchState.UNKNOWN,
+                finished=False,
+                outcome=None,
+                result_state=ResultState.NONE,
+                result=None,
+                states=(),
+                progress=(),
+                progress_dropped=0,
+                failures=(),
+                stop_requested=False,
+                allowance_expired=False,
+                resources=ResourceState.UNKNOWN,
+            )
+
+        if (
+            (self.communication_failure is None) and
+            (not self.detached) and
+            (host.channel is not None) and
+            (host.channel.failure is not None)
+        ):
+            self.communication_failure = host._channel_failure(host.channel.failure)
+
+        if self.communication_failure is not None:
+            observed = replace(
+                observed,
+                failures=(*observed.failures, Failure("backend", self.communication_failure)),
+                resources=ResourceState.RELEASED if observed.resources is ResourceState.RELEASED else ResourceState.UNKNOWN,
+            )
+
         exited = host.session.retirement is not None
 
-        if self.failure_observation is not None:
-            if (
-                (exited and (not self.failure_observation.finished)) or
-                (host.retired and (self.failure_observation.resources is not ResourceState.RELEASED))
-            ):
-                self.failure_observation = replace(
-                    self.failure_observation,
-                    revision=self.failure_observation.revision + 1,
-                    finished=True,
-                    resources=ResourceState.RELEASED if host.retired else ResourceState.UNKNOWN,
-                )
+        if exited:
+            # The bytes lived only in this child. Its death proves their loss,
+            # not a successful scientific disposer or a particular work outcome.
+            observed = replace(
+                observed,
+                finished=True,
+                result_state=ResultState.RELEASED if observed.result_state is ResultState.AVAILABLE else observed.result_state,
+                resources=ResourceState.RELEASED if (host.retired or (observed.resources is ResourceState.RELEASED)) else ResourceState.UNKNOWN,
+            )
 
-            return self.failure_observation
+        if self.stop_requested and (not observed.stop_requested):
+            observed = replace(observed, stop_requested=True)
 
-        observed = self.last_observation or self._snapshot()
-        observed = replace(
-            observed,
-            revision=observed.revision + 1,
-            finished=observed.finished or exited,
-            failures=(*observed.failures, Failure("backend", cause)),
-            stop_requested=observed.stop_requested or self.stop_requested,
-            resources=ResourceState.RELEASED if (host.retired or (observed.resources is ResourceState.RELEASED)) else ResourceState.UNKNOWN,
-        )
+        if self.observation is None:
+            self.observation = observed
+        elif (
+            (replace(observed, revision=self.observation.revision) != self.observation) or
+            (self.observation.revision < observed.revision)
+        ):
+            self.observation = replace(observed, revision=max(observed.revision, self.observation.revision + 1))
 
-        self.failure_observation = observed
+        return self.observation
 
-        return observed
+    def _unavailable(self, cause):
+        if self.communication_failure is None:
+            self.communication_failure = self.analysis.host._channel_failure(cause)
+
+        return self._snapshot()
 
     def _accept_observation(self, observed):
         require_type(observed, Observation)
@@ -289,8 +318,8 @@ class _ProcessOperation:
         return observed
 
     async def _peek_remote(self):
-        if self.detached:
-            return self.last_observation
+        if self.detached or (self.analysis.host.session.retirement is not None):
+            return self._snapshot()
 
         observed = await self.analysis.host._exchange_async(
             self._message("observe"),
@@ -302,11 +331,25 @@ class _ProcessOperation:
         return self._publish(observed)
 
     def _publish(self, observed):
-        if (self.last_observation is None) or (observed.revision >= self.last_observation.revision):
-            self.last_observation = observed
-            self.failure_observation = None
+        if (self.remote_observation is None) or (self.remote_observation.revision <= observed.revision):
+            if self.remote_observation is not None:
+                # Scientific fields can advance before the child's completion
+                # callback increments its revision. Accept those facts, while
+                # retaining identical remote failures as their original owners.
+                previous_failures = self.remote_observation.failures
+                failures = []
 
-        return self.last_observation
+                for (index, failure) in enumerate(observed.failures):
+                    if (index < len(previous_failures)) and _same_failure_evidence(previous_failures[index], failure):
+                        failure = previous_failures[index]
+
+                    failures.append(failure)
+
+                observed = replace(observed, failures=tuple(failures))
+
+            self.remote_observation = observed
+
+        return self._snapshot()
 
     def _barriers(self):
         return tuple(
@@ -328,7 +371,7 @@ class _ProcessOperation:
             observed = self._unavailable(cause)
 
             if not (observed.finished):
-                raise RemoteScienceError("Scientific operation may still be running in an unobservable worker") from cause
+                raise self.communication_failure
 
             return observed
 
@@ -343,10 +386,13 @@ class _ProcessOperation:
             if not (0 <= after <= current.revision):
                 raise ValueError("Observation cursor must belong to this operation's current history")
 
-        if not (self.submission_failure is None):
-            raise self.submission_failure
+        if self.communication_failure is not None:
+            if current.finished or (wait_seconds == 0):
+                return current
 
-        if self.detached or (current.finished and (wait_seconds == 0)):
+            raise self.communication_failure
+
+        if self.detached or (self.analysis.host.session.retirement is not None) or (current.finished and (wait_seconds == 0)):
             return current
 
         loop = asyncio.get_running_loop()
@@ -388,7 +434,7 @@ class _ProcessOperation:
         if not self.stop_requested:
             self.stop_requested = True
 
-            if (not self.analysis.closed) and (not ((self.last_observation is not None) and self.last_observation.finished)):
+            if (not self.analysis.closed) and (not self._snapshot().finished):
                 self.analysis.host._exchange(self._message("stop_operation"), accept=_acknowledged)
 
     async def read_result(self, result: ResultRef) -> bytes:
@@ -426,11 +472,10 @@ class _ProcessOperation:
     def _require_result(self, result_ref):
         require_type(result_ref, ResultRef)
 
-        observed = self.last_observation
+        observed = self._snapshot()
 
         if not (
             (result_ref.operation == self.reference) and
-            (observed is not None) and
             (result_ref == observed.result) and
             observed.finished and
             (observed.result_state is ResultState.AVAILABLE)
@@ -567,7 +612,7 @@ class _ProcessAnalysis:
 
             raise
         except BaseException as cause:
-            operation.submission_failure = self.host._channel_failure(cause)
+            operation.communication_failure = self.host._channel_failure(cause)
 
             if not isinstance(cause, Exception):
                 raise
@@ -633,7 +678,7 @@ class _ProcessAnalysis:
         self.forgotten = True
 
         for operation in self.operations.values():
-            operation.detached = operation.last_observation.result_state is not ResultState.AVAILABLE
+            operation.detached = operation._snapshot().result_state is not ResultState.AVAILABLE
 
         self.host._release_analysis(self)
 
