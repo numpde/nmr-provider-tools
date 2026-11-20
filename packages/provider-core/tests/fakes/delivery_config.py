@@ -16,7 +16,7 @@ class DeliveryConfigFiles:
 
         self.key.write_bytes(encoded(document()))
         self.key.chmod(0o600)
-        self.path = self.root / "delivery.toml"
+        self.configuration_path = self.root / "delivery.toml"
 
         self.raw = f'''schema_id = "provider-core.delivery.v1"
 state_directory = {json.dumps(str(self.root / "state"))}
@@ -45,5 +45,5 @@ retirement_seconds = 0.2
         self.write(self.raw)
 
     def write(self, raw):
-        self.path.write_bytes(raw)
-        self.path.chmod(0o600)
+        self.configuration_path.write_bytes(raw)
+        self.configuration_path.chmod(0o600)

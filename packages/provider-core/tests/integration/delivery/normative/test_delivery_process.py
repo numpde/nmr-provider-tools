@@ -184,7 +184,7 @@ class DeliveryProcessTests(unittest.IsolatedAsyncioTestCase):
                         "-m",
                         "provider_core.delivery_main",
                         "--config",
-                        str(files.path),
+                        str(files.configuration_path),
                         stdout=asyncio.subprocess.PIPE,
                         stderr=asyncio.subprocess.PIPE,
                     )
@@ -260,7 +260,7 @@ class DeliveryProcessTests(unittest.IsolatedAsyncioTestCase):
                 "-m",
                 "provider_core.delivery_main",
                 "--config",
-                str(files.path),
+                str(files.configuration_path),
                 stdout=asyncio.subprocess.PIPE,
                 stderr=asyncio.subprocess.PIPE,
             )
@@ -331,13 +331,13 @@ class DeliveryProcessTests(unittest.IsolatedAsyncioTestCase):
                     # The minimum jittered retry wait is 15s, longer than bounded
                     # receipt observation and original-process reaping below.
                     files.write(
-                        files.path
+                        files.configuration_path
                         .read_bytes()
                         .replace(b"retry_initial_seconds = 0.01", b"retry_initial_seconds = 30")
                         .replace(b"retry_max_seconds = 0.1", b"retry_max_seconds = 30"),
                     )
 
-                    configured = files.path.read_bytes()
+                    configured = files.configuration_path.read_bytes()
                     delivery_outcome = replace(outcome(provider=endpoint.provider_ref), api_origin=peer.origin)
 
                     delivery_outcome = replace(
@@ -351,7 +351,7 @@ class DeliveryProcessTests(unittest.IsolatedAsyncioTestCase):
                     notices = []
 
                     try:
-                        first = await _launch_daemon(files.path)
+                        first = await _launch_daemon(files.configuration_path)
 
                         await _receive_notice(first, "delivery_ready", notices)
                         self.assertEqual(await client.submit(delivery_outcome), delivery_outcome.acceptance())
@@ -372,8 +372,8 @@ class DeliveryProcessTests(unittest.IsolatedAsyncioTestCase):
                             retained.close()
 
                         self.assertEqual(peer.request_bodies, [delivery_outcome.body])
-                        self.assertEqual(files.path.read_bytes(), configured)
-                        second = await _launch_daemon(files.path)
+                        self.assertEqual(files.configuration_path.read_bytes(), configured)
+                        second = await _launch_daemon(files.configuration_path)
 
                         await _receive_notice(second, "delivery_ready", notices)
                         published = await _receive_notice(second, "delivery_published", notices)
@@ -470,12 +470,12 @@ class DeliveryProcessTests(unittest.IsolatedAsyncioTestCase):
                         credential_b.private_key.public_key().public_bytes_raw()
                     )
 
-                    files.write(files.path.read_bytes() + b"[[bindings]]" + other.path.read_bytes().split(b"[[bindings]]", 1)[1])
+                    files.write(files.configuration_path.read_bytes() + b"[[bindings]]" + other.configuration_path.read_bytes().split(b"[[bindings]]", 1)[1])
                     first = replace(outcome(provider=endpoint_a.provider_ref, message="PRIVATE_BINDING_A_PAYLOAD"), api_origin=peer_a.origin)
                     second = replace(outcome(provider=endpoint_b.provider_ref, message="PRIVATE_BINDING_B_PAYLOAD"), api_origin=peer_b.origin)
                     clients = [DeliveryClient(endpoint, exchange_seconds=1, retirement_seconds=0.2) for endpoint in (endpoint_a, endpoint_b)]
                     foreign = DeliveryClient(replace(endpoint_b, socket_path=endpoint_a.socket_path), exchange_seconds=1, retirement_seconds=0.2)
-                    (daemon_process, notices) = (await _launch_daemon(files.path), [])
+                    (daemon_process, notices) = (await _launch_daemon(files.configuration_path), [])
 
                     try:
                         self.assertEqual((await _receive_notice(daemon_process, "delivery_ready", notices))["binding_count"], 2)

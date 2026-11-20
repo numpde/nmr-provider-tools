@@ -31,7 +31,7 @@ class DeliveryConfigurationRefusalTests(unittest.TestCase):
                     files.write(raw)
 
                     with self.assertRaises(DeliveryConfigurationRejected) as refused:
-                        load_delivery_service(files.path, on_notice=Mock(), diagnostic_status=healthy_diagnostics)
+                        load_delivery_service(files.configuration_path, on_notice=Mock(), diagnostic_status=healthy_diagnostics)
 
                     yield (refused.exception, pathlib.Path(directory) / "state")
 
@@ -50,12 +50,12 @@ class DeliveryConfigurationRefusalTests(unittest.TestCase):
 
             for mode in (0o400, 0o600):
                 files.key.chmod(mode)
-                load_delivery_service(files.path, on_notice=Mock(), diagnostic_status=healthy_diagnostics)
+                load_delivery_service(files.configuration_path, on_notice=Mock(), diagnostic_status=healthy_diagnostics)
 
             for mode in (0o640, 0o644, 0o666):
                 files.key.chmod(mode)
 
                 with self.subTest(mode=oct(mode)), self.assertRaisesRegex(DeliveryConfigurationRejected, "0400 or 0600"):
-                    load_delivery_service(files.path, on_notice=Mock(), diagnostic_status=healthy_diagnostics)
+                    load_delivery_service(files.configuration_path, on_notice=Mock(), diagnostic_status=healthy_diagnostics)
 
             self.assertFalse((pathlib.Path(directory) / "state").exists())
