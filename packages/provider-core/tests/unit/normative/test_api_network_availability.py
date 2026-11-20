@@ -118,7 +118,7 @@ class ApiNetworkAvailabilityTests(unittest.IsolatedAsyncioTestCase):
             await client._exchange(
                 "controlled availability",
                 method=method,
-                path=path,
+                request_path=path,
                 query=b"",
                 maximum_bytes=4096,
                 issuance=issuance,
@@ -305,7 +305,7 @@ class ApiNetworkAvailabilityTests(unittest.IsolatedAsyncioTestCase):
                 client = api(transport, "https://api.fixture.example")
 
                 with patch("provider_core.network.httpcore.AnyIOBackend", return_value=Backend(stream)):
-                    task = asyncio.create_task(client._exchange("read", method="GET", path="/provider/v1/jobs/job:example/uploads", query=b"", maximum_bytes=4096))
+                    task = asyncio.create_task(client._exchange("read", method="GET", request_path="/provider/v1/jobs/job:example/uploads", query=b"", maximum_bytes=4096))
 
                     await asyncio.wait_for(stream.closing.wait(), 1)
 

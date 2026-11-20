@@ -151,7 +151,7 @@ class ApiAvailabilityTests(unittest.IsolatedAsyncioTestCase):
             transport.replies = iter((reply(b"maintenance", status=503),))
 
             with self.assertRaises(ApiFailure) as caught:
-                await api._exchange("list Jobs", method=method, path=request_path, query=b"", maximum_bytes=4096)
+                await api._exchange("list Jobs", method=method, request_path=request_path, query=b"", maximum_bytes=4096)
 
             self.assertFalse(api.can_retry_job_discovery(caught.exception))
 
@@ -515,7 +515,7 @@ class ApiAvailabilityTests(unittest.IsolatedAsyncioTestCase):
 
         for (method, request_path, query) in operations:
             with self.subTest(method=method, path=request_path, query=query), self.assertRaises(ApiFailure) as caught:
-                await api._exchange("untrusted label", method=method, path=request_path, query=query, maximum_bytes=4096, body=b"{}")
+                await api._exchange("untrusted label", method=method, request_path=request_path, query=query, maximum_bytes=4096, body=b"{}")
 
             self.assertFalse(api.can_defer_phase_progress(caught.exception, execution_attempt_ref=ATTEMPT_REF))
             self.assertFalse(api.can_defer_phase_progress(original, execution_attempt_ref=ATTEMPT_REF))
@@ -538,7 +538,7 @@ class ApiAvailabilityTests(unittest.IsolatedAsyncioTestCase):
 
         for (method, request_path, query) in operations:
             with self.subTest(method=method, path=request_path, query=query), self.assertRaises(ApiFailure) as caught:
-                await api._exchange("untrusted label", method=method, path=request_path, query=query, maximum_bytes=4096, body=b"{}")
+                await api._exchange("untrusted label", method=method, request_path=request_path, query=query, maximum_bytes=4096, body=b"{}")
 
             self.assertFalse(api.can_replay_terminal(caught.exception))
             self.assertFalse(api.can_replay_terminal(old))
@@ -563,7 +563,7 @@ class ApiAvailabilityTests(unittest.IsolatedAsyncioTestCase):
                 await api._exchange(
                     "start Execution Attempt",
                     method=method,
-                    path=request_path,
+                    request_path=request_path,
                     query=query,
                     maximum_bytes=4096,
                     body=b"{}"
@@ -728,7 +728,7 @@ class ApiAvailabilityTests(unittest.IsolatedAsyncioTestCase):
             lambda: api._exchange(
                 "same English label",
                 method="POST",
-                path="/provider/v1/hello",
+                request_path="/provider/v1/hello",
                 query=b"extra=1",
                 maximum_bytes=4096,
                 body=b"{}"

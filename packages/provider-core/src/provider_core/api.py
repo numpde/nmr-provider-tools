@@ -466,7 +466,7 @@ class ProviderAPI:
             response = await self._exchange(
                 operation,
                 method=request_method,
-                path=request_path,
+                request_path=request_path,
                 query=b"",
                 body=body,
                 maximum_bytes=HELLO_RESPONSE_BYTES,
@@ -503,7 +503,7 @@ class ProviderAPI:
             "list Jobs",
             owner=owner,
             method=request_method,
-            path=request_path,
+            request_path=request_path,
             query=query,
             maximum_bytes=PAGE_RESPONSE_BYTES
         )
@@ -527,7 +527,7 @@ class ProviderAPI:
             "list in-progress Attempts",
             owner=owner,
             method=request_method,
-            path=request_path,
+            request_path=request_path,
             query=query,
             maximum_bytes=ATTEMPT_RESPONSE_BYTES,
         )
@@ -556,7 +556,7 @@ class ProviderAPI:
             "read Job input",
             owner=owner,
             method=request_method,
-            path=request_path,
+            request_path=request_path,
             query=job_input_query(analysis_kind_ref),
             maximum_bytes=MAX_RESPONSE_BYTES,
         )
@@ -574,7 +574,7 @@ class ProviderAPI:
         response = await self._exchange(
             "read Job Upload membership",
             method=request_method,
-            path=request_path,
+            request_path=request_path,
             query=b"",
             maximum_bytes=MEMBERSHIP_RESPONSE_BYTES,
         )
@@ -601,7 +601,7 @@ class ProviderAPI:
         response = await self._exchange(
             "issue Upload read grant",
             method=request_method,
-            path=request_path,
+            request_path=request_path,
             query=b"",
             maximum_bytes=GRANT_RESPONSE_BYTES,
             issuance=True,
@@ -630,7 +630,7 @@ class ProviderAPI:
             "read Execution Attempt",
             owner=owner,
             method=request_method,
-            path=request_path,
+            request_path=request_path,
             query=b"",
             maximum_bytes=ATTEMPT_RESPONSE_BYTES,
         )
@@ -658,7 +658,7 @@ class ProviderAPI:
         response = await self._exchange(
             "start Execution Attempt",
             method=request_method,
-            path=request_path,
+            request_path=request_path,
             owner=owner,
             query=b"",
             maximum_bytes=ATTEMPT_RESPONSE_BYTES,
@@ -689,7 +689,7 @@ class ProviderAPI:
             "report Attempt progress",
             owner=owner,
             method=request_method,
-            path=request_path,
+            request_path=request_path,
             query=b"",
             maximum_bytes=ATTEMPT_RESPONSE_BYTES,
             body=body,
@@ -722,7 +722,7 @@ class ProviderAPI:
         response = await self._exchange(
             "complete Execution Attempt",
             method=request_method,
-            path=request_path,
+            request_path=request_path,
             owner=owner,
             query=b"",
             maximum_bytes=ATTEMPT_RESPONSE_BYTES,
@@ -756,7 +756,7 @@ class ProviderAPI:
         response = await self._exchange(
             "publish Attempt failure",
             method=request_method,
-            path=request_path,
+            request_path=request_path,
             owner=owner,
             query=b"",
             maximum_bytes=ATTEMPT_RESPONSE_BYTES,
@@ -806,7 +806,7 @@ class ProviderAPI:
         operation,
         *,
         method,
-        path,
+        request_path,
         query,
         maximum_bytes,
         issuance=False,
@@ -817,7 +817,7 @@ class ProviderAPI:
         signed_http_request = signed_request(
             self._identity,
             method=method,
-            path=path,
+            path=request_path,
             query=query,
             body=body,
             created=int(time.time()),
