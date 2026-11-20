@@ -1,7 +1,31 @@
-# CPU requirements for this example; its caller owns host and operation policy.
+[execution]
+backend = "thread"
+
+[execution.host]
+input_bytes = 4096
+result_bytes = 4096
+state_values = 2
+progress_records = 8
+initialization_seconds = 5
+retirement_seconds = 5
+
+[execution.operation_policy]
+queue_stop_request_seconds = 5
+execution_stop_request_seconds = 10
+cleanup_overdue_flag_seconds = 5
+reject_encoded_input_over_bytes = 1024
+reject_encoded_result_over_bytes = 1024
+
 [[execution.resource_requirement]]
 kind = "cpu"
 amount = 1
 unit = "thread"
 selector = "generic"
 exclusive = false
+
+[science.weighted]
+coefficients = [1, 2, 3]
+
+[science.weighted.settings]
+scale = 2
+offset = 1

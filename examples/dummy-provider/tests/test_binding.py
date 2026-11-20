@@ -21,8 +21,9 @@ import provider_core.contribution as contribution
 from provider_core.embedded_host import InProcessExecutionHost
 from provider_core.hosting import observe_cleanup
 from dummy_provider import science
-from dummy_provider import binding as binding_setup
-from dummy_provider.binding import Sum, WeightedSum, WeightedSumConfig, read_resource_requirements
+from dummy_provider import provider as provider_setup
+from dummy_provider.binding import Sum, WeightedSum, WeightedSumConfig
+from dummy_provider.provider import read_resource_requirements
 
 
 class DummyBindingTests(unittest.IsolatedAsyncioTestCase):
@@ -35,7 +36,7 @@ class DummyBindingTests(unittest.IsolatedAsyncioTestCase):
             dst=self.configuration,
         )
 
-        self.enterContext(patch.object(target=binding_setup, attribute="PROVIDER_CONFIG_PATH", new=self.configuration))
+        self.enterContext(patch.object(target=provider_setup, attribute="PROVIDER_CONFIG_PATH", new=self.configuration))
 
         self.host = InProcessExecutionHost(
             input_bytes=4096,
@@ -170,7 +171,7 @@ class DummyBindingTests(unittest.IsolatedAsyncioTestCase):
 
             resource_file.write_text(configured, encoding="utf-8")
 
-            with patch.object(target=binding_setup, attribute="PROVIDER_CONFIG_PATH", new=root / "provider.toml"):
+            with patch.object(target=provider_setup, attribute="PROVIDER_CONFIG_PATH", new=root / "provider.toml"):
                 updated = self.weighted_binding(
                     settings=science.WeightedSumSettings(scale=2, offset=1),
                     coefficients=science.CoefficientSet(weights=np.array(object=[1, 2, 3], dtype=float)),
@@ -219,7 +220,7 @@ class DummyBindingTests(unittest.IsolatedAsyncioTestCase):
                 encoding="utf-8",
             )
 
-            with patch.object(target=binding_setup, attribute="PROVIDER_CONFIG_PATH", new=root / "provider.toml"):
+            with patch.object(target=provider_setup, attribute="PROVIDER_CONFIG_PATH", new=root / "provider.toml"):
                 with self.assertRaisesRegex(ValueError, "Resource amount must be a positive integer"):
                     self.sum_binding()
 

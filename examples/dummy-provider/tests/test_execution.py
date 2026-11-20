@@ -17,8 +17,9 @@ import mock_numpy as np
 from unittest.mock import patch
 
 from dummy_provider import science
-from dummy_provider import binding as binding_setup
-from dummy_provider.binding import WeightedSum, WeightedSumConfig, read_resource_requirements
+from dummy_provider import provider as provider_setup
+from dummy_provider.binding import WeightedSum, WeightedSumConfig
+from dummy_provider.provider import read_resource_requirements
 from provider_core.contribution import ProgressEvent
 from provider_core.embedded_host import InProcessExecutionHost
 
@@ -43,7 +44,7 @@ class DummyInstalledExecutionTests(unittest.IsolatedAsyncioTestCase):
             dst=configuration,
         )
 
-        self.enterContext(patch.object(target=binding_setup, attribute="PROVIDER_CONFIG_PATH", new=configuration))
+        self.enterContext(patch.object(target=provider_setup, attribute="PROVIDER_CONFIG_PATH", new=configuration))
 
     async def assert_succeeded(self, operation):
         """Wait for the operation's terminal observation and require success."""
