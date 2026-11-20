@@ -11,10 +11,10 @@ from provider_core.async_runner_session import await_original
 class OriginalFutureTests(unittest.IsolatedAsyncioTestCase):
     async def test_completed_value_is_returned_without_repeating_work(self):
         original = Future()
-        value = object()
+        completion_sentinel = object()
 
-        original.set_result(value)
-        self.assertIs(value, await await_original(original, deadline=None))
+        original.set_result(completion_sentinel)
+        self.assertIs(completion_sentinel, await await_original(original, deadline=None))
 
     async def test_exact_thread_failure_and_notes_survive_repeated_observation(self):
         for failure in (
