@@ -34,8 +34,8 @@ from provider_core.type_requirements import require_type
 _ERROR_DETAIL_BYTES = 8192
 
 
-def _json_bytes(value):
-    return json.dumps(value, allow_nan=False, ensure_ascii=True, sort_keys=True, separators=(",", ":")).encode("ascii")
+def _json_bytes(json_content):
+    return json.dumps(json_content, allow_nan=False, ensure_ascii=True, sort_keys=True, separators=(",", ":")).encode("ascii")
 
 
 @dataclass(frozen=True, slots=True, kw_only=True)
@@ -62,17 +62,19 @@ class ChatEndpointSpec:
 
         require_type(self.model, str)
 
-        if not (self.model.strip() and self.model.isprintable() and len(self.model.encode('utf-8')) <= 512):
+        if not (self.model.strip() and self.model.isprintable() and (len(self.model.encode('utf-8')) <= 512)):
             raise ValueError("Cannot configure interpreter endpoint: model must be nonblank printable UTF-8 text within 512 bytes.")
 
         actual_api_key = self.api_key
+
         require_type(actual_api_key, str)
 
-        if (not (self.api_key)) or (any(not 32 < ord(char) < 127 for char in self.api_key)):
+        if (not (self.api_key)) or (any((not 32 < ord(char) < 127) for char in self.api_key)):
             raise ValueError("Cannot configure interpreter endpoint: an explicit header-safe API key is required.")
 
         if self.reasoning_effort is not None:
             actual_reasoning_effort = self.reasoning_effort
+
             require_type(actual_reasoning_effort, str)
 
             if not (self.reasoning_effort):
@@ -86,7 +88,7 @@ class ChatEndpointSpec:
 
         require_type(self.url, str)
 
-        if any(not 32 < ord(char) < 127 for char in self.url):
+        if any((not 32 < ord(char) < 127) for char in self.url):
             raise ValueError("Cannot configure interpreter endpoint: URL must be canonical ASCII HTTPS text.")
 
         try:
@@ -229,9 +231,12 @@ class ChatEndpoint:
         )
 
         if len(content) > self._request_bytes:
+            content_bytes = len(content)
+            content_byte_limit = self._request_bytes
+
             raise ChatFailed(
                 "request_limit",
-                f"Cannot send interpreter request: its {len(content)} bytes exceed the {self._request_bytes}-byte limit; this turn was not sent.",
+                f"Cannot send interpreter request: {content_bytes = } exceeds {content_byte_limit = }; this turn was not sent.",
             )
 
         wire = completion_request(url=self.spec.url, api_key=self.spec.api_key, content=content)

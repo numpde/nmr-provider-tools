@@ -160,25 +160,25 @@ class ConversationBoundaryTests(unittest.IsolatedAsyncioTestCase):
                 model = endpoint("fixture", malformed, multiple, call("good", "submit", {}))
                 dispatch = AsyncMock(return_value=ToolFinished("accepted"))
                 conversation = ToolConversation((model,), max_turns=3, secrets=())
-                result = await conversation.run([], [], dispatch)
+                conversation_result = await conversation.run([], [], dispatch)
 
                 feedback = [m for m in model.complete.call_args.args[0] if m["role"] == "tool"]
 
                 await conversation.retire()
 
-                yield (result, feedback, dispatch)
+                yield (conversation_result, feedback, dispatch)
 
     async def test_bad_arguments_and_multiple_calls_are_corrected_without_dispatch(self):
-        async for (result, feedback, dispatch) in self._argument_corrections():
+        async for (conversation_result, feedback, dispatch) in self._argument_corrections():
             dispatch.assert_awaited_once_with("submit", {})
-            self.assertEqual(json.loads(result.observation)["corrections"], 2)
-            self.assertEqual([turn for (turn, _failure) in result.correction_failures], [1, 2])
-            self.assertTrue(all(type(failure) is ToolRejected for (_turn, failure) in result.correction_failures))
+            self.assertEqual(json.loads(conversation_result.observation)["corrections"], 2)
+            self.assertEqual([turn for (turn, _failure) in conversation_result.correction_failures], [1, 2])
+            self.assertTrue(all((type(failure) is ToolRejected) for (_turn, failure) in conversation_result.correction_failures))
             self.assertEqual([m["tool_call_id"] for m in feedback], ["bad", "multi-1", "multi-2"])
 
     @unittest.skipIf(os.environ.get("PRIVACY_TESTS", "1") == "0", "Privacy tests disabled")
     async def test_correction_feedback_omits_unparsed_arguments(self):
-        async for (_result, feedback, _dispatch) in self._argument_corrections():
+        async for (_conversation_result, feedback, _dispatch) in self._argument_corrections():
             self.assertNotIn("PRIVATE", json.dumps(feedback))
 
     async def test_duplicate_ids_and_exhaustion_do_not_repeat_a_completed_tool(self):
@@ -203,9 +203,9 @@ class ConversationBoundaryTests(unittest.IsolatedAsyncioTestCase):
         conversation = ToolConversation((first, second), max_turns=2, secrets=())
         dispatch = AsyncMock(return_value=ToolFinished("accepted"))
 
-        result = await conversation.run([], [], dispatch)
+        conversation_result = await conversation.run([], [], dispatch)
 
-        self.assertEqual("accepted", result.value)
+        self.assertEqual("accepted", conversation_result.value)
         dispatch.assert_awaited_once_with("submit", {})
         first.retire.assert_awaited_once()
         self.assertEqual([[]], second.requests)

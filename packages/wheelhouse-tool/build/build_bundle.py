@@ -17,13 +17,19 @@ from tools.wheelhouse import requirements
 def source_modules(source: pathlib.Path) -> list[str]:
     """Discover authored Python modules for both bundle bytes and provenance."""
 
-    return sorted(path.relative_to(source).as_posix() for path in source.rglob("*.py") if path.is_file())
+    return sorted(
+        (
+            module_path.relative_to(source).as_posix()
+            for module_path in source.rglob("*.py")
+            if module_path.is_file()
+        ),
+    )
 
 def dependency_files(pool, lock):
     files = {}
 
     for ((package, version), accepted_hashes) in requirements(lock).items():
-        wheel_name = f"{package.replace('-', '_')}-{version}-py3-none-any.whl"
+        wheel_name = f"{package.replace('-', '_')}-{version}-py3-none-any.whl"  # machine-string: the pool stores wheels under this packaging-standard filename
         wheel_bytes = (pool / wheel_name).read_bytes()
         wheel_sha256 = hashlib.sha256(wheel_bytes).hexdigest()
 
@@ -36,7 +42,7 @@ def dependency_files(pool, lock):
             for member in archive.infolist():
                 if not member.is_dir():
                     if member.filename in files:
-                        raise ValueError(f"Cannot build wheelhouse bundle: duplicate {member.filename}.")
+                        raise ValueError(f"Cannot build wheelhouse bundle: duplicate {member.filename=}.")
 
                     files[member.filename] = archive.read(member)
 
@@ -66,12 +72,15 @@ def build(pool, output, source, lock, *, type_requirements_source):
     )
 
     for name in source_modules(source / "wheelhouse_tool"):
-        bundle_members[f"wheelhouse_tool/{name}"] = (source / "wheelhouse_tool" / name).read_bytes()
+        member_path = f"wheelhouse_tool/{name}"  # machine-string: zip readers import modules from this exact bundle path
+        bundle_members[member_path] = (source / "wheelhouse_tool" / name).read_bytes()
 
     bundle_members["type_requirements.py"] = type_requirements_source.read_bytes()
 
+    temporary_prefix = f".{output.name}."  # machine-string: temporary bundle files remain distinguishable beside the target output
+
     (temporary_fd, temporary_name) = tempfile.mkstemp(
-        prefix=f".{output.name}.",
+        prefix=temporary_prefix,
         suffix=".part",
         dir=output.parent,
     )

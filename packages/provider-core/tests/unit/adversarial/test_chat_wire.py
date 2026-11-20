@@ -31,9 +31,9 @@ from provider_core.transport_errors import ExchangeFailed
 
 
 def transferred(failure):
-    document = json.loads(message_bytes(failure_message(failure)))
+    failure_reply = json.loads(message_bytes(failure_message(failure)))
 
-    return read_reply(document, maximum_bytes=32, error_maximum_bytes=16)
+    return read_reply(failure_reply, maximum_bytes=32, error_maximum_bytes=16)
 
 
 def retry_allowed(failure):
@@ -147,8 +147,8 @@ class ChatWireAvailabilityTests(unittest.TestCase):
                 self.assertEqual(expected, retry_allowed(received))
 
     def test_unix_refusal_remains_bound_to_its_original_configured_path(self):
-        for path in ("/private/model.sock", "/private/other.sock"):
-            with self.subTest(path=path):
+        for observed_unix_path in ("/private/model.sock", "/private/other.sock"):
+            with self.subTest(path=observed_unix_path):
                 primary = FileNotFoundError(errno.ENOENT, "configured proxy is absent")
 
                 original = ExchangeFailed(
@@ -158,12 +158,12 @@ class ChatWireAvailabilityTests(unittest.TestCase):
                     network_io=NetworkIOObservation(
                         stage="connect_unix",
                         error=primary,
-                        unix_path=path,
+                        unix_path=observed_unix_path,
                         configured_unix_path="/private/model.sock"
                     ),
                 )
 
-                expected = path == "/private/model.sock"
+                expected = observed_unix_path == "/private/model.sock"
 
                 self.assertEqual(expected, retry_allowed(original))
                 self.assertEqual(expected, retry_allowed(transferred(original)))
@@ -220,20 +220,20 @@ class ChatWireAvailabilityTests(unittest.TestCase):
 
         for cleanup in ("", {}, [None], [True]):
             with self.subTest(cleanup=cleanup):
-                document = failure_message(original)
-                document["cleanup"] = cleanup
+                failure_reply = failure_message(original)
+                failure_reply["cleanup"] = cleanup
 
                 with self.assertRaises((ValueError, TypeError)):
-                    read_reply(document, maximum_bytes=32, error_maximum_bytes=16)
+                    read_reply(failure_reply, maximum_bytes=32, error_maximum_bytes=16)
 
     def test_boolean_or_float_version_is_not_the_protocol_version(self):
         for version in (True, 1.0):
             with self.subTest(version=version):
-                document = response_message(HttpResponse(200, (), b"{}"))
-                document["version"] = version
+                response_reply = response_message(HttpResponse(200, (), b"{}"))
+                response_reply["version"] = version
 
                 with self.assertRaises(TypeError):
-                    read_reply(document, maximum_bytes=32, error_maximum_bytes=16)
+                    read_reply(response_reply, maximum_bytes=32, error_maximum_bytes=16)
 
 
 class ChatWireFramingTests(unittest.IsolatedAsyncioTestCase):
@@ -260,9 +260,9 @@ class ChatWireFramingTests(unittest.IsolatedAsyncioTestCase):
                 reader.feed_eof()
 
                 with self.assertRaises(asyncio.IncompleteReadError):
-                    document = await read_message(reader, 4096)
+                    response_reply = await read_message(reader, 4096)
 
-                    read_reply(document, maximum_bytes=32, error_maximum_bytes=16)
+                    read_reply(response_reply, maximum_bytes=32, error_maximum_bytes=16)
 
     async def test_duplicate_outcome_field_is_not_a_complete_reply(self):
         raw = b'{"version":1,"kind":"failure","kind":"response","status":200,"headers":[],"body":""}'

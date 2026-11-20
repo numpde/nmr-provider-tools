@@ -22,5 +22,5 @@ def require_evidence_schema_id(schema_id):
     if not (min_schema_characters <= schema_character_count <= max_schema_characters):
         raise ValueError(f"{schema_character_count=} should be between {min_schema_characters=} and {max_schema_characters=}")
 
-    if not all((character != "\x00") and (not (0xD800 <= ord(character) <= 0xDFFF)) for character in schema_id):
+    if not all(((character != "\x00") and (not (0xD800 <= ord(character) <= 0xDFFF))) for character in schema_id):
         raise ValueError(f"{schema_id=} should not contain NUL or surrogate code points")

@@ -41,8 +41,8 @@ _FIELDS = {
 class CredentialRejected(ValueError):
     """Safe admission reason with private original parser/key evidence in cause."""
 
-    def __init__(self, message, *, cause=None):
-        super().__init__(f"Cannot load provider signing credential: {message}")
+    def __init__(self, reason, *, cause=None):
+        super().__init__(f"Cannot load provider signing credential: {reason=}")
         self.cause = cause
 
 
@@ -58,23 +58,23 @@ def parse_provider_credential(raw, *, maximum_bytes):
     """Verify the issued artifact within the caller's local startup byte allowance."""
 
     try:
-        document = read_document(raw, maximum_bytes)
+        credential_fields = read_document(raw, maximum_bytes)
     except ResponseRejected as cause:
-        raise CredentialRejected(f"supply the original API-issued JSON file within {maximum_bytes} bytes.", cause=cause) from None
+        raise CredentialRejected(f"supply the original API-issued JSON file within {maximum_bytes=} bytes.", cause=cause) from None
 
-    if not (type(document) is (expected_type := dict)):
-        raise CredentialRejected(f"{type(document)=} ≠ {expected_type=}")
+    if not (type(credential_fields) is (expected_type := dict)):
+        raise CredentialRejected(f"{type(credential_fields)=} ≠ {expected_type=}")
 
-    if set(document) != _FIELDS:
+    if set(credential_fields) != _FIELDS:
         raise CredentialRejected("the seven API-issued fields must be present and contain text.")
 
-    for (field_name, credential_value) in document.items():
+    for (field_name, credential_value) in credential_fields.items():
         if not (type(credential_value) is (expected_type := str)):
             raise CredentialRejected(f"{field_name=}; {type(credential_value)=} ≠ {expected_type=}")
 
     try:
         canonical = (
-            json.dumps(document, ensure_ascii=False, allow_nan=False, sort_keys=True, separators=(",", ":")).encode() + b"\n"
+            json.dumps(credential_fields, ensure_ascii=False, allow_nan=False, sort_keys=True, separators=(",", ":")).encode() + b"\n"
         )
     except UnicodeError as cause:
         raise CredentialRejected("artifact text must be valid UTF-8.", cause=cause) from None
@@ -83,35 +83,35 @@ def parse_provider_credential(raw, *, maximum_bytes):
         raise CredentialRejected("use the original canonical JSON document followed by one newline.")
 
     if (
-        (document["schema_id"] != "nmr.provider.private_signing_credential.v1") or
-        (document["algorithm"] != "ed25519") or
-        (document["profile"] not in ("dev-local", "dev", "run"))
+        (credential_fields["schema_id"] != "nmr.provider.private_signing_credential.v1") or
+        (credential_fields["algorithm"] != "ed25519") or
+        (credential_fields["profile"] not in ("dev-local", "dev", "run"))
     ):
         raise CredentialRejected("require the provider v1 artifact, Ed25519 and profile dev-local, dev or run.")
 
     try:
-        require_provider_ref(document["principal_ref"])
-        require_credential_ref(document["credential_ref"])
+        require_provider_ref(credential_fields["principal_ref"])
+        require_credential_ref(credential_fields["credential_ref"])
     except ValueError as cause:
         raise CredentialRejected(
             "principal_ref must identify a provider and credential_ref a signing credential.",
             cause=cause
         ) from None
 
-    private_key = _signing_key(document)
+    private_key = _signing_key(credential_fields)
 
-    return ProviderCredential(document["profile"], document["principal_ref"], document["credential_ref"], private_key)
+    return ProviderCredential(credential_fields["profile"], credential_fields["principal_ref"], credential_fields["credential_ref"], private_key)
 
 
-def _signing_key(document):
+def _signing_key(credential_fields):
     try:
-        public_der = base64.b64decode(document["public_key_spki_der_b64"], validate=True)
+        public_der = base64.b64decode(credential_fields["public_key_spki_der_b64"], validate=True)
 
-        if base64.b64encode(public_der).decode("ascii") != document["public_key_spki_der_b64"]:
+        if base64.b64encode(public_der).decode("ascii") != credential_fields["public_key_spki_der_b64"]:
             raise ValueError("Public key base64 is not canonical.")
 
         public_key = load_der_public_key(public_der)
-        private_key = load_pem_private_key(document["private_key_pkcs8_pem"].encode("ascii"), password=None)
+        private_key = load_pem_private_key(credential_fields["private_key_pkcs8_pem"].encode("ascii"), password=None)
     except (TypeError, ValueError, UnicodeError, UnsupportedAlgorithm) as cause:
         raise CredentialRejected("decode a base64 DER public key and an unencrypted PEM private key.", cause=cause) from None
 

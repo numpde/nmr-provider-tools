@@ -115,7 +115,7 @@ class ApiReadFailureTests(unittest.IsolatedAsyncioTestCase):
             self.assertNotIn("private-io-canary", repr(failure))
 
     async def _problem_read_failures(self):
-        document = {
+        problem_fields = {
             "type": "urn:nmr-api:problem:authentication-failed",
             "title": "private-title-canary",
             "status": 401,
@@ -129,7 +129,7 @@ class ApiReadFailureTests(unittest.IsolatedAsyncioTestCase):
             {},
             {"code": "private-code-canary"},
         ):
-            body = json.dumps(document | changes).encode()
+            body = json.dumps(problem_fields | changes).encode()
             transport = Transport(reply(body, status=401, headers=response_headers(status=401, request_id=b"request:test")))
 
             with self.subTest(changes=changes), self.assertRaises(ApiFailure) as caught:

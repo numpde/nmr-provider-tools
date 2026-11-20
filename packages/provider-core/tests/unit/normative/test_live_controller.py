@@ -156,7 +156,7 @@ class LiveControllerTests(unittest.IsolatedAsyncioTestCase):
             self.assertEqual((), claims.live_owners())
             self.assertEqual(controller.session.events.count("execute"), 1)
             self.assertGreaterEqual(len(bodies), 2)
-            self.assertTrue(all(body == bodies[0] for body in bodies))
+            self.assertTrue(all((body == bodies[0]) for body in bodies))
         finally:
             recovered.set()
 
@@ -295,12 +295,12 @@ class LiveControllerTests(unittest.IsolatedAsyncioTestCase):
 
         class PausedPreparation(LiveSession):
             async def prepare(self, acknowledged, instructions, *, report_condition):
-                result = await super().prepare(acknowledged, instructions, report_condition=report_condition)
+                prepared_analysis = await super().prepare(acknowledged, instructions, report_condition=report_condition)
 
                 preparing.set()
                 await release.wait()
 
-                return result
+                return prepared_analysis
 
         controller = self.controller(
             self.lifecycle(),
@@ -393,12 +393,12 @@ class LiveControllerTests(unittest.IsolatedAsyncioTestCase):
 
         class PausedPreparation(LiveSession):
             async def prepare(self, acknowledged, instructions, *, report_condition):
-                result = await super().prepare(acknowledged, instructions, report_condition=report_condition)
+                prepared_analysis = await super().prepare(acknowledged, instructions, report_condition=report_condition)
 
                 preparing.set()
                 await release.wait()
 
-                return result
+                return prepared_analysis
 
         session = PausedPreparation()
 
@@ -576,10 +576,10 @@ class LiveControllerTests(unittest.IsolatedAsyncioTestCase):
 
         class LateStart(Transport):
             async def exchange(self, request, *, maximum_bytes, owner=None):
-                result = await super().exchange(request, maximum_bytes=maximum_bytes, owner=owner)
+                start_reply = await super().exchange(request, maximum_bytes=maximum_bytes, owner=owner)
                 clock.elapsed = 91
 
-                return result
+                return start_reply
 
         controller = self.controller(LateStart(reply(start_response())))
         control_asyncio = Mock(wraps=asyncio)
@@ -665,7 +665,7 @@ class LiveControllerTests(unittest.IsolatedAsyncioTestCase):
                             preverified_input=verify_job_input(response(job_ref=job), feed=pending.input),
                         )
 
-                        run = asyncio.create_task(controller.run(pending))
+                        controller_task = asyncio.create_task(controller.run(pending))
 
                         try:
                             await asyncio.wait_for(session.retiring.wait(), 1)
@@ -674,14 +674,14 @@ class LiveControllerTests(unittest.IsolatedAsyncioTestCase):
 
                             if cycle:
                                 # The SDK can return the original stop before retirement finishes.
-                                await asyncio.wait((run,), timeout=1)
+                                await asyncio.wait((controller_task,), timeout=1)
 
-                                self.assertTrue(run.done())
+                                self.assertTrue(controller_task.done())
                                 self.assertIsNone(controller.operation.settled_revocation)
                                 self.assertTrue(claims.owns_job(scope(), job))
                         finally:
                             session.release.set()
-                            (failure,) = await asyncio.wait_for(asyncio.gather(run, return_exceptions=True), 1)
+                            (failure,) = await asyncio.wait_for(asyncio.gather(controller_task, return_exceptions=True), 1)
 
                         self.assertIsInstance(failure, ControllerFailed)
                         self.assertIsInstance(failure.cause.cause, ExecutionStopped)
@@ -691,9 +691,9 @@ class LiveControllerTests(unittest.IsolatedAsyncioTestCase):
                             self.assertFalse(claims.owns_job(scope(), job))
 
                         # Settlement must also release a session whose original retirement finished late.
-                        (result,) = await asyncio.gather(controller.settle(), return_exceptions=True)
+                        (settlement_outcome,) = await asyncio.gather(controller.settle(), return_exceptions=True)
 
-                        settlements.append((result, claims.live_owners()))
+                        settlements.append((settlement_outcome, claims.live_owners()))
                         self.assertIs(controller.operation.settled_revocation, failure.cause.cause.observation)
                         self.assertIsNone(await controller.settle())
                         self.assertEqual(["prepare", "retire"], session.events)

@@ -202,30 +202,30 @@ def build_wheel(wheel_directory, config_settings=None, metadata_directory=None):
             dispatch.assert_not_called()
 
     def test_capture_does_not_rebind_after_pool_replacement(self):
-        data = b"verified fixture wheel"
-        record = self.record | {"size": len(data), "sha256": hashlib.sha256(data).hexdigest()}
+        fixture_wheel_bytes = b"verified fixture wheel"
+        record = self.record | {"size": len(fixture_wheel_bytes), "sha256": hashlib.sha256(fixture_wheel_bytes).hexdigest()}
         wheel = self.root / record["name"]
 
-        wheel.write_bytes(data)
+        wheel.write_bytes(fixture_wheel_bytes)
         captured = self.root / "captured.whl"
 
         installer.capture(wheel, record, captured)
         wheel.unlink()
         wheel.write_bytes(b"replacement")
-        self.assertEqual(data, captured.read_bytes())
+        self.assertEqual(fixture_wheel_bytes, captured.read_bytes())
 
     def test_release_rejects_escaping_wheel_names_and_duplicate_fields(self):
-        path = self.root / "release.json"
+        release_metadata_path = self.root / "release.json"
 
-        path.write_text(json.dumps(self.record | {"name": "../outside.whl"}))
+        release_metadata_path.write_text(json.dumps(self.record | {"name": "../outside.whl"}))
 
         with self.assertRaisesRegex(ValueError, r"record_name=.*\.\./outside\.whl.*pattern="):
-            installer.release(path)
+            installer.release(release_metadata_path)
 
-        path.write_text('{"name":"first","name":"second"}')
+        release_metadata_path.write_text('{"name":"first","name":"second"}')
 
         with self.assertRaises(ValueError) as caught:
-            installer.release(path)
+            installer.release(release_metadata_path)
 
         self.assertIn("'name'", str(caught.exception))
 

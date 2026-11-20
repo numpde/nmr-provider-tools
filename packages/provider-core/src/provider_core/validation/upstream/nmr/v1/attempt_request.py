@@ -127,7 +127,7 @@ def _require_outcome_text(scalar_text, field_name):
     if not (min_scalar_characters <= scalar_character_count <= max_scalar_characters):
         raise ValueError(f"{field_name=}; {scalar_character_count=} should be between {min_scalar_characters=} and {max_scalar_characters=}")
 
-    if not all((character != "\x00") and (not (0xD800 <= ord(character) <= 0xDFFF)) for character in scalar_text):
+    if not all(((character != "\x00") and (not (0xD800 <= ord(character) <= 0xDFFF))) for character in scalar_text):
         raise ValueError(f"{field_name=}; {scalar_text=} should not contain NUL or surrogate code points")
 
 
@@ -173,8 +173,8 @@ def require_fail_inputs(execution_attempt_ref, failure_code, failure_message):
     _require_outcome_text(failure_message, "failure message")
 
 
-def _outcome_document(body, operation, limit, execution_attempt_ref, fields):
-    outcome_request = read_document(body, limit)
+def _outcome_document(body, operation, maximum_request_bytes, execution_attempt_ref, fields):
+    outcome_request = read_document(body, maximum_request_bytes)
 
     require_type(outcome_request, dict)
 
@@ -184,7 +184,7 @@ def _outcome_document(body, operation, limit, execution_attempt_ref, fields):
     if not (outcome_request_fields == expected_fields):
         raise ValueError(f"{outcome_request_fields=} should match {expected_fields=}")
 
-    expected_schema_id = f"nmr.provider.execution_attempt_{operation}_request.v1"
+    expected_schema_id = f"nmr.provider.execution_attempt_{operation}_request.v1"  # machine-string: request schema validation requires this exact NMR identifier
 
     if not ((retained_schema_id := outcome_request["schema_id"]) == expected_schema_id):
         raise ValueError(f"{retained_schema_id=} should match {expected_schema_id=}")
@@ -217,19 +217,19 @@ def read_complete_body(body, *, execution_attempt_ref):
     if not (min_base64_characters <= retained_base64_character_count <= max_base64_characters):
         raise ValueError(f"{retained_base64_character_count=} should be between {min_base64_characters=} and {max_base64_characters=}")
 
-    result = b64decode(retained_result_base64, validate=True)
-    expected_result_base64 = b64encode(result).decode("ascii")
+    canonical_result_bytes = b64decode(retained_result_base64, validate=True)
+    expected_result_base64 = b64encode(canonical_result_bytes).decode("ascii")
 
     if not (retained_result_base64 == expected_result_base64):
         raise ValueError(f"{retained_result_base64[-4:]=} should match {expected_result_base64[-4:]=}")
 
-    result_byte_length = len(result)
+    result_byte_length = len(canonical_result_bytes)
     (min_result_bytes, max_result_bytes) = (1, 786432)
 
     if not (min_result_bytes <= result_byte_length <= max_result_bytes):
         raise ValueError(f"{result_byte_length=} should be between {min_result_bytes=} and {max_result_bytes=}")
 
-    return (completion_request["result_schema_id"], result)
+    return (completion_request["result_schema_id"], canonical_result_bytes)
 
 
 def read_fail_body(body, *, execution_attempt_ref):

@@ -65,25 +65,25 @@ class AttemptOutcomeIntegrationTests(unittest.IsolatedAsyncioTestCase):
                 peer.closed.clear()
                 self.assertTrue(lost.exception.attempt_mutation_may_have_committed)
                 self.assertEqual(len(peer.requests), 1)
-                result = await send(body, execution_attempt_ref=ATTEMPT_REF)
+                publication_acknowledgement = await send(body, execution_attempt_ref=ATTEMPT_REF)
 
                 await asyncio.wait_for(peer.closed.wait(), 1)
-                self.assertTrue(result.replayed)
+                self.assertTrue(publication_acknowledgement.replayed)
                 self.assertEqual(peer.request_bodies, [body, body])
                 signatures = []
 
                 # silent-defaults: allow-contract -- The selected terminal method determines the expected complete or fail wire operation.
                 operation = b"complete" if completing else b"fail"
 
-                path = b"/provider/v1/execution-attempts/" + operation
+                publication_path = b"/provider/v1/execution-attempts/" + operation
 
-                for request in peer.requests:
-                    lines = request.split(b"\r\n")
+                for request_head in peer.requests:
+                    lines = request_head.split(b"\r\n")
 
-                    self.assertEqual(lines[0], b"POST " + path + b" HTTP/1.1")
+                    self.assertEqual(lines[0], b"POST " + publication_path + b" HTTP/1.1")
 
                     headers = {
-                        name.lower(): value.strip() for line in lines[1:] if b":" in line for (name, value) in [line.split(b":", 1)]
+                        header_name.lower(): header_value.strip() for line in lines[1:] if b":" in line for (header_name, header_value) in [line.split(b":", 1)]
                     }
 
                     self.assertEqual(parse(headers[b"content-digest"], tltype="dictionary")["sha-256"][0], sha256(body).digest())
@@ -92,7 +92,7 @@ class AttemptOutcomeIntegrationTests(unittest.IsolatedAsyncioTestCase):
                         [
                             b'"@method": POST',
                             b'"@authority": ' + peer.origin.removeprefix("https://").encode(),
-                            b'"@path": ' + path,
+                            b'"@path": ' + publication_path,
                             b'"@query": ?',
                             b'"content-type": application/json',
                             b'"content-digest": ' + headers[b"content-digest"],

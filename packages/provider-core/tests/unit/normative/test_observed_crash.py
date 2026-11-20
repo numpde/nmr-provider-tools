@@ -80,10 +80,10 @@ class ObservedCrashTests(unittest.IsolatedAsyncioTestCase):
             self.assertIs(type(accepted), DeliveryAcceptedCheckpoint)
             self.assertEqual(calls, len(transport.calls))
             self.assertEqual(1, len(controller.delivery.items))
-            item = controller.delivery.items[0]
+            delivery_outcome = controller.delivery.items[0]
 
-            self.assertIs(TerminalOperation.FAIL, item.operation)
-            body = json.loads(item.body)
+            self.assertIs(TerminalOperation.FAIL, delivery_outcome.operation)
+            body = json.loads(delivery_outcome.body)
 
             self.assertEqual("worker_crashed", body["failure_code"])
             self.assertIn("9", body["failure_message"])

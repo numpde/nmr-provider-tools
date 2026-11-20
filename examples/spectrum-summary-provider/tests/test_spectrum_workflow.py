@@ -442,7 +442,7 @@ class SpectrumWorkflowTests(unittest.IsolatedAsyncioTestCase):
             self.assertIs(Outcome.SUCCEEDED, operation_observation.outcome)
             self.assertIs(ResultState.ENCODING_FAILED, operation_observation.result_state)
             self.assertIsNone(operation_observation.result)
-            self.assertTrue(any(failure.cause is cause for failure in repeated_operation_observation.failures))
+            self.assertTrue(any((failure.cause is cause) for failure in repeated_operation_observation.failures))
             self.assertIsNone(workflow.peak_detection_submission)
             self.assertEqual(1, calculate.call_count)
 

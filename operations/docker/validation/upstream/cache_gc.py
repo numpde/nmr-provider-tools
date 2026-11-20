@@ -14,11 +14,11 @@ GC_THRESHOLD_FIELDS = ("defaultReservedSpace", "defaultMaxUsedSpace", "defaultMi
 def decode_daemon_config(raw: bytes) -> dict[str, Any]:
     """Read a Docker daemon configuration document."""
 
-    document = json.loads(raw)
+    daemon_configuration = json.loads(raw)
 
-    require_type(document, dict)
+    require_type(daemon_configuration, dict)
 
-    return document
+    return daemon_configuration
 
 
 def require_gc_object(gc_settings: object) -> dict[str, Any]:
@@ -63,7 +63,7 @@ def gc_thresholds(gc_settings: dict[str, Any]) -> list[str]:
 
         if (
             (type(gc_threshold) is str) and
-            ((not gc_threshold) or (any(character.isspace() or ord(character) < 32 for character in gc_threshold)))
+            ((not gc_threshold) or (any((character.isspace() or (ord(character) < 32)) for character in gc_threshold)))
         ):
             raise ValueError(f"{gc_threshold_name=}: {reprlib.repr(gc_threshold)=} should be nonempty without whitespace or control characters")
 

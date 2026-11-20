@@ -33,9 +33,11 @@ from type_requirements import require_type
 
 
 def artifact_names(version):
-    prefix = f"provider_core-{version}"
+    prefix = f"provider_core-{version}"  # machine-string: Release artifact lookup requires the versioned distribution filename prefix
+    wheelhouse_name = f"wheelhouse-tool-{version}.pyz"  # machine-string: The release inventory matches this exact acquisition-tool bundle filename
+    acquisition_name = f"acquisition-owner-{version}.tar.gz"  # machine-string: The release inventory matches this exact bootstrap archive filename
 
-    return {prefix + suffix for suffix in ("-py3-none-any.whl", ".tar.gz", "-install.lock", "-native-install.lock", "-release.json", "-sha256.json")} | {f"wheelhouse-tool-{version}.pyz", f"acquisition-owner-{version}.tar.gz"}
+    return {(prefix + suffix) for suffix in ("-py3-none-any.whl", ".tar.gz", "-install.lock", "-native-install.lock", "-release.json", "-sha256.json")} | {wheelhouse_name, acquisition_name}
 
 
 def qualify_wheelhouse_bundle(bundle, scratch):
@@ -47,7 +49,7 @@ def qualify_wheelhouse_bundle(bundle, scratch):
         if name == "packaging"
     )
 
-    packaging_wheel_name = f"packaging-{packaging_version}-py3-none-any.whl"
+    packaging_wheel_name = f"packaging-{packaging_version}-py3-none-any.whl"  # machine-string: The qualification cache lookup uses the distribution's exact wheel filename
     packaging_digest = digest(pathlib.Path("/wheelhouse") / packaging_wheel_name)
 
     if not (packaging_digest in accepted_hashes):
@@ -63,7 +65,7 @@ def qualify_wheelhouse_bundle(bundle, scratch):
         f'version = "{packaging_version}"\n'
         f'[[packages.wheels]]\n'
         f'url = "https://example.invalid/{packaging_wheel_name}"\n'
-        f'hashes = {{ sha256 = "{packaging_digest}" }}\n'
+        f'hashes = {{ sha256 = "{packaging_digest}" }}\n'  # machine-string: The acquisition tool parses these adjacent literals as a pylock TOML fixture
     )
 
     projected_lock = scratch / "pylock.local.toml"
@@ -120,7 +122,7 @@ def qualify_wheelhouse_bundle(bundle, scratch):
     projected_artifact = tomllib.loads(projected_lock.read_text())["packages"][0]["wheels"][0]
     projected_hashes = projected_artifact.get("hashes")
 
-    if projected_artifact.get("path") != "/wheels/" + packaging_wheel_name or "url" in projected_artifact:
+    if (projected_artifact.get("path") != ("/wheels/" + packaging_wheel_name)) or ("url" in projected_artifact):
         raise ValueError("Cannot qualify wheelhouse bundle: projected artifact differs from the selected lock.")
 
     require_type(projected_hashes, dict)
@@ -376,7 +378,7 @@ def qualify_acquisition_bundle(bundle, scratch, expected_source_files):
 
 def unpack_source(archive, destination, version):
     """Admit the complete tar inventory before creating any extracted file."""
-    root_name = f"provider_core-{version}"
+    root_name = f"provider_core-{version}"  # machine-string: Source archive admission requires this exact distribution root directory
 
     with tarfile.open(archive, "r:gz") as source_archive:
         members = source_archive.getmembers()
@@ -452,29 +454,29 @@ def source_payload(source, inventory):
         source_file = source / name
 
         if not source_file.is_file():
-            raise ValueError(f"The source distribution should contain {name!r} as a regular file")
+            raise ValueError(f"{source_file=} should be a regular file")
 
         source_sha256 = digest(source_file)
         expected_sha256 = facts["sha256"]
 
         if not (source_sha256 == expected_sha256):
-            raise ValueError(f"For source member {name!r}, {source_sha256=} should match {expected_sha256=}")
+            raise ValueError(f"{source_file=}: {source_sha256=} should match {expected_sha256=}")
 
         source_stat = source_file.stat()
         source_size_bytes = source_stat.st_size
         expected_size_bytes = facts["size"]
 
         if not (source_size_bytes == expected_size_bytes):
-            raise ValueError(f"For source member {name!r}, {source_size_bytes=} should match {expected_size_bytes=}")
+            raise ValueError(f"{source_file=}: {source_size_bytes=} should match {expected_size_bytes=}")
 
         source_mode = source_stat.st_mode & 0o777
         expected_mode = facts["mode"]
 
         if not (source_mode == expected_mode):
-            raise ValueError(f"For source member {name!r}, {source_mode=} should match {expected_mode=}")
+            raise ValueError(f"{source_file=}: {source_mode=} should match {expected_mode=}")
 
     generated_metadata_files = {"PKG-INFO", "setup.cfg"} | {
-        "src/provider_core.egg-info/" + name
+        ("src/provider_core.egg-info/" + name)
         for name in (
             "PKG-INFO",
             "SOURCES.txt",
@@ -485,12 +487,12 @@ def source_payload(source, inventory):
     }
 
     observed_files = {
-        path.relative_to(source).as_posix()
-        for path in source.rglob("*")
-        if path.is_file()
+        source_member_path.relative_to(source).as_posix()
+        for source_member_path in source.rglob("*")
+        if source_member_path.is_file()
     }
 
-    if observed_files != set(inventory) | generated_metadata_files:
+    if observed_files != (set(inventory) | generated_metadata_files):
         raise ValueError(
             "Cannot qualify package: source distribution has missing "
             "or unrecorded authored files."
@@ -506,13 +508,13 @@ def source_payload(source, inventory):
 def wheel_payload(wheel, expected, version):
     with zipfile.ZipFile(wheel) as archive:
         archive_members = archive.namelist()
-        metadata_prefix = f"provider_core-{version}.dist-info/"
+        metadata_prefix = f"provider_core-{version}.dist-info/"  # machine-string: Wheel member admission matches the versioned dist-info directory path
 
         if (
             (len(archive_members) != len(set(archive_members))) or
             any(
                 (
-                    (not name.startswith(metadata_prefix)) and (name not in expected)
+                    ((not name.startswith(metadata_prefix)) and (name not in expected))
                     for name in archive_members
                 ),
             )
@@ -551,7 +553,7 @@ def qualify_installed(wheel, lock, source, pool, root, suites):
 
     behavioral_python = None
 
-    if any(suite in ("unit", "integration") for suite in suites):
+    if any((suite in ("unit", "integration")) for suite in suites):
         behavioral_lock = behavioral_install_lock(
             lock,
             source / "tests/requirements.lock",
@@ -589,8 +591,8 @@ def qualify_installed(wheel, lock, source, pool, root, suites):
 
         if test_process.returncode:
             raise SystemExit(
-                f"Installed provider-core {suite} release qualification failed "
-                f"(exit {test_process.returncode}). See the suite diagnostic above "
+                f"Cannot qualify installed provider-core: {suite=}, {test_process.returncode=}. "
+                f"See the suite diagnostic above "
                 f"and the retained release-test.log."
             )
 
@@ -617,7 +619,7 @@ def check(artifacts, revision):
             raise ValueError("Cannot qualify package: wheel name must identify a provider-core release version.")
 
         release_version = wheel_filename[1]
-        artifact_prefix = f"provider_core-{release_version}"
+        artifact_prefix = f"provider_core-{release_version}"  # machine-string: Release wheel and source filenames share this exact versioned distribution prefix
 
         if {artifact.name for artifact in artifacts.iterdir()} != artifact_names(release_version):
             raise ValueError("Cannot qualify package: expect exactly the declared release artifacts.")
@@ -658,7 +660,7 @@ def check(artifacts, revision):
         ):
             raise ValueError("Cannot qualify package: wheelhouse tool source differs from the release inputs.")
 
-        wheelhouse_bundle = artifacts / f"wheelhouse-tool-{release_version}.pyz"
+        wheelhouse_bundle = artifacts / f"wheelhouse-tool-{release_version}.pyz"  # machine-string: Release qualification opens this exact published bundle filename
         rebuilt_wheelhouse_bundle = scratch / wheelhouse_bundle.name
 
         build_wheelhouse_bundle(
@@ -674,7 +676,7 @@ def check(artifacts, revision):
 
         qualify_wheelhouse_bundle(wheelhouse_bundle, scratch)
 
-        acquisition_bundle = artifacts / f"acquisition-owner-{release_version}.tar.gz"
+        acquisition_bundle = artifacts / f"acquisition-owner-{release_version}.tar.gz"  # machine-string: Release qualification opens this exact published bootstrap archive
         rebuilt_acquisition_bundle = scratch / acquisition_bundle.name
 
         acquisition_record = build_acquisition_bundle(
@@ -722,9 +724,9 @@ def check(artifacts, revision):
 
         runtime_install_lock = artifacts / (artifact_prefix + "-install.lock")
 
-        if requirements(runtime_install_lock) != requirements(pathlib.Path("/core-runtime.lock")) | {
+        if requirements(runtime_install_lock) != (requirements(pathlib.Path("/core-runtime.lock")) | {
             ("provider-core", release_version): {digest(captured_wheels[0])}
-        }:
+        }):
             raise ValueError(
                 "Cannot qualify package: issued install lock differs from "
                 "the closed runtime dependencies and wheel."

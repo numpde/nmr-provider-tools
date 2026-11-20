@@ -21,7 +21,7 @@ class UploadFailed(RuntimeError):
 
     # silent-defaults: allow-contract -- An omitted cleanup tuple carries no independent cleanup evidence; it does not confirm retirement.
     def __init__(self, reason, *, response=None, cause=None, cleanup_failures=(), interruption=None):
-        super().__init__(f"Cannot acquire Upload: {reason}")
+        super().__init__(f"Cannot acquire Upload: {reason = }")
         self.reason = reason
         self.response = response
         self.cause = cause
@@ -43,7 +43,7 @@ class UploadFileReadFailed(RuntimeError):
 
     # silent-defaults: allow-contract -- An omitted cleanup tuple carries no independent cleanup evidence; it does not confirm retirement.
     def __init__(self, reason, *, cause=None, cleanup_failures=(), interruption=None):
-        super().__init__(f"Cannot read verified Upload file: {reason}")
+        super().__init__(f"Cannot read verified Upload file: {reason = }")
         self.cause = cause
         self.cleanup_failures = tuple(cleanup_failures)
         self.interruption = interruption
@@ -64,7 +64,7 @@ class VerifiedUpload:
         if len(self.data) != self.byte_length:
             raise UploadFailed("source byte length differs from its transfer receipt")
 
-        if "sha256:" + hashlib.sha256(self.data).hexdigest() != self.content_hash:
+        if ("sha256:" + hashlib.sha256(self.data).hexdigest()) != self.content_hash:
             raise UploadFailed("source SHA-256 differs from its transfer receipt")
 
 
@@ -192,10 +192,10 @@ def _read_upload_snapshot(upload_source_fd, receipt):
             if received > receipt.byte_length:
                 break
 
-        data = b"".join(chunks)
+        source_bytes = b"".join(chunks)
 
         try:
-            return VerifiedUpload(receipt.job_ref, receipt.upload_ref, receipt.byte_length, receipt.content_hash, data)
+            return VerifiedUpload(receipt.job_ref, receipt.upload_ref, receipt.byte_length, receipt.content_hash, source_bytes)
         except UploadFailed as refusal:
             # Reuse the byte verifier, while reporting this reader's operation.
             # Its pure length/hash refusal has no grant or I/O evidence to copy.

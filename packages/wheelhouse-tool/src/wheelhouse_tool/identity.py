@@ -31,14 +31,14 @@ def main():
 
     try:
         with open(args.manifest) as stream:
-            result = selection_identity(json.load(stream))
+            selection_digest = selection_identity(json.load(stream))
     # silent-defaults: allow-exception-outcome -- Unreadable or malformed selection identity is an explicit nonzero command failure.
     except (OSError, ValueError, KeyError, TypeError) as error:
         print(str(error), file=sys.stderr)
 
         return 1
 
-    print(result)
+    print(selection_digest)
 
     return 0
 

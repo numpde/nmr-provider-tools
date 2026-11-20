@@ -13,6 +13,8 @@ import io
 import tokenize
 import unittest
 
+from operations.checker.findings import assert_no_findings
+
 from .sources import python_sources, ROOT
 
 
@@ -46,7 +48,7 @@ def _parenthesized_not(*, expression: str) -> bool:
             depth -= 1
 
             if depth == 0:
-                return index == len(tokens) - 1
+                return index == (len(tokens) - 1)
 
     return False
 
@@ -283,4 +285,4 @@ class ExpectedConditionGuardPostureTests(unittest.TestCase):
             for (line, reason) in guard_findings(source=source_path.read_text(encoding="utf-8")):
                 findings.append(f"{source_path.relative_to(ROOT)}:{line}: {reason}")
 
-        self.assertEqual(first=[], second=findings, msg="\n".join(findings))
+        assert_no_findings(findings)

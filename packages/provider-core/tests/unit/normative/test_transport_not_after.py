@@ -16,15 +16,15 @@ from tests.fakes.transport import Client, Stream
 
 class TransportNotAfterTests(unittest.IsolatedAsyncioTestCase):
     async def exchange(self, transport, mode, descriptor, **kwargs):
-        request = httpx.Request("GET", "https://model.example/turn")
+        http_request = httpx.Request("GET", "https://model.example/turn")
 
         if mode == "file":
-            return await transport.exchange_file(request, output_fd=descriptor, maximum_bytes=8, **kwargs)
+            return await transport.exchange_file(http_request, output_fd=descriptor, maximum_bytes=8, **kwargs)
 
         if mode == "decoded":
-            return await transport.exchange_decoded(request, maximum_bytes=8, error_maximum_bytes=4, **kwargs)
+            return await transport.exchange_decoded(http_request, maximum_bytes=8, error_maximum_bytes=4, **kwargs)
 
-        return await transport.exchange(request, maximum_bytes=8, **kwargs)
+        return await transport.exchange(http_request, maximum_bytes=8, **kwargs)
 
     async def test_expired_cap_cannot_dispatch_network_or_file_work(self):
         for mode in ("raw", "file", "decoded"):
@@ -57,14 +57,14 @@ class TransportNotAfterTests(unittest.IsolatedAsyncioTestCase):
         tasks = []
 
         async def delayed_observer(selected, *, timeout):
-            result = await original_wait(selected, timeout=timeout)
+            completed_and_pending_tasks = await original_wait(selected, timeout=timeout)
 
             tasks.extend(selected)
 
             # Delay only observation after the actual original exchange completes.
             await asyncio.sleep(max(0, cap - loop.time()) + 0.01)
 
-            return result
+            return completed_and_pending_tasks
 
         with patch("provider_core.adapters.httpcore.httpcore.AsyncConnectionPool", return_value=client), patch(
             "provider_core.transport.asyncio.wait",
@@ -310,13 +310,13 @@ class TransportNotAfterTests(unittest.IsolatedAsyncioTestCase):
 
                 raise
 
-        request = httpx.Request("GET", "https://model.example/turn")
+        http_request = httpx.Request("GET", "https://model.example/turn")
 
         with patch("provider_core.adapters.httpcore.httpcore.AsyncConnectionPool", return_value=client), patch(
             "provider_core.transport.asyncio.wait",
             side_effect=observe_cancellation,
         ):
-            caller = asyncio.create_task(transport.exchange(request, maximum_bytes=8, owner=owner, not_after=cap))
+            caller = asyncio.create_task(transport.exchange(http_request, maximum_bytes=8, owner=owner, not_after=cap))
 
             try:
                 await asyncio.wait_for(client.sent.wait(), 0.2)

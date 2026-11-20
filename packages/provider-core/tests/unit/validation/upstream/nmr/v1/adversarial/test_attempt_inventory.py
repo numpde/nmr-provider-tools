@@ -20,21 +20,21 @@ class AttemptInventoryValidationTests(unittest.TestCase):
             ("next_cursor", []),
             ("extra", "private canary")
         ):
-            document = page(**{field: bad})
+            inventory_fields = page(**{field: bad})
 
             with self.subTest(field=field), self.assertRaises(ResponseRejected):
-                read_attempt_inventory(json.dumps(document).encode(), limit=1)
+                read_attempt_inventory(json.dumps(inventory_fields).encode(), limit=1)
 
-        document = page()
-        document["attempts"] *= 2
-
-        with self.assertRaises(ResponseRejected):
-            read_attempt_inventory(json.dumps(document).encode(), limit=1)
-
-        del document["next_cursor"]
+        inventory_fields = page()
+        inventory_fields["attempts"] *= 2
 
         with self.assertRaises(ResponseRejected):
-            read_attempt_inventory(json.dumps(document).encode(), limit=2)
+            read_attempt_inventory(json.dumps(inventory_fields).encode(), limit=1)
+
+        del inventory_fields["next_cursor"]
+
+        with self.assertRaises(ResponseRejected):
+            read_attempt_inventory(json.dumps(inventory_fields).encode(), limit=2)
 
     def _invalid_inventory_rows(self):
         for (field, bad) in (

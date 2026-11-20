@@ -179,7 +179,7 @@ class _FailureSummaryResult(unittest.TextTestResult):
 
                 break
 
-        if location == "(no traceback)" and frames:
+        if (location == "(no traceback)") and frames:
             frame = frames[-1]
             location = f"{pathlib.Path(frame.filename).name}:{frame.lineno}"
 
@@ -218,11 +218,11 @@ class _FailureSummaryResult(unittest.TextTestResult):
         )
 
 
-def _print_failure_summary(result, selection, stream):
-    if result.wasSuccessful():
+def _print_failure_summary(suite_result, selection, stream):
+    if suite_result.wasSuccessful():
         return
 
-    count = len(result.problems)
+    count = len(suite_result.problems)
     noun = "cases"
 
     if count == 1:
@@ -230,7 +230,7 @@ def _print_failure_summary(result, selection, stream):
 
     print(f"=== PROVIDER-CORE FAILURE SUMMARY ({selection}): {count} failing {noun} ===", file=stream)
 
-    for (kind, name, location, failure_type, reason) in result.problems[:25]:
+    for (kind, name, location, failure_type, reason) in suite_result.problems[:25]:
         print(f"  {kind} {name}", file=stream)
         print(f"    {location} — {failure_type}: {reason}", file=stream)
 
@@ -285,12 +285,12 @@ def main():
 
         suite.addTests(selected)
 
-    result = unittest.TextTestRunner(verbosity=2, resultclass=_FailureSummaryResult).run(suite)
+    suite_result = unittest.TextTestRunner(verbosity=2, resultclass=_FailureSummaryResult).run(suite)
 
-    _print_failure_summary(result, selection, sys.stderr)
+    _print_failure_summary(suite_result, selection, sys.stderr)
 
     # silent-defaults: allow-contract -- Unittest success determines the process success or failure exit status.
-    return 0 if result.wasSuccessful() else 1
+    return 0 if suite_result.wasSuccessful() else 1
 
 
 if __name__ == "__main__":

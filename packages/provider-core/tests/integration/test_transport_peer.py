@@ -18,7 +18,7 @@ class TransportPeerTests(unittest.IsolatedAsyncioTestCase):
         key = Ed25519PrivateKey.generate()
 
         async with TlsPeer("success") as peer:
-            request = signed_request(
+            signed_http_request = signed_request(
                 SigningIdentity(peer.origin, "credential:test", key),
                 method="GET",
                 path="/input",
@@ -30,13 +30,13 @@ class TransportPeerTests(unittest.IsolatedAsyncioTestCase):
 
             transport = HttpTransport(trust=peer.trust, exchange_seconds=1, retirement_seconds=0.5)
 
-            await transport.exchange(request, maximum_bytes=4)
+            await transport.exchange(signed_http_request, maximum_bytes=4)
             await asyncio.wait_for(peer.closed.wait(), 1)
             lines = peer.requests[0].split(b"\r\n")
 
             self.assertEqual(lines[0], b"GET /input?job=a%2Fb HTTP/1.1")
             headers = dict(line.split(b": ", 1) for line in lines[1:] if line)
-            headers = {name.lower(): value for (name, value) in headers.items()}
+            headers = {header_name.lower(): header_value for (header_name, header_value) in headers.items()}
 
             self.assertEqual(headers[b"host"].decode(), peer.origin.removeprefix("https://"))
             self.assertNotIn(b"content-digest", headers)

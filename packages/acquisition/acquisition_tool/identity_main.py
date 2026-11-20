@@ -39,14 +39,14 @@ def _inputs(args):
             (args.host_uid is None) or
             (args.host_gid is None) or
             (args.userns is not None) or
-            any(policy_setting is not None for policy_setting in policy)
+            any((policy_setting is not None) for policy_setting in policy)
         ):
             raise ValueError("Supply both host-owner IDs, or use --map with explicit probe policy.")
 
-        request = ProbeRequest(args.endpoint, args.image, "/usr/local/bin/python3", 0, 0)
+        probe_request = ProbeRequest(args.endpoint, args.image, "/usr/local/bin/python3", 0, 0)
 
         return (
-            request,
+            probe_request,
             (
                 ("uid", "inverse", Identifier(args.host_uid)),
                 ("gid", "inverse", Identifier(args.host_gid))
@@ -56,7 +56,7 @@ def _inputs(args):
     if (args.host_uid is not None) or (args.host_gid is not None):
         raise ValueError("Do not combine host-owner IDs with --map projections.")
 
-    if any(policy_setting is None for policy_setting in policy):
+    if any((policy_setting is None) for policy_setting in policy):
         raise ValueError("Mapping projections require an explicit interpreter, probe UID/GID and all three resource ceilings.")
 
     if not (len(args.maps) <= 512):
@@ -70,7 +70,7 @@ def _inputs(args):
 
         projections.append((axis, direction, Identifier.of(identifier)))
 
-    request = ProbeRequest(
+    probe_request = ProbeRequest(
         args.endpoint,
         args.image,
         args.interpreter,
@@ -80,9 +80,9 @@ def _inputs(args):
     )
 
     if args.userns is not None:
-        request = replace(request, userns_mode=args.userns)
+        probe_request = replace(probe_request, userns_mode=args.userns)
 
-    return (request, projections)
+    return (probe_request, projections)
 
 
 def _project(observation, projections):
@@ -126,18 +126,18 @@ def main(argv=None):
 
     try:
         retired = True
-        (request, projections) = _inputs(args)
+        (probe_request, projections) = _inputs(args)
         retired = False
-        observation = probe_identity(request, cancel=cancellation)
+        observation = probe_identity(probe_request, cancel=cancellation)
         retired = True
         translated_ids = _project(observation, projections)
     except ProbeFailure as failure:
         retired = probe_failure_retirement_confirmed(failure)
 
-        sys.stderr.write(f"Cannot map engine identity: {failure.problem.message}\n")
+        print(f"Cannot map engine identity: {failure.problem.message=}", file=sys.stderr)
 
         for problem in failure.retirement.problems:
-            sys.stderr.write(f"Probe cleanup: {problem.message}\n")
+            print(f"Probe cleanup: {problem.message=}", file=sys.stderr)
 
         if failure.handle is not None:
             container_id = failure.handle.container_id
@@ -145,15 +145,16 @@ def main(argv=None):
             if not container_id:
                 container_id = "not confirmed"
 
-            sys.stderr.write(
-                f"Probe operation {failure.handle.operation_token}; "
-                f"container {container_id}; "
-                f"retirement {failure.retirement.state}.\n"
+            print(
+                f"{failure.handle.operation_token=}; "
+                f"{container_id=}; "
+                f"{failure.retirement.state=}",
+                file=sys.stderr,
             )
 
         status = 2
     except (ValueError, StepError) as failure:
-        sys.stderr.write(f"Cannot map engine identity: {failure}\n")
+        print(f"Cannot map engine identity: {failure=!s}", file=sys.stderr)
         status = 2
     finally:
         for (number, handler) in previous.items():

@@ -13,6 +13,7 @@ from provider_core.container_guard import require_container
 
 require_container()
 
+import reprlib
 from dataclasses import dataclass, field
 from datetime import datetime
 
@@ -44,15 +45,16 @@ class HelloAccepted:
     accepted_at: datetime
 
 
-def _require_text(value, name, maximum):
-    if not (type(value) is (expected_type := str)):
-        raise TypeError(f"{name=}; {type(value)=} ≠ {expected_type=}")
+def _require_text(text_value, field_name, maximum_characters):
+    if not (type(text_value) is (expected_type := str)):
+        raise TypeError(f"{field_name=}; {type(text_value)=} ≠ {expected_type=}")
 
-    if not (1 <= len(value) <= maximum):
-        raise ValueError(f"Cannot announce provider: {name} has {len(value)} characters; expected 1 through {maximum} Unicode scalars")
+    if not (1 <= len(text_value) <= maximum_characters):
+        raise ValueError(f"Cannot announce provider: {field_name=} has {len(text_value)=} characters; expected 1 through {maximum_characters=} Unicode scalars")
 
-    if "\0" in value or any(0xD800 <= ord(character) <= 0xDFFF for character in value):
-        raise ValueError(f"Cannot announce provider: {name} must not contain NUL or surrogate characters")
+    # These API fields forbid NUL; U+D800–U+DFFF are surrogates, not Unicode scalar values
+    if ("\0" in text_value) or any((0xD800 <= ord(character) <= 0xDFFF) for character in text_value):
+        raise ValueError(f"Cannot announce provider: {field_name=} must not contain NUL or surrogate characters")
 
 
 def require_hello_inputs(*, display_name, description, analysis_offerings):
@@ -80,24 +82,27 @@ def require_hello_inputs(*, display_name, description, analysis_offerings):
 def require_hello_body_size(body):
     """Apply the route ceiling to the actual UTF-8 encoding, not character counts."""
 
-    if not (len(body) <= 512 * 1024):
+    if not (len(body) <= (512 * 1024)):
         raise ValueError("Cannot announce provider: encoded Hello exceeds the 524288-byte route limit")
 
 
 def read_hello(raw, *, provider_ref):
     """Bind a closed receipt to composition's expected provider, never to key spelling."""
-    document = read_document(raw, HELLO_RESPONSE_BYTES)
+    hello_receipt = read_document(raw, HELLO_RESPONSE_BYTES)
 
-    if not (type(document) is (expected_type := dict)):
-        raise ResponseRejected(f"{type(document)=} ≠ {expected_type=}")
+    if not (type(hello_receipt) is (expected_type := dict)):
+        raise ResponseRejected(f"{type(hello_receipt)=} ≠ {expected_type=}")
 
-    if set(document) != {"schema_id", "provider_ref", "accepted_at"}:
-        raise ResponseRejected("Response fields do not match the supported Hello receipt schema")
+    receipt_fields = set(hello_receipt)
+    expected_fields = {"schema_id", "provider_ref", "accepted_at"}
 
-    if document["schema_id"] != "nmr.provider.hello_response.v1":
-        raise ResponseRejected("Response schema does not match the Hello receipt contract")
+    if receipt_fields != expected_fields:
+        raise ResponseRejected(f"{receipt_fields=} should match {expected_fields=}")
 
-    if document["provider_ref"] != provider_ref:
-        raise ResponseRejected("Hello receipt provider differs from the configured provider")
+    if hello_receipt["schema_id"] != (expected_schema_id := "nmr.provider.hello_response.v1"):
+        raise ResponseRejected(f"{reprlib.repr(hello_receipt['schema_id'])=} should match {expected_schema_id=}")
 
-    return HelloAccepted(provider_ref, read_timestamp(document["accepted_at"]))
+    if hello_receipt["provider_ref"] != provider_ref:
+        raise ResponseRejected(f"{reprlib.repr(hello_receipt['provider_ref'])=} should match {provider_ref=}")
+
+    return HelloAccepted(provider_ref, read_timestamp(hello_receipt["accepted_at"]))

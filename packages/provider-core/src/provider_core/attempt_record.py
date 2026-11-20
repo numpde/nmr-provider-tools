@@ -11,6 +11,7 @@ from provider_core.container_guard import require_container
 require_container()
 
 import json
+import reprlib
 from base64 import b64encode
 from dataclasses import asdict, dataclass, field, replace
 from enum import Enum
@@ -66,11 +67,28 @@ class RecoveryScope:
 
         require_provider_ref(self.provider_ref)
 
-        for value in (self.consumer_id, self.generation_id):
-            require_type(value, str)
+        (min_identity_characters, max_identity_characters) = (1, 1024)
 
-            if (not (1 <= len(value) <= 1024)) or (any(c == "\x00" or 0xD800 <= ord(c) <= 0xDFFF for c in value)):
-                raise ValueError("Cannot bind recovery scope: consumer and generation identities require 1 through 1024 Unicode scalar values without NUL")
+        for scope_identity in (self.consumer_id, self.generation_id):
+            require_type(scope_identity, str)
+
+            if not (
+                (min_identity_characters <= len(scope_identity) <= max_identity_characters) and
+                all(
+                    (
+                        (
+                            (character != "\x00") and
+                            # Surrogates are not Unicode scalar values
+                            (not (0xD800 <= ord(character) <= 0xDFFF))
+                        )
+                        for character in scope_identity
+                    ),
+                )
+            ):
+                raise ValueError(
+                    f"{reprlib.repr(scope_identity)=} should contain "
+                    f"{min_identity_characters=} through {max_identity_characters=} Unicode scalar values without NUL"
+                )
 
 
 @dataclass(frozen=True, slots=True)
@@ -118,6 +136,7 @@ class AcknowledgedAttempt:
 
         if self.prepared_identity is not None:
             actual_prepared_identity = self.prepared_identity
+
             require_type(actual_prepared_identity, ProtectedEvidence)
 
             if not (self.local_phase is LocalExecutionPhase.EXECUTION_ENTERED):
@@ -131,7 +150,7 @@ class AcknowledgedAttempt:
                 provider_ref=self.start.scope.provider_ref,
             )
         except ResponseRejected as cause:
-            raise ValueError(f"Cannot retain acknowledgement: {cause}") from None
+            raise ValueError(f"Cannot retain acknowledgement: {cause = }") from None
 
         if (self.local_phase is LocalExecutionPhase.EXECUTION_ENTERED) and (not attempt_is_in_progress(self.admission)):
             raise ValueError("Cannot record execution entry from a terminal start acknowledgement")

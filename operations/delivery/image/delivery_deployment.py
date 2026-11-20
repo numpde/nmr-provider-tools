@@ -69,7 +69,7 @@ def _require_mount_path(mount_path):
     if not (absolute_mount_path.resolve() == absolute_mount_path):
         raise DeliveryDeploymentRejected("The delivery mount path should be canonical with symlinks resolved")
 
-    if not all(character not in str(absolute_mount_path) for character in ("\n", "\r", ",")):
+    if not all((character not in str(absolute_mount_path)) for character in ("\n", "\r", ",")):
         raise DeliveryDeploymentRejected("The delivery mount path should contain no commas or line breaks")
 
     return absolute_mount_path
@@ -116,7 +116,7 @@ def _service(image, module, definition, stop_seconds):
         "image": image,
         "pull_policy": "never",
         "entrypoint": [CORE_PYTHON, "-I", "-B", "-m", module],
-        "user": f"{uid}:{gid}",
+        "user": f"{uid}:{gid}",  # machine-string: Compose requires the numeric UID:GID user selector
         "init": True,
         "read_only": True,
         "cap_drop": ["ALL"],
@@ -128,11 +128,11 @@ def _service(image, module, definition, stop_seconds):
         "memswap_limit": "512m",
         "pids_limit": 64,
         "restart": "unless-stopped",
-        "stop_grace_period": f"{stop_seconds}s",
+        "stop_grace_period": f"{stop_seconds}s",  # machine-string: Compose parses this as a duration in seconds
         "network_mode": "none",
         "labels": {"org.nmr-provider-tools.delivery": definition.project},
         "tmpfs": [
-            f"/{name}:rw,nosuid,nodev,noexec,size=64m,mode=0700,uid={uid},gid={gid}"
+            f"/{name}:rw,nosuid,nodev,noexec,size=64m,mode=0700,uid={uid},gid={gid}"  # machine-string: Compose parses each tmpfs entry as a mount path and comma-separated options
             for name in ("tmp", "run")
         ],
         "logging": {
@@ -152,7 +152,7 @@ def admit_listeners(definition):
 
     for binding in definition.bindings:
         ipc_key = binding.ipc_volume.removeprefix(definition.project + "-ipc-")
-        socket_path = f"/ipc/{ipc_key}/{binding.socket_path.name}"
+        socket_path = f"/ipc/{ipc_key}/{binding.socket_path.name}"  # machine-string: The daemon opens this path inside its granted IPC volume
 
         try:
             require_unix_socket_path(socket_path)
@@ -194,7 +194,7 @@ def daemon_configuration(definition):
             {
                 "socket_path": socket_path,
                 "socket_group_id": definition.gid,
-                "proxy_socket": f"/routes/{ipc_key}/proxy.sock",
+                "proxy_socket": f"/routes/{ipc_key}/proxy.sock",  # machine-string: The delivery worker connects to this mounted Unix socket path
                 "api": api_configuration,
             }
         )
@@ -327,12 +327,12 @@ def render_shared(path, source, image):
         raise DeliveryDeploymentRejected(f"Shared deployment requires {reprlib.repr(image)=} to be an immutable image ID.")
 
     try:
-        document = tomllib.loads(
+        operator_definition = tomllib.loads(
             read_startup_file(path, maximum_bytes=65536).decode("utf-8")
         )
 
-        host = document["deployment"]
-        route = document["api_proxy"]["route"]
+        host = operator_definition["deployment"]
+        route = operator_definition["api_proxy"]["route"]
 
         project = host["project"]
         uid = host["uid"]
@@ -354,7 +354,7 @@ def render_shared(path, source, image):
 
         require_type(proxy_uid, int)
 
-        if not (0 < proxy_uid and proxy_uid != uid):
+        if not ((0 < proxy_uid) and (proxy_uid != uid)):
             raise ValueError
 
         require_type(gid, int)
@@ -375,6 +375,7 @@ def render_shared(path, source, image):
         if mode == "local":
 
             network_id = route["network_id"]
+
             require_type(network_id, str)
 
             if not is_full_network_id(route["network_id"]):
@@ -624,7 +625,7 @@ async def health(definition):
 
 
 def initialize(uid, gid, queue, ipc):
-    if os.geteuid() != 0 or uid <= 0 or gid <= 0:
+    if (os.geteuid() != 0) or (uid <= 0) or (gid <= 0):
         raise DeliveryDeploymentRejected(
             "Volume initialization requires root with CHOWN and explicit "
             "nonzero target UID/GID."
@@ -645,7 +646,7 @@ def initialize(uid, gid, queue, ipc):
         ) == (uid, gid, mode):
             continue
 
-        if observed_metadata.st_uid != 0 or any(volume_root.iterdir()):
+        if (observed_metadata.st_uid != 0) or any(volume_root.iterdir()):
             raise DeliveryDeploymentRejected(
                 "Refusing to change an existing delivery volume with "
                 "unexpected ownership, mode or contents."

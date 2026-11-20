@@ -22,5 +22,5 @@ def nameserver_tokens(resolver_text: str) -> list[str]:
     return [
         fields[1]
         for line in resolver_text.splitlines()
-        if len(fields := line.split()) == 2 and fields[0] == "nameserver"
+        if (len(fields := line.split()) == 2) and (fields[0] == "nameserver")
     ]

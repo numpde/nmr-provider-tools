@@ -225,9 +225,9 @@ class ImageBuildProxyTransportTests(unittest.TestCase):
             patch.object(_PROXY, "resolve_ipv4_bound", return_value=("203.0.113.1", "203.0.113.2")),
             patch.object(_PROXY.socket, "socket", side_effect=(first, second)) as created,
         ):
-            result = _PROXY.connect_bound("example.invalid", 443, "eth0")
+            connected_socket = _PROXY.connect_bound("example.invalid", 443, "eth0")
 
-        self.assertIs(result, second)
+        self.assertIs(connected_socket, second)
         self.assertEqual([call.args[0] for call in first.settimeout.call_args_list], [30])
         self.assertEqual([call.args[0] for call in second.settimeout.call_args_list], [20])
 
@@ -407,13 +407,13 @@ class ImageBuildProxyWorkerTests(unittest.TestCase):
             self.assertTrue(server._slots.acquire())
 
         server.shutdown_request = Mock()
-        request = Mock()
+        client_socket = Mock()
 
         with patch.object(_PROXY.socketserver.ThreadingTCPServer, "process_request") as start:
-            server.process_request(request, ("127.0.0.1", 1))
+            server.process_request(client_socket, ("127.0.0.1", 1))
 
         start.assert_not_called()
-        server.shutdown_request.assert_called_once_with(request)
+        server.shutdown_request.assert_called_once_with(client_socket)
 
     def test_startup_failure_and_thread_completion_restore_capacity(self):
         for startup_failure in (False, True):
@@ -443,7 +443,7 @@ class ImageBuildProxyWorkerTests(unittest.TestCase):
                 self.assertFalse(server._slots.acquire())
 
     def _pre_forwarding_error(self):
-        request = Mock()
+        client_socket = Mock()
         stderr = io.StringIO()
 
         with (
@@ -451,9 +451,9 @@ class ImageBuildProxyWorkerTests(unittest.TestCase):
             patch.object(http_proxy, "parse_destination", side_effect=ValueError(_PRIVATE)),
             redirect_stderr(stderr),
         ):
-            _PROXY.ProxyHandler(request, ("127.0.0.1", 1), SimpleNamespace(outbound_interface="eth0", dns_servers=None))
+            _PROXY.ProxyHandler(client_socket, ("127.0.0.1", 1), SimpleNamespace(outbound_interface="eth0", dns_servers=None))
 
-        request.sendall.assert_called_once_with(
+        client_socket.sendall.assert_called_once_with(
             b"HTTP/1.1 502 Bad Gateway\r\n"
             b"Connection: close\r\n"
             b"\r\n"
@@ -472,7 +472,7 @@ class ImageBuildProxyWorkerTests(unittest.TestCase):
         self.assertNotIn(_PRIVATE, self._pre_forwarding_error())
 
     def _forwarding_error(self):
-        (request, connection) = (Mock(), MagicMock())
+        (client_socket, connection) = (Mock(), MagicMock())
         connection.__enter__.return_value = connection
         (stderr, stdout) = (io.StringIO(), io.StringIO())
 
@@ -491,9 +491,9 @@ class ImageBuildProxyWorkerTests(unittest.TestCase):
             redirect_stderr(stderr),
             redirect_stdout(stdout),
         ):
-            _PROXY.ProxyHandler(request, ("127.0.0.1", 1), SimpleNamespace(outbound_interface="eth0", dns_servers=None))
+            _PROXY.ProxyHandler(client_socket, ("127.0.0.1", 1), SimpleNamespace(outbound_interface="eth0", dns_servers=None))
 
-        request.sendall.assert_called_once_with(
+        client_socket.sendall.assert_called_once_with(
             b"HTTP/1.1 200 Connection Established\r\n"
             b"\r\n"
         )
@@ -512,7 +512,7 @@ class ImageBuildProxyWorkerTests(unittest.TestCase):
 
         for phase in ("http_header", "connect_status", "connect_remainder"):
             with self.subTest(phase=phase):
-                (request, connection) = (Mock(), MagicMock())
+                (client_socket, connection) = (Mock(), MagicMock())
                 connection.__enter__.return_value = connection
 
                 # silent-defaults: allow-contract -- The HTTP-header failure uses GET; the two CONNECT write failures use tunnel admission bytes; proof=packages/provider-core/tests/unit/adversarial/test_proxy_posture.py::ImageBuildProxyWorkerTests.test_initial_forwarding_write_failure_does_not_append_http_failure
@@ -531,7 +531,7 @@ class ImageBuildProxyWorkerTests(unittest.TestCase):
                 # silent-defaults: allow-contract -- Only the CONNECT-remainder scenario supplies body bytes so that its initial forwarding write is exercised; proof=packages/provider-core/tests/unit/adversarial/test_proxy_posture.py::ImageBuildProxyWorkerTests.test_initial_forwarding_write_failure_does_not_append_http_failure
                 remainder = b"body" if phase == "connect_remainder" else b""
 
-                writer = request if phase == "connect_status" else connection
+                writer = client_socket if phase == "connect_status" else connection
                 writer.sendall.side_effect = OSError(_PRIVATE)
                 (stderr, stdout) = (io.StringIO(), io.StringIO())
 
@@ -542,12 +542,12 @@ class ImageBuildProxyWorkerTests(unittest.TestCase):
                     redirect_stderr(stderr),
                     redirect_stdout(stdout),
                 ):
-                    _PROXY.ProxyHandler(request, ("127.0.0.1", 1), SimpleNamespace(outbound_interface="eth0", dns_servers=None))
+                    _PROXY.ProxyHandler(client_socket, ("127.0.0.1", 1), SimpleNamespace(outbound_interface="eth0", dns_servers=None))
 
                 if phase == "http_header":
-                    request.sendall.assert_not_called()
+                    client_socket.sendall.assert_not_called()
                 else:
-                    request.sendall.assert_called_once_with(
+                    client_socket.sendall.assert_called_once_with(
                         b"HTTP/1.1 200 Connection Established\r\n"
                         b"\r\n"
                     )
@@ -575,14 +575,14 @@ class ImageBuildProxyWorkerTests(unittest.TestCase):
             self.assertEqual("12345\n", ready.read_text(encoding="ascii"))
             self.assertEqual(0o600, stat.S_IMODE(ready.stat().st_mode))
 
-            for path in (ready, pathlib.Path(temporary) / "symlink.port"):
-                if path != ready:
-                    path.symlink_to(ready)
+            for readiness_path in (ready, pathlib.Path(temporary) / "symlink.port"):
+                if readiness_path != ready:
+                    readiness_path.symlink_to(ready)
 
                 server.serve_forever.reset_mock()
 
-                with self.subTest(path=path.name), self.assertRaises(SystemExit):
-                    _run_main(server, path)
+                with self.subTest(path=readiness_path.name), self.assertRaises(SystemExit):
+                    _run_main(server, readiness_path)
 
                 server.serve_forever.assert_not_called()
                 self.assertEqual("12345\n", ready.read_text(encoding="ascii"))
@@ -626,7 +626,7 @@ class ImageBuildProxyWorkerTests(unittest.TestCase):
             ):
                 _run_main(server, ready)
 
-            self.assertIn("readiness publication failed (FileExistsError)", str(rejected.exception))
+            self.assertIn(FileExistsError.__name__, str(rejected.exception))
             self.assertIn("Readiness publication did not complete", stderr.getvalue())
             self.assertIn("Cannot confirm temporary readiness cleanup", stderr.getvalue())
             self.assertEqual("prior receipt\n", ready.read_text(encoding="ascii"))

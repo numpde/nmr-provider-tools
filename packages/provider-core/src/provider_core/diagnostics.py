@@ -123,10 +123,13 @@ def failure_evidence(error, *, secrets, describe_owner=describe_core_failure, ow
             evidence["omitted_frame_count"] = count - len(frames)
 
         evidence.update(
-            {name: text(value, 1024) if type(value) is str else value for (name, value) in describe_owner(current, text, diagnostic_window).items()}
+            {
+                owner_fact_name: (text(owner_fact, 1024) if type(owner_fact) is str else owner_fact)
+                for (owner_fact_name, owner_fact) in describe_owner(current, text, diagnostic_window).items()
+            },
         )
 
-        if isinstance(current, OSError) and type(current.errno) is int:
+        if isinstance(current, OSError) and (type(current.errno) is int):
             evidence["errno"] = current.errno
 
             if (current.errno in errno.errorcode) and (not isinstance(current, (ssl.SSLError, socket.gaierror, socket.herror))):
@@ -137,7 +140,7 @@ def failure_evidence(error, *, secrets, describe_owner=describe_core_failure, ow
 
             if code is None:
                 evidence["system_exit_code"] = None
-            elif type(code) in (int, bool) and -(2 ** 63) <= code < 2 ** 63:
+            elif (type(code) in (int, bool)) and ((-(2 ** 63)) <= code < (2 ** 63)):
                 evidence["system_exit_code"] = code
             else:
                 evidence["system_exit_code_omitted"] = True
@@ -197,7 +200,7 @@ def write_stderr(content):
         written = os.write(descriptor, content)
 
         if written != len(content):
-            raise DiagnosticOutputRefused(f"Cannot finish stderr diagnostic output: wrote {written} of {len(content)} bytes.")
+            raise DiagnosticOutputRefused(f"Cannot finish stderr diagnostic output: wrote {written=} of {len(content)=} bytes.")
     finally:
         os.set_blocking(descriptor, blocking)
 

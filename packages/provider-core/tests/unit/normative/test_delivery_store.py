@@ -94,8 +94,8 @@ class DeliveryQueueTests(unittest.TestCase):
         pending = outcome(suffix="1")
         other = outcome(provider="provider:other", suffix="2")
 
-        for item in (held, pending, other):
-            queue.enqueue(item)
+        for delivery_outcome in (held, pending, other):
+            queue.enqueue(delivery_outcome)
 
         queue.hold(held, "The API refused this outcome; operator reconciliation is required.")
         queue.hold(other, "Another binding owns this held request.")

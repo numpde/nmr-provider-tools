@@ -73,21 +73,21 @@ def owned_relationships(error):
 
     if kind is InterpretationFailed:
         for (visit, cause) in error.failures:
-            yield (f"interpreter model {visit} failure", cause)
+            yield (f"interpreter model {visit = } failure", cause)
 
         for (visit, turn, cause) in error.correction_failures:
-            yield (f"interpreter model {visit} turn {turn} correction failure", cause)
+            yield (f"interpreter model {visit = } turn {turn = } correction failure", cause)
 
     if kind is ConversationRetirementFailed:
         for (endpoint_index, cause) in error.failures:
-            yield (f"interpreter endpoint {endpoint_index} cleanup", cause)
+            yield (f"interpreter endpoint {endpoint_index = } cleanup", cause)
 
     if kind in (ConversationFailed, ConversationRetirementFailed):
         for (endpoint_index, cause) in error.endpoint_failures:
-            yield (f"interpreter endpoint {endpoint_index} failure", cause)
+            yield (f"interpreter endpoint {endpoint_index = } failure", cause)
 
         for (turn_index, cause) in error.correction_failures:
-            yield (f"interpreter turn {turn_index} correction failure", cause)
+            yield (f"interpreter turn {turn_index = } correction failure", cause)
 
     if kind in (
         CredentialRejected,
@@ -275,7 +275,7 @@ def owned_details(error):
             attempt_mutation_may_have_committed=error.attempt_mutation_may_have_committed,
         )
 
-    if kind is ExecutionFailed and type(error.attempt) is AcknowledgedAttempt:
+    if (kind is ExecutionFailed) and (type(error.attempt) is AcknowledgedAttempt):
         details.update(
             job_ref=error.attempt.admission.job_ref,
             execution_attempt_ref=error.attempt.admission.execution_attempt_ref,
@@ -316,13 +316,13 @@ def owned_details(error):
 
         head = error.response
 
-        if head is None and type(error.cause) is ExchangeFailed:
+        if (head is None) and (type(error.cause) is ExchangeFailed):
             head = error.cause.response_head
 
         if head is not None:
             details.update(status=head.status, request_id=_diagnostic_request_id(head.headers))
 
-    if kind is ExchangeFailed and type(error.network_io) is NetworkIOObservation:
+    if (kind is ExchangeFailed) and (type(error.network_io) is NetworkIOObservation):
         details["network_io_stage"] = error.network_io.stage
         details["network_io_eof"] = error.network_io.eof
         details["network_io_deadline_cancelled"] = error.network_io.deadline_cancelled
@@ -333,7 +333,7 @@ def owned_details(error):
     if (kind is ExchangeFailed) and (error.proxy_connect_status is not None):
         details["proxy_connect_status"] = error.proxy_connect_status
 
-    if kind is ExchangeFailed and type(error.process) is ChatProcessResult:
+    if (kind is ExchangeFailed) and (type(error.process) is ChatProcessResult):
         # silent-defaults: allow-contract -- No sent signal has no last-signal identity; retain that absence alongside its zero count.
         details.update(
             model_http_pid=error.process.pid,

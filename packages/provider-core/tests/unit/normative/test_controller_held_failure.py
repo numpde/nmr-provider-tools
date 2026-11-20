@@ -198,7 +198,7 @@ class HeldFailureTests(unittest.IsolatedAsyncioTestCase):
             self.assertIn("retain this Attempt", rendered)
             runs.append((controller, selected, failure, transport))
 
-        self.assertEqual(set(claims.live_owners()), {run[0] for run in runs})
+        self.assertEqual(set(claims.live_owners()), {held_run[0] for held_run in runs})
 
         with self.assertRaises(LiveCapacityFull):
             claims.claim_live(pending("c"), lifecycle_owner=LiveAttemptProbe())
@@ -637,18 +637,18 @@ class HeldFailureTests(unittest.IsolatedAsyncioTestCase):
         failure = await self.failed_run(controller, selected)
         execution = failure.cause
 
-        for (field, value) in (
+        for (failure_attribute, replacement_failure) in (
             ("api_failure", ApiFailure("unrelated write", "unconfirmed")),
             ("interruption_cause", asyncio.CancelledError("real interruption"))
         ):
-            original = getattr(execution, field)
+            original = getattr(execution, failure_attribute)
 
-            setattr(execution, field, value)
+            setattr(execution, failure_attribute, replacement_failure)
 
             try:
                 self.assert_original_raised(controller, selected, failure)
             finally:
-                setattr(execution, field, original)
+                setattr(execution, failure_attribute, original)
 
         executor = controller.operation
         executor._outcome = session.outcome

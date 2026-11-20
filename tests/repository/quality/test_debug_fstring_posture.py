@@ -71,14 +71,14 @@ def _interpolation_findings(*, source_path: pathlib.Path, source: str, joined: a
     return [
         _Finding(
             source_path=source_path,
-            line=value.value.lineno,
-            expression=ast.unparse(ast_obj=value.value),
+            line=formatted_value.value.lineno,
+            expression=ast.unparse(ast_obj=formatted_value.value),
             shape="interpolation without debug syntax",
         )
-        for value in joined.values
+        for formatted_value in joined.values
         if
-        isinstance(value, ast.FormattedValue) and
-        (not _is_debug_expression(source=source, formatted=value))
+        isinstance(formatted_value, ast.FormattedValue) and
+        (not _is_debug_expression(source=source, formatted=formatted_value))
     ]
 
 
@@ -175,7 +175,7 @@ def _findings(*, source_path: pathlib.Path, source: str) -> list[_Finding]:
     (exempt_literals, findings) = _machine_string_exemptions(source_path=source_path, source=source, literals=literals)
 
     for node in ast.walk(node=tree):
-        if node in exempt_literals or (isinstance(node, ast.Constant) and parents.get(node) in exempt_literals):
+        if (node in exempt_literals) or (isinstance(node, ast.Constant) and (parents.get(node) in exempt_literals)):
             continue
 
         if (isinstance(node, ast.JoinedStr)) and (id(node) not in format_specs):
@@ -236,7 +236,7 @@ class DebugFstringPostureTests(unittest.TestCase):
                 findings = _findings(source_path=pathlib.Path("example.py"), source=f"message = {expression}\n")
 
                 self.assertTrue(expr=findings)
-                self.assertTrue(expr=all(finding.shape == "interpolation without debug syntax" for finding in findings))
+                self.assertTrue(expr=all((finding.shape == "interpolation without debug syntax") for finding in findings))
 
     def test_debug_marker_is_independent_of_spacing_conversion_and_format(self) -> None:
         expressions = (

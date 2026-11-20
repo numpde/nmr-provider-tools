@@ -13,6 +13,8 @@ import builtins
 import pathlib
 import unittest
 
+from operations.checker.findings import assert_no_findings
+
 from .sources import ROOT, python_sources
 
 
@@ -21,7 +23,7 @@ def _module_name(source_path: pathlib.Path) -> str:
 
     if parts[0] == "src":
         parts = parts[1:]
-    elif parts[0] in {"packages", "examples", "mocks"} and parts[2:3] == ("src",):
+    elif (parts[0] in {"packages", "examples", "mocks"}) and (parts[2:3] == ("src",)):
         parts = parts[3:]
     elif parts[:3] == ("packages", "provider-core", "tests"):
         parts = parts[2:]
@@ -67,7 +69,7 @@ def _aliases(module: ast.Module, source_path: pathlib.Path) -> dict[str, str]:
 
 def _method(declaration: ast.ClassDef, method_name: str) -> ast.FunctionDef | None:
     return next(
-        (method for method in declaration.body if isinstance(method, ast.FunctionDef) and method.name == method_name),
+        (method for method in declaration.body if isinstance(method, ast.FunctionDef) and (method.name == method_name)),
         None,
     )
 
@@ -83,7 +85,7 @@ def _lowercases_member_name(generator: ast.FunctionDef | None) -> bool:
 
     returns = [statement.value for statement in generator.body if isinstance(statement, ast.Return)]
 
-    return len(returns) == 1 and ast.unparse(returns[0]) == f"{parameters[0].arg}.lower()"
+    return (len(returns) == 1) and (ast.unparse(returns[0]) == f"{parameters[0].arg}.lower()")
 
 
 def _constructor_parameters(declaration: ast.ClassDef) -> tuple[tuple[ast.arg, ...], tuple[ast.arg, ...]] | None:
@@ -134,7 +136,7 @@ def _exception_parameters(
 
 def _nested_code(declaration: ast.ClassDef) -> ast.ClassDef | None:
     return next(
-        (member for member in declaration.body if isinstance(member, ast.ClassDef) and member.name == "Code"),
+        (member for member in declaration.body if isinstance(member, ast.ClassDef) and (member.name == "Code")),
         None,
     )
 
@@ -176,7 +178,7 @@ def error_code_findings(*, sources: dict[pathlib.Path, str]) -> list[tuple[pathl
 
         if (
             (bases == ["enum.Enum"]) and
-            (not any(initializer is not None for (_, initializer) in _class_assignments(declaration))) and
+            (not any((initializer is not None) for (_, initializer) in _class_assignments(declaration))) and
             _lowercases_member_name(_method(declaration, "_generate_next_value_"))
         ):
             error_code_parents.add(qualified_name)
@@ -190,9 +192,9 @@ def error_code_findings(*, sources: dict[pathlib.Path, str]) -> list[tuple[pathl
         own_parameters = _constructor_parameters(declaration)
         code_enum = _nested_code(declaration)
         class_codes = [(target, initializer) for (target, initializer) in _class_assignments(declaration) if target.id in code_arguments]
-        accepts_code = any(parameter.arg in code_arguments for parameter in (*positional, *keyword_only))
+        accepts_code = any((parameter.arg in code_arguments) for parameter in (*positional, *keyword_only))
 
-        if (own_parameters is not None) and (len(positional) > 1 or any(parameter.arg in code_arguments for parameter in positional)):
+        if (own_parameters is not None) and ((len(positional) > 1) or any((parameter.arg in code_arguments) for parameter in positional)):
             constructor = _method(declaration, "__init__")
 
             findings.append((source_path, constructor.lineno, "custom exception constructors take at most one positional message"))
@@ -262,7 +264,7 @@ def error_code_findings(*, sources: dict[pathlib.Path, str]) -> list[tuple[pathl
             (positional, _) = exception_parameters[qualified_name]
             positional_codes = [argument for (parameter, argument) in zip(positional, call.args) if parameter.arg in code_arguments]
 
-            if len(call.args) > 1 or positional_codes:
+            if (len(call.args) > 1) or positional_codes:
                 findings.append((source_path, call.lineno, "pass custom exception context by keyword after the message"))
 
             supplied_codes = [keyword.value for keyword in call.keywords if keyword.arg in code_arguments]
@@ -441,4 +443,4 @@ raise ChildRejected("Explain the failure", code=Rejected.Code.INVALID_INPUT)
 
         diagnostics = [f"{source_path}:{line}: {reason}" for (source_path, line, reason) in findings]
 
-        self.assertEqual(first=[], second=diagnostics, msg="\n".join(diagnostics))
+        assert_no_findings(diagnostics)

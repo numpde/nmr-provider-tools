@@ -161,9 +161,9 @@ class DeploymentBindingTests(unittest.TestCase):
         read.assert_not_called()
 
     def test_wrong_interface_type_is_refused_at_the_definition_boundary(self):
-        for value in ("42", "[]", "true"):
-            with self.subTest(value=value):
-                raw = definition(1).replace(b'interface = "lo"', f"interface = {value}".encode())
+        for interface_value in ("42", "[]", "true"):
+            with self.subTest(value=interface_value):
+                raw = definition(1).replace(b'interface = "lo"', f"interface = {interface_value}".encode())
 
                 with self.assertRaisesRegex(BindingDefinitionRejected, "interface"):
                     parse_deployment_bindings(raw)
@@ -172,16 +172,16 @@ class DeploymentBindingTests(unittest.TestCase):
         with self.assertRaisesRegex(BindingDefinitionRejected, "same API/provider"):
             parse_deployment_bindings(definition(2).replace(b"provider:fixture-1", b"provider:fixture-0"))
 
-        with self.assertRaisesRegex(BindingDefinitionRejected, "documented fields"):
+        with self.assertRaises(BindingDefinitionRejected):
             parse_deployment_bindings(b"model = 'must remain provider-owned'\n" + definition(1))
 
         with self.assertRaisesRegex(BindingDefinitionRejected, "absent"):
             parse_deployment_bindings(definition(1)).selected("missing")
 
     def test_socket_grant_requires_a_leaf_in_a_dedicated_nonroot_parent(self):
-        for path in ("/", "/delivery.sock", "//delivery.sock"):
-            with self.subTest(path=path):
-                raw = definition(1).replace(b'"/run/delivery/delivery.sock"', ('"' + path + '"').encode())
+        for socket_path in ("/", "/delivery.sock", "//delivery.sock"):
+            with self.subTest(path=socket_path):
+                raw = definition(1).replace(b'"/run/delivery/delivery.sock"', ('"' + socket_path + '"').encode())
 
                 with self.assertRaises(BindingDefinitionRejected):
                     parse_deployment_bindings(raw)

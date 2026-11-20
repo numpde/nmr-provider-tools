@@ -76,10 +76,10 @@ def is_skipped(source_path):
 def _is_skipped_relative(*, repo_relative_path: pathlib.Path) -> bool:
     parts = repo_relative_path.parts
 
-    if parts and parts[0] in {"release-artifacts", "bootstrap"}:
+    if parts and (parts[0] in {"release-artifacts", "bootstrap"}):
         return True
 
-    return any(part in SKIP_DIRS for part in parts)
+    return any((part in SKIP_DIRS) for part in parts)
 
 
 def is_python_source(*, source_path: pathlib.Path) -> bool:
@@ -135,5 +135,5 @@ def iter_repo_text_files():
     return sorted(
         source_path
         for source_path in source_files(root=ROOT, patterns=("**/*",))
-        if source_path.suffix in suffixes or source_path.name in names or is_python_source(source_path=source_path)
+        if (source_path.suffix in suffixes) or (source_path.name in names) or is_python_source(source_path=source_path)
     )

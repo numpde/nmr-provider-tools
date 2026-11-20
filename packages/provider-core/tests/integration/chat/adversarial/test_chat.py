@@ -46,7 +46,7 @@ class ChatCarrierRejectionTests(unittest.IsolatedAsyncioTestCase):
 
             self.assertIn(
                 (b"x-request-id", b"fixture-request"),
-                [(name.lower(), value) for (name, value) in failure.cause.response_head.headers]
+                [(header_name.lower(), header_value) for (header_name, header_value) in failure.cause.response_head.headers]
             )
 
             self.assertTrue(endpoint.retirement_confirmed)
@@ -259,9 +259,10 @@ class ChatCarrierRejectionTests(unittest.IsolatedAsyncioTestCase):
             response_bytes=4096
         )
 
-        with self.assertRaisesRegex(ChatFailed, "request.*byte limit"):
+        with self.assertRaises(ChatFailed) as caught:
             await endpoint.complete([{"role": "user", "content": "PRIVATE_SOURCE" * 100}], [])
 
+        self.assertEqual("request_limit", caught.exception.reason)
         transport.exchange_decoded.assert_not_awaited()
 
     async def _malformed_reply_failures(self):
@@ -384,7 +385,7 @@ class ChatCarrierRejectionTests(unittest.IsolatedAsyncioTestCase):
         self.assertIs(retired.exception.cause, failure)
 
     async def test_lost_reply_does_not_repeat_the_potentially_billed_post(self):
-        async def lose_reply(_request, _body):
+        async def lose_reply(_request_head, _body):
             return None
 
         async with TlsPeer("success", response_factory=lose_reply) as peer:

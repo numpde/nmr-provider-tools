@@ -24,10 +24,10 @@ class HelloTests(unittest.IsolatedAsyncioTestCase):
         )
 
         first = announcement(analysis_offerings=(AnalysisOffering("second_kind", "Two"), AnalysisOffering("first_kind", "One")))
-        result = await api.publish_hello(**first)
+        publication_receipt = await api.publish_hello(**first)
 
         self.assertEqual(
-            (result.provider_ref, result.accepted_at),
+            (publication_receipt.provider_ref, publication_receipt.accepted_at),
             ("provider:example", datetime(2026, 10, 20, 10, 0, 0, 123456, UTC))
         )
 

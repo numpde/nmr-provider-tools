@@ -76,27 +76,28 @@ class _Cancellation:
             raise asyncio.CancelledError("Interpreter HTTP owner stopped the original exchange")
 
 
-def _request(document):
-    require_type(document, dict)
+def _decode_http_request(request_message):
+    require_type(request_message, dict)
 
-    if document.keys() != _REQUEST_FIELDS:
+    if request_message.keys() != _REQUEST_FIELDS:
         raise ValueError("Interpreter child request has an unknown schema")
 
-    document_version = document["version"]
+    document_version = request_message["version"]
+
     require_type(document_version, int)
 
-    if document["version"] != 1 or document["kind"] != "request":
+    if (request_message["version"] != 1) or (request_message["kind"] != "request"):
         raise ValueError("Interpreter child request has an unknown schema")
 
     for field in ("method", "url"):
-        value = document[field]
+        request_field_text = request_message[field]
 
-        require_type(value, str)
+        require_type(request_field_text, str)
 
-        if not (0 < len(value) <= METADATA_BYTES):
+        if not (0 < len(request_field_text) <= METADATA_BYTES):
             raise ValueError("Interpreter child request metadata exceeds its admitted limit")
 
-    pairs = document["headers"]
+    pairs = request_message["headers"]
 
     require_type(pairs, list)
 
@@ -114,48 +115,48 @@ def _request(document):
 
         name = decoded_bytes(pair[0], remaining)
         remaining -= len(name)
-        value = decoded_bytes(pair[1], remaining)
-        remaining -= len(value)
+        header_value = decoded_bytes(pair[1], remaining)
+        remaining -= len(header_value)
 
-        headers.append((name, value))
+        headers.append((name, header_value))
 
-    limit = document["request_bytes"]
+    expected_request_bytes = request_message["request_bytes"]
 
-    require_type(limit, int)
+    require_type(expected_request_bytes, int)
 
-    if not (0 <= limit):
-        raise ValueError("Interpreter child request byte allowance is invalid")
+    if not (0 <= expected_request_bytes):
+        raise ValueError(f"{expected_request_bytes=} should be nonnegative")
 
-    body = decoded_bytes(document["body"], limit)
+    body = decoded_bytes(request_message["body"], expected_request_bytes)
 
-    if len(body) != limit:
-        raise ValueError("Interpreter child did not receive the complete admitted request")
+    if len(body) != expected_request_bytes:
+        raise ValueError(f"{len(body)=} should match {expected_request_bytes=}")
 
     for field in ("exchange_seconds", "connect_seconds", "retirement_seconds", "not_after"):
-        require_positive_number(document[field])
+        require_positive_number(request_message[field])
 
-    require_decoded_limit(document["maximum_bytes"])
-    require_decoded_limit(document["error_maximum_bytes"])
+    require_decoded_limit(request_message["maximum_bytes"])
+    require_decoded_limit(request_message["error_maximum_bytes"])
 
-    return httpx.Request(document["method"], document["url"], headers=headers, content=body)
+    return httpx.Request(request_message["method"], request_message["url"], headers=headers, content=body)
 
 
-async def _exchange(document, cancellation):
+async def _exchange(request_message, cancellation):
     cancellation.task = asyncio.current_task()
     owner = object()
     transport = None
 
     try:
         cancellation.check()
-        request = _request(document)
-        trust = restore_trust(document["trust"], directory=document["trust_directory"])
+        http_request = _decode_http_request(request_message)
+        trust = restore_trust(request_message["trust"], directory=request_message["trust_directory"])
 
         transport = HttpTransport(
             trust=trust,
-            exchange_seconds=document["exchange_seconds"],
-            connect_seconds=document["connect_seconds"],
-            retirement_seconds=document["retirement_seconds"],
-            proxy_socket=document["proxy_socket"],
+            exchange_seconds=request_message["exchange_seconds"],
+            connect_seconds=request_message["connect_seconds"],
+            retirement_seconds=request_message["retirement_seconds"],
+            proxy_socket=request_message["proxy_socket"],
         )
 
         cancellation.check()
@@ -163,12 +164,12 @@ async def _exchange(document, cancellation):
         # This is the parent's unchanged monotonic deadline. Construction and
         # trust restoration consume it; neither can grant a new exchange budget.
         response = await transport.exchange_decoded(
-            request,
-            maximum_bytes=document["maximum_bytes"],
-            error_maximum_bytes=document["error_maximum_bytes"],
+            http_request,
+            maximum_bytes=request_message["maximum_bytes"],
+            error_maximum_bytes=request_message["error_maximum_bytes"],
             success_status=COMPLETION_SUCCESS_STATUS,
             owner=owner,
-            not_after=document["not_after"],
+            not_after=request_message["not_after"],
         )
     except (KeyboardInterrupt, SystemExit):
         raise
@@ -216,14 +217,14 @@ def main(argv=None):
         if (not arguments) or (not arguments[-1].isascii()) or (not arguments[-1].isdecimal()):
             return 1
 
-        maximum = int(arguments[-1])
+        max_request_message_bytes = int(arguments[-1])
 
-        if not 0 < maximum <= 0xffffffff:
+        if not 0 < max_request_message_bytes <= 0xffffffff:
             return 1
 
-        document = read_request(sys.stdin.buffer, maximum)
+        request_message = read_request(sys.stdin.buffer, max_request_message_bytes)
 
-        asyncio.run(_exchange(document, cancellation))
+        asyncio.run(_exchange(request_message, cancellation))
     # silent-defaults: allow-exception-outcome -- A failed child exits unsuccessfully; the parent must reject a missing or partial reply and observe process retirement.
     except BaseException:
         # Missing/partial replies and nonzero exit are supervised by the parent.

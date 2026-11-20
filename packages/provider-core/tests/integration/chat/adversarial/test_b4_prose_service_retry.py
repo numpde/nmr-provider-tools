@@ -22,7 +22,7 @@ class ProseServiceRetryTests(unittest.IsolatedAsyncioTestCase):
         unavailable_reply_sent = asyncio.Event()
         (requests, tool_calls, interpreters) = ([], [], [])
 
-        async def response(_request, body):
+        async def response(_request_head, body):
             job = json.loads(body)["messages"][0]["content"]
 
             requests.append({"job": job, "at": loop.time(), "available": restored.is_set()})
@@ -90,8 +90,8 @@ class ProseServiceRetryTests(unittest.IsolatedAsyncioTestCase):
 
                 interpreters.append(interpreter)
 
-                async def prepare(name, arguments, *, not_after):
-                    if name != "prepare_scientific_input" or arguments:
+                async def dispatch_preparation(name, arguments, *, not_after):
+                    if (name != "prepare_scientific_input") or arguments:
                         raise AssertionError("The test prose service proposed an unexpected scientific operation")
 
                     tool_calls.append(job)
@@ -109,7 +109,7 @@ class ProseServiceRetryTests(unittest.IsolatedAsyncioTestCase):
                 ]
 
                 try:
-                    return (await interpreter.run([{"role": "user", "content": job}], tools, prepare)).value
+                    return (await interpreter.run([{"role": "user", "content": job}], tools, dispatch_preparation)).value
                 finally:
                     await interpreter.retire()
 
@@ -124,14 +124,14 @@ class ProseServiceRetryTests(unittest.IsolatedAsyncioTestCase):
                     if job == "job:b4-first":
                         self.assertEqual(
                             ["job:b4-first"],
-                            [request["job"] for request in requests],
+                            [exchange_record["job"] for exchange_record in requests],
                             msg="The first Job's deadline elapsed before the local HTTPS "
                             "service could supply Retry-After; no cross-Job delay "
                             "was actually established: " + json.dumps(requests),
                         )
 
                 try:
-                    result = await interpret("job:b4-third", 5)
+                    interpreted_job_ref = await interpret("job:b4-third", 5)
                 except InterpretationFailed as failure:
                     raise AssertionError(
                         "The restored service did not complete the third Job inside "
@@ -147,7 +147,7 @@ class ProseServiceRetryTests(unittest.IsolatedAsyncioTestCase):
 
                 evidence = json.dumps(requests, sort_keys=True)
 
-                self.assertEqual("job:b4-third", result, msg=evidence)
+                self.assertEqual("job:b4-third", interpreted_job_ref, msg=evidence)
                 self.assertEqual(["job:b4-third"], tool_calls, msg=evidence)
                 self.assertTrue(all(owner.retirement_confirmed for owner in interpreters), msg=evidence)
                 self.assertFalse(any(not task.done() for task in peer.handlers), msg=evidence)
@@ -160,7 +160,7 @@ class ProseServiceRetryTests(unittest.IsolatedAsyncioTestCase):
 
                 self.assertEqual(
                     ["job:b4-first", "job:b4-third"],
-                    [request["job"] for request in requests],
+                    [exchange_record["job"] for exchange_record in requests],
                     msg=evidence
                 )
             finally:

@@ -34,12 +34,12 @@ CLEANUP_SECONDS = 0.3
 RECOVERY_SECONDS = 7.0
 
 
-def _event(path, kind, **facts):
-    document = {"kind": kind, "pid": os.getpid(), "at": time.monotonic(), **facts}
-    descriptor = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_APPEND, 0o600)
+def _event(event_log_path, kind, **facts):
+    event_record = {"kind": kind, "pid": os.getpid(), "at": time.monotonic(), **facts}
+    descriptor = os.open(event_log_path, os.O_WRONLY | os.O_CREAT | os.O_APPEND, 0o600)
 
     try:
-        os.write(descriptor, json.dumps(document).encode() + b"\n")
+        os.write(descriptor, json.dumps(event_record).encode() + b"\n")
     finally:
         os.close(descriptor)
 
@@ -57,16 +57,16 @@ def install_fault(stack, path):
     active = ContextVar("test_model_cleanup_fault", default=None)
     (perform, read, close) = (HttpTransport._perform, _OwnedStream.read, _OwnedStream.aclose)
 
-    async def marked_perform(self, request, *args, **kwargs):
+    async def marked_perform(self, http_request, *args, **kwargs):
         state = None
 
-        if request.url.path == "/hang":
+        if http_request.url.path == "/hang":
             state = {"cancelled": False, "engaged": False}
 
         token = active.set(state)
 
         try:
-            return await perform(self, request, *args, **kwargs)
+            return await perform(self, http_request, *args, **kwargs)
         finally:
             active.reset(token)
 
@@ -127,8 +127,8 @@ def warm_worker():
     handles = set()
 
     for line in sys.stdin:
-        request = json.loads(line)
-        (operation, job) = (request["operation"], request.get("job"))
+        worker_command = json.loads(line)
+        (operation, job) = (worker_command["operation"], worker_command.get("job"))
 
         if operation == "prepare":
             if job in handles:
@@ -186,7 +186,7 @@ def _failure_types(error):
     types = set()
 
     def visit(current):
-        if current is None or id(current) in seen:
+        if (current is None) or (id(current) in seen):
             return
 
         seen.add(id(current))
@@ -232,12 +232,12 @@ async def scenario(marker, report):
 
         async def exchange(self, request, *, maximum_bytes, owner=None):
             self.calls.append((request, maximum_bytes))
-            path = request.url.path
+            request_path = request.url.path
 
-            if path.endswith("/start"):
+            if request_path.endswith("/start"):
                 return reply(start_response(job_ref=self.job, execution_attempt_ref=self.reference))
 
-            if path.endswith("/progress"):
+            if request_path.endswith("/progress"):
                 sent = json.loads(request.content)
 
                 return reply(
@@ -290,7 +290,7 @@ async def scenario(marker, report):
                 raise AssertionError("Fixture preparation changed its original input")
 
             async def dispatch(name, arguments, *, not_after):
-                if name != "prepare" or arguments:
+                if (name != "prepare") or arguments:
                     raise AssertionError("Unexpected model tool")
 
                 report_condition.require_execution()
@@ -312,7 +312,7 @@ async def scenario(marker, report):
             ]
 
             try:
-                result = await self.interpreter.run([], tools, dispatch)
+                interpretation_result = await self.interpreter.run([], tools, dispatch)
             except InterpretationFailed as failure:
                 self.failure = failure
 
@@ -326,7 +326,7 @@ async def scenario(marker, report):
 
                 raise
             else:
-                return result.value
+                return interpretation_result.value
 
             return failed
 
@@ -336,12 +336,12 @@ async def scenario(marker, report):
 
             report_condition.require_execution()
             self.execute_calls += 1
-            result = await self.worker.call("execute", self.job)
+            worker_snapshot = await self.worker.call("execute", self.job)
             self.handle = None
 
             return AnalysisSuccess(
                 "fixture.result.v1",
-                json.dumps(result).encode(),
+                json.dumps(worker_snapshot).encode(),
                 ProtectedEvidence("fixture.result.evidence.v1", b"one fixture execution")
             )
 
@@ -367,13 +367,13 @@ async def scenario(marker, report):
     timing = {}
     lane_failure = None
 
-    def response_mode(request, body):
-        path = request.split(b" ")[1].decode()
+    def response_mode(request_head, body):
+        request_path = request_head.split(b" ")[1].decode()
 
-        paths.append(path)
+        paths.append(request_path)
 
         # silent-defaults: allow-contract -- Only the designated hung request stalls; the surrounding Jobs exercise the same healthy endpoint.
-        return "headers-stall" if path == "/hang" else "success"
+        return "headers-stall" if request_path == "/hang" else "success"
 
     body = (
         json
@@ -498,7 +498,7 @@ async def scenario(marker, report):
             for session in sessions:
                 failures.update(_failure_types(session.failure))
 
-            result = {
+            scenario_report = {
                 "provider_pid": os.getpid(),
                 "started_jobs": started,
                 "finished_jobs": finished,
@@ -514,12 +514,12 @@ async def scenario(marker, report):
                 "tool_calls": sum(session.tool_calls for session in sessions),
                 "claim_count": len(claims.live_owners()),
                 "failure_types": sorted(failures),
-                "deliveries": [item.operation.value for controller in controllers for item in controller.delivery.items],
+                "deliveries": [delivery_outcome.operation.value for controller in controllers for delivery_outcome in controller.delivery.items],
                 "fault": {
-                    "read_cancelled": any(event["kind"] == "read_cancelled" for event in events),
+                    "read_cancelled": any((event["kind"] == "read_cancelled") for event in events),
                     "cleanup_engaged": bool(engaged),
                     "pid": fault_pid,
-                    "term_ignored": any(event["kind"] == "term_ignored" for event in events),
+                    "term_ignored": any((event["kind"] == "term_ignored") for event in events),
                     "owner_still_alive": alive
                 },
             }
@@ -529,7 +529,7 @@ async def scenario(marker, report):
             # teardown into an apparent successful recovery.
             temporary = report.with_suffix(".pending")
 
-            temporary.write_text(json.dumps(result, sort_keys=True))
+            temporary.write_text(json.dumps(scenario_report, sort_keys=True))
             temporary.replace(report)
             await asyncio.Event().wait()
 

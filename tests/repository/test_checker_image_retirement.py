@@ -10,7 +10,7 @@ import sys
 import tempfile
 import unittest
 
-from operations.docker.image_retirement import RetirementRefused, retire, select_images, retained_image_ids
+from operations.docker.image_retirement import RetirementRefused, capture_command_output, retire, select_images, retained_image_ids
 
 
 CURRENT = ("a" * 64, "b" * 64, "f" * 64)
@@ -19,7 +19,7 @@ IDENTIFIER = "sha256:" + "d" * 64
 
 
 def image(**changes):
-    value = {
+    image_metadata = {
         "Id": IDENTIFIER,
         "Labels": {"org.nmr-provider-tools.inputs": OLD},
         "RepoTags": ["nmr-provider-tools/checker:" + OLD],
@@ -27,7 +27,7 @@ def image(**changes):
         "Created": "2020-01-01T00:00:00Z"
     }
 
-    return value | changes
+    return image_metadata | changes
 
 
 class Engine:
@@ -56,15 +56,15 @@ class Engine:
 
         if arguments[:2] == ("image", "inspect"):
             self.inspections += 1
-            value = deepcopy(self.value)
+            image_metadata = deepcopy(self.value)
 
-            if self.changed and self.inspections > 1:
-                value["RepoTags"] = ["somebody-else/retained:latest"]
+            if self.changed and (self.inspections > 1):
+                image_metadata["RepoTags"] = ["somebody-else/retained:latest"]
 
             if self.malformed:
                 return "{broken"
 
-            return json.dumps(value) + "\n"
+            return json.dumps(image_metadata) + "\n"
 
         if arguments == ("image", "rm", "--no-prune", IDENTIFIER):
             return ""
@@ -77,6 +77,20 @@ class Engine:
 
 
 class ImageRetirementTests(unittest.TestCase):
+    def test_failed_client_preserves_its_stderr(self):
+        with self.assertRaises(RetirementRefused) as caught:
+            capture_command_output(
+                [
+                    sys.executable,  # Use the checker's installed interpreter
+                    "-I",  # Ignore ambient Python configuration
+                    "-B",  # Keep the checkout free of bytecode caches
+                    "-c",  # Run one failing client without selecting an engine
+                    "raise SystemExit('authored image inspection failure')",  # Produce the native client's diagnostic
+                ],
+            )
+
+        self.assertIn("authored image inspection failure", str(caught.exception))
+
     def test_isolated_cli_can_refuse_before_selecting_an_engine(self):
         script = pathlib.Path(__file__).resolve().parents[2] / "operations/docker/image_retirement.py"
 
@@ -140,7 +154,7 @@ class ImageRetirementTests(unittest.TestCase):
         original = engine.__call__
 
         def borrowed_later(*arguments):
-            if "--filter" in arguments and arguments[-1].startswith("ancestor="):
+            if ("--filter" in arguments) and arguments[-1].startswith("ancestor="):
                 return "2" * 64 + "\n"
 
             return original(*arguments)
@@ -170,9 +184,9 @@ class ImageRetirementTests(unittest.TestCase):
             image(Labels={}, RepoTags=["nmr-provider-tools/wheelhouse-tool:local"]),
         ]
 
-        for value in cases:
-            with self.subTest(value=value):
-                self.assertEqual([], select_images([value], set(), CURRENT))
+        for image_case in cases:
+            with self.subTest(value=image_case):
+                self.assertEqual([], select_images([image_case], set(), CURRENT))
 
         self.assertEqual(
             select_images(

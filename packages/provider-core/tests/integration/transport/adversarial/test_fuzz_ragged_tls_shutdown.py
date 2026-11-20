@@ -15,17 +15,17 @@ class GeneratedTruncationTests(unittest.TestCase):
     async def assert_rejected(self, wire, tunnel, *, decoded):
         async with ShutdownPeer([wire], tunnel=tunnel) as peer:
             with self.assertRaises(ExchangeFailed) as caught:
-                request = httpx.Request("GET", peer.origin)
+                http_request = httpx.Request("GET", peer.origin)
 
                 if decoded:
-                    await peer.transport.exchange_decoded(request, maximum_bytes=512, error_maximum_bytes=512)
+                    await peer.transport.exchange_decoded(http_request, maximum_bytes=512, error_maximum_bytes=512)
                 else:
-                    await peer.transport.exchange(request, maximum_bytes=512)
+                    await peer.transport.exchange(http_request, maximum_bytes=512)
 
             self.assertIsNotNone(caught.exception.primary)
             self.assertTrue(peer.transport.retirement_confirmed)
             self.assertGreater(peer.raw_close_successes, 0)
-            self.assertTrue(all(sock.fileno() == -1 for sock in peer.raw_sockets))
+            self.assertTrue(all((sock.fileno() == -1) for sock in peer.raw_sockets))
             self.assertEqual(1, len(peer.requests))
 
     @settings(max_examples=32, deadline=None, database=None)

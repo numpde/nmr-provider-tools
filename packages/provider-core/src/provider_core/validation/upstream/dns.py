@@ -41,8 +41,8 @@ def read_dns_labels(hostname: str) -> list[bytes]:
 
     (min_label_bytes, max_label_bytes) = (1, 63)
 
-    for label in labels:
-        label_byte_count = len(label)
+    for dns_label in labels:
+        label_byte_count = len(dns_label)
 
         if not (min_label_bytes <= label_byte_count <= max_label_bytes):
             raise ValueError(f"{label_byte_count=} should be between {min_label_bytes=} and {max_label_bytes=}")
@@ -77,7 +77,7 @@ def read_dns_name(
 
         size = message[offset]
 
-        if size & 0xC0 == 0xC0:
+        if (size & 0xC0) == 0xC0:
             pointer_end = offset + 2
 
             if not (pointer_end <= message_byte_count):
@@ -89,7 +89,7 @@ def read_dns_name(
             if suffix:
                 labels.extend(part.encode("ascii") for part in suffix.split("."))
 
-            next_offset = next_offset or offset + 2
+            next_offset = next_offset or (offset + 2)
 
             break
 
@@ -147,7 +147,7 @@ def read_ipv4_response(
     if not (flags & 0x8000):
         raise DNSResponseRejected(f"{flags=:#06x} should mark a response")
 
-    if not (flags & 0x0200 == 0):
+    if not ((flags & 0x0200) == 0):
         raise DNSResponseRejected(f"{flags=:#06x} should not mark a truncated response")
 
     if not ((rcode := flags & 0x000F) == 0):
@@ -192,10 +192,10 @@ def read_ipv4_response(
         if not (record_end <= response_byte_count):
             raise DNSResponseRejected(f"{record_end=} should be at most {response_byte_count=}")
 
-        if record_class == 1 and record_type == 1 and size == 4:
+        if (record_class == 1) and (record_type == 1) and (size == 4):
             # silent-defaults: allow-contract -- Owner buckets contain only received A records; no absent owner is invented.
             addresses.setdefault(owner, []).append(socket.inet_ntoa(response[offset:record_end]))
-        elif record_class == 1 and record_type == 5:
+        elif (record_class == 1) and (record_type == 5):
             (aliases[owner], _) = read_dns_name(response, offset, max_pointer_depth=max_pointer_depth)
 
         offset = record_end

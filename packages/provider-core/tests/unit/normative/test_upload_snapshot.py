@@ -70,10 +70,10 @@ class UploadSnapshotTests(unittest.IsolatedAsyncioTestCase):
                 return chunk
 
             with patch("provider_core.uploads.os.read", side_effect=observe):
-                result = read_upload_file(receipt, directory_fd=directory, maximum_bytes=max(1, len(content)))
+                upload_snapshot = read_upload_file(receipt, directory_fd=directory, maximum_bytes=max(1, len(content)))
 
-            self.assertEqual(result.data, content)
-            self.assertTrue(all(0 < count <= 65536 for count in requested))
+            self.assertEqual(upload_snapshot.data, content)
+            self.assertTrue(all((0 < count <= 65536) for count in requested))
             self.assertLessEqual(sum(received), len(content) + 1)
             self.assertEqual(received[-1], 0)
 

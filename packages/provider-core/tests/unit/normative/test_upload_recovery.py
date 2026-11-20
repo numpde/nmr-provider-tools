@@ -120,8 +120,8 @@ class UploadRecoveryTests(unittest.IsolatedAsyncioTestCase):
         self.assertIs(owner.recovery_failure, caught.exception)
 
     async def test_retry_verifies_same_source_after_exact_retirement_on_both_paths(self):
-        for file in (False, True):
-            with self.subTest(file=file), private_source_directory() as (root, directory):
+        for file_output in (False, True):
+            with self.subTest(file=file_output), private_source_directory() as (root, directory):
                 original = temporary_read_error()
 
                 clients = [
@@ -155,17 +155,17 @@ class UploadRecoveryTests(unittest.IsolatedAsyncioTestCase):
                 ):
                     await owner.inspect()
 
-                    if file:
-                        result = await owner.acquire_file(UPLOAD_REF, directory_fd=directory, retirement_seconds=0.1)
+                    if file_output:
+                        verified_file = await owner.acquire_file(UPLOAD_REF, directory_fd=directory, retirement_seconds=0.1)
 
-                        self.assertEqual(pathlib.Path(root, result.name).read_bytes(), BODY)
-                        os.unlink(result.name, dir_fd=directory)
+                        self.assertEqual(pathlib.Path(root, verified_file.name).read_bytes(), BODY)
+                        os.unlink(verified_file.name, dir_fd=directory)
                     else:
                         self.assertEqual((await owner.acquire(UPLOAD_REF)).data, BODY)
 
                 expected_owner = None
 
-                if file:
+                if file_output:
                     expected_owner = owner
 
                 self.assertEqual(owners, [expected_owner])
@@ -459,19 +459,19 @@ class UploadRecoveryTests(unittest.IsolatedAsyncioTestCase):
         ):
             try:
                 await owner.inspect()
-                result = await owner.acquire(UPLOAD_REF)
+                verified_upload = await owner.acquire(UPLOAD_REF)
             finally:
                 released.set()
                 await retire()
 
-        self.assertEqual(result.data, BODY)
+        self.assertEqual(verified_upload.data, BODY)
         self.assertIs(owner.recovery_failure, notices[0])
         self.assertTrue(owner.recovery_failure.issuance_may_have_committed)
         self.assertIs(owner.recovery_failure.cause.primary, original)
         self.assertIs(owner.recovery_failure.cause.network_failure, original)
         self.assertIsNone(owner.last_failure)
-        first_headers = {name.lower(): value for (name, value) in clients[2].calls[0][0].headers}
-        second_headers = {name.lower(): value for (name, value) in clients[4].calls[0][0].headers}
+        first_headers = {name.lower(): header_value for (name, header_value) in clients[2].calls[0][0].headers}
+        second_headers = {name.lower(): header_value for (name, header_value) in clients[4].calls[0][0].headers}
 
         self.assertNotEqual(first_headers[b'signature-input'], second_headers[b'signature-input'])
         self.assertEqual(owner.requests_started, 6)

@@ -57,10 +57,10 @@ class UploadLimits:
     seconds: float
 
     def __post_init__(self):
-        for value in (self.per_source_bytes, self.total_bytes, self.requests):
-            require_type(value, int)
+        for acquisition_allowance in (self.per_source_bytes, self.total_bytes, self.requests):
+            require_type(acquisition_allowance, int)
 
-            if not (0 < value):
+            if not (0 < acquisition_allowance):
                 raise ValueError("Cannot configure Upload acquisition: byte and request limits must be positive integers")
 
         require_positive_number(self.seconds)
@@ -109,7 +109,7 @@ def require_store_origin(value):
 
     require_type(value, str)
 
-    if any(ord(c) <= 32 or ord(c) >= 127 for c in value):
+    if any(((ord(c) <= 32) or (ord(c) >= 127)) for c in value):
         raise ValueError("Cannot configure Upload store: origin must be visible ASCII HTTPS text")
 
     try:
@@ -235,7 +235,7 @@ class _UploadFile:
 
         if not (done):
             raise UploadFailed(
-                f"waiting to {pending.operation} the private file exceeded its allotted time",
+                f"Private file {pending.operation=!s} exceeded its allotted time",
                 cause=TimeoutError("Private Upload file observation deadline expired"),
             )
 
@@ -245,7 +245,7 @@ class _UploadFile:
             pending.worker.result()
         except Exception as cause:
             raise UploadFailed(
-                f"cannot {pending.operation} the private source file; inspect the protected cause",
+                f"Private source file {pending.operation=!s} could not complete; inspect the cause",
                 cause=cause
             ) from None
 
@@ -411,10 +411,10 @@ class UploadTransfer:
             except (TypeError, ValueError) as cause:
                 raise UploadFailed("private-file cleanup requires explicit finite positive retirement seconds") from cause
 
-            file = self._pending_upload_file = _UploadFile(directory_fd, retirement_seconds)
+            pending_upload_file = self._pending_upload_file = _UploadFile(directory_fd, retirement_seconds)
 
             try:
-                await file.create(self._remaining_seconds())
+                await pending_upload_file.create(self._remaining_seconds())
                 deadline = asyncio.timeout(self._remaining_seconds())
 
                 try:
@@ -438,7 +438,7 @@ class UploadTransfer:
                         interruption=failure,
                     ) from None
 
-                response = await self._transfer(grant, output_fd=file.fd)
+                response = await self._transfer(grant, output_fd=pending_upload_file.fd)
 
                 if response.byte_length != grant.byte_length:
                     raise UploadFailed("downloaded byte length differs from the grant")
@@ -446,14 +446,14 @@ class UploadTransfer:
                 if response.content_hash != grant.content_hash:
                     raise UploadFailed("downloaded SHA-256 differs from the grant")
 
-                await file.close(self._remaining_seconds())
+                await pending_upload_file.close(self._remaining_seconds())
                 self._remaining_seconds()
-                result = VerifiedUploadFile(self.job_ref, grant.upload_ref, grant.byte_length, grant.content_hash, file.name)
+                verified_upload_file = VerifiedUploadFile(self.job_ref, grant.upload_ref, grant.byte_length, grant.content_hash, pending_upload_file.name)
 
-                file.shutdown()
+                pending_upload_file.shutdown()
                 self._pending_upload_file = None
 
-                return result
+                return verified_upload_file
             except BaseException as failure:
                 if isinstance(failure, asyncio.CancelledError):
                     self._interrupted = True
@@ -520,12 +520,12 @@ class UploadTransfer:
         if (not self.last_failure.cleanup_failures) or (self._pending_upload_file.pending is None):
             self.last_failure.cleanup_failures = (failure,)
 
-        if self._pending_upload_file.close_uncertain and self._pending_upload_file.pending is None:
+        if self._pending_upload_file.close_uncertain and (self._pending_upload_file.pending is None):
             self._pending_upload_file.shutdown()
 
     async def _abort_file(self):
-        file = self._pending_upload_file
-        deadline = time.monotonic() + file.retirement_seconds
+        pending_upload_file = self._pending_upload_file
+        deadline = time.monotonic() + pending_upload_file.retirement_seconds
 
         def remaining():
             seconds = deadline - time.monotonic()
@@ -535,13 +535,13 @@ class UploadTransfer:
 
             return seconds
 
-        if file.pending is not None:
-            operation = file.pending.operation
+        if pending_upload_file.pending is not None:
+            operation = pending_upload_file.pending.operation
 
             try:
-                await file.settle(remaining())
+                await pending_upload_file.settle(remaining())
             except UploadFailed as failure:
-                if (file.pending is not None) or (operation != "create"):
+                if (pending_upload_file.pending is not None) or (operation != "create"):
                     raise
 
                 # No grant can precede an observed create. Its late intrinsic
@@ -550,16 +550,16 @@ class UploadTransfer:
 
                 self.last_failure.cause = failure
 
-        if file.close_uncertain:
+        if pending_upload_file.close_uncertain:
             raise UploadFailed("private-file descriptor closure is unconfirmed; retire the enclosing process")
 
-        if file.fd is not None:
-            await file.close(remaining())
+        if pending_upload_file.fd is not None:
+            await pending_upload_file.close(remaining())
 
-        if file.created:
-            await file.remove(remaining())
+        if pending_upload_file.created:
+            await pending_upload_file.remove(remaining())
 
-        file.shutdown()
+        pending_upload_file.shutdown()
         self._pending_upload_file = None
 
     async def settle_file(self):
@@ -582,7 +582,7 @@ class UploadTransfer:
                 cause=self.last_failure,
             )
 
-        if self._pending_upload_file.close_uncertain and self._pending_upload_file.pending is None:
+        if self._pending_upload_file.close_uncertain and (self._pending_upload_file.pending is None):
             raise UploadFailed(
                 "private-file descriptor closure is unconfirmed; retire the enclosing process",
                 cause=self.last_failure
@@ -632,7 +632,7 @@ class UploadTransfer:
         return download_request(target, capability=grant.capability)
 
     async def _transfer(self, grant, *, output_fd=None):
-        request = self._download_request(grant)
+        download_http_request = self._download_request(grant)
 
         self._before_request()
         deadline = asyncio.timeout(self._remaining_seconds())
@@ -650,14 +650,14 @@ class UploadTransfer:
             async with deadline:
                 if output_fd is None:
                     response = await self._store.exchange(
-                        request,
+                        download_http_request,
                         maximum_bytes=grant.byte_length,
                         account_bytes=self._account_bytes,
                         before_body=admit,
                     )
                 else:
                     response = await self._store.exchange_file(
-                        request,
+                        download_http_request,
                         output_fd=output_fd,
                         maximum_bytes=grant.byte_length,
                         account_bytes=self._account_bytes,
@@ -817,7 +817,7 @@ class JobUploads:
             if (
                 isinstance(failure, BaseExceptionGroup) and
                 isinstance(self.last_failure, UploadFailed) and
-                any(cause is self.last_failure for cause in failure.exceptions)
+                any((cause is self.last_failure) for cause in failure.exceptions)
             ):
                 self._retain_grant_issuance(self.last_failure)
             elif self._grant_issued:
@@ -852,7 +852,7 @@ class JobUploads:
         remaining = self._remaining_seconds()
 
         if self._requests >= self._limits.requests:
-            raise UploadFailed(f"the source session exhausted its {self._limits.requests}-request limit")
+            raise UploadFailed(f"The source session exhausted its {self._limits.requests = } request limit.")
 
         return remaining
 
@@ -918,7 +918,7 @@ class JobUploads:
             available = self._limits.requests - self._requests
 
             if available < minimum_requests:
-                raise UploadFailed(f"the next source attempt requires {minimum_requests} requests but only {available} remain")
+                raise UploadFailed(f"The next source attempt requires {minimum_requests = } requests, but only {available = } remain.")
         except UploadFailed as budget:
             raise self._recovery_exhausted("source recovery exhausted its original budgets: " + budget.reason, failure) from None
 
@@ -933,8 +933,8 @@ class JobUploads:
 
         if seconds >= remaining:
             raise self._recovery_exhausted(
-                f"source recovery wait of {seconds:g} seconds cannot fit with only {remaining:g} seconds "
-                f"remaining before the original deadline",
+                f"Source recovery wait of {seconds = :g} seconds cannot fit with only {remaining = :g} seconds "
+                f"remaining before the original deadline.",
                 failure,
             ) from None
 
@@ -1017,7 +1017,7 @@ class JobUploads:
                 await self._retire_recovery(failure, store_owner=store_owner)
                 api_failure = failure
 
-                if isinstance(failure, UploadFailed) and type(failure.cause) is ApiFailure:
+                if isinstance(failure, UploadFailed) and (type(failure.cause) is ApiFailure):
                     api_failure = failure.cause
 
                 api_permitted = (
@@ -1039,7 +1039,7 @@ class JobUploads:
 
                 retired_outage = failure
 
-                if attempt + 1 == policy.maximum_attempts:
+                if (attempt + 1) == policy.maximum_attempts:
                     raise self._recovery_exhausted("source recovery exhausted its configured attempt limit", failure) from None
 
                 self._require_recovery_capacity(failure, selected)
@@ -1122,14 +1122,14 @@ class JobUploads:
 
         if selected.byte_length > self._limits.per_source_bytes:
             raise UploadInputRejected(
-                f"selected Upload has {selected.byte_length} bytes and exceeds the fixed "
-                f"{self._limits.per_source_bytes}-byte per-source limit; select a smaller Upload"
+                f"Selected Upload has {selected.byte_length = } bytes, exceeding the fixed "
+                f"{self._limits.per_source_bytes = } byte per-source limit; select a smaller Upload."
             )
 
         return selected
 
     def _require_remaining_bytes(self, selected):
-        if selected.byte_length > self._limits.total_bytes - self._received:
+        if selected.byte_length > (self._limits.total_bytes - self._received):
             raise UploadFailed("selected Upload exceeds the source session's remaining byte budget")
 
     async def _grant(self, selected):
@@ -1180,4 +1180,4 @@ class JobUploads:
         self._received += count
 
         if self._received > self._limits.total_bytes:
-            raise UploadFailed(f"download exhausted the source session's {self._limits.total_bytes}-byte budget")
+            raise UploadFailed(f"Download exhausted the source session's {self._limits.total_bytes = } byte budget.")

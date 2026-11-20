@@ -25,7 +25,7 @@ class RejectedResponseShutdownTests(unittest.IsolatedAsyncioTestCase):
                     self.assertIn(failure, caught.exception.cleanup_failures)
                     self.assertGreaterEqual(peer.raw_close_attempts, 2)
                     self.assertGreater(peer.raw_close_successes, 0)
-                    self.assertTrue(all(sock.fileno() == -1 for sock in peer.raw_sockets))
+                    self.assertTrue(all((sock.fileno() == -1) for sock in peer.raw_sockets))
 
     async def test_transient_raw_eof_remains_visible_after_successful_retry(self):
         await self.assert_transient_close_failure(ssl.SSLEOFError(ssl.SSL_ERROR_EOF, "synthetic first close EOF"))
@@ -127,13 +127,17 @@ class RejectedResponseShutdownTests(unittest.IsolatedAsyncioTestCase):
         for tunnel in (False, True):
             with self.subTest(tunnel=tunnel):
                 async with ShutdownPeer([wire], tunnel=tunnel) as peer:
-                    request = httpx.Request("GET", peer.origin)
+                    http_request = httpx.Request("GET", peer.origin)
 
                     with self.assertRaises(ExchangeFailed) as caught:
                         if decoded:
-                            await peer.transport.exchange_decoded(request, maximum_bytes=maximum_bytes, error_maximum_bytes=4096)
+                            await peer.transport.exchange_decoded(
+                                http_request,
+                                maximum_bytes=maximum_bytes,
+                                error_maximum_bytes=4096,
+                            )
                         else:
-                            await peer.transport.exchange(request, maximum_bytes=maximum_bytes)
+                            await peer.transport.exchange(http_request, maximum_bytes=maximum_bytes)
 
                     self.assertIsNotNone(caught.exception.primary)
 

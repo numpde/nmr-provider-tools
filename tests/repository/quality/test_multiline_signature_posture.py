@@ -41,7 +41,7 @@ def multiline_signature_findings(*, source: str) -> list[tuple[int, str]]:
     lists = {}
 
     for (index, token) in enumerate(tokens):
-        if token.type != tokenize.NAME or token.string != "def":
+        if (token.type != tokenize.NAME) or (token.string != "def"):
             continue
 
         # Skip the function name and any Python 3.12 type parameters before
@@ -71,7 +71,7 @@ def multiline_signature_findings(*, source: str) -> list[tuple[int, str]]:
 
     findings = []
 
-    for (opening_index, (kind, items)) in lists.items():
+    for (opening_index, (kind, item_kind)) in lists.items():
         opening = tokens[opening_index]
         ending = tokens[closing[opening_index]]
 
@@ -79,7 +79,7 @@ def multiline_signature_findings(*, source: str) -> list[tuple[int, str]]:
             continue
 
         if tokens[opening_index + 1].start[0] == opening.start[0]:
-            findings.append((opening.start[0], f"start multiline {kind} {items} on the next line"))
+            findings.append((opening.start[0], f"start multiline {kind} {item_kind} on the next line"))
 
         if lines[ending.start[0] - 1][:ending.start[1]].strip():
             findings.append((ending.start[0], f"start the closing {kind} parenthesis on its own line"))

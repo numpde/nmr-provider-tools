@@ -50,8 +50,8 @@ def _direct_value_error(statement: ast.stmt) -> bool:
     exception = statement.exc
 
     return (
-        (isinstance(exception, ast.Name) and exception.id == "ValueError") or
-        (isinstance(exception, ast.Call) and isinstance(exception.func, ast.Name) and exception.func.id == "ValueError")
+        (isinstance(exception, ast.Name) and (exception.id == "ValueError")) or
+        (isinstance(exception, ast.Call) and isinstance(exception.func, ast.Name) and (exception.func.id == "ValueError"))
     )
 
 
@@ -124,10 +124,10 @@ def _split_range_finding(
         (len(statement.test.values) == 2) and
         all(
             (
-                isinstance(comparison, ast.Compare) and
+                (isinstance(comparison, ast.Compare) and
                 (len(comparison.ops) == 1) and
                 isinstance(comparison.ops[0], _ORDERED_REJECTION_OPERATORS) and
-                (len(comparison.comparators) == 1)
+                (len(comparison.comparators) == 1))
                 for comparison in statement.test.values
             ),
         )
@@ -180,7 +180,7 @@ def _split_range_finding(
 
 
 def _accepted_atom(node: ast.expr) -> str | None:
-    if isinstance(node, ast.Compare) and len(node.ops) == 1 and len(node.comparators) == 1:
+    if isinstance(node, ast.Compare) and (len(node.ops) == 1) and (len(node.comparators) == 1):
         if isinstance(node.ops[0], _ORDERED_REJECTION_OPERATORS):
             return _accepted_ordering(node)
 
@@ -221,17 +221,17 @@ def _mixed_ordering_finding(
         isinstance(statement.test.op, (ast.Or, ast.And)) and
         any(
             (
-                isinstance(value, ast.Compare) and len(value.ops) == 1 and isinstance(value.ops[0], _ORDERED_REJECTION_OPERATORS)
-                for value in statement.test.values
+                (isinstance(operand, ast.Compare) and (len(operand.ops) == 1) and isinstance(operand.ops[0], _ORDERED_REJECTION_OPERATORS))
+                for operand in statement.test.values
             ),
         ) and
         (_split_range_finding(source_path=source_path, statement=statement) is None)
     ):
         return None
 
-    accepted_atoms = [_accepted_atom(value) for value in statement.test.values]
+    accepted_atoms = [_accepted_atom(operand) for operand in statement.test.values]
 
-    if any(atom is None for atom in accepted_atoms):
+    if any((atom is None) for atom in accepted_atoms):
         return None
 
     inverse_boolean_operators = {ast.Or: " and ", ast.And: " or "}
@@ -243,7 +243,7 @@ def _mixed_ordering_finding(
             break
 
     accepted = conjunction.join(
-        f"({atom})" if " and " in atom or " or " in atom else atom for atom in accepted_atoms if atom is not None
+        (f"({atom})" if (" and " in atom) or (" or " in atom) else atom) for atom in accepted_atoms if atom is not None
     )
 
     return _Finding(
@@ -287,7 +287,7 @@ def _negated_predicate_subject(node: ast.expr) -> ast.expr | None:
 def _returns_none(statement: ast.stmt) -> bool:
     return (
         isinstance(statement, ast.Return) and
-        (statement.value is None or (isinstance(statement.value, ast.Constant) and statement.value.value is None))
+        ((statement.value is None) or (isinstance(statement.value, ast.Constant) and (statement.value.value is None)))
     )
 
 

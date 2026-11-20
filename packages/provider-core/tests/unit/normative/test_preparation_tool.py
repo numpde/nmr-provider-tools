@@ -223,10 +223,10 @@ class PreparationToolTests(unittest.IsolatedAsyncioTestCase):
 
         self.assertNotIsInstance(obj=operation, cls=NotAdmitted)
         completed = await observe_completion(operation=operation)
-        result = completed.require_result()
+        report_ref = completed.require_result()
 
         report = self.hosted_contribution.call(method=self.science.consume).result_codec.decode(
-            payload=await operation.read_result(result=result),
+            payload=await operation.read_result(result=report_ref),
         )
 
         self.assertEqual(first=Sample(value=1), second=report)

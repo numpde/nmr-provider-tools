@@ -39,6 +39,16 @@ class LauncherTests(unittest.TestCase):
 
                 self.assertEqual(expected, arguments[arguments.index("-p") + 1])
 
+        command[-1] = "tests/repository/quality/report"
+        completed_process = subprocess.run(command, cwd=ROOT, env=environment, capture_output=True, text=True, check=False)
+
+        self.assertEqual(0, completed_process.returncode, msg=completed_process.stderr)
+        arguments = shlex.split(completed_process.stdout)
+
+        self.assertEqual("operations.checker.report", arguments[arguments.index("-m") + 1])
+        self.assertEqual(pattern, arguments[arguments.index("-p") + 1])
+        command[-1] = "tests/repository/quality"
+
         for pattern in ("test_missing_quality_file.py", "../test_escape.py", "test_*.py", ""):
             with self.subTest(pattern=pattern):
                 environment.update(TEST_PATTERN_INPUT_ORIGIN="command line", TEST_PATTERN_INPUT=pattern)
@@ -122,8 +132,8 @@ class LauncherTests(unittest.TestCase):
         fixture = ROOT / "tests/repository/fixtures/docker-context"
 
         environment = {
-            key: value
-            for (key, value) in os.environ.items()
+            key: environment_value
+            for (key, environment_value) in os.environ.items()
             if key not in {"DOCKER_CONTEXT_INPUT_ORIGIN", "DOCKER_CONTEXT_INPUT", "NMR_SELECTED_DOCKER_CONTEXT", "NMR_SELECTED_DOCKER_ENDPOINT"}
         }
 
@@ -162,7 +172,7 @@ class LauncherTests(unittest.TestCase):
             os.close(terminal)
 
         self.assertTrue(sent, msg=output.decode(errors="replace"))
-        self.assertTrue(os.WIFEXITED(status) and os.WEXITSTATUS(status) == 0, msg=output.decode(errors="replace"))
+        self.assertTrue(os.WIFEXITED(status) and (os.WEXITSTATUS(status) == 0), msg=output.decode(errors="replace"))
         self.assertIn(b"local-test", output)
         self.assertNotIn(b"remote-test", output)
         self.assertIn(b"--host unix:///run/user/1000/docker.sock", output)
@@ -192,8 +202,8 @@ class LauncherTests(unittest.TestCase):
             log = pathlib.Path(directory) / "context-inspections"
 
             environment = {
-                key: value
-                for (key, value) in os.environ.items()
+                key: environment_value
+                for (key, environment_value) in os.environ.items()
                 if key not in {"MAKEFLAGS", "MFLAGS", "MAKEOVERRIDES", "GNUMAKEFLAGS", "MAKELEVEL"}
             }
 
@@ -220,10 +230,10 @@ class LauncherTests(unittest.TestCase):
                                 except OSError:
                                     terminal_closed = True
 
-                            (finished, value) = os.waitpid(pid, os.WNOHANG)
+                            (finished, wait_status) = os.waitpid(pid, os.WNOHANG)
 
                             if finished:
-                                status = value
+                                status = wait_status
 
                                 break
 

@@ -35,7 +35,7 @@ def seeded_schedule(seed):
 
     return ShutdownSchedule(
         stage=stage,
-        ignore_stop_signals=stage in {"https_wait", "late_exit_observation"} and randomizer.choice((False, True)),
+        ignore_stop_signals=(stage in {"https_wait", "late_exit_observation"}) and randomizer.choice((False, True)),
         stop_requests=randomizer.randint(1, 3),
         cancelled_join_observers=randomizer.randint(0, 2),
         scheduling_turns=randomizer.randint(0, 3),
@@ -48,7 +48,7 @@ def failure_types(error):
     (seen, names) = (set(), set())
 
     def visit(current):
-        if current is None or id(current) in seen:
+        if (current is None) or (id(current) in seen):
             return
 
         seen.add(id(current))
@@ -375,15 +375,15 @@ async def shutdown_scenario(schedule, seed, directory, facts):
                 if not observer.done():
                     observer.cancel()
 
-                (result,) = await asyncio.gather(observer, return_exceptions=True)
+                (join_observer_outcome,) = await asyncio.gather(observer, return_exceptions=True)
 
-                if isinstance(result, asyncio.CancelledError):
+                if isinstance(join_observer_outcome, asyncio.CancelledError):
                     cancelled_observers += 1
 
                 note(
                     "join_observer_finished",
                     observer_number=observer_number + 1,
-                    cancelled=isinstance(result, asyncio.CancelledError)
+                    cancelled=isinstance(join_observer_outcome, asyncio.CancelledError)
                 )
 
             await asyncio.wait_for(original_exchange.stop.wait(), 2)
@@ -539,9 +539,9 @@ async def shutdown_scenario(schedule, seed, directory, facts):
             release_time = loop.time()
 
             note("test_released_original_os_observations")
-            (result,) = await asyncio.wait_for(asyncio.gather(running, return_exceptions=True), 3)
+            (controller_outcome,) = await asyncio.wait_for(asyncio.gather(running, return_exceptions=True), 3)
 
-            note("original_controller_run_finished", result_type=type(result).__name__)
+            note("original_controller_run_finished", result_type=type(controller_outcome).__name__)
             settlement_failures = []
             settle_deadline = loop.time() + 2
 
@@ -566,7 +566,7 @@ async def shutdown_scenario(schedule, seed, directory, facts):
 
             facts.update(
                 {
-                    "controller_failure_types": failure_types(result),
+                    "controller_failure_types": failure_types(controller_outcome),
                     "settlement_failure_types": sorted(
                         {
                             name for failure in settlement_failures
@@ -583,7 +583,7 @@ async def shutdown_scenario(schedule, seed, directory, facts):
                     "prepare_calls": session.prepare_calls,
                     "execute_calls": session.execute_calls,
                     "tool_dispatches": session.tool_dispatches,
-                    "start_count": sum(request.url.path.endswith("/start") for (request, _) in jobs_api_replies.calls),
+                    "start_count": sum(jobs_request.url.path.endswith("/start") for (jobs_request, _) in jobs_api_replies.calls),
                     "http_request_count": len(peer.requests),
                     "child_count": len(children),
                     "child_pids": [child.pid for child in children],
@@ -600,7 +600,7 @@ async def shutdown_scenario(schedule, seed, directory, facts):
                     "trust_directory_exists": trust_directory.exists(),
                     "claim_count_after_local_stop": len(claims.live_owners()),
                     "cleanup_seconds": cleanup_seconds,
-                    "child_exit_seconds_after_stop": [at - original_stop_time for at in child_exit_times],
+                    "child_exit_seconds_after_stop": [(at - original_stop_time) for at in child_exit_times],
                     "observations_released_seconds_after_stop": release_time - original_stop_time,
                     "shutdown_seconds_after_releasing_observations": loop.time() - release_time,
                     "signal_delays": [(number, at - original_stop_time) for (number, at) in signals],

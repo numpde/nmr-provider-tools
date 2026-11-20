@@ -57,7 +57,7 @@ def _require_route_path(route_path):
         (".." in absolute_route_path.parts) or
         (str(absolute_route_path) != str(route_path)) or
         (absolute_route_path == pathlib.Path("/")) or
-        any(ord(character) < 32 or ord(character) == 127 or character == "," for character in str(absolute_route_path))
+        any(((ord(character) < 32) or (ord(character) == 127) or (character == ",")) for character in str(absolute_route_path))
     ):
         raise RouteProjectionRejected("Cannot grant API route input: require a normalized absolute path below root without control characters or mount delimiters.")
 
@@ -102,7 +102,7 @@ def _service(image, interpreter, namespace, key, uid, gid):
     return {
         "image": image,
         "pull_policy": "never",
-        "user": f"{uid}:{gid}",
+        "user": f"{uid}:{gid}",  # machine-string: Docker Compose parses the UID:GID container identity syntax
         "entrypoint": [interpreter, "-I", "-B", "-m", "provider_core.provider_proxy"],
         "init": True,
         "read_only": True,
@@ -122,7 +122,10 @@ def _service(image, interpreter, namespace, key, uid, gid):
             "org.nmr-provider-tools.route-role": "proxy",
             "org.nmr-provider-tools.binding": key
         },
-        "tmpfs": [f"/{name}:rw,nosuid,nodev,noexec,size=64m,mode=0700,uid={uid},gid={gid}" for name in ("tmp", "run")],
+        "tmpfs": [
+            f"/{name}:rw,nosuid,nodev,noexec,size=64m,mode=0700,uid={uid},gid={gid}"  # machine-string: Docker parses this tmpfs mount specification
+            for name in ("tmp", "run")
+        ],
         "logging": {
             "driver": "json-file",
             "options": {
@@ -151,7 +154,10 @@ def _named_initializer(image, interpreter, namespace, key, uid, gid, volume):
     service["labels"]["org.nmr-provider-tools.route-role"] = "initializer"
 
     # Root initializes only the route volume; its own scratch needs no provider identity.
-    service["tmpfs"] = [f"/{name}:rw,nosuid,nodev,noexec,size=64m,mode=0700" for name in ("tmp", "run")]
+    service["tmpfs"] = [
+        f"/{name}:rw,nosuid,nodev,noexec,size=64m,mode=0700"  # machine-string: Docker parses this initializer tmpfs mount specification
+        for name in ("tmp", "run")
+    ]
 
     return service
 
@@ -179,7 +185,7 @@ def _proxy_route(service, binding, interpreter, input_sources, role):
         "--status-directory",
         "/run",
         "--authority",
-        f"{parsed.hostname}:{port}"
+        f"{parsed.hostname}:{port}"  # machine-string: the route initializer parses this host authority as an argv value
     ]
 
     networks = {}
@@ -323,12 +329,12 @@ def initialize_route(uid, gid, path, *, shared_group=False):
     if os.geteuid() != 0:
         raise RouteProjectionRejected("Cannot initialize API route volume: root with CHOWN and explicit target identity is required.")
 
-    path = pathlib.Path(_require_route_path(path))
+    route_root = pathlib.Path(_require_route_path(path))
 
     # silent-defaults: allow-contract -- Directory access follows the explicitly selected shared or private grant.
     mode = 0o710 if shared_group else 0o700
 
-    observed = path.lstat()
+    observed = route_root.lstat()
 
     if not stat.S_ISDIR(observed.st_mode):
         raise RouteProjectionRejected("Cannot initialize API route volume: its root must be a real directory.")
@@ -336,13 +342,13 @@ def initialize_route(uid, gid, path, *, shared_group=False):
     if (observed.st_uid, observed.st_gid, stat.S_IMODE(observed.st_mode)) == (uid, gid, mode):
         return
 
-    descriptor = os.open(path, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW | os.O_CLOEXEC)
+    descriptor = os.open(route_root, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW | os.O_CLOEXEC)
 
     try:
         observed = os.fstat(descriptor)
 
         if (observed.st_uid, observed.st_gid, stat.S_IMODE(observed.st_mode)) != (uid, gid, mode):
-            if observed.st_uid != 0 or os.listdir(descriptor):
+            if (observed.st_uid != 0) or os.listdir(descriptor):
                 raise RouteProjectionRejected("Cannot initialize API route volume: unexpected ownership, permissions or retained contents require operator inspection.")
 
             os.fchmod(descriptor, mode)

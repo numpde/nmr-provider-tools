@@ -55,19 +55,19 @@ class UnixProxy:
                 return
 
             if self.mode in ("refuse", "malformed"):
-                reply = (
+                proxy_reply_bytes = (
                     f"HTTP/1.1 {self.refusal_status} PRIVATE_PROXY_REASON\r\n"
                     f"Content-Length: 0\r\n"
                     f"\r\n"
                 ).encode()
 
                 if self.mode == "malformed":
-                    reply = (
+                    proxy_reply_bytes = (
                         b"not HTTP\r\n"
                         b"\r\n"
                     )
 
-                writer.write(reply)
+                writer.write(proxy_reply_bytes)
                 await writer.drain()
 
                 return
@@ -85,8 +85,8 @@ class UnixProxy:
             await writer.drain()
 
             async def copy(source, target):
-                while data := await source.read(65536):
-                    target.write(data)
+                while tunnel_chunk := await source.read(65536):
+                    target.write(tunnel_chunk)
                     await target.drain()
 
                 try:
@@ -133,16 +133,16 @@ class UnixProxy:
             task.cancel()
 
         try:
-            results = await asyncio.wait_for(asyncio.gather(*handlers, return_exceptions=True), 2)
+            handler_outcomes = await asyncio.wait_for(asyncio.gather(*handlers, return_exceptions=True), 2)
 
             await asyncio.wait_for(self.server.wait_closed(), 2)
         finally:
             self.scratch.cleanup()
 
         failures = [
-            result
-            for (task, result) in zip(handlers, results, strict=True)
-            if (isinstance(result, BaseException)) and (not (task in cancelled and isinstance(result, asyncio.CancelledError)))
+            handler_outcome
+            for (task, handler_outcome) in zip(handlers, handler_outcomes, strict=True)
+            if (isinstance(handler_outcome, BaseException)) and (not ((task in cancelled) and isinstance(handler_outcome, asyncio.CancelledError)))
         ]
 
         if failures:

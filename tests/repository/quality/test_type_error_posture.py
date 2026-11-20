@@ -41,7 +41,7 @@ class _Finding:
 
 def _builtin(*, expression: ast.expr, name: str) -> bool:
     return (
-        (isinstance(expression, ast.Name) and expression.id == name) or
+        (isinstance(expression, ast.Name) and (expression.id == name)) or
         (isinstance(expression, ast.Attribute) and
          isinstance(expression.value, ast.Name) and
          (expression.value.id == "builtins") and
@@ -75,8 +75,8 @@ def _type_rejection_operands(*, expression: ast.expr, rejecting: bool) -> list[a
         ):
             operands = []
 
-            for value in expression.values:
-                operands.extend(_type_rejection_operands(expression=value, rejecting=rejecting))
+            for operand in expression.values:
+                operands.extend(_type_rejection_operands(expression=operand, rejecting=rejecting))
 
             return operands
 
@@ -137,7 +137,7 @@ def _value_predicate(*, expression: ast.expr) -> bool:
         return _value_predicate(expression=expression.operand)
 
     if isinstance(expression, ast.BoolOp):
-        return any(_value_predicate(expression=value) for value in expression.values)
+        return any(_value_predicate(expression=operand) for operand in expression.values)
 
     if isinstance(expression, (ast.Name, ast.Attribute, ast.Subscript)):
         return True
@@ -148,7 +148,7 @@ def _value_predicate(*, expression: ast.expr) -> bool:
 
         # Identity with None commonly tests regex match results, but identity
         # with a class object can instead restrict the supported type domain.
-        return any(_value_predicate(expression=value) for value in (expression.left, *expression.comparators) if isinstance(value, ast.Call))
+        return any(_value_predicate(expression=operand) for operand in (expression.left, *expression.comparators) if isinstance(operand, ast.Call))
 
     if not isinstance(expression, ast.Call):
         return False

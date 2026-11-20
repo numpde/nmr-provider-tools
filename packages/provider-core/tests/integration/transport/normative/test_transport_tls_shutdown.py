@@ -67,18 +67,18 @@ class TlsShutdownTests(unittest.IsolatedAsyncioTestCase):
                         server_side=True,
                         suppress_ragged_eofs=False,
                     ) as connection:
-                        request = bytearray()
+                        request_head = bytearray()
 
-                        while not request.endswith(
+                        while not request_head.endswith(
                             b"\r\n"
                             b"\r\n",
                         ):
                             chunk = connection.recv(1)
 
-                            if (not chunk) or (len(request) >= 16384):
+                            if (not chunk) or (len(request_head) >= 16384):
                                 raise ValueError("Test server did not receive a bounded HTTP request")
 
-                            request.extend(chunk)
+                            request_head.extend(chunk)
 
                         connection.sendall(
                             b"HTTP/1.1 200 OK\r\n"

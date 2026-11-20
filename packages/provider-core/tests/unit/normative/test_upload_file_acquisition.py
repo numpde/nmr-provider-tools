@@ -23,23 +23,23 @@ class UploadFileAcquisitionTests(unittest.IsolatedAsyncioTestCase):
             private_source_directory() as (root, directory),
             patch("provider_core.adapters.httpcore.httpcore.AsyncConnectionPool", return_value=client),
         ):
-            result = await owner.acquire_file(UPLOAD_REF, directory_fd=directory, retirement_seconds=0.1)
+            verified_file = await owner.acquire_file(UPLOAD_REF, directory_fd=directory, retirement_seconds=0.1)
 
-            self.assertIs(type(result), VerifiedUploadFile)
-            self.assertEqual((result.job_ref, result.upload_ref, result.byte_length), ("job:example", UPLOAD_REF, 8))
-            self.assertEqual(result.content_hash, "sha256:" + hashlib.sha256(b"geometry").hexdigest())
-            path = pathlib.Path(root) / result.name
+            self.assertIs(type(verified_file), VerifiedUploadFile)
+            self.assertEqual((verified_file.job_ref, verified_file.upload_ref, verified_file.byte_length), ("job:example", UPLOAD_REF, 8))
+            self.assertEqual(verified_file.content_hash, "sha256:" + hashlib.sha256(b"geometry").hexdigest())
+            verified_file_path = pathlib.Path(root) / verified_file.name
 
-            self.assertEqual(path.read_bytes(), b"geometry")
-            self.assertEqual(stat.S_IMODE(path.stat().st_mode), 0o600)
-            self.assertNotIn(result.name, repr(result))
+            self.assertEqual(verified_file_path.read_bytes(), b"geometry")
+            self.assertEqual(stat.S_IMODE(verified_file_path.stat().st_mode), 0o600)
+            self.assertNotIn(verified_file.name, repr(verified_file))
             self.assertTrue(store.retirement_confirmed)
             self.assertEqual((owner.received_bytes, owner.requests_started), (8, 4))
             self.assertEqual(api.calls, ["membership", "membership", "grant"])
             await owner.inspect()
-            self.assertTrue(path.exists())
+            self.assertTrue(verified_file_path.exists())
             self.assertEqual(owner.requests_started, 5)
-            os.unlink(result.name, dir_fd=directory)
+            os.unlink(verified_file.name, dir_fd=directory)
 
     async def test_file_and_byte_outputs_use_the_same_cumulative_session(self):
         (owner, api, _, file_client) = file_sources(total_bytes=16)
@@ -51,12 +51,12 @@ class UploadFileAcquisitionTests(unittest.IsolatedAsyncioTestCase):
             private_source_directory() as (root, directory),
             patch("provider_core.adapters.httpcore.httpcore.AsyncConnectionPool", side_effect=[file_client, byte_client]) as clients,
         ):
-            result = await owner.acquire_file(UPLOAD_REF, directory_fd=directory, retirement_seconds=0.1)
+            verified_file = await owner.acquire_file(UPLOAD_REF, directory_fd=directory, retirement_seconds=0.1)
 
             await owner.inspect()
-            result_bytes = await owner.acquire(UPLOAD_REF)
+            verified_upload = await owner.acquire(UPLOAD_REF)
 
-            self.assertEqual(pathlib.Path(root, result.name).read_bytes(), result_bytes.data)
+            self.assertEqual(pathlib.Path(root, verified_file.name).read_bytes(), verified_upload.data)
             self.assertEqual((owner.received_bytes, owner.requests_started), (16, 8))
             self.assertEqual(api.calls.count("grant"), 2)
             self.assertEqual(clients.call_count, 2)
@@ -73,8 +73,8 @@ class UploadFileAcquisitionTests(unittest.IsolatedAsyncioTestCase):
             previous = os.umask(0o777)
 
             try:
-                result = await owner.acquire_file(UPLOAD_REF, directory_fd=directory, retirement_seconds=0.1)
+                verified_file = await owner.acquire_file(UPLOAD_REF, directory_fd=directory, retirement_seconds=0.1)
             finally:
                 os.umask(previous)
 
-            self.assertEqual(stat.S_IMODE(pathlib.Path(root, result.name).stat().st_mode), 0o600)
+            self.assertEqual(stat.S_IMODE(pathlib.Path(root, verified_file.name).stat().st_mode), 0o600)

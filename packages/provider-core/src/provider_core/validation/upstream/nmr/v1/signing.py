@@ -27,7 +27,8 @@ def https_origin(value):
 
     require_type(value, str)
 
-    if (not (value)) or (any(ord(c) <= 32 or ord(c) >= 127 for c in value)):
+    # The signing profile requires visible ASCII (33–126), without whitespace
+    if (not (value)) or (any(((ord(c) <= 32) or (ord(c) >= 127)) for c in value)):
         raise ValueError("Cannot configure signing: supply one ASCII HTTPS origin without whitespace")
 
     try:
@@ -65,10 +66,13 @@ def https_origin(value):
 
         authority = host.lower()
     else:
-        authority = f"[{address}]" if isinstance(address, IPv6Address) else str(address)
+        if isinstance(address, IPv6Address):
+            authority = f"[{address}]"  # machine-string: HTTP authority syntax preserves the IPv6 address for request signing
+        else:
+            authority = str(address)
 
     if (port is not None) and (port != 443):
-        authority += f":{port}"
+        authority += f":{port}"  # machine-string: HTTP authority syntax preserves the explicit port for request signing
 
     return ("https://" + authority, authority)
 
@@ -105,7 +109,8 @@ def request_target(method, path, query):
     except UnicodeError:
         raise ValueError("Cannot sign request: target must contain ASCII bytes only") from None
 
-    if any(c <= 32 or c >= 127 for c in target) or b"#" in query:
+    # Spaces, controls and DEL cannot form a request-target token; fragments are excluded
+    if any(((c <= 32) or (c >= 127)) for c in target) or (b"#" in query):
         raise ValueError("Cannot sign request: target contains whitespace, control bytes or a fragment")
 
     return target
@@ -124,7 +129,7 @@ def require_signature_inputs(*, body, created, nonce):
 
     max_structured_field_integer = 999999999999999
 
-    if not (created <= max_structured_field_integer - SIGNATURE_LIFETIME_SECONDS):
+    if not (created <= (max_structured_field_integer - SIGNATURE_LIFETIME_SECONDS)):
         expires = created + SIGNATURE_LIFETIME_SECONDS
 
         raise ValueError(f"{expires=} should be at most {max_structured_field_integer=}")

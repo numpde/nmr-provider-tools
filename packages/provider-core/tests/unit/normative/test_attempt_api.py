@@ -30,14 +30,14 @@ class AttemptReadTests(unittest.IsolatedAsyncioTestCase):
                         (ATTEMPT_REF, "job:example", state, job_state),
                     )
 
-                    (request, limit) = transport.calls[0]
+                    (signed_request, max_response_bytes) = transport.calls[0]
 
                     self.assertEqual(
-                        (request.method, request.url.raw_path, limit),
+                        (signed_request.method, signed_request.url.raw_path, max_response_bytes),
                         ("GET", b"/provider/v1/execution-attempts/" + ATTEMPT_REF.encode(), 65536),
                     )
 
-                    self.assertEqual(request.content, b"")
-                    self.assertIn("Signature", request.headers)
-                    self.assertNotIn("Content-Type", request.headers)
-                    self.assertNotIn("Content-Digest", request.headers)
+                    self.assertEqual(signed_request.content, b"")
+                    self.assertIn("Signature", signed_request.headers)
+                    self.assertNotIn("Content-Type", signed_request.headers)
+                    self.assertNotIn("Content-Digest", signed_request.headers)

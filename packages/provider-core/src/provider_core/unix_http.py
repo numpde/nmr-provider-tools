@@ -34,12 +34,12 @@ class UnixHttpTransport(HttpTransport):
     def _connection_pool(self, options):
         return backend_wire.unix_connection_pool(options, socket_path=self._socket_path)
 
-    def _require_destination(self, request):
+    def _require_destination(self, http_request):
         if (
-            (request.url.scheme != "http") or
-            (request.url.raw_host != b"delivery.invalid") or
-            (request.url.port is not None) or
-            request.url.username or
-            request.url.password
+            (http_request.url.scheme != "http") or
+            (http_request.url.raw_host != b"delivery.invalid") or
+            (http_request.url.port is not None) or
+            http_request.url.username or
+            http_request.url.password
         ):
             raise ValueError("Delivery HTTP requests must use the fixed local origin; only the configured Unix socket selects a destination.")

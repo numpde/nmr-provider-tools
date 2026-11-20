@@ -32,7 +32,7 @@ def _hanging_words(*, source: str) -> list[int]:
         if trailing_word is None:
             continue
 
-        if trailing_word.group(1) == "," and trailing_word.group(2).casefold() in {"and", "or", "but"}:
+        if (trailing_word.group(1) == ",") and (trailing_word.group(2).casefold() in {"and", "or", "but"}):
             continue
 
         findings.append(comment.start[0])

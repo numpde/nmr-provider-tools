@@ -79,8 +79,8 @@ class ObservedProseService(ProseService):
             status = response.status
 
             retry_after = [
-                value.decode("ascii", errors="replace")
-                for (name, value) in response.headers if name.lower() == b"retry-after"
+                header_value.decode("ascii", errors="replace")
+                for (header_name, header_value) in response.headers if header_name.lower() == b"retry-after"
             ]
 
         self.retry_observations.append(
@@ -132,12 +132,12 @@ class DurableHandoff:
 
     def __init__(self, inbox, endpoint, publisher):
         (self.inbox, self.endpoint, self.publisher) = (inbox, endpoint, publisher)
-        self.items = []
+        self.delivery_outcomes = []
 
         (self.retirement_confirmed, self.last_failure) = (True, None)
 
     async def submit(self, item):
-        self.items.append(item)
+        self.delivery_outcomes.append(item)
         accepted = await self.inbox.storage(self.inbox.queue.enqueue, item)
 
         self.publisher.wake()
@@ -217,7 +217,7 @@ async def run_outage(directory, *, mode, backlog, seed):
         .encode()
     )
 
-    def failed_service_mode(_request, body):
+    def failed_service_mode(_request_head, body):
         nonlocal peak_prose_connections
         job = json.loads(body)["messages"][0]["content"]
         available = restored.is_set()
@@ -233,7 +233,7 @@ async def run_outage(directory, *, mode, backlog, seed):
 
         return "success"
 
-    async def failed_service_response(_request, _body):
+    async def failed_service_response(_request_head, _body):
         if restored.is_set():
             (failed_peer.response_status, failed_peer.response_headers) = (200, None)
 
@@ -254,10 +254,10 @@ async def run_outage(directory, *, mode, backlog, seed):
 
         return b'{"error":{"message":"The prose service is unavailable."}}'
 
-    async def jobs_api_response(request, body):
+    async def jobs_api_response(request_head, body):
         reference = json.loads(body)["execution_attempt_ref"]
 
-        if request.split(b" ")[1].endswith(b"/complete"):
+        if request_head.split(b" ")[1].endswith(b"/complete"):
             (schema, content) = read_complete_body(body, execution_attempt_ref=reference)
 
             if reference == original_report_ref:
@@ -320,7 +320,7 @@ async def run_outage(directory, *, mode, backlog, seed):
                 raise AssertionError("The original Job's input changed during preparation")
 
             async def dispatch(name, arguments, *, not_after):
-                if name != "prepare_scientific_input" or arguments:
+                if (name != "prepare_scientific_input") or arguments:
                     raise AssertionError("The prose service proposed an unexpected scientific operation")
 
                 report_condition.require_execution()
@@ -360,12 +360,12 @@ async def run_outage(directory, *, mode, backlog, seed):
 
             report_condition.require_execution()
             self.execute_calls += 1
-            value = await science("execute", self.job_ref)
+            worker_snapshot = await science("execute", self.job_ref)
             self.handle = None
 
             return AnalysisSuccess(
                 "fixture.counted_science.v1",
-                json.dumps(value).encode(),
+                json.dumps(worker_snapshot).encode(),
                 ProtectedEvidence("fixture.science.evidence.v1", b"one scientific execution")
             )
 
@@ -488,7 +488,7 @@ async def run_outage(directory, *, mode, backlog, seed):
                 "scientific_prepare_calls": session.scientific_prepare_calls,
                 "execute_calls": session.execute_calls,
                 "failed": session.failure is not None,
-                "starts": sum(request.url.path.endswith("/start") for (request, _) in control.calls),
+                "starts": sum(http_request.url.path.endswith("/start") for (http_request, _) in control.calls),
                 "shutdown_ready": controller.shutdown_ready,
                 "started_at": control.start_times[0],
                 "finished_at": loop.time(),
@@ -541,7 +541,7 @@ async def run_outage(directory, *, mode, backlog, seed):
             original_report_ref = JobsControlTransport("job:b4-original-result").attempt_ref
 
             await run_job("original-result", healthy_service)
-            original_report = local_delivery.items[0]
+            original_report = local_delivery.delivery_outcomes[0]
 
             tasks = [
                 asyncio.create_task(restore_service()),
@@ -550,11 +550,11 @@ async def run_outage(directory, *, mode, backlog, seed):
             ]
 
             await asyncio.wait_for(asyncio.gather(*tasks), backlog * (interpretation_seconds + retirement_seconds) + 8)
-            await wait_for_publication({item.execution_attempt_ref for item in local_delivery.items})
+            await wait_for_publication({delivery_outcome.execution_attempt_ref for delivery_outcome in local_delivery.delivery_outcomes})
             peer_connections = [await _settled_peer_handlers(peer) for peer in (failed_peer, healthy_peer, jobs_peer)]
 
-            for (request, body) in zip(jobs_peer.requests, jobs_peer.request_bodies, strict=True):
-                verify_signed_request(request, body, origin=jobs_peer.origin, key=delivery_api.identity.private_key)
+            for (request_head, body) in zip(jobs_peer.requests, jobs_peer.request_bodies, strict=True):
+                verify_signed_request(request_head, body, origin=jobs_peer.origin, key=delivery_api.identity.private_key)
 
             carriers = [endpoint for factory in observed_factories for endpoint in factory.endpoints]
 
@@ -589,9 +589,9 @@ async def run_outage(directory, *, mode, backlog, seed):
                 "original_report_bytes_sent_once": jobs_peer.request_bodies.count(original_report.body) == 1,
                 "original_report_receipt": json.loads(publication_receipts[0]),
                 "original_report_sha256": sha256(original_report.body).hexdigest(),
-                "submitted_reports": len(local_delivery.items),
+                "submitted_reports": len(local_delivery.delivery_outcomes),
                 "published_reports": len(published),
-                "all_report_bytes_preserved": sorted(item.body for item in local_delivery.items) == sorted(jobs_peer.request_bodies),
+                "all_report_bytes_preserved": sorted(delivery_outcome.body for delivery_outcome in local_delivery.delivery_outcomes) == sorted(jobs_peer.request_bodies),
                 "publisher_running": not publisher_task.done(),
                 "queue_inventory": queue.inventory(selected_scope.api_origin, selected_scope.provider_ref),
                 "final_claims": len(claims.live_owners()),

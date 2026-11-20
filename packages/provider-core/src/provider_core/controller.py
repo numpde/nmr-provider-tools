@@ -93,8 +93,8 @@ class LiveStartPolicy:
     window_seconds: float = 90
 
     def __post_init__(self):
-        for value in (self.cadence_seconds, self.window_seconds):
-            require_positive_number(value)
+        for start_policy_seconds in (self.cadence_seconds, self.window_seconds):
+            require_positive_number(start_policy_seconds)
 
         require_type(self.maximum_replays, int)
 
@@ -410,7 +410,7 @@ class AttemptController:
 
             admitted_api_failure = reason.cause
 
-        if type(reason) is UploadRecoveryExhausted and ((reason.cleanup_failures) or (reason.interruption is not None)):
+        if (type(reason) is UploadRecoveryExhausted) and ((reason.cleanup_failures) or (reason.interruption is not None)):
             raise failure
 
         if (
@@ -589,7 +589,7 @@ class AttemptController:
             execution_outcome = await contain_task_exit(self._run_effects, pending)
 
             if (
-                (type(execution_outcome) is StartDeferred and execution_outcome.may_have_committed) or
+                ((type(execution_outcome) is StartDeferred) and execution_outcome.may_have_committed) or
                 (type(execution_outcome) is ActiveStartReplayHeld)
             ):
                 return execution_outcome
@@ -837,18 +837,18 @@ class AttemptController:
 
                 allowance = self.api.exchange_seconds + self.api.retirement_seconds
 
-                if seconds + allowance > deadline - loop.time():
+                if (seconds + allowance) > (deadline - loop.time()):
                     return self._defer_start(pending, latest_failure, possible_commit)
 
                 policy.on_retry(pending, latest_failure, seconds)
 
-                if self._admission_stopping_requested() or seconds + allowance > deadline - loop.time():
+                if self._admission_stopping_requested() or ((seconds + allowance) > (deadline - loop.time())):
                     return self._defer_start(pending, latest_failure, possible_commit)
 
                 if await self._wait_for_admission_stop(seconds):
                     return self._defer_start(pending, latest_failure, possible_commit)
 
-                if self._admission_stopping_requested() or allowance > deadline - loop.time():
+                if self._admission_stopping_requested() or (allowance > (deadline - loop.time())):
                     return self._defer_start(pending, latest_failure, possible_commit)
 
                 replays += 1
@@ -859,7 +859,7 @@ class AttemptController:
                 if first_failure is not None:
                     policy.on_recovered(acknowledged, first_failure)
 
-                if attempt_is_in_progress(acknowledged.admission) and (self._admission_stopping_requested() or loop.time() > deadline):
+                if attempt_is_in_progress(acknowledged.admission) and (self._admission_stopping_requested() or (loop.time() > deadline)):
                     return self._defer_start(pending, latest_failure, True)
 
                 return acknowledged
@@ -869,7 +869,7 @@ class AttemptController:
         # silent-defaults: allow-contract -- Admission can fail before a claim exists; that state has no borrowed operation to settle.
         owner = self._claim.operation_owner if self._claim is not None else None
 
-        if isinstance(owner, AttemptExecutor) or self._operation is self.session:
+        if isinstance(owner, AttemptExecutor) or (self._operation is self.session):
             return
 
         try:

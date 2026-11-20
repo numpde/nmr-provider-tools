@@ -49,7 +49,7 @@ def multiline_boolean_findings(*, source: str) -> list[tuple[int, str]]:
                 findings.append((operand.lineno, "group each multiline Boolean operand"))
                 continue
 
-            if index < len(expression.values) - 1:
+            if index < (len(expression.values) - 1):
                 following = after[1:] if grouped else after
                 following = following.strip().split(b"#", 1)[0].strip()
 

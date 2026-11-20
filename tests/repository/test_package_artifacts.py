@@ -38,8 +38,8 @@ class PackageArtifactTests(unittest.TestCase):
         self.addCleanup(temporary.cleanup)
         self.root = pathlib.Path(temporary.name)
 
-    def _acquisition_archive(self, path, members):
-        with tarfile.open(path, "w:gz") as archive:
+    def _acquisition_archive(self, archive_path, members):
+        with tarfile.open(archive_path, "w:gz") as archive:
             for (name, payload, kind, mode) in members:
                 member = tarfile.TarInfo(name)
                 member.type = kind
@@ -241,10 +241,10 @@ class PackageArtifactTests(unittest.TestCase):
         source = self.root / "cold-import"
 
         for name in ("linux_idmap/probe.py", "provider_core/bound_http_proxy.py"):
-            path = source / name
+            source_file_path = source / name
 
-            path.parent.mkdir(parents=True, exist_ok=True)
-            path.write_text("QUALIFIED = True")
+            source_file_path.parent.mkdir(parents=True, exist_ok=True)
+            source_file_path.write_text("QUALIFIED = True")
 
         check_script = ROOT / "packages/acquisition/build/acquisition_import_check.py"
 
@@ -305,12 +305,12 @@ class PackageArtifactTests(unittest.TestCase):
             (source / name).write_text("authored\n")
 
         inventory = {
-            path.relative_to(source).as_posix(): {
-                "sha256": digest(path),
-                "size": path.stat().st_size,
-                "mode": path.stat().st_mode & 0o777
+            source_file_path.relative_to(source).as_posix(): {
+                "sha256": digest(source_file_path),
+                "size": source_file_path.stat().st_size,
+                "mode": source_file_path.stat().st_mode & 0o777
             }
-            for path in source.rglob("*") if path.is_file()
+            for source_file_path in source.rglob("*") if source_file_path.is_file()
         }
 
         metadata = source / "src/provider_core.egg-info"
@@ -359,8 +359,8 @@ class PackageArtifactTests(unittest.TestCase):
         ):
             with self.subTest(payload=payload):
                 with zipfile.ZipFile(wheel_path, "w") as archive:
-                    for (name, value) in payload.items():
-                        archive.writestr(name, value)
+                    for (name, payload_bytes) in payload.items():
+                        archive.writestr(name, payload_bytes)
 
                 with self.assertRaisesRegex(ValueError, "wheel"):
                     wheel_payload(wheel_path, expected, "0.2.0")
@@ -419,8 +419,8 @@ class PackageArtifactTests(unittest.TestCase):
         output.mkdir()
 
         original = {
-            path.relative_to(source): digest(path)
-            for path in source.rglob("*") if path.is_file()
+            source_file_path.relative_to(source): digest(source_file_path)
+            for source_file_path in source.rglob("*") if source_file_path.is_file()
         }
 
         def simulate_backend(command, *, check, env):
@@ -447,7 +447,10 @@ class PackageArtifactTests(unittest.TestCase):
 
         self.assertEqual(
             original,
-            {path.relative_to(source): digest(path) for path in source.rglob("*") if path.is_file()},
+            {
+                source_file_path.relative_to(source): digest(source_file_path)
+                for source_file_path in source.rglob("*") if source_file_path.is_file()
+            },
         )
 
         self.assertFalse((source / "build").exists())
@@ -518,28 +521,28 @@ class PackageArtifactTests(unittest.TestCase):
         wheel_calls = []
         shared_callers = []
 
-        paths = source_files(root=ROOT, patterns=("tools/*.py", "packages/provider-core/sdk_build/*.py"))
+        source_paths = source_files(root=ROOT, patterns=("tools/*.py", "packages/provider-core/sdk_build/*.py"))
 
-        for path in paths:
-            module = ast.parse(path.read_text(), filename=str(path))
+        for source_path in source_paths:
+            module = ast.parse(source_path.read_text(), filename=str(source_path))
 
             for function in (node for node in ast.walk(module) if isinstance(node, ast.FunctionDef)):
                 for call in (node for node in ast.walk(function) if isinstance(node, ast.Call)):
-                    if isinstance(call.func, ast.Name) and call.func.id == "build_source_wheel":
-                        shared_callers.append((path.name, function.name))
+                    if isinstance(call.func, ast.Name) and (call.func.id == "build_source_wheel"):
+                        shared_callers.append((source_path.name, function.name))
 
                     if (
                         isinstance(call.func, ast.Attribute) and
                         (call.func.attr == "run") and
                         any(
-                            (isinstance(item, ast.Constant) and (item.value == "wheel")) or
-                            (isinstance(item, ast.Call) and
-                             isinstance(item.func, ast.Name) and
-                             (item.func.id == "build_wheel_command"))
-                            for item in ast.walk(call)
+                            ((isinstance(ast_node, ast.Constant) and (ast_node.value == "wheel")) or
+                            (isinstance(ast_node, ast.Call) and
+                             isinstance(ast_node.func, ast.Name) and
+                             (ast_node.func.id == "build_wheel_command")))
+                            for ast_node in ast.walk(call)
                         )
                     ):
-                        wheel_calls.append((path.name, function.name))
+                        wheel_calls.append((source_path.name, function.name))
 
         self.assertEqual([("core_environment.py", "build_source_wheel")], wheel_calls)
 

@@ -27,47 +27,47 @@ class AttemptInventoryValidationTests(unittest.TestCase):
 
                 self.assertEqual(
                     [
-                        (item.analysis_kind_ref, item.execution_attempt_ref, item.job_ref, item.provider_attempt_key)
-                        for item in page.attempts
+                        (attempt_observation.analysis_kind_ref, attempt_observation.execution_attempt_ref, attempt_observation.job_ref, attempt_observation.provider_attempt_key)
+                        for attempt_observation in page.attempts
                     ],
                     [
-                        (item["analysis_kind_ref"], item["execution_attempt_ref"], item["job_ref"], item["provider_attempt_key"])
-                        for item in order
+                        (attempt_fields["analysis_kind_ref"], attempt_fields["execution_attempt_ref"], attempt_fields["job_ref"], attempt_fields["provider_attempt_key"])
+                        for attempt_fields in order
                     ],
                 )
 
     def test_empty_page_is_an_observation_without_an_absence_or_terminal_receipt(self):
-        result = read_attempt_inventory(response(attempts=[], next_cursor=None), limit=1)
+        inventory_page = read_attempt_inventory(response(attempts=[], next_cursor=None), limit=1)
 
-        self.assertEqual(result.attempts, ())
-        self.assertIsNone(result.next_cursor)
+        self.assertEqual(inventory_page.attempts, ())
+        self.assertIsNone(inventory_page.next_cursor)
 
     def test_maximum_items_and_exact_byte_ceiling(self):
-        items = [
+        attempt_rows = [
             attempt(job_ref=f"job:item-{index}", execution_attempt_ref=f"execution_attempt:sha256:{index:064x}")
             for index in range(100)
         ]
 
-        raw = response(attempts=items)
+        raw = response(attempts=attempt_rows)
         padded = raw + b" " * (65536 - len(raw))
 
         self.assertEqual(len(padded), 65536)
-        result = read_attempt_inventory(padded, limit=100)
+        inventory_page = read_attempt_inventory(padded, limit=100)
 
-        self.assertEqual([item.job_ref for item in result.attempts], [item["job_ref"] for item in items])
+        self.assertEqual([attempt_observation.job_ref for attempt_observation in inventory_page.attempts], [attempt_fields["job_ref"] for attempt_fields in attempt_rows])
 
         with self.assertRaises(ResponseRejected):
             read_attempt_inventory(padded + b" ", limit=100)
 
         with self.assertRaises(ResponseRejected):
-            read_attempt_inventory(response(attempts=[*items, items[0]]), limit=100)
+            read_attempt_inventory(response(attempts=[*attempt_rows, attempt_rows[0]]), limit=100)
 
     def test_maximum_item_field_lengths_fit_within_the_route_byte_ceiling(self):
-        item = attempt(analysis_kind_ref="a" * 128, job_ref="job:" + "a" * 124, provider_attempt_key="a" * 128)
-        admitted = read_attempt_inventory(response(attempts=[item]), limit=1)
+        attempt_fields = attempt(analysis_kind_ref="a" * 128, job_ref="job:" + "a" * 124, provider_attempt_key="a" * 128)
+        admitted = read_attempt_inventory(response(attempts=[attempt_fields]), limit=1)
 
-        self.assertEqual(admitted.attempts[0].job_ref, item["job_ref"])
-        full_page = response(attempts=[item] * 100)
+        self.assertEqual(admitted.attempts[0].job_ref, attempt_fields["job_ref"])
+        full_page = response(attempts=[attempt_fields] * 100)
 
         self.assertLessEqual(len(full_page), 65536)
         self.assertEqual(len(read_attempt_inventory(full_page, limit=100).attempts), 100)

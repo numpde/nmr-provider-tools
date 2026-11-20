@@ -99,7 +99,7 @@ class DeliveryClient:
         await self._transport.retire(owner=self)
 
     # silent-defaults: allow-contract -- Status reads have no body or Job header; submission supplies both explicitly.
-    async def _request(self, method, path, *, body=b"", job_ref=None):
+    async def _request(self, method, request_path, *, body=b"", job_ref=None):
         submitting = method == "POST"
 
         headers = {
@@ -115,7 +115,7 @@ class DeliveryClient:
 
         try:
             response = await self._transport.exchange(
-                httpx.Request(method, DELIVERY_ORIGIN + path, headers=headers, content=body),
+                httpx.Request(method, DELIVERY_ORIGIN + request_path, headers=headers, content=body),
                 maximum_bytes=MAX_IPC_RESPONSE_BYTES,
                 owner=self,
             )
@@ -138,10 +138,10 @@ class DeliveryClient:
 
             raise self.last_failure from None
 
-        if submitting and response.status == 429:
+        if submitting and (response.status == 429):
             raise DeliveryFull("Delivery capacity is full. Retain this outcome, wait for space and stop admitting computation.")
 
-        if submitting and response.status == 409:
+        if submitting and (response.status == 409):
             raise DeliveryConflict("The relay retains a different terminal request for this Attempt; reconcile it without replacing either choice.")
 
         if response.status == 503:
@@ -155,7 +155,7 @@ class DeliveryClient:
             raise self.last_failure
 
         if response.status != 200:
-            raise DeliveryRejected(f"The local delivery service refused this request (HTTP {response.status}); inspect its operator diagnostics.")
+            raise DeliveryRejected(f"The local delivery service refused this request (HTTP {response.status=}); inspect its operator diagnostics.")
 
         try:
             return read_document(response.body, MAX_IPC_RESPONSE_BYTES)
@@ -172,69 +172,69 @@ class DeliveryClient:
         if item.key[:2] != (self.endpoint.api_origin, self.endpoint.provider_ref):
             raise ValueError("The accepted outcome belongs to another configured delivery binding.")
 
-        reply = await self._request(
+        acceptance_receipt = await self._request(
             "POST",
-            f"/submit/{item.operation.value}/{item.execution_attempt_ref}",
+            f"/submit/{item.operation.value}/{item.execution_attempt_ref}",  # machine-string: the local IPC client parses this operation and Attempt route exactly
             body=item.body,
             job_ref=item.job_ref
         )
 
-        if reply != item.acceptance():
+        if acceptance_receipt != item.acceptance():
             raise DeliveryRejected("The durable acknowledgement does not match this exact provider, Attempt, operation and body digest.")
 
-        return reply
+        return acceptance_receipt
 
-    def _metadata(self, value):
+    def _metadata(self, delivery_metadata):
         fields = {"job_ref", "execution_attempt_ref", "operation", "body_sha256", "body_bytes", "state"}
 
-        if not (type(value) is (expected_type := dict)):
-            raise DeliveryRejected(f"{type(value)=} ≠ {expected_type=}")
+        if not (type(delivery_metadata) is (expected_type := dict)):
+            raise DeliveryRejected(f"{type(delivery_metadata)=} ≠ {expected_type=}")
 
-        if not (fields <= value.keys()):
+        if not (fields <= delivery_metadata.keys()):
             raise DeliveryRejected("Delivery metadata is missing its Job, Attempt or retained-body identity.")
 
         try:
-            require_attempt_ref(value["execution_attempt_ref"])
-            require_job_ref(value["job_ref"])
+            require_attempt_ref(delivery_metadata["execution_attempt_ref"])
+            require_job_ref(delivery_metadata["job_ref"])
         except (TypeError, ValueError) as cause:
             raise DeliveryRejected("Delivery metadata has an invalid Job or Attempt identity.") from cause
 
-        if not (value["operation"] in ("complete", "fail")):
+        if not (delivery_metadata["operation"] in ("complete", "fail")):
             raise DeliveryRejected("Delivery metadata has an unsupported operation, state or body identity.")
 
-        if not (value["state"] in ("pending", "held")):
+        if not (delivery_metadata["state"] in ("pending", "held")):
             raise DeliveryRejected("Delivery metadata has an unsupported operation, state or body identity.")
 
-        if not (type((value_body_sha256 := value["body_sha256"])) is (expected_type := str)):
-            raise DeliveryRejected(f"{type(value_body_sha256)=} ≠ {expected_type=}")
+        if not (type((metadata_body_sha256 := delivery_metadata["body_sha256"])) is (expected_type := str)):
+            raise DeliveryRejected(f"{type(metadata_body_sha256)=} ≠ {expected_type=}")
 
-        if re.fullmatch(r"sha256:[0-9a-f]{64}", value["body_sha256"]) is None:
+        if re.fullmatch(r"sha256:[0-9a-f]{64}", delivery_metadata["body_sha256"]) is None:
             raise DeliveryRejected("Delivery metadata has an unsupported operation, state or body identity.")
 
-        if not (type((value_body_bytes := value["body_bytes"])) is (expected_type := int)):
-            raise DeliveryRejected(f"{type(value_body_bytes)=} ≠ {expected_type=}")
+        if not (type((metadata_body_bytes := delivery_metadata["body_bytes"])) is (expected_type := int)):
+            raise DeliveryRejected(f"{type(metadata_body_bytes)=} ≠ {expected_type=}")
 
-        if value["body_bytes"] <= 0:
+        if delivery_metadata["body_bytes"] <= 0:
             raise DeliveryRejected("Delivery metadata has an unsupported operation, state or body identity.")
 
-        return value
+        return delivery_metadata
 
     async def pending(self):
-        reply = await self._request("GET", "/pending")
+        pending_inventory = await self._request("GET", "/pending")
 
-        if not (type(reply) is (expected_type := dict)):
-            raise DeliveryRejected(f"{type(reply)=} ≠ {expected_type=}")
+        if not (type(pending_inventory) is (expected_type := dict)):
+            raise DeliveryRejected(f"{type(pending_inventory)=} ≠ {expected_type=}")
 
-        if not ({"api_origin", "provider_ref", "items", "capacity", "publisher"} <= reply.keys()):
+        if not ({"api_origin", "provider_ref", "items", "capacity", "publisher"} <= pending_inventory.keys()):
             raise DeliveryRejected("The pending inventory does not belong to the configured delivery binding.")
 
-        if (reply["api_origin"], reply["provider_ref"]) != (self.endpoint.api_origin, self.endpoint.provider_ref):
+        if (pending_inventory["api_origin"], pending_inventory["provider_ref"]) != (self.endpoint.api_origin, self.endpoint.provider_ref):
             raise DeliveryRejected("The pending inventory does not belong to the configured delivery binding.")
 
-        if not (type((reply_items := reply["items"])) is (expected_type := list)):
-            raise DeliveryRejected(f"{type(reply_items)=} ≠ {expected_type=}")
+        if not (type((pending_delivery_records := pending_inventory["items"])) is (expected_type := list)):
+            raise DeliveryRejected(f"{type(pending_delivery_records)=} ≠ {expected_type=}")
 
-        publisher = reply["publisher"]
+        publisher = pending_inventory["publisher"]
 
         if not (type(publisher) is (expected_type := dict)):
             raise DeliveryRejected(f"{type(publisher)=} ≠ {expected_type=}")
@@ -244,7 +244,7 @@ class DeliveryClient:
 
         # Diagnostic text/counters are display facts. Their shape must not
         # prevent ownership or capacity observation; they grant no admission.
-        capacity = reply["capacity"]
+        capacity = pending_inventory["capacity"]
 
         if not (type(capacity) is (expected_type := dict)):
             raise DeliveryRejected(f"{type(capacity)=} ≠ {expected_type=}")
@@ -264,24 +264,28 @@ class DeliveryClient:
         if capacity['provider_bytes'] <= 0:
             raise DeliveryRejected("Delivery inventory requires positive item and byte allowances.")
 
-        for item in reply["items"]:
-            self._metadata(item)
+        for delivery_metadata in pending_inventory["items"]:
+            self._metadata(delivery_metadata)
 
-        return reply
+        return pending_inventory
 
     async def status(self, execution_attempt_ref):
         require_attempt_ref(execution_attempt_ref)
-        reply = await self._request("GET", f"/status/{execution_attempt_ref}")
 
-        if reply is None:
+        status_metadata = await self._request(
+            "GET",
+            f"/status/{execution_attempt_ref}",  # machine-string: the local IPC service parses this exact status route
+        )
+
+        if status_metadata is None:
             return None
 
-        result = self._metadata(reply)
+        delivery_metadata = self._metadata(status_metadata)
 
-        if result["execution_attempt_ref"] != execution_attempt_ref:
+        if delivery_metadata["execution_attempt_ref"] != execution_attempt_ref:
             raise DeliveryRejected("The delivery status names another Attempt.")
 
-        return result
+        return delivery_metadata
 
     def can_retry(self, failure):
         """Permit another local read or unchanged submission after owned I/O settles."""
@@ -316,7 +320,7 @@ class DeliveryClient:
 
         return (
             temporary_io_failure(primary, 8, network_failure=exchange.network_failure) or
-            (type(connect_cause) is FileNotFoundError and connect_cause.errno == errno.ENOENT) or
+            ((type(connect_cause) is FileNotFoundError) and (connect_cause.errno == errno.ENOENT)) or
             ((type(primary) is httpcore.RemoteProtocolError) and
-             (exchange.response_head is None or exchange.response_head.status in (200, 503)))
+             ((exchange.response_head is None) or (exchange.response_head.status in (200, 503))))
         )

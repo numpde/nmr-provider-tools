@@ -84,13 +84,13 @@ def render_projected_lock(
 
     import tomli_w
 
-    document = {
+    lock_definition = {
         "lock-version": "1.0",
         "created-by": created_by,
         "packages": packages,
         "tool": tool,
     }
 
-    list(Pylock.from_dict(document).select(prefer_sdist_predicate=prefer_sdist_predicate))
+    list(Pylock.from_dict(lock_definition).select(prefer_sdist_predicate=prefer_sdist_predicate))
 
-    return tomli_w.dumps(document)
+    return tomli_w.dumps(lock_definition)

@@ -408,7 +408,7 @@ class PythonContractApplicabilityTests(unittest.TestCase):
                 (raw, applicable) = self.exercise_property(source, accepted=False)
 
                 self.assertTrue(raw)
-                self.assertTrue(any("python contract annotation requires" in finding for finding in applicable))
+                self.assertTrue(any(("python contract annotation requires" in finding) for finding in applicable))
 
                 for finding in raw:
                     self.assertIn(finding, applicable)
@@ -459,7 +459,7 @@ class PythonContractApplicabilityTests(unittest.TestCase):
                     accepted=False,
                 )
 
-                self.assertTrue(any("python contract annotation requires" in finding for finding in applicable))
+                self.assertTrue(any(("python contract annotation requires" in finding) for finding in applicable))
 
                 for finding in raw:
                     self.assertIn(finding, applicable)
@@ -508,7 +508,7 @@ class PythonContractApplicabilityTests(unittest.TestCase):
 
         self.assertEqual(1, len(raw))
         self.assertIn(raw[0], applicable)
-        self.assertTrue(any("python contract annotation requires" in finding for finding in applicable))
+        self.assertTrue(any(("python contract annotation requires" in finding) for finding in applicable))
 
     def test_call_expression_contract_covers_multiline_consumer_regions(self):
         for (source, count) in (
@@ -653,7 +653,7 @@ class PythonContractApplicabilityTests(unittest.TestCase):
             with self.subTest(source=source):
                 (raw, applicable) = self.exercise_property(self.annotation + source, accepted=False)
 
-                self.assertTrue(any("python contract annotation requires" in finding for finding in applicable))
+                self.assertTrue(any(("python contract annotation requires" in finding) for finding in applicable))
 
                 for finding in raw:
                     self.assertIn(finding, applicable)
@@ -768,7 +768,7 @@ class PythonContractApplicabilityTests(unittest.TestCase):
             with self.subTest(source=source):
                 (raw, applicable) = self.exercise_property(self.annotation + source, accepted=False)
 
-                self.assertTrue(any("python contract annotation requires" in finding for finding in applicable))
+                self.assertTrue(any(("python contract annotation requires" in finding) for finding in applicable))
 
                 for finding in raw:
                     self.assertIn(finding, applicable)
@@ -877,7 +877,7 @@ class PythonContractApplicabilityTests(unittest.TestCase):
             with self.subTest(statement=statement):
                 (raw, applicable) = self.exercise_property(annotation + statement + "\n", accepted=False)
 
-                self.assertTrue(any("python contract annotation requires" in finding for finding in applicable))
+                self.assertTrue(any(("python contract annotation requires" in finding) for finding in applicable))
 
                 for finding in raw:
                     self.assertIn(finding, applicable)
@@ -902,7 +902,7 @@ class PythonContractApplicabilityTests(unittest.TestCase):
             with self.subTest(source=source):
                 (raw, applicable) = self.exercise_property(source, accepted=False)
 
-                self.assertTrue(any("python contract annotation requires" in finding for finding in applicable))
+                self.assertTrue(any(("python contract annotation requires" in finding) for finding in applicable))
 
                 for finding in raw:
                     self.assertIn(finding, applicable)
@@ -954,13 +954,13 @@ class PythonContractApplicabilityTests(unittest.TestCase):
         )
 
         sources = [
-            (
+            ((
                 "try:\n"
                 "    inspect()\n"
             ) + self.annotation + header + (
                 "\n"
                 "    pass\n"
-            )
+            ))
             for header in headers
         ]
 
@@ -985,7 +985,7 @@ class PythonContractApplicabilityTests(unittest.TestCase):
                 (raw, applicable) = self.exercise_property(source, accepted=False)
 
                 self.assertTrue(raw)
-                self.assertTrue(any("python contract annotation requires" in finding for finding in applicable))
+                self.assertTrue(any(("python contract annotation requires" in finding) for finding in applicable))
 
                 for finding in raw:
                     self.assertIn(finding, applicable)
@@ -1100,7 +1100,7 @@ class PythonContractApplicabilityTests(unittest.TestCase):
 
                 self.assertEqual(1, len(raw))
                 self.assertIn(raw[0], applicable)
-                self.assertTrue(any("python contract annotation requires" in finding for finding in applicable))
+                self.assertTrue(any(("python contract annotation requires" in finding) for finding in applicable))
 
         for body in ("raise", "return None"):
             with self.subTest(body=body):
@@ -1284,7 +1284,7 @@ class PythonContractApplicabilityTests(unittest.TestCase):
                 for finding in raw:
                     self.assertIn(finding, applicable)
 
-                self.assertTrue(any("python contract annotation requires" in finding for finding in applicable))
+                self.assertTrue(any(("python contract annotation requires" in finding) for finding in applicable))
 
     def test_for_iterable_contract_keeps_env_cli_and_lambda_inputs_strict(self):
         for expression in (
@@ -1310,7 +1310,7 @@ class PythonContractApplicabilityTests(unittest.TestCase):
                 for finding in raw:
                     self.assertIn(finding, applicable)
 
-                self.assertTrue(any("python contract annotation requires" in finding for finding in applicable))
+                self.assertTrue(any(("python contract annotation requires" in finding) for finding in applicable))
 
     def test_local_review_accepts_generic_candidates_without_changing_raw_findings(self):
         for expression in ('parsed.path or "/"', 'payload.get("context", {})', 'value if value is not None else "rendered"'):

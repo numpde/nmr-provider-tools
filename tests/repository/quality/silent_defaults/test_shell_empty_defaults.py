@@ -96,7 +96,7 @@ class ShellEmptyDefaultsTest(unittest.TestCase):
                 patch.object(_repo_surfaces, "REPO_ROOT", root),
                 patch(__name__ + ".SILENT_DEFAULTS_PRIVATE_ENV_EXCLUSIONS", excluded),
             ):
-                scanned = {repo_path(path) for path in _shell_surface_files()}
+                scanned = {repo_path(source_path) for source_path in _shell_surface_files()}
 
             self.assertTrue(excluded.isdisjoint(scanned))
             self.assertIn(pathlib.Path("config/private.env.example"), scanned)

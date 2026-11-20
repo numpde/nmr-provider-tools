@@ -112,8 +112,8 @@ class ExecutionIntegrationTests(unittest.IsolatedAsyncioTestCase):
                     self.assertEqual(json.loads(peer.request_bodies[4])["condition_code"], "waiting_capacity")
                     self.assertEqual(json.loads(peer.request_bodies[9])["phase"], "running")
 
-                    for (request, body) in zip(peer.requests[:-1], peer.request_bodies[:-1], strict=True):
-                        verify_signed_request(request, body, origin=peer.origin, key=client.identity.private_key)
+                    for (request_head, body) in zip(peer.requests[:-1], peer.request_bodies[:-1], strict=True):
+                        verify_signed_request(request_head, body, origin=peer.origin, key=client.identity.private_key)
 
                     verify_signed_request(peer.requests[-1], peer.request_bodies[-1], origin=peer.origin, key=sender.identity.private_key)
                     self.assertTrue(peer.requests[-1].startswith(b"POST /provider/v1/execution-attempts/complete "))

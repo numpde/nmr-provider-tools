@@ -20,6 +20,7 @@ class VectorInput:
 
     def __post_init__(self) -> None:
         actual_values = self.values
+
         require_type(actual_values, tuple)
 
         if not (self.values):
@@ -40,6 +41,7 @@ class Reference:
 
     def __post_init__(self) -> None:
         actual_label = self.label
+
         require_type(actual_label, str)
 
         if not self.label.strip():
@@ -57,6 +59,7 @@ class ReferenceSet:
 
     def __post_init__(self) -> None:
         actual_entries = self.entries
+
         require_type(actual_entries, tuple)
 
         for entry in self.entries:
@@ -69,7 +72,7 @@ class ReferenceSet:
         dimensions = len(self.entries[0].values)
 
         for reference in self.entries:
-            if reference.label in labels or len(reference.values) != dimensions:
+            if (reference.label in labels) or (len(reference.values) != dimensions):
                 raise ValueError("Matching references require unique labels and equal vector dimensions")
 
             labels.add(reference.label)
@@ -151,7 +154,7 @@ def match(index: ReferenceIndex, settings: MatchSettings, candidate: VectorInput
     if len(candidate.values) != dimensions:
         raise ScientificRejection(
             "wrong_dimensions",
-            f"Matching requires {dimensions} vector values; received {len(candidate.values)}",
+            f"{len(candidate.values)=} should match {dimensions=}",
         )
 
     scores = [0.0] * len(index.labels)

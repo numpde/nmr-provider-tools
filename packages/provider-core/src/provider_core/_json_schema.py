@@ -19,10 +19,10 @@ from pydantic_core import core_schema
 class _ClosedDataclasses(GenerateJsonSchema):
     def dataclass_schema(self, schema: core_schema.DataclassSchema) -> JsonSchemaValue:
         """Reflect the SDK codec's unknown-field rule without editing provider types."""
-        document = super().dataclass_schema(schema=schema)
-        document["additionalProperties"] = False
+        dataclass_definition = super().dataclass_schema(schema=schema)
+        dataclass_definition["additionalProperties"] = False
 
-        return document
+        return dataclass_definition
 
 
 @cache

@@ -12,69 +12,24 @@ from tools.container_guard import require_container
 require_container()
 
 import ast
-import io
-import tokenize
 import unittest
 
 from .sources import ROOT, python_sources
-from .test_multiline_comprehension_posture import _character_column, _delimiter_pairs
-
-
-def _needs_grouping(operand: ast.expr) -> bool:
-    """Distinguish operator expressions from ordinary signed numeric literals."""
-
-    if (
-        isinstance(operand, ast.UnaryOp) and
-        isinstance(operand.op, (ast.UAdd, ast.USub)) and
-        isinstance(operand.operand, ast.Constant) and
-        (type(operand.operand.value) in (int, float, complex))
-    ):
-        return False
-
-    return isinstance(operand, (ast.BinOp, ast.UnaryOp, ast.BoolOp, ast.IfExp, ast.NamedExpr, ast.Compare))
+from .expression_grouping import needs_operator_grouping, ungrouped_expression_findings
 
 
 def comparison_operand_findings(*, source: str) -> list[tuple[int, int, str]]:
     """Locate ungrouped operands using matched delimiters and AST source spans."""
 
-    lines = source.splitlines()
-    tokens = [
-        token
-        for token in tokenize.generate_tokens(readline=io.StringIO(source).readline)
-        if token.type not in {tokenize.COMMENT, tokenize.NL, tokenize.NEWLINE, tokenize.INDENT, tokenize.DEDENT, tokenize.ENDMARKER}
-    ]
-    starts = {token.start: index for index, token in enumerate(tokens)}
-    ends = {token.end: index for index, token in enumerate(tokens)}
-    pairs = _delimiter_pairs(source=source)
-    findings = []
+    expressions = (
+        operand
+        for comparison in ast.walk(node=ast.parse(source=source))
+        if isinstance(comparison, ast.Compare)
+        for operand in (comparison.left, *comparison.comparators)
+        if needs_operator_grouping(operand)
+    )
 
-    for comparison in ast.walk(node=ast.parse(source=source)):
-        if not isinstance(comparison, ast.Compare):
-            continue
-
-        for operand in (comparison.left, *comparison.comparators):
-            if not _needs_grouping(operand):
-                continue
-
-            start = (operand.lineno, _character_column(line=lines[operand.lineno - 1], byte_column=operand.col_offset))
-            end = (operand.end_lineno, _character_column(line=lines[operand.end_lineno - 1], byte_column=operand.end_col_offset))
-            first = starts[start]
-            last = ends[end]
-            before = tokens[first - 1] if first else None
-            after = tokens[last + 1] if (last + 1) < len(tokens) else None
-
-            if before is not None and after is not None and before.string == "(" and after.string == ")":
-                opening = (
-                    before.start[0],
-                    len(lines[before.start[0] - 1][:before.start[1]].encode("utf-8")),
-                )
-
-                if pairs.get(opening) == after:
-                    continue
-
-            findings.append((start[0], start[1] + 1, ast.get_source_segment(source, operand)))
-
-    return sorted(findings)
+    return ungrouped_expression_findings(source=source, expressions=expressions)
 
 
 class ComparisonOperandParenthesesPostureTests(unittest.TestCase):
@@ -85,8 +40,9 @@ class ComparisonOperandParenthesesPostureTests(unittest.TestCase):
 
                 self.assertEqual(
                     ["left + offset", "required | optional"],
-                    [operand for _, _, operand in comparison_operand_findings(source=source)],
+                    [operand for (_, _, operand) in comparison_operand_findings(source=source)],
                 )
+
                 self.assertEqual([], comparison_operand_findings(source=f"(left + offset) {operator} (required | optional)\n"))
 
     def test_arithmetic_bitwise_and_unary_expressions_need_grouping(self):
@@ -115,7 +71,7 @@ class ComparisonOperandParenthesesPostureTests(unittest.TestCase):
             with self.subTest(operand=operand):
                 findings = comparison_operand_findings(source=f"{operand} in members\n")
 
-                self.assertEqual([operand], [expression for _, _, expression in findings])
+                self.assertEqual([operand], [expression for (_, _, expression) in findings])
                 self.assertEqual([], comparison_operand_findings(source=f"({operand}) in members\n"))
 
     def test_chains_check_intermediate_operands_and_nested_comparisons(self):
@@ -123,12 +79,14 @@ class ComparisonOperandParenthesesPostureTests(unittest.TestCase):
 
         self.assertEqual(
             ["lower + margin", "measured * scale", "upper - margin"],
-            [operand for _, _, operand in comparison_operand_findings(source=source)],
+            [operand for (_, _, operand) in comparison_operand_findings(source=source)],
         )
+
         self.assertEqual([], comparison_operand_findings(source="(lower + margin) < (measured * scale) < (upper - margin)\n"))
+
         self.assertEqual(
             ["left + right"],
-            [operand for _, _, operand in comparison_operand_findings(source="((left + right < limit) + offset) == expected\n")],
+            [operand for (_, _, operand) in comparison_operand_findings(source="((left + right < limit) + offset) == expected\n")],
         )
 
     def test_comparison_call_and_partial_grouping_do_not_group_the_operand(self):
@@ -183,7 +141,17 @@ class ComparisonOperandParenthesesPostureTests(unittest.TestCase):
             "    pass\n"
         )
 
-        self.assertEqual([(2, 5, "first +\n    second")], comparison_operand_findings(source=source))
+        self.assertEqual(
+            [
+                (
+                    2,
+                    5,
+                    "first +\n"
+                    "    second",
+                ),
+            ],
+            comparison_operand_findings(source=source),
+        )
 
     def test_comments_multiline_operands_unicode_and_fstrings(self):
         source = (
@@ -208,7 +176,7 @@ class ComparisonOperandParenthesesPostureTests(unittest.TestCase):
         findings = [
             f"{source_path.relative_to(ROOT)}:{line}:{column}: parenthesize comparison operand {operand!r}"
             for source_path in python_sources(production_only=False)
-            for line, column, operand in comparison_operand_findings(source=source_path.read_text(encoding="utf-8"))
+            for (line, column, operand) in comparison_operand_findings(source=source_path.read_text(encoding="utf-8"))
         ]
 
         if findings:

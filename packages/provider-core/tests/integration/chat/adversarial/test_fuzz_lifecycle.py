@@ -137,7 +137,7 @@ class LifecycleOrders(RuleBasedStateMachine):
         self.cases = { }
         self.replies = { }
 
-        async def model_reply(_request, _body, *, gate, identity):
+        async def model_reply(_request_head, _body, *, gate, identity):
             await gate.wait()
 
             return (
@@ -353,18 +353,18 @@ class LifecycleOrders(RuleBasedStateMachine):
 
         async def join():
             case = self.cases[name]
-            (result,) = await asyncio.gather(task, return_exceptions=True)
+            (controller_outcome,) = await asyncio.gather(task, return_exceptions=True)
 
-            if isinstance(result, ControllerFailed) and case.session.retirement_completed:
-                observed = await case.controller.settle_revocation(result)
+            if isinstance(controller_outcome, ControllerFailed) and case.session.retirement_completed:
+                observed = await case.controller.settle_revocation(controller_outcome)
 
                 if observed is not None:
                     assert case.controller.shutdown_ready
                     assert not self.claims.owns_job(case.pending.scope, case.pending.input.job_ref)
-            elif type(result) is StartDeferred:
+            elif type(controller_outcome) is StartDeferred:
                 assert (case.session.science.preparations, case.session.science.executions) == (0, 0)
 
-                if result.may_have_committed:
+                if controller_outcome.may_have_committed:
                     # A failed START exchange is not a grant to prepare work,
                     # and positive cleanup cannot release uncertain custody.
                     assert case.transport.sent_disposition == "uncertain"
@@ -374,7 +374,7 @@ class LifecycleOrders(RuleBasedStateMachine):
                     assert self.claims.owns_job(case.pending.scope, case.pending.input.job_ref)
                 else:
                     assert not self.claims.owns_job(case.pending.scope, case.pending.input.job_ref)
-            elif type(result) is DeliveryAcceptedCheckpoint:
+            elif type(controller_outcome) is DeliveryAcceptedCheckpoint:
                 assert case.controller.shutdown_ready
                 assert not self.claims.owns_job(case.pending.scope, case.pending.input.job_ref)
 
@@ -458,19 +458,19 @@ class LifecycleOrders(RuleBasedStateMachine):
                 if delivery.offers:
                     original_terminal = delivery.offers[0]
 
-                    assert all(item is original_terminal for item in delivery.offers), (
+                    assert all((offered_outcome is original_terminal) for offered_outcome in delivery.offers), (
                         "A delivery retry replaced the original logical terminal")
 
                     assert all(
                         (
-                            (item.key == original_terminal.key) and
-                            (item.body == original_terminal.body) and
-                            (item.body_sha256 == original_terminal.body_sha256)
-                            for item in delivery.offers
+                            ((offered_outcome.key == original_terminal.key) and
+                             (offered_outcome.body == original_terminal.body) and
+                             (offered_outcome.body_sha256 == original_terminal.body_sha256))
+                            for offered_outcome in delivery.offers
                         ),
                     )
 
-                    assert len(delivery.offers) <= delivery._answered + 1
+                    assert len(delivery.offers) <= (delivery._answered + 1)
 
                     if not delivery.accepted.is_set():
                         # Selection, a rejected reply or possible local storage

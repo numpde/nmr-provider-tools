@@ -81,7 +81,7 @@ class ReleasedApiContractTests(PinnedApiRelease, unittest.IsolatedAsyncioTestCas
     def test_signer_uses_the_released_bases_and_published_signatures_verify(self):
         vectors = self.openapi["x-nmr-signature-conformance-vectors"]
 
-        self.assertEqual({item["name"] for item in vectors}, {"provider-jobs-list-get", "execution-attempt-start-post"})
+        self.assertEqual({signature_vector["name"] for signature_vector in vectors}, {"provider-jobs-list-get", "execution-attempt-start-post"})
         self.assertEqual(len(vectors), 2)
         key = Ed25519PrivateKey.generate()
 
@@ -90,7 +90,7 @@ class ReleasedApiContractTests(PinnedApiRelease, unittest.IsolatedAsyncioTestCas
                 # silent-defaults: allow-contract -- Released null means no body; empty bytes would still require a content digest.
                 body = vector["body_utf8"].encode() if vector["body_utf8"] is not None else None
 
-                request = signed_request(
+                signed_http_request = signed_request(
                     SigningIdentity("https://" + vector["authority"], vector["keyid"], key),
                     method=vector["method"],
                     path=vector["raw_path"],
@@ -101,19 +101,19 @@ class ReleasedApiContractTests(PinnedApiRelease, unittest.IsolatedAsyncioTestCas
                 )
 
                 if body is None:
-                    self.assertEqual(request.content, b"")
+                    self.assertEqual(signed_http_request.content, b"")
                 else:
-                    self.assertEqual(request.content, body)
+                    self.assertEqual(signed_http_request.content, body)
 
-                self.assertEqual(request.headers["Signature-Input"], vector["signature_input"])
-                self.assertEqual(request.headers.get("Content-Digest"), vector["content_digest"])
-                self.assertEqual(request.headers.get("Content-Type"), vector["content_type"])
+                self.assertEqual(signed_http_request.headers["Signature-Input"], vector["signature_input"])
+                self.assertEqual(signed_http_request.headers.get("Content-Digest"), vector["content_digest"])
+                self.assertEqual(signed_http_request.headers.get("Content-Type"), vector["content_type"])
 
                 # silent-defaults: allow-contract -- Empty raw query adds no URL delimiter; the released signature base still covers '?'.
                 target = vector["raw_path"] + ("?" + vector["raw_query"] if vector["raw_query"] else "")
 
-                self.assertEqual(request.url.raw_path, target.encode())
-                signature = parse(request.headers["Signature"].encode(), tltype="dictionary")["sig1"][0]
+                self.assertEqual(signed_http_request.url.raw_path, target.encode())
+                signature = parse(signed_http_request.headers["Signature"].encode(), tltype="dictionary")["sig1"][0]
 
                 # Verify against the RELEASED bytes, not a base reconstructed by
                 # core or this test. Vector signing keys are neither known nor needed.
@@ -128,9 +128,9 @@ class ReleasedApiContractTests(PinnedApiRelease, unittest.IsolatedAsyncioTestCas
 
     async def test_all_eleven_dispatches_use_released_routes_ceilings_and_closed_top_level_fields(self):
         routes = {
-            operation["operationId"]: (method.upper(), path, operation)
-            for (path, item) in self.openapi["paths"].items()
-            for (method, operation) in item.items()
+            operation["operationId"]: (method.upper(), route_template, operation)
+            for (route_template, path_item) in self.openapi["paths"].items()
+            for (method, operation) in path_item.items()
         }
 
         calls = provider_calls()
@@ -144,39 +144,39 @@ class ReleasedApiContractTests(PinnedApiRelease, unittest.IsolatedAsyncioTestCas
                 client = api(transport, "https://api.example.test")
 
                 await getattr(client, call.method_name)(*call.arguments, **call.options)
-                ((request, maximum_bytes),) = transport.calls
+                ((dispatched_request, maximum_bytes),) = transport.calls
 
-                self.assertEqual(request.content, call.body)
+                self.assertEqual(dispatched_request.content, call.body)
                 (method, template, operation) = routes[operation_id]
-                path = template.format(job_ref="job:example", execution_attempt_ref=ATTEMPT_REF, upload_ref=UPLOAD_REF)
+                expected_route_path = template.format(job_ref="job:example", execution_attempt_ref=ATTEMPT_REF, upload_ref=UPLOAD_REF)
 
-                self.assertEqual(request.method, method)
-                (raw_path, _, query) = request.url.raw_path.partition(b"?")
+                self.assertEqual(dispatched_request.method, method)
+                (raw_path, _, query) = dispatched_request.url.raw_path.partition(b"?")
 
-                self.assertEqual(raw_path, path.encode())
+                self.assertEqual(raw_path, expected_route_path.encode())
                 self.assertEqual(maximum_bytes, operation["x-nmr-max-response-bytes"])
                 self.assertLessEqual(len(query), operation["x-nmr-max-query-bytes"])
-                parameters = {item["name"]: item for item in operation["parameters"] if item["in"] == "query"}
+                query_parameters = {query_parameter["name"]: query_parameter for query_parameter in operation["parameters"] if query_parameter["in"] == "query"}
                 names = {name for (name, _) in parse_qsl(query.decode(), keep_blank_values=True)}
 
-                self.assertLessEqual(names, set(parameters))
-                self.assertLessEqual({name for (name, item) in parameters.items() if item["required"]}, names)
+                self.assertLessEqual(names, set(query_parameters))
+                self.assertLessEqual({parameter_name for (parameter_name, query_parameter) in query_parameters.items() if query_parameter["required"]}, names)
                 response_schema = self.schemas[operation["x-nmr-response-schema-id"]]
 
                 self.assertEqual(json.loads(call.response)["schema_id"], response_schema["properties"]["schema_id"]["const"])
                 self.assertEqual(set(json.loads(call.response)), set(response_schema["required"]))
                 self.assertFalse(response_schema["additionalProperties"])
-                self.assertLessEqual(len(request.content), operation["x-nmr-max-request-body-bytes"])
+                self.assertLessEqual(len(dispatched_request.content), operation["x-nmr-max-request-body-bytes"])
 
                 if "x-nmr-request-schema-id" in operation:
                     schema = self.schemas[operation["x-nmr-request-schema-id"]]
-                    document = json.loads(request.content)
+                    request_fields = json.loads(dispatched_request.content)
 
-                    self.assertEqual(document["schema_id"], schema["properties"]["schema_id"]["const"])
-                    self.assertEqual(set(document), set(schema["required"]))
+                    self.assertEqual(request_fields["schema_id"], schema["properties"]["schema_id"]["const"])
+                    self.assertEqual(set(request_fields), set(schema["required"]))
                     self.assertFalse(schema["additionalProperties"])
                 else:
-                    self.assertEqual(request.content, b"")
+                    self.assertEqual(dispatched_request.content, b"")
 
     def test_topology_vocabulary_is_the_released_routed_environment_vocabulary(self):
         topologies = self.openapi["components"]["headers"]["NmrApiTopology"]["schema"]["enum"]

@@ -112,7 +112,7 @@ class _Changes:
 
         require_nonnegative_number(wait_seconds)
 
-        if after == self.revision and wait_seconds:
+        if (after == self.revision) and wait_seconds:
             try:
                 await asyncio.wait_for(self.event.wait(), timeout=wait_seconds)
             except TimeoutError:
@@ -186,7 +186,7 @@ class _Resident:
         )
 
         self.analysis = None
-        self.value = None
+        self.instance = None
         self.constructed = False
         self.ready = False
         self.failure = None
@@ -212,12 +212,12 @@ class _Resident:
 
         try:
             if not self.constructed:
-                self.value = binding.construct_instance()
+                self.instance = binding.construct_instance()
                 self.constructed = True
 
-            binding.initialize_instance(instance=self.value, assets=self.assets)
+            binding.initialize_instance(instance=self.instance, assets=self.assets)
 
-            if seconds < time.monotonic() - started_at:
+            if seconds < (time.monotonic() - started_at):
                 raise self.initialization_limit_failure
         except BaseException as cause:
             self.failure = cause
@@ -233,16 +233,16 @@ class _Resident:
         self.dispose_attempted = True
 
         if self.constructed:
-            self.binding.close_instance(instance=self.value)
+            self.binding.close_instance(instance=self.instance)
 
-        self.value = None
+        self.instance = None
         self.ready = False
 
 
 class _ScientificAnalysis:
     def __init__(self, resident):
         self.resident = resident
-        self.value = None
+        self.analysis_instance = None
         self.constructed = False
         self.ready = False
         self.failure = None
@@ -257,10 +257,10 @@ class _ScientificAnalysis:
         binding = self.resident.binding
 
         try:
-            self.value = binding.construct_analysis(instance=self.resident.value)
+            self.analysis_instance = binding.construct_analysis(instance=self.resident.instance)
             self.constructed = True
 
-            binding.initialize_analysis(analysis=self.value)
+            binding.initialize_analysis(analysis=self.analysis_instance)
         except BaseException as cause:
             self.failure = cause
 

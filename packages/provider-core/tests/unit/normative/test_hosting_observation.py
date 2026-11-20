@@ -63,7 +63,7 @@ class HeldObserver:
     async def observe(self, *, after, wait_seconds):
         self.requests.append((after, wait_seconds))
 
-        if after == self.observation.revision and wait_seconds > 0:
+        if (after == self.observation.revision) and (wait_seconds > 0):
             self.changed.clear()
             self.waiting.set()
             await self.changed.wait()
@@ -140,7 +140,7 @@ class HostingObservationTests(unittest.IsolatedAsyncioTestCase):
         pending = pending_operation()
         newer = replace(pending, revision=7, allowance_expired=True)
 
-        result = ResultRef(
+        result_reference = ResultRef(
             operation=OperationRef(host="host", analysis="analysis", operation_id="calculation"),
             result_id="result",
         )
@@ -151,7 +151,7 @@ class HostingObservationTests(unittest.IsolatedAsyncioTestCase):
             finished=True,
             outcome=Outcome.SUCCEEDED,
             result_state=ResultState.AVAILABLE,
-            result=result,
+            result=result_reference,
         )
 
         operation = SimpleNamespace(

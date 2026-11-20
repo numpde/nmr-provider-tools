@@ -89,7 +89,7 @@ async def scenario(marker, report, seed):
     published = set()
     (notices, cycles, jobs, first_http_stops, completion_receipts) = ([], [], [], {}, [])
 
-    result = {
+    scenario_report = {
         "seed": seed,
         "acknowledgement_cycle": acknowledgement_cycle,
         "acknowledgement_phase": acknowledgement_phase,
@@ -185,7 +185,7 @@ async def scenario(marker, report, seed):
                 raise AssertionError("Session preparation changed its original Job input")
 
             async def dispatch(name, arguments, *, not_after):
-                if name != "prepare_scientific_input" or arguments:
+                if (name != "prepare_scientific_input") or arguments:
                     raise AssertionError("Unexpected prose-interpreter tool request")
 
                 report_condition.require_execution()
@@ -227,12 +227,12 @@ async def scenario(marker, report, seed):
 
             report_condition.require_execution()
             self.execute_calls += 1
-            value = await self.scientific_worker.call("execute", self.job_ref)
+            worker_snapshot = await self.scientific_worker.call("execute", self.job_ref)
             self.handle = None
 
             return AnalysisSuccess(
                 "fixture.counted_science.v1",
-                json.dumps(value).encode(),
+                json.dumps(worker_snapshot).encode(),
                 ProtectedEvidence("fixture.science.evidence.v1", b"one scientific execution")
             )
 
@@ -251,12 +251,12 @@ async def scenario(marker, report, seed):
 
         def __init__(self, inbox, endpoint, publisher):
             (self.inbox, self.endpoint, self.publisher) = (inbox, endpoint, publisher)
-            self.items = []
+            self.delivery_outcomes = []
 
             (self.retirement_confirmed, self.last_failure) = (True, None)
 
         async def submit(self, item):
-            self.items.append(item)
+            self.delivery_outcomes.append(item)
             accepted = await self.inbox.storage(self.inbox.queue.enqueue, item)
 
             self.publisher.wake()
@@ -269,11 +269,11 @@ async def scenario(marker, report, seed):
         def can_retry(self, failure):
             return False
 
-    async def jobs_api_response(request, body):
-        document = json.loads(body)
-        reference = document["execution_attempt_ref"]
+    async def jobs_api_response(request_head, body):
+        publication_fields = json.loads(body)
+        reference = publication_fields["execution_attempt_ref"]
 
-        if request.split(b" ")[1].endswith(b"/complete"):
+        if request_head.split(b" ")[1].endswith(b"/complete"):
             (schema, content) = read_complete_body(body, execution_attempt_ref=reference)
 
             if not completed_result_received.is_set():
@@ -292,8 +292,8 @@ async def scenario(marker, report, seed):
 
         return fail_response(execution_attempt_ref=reference, failure_code=code, failure_message=message)
 
-    def prose_response_mode(request, _body):
-        if request.split(b" ")[1] == b"/hang":
+    def prose_response_mode(request_head, _body):
+        if request_head.split(b" ")[1] == b"/hang":
             return "headers-stall"
 
         return "success"
@@ -427,7 +427,7 @@ async def scenario(marker, report, seed):
                     return (session, control_transport, controller)
 
                 async def wait_for_publication():
-                    wanted = {item.execution_attempt_ref for item in local_delivery.items}
+                    wanted = {delivery_outcome.execution_attempt_ref for delivery_outcome in local_delivery.delivery_outcomes}
                     deadline = time.monotonic() + 6
 
                     while (not (wanted <= published)) and (time.monotonic() < deadline):
@@ -441,20 +441,20 @@ async def scenario(marker, report, seed):
 
                     while time.monotonic() < deadline:
                         if acknowledgement_phase == "request_received":
-                            seen = sum(request.split(b" ")[1] == b"/hang" for request in prose_peer.requests)
+                            seen = sum((request_head.split(b" ")[1] == b"/hang") for request_head in prose_peer.requests)
                         else:
                             events = []
 
                             if marker.exists():
                                 events = [json.loads(line) for line in marker.read_text().splitlines()]
 
-                            seen = sum(event["kind"] == "cleanup_engaged" for event in events)
+                            seen = sum((event["kind"] == "cleanup_engaged") for event in events)
 
                         if seen >= acknowledgement_cycle:
-                            result["acknowledgement_released_during_cycle"] = seen
-                            result["live_claims_at_acknowledgement_release"] = len(claims.live_owners())
-                            result["original_api_request_owned_at_acknowledgement_release"] = delivery_transport.pending_owner is publisher
-                            result["open_prose_connections_at_acknowledgement_release"] = sum(not task.done() for task in prose_peer.handlers)
+                            scenario_report["acknowledgement_released_during_cycle"] = seen
+                            scenario_report["live_claims_at_acknowledgement_release"] = len(claims.live_owners())
+                            scenario_report["original_api_request_owned_at_acknowledgement_release"] = delivery_transport.pending_owner is publisher
+                            scenario_report["open_prose_connections_at_acknowledgement_release"] = sum(not task.done() for task in prose_peer.handlers)
 
                             release_api_receipt.set()
 
@@ -468,10 +468,10 @@ async def scenario(marker, report, seed):
                     await run_job("original-result", "/ready")
                     await asyncio.wait_for(completed_result_received.wait(), 8)
                     await _settled_peer_handlers(prose_peer)
-                    original_result = local_delivery.items[0]
+                    original_result = local_delivery.delivery_outcomes[0]
                     pending_delivery_descriptors = _descriptors()
 
-                    result.update(
+                    scenario_report.update(
                         provider_pid=os.getpid(),
                         maximum_attempts=maximum_attempts,
                         repetitions=repetitions,
@@ -486,7 +486,7 @@ async def scenario(marker, report, seed):
                     for number in range(1, repetitions + 1):
                         (session, control_transport, controller) = await run_job("timeout-" + str(number), "/hang")
                         http_transport = session.http_endpoints[0]._transport
-                        process = http_transport.last_process_result
+                        http_child_result = http_transport.last_process_result
                         first_stop = first_http_stops[http_transport]
 
                         if release_api_receipt.is_set():
@@ -495,16 +495,16 @@ async def scenario(marker, report, seed):
 
                         open_prose_connections = await _settled_peer_handlers(prose_peer)
                         events = [json.loads(line) for line in marker.read_text().splitlines()]
-                        process_events = {event["kind"] for event in events if event["pid"] == process.pid}
+                        process_events = {event["kind"] for event in events if event["pid"] == http_child_result.pid}
                         diagnostic = failure_evidence(session.failure, secrets=("PRIVATE_B3_FIXTURE_KEY",))
 
                         snapshot = {
                             "number": number,
                             "provider_pid": os.getpid(),
-                            "http_child_pid": process.pid,
-                            "http_child_returncode": process.returncode,
-                            "http_child_alive": _process_alive(process.pid),
-                            "signals_sent": list(process.signals_sent),
+                            "http_child_pid": http_child_result.pid,
+                            "http_child_returncode": http_child_result.returncode,
+                            "http_child_alive": _process_alive(http_child_result.pid),
+                            "signals_sent": list(http_child_result.signals_sent),
                             "fault_events": sorted(process_events),
                             "open_prose_connections": open_prose_connections,
                             "live_claims": len(claims.live_owners()),
@@ -530,16 +530,16 @@ async def scenario(marker, report, seed):
                     open_prose_connections = await _settled_peer_handlers(prose_peer)
                     open_jobs_api_connections = await _settled_peer_handlers(jobs_api_peer)
 
-                    for (request, body) in zip(jobs_api_peer.requests, jobs_api_peer.request_bodies, strict=True):
-                        verify_signed_request(request, body, origin=jobs_api_peer.origin, key=delivery_api.identity.private_key)
+                    for (request_head, body) in zip(jobs_api_peer.requests, jobs_api_peer.request_bodies, strict=True):
+                        verify_signed_request(request_head, body, origin=jobs_api_peer.origin, key=delivery_api.identity.private_key)
 
-                    result.update(
+                    scenario_report.update(
                         scientific_worker_after=await scientific_worker.call("snapshot"),
                         original_result_bytes_sent_once=jobs_api_peer.request_bodies.count(original_result.body) == 1,
                         original_result_receipt_reference=completion_receipts[0].execution_attempt_ref,
                         original_result_receipt_result="analysis_result:sha256:" + sha256(original_result.body).hexdigest(),
                         original_result_receipt_verified=completion_receipts[0].analysis_result_ref,
-                        delivery_request_bodies_match=[item.body for item in local_delivery.items] == jobs_api_peer.request_bodies,
+                        delivery_request_bodies_match=[delivery_outcome.body for delivery_outcome in local_delivery.delivery_outcomes] == jobs_api_peer.request_bodies,
                         published_attempts=sorted(published),
                         notices=notices,
                         queue_inventory=queue.inventory(selected_scope.api_origin, selected_scope.provider_ref),
@@ -553,21 +553,21 @@ async def scenario(marker, report, seed):
                                 "session_prepare_calls": session.prepare_calls,
                                 "scientific_prepare_calls": session.scientific_prepare_calls,
                                 "scientific_execute_calls": session.execute_calls,
-                                "starts": sum(request.url.path.endswith("/start") for (request, _) in control.calls),
+                                "starts": sum(http_request.url.path.endswith("/start") for (http_request, _) in control.calls),
                                 "shutdown_ready": controller.shutdown_ready,
                             }
                             for (name, session, control, controller) in jobs
                         ],
-                        prose_request_paths=[request.split(b" ")[1].decode() for request in prose_peer.requests],
+                        prose_request_paths=[request_head.split(b" ")[1].decode() for request_head in prose_peer.requests],
                     )
                 except Exception as failure:
-                    result["scenario_failure"] = {"type": type(failure).__name__, "traceback": traceback.format_exc()}
+                    scenario_report["scenario_failure"] = {"type": type(failure).__name__, "traceback": traceback.format_exc()}
 
                 # Capture before the outer test stops the fixture's process group.
                 # That emergency cleanup must never make a recovery assertion pass.
                 temporary = report.with_suffix(".pending")
 
-                temporary.write_text(json.dumps(result, sort_keys=True))
+                temporary.write_text(json.dumps(scenario_report, sort_keys=True))
                 temporary.replace(report)
                 await asyncio.Event().wait()
 

@@ -232,7 +232,7 @@ class ExampleDependencyTests(unittest.TestCase):
                         encoding="utf-8",
                     )
 
-                    if distribution_name == "mock-numpy" and dependencies == "[]":
+                    if (distribution_name == "mock-numpy") and (dependencies == "[]"):
                         self.assertEqual(
                             first=[(scientific_mock, "mock-numpy", "0.1.0")],
                             second=_discover_mocks(mocks_root=pathlib.Path(directory)),

@@ -31,8 +31,14 @@ class ResetPeer(TlsPeer):
             )
 
             writer.write(
-                b"HTTP/1.1 200 OK\r\n" + b"".join(name+b": "+value+b"\r\n" for (name,value) in store_headers(BODY))
-                + (
+                b"HTTP/1.1 200 OK\r\n" +
+                b"".join(
+                    (
+                        (header_name + b": " + header_value + b"\r\n")
+                        for (header_name, header_value) in store_headers(BODY)
+                    ),
+                ) +
+                (
                     b"\r\n"
                     b"g"
                 )
@@ -97,7 +103,11 @@ class UploadNetworkResetTests(unittest.IsolatedAsyncioTestCase):
         def account(_count):
             raise original
 
-        headers = [(name,value) for (name,value) in store_headers(BODY) if name!=b"content-length"]
+        headers = [
+            (header_name, header_value)
+            for (header_name, header_value) in store_headers(BODY)
+            if header_name != b"content-length"
+        ]
 
         async with TlsPeer("success",response_body=BODY,response_headers=headers) as peer:
             (transfer, failure) = await self.failure(peer,account)

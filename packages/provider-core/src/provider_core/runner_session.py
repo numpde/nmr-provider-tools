@@ -103,7 +103,7 @@ class RunnerSession:
 
             (greeting, self.science) = receive_greeting(self.control, deadline=deadline)
 
-            if greeting["role"] != self.role or tuple(greeting["lock"]) != self.expected_lock_identity:
+            if (greeting["role"] != self.role) or (tuple(greeting["lock"]) != self.expected_lock_identity):
                 self.science.close()
                 self.science = None
 
@@ -221,33 +221,37 @@ class RunnerSession:
             )
 
     def _receive_retirement(self, deadline):
-        reply = receive_document(self.control, deadline=deadline)
+        retirement_message = receive_document(self.control, deadline=deadline)
+        retirement_fields = set(retirement_message)
+        expected_fields = {"kind", "generation", "operation", "returncode", "scratch_released", "reason"}
 
-        if set(reply) != {"kind", "generation", "operation", "returncode", "scratch_released", "reason"}:
-            raise LifecycleRejected("Runner retirement must match this operation and include its exit status, scratch state and supported reason.")
+        if retirement_fields != expected_fields:
+            raise LifecycleRejected(f"{retirement_fields=} should match {expected_fields=}")
 
-        if reply["kind"] != "retired":
-            raise LifecycleRejected("Runner retirement must match this operation and include its exit status, scratch state and supported reason.")
+        if retirement_message["kind"] != (expected_kind := "retired"):
+            raise LifecycleRejected(f"{retirement_message['kind']=} should match {expected_kind=}")
 
-        if reply["generation"] != self.generation:
-            raise LifecycleRejected("Runner retirement must match this operation and include its exit status, scratch state and supported reason.")
+        if retirement_message["generation"] != self.generation:
+            raise LifecycleRejected(f"{retirement_message['generation']=} should match {self.generation=}")
 
-        if reply["operation"] != self.operation:
-            raise LifecycleRejected("Runner retirement must match this operation and include its exit status, scratch state and supported reason.")
+        if retirement_message["operation"] != self.operation:
+            raise LifecycleRejected(f"{retirement_message['operation']=} should match {self.operation=}")
 
-        if not (type((reply_returncode := reply["returncode"])) is (expected_type := int)):
-            raise LifecycleRejected(f"{type(reply_returncode)=} ≠ {expected_type=}")
+        if not (type((retirement_returncode := retirement_message["returncode"])) is (expected_type := int)):
+            raise LifecycleRejected(f"{type(retirement_returncode)=} ≠ {expected_type=}")
 
-        if not (type((reply_scratch_released := reply["scratch_released"])) is (expected_type := bool)):
-            raise LifecycleRejected(f"{type(reply_scratch_released)=} ≠ {expected_type=}")
+        if not (type((retirement_scratch_released := retirement_message["scratch_released"])) is (expected_type := bool)):
+            raise LifecycleRejected(f"{type(retirement_scratch_released)=} ≠ {expected_type=}")
 
-        if not (reply["reason"] in ("exited", "owner_lost", "deadline", "shutdown")):
-            raise LifecycleRejected("Runner retirement must match this operation and include its exit status, scratch state and supported reason.")
+        if not (retirement_message["reason"] in (expected_reasons := ("exited", "owner_lost", "deadline", "shutdown"))):
+            raise LifecycleRejected(f"{retirement_message['reason']=} should be one of {expected_reasons=}")
 
-        if not (-signal.NSIG < reply["returncode"] < 256):
-            raise LifecycleRejected("Runner retirement has an impossible operating-system exit status; its cause remains unknown.")
+        (min_returncode, max_returncode) = (1 - signal.NSIG, 255)
 
-        return Retirement(reply["returncode"], reply["scratch_released"], reply["reason"])
+        if not (min_returncode <= retirement_returncode <= max_returncode):
+            raise LifecycleRejected(f"{retirement_returncode=} should be between {min_returncode=} and {max_returncode=}")
+
+        return Retirement(retirement_message["returncode"], retirement_message["scratch_released"], retirement_message["reason"])
 
     def close(self):
         self.mark_interruption()

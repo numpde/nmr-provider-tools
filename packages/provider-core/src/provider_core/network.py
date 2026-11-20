@@ -46,7 +46,7 @@ class NetworkIOObservation:
 
 # silent-defaults: allow-contract -- Cancellation supplies no availability permission unless the caller proves a typed timeout's implementation cause.
 def _availability(cause, remaining, observation, *, timeout_cancellation=False):
-    if remaining == 0 or cause is None:
+    if (remaining == 0) or (cause is None):
         return False
 
     # The pinned pool rethrows the same exception from None
@@ -62,7 +62,7 @@ def _availability(cause, remaining, observation, *, timeout_cancellation=False):
     if type(cause) is asyncio.CancelledError:
         return (
             (timeout_cancellation) and
-            (explicit is None or _availability(explicit, remaining - 1, observation, timeout_cancellation=True))
+            ((explicit is None) or _availability(explicit, remaining - 1, observation, timeout_cancellation=True))
         )
 
     timeout = type(cause) in (TimeoutError, httpcore.ConnectTimeout, httpcore.ReadTimeout, httpcore.WriteTimeout)
@@ -160,7 +160,7 @@ def network_availability(primary, observation, *, network_failure):
     if type(observation) is not NetworkIOObservation:
         return False
 
-    if observation.deadline_cancelled and type(primary) is TimeoutError:
+    if observation.deadline_cancelled and (type(primary) is TimeoutError):
         return (
             (observation.error is network_failure) and
             isinstance(observation.error, asyncio.CancelledError) and
@@ -171,9 +171,9 @@ def network_availability(primary, observation, *, network_failure):
         return False
 
     if observation.error is not None:
-        return primary is observation.error and _availability(primary, 8, observation)
+        return (primary is observation.error) and _availability(primary, 8, observation)
 
-    return observation.eof and type(primary) is httpcore.RemoteProtocolError
+    return observation.eof and (type(primary) is httpcore.RemoteProtocolError)
 
 
 class OwnedNetworkBackend(httpcore.AsyncNetworkBackend):
@@ -195,7 +195,7 @@ class OwnedNetworkBackend(httpcore.AsyncNetworkBackend):
         except BaseException as error:
             facts = self.observation
 
-            if facts.error is None or ((isinstance(facts.error, asyncio.CancelledError)) and (not isinstance(error, asyncio.CancelledError))):
+            if (facts.error is None) or ((isinstance(facts.error, asyncio.CancelledError)) and (not isinstance(error, asyncio.CancelledError))):
                 facts.stage = stage
                 facts.unix_path = path
                 facts.error = error
@@ -268,7 +268,7 @@ class _OwnedStream(httpcore.AsyncNetworkStream):
         with self._network.io("read"):
             received_bytes = await self._stream.read(max_bytes, timeout)
 
-        if max_bytes > 0 and received_bytes == b"":
+        if (max_bytes > 0) and (received_bytes == b""):
             facts = self._network.observation
             facts.eof = True
 
@@ -330,7 +330,7 @@ class _OwnedStream(httpcore.AsyncNetworkStream):
 
                     peer_eof = (
                         (type(failure) is ssl.SSLEOFError) or
-                        (type(failure) is anyio.BrokenResourceError and type(failure.__cause__) is ssl.SSLEOFError)
+                        ((type(failure) is anyio.BrokenResourceError) and (type(failure.__cause__) is ssl.SSLEOFError))
                     )
 
                     # Only a successful raw close releases this owner;

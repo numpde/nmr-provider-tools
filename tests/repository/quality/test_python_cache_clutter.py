@@ -49,7 +49,7 @@ def _python_cache_artifacts() -> list[str]:
         for cache_name in PYTHON_TOOL_CACHE_DIRS:
             artifacts.extend(root.rglob(cache_name))
 
-    return sorted(path.relative_to(REPOSITORY_ROOT).as_posix() for path in artifacts)
+    return sorted(cache_artifact_path.relative_to(REPOSITORY_ROOT).as_posix() for cache_artifact_path in artifacts)
 
 
 class PythonCacheClutterTests(unittest.TestCase):

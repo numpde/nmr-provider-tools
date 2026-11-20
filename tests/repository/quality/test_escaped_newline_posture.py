@@ -16,6 +16,8 @@ require_container()
 import io
 import tokenize
 import unittest
+
+from operations.checker.findings import assert_no_findings
 import pathlib
 from dataclasses import dataclass
 
@@ -54,7 +56,7 @@ def _escape_offsets(*, source: str, start: int, end: int) -> list[int]:
 
             continue
 
-        if index + 1 < end and source[index + 1] == "n":
+        if ((index + 1) < end) and (source[index + 1] == "n"):
             offsets.append(index)
 
         index += 2
@@ -65,7 +67,7 @@ def _escape_offsets(*, source: str, start: int, end: int) -> list[int]:
 def _findings(*, source_path: pathlib.Path, source: str) -> list[_Finding]:
     line_offsets = [0]
 
-    line_offsets.extend(index + 1 for (index, character) in enumerate(source) if character == "\n")
+    line_offsets.extend((index + 1) for (index, character) in enumerate(source) if character == "\n")
 
     # Token strings normalize doubled f-string braces. Their source coordinates
     # retain the original spelling, which owns both escape and diagnostic offsets.
@@ -111,7 +113,7 @@ def _findings(*, source_path: pathlib.Path, source: str) -> list[_Finding]:
 
     for (body_end, escapes) in literals:
         for offset in escapes:
-            if offset + 2 == body_end:
+            if (offset + 2) == body_end:
                 continue
 
             line = source.count("\n", 0, offset) + 1
@@ -159,8 +161,4 @@ class EscapedNewlinePostureTests(unittest.TestCase):
             for finding in _findings(source_path=source_path.relative_to(REPOSITORY_ROOT), source=source_path.read_text(encoding="utf-8"))
         ]
 
-        if findings:
-            self.fail(
-                f"Escaped newline census: {len(findings)=}\n"
-                + "\n".join(finding.diagnostic() for finding in findings)
-            )
+        assert_no_findings([finding.diagnostic() for finding in findings])

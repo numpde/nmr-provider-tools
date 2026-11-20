@@ -44,7 +44,7 @@ class RemoteExchangeError(Exception):
 # Only these reviewed native types retain existing availability classification.
 # repo-check: allow-module-constant
 _ERROR_TYPES = {
-    kind.__module__ + "." + kind.__qualname__: kind for kind in (
+    (kind.__module__ + "." + kind.__qualname__): kind for kind in (
         Exception,
         RuntimeError,
         ValueError,
@@ -89,15 +89,15 @@ def encoded_bytes(value):
 def decoded_bytes(value, maximum):
     require_type(value, str)
 
-    if not (len(value) <= 4 * ((maximum + 2) // 3)):
+    if not (len(value) <= (4 * ((maximum + 2) // 3))):
         raise ValueError("Interpreter child byte field exceeds its admitted limit")
 
-    result = base64.b64decode(value, validate=True)
+    decoded_content = base64.b64decode(value, validate=True)
 
-    if not (len(result) <= maximum):
+    if not (len(decoded_content) <= maximum):
         raise ValueError("Interpreter child byte field exceeds its admitted limit")
 
-    return result
+    return decoded_content
 
 
 def message_bytes(document):
@@ -134,19 +134,19 @@ def read_request(stream, maximum_bytes):
     size = _size(stream.read(4), maximum_bytes)
     raw = stream.read(size)
 
-    if len(raw) != size or stream.read(1):
+    if (len(raw) != size) or stream.read(1):
         raise ValueError("Interpreter child requires one complete request message")
 
-    document = read_document(raw, maximum_bytes)
+    request_message = read_document(raw, maximum_bytes)
 
-    require_type(document, dict)
+    require_type(request_message, dict)
 
-    require_type((document_version := document.get("version")), int)
+    require_type((document_version := request_message.get("version")), int)
 
-    if document["version"] != 1 or document.get("kind") != "request":
+    if (request_message["version"] != 1) or (request_message.get("kind") != "request"):
         raise ValueError("Interpreter child request has an unknown schema")
 
-    return document
+    return request_message
 
 
 async def read_message(reader, maximum_bytes):
@@ -156,7 +156,7 @@ async def read_message(reader, maximum_bytes):
 
 
 def _headers(headers):
-    return [[encoded_bytes(name), encoded_bytes(value)] for (name, value) in headers]
+    return [[encoded_bytes(header_name), encoded_bytes(header_value)] for (header_name, header_value) in headers]
 
 
 def _read_headers(headers):
@@ -165,7 +165,7 @@ def _read_headers(headers):
     if not (len(headers) <= 65536):
         raise ValueError("Interpreter child headers exceed their admitted limit")
 
-    result = []
+    decoded_headers = []
     remaining = METADATA_BYTES
 
     for pair in headers:
@@ -174,15 +174,15 @@ def _read_headers(headers):
         if len(pair) != 2:
             raise ValueError("Interpreter child header is malformed")
 
-        (name, value) = (decoded_bytes(part, remaining) for part in pair)
-        remaining -= len(name) + len(value)
+        (header_name, header_value) = (decoded_bytes(part, remaining) for part in pair)
+        remaining -= len(header_name) + len(header_value)
 
         if not (0 <= remaining):
             raise ValueError("Interpreter child headers exceed their admitted limit")
 
-        result.append((name, value))
+        decoded_headers.append((header_name, header_value))
 
-    return tuple(result)
+    return tuple(decoded_headers)
 
 
 def response_message(response):
@@ -218,7 +218,7 @@ def failure_message(failure):
             "type": kind,
             "text": str(error)[:_ERROR_TEXT],
                 # silent-defaults: allow-contract -- Only a real integer OSError errno is portable native evidence; None records its absence.
-            "errno": error.errno if isinstance(error, OSError) and type(error.errno) is int else None
+            "errno": error.errno if isinstance(error, OSError) and (type(error.errno) is int) else None
         }
 
         nodes.append(node)
@@ -272,8 +272,8 @@ def failure_message(failure):
     }
 
 
-def _read_failure(document):
-    nodes = document["nodes"]
+def _read_failure(failure_reply):
+    nodes = failure_reply["nodes"]
 
     require_type(nodes, list)
 
@@ -310,7 +310,7 @@ def _read_failure(document):
             raise ValueError("Interpreter child failure description is malformed")
 
         if kind == "provider_core.decoded_body.DecodedBodyRejected":
-            result = DecodedBodyRejected(node["reason"])
+            reconstructed_error = DecodedBodyRejected(node["reason"])
         elif kind in ("builtins.ExceptionGroup", "builtins.BaseExceptionGroup"):
             children = node["children"]
 
@@ -319,7 +319,7 @@ def _read_failure(document):
             if not (0 < len(children) <= _ERROR_NODES):
                 raise ValueError("Interpreter child exception group is malformed")
 
-            result = BaseExceptionGroup(text, [error(child) for child in children])
+            reconstructed_error = BaseExceptionGroup(text, [error(child) for child in children])
         else:
             # silent-defaults: allow-contract -- Unreviewed child error types retain protected evidence without acquiring retry authority.
             constructor = _ERROR_TYPES.get(kind, RemoteExchangeError)
@@ -330,20 +330,20 @@ def _read_failure(document):
                 require_type(number, int)
 
                 if (not (
-                    issubclass(constructor, OSError) or constructor is RemoteExchangeError)):
+                    issubclass(constructor, OSError) or (constructor is RemoteExchangeError))):
                     raise ValueError("Interpreter child error number is malformed")
 
-            result = constructor(number, text) if (number is not None) and (issubclass(constructor, OSError)) else constructor(text)
+            reconstructed_error = constructor(number, text) if (number is not None) and (issubclass(constructor, OSError)) else constructor(text)
 
             if constructor is RemoteExchangeError:
-                result.remote_type = kind
-                result.remote_errno = number
+                reconstructed_error.remote_type = kind
+                reconstructed_error.remote_errno = number
 
-        errors[index] = result
+        errors[index] = reconstructed_error
 
         constructing.remove(index)
 
-        return result
+        return reconstructed_error
 
     for index in range(len(nodes)):
         error(index)
@@ -355,12 +355,12 @@ def _read_failure(document):
 
         current.__suppress_context__ = node["suppress_context"]
 
-    head = document["head"]
+    head = failure_reply["head"]
 
     if head is not None:
         head = HttpResponseHead(require_http_status(head["status"]), _read_headers(head["headers"]))
 
-    network = document["network"]
+    network = failure_reply["network"]
 
     if network is not None:
         for name in ("stage", "unix_path", "configured_unix_path"):
@@ -382,35 +382,35 @@ def _read_failure(document):
             deadline_cancelled=network["deadline_cancelled"],
         )
 
-    proxy_status = document["proxy_status"]
+    proxy_status = failure_reply["proxy_status"]
 
     if proxy_status is not None:
         require_http_status(proxy_status)
 
-    message = document["message"]
+    message = failure_reply["message"]
 
     require_type(message, str)
 
     if not (len(message) <= _ERROR_TEXT):
         raise ValueError("Interpreter child failure message is malformed")
 
-    cleanup = document["cleanup"]
+    cleanup = failure_reply["cleanup"]
 
     require_type(cleanup, list)
 
-    if len(cleanup) > _ERROR_NODES or any(index is None for index in cleanup):
+    if (len(cleanup) > _ERROR_NODES) or any((index is None) for index in cleanup):
         raise ValueError("Interpreter child cleanup obligations are malformed")
 
     return ExchangeFailed(
         message,
-        primary=error(document["primary"]),
+        primary=error(failure_reply["primary"]),
         cleanup_failures=[error(index) for index in cleanup],
-        interruption=error(document["interruption"]),
+        interruption=error(failure_reply["interruption"]),
         response_head=head,
         proxy_connect_status=proxy_status,
-        network_failure=error(document["network_failure"]),
+        network_failure=error(failure_reply["network_failure"]),
         network_io=network,
-        caller_interruption=error(document["caller_interruption"]),
+        caller_interruption=error(failure_reply["caller_interruption"]),
     )
 
 

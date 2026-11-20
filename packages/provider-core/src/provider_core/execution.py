@@ -117,8 +117,8 @@ class ConditionRecovery:
     on_recovered: Callable[[AcknowledgedAttempt, str, str | None, ApiFailure], None] = field(repr=False)
 
     def __post_init__(self):
-        for value in (self.window_seconds, self.backoff_max_seconds):
-            require_positive_number(value)
+        for recovery_seconds in (self.window_seconds, self.backoff_max_seconds):
+            require_positive_number(recovery_seconds)
 
         if (not callable(self.on_retry)) or (not callable(self.on_recovered)):
             raise ValueError("Condition recovery requires protected retry and recovery observers")
@@ -129,8 +129,8 @@ class ConditionRecoveryExpired(TimeoutError):
 
     def __init__(self, window_seconds, *, phase, condition_code, cause):
         super().__init__(
-            f"Cannot confirm the current analysis condition: its {window_seconds:g}-second retry window expired; "
-            f"retain the original API evidence and settle work before recovery"
+            f"Cannot confirm the current analysis condition: the retry window expired after {window_seconds=:g}; "
+            f"retain the original API evidence and settle work before recovery."
         )
 
         (self.window_seconds, self.phase, self.condition_code) = (window_seconds, phase, condition_code)
@@ -147,13 +147,13 @@ class ObservationGapExpired(TimeoutError):
 
     def __init__(self, gap_seconds, *, executor):
         # silent-defaults: allow-contract -- Diagnostic wording identifies whether the original server read had started.
-        blocked = (
+        wait_stage = (
             "after starting a server read" if executor._observation_read_started else "while waiting for API exchange access"
         )
 
         super().__init__(
-            f"Cannot obtain a fresh Attempt observation within {gap_seconds:g} seconds {blocked}; "
-            f"retain existing API owners and retire the original work before recovery"
+            f"Cannot obtain a fresh Attempt observation before {gap_seconds=:g} elapsed; {wait_stage=}; "
+            f"retain existing API owners and retire the original work before recovery."
         )
 
         (self.gap_seconds, self._executor) = (gap_seconds, executor)
@@ -242,7 +242,7 @@ class _ConditionReporter:
         except (Exception, BaseExceptionGroup, asyncio.CancelledError) as cause:
             # Waiting for the API lock is part of the awaited report too.
             # Keep its first failure even when a binding catches the interruption.
-            if self.active and self.failure is None:
+            if self.active and (self.failure is None):
                 self.failure = cause
 
                 self.executor._remember(cause)
@@ -254,8 +254,11 @@ class _ConditionReporter:
 
 class ExecutionStopped(RuntimeError):
     def __init__(self, observation):
+        attempt_state = observation.state
+        job_state = observation.job_state
+
         super().__init__(
-            f"Cannot proceed with analysis: observed Attempt {observation.state} and Job {observation.job_state}; preserve the current record"
+            f"Cannot proceed with analysis: observed {attempt_state = } and {job_state = }; preserve the current record."
         )
 
         self.observation = observation
@@ -472,7 +475,7 @@ class AttemptExecutor:
     def shutdown_ready(self):
         """Confirm cleanup and that no unhanded outcome/report would be lost."""
 
-        return self.work_settled and self._outcome is None and self._delivery_outcome is None
+        return self.work_settled and (self._outcome is None) and (self._delivery_outcome is None)
 
 
     @property
@@ -501,12 +504,12 @@ class AttemptExecutor:
             (self._delivery_outcome is None) and
             all(
                 (
-                    error is stop or (type(error) is _SettlementPending and error.executor is self)
+                    ((error is stop) or ((type(error) is _SettlementPending) and (error.executor is self)))
                     for error in self.last_failure.cleanup_failures
                 ),
             ) and
             ((self._operation_interruption is None) or
-             (self._cancel_requested and independent_interruption_failure(self._operation_interruption) is None))
+             (self._cancel_requested and (independent_interruption_failure(self._operation_interruption) is None)))
         ):
             return stop.observation
 
@@ -814,12 +817,12 @@ class AttemptExecutor:
             task = self._task
             self._task = None
 
-            result = task.result()
+            phase_return = task.result()
 
             self._require_live_permission()
 
             if (self._observed_crash is not None) and (self._observed_crash.phase == phase):
-                return result
+                return phase_return
 
             # A known binding failure needs no acceptance read. For a successful
             # return, finish observation before accepting the handle or outcome.
@@ -827,7 +830,7 @@ class AttemptExecutor:
 
             self._require_live_permission()
 
-            return result
+            return phase_return
         finally:
             reporter.active = False
 

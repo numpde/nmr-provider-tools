@@ -15,6 +15,7 @@ import argparse
 import fcntl
 import logging
 import os
+import reprlib
 import select
 import signal
 import socket
@@ -37,21 +38,26 @@ LOGGER = logging.getLogger("provider_core.runner")
 LOCK_NAME = ".owner-session.lock"
 
 
-def _private_directory(path):
-    if (not path.is_absolute()) or (path.resolve() != path):
-        raise ValueError("Runner directories require canonical absolute paths without symlink ancestors.")
+def _private_directory(directory_path):
+    if (not directory_path.is_absolute()) or (directory_path.resolve() != directory_path):
+        raise ValueError(f"{reprlib.repr(directory_path)=} should be absolute and canonical")
 
-    descriptor = os.open(path, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW | os.O_CLOEXEC)
+    directory_fd = os.open(directory_path, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW | os.O_CLOEXEC)
 
     try:
-        observed = os.fstat(descriptor)
+        directory_metadata = os.fstat(directory_fd)
 
-        if observed.st_uid != os.geteuid() or stat.S_IMODE(observed.st_mode) != 0o700:
-            raise PermissionError("Runner directory must be caller-owned with mode 0700.")
+        expected_directory_mode = 0o700
 
-        return descriptor
+        if (directory_metadata.st_uid != (caller_uid := os.geteuid())) or (stat.S_IMODE(directory_metadata.st_mode) != expected_directory_mode):
+            raise PermissionError(
+                f"{reprlib.repr(directory_path)=} should be owned by {caller_uid=} with {expected_directory_mode=:#o}; "
+                f"{directory_metadata.st_uid=}, {stat.S_IMODE(directory_metadata.st_mode)=:#o}"
+            )
+
+        return directory_fd
     except BaseException:
-        os.close(descriptor)
+        os.close(directory_fd)
         raise
 
 
@@ -157,8 +163,8 @@ def _remove_scratch(parent, name, deadline):
     child = os.open(name, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW | os.O_CLOEXEC, dir_fd=parent)
 
     try:
-        with os.scandir(child) as entries:
-            for entry in entries:
+        with os.scandir(child) as scratch_entries:
+            for entry in scratch_entries:
                 _remove_scratch(child, entry.name, deadline)
     finally:
         os.close(child)
@@ -189,7 +195,7 @@ def _operation(control, *, generation, lock_identity, lease, scratch_fd, argv, o
 
         # Reference the supervisor's held root, without passing that root FD to
         # the child. It remains valid until this child's cleanup has settled.
-        work = f"/proc/{os.getpid()}/fd/{scratch_fd}/{operation}"
+        work = f"/proc/{os.getpid()}/fd/{scratch_fd}/{operation}"  # machine-string: subprocess cwd and TMPDIR use this exact held-root proc-fd path.
 
         environment = os.environ | {"TMPDIR": str(work)}
 
@@ -203,7 +209,12 @@ def _operation(control, *, generation, lock_identity, lease, scratch_fd, argv, o
         )
 
         child.close()
-        LOGGER.info("event=child_started operation=%s pid=%d", operation, worker.pid)
+
+        LOGGER.info(
+            "event=child_started operation=%s pid=%d",  # machine-string: operator event consumers parse these stable event and key=value fields.
+            operation,
+            worker.pid,
+        )
 
         send_greeting(
             control,
@@ -244,7 +255,7 @@ def _operation(control, *, generation, lock_identity, lease, scratch_fd, argv, o
                 )
             except OSError as delivery:
                 LOGGER.warning(
-                    "event=failed_cleanup_delivery operation=%s cause_type=%s errno=%s",
+                    "event=failed_cleanup_delivery operation=%s cause_type=%s errno=%s",  # machine-string: operator event consumers parse these stable event and key=value fields.
                     operation,
                     type(delivery).__name__,
                     delivery.errno
@@ -269,13 +280,18 @@ def _operation(control, *, generation, lock_identity, lease, scratch_fd, argv, o
             )
         except OSError as delivery:
             LOGGER.warning(
-                "event=retirement_delivery_failed operation=%s child_reaped=true scratch_released=true cause_type=%s errno=%s",
+                "event=retirement_delivery_failed operation=%s child_reaped=true scratch_released=true cause_type=%s errno=%s",  # machine-string: operator event consumers parse these stable event and key=value fields.
                 operation,
                 type(delivery).__name__,
                 delivery.errno
             )
 
-        LOGGER.info("event=child_retired operation=%s returncode=%d reason=%s", operation, returncode, event)
+        LOGGER.info(
+            "event=child_retired operation=%s returncode=%d reason=%s",  # machine-string: operator event consumers parse these stable event and key=value fields.
+            operation,
+            returncode,
+            event,
+        )
 
         return shutdown_requested
     except RetirementUnconfirmed:
@@ -296,7 +312,7 @@ def _operation(control, *, generation, lock_identity, lease, scratch_fd, argv, o
             # A queued caller can leave before its greeting. With its child
             # reaped and scratch removed, this does not poison the supervisor.
             LOGGER.warning(
-                "event=opening_delivery_failed operation=%s child_reaped=true scratch_released=true cause_type=%s errno=%s",
+                "event=opening_delivery_failed operation=%s child_reaped=true scratch_released=true cause_type=%s errno=%s",  # machine-string: operator event consumers parse these stable event and key=value fields.
                 operation,
                 type(primary).__name__,
                 primary.errno
@@ -325,7 +341,12 @@ def serve(options, argv, shutdown):
         scratch_fd = _private_directory(options.scratch)
         status_fd = _private_directory(options.status_directory)
         (lease, lock_identity) = _lease(parent)
-        status = ProcessStatus(pathlib.Path(f"/proc/self/fd/{status_fd}"), options.role)
+
+        status_directory = pathlib.Path(
+            f"/proc/self/fd/{status_fd}",  # machine-string: ProcessStatus reads through this exact inherited proc-fd directory.
+        )
+
+        status = ProcessStatus(status_directory, options.role)
 
         status.refresh("starting")
 
@@ -342,7 +363,9 @@ def serve(options, argv, shutdown):
             previous = os.umask(0o177)
 
             try:
-                listener.bind(f"/proc/self/fd/{parent}/{options.socket.name}")
+                listener.bind(
+                    f"/proc/self/fd/{parent}/{options.socket.name}",  # machine-string: bind through this exact held-parent proc-fd path.
+                )
             finally:
                 os.umask(previous)
 

@@ -88,7 +88,7 @@ class InstallationContractTests(unittest.TestCase):
 
     def test_runtime_wheel_contains_only_the_declared_core(self):
         distribution = importlib.metadata.distribution("provider-core")
-        payload = {str(path) for path in distribution.files if ".dist-info/" not in str(path)}
+        payload = {str(installed_member) for installed_member in distribution.files if ".dist-info/" not in str(installed_member)}
 
         self.assertEqual(
             payload,
@@ -310,8 +310,8 @@ class InstallationContractTests(unittest.TestCase):
 
             (tests / "unit").mkdir(parents=True)
 
-            for path in (tests / "__init__.py", tests / "unit/__init__.py"):
-                path.write_text("")
+            for package_marker_path in (tests / "__init__.py", tests / "unit/__init__.py"):
+                package_marker_path.write_text("")
 
             shutil.copyfile(pathlib.Path(__file__).parents[1] / "run_suite.py", tests / "run_suite.py")
 

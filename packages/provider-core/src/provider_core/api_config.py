@@ -97,7 +97,7 @@ class ApiPublicationMaterial:
 def _require_explicit_tls_environment():
     # CPython v3.12.12 Lib/ssl.py::create_default_context honors SSLKEYLOGFILE;
     # OpenSSL root overrides also require explicit startup grants.
-    if any(name in os.environ for name in ("SSL_CERT_FILE", "SSL_CERT_DIR", "SSLKEYLOGFILE")):
+    if any((name in os.environ) for name in ("SSL_CERT_FILE", "SSL_CERT_DIR", "SSLKEYLOGFILE")):
         raise ApiConfigurationRejected("remove ambient SSL_CERT_FILE, SSL_CERT_DIR and SSLKEYLOGFILE; configure each explicit ca_file instead.")
 
 
@@ -108,33 +108,34 @@ def https_trust(raw, *, label):
     its fixed selectors, so a model HTTP child needs no ambient root authority.
     """
     _require_explicit_tls_environment()
+    section_name = label
 
     if raw is not None:
         try:
             pem = raw.decode("ascii")
         except UnicodeDecodeError as cause:
-            raise ApiConfigurationRejected(f"Cannot load {label} CA: the PEM certificate text must be ASCII.", cause=cause) from None
+            raise ApiConfigurationRejected(f"{section_name=}: PEM certificate text should be ASCII", cause=cause) from None
 
         try:
             trust = CapturedSSLContext(ssl.PROTOCOL_TLS_CLIENT)
 
             trust.load_verify_locations(cadata=pem)
         except (ValueError, OSError) as cause:
-            raise ApiConfigurationRejected(f"Cannot configure {label} CA trust: OpenSSL could not load the PEM certificate data.", cause=cause) from None
+            raise ApiConfigurationRejected(f"{section_name=}: OpenSSL could not load the PEM certificate data", cause=cause) from None
     else:
         try:
             trust = new_https_trust(None)
         except (OSError, ssl.SSLError) as cause:
-            raise ApiConfigurationRejected(f"{label} system TLS roots could not be loaded.", cause=cause) from None
+            raise ApiConfigurationRejected(f"{section_name=}: system TLS roots could not be loaded", cause=cause) from None
 
     return trust
 
 
-def _https_from_material(table, label, raw):
-    return HttpsSettings(https_trust(raw, label=label), table["exchange_seconds"], table["retirement_seconds"])
+def _https_from_material(table, trust_context, raw):
+    return HttpsSettings(https_trust(raw, label=trust_context), table["exchange_seconds"], table["retirement_seconds"])
 
 
-def _read_https_settings(table, label, read_file):
+def _read_https_settings(table, trust_context, read_file):
     _require_explicit_tls_environment()
     ca_bytes = None
 
@@ -142,9 +143,9 @@ def _read_https_settings(table, label, read_file):
         ca_bytes = read_file(table["ca_file"], maximum_bytes=1048576)
 
         if not (type(ca_bytes) is (expected_type := bytes)):
-            raise ApiConfigurationRejected(f"{label=}; CA reader: {type(ca_bytes)=} ≠ {expected_type=}")
+            raise ApiConfigurationRejected(f"{trust_context=}; {type(ca_bytes)=} ≠ {expected_type=}")
 
-    return (_https_from_material(table, label, ca_bytes), ca_bytes)
+    return (_https_from_material(table, trust_context, ca_bytes), ca_bytes)
 
 
 def https_settings(table, label, read_file):

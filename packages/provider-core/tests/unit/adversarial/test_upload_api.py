@@ -35,10 +35,10 @@ class UploadApiFailureTests(unittest.IsolatedAsyncioTestCase):
             membership(uploads=[member()] * 65),
         ]
 
-        for document in cases:
-            transport = Transport(reply(encoded(document)))
+        for membership_document in cases:
+            transport = Transport(reply(encoded(membership_document)))
 
-            with self.subTest(document=document), self.assertRaises(ApiFailure) as caught:
+            with self.subTest(document=membership_document), self.assertRaises(ApiFailure) as caught:
                 await self.api(transport).uploads("job:example")
 
             self.assertFalse(caught.exception.issuance_may_have_committed)
@@ -76,14 +76,14 @@ class UploadApiFailureTests(unittest.IsolatedAsyncioTestCase):
     async def test_grant_http_io_and_cancel_failures_are_uncertain_and_never_retried(self):
         failure = ExchangeFailed("Cannot complete HTTPS exchange")
 
-        for result in (reply(b"unavailable", status=503), failure, asyncio.CancelledError()):
-            transport = Transport(result)
+        for exchange_outcome in (reply(b"unavailable", status=503), failure, asyncio.CancelledError()):
+            transport = Transport(exchange_outcome)
             transport.last_failure = failure
             api = self.api(transport)
 
             with (
-                self.subTest(result=type(result).__name__),
-                self.assertRaises(asyncio.CancelledError if isinstance(result, asyncio.CancelledError) else ApiFailure),
+                self.subTest(result=type(exchange_outcome).__name__),
+                self.assertRaises(asyncio.CancelledError if isinstance(exchange_outcome, asyncio.CancelledError) else ApiFailure),
             ):
                 await api.read_grant("job:example", UPLOAD_REF)
 
@@ -112,7 +112,7 @@ class UploadApiFailureTests(unittest.IsolatedAsyncioTestCase):
         )
 
         for (status, kind, code, uncertain) in cases:
-            document = {
+            problem = {
                 "type": "urn:nmr-api:problem:" + kind,
                 "title": "Private title",
                 "status": status,
@@ -123,7 +123,7 @@ class UploadApiFailureTests(unittest.IsolatedAsyncioTestCase):
             }
 
             transport = Transport(
-                reply(encoded(document), status=status, headers=response_headers(status=status, request_id=b"request:test"))
+                reply(encoded(problem), status=status, headers=response_headers(status=status, request_id=b"request:test"))
             )
 
             with self.subTest(code=code), self.assertRaises(ApiFailure) as caught:

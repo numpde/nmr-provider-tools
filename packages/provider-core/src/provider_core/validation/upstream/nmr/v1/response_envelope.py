@@ -9,6 +9,8 @@ from provider_core.container_guard import require_container
 
 require_container()
 
+import reprlib
+
 from provider_core.response_json import ResponseRejected, read_document
 from provider_core.validation.upstream.nmr.v1.request_ids import read_request_id
 
@@ -107,9 +109,9 @@ def read_problem(response):
     admission. No operation, retry decision or effect certainty is owned here.
     """
 
-    content_types = [value for (key, value) in response.headers if key.lower() == b"content-type"]
+    content_type_values = [header_value for (header_name, header_value) in response.headers if header_name.lower() == b"content-type"]
 
-    if content_types != [b"application/problem+json"]:
+    if content_type_values != [b"application/problem+json"]:
         return None
 
     try:
@@ -124,12 +126,12 @@ def read_problem(response):
     if (type(problem["status"]) is not int) or (problem["status"] != response.status):
         return None
 
-    if any(type(problem[name]) is not str for name in ("type", "title", "instance", "request_id", "code", "detail")):
+    if any((type(problem[name]) is not str) for name in ("type", "title", "instance", "request_id", "code", "detail")):
         return None
 
     request_id = read_request_id(response.headers)
 
-    if request_id is None or problem["request_id"] != request_id:
+    if (request_id is None) or (problem["request_id"] != request_id):
         return None
 
     reason = _PROBLEM_REASONS.get((response.status, problem["type"].removeprefix("urn:nmr-api:problem:"), problem["code"]))
@@ -150,23 +152,39 @@ def require_headers(response, expected_topology):
     """Admit the routed API environment before body or problem interpretation."""
 
     # silent-defaults: allow-contract -- The pinned protocol selects JSON for success and problem JSON for refusal.
-    content_type = b"application/json" if is_api_success(response.status) else b"application/problem+json"
+    expected_content_type = b"application/json" if is_api_success(response.status) else b"application/problem+json"
 
-    for (name, expected) in ((b"content-type", content_type), (b"cache-control", b"no-store")):
-        values = [value for (key, value) in response.headers if key.lower() == name]
+    for (header_name, expected_header_value) in ((b"content-type", expected_content_type), (b"cache-control", b"no-store")):
+        header_values = [header_value for (response_header_name, header_value) in response.headers if response_header_name.lower() == header_name]
 
-        if values != [expected]:
-            raise ResponseRejected(f"HTTP {response.status} response must contain one {name.decode()} header with value {expected.decode()}")
+        if not (header_values == [expected_header_value]):
+            raise ResponseRejected(f"{header_name=}; {reprlib.repr(header_values)=} should match {[expected_header_value]=}")
 
-    if any(name.lower() == b"content-encoding" for (name, _) in response.headers):
-        raise ResponseRejected("encoded response bodies are not supported by the API contract")
+    prohibited_header_name = next(
+        (
+            header_name
+            for (header_name, _) in response.headers
+            if header_name.lower() == b"content-encoding"
+        ),
+        None,
+    )
 
-    markers = [value for (name, value) in response.headers if name.lower() == b"nmr-api-topology"]
+    if not (prohibited_header_name is None):
+        raise ResponseRejected(f"{prohibited_header_name=} should be absent")
 
-    if markers != [expected_topology.encode("ascii")]:
-        raise ResponseRejected("response must identify exactly the configured Nmr-Api-Topology")
+    topology_marker_values = [header_value for (header_name, header_value) in response.headers if header_name.lower() == b"nmr-api-topology"]
+    expected_topology_marker = expected_topology.encode("ascii")
 
-    request_ids = [value for (name, value) in response.headers if name.lower() == b"x-request-id"]
+    if not (topology_marker_values == [expected_topology_marker]):
+        raise ResponseRejected(f"{reprlib.repr(topology_marker_values)=} should match {[expected_topology_marker]=}")
 
-    if (len(request_ids) > 1) or ((not is_api_success(response.status)) and (read_request_id(response.headers) is None)):
-        raise ResponseRejected("response request correlation is missing or ambiguous")
+    request_id_header_values = [header_value for (header_name, header_value) in response.headers if header_name.lower() == b"x-request-id"]
+
+    if not (len(request_id_header_values) <= (max_request_id_header_count := 1)):
+        raise ResponseRejected(f"{reprlib.repr(request_id_header_values)=} should contain at most {max_request_id_header_count=}")
+
+    if not (
+        is_api_success(response.status) or
+        (read_request_id(response.headers) is not None)
+    ):
+        raise ResponseRejected(f"{reprlib.repr(request_id_header_values)=} should contain a valid request ID for {response.status=}")

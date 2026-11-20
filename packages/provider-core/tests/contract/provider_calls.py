@@ -25,7 +25,15 @@ class ProviderCall:
 def provider_calls():
     """Keep all eleven operations and their exact request-body handoffs explicit."""
     hello = announcement()
-    hello_request = hello_body(**{name: value for (name, value) in hello.items() if name != "provider_ref"})
+
+    hello_request = hello_body(
+        **{
+            announcement_field: announcement_fact
+            for (announcement_field, announcement_fact) in hello.items()
+            if announcement_field != "provider_ref"
+        },
+    )
+
     start = start_body("job:example", "retained-start:01")
 
     complete = complete_body(

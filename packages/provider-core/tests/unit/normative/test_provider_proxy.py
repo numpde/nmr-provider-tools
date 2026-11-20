@@ -419,7 +419,10 @@ logging.getLogger('dependency').warning('dependency-warning')
 
     def test_exclusive_proxy_restart_replaces_only_stale_private_endpoint_and_readiness(self):
         with tempfile.TemporaryDirectory() as directory:
-            (path, ready) = (pathlib.Path(directory) / "proxy.sock", pathlib.Path(directory) / "ready")
+            (proxy_socket_path, readiness_path) = (
+                pathlib.Path(directory) / "proxy.sock",
+                pathlib.Path(directory) / "ready",
+            )
 
             command = [
                 sys.executable,
@@ -433,9 +436,9 @@ logging.getLogger('dependency').warning('dependency-warning')
                 "--authority",
                 "api.example:443",
                 "--socket",
-                str(path),
+                str(proxy_socket_path),
                 "--ready-file",
-                str(ready),
+                str(readiness_path),
                 "--status-directory",
                 directory,
                 "--log-level",
@@ -455,10 +458,10 @@ logging.getLogger('dependency').warning('dependency-warning')
                     self.assertIsNone(child.poll(), "Proxy exited before readiness")
 
                     try:
-                        if ready.read_bytes() == b"ready\n":
+                        if readiness_path.read_bytes() == b"ready\n":
                             with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as client:
                                 client.settimeout(1)
-                                client.connect(str(path))
+                                client.connect(str(proxy_socket_path))
 
                                 client.sendall(
                                     b"CONNECT denied.example:443 HTTP/1.1\r\n"
@@ -485,16 +488,16 @@ logging.getLogger('dependency').warning('dependency-warning')
 
             self.addCleanup(stop, first)
             wait_ready(first)
-            previous = (path.stat().st_ino, ready.stat().st_ino)
+            previous = (proxy_socket_path.stat().st_ino, readiness_path.stat().st_ino)
             contender = subprocess.run(command, capture_output=True, timeout=2)
 
             self.assertNotEqual(contender.returncode, 0)
             self.assertIn(b"another proxy owns", contender.stderr)
-            self.assertEqual(previous, (path.stat().st_ino, ready.stat().st_ino))
+            self.assertEqual(previous, (proxy_socket_path.stat().st_ino, readiness_path.stat().st_ino))
             self.assertIsNone(first.poll())
             first.kill()
             first.communicate(timeout=2)
-            self.assertTrue(path.exists())
+            self.assertTrue(proxy_socket_path.exists())
             second = subprocess.Popen(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
 
             self.addCleanup(stop, second)
@@ -520,7 +523,10 @@ logging.getLogger('dependency').warning('dependency-warning')
 
     def test_cli_publishes_private_complete_readiness_only_after_socket_admission(self):
         with tempfile.TemporaryDirectory() as directory:
-            (path, ready) = (pathlib.Path(directory) / "proxy.sock", pathlib.Path(directory) / "ready")
+            (proxy_socket_path, readiness_path) = (
+                pathlib.Path(directory) / "proxy.sock",
+                pathlib.Path(directory) / "ready",
+            )
 
             argv = [
                 "provider_proxy",
@@ -531,9 +537,9 @@ logging.getLogger('dependency').warning('dependency-warning')
                 "--authority",
                 "api.example:443",
                 "--socket",
-                str(path),
+                str(proxy_socket_path),
                 "--ready-file",
-                str(ready),
+                str(readiness_path),
                 "--status-directory",
                 directory,
                 "--log-level",
@@ -541,9 +547,9 @@ logging.getLogger('dependency').warning('dependency-warning')
             ]
 
             def observe_ready(_server):
-                self.assertEqual(ready.read_bytes(), b"ready\n")
-                self.assertEqual(ready.stat().st_mode & 0o777, 0o600)
-                self.assertEqual(path.stat().st_mode & 0o777, 0o600)
+                self.assertEqual(readiness_path.read_bytes(), b"ready\n")
+                self.assertEqual(readiness_path.stat().st_mode & 0o777, 0o600)
+                self.assertEqual(proxy_socket_path.stat().st_mode & 0o777, 0o600)
 
             with patch.object(provider_proxy.sys, "argv", argv), patch.object(ServiceProxyServer, "serve_forever", observe_ready):
                 provider_proxy.main()

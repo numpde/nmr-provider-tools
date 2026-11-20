@@ -12,6 +12,7 @@ require_container()
 
 import json
 import math
+import reprlib
 from collections.abc import Mapping
 from dataclasses import MISSING, dataclass, fields, is_dataclass
 from enum import Enum, auto
@@ -80,14 +81,14 @@ class StateBinding[T](Protocol):
     def bind(self, values: Mapping[str, object]) -> T: ...
 
 
-def _require_format(value: object) -> None:
-    require_type(value, str)
+def _require_format(payload_format: object) -> None:
+    require_type(payload_format, str)
 
     if not (
-        (value) and
-        all((character.isprintable()) and (not character.isspace()) for character in value)
+        (payload_format) and
+        all(((character.isprintable()) and (not character.isspace())) for character in payload_format)
     ):
-        raise ValueError("A payload format must be a nonempty identity without whitespace")
+        raise ValueError(f"{reprlib.repr(payload_format)=} should be nonempty printable text without whitespace")
 
 
 def _reject_constant(nonfinite_token: str) -> None:
@@ -127,12 +128,12 @@ def _read_json(payload: bytes) -> object:
         ) from error
 
 
-def _path_field(path: str, name: str) -> str:
-    return f"{path}.{name}"
+def _path_field(parent_path: str, name: str) -> str:
+    return f"{parent_path}.{name}"  # machine-string: Recursive codec traversal appends field selectors to this location identifier
 
 
-def _path_index(path: str, index: int) -> str:
-    return f"{path}[{index}]"
+def _path_index(parent_path: str, index: int) -> str:
+    return f"{parent_path}[{index}]"  # machine-string: Recursive codec traversal appends an array selector to this location identifier
 
 
 def _union_members(annotation: object) -> tuple[object, ...] | None:
@@ -162,20 +163,20 @@ def _dataclass_fields(value_type: type[object]):
     )
 
     if (not parameters.frozen) or (not slotted):
-        raise TypeError(f"{value_type.__qualname__} must be a frozen, slotted dataclass")
+        raise TypeError(f"{value_type.__qualname__ = } must be a frozen, slotted dataclass")
 
     declared_fields = fields(value_type)
 
-    if any(not field.init for field in declared_fields):
+    if any((not field.init) for field in declared_fields):
         non_init_field = next(field.name for field in declared_fields if not field.init)
 
-        raise TypeError(f"{value_type.__qualname__}.{non_init_field} must participate in construction")
+        raise TypeError(f"{value_type.__qualname__ = }.{non_init_field = } must participate in construction")
 
     annotations = _resolved_hints(value_type)
     declared_names = {field.name for field in declared_fields}
 
     if set(annotations) != declared_names:
-        raise TypeError(f"{value_type.__qualname__} must annotate every init field and no non-field names")
+        raise TypeError(f"{value_type.__qualname__ = } must annotate every init field and no non-field names")
 
     return (declared_fields, annotations)
 
@@ -183,55 +184,55 @@ def _dataclass_fields(value_type: type[object]):
 def _validate_annotation(
     annotation: object,
     *,
-    path: str,
+    annotation_path: str,
     seen: frozenset[type[object]],
 ) -> None:
     if annotation in (str, bool, int, float, NoneType):
         return
 
     if annotation is Any:
-        raise TypeError(f"{path} may not use Any")
+        raise TypeError(f"{annotation_path = } may not use Any")
 
     origin = get_origin(annotation)
     arguments = get_args(annotation)
 
     if origin is Literal:
         if not (arguments):
-            raise TypeError(f"{path} has an empty Literal")
+            raise TypeError(f"{annotation_path = } has an empty Literal")
 
         return
 
     if origin is tuple:
-        if len(arguments) == 2 and arguments[1] is Ellipsis:
+        if (len(arguments) == 2) and (arguments[1] is Ellipsis):
             _validate_annotation(
                 arguments[0],
-                path=f"{path}[]",
+                annotation_path=f"{annotation_path}[]",  # machine-string: Recursive annotation checks extend this identifier with a variadic tuple selector
                 seen=seen,
             )
 
             return
 
-        for (index, item) in enumerate(arguments):
+        for (index, element_annotation) in enumerate(arguments):
             _validate_annotation(
-                item,
-                path=f"{path}[{index}]",
+                element_annotation,
+                annotation_path=f"{annotation_path}[{index}]",  # machine-string: Recursive annotation checks extend this identifier with a tuple member selector
                 seen=seen,
             )
 
         return
 
     if origin in (list, dict):
-        raise TypeError(f"{path} uses a mutable container; use tuple or a nested frozen dataclass")
+        raise TypeError(f"{annotation_path = } uses a mutable container; use tuple or a nested frozen dataclass")
 
     members = _union_members(annotation)
 
     if members is not None:
         if (len(members) != 2) or (NoneType not in members):
-            raise TypeError(f"{path} supports only T | None unions")
+            raise TypeError(f"{annotation_path = } supports only T | None unions")
 
         _validate_annotation(
             next(member for member in members if member is not NoneType),
-            path=path,
+            annotation_path=annotation_path,
             seen=seen,
         )
 
@@ -245,7 +246,7 @@ def _validate_annotation(
 
         return
 
-    raise TypeError(f"{path} uses unsupported portable annotation {annotation!r}")
+    raise TypeError(f"{annotation_path = } uses unsupported portable {annotation = }")
 
 
 def _validate_dataclass(
@@ -262,48 +263,48 @@ def _validate_dataclass(
     for field in declared_fields:
         _validate_annotation(
             hints[field.name],
-            path=f"{value_type.__qualname__}.{field.name}",
+            annotation_path=f"{value_type.__qualname__}.{field.name}",  # machine-string: Nested annotation checks carry this dotted dataclass member identifier
             seen=nested_seen,
         )
 
 
-def _decode_value(value: object, annotation: object, *, path: str) -> object:
+def _decode_value(json_value: object, annotation: object, *, value_path: str) -> object:
     if annotation is str:
-        if not (type(value) is (expected_type := str)):
-            raise PayloadRejected(f"{path=}; {type(value)=} ≠ {expected_type=}", code=PayloadRejected.Code.INVALID_TYPE)
+        if not (type(json_value) is (expected_type := str)):
+            raise PayloadRejected(f"{value_path=}; {type(json_value)=} ≠ {expected_type=}", code=PayloadRejected.Code.INVALID_TYPE)
 
-        return value
+        return json_value
 
     if annotation is bool:
-        if not (type(value) is (expected_type := bool)):
-            raise PayloadRejected(f"{path=}; {type(value)=} ≠ {expected_type=}", code=PayloadRejected.Code.INVALID_TYPE)
+        if not (type(json_value) is (expected_type := bool)):
+            raise PayloadRejected(f"{value_path=}; {type(json_value)=} ≠ {expected_type=}", code=PayloadRejected.Code.INVALID_TYPE)
 
-        return value
+        return json_value
 
     if annotation is int:
-        if not (type(value) is (expected_type := int)):
-            raise PayloadRejected(f"{path=}; {type(value)=} ≠ {expected_type=}", code=PayloadRejected.Code.INVALID_TYPE)
+        if not (type(json_value) is (expected_type := int)):
+            raise PayloadRejected(f"{value_path=}; {type(json_value)=} ≠ {expected_type=}", code=PayloadRejected.Code.INVALID_TYPE)
 
-        return value
+        return json_value
 
     if annotation is float:
-        if not (type(value) in (expected_types := (int, float))):
+        if not (type(json_value) in (expected_types := (int, float))):
             raise PayloadRejected(
-                f"{path=}; {type(value)=} ≠ {expected_types=}",
+                f"{value_path=}; {type(json_value)=} ≠ {expected_types=}",
                 code=PayloadRejected.Code.INVALID_TYPE,
             )
 
-        if not math.isfinite(value):
+        if not math.isfinite(json_value):
             raise PayloadRejected(
-                f"{path} must be a finite number",
+                f"{value_path = } must be a finite number",
                 code=PayloadRejected.Code.INVALID_TYPE,
             )
 
-        return float(value)
+        return float(json_value)
 
     if annotation is NoneType:
-        if not (type(value) is (expected_type := NoneType)):
-            raise PayloadRejected(f"{path=}; {type(value)=} ≠ {expected_type=}", code=PayloadRejected.Code.INVALID_TYPE)
+        if not (type(json_value) is (expected_type := NoneType)):
+            raise PayloadRejected(f"{value_path=}; {type(json_value)=} ≠ {expected_type=}", code=PayloadRejected.Code.INVALID_TYPE)
 
         return None
 
@@ -311,91 +312,91 @@ def _decode_value(value: object, annotation: object, *, path: str) -> object:
     arguments = get_args(annotation)
 
     if origin is Literal:
-        if not (value in arguments):
+        if not (json_value in arguments):
             raise PayloadRejected(
-                f"{path} is not one of the declared literal values",
+                f"{value_path = } is not one of the declared literal values",
                 code=PayloadRejected.Code.INVALID_VALUE,
             )
 
-        expected_types = [type(item) for item in arguments]
+        expected_types = [type(literal_value) for literal_value in arguments]
 
-        if not any(type(value) is expected_type for expected_type in expected_types):
+        if not any((type(json_value) is expected_type) for expected_type in expected_types):
             raise PayloadRejected(
-                f"{path=}; {type(value)=} ≠ {expected_types=}",
+                f"{value_path=}; {type(json_value)=} ≠ {expected_types=}",
                 code=PayloadRejected.Code.INVALID_VALUE,
             )
 
-        return value
+        return json_value
 
     if origin is tuple:
-        if not (type(value) is (expected_type := list)):
-            raise PayloadRejected(f"{path=}; {type(value)=} ≠ {expected_type=}", code=PayloadRejected.Code.INVALID_TYPE)
+        if not (type(json_value) is (expected_type := list)):
+            raise PayloadRejected(f"{value_path=}; {type(json_value)=} ≠ {expected_type=}", code=PayloadRejected.Code.INVALID_TYPE)
 
-        if len(arguments) == 2 and arguments[1] is Ellipsis:
+        if (len(arguments) == 2) and (arguments[1] is Ellipsis):
             # repo-check: allow-tuple-generator -- Decode the provider's variadic tuple annotation into the immutable type its scientific callable requires.
             return tuple(
                 _decode_value(
-                    item,
+                    encoded_element,
                     arguments[0],
-                    path=_path_index(path, index),
+                    value_path=_path_index(value_path, index),
                 )
-                for (index, item) in enumerate(value)
+                for (index, encoded_element) in enumerate(json_value)
             )
 
-        if len(value) != len(arguments):
+        if len(json_value) != len(arguments):
             raise PayloadRejected(
-                f"{path} must contain exactly {len(arguments)} items",
+                f"{value_path = } must contain exactly {len(arguments) = } items",
                 code=PayloadRejected.Code.INVALID_LENGTH,
             )
 
         # repo-check: allow-tuple-generator -- A fixed tuple annotation requires an immutable positional result with the declared element types.
         return tuple(
             _decode_value(
-                item,
-                expected,
-                path=_path_index(path, index),
+                encoded_element,
+                element_annotation,
+                value_path=_path_index(value_path, index),
             )
-            for (index, (item, expected)) in enumerate(
-                zip(value, arguments, strict=True)
+            for (index, (encoded_element, element_annotation)) in enumerate(
+                zip(json_value, arguments, strict=True)
             )
         )
 
     members = _union_members(annotation)
 
     if members is not None:
-        if value is None:
+        if json_value is None:
             return None
 
-        member = next(item for item in members if item is not NoneType)
+        member = next(member_annotation for member_annotation in members if member_annotation is not NoneType)
 
-        return _decode_value(value, member, path=path)
+        return _decode_value(json_value, member, value_path=value_path)
 
     if isinstance(annotation, type) and issubclass(annotation, Enum):
         try:
-            return annotation(value)
+            return annotation(json_value)
         except (TypeError, ValueError) as error:
             raise PayloadRejected(
-                f"{path} is not a declared enum value",
+                f"{value_path = } is not a declared enum value",
                 code=PayloadRejected.Code.INVALID_VALUE,
             ) from error
 
     if isinstance(annotation, type) and is_dataclass(annotation):
-        return _decode_dataclass(value, annotation, path=path)
+        return _decode_dataclass(json_value, annotation, value_path=value_path)
 
-    raise AssertionError(f"Unsupported annotation reached decoding: {annotation!r}")
+    raise AssertionError(f"Unsupported {annotation = } reached decoding")
 
 
-def _decode_dataclass(value: object, value_type: type[T], *, path: str) -> T:
-    if not (type(value) is (expected_type := dict)):
-        raise PayloadRejected(f"{path=}; {type(value)=} ≠ {expected_type=}", code=PayloadRejected.Code.INVALID_TYPE)
+def _decode_dataclass(json_value: object, value_type: type[T], *, value_path: str) -> T:
+    if not (type(json_value) is (expected_type := dict)):
+        raise PayloadRejected(f"{value_path=}; {type(json_value)=} ≠ {expected_type=}", code=PayloadRejected.Code.INVALID_TYPE)
 
     (declared_fields, annotations) = _dataclass_fields(value_type)
     fields_by_name = {field.name: field for field in declared_fields}
-    unexpected_fields = set(value) - set(fields_by_name)
+    unexpected_fields = set(json_value) - set(fields_by_name)
 
     if unexpected_fields:
         raise PayloadRejected(
-            f"{path} contains unexpected fields: {sorted(unexpected_fields)!r}",
+            f"{value_path = } contains unexpected {sorted(unexpected_fields) = }",
             code=PayloadRejected.Code.UNEXPECTED_FIELD,
         )
 
@@ -403,24 +404,24 @@ def _decode_dataclass(value: object, value_type: type[T], *, path: str) -> T:
         name
         for (name, field) in fields_by_name.items()
         if
-        (name not in value) and
+        (name not in json_value) and
         (field.default is MISSING) and
         (field.default_factory is MISSING)
     }
 
     if missing_fields:
         raise PayloadRejected(
-            f"{path} is missing required fields: {sorted(missing_fields)!r}",
+            f"{value_path = } is missing required {sorted(missing_fields) = }",
             code=PayloadRejected.Code.MISSING_FIELD,
         )
 
     decoded_arguments = {
         name: _decode_value(
-            item,
+            encoded_field_value,
             annotations[name],
-            path=_path_field(path, name),
+            value_path=_path_field(value_path, name),
         )
-        for (name, item) in value.items()
+        for (name, encoded_field_value) in json_value.items()
     }
 
     try:
@@ -429,42 +430,42 @@ def _decode_dataclass(value: object, value_type: type[T], *, path: str) -> T:
         raise
     except (TypeError, ValueError) as error:
         raise PayloadRejected(
-            f"{path} could not construct {value_type.__qualname__}",
+            f"{value_path = } could not construct {value_type.__qualname__ = }",
             code=PayloadRejected.Code.INVALID_VALUE,
         ) from error
 
 
-def _encode_value(value: object, annotation: object, *, path: str) -> object:
+def _encode_value(portable_value: object, annotation: object, *, value_path: str) -> object:
     if annotation is str:
-        if not (type(value) is (expected_type := str)):
-            raise TypeError(f"{path=}; {type(value)=} ≠ {expected_type=}")
+        if not (type(portable_value) is (expected_type := str)):
+            raise TypeError(f"{value_path=}; {type(portable_value)=} ≠ {expected_type=}")
 
-        return value
+        return portable_value
 
     if annotation is bool:
-        if not (type(value) is (expected_type := bool)):
-            raise TypeError(f"{path=}; {type(value)=} ≠ {expected_type=}")
+        if not (type(portable_value) is (expected_type := bool)):
+            raise TypeError(f"{value_path=}; {type(portable_value)=} ≠ {expected_type=}")
 
-        return value
+        return portable_value
 
     if annotation is int:
-        if not (type(value) is (expected_type := int)):
-            raise TypeError(f"{path=}; {type(value)=} ≠ {expected_type=}")
+        if not (type(portable_value) is (expected_type := int)):
+            raise TypeError(f"{value_path=}; {type(portable_value)=} ≠ {expected_type=}")
 
-        return value
+        return portable_value
 
     if annotation is float:
-        if not (type(value) in (expected_types := (int, float))):
-            raise TypeError(f"{path=}; {type(value)=} ≠ {expected_types=}")
+        if not (type(portable_value) in (expected_types := (int, float))):
+            raise TypeError(f"{value_path=}; {type(portable_value)=} ≠ {expected_types=}")
 
-        if not math.isfinite(value):
-            raise TypeError(f"{path} must be a finite float-compatible number")
+        if not math.isfinite(portable_value):
+            raise TypeError(f"{value_path = } must be a finite float-compatible number")
 
-        return float(value)
+        return float(portable_value)
 
     if annotation is NoneType:
-        if not (type(value) is (expected_type := NoneType)):
-            raise TypeError(f"{path=}; {type(value)=} ≠ {expected_type=}")
+        if not (type(portable_value) is (expected_type := NoneType)):
+            raise TypeError(f"{value_path=}; {type(portable_value)=} ≠ {expected_type=}")
 
         return None
 
@@ -472,82 +473,82 @@ def _encode_value(value: object, annotation: object, *, path: str) -> object:
     arguments = get_args(annotation)
 
     if origin is Literal:
-        if not (value in arguments):
-            raise TypeError(f"{path} is not one of the declared literal values")
+        if not (portable_value in arguments):
+            raise TypeError(f"{value_path = } is not one of the declared literal values")
 
-        expected_types = [type(item) for item in arguments]
+        expected_types = [type(literal_value) for literal_value in arguments]
 
-        if not any(type(value) is expected_type for expected_type in expected_types):
-            raise TypeError(f"{path=}; {type(value)=} ≠ {expected_types=}")
+        if not any((type(portable_value) is expected_type) for expected_type in expected_types):
+            raise TypeError(f"{value_path=}; {type(portable_value)=} ≠ {expected_types=}")
 
-        return value
+        return portable_value
 
     if origin is tuple:
-        if not (type(value) is (expected_type := tuple)):
-            raise TypeError(f"{path=}; {type(value)=} ≠ {expected_type=}")
+        if not (type(portable_value) is (expected_type := tuple)):
+            raise TypeError(f"{value_path=}; {type(portable_value)=} ≠ {expected_type=}")
 
-        if len(arguments) == 2 and arguments[1] is Ellipsis:
+        if (len(arguments) == 2) and (arguments[1] is Ellipsis):
             return [
                 _encode_value(
-                    item,
+                    element_value,
                     arguments[0],
-                    path=_path_index(path, index),
+                    value_path=_path_index(value_path, index),
                 )
-                for (index, item) in enumerate(value)
+                for (index, element_value) in enumerate(portable_value)
             ]
 
-        if len(value) != len(arguments):
-            raise TypeError(f"{path} must contain exactly {len(arguments)} items")
+        if len(portable_value) != len(arguments):
+            raise TypeError(f"{value_path = } must contain exactly {len(arguments) = } items")
 
         return [
             _encode_value(
-                item,
-                expected,
-                path=_path_index(path, index),
+                element_value,
+                element_annotation,
+                value_path=_path_index(value_path, index),
             )
-            for (index, (item, expected)) in enumerate(
-                zip(value, arguments, strict=True)
+            for (index, (element_value, element_annotation)) in enumerate(
+                zip(portable_value, arguments, strict=True)
             )
         ]
 
     members = _union_members(annotation)
 
     if members is not None:
-        if value is None:
+        if portable_value is None:
             return None
 
-        member = next(item for item in members if item is not NoneType)
+        member = next(member_annotation for member_annotation in members if member_annotation is not NoneType)
 
-        return _encode_value(value, member, path=path)
+        return _encode_value(portable_value, member, value_path=value_path)
 
     if isinstance(annotation, type) and issubclass(annotation, Enum):
-        if not (type(value) is (expected_type := annotation)):
-            raise TypeError(f"{path=}; {type(value)=} ≠ {expected_type=}")
+        if not (type(portable_value) is (expected_type := annotation)):
+            raise TypeError(f"{value_path=}; {type(portable_value)=} ≠ {expected_type=}")
 
-        return value.value
+        return portable_value.value
 
     if isinstance(annotation, type) and is_dataclass(annotation):
-        return _encode_dataclass(value, annotation, path=path)
+        return _encode_dataclass(portable_value, annotation, value_path=value_path)
 
-    raise AssertionError(f"Unsupported annotation reached encoding: {annotation!r}")
+    raise AssertionError(f"Unsupported {annotation = } reached encoding")
 
 
 def _encode_dataclass(
-    value: object,
+    portable_dataclass: object,
     value_type: type[object],
     *,
-    path: str,
+    value_path: str,
 ) -> dict[str, object]:
-    if not (type(value) is (expected_type := value_type)):
-        raise TypeError(f"{path=}; {type(value)=} ≠ {expected_type=}")
+    if not (type(portable_dataclass) is (expected_type := value_type)):
+        raise TypeError(f"{value_path=}; {type(portable_dataclass)=} ≠ {expected_type=}")
 
     (declared_fields, hints) = _dataclass_fields(value_type)
 
     return {
         field.name: _encode_value(
-            getattr(value, field.name),
+            getattr(portable_dataclass, field.name),
             hints[field.name],
-            path=_path_field(path, field.name),
+            value_path=_path_field(value_path, field.name),
         )
         for field in declared_fields
     }
@@ -581,20 +582,20 @@ class JsonDataclassCodec[T]:
         return _decode_dataclass(
             _read_json(payload),
             self.value_type,
-            path="$",
+            value_path="$",
         )
 
     def encode(self, value: T) -> bytes:
-        document = _encode_dataclass(
+        encoded_fields = _encode_dataclass(
             value,
             self.value_type,
-            path="$",
+            value_path="$",
         )
 
         return (
             json
             .dumps(
-                document,
+                encoded_fields,
                 ensure_ascii=True,
                 allow_nan=False,
                 sort_keys=True,
@@ -618,7 +619,7 @@ class DataclassStateBinding[T]:
 
             if (get_origin(annotation) is not None) or (annotation in (Any, object)):
                 raise TypeError(
-                    f"{self.value_type.__qualname__}.{field.name} "
+                    f"{self.value_type.__qualname__ = }.{field.name = } "
                     f"must name a concrete live-state class"
                 )
 

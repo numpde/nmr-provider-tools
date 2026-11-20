@@ -76,7 +76,7 @@ class CheckerDependencyTests(unittest.TestCase):
 
         unrelated.write_bytes(b"unrelated")
         dependencies.capture([self.package], self.pool, self.capture)
-        self.assertEqual([self.package["file"]], [path.name for path in self.capture.iterdir()])
+        self.assertEqual([self.package["file"]], [captured_artifact.name for captured_artifact in self.capture.iterdir()])
         self.assertEqual(b"make", (self.capture / self.package["file"]).read_bytes())
         self.assertEqual(b"unrelated", unrelated.read_bytes())
         self.artifact.write_bytes(b"late")
@@ -90,7 +90,7 @@ class CheckerDependencyTests(unittest.TestCase):
             self.artifact.write_bytes(b"late")
 
         with patch.object(dependencies, "check", side_effect=change_after_check):
-            with self.assertRaisesRegex(ValueError, "differs"):
+            with self.assertRaises(ValueError):
                 dependencies.capture([self.package], self.pool, self.capture)
 
     def test_artifact_symlinks_and_oversized_bytes_are_rejected(self):
@@ -103,7 +103,7 @@ class CheckerDependencyTests(unittest.TestCase):
 
         self.artifact.write_bytes(b"make-extra")
 
-        with self.assertRaisesRegex(ValueError, "exceeds declared size"):
+        with self.assertRaises(ValueError):
             dependencies.verify(self.package, self.artifact)
 
     def test_publication_keeps_identical_winner_inode_and_preserves_conflict(self):
@@ -116,7 +116,7 @@ class CheckerDependencyTests(unittest.TestCase):
         self.assertEqual(inode, self.artifact.stat().st_ino)
         self.artifact.write_bytes(b"late")
 
-        with self.assertRaisesRegex(ValueError, "differs"):
+        with self.assertRaises(ValueError):
             dependencies.publish(self.package, staged, self.artifact)
 
         self.assertEqual(b"late", self.artifact.read_bytes())
@@ -169,11 +169,11 @@ class CheckerDependencyTests(unittest.TestCase):
     def test_install_verifies_artifact_before_invoking_dpkg(self):
         self.artifact.write_bytes(b"late")
 
-        with patch.object(subprocess, "run") as run:
+        with patch.object(subprocess, "run") as package_install_dispatch:
             with self.assertRaises(ValueError):
                 dependencies.install([self.package], self.pool)
 
-            run.assert_not_called()
+            package_install_dispatch.assert_not_called()
 
     def test_install_compares_the_exact_version_reported_after_installation(self):
         installed_version = self.package["version"] + "\n"
@@ -187,11 +187,11 @@ class CheckerDependencyTests(unittest.TestCase):
                 subprocess.CompletedProcess(install_command, 0),
                 subprocess.CompletedProcess(version_command, 0, stdout=installed_version),
             ],
-        ) as run:
+        ) as dpkg_invocations:
             with self.assertRaises(ValueError):
                 dependencies.install([self.package], self.pool)
 
         self.assertEqual(
             [call(install_command, check=True), call(version_command, check=True, capture_output=True, text=True)],
-            run.call_args_list,
+            dpkg_invocations.call_args_list,
         )

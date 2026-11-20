@@ -140,11 +140,11 @@ class DeliveryHandoffTests(unittest.TestCase):
 
     def test_invalid_input_is_refused(self):
         handoff = DeliveryHandoff(outcome(provider="provider:example"), self.material())
-        document = json.loads(handoff.encode())
-        document["credential"] = "PRIVATE_INVALID_CREDENTIAL"
+        handoff_fields = json.loads(handoff.encode())
+        handoff_fields["credential"] = "PRIVATE_INVALID_CREDENTIAL"
 
         with self.assertRaises(DeliveryHandoffRejected) as rejected:
-            read_delivery_handoff(json.dumps(document).encode())
+            read_delivery_handoff(json.dumps(handoff_fields).encode())
 
         with self.assertRaises(DeliveryHandoffRejected):
             read_delivery_handoff(b"x" * (MAX_HANDOFF_BYTES + 1))

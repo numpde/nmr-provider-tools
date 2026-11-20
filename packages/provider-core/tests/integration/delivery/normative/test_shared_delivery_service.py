@@ -24,9 +24,9 @@ from tests.fakes.delivery import outcome
 
 class SharedDeliveryServiceTests(unittest.IsolatedAsyncioTestCase):
     async def test_retry_reload_shortens_existing_backoff_and_preserves_exact_body(self):
-        item = outcome()
+        delivery_outcome = outcome()
 
-        async def response(_request, _body):
+        async def response(_request_head, _body):
             if len(peer.requests) == 1:
                 peer.response_status = 429
 
@@ -35,13 +35,13 @@ class SharedDeliveryServiceTests(unittest.IsolatedAsyncioTestCase):
             peer.response_status = 200
 
             return fail_response(
-                execution_attempt_ref=item.execution_attempt_ref,
+                execution_attempt_ref=delivery_outcome.execution_attempt_ref,
                 failure_code="provider_interrupted",
                 failure_message="SCIENTIFIC_PAYLOAD_NEEDLE"
             )
 
         async with api_tls_peer("success", response_factory=response) as peer:
-            item = replace(item, api_origin=peer.origin)
+            delivery_outcome = replace(delivery_outcome, api_origin=peer.origin)
             ca = (pathlib.Path(peer.scratch.name) / "cert.pem").read_bytes()
             credential = encoded(document(principal_ref="provider:test"))
 
@@ -56,9 +56,14 @@ class SharedDeliveryServiceTests(unittest.IsolatedAsyncioTestCase):
                 "ca_file": "/gone/ca"
             }
 
+            startup_file_contents = {
+                fields["credential_file"]: credential,
+                fields["ca_file"]: ca,
+            }
+
             (_, _, material) = api_settings_with_material(
                 fields,
-                lambda _credential_or_ca_path, **options: credential if options["label"] == "API signing credential" else ca
+                lambda startup_file_path, **_file_read_options: startup_file_contents[startup_file_path]
             )
 
             with tempfile.TemporaryDirectory() as directory:
@@ -84,7 +89,7 @@ class SharedDeliveryServiceTests(unittest.IsolatedAsyncioTestCase):
                 limits = QueueLimits(4, 16384, 8, 32768)
                 queue = DeliveryQueue(root / "state", limits=limits)
 
-                queue.enqueue_handoff(DeliveryHandoff(item, material))
+                queue.enqueue_handoff(DeliveryHandoff(delivery_outcome, material))
                 queue.close()
                 policy = ServicePolicy.admit("mapped", [urlsplit(peer.origin).netloc], ["127.0.0.1=127.0.0.1"])
 
@@ -130,7 +135,7 @@ class SharedDeliveryServiceTests(unittest.IsolatedAsyncioTestCase):
 
                         service._reload()
                         await asyncio.wait_for(published.wait(), 3)
-                        self.assertEqual(peer.request_bodies, [item.body, item.body])
+                        self.assertEqual(peer.request_bodies, [delivery_outcome.body, delivery_outcome.body])
                     finally:
                         service.request_stop()
                         await asyncio.wait_for(task, 5)
@@ -138,23 +143,23 @@ class SharedDeliveryServiceTests(unittest.IsolatedAsyncioTestCase):
                         await asyncio.to_thread(thread.join, 2)
 
     async def test_restart_uses_each_rows_retained_key_and_ca_through_proxy(self):
-        items = [outcome(), outcome(suffix="1")]
+        delivery_outcomes = [outcome(), outcome(suffix="1")]
 
-        async def response(_request, _body):
-            item = items[len(peer.requests) - 1]
+        async def response(_request_head, _body):
+            delivery_outcome = delivery_outcomes[len(peer.requests) - 1]
 
             return fail_response(
-                execution_attempt_ref=item.execution_attempt_ref,
+                execution_attempt_ref=delivery_outcome.execution_attempt_ref,
                 failure_code="provider_interrupted",
                 failure_message="SCIENTIFIC_PAYLOAD_NEEDLE"
             )
 
         async with api_tls_peer("success", response_factory=response) as peer:
-            items = [replace(item, api_origin=peer.origin) for item in items]
+            delivery_outcomes = [replace(delivery_outcome, api_origin=peer.origin) for delivery_outcome in delivery_outcomes]
             ca = (pathlib.Path(peer.scratch.name) / "cert.pem").read_bytes()
             (materials, keys) = ([], [])
 
-            for _ in items:
+            for _ in delivery_outcomes:
                 credential = encoded(document(principal_ref="provider:test"))
 
                 fields = {
@@ -168,9 +173,14 @@ class SharedDeliveryServiceTests(unittest.IsolatedAsyncioTestCase):
                     "ca_file": "/gone/ca"
                 }
 
+                startup_file_contents = {
+                    fields["credential_file"]: credential,
+                    fields["ca_file"]: ca,
+                }
+
                 (settings, _, material) = api_settings_with_material(
                     fields,
-                    lambda _credential_or_ca_path, **options: credential if options["label"] == "API signing credential" else ca
+                    lambda startup_file_path, **_file_read_options: startup_file_contents[startup_file_path]
                 )
 
                 materials.append(material)
@@ -184,8 +194,8 @@ class SharedDeliveryServiceTests(unittest.IsolatedAsyncioTestCase):
                 limits = QueueLimits(4, 16384, 8, 32768)
                 queue = DeliveryQueue(root / "state", limits=limits)
 
-                for (item, material) in zip(items, materials):
-                    queue.enqueue_handoff(DeliveryHandoff(item, material))
+                for (delivery_outcome, material) in zip(delivery_outcomes, materials):
+                    queue.enqueue_handoff(DeliveryHandoff(delivery_outcome, material))
 
                 queue.close()
                 authority = urlsplit(peer.origin).netloc
@@ -201,7 +211,7 @@ class SharedDeliveryServiceTests(unittest.IsolatedAsyncioTestCase):
                     def notice(error, facts):
                         notices.append((error, facts))
 
-                        if sum(event[1]["event"] == "delivery_published" for event in notices) == 2:
+                        if sum((event[1]["event"] == "delivery_published") for event in notices) == 2:
                             published.set()
 
                     service = SharedDeliveryService(
@@ -221,10 +231,10 @@ class SharedDeliveryServiceTests(unittest.IsolatedAsyncioTestCase):
                     try:
                         await asyncio.wait_for(published.wait(), 5)
 
-                        for (request, item, key) in zip(peer.requests, items, keys):
-                            verify_signed_request(request, item.body, origin=peer.origin, key=key)
+                        for (request_head, delivery_outcome, key) in zip(peer.requests, delivery_outcomes, keys):
+                            verify_signed_request(request_head, delivery_outcome.body, origin=peer.origin, key=key)
 
-                        self.assertEqual(peer.request_bodies, [item.body for item in items])
+                        self.assertEqual(peer.request_bodies, [delivery_outcome.body for delivery_outcome in delivery_outcomes])
                         self.assertEqual(service.queue.inventory(peer.origin, "provider:test"), [])
                     finally:
                         service.request_stop()

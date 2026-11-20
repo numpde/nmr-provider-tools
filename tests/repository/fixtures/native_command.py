@@ -59,10 +59,10 @@ def fixture_command(name):
         pending.write_text(json.dumps({"anchor": anchor, "directory": str(target.parent), **identity}))
         pending.replace(control)
 
-        if target.name == "status.ready" and os.environ.get("NATIVE_CORRUPT_READY") == "1":
+        if (target.name == "status.ready") and (os.environ.get("NATIVE_CORRUPT_READY") == "1"):
             source.write_bytes(b"not-the-anchor\n")
 
-        if target.name == "status.release" and phase.startswith("release-"):
+        if (target.name == "status.release") and phase.startswith("release-"):
             if phase == "release-fifo":
                 os.mkfifo(target)
             elif phase == "release-directory":
@@ -72,7 +72,7 @@ def fixture_command(name):
 
             return 0
 
-        if target.name == "status." + phase or (target.name == "status" and phase == "status"):
+        if (target.name == ("status." + phase)) or ((target.name == "status") and (phase == "status")):
             if os.environ.get("NATIVE_CANCEL_PUBLICATION") == "1":
                 parent = int(pathlib.Path("/proc", str(anchor), "stat").read_text().split()[3])
 
@@ -86,7 +86,7 @@ def fixture_command(name):
         if target.name == "status":
             mutation = os.environ["NATIVE_STATUS_MUTATION"]
 
-            values = {
+            status_bytes_by_mutation = {
                 "nul": b"0\0\n",
                 "cr": b"0\r\n",
                 "missing-lf": b"0",
@@ -103,8 +103,8 @@ def fixture_command(name):
                 "text": b"unknown\n",
             }
 
-            if mutation in values:
-                source.write_bytes(values[mutation])
+            if mutation in status_bytes_by_mutation:
+                source.write_bytes(status_bytes_by_mutation[mutation])
 
             if mutation == "symlink":
                 target.symlink_to(source)
@@ -124,19 +124,19 @@ def fixture_command(name):
 
                 return 0
 
-    if name == "head" and arguments[-1].endswith("/status") and os.environ["NATIVE_STATUS_MUTATION"] == "read-error":
+    if (name == "head") and arguments[-1].endswith("/status") and (os.environ["NATIVE_STATUS_MUTATION"] == "read-error"):
         return 31
 
-    if name == "head" and arguments == ["-c", "8388608"] and os.environ.get("NATIVE_DRAIN_FAILURE") == "1":
+    if (name == "head") and (arguments == ["-c", "8388608"]) and (os.environ.get("NATIVE_DRAIN_FAILURE") == "1"):
         return 33
 
-    if name == "rm" and os.environ.get("NATIVE_CLEANUP_FAILURE") == "1":
+    if (name == "rm") and (os.environ.get("NATIVE_CLEANUP_FAILURE") == "1"):
         if "NATIVE_CANCEL_CLEANUP" in os.environ:
             os.kill(os.getppid(), int(os.environ["NATIVE_CANCEL_CLEANUP"]))
 
         return 23
 
-    if name == "rm" and os.environ.get("NATIVE_CLEANUP_FAILURE") == "after-delete":
+    if (name == "rm") and (os.environ.get("NATIVE_CLEANUP_FAILURE") == "after-delete"):
         # Actual deletion plus a secondary failure must not invent retained files
         # or block the stdio owner by writing another message to its native pipe.
         subprocess.run(["/bin/rm", *arguments], check=True)

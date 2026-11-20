@@ -22,7 +22,10 @@ from provider_core.validation.upstream.nmr.v1.attempt_request import (
 def attempt_route(execution_attempt_ref: str) -> tuple[str, str]:
     """Render the observation target from the caller's admitted Attempt identity."""
 
-    return ("GET", f"/provider/v1/execution-attempts/{execution_attempt_ref}")
+    return (
+        "GET",
+        f"/provider/v1/execution-attempts/{execution_attempt_ref}"  # machine-string: the signed NMR API target uses this exact Attempt route
+    )
 
 
 def start_route() -> tuple[str, str]:
@@ -40,7 +43,10 @@ def retained_start_key(body: bytes) -> str:
 def progress_route(execution_attempt_ref: str) -> tuple[str, str]:
     """Render the current-observation target without granting phase or condition retry."""
 
-    return ("PUT", f"/provider/v1/execution-attempts/{execution_attempt_ref}/progress")
+    return (
+        "PUT",
+        f"/provider/v1/execution-attempts/{execution_attempt_ref}/progress"  # machine-string: the signed NMR API target uses this exact progress route
+    )
 
 
 def complete_route() -> tuple[str, str]:

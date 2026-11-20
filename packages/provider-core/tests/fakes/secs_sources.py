@@ -120,7 +120,7 @@ class ScopeReader:
 
             return (SourceEntry(source, info.file_size), info)
 
-        if self._archive is None and source == self._root:
+        if (self._archive is None) and (source == self._root):
             return (self.entries[0], None)
 
         return (self._access.scope(source)[0], None)
@@ -162,18 +162,18 @@ class SourceAccess:
         contents = self._upload(source.upload_ref)
 
         if (source.member is None) and (not _is_zip(contents)):
-            entries = (SourceEntry(source, len(contents)),)
+            source_entries = (SourceEntry(source, len(contents)),)
 
-            yield ScopeReader(self, source, entries, contents)
+            yield ScopeReader(self, source, source_entries, contents)
 
             return
 
         with self._archive(contents) as archive:
             infos = archive.infolist()
             members = _member_index(infos)
-            entries = self._scope_entries(source, infos, members)
+            source_entries = self._scope_entries(source, infos, members)
 
-            yield ScopeReader(self, source, entries, contents, archive, members)
+            yield ScopeReader(self, source, source_entries, contents, archive, members)
 
     def scope(self, source: SourceRef) -> tuple[SourceEntry, ...]:
         """Enumerate a root scope or admit one exact member without format policy."""
@@ -208,22 +208,27 @@ class SourceAccess:
             raise InputReadError("Cannot inspect this ZIP: it exceeds the 4096-member inspection limit")
 
         # repo-check: allow-tuple-generator -- The fixture source scope promises an immutable SourceEntry tuple after complete bounds checks.
-        entries = tuple(
+        source_entries = tuple(
             SourceEntry(SourceRef(source.upload_ref, info.filename), info.file_size) for info in infos if not info.is_dir()
         )
 
-        if sum(entry.byte_length for entry in entries) > self.max_scope_bytes:
+        if sum(entry.byte_length for entry in source_entries) > self.max_scope_bytes:
             raise InputReadError(f"Cannot inspect this ZIP: its members exceed the {self.max_scope_bytes}-byte inspection limit")
 
-        listing = {"members": [{"name": entry.source.member, "byte_length": entry.byte_length} for entry in entries]}
+        listing = {
+            "members": [
+                {"name": entry.source.member, "byte_length": entry.byte_length}
+                for entry in source_entries
+            ],
+        }
 
-        if len(json.dumps(listing, ensure_ascii=False).encode("utf-8")) > 256 * 1024:
+        if len(json.dumps(listing, ensure_ascii=False).encode("utf-8")) > (256 * 1024):
             raise InputReadError(
                 "Cannot inspect this ZIP: its member listing exceeds the 262144-byte inspection limit; "
                 "an exact member can still be inspected if known"
             )
 
-        return entries
+        return source_entries
 
     def read(self, source: SourceRef, *, scope_bytes: int | None = None) -> ReadSource:
         """Read one admitted object once, enforcing the decoder byte limit."""
@@ -318,23 +323,23 @@ class SourceAccess:
             tail = stream.read()
             eocd = tail.rfind(b"PK\x05\x06")
 
-            if eocd < 0 or len(tail) - eocd < 22:
+            if (eocd < 0) or ((len(tail) - eocd) < 22):
                 return
 
             (disk, central_disk, disk_entries, total_entries) = struct.unpack_from("<4H", tail, eocd + 4)
 
-            if disk or central_disk or disk_entries != total_entries:
+            if disk or central_disk or (disk_entries != total_entries):
                 raise InputReadError("Cannot inspect this ZIP: multi-disk archives are unsupported")
 
             if total_entries == 0xFFFF:
                 locator = tail.rfind(b"PK\x06\x07", 0, eocd)
 
-                if locator < 0 or len(tail) - locator < 20:
+                if (locator < 0) or ((len(tail) - locator) < 20):
                     raise InputReadError("Cannot inspect this ZIP: its ZIP64 entry count is unavailable")
 
                 (zip64_disk, zip64_offset, total_disks) = struct.unpack_from("<IQI", tail, locator + 4)
 
-                if zip64_disk or total_disks != 1:
+                if zip64_disk or (total_disks != 1):
                     raise InputReadError("Cannot inspect this ZIP: multi-disk archives are unsupported")
 
                 stream.seek(zip64_offset)

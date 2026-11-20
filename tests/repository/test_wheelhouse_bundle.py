@@ -44,7 +44,10 @@ class WheelhouseBundleTests(unittest.TestCase):
                 text=True
             )
 
-            self.assertNotIn("checker-only-canary", {item["name"] for item in json.loads(completed_process.stdout)})
+            self.assertNotIn(
+                "checker-only-canary",
+                {installed_distribution["name"] for installed_distribution in json.loads(completed_process.stdout)},
+            )
 
     def test_bundle_rebuild_is_stable_and_refuses_wrong_dependency_bytes(self):
         with tempfile.TemporaryDirectory() as temporary:
@@ -113,8 +116,8 @@ class WheelhouseBundleTests(unittest.TestCase):
                 check=True,
             )
 
-            for (name, data) in payload.items():
-                self.assertEqual(inventory[name]["sha256"], hashlib.sha256(data).hexdigest())
+            for (name, payload_bytes) in payload.items():
+                self.assertEqual(inventory[name]["sha256"], hashlib.sha256(payload_bytes).hexdigest())
 
             wheel.write_bytes(b"changed")
 

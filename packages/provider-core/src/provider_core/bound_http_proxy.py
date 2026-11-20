@@ -20,6 +20,7 @@ import ipaddress
 import logging
 import os
 import re
+import reprlib
 import secrets
 import select
 import socket
@@ -88,7 +89,7 @@ def _remaining(deadline: float, operation: str) -> float:
     remaining = deadline - time.monotonic()
 
     if remaining <= 0:
-        raise TimeoutError(f"Cannot complete proxy {operation}: its deadline elapsed.")
+        raise TimeoutError(f"Cannot complete proxy {operation = }: its deadline elapsed.")
 
     return remaining
 
@@ -102,7 +103,7 @@ def receive_headers(client: socket.socket) -> tuple[bytes, bytes]:
     completes raises ConnectionError; an oversized header raises ValueError.
     """
     deadline = time.monotonic() + HEADER_SECONDS
-    data = bytearray()
+    request_buffer = bytearray()
 
     while True:
         # A fragment arriving after the deadline cannot complete admission.
@@ -116,32 +117,32 @@ def receive_headers(client: socket.socket) -> tuple[bytes, bytes]:
         if not (chunk):
             raise ConnectionError("Client closed before completing request headers")
 
-        data.extend(chunk)
+        request_buffer.extend(chunk)
 
-        header_end_offset = header_end(data)
+        header_end_offset = header_end(request_buffer)
 
         # Coalesced body bytes belong to forwarding, not header admission.
         # https://github.com/numpde/magnet-deploy/blob/2d4ee50b0359e71900fce9289ea01f46d0f41249/repository_checks/test_image_build_proxy.py#L88
-        header_byte_count = header_end_offset if header_end_offset is not None else len(data)
+        header_byte_count = header_end_offset if header_end_offset is not None else len(request_buffer)
 
         if not (header_byte_count <= MAX_HEADER_BYTES):
             raise ValueError(f"{header_byte_count=} should be at most {MAX_HEADER_BYTES=}")
 
         if header_end_offset is not None:
-            return (bytes(data[:header_byte_count]), bytes(data[header_byte_count:]))
+            return (bytes(request_buffer[:header_byte_count]), bytes(request_buffer[header_byte_count:]))
 
 
 def _dns_servers(resolver_file: pathlib.Path | None = None) -> tuple[str, ...]:
     """Read explicit captured resolvers, or existing service resolver configuration."""
 
     if resolver_file is not None:
-        paths = (resolver_file,)
+        resolver_paths = (resolver_file,)
     else:
-        paths = (pathlib.Path("/run/systemd/resolve/resolv.conf"), pathlib.Path("/etc/resolv.conf"))
+        resolver_paths = (pathlib.Path("/run/systemd/resolve/resolv.conf"), pathlib.Path("/etc/resolv.conf"))
 
-    for path in paths:
+    for resolver_path in resolver_paths:
         try:
-            resolver_text = path.read_text(encoding="ascii")
+            resolver_text = resolver_path.read_text(encoding="ascii")
         except OSError:
             continue
 
@@ -159,7 +160,7 @@ def _dns_servers(resolver_file: pathlib.Path | None = None) -> tuple[str, ...]:
         if servers:
             return tuple(dict.fromkeys(servers))
 
-    raise ProxyResolutionFailed("Cannot resolve proxy destination: no non-loopback IPv4 DNS server is configured.")
+    raise ProxyResolutionFailed(f"No non-loopback IPv4 DNS server found in {reprlib.repr(resolver_paths)=}")
 
 
 def _query_ipv4(
@@ -175,7 +176,7 @@ def _query_ipv4(
 
     _remaining(query_deadline, "DNS query")
     transaction = secrets.randbits(16)
-    request = dns_adapter.ipv4_query(host, transaction)
+    dns_query = dns_adapter.ipv4_query(host, transaction)
 
     with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as resolver:
         if interface != "system":
@@ -184,7 +185,7 @@ def _query_ipv4(
         resolver.settimeout(_remaining(query_deadline, "DNS query"))
         resolver.connect((server, dns_adapter.PORT))
         resolver.settimeout(_remaining(query_deadline, "DNS query"))
-        resolver.send(request)
+        resolver.send(dns_query)
         resolver.settimeout(_remaining(query_deadline, "DNS query"))
         response = resolver.recv(65535)
 
@@ -244,15 +245,15 @@ def resolve_ipv4_bound(
 
                 current = aliases[current]
 
-            errors.append(f"{server}: response contains no IPv4 address for {host}")
+            errors.append(f"{server = }: response contains no IPv4 address for {host = }")
         except (OSError, UnicodeError, ValueError) as error:
-            errors.append(f"{server}: {error}")
+            errors.append(f"{server=}: {error=!s}")
             failures.append(error)
 
     # silent-defaults: allow-contract -- Distinguish failed DNS queries from completed replies containing no IPv4 address; neither outcome selects another route.
     reason = "the configured DNS queries failed" if failures else "the configured resolvers did not return an IPv4 address"
 
-    failure = ProxyResolutionFailed(f"Cannot resolve proxy destination on the selected interface: {reason}.", failures)
+    failure = ProxyResolutionFailed(f"Cannot resolve proxy destination on the selected interface: {reason = }.", failures)
 
     # Preserve source-bearing evidence privately; service logs use only the
     # owned reason above and bounded native exception classes/errno.
@@ -321,9 +322,9 @@ def relay(left: socket.socket, right: socket.socket) -> None:
 
             try:
                 source.settimeout(_remaining(deadline, "relay read"))
-                data = source.recv(BUFFER_BYTES)
+                relay_chunk = source.recv(BUFFER_BYTES)
 
-                if not data:
+                if not relay_chunk:
                     # EOF closes only this direction; the reverse direction
                     # can still carry a response to a completed client upload.
                     readers.remove(source)
@@ -333,17 +334,17 @@ def relay(left: socket.socket, right: socket.socket) -> None:
                     destination.shutdown(socket.SHUT_WR)
                     continue
 
-                operation = f"write {len(data)} bytes"
+                operation = f"write {len(relay_chunk) = }"
 
                 # select does not guarantee that a later write cannot stall.
                 destination.settimeout(_remaining(deadline, "relay write"))
 
-                destination.sendall(data)
+                destination.sendall(relay_chunk)
             except OSError as error:
                 # Keep the native exception and its traceback. The relay knows
                 # direction and operation, but cannot infer HTTP acceptance
                 # from encrypted bytes or claim a failed write delivered none.
-                error.add_note(f"Proxy relay {direction}: could not {operation}; delivery may be partial.")
+                error.add_note(f"Proxy relay {direction = }: could not {operation = }; delivery may be partial.")
 
                 raise
 
@@ -373,7 +374,7 @@ class ProxyHandler(socketserver.BaseRequestHandler):
 
     def report_failure(self, phase, error):
         """Report the original cause; the log formatter scrubs credentials."""
-        log_failure(f"Proxy {phase}", error)
+        log_failure(f"Proxy {phase = }", error)
 
         if isinstance(error, ProxyResolutionFailed):
             for failure in error.failures:
@@ -440,7 +441,7 @@ class ConnectionAdmission:
 
     def __init__(self, limit):
         self._lock = threading.Lock()
-        self._active = 0
+        self._active_connection_count = 0
 
         self.set_limit(limit)
 
@@ -448,30 +449,30 @@ class ConnectionAdmission:
         require_type(limit, int)
 
         if not (limit > 0):
-            raise ValueError("Proxy connection capacity must be a positive integer.")
+            raise ValueError("The connection limit should be positive")
 
         with self._lock:
-            self._limit = limit
+            self._connection_limit = limit
 
     def acquire(self):
         with self._lock:
-            if self._active >= self._limit:
+            if self._active_connection_count >= self._connection_limit:
                 return False
 
-            self._active += 1
+            self._active_connection_count += 1
 
             return True
 
     def load(self):
         with self._lock:
-            return (self._active, self._limit)
+            return (self._active_connection_count, self._connection_limit)
 
     def release(self):
         with self._lock:
-            if self._active == 0:
-                raise RuntimeError("Proxy connection capacity was released without an owner.")
+            if self._active_connection_count == 0:
+                raise RuntimeError(f"{self._active_connection_count=} should be positive")
 
-            self._active -= 1
+            self._active_connection_count -= 1
 
 
 class ProxyServer(socketserver.ThreadingTCPServer):
@@ -562,7 +563,7 @@ class UnixRelayHandler(socketserver.BaseRequestHandler):
                 except OSError as reply_error:
                     log_failure("Proxy relay admission failure reply", reply_error)
 
-            log_failure(f"Proxy relay {phase}", error)
+            log_failure(f"Proxy relay {phase = }", error)
 
 
 class UnixRelayServer(ProxyServer):
@@ -616,7 +617,9 @@ def publish_readiness(ready_file, content):
 
         published = True
     except OSError as error:
-        raise SystemExit(f"Cannot start proxy: readiness publication failed ({type(error).__name__}).") from None
+        error_type = type(error).__name__
+
+        raise SystemExit(f"Cannot start proxy: readiness publication failed ({error_type = }).") from None
     finally:
         try:
             pathlib.Path(temporary).unlink()
@@ -630,7 +633,7 @@ def publish_readiness(ready_file, content):
                 "Readiness was published; serving will continue." if published else "Readiness publication did not complete."
             )
 
-            sys.stderr.write(f"{outcome} Cannot confirm temporary readiness cleanup at {temporary}.\n")
+            sys.stderr.write(f"{outcome = } Cannot confirm temporary readiness cleanup at {temporary = }.\n")
 
 
 def main() -> None:
@@ -668,7 +671,11 @@ def main() -> None:
             parser.error("--relay-socket requires a TCP --port listener")
 
         with UnixRelayServer(("127.0.0.1", args.port), args.relay_socket) as server:
-            publish_readiness(args.ready_file, f"{server.server_address[1]}\n")
+            publish_readiness(
+                args.ready_file,
+                f"{server.server_address[1]}\n",  # machine-string: readiness consumers parse the port as a numeric line; debug labels would change the protocol.
+            )
+
             server.serve_forever()
 
         return
@@ -691,11 +698,19 @@ def main() -> None:
 
     if args.unix_socket is not None:
         with UnixProxyServer(args.unix_socket, args.interface, dns_servers=dns_servers) as server:
-            publish_readiness(args.ready_file, f"{server.server_address}\n")
+            publish_readiness(
+                args.ready_file,
+                f"{server.server_address}\n",  # machine-string: readiness consumers parse the socket address line; debug labels would change the protocol.
+            )
+
             server.serve_forever()
     else:
         with ProxyServer(("127.0.0.1", args.port), args.interface, dns_servers=dns_servers) as server:
-            publish_readiness(args.ready_file, f"{server.server_address[1]}\n")
+            publish_readiness(
+                args.ready_file,
+                f"{server.server_address[1]}\n",  # machine-string: readiness consumers parse the port as a numeric line; debug labels would change the protocol.
+            )
+
             server.serve_forever()
 
 

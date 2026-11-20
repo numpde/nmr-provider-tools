@@ -102,12 +102,12 @@ class DeliveryReleaseTests(unittest.TestCase):
 
         with (
             patch.object(delivery_image, "require_download_proxy"),
-            patch("tools.adapters.pypi_project_json.urllib.request.urlopen", return_value=io.BytesIO(json.dumps(metadata).encode())) as request,
+            patch("tools.adapters.pypi_project_json.urllib.request.urlopen", return_value=io.BytesIO(json.dumps(metadata).encode())) as pypi_metadata_fetch,
             patch.object(delivery_image, "publish_release_wheels") as publish,
         ):
             delivery_image.acquire_release(None, None, self.pool, pathlib.Path("tool.pyz"))
 
-        request.assert_called_once_with("https://pypi.org/pypi/example/2.0/json", timeout=30)
+        pypi_metadata_fetch.assert_called_once_with("https://pypi.org/pypi/example/2.0/json", timeout=30)
 
         self.assertEqual(
             publish.call_args.args[2],
@@ -215,7 +215,7 @@ class DeliveryReleaseTests(unittest.TestCase):
 
             self.assertEqual(
                 {"provider-core-install.lock", "provider-core-wheel-inputs.json", "provider-core-stream.json", "operations", "requirements"},
-                {path.name for path in destination.iterdir()},
+                {destination_entry.name for destination_entry in destination.iterdir()},
             )
 
             self.assertEqual(b"lock", (destination / "provider-core-install.lock").read_bytes())

@@ -120,7 +120,7 @@ class AttemptStartFailureTests(unittest.IsolatedAsyncioTestCase):
             (404, "not-found", "resource_not_found", True),
             (503, "service-unavailable", "service_unavailable", True),
         ):
-            document = {
+            problem = {
                 "type": "urn:nmr-api:problem:" + kind,
                 "title": "private-canary",
                 "status": status,
@@ -132,7 +132,7 @@ class AttemptStartFailureTests(unittest.IsolatedAsyncioTestCase):
 
             transport = Transport(
                 ExchangeFailed("response lost"),
-                reply(json.dumps(document).encode(), status=status, headers=response_headers(status=status, request_id=b"request:test")),
+                reply(json.dumps(problem).encode(), status=status, headers=response_headers(status=status, request_id=b"request:test")),
             )
 
             api = self.api(transport)

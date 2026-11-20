@@ -24,12 +24,12 @@ def _request_echoes(messages, key):
 
         if type(calls) is list:
             for call in calls:
-                if type(call) is dict and type(call.get("function")) is dict:
+                if (type(call) is dict) and (type(call.get("function")) is dict):
                     texts.append(call["function"].get("arguments"))
 
     # repo-check: allow-tuple-generator -- Capture spellings once for consistent removal across the service fields.
     return tuple(
-        spelling for text in texts if type(text) is str and text
+        spelling for text in texts if (type(text) is str) and text
         for spelling in (text, json.dumps(text, ensure_ascii=True)[1:-1])
     )
 
@@ -46,7 +46,7 @@ def endpoint_error(response, messages, key: str, *, maximum_bytes: int) -> dict[
         completion_error = read_document(response.body, maximum_bytes)
     # silent-defaults: allow-exception-outcome -- Unreadable optional details never replace the HTTP refusal.
     except ResponseRejected:
-        return {"detail_unavailable": f"The model service error detail was not complete readable JSON within {maximum_bytes} bytes."}
+        return {"detail_unavailable": f"The model service error detail was not complete readable JSON within {maximum_bytes=} bytes."}
 
     fields = error_fields(completion_error)
 
@@ -54,10 +54,10 @@ def endpoint_error(response, messages, key: str, *, maximum_bytes: int) -> dict[
         return {"detail_unavailable": "The model service response contained no readable error object."}
 
     echoes = _request_echoes(messages, key)
-    result = {name: without_echoes(text, echoes) for (name, text) in fields.items()}
+    diagnostic_fields = {name: without_echoes(text, echoes) for (name, text) in fields.items()}
 
     # silent-defaults: allow-contract -- Empty readable fields report unavailable detail without rendering the whole response.
-    return result or {"detail_unavailable": "The model service response contained no readable error fields."}
+    return diagnostic_fields or {"detail_unavailable": "The model service response contained no readable error fields."}
 
 
 def endpoint_error_fields(endpoint_error: dict) -> Iterator[tuple[str, str]]:

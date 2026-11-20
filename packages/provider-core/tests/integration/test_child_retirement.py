@@ -45,9 +45,9 @@ class ChildRetirementTests(unittest.IsolatedAsyncioTestCase):
                 await self._run_owned_executor(cleanup, executor, acknowledged)
 
             self.assertIsInstance(failed.exception.cause, ChildChannelClosed)
-            process = session.child.process
+            child_process = session.child.process
 
-            self.assertIsNone(process.returncode)
+            self.assertIsNone(child_process.returncode)
             self.assertEqual(session.source_reply["content_hash"], session.source.content_hash)
             self.assertEqual(session.source_reply["marker"], "acquired-source-observed")
             self.assertTrue(source.exists())
@@ -78,8 +78,8 @@ class ChildRetirementTests(unittest.IsolatedAsyncioTestCase):
                 claim.release(owner=claim.lifecycle_owner)
 
             await executor.settle()
-            self.assertIs(session.child.process, process)
-            self.assertIsNotNone(process.returncode)
+            self.assertIs(session.child.process, child_process)
+            self.assertIsNotNone(child_process.returncode)
             self.assertTrue(session.child.pipes_closed)
             self.assertFalse(source.exists())
             self.assertEqual(session.source_removals, 1)
@@ -101,9 +101,9 @@ class ChildRetirementTests(unittest.IsolatedAsyncioTestCase):
 
             cleanup.push_async_callback(self._cancel_executor, task)
             await asyncio.wait_for(session.reading_started.wait(), 2)
-            process = session.child.process
+            child_process = session.child.process
 
-            self.assertIsNone(process.returncode)
+            self.assertIsNone(child_process.returncode)
             self.assertTrue(source.exists())
             self.assertEqual(session.source_read_reply, {"state": "reading", "byte_length": session.source.byte_length})
             self.assertIsNone(session.source_reply)
@@ -112,8 +112,8 @@ class ChildRetirementTests(unittest.IsolatedAsyncioTestCase):
             with self.assertRaises(asyncio.CancelledError):
                 await self._finished(task)
 
-            self.assertIs(session.child.process, process)
-            self.assertIsNotNone(process.returncode)
+            self.assertIs(session.child.process, child_process)
+            self.assertIsNotNone(child_process.returncode)
             self.assertTrue(session.child.pipes_closed)
             self.assertTrue(session.source_cleanup_observed_stopped_child)
             self.assertFalse(source.exists())
@@ -183,10 +183,10 @@ class ChildRetirementTests(unittest.IsolatedAsyncioTestCase):
             self.assertTrue(session.child.pipes_closed)
             self.assertIsNotNone(session.child.process.returncode)
             body = json.loads(executor.delivery.items[0].body)
-            result = json.loads(base64.b64decode(body["canonical_result_base64"], validate=True))
+            generation_reply = json.loads(base64.b64decode(body["canonical_result_base64"], validate=True))
 
             self.assertEqual(
-                result,
+                generation_reply,
                 {"state": "result", "source_fingerprint": acknowledged.start.input.input_fingerprint, "value": "scripted-only"},
             )
 

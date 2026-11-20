@@ -132,15 +132,15 @@ class IdentityTests(unittest.TestCase):
 
         self.assertEqual((0, "100999 0 165531\n", ""), self.run_entrypoint())
         probe.assert_called_once()
-        request = probe.call_args.args[0]
+        probe_request = probe.call_args.args[0]
 
         self.assertEqual(
             ("unix:///fixture/engine.sock", "fixture:local", "/usr/local/bin/python3.12"),
-            (request.endpoint, request.image, request.interpreter)
+            (probe_request.endpoint, probe_request.image, probe_request.interpreter)
         )
 
-        self.assertEqual((65532, 65532), (request.user_uid, request.user_gid))
-        self.assertEqual(ProbeResources(33554432, 4, 250000000), request.resources)
+        self.assertEqual((65532, 65532), (probe_request.user_uid, probe_request.user_gid))
+        self.assertEqual(ProbeResources(33554432, 4, 250000000), probe_request.resources)
         self.assertEqual(b"retired\n", self.receipt.read_bytes())
 
     @patch.object(identity, "probe_identity")
@@ -215,7 +215,7 @@ class IdentityTests(unittest.TestCase):
         previous = signal.getsignal(signal.SIGTERM)
 
         def interrupted_restoration(number, handler):
-            if number == signal.SIGTERM and handler == previous:
+            if (number == signal.SIGTERM) and (handler == previous):
                 signal.raise_signal(signal.SIGTERM)
 
             return install(number, handler)
@@ -232,9 +232,9 @@ class IdentityTests(unittest.TestCase):
 
         self.assertEqual((0, "0 0\n", ""), self.run_entrypoint())
         self.assertEqual(b"retired\n", self.receipt.read_bytes())
-        request = probe.call_args.args[0]
+        probe_request = probe.call_args.args[0]
 
-        self.assertEqual((0, 0), (request.user_uid, request.user_gid))
+        self.assertEqual((0, 0), (probe_request.user_uid, probe_request.user_gid))
 
     @patch.object(identity, "probe_identity")
     def test_unmapped_owner_failure_still_records_completed_probe_retirement(self, probe):
@@ -288,7 +288,7 @@ class IdentityTests(unittest.TestCase):
 
     @patch.object(identity, "probe_identity")
     def test_cancellation_is_separate_from_ordinary_probe_failure(self, probe):
-        def cancelled(_request, *, cancel):
+        def cancelled(_probe_request, *, cancel):
             cancel.request(signal.SIGTERM, None)
             raise ProbeFailure(Problem("cancelled", "fixture cancelled"), Retirement(ResourceState.RETIRED))
 

@@ -31,11 +31,11 @@ class ProcessStatusTests(unittest.TestCase):
                 with patch("sys.argv", ["status", str(root / "status.json"), "delivery", "--details"]), redirect_stdout(output):
                     main()
 
-                value = json.loads(output.getvalue())
+                status_report = json.loads(output.getvalue())
 
-                self.assertEqual(value["observation_age_seconds"], 3)
-                self.assertEqual(value["queue_observation_age_seconds"], 5)
-                self.assertEqual(value["queue"]["oldest_pending_age_seconds"], 13)
+                self.assertEqual(status_report["observation_age_seconds"], 3)
+                self.assertEqual(status_report["queue_observation_age_seconds"], 5)
+                self.assertEqual(status_report["queue"]["oldest_pending_age_seconds"], 13)
                 status.refresh("ready")
                 self.assertNotIn("details", check_status(root / "status.json", "delivery"))
 
@@ -65,15 +65,15 @@ class ProcessStatusTests(unittest.TestCase):
             status = ProcessStatus(pathlib.Path(root), "provider")
 
             status.refresh("ready")
-            value = json.loads(status_path.read_bytes())
+            status_record = json.loads(status_path.read_bytes())
 
-            with patch("provider_core.process_status.time.monotonic", return_value=value["updated_monotonic"] + 31):
+            with patch("provider_core.process_status.time.monotonic", return_value=status_record["updated_monotonic"] + 31):
                 with self.assertRaisesRegex(ValueError, "expired"):
                     check_status(status_path, "provider")
 
-            value["start_ticks"] += 1
+            status_record["start_ticks"] += 1
 
-            status_path.write_text(json.dumps(value))
+            status_path.write_text(json.dumps(status_record))
 
             with self.assertRaisesRegex(ValueError, "process identity"):
                 check_status(status_path, "provider")

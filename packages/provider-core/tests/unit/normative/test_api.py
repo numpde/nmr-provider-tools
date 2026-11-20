@@ -26,11 +26,11 @@ class ApiReadTests(unittest.IsolatedAsyncioTestCase):
 
         self.assertEqual(verified.specification_bytes, b"private instructions")
         self.assertEqual(len(transport.calls), 1)
-        (request, ceiling) = transport.calls[0]
+        (job_input_request, max_response_bytes) = transport.calls[0]
 
-        self.assertEqual(request.method, "GET")
-        self.assertEqual(request.url.raw_path, b"/provider/v1/jobs/job:example/input?analysis_kind_ref=nmr_prediction")
-        self.assertEqual(ceiling, 131072)
-        self.assertNotIn("Content-Type", request.headers)
-        self.assertNotIn("Content-Digest", request.headers)
-        self.assertIn("Signature", request.headers)
+        self.assertEqual(job_input_request.method, "GET")
+        self.assertEqual(job_input_request.url.raw_path, b"/provider/v1/jobs/job:example/input?analysis_kind_ref=nmr_prediction")
+        self.assertEqual(max_response_bytes, 131072)
+        self.assertNotIn("Content-Type", job_input_request.headers)
+        self.assertNotIn("Content-Digest", job_input_request.headers)
+        self.assertIn("Signature", job_input_request.headers)

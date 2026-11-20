@@ -397,7 +397,7 @@ class ProviderAPI:
         ):
             return False
 
-        return exchange.response_head is None and type(exchange.primary) is httpcore.RemoteProtocolError
+        return (exchange.response_head is None) and (type(exchange.primary) is httpcore.RemoteProtocolError)
 
     def _retryable_failure(self, failure):
         """Share settled failure evidence, not operation retry authority."""
@@ -441,7 +441,7 @@ class ProviderAPI:
         return network_availability(exchange.primary, exchange.network_io, network_failure=exchange.network_failure)
 
     def _retryable_gateway(self, response):
-        return response.status in (502, 503, 504) and self._gateway_environment_matches(response)
+        return (response.status in (502, 503, 504)) and self._gateway_environment_matches(response)
 
     def _gateway_environment_matches(self, response):
         return edge_topology_matches(response.headers, self._expected_topology)
@@ -814,7 +814,7 @@ class ProviderAPI:
         attempt_mutation=False,
         owner=None
     ):
-        request = signed_request(
+        signed_http_request = signed_request(
             self._identity,
             method=method,
             path=path,
@@ -827,7 +827,7 @@ class ProviderAPI:
         self.last_failure = None
 
         try:
-            response = await self._transport.exchange(request, maximum_bytes=maximum_bytes, owner=owner)
+            response = await self._transport.exchange(signed_http_request, maximum_bytes=maximum_bytes, owner=owner)
         except asyncio.CancelledError:
             self._remember_failure(
                 ApiFailure(
@@ -838,7 +838,7 @@ class ProviderAPI:
                 issuance=issuance,
                 attempt_mutation=attempt_mutation,
                 request_method=method,
-                request_target=request.url.raw_path,
+                request_target=signed_http_request.url.raw_path,
             )
 
             raise
@@ -848,7 +848,7 @@ class ProviderAPI:
                 issuance=issuance,
                 attempt_mutation=attempt_mutation,
                 request_method=method,
-                request_target=request.url.raw_path,
+                request_target=signed_http_request.url.raw_path,
             ) from None
 
         try:
@@ -859,7 +859,7 @@ class ProviderAPI:
                 issuance=issuance,
                 attempt_mutation=attempt_mutation,
                 request_method=method,
-                request_target=request.url.raw_path,
+                request_target=signed_http_request.url.raw_path,
             )
 
             raise

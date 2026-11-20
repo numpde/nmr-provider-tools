@@ -184,7 +184,7 @@ class DeliveryLifecycleInterleavings(unittest.IsolatedAsyncioTestCase):
                 delivery = CausalDelivery()
 
                 async with TlsPeer("success", response_body=model_reply()) as peer:
-                    run = ReplyRun(
+                    reply_run = ReplyRun(
                         peer,
                         claims,
                         "job:retry",
@@ -192,8 +192,8 @@ class DeliveryLifecycleInterleavings(unittest.IsolatedAsyncioTestCase):
                         delivery=delivery,
                     )
 
-                    run.session.science.release.set()
-                    driver = asyncio.create_task(run.controller.run(run.pending))
+                    reply_run.session.science.release.set()
+                    driver = asyncio.create_task(reply_run.controller.run(reply_run.pending))
 
                     try:
                         await asyncio.wait_for(delivery.wait_for_offers(1), 6)
@@ -212,12 +212,12 @@ class DeliveryLifecycleInterleavings(unittest.IsolatedAsyncioTestCase):
                         )
 
                         self.assertEqual([], delivery.items)
-                        self.assertEqual((run.controller,), claims.live_owners())
-                        self.assertFalse(run.controller.shutdown_ready)
+                        self.assertEqual((reply_run.controller,), claims.live_owners())
+                        self.assertFalse(reply_run.controller.shutdown_ready)
                         delivery.answer("accepted")
-                        result = await asyncio.wait_for(asyncio.shield(driver), 6)
+                        accepted_checkpoint = await asyncio.wait_for(asyncio.shield(driver), 6)
 
-                        self.assertIs(type(result), DeliveryAcceptedCheckpoint)
+                        self.assertIs(type(accepted_checkpoint), DeliveryAcceptedCheckpoint)
                         self.assertEqual(1, len(delivery.items))
                         self.assertIs(delivery.items[0], first)
                         self.assertEqual(2, len(delivery.offers))
@@ -225,19 +225,19 @@ class DeliveryLifecycleInterleavings(unittest.IsolatedAsyncioTestCase):
                         self.assertEqual(
                             (1, 1, 1),
                             (
-                                run.start_count,
-                                run.session.science.preparations,
-                                run.session.science.executions,
+                                reply_run.start_count,
+                                reply_run.session.science.preparations,
+                                reply_run.session.science.executions,
                             )
                         )
 
-                        self.assertTrue(run.controller.shutdown_ready)
+                        self.assertTrue(reply_run.controller.shutdown_ready)
                         self.assertEqual((), claims.live_owners())
                     finally:
                         delivery.release_for_teardown()
 
                         if not driver.done():
-                            run.controller.request_stop()
+                            reply_run.controller.request_stop()
 
                         await asyncio.wait_for(
                             asyncio.gather(driver, return_exceptions=True),
@@ -251,7 +251,7 @@ class DeliveryLifecycleInterleavings(unittest.IsolatedAsyncioTestCase):
                 delivery = CausalDelivery()
 
                 async with TlsPeer("success", response_body=model_reply()) as peer:
-                    run = ReplyRun(
+                    reply_run = ReplyRun(
                         peer,
                         claims,
                         "job:unconfirmed",
@@ -259,50 +259,50 @@ class DeliveryLifecycleInterleavings(unittest.IsolatedAsyncioTestCase):
                         delivery=delivery,
                     )
 
-                    run.session.science.release.set()
-                    driver = asyncio.create_task(run.controller.run(run.pending))
+                    reply_run.session.science.release.set()
+                    driver = asyncio.create_task(reply_run.controller.run(reply_run.pending))
 
                     try:
                         await asyncio.wait_for(delivery.wait_for_offers(1), 6)
                         (original,) = delivery.offers
 
-                        self.assertIs(type(run.controller.operation._checkpoint), TerminalSelectedCheckpoint)
+                        self.assertIs(type(reply_run.controller.operation._checkpoint), TerminalSelectedCheckpoint)
                         delivery.answer(disposition)
 
                         with self.assertRaises(ControllerFailed) as caught:
                             await asyncio.wait_for(asyncio.shield(driver), 6)
 
-                        self.assertIs(caught.exception, run.controller.last_failure)
+                        self.assertIs(caught.exception, reply_run.controller.last_failure)
                         self.assertEqual(1, len(delivery.offers))
                         self.assertFalse(delivery.accepted.is_set())
-                        self.assertIs(run.controller.operation._delivery_outcome, original)
+                        self.assertIs(reply_run.controller.operation._delivery_outcome, original)
 
                         # silent-defaults: allow-contract -- A lost acknowledgement follows acceptance; an unavailable receiver has accepted no report.
                         self.assertEqual([original] if disposition == "lost" else [], delivery.items)
 
-                        self.assertTrue(run.controller.work_settled)
-                        self.assertFalse(run.controller.shutdown_ready)
-                        self.assertEqual((run.controller,), claims.live_owners())
+                        self.assertTrue(reply_run.controller.work_settled)
+                        self.assertFalse(reply_run.controller.shutdown_ready)
+                        self.assertEqual((reply_run.controller,), claims.live_owners())
 
                         self.assertEqual(
                             (1, 1, 1),
                             (
-                                run.start_count,
-                                run.session.science.preparations,
-                                run.session.science.executions,
+                                reply_run.start_count,
+                                reply_run.session.science.preparations,
+                                reply_run.session.science.executions,
                             )
                         )
 
                         with self.assertRaises(ControllerFailed):
-                            await asyncio.wait_for(run.controller.settle(), 6)
+                            await asyncio.wait_for(reply_run.controller.settle(), 6)
 
                         self.assertEqual(1, len(delivery.offers))
-                        self.assertEqual((run.controller,), claims.live_owners())
+                        self.assertEqual((reply_run.controller,), claims.live_owners())
                     finally:
                         delivery.release_for_teardown()
 
                         if not driver.done():
-                            run.controller.request_stop()
+                            reply_run.controller.request_stop()
 
                         await asyncio.wait_for(
                             asyncio.gather(driver, return_exceptions=True),

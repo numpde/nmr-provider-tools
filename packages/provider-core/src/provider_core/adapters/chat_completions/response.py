@@ -16,7 +16,7 @@ def read_completion(response, *, maximum_bytes: int, error_detail_maximum_bytes:
     if not is_completion_success(response.status):
         raise ChatFailed(
             "http_status",
-            f"Cannot complete interpreter request: the model service returned HTTP {response.status}; no tool was accepted.",
+            f"Cannot complete interpreter request: the model service returned HTTP {response.status=}; no tool was accepted.",
             response=response,
             endpoint_error=endpoint_error(response, messages, api_key, maximum_bytes=error_detail_maximum_bytes),
         )

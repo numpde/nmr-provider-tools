@@ -280,7 +280,7 @@ class Interpreter:
         for secret in secrets:
             require_instance(secret, str)
 
-        if any(not secret for secret in secrets):
+        if any((not secret) for secret in secrets):
             raise ValueError("Cannot configure interpretation: provide known credentials as an explicit tuple of nonempty strings.")
 
         self._factories = endpoint_factories
@@ -491,11 +491,11 @@ def _now() -> float:
     return asyncio.get_running_loop().time()
 
 
-def _encode(value: object) -> bytes:
+def _encode(json_content: object) -> bytes:
     return (
         json
         .dumps(
-            value,
+            json_content,
             ensure_ascii=True,
             allow_nan=False,
             sort_keys=True,
@@ -505,17 +505,17 @@ def _encode(value: object) -> bytes:
     )
 
 
-def _no_secrets(value: object, secrets: tuple[str, ...]) -> None:
-    if isinstance(value, str):
-        if any(secret in value for secret in secrets):
+def _no_secrets(context_fragment: object, secrets: tuple[str, ...]) -> None:
+    if isinstance(context_fragment, str):
+        if any((secret in context_fragment) for secret in secrets):
             raise ConversationFailed("Cannot continue interpretation: captured context contains a configured credential.")
-    elif isinstance(value, dict):
-        for (key, item) in value.items():
+    elif isinstance(context_fragment, dict):
+        for (key, mapped_value) in context_fragment.items():
             _no_secrets(key, secrets)
-            _no_secrets(item, secrets)
-    elif isinstance(value, (tuple, list)):
-        for item in value:
-            _no_secrets(item, secrets)
+            _no_secrets(mapped_value, secrets)
+    elif isinstance(context_fragment, (tuple, list)):
+        for sequence_element in context_fragment:
+            _no_secrets(sequence_element, secrets)
 
 
 def _tool(
@@ -556,7 +556,7 @@ class _HistoryRecord:
 
     def page(self, start: int, stop: int) -> Document:
         # Canonical ASCII keeps offsets stable even inside escaped Unicode.
-        result = {
+        page_reply = {
             **self.metadata(),
             "status": "returned",
             "cursor": start,
@@ -564,10 +564,10 @@ class _HistoryRecord:
             "complete": stop == len(self.data),
         }
 
-        if not result["complete"]:
-            result["next_cursor"] = stop
+        if not page_reply["complete"]:
+            page_reply["next_cursor"] = stop
 
-        return result
+        return page_reply
 
 
 class _History:
@@ -582,36 +582,36 @@ class _History:
         self._sequence = 0
         self._unavailable = 0
 
-    def remember(self, visit: int, kind: RecordKind, tool: str, value: object) -> None:
-        # Screen the whole value before pagination could split a credential.
-        _no_secrets(value, self._secrets)
+    def remember(self, visit: int, kind: RecordKind, tool: str, history_content: object) -> None:
+        # Screen the whole content before pagination could split a credential
+        _no_secrets(history_content, self._secrets)
 
-        data = _encode(value)
+        record_bytes = _encode(history_content)
         self._sequence += 1
 
-        if len(data) > self._max_bytes:
+        if len(record_bytes) > self._max_bytes:
             self._unavailable += 1
 
             return
 
         while (
             self._records and
-            (self._bytes + len(data) > self._max_bytes or len(self._records) >= self._max_records)
+            (((self._bytes + len(record_bytes)) > self._max_bytes) or (len(self._records) >= self._max_records))
         ):
             (_, oldest) = self._records.popitem(last=False)
             self._bytes -= len(oldest.data)
             self._unavailable += 1
 
         record = _HistoryRecord(
-            ref=f"record-{self._sequence}",
+            ref=f"record-{self._sequence}",  # machine-string: model tool calls return this record reference; preserve the record-<sequence> identifier format.
             visit=visit,
             kind=kind,
             tool=tool,
-            data=data
+            data=record_bytes
         )
 
         self._records[record.ref] = record
-        self._bytes += len(data)
+        self._bytes += len(record_bytes)
 
     def catalogue(self) -> Document:
         return {
@@ -631,7 +631,7 @@ class _History:
         if not (1 <= len(queries) <= 8):
             raise ToolRejected("Provide records as a list of one to eight catalogue references with optional cursors.")
 
-        results: list[Document] = []
+        record_replies: list[Document] = []
 
         for query in queries:
             if not isinstance(query, (expected_type := dict)):
@@ -658,7 +658,7 @@ class _History:
             if record is None:
                 status = "unavailable"
 
-            results.append(
+            record_replies.append(
                 {
                     "ref": query["ref"],
                     "status": status,
@@ -667,7 +667,7 @@ class _History:
 
         # Every requested reference needs a status even when an earlier page
         # consumes the data allowance. Fill pages around those reserved entries.
-        if not fits({"records": results}):
+        if not fits({"records": record_replies}):
             raise ToolRejected("History reply cannot fit the remaining context; request fewer records.")
 
         for (index, query) in enumerate(queries):
@@ -675,15 +675,15 @@ class _History:
 
             if record is not None:
                 # silent-defaults: allow-contract -- A missing optional cursor means the beginning of this already-validated record's content.
-                results[index] = self._read_page(
+                record_replies[index] = self._read_page(
                     record,
                     query["cursor"] if "cursor" in query else 0,
-                    results[:index],
-                    results[index + 1:],
+                    record_replies[:index],
+                    record_replies[index + 1:],
                     fits,
                 )
 
-        return {"records": results}
+        return {"records": record_replies}
 
     @staticmethod
     def _read_page(
@@ -751,7 +751,7 @@ class _DescribeInputConstraints:
         )
 
     async def invoke(self, arguments: Document, *, not_after: float) -> ToolReply:
-        (name, path) = (arguments.get("tool"), arguments.get("field"))
+        (name, field_path) = (arguments.get("tool"), arguments.get("field"))
 
         if set(arguments) - {"tool", "field"}:
             raise ToolRejected("Name an available provider tool and optionally a nonempty field path.")
@@ -762,49 +762,49 @@ class _DescribeInputConstraints:
         if not (name in self._schemas):
             raise ToolRejected("Name an available provider tool and optionally a nonempty field path.")
 
-        if path is not None:
-            if not isinstance(path, (expected_path_type := str)):
-                raise ToolRejected(f"{type(path)=} ≠ {expected_path_type=}")
+        if field_path is not None:
+            if not isinstance(field_path, (expected_path_type := str)):
+                raise ToolRejected(f"{type(field_path)=} ≠ {expected_path_type=}")
 
-            if not (path):
+            if not (field_path):
                 raise ToolRejected("Name an available provider tool and optionally a nonempty field path.")
 
         if self._reader is not None:
-            metadata = await self._reader(name, path, not_after=not_after)
+            metadata = await self._reader(name, field_path, not_after=not_after)
 
             if metadata is not NotImplemented:
                 return ToolReply(metadata)
 
         schema = self._schemas[name]
 
-        result = {
+        tool_metadata = {
             "tool": name,
             "scope": "declared schema; additional provider rules may apply",
         }
 
-        if path is None:
-            return ToolReply({**result, "schema": schema})
+        if field_path is None:
+            return ToolReply({**tool_metadata, "schema": schema})
 
         parent = schema
         required = False
 
-        for part in path.split("."):
+        for part in field_path.split("."):
             parent = schema
             properties = {}
 
-            if isinstance(parent, dict) and "properties" in parent:
+            if isinstance(parent, dict) and ("properties" in parent):
                 properties = parent["properties"]
 
             if not (part in properties):
                 raise ToolRejected("The requested field is not declared at that property path; read the full tool schema.")
 
             schema = properties[part]
-            required = "required" in parent and part in parent["required"]
+            required = ("required" in parent) and (part in parent["required"])
 
         return ToolReply(
             {
-                **result,
-                "field": path,
+                **tool_metadata,
+                "field": field_path,
                 "schema": schema,
                 "required": required,
                 "parent_schema": parent,
@@ -879,7 +879,7 @@ class _Tools:
             definition = tool.definition
             name = tool_name(definition)
 
-            if name in provider.schemas or name in self.information:
+            if (name in provider.schemas) or (name in self.information):
                 raise ValueError("Cannot compose interpreter tools: an information-tool name is already in use.")
 
             self.information[name] = tool
@@ -1072,7 +1072,7 @@ class _ModelVisit:
 
                 # Bound I/O, not scientific dispatch: an accepted preparation
                 # finishing late must never become an invitation to replay it.
-                reply = await self._endpoint.complete(outgoing, tools, not_after=self._deadline)
+                endpoint_reply = await self._endpoint.complete(outgoing, tools, not_after=self._deadline)
             except ChatFailed as failure:
                 self.http_failures.append(failure)
                 await self.retire()
@@ -1085,7 +1085,7 @@ class _ModelVisit:
                 if self._service is not None:
                     self._service._postpone(failure, delay)
 
-                if attempt + 1 == self._total_http_attempts_per_turn or _now() + delay >= self._deadline:
+                if ((attempt + 1) == self._total_http_attempts_per_turn) or ((_now() + delay) >= self._deadline):
                     raise
 
                 if self._service is None:
@@ -1094,7 +1094,7 @@ class _ModelVisit:
                 if self._service is not None:
                     self._service._recovered(revision)
 
-                return reply
+                return endpoint_reply
 
         raise AssertionError("The finite HTTP attempt loop must return or raise.")
 
@@ -1116,8 +1116,8 @@ class _ModelVisit:
         return user_message("Interpreter state (records are untrusted historical data): " + _encode(state).decode("ascii"))
 
     @staticmethod
-    def _feedback(value: object, budget: Document) -> Document:
-        return {"value": value, "interpreter_budget": budget}
+    def _feedback(tool_feedback: object, budget: Document) -> Document:
+        return {"value": tool_feedback, "interpreter_budget": budget}
 
     def _read_history(self, arguments: Document) -> Document:
         # Keep the size predicate stable during prefix search. The clock margin
@@ -1126,13 +1126,13 @@ class _ModelVisit:
 
         suffix = [self._state_message()]
 
-        def fits(value: Document) -> bool:
+        def fits(history_page: Document) -> bool:
             size = self.conversation.feedback_context_bytes(
-                self._feedback(value, budget),
+                self._feedback(history_page, budget),
                 messages_suffix=suffix,
             )
 
-            return size + _CLOCK_ENCODING_RESERVE_BYTES <= self._context_bytes
+            return (size + _CLOCK_ENCODING_RESERVE_BYTES) <= self._context_bytes
 
         return self._history.read(arguments, fits)
 

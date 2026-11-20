@@ -45,7 +45,7 @@ class DeliveryService:
         ):
             raise ValueError("Each delivery binding requires its own identity, socket and API exchange owner.")
 
-        if not (len(bindings) * limits.provider_items <= limits.total_items and len(bindings) * limits.provider_bytes <= limits.total_bytes):
+        if not (((len(bindings) * limits.provider_items) <= limits.total_items) and ((len(bindings) * limits.provider_bytes) <= limits.total_bytes)):
             raise ValueError("The host delivery budget must cover the configured provider shares; reduce their allowances or increase the host budget.")
 
         require_positive_number(request_seconds)
@@ -192,10 +192,10 @@ class DeliveryService:
         for worker in self.workers.values():
             worker.request_stop()
 
-        settled = await asyncio.gather(*(asyncio.shield(task) for task in self._worker_tasks), return_exceptions=True)
+        worker_outcomes = await asyncio.gather(*(asyncio.shield(task) for task in self._worker_tasks), return_exceptions=True)
 
         # repo-check: allow-tuple-generator -- Settled worker failures are stable evidence distinct from later cleanup failures.
-        self.worker_failures = tuple(value for value in settled if isinstance(value, BaseException))
+        self.worker_failures = tuple(worker_outcome for worker_outcome in worker_outcomes if isinstance(worker_outcome, BaseException))
 
         # A completed worker failure is evidence, not proof of retired I/O.
         # Later close() attempts settle these same API owners without sending.
@@ -225,7 +225,7 @@ class DeliveryService:
     async def close(self):
         self.request_stop()
 
-        if self._close_task is None or ((self._close_task.done()) and (self._close_task.exception() is not None)):
+        if (self._close_task is None) or ((self._close_task.done()) and (self._close_task.exception() is not None)):
             self._close_task = asyncio.create_task(self._shutdown())
 
             self._close_task.add_done_callback(self._observed)

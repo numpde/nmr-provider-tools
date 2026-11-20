@@ -72,7 +72,7 @@ class SharedDeploymentTests(unittest.TestCase):
             self.assertEqual("/run/nmr-api-proxy/proxy.sock", str(grants.proxy_socket))
             self.assertEqual("/run/nmr-api-outbox/http.sock", str(grants.endpoint("https://api.example", "provider:test").socket_path))
             self.assertEqual([str(gid)], grants.compose()["group_add"])
-            self.assertTrue(all(mount["read_only"] and mount["volume"]["nocopy"] for mount in grants.compose()["mounts"]))
+            self.assertTrue(all((mount["read_only"] and mount["volume"]["nocopy"]) for mount in grants.compose()["mounts"]))
             settings_path.write_text(settings_path.read_text().replace(f"proxy_uid = {proxy_uid}", f"proxy_uid = {uid}"))
 
             with self.assertRaises(deployment.DeliveryDeploymentRejected):

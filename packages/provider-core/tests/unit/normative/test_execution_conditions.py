@@ -45,7 +45,7 @@ class ExecutionConditionTests(unittest.IsolatedAsyncioTestCase):
             task_settle_seconds=0.1,
         ).run(acknowledged)
 
-        commands = [json.loads(request.content) for (request, _) in transport.calls if request.method == "PUT"]
+        commands = [json.loads(progress_request.content) for (progress_request, _) in transport.calls if progress_request.method == "PUT"]
 
         self.assertEqual(
             [(command["phase"], command["condition_code"]) for command in commands],

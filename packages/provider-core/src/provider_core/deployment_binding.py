@@ -14,6 +14,7 @@ import argparse
 import ipaddress
 import json
 import re
+import reprlib
 import sys
 import tomllib
 import pathlib
@@ -31,30 +32,33 @@ from provider_core.tools import require_positive_number
 from provider_core.validation.upstream.docker_ids import is_full_network_id
 
 
-def _fields(table, expected, label):
+def _fields(table, expected, section_name):
     if not (type(table) is (expected_type := dict)):
-        raise BindingDefinitionRejected(f"{label=}; {type(table)=} ≠ {expected_type=}")
+        raise BindingDefinitionRejected(f"{section_name=}; {type(table)=} ≠ {expected_type=}")
 
     if set(table) != set(expected):
-        raise BindingDefinitionRejected(f"Cannot admit delivery bindings: {label} must contain exactly its documented fields.")
+        actual_field_names = sorted(table)
+        expected_field_names = sorted(expected)
+
+        raise BindingDefinitionRejected(f"{section_name=}: {actual_field_names=} should match {expected_field_names=}")
 
 
-def _absolute_path(value, label):
-    if not (type(value) is (expected_type := str)):
-        raise BindingDefinitionRejected(f"{label=}; {type(value)=} ≠ {expected_type=}")
+def _absolute_path(path_text, path_field):
+    if not (type(path_text) is (expected_type := str)):
+        raise BindingDefinitionRejected(f"{path_field=}; {type(path_text)=} ≠ {expected_type=}")
 
-    if not (value):
-        raise BindingDefinitionRejected(f"Cannot admit delivery bindings: {label} requires an absolute path without mount delimiters.")
+    if not (path_text):
+        raise BindingDefinitionRejected(f"{path_field=}: {path_text=} should be an absolute path")
 
-    if any(character in value for character in ("\0", "\n", "\r", ",")):
-        raise BindingDefinitionRejected(f"Cannot admit delivery bindings: {label} requires an absolute path without mount delimiters.")
+    if any((character in path_text) for character in ("\0", "\n", "\r", ",")):
+        raise BindingDefinitionRejected(f"{path_field=}: {reprlib.repr(path_text)=} should contain no NUL, line breaks or commas")
 
-    path = pathlib.Path(value)
+    binding_path = pathlib.Path(path_text)
 
-    if (path.anchor != "/") or (".." in path.parts) or (str(path) != value) or (not path.name):
-        raise BindingDefinitionRejected(f"Cannot admit delivery bindings: {label} must be an absolute normalized path.")
+    if (binding_path.anchor != "/") or (".." in binding_path.parts) or (str(binding_path) != path_text) or (not binding_path.name):
+        raise BindingDefinitionRejected(f"{path_field=}: {reprlib.repr(path_text)=} should be a normalized absolute path")
 
-    return path
+    return binding_path
 
 
 @dataclass(frozen=True, slots=True, repr=False)
@@ -156,12 +160,13 @@ def _route(table, origin):
     if port is None:
         port = 443
 
-    policy = ServicePolicy.admit(mode, [f"{parsed.hostname}:{port}"], addresses)
+    service_authority = f"{parsed.hostname}:{port}"  # machine-string: service policy parses this exact hostname and port authority
+    policy = ServicePolicy.admit(mode, [service_authority], addresses)
 
-    if parsed.hostname == "0.0.0.0" or any(ipaddress.IPv4Address(address).is_unspecified for (_, address) in policy.addresses):
+    if (parsed.hostname == "0.0.0.0") or any(ipaddress.IPv4Address(address).is_unspecified for (_, address) in policy.addresses):
         raise BindingDefinitionRejected("Cannot admit API route: an unspecified address is not an API destination; select the intended peer address.")
 
-    if mode == "local" and any(ipaddress.IPv4Address(address).is_loopback for (_, address) in policy.addresses):
+    if (mode == "local") and any(ipaddress.IPv4Address(address).is_loopback for (_, address) in policy.addresses):
         raise BindingDefinitionRejected("Cannot admit local API route: loopback belongs to this proxy; select the API peer on the declared network or mapped routing for host loopback.")
 
     return dict(table)
@@ -169,12 +174,12 @@ def _route(table, origin):
 
 def _parse_deployment_bindings(raw):
     try:
-        document = tomllib.loads(raw.decode("utf-8"))
+        deployment_definition = tomllib.loads(raw.decode("utf-8"))
     except (UnicodeError, ValueError) as cause:
         raise BindingDefinitionRejected("Cannot read delivery bindings: require a UTF-8 TOML definition.") from cause
 
-    _fields(document, {"project", "uid", "gid", "request_seconds", "retry_initial_seconds", "retry_max_seconds", "limits", "bindings"}, "definition")
-    (project, uid, gid) = (document["project"], document["uid"], document["gid"])
+    _fields(deployment_definition, {"project", "uid", "gid", "request_seconds", "retry_initial_seconds", "retry_max_seconds", "limits", "bindings"}, "definition")
+    (project, uid, gid) = (deployment_definition["project"], deployment_definition["uid"], deployment_definition["gid"])
 
     if not (type(project) is (expected_type := str)):
         raise BindingDefinitionRejected(f"Cannot admit delivery bindings: {type(project)=} ≠ {expected_type=}")
@@ -185,32 +190,33 @@ def _parse_deployment_bindings(raw):
     if not (type(uid) is (expected_uid_type := int)):
         raise BindingDefinitionRejected(f"Cannot admit delivery bindings: {type(uid)=} ≠ {expected_uid_type=}")
 
-    if not (1 <= uid <= 4294967294):
-        raise BindingDefinitionRejected("Cannot admit delivery bindings: uid and gid must be explicit nonzero Linux identities.")
+    (min_owner_id, max_owner_id) = (1, 4294967294)
+
+    if not (min_owner_id <= uid <= max_owner_id):
+        raise BindingDefinitionRejected(f"{uid=} should be between {min_owner_id=} and {max_owner_id=}")
 
     if not (type(gid) is (expected_gid_type := int)):
         raise BindingDefinitionRejected(f"Cannot admit delivery bindings: {type(gid)=} ≠ {expected_gid_type=}")
 
-    if not (1 <= gid <= 4294967294):
-        raise BindingDefinitionRejected("Cannot admit delivery bindings: uid and gid must be explicit nonzero Linux identities.")
+    if not (min_owner_id <= gid <= max_owner_id):
+        raise BindingDefinitionRejected(f"{gid=} should be between {min_owner_id=} and {max_owner_id=}")
 
-    for key in ("request_seconds", "retry_initial_seconds", "retry_max_seconds"):
-        value = document[key]
+    require_positive_number(deployment_definition["request_seconds"])
+    require_positive_number(deployment_definition["retry_initial_seconds"])
+    require_positive_number(deployment_definition["retry_max_seconds"])
 
-        require_positive_number(value)
+    if not (deployment_definition["retry_initial_seconds"] <= deployment_definition["retry_max_seconds"]):
+        raise BindingDefinitionRejected(f"{deployment_definition['retry_initial_seconds']=} should be at most {deployment_definition['retry_max_seconds']=}")
 
-    if not (document["retry_initial_seconds"] <= document["retry_max_seconds"]):
-        raise BindingDefinitionRejected("Cannot admit delivery bindings: initial retry delay must not exceed maximum delay.")
-
-    _fields(document["limits"], {"provider_items", "provider_bytes", "total_items", "total_bytes"}, "limits")
+    _fields(deployment_definition["limits"], {"provider_items", "provider_bytes", "total_items", "total_bytes"}, "limits")
 
     try:
-        limits = QueueLimits(**document["limits"])
+        limits = QueueLimits(**deployment_definition["limits"])
     except ValueError as cause:
         # QueueLimits owns these fixed, input-free refusal messages.
         raise BindingDefinitionRejected(str(cause)) from cause
 
-    rows = document["bindings"]
+    rows = deployment_definition["bindings"]
 
     if not (type(rows) is (expected_type := list)):
         raise BindingDefinitionRejected(f"Cannot admit delivery bindings: {type(rows)=} ≠ {expected_type=}")
@@ -256,10 +262,10 @@ def _parse_deployment_bindings(raw):
         identities.add(identity)
         bindings.append(binding)
 
-    if not (len(bindings) * limits.provider_items <= limits.total_items and len(bindings) * limits.provider_bytes <= limits.total_bytes):
+    if not (((len(bindings) * limits.provider_items) <= limits.total_items) and ((len(bindings) * limits.provider_bytes) <= limits.total_bytes)):
         raise BindingDefinitionRejected("Cannot admit delivery bindings: host queue limits must cover all provider shares.")
 
-    return DeploymentBindings(project, uid, gid, document["request_seconds"], document["retry_initial_seconds"], document["retry_max_seconds"], dict(document["limits"]), tuple(bindings))
+    return DeploymentBindings(project, uid, gid, deployment_definition["request_seconds"], deployment_definition["retry_initial_seconds"], deployment_definition["retry_max_seconds"], dict(deployment_definition["limits"]), tuple(bindings))
 
 
 def parse_deployment_bindings(raw):
@@ -330,7 +336,7 @@ def main():
     selection.add_argument("--all", action="store_true")
     args = parser.parse_args()
 
-    if args.action == "describe-binding" and args.all:
+    if (args.action == "describe-binding") and args.all:
         parser.error("describe-binding requires one --binding name")
 
     try:
@@ -356,8 +362,8 @@ def main():
                 )
             )
         else:
-            for path in input_paths(bindings):
-                sys.stdout.buffer.write(path.encode("utf-8") + b"\0")
+            for binding_input_path in input_paths(bindings):
+                sys.stdout.buffer.write(binding_input_path.encode("utf-8") + b"\0")
 
         return 0
     # silent-defaults: allow-exception-outcome -- This executable reports safe retained evidence and refuses malformed private definitions

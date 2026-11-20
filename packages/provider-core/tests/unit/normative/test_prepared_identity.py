@@ -31,10 +31,10 @@ class PreparedIdentityTests(unittest.IsolatedAsyncioTestCase):
     def test_compact_entry_projection_keeps_digest_without_a_live_handle(self):
         entered = EnteredCheckpoint(AcknowledgedCheckpoint(record(), admission()), EvidenceDigest.from_evidence(IDENTITY))
         raw = encode_checkpoint(entered)
-        document = json.loads(raw)
+        checkpoint_document = json.loads(raw)
 
-        self.assertEqual(document["kind"], "entered")
-        self.assertEqual(set(document["prepared"]), {"schema_id", "sha256", "byte_length"})
+        self.assertEqual(checkpoint_document["kind"], "entered")
+        self.assertEqual(set(checkpoint_document["prepared"]), {"schema_id", "sha256", "byte_length"})
         self.assertNotIsInstance(entered, PreparedAnalysis)
 
     @unittest.skipIf(os.environ.get("PRIVACY_TESTS", "1") == "0", "Privacy tests disabled")

@@ -128,9 +128,9 @@ class AttemptClaims:
         limits = self._limits
 
         if (
-            (len(existing) + 1 > limits.maximum_attempts) or
-            ((len(existing) + 1) * 131072 > limits.maximum_control_bytes) or
-            (sum(claim._pending_terminal_bytes for claim in existing) + terminal_bytes > limits.maximum_pending_terminal_bytes)
+            ((len(existing) + 1) > limits.maximum_attempts) or
+            (((len(existing) + 1) * 131072) > limits.maximum_control_bytes) or
+            ((sum(claim._pending_terminal_bytes for claim in existing) + terminal_bytes) > limits.maximum_pending_terminal_bytes)
         ):
             raise LiveCapacityFull(
                 "Cannot select another live Attempt: its entry, 131072-byte control allowance or terminal allowance "
@@ -208,7 +208,7 @@ class _AttemptClaim:
 
     @property
     def active(self):
-        return all(self._registry._claims.get(identity) is self for identity in self._identities)
+        return all((self._registry._claims.get(identity) is self) for identity in self._identities)
 
     @property
     def operation_owner(self):
@@ -226,14 +226,14 @@ class _AttemptClaim:
     def require_live(self, scope):
         self._registry._require(self)
 
-        if self._pending is None or scope != self._pending.scope:
+        if (self._pending is None) or (scope != self._pending.scope):
             raise OwnershipRefused("Live operation requires the exact scope and bounded selection of a live claim")
 
     def require_live_start(self, pending):
         self.require_live(pending.scope)
         self.require_start(pending)
 
-        if any(identity[2] == "attempt" for identity in self._identities):
+        if any((identity[2] == "attempt") for identity in self._identities):
             raise OwnershipRefused("This live START already owns its received Attempt; retain that admission instead of resending")
 
     def require_start(self, pending):
@@ -250,7 +250,7 @@ class _AttemptClaim:
         if (self._operation_owner is not owner) or (owner is None):
             raise OwnershipRefused("Only the current operation owner can bind an Attempt reference")
 
-        if any(known[:2] != identity[:2] or (known[2] == "attempt" and known != identity) for known in self._identities):
+        if any(((known[:2] != identity[:2]) or ((known[2] == "attempt") and (known != identity))) for known in self._identities):
             raise OwnershipRefused("Received Attempt differs from the claim's API, provider or previously bound reference")
 
         existing = self._registry._claims.get(identity)

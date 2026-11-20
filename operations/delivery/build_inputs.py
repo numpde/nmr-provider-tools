@@ -55,7 +55,7 @@ def release_inputs(pin, runtime_lock):
 
 
 def release_wheels(release):
-    provider_wheel_name = f"provider_core-{release['version']}-py3-none-any.whl"
+    provider_wheel_name = f"provider_core-{release['version']}-py3-none-any.whl"  # machine-string: The wheelhouse lookup needs the distribution's exact wheel filename
 
     return dict(release["runtime_wheels"]) | {provider_wheel_name: release["wheel_sha256"]}
 
@@ -196,7 +196,7 @@ def _capture_image_inputs(pin, runtime_lock, pool, destination, lock_fd):
         raise ValueError("Cannot build delivery: the Dockerfile has no unique wheel input marker.")
 
     copy_instructions = "\n".join(
-        "COPY " + json.dumps(["wheelhouse/" + name, "/" + name])
+        ("COPY " + json.dumps(["wheelhouse/" + name, "/" + name]))
         for name in sorted(selected_wheels["files"])
     )
 

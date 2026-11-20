@@ -81,7 +81,7 @@ class PreparedHandleRevocationTests(unittest.IsolatedAsyncioTestCase):
                     )
 
                     controller = controller_for(transport, claims, session)
-                    run = asyncio.create_task(controller.run(record()))
+                    controller_task = asyncio.create_task(controller.run(record()))
 
                     try:
                         await asyncio.wait_for(session.retiring.wait(), 1)
@@ -99,13 +99,13 @@ class PreparedHandleRevocationTests(unittest.IsolatedAsyncioTestCase):
                         self.assertIsNone(controller.operation.settled_revocation)
 
                         if delayed:
-                            await asyncio.wait((run,), timeout=1)
-                            self.assertTrue(run.done(), "The original stop must remain observable during cleanup")
+                            await asyncio.wait((controller_task,), timeout=1)
+                            self.assertTrue(controller_task.done(), "The original stop must remain observable during cleanup")
                             self.assertTrue(claims.owns_job(scope(), record().input.job_ref))
                             self.assertIsNone(controller.operation.settled_revocation)
                     finally:
                         session.release.set()
-                        (failure,) = await asyncio.wait_for(asyncio.gather(run, return_exceptions=True), 1)
+                        (failure,) = await asyncio.wait_for(asyncio.gather(controller_task, return_exceptions=True), 1)
 
                     self.assertIsInstance(failure, ControllerFailed)
                     self.assertIs(type(failure.cause.cause), ExecutionStopped)

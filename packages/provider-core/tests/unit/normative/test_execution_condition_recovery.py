@@ -84,18 +84,18 @@ class ConditionRecoveryTests(unittest.IsolatedAsyncioTestCase):
         )
 
         self.assertTrue(transport.read_after_failure.is_set())
-        requests = transport.condition_requests
+        condition_requests = transport.condition_requests
 
-        self.assertEqual(len(requests), 3)
-        self.assertEqual({request.content for request in requests}, {transport.condition_body})
-        self.assertEqual(len({request.headers["signature-input"] for request in requests}), 3)
-        self.assertEqual(len({request.headers["signature"] for request in requests}), 3)
+        self.assertEqual(len(condition_requests), 3)
+        self.assertEqual({condition_request.content for condition_request in condition_requests}, {transport.condition_body})
+        self.assertEqual(len({condition_request.headers["signature-input"] for condition_request in condition_requests}), 3)
+        self.assertEqual(len({condition_request.headers["signature"] for condition_request in condition_requests}), 3)
         self.assertEqual([event[0] for event in session.events], ["prepare", "execute", "retire"])
         self.assertEqual(store.records, (terminal,))
 
         # silent-defaults: allow-contract -- Only an observed condition acknowledgement is retained; absence remains None.
         self.assertEqual(
-            json.loads(requests[0].content)["condition_code"],
+            json.loads(condition_requests[0].content)["condition_code"],
             None if failed_put in (3, 6) else "waiting_capacity"
         )
 

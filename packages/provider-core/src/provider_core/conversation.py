@@ -35,8 +35,8 @@ from provider_core.validation.upstream.chat_completions.tool_calls import (
 )
 
 
-def _encode(value):
-    return json.dumps(value, allow_nan=False, ensure_ascii=True, sort_keys=True, separators=(",", ":")).encode("ascii")
+def _encode(json_content):
+    return json.dumps(json_content, allow_nan=False, ensure_ascii=True, sort_keys=True, separators=(",", ":")).encode("ascii")
 
 
 @dataclass(frozen=True, slots=True)
@@ -67,6 +67,7 @@ class TextCorrection:
             return
 
         actual_user_content = self.user_content
+
         require_type(actual_user_content, str)
 
         if not (self.user_content):
@@ -125,14 +126,14 @@ def independent_interruption_failure(failure):
     if cause is None:
         return None
 
-    if type(cause) is ChatFailed and cause.reason == "request_cancelled" and cause.interruption_cause is None:
+    if (type(cause) is ChatFailed) and (cause.reason == "request_cancelled") and (cause.interruption_cause is None):
         exchange = cause.cause
 
         if (
             (type(exchange) is ExchangeFailed) and
             (exchange.primary is failure) and
             (not exchange.cleanup_failures) and
-            (exchange.response_head is None or is_completion_success(exchange.response_head.status))
+            ((exchange.response_head is None) or is_completion_success(exchange.response_head.status))
         ):
             return None
 
@@ -183,7 +184,7 @@ class ToolConversation:
         for secret in secrets:
             require_type(secret, str)
 
-        if any(not secret for secret in secrets):
+        if any((not secret) for secret in secrets):
             raise ValueError("Cannot configure interpretation: known secrets must be an explicit tuple of nonempty strings.")
 
         if text_correction is not None:
@@ -255,17 +256,17 @@ class ToolConversation:
             tools=self._tools,
         )
 
-    def _require_no_secrets(self, value):
-        if type(value) is str:
-            if any(secret in value for secret in self._secrets):
+    def _require_no_secrets(self, context_fragment):
+        if type(context_fragment) is str:
+            if any((secret in context_fragment) for secret in self._secrets):
                 raise ConversationFailed("Cannot continue interpretation: its outgoing context contains a configured credential.")
-        elif type(value) is dict:
-            for (key, item) in value.items():
+        elif type(context_fragment) is dict:
+            for (key, mapped_value) in context_fragment.items():
                 self._require_no_secrets(key)
-                self._require_no_secrets(item)
-        elif type(value) in (tuple, list):
-            for item in value:
-                self._require_no_secrets(item)
+                self._require_no_secrets(mapped_value)
+        elif type(context_fragment) in (tuple, list):
+            for sequence_element in context_fragment:
+                self._require_no_secrets(sequence_element)
 
     async def run(self, messages, tools, dispatch):
         if self._used or self._retired:
@@ -347,7 +348,7 @@ class ToolConversation:
 
                 await self._retire_endpoint(index, cause=failure)
 
-                if index + 1 == len(self._endpoints) or self._turns == self._max_turns:
+                if ((index + 1) == len(self._endpoints)) or (self._turns == self._max_turns):
                     raise ConversationFailed(
                         "Cannot interpret the request: no usable model reply was obtained within the configured endpoints and turn budget.",
                         cause=failure,
@@ -418,13 +419,19 @@ class ToolConversation:
         # silent-defaults: allow-contract -- Absent usable correction text reports exhaustion without choosing another endpoint or input.
         reason = self.last_rejection or "No tool submitted a supported input."
 
-        raise ConversationFailed(f"Cannot interpret the request: the {self._max_turns}-turn budget was exhausted. Last correction: {reason}")
+        raise ConversationFailed(
+            f"Cannot interpret the request: the {self._max_turns = } turn budget was exhausted. "
+            f"{reason = }"
+        )
 
     def _route(self, endpoint):
         # Identity comes from the trusted adapter, not model response fields.
         identity = json.loads(endpoint.identity)
 
-        identity = {key: self.redact(value) if type(value) is str else value for (key, value) in identity.items()}
+        identity = {
+            identity_field: (self.redact(identity_fact) if type(identity_fact) is str else identity_fact)
+            for (identity_field, identity_fact) in identity.items()
+        }
 
         self._routes.append({"endpoint": identity, "turns_started": 0})
 
@@ -509,9 +516,9 @@ class ToolConversation:
 
         return (arguments, canonical_arguments_text)
 
-    def _feedback(self, identifier, value):
-        self._require_no_secrets(value)
-        self._messages.append(chat_tools.tool_message(identifier, _encode(value).decode("ascii")))
+    def _feedback(self, identifier, tool_feedback):
+        self._require_no_secrets(tool_feedback)
+        self._messages.append(chat_tools.tool_message(identifier, _encode(tool_feedback).decode("ascii")))
 
     def _correct_turn(self, calls, rejection):
         reason = str(rejection)
@@ -524,7 +531,7 @@ class ToolConversation:
         self.correction_failures.append((self._turns, rejection))
 
         if (self._max_corrections is not None) and (self._corrections >= self._max_corrections):
-            raise ConversationFailed(f"Cannot interpret the request: the {self._max_corrections}-correction budget was exhausted.")
+            raise ConversationFailed(f"Cannot interpret the request: the {self._max_corrections = } correction budget was exhausted.")
 
         content = reason
 

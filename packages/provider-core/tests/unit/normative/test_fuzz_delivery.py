@@ -31,29 +31,34 @@ class DeliveryFaultSequenceTests(unittest.TestCase):
 
     def check_outstanding(self, queue, expected, providers):
         for provider in providers:
-            entries = {
-                item.outcome.execution_attempt_ref: (item, state)
-                for (item, state) in expected.values() if item.outcome.provider_ref == provider
+            handoffs_by_attempt_ref = {
+                handoff.outcome.execution_attempt_ref: (handoff, state)
+                for (handoff, state) in expected.values() if handoff.outcome.provider_ref == provider
             }
 
             rows = queue.inventory("https://api.example", provider)
 
-            self.assertEqual({row["execution_attempt_ref"] for row in rows}, set(entries))
+            self.assertEqual({row["execution_attempt_ref"] for row in rows}, set(handoffs_by_attempt_ref))
 
             for row in rows:
-                (item, state) = entries[row["execution_attempt_ref"]]
+                (handoff, state) = handoffs_by_attempt_ref[row["execution_attempt_ref"]]
 
                 self.assertEqual(row["state"], state)
-                self.assertEqual(row["body_sha256"], item.outcome.body_sha256)
-                self.assertEqual(row["body_bytes"], len(item.outcome.body))
-                self.assertEqual(queue.status(*item.outcome.key), row)
+                self.assertEqual(row["body_sha256"], handoff.outcome.body_sha256)
+                self.assertEqual(row["body_bytes"], len(handoff.outcome.body))
+                self.assertEqual(queue.status(*handoff.outcome.key), row)
 
-            pending = {ref: item for (ref, (item, state)) in entries.items() if state == "pending"}
+            pending_handoffs = {
+                attempt_ref: handoff
+                for (attempt_ref, (handoff, state)) in handoffs_by_attempt_ref.items()
+                if state == "pending"
+            }
+
             selected = queue.next_pending_handoff("https://api.example", provider)
 
-            if pending:
+            if pending_handoffs:
                 self.assertIsNotNone(selected)
-                original = pending[selected.outcome.execution_attempt_ref]
+                original = pending_handoffs[selected.outcome.execution_attempt_ref]
 
                 self.assertEqual(selected.outcome, original.outcome)
                 self.assertEqual(selected.publication_bytes(), original.publication_bytes())
@@ -89,48 +94,48 @@ class DeliveryFaultSequenceTests(unittest.TestCase):
                                 queue.close()
                                 queue = DeliveryQueue(pathlib.Path(directory), limits=limits)
                             elif (action == "enqueue") or (not expected):
-                                item = DeliveryHandoff(
+                                handoff = DeliveryHandoff(
                                     outcome(provider=provider, suffix=suffix, message=f"result-{seed}-{step}"),
                                     materials[provider][0]
                                 )
 
-                                occupied = item.outcome.key in expected
-                                provider_count = sum(old.outcome.provider_ref == provider for (old, _) in expected.values())
+                                occupied = handoff.outcome.key in expected
+                                provider_count = sum((old_handoff.outcome.provider_ref == provider) for (old_handoff, _) in expected.values())
 
                                 if occupied:
                                     with self.assertRaises(DeliveryConflict):
-                                        queue.enqueue_handoff(item)
-                                elif provider_count >= 3 or len(expected) >= 7:
+                                        queue.enqueue_handoff(handoff)
+                                elif (provider_count >= 3) or (len(expected) >= 7):
                                     with self.assertRaises(DeliveryFull):
-                                        queue.enqueue_handoff(item)
+                                        queue.enqueue_handoff(handoff)
                                 else:
-                                    self.assertEqual(queue.enqueue_handoff(item), item.acceptance())
-                                    expected[item.outcome.key] = (item, "pending")
+                                    self.assertEqual(queue.enqueue_handoff(handoff), handoff.acceptance())
+                                    expected[handoff.outcome.key] = (handoff, "pending")
                             else:
                                 key = existing_key
-                                (item, state) = expected[key]
+                                (handoff, state) = expected[key]
 
                                 if action == "replay":
-                                    self.assertEqual(queue.enqueue_handoff(item), item.acceptance())
+                                    self.assertEqual(queue.enqueue_handoff(handoff), handoff.acceptance())
                                 elif action == "conflict":
-                                    changed = DeliveryHandoff(item.outcome, materials[item.outcome.provider_ref][1])
+                                    changed = DeliveryHandoff(handoff.outcome, materials[handoff.outcome.provider_ref][1])
 
                                     with self.assertRaises(DeliveryConflict):
                                         queue.enqueue_handoff(changed)
 
                                     changed_body = outcome(
-                                        provider=item.outcome.provider_ref,
-                                        suffix=item.outcome.execution_attempt_ref[-1],
+                                        provider=handoff.outcome.provider_ref,
+                                        suffix=handoff.outcome.execution_attempt_ref[-1],
                                         message="different bytes"
                                     )
 
                                     with self.assertRaises(DeliveryConflict):
                                         queue.remove_published(changed_body)
                                 elif action == "hold":
-                                    queue.hold(item.outcome, "Synthetic terminal refusal.")
-                                    expected[key] = (item, "held")
+                                    queue.hold(handoff.outcome, "Synthetic terminal refusal.")
+                                    expected[key] = (handoff, "held")
                                 elif state == "pending":
-                                    queue.remove_published(item.outcome)
+                                    queue.remove_published(handoff.outcome)
                                     del expected[key]
 
                             self.check_outstanding(queue, expected, providers)

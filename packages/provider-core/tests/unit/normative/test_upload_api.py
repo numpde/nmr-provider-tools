@@ -42,7 +42,7 @@ class UploadApiTests(unittest.IsolatedAsyncioTestCase):
 
         self.assertEqual((access.job_ref, access.upload_ref, access.content_hash), ("job:example", UPLOAD_REF, CONTENT_HASH))
 
-        for ((request, ceiling), method, target, limit) in zip(
+        for ((signed_request, ceiling), method, target, expected_response_bytes) in zip(
             transport.calls,
             ("GET", "POST"),
             (
@@ -52,10 +52,10 @@ class UploadApiTests(unittest.IsolatedAsyncioTestCase):
             (2097152, 65536),
             strict=True,
         ):
-            self.assertEqual((request.method, request.url.raw_path, ceiling), (method, target, limit))
-            self.assertNotIn("Content-Type", request.headers)
-            self.assertNotIn("Content-Digest", request.headers)
-            self.assertIn("Signature", request.headers)
+            self.assertEqual((signed_request.method, signed_request.url.raw_path, ceiling), (method, target, expected_response_bytes))
+            self.assertNotIn("Content-Type", signed_request.headers)
+            self.assertNotIn("Content-Digest", signed_request.headers)
+            self.assertIn("Signature", signed_request.headers)
 
     @unittest.skipIf(os.environ.get("PRIVACY_TESTS", "1") == "0", "Privacy tests disabled")
     async def test_grant_representation_omits_bearer(self):
@@ -79,4 +79,8 @@ class UploadApiTests(unittest.IsolatedAsyncioTestCase):
             observed = await api.uploads("job:example")
 
             self.assertEqual(len(observed.members), len(members))
-            self.assertEqual([item.description for item in observed.members], [item["description"] for item in members])
+
+            self.assertEqual(
+                [upload_member.description for upload_member in observed.members],
+                [member_definition["description"] for member_definition in members],
+            )

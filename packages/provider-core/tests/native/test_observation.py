@@ -66,10 +66,10 @@ class ObservationTests(unittest.IsolatedAsyncioTestCase):
         await observe_cleanup(control=self.host.retire())
 
     async def test_returns_exact_handle_without_releasing_the_result(self):
-        result = self.observation.require_result()
+        result_ref = self.observation.require_result()
 
-        self.assertIs(expr1=self.observation.result, expr2=result)
-        self.assertEqual(first=b'{"number":7}', second=await self.operation.read_result(result=result))
+        self.assertIs(expr1=self.observation.result, expr2=result_ref)
+        self.assertEqual(first=b'{"number":7}', second=await self.operation.read_result(result=result_ref))
         current = await self.operation.observe(after=None, wait_seconds=0)
 
         self.assertIs(expr1=ResultState.AVAILABLE, expr2=current.result_state)

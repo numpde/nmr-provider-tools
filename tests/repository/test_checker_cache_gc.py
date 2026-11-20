@@ -21,10 +21,10 @@ class EngineCacheGCTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             daemon_config_path = pathlib.Path(directory) / "daemon.json"
 
-            for document in ([], None, True):
-                daemon_config_path.write_text(json.dumps(document))
+            for invalid_config_value in ([], None, True):
+                daemon_config_path.write_text(json.dumps(invalid_config_value))
 
-                with self.subTest(document=document), self.assertRaises(TypeError):
+                with self.subTest(document=invalid_config_value), self.assertRaises(TypeError):
                     native_config(daemon_config_path)
 
         for builder in ([], None, True):
@@ -34,11 +34,11 @@ class EngineCacheGCTests(unittest.TestCase):
         with self.assertRaises(TypeError):
             limits({"builder": {"gc": {"enabled": "true"}}})
 
-        document = configured({})
-        document["builder"]["gc"]["defaultReservedSpace"] = ""
+        daemon_policy = configured({})
+        daemon_policy["builder"]["gc"]["defaultReservedSpace"] = ""
 
         with self.assertRaises(ValueError):
-            limits(document)
+            limits(daemon_policy)
 
     def test_native_policy_merge_preserves_unrelated_fields_and_runtime_reads_it(self):
         original = {
@@ -115,25 +115,25 @@ class EngineCacheGCTests(unittest.TestCase):
             for name in ("engine_cache_gc.sh", "engine_cache_gc.py", "docker_context.sh", "docker_client.sh"):
                 shutil.copyfile(ROOT / "operations/docker" / name, root / "operations/docker" / name)
 
-            for path in (
+            for source_relative_path in (
                 "operations/docker/adapters/docker_context.sh",
                 "operations/docker/adapters/cache_gc.py",
                 "operations/docker/adapters/cache_gc.sh",
                 "operations/docker/validation/upstream/cache_gc.py",
                 "packages/type-requirements/src/type_requirements.py",
             ):
-                target = root / path
+                target = root / source_relative_path
 
                 target.parent.mkdir(parents=True, exist_ok=True)
-                shutil.copyfile(ROOT / path, target)
+                shutil.copyfile(ROOT / source_relative_path, target)
 
             shutil.copyfile(ROOT / "host/tools/inference_native.sh", root / "host/tools/inference_native.sh")
 
             config = root / "daemon.json"
-            document = configured({})
-            document["builder"]["gc"]["defaultMaxUsedSpace"] = "24GB"
+            daemon_policy = configured({})
+            daemon_policy["builder"]["gc"]["defaultMaxUsedSpace"] = "24GB"
 
-            config.write_text(json.dumps(document))
+            config.write_text(json.dumps(daemon_policy))
             probe = root / "probe.json"
 
             completed_process = subprocess.run(

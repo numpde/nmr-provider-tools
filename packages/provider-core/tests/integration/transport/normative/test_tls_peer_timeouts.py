@@ -91,7 +91,10 @@ class TlsPeerTimeoutTests(unittest.IsolatedAsyncioTestCase):
                 self.assertNotIn("ssl_shutdown_timeout", selected)
 
     def test_invalid_limits_are_rejected_before_creating_a_server(self):
-        for key in ("handshake_seconds", "shutdown_seconds"):
-            for value in (None, True, False, 0, -1, float("nan"), float("inf"), "3"):
-                with self.subTest(key=key, value=value), self.assertRaisesRegex(ValueError, key):
-                    TlsPeer("success", **{key: value})
+        for timeout_name in ("handshake_seconds", "shutdown_seconds"):
+            for timeout_seconds in (None, True, False, 0, -1, float("nan"), float("inf"), "3"):
+                with (
+                    self.subTest(key=timeout_name, value=timeout_seconds),
+                    self.assertRaisesRegex(ValueError, timeout_name),
+                ):
+                    TlsPeer("success", **{timeout_name: timeout_seconds})

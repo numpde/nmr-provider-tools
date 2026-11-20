@@ -37,12 +37,12 @@ def serving(server):
 
 
 def read_all(client):
-    data = bytearray()
+    response_bytes = bytearray()
 
     while block := client.recv(4096):
-        data.extend(block)
+        response_bytes.extend(block)
 
-    return bytes(data)
+    return bytes(response_bytes)
 
 
 class HTTPResponse(socketserver.BaseRequestHandler):

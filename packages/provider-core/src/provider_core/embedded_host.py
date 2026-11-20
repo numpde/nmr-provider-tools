@@ -82,27 +82,27 @@ class InProcessExecutionHost:
         a memory limit on caller-held handles. Time allowances are in seconds.
         """
 
-        for (name, value) in (
+        for (name, capacity) in (
             ("input_bytes", input_bytes),
             ("result_bytes", result_bytes),
             ("state_values", state_values),
             ("progress_records", progress_records),
         ):
-            if not (type(value) is (expected_type := int)):
-                raise TypeError(f"{name=}; {type(value)=} ≠ {expected_type=}")
+            if not (type(capacity) is (expected_type := int)):
+                raise TypeError(f"{name=}; {type(capacity)=} ≠ {expected_type=}")
 
-            if not (0 < value):
-                raise ValueError(f"Expected a positive capacity for {name=}; received {value=}")
+            if not (0 < capacity):
+                raise ValueError(f"{name=}; {capacity=} should be positive")
 
-        for value in (initialization_seconds, retirement_seconds):
-            require_positive_number(value)
+        require_positive_number(initialization_seconds)
+        require_positive_number(retirement_seconds)
 
         require_type(allocations, tuple)
 
         for allocation in allocations:
             require_type(allocation, Allocation)
 
-        if len({item.name for item in allocations}) != len(allocations):
+        if len({allocation.name for allocation in allocations}) != len(allocations):
             raise ValueError("Allocation names must be unique within a host.")
 
         for allocation in allocations:
@@ -120,8 +120,8 @@ class InProcessExecutionHost:
         self.retirement_seconds = retirement_seconds
 
         self.residents = {
-            item.name: _Resident(host_identity=self.identity, name=item.name, binding=item.binding, assets=item.assets)
-            for item in allocations
+            allocation.name: _Resident(host_identity=self.identity, name=allocation.name, binding=allocation.binding, assets=allocation.assets)
+            for allocation in allocations
         }
 
         self.analyses = {}
@@ -190,7 +190,7 @@ class InProcessExecutionHost:
                 raise ValueError(f"Cannot adopt this contribution again; {custody.owner=} already owns its lifetime")
 
             resident = _Resident(host_identity=self.identity, name=allocation_name, binding=hosted, assets=assets)
-            resident.value = contribution
+            resident.instance = contribution
             resident.constructed = True
             self.residents[allocation_name] = resident
             custody.owner = resident.reference
@@ -263,7 +263,7 @@ class InProcessExecutionHost:
 
         resident = self.residents.get(allocation.allocation)
 
-        if resident is None or resident.reference != allocation:
+        if (resident is None) or (resident.reference != allocation):
             raise ValueError("The allocation handle does not belong to this host")
 
         if (self.retiring) or (resident.retirement is not None) or (resident.retired):
@@ -291,7 +291,7 @@ class InProcessExecutionHost:
 
             raise
         except TimeoutError as cause:
-            if resident.initialization.done() and resident.initialization.exception() is cause:
+            if resident.initialization.done() and (resident.initialization.exception() is cause):
                 resident.initialization_abandoned = False
                 resident.initialization_failure_observed = True
             else:
@@ -302,7 +302,7 @@ class InProcessExecutionHost:
         except BaseException as cause:
             resident.initialization_abandoned = False
 
-            if resident.initialization.done() and resident.initialization.exception() is cause:
+            if resident.initialization.done() and (resident.initialization.exception() is cause):
                 resident.initialization_failure_observed = True
 
             raise
@@ -335,10 +335,10 @@ class InProcessExecutionHost:
             for reference in allocations:
                 resident = self.residents.get(reference.allocation)
 
-                if resident is None and reference.host == self.identity:
+                if (resident is None) and (reference.host == self.identity):
                     raise CapacityUnavailable("The reference does not identify a current allocation on this host.")
 
-                if resident is None or resident.reference != reference:
+                if (resident is None) or (resident.reference != reference):
                     raise ValueError("The allocation handle does not belong to this host")
 
             names = [reference.allocation for reference in allocations]
@@ -362,18 +362,20 @@ class InProcessExecutionHost:
         if analysis_id in self.analyses:
             raise RequestConflict("This analysis identity already has an owner.")
 
-        if any(name not in self.residents for name in allocation_names):
+        if any((name not in self.residents) for name in allocation_names):
             raise CapacityUnavailable("A requested allocation does not belong to this host.")
 
         selected_residents = [self.residents[name] for name in allocation_names]
 
         if any(
             (
-                (resident.analysis is not None) or
-                ((resident.initialization is not None) and (not resident.initialization.done())) or
-                (resident.failure is not None) or
-                (resident.retirement is not None) or
-                resident.retired
+                (
+                    (resident.analysis is not None) or
+                    ((resident.initialization is not None) and (not resident.initialization.done())) or
+                    (resident.failure is not None) or
+                    (resident.retirement is not None) or
+                    resident.retired
+                )
                 for resident in selected_residents
             ),
         ):
@@ -407,7 +409,7 @@ class InProcessExecutionHost:
 
         resident = self.residents.get(reference.allocation)
 
-        if resident is None or resident.reference != reference:
+        if (resident is None) or (resident.reference != reference):
             raise ValueError("Allocation reference does not name this host's current instance.")
 
         if resident.retirement is None:
@@ -540,7 +542,7 @@ class InProcessAnalysisExecutor:
 
         resident = self.host.residents.get(allocation.allocation)
 
-        if resident is None or resident.reference != allocation:
+        if (resident is None) or (resident.reference != allocation):
             raise ValueError("The allocation handle does not belong to this host")
 
         for reservation in self.reservations:
@@ -679,9 +681,9 @@ class InProcessAnalysisExecutor:
         implementation_binding = scientific_analysis.resident.binding
 
         selected_call = next(
-            item
-            for item in implementation_binding._calls
-            if item.description.name == invocation.target.name
+            exported_call
+            for exported_call in implementation_binding._calls
+            if exported_call.description.name == invocation.target.name
         )
 
         state_owners = self._state_owners(invocation, selected_call)
@@ -693,9 +695,9 @@ class InProcessAnalysisExecutor:
         returned_state_count = len(selected_call.description.state_outputs)
 
         if not (
-            (host.input_used + len(invocation.payload) <= host.input_bytes) and
-            (host.result_reserved + invocation.policy.reject_encoded_result_over_bytes <= host.result_bytes) and
-            (host.state_reserved + returned_state_count <= host.state_values)
+            ((host.input_used + len(invocation.payload)) <= host.input_bytes) and
+            ((host.result_reserved + invocation.policy.reject_encoded_result_over_bytes) <= host.result_bytes) and
+            ((host.state_reserved + returned_state_count) <= host.state_values)
         ):
             return NotAdmitted(
                 code=AdmissionCode.CAPACITY,
@@ -770,8 +772,8 @@ class InProcessAnalysisExecutor:
 
         if (
             invocation.target.name not in {
-                item.description.name
-                for item in scientific_analysis.resident.binding._calls
+                exported_call.description.name
+                for exported_call in scientific_analysis.resident.binding._calls
             }
         ):
             return NotAdmitted(
@@ -789,7 +791,7 @@ class InProcessAnalysisExecutor:
 
     def _state_owners(self, invocation, call):
         state_arguments = invocation.states
-        declared_parameters = {item.name: item for item in call.description.state_inputs}
+        declared_parameters = {state_input.name: state_input for state_input in call.description.state_inputs}
 
         if set(state_arguments) != set(declared_parameters):
             return NotAdmitted(
@@ -856,7 +858,7 @@ class InProcessAnalysisExecutor:
             self.request_stop()
 
             cleanup_overdue_flag_seconds = min(
-                (item.invocation.policy.cleanup_overdue_flag_seconds for item in self.operations.values()),
+                (operation.invocation.policy.cleanup_overdue_flag_seconds for operation in self.operations.values()),
                 default=self.host.retirement_seconds,
             )
 
@@ -898,7 +900,7 @@ class InProcessAnalysisExecutor:
 
                         operation.changed()
 
-                        if operation.result is None:
+                        if operation.result_ref is None:
                             operation._release_capacity()
 
         if cleanup_failures:
@@ -940,7 +942,7 @@ class InProcessAnalysisExecutor:
             )
 
         if scientific_analysis.constructed:
-            scientific_analysis.resident.binding.close_analysis(analysis=scientific_analysis.value)
+            scientific_analysis.resident.binding.close_analysis(analysis=scientific_analysis.analysis_instance)
 
-        scientific_analysis.value = None
+        scientific_analysis.analysis_instance = None
         scientific_analysis.ready = False

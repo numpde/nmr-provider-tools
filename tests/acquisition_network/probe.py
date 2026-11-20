@@ -103,20 +103,20 @@ def check_routes():
 
     if any(
         (
-            len(parts) >= 8 and parts[1] == "00000000" and parts[7] == "00000000"
+            ((len(parts) >= 8) and (parts[1] == "00000000") and (parts[7] == "00000000"))
             for parts in (row.split() for row in routes)
         ),
     ):
         raise RuntimeError("IPv4 default route exists")
 
-    path = pathlib.Path("/proc/net/ipv6_route")
+    ipv6_route_path = pathlib.Path("/proc/net/ipv6_route")
 
-    if path.exists():
-        for line in path.read_text().splitlines():
+    if ipv6_route_path.exists():
+        for line in ipv6_route_path.read_text().splitlines():
             parts = line.split()
 
             # Linux emits a non-forwarding unreachable default route on lo.
-            if len(parts) >= 10 and parts[0] == "0" * 32 and parts[1] == "00" and parts[-1] != "lo":
+            if (len(parts) >= 10) and (parts[0] == ("0" * 32)) and (parts[1] == "00") and (parts[-1] != "lo"):
                 raise RuntimeError("IPv6 default route exists")
 
     if set(os.listdir("/sys/class/net")) != {"lo"}:
@@ -138,7 +138,7 @@ elif sys.argv[1] in ("worker", "session-worker"):
     if sys.argv[1] == "session-worker":
         proxy = urlsplit(os.environ["HTTP_PROXY"])
 
-        if proxy.scheme != "http" or proxy.hostname != "127.0.0.1" or proxy.port is None:
+        if (proxy.scheme != "http") or (proxy.hostname != "127.0.0.1") or (proxy.port is None):
             raise RuntimeError("session proxy is not the loopback relay")
 
         (proxy_port, origin_port) = (proxy.port, int(sys.argv[2]))

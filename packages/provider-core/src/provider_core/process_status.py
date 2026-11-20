@@ -21,7 +21,8 @@ from provider_core.type_requirements import require_type
 
 
 def _start_ticks(pid):
-    raw = pathlib.Path(f"/proc/{pid}/stat").read_text()
+    proc_stat_path = f"/proc/{pid}/stat"  # machine-string: the Linux procfs reader opens this exact /proc/<pid>/stat path.
+    raw = pathlib.Path(proc_stat_path).read_text()
     fields = raw[raw.rfind(")") + 2:].split()
 
     if fields[0] in ("Z", "X"):
@@ -52,8 +53,8 @@ class ProcessStatus:
 
         if (
             (phase == self.phase) and
-            (now - self.updated < 5) and
-            (details == self.details or ((details is not None) and (self.details is not None)))
+            ((now - self.updated) < 5) and
+            ((details == self.details) or ((details is not None) and (self.details is not None)))
         ):
             return
 
@@ -104,18 +105,21 @@ def read_status(path, role):
 
     if "details" in status_record:
         value_details = status_record["details"]
+
         require_type(value_details, dict)
 
     if status_record["role"] != role:
         raise ValueError("Process status has a different role or invalid process identity.")
 
     value_pid = status_record['pid']
+
     require_type(value_pid, int)
 
     if not (0 < status_record['pid']):
         raise ValueError("Process status has a different role or invalid process identity.")
 
     value_start_ticks = status_record['start_ticks']
+
     require_type(value_start_ticks, int)
 
     if not (0 < status_record['start_ticks']):
@@ -137,11 +141,13 @@ def read_status(path, role):
 def check_status(path, role):
     status_record = read_status(path, role)
 
-    if not (0 <= time.monotonic() - status_record["updated_monotonic"] <= 30):
+    if not (0 <= (time.monotonic() - status_record["updated_monotonic"]) <= 30):
         raise ValueError("Process status observation expired or has an invalid timestamp.")
 
     if not (status_record["phase"] in ("ready", "working")):
-        raise ValueError(f"Process is not ready: {status_record['phase']}.")
+        process_phase = status_record["phase"]
+
+        raise ValueError(f"Process is not ready: {process_phase = }.")
 
     return status_record
 
@@ -167,7 +173,14 @@ def main():
             if not (0 <= age):
                 raise ValueError("Process status observation has a future timestamp.")
 
-            print(f"{status_record['phase']}|{int(age * 1000)}|{status_record['pid']}|{status_record['start_ticks']}")
+            process_phase = status_record["phase"]
+            age_milliseconds = int(age * 1000)
+            process_id = status_record["pid"]
+            start_ticks = status_record["start_ticks"]
+
+            print(
+                f"{process_phase}|{age_milliseconds}|{process_id}|{start_ticks}",  # machine-string: shell callers parse this four-field pipe-delimited readiness record.
+            )
         else:
             status_record = check_status(options.path, options.role)
 
@@ -186,7 +199,7 @@ def main():
 
                 print(json.dumps({ "observation_age_seconds": age, **details }, sort_keys=True, allow_nan=False))
     except (OSError, TypeError, ValueError, KeyError) as cause:
-        parser.exit(1, f"Process readiness not confirmed: {cause}\n")
+        parser.exit(1, f"Process readiness not confirmed: {cause=!s}\n")
 
 
 if __name__ == "__main__":

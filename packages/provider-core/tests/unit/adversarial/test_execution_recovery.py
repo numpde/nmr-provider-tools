@@ -64,7 +64,7 @@ class ObservationRecoveryFailureTests(unittest.IsolatedAsyncioTestCase):
         self.assertIs(type(failed.exception.cause), ObservationGapExpired)
         self.assertTrue(failed.exception.cause.read_started)
         self.assertIsNone(failed.exception.cause.cause)
-        self.assertEqual([item[0] for item in session.events], ["retire"])
+        self.assertEqual([session_event[0] for session_event in session.events], ["retire"])
         self.assertEqual(len(transport.calls), 1)
         claim.release(owner=claim.lifecycle_owner)
 
@@ -186,7 +186,7 @@ class ObservationRecoveryFailureTests(unittest.IsolatedAsyncioTestCase):
             self.assertIs(retained.reason, SuppressionReason.OBSERVATION_FAILED)
             self.assertFalse(hasattr(retained, "candidate"))
             self.assertIsNone(executor._outcome)
-            self.assertEqual([item[0] for item in session.events], ["prepare", "execute", "retire"])
+            self.assertEqual([session_event[0] for session_event in session.events], ["prepare", "execute", "retire"])
             claim.release(owner=claim.lifecycle_owner)
         finally:
             session.release.set()
@@ -206,7 +206,7 @@ class ObservationRecoveryFailureTests(unittest.IsolatedAsyncioTestCase):
 
         class BlockedCondition(Transport):
             async def exchange(self, request, *, maximum_bytes, owner=None):
-                if request.method != "PUT" or json.loads(request.content)["condition_code"] is None:
+                if (request.method != "PUT") or (json.loads(request.content)["condition_code"] is None):
                     return await super().exchange(request, maximum_bytes=maximum_bytes, owner=owner)
 
                 self.calls.append((request, maximum_bytes))
@@ -343,8 +343,8 @@ class ObservationRecoveryFailureTests(unittest.IsolatedAsyncioTestCase):
 
             self.assertIs(type(failed.exception.cause), ObservationGapExpired)
             self.assertEqual(failed.exception.cause.cause.status, 503)
-            self.assertTrue(any(cause.__cause__ is cleanup for cause in failed.exception.cleanup_failures))
-            self.assertEqual([item[0] for item in session.events], ["retire"])
+            self.assertTrue(any((cause.__cause__ is cleanup) for cause in failed.exception.cleanup_failures))
+            self.assertEqual([session_event[0] for session_event in session.events], ["retire"])
 
             with self.assertRaises(OwnershipRefused):
                 claim.release(owner=claim.lifecycle_owner)

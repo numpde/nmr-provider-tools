@@ -46,7 +46,7 @@ from .fakes import RecordingReceiver, ScriptedEndpointFactory
 
 
 def candidate(*, carbon):
-    document = {
+    candidate_payload = {
         "formula": "C2H6O",
         "proton_peaks": [
             {
@@ -59,9 +59,9 @@ def candidate(*, carbon):
     }
 
     if carbon:
-        document["carbon_peaks"] = ["18", "58"]
+        candidate_payload["carbon_peaks"] = ["18", "58"]
 
-    return document
+    return candidate_payload
 
 
 class PeakExampleTests(unittest.IsolatedAsyncioTestCase):
@@ -96,11 +96,11 @@ class PeakExampleTests(unittest.IsolatedAsyncioTestCase):
 
     def configure_science(self, *, variant: str, **changes) -> None:
         """Change raw external deployment input; real startup still owns admission."""
-        document = tomllib.loads(self.configuration.read_text(encoding="utf-8"))
-        (configured,) = document["science"][variant]
+        deployment_config = tomllib.loads(self.configuration.read_text(encoding="utf-8"))
+        (configured,) = deployment_config["science"][variant]
 
         configured["settings"].update(changes)
-        self.configuration.write_text(data=tomli_w.dumps(document), encoding="utf-8")
+        self.configuration.write_text(data=tomli_w.dumps(deployment_config), encoding="utf-8")
 
     def configure_process(self):
         """Supply the existing native supervisor through provider startup."""
@@ -125,6 +125,7 @@ class PeakExampleTests(unittest.IsolatedAsyncioTestCase):
         distribution = metadata.distribution(distribution_name="nmrpeak-mock-provider-example")
 
         self.assertEqual(first=package, second=pathlib.Path(distribution.locate_file(path="nmrpeak_mock_provider")))
+
         expected_prompts = {
             "hf": (package / "prompts/hf_prompt.txt").read_text(encoding="utf-8"),
             "chf": (package / "prompts/chf_prompt.txt").read_text(encoding="utf-8"),
@@ -135,6 +136,7 @@ class PeakExampleTests(unittest.IsolatedAsyncioTestCase):
                 self.configure_science(variant="hf", beam_size=beam_size)
                 self.configure_science(variant="chf", beam_size=beam_size)
                 configured_science = tomllib.loads(self.configuration.read_text(encoding="utf-8"))["science"]
+
                 expected_inventory = Counter(
                     (
                         family,
@@ -144,6 +146,7 @@ class PeakExampleTests(unittest.IsolatedAsyncioTestCase):
                     for (family, configurations) in configured_science.items()
                     for configured in configurations
                 )
+
                 observed_inventory = Counter()
 
                 async with self.open_offerings() as offerings:
@@ -168,6 +171,7 @@ class PeakExampleTests(unittest.IsolatedAsyncioTestCase):
                             observed = await prediction_workflow.generation_submission.operation.observe(after=None, wait_seconds=0)
 
                             self.assertIs(expr1=ResultState.RELEASED, expr2=observed.result_state)
+
                             observed_inventory[
                                 (hosted.family, prediction_report["checkpoint_sha256"], len(prediction_report["generated_smiles"]))
                             ] += 1
@@ -358,19 +362,21 @@ class PeakExampleTests(unittest.IsolatedAsyncioTestCase):
             (("hf", 1), ("hf", 1)),
         ):
             with self.subTest(configured_models=configured_models):
-                document = tomllib.loads(original)
+                deployment_config = tomllib.loads(original)
                 selected = {family: [] for (family, _) in configured_models}
 
                 for (family, beam_size) in configured_models:
                     # Each model needs independent nested settings before beam_size changes.
-                    configured = deepcopy(x=document["science"][family][0])
+                    configured = deepcopy(x=deployment_config["science"][family][0])
+
                     configured["settings"]["beam_size"] = beam_size
 
                     selected[family].append(configured)
 
-                document["science"] = selected
+                deployment_config["science"] = selected
 
-                self.configuration.write_text(data=tomli_w.dumps(document), encoding="utf-8")
+                self.configuration.write_text(data=tomli_w.dumps(deployment_config), encoding="utf-8")
+
                 expected_inventory = Counter(
                     (
                         family,
@@ -380,6 +386,7 @@ class PeakExampleTests(unittest.IsolatedAsyncioTestCase):
                     for (family, configurations) in selected.items()
                     for configured in configurations
                 )
+
                 observed_inventory = Counter()
 
                 async with self.open_offerings() as offerings:
@@ -403,10 +410,10 @@ class PeakExampleTests(unittest.IsolatedAsyncioTestCase):
                 self.assertEqual(first=expected_inventory, second=observed_inventory)
 
     async def test_deployment_correction_limit_controls_interpretation(self):
-        document = tomllib.loads(self.configuration.read_text(encoding="utf-8"))
-        document["interpreter"]["end_model_visit_after_rejections"] = 1
+        deployment_config = tomllib.loads(self.configuration.read_text(encoding="utf-8"))
+        deployment_config["interpreter"]["end_model_visit_after_rejections"] = 1
 
-        self.configuration.write_text(data=tomli_w.dumps(document), encoding="utf-8")
+        self.configuration.write_text(data=tomli_w.dumps(deployment_config), encoding="utf-8")
         rejected_proposal = candidate(carbon=False) | {"formula": ""}
         self.factory.proposals = (rejected_proposal, candidate(carbon=False))
 
@@ -420,10 +427,10 @@ class PeakExampleTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(first=1, second=len(self.factory.endpoints[0].requests))
 
     async def test_unknown_scientific_family_fails_during_real_startup(self):
-        document = tomllib.loads(self.configuration.read_text(encoding="utf-8"))
-        document["science"]["unknown"] = document["science"].pop("chf")
+        deployment_config = tomllib.loads(self.configuration.read_text(encoding="utf-8"))
+        deployment_config["science"]["unknown"] = deployment_config["science"].pop("chf")
 
-        self.configuration.write_text(data=tomli_w.dumps(document), encoding="utf-8")
+        self.configuration.write_text(data=tomli_w.dumps(deployment_config), encoding="utf-8")
 
         with self.assertRaisesRegex(expected_exception=ValueError, expected_regex="unsupported family='unknown'"):
             async with self.open_offerings():
@@ -677,12 +684,12 @@ class PeakExampleTests(unittest.IsolatedAsyncioTestCase):
         async with self.open_offerings(create_model=create_model) as offerings:
             self.assertEqual(first=2, second=len(offerings))
             self.assertEqual(first=2, second=len(created))
-            self.assertTrue(expr=all(model.tokenizer is not None for model in created))
+            self.assertTrue(expr=all((model.tokenizer is not None) for model in created))
 
         retirement = await next(iter(offerings)).execution_host.retire().observe(after=None, wait_seconds=0)
 
         self.assertTrue(expr=retirement.settled)
-        self.assertTrue(expr=all(model.tokenizer is None for model in created))
+        self.assertTrue(expr=all((model.tokenizer is None) for model in created))
 
     async def test_second_model_failure_closes_both_models_before_startup_fails(self):
         original = OSError("Second model failed to load")
@@ -708,7 +715,7 @@ class PeakExampleTests(unittest.IsolatedAsyncioTestCase):
         self.assertIs(expr1=original, expr2=raised.exception)
         self.assertEqual(first=2, second=len(models))
         self.assertEqual(first=set(models), second=set(closed))
-        self.assertTrue(expr=all(model.tokenizer is None for model in models))
+        self.assertTrue(expr=all((model.tokenizer is None) for model in models))
 
     async def test_cancelled_startup_joins_model_loading_before_cleanup(self):
         entered = Event()
@@ -748,7 +755,7 @@ class PeakExampleTests(unittest.IsolatedAsyncioTestCase):
                 await startup
 
             self.assertEqual(first=models, second=closed)
-            self.assertTrue(expr=all(model.tokenizer is None for model in models))
+            self.assertTrue(expr=all((model.tokenizer is None) for model in models))
         finally:
             release.set()
             await asyncio.gather(startup, return_exceptions=True)
@@ -892,7 +899,7 @@ class PeakExampleTests(unittest.IsolatedAsyncioTestCase):
             self.assertEqual(first=2, second=len(self.factory.endpoints))
             self.assertTrue(expr=all(endpoint.retirement_confirmed for endpoint in self.factory.endpoints))
 
-        self.assertTrue(expr=all(model.tokenizer is None for model in models))
+        self.assertTrue(expr=all((model.tokenizer is None) for model in models))
 
     async def test_occupied_offering_refuses_second_request_without_disrupting_first(self):
         self.factory.proposals = (candidate(carbon=False),)

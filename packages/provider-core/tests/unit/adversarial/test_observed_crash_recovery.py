@@ -152,12 +152,12 @@ class ObservedCrashRecoveryTests(unittest.IsolatedAsyncioTestCase):
 
         class HeldRetirement(Transport):
             async def exchange(self, request, *, maximum_bytes, owner=None):
-                result = await super().exchange(request, maximum_bytes=maximum_bytes, owner=owner)
+                http_response = await super().exchange(request, maximum_bytes=maximum_bytes, owner=owner)
 
                 if len(self.calls) == 4:
                     (self.pending_owner, self.retirement_confirmed) = (owner, False)
 
-                return result
+                return http_response
 
             async def retire(self, *, owner=None):
                 if (not self.retirement_confirmed) and (not release.is_set()):
@@ -187,7 +187,7 @@ class ObservedCrashRecoveryTests(unittest.IsolatedAsyncioTestCase):
             await controller.settle()
 
         self.assertTrue(controller.shutdown_ready)
-        self.assertEqual([exact_body], [item.body for item in controller.delivery.items])
+        self.assertEqual([exact_body], [delivery_outcome.body for delivery_outcome in controller.delivery.items])
         self.assertEqual(4, len(transport.calls))
         self.assertNotIn("execute", session.events)
 

@@ -11,6 +11,7 @@ from tools.container_guard import require_container
 require_container()
 
 import ast
+from collections.abc import Iterator
 from dataclasses import dataclass, replace
 
 from .test_type_error_posture import _builtin, _type_call
@@ -21,6 +22,26 @@ class TypePredicate:
     subject: ast.expr
     expected: ast.expr
     comprehension_names: frozenset[str]
+
+
+def raising_guards(*, parsed_source: ast.Module) -> Iterator[ast.If]:
+    """Yield branches that only construct and raise a new exception."""
+
+    for statement in ast.walk(node=parsed_source):
+        if (not isinstance(statement, ast.If)) or (len(statement.body) != 1):
+            continue
+
+        rejection = statement.body[0]
+
+        if (not isinstance(rejection, ast.Raise)) or (not isinstance(rejection.exc, ast.Call)):
+            continue
+
+        constructor = rejection.exc.func
+
+        if isinstance(constructor, ast.Attribute) and (constructor.attr == "with_traceback"):
+            continue
+
+        yield statement
 
 
 def unwrap_binding(*, expression: ast.expr) -> ast.expr:
@@ -44,8 +65,8 @@ def _predicates(*, expression: ast.expr, rejecting: bool, comprehension_names: f
     if isinstance(expression, ast.BoolOp):
         return [
             predicate
-            for value in expression.values
-            for predicate in _predicates(expression=value, rejecting=rejecting, comprehension_names=comprehension_names)
+            for operand in expression.values
+            for predicate in _predicates(expression=operand, rejecting=rejecting, comprehension_names=comprehension_names)
         ]
 
     if isinstance(expression, ast.Call):
@@ -74,7 +95,7 @@ def _predicates(*, expression: ast.expr, rejecting: bool, comprehension_names: f
 
                 if isinstance(expected, ast.Name):
                     for clause in generator.generators:
-                        if isinstance(clause.target, ast.Name) and clause.target.id == expected.id and isinstance(clause.iter, ast.Name) and clause.iter.id.startswith("expected_"):
+                        if isinstance(clause.target, ast.Name) and (clause.target.id == expected.id) and isinstance(clause.iter, ast.Name) and clause.iter.id.startswith("expected_"):
                             expected = clause.iter
 
                 resolved.append(replace(predicate, expected=expected))

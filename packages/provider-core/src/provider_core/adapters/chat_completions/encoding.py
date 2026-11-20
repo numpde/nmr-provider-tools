@@ -12,8 +12,8 @@ require_container()
 import json
 
 
-def _json_bytes(request: dict) -> bytes:
-    return json.dumps(request, allow_nan=False, ensure_ascii=True, sort_keys=True, separators=(",", ":")).encode("ascii")
+def _json_bytes(chat_fields: dict) -> bytes:
+    return json.dumps(chat_fields, allow_nan=False, ensure_ascii=True, sort_keys=True, separators=(",", ":")).encode("ascii")
 
 
 def context_byte_count(*, messages: list[dict], tools: list[dict]) -> int:
@@ -25,7 +25,7 @@ def context_byte_count(*, messages: list[dict], tools: list[dict]) -> int:
 def request_body(*, model: str, messages: list[dict], tools: list[dict], reasoning_effort: str | None) -> bytes:
     """Encode the caller's context in the supported non-streaming tools-first profile."""
 
-    request = {
+    completion_fields = {
         "model": model,
         "messages": messages,
         "tools": tools,
@@ -35,6 +35,6 @@ def request_body(*, model: str, messages: list[dict], tools: list[dict], reasoni
     }
 
     if reasoning_effort is not None:
-        request["reasoning_effort"] = reasoning_effort
+        completion_fields["reasoning_effort"] = reasoning_effort
 
-    return _json_bytes(request)
+    return _json_bytes(completion_fields)

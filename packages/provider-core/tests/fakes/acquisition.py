@@ -112,11 +112,11 @@ def private_source_directory():
 
 
 def snapshot_source(root, data):
-    path = pathlib.Path(root) / "source"
+    upload_source_path = pathlib.Path(root) / "source"
 
-    path.write_bytes(data)
+    upload_source_path.write_bytes(data)
 
-    return VerifiedUploadFile("job:example", UPLOAD_REF, len(data), "sha256:" + hashlib.sha256(data).hexdigest(), path.name)
+    return VerifiedUploadFile("job:example", UPLOAD_REF, len(data), "sha256:" + hashlib.sha256(data).hexdigest(), upload_source_path.name)
 
 
 class SourceFileCalls:

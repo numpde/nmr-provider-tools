@@ -34,23 +34,23 @@ class AuthorizationRecoveryTests(unittest.IsolatedAsyncioTestCase):
         The API never accepts the first credential in this scenario; a 401 alone
         does not establish revocation. Both attempts belong to one provider.
         """
-        items = [outcome(suffix="0"), outcome(suffix="1")]
+        delivery_outcomes = [outcome(suffix="0"), outcome(suffix="1")]
         keys = []
         bad_signatures = []
 
-        async def reply(request, body):
-            index = next((i for (i, item) in enumerate(items) if body == item.body), None)
+        async def respond(request_head, request_body):
+            index = next((i for (i, delivery_outcome) in enumerate(delivery_outcomes) if request_body == delivery_outcome.body), None)
 
             if index is None:
                 bad_signatures.append("unexpected terminal body")
                 index = 0
 
             try:
-                verify_signed_request(request, body, origin=peer.origin, key=keys[index])
+                verify_signed_request(request_head, request_body, origin=peer.origin, key=keys[index])
             except Exception:
                 bad_signatures.append("request signed with the wrong retained key")
 
-            if index == 0 or bad_signatures:
+            if (index == 0) or bad_signatures:
                 peer.response_status = 401
                 peer.response_headers = response_headers(status=401, request_id=b"request:test")
 
@@ -60,13 +60,13 @@ class AuthorizationRecoveryTests(unittest.IsolatedAsyncioTestCase):
             peer.response_headers = response_headers()
 
             return fail_response(
-                execution_attempt_ref=items[1].execution_attempt_ref,
+                execution_attempt_ref=delivery_outcomes[1].execution_attempt_ref,
                 failure_code="provider_interrupted",
                 failure_message="SCIENTIFIC_PAYLOAD_NEEDLE"
             )
 
-        async with api_tls_peer("success", response_factory=reply) as peer:
-            items = [replace(item, api_origin=peer.origin) for item in items]
+        async with api_tls_peer("success", response_factory=respond) as peer:
+            delivery_outcomes = [replace(delivery_outcome, api_origin=peer.origin) for delivery_outcome in delivery_outcomes]
             ca = (pathlib.Path(peer.scratch.name) / "cert.pem").read_bytes()
             materials = []
 
@@ -100,8 +100,8 @@ class AuthorizationRecoveryTests(unittest.IsolatedAsyncioTestCase):
                 limits = QueueLimits(4, 16384, 8, 32768)
                 queue = DeliveryQueue(root / "state", limits=limits)
 
-                for (item, material) in zip(items, materials):
-                    queue.enqueue_handoff(DeliveryHandoff(item, material))
+                for (delivery_outcome, material) in zip(delivery_outcomes, materials):
+                    queue.enqueue_handoff(DeliveryHandoff(delivery_outcome, material))
 
                 queue.close()
                 policy = ServicePolicy.admit("mapped", [urlsplit(peer.origin).netloc], ["127.0.0.1=127.0.0.1"])
@@ -113,7 +113,7 @@ class AuthorizationRecoveryTests(unittest.IsolatedAsyncioTestCase):
                     published = asyncio.Event()
 
                     def notice(_error, facts):
-                        if facts["event"] == "delivery_published" and facts["execution_attempt_ref"] == items[1].execution_attempt_ref:
+                        if (facts["event"] == "delivery_published") and (facts["execution_attempt_ref"] == delivery_outcomes[1].execution_attempt_ref):
                             published.set()
 
                     service = SharedDeliveryService(
@@ -137,15 +137,15 @@ class AuthorizationRecoveryTests(unittest.IsolatedAsyncioTestCase):
                         except TimeoutError:
                             pass
 
-                        self.assertIn(items[0].body, peer.request_bodies, "The API never refused the first request")
+                        self.assertIn(delivery_outcomes[0].body, peer.request_bodies, "The API never refused the first request")
                         self.assertEqual(bad_signatures, [], "A terminal request changed its retained signing identity")
                         inventory = service.queue.inventory(peer.origin, "provider:test")
-                        retained = [row for row in inventory if row["execution_attempt_ref"] == items[0].execution_attempt_ref]
+                        retained = [row for row in inventory if row["execution_attempt_ref"] == delivery_outcomes[0].execution_attempt_ref]
 
                         self.assertEqual(len(retained), 1, "The refused first handoff must remain recoverable")
                         self.assertIn(retained[0]["state"], ("pending", "held"))
-                        self.assertEqual(retained[0]["body_sha256"], items[0].body_sha256)
-                        original = DeliveryHandoff(items[0], materials[0])
+                        self.assertEqual(retained[0]["body_sha256"], delivery_outcomes[0].body_sha256)
+                        original = DeliveryHandoff(delivery_outcomes[0], materials[0])
 
                         self.assertEqual(service.queue.enqueue_handoff(original), original.acceptance())
 

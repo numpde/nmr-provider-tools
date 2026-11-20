@@ -97,7 +97,7 @@ class ProviderHttpShutdownTests(unittest.TestCase):
         self.assertEqual(0, facts["tool_dispatches"], msg=evidence)
         self.assertEqual(1, facts["start_count"], msg=evidence)
         self.assertEqual(1, facts["child_count"], msg=evidence)
-        self.assertTrue(all(code is not None for code in facts["child_returncodes"]), msg=evidence)
+        self.assertTrue(all((code is not None) for code in facts["child_returncodes"]), msg=evidence)
         self.assertEqual([False], facts["child_still_alive"], msg=evidence)
         self.assertEqual([True], facts["child_stdin_closed"], msg=evidence)
         self.assertEqual(1, facts["exit_observer_count"], msg=evidence)

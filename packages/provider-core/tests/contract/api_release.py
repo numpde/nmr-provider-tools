@@ -23,11 +23,11 @@ class PinnedApiRelease:
     def read_release(self, root):
         """Assert complete immutable identity before interpreting any artifact."""
         self.assertFalse(root.is_symlink(), root)
-        entries = tuple(root.rglob("*"))
+        release_paths = tuple(root.rglob("*"))
 
-        for path in entries:
-            self.assertFalse(path.is_symlink(), path)
-            self.assertTrue(path.is_dir() or path.is_file(), path)
+        for release_path in release_paths:
+            self.assertFalse(release_path.is_symlink(), release_path)
+            self.assertTrue(release_path.is_dir() or release_path.is_file(), release_path)
 
         raw = (root / "manifest.json").read_bytes()
 
@@ -51,7 +51,7 @@ class PinnedApiRelease:
         self.assertEqual("sha256:" + hashlib.sha256(material).hexdigest(), RELEASE_REF)
         expected = {"manifest.json", *(entry["path"] for entry in manifest["artifacts"])}
 
-        self.assertEqual({path.relative_to(root).as_posix() for path in entries if path.is_file()}, expected)
+        self.assertEqual({release_path.relative_to(root).as_posix() for release_path in release_paths if release_path.is_file()}, expected)
         documents = {}
 
         for entry in manifest["artifacts"]:
@@ -63,7 +63,7 @@ class PinnedApiRelease:
             self.assertEqual(hashlib.sha1(blob).hexdigest(), entry["git_blob_sha1"], entry["path"])
             documents[entry["path"]] = json.loads(raw)
 
-        schemas = {document["$id"]: document for (path, document) in documents.items() if path.startswith("schemas/")}
+        schemas = {schema_fields["$id"]: schema_fields for (artifact_path, schema_fields) in documents.items() if artifact_path.startswith("schemas/")}
 
         self.assertEqual(len(schemas), 16)
 

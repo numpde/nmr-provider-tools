@@ -40,7 +40,12 @@ class PortInventoryTests(unittest.TestCase):
                     if isinstance(method, ast.FunctionDef) and method.name.startswith("test_")
                 }
 
-                excluded = {item["method"] for item in dispositions if item["target"] == entry["target"]}
+                excluded = {
+                    disposition["method"]
+                    for disposition in dispositions
+                    if disposition["target"] == entry["target"]
+                }
+
                 expected = set(entry["test_methods"])
                 missing = {name for name in expected if name.split(".")[-1] in excluded}
 

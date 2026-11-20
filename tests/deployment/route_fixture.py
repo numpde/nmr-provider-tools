@@ -32,11 +32,11 @@ def key():
     return Ed25519PrivateKey.from_private_bytes(b"\x17" * 32)
 
 
-def write_json(path, value):
-    temporary = path.with_suffix(".tmp")
+def write_json(evidence_path, evidence_record):
+    temporary = evidence_path.with_suffix(".tmp")
 
-    temporary.write_text(json.dumps(value, ensure_ascii=True))
-    temporary.replace(path)
+    temporary.write_text(json.dumps(evidence_record, ensure_ascii=True))
+    temporary.replace(evidence_path)
 
 
 async def peer(literal_ip):
@@ -58,17 +58,17 @@ async def peer(literal_ip):
         shutil.copyfile(pathlib.Path(server.scratch.name) / "cert.pem", root / "ca.pem")
         write_json(root / "received.json", {"requests": 0, "server_names": []})
 
-        async def respond(request, body):
+        async def respond(request_head, request_body):
             write_json(root / "received.json", {"requests": len(server.requests), "server_names": server.server_names})
-            verify_signed_request(request, body, origin=origin, key=key())
-            hosts = [line.split(b":", 1)[1].strip() for line in request.split(b"\r\n") if line.lower().startswith(b"host:")]
+            verify_signed_request(request_head, request_body, origin=origin, key=key())
+            hosts = [line.split(b":", 1)[1].strip() for line in request_head.split(b"\r\n") if line.lower().startswith(b"host:")]
 
             if hosts != [origin.removeprefix("https://").encode()]:
                 raise AssertionError("Proxy changed or duplicated the original HTTP authority")
 
             expected = b"GET /provider/v1/execution-attempts/execution_attempt:sha256:" + b"a" * 64 + b" HTTP/1.1"
 
-            if request.split(b"\r\n", 1)[0] != expected:
+            if request_head.split(b"\r\n", 1)[0] != expected:
                 raise AssertionError("Synthetic peer received a different API target")
 
             return observation()
@@ -112,25 +112,25 @@ addresses = ["{urlsplit(origin).hostname}=127.0.0.1"]
 
 async def peer_info():
     deadline = asyncio.get_running_loop().time() + 10
-    path = pathlib.Path("/evidence/peer.json")
+    peer_evidence_path = pathlib.Path("/evidence/peer.json")
 
-    while not path.exists():
+    while not peer_evidence_path.exists():
         if asyncio.get_running_loop().time() >= deadline:
             raise TimeoutError("Synthetic TLS peer did not publish its owned readiness within ten seconds")
 
         await asyncio.sleep(0.05)
 
-    print(definition(json.loads(path.read_text())["origin"]), end="")
+    print(definition(json.loads(peer_evidence_path.read_text())["origin"]), end="")
 
 
-def readonly_route(path):
-    parent = path.parent
+def readonly_route(route_socket_path):
+    parent = route_socket_path.parent
     facts = parent.stat()
 
     if (facts.st_uid, facts.st_gid, stat.S_IMODE(facts.st_mode)) != (65532, 65532, 0o700):
         raise AssertionError("Actual route root differs from its private provider identity grant")
 
-    facts = path.stat()
+    facts = route_socket_path.stat()
 
     if (not stat.S_ISSOCK(facts.st_mode)) or ((facts.st_uid, facts.st_gid, stat.S_IMODE(facts.st_mode)) != (65532, 65532, 0o600)):
         raise AssertionError("Actual proxy socket differs from its owner-only birth grant")
@@ -138,7 +138,7 @@ def readonly_route(path):
     if (parent / "ready").read_bytes() != b"ready\n":
         raise AssertionError("Proxy readiness is not the exact owned receipt")
 
-    operations = ((parent / "borrower-write").touch, path.unlink, lambda: path.chmod(0o600))
+    operations = [(parent / "borrower-write").touch, route_socket_path.unlink, lambda: route_socket_path.chmod(0o600)]
 
     for operation in operations:
         try:
@@ -150,7 +150,7 @@ def readonly_route(path):
             raise AssertionError("Read-only route borrower unexpectedly changed the mounted route")
 
 
-async def client(mode, path):
+async def client(mode, route_socket_path):
     from provider_core.api import ProviderAPI
     from provider_core.api_errors import ApiFailure
     from provider_core.adapters.nmr.v1.signing import SigningIdentity
@@ -158,7 +158,7 @@ async def client(mode, path):
 
     if mode == "forbidden":
         try:
-            path.stat()
+            route_socket_path.stat()
         except PermissionError:
             print("Different UID cannot traverse the private route")
 
@@ -166,9 +166,9 @@ async def client(mode, path):
 
         raise AssertionError("Different UID unexpectedly traversed the private route")
 
-    readonly_route(path)
+    readonly_route(route_socket_path)
     origin = json.loads(pathlib.Path("/evidence/peer.json").read_text())["origin"]
-    socket = str(path)
+    socket = str(route_socket_path)
 
     if mode == "direct":
         socket = None
@@ -184,7 +184,7 @@ async def client(mode, path):
 
     try:
         try:
-            result = await api.read_attempt("execution_attempt:sha256:" + "a" * 64, job_ref="job:example")
+            attempt_observation = await api.read_attempt("execution_attempt:sha256:" + "a" * 64, job_ref="job:example")
         except ApiFailure:
             if mode != "lost":
                 raise
@@ -192,7 +192,7 @@ async def client(mode, path):
             if mode == "lost":
                 raise AssertionError("Stopped proxy request succeeded through an unintended direct route")
 
-            if result.job_ref != "job:example" or result.state != "in_progress":
+            if (attempt_observation.job_ref != "job:example") or (attempt_observation.state != "in_progress"):
                 raise AssertionError("Signed HTTPS reply did not pass the API contract")
     finally:
         await transport.retire()
@@ -203,8 +203,8 @@ async def client(mode, path):
     print(json.dumps({"mode": mode, "settled": True, "uid": os.geteuid()}))
 
 
-def shared_group_socket(mode, path, owner_uid, access_gid):
-    if os.geteuid() in (0, owner_uid) or os.getegid() == access_gid:
+def shared_group_socket(mode, route_socket_path, owner_uid, access_gid):
+    if (os.geteuid() in (0, owner_uid)) or (os.getegid() == access_gid):
         raise AssertionError("Shared grant witness requires a distinct non-root UID and primary GID")
 
     if (access_gid in os.getgroups()) != (mode == "allowed"):
@@ -212,7 +212,7 @@ def shared_group_socket(mode, path, owner_uid, access_gid):
 
     mounts = pathlib.Path("/proc/self/mountinfo").read_text().splitlines()
 
-    socket_mount_path = str(path.parent)
+    socket_mount_path = str(route_socket_path.parent)
 
     socket_mount_options = [
         fields[5].split(",")
@@ -223,7 +223,7 @@ def shared_group_socket(mode, path, owner_uid, access_gid):
     if not socket_mount_options:
         raise AssertionError(f"{socket_mount_path=} should have a mount entry")
 
-    if not any("ro" in options for options in socket_mount_options):
+    if not any(("ro" in options) for options in socket_mount_options):
         raise AssertionError(f"One of {socket_mount_options=} for {socket_mount_path=} should contain 'ro'")
 
     deadline = time.monotonic() + 10
@@ -233,14 +233,14 @@ def shared_group_socket(mode, path, owner_uid, access_gid):
             channel.settimeout(3)
 
             try:
-                channel.connect(str(path))
+                channel.connect(str(route_socket_path))
             except PermissionError as failure:
-                if mode != "denied" or failure.errno != errno.EACCES:
+                if (mode != "denied") or (failure.errno != errno.EACCES):
                     raise
 
                 break
             except (FileNotFoundError, ConnectionRefusedError):
-                if mode != "allowed" or time.monotonic() >= deadline:
+                if (mode != "allowed") or (time.monotonic() >= deadline):
                     raise
 
                 time.sleep(0.05)
@@ -276,7 +276,7 @@ def shared_group_socket(mode, path, owner_uid, access_gid):
                 raise AssertionError(f"{connect_status_line=} should start with {expected_status_prefix=}")
 
             try:
-                path.unlink()
+                route_socket_path.unlink()
             except OSError as failure:
                 if not (failure.errno in (errno.EROFS, errno.EACCES, errno.EPERM)):
                     raise

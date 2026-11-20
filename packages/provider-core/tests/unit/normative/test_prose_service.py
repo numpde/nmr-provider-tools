@@ -71,8 +71,8 @@ class ProseServiceTests(unittest.IsolatedAsyncioTestCase):
         with self.assertRaises(InterpretationFailed):
             await interpreter(service).run([], TOOLS, AsyncMock())
 
-        (owner, prepare) = (interpreter(service, seconds=10), AsyncMock())
-        task = asyncio.create_task(owner.run([], TOOLS, prepare))
+        (owner, preparation_dispatch) = (interpreter(service, seconds=10), AsyncMock())
+        task = asyncio.create_task(owner.run([], TOOLS, preparation_dispatch))
 
         await asyncio.sleep(0)
         await owner.retire()
@@ -81,7 +81,7 @@ class ProseServiceTests(unittest.IsolatedAsyncioTestCase):
             await asyncio.wait_for(task, timeout=0.2)
 
         waiting.complete.assert_not_awaited()
-        prepare.assert_not_awaited()
+        preparation_dispatch.assert_not_awaited()
         self.assertTrue(owner.retirement_confirmed)
 
     async def test_old_inflight_success_cannot_cancel_a_newer_service_refusal(self):
@@ -129,25 +129,25 @@ class ProseServiceTests(unittest.IsolatedAsyncioTestCase):
         with self.assertRaises(InterpretationFailed):
             await interpreter(unavailable_service).run([], TOOLS, AsyncMock())
 
-        prepare = AsyncMock(return_value=ToolFinished("prepared"))
-        result = await interpreter(unavailable_service, healthy_service, seconds=0.08).run([], TOOLS, prepare)
+        preparation_dispatch = AsyncMock(return_value=ToolFinished("prepared"))
+        interpretation_result = await interpreter(unavailable_service, healthy_service, seconds=0.08).run([], TOOLS, preparation_dispatch)
 
-        self.assertEqual("prepared", result.value)
+        self.assertEqual("prepared", interpretation_result.value)
         waiting.complete.assert_not_awaited()
         healthy.complete.assert_awaited_once()
-        prepare.assert_awaited_once()
+        preparation_dispatch.assert_awaited_once()
         self.assertGreater(unavailable_service.retry_seconds, 0)
         self.assertEqual(0, healthy_service.retry_seconds)
 
     async def test_retry_uses_one_delay_and_sends_the_current_remaining_budget(self):
         carrier = endpoint("recovering-service", unavailable(b"0"), call("prepare-once", "prepare", {}))
         service = service_with(carrier)
-        prepare = AsyncMock(return_value=ToolFinished("prepared"))
+        preparation_dispatch = AsyncMock(return_value=ToolFinished("prepared"))
 
         with patch("provider_core.interpreter.random.uniform", return_value=0.03) as jitter:
-            result = await interpreter(service, seconds=0.3).run([], TOOLS, prepare)
+            interpretation_result = await interpreter(service, seconds=0.3).run([], TOOLS, preparation_dispatch)
 
-        self.assertEqual("prepared", result.value)
+        self.assertEqual("prepared", interpretation_result.value)
         jitter.assert_called_once_with(0.25, 0.75)
         self.assertEqual(2, carrier.complete.await_count)
         (first, second) = carrier.complete.await_args_list
@@ -158,7 +158,7 @@ class ProseServiceTests(unittest.IsolatedAsyncioTestCase):
 
         self.assertGreaterEqual(first_budget["model_seconds_remaining"] - second_budget["model_seconds_remaining"], 0.03)
         self.assertEqual(0, service.retry_seconds)
-        prepare.assert_awaited_once()
+        preparation_dispatch.assert_awaited_once()
 
     async def test_authentication_refusal_does_not_become_temporary_unavailability(self):
         denied = ChatFailed(
@@ -181,13 +181,13 @@ class ProseServiceTests(unittest.IsolatedAsyncioTestCase):
         (unsettled, fallback) = (endpoint("unsettled", original), endpoint("unused"))
         unsettled.retirement_confirmed = False
         owner = interpreter(service_with(unsettled), service_with(fallback))
-        prepare = AsyncMock()
+        preparation_dispatch = AsyncMock()
 
         with self.assertRaises(ConversationRetirementFailed):
-            await owner.run([], TOOLS, prepare)
+            await owner.run([], TOOLS, preparation_dispatch)
 
         unsettled.complete.assert_awaited_once()
         fallback.complete.assert_not_awaited()
-        prepare.assert_not_awaited()
+        preparation_dispatch.assert_not_awaited()
         self.assertFalse(owner.retirement_confirmed)
-        self.assertTrue(any(failure is original for (_, failure) in owner.failures))
+        self.assertTrue(any((failure is original) for (_, failure) in owner.failures))

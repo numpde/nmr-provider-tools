@@ -50,24 +50,24 @@ class NetworkGateTests(unittest.TestCase):
         )
 
     def test_networked_lanes_require_an_explicit_interface(self):
-        result = self.invoke()
+        docker_preview = self.invoke()
 
-        self.assertNotEqual(0, result.returncode)
-        self.assertIn("NETWORK_INTERFACE", result.stderr)
-        self.assertEqual("", result.stdout)
+        self.assertNotEqual(0, docker_preview.returncode)
+        self.assertIn("NETWORK_INTERFACE", docker_preview.stderr)
+        self.assertEqual("", docker_preview.stdout)
 
     def test_networked_lanes_reject_an_unavailable_interface(self):
-        result = self.invoke("missing-test0")
+        docker_preview = self.invoke("missing-test0")
 
-        self.assertNotEqual(0, result.returncode)
-        self.assertIn("missing-test0", result.stderr)
-        self.assertEqual("", result.stdout)
+        self.assertNotEqual(0, docker_preview.returncode)
+        self.assertIn("missing-test0", docker_preview.stderr)
+        self.assertEqual("", docker_preview.stdout)
 
     def test_preview_preserves_application_flags_and_separate_creation_grants(self):
-        result = self.invoke("system")
+        docker_preview = self.invoke("system")
 
-        self.assertEqual(0, result.returncode, msg=result.stderr)
-        lines = result.stdout.splitlines()
+        self.assertEqual(0, docker_preview.returncode, msg=docker_preview.stderr)
+        lines = docker_preview.stdout.splitlines()
 
         self.assertEqual(["acquisition_set_route", "system"], shlex.split(lines[2]))
         self.assertEqual(["--read-only", "--entrypoint", "python3"], shlex.split(lines[4][8:-1]))

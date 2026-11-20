@@ -12,5 +12,5 @@ def probe_failure_retirement_confirmed(failure: ProbeFailure) -> bool:
 
     return (
         (failure.retirement.state in (ResourceState.NOT_CREATED, ResourceState.RETIRED)) and
-        all(problem.category != "client_cleanup" for problem in problems)
+        all((problem.category != "client_cleanup") for problem in problems)
     )

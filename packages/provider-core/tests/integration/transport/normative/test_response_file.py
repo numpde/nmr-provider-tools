@@ -41,8 +41,8 @@ class FileResponsePeerTests(unittest.IsolatedAsyncioTestCase):
         loop = asyncio.get_running_loop()
         write = os.write
 
-        def observe_write(descriptor, data):
-            count = write(descriptor, data)
+        def observe_write(descriptor, write_buffer):
+            count = write(descriptor, write_buffer)
 
             loop.call_soon_threadsafe(written.set)
 

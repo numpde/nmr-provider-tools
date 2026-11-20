@@ -24,13 +24,13 @@ class UploadSnapshotTests(unittest.TestCase):
             ]
 
             cases.extend((receipt, descriptor, 8) for descriptor in (None, True, -1))
-            cases.extend((receipt, directory, limit) for limit in (0, -1, True, 1.5, 7))
+            cases.extend((receipt, directory, maximum_bytes) for maximum_bytes in (0, -1, True, 1.5, 7))
             cases.extend((replace(receipt, byte_length=length), directory, 8) for length in (-1, True, "8"))
 
-            for (candidate, descriptor, limit) in cases:
-                with self.subTest(name=candidate.name, descriptor=descriptor, limit=limit):
+            for (candidate, descriptor, maximum_bytes) in cases:
+                with self.subTest(name=candidate.name, descriptor=descriptor, limit=maximum_bytes):
                     with patch("provider_core.uploads.os.open") as opened, self.assertRaises(UploadFileReadFailed):
-                        read_upload_file(candidate, directory_fd=descriptor, maximum_bytes=limit)
+                        read_upload_file(candidate, directory_fd=descriptor, maximum_bytes=maximum_bytes)
 
                     opened.assert_not_called()
 
@@ -40,19 +40,19 @@ class UploadSnapshotTests(unittest.TestCase):
         for kind in ("symlink", "directory", "fifo"):
             with self.subTest(kind=kind), private_source_directory() as (root, directory):
                 receipt = snapshot_source(root, b"original")
-                path = pathlib.Path(root, receipt.name)
+                source_path = pathlib.Path(root, receipt.name)
 
-                path.unlink()
+                source_path.unlink()
 
                 if kind == "symlink":
                     target = pathlib.Path(root, "target")
 
                     target.write_bytes(b"original")
-                    path.symlink_to(target)
+                    source_path.symlink_to(target)
                 elif kind == "directory":
-                    path.mkdir()
+                    source_path.mkdir()
                 else:
-                    os.mkfifo(path)
+                    os.mkfifo(source_path)
 
                 with observe_source_files(directory) as calls, self.assertRaises(UploadFileReadFailed):
                     read_upload_file(receipt, directory_fd=directory, maximum_bytes=8)
@@ -63,7 +63,7 @@ class UploadSnapshotTests(unittest.TestCase):
     def test_replacement_after_open_reads_the_original_object_once(self):
         with private_source_directory() as (root, directory):
             receipt = snapshot_source(root, b"original")
-            path = pathlib.Path(root, receipt.name)
+            source_path = pathlib.Path(root, receipt.name)
             opened = os.open
             descriptors = []
 
@@ -71,8 +71,8 @@ class UploadSnapshotTests(unittest.TestCase):
                 descriptor = opened(name, flags, dir_fd=dir_fd)
 
                 descriptors.append(descriptor)
-                path.replace(pathlib.Path(root, "retired-original"))
-                path.write_bytes(b"replaced")
+                source_path.replace(pathlib.Path(root, "retired-original"))
+                source_path.write_bytes(b"replaced")
 
                 return descriptor
 
@@ -81,7 +81,7 @@ class UploadSnapshotTests(unittest.TestCase):
 
             opening.assert_called_once()
             self.assertEqual(snapshot.data, b"original")
-            self.assertEqual(path.read_bytes(), b"replaced")
+            self.assertEqual(source_path.read_bytes(), b"replaced")
 
             with self.assertRaises(OSError) as closed:
                 os.fstat(descriptors[0])
@@ -141,11 +141,11 @@ class UploadSnapshotTests(unittest.TestCase):
             consumed = []
 
             def mutate_after_stat(descriptor):
-                result = fstat(descriptor)
+                original_stat = fstat(descriptor)
 
                 pathlib.Path(root, receipt.name).write_bytes(changed)
 
-                return result
+                return original_stat
 
             def observe(descriptor, count):
                 chunk = read(descriptor, count)

@@ -18,7 +18,7 @@ import tokenize
 import unittest
 
 from .sources import ROOT, python_sources
-from .test_multiline_comprehension_posture import _delimiter_pairs
+from .expression_grouping import delimiter_pairs
 
 
 @dataclass(slots=True)
@@ -43,7 +43,7 @@ def shared_item_lines(*, source: str) -> list[tuple[int, int, int]]:
 
     for token in tokenize.generate_tokens(readline=io.StringIO(initial_value=source).readline):
         if token.type == tokenize.FSTRING_START:
-            if fstring_depth == 0 and stack:
+            if (fstring_depth == 0) and stack:
                 stack[-1].current.append(token)
 
             fstring_depth += 1
@@ -53,22 +53,22 @@ def shared_item_lines(*, source: str) -> list[tuple[int, int, int]]:
         if token.type == tokenize.FSTRING_END:
             fstring_depth -= 1
 
-            if fstring_depth == 0 and stack:
+            if (fstring_depth == 0) and stack:
                 stack[-1].current.append(token)
 
             continue
 
-        if fstring_depth or token.type in {tokenize.NL, tokenize.NEWLINE, tokenize.INDENT, tokenize.DEDENT, tokenize.COMMENT, tokenize.ENDMARKER}:
+        if fstring_depth or (token.type in {tokenize.NL, tokenize.NEWLINE, tokenize.INDENT, tokenize.DEDENT, tokenize.COMMENT, tokenize.ENDMARKER}):
             continue
 
-        if token.type == tokenize.OP and token.string in {"(", "[", "{"}:
+        if (token.type == tokenize.OP) and (token.string in {"(", "[", "{"}):
             if stack:
                 stack[-1].current.append(token)
 
             stack.append(_Frame(opening=token))
             continue
 
-        if token.type == tokenize.OP and token.string in {")", "]", "}"}:
+        if (token.type == tokenize.OP) and (token.string in {")", "]", "}"}):
             frame = stack.pop()
 
             if frame.current:
@@ -78,8 +78,8 @@ def shared_item_lines(*, source: str) -> list[tuple[int, int, int]]:
                 opening_line = lines[frame.opening.start[0] - 1]
                 indent = len(opening_line) - len(opening_line.lstrip()) + 4
 
-                for item in frame.items:
-                    first = item[0]
+                for item_tokens in frame.items:
+                    first = item_tokens[0]
 
                     if not lines[first.start[0] - 1][:first.start[1]].strip():
                         indent = first.start[1]
@@ -100,9 +100,9 @@ def shared_item_lines(*, source: str) -> list[tuple[int, int, int]]:
 
         frame = stack[-1]
 
-        if token.type == tokenize.NAME and token.string == "lambda":
+        if (token.type == tokenize.NAME) and (token.string == "lambda"):
             frame.lambda_headers += 1
-        elif token.type == tokenize.OP and token.string == ":" and frame.lambda_headers:
+        elif (token.type == tokenize.OP) and (token.string == ":") and frame.lambda_headers:
             frame.lambda_headers -= 1
         elif (token.type == tokenize.OP) and (token.string == ",") and (not frame.lambda_headers):
             if frame.current:
@@ -124,7 +124,7 @@ def multiline_literal_findings(*, source: str) -> list[tuple[int, str]]:
     opening token to match the closing token at the end of its AST span.
     """
     lines = source.encode(encoding="utf-8").splitlines()
-    pairs = _delimiter_pairs(source=source)
+    pairs = delimiter_pairs(source=source)
     findings = []
 
     for expression in ast.walk(node=ast.parse(source=source)):
@@ -138,7 +138,7 @@ def multiline_literal_findings(*, source: str) -> list[tuple[int, str]]:
         if isinstance(expression, ast.Tuple):
             closing = pairs.get((expression.lineno, opening_column))
 
-            if opening_symbol != b"(" or closing is None or closing.end[0] != expression.end_lineno:
+            if (opening_symbol != b"(") or (closing is None) or (closing.end[0] != expression.end_lineno):
                 continue
 
             end_line = lines[expression.end_lineno - 1].decode("utf-8")

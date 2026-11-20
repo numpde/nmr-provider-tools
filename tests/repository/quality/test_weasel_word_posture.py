@@ -15,6 +15,8 @@ import pathlib
 import re
 import unittest
 
+from operations.checker.findings import assert_no_findings
+
 from .sources import ROOT, source_files
 
 
@@ -180,9 +182,9 @@ class WeaselWordPostureTests(unittest.TestCase):
     def test_code_words_are_reviewed(self):
         findings = _text_findings(code=True)
 
-        self.assertEqual(first=[], second=findings, msg="\n".join(findings))
+        assert_no_findings(findings)
 
     def test_other_text_words_are_reviewed(self):
         findings = _text_findings(code=False)
 
-        self.assertEqual(first=[], second=findings, msg="\n".join(findings))
+        assert_no_findings(findings)

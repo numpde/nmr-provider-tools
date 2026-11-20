@@ -16,7 +16,11 @@ class HelloEncodingTests(unittest.TestCase):
 
         self.assertLessEqual(len(body), 512 * 1024)
         self.assertIn("🧪".encode(), body)
-        self.assertEqual([item["description"] for item in json.loads(body)["analysis_offerings"]], ["🧪" * 1024] * 64)
+
+        self.assertEqual(
+            [offering_fields["description"] for offering_fields in json.loads(body)["analysis_offerings"]],
+            ["🧪" * 1024] * 64,
+        )
 
     def test_api_permitted_whitespace_is_preserved(self):
         body = hello_body(

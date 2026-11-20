@@ -143,7 +143,7 @@ class PreparationTool[PreparedT]:
 
         (failure,) = operation_observation.failures
 
-        return failure.phase == "start" and isinstance(failure.cause, StartDeadlineExpired)
+        return (failure.phase == "start") and isinstance(failure.cause, StartDeadlineExpired)
 
     async def _submit_proposal(self, *, name: str, arguments: dict, not_after: float) -> ToolFinished:
         if not (self.prepared_state_handle is None):

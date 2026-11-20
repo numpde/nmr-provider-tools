@@ -38,29 +38,29 @@ def unique_fields(field_pairs):
 
 def declaration(path):
     with regular_file(path) as stream:
-        document = json.load(stream, object_pairs_hook=unique_fields)
+        dependency_declaration = json.load(stream, object_pairs_hook=unique_fields)
 
-    require_instance(document, dict)
+    require_instance(dependency_declaration, dict)
 
-    if set(document) != { "platform", "packages" }:
-        raise ValueError("Cannot admit checker dependencies: expected platform and packages fields.")
+    if not ((declaration_fields := set(dependency_declaration)) == (expected_declaration_fields := {"platform", "packages"})):
+        raise ValueError(f"{reprlib.repr(declaration_fields)=} should match {expected_declaration_fields=}")
 
-    if document["platform"] != "linux/amd64":
-        raise ValueError("Cannot admit checker dependencies: expected Linux/amd64 package list.")
+    if not ((declared_platform := dependency_declaration["platform"]) == (expected_platform := "linux/amd64")):
+        raise ValueError(f"{reprlib.repr(declared_platform)=} should match {expected_platform=}")
 
-    packages = document["packages"]
+    packages = dependency_declaration["packages"]
 
     require_instance(packages, list)
 
-    if len(packages) != 1:
-        raise ValueError("Cannot admit checker dependencies: this checker requires exactly GNU Make.")
+    if not ((package_count := len(packages)) == (expected_package_count := 1)):
+        raise ValueError(f"{package_count=} should equal {expected_package_count=}")
 
     package = packages[0]
 
     require_instance(package, dict)
 
-    if set(package) != { "name", "version", "file", "url", "size", "sha256" }:
-        raise ValueError("Cannot admit checker dependency: package identity fields differ.")
+    if not ((package_fields := set(package)) == (expected_package_fields := {"name", "version", "file", "url", "size", "sha256"})):
+        raise ValueError(f"{reprlib.repr(package_fields)=} should match {expected_package_fields=}")
 
     require_instance(package["name"], str)
     require_instance(package["version"], str)
@@ -90,32 +90,43 @@ def declaration(path):
 
     require_type(package["size"], int)
 
-    if not ((0 < package["size"]) and (re.fullmatch(r"[0-9a-f]{64}", package["sha256"]) is not None)):
-        raise ValueError("Cannot admit checker dependency: expected a positive byte count and SHA-256.")
+    if not (0 < (package_byte_length := package["size"])):
+        raise ValueError(f"{package_byte_length=} should be positive")
+
+    package_sha256 = package["sha256"]
+    expected_sha256_pattern = r"[0-9a-f]{64}"
+
+    if not re.fullmatch(expected_sha256_pattern, package_sha256):
+        raise ValueError(f"{reprlib.repr(package_sha256)=} should match {expected_sha256_pattern=}")
 
     return packages
 
 
-def verify(package, path):
+def verify(package, dependency_path):
     checksum = hashlib.sha256()
-    count = 0
+    byte_count = 0
 
-    with regular_file(path) as stream:
+    with regular_file(dependency_path) as stream:
         while chunk := stream.read(1024 * 1024):
-            count += len(chunk)
+            byte_count += len(chunk)
 
-            if not (count <= package["size"]):
-                raise ValueError(f"Cannot admit {path}: exceeds declared size {package['size']}.")
+            if not (byte_count <= package["size"]):
+                raise ValueError(f"{dependency_path=}: {byte_count=} should not exceed {package['size']=}")
 
             checksum.update(chunk)
 
-    if count != package["size"] or checksum.hexdigest() != package["sha256"]:
-        raise ValueError(f"Cannot admit {path}: size or SHA-256 differs from the dependency declaration.")
+    if not (byte_count == package["size"]):
+        raise ValueError(f"{dependency_path=}: {byte_count=} should match {package['size']=}")
+
+    file_sha256 = checksum.hexdigest()
+
+    if not (file_sha256 == package["sha256"]):
+        raise ValueError(f"{dependency_path=}: {file_sha256=} should match {package['sha256']=}")
 
 
 def check(packages, pool):
     if (pool.is_symlink()) or (not pool.is_dir()):
-        raise ValueError(f"Cannot use checker cache {pool}: expected a directory without a symlink.")
+        raise ValueError(f"{pool=} should be a directory without a symlink")
 
     for package in packages:
         verify(package, pool / package["file"])
@@ -169,7 +180,7 @@ def download(packages, pool):
     require_download_proxy()
 
     if (pool.is_symlink()) or (not pool.is_dir()):
-        raise ValueError(f"Cannot download checker dependencies: shared cache directory is missing: {pool}.")
+        raise ValueError(f"{pool=} should be a directory without a symlink")
 
     for package in packages:
         destination = pool / package["file"]
@@ -178,7 +189,7 @@ def download(packages, pool):
             verify(package, destination)
             continue
 
-        print(f"Downloading {package['file']} into the shared wheelhouse.", flush=True)
+        print(f"Downloading {package['file']=} into {pool=}", flush=True)
         opener = https_download_opener()
 
         with tempfile.NamedTemporaryFile(prefix=".checker-download-", suffix=".part", dir=pool) as target:
@@ -199,7 +210,7 @@ def download(packages, pool):
 
 def install(packages, directory):
     check(packages, directory)
-    debian.install_binary_packages([directory / package["file"] for package in packages])
+    debian.install_binary_packages([(directory / package["file"]) for package in packages])
 
     for package in packages:
         package_name = package["name"]

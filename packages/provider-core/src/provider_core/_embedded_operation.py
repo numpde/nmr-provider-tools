@@ -7,6 +7,7 @@ from provider_core.container_guard import require_container
 require_container()
 
 import asyncio
+import reprlib
 import threading
 from concurrent.futures import Future
 from uuid import uuid4
@@ -85,7 +86,7 @@ class _Operation(_Changes):
         self.finished = False
         self.outcome = None
         self.failures = ()
-        self.result = None
+        self.result_ref = None
         self.result_state = ResultState.NONE
         self.payload = None
         self.returned_states = ()
@@ -209,8 +210,8 @@ class _Operation(_Changes):
             phase = "calculation"
 
             scientific_return = self.call.invoke(
-                self.science.resident.value,
-                self.science.value,
+                self.science.resident.instance,
+                self.science.analysis_instance,
                 scientific_input,
                 {
                     name: owner.returned.value
@@ -248,18 +249,18 @@ class _Operation(_Changes):
                 raise ValueError(f"{encoded_result_bytes=} should be at most {maximum_encoded_result_bytes=}")
 
             self.payload = result_payload
-            self.result = ResultRef(self.reference, uuid4().hex)
+            self.result_ref = ResultRef(self.reference, uuid4().hex)
             self.result_state = ResultState.AVAILABLE
         except CallRejected as cause:
-            if self.outcome is None and phase in ("decoding", "calculation"):
+            if (self.outcome is None) and (phase in ("decoding", "calculation")):
                 self.outcome = Outcome.REJECTED
 
             self.failures = (Failure(phase, cause),)
         except BaseException as cause:
-            if self.outcome is None and phase == "calculation":
+            if (self.outcome is None) and (phase == "calculation"):
                 self.outcome = Outcome.FAILED
 
-            if self.outcome is Outcome.SUCCEEDED and phase == "encoding":
+            if (self.outcome is Outcome.SUCCEEDED) and (phase == "encoding"):
                 self.result_state = ResultState.ENCODING_FAILED
 
             self.failures = (Failure(phase, cause),)
@@ -329,7 +330,7 @@ class _Operation(_Changes):
             owner = self.state_owners[parameter.name]
             owner.claim = None
 
-            if self.dispatch is DispatchState.STARTED and self.failures:
+            if (self.dispatch is DispatchState.STARTED) and self.failures:
                 owner.available = False
 
         if self.raw is None:
@@ -370,7 +371,7 @@ class _Operation(_Changes):
             if existing_owner is not None:
                 if not any(
                     (
-                        self.state_owners[name] is existing_owner
+                        (self.state_owners[name] is existing_owner)
                         for name in consumed_state_names
                     ),
                 ):
@@ -451,7 +452,7 @@ class _Operation(_Changes):
         await self.wait(after, wait_seconds)
 
         # silent-defaults: allow-contract -- Result adoption can precede thread completion; only a finished operation may expose its result reference.
-        result = self.result if self.finished else None
+        observable_result_ref = self.result_ref if self.finished else None
 
         return Observation(
             operation=self.reference,
@@ -462,7 +463,7 @@ class _Operation(_Changes):
             finished=self.finished,
             outcome=self.outcome,
             result_state=self.result_state,
-            result=result,
+            result=observable_result_ref,
             states=self.returned_states,
             progress=tuple(self.progress),
             progress_dropped=self.progress_dropped,
@@ -472,17 +473,20 @@ class _Operation(_Changes):
             resources=self.resources,
         )
 
-    def _require_result(self, result):
+    def _require_result(self, result_ref):
         self.require_loop()
 
-        require_type(result, ResultRef)
+        require_type(result_ref, ResultRef)
 
         if not (
-            (result == self.result) and
+            (result_ref == self.result_ref) and
             self.finished and
             (self.result_state is ResultState.AVAILABLE)
         ):
-            raise ValueError("Result reference does not name this operation's available result.")
+            raise ValueError(
+                f"{reprlib.repr(result_ref)=} should be this operation's available result after completion; "
+                f"{reprlib.repr(self.result_ref)=}, {self.finished=}, {self.result_state=}"
+            )
 
     async def read_result(self, result):
         self._require_result(result)
@@ -498,7 +502,7 @@ class _Operation(_Changes):
         # The exact release remains observable after its payload is discarded.
         # Check identity before returning it; a cached owner grants no authority
         # over a different operation or result.
-        if (self.release is not None) and (type(result) is ResultRef) and (result == self.result):
+        if (self.release is not None) and (type(result) is ResultRef) and (result == self.result_ref):
             return self.release
 
         self._require_result(result)
@@ -528,7 +532,7 @@ class _Operation(_Changes):
 
         if (
             self.finished and
-            (self.raw is None or self.value_disposed) and
+            ((self.raw is None) or self.value_disposed) and
             (self.result_state is not ResultState.AVAILABLE) and
             (self.disposal_failure is None)
         ):
@@ -558,6 +562,7 @@ class _Operation(_Changes):
         try:
             if self.raw is not None:
                 actual_raw = self.raw
+
                 require_type(actual_raw, ScientificReturn)
 
             if (

@@ -28,7 +28,7 @@ def _blank_docker_env_entries(body: str) -> list[str]:
     tokens = body.split()
     findings = [token for token in tokens if DOCKER_EMPTY_ENV_ASSIGNMENT_RE.match(token)]
 
-    if len(tokens) == 2 and DOCKER_ENV_NAME_RE.match(tokens[0]) and tokens[1] in EMPTY_QUOTED_VALUE_TOKENS:
+    if (len(tokens) == 2) and DOCKER_ENV_NAME_RE.match(tokens[0]) and (tokens[1] in EMPTY_QUOTED_VALUE_TOKENS):
         findings.append(f"{tokens[0]} {tokens[1]}")
 
     return findings

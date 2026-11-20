@@ -24,28 +24,28 @@ class DeliveryHandoffRejected(ValueError):
     """A handoff cannot be admitted without its exact result and publication inputs."""
 
 
-def _encoded(value):
-    return base64.b64encode(value).decode("ascii")
+def _encoded(raw_bytes):
+    return base64.b64encode(raw_bytes).decode("ascii")
 
 
-def _decoded(value):
-    if not (type(value) is (expected_type := str)):
-        raise DeliveryHandoffRejected(f"{type(value)=} ≠ {expected_type=}")
+def _decoded(encoded_text):
+    if not (type(encoded_text) is (expected_type := str)):
+        raise DeliveryHandoffRejected(f"{type(encoded_text)=} ≠ {expected_type=}")
 
     try:
-        raw = base64.b64decode(value, validate=True)
+        decoded_bytes = base64.b64decode(encoded_text, validate=True)
     except (ValueError, binascii.Error):
-        raise DeliveryHandoffRejected("Delivery handoff contains invalid base64 bytes.") from None
+        raise DeliveryHandoffRejected("Delivery handoff contains invalid base64 text.") from None
 
-    if _encoded(raw) != value:
-        raise DeliveryHandoffRejected("Delivery handoff requires canonical base64 bytes.")
+    if _encoded(decoded_bytes) != encoded_text:
+        raise DeliveryHandoffRejected("Delivery handoff requires canonical base64 text.")
 
-    return raw
+    return decoded_bytes
 
 
 def publication_bytes(material):
     # silent-defaults: allow-contract -- An absent CA explicitly selects the delivery image's system trust roots.
-    document = {
+    publication_fields = {
         "api": material.api_fields(),
         "credential": _encoded(material.credential_bytes),
         "ca": None if material.ca_bytes is None else _encoded(material.ca_bytes)
@@ -54,7 +54,7 @@ def publication_bytes(material):
     return (
         json
         .dumps(
-            document,
+            publication_fields,
             sort_keys=True,
             separators=(",", ":"),
             ensure_ascii=True,
@@ -96,20 +96,20 @@ class DeliveryHandoff:
         return publication_bytes(self.publication)
 
     def encode(self):
-        item = self.outcome
+        delivery_outcome = self.outcome
 
-        document = self.publication_document() | {
+        handoff_fields = self.publication_document() | {
             "outcome": {
-                "api_origin": item.api_origin,
-                "provider_ref": item.provider_ref,
-                "job_ref": item.job_ref,
-                "execution_attempt_ref": item.execution_attempt_ref,
-                "operation": item.operation.value,
-                "body": _encoded(item.body)
+                "api_origin": delivery_outcome.api_origin,
+                "provider_ref": delivery_outcome.provider_ref,
+                "job_ref": delivery_outcome.job_ref,
+                "execution_attempt_ref": delivery_outcome.execution_attempt_ref,
+                "operation": delivery_outcome.operation.value,
+                "body": _encoded(delivery_outcome.body)
             }
         }
 
-        encoded = json.dumps(document, sort_keys=True, separators=(",", ":"), ensure_ascii=True, allow_nan=False).encode("ascii")
+        encoded = json.dumps(handoff_fields, sort_keys=True, separators=(",", ":"), ensure_ascii=True, allow_nan=False).encode("ascii")
 
         if len(encoded) > MAX_HANDOFF_BYTES:
             raise DeliveryHandoffRejected("Delivery handoff exceeds its bounded submission size.")
@@ -121,15 +121,15 @@ def read_delivery_handoff(raw):
     """Admit complete material without exposing request or credential contents."""
 
     try:
-        document = read_document(raw, MAX_HANDOFF_BYTES)
+        handoff_fields = read_document(raw, MAX_HANDOFF_BYTES)
 
-        if not (type(document) is (expected_type := dict)):
-            raise DeliveryHandoffRejected(f"{type(document)=} ≠ {expected_type=}")
+        if not (type(handoff_fields) is (expected_type := dict)):
+            raise DeliveryHandoffRejected(f"{type(handoff_fields)=} ≠ {expected_type=}")
 
-        if set(document) != {"api", "credential", "ca", "outcome"}:
+        if set(handoff_fields) != {"api", "credential", "ca", "outcome"}:
             raise DeliveryHandoffRejected("Delivery handoff requires its documented fields.")
 
-        (api, outcome) = (document["api"], document["outcome"])
+        (api, outcome) = (handoff_fields["api"], handoff_fields["outcome"])
 
         if not (type(api) is (expected_type := dict)):
             raise DeliveryHandoffRejected(f"{type(api)=} ≠ {expected_type=}")
@@ -147,10 +147,10 @@ def read_delivery_handoff(raw):
         }):
             raise DeliveryHandoffRejected("Delivery handoff requires complete API and outcome fields.")
 
-        credential = _decoded(document["credential"])
+        credential = _decoded(handoff_fields["credential"])
 
         # silent-defaults: allow-contract -- Preserve an explicit absence of CA bytes across the handoff.
-        ca = None if document["ca"] is None else _decoded(document["ca"])
+        ca = None if handoff_fields["ca"] is None else _decoded(handoff_fields["ca"])
 
         (settings, provider_ref) = api_settings_from_material(api, credential_bytes=credential, ca_bytes=ca)
 

@@ -67,7 +67,7 @@ class PeakWorkflow:
         if self.peak_detection_refusal is not None:
             return self.peak_detection_refusal
 
-        if self.peak_detection_submission is None or self.peak_detection_submission.operation is None:
+        if (self.peak_detection_submission is None) or (self.peak_detection_submission.operation is None):
             baseline_observation = await self.baseline_submission.wait()
 
             # Science may succeed while encoding fails. Keep both facts intact.

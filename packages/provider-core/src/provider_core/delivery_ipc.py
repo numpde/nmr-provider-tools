@@ -38,7 +38,7 @@ class DeliveryRequestRejected(ValueError):
 
 
 @contextmanager
-def _socket_grant(path, socket_group_id):
+def _socket_grant(socket_path, socket_group_id):
     """Hold one private directory lock before replacing its retired listener.
 
     Ports tools/provider_proxy.py::socket_grant at NMRNet 8e14575. This new
@@ -52,17 +52,17 @@ def _socket_grant(path, socket_group_id):
     # silent-defaults: allow-contract -- Socket mode follows the explicit same-UID or shared-group connection grant.
     socket_mode = 0o660 if shared else 0o600
 
-    if shared and socket_group_id != os.getegid():
+    if shared and (socket_group_id != os.getegid()):
         raise DeliveryUnavailable("Cannot open delivery IPC: the configured socket group must be the daemon's primary GID.")
 
-    parent = path.parent.lstat()
+    parent = socket_path.parent.lstat()
 
     if (
-        (path.parent.resolve() != path.parent) or
+        (socket_path.parent.resolve() != socket_path.parent) or
         (not stat.S_ISDIR(parent.st_mode)) or
         (parent.st_uid != os.geteuid()) or
         (stat.S_IMODE(parent.st_mode) not in parent_modes) or
-        (shared and parent.st_gid != socket_group_id)
+        (shared and (parent.st_gid != socket_group_id))
     ):
         # silent-defaults: allow-contract -- Parent permission requirements follow the explicit shared-group or same-UID socket grant.
         required_parent_mode = "mode 0710 or 02710 with the configured socket GID; " if shared else "mode 0700; "
@@ -70,10 +70,10 @@ def _socket_grant(path, socket_group_id):
         raise DeliveryUnavailable(
             "Cannot open delivery IPC: require a canonical daemon-owned parent, "
             + required_parent_mode
-            + f"observed uid {parent.st_uid}, gid {parent.st_gid}, mode {stat.S_IMODE(parent.st_mode):04o}, caller uid {os.geteuid()}."
+            + f"observed {parent.st_uid=}, {parent.st_gid=}, {stat.S_IMODE(parent.st_mode)=:04o}, caller {os.geteuid()=}."
         )
 
-    descriptor = os.open(path.parent / ".socket.lock", os.O_RDWR | os.O_CREAT | os.O_NOFOLLOW | os.O_CLOEXEC, 0o600)
+    descriptor = os.open(socket_path.parent / ".socket.lock", os.O_RDWR | os.O_CREAT | os.O_NOFOLLOW | os.O_CLOEXEC, 0o600)
     listener = None
 
     try:
@@ -85,7 +85,7 @@ def _socket_grant(path, socket_group_id):
         fcntl.flock(descriptor, fcntl.LOCK_EX | fcntl.LOCK_NB)
 
         try:
-            old = path.lstat()
+            old = socket_path.lstat()
         except FileNotFoundError:
             old = None
 
@@ -94,11 +94,11 @@ def _socket_grant(path, socket_group_id):
                 (not stat.S_ISSOCK(old.st_mode)) or
                 (old.st_uid != os.geteuid()) or
                 (stat.S_IMODE(old.st_mode) != socket_mode) or
-                (shared and old.st_gid != socket_group_id)
+                (shared and (old.st_gid != socket_group_id))
             ):
                 raise DeliveryUnavailable("Cannot replace delivery IPC: the prior leaf is not its private socket. Leave it unchanged for inspection.")
 
-            path.unlink()
+            socket_path.unlink()
 
         listener = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
 
@@ -107,21 +107,21 @@ def _socket_grant(path, socket_group_id):
         previous = os.umask(0o117 if shared else 0o177)
 
         try:
-            listener.bind(str(path))
+            listener.bind(str(socket_path))
         finally:
             os.umask(previous)
 
-        identity = path.lstat()
+        identity = socket_path.lstat()
 
         listener.listen(MAX_CONNECTIONS)
         listener.setblocking(False)
         yield listener
-        current = path.lstat()
+        current = socket_path.lstat()
 
         if (current.st_dev, current.st_ino) != (identity.st_dev, identity.st_ino):
             raise DeliveryUnavailable("Delivery IPC changed while owned; its replacement was left untouched.")
 
-        path.unlink()
+        socket_path.unlink()
     finally:
         if listener is not None:
             listener.close()
@@ -206,7 +206,7 @@ class DeliveryInbox:
         return await asyncio.shield(task)
 
     async def _read(self, reader, connection):
-        (request, body) = (None, bytearray())
+        (ipc_request, body) = (None, bytearray())
 
         async with asyncio.timeout(self.request_seconds):
             while True:
@@ -215,49 +215,49 @@ class DeliveryInbox:
                 if event is h11.NEED_DATA:
                     connection.receive_data(await reader.read(65536))
                 elif isinstance(event, h11.Request):
-                    request = event
+                    ipc_request = event
                 elif isinstance(event, h11.Data):
-                    if len(body) + len(event.data) > self.max_request_bytes:
+                    if (len(body) + len(event.data)) > self.max_request_bytes:
                         raise DeliveryRequestRejected("Delivery request exceeds the supported body limit.")
 
                     body.extend(event.data)
                 elif isinstance(event, h11.EndOfMessage):
-                    return (request, bytes(body))
+                    return (ipc_request, bytes(body))
                 elif isinstance(event, h11.ConnectionClosed):
                     raise ConnectionError("Delivery client disconnected before its complete request.")
 
-    def _headers(self, request, endpoint):
-        values = {}
+    def _headers(self, ipc_request, endpoint):
+        identity_headers = {}
 
-        for (name, value) in request.headers:
-            if name in (b"nmr-api-origin", b"nmr-provider-ref", b"nmr-job-ref"):
-                if name in values:
+        for (header_name, header_value) in ipc_request.headers:
+            if header_name in (b"nmr-api-origin", b"nmr-provider-ref", b"nmr-job-ref"):
+                if header_name in identity_headers:
                     raise DeliveryRequestRejected("Delivery identity headers must not repeat.")
 
                 try:
-                    values[name] = value.decode("ascii")
+                    identity_headers[header_name] = header_value.decode("ascii")
                 except UnicodeDecodeError:
                     raise DeliveryRequestRejected("Delivery identity headers must use ASCII text.") from None
 
-        if (values.get(b"nmr-api-origin"), values.get(b"nmr-provider-ref")) != (endpoint.api_origin, endpoint.provider_ref):
+        if (identity_headers.get(b"nmr-api-origin"), identity_headers.get(b"nmr-provider-ref")) != (endpoint.api_origin, endpoint.provider_ref):
             raise DeliveryRequestRejected("This socket is bound to another API/provider; correct the deployment grant.")
 
-        return values
+        return identity_headers
 
-    async def _dispatch(self, endpoint, request, body):
-        headers = self._headers(request, endpoint)
+    async def _dispatch(self, endpoint, ipc_request, body):
+        identity_headers = self._headers(ipc_request, endpoint)
 
         try:
-            parts = request.target.decode("ascii").split("/")
+            parts = ipc_request.target.decode("ascii").split("/")
         except UnicodeDecodeError:
             raise DeliveryRequestRejected("Delivery operation must use an ASCII route.") from None
 
-        if request.method == b"POST" and len(parts) == 4 and parts[1] == "submit":
+        if (ipc_request.method == b"POST") and (len(parts) == 4) and (parts[1] == "submit"):
             try:
                 delivery_outcome = DeliveryOutcome(
                     endpoint.api_origin,
                     endpoint.provider_ref,
-                    headers.get(b"nmr-job-ref"),
+                    identity_headers.get(b"nmr-job-ref"),
                     parts[3],
                     TerminalOperation(parts[2]),
                     body,
@@ -271,7 +271,7 @@ class DeliveryInbox:
 
             return accepted
 
-        if request.method != b"GET" or body:
+        if (ipc_request.method != b"GET") or body:
             raise DeliveryRequestRejected("Delivery supports only outcome submission and read-only status.")
 
         if parts == ["", "pending"]:
@@ -285,7 +285,7 @@ class DeliveryInbox:
                 "publisher": self.binding_status(endpoint),
             }
 
-        if len(parts) == 3 and parts[1] == "status":
+        if (len(parts) == 3) and (parts[1] == "status"):
             try:
                 require_attempt_ref(parts[2])
             except ValueError:
@@ -295,8 +295,8 @@ class DeliveryInbox:
 
         raise DeliveryRequestRejected("Unsupported delivery operation.")
 
-    async def _respond(self, connection, writer, status, document):
-        content = json.dumps(document, allow_nan=False, separators=(",", ":")).encode("utf-8")
+    async def _respond(self, connection, writer, status, response_payload):
+        content = json.dumps(response_payload, allow_nan=False, separators=(",", ":")).encode("utf-8")
 
         writer.write(
             connection.send(
@@ -328,26 +328,26 @@ class DeliveryInbox:
             if len(self._clients) > MAX_CONNECTIONS:
                 return
 
-            (request, body) = await self._read(reader, connection)
+            (ipc_request, body) = await self._read(reader, connection)
 
             try:
-                accepted = await self._dispatch(endpoint, request, body)
-                durable_enqueue_confirmed = request.method == b"POST"
-                (status, reply) = (200, accepted)
+                accepted = await self._dispatch(endpoint, ipc_request, body)
+                durable_enqueue_confirmed = ipc_request.method == b"POST"
+                (status, response_payload) = (200, accepted)
             except DeliveryFull:
-                (status, reply) = (429, {"error": "Delivery capacity is full; no new item was accepted."})
+                (status, response_payload) = (429, {"error": "Delivery capacity is full; no new item was accepted."})
             except DeliveryConflict:
-                (status, reply) = (409, {"error": "The original outstanding terminal request remains unchanged."})
+                (status, response_payload) = (409, {"error": "The original outstanding terminal request remains unchanged."})
             except DeliveryStorageFailed:
-                (status, reply) = (503, {"error": "Delivery storage is unavailable; acceptance is not confirmed."})
+                (status, response_payload) = (503, {"error": "Delivery storage is unavailable; acceptance is not confirmed."})
             except DeliveryInventoryUnavailable as cause:
                 self.on_failure(cause, {"event": "delivery_inventory_unavailable", "provider_ref": endpoint.provider_ref})
-                (status, reply) = (503, {"error": "Pending inventory is oversized; publication continues and per-Attempt status remains available."})
+                (status, response_payload) = (503, {"error": "Pending inventory is oversized; publication continues and per-Attempt status remains available."})
             except DeliveryRequestRejected as cause:
                 self.on_failure(cause, {"event": "delivery_request_rejected", "provider_ref": endpoint.provider_ref})
-                (status, reply) = (400, {"error": "The request does not match this provider's delivery protocol."})
+                (status, response_payload) = (400, {"error": "The request does not match this provider's delivery protocol."})
 
-            await self._respond(connection, writer, status, reply)
+            await self._respond(connection, writer, status, response_payload)
         except (OSError, ConnectionError, TimeoutError, h11.ProtocolError) as cause:
             self.on_failure(
                 cause,
@@ -393,9 +393,9 @@ class DeliveryInbox:
 
         for tasks in (self._clients, self._storage_tasks):
             if tasks:
-                settled = await asyncio.gather(*(asyncio.shield(task) for task in tuple(tasks)), return_exceptions=True)
+                task_outcomes = await asyncio.gather(*(asyncio.shield(task) for task in tuple(tasks)), return_exceptions=True)
 
-                failures.extend(value for value in settled if isinstance(value, BaseException))
+                failures.extend(task_outcome for task_outcome in task_outcomes if isinstance(task_outcome, BaseException))
 
         self._grants.close()
 

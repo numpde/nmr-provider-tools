@@ -139,19 +139,19 @@ class SourceUpdateTests(unittest.TestCase):
             "release_version": version,
             "source_revision": "a" * 40,
             "payload_files": {
-                name: {"sha256": hashlib.sha256(data).hexdigest(), "size": len(data), "mode": 0o644}
-                for (name, data) in payload.items()
+                name: {"sha256": hashlib.sha256(payload_bytes).hexdigest(), "size": len(payload_bytes), "mode": 0o644}
+                for (name, payload_bytes) in payload.items()
             },
             "dependency_inputs": {"wheelhouse-tool-0.9.0.pyz": "b" * 64},
         }
 
     def write_snapshot(self, root, version, payload):
-        for (name, data) in payload.items():
-            path = root / name
+        for (name, payload_bytes) in payload.items():
+            snapshot_file_path = root / name
 
-            path.parent.mkdir(parents=True, exist_ok=True)
-            path.write_bytes(data)
-            path.chmod(0o644)
+            snapshot_file_path.parent.mkdir(parents=True, exist_ok=True)
+            snapshot_file_path.write_bytes(payload_bytes)
+            snapshot_file_path.chmod(0o644)
 
         (root / "acquisition-manifest.json").write_text(json.dumps(self.manifest(version, payload)))
         (root / "acquisition-manifest.json").chmod(0o644)
@@ -161,11 +161,11 @@ class SourceUpdateTests(unittest.TestCase):
         payload["acquisition-manifest.json"] = json.dumps(self.manifest("2.0.0", self.new)).encode()
 
         with tarfile.open(self.archive, "w:gz") as archive:
-            for (name, data) in payload.items():
+            for (name, archive_member_bytes) in payload.items():
                 member = tarfile.TarInfo(name)
-                (member.mode, member.size) = (0o644, len(data))
+                (member.mode, member.size) = (0o644, len(archive_member_bytes))
 
-                archive.addfile(member, io.BytesIO(data))
+                archive.addfile(member, io.BytesIO(archive_member_bytes))
 
             for (name, kind) in extra:
                 member = tarfile.TarInfo(name)
@@ -495,6 +495,17 @@ class SourceUpdateTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "directory is a symlink"):
             updates.verify(self.source)
 
+    def test_missing_exchange_candidate_reports_both_paths_and_keeps_old_source(self):
+        missing_candidate = self.root / "missing-candidate"
+
+        with self.assertRaises(FileNotFoundError) as caught:
+            updates._exchange_directories(self.source, missing_candidate)
+
+        self.assertEqual(str(self.source), caught.exception.filename)
+        self.assertEqual(str(missing_candidate), caught.exception.filename2)
+        self.assert_old_source()
+        self.assertFalse(missing_candidate.exists())
+
     def test_exchange_failure_keeps_old_source_and_retains_candidate_evidence(self):
         failure = PermissionError("exchange denied")
 
@@ -526,11 +537,11 @@ class SourceUpdateTests(unittest.TestCase):
         (primary, cleanup) = (ValueError("candidate stage failed"), PermissionError("stage cleanup failed"))
         verify = updates.verify
 
-        def reject_stage(path):
-            if pathlib.Path(path).name.startswith(".acquisition-next-"):
+        def reject_stage(source_path):
+            if pathlib.Path(source_path).name.startswith(".acquisition-next-"):
                 raise primary
 
-            return verify(path)
+            return verify(source_path)
 
         with (
             patch.object(updates, "verify", side_effect=reject_stage),

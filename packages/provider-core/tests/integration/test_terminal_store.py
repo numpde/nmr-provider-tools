@@ -18,11 +18,11 @@ from tests.fakes.attempts import ATTEMPT_REF
 class TerminalQueueTests(unittest.TestCase):
     def test_maximum_completion_and_failure_requests_survive_queue_reopen_exactly(self):
         text = "\U0001f600" * 1024
-        result = b"x" * 786432
+        scientific_result_bytes = b"x" * 786432
 
         for operation in (TerminalOperation.COMPLETE, TerminalOperation.FAIL):
             if operation is TerminalOperation.COMPLETE:
-                body = complete_body(ATTEMPT_REF, text, result)
+                body = complete_body(ATTEMPT_REF, text, scientific_result_bytes)
                 body += b" " * (2097152 - len(body))
 
                 self.assertEqual(len(body), 2097152)

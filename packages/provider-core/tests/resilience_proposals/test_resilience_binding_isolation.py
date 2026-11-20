@@ -33,7 +33,7 @@ class BindingIsolationTests(unittest.IsolatedAsyncioTestCase):
         first = outcome(provider="provider:first", suffix="1")
         second = outcome(provider="provider:second", suffix="2")
 
-        async def response(_request, _body):
+        async def response(_request_head, _body):
             return fail_response(
                 execution_attempt_ref=second.execution_attempt_ref,
                 failure_code="provider_interrupted",
@@ -46,14 +46,14 @@ class BindingIsolationTests(unittest.IsolatedAsyncioTestCase):
             ca = (pathlib.Path(peer.scratch.name) / "cert.pem").read_bytes()
             materials = []
 
-            for item in (first, second):
-                credential = encoded(document(principal_ref=item.provider_ref))
+            for delivery_outcome in [first, second]:
+                credential = encoded(document(principal_ref=delivery_outcome.provider_ref))
 
                 fields = {
                     "origin": peer.origin,
                     "profile": "dev-local",
                     "topology": "dev-local",
-                    "provider_ref": item.provider_ref,
+                    "provider_ref": delivery_outcome.provider_ref,
                     "exchange_seconds": 2,
                     "retirement_seconds": 1,
                     "credential_file": "/fixture/credential",
@@ -83,19 +83,19 @@ class BindingIsolationTests(unittest.IsolatedAsyncioTestCase):
                     (first_api, first_task) = ([], [])
                     original_deliver = SharedDeliveryWorker._deliver
 
-                    async def fail_first(worker, item):
-                        if item.provider_ref == first.provider_ref:
+                    async def fail_first(worker, delivery_outcome):
+                        if delivery_outcome.provider_ref == first.provider_ref:
                             first_api.append(worker.api)
                             first_task.append(asyncio.current_task())
                             raise RuntimeError("injected publisher failure")
 
-                        return await original_deliver(worker, item)
+                        return await original_deliver(worker, delivery_outcome)
 
                     def notice(_error, facts):
-                        if facts["event"] == "delivery_worker_failed" and facts.get("provider_ref") == first.provider_ref:
+                        if (facts["event"] == "delivery_worker_failed") and (facts.get("provider_ref") == first.provider_ref):
                             failed.set()
 
-                        if facts["event"] == "delivery_published" and facts.get("provider_ref") == second.provider_ref:
+                        if (facts["event"] == "delivery_published") and (facts.get("provider_ref") == second.provider_ref):
                             published.set()
 
                     service = SharedDeliveryService(
@@ -118,10 +118,10 @@ class BindingIsolationTests(unittest.IsolatedAsyncioTestCase):
                         try:
                             await asyncio.wait_for(service.ready.wait(), 5)
 
-                            for (item, material) in zip((first, second), materials):
+                            for (delivery_outcome, material) in zip([first, second], materials):
                                 clients.append(
                                     SharedDeliveryClient(
-                                        DeliveryEndpoint(peer.origin, item.provider_ref, root / "ipc/socket"),
+                                        DeliveryEndpoint(peer.origin, delivery_outcome.provider_ref, root / "ipc/socket"),
                                         material,
                                         exchange_seconds=2,
                                         retirement_seconds=1

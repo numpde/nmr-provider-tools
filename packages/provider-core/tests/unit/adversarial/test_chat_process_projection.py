@@ -96,8 +96,8 @@ class ChatProcessProjectionTests(unittest.TestCase):
         evidence = failure_evidence(failure, secrets=())
 
         child_evidence = next(
-            item["failure"] for item in evidence["relationships"]
-            if item["relationship"] == "model HTTP child evidence"
+            failure_relationship["failure"] for failure_relationship in evidence["relationships"]
+            if failure_relationship["relationship"] == "model HTTP child evidence"
         )
 
         self.assertEqual(503, child_evidence["status"])

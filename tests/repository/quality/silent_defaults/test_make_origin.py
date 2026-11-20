@@ -23,13 +23,13 @@ class MakeOriginGateTests(unittest.TestCase):
     def findings_from_both_collectors(self, source, line):
         with tempfile.TemporaryDirectory() as directory:
             root = pathlib.Path(directory)
-            path = root / source
+            fixture_path = root / source
 
-            path.parent.mkdir(parents=True, exist_ok=True)
-            path.write_text(line + "\n")
+            fixture_path.parent.mkdir(parents=True, exist_ok=True)
+            fixture_path.write_text(line + "\n")
 
             with patch.object(dapp, "ROOT", root):
-                dapp_findings = dapp.make_function_default_findings([path])
+                dapp_findings = dapp.make_function_default_findings([fixture_path])
 
             with patch.object(vote, "_make_surface_lines", return_value=[(source, 1, line)]):
                 vote_findings = vote.make_function_default_findings()

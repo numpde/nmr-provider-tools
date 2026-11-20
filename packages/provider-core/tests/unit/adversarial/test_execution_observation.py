@@ -41,22 +41,22 @@ class WaitingSession(Session):
             await self.release.wait()
 
     async def prepare(self, acknowledged, instructions, *, report_condition):
-        result = await super().prepare(acknowledged, instructions, report_condition=report_condition)
+        prepared_analysis = await super().prepare(acknowledged, instructions, report_condition=report_condition)
 
         if self.phase == "prepare":
             await self._wait()
 
-        return result
+        return prepared_analysis
 
     async def execute(self, prepared, *, report_condition):
-        result = await super().execute(prepared, report_condition=report_condition)
+        analysis_outcome = await super().execute(prepared, report_condition=report_condition)
 
         if self.phase == "execute":
             await self._wait()
 
         self.produced.set()
 
-        return result
+        return analysis_outcome
 
 
 class ExecutionObservationTests(unittest.IsolatedAsyncioTestCase):

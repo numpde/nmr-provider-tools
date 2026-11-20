@@ -35,7 +35,7 @@ class AttemptStartTests(unittest.IsolatedAsyncioTestCase):
 
             self.assertEqual(attempt_admission.state, state)
             self.assertEqual(attempt_admission.started_at.isoformat(), "2026-10-18T00:00:00+00:00")
-            (first, second) = (item[0] for item in transport.calls)
+            (first, second) = (request_record[0] for request_record in transport.calls)
 
             self.assertEqual(first.content, body)
             self.assertEqual(second.content, body)

@@ -15,13 +15,13 @@ from tests.unit.normative.test_upload_transfer_retry import temporary_read_error
 
 class JobUploadsRetryDelegationTests(unittest.IsolatedAsyncioTestCase):
     async def test_grant_failure_resets_previous_transfer_on_both_acquisition_paths(self):
-        for path in ("buffered", "file"):
-            with self.subTest(path=path), private_source_directory() as (root, directory):
+        for acquisition_mode in ("buffered", "file"):
+            with self.subTest(path=acquisition_mode), private_source_directory() as (root, directory):
                 (owner, api, store, _) = file_sources()
                 client = Client(Stream([b"g"], failure=temporary_read_error()), headers=store_headers(b"geometry"))
 
                 async def acquire():
-                    if path == "buffered":
+                    if acquisition_mode == "buffered":
                         return await owner.acquire(api.member.upload_ref)
 
                     return await owner.acquire_file(api.member.upload_ref, directory_fd=directory, retirement_seconds=0.1)

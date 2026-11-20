@@ -74,12 +74,12 @@ def _source_location_depth(
     origin_depths: list[int] = []
 
     for node in ast.walk(expression):
-        if isinstance(node, ast.Name) and node.id == "__file__":
+        if isinstance(node, ast.Name) and (node.id == "__file__"):
             origin_depths.append(0)
-        elif isinstance(node, ast.Name) and node.id in source_location_depths:
+        elif isinstance(node, ast.Name) and (node.id in source_location_depths):
             origin_depths.append(source_location_depths[node.id])
 
-        if isinstance(node, ast.Attribute) and node.attr == "__file__":
+        if isinstance(node, ast.Attribute) and (node.attr == "__file__"):
             origin_depths.append(0)
 
         if (
@@ -111,11 +111,11 @@ def _upward_steps(expression: ast.expr) -> int:
         ):
             steps = max(steps, node.slice.value + 1)
 
-        if isinstance(node, ast.Attribute) and node.attr == "parent":
+        if isinstance(node, ast.Attribute) and (node.attr == "parent"):
             consecutive_steps = 1
             parent = node.value
 
-            while isinstance(parent, ast.Attribute) and parent.attr == "parent":
+            while isinstance(parent, ast.Attribute) and (parent.attr == "parent"):
                 consecutive_steps += 1
                 parent = parent.value
 
@@ -158,13 +158,13 @@ def _findings_in_body(
             )
 
         names = _assigned_names(statement)
-        value = _assigned_value(statement)
+        assigned_expression = _assigned_value(statement)
 
-        if (value is None) or (not names):
+        if (assigned_expression is None) or (not names):
             continue
 
         source_location_depth = _source_location_depth(
-            value,
+            assigned_expression,
             source_location_depths,
         )
 
@@ -174,7 +174,7 @@ def _findings_in_body(
                     source_path=source_path,
                     line=statement.lineno,
                     target=name,
-                    expression=ast.unparse(value),
+                    expression=ast.unparse(assigned_expression),
                 )
                 for name in names
                 if _root_target_uses_source_layout(name, source_location_depth)

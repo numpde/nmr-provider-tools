@@ -21,24 +21,24 @@ class ProviderCorePortTests(unittest.TestCase):
         self.assertEqual(len(paths), len(set(paths)))
 
         for entry in manifest["files"]:
-            path = ROOT / entry["path"]
+            source_file_path = ROOT / entry["path"]
 
             with self.subTest(path=entry["path"]):
                 if "retired" in entry:
                     self.assertTrue(entry["retired"].strip())
-                    self.assertFalse(path.exists())
+                    self.assertFalse(source_file_path.exists())
                     continue
 
                 if "replacement_path" in entry:
-                    self.assertFalse(path.exists())
-                    path = ROOT / entry["replacement_path"]
+                    self.assertFalse(source_file_path.exists())
+                    source_file_path = ROOT / entry["replacement_path"]
 
-                self.assertTrue((path.is_file()) and (not path.is_symlink()))
+                self.assertTrue((source_file_path.is_file()) and (not source_file_path.is_symlink()))
 
-                if path.suffix != ".py":
+                if source_file_path.suffix != ".py":
                     continue
 
-                tree = ast.parse(path.read_text())
+                tree = ast.parse(source_file_path.read_text())
 
                 present = {
                     f"{owner.name}.{method.name}" for owner in ast.walk(tree) if isinstance(owner, ast.ClassDef)

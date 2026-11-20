@@ -173,8 +173,8 @@ class ContributionDeclarationTests(unittest.TestCase):
             "contract version": replace(identity, contract_version=2),
         }
 
-        for (label, changed) in variants.items():
-            with self.subTest(changed=label):
+        for (variant_name, changed) in variants.items():
+            with self.subTest(changed=variant_name):
                 self.assertNotEqual(identity.revision, changed.revision)
 
         self.assertRegex(identity.revision, r"\Aconfigured-v2:sha256:[0-9a-f]{64}\Z")
@@ -182,8 +182,8 @@ class ContributionDeclarationTests(unittest.TestCase):
         self.assertRegex(asset.digest, r"\Asha256:[0-9a-f]{64}\Z")
         self.assertEqual(configuration.digest, variants["configuration format"].configuration.digest)
 
-        for label in ("asset name", "asset media type", "asset byte count"):
-            (changed_asset,) = variants[label].assets
+        for variant_name in ("asset name", "asset media type", "asset byte count"):
+            (changed_asset,) = variants[variant_name].assets
 
             self.assertEqual(asset.digest, changed_asset.digest)
 
@@ -210,10 +210,17 @@ class ContributionDeclarationTests(unittest.TestCase):
             calls=frozenset({replace(call, name="zeta"), replace(call, name="alpha")}),
         )
 
-        document = description_document(description=description)
+        description_fields = description_document(description=description)
 
-        self.assertEqual(first=["alpha", "zeta"], second=[item["name"] for item in document["assets"]])
-        self.assertEqual(first=["alpha", "zeta"], second=[item["name"] for item in document["calls"]])
+        self.assertEqual(
+            first=["alpha", "zeta"],
+            second=[asset_fields["name"] for asset_fields in description_fields["assets"]],
+        )
+
+        self.assertEqual(
+            first=["alpha", "zeta"],
+            second=[call_fields["name"] for call_fields in description_fields["calls"]],
+        )
 
         with self.assertRaises(expected_exception=ValueError):
             replace(first, assets=frozenset({asset, replace(asset, size_bytes=asset.size_bytes + 1)}))

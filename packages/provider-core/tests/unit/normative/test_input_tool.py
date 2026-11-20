@@ -241,7 +241,7 @@ class ScientificInputToolDefinitionTests(unittest.IsolatedAsyncioTestCase):
 
         constraint_reply = next(
             message for message in carrier.complete.call_args_list[1].args[0]
-            if message["role"] == "tool" and message["tool_call_id"] == "inspect"
+            if (message["role"] == "tool") and (message["tool_call_id"] == "inspect")
         )
 
         constraint = json.loads(s=constraint_reply["content"])["value"]

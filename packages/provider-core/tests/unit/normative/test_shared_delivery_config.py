@@ -7,6 +7,7 @@ import contextlib
 import io
 import json
 import pathlib
+import tomllib
 from types import SimpleNamespace
 from unittest.mock import Mock, patch
 
@@ -63,10 +64,10 @@ class SharedDeliveryConfigurationTests(unittest.TestCase):
             with patch("sys.argv", argv), contextlib.redirect_stdout(output):
                 delivery_discard.main()
 
-            result = json.loads(output.getvalue())
+            inventory_report = json.loads(output.getvalue())
 
-            self.assertEqual(result["held"][0]["execution_attempt_ref"], delivery_outcome.execution_attempt_ref)
-            self.assertEqual(result["pending"][0]["execution_attempt_ref"], outcome(suffix="1").execution_attempt_ref)
+            self.assertEqual(inventory_report["held"][0]["execution_attempt_ref"], delivery_outcome.execution_attempt_ref)
+            self.assertEqual(inventory_report["pending"][0]["execution_attempt_ref"], outcome(suffix="1").execution_attempt_ref)
             self.assertNotIn("SCIENTIFIC_PAYLOAD_NEEDLE", output.getvalue())
 
     def test_atomic_reload_changes_admission_and_worker_retry_retains_last_good(self):
@@ -76,10 +77,10 @@ class SharedDeliveryConfigurationTests(unittest.TestCase):
             (root / "state").mkdir(mode=0o700)
             settings_path = root / "settings.toml"
 
-            def write(target, items, retry):
+            def write(target, provider_item_limit, retry):
                 target.write_text(
                     f'[outbox]\n'
-                    f'provider_items = {items}\n'
+                    f'provider_items = {provider_item_limit}\n'
                     f'provider_bytes = 8192\n'
                     f'total_items = 4\n'
                     f'total_bytes = 16384\n'
@@ -146,3 +147,4 @@ class SharedDeliveryConfigurationTests(unittest.TestCase):
             self.assertEqual(worker.retry_initial_seconds, 3)
             self.assertEqual(len(service.queue.inventory("https://api.example", "provider:example")), 2)
             self.assertEqual(notices.call_args.args[1]["event"], "delivery_reload_failed")
+            self.assertIsInstance(notices.call_args.args[0].__cause__, tomllib.TOMLDecodeError)

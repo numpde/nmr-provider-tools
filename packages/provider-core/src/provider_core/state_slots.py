@@ -124,7 +124,7 @@ class StateOutputSlot[T]:
         """
         target = ref(call)
 
-        if not any(slot is self for slot in call._output_slots):
+        if not any((slot is self) for slot in call._output_slots):
             raise ValueError(f"One of {call._output_slots=} should be {self=}")
 
         observation = await operation.observe(after=None, wait_seconds=0)
@@ -155,7 +155,7 @@ class StateOutputSlot[T]:
 
                 return StateHandle(kind=self.kind, reference=reference)
 
-        raise ValueError(f"Producer observation contains no output {self.name!r}")
+        raise ValueError(f"Producer observation contains no output {self.name = }")
 
 
 @dataclass(frozen=True, slots=True, kw_only=True)
@@ -192,11 +192,11 @@ class StateInputSlot[T]:
 
     def read(self, values: Mapping[str, object]) -> T:
         """Read a host-admitted live value while preserving its concrete type."""
-        value = values[self.name]
+        state_value = values[self.name]
 
-        require_type(value, self.kind.value_type)
+        require_type(state_value, self.kind.value_type)
 
-        return cast(T, value)
+        return cast(T, state_value)
 
 
 def state_references(*, states: Mapping[StateInputSlot, StateHandle]) -> dict[str, StateRef]:
@@ -215,7 +215,7 @@ def state_references(*, states: Mapping[StateInputSlot, StateHandle]) -> dict[st
             raise ValueError("State handle has a different scientific kind or Python type")  # todo
 
         if state_port.name in references:
-            raise ValueError(f"Some state ports in {...} have the same {state_port.name=}")  # todo
+            raise ValueError(f"Cannot project duplicate state ports: {state_port.name = } is repeated.")
 
         references[state_port.name] = state_handle.reference
 

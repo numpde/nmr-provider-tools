@@ -60,7 +60,7 @@ def _assigns_self_attributes(*, statement: ast.stmt) -> bool:
         return False
 
     return all(
-        isinstance(target, ast.Attribute) and isinstance(target.value, ast.Name) and target.value.id == "self"
+        (isinstance(target, ast.Attribute) and isinstance(target.value, ast.Name) and (target.value.id == "self"))
         for target in targets
     )
 
@@ -80,11 +80,11 @@ def missing_blank_lines(*, source: str) -> list[int]:
     assignment_types = (ast.Assign, ast.AnnAssign, ast.AugAssign)
 
     for owner in ast.walk(node=tree):
-        for (_, value) in ast.iter_fields(node=owner):
-            if (not isinstance(value, list)) or (not value) or (not all(isinstance(item, ast.stmt) for item in value)):
+        for (_, statements) in ast.iter_fields(node=owner):
+            if (not isinstance(statements, list)) or (not statements) or (not all(isinstance(statement, ast.stmt) for statement in statements)):
                 continue
 
-            for (previous, statement) in zip(value, value[1:]):
+            for (previous, statement) in zip(statements, statements[1:]):
                 ends_attribute_group = (_assigns_self_attributes(statement=previous)) and (not _assigns_self_attributes(statement=statement))
                 ends_assignment_group = (isinstance(previous, assignment_types)) and (not isinstance(statement, assignment_types))
                 previous_start = _attached_start(statement=previous, comment_columns=comment_columns)

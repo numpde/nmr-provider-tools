@@ -23,6 +23,7 @@ from provider_core.validation.upstream.nmr.v1.signing import (
     require_signature_inputs,
     request_target,
 )
+
 from provider_core.type_requirements import require_instance
 
 
@@ -41,6 +42,7 @@ class SigningIdentity:
         require_credential_ref(self.credential_ref)
 
         actual_private_key = self.private_key
+
         require_instance(actual_private_key, Ed25519PrivateKey)
 
         object.__setattr__(self, "origin", origin)
@@ -59,16 +61,16 @@ def signed_request(identity, *, method, path, query, body, created, nonce):
     require_signature_inputs(body=body, created=created, nonce=nonce)
 
     headers = {"Accept": "application/json, application/problem+json"}
-    values = {"@method": method, "@authority": identity.authority, "@path": path, "@query": "?" + query.decode("ascii")}
+    component_values = {"@method": method, "@authority": identity.authority, "@path": path, "@query": "?" + query.decode("ascii")}
 
     if body is not None:
         headers["Content-Type"] = "application/json"
         headers["Content-Digest"] = ser({"sha-256": (sha256(body).digest(), {})})
-        values["content-type"] = headers["Content-Type"]
-        values["content-digest"] = headers["Content-Digest"]
+        component_values["content-type"] = headers["Content-Type"]
+        component_values["content-digest"] = headers["Content-Digest"]
 
     member = (
-        [(name, {}) for name in values],
+        [(component_name, {}) for component_name in component_values],
         {
             "created": created,
             "expires": created + SIGNATURE_LIFETIME_SECONDS,
@@ -78,13 +80,19 @@ def signed_request(identity, *, method, path, query, body, created, nonce):
         },
     )
 
-    base = "\n".join([f'"{name}": {value}' for (name, value) in values.items()] + [f'"@signature-params": {ser([member])}'])
+    header_lines = [
+        f'"{component_name}": {component_value}'  # machine-string: RFC 9421 signature base preserves these exact component lines
+        for (component_name, component_value) in component_values.items()
+    ]
+
+    signature_parameters = f'"@signature-params": {ser([member])}'  # machine-string: RFC 9421 signature base requires this exact serialization
+    base = "\n".join(header_lines + [signature_parameters])
     headers["Signature-Input"] = ser({"sig1": member})
     headers["Signature"] = ser({"sig1": (identity.private_key.sign(base.encode("ascii")), {})})
-    request = httpx.Request(method, identity.origin + target.decode("ascii"), headers=headers, content=body)
+    signed_http_request = httpx.Request(method, identity.origin + target.decode("ascii"), headers=headers, content=body)
 
     # HTTPX must retain the bytes we signed; this checks the constructed request
-    if request.url.raw_path != target or request.headers["Host"] != identity.authority:
+    if (signed_http_request.url.raw_path != target) or (signed_http_request.headers["Host"] != identity.authority):
         raise ValueError("Cannot sign request: HTTP client rewrote the target or authority")
 
-    return request
+    return signed_http_request

@@ -100,17 +100,17 @@ class DeliveryWorkerTests(unittest.IsolatedAsyncioTestCase):
             await asyncio.wait_for(worker.run(), 2)
             self.assertEqual(peer.request_bodies, [delivery_outcome.body, delivery_outcome.body])
 
-            for request in peer.requests:
-                verify_signed_request(request, delivery_outcome.body, origin=peer.origin, key=worker.api.identity.private_key)
+            for request_head in peer.requests:
+                verify_signed_request(request_head, delivery_outcome.body, origin=peer.origin, key=worker.api.identity.private_key)
 
-            signatures = [request.split(b"Signature-Input: ")[1].split(b"\r\n")[0] for request in peer.requests]
+            signatures = [request_head.split(b"Signature-Input: ")[1].split(b"\r\n")[0] for request_head in peer.requests]
 
             self.assertNotEqual(signatures[0], signatures[1])
             self.assertEqual([facts["event"] for (_, facts) in self.notices], ["delivery_retry", "delivery_published"])
             self.assertEqual(self.queue.inventory(delivery_outcome.api_origin, delivery_outcome.provider_ref), [])
 
     async def test_api_rate_limit_and_authentication_refusals_recover_without_restart(self):
-        async def response(_request, _body):
+        async def response(_request_head, _body):
             if len(peer.requests) == 1:
                 peer.response_status = 429
                 peer.response_headers = ((b"content-type", b"text/html"),)
@@ -141,10 +141,10 @@ class DeliveryWorkerTests(unittest.IsolatedAsyncioTestCase):
             await asyncio.wait_for(worker.run(), 2)
             self.assertEqual(peer.request_bodies, [delivery_outcome.body] * 3)
 
-            for request in peer.requests:
-                verify_signed_request(request, delivery_outcome.body, origin=peer.origin, key=worker.api.identity.private_key)
+            for request_head in peer.requests:
+                verify_signed_request(request_head, delivery_outcome.body, origin=peer.origin, key=worker.api.identity.private_key)
 
-            signatures = [request.split(b"Signature-Input: ")[1].split(b"\r\n")[0] for request in peer.requests]
+            signatures = [request_head.split(b"Signature-Input: ")[1].split(b"\r\n")[0] for request_head in peer.requests]
 
             self.assertEqual(len(set(signatures)), 3)
             self.assertEqual([error.status for (error, facts) in self.notices if facts["event"] == "delivery_retry"], [429, 401])
@@ -254,8 +254,8 @@ class DeliveryWorkerTests(unittest.IsolatedAsyncioTestCase):
     async def test_topology_failure_pauses_binding_without_holding_its_pending_items(self):
         # silent-defaults: allow-contract -- Change only the topology header to exercise the wrong-environment refusal.
         headers = [
-            (name, b"web" if name.lower() == b"nmr-api-topology" else value)
-            for (name, value) in response_headers()
+            (header_name, b"web" if header_name.lower() == b"nmr-api-topology" else header_value)
+            for (header_name, header_value) in response_headers()
         ]
 
         async with api_tls_peer("success", response_headers=headers) as peer:
@@ -274,7 +274,7 @@ class DeliveryWorkerTests(unittest.IsolatedAsyncioTestCase):
     async def test_another_binding_publishes_while_first_api_reply_is_still_pending(self):
         release = asyncio.Event()
 
-        async def delayed_response(request, body):
+        async def delayed_response(_request_head, body):
             await release.wait()
 
             return fail_response(

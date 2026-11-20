@@ -146,12 +146,15 @@ class ImportOrderDetectionTests(unittest.TestCase):
 
 class ScientificLintTests(unittest.TestCase):
     def test_provider_core_import_order(self):
-        paths = source_files(root=ROOT, patterns=("src/**/*.py",))
+        sdk_source_root = ROOT / "packages/provider-core/src"
+        source_paths = source_files(root=ROOT, patterns=(f"{sdk_source_root.relative_to(ROOT)}/**/*.py",))
+
+        self.assertTrue(source_paths, msg=f"{source_paths=} should include provider-core modules")
 
         findings = [
-            f"{path.relative_to(ROOT)}:{line}: module import follows operational statements"
-            for path in paths
-            for line in late_module_imports(path.read_text(), package=".".join(path.parent.relative_to(ROOT).parts))
+            f"{source_path.relative_to(ROOT)}:{line}: module import follows operational statements"
+            for source_path in source_paths
+            for line in late_module_imports(source_path.read_text(), package=".".join(source_path.parent.relative_to(sdk_source_root).parts))
         ]
 
         self.assertEqual([], findings, msg="\n".join(findings))
@@ -159,12 +162,12 @@ class ScientificLintTests(unittest.TestCase):
     def test_guard_exception_retains_late_module_import_rejection(self):
         # Bootstrap identity has an intentional isolated import-path setup;
         # it is qualified by the cold-bundle import tests, not this rule.
-        paths = source_files(root=ROOT, patterns=[f"{name}/**/*.py" for name in ("host/tools", "tools", "tests", "src", "packages")])
+        source_paths = source_files(root=ROOT, patterns=[f"{name}/**/*.py" for name in ("host/tools", "tools", "tests", "src", "packages")])
 
         findings = [
-            f"{path.relative_to(ROOT)}:{line}: module import follows operational statements"
-            for path in sorted(paths)
-            for line in late_module_imports(path.read_text(), package=".".join(path.parent.relative_to(ROOT).parts))
+            f"{source_path.relative_to(ROOT)}:{line}: module import follows operational statements"
+            for source_path in sorted(source_paths)
+            for line in late_module_imports(source_path.read_text(), package=".".join(source_path.parent.relative_to(ROOT).parts))
         ]
 
         self.assertEqual([], findings, msg="\n".join(findings))

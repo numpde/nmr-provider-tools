@@ -110,11 +110,11 @@ def main():
         with os.fdopen(descriptor, "w", encoding="ascii") as output:
             output.writelines(resolver_adapter.nameserver_lines(servers))
     except ResolverCaptureFailed as error:
-        parser.exit(2, f"{error}\n")
+        parser.exit(2, f"{error=!s}\n")
     except (OSError, UnicodeError) as error:
         parser.exit(
             2,
-            f"Cannot prepare acquisition resolver capture ({type(error).__name__}); check the selected interface's configured DNS and the private output path.\n",
+            f"Cannot prepare acquisition resolver capture: {error=!s}\n",
         )
 
 

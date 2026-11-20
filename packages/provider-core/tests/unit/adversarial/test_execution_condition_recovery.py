@@ -121,7 +121,7 @@ class ConditionRecoveryFailureTests(unittest.IsolatedAsyncioTestCase):
             self.assertIs(caught.exception.cause, overlap.exception)
             self.assertEqual(len(transport.condition_requests), 1)
             self.assertEqual([event[0] for event in session.events], ["retire"])
-            self.assertFalse(any(b"replacement_condition" in request.content for (request, _) in transport.calls))
+            self.assertFalse(any((b"replacement_condition" in http_request.content) for (http_request, _) in transport.calls))
             claim.release(owner=claim.lifecycle_owner)
         finally:
             transport.release_retirement.set()
@@ -178,7 +178,7 @@ class ConditionRecoveryFailureTests(unittest.IsolatedAsyncioTestCase):
             # Keep the second condition wait pending while the independent
             # monitor recovers. This checks separate evidence owners,
             # not scheduler order between two legitimately paced API operations.
-            if asyncio.current_task() is executor._task and len(failures) >= 2:
+            if (asyncio.current_task() is executor._task) and (len(failures) >= 2):
                 await asyncio.Event().wait()
             else:
                 await real_sleep(seconds)

@@ -49,8 +49,8 @@ class HttpsAdmissionTests(unittest.TestCase):
         ):
             calls = []
 
-            def read_file(path, *, maximum_bytes):
-                calls.append((path, maximum_bytes))
+            def read_file(ca_file_path, *, maximum_bytes):
+                calls.append((ca_file_path, maximum_bytes))
 
                 return raw
 
@@ -81,7 +81,7 @@ class HttpsAdmissionTests(unittest.TestCase):
 
         with patch("provider_core.api_config.CapturedSSLContext", return_value=context), \
                 self.assertRaises(ApiConfigurationRejected) as caught:
-            self.settings(lambda path, **selection: b"PRIVATE_CA")
+            self.settings(lambda _ca_file_path, **selection: b"PRIVATE_CA")
 
         return (caught.exception, cause)
 
@@ -110,6 +110,6 @@ class HttpsAdmissionTests(unittest.TestCase):
     def test_explicit_ca_reader_cannot_silently_select_system_roots(self):
         with patch("provider_core.api_config.new_https_trust") as roots:
             with self.assertRaisesRegex(ApiConfigurationRejected, r"type\(ca_bytes\)=.*NoneType.* ≠ expected_type=.*bytes"):
-                self.settings(lambda path, **selection: None)
+                self.settings(lambda _ca_file_path, **selection: None)
 
         roots.assert_not_called()

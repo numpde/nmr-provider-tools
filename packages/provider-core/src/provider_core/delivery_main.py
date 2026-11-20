@@ -102,7 +102,7 @@ def main():
             failure,
             {
                 "event": "delivery_failed",
-                "retirement_confirmed": service is None or service.retirement_confirmed,
+                "retirement_confirmed": (service is None) or service.retirement_confirmed,
             }
         )
 

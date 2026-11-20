@@ -35,7 +35,12 @@ def cache_state(pool, locks):
 
     with pool_lock(pool) as lock_fd:
         for (lock, expected) in expected_locks:
-            specifiers = {identity: Specifier(f"=={identity[1]}") for identity in expected}
+            specifiers = {}
+
+            for identity in expected:
+                version_specifier = f"=={identity[1]}"  # machine-string: packaging parses the exact version constraint
+                specifiers[identity] = Specifier(version_specifier)
+
             found = set()
             conflicting = {}
 
@@ -151,7 +156,7 @@ def main():
         if not bootstrap_present(pool, bootstrap):
             state = "missing"
 
-        if sys.argv[1:] == ["verify"] and state != "complete":
+        if (sys.argv[1:] == ["verify"]) and (state != "complete"):
             raise ValueError(
                 "Provider-core build dependencies are missing. "
                 "Run make packages/provider-core/download for this wheelhouse."
@@ -169,7 +174,7 @@ def main():
 
     with tempfile.TemporaryDirectory(prefix="provider-core-locks-") as temporary:
         for (number, lock) in enumerate(locks):
-            projection = pathlib.Path(temporary) / f"pylock.{number}.toml"
+            projection = pathlib.Path(temporary) / f"pylock.{number}.toml"  # machine-string: wheelhouse-tool consumes this projected lock filename
 
             command = [
                 sys.executable,  # Use the worker's Python interpreter

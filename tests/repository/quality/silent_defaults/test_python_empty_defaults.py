@@ -64,7 +64,7 @@ def _is_os_environ(node: ast.AST) -> bool:
 
 def _is_env_mapping(node: ast.AST) -> bool:
     return (
-        (isinstance(node, ast.Name) and any(fragment in node.id.lower() for fragment in ENV_NAME_FRAGMENTS)) or
+        (isinstance(node, ast.Name) and any((fragment in node.id.lower()) for fragment in ENV_NAME_FRAGMENTS)) or
         _is_os_environ(node)
     )
 
@@ -78,8 +78,8 @@ def _source_snippet(source: str, node: ast.AST) -> str:
     return " ".join(segment.split())
 
 
-def _finding(path: pathlib.Path, source: str, node: ast.AST) -> str:
-    return f"{repo_source(path)}:{node.lineno}: {_source_snippet(source, node)}"
+def _finding(source_path: pathlib.Path, source: str, node: ast.AST) -> str:
+    return f"{repo_source(source_path)}:{node.lineno}: {_source_snippet(source, node)}"
 
 
 def _is_env_subscript(node: ast.AST) -> bool:
@@ -94,7 +94,7 @@ def _is_defaulting_call(node: ast.AST) -> bool:
         return False
 
     if node.func.attr == "getenv":
-        return isinstance(node.func.value, ast.Name) and node.func.value.id in ENV_MODULE_NAMES
+        return isinstance(node.func.value, ast.Name) and (node.func.value.id in ENV_MODULE_NAMES)
 
     if _is_env_mapping(node.func.value):
         return True
@@ -102,7 +102,7 @@ def _is_defaulting_call(node: ast.AST) -> bool:
     if _is_os_environ(node.func.value):
         return True
 
-    return isinstance(node.func.value, ast.Attribute) and node.func.value.attr == "environ"
+    return isinstance(node.func.value, ast.Attribute) and (node.func.value.attr == "environ")
 
 
 def _is_explicit_env_default_call(node: ast.AST) -> bool:
@@ -113,13 +113,13 @@ def _is_explicit_env_default_call(node: ast.AST) -> bool:
 
     assert isinstance(call, ast.Call)
 
-    if isinstance(call.func, ast.Attribute) and call.func.attr == "setdefault":
+    if isinstance(call.func, ast.Attribute) and (call.func.attr == "setdefault"):
         return True
 
     if len(call.args) >= 2:
         return True
 
-    return any(keyword.arg == "default" for keyword in call.keywords)
+    return any((keyword.arg == "default") for keyword in call.keywords)
 
 
 def _contains_env_access(node: ast.AST) -> bool:
@@ -129,7 +129,7 @@ def _contains_env_access(node: ast.AST) -> bool:
     if _is_env_subscript(node):
         return True
 
-    return any(_is_defaulting_call(child) or _is_env_subscript(child) for child in ast.walk(node))
+    return any((_is_defaulting_call(child) or _is_env_subscript(child)) for child in ast.walk(node))
 
 
 def _is_env_validation_predicate(node: ast.AST) -> bool:
@@ -144,13 +144,13 @@ def _is_env_validation_predicate(node: ast.AST) -> bool:
 
 def _is_env_or_default_expression(node: ast.BoolOp) -> bool:
     return (
-        any(_contains_env_access(value) for value in node.values) and
-        any(not _is_env_validation_predicate(value) for value in node.values)
+        any(_contains_env_access(boolean_operand) for boolean_operand in node.values) and
+        any(not _is_env_validation_predicate(boolean_operand) for boolean_operand in node.values)
     )
 
 
 def _is_empty_absence_literal(node: ast.AST) -> bool:
-    return isinstance(node, ast.Constant) and node.value in {"", None}
+    return isinstance(node, ast.Constant) and (node.value in {"", None})
 
 
 def _is_non_empty_default_value(node: ast.AST) -> bool:
@@ -163,7 +163,7 @@ def _is_not_absence_literal(node: ast.AST) -> bool:
 
 def _is_falsy_default_literal(node: ast.AST) -> bool:
     if isinstance(node, ast.Constant):
-        return node.value is None or node.value is False or node.value == "" or node.value == 0
+        return (node.value is None) or (node.value is False) or (node.value == "") or (node.value == 0)
 
     if isinstance(node, ast.Dict):
         return len(node.keys) == 0
@@ -181,14 +181,14 @@ def _is_falsy_default_boolop(node: ast.AST) -> bool:
     if (not isinstance(node, ast.BoolOp)) or (not isinstance(node.op, ast.Or)):
         return False
 
-    return any(_is_falsy_default_literal(value) for value in node.values[1:])
+    return any(_is_falsy_default_literal(boolean_operand) for boolean_operand in node.values[1:])
 
 
 def _is_empty_get_default_call(node: ast.AST) -> bool:
     if (not isinstance(node, ast.Call)) or (not isinstance(node.func, ast.Attribute)):
         return False
 
-    if node.func.attr != "get" or len(node.args) < 2:
+    if (node.func.attr != "get") or (len(node.args) < 2):
         return False
 
     return _is_falsy_default_literal(node.args[1])
@@ -198,7 +198,7 @@ def _is_pop_default_call(node: ast.AST) -> bool:
     if (not isinstance(node, ast.Call)) or (not isinstance(node.func, ast.Attribute)):
         return False
 
-    if node.func.attr != "pop" or len(node.args) < 2:
+    if (node.func.attr != "pop") or (len(node.args) < 2):
         return False
 
     return _is_falsy_default_literal(node.args[1])
@@ -208,7 +208,7 @@ def _is_zero_getattr_default_call(node: ast.AST) -> bool:
     if (not isinstance(node, ast.Call)) or (not isinstance(node.func, ast.Name)):
         return False
 
-    if node.func.id != "getattr" or len(node.args) < 3:
+    if (node.func.id != "getattr") or (len(node.args) < 3):
         return False
 
     default = node.args[2]
@@ -220,14 +220,14 @@ def _has_empty_get_waiver(source_lines: list[str], node: ast.AST) -> bool:
     start = max(node.lineno - 2, 0)
     end = max(getattr(node, "end_lineno", node.lineno), node.lineno)
 
-    return any(EMPTY_GET_DEFAULT_WAIVER in line for line in source_lines[start:end])
+    return any((EMPTY_GET_DEFAULT_WAIVER in line) for line in source_lines[start:end])
 
 
 def _has_pop_default_waiver(source_lines: list[str], node: ast.AST) -> bool:
     start = max(node.lineno - 2, 0)
     end = max(getattr(node, "end_lineno", node.lineno), node.lineno)
 
-    return any(POP_DEFAULT_WAIVER in line for line in source_lines[start:end])
+    return any((POP_DEFAULT_WAIVER in line) for line in source_lines[start:end])
 
 
 def _is_env_default_if_expression(node: ast.AST) -> bool:
@@ -241,17 +241,17 @@ def _is_env_default_if_expression(node: ast.AST) -> bool:
 
 
 def _assigned_values_by_target(statements: list[ast.stmt]) -> dict[str, ast.AST]:
-    values: dict[str, ast.AST] = {}
+    assigned_expressions: dict[str, ast.AST] = {}
 
     for statement in statements:
         if isinstance(statement, ast.Assign):
             for target in statement.targets:
-                values[ast.dump(target)] = statement.value
+                assigned_expressions[ast.dump(target)] = statement.value
 
         if (isinstance(statement, ast.AnnAssign)) and (statement.value is not None):
-            values[ast.dump(statement.target)] = statement.value
+            assigned_expressions[ast.dump(statement.target)] = statement.value
 
-    return values
+    return assigned_expressions
 
 
 def _has_same_target_fallback_assignment(
@@ -324,7 +324,7 @@ def _is_argparse_default_call(node: ast.AST) -> bool:
     if node.func.attr not in ARGPARSE_CALL_NAMES:
         return False
 
-    return any(keyword.arg == "default" for keyword in node.keywords)
+    return any((keyword.arg == "default") for keyword in node.keywords)
 
 
 def _is_argparse_optional_positional(node: ast.AST) -> bool:
@@ -341,20 +341,20 @@ def _is_argparse_optional_positional(node: ast.AST) -> bool:
         return False
 
     return any(
-        keyword.arg == "nargs" and isinstance(keyword.value, ast.Constant) and keyword.value.value == "?"
+        ((keyword.arg == "nargs") and isinstance(keyword.value, ast.Constant) and (keyword.value.value == "?"))
         for keyword in node.keywords
     )
 
 
 def _args_attribute_name(node: ast.AST) -> str | None:
-    if isinstance(node, ast.Attribute) and isinstance(node.value, ast.Name) and node.value.id == "args":
+    if isinstance(node, ast.Attribute) and isinstance(node.value, ast.Name) and (node.value.id == "args"):
         return node.attr
 
     return None
 
 
 def _contains_args_attribute_access(node: ast.AST) -> bool:
-    return any(_args_attribute_name(child) is not None for child in ast.walk(node))
+    return any((_args_attribute_name(child) is not None) for child in ast.walk(node))
 
 
 def _is_literal_non_absence_default(node: ast.AST) -> bool:
@@ -367,7 +367,7 @@ def _is_args_attribute_or_default_expression(node: ast.AST) -> bool:
 
     return (
         _contains_args_attribute_access(node.values[0]) and
-        any(_is_literal_non_absence_default(value) for value in node.values[1:])
+        any(_is_literal_non_absence_default(boolean_operand) for boolean_operand in node.values[1:])
     )
 
 
@@ -420,12 +420,12 @@ def _is_args_default_if_expression(node: ast.AST) -> bool:
     if (not isinstance(node.body.value, ast.Name)) or (node.body.value.id != "args"):
         return False
 
-    return not (isinstance(node.orelse, ast.Constant) and node.orelse.value is None)
+    return not (isinstance(node.orelse, ast.Constant) and (node.orelse.value is None))
 
 
 def _contains_raw_args_access(node: ast.AST) -> bool:
     return any(
-        isinstance(child, ast.Subscript) and isinstance(child.value, ast.Name) and child.value.id == "args"
+        (isinstance(child, ast.Subscript) and isinstance(child.value, ast.Name) and (child.value.id == "args"))
         for child in ast.walk(node)
     )
 
@@ -453,94 +453,94 @@ def _is_args_default_if_statement(node: ast.AST) -> bool:
     )
 
 
-def _env_default_findings(path: pathlib.Path) -> list[str]:
-    source = path.read_text(encoding="utf-8")
-    tree = ast.parse(source, filename=str(path))
+def _env_default_findings(source_path: pathlib.Path) -> list[str]:
+    source = source_path.read_text(encoding="utf-8")
+    tree = ast.parse(source, filename=str(source_path))
     findings: list[str] = []
 
     for node in ast.walk(tree):
         if isinstance(node, ast.Call) and _is_explicit_env_default_call(node):
-            findings.append(_finding(path, source, node))
+            findings.append(_finding(source_path, source, node))
 
         if _is_argparse_default_call(node):
-            findings.append(_finding(path, source, node))
+            findings.append(_finding(source_path, source, node))
 
         if _is_argparse_optional_positional(node):
-            findings.append(_finding(path, source, node))
+            findings.append(_finding(source_path, source, node))
 
         if isinstance(node, ast.BoolOp) and isinstance(node.op, ast.Or) and _is_env_or_default_expression(node):
-            findings.append(_finding(path, source, node))
+            findings.append(_finding(source_path, source, node))
 
         if _is_env_default_if_expression(node):
-            findings.append(_finding(path, source, node))
+            findings.append(_finding(source_path, source, node))
 
         if _is_env_default_if_statement(node):
-            findings.append(_finding(path, source, node))
+            findings.append(_finding(source_path, source, node))
 
         if _is_env_default_keyerror_handler(node):
-            findings.append(_finding(path, source, node))
+            findings.append(_finding(source_path, source, node))
 
         if _is_args_default_assignment(node):
-            findings.append(_finding(path, source, node))
+            findings.append(_finding(source_path, source, node))
 
         if _is_args_attribute_or_default_expression(node):
-            findings.append(_finding(path, source, node))
+            findings.append(_finding(source_path, source, node))
 
         if _is_args_default_if_expression(node):
-            findings.append(_finding(path, source, node))
+            findings.append(_finding(source_path, source, node))
 
         if _is_args_default_if_statement(node):
-            findings.append(_finding(path, source, node))
+            findings.append(_finding(source_path, source, node))
 
     return findings
 
 
-def _falsy_default_findings(path: pathlib.Path) -> list[str]:
-    source = path.read_text(encoding="utf-8")
-    tree = ast.parse(source, filename=str(path))
+def _falsy_default_findings(source_path: pathlib.Path) -> list[str]:
+    source = source_path.read_text(encoding="utf-8")
+    tree = ast.parse(source, filename=str(source_path))
     findings: list[str] = []
 
     for node in ast.walk(tree):
         if _is_falsy_default_boolop(node):
-            findings.append(_finding(path, source, node))
+            findings.append(_finding(source_path, source, node))
 
     return findings
 
 
-def _empty_get_default_findings(path: pathlib.Path) -> list[str]:
-    source = path.read_text(encoding="utf-8")
+def _empty_get_default_findings(source_path: pathlib.Path) -> list[str]:
+    source = source_path.read_text(encoding="utf-8")
     source_lines = source.splitlines()
-    tree = ast.parse(source, filename=str(path))
+    tree = ast.parse(source, filename=str(source_path))
     findings: list[str] = []
 
     for node in ast.walk(tree):
         if (_is_empty_get_default_call(node)) and (not _has_empty_get_waiver(source_lines, node)):
-            findings.append(_finding(path, source, node))
+            findings.append(_finding(source_path, source, node))
 
     return findings
 
 
-def _zero_getattr_default_findings(path: pathlib.Path) -> list[str]:
-    source = path.read_text(encoding="utf-8")
-    tree = ast.parse(source, filename=str(path))
+def _zero_getattr_default_findings(source_path: pathlib.Path) -> list[str]:
+    source = source_path.read_text(encoding="utf-8")
+    tree = ast.parse(source, filename=str(source_path))
     findings: list[str] = []
 
     for node in ast.walk(tree):
         if _is_zero_getattr_default_call(node):
-            findings.append(_finding(path, source, node))
+            findings.append(_finding(source_path, source, node))
 
     return findings
 
 
-def _pop_default_findings(path: pathlib.Path) -> list[str]:
-    source = path.read_text(encoding="utf-8")
+def _pop_default_findings(source_path: pathlib.Path) -> list[str]:
+    source = source_path.read_text(encoding="utf-8")
     source_lines = source.splitlines()
-    tree = ast.parse(source, filename=str(path))
+    tree = ast.parse(source, filename=str(source_path))
     findings: list[str] = []
 
     for node in ast.walk(tree):
         if (_is_pop_default_call(node)) and (not _has_pop_default_waiver(source_lines, node)):
-            findings.append(_finding(path, source, node))
+            findings.append(_finding(source_path, source, node))
 
     return findings
 
@@ -550,7 +550,7 @@ def _has_env_default_expression(source: str) -> bool:
 
     return any(
         (
-            (isinstance(node, ast.Call) and _is_explicit_env_default_call(node)) or
+            ((isinstance(node, ast.Call) and _is_explicit_env_default_call(node)) or
             _is_argparse_default_call(node) or
             _is_argparse_optional_positional(node) or
             (isinstance(node, ast.BoolOp) and isinstance(node.op, ast.Or) and _is_env_or_default_expression(node)) or
@@ -560,7 +560,7 @@ def _has_env_default_expression(source: str) -> bool:
             _is_args_default_assignment(node) or
             _is_args_attribute_or_default_expression(node) or
             _is_args_default_if_expression(node) or
-            _is_args_default_if_statement(node)
+            _is_args_default_if_statement(node))
             for node in ast.walk(tree)
         ),
     )
@@ -576,7 +576,7 @@ def _has_empty_get_default_expression(source: str) -> bool:
     tree = ast.parse(source, filename="<inline>")
     source_lines = source.splitlines()
 
-    return any((_is_empty_get_default_call(node)) and (not _has_empty_get_waiver(source_lines, node)) for node in ast.walk(tree))
+    return any(((_is_empty_get_default_call(node)) and (not _has_empty_get_waiver(source_lines, node))) for node in ast.walk(tree))
 
 
 def _has_zero_getattr_default_expression(source: str) -> bool:
@@ -589,7 +589,7 @@ def _has_pop_default_expression(source: str) -> bool:
     tree = ast.parse(source, filename="<inline>")
     source_lines = source.splitlines()
 
-    return any((_is_pop_default_call(node)) and (not _has_pop_default_waiver(source_lines, node)) for node in ast.walk(tree))
+    return any(((_is_pop_default_call(node)) and (not _has_pop_default_waiver(source_lines, node))) for node in ast.walk(tree))
 
 
 class PythonEmptyDefaultsTest(unittest.TestCase):

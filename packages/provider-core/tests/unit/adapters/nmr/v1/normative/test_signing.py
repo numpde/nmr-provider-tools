@@ -26,7 +26,7 @@ class SigningTests(unittest.TestCase):
                 # silent-defaults: allow-contract -- None denotes GET without a body; even empty bytes select a supplied PUT body.
                 method = "GET" if body is None else "PUT"
 
-                request = signed_request(
+                signed_http_request = signed_request(
                     identity,
                     method=method,
                     path="/provider/input",
@@ -36,12 +36,12 @@ class SigningTests(unittest.TestCase):
                     nonce=bytes(16),
                 )
 
-                self.assertEqual(request.url.raw_path, b"/provider/input?job=job%3Ax&kind=a%2Fb")
+                self.assertEqual(signed_http_request.url.raw_path, b"/provider/input?job=job%3Ax&kind=a%2Fb")
 
                 # silent-defaults: allow-contract -- HTTPX exposes both as empty content; the following digest assertions preserve the supplied-body distinction.
-                self.assertEqual(request.content, body or b"")
+                self.assertEqual(signed_http_request.content, body or b"")
 
-                self.assertEqual(request.headers["Host"], "api.example")
+                self.assertEqual(signed_http_request.headers["Host"], "api.example")
                 components = '"@method" "@authority" "@path" "@query"'
 
                 lines = [
@@ -54,29 +54,29 @@ class SigningTests(unittest.TestCase):
                 if body is not None:
                     digest = base64.b64encode(hashlib.sha256(body).digest()).decode()
 
-                    self.assertEqual(request.headers["Content-Type"], "application/json")
-                    self.assertEqual(request.headers["Content-Digest"], f"sha-256=:{digest}:")
+                    self.assertEqual(signed_http_request.headers["Content-Type"], "application/json")
+                    self.assertEqual(signed_http_request.headers["Content-Digest"], f"sha-256=:{digest}:")
                     components += ' "content-type" "content-digest"'
                     lines += ['"content-type": application/json', f'"content-digest": sha-256=:{digest}:']
                 else:
-                    self.assertNotIn("Content-Type", request.headers)
-                    self.assertNotIn("Content-Digest", request.headers)
+                    self.assertNotIn("Content-Type", signed_http_request.headers)
+                    self.assertNotIn("Content-Digest", signed_http_request.headers)
 
                 parameters = (
                     f"({components});created=1700000000;expires=1700000300;"
                     f'nonce="AAAAAAAAAAAAAAAAAAAAAA";keyid="credential:test";tag="nmr-api-v1"'
                 )
 
-                self.assertEqual(request.headers["Signature-Input"], "sig1=" + parameters)
+                self.assertEqual(signed_http_request.headers["Signature-Input"], "sig1=" + parameters)
                 lines.append('"@signature-params": ' + parameters)
-                signature = parse(request.headers["Signature"].encode(), tltype="dictionary")["sig1"][0]
+                signature = parse(signed_http_request.headers["Signature"].encode(), tltype="dictionary")["sig1"][0]
 
                 key.public_key().verify(signature, "\n".join(lines).encode())
 
     def test_empty_query_still_has_question_mark_in_signature_base(self):
         key = Ed25519PrivateKey.generate()
 
-        request = signed_request(
+        signed_http_request = signed_request(
             SigningIdentity("https://api.example:8443", "credential:test", key),
             method="GET",
             path="/input",
@@ -86,7 +86,7 @@ class SigningTests(unittest.TestCase):
             nonce=bytes(16),
         )
 
-        parameters = request.headers["Signature-Input"].removeprefix("sig1=")
+        parameters = signed_http_request.headers["Signature-Input"].removeprefix("sig1=")
 
         base = "\n".join(
             [
@@ -98,6 +98,6 @@ class SigningTests(unittest.TestCase):
             ]
         )
 
-        signature = parse(request.headers["Signature"].encode(), tltype="dictionary")["sig1"][0]
+        signature = parse(signed_http_request.headers["Signature"].encode(), tltype="dictionary")["sig1"][0]
 
         key.public_key().verify(signature, base.encode())

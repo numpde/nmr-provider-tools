@@ -47,21 +47,21 @@ def _remaining(connection, deadline):
 
 
 def _read(connection, size, deadline):
-    result = bytearray()
+    frame_buffer = bytearray()
 
-    while len(result) < size:
+    while len(frame_buffer) < size:
         _remaining(connection, deadline)
-        (chunk, ancillary, flags, _) = connection.recvmsg(size - len(result), 0)
+        (chunk, ancillary, flags, _) = connection.recvmsg(size - len(frame_buffer), 0)
 
-        if flags & socket.MSG_CTRUNC or ancillary:
+        if (flags & socket.MSG_CTRUNC) or ancillary:
             raise LifecycleRejected("Unexpected descriptor transfer in a lifecycle frame.")
 
         if not (chunk):
             raise LifecycleRejected("Runner control closed before its complete lifecycle reply.")
 
-        result.extend(chunk)
+        frame_buffer.extend(chunk)
 
-    return bytes(result)
+    return bytes(frame_buffer)
 
 
 def send_document(connection, value, *, deadline):
@@ -81,14 +81,14 @@ def receive_document(connection, *, deadline):
         raise LifecycleRejected("Runner lifecycle reply has an invalid byte count.")
 
     try:
-        value = json.loads(_read(connection, size, deadline))
+        lifecycle_message = json.loads(_read(connection, size, deadline))
     except (ValueError, UnicodeError) as cause:
         raise LifecycleRejected("Runner lifecycle reply is not a complete JSON document.") from cause
 
-    if not (type(value) is (expected_type := dict)):
-        raise LifecycleRejected(f"{type(value)=} ≠ {expected_type=}")
+    if not (type(lifecycle_message) is (expected_type := dict)):
+        raise LifecycleRejected(f"{type(lifecycle_message)=} ≠ {expected_type=}")
 
-    return value
+    return lifecycle_message
 
 
 def send_greeting(connection, value, science, *, deadline):
@@ -118,35 +118,35 @@ def receive_greeting(connection, *, deadline):
         unexpected = False
 
         for (level, kind, raw) in ancillary:
-            if level == socket.SOL_SOCKET and kind == socket.SCM_RIGHTS:
-                values = array.array("i")
+            if (level == socket.SOL_SOCKET) and (kind == socket.SCM_RIGHTS):
+                received_fds = array.array("i")
 
-                values.frombytes(raw[:len(raw) - len(raw) % values.itemsize])
-                descriptors.extend(values)
+                received_fds.frombytes(raw[:len(raw) - len(raw) % received_fds.itemsize])
+                descriptors.extend(received_fds)
             else:
                 unexpected = True
 
-        if first != b"\0" or flags & socket.MSG_CTRUNC or unexpected or len(descriptors) != 1:
+        if (first != b"\0") or (flags & socket.MSG_CTRUNC) or unexpected or (len(descriptors) != 1):
             raise LifecycleRejected("Runner greeting requires exactly one scientific endpoint.")
 
         science = socket.socket(fileno=descriptors[0])
 
         descriptors.clear()
 
-        if science.family != socket.AF_UNIX or science.type != socket.SOCK_STREAM:
+        if (science.family != socket.AF_UNIX) or (science.type != socket.SOCK_STREAM):
             raise LifecycleRejected("Runner supplied an unsupported scientific endpoint type.")
 
-        value = receive_document(connection, deadline=deadline)
+        greeting_message = receive_document(connection, deadline=deadline)
 
         if not (
-            (set(value) == {"kind", "role", "generation", "operation", "lock"}) and
-            (value["kind"] == "opened") and
-            token(value["generation"]) and
-            token(value["operation"])
+            (set(greeting_message) == {"kind", "role", "generation", "operation", "lock"}) and
+            (greeting_message["kind"] == "opened") and
+            token(greeting_message["generation"]) and
+            token(greeting_message["operation"])
         ):
             raise LifecycleRejected("Runner greeting has invalid generation, operation or lock identity.")
 
-        role = value["role"]
+        role = greeting_message["role"]
 
         if not (type(role) is (expected_type := str)):
             raise LifecycleRejected(f"{type(role)=} ≠ {expected_type=}")
@@ -154,7 +154,7 @@ def receive_greeting(connection, *, deadline):
         if not re.fullmatch(pattern := r"[a-z][a-z0-9_-]{0,47}", role):
             raise LifecycleRejected(f"Runner {role=} does not follow {pattern=}.")
 
-        lock = value["lock"]
+        lock = greeting_message["lock"]
 
         if not (type(lock) is (expected_type := list)):
             raise LifecycleRejected(f"{type(lock)=} ≠ {expected_type=}")
@@ -169,7 +169,7 @@ def receive_greeting(connection, *, deadline):
             if part < 0:
                 raise LifecycleRejected("Runner greeting has invalid generation, operation or lock identity.")
 
-        return (value, science)
+        return (greeting_message, science)
     except BaseException:
         if science is not None:
             science.close()

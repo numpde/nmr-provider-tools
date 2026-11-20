@@ -69,10 +69,10 @@ class CheckerProvisioningTests(unittest.TestCase):
 
         for (wheelhouse, interface, diagnostic) in cases:
             with self.subTest(wheelhouse=wheelhouse, interface=interface):
-                result = self.invoke_make("checks/dependencies/download", wheelhouse=wheelhouse, interface=interface)
+                make_invocation = self.invoke_make("checks/dependencies/download", wheelhouse=wheelhouse, interface=interface)
 
-                self.assertNotEqual(0, result.returncode)
-                self.assertIn(diagnostic, result.stderr)
+                self.assertNotEqual(0, make_invocation.returncode)
+                self.assertIn(diagnostic, make_invocation.stderr)
 
     def test_fingerprint_binds_source_bytes_and_modes_and_refuses_missing_inputs(self):
         source = 'root=$1; source "$root/operations/checker/image_identity.sh"; checker_fingerprint checker'
@@ -91,7 +91,7 @@ class CheckerProvisioningTests(unittest.TestCase):
         self.assertNotEqual(0, self.shell(source).returncode)
 
     def test_failed_fingerprint_producer_cannot_publish_partial_digest(self):
-        result = self.shell(
+        fingerprint_command = self.shell(
             '''root=$1
 source "$root/operations/checker/image_identity.sh"
 sha256sum() {
@@ -102,10 +102,10 @@ if fingerprint=$(checker_fingerprint checker); then exit 99; else exit "$?"; fi
 '''
         )
 
-        self.assertEqual(7, result.returncode, msg=result.stderr)
+        self.assertEqual(7, fingerprint_command.returncode, msg=fingerprint_command.stderr)
 
     def test_source_mutation_during_capture_reports_the_changed_inputs(self):
-        result = self.shell(
+        source_capture_command = self.shell(
             '''root=$1
 export DOCKER_CONTEXT_INPUT=default DOCKER_CONTEXT_INPUT_ORIGIN='command line'
 cp() {
@@ -117,13 +117,13 @@ bash "$root/operations/checker/prepare.sh" bootstrap-build
 '''
         )
 
-        self.assertEqual(2, result.returncode, msg=result.stderr)
-        self.assertIn("Cannot build checker: source inputs changed during capture", result.stderr)
+        self.assertEqual(2, source_capture_command.returncode, msg=source_capture_command.stderr)
+        self.assertIn("Cannot build checker: source inputs changed during capture", source_capture_command.stderr)
 
     def test_image_admission_requires_matching_exact_metadata_and_preserves_cancellation(self):
         for (scenario, expected) in (("valid", 0), ("wrong-label", 2), ("nul", 2), ("cancelled", 143), ("missing", 1)):
             with self.subTest(scenario=scenario):
-                result = self.shell(
+                admission_command = self.shell(
                     '''root=$1
 source "$root/operations/checker/image_identity.sh"
 operation_directory=$root
@@ -142,7 +142,7 @@ if checker_admit_image "$fingerprint" checker; then [[ $checker_image == "$ident
 '''.replace("SCENARIO", scenario)
                 )
 
-                self.assertEqual(expected, result.returncode, msg=result.stderr)
+                self.assertEqual(expected, admission_command.returncode, msg=admission_command.stderr)
 
     def test_owned_checker_provides_make_without_ruff(self):
         self.assertIsNotNone(shutil.which("make"))

@@ -35,8 +35,8 @@ class Model:
     def load(self, *, checkpoint: BinaryIO) -> None:
         self.tokenizer = Tokenizer()
 
-        document = json.load(fp=checkpoint)
-        self.candidates = tuple(document["candidates"])
+        model_configuration = json.load(fp=checkpoint)
+        self.candidates = tuple(model_configuration["candidates"])
 
     def tokenize(self, *, candidate: HfInput | ChfInput) -> tuple[str, ...]:
         if self.tokenizer is None:

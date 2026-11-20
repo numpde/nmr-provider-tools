@@ -17,42 +17,16 @@ import tokenize
 import unittest
 
 from .sources import ROOT, python_sources
+from .expression_grouping import character_column, delimiter_pairs
 
 
 _COMPREHENSIONS = (ast.ListComp, ast.SetComp, ast.DictComp, ast.GeneratorExp)
-_OPENERS = {"(": ")", "[": "]", "{": "}"}
-
-
-def _delimiter_pairs(*, source: str) -> dict[tuple[int, int], tokenize.TokenInfo]:
-    """Map each real opening delimiter position to its matching closer."""
-    stack = []
-    pairs = {}
-    lines = source.splitlines()
-
-    for token in tokenize.generate_tokens(readline=io.StringIO(initial_value=source).readline):
-        if token.type != tokenize.OP:
-            continue
-
-        if token.string in _OPENERS:
-            stack.append(token)
-        elif token.string in _OPENERS.values() and stack and _OPENERS[stack[-1].string] == token.string:
-            opening = stack.pop()
-            opening_byte_column = len(lines[opening.start[0] - 1][:opening.start[1]].encode(encoding="utf-8"))
-            pairs[(opening.start[0], opening_byte_column)] = token
-
-    return pairs
-
-
-def _character_column(*, line: str, byte_column: int) -> int:
-    """Convert an AST UTF-8 byte offset to a tokenizer character column."""
-
-    return len(line.encode(encoding="utf-8")[:byte_column].decode(encoding="utf-8"))
 
 
 def multiline_comprehension_findings(*, source: str) -> list[tuple[int, str]]:
     """Return layout violations for multiline comprehension delimiters."""
     lines = source.splitlines()
-    pairs = _delimiter_pairs(source=source)
+    pairs = delimiter_pairs(source=source)
     findings = set()
 
     for expression in ast.walk(node=ast.parse(source=source)):
@@ -61,11 +35,11 @@ def multiline_comprehension_findings(*, source: str) -> list[tuple[int, str]]:
 
         closing = pairs.get((expression.lineno, expression.col_offset))
 
-        if closing is None or expression.end_lineno == expression.lineno:
+        if (closing is None) or (expression.end_lineno == expression.lineno):
             continue
 
         opening_line = lines[expression.lineno - 1]
-        opening_column = _character_column(line=opening_line, byte_column=expression.col_offset)
+        opening_column = character_column(line=opening_line, byte_column=expression.col_offset)
         between_open_and_end = opening_line[opening_column + 1:]
 
         if between_open_and_end.split("#", maxsplit=1)[0].strip():
@@ -102,7 +76,7 @@ def multiline_filter_findings(*, source: str) -> list[tuple[int, str]]:
             if (not isinstance(condition, ast.BoolOp)) or (condition.lineno == condition.end_lineno):
                 continue
 
-            column = _character_column(line=lines[condition.lineno - 1], byte_column=condition.col_offset)
+            column = character_column(line=lines[condition.lineno - 1], byte_column=condition.col_offset)
             condition_start = token_indices[(condition.lineno, column)]
 
             # AST offsets omit grouping parentheses before the first operand
@@ -112,7 +86,7 @@ def multiline_filter_findings(*, source: str) -> list[tuple[int, str]]:
             keyword = tokens[condition_start - 1]
             (keyword_line, keyword_column) = keyword.start
 
-            if lines[keyword_line - 1][:keyword_column].strip() or keyword_line == tokens[condition_start].start[0]:
+            if lines[keyword_line - 1][:keyword_column].strip() or (keyword_line == tokens[condition_start].start[0]):
                 findings.append((keyword_line, "put if on its own line before a multiline comprehension filter"))
 
     return sorted(findings)

@@ -132,7 +132,7 @@ class TransportFailureTests(unittest.IsolatedAsyncioTestCase):
 
         owner = object()
 
-        def held_write(descriptor, data):
+        def held_write(descriptor, write_buffer):
             loop.call_soon_threadsafe(entered.set)
 
             if not release_write.wait(timeout=(release_timeout_seconds := 3)):
@@ -141,7 +141,7 @@ class TransportFailureTests(unittest.IsolatedAsyncioTestCase):
             if not (late_failure is None):
                 raise late_failure
 
-            return original_write(descriptor, data)
+            return original_write(descriptor, write_buffer)
 
         with (
             tempfile.TemporaryFile() as output,
@@ -416,17 +416,27 @@ class TransportFailureTests(unittest.IsolatedAsyncioTestCase):
 
     async def test_invalid_unix_socket_paths_refuse_before_client_creation(self):
         with patch("provider_core.adapters.httpcore.httpcore.AsyncConnectionPool") as factory:
-            for (path, error_type) in self._invalid_unix_socket_paths():
-                with self.subTest(kind=type(path).__name__), self.assertRaises(error_type):
-                    HttpTransport(trust=ssl.create_default_context(), exchange_seconds=1, retirement_seconds=1, proxy_socket=path)
+            for (proxy_socket_path, error_type) in self._invalid_unix_socket_paths():
+                with self.subTest(kind=type(proxy_socket_path).__name__), self.assertRaises(error_type):
+                    HttpTransport(
+                        trust=ssl.create_default_context(),
+                        exchange_seconds=1,
+                        retirement_seconds=1,
+                        proxy_socket=proxy_socket_path,
+                    )
 
         factory.assert_not_called()
 
     @unittest.skipIf(os.environ.get("PRIVACY_TESTS", "1") == "0", "Privacy tests disabled")
     async def test_invalid_unix_socket_paths_are_not_echoed(self):
-        for (path, error_type) in self._invalid_unix_socket_paths():
-            with self.subTest(kind=type(path).__name__), self.assertRaises(error_type) as caught:
-                HttpTransport(trust=ssl.create_default_context(), exchange_seconds=1, retirement_seconds=1, proxy_socket=path)
+        for (proxy_socket_path, error_type) in self._invalid_unix_socket_paths():
+            with self.subTest(kind=type(proxy_socket_path).__name__), self.assertRaises(error_type) as caught:
+                HttpTransport(
+                    trust=ssl.create_default_context(),
+                    exchange_seconds=1,
+                    retirement_seconds=1,
+                    proxy_socket=proxy_socket_path,
+                )
 
             self.assertNotIn("PRIVATE", str(caught.exception))
 
@@ -538,10 +548,10 @@ class TransportFailureTests(unittest.IsolatedAsyncioTestCase):
         client = Client(Stream([]), send_gate=asyncio.Event())
         transport = HttpTransport(trust=ssl.create_default_context(), exchange_seconds=2, retirement_seconds=0.05)
         (owner, stranger) = (object(), object())
-        request = httpx.Request("GET", "https://api.example")
+        http_request = httpx.Request("GET", "https://api.example")
 
         with patch("provider_core.adapters.httpcore.httpcore.AsyncConnectionPool", return_value=client) as factory:
-            task = asyncio.create_task(transport.exchange(request, maximum_bytes=4, owner=owner))
+            task = asyncio.create_task(transport.exchange(http_request, maximum_bytes=4, owner=owner))
 
             try:
                 await asyncio.wait_for(client.sent.wait(), 1)
@@ -551,7 +561,7 @@ class TransportFailureTests(unittest.IsolatedAsyncioTestCase):
                         await transport.retire(owner=other)
 
                     with self.assertRaises(ExchangeFailed):
-                        await transport.exchange(request, maximum_bytes=4, owner=other)
+                        await transport.exchange(http_request, maximum_bytes=4, owner=other)
 
                     self.assertIs(transport.pending_owner, owner)
                     self.assertFalse(task.done())
@@ -588,11 +598,11 @@ class TransportFailureTests(unittest.IsolatedAsyncioTestCase):
         cleanup = RuntimeError("private-close-canary")
         client = Client(Stream([], failure=primary), close_failure=cleanup)
         transport = self.transport()
-        request = httpx.Request("GET", "https://api.example/private-url-canary")
+        http_request = httpx.Request("GET", "https://api.example/private-url-canary")
 
         with patch("provider_core.adapters.httpcore.httpcore.AsyncConnectionPool", return_value=client) as factory:
             try:
-                await transport.exchange(request, maximum_bytes=4)
+                await transport.exchange(http_request, maximum_bytes=4)
             except ExchangeFailed as failure:
                 yield (failure, primary, cleanup, transport, factory)
             else:

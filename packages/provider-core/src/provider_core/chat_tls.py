@@ -14,6 +14,7 @@ import base64
 import os
 import pathlib
 import re
+import reprlib
 import ssl
 import tempfile
 import weakref
@@ -59,14 +60,14 @@ def _refuse(reason):
     )
 
 
-def _bounded_file(path):
-    with open(path, "rb") as stream:
-        material = stream.read(MAX_TRUST_BYTES + 1)
+def _bounded_file(trust_file_path):
+    with open(trust_file_path, "rb") as stream:
+        trust_file_bytes = stream.read(MAX_TRUST_BYTES + 1)
 
-    if len(material) > MAX_TRUST_BYTES:
-        raise _refuse("captured trust material exceeds the 4 MiB allowance")
+    if len(trust_file_bytes) > MAX_TRUST_BYTES:
+        raise _refuse(f"{len(trust_file_bytes)=} should be at most {MAX_TRUST_BYTES=}")
 
-    return material
+    return trust_file_bytes
 
 
 def _file_materials(cafile, capath):
@@ -78,23 +79,23 @@ def _file_materials(cafile, capath):
     if capath is not None:
         # Preserve names and directory groups. Eager cafile loading would grant
         # authority to wrong hash names and suffixes beyond native lookup gaps.
-        entries = []
+        hashed_trust_paths = []
 
-        for entry in pathlib.Path(capath).iterdir():
-            if _HASHED_TRUST_FILE.fullmatch(entry.name) is not None:
-                entries.append(entry)
+        for trust_path in pathlib.Path(capath).iterdir():
+            if _HASHED_TRUST_FILE.fullmatch(trust_path.name) is not None:
+                hashed_trust_paths.append(trust_path)
 
-                if len(entries) > MAX_TRUST_MATERIALS:
-                    raise _refuse("the configured hashed trust directory exceeds its fixed allowance")
+                if len(hashed_trust_paths) > MAX_TRUST_MATERIALS:
+                    raise _refuse(f"{len(hashed_trust_paths)=} should be at most {MAX_TRUST_MATERIALS=}")
 
-        entries.sort(key=lambda item: item.name)
+        hashed_trust_paths.sort(key=lambda trust_path: trust_path.name)
         captured = []
 
-        for entry in entries:
-            if not entry.is_file():
-                raise _refuse("a configured hashed trust entry is not a readable regular file")
+        for trust_path in hashed_trust_paths:
+            if not trust_path.is_file():
+                raise _refuse(f"{reprlib.repr(trust_path)=} should be a regular file")
 
-            captured.append((entry.name, _bounded_file(entry)))
+            captured.append((trust_path.name, _bounded_file(trust_path)))
             _require_material_budget((*materials, ("capath", tuple(captured))))
 
         materials.append(("capath", tuple(captured)))
@@ -105,18 +106,21 @@ def _file_materials(cafile, capath):
 
 
 def _require_material_budget(materials):
-    count = len(materials)
-    total = 0
+    trust_material_count = len(materials)
+    trust_material_byte_count = 0
 
-    for (kind, value) in materials:
-        if kind == "capath":
-            count += len(value)
-            total += sum(len(raw) for (_name, raw) in value)
+    for (material_kind, trust_material) in materials:
+        if material_kind == "capath":
+            trust_material_count += len(trust_material)
+            trust_material_byte_count += sum(len(raw) for (_name, raw) in trust_material)
         else:
-            total += len(value)
+            trust_material_byte_count += len(trust_material)
 
-    if count > MAX_TRUST_MATERIALS or total > MAX_TRUST_BYTES:
-        raise _refuse("captured trust material exceeds its fixed allowance")
+    if not (trust_material_count <= MAX_TRUST_MATERIALS):
+        raise _refuse(f"{trust_material_count=} should be at most {MAX_TRUST_MATERIALS=}")
+
+    if not (trust_material_byte_count <= MAX_TRUST_BYTES):
+        raise _refuse(f"{trust_material_byte_count=} should be at most {MAX_TRUST_BYTES=}")
 
 
 def _load_material(context, kind, raw, directory):
@@ -140,7 +144,11 @@ def _load_material(context, kind, raw, directory):
                 stream.flush()
 
             os.lseek(descriptor, 0, os.SEEK_SET)
-            _SSL_CONTEXT.load_verify_locations(context, cafile=f"/proc/self/fd/{descriptor}")
+
+            _SSL_CONTEXT.load_verify_locations(
+                context,
+                cafile=f"/proc/self/fd/{descriptor}",  # machine-string: OpenSSL consumes this proc-fd path; adding the expression name would change the path.
+            )
         finally:
             os.close(descriptor)
     elif kind == "capath":
@@ -190,7 +198,7 @@ class CapturedSSLContext(ssl.SSLContext):
 
         try:
             for (kind, raw) in materials:
-                if kind == "capath" and self._chat_directory is None:
+                if (kind == "capath") and (self._chat_directory is None):
                     self._chat_directory = tempfile.TemporaryDirectory(prefix="provider-model-trust-")
 
                     weakref.finalize(self, self._chat_directory.cleanup)
@@ -211,7 +219,7 @@ class CapturedSSLContext(ssl.SSLContext):
         self._chat_materials = (*self._chat_materials, *materials)
 
     def set_default_verify_paths(self):
-        if any(name in os.environ for name in ("SSL_CERT_FILE", "SSL_CERT_DIR", "SSLKEYLOGFILE")):
+        if any((name in os.environ) for name in ("SSL_CERT_FILE", "SSL_CERT_DIR", "SSLKEYLOGFILE")):
             raise _refuse("ambient TLS configuration is not an explicit trust grant")
 
         if os.name != "posix":
@@ -224,7 +232,7 @@ class CapturedSSLContext(ssl.SSLContext):
 
     # silent-defaults: allow-contract -- Server authentication is SSLContext's normal client-root purpose.
     def load_default_certs(self, purpose=ssl.Purpose.SERVER_AUTH):
-        if any(name in os.environ for name in ("SSL_CERT_FILE", "SSL_CERT_DIR", "SSLKEYLOGFILE")):
+        if any((name in os.environ) for name in ("SSL_CERT_FILE", "SSL_CERT_DIR", "SSLKEYLOGFILE")):
             raise _refuse("ambient TLS configuration is not an explicit trust grant")
 
         if os.name != "posix":
@@ -288,7 +296,7 @@ def new_https_trust(raw):
         context.set_ciphers(_cipher_expression(reference))
 
         if (
-            any(getattr(context, name) != getattr(reference, name) for name in _FIELDS) or
+            any((getattr(context, name) != getattr(reference, name)) for name in _FIELDS) or
             (context.get_ciphers() != reference.get_ciphers()) or
             (context.security_level != reference.security_level)
         ):
@@ -312,16 +320,16 @@ def _cipher_expression(context):
     return ":".join((*legacy, "@SECLEVEL=" + str(context.security_level)))
 
 
-def _material_message(kind, value):
+def _material_message(kind, trust_material):
     if kind == "capath":
         return {
             "kind": kind,
             "entries": [
-                {"name": name, "data": base64.b64encode(raw).decode("ascii")} for (name, raw) in value
+                {"name": name, "data": base64.b64encode(raw).decode("ascii")} for (name, raw) in trust_material
         ]
         }
 
-    return {"kind": kind, "data": base64.b64encode(value).decode("ascii")}
+    return {"kind": kind, "data": base64.b64encode(trust_material).decode("ascii")}
 
 
 def capture_trust(context):
@@ -354,7 +362,7 @@ def capture_trust(context):
     snapshot = {
         "version": 1,
         "openssl_version": ssl.OPENSSL_VERSION,
-        "materials": [_material_message(kind, value) for (kind, value) in context._chat_materials],
+        "materials": [_material_message(material_kind, trust_material) for (material_kind, trust_material) in context._chat_materials],
         "settings": {name: getattr(context, name) for name in _FIELDS},
         "cipher_expression": _cipher_expression(context),
         # silent-defaults: allow-contract -- No configured ALPN leaves the native default untouched; a configured sequence is replayed exactly.
@@ -372,17 +380,19 @@ def capture_trust(context):
     return snapshot
 
 
-def _material_bytes(value):
-    if not (type(value) is (expected_type := str)):
-        raise _refuse(f"{type(value)=} ≠ {expected_type=}")
+def _material_bytes(encoded_trust_material):
+    if not (type(encoded_trust_material) is (expected_type := str)):
+        raise _refuse(f"{type(encoded_trust_material)=} ≠ {expected_type=}")
 
-    if len(value) > ((MAX_TRUST_BYTES + 2) // 3) * 4:
-        raise _refuse("captured trust material exceeds its fixed allowance")
+    max_encoded_trust_characters = ((MAX_TRUST_BYTES + 2) // 3) * 4
+
+    if len(encoded_trust_material) > max_encoded_trust_characters:
+        raise _refuse(f"{len(encoded_trust_material)=} should be at most {max_encoded_trust_characters=}")
 
     try:
-        return base64.b64decode(value, validate=True)
+        return base64.b64decode(encoded_trust_material, validate=True)
     except (ValueError, UnicodeError) as cause:
-        raise _refuse("captured trust material is not valid base64") from cause
+        raise _refuse(f"{reprlib.repr(encoded_trust_material)=} should be valid base64") from cause
 
 
 # A standalone context owns its directory; a child receives a parent-owned grant.
@@ -401,7 +411,7 @@ def restore_trust(snapshot, *, directory=None):
     if not (type(snapshot_version) is (expected_type := int)):
         raise _refuse(f"{type(snapshot_version)=} ≠ {expected_type=}")
 
-    if snapshot_version != 1 or snapshot["openssl_version"] != ssl.OPENSSL_VERSION:
+    if (snapshot_version != 1) or (snapshot["openssl_version"] != ssl.OPENSSL_VERSION):
         raise _refuse("the captured TLS schema or OpenSSL runtime does not match")
 
     settings = snapshot["settings"]
@@ -434,18 +444,18 @@ def restore_trust(snapshot, *, directory=None):
 
     materials = []
 
-    for item in material_records:
-        if not (type(item) is (expected_type := dict)):
-            raise _refuse(f"{type(item)=} ≠ {expected_type=}")
+    for material_record in material_records:
+        if not (type(material_record) is (expected_type := dict)):
+            raise _refuse(f"{type(material_record)=} ≠ {expected_type=}")
 
-        if not ("kind" in item):
+        if not ("kind" in material_record):
             raise _refuse("a captured trust material record is invalid")
 
-        if item["kind"] == "capath":
-            if set(item) != {"kind", "entries"}:
+        if material_record["kind"] == "capath":
+            if set(material_record) != {"kind", "entries"}:
                 raise _refuse("a captured hashed trust collection is invalid")
 
-            captured_entries = item["entries"]
+            captured_entries = material_record["entries"]
 
             if not (type(captured_entries) is (expected_type := list)):
                 raise _refuse(f"{type(captured_entries)=} ≠ {expected_type=}")
@@ -453,7 +463,7 @@ def restore_trust(snapshot, *, directory=None):
             if len(captured_entries) > MAX_TRUST_MATERIALS:
                 raise _refuse("a captured hashed trust collection is invalid")
 
-            (entries, names) = ([], set())
+            (hashed_trust_files, names) = ([], set())
 
             for entry in captured_entries:
                 if not (type(entry) is (expected_type := dict)):
@@ -467,16 +477,16 @@ def restore_trust(snapshot, *, directory=None):
                 if not (type(name) is (expected_type := str)):
                     raise _refuse(f"{type(name)=} ≠ {expected_type=}")
 
-                if _HASHED_TRUST_FILE.fullmatch(name) is None or name in names:
+                if (_HASHED_TRUST_FILE.fullmatch(name) is None) or (name in names):
                     raise _refuse("a captured hashed trust name is invalid or repeated")
 
                 names.add(name)
-                entries.append((name, _material_bytes(entry["data"])))
-                _require_material_budget((*materials, ("capath", tuple(entries))))
+                hashed_trust_files.append((name, _material_bytes(entry["data"])))
+                _require_material_budget((*materials, ("capath", tuple(hashed_trust_files))))
 
-            materials.append(("capath", tuple(entries)))
-        elif set(item) == {"kind", "data"} and item["kind"] in ("pem", "der", "file"):
-            materials.append((item["kind"], _material_bytes(item["data"])))
+            materials.append(("capath", tuple(hashed_trust_files)))
+        elif (set(material_record) == {"kind", "data"}) and (material_record["kind"] in ("pem", "der", "file")):
+            materials.append((material_record["kind"], _material_bytes(material_record["data"])))
         else:
             raise _refuse("a captured trust material record is invalid")
 
@@ -497,9 +507,9 @@ def restore_trust(snapshot, *, directory=None):
         if not (type(alpn) is (expected_type := list)):
             raise _refuse(f"{type(alpn)=} ≠ {expected_type=}")
 
-        for value in alpn:
-            if not (type(value) is (expected_type := str)):
-                raise _refuse(f"{type(value)=} ≠ {expected_type=}")
+        for alpn_protocol in alpn:
+            if not (type(alpn_protocol) is (expected_type := str)):
+                raise _refuse(f"{type(alpn_protocol)=} ≠ {expected_type=}")
 
     curve = snapshot["ecdh_curve"]
 
@@ -509,7 +519,7 @@ def restore_trust(snapshot, *, directory=None):
     context = _SSL_CONTEXT(ssl.PROTOCOL_TLS_CLIENT)
     owned_directory = None
 
-    if any(kind == "capath" for (kind, _certificate_bytes) in materials):
+    if any((kind == "capath") for (kind, _certificate_bytes) in materials):
         if directory is None:
             owned_directory = tempfile.TemporaryDirectory(prefix="provider-model-trust-")
             directory = owned_directory.name
@@ -539,7 +549,7 @@ def restore_trust(snapshot, *, directory=None):
 
     if (
         (_facts(context) != snapshot["facts"]) or
-        any(getattr(context, name) != settings[name] for name in _FIELDS)
+        any((getattr(context, name) != settings[name]) for name in _FIELDS)
     ):
         raise _refuse("the original TLS authority or cipher settings cannot be reproduced exactly")
 

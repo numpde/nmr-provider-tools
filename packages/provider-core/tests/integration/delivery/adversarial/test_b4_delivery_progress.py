@@ -50,7 +50,7 @@ class DeliveryProgressNoticeTests(unittest.IsolatedAsyncioTestCase):
 
         def notice(error, facts):
             self.notices.append((error, facts, asyncio.get_running_loop().time()))
-            retries = sum(item[1]["event"] == "delivery_retry" for item in self.notices)
+            retries = sum((notice_record[1]["event"] == "delivery_retry") for notice_record in self.notices)
 
             if retries == 2:
                 restore_after_retries.set()
@@ -107,7 +107,7 @@ class DeliveryProgressNoticeTests(unittest.IsolatedAsyncioTestCase):
         restored = asyncio.Event()
         (request_times, request_owners) = ([], [])
 
-        def response_mode(_request, _body):
+        def response_mode(_request_head, _body):
             request_times.append(loop.time())
             request_owners.append(worker.api.pending_owner is worker)
 
@@ -118,22 +118,22 @@ class DeliveryProgressNoticeTests(unittest.IsolatedAsyncioTestCase):
 
             return "success"
 
-        async def response(_request, _body):
+        async def response(_request_head, _body):
             if not restored.is_set():
                 return self.unavailable(peer)
 
             (peer.response_status, peer.response_headers) = (200, response_headers())
 
             return fail_response(
-                execution_attempt_ref=item.execution_attempt_ref,
+                execution_attempt_ref=delivery_outcome.execution_attempt_ref,
                 failure_code="provider_interrupted",
                 failure_message="SCIENTIFIC_PAYLOAD_NEEDLE"
             )
 
         async with api_tls_peer("success", response_factory=response, response_mode=response_mode) as peer:
-            item = replace(outcome(), api_origin=peer.origin)
+            delivery_outcome = replace(outcome(), api_origin=peer.origin)
 
-            self.queue.enqueue(item)
+            self.queue.enqueue(delivery_outcome)
 
             # Queue age and this publisher's elapsed wait are different facts.
             # A notice must not include time before this owner began publishing.
@@ -157,23 +157,23 @@ class DeliveryProgressNoticeTests(unittest.IsolatedAsyncioTestCase):
                 msg=evidence
             )
 
-            self.assertEqual([item.body] * 3, peer.request_bodies, msg=evidence)
+            self.assertEqual([delivery_outcome.body] * 3, peer.request_bodies, msg=evidence)
             self.assertEqual([True] * 3, request_owners, msg=evidence)
             self.assertIsNone(self.notices[0][0].status, msg=evidence)
             self.assertEqual(503, self.notices[1][0].status, msg=evidence)
             self.assertIsNone(self.notices[2][0], msg=evidence)
 
-            for request in peer.requests:
-                verify_signed_request(request, item.body, origin=peer.origin, key=worker.api.identity.private_key)
+            for request_head in peer.requests:
+                verify_signed_request(request_head, delivery_outcome.body, origin=peer.origin, key=worker.api.identity.private_key)
 
-            self.assertEqual([], self.queue.inventory(item.api_origin, item.provider_ref), msg=evidence)
+            self.assertEqual([], self.queue.inventory(delivery_outcome.api_origin, delivery_outcome.provider_ref), msg=evidence)
             self.assertTrue(worker.api.retirement_confirmed, msg=evidence)
 
             waits = []
 
             for (_error, facts, observed_at) in self.notices:
-                for (name, value) in item.acceptance().items():
-                    self.assertEqual(value, facts[name], msg=evidence)
+                for (acceptance_field, expected_acceptance_value) in delivery_outcome.acceptance().items():
+                    self.assertEqual(expected_acceptance_value, facts[acceptance_field], msg=evidence)
 
                 self.assertIn(
                     "publication_wait_seconds",
@@ -201,7 +201,7 @@ class DeliveryProgressNoticeTests(unittest.IsolatedAsyncioTestCase):
         restored = asyncio.Event()
         second = outcome(suffix="1")
 
-        async def response(_request, body):
+        async def response(_request_head, body):
             if len(peer.requests) == 1:
                 return self.unavailable(peer)
 

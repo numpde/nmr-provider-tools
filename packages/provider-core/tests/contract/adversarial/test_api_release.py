@@ -22,18 +22,18 @@ from tests.fakes.api import api
 class ReleasedApiRefusalTests(PinnedApiRelease, unittest.IsolatedAsyncioTestCase):
     def test_noncanonical_base64_pad_bits_are_refused_even_when_decoded_bytes_match(self):
         source = b"x"
-        document = json.loads(input_response(source))
+        input_response_fields = json.loads(input_response(source))
 
-        self.assertEqual(document["canonical_input_base64"], "eA==")
-        document["canonical_input_base64"] = "eB=="
+        self.assertEqual(input_response_fields["canonical_input_base64"], "eA==")
+        input_response_fields["canonical_input_base64"] = "eB=="
 
-        self.assertEqual(base64.b64decode(document["canonical_input_base64"], validate=True), source)
+        self.assertEqual(base64.b64decode(input_response_fields["canonical_input_base64"], validate=True), source)
         pattern = self.schemas["nmr.provider.job_input.read.response.v1"]["properties"]["canonical_input_base64"]["pattern"]
 
-        self.assertIsNone(re.fullmatch(pattern, document["canonical_input_base64"]))
+        self.assertIsNone(re.fullmatch(pattern, input_response_fields["canonical_input_base64"]))
 
         with self.assertRaises(JobInputRejected):
-            verify_job_input(json.dumps(document).encode(), feed=facts(source))
+            verify_job_input(json.dumps(input_response_fields).encode(), feed=facts(source))
 
     def test_changed_or_incomplete_release_is_not_a_compatible_fixture(self):
         for mutation in ("artifact", "manifest", "missing", "extra", "symlink"):
@@ -41,23 +41,23 @@ class ReleasedApiRefusalTests(PinnedApiRelease, unittest.IsolatedAsyncioTestCase
                 root = pathlib.Path(directory) / "release"
 
                 shutil.copytree(RELEASE_ROOT, root)
-                path = root / "schemas/hello_response.v1.schema.json"
+                schema_path = root / "schemas/hello_response.v1.schema.json"
 
                 if mutation == "artifact":
-                    path.write_bytes(path.read_bytes().replace(b"accepted_at", b"accepted_on"))
+                    schema_path.write_bytes(schema_path.read_bytes().replace(b"accepted_at", b"accepted_on"))
                 elif mutation == "manifest":
-                    path = root / "manifest.json"
+                    manifest_path = root / "manifest.json"
 
-                    path.write_bytes(path.read_bytes().replace(b"12a53e72", b"22a53e72"))
+                    manifest_path.write_bytes(manifest_path.read_bytes().replace(b"12a53e72", b"22a53e72"))
                 elif mutation == "missing":
-                    path.unlink()
+                    schema_path.unlink()
                 elif mutation == "extra":
                     (root / "unlisted.json").write_bytes(b"{}")
                 else:
                     outside = pathlib.Path(directory) / "unchanged-schema.json"
 
-                    path.rename(outside)
-                    path.symlink_to(outside)
+                    schema_path.rename(outside)
+                    schema_path.symlink_to(outside)
 
                 with self.assertRaises(AssertionError):
                     self.read_release(root)
@@ -66,14 +66,14 @@ class ReleasedApiRefusalTests(PinnedApiRelease, unittest.IsolatedAsyncioTestCase
         for (operation, call) in provider_calls().items():
             for mutation in ("schema", "extra"):
                 with self.subTest(operation=operation, mutation=mutation):
-                    document = json.loads(call.response)
+                    response_fields = json.loads(call.response)
 
                     if mutation == "schema":
-                        document["schema_id"] += ".future"
+                        response_fields["schema_id"] += ".future"
                     else:
-                        document["unreviewed_protocol_field"] = "PRIVATE_PROTOCOL_CANARY"
+                        response_fields["unreviewed_protocol_field"] = "PRIVATE_PROTOCOL_CANARY"
 
-                    transport = Transport(reply(json.dumps(document).encode()))
+                    transport = Transport(reply(json.dumps(response_fields).encode()))
                     client = api(transport, "https://api.example.test")
 
                     with self.assertRaises(ApiFailure) as failed:
