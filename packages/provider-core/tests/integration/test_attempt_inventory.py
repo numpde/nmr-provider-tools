@@ -45,16 +45,30 @@ class AttemptInventoryIntegrationTests(unittest.IsolatedAsyncioTestCase):
 
                 page = await client.execution_attempts(state="in_progress", limit=2, cursor=None)
 
-                self.assertEqual([item.job_ref for item in page.attempts], [item["job_ref"] for item in order])
-                item = next(item for item in page.attempts if item.job_ref == selected["job_ref"])
-                current = await client.read_attempt(item.execution_attempt_ref, job_ref=item.job_ref)
+                self.assertEqual(
+                    [inventory_attempt.job_ref for inventory_attempt in page.attempts],
+                    [expected_attempt["job_ref"] for expected_attempt in order],
+                )
+
+                selected_inventory_attempt = next(
+                    (
+                        inventory_attempt
+                        for inventory_attempt in page.attempts
+                        if inventory_attempt.job_ref == selected["job_ref"]
+                    ),
+                )
+
+                current = await client.read_attempt(
+                    selected_inventory_attempt.execution_attempt_ref,
+                    job_ref=selected_inventory_attempt.job_ref,
+                )
 
                 self.assertEqual(
                     (current.execution_attempt_ref, current.job_ref, current.state, current.job_state),
                     (selected["execution_attempt_ref"], selected["job_ref"], "in_progress", "closed")
                 )
 
-                for (request, target) in zip(
+                for (request_head, target) in zip(
                     peer.requests,
                     (
                         b"/provider/v1/execution-attempts?state=in_progress&limit=2",
@@ -62,20 +76,21 @@ class AttemptInventoryIntegrationTests(unittest.IsolatedAsyncioTestCase):
                     ),
                     strict=True
                 ):
-                    self.assertEqual(request.split(b"\r\n")[0], b"GET " + target + b" HTTP/1.1")
+                    self.assertEqual(request_head.split(b"\r\n")[0], b"GET " + target + b" HTTP/1.1")
 
                     headers = {
-                        name.lower(): value.strip() for line in request.split(b"\r\n")[1:] if b":" in line
-                        for (name, value) in [line.split(b":", 1)]
+                        header_name.lower(): header_value.strip()
+                        for line in request_head.split(b"\r\n")[1:] if b":" in line
+                        for (header_name, header_value) in [line.split(b":", 1)]
                     }
 
-                    (path, _, query) = target.partition(b"?")
+                    (route_path, _, query) = target.partition(b"?")
 
                     base = b"\n".join(
                         [
                             b'"@method": GET',
                             b'"@authority": ' + peer.origin.removeprefix("https://").encode(),
-                            b'"@path": ' + path,
+                            b'"@path": ' + route_path,
                             b'"@query": ?' + query,
                             b'"@signature-params": ' + headers[b"signature-input"].split(b"=", 1)[1]
                         ]
