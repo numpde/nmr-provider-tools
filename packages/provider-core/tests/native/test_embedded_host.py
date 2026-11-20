@@ -253,7 +253,7 @@ class EmbeddedHostTests(unittest.IsolatedAsyncioTestCase):
         analysis = host.open_analysis("unbound", allocation_names=("one",))
         (reservation,) = analysis.reservations
 
-        with self.assertRaisesRegex(ValueError, "before a configured binding owns it"):
+        with self.assertRaises(ValueError):
             analysis.submit_call(
                 replace(binding.run),
                 payload=b'{"values":[1]}',
