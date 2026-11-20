@@ -17,3 +17,6 @@ namespaces = false
 
 [tool.setuptools]
 include-package-data = false
+
+[tool.provider-tools]
+type-requirements = "src/mock_numpy/_type_requirements.py"

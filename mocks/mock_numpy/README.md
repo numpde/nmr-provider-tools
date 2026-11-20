@@ -3,6 +3,11 @@
 A dependency-free NumPy stand-in for the operations exercised by the dummy
 provider. The example imports it as `np`; the SDK does not depend on it.
 
+The maintained provider-core integration builder includes the canonical source
+from `packages/type-requirements/src/type_requirements.py` at the private module
+destination declared in this project's `pyproject.toml`. The wheel needs only
+the standard library at runtime; provider-core is not a runtime dependency.
+
 ```python
 import mock_numpy as np
 

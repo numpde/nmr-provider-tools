@@ -50,12 +50,13 @@ def build_source_wheel(
     staged_source: pathlib.Path,
     python: pathlib.Path,
     output: pathlib.Path,
-    sdk_type_requirements: pathlib.Path | None = None,
+    bundled_sources: dict[pathlib.Path, pathlib.Path] | None = None,
 ) -> pathlib.Path:
     """Build from writable scratch, never from a read-only source mount.
 
     The caller owns staged_source's temporary parent and its cleanup. Returning
     the stage permits a subsequent source-distribution build from the same tree.
+    bundled_sources maps package destinations to their canonical source files.
     """
 
     if (not source.is_dir()) or (source.is_symlink()):
@@ -73,8 +74,9 @@ def build_source_wheel(
         if directory.is_dir():
             directory.chmod(directory.stat().st_mode | stat.S_IWUSR)
 
-    if sdk_type_requirements is not None:
-        shutil.copy2(sdk_type_requirements, staged_source / SDK_TYPE_REQUIREMENTS)
+    if bundled_sources is not None:
+        for (destination, canonical_source) in bundled_sources.items():
+            shutil.copy2(canonical_source, staged_source / destination)
 
     subprocess.run(
         build_wheel_command(python, staged_source=staged_source, output=output),
@@ -164,7 +166,7 @@ def _build_candidate(source, runtime_lock, build_lock, pool, output, lock_fd):
             staged_source=scratch / "package",
             python=builder_python,
             output=output,
-            sdk_type_requirements=TYPE_REQUIREMENTS_SOURCE,
+            bundled_sources={SDK_TYPE_REQUIREMENTS: TYPE_REQUIREMENTS_SOURCE},
         )
 
         sdist_builder = pathlib.Path(__file__).with_name("build_sdist.py")

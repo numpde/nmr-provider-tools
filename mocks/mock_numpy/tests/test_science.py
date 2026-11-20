@@ -1,7 +1,12 @@
 """Exercise the array behavior required by the dummy provider."""
 
 import math
+import pathlib
 import random
+import shutil
+import subprocess
+import sys
+import tempfile
 import unittest
 
 import mock_numpy as np
@@ -28,6 +33,24 @@ class ScalarFinitenessTests(unittest.TestCase):
 
 
 class ArrayContractTests(unittest.TestCase):
+    def test_installed_package_imports_without_other_distributions(self):
+        # Copy only this installed package; the child cannot see provider-core
+        with tempfile.TemporaryDirectory() as directory:
+            shutil.copytree(pathlib.Path(np.__file__).parent, pathlib.Path(directory) / "mock_numpy")
+
+            subprocess.run(
+                [
+                    sys.executable,  # Use the installed test interpreter
+                    "-I",  # Ignore ambient Python paths
+                    "-S",  # Exclude every installed distribution
+                    "-B",  # Keep the isolated package free of bytecode
+                    "-c",  # Import only the copied wheel package and standard library
+                    "import sys; sys.path.insert(0, sys.argv[1]); import mock_numpy",  # Eager imports include the bundled helper
+                    directory,  # Expose only mock_numpy to the child
+                ],
+                check=True,
+            )
+
     def test_vector_metadata_and_dtype_inference(self):
         for (array_input, expected_kind) in (
             ([True, False], "b"),

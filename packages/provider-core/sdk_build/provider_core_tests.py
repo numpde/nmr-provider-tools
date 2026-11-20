@@ -20,6 +20,7 @@ import pathlib
 from type_requirements import require_instance
 
 from sdk_build.core_environment import (
+    TYPE_REQUIREMENTS_SOURCE,
     behavioral_install_lock,
     build_candidate,
     build_source_wheel,
@@ -157,11 +158,19 @@ def _build_and_install_project(
 
     project_output.mkdir(parents=True)
 
+    project_metadata = tomllib.loads((source / "pyproject.toml").read_text())
+    bundled_sources = {}
+
+    if ("tool" in project_metadata) and ("provider-tools" in project_metadata["tool"]):
+        destination = pathlib.Path(project_metadata["tool"]["provider-tools"]["type-requirements"])
+        bundled_sources[destination] = TYPE_REQUIREMENTS_SOURCE
+
     build_source_wheel(
         source=source,
         staged_source=root / "source",
         python=builder_python,
         output=project_output,
+        bundled_sources=bundled_sources,
     )
 
     wheel_distribution_name = distribution_name.replace("-", "_")

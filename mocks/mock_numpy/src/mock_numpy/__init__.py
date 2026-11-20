@@ -11,6 +11,8 @@ import builtins
 import math
 from dataclasses import dataclass
 
+from ._type_requirements import require_instance, require_type
+
 
 @dataclass(frozen=True, slots=True, kw_only=True)
 class _DType:
@@ -33,8 +35,7 @@ def _unpack(array_input: object) -> tuple[tuple[int, ...], list]:
 
         return ((len(children), *child_shape), [scalar for (_, scalars) in children for scalar in scalars])
 
-    if not (type(array_input) in (expected_types := (bool, int, float, complex, str))):
-        raise TypeError(f"{type(array_input)=} ≠ {expected_types=}")
+    require_type(array_input, (bool, int, float, complex, str))
 
     return ((), [array_input])
 
@@ -111,8 +112,7 @@ class ndarray:
         raise NotImplementedError("Elementwise array comparisons are outside this mock's contract")
 
     def __getitem__(self, index: int):
-        if not (type(index) is (expected_type := int)):
-            raise TypeError(f"{type(index)=} ≠ {expected_type=}")
+        require_type(index, int)
 
         if not (self.ndim == 1):
             raise NotImplementedError(f"Only vector scalar indexing is implemented; {self.shape=}")
@@ -120,8 +120,7 @@ class ndarray:
         return self._scalars[index]
 
     def __setitem__(self, index: int, scalar_element: object) -> None:
-        if not (type(index) is (expected_type := int)):
-            raise TypeError(f"{type(index)=} ≠ {expected_type=}")
+        require_type(index, int)
 
         if not (self.ndim == 1):
             raise NotImplementedError(f"Only vector scalar assignment is implemented; {self.shape=}")
@@ -186,11 +185,9 @@ def isfinite(numeric_input: object, /) -> bool | ndarray:
 def dot(a: ndarray, b: ndarray) -> float:
     """Compute a floating inner product; mismatched shapes always fail."""
 
-    if not isinstance(a, (expected_type := ndarray)):
-        raise TypeError(f"{type(a)=} ≠ {expected_type=}")
+    require_instance(a, ndarray)
 
-    if not isinstance(b, (expected_type := ndarray)):
-        raise TypeError(f"{type(b)=} ≠ {expected_type=}")
+    require_instance(b, ndarray)
 
     if not (a.ndim == b.ndim == 1):
         raise NotImplementedError(f"Only vector dot products are implemented; {a.shape=}; {b.shape=}")
@@ -207,8 +204,7 @@ def dot(a: ndarray, b: ndarray) -> float:
 def sum(a: ndarray, *, dtype: type) -> float:
     """Reduce real array elements using the example's explicit float accumulator."""
 
-    if not isinstance(a, (expected_type := ndarray)):
-        raise TypeError(f"{type(a)=} ≠ {expected_type=}")
+    require_instance(a, ndarray)
 
     if not ((dtype is float) and (a.dtype.kind in "iuf")):
         raise NotImplementedError(f"Only real arrays with float accumulation are implemented; {dtype=}; {a.dtype=}")
