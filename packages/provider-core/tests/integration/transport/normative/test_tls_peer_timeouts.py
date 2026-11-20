@@ -66,18 +66,41 @@ class TlsPeerTimeoutTests(unittest.IsolatedAsyncioTestCase):
             self.assertEqual(b"GET /delayed HTTP/1.1", peer.requests[0].split(b"\r\n")[0])
 
     async def test_independent_overrides_reach_the_tls_server(self):
-        # Observe the supported asyncio.start_server arguments, not private
-        # asyncio SSL internals. The shutdown allowance remains independent.
-        original = asyncio.start_server
+        # Observe the owned stream upgrade rather than private SSL internals
+        original = asyncio.StreamWriter.start_tls
 
-        with patch("tests.fakes.tls_peer.asyncio.start_server", wraps=original) as started:
+        with patch.object(asyncio.StreamWriter, "start_tls", autospec=True, side_effect=original) as upgraded:
             async with TlsPeer("success", handshake_seconds=1.75, shutdown_seconds=0.8) as peer:
-                self.assertEqual((1.75, 0.8), (peer.handshake_seconds, peer.shutdown_seconds))
-                self.assertEqual(1, started.await_count)
-                selected = started.await_args.kwargs
+                context = ssl.create_default_context(cafile=str(pathlib.Path(peer.scratch.name) / "cert.pem"))
+                (_, writer) = await asyncio.open_connection(
+                    "127.0.0.1",
+                    peer.server.sockets[0].getsockname()[1],
+                    ssl=context,
+                    server_hostname="localhost",
+                )
+
+                writer.close()
+                await asyncio.wait_for(writer.wait_closed(), 2)
+                await asyncio.wait_for(peer.closed.wait(), 2)
+                self.assertEqual(1, upgraded.await_count)
+                selected = upgraded.await_args.kwargs
 
                 self.assertEqual(1.75, selected["ssl_handshake_timeout"])
                 self.assertEqual(0.8, selected["ssl_shutdown_timeout"])
+
+    async def test_interrupted_handshake_is_owned_before_any_http_request(self):
+        async with TlsPeer("success") as peer:
+            (_, writer) = await asyncio.open_connection(
+                "127.0.0.1",
+                peer.server.sockets[0].getsockname()[1],
+            )
+
+            writer.write(b"\x16")  # Begin a TLS record, then disappear before ClientHello
+            await writer.drain()
+            writer.close()
+            await asyncio.wait_for(writer.wait_closed(), 2)
+            await asyncio.wait_for(peer.closed.wait(), 2)
+            self.assertEqual([], peer.requests)
 
     async def test_raw_tcp_tls_stall_remains_an_explicit_non_ssl_mode(self):
         original = asyncio.start_server

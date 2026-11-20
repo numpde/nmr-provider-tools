@@ -154,28 +154,19 @@ class TlsPeer:
         server_trust.set_servername_callback(observe_server_name)
         self.trust = https_trust((root / "cert.pem").read_bytes(), label="Test peer")
 
-        tls = {}
+        def accept(reader, writer):
+            if self.mode != "tls-stall":
+                # Hold ClientHello bytes until the owned task installs TLS
+                writer.transport.pause_reading()
 
-        if self.mode != "tls-stall":
-            # SSL handshakes precede handle(), hence they have no test-handler
-            # task yet. Keep the server's two TLS limits independent, and give
-            # teardown enough time to observe a pending handshake's own bound.
-            tls = {
-                "ssl": server_trust,
-                "ssl_handshake_timeout": self.handshake_seconds,
-                "ssl_shutdown_timeout": self.shutdown_seconds,
-            }
+            self.handlers.add(asyncio.create_task(self.handle(reader, writer)))
 
-        self.server = await asyncio.start_server(self.handle, self.bind_host, 0, **tls)
+        self.server = await asyncio.start_server(accept, self.bind_host, 0)
         self.origin = f"https://127.0.0.1:{self.server.sockets[0].getsockname()[1]}"
 
         return self
 
     async def handle(self, reader, writer):
-        task = asyncio.current_task()
-
-        self.handlers.add(task)
-
         try:
             if self._closing:
                 return
@@ -184,6 +175,18 @@ class TlsPeer:
                 await reader.readexactly(1)
                 self.received.set()
                 await reader.read()
+                self.closed.set()
+
+                return
+
+            try:
+                await writer.start_tls(
+                    self.server_trust,
+                    ssl_handshake_timeout=self.handshake_seconds,
+                    ssl_shutdown_timeout=self.shutdown_seconds,
+                )
+            except (ConnectionError, ssl.SSLError, TimeoutError):
+                # A peer can disappear or reject its certificate before HTTP
                 self.closed.set()
 
                 return
@@ -289,7 +292,7 @@ class TlsPeer:
 
             try:
                 await writer.wait_closed()
-            except ConnectionError:
+            except (ConnectionError, ssl.SSLError, TimeoutError):
                 self.closed.set()
 
     async def __aexit__(self, *exception):
@@ -303,9 +306,7 @@ class TlsPeer:
             task.cancel()
 
         try:
-            # Pending TLS handshakes are not in self.handlers. Observe the
-            # server through its configured handshake and shutdown allowances,
-            # instead of an unrelated shorter two-second teardown ceiling.
+            # Accepted connections belong to handlers before their TLS handshake
             close_seconds = 2
 
             if self.mode != "tls-stall":
@@ -313,8 +314,7 @@ class TlsPeer:
 
             await asyncio.wait_for(self.server.wait_closed(), close_seconds)
 
-            # A handshake can finish after the cancellation snapshot. Its late
-            # closing handler also belongs to this fixture, including failures.
+            # An already queued accept can arrive after the cancellation snapshot
             handlers = tuple(self.handlers)
 
             handler_outcomes = await asyncio.wait_for(asyncio.gather(*handlers, return_exceptions=True), 2)
