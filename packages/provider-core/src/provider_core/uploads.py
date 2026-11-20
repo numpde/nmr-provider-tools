@@ -57,10 +57,10 @@ class UploadLimits:
     seconds: float
 
     def __post_init__(self):
-        for value in (self.per_source_bytes, self.total_bytes, self.requests):
-            require_type(value, int)
+        for acquisition_allowance in (self.per_source_bytes, self.total_bytes, self.requests):
+            require_type(acquisition_allowance, int)
 
-            if not (0 < value):
+            if not (0 < acquisition_allowance):
                 raise ValueError("Cannot configure Upload acquisition: byte and request limits must be positive integers")
 
         require_positive_number(self.seconds)
