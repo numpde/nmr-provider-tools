@@ -22,6 +22,7 @@ from provider_core.validation.upstream.nmr.v1.paging import MAX_PAGE_ITEMS, requ
 from provider_core.response_json import ResponseRejected, read_document
 from provider_core.validation.upstream.nmr.v1.timestamps import read_timestamp
 from provider_core.validation.upstream.nmr.v1.job_refs import require_job_ref
+from provider_core.type_requirements import require_type
 
 
 @dataclass(frozen=True, slots=True)
@@ -51,8 +52,7 @@ def read_attempt_inventory(raw, *, limit):
     """Admit all rows before exposing a page; preserve the server's ordering."""
     inventory_response = read_document(raw, ATTEMPT_RESPONSE_BYTES)
 
-    if not (type(inventory_response) is (expected_type := dict)):
-        raise ResponseRejected(f"{type(inventory_response)=} ≠ {expected_type=}")
+    require_type(inventory_response, dict, error_factory=ResponseRejected)
 
     response_fields = set(inventory_response)
     expected_fields = {"schema_id", "attempts", "next_cursor"}
@@ -67,8 +67,7 @@ def read_attempt_inventory(raw, *, limit):
 
     attempts = inventory_response["attempts"]
 
-    if not (type(attempts) is (expected_type := list)):
-        raise ResponseRejected(f"{type(attempts)=} ≠ {expected_type=}")
+    require_type(attempts, list, error_factory=ResponseRejected)
 
     attempt_count = len(attempts)
 
@@ -88,8 +87,7 @@ def read_attempt_inventory(raw, *, limit):
 
 
 def _read_attempt(attempt):
-    if not (type(attempt) is (expected_type := dict)):
-        raise ResponseRejected(f"{type(attempt)=} ≠ {expected_type=}")
+    require_type(attempt, dict, error_factory=ResponseRejected)
 
     attempt_fields = set(attempt)
 
