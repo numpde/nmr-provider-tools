@@ -46,7 +46,7 @@ class ChatCarrierRejectionTests(unittest.IsolatedAsyncioTestCase):
 
             self.assertIn(
                 (b"x-request-id", b"fixture-request"),
-                [(name.lower(), value) for (name, value) in failure.cause.response_head.headers]
+                [(header_name.lower(), header_value) for (header_name, header_value) in failure.cause.response_head.headers]
             )
 
             self.assertTrue(endpoint.retirement_confirmed)

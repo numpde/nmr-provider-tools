@@ -82,15 +82,15 @@ class ChatCarrierTests(unittest.IsolatedAsyncioTestCase):
             self.assertEqual(observed, message)
             await asyncio.wait_for(peer.closed.wait(), 1)
             self.assertTrue(endpoint.retirement_confirmed)
-            (request,) = peer.requests
+            (request_head,) = peer.requests
 
-            self.assertEqual(request.split(b"\r\n", 1)[0], b"POST /v1/chat/completions HTTP/1.1")
+            self.assertEqual(request_head.split(b"\r\n", 1)[0], b"POST /v1/chat/completions HTTP/1.1")
 
             headers = {
-                name.lower(): value.strip()
-                for line in request.split(b"\r\n")[1:]
+                header_name.lower(): header_value.strip()
+                for line in request_head.split(b"\r\n")[1:]
                 if b":" in line
-                for (name, value) in [line.split(b":", 1)]
+                for (header_name, header_value) in [line.split(b":", 1)]
             }
 
             self.assertEqual(headers[b"authorization"], b"Bearer PRIVATE_API_KEY")
