@@ -14,13 +14,13 @@ import reprlib
 from collections.abc import Iterator
 
 from provider_core.conversation_errors import ConversationFailed
+from provider_core.type_requirements import require_type
 
 
 def require_assistant(message: object) -> None:
     """Admit the role before any optional field or tool-call validation."""
 
-    if not (type(message) is (expected_type := dict)):
-        raise ConversationFailed(f"{type(message)=} ≠ {expected_type=}")
+    require_type(message, dict, error_factory=ConversationFailed)
 
     message_role = message.get("role")
     expected_role = "assistant"
@@ -40,8 +40,12 @@ def assistant_text_fields(message: dict) -> Iterator[tuple[str, str | None]]:
         if text_field in message:
             assistant_text = message[text_field]
 
-            if (assistant_text is not None) and (not (type(assistant_text) is (expected_type := str))):
-                raise ConversationFailed(f"{text_field=}; {type(assistant_text)=} ≠ {expected_type=}")
+            if assistant_text is not None:
+                require_type(
+                    assistant_text,
+                    str,
+                    error_factory=lambda diagnostic: ConversationFailed(f"{text_field=}; " + diagnostic),
+                )
 
             yield (text_field, assistant_text)
 
@@ -49,8 +53,7 @@ def assistant_text_fields(message: dict) -> Iterator[tuple[str, str | None]]:
 def require_tool_calls(tool_calls: object) -> list:
     """Admit the list type after the caller considers a plain-text repair."""
 
-    if not (type(tool_calls) is (expected_type := list)):
-        raise ConversationFailed(f"{type(tool_calls)=} ≠ {expected_type=}")
+    require_type(tool_calls, list, error_factory=ConversationFailed)
 
     return tool_calls
 
@@ -58,13 +61,11 @@ def require_tool_calls(tool_calls: object) -> list:
 def read_call_id(call: object) -> str:
     """Read an identifier before the owner applies grammar and replay policy."""
 
-    if not (type(call) is (expected_type := dict)):
-        raise ConversationFailed(f"{type(call)=} ≠ {expected_type=}")
+    require_type(call, dict, error_factory=ConversationFailed)
 
     call_id = call.get("id")
 
-    if not (type(call_id) is (expected_type := str)):
-        raise ConversationFailed(f"{type(call_id)=} ≠ {expected_type=}")
+    require_type(call_id, str, error_factory=ConversationFailed)
 
     return call_id
 
@@ -80,13 +81,11 @@ def read_function_name(call: dict) -> str:
 
     function = call.get("function")
 
-    if not (type(function) is (expected_type := dict)):
-        raise ConversationFailed(f"{type(function)=} ≠ {expected_type=}")
+    require_type(function, dict, error_factory=ConversationFailed)
 
     function_name = function.get("name")
 
-    if not (type(function_name) is (expected_type := str)):
-        raise ConversationFailed(f"{type(function_name)=} ≠ {expected_type=}")
+    require_type(function_name, str, error_factory=ConversationFailed)
 
     return function_name
 
@@ -96,7 +95,6 @@ def read_arguments_text(call: dict) -> str:
 
     function_arguments = call["function"].get("arguments")
 
-    if not (type(function_arguments) is (expected_type := str)):
-        raise ConversationFailed(f"{type(function_arguments)=} ≠ {expected_type=}")
+    require_type(function_arguments, str, error_factory=ConversationFailed)
 
     return function_arguments
