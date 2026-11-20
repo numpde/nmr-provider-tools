@@ -29,6 +29,7 @@ from unittest.mock import MagicMock, Mock, patch
 from provider_core import bound_http_proxy as _PROXY
 
 from provider_core.adapters import http_proxy
+from tests.fakes.proxy_logs import capture_proxy_logs
 
 # A fixed adversarial marker proves that request-bearing errors stay private.
 # repo-check: allow-module-constant
@@ -449,7 +450,7 @@ class ImageBuildProxyWorkerTests(unittest.TestCase):
         with (
             patch.object(_PROXY, "receive_headers", return_value=(b"headers", b"")),
             patch.object(http_proxy, "parse_destination", side_effect=ValueError(_PRIVATE)),
-            redirect_stderr(stderr),
+            capture_proxy_logs(stderr),
         ):
             _PROXY.ProxyHandler(client_socket, ("127.0.0.1", 1), SimpleNamespace(outbound_interface="eth0", dns_servers=None))
 
@@ -488,7 +489,7 @@ class ImageBuildProxyWorkerTests(unittest.TestCase):
             ),
             patch.object(_PROXY, "connect_bound", return_value=connection),
             patch.object(_PROXY, "relay", side_effect=OSError(_PRIVATE)),
-            redirect_stderr(stderr),
+            capture_proxy_logs(stderr),
             redirect_stdout(stdout),
         ):
             _PROXY.ProxyHandler(client_socket, ("127.0.0.1", 1), SimpleNamespace(outbound_interface="eth0", dns_servers=None))
@@ -539,7 +540,7 @@ class ImageBuildProxyWorkerTests(unittest.TestCase):
                     patch.object(_PROXY, "receive_headers", return_value=(header, remainder)),
                     patch.object(_PROXY, "connect_bound", return_value=connection),
                     patch.object(_PROXY, "relay") as relay,
-                    redirect_stderr(stderr),
+                    capture_proxy_logs(stderr),
                     redirect_stdout(stdout),
                 ):
                     _PROXY.ProxyHandler(client_socket, ("127.0.0.1", 1), SimpleNamespace(outbound_interface="eth0", dns_servers=None))
