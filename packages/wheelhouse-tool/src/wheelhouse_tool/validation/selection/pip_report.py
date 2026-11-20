@@ -42,41 +42,41 @@ def selected_artifacts(report, pool, directory, allowed_sources):
     install_records = pip_installation_report.install_records(report)
 
     if not install_records:
-        raise ValueError("Cannot project a pip report with no installation records.")
+        raise ValueError("install_records should not be empty")
 
-    root = PurePosixPath(pool)
+    pool_path = PurePosixPath(pool)
 
-    if not root.is_absolute():
-        raise ValueError("Cannot use pip report: pool must be an absolute path in the pip environment.")
+    if not pool_path.is_absolute():
+        raise ValueError(f"{reprlib.repr(pool_path)=} should be absolute")
 
-    entries = []
-    seen = set()
+    artifact_entries = []
+    seen_filenames = set()
 
-    for item in install_records:
-        path = local_file_path(item)
-        candidate = PurePosixPath(path)
-        name = candidate.name
-
-        if (
-            (candidate.parent != root) or  # Select files directly inside the admitted pool
-            (str(candidate) != path) or  # Reject alternate spellings such as a/./b or a//b
-            (not name) or  # Require a filename
-            (name in (".", "..")) or  # A directory reference cannot name an artifact
-            ("\\" in name) or  # Reject Windows path separators too
-            any(((ord(character) < 32) or (ord(character) == 127)) for character in name) or  # Keep control characters out of artifact names
-            ((not name.endswith(".whl")) and (name not in allowed_sources))  # Source archives need explicit authorization
-        ):
-            raise ValueError("Cannot use pip report: selected artifact is outside the pool or not authorized.")
-
-        checksum = pip_installation_report.archive_sha256(item)
+    for installation_record in install_records:
+        artifact_path = local_file_path(installation_record)
+        candidate = PurePosixPath(artifact_path)
+        artifact_filename = candidate.name
 
         if (
-            (not re.fullmatch(r"[0-9a-f]{64}", checksum)) or  # Require a complete lowercase SHA-256 digest
-            (name in seen)  # Each filename must identify only one report entry
+            (candidate.parent != pool_path) or  # Select files directly inside the admitted pool
+            (str(candidate) != artifact_path) or  # Reject alternate spellings such as a/./b or a//b
+            (not artifact_filename) or  # Require a filename
+            (artifact_filename in (".", "..")) or  # A directory reference cannot name an artifact
+            ("\\" in artifact_filename) or  # Reject Windows path separators too
+            any(((ord(character) < 32) or (ord(character) == 127)) for character in artifact_filename) or  # Keep control characters out of artifact names
+            ((not artifact_filename.endswith(".whl")) and (artifact_filename not in allowed_sources))  # Source archives need explicit authorization
         ):
-            raise ValueError("Cannot use pip report: selected artifact hash or filename is invalid.")
+            raise ValueError(f"{reprlib.repr(artifact_path)=} should be a canonical path to an authorized wheel or source file directly in {reprlib.repr(pool_path)=}")
 
-        seen.add(name)
-        entries.append({"filename": name, "sha256": checksum, "directory": directory})
+        artifact_sha256 = pip_installation_report.archive_sha256(installation_record)
 
-    return entries
+        if not re.fullmatch((expected_sha256_pattern := r"[0-9a-f]{64}"), artifact_sha256):
+            raise ValueError(f"{reprlib.repr(artifact_sha256)=} should match {expected_sha256_pattern=}")
+
+        if not (artifact_filename not in seen_filenames):
+            raise ValueError(f"{reprlib.repr(artifact_filename)=} should occur only once")
+
+        seen_filenames.add(artifact_filename)
+        artifact_entries.append({"filename": artifact_filename, "sha256": artifact_sha256, "directory": directory})
+
+    return artifact_entries
