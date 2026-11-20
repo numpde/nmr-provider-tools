@@ -7,6 +7,7 @@ require_container()
 import asyncio
 import base64
 import json
+import reprlib
 import socket
 import ssl
 import struct
@@ -27,6 +28,10 @@ from provider_core.type_requirements import require_type
 # The data-only child protocol bounds metadata independently of decoded body limits.
 # repo-check: allow-module-constant
 METADATA_BYTES = 1024 * 1024
+
+# Request and reply writers and readers share this fixed wire revision
+# repo-check: allow-module-constant
+_PROTOCOL_VERSION = 1
 
 # Failure evidence remains a bounded graph, independent of endpoint retry policy.
 # repo-check: allow-module-constant
@@ -82,69 +87,79 @@ _ERROR_TYPES = {
 }
 
 
-def encoded_bytes(value):
-    return base64.b64encode(value).decode("ascii")
+def encoded_bytes(content_bytes):
+    return base64.b64encode(content_bytes).decode("ascii")
 
 
-def decoded_bytes(value, maximum):
-    require_type(value, str)
+def decoded_bytes(encoded_content, max_decoded_bytes):
+    require_type(encoded_content, str)
 
-    if not (len(value) <= (4 * ((maximum + 2) // 3))):
-        raise ValueError("Interpreter child byte field exceeds its admitted limit")
+    max_encoded_characters = 4 * ((max_decoded_bytes + 2) // 3)
 
-    decoded_content = base64.b64decode(value, validate=True)
+    if not (len(encoded_content) <= max_encoded_characters):
+        raise ValueError(f"{len(encoded_content)=} should not exceed {max_encoded_characters=}")
 
-    if not (len(decoded_content) <= maximum):
-        raise ValueError("Interpreter child byte field exceeds its admitted limit")
+    decoded_content = base64.b64decode(encoded_content, validate=True)
+
+    if not (len(decoded_content) <= max_decoded_bytes):
+        raise ValueError(f"{len(decoded_content)=} should not exceed {max_decoded_bytes=}")
 
     return decoded_content
 
 
-def message_bytes(document):
-    raw = json.dumps(document, ensure_ascii=True, allow_nan=False, separators=(",", ":")).encode("ascii")
+def message_bytes(wire_message):
+    encoded_message = json.dumps(wire_message, ensure_ascii=True, allow_nan=False, separators=(",", ":")).encode("ascii")
+    max_framed_bytes = 0xffffffff
 
-    if not (len(raw) <= 0xffffffff):
-        raise ValueError("Interpreter child message exceeds its framing limit")
+    if not (len(encoded_message) <= max_framed_bytes):
+        raise ValueError(f"{len(encoded_message)=} should not exceed {max_framed_bytes=}")
 
-    return raw
+    return encoded_message
 
 
 def framed(raw):
     return struct.pack("!I", len(raw)) + raw
 
 
-def write_message(stream, document):
-    stream.write(framed(message_bytes(document)))
+def write_message(stream, wire_message):
+    stream.write(framed(message_bytes(wire_message)))
     stream.flush()
 
 
-def _size(header, maximum):
-    if len(header) != 4:
-        raise ValueError("Interpreter child message ended before its length")
+def _size(header, max_message_bytes):
+    if not (len(header) == (expected_header_bytes := struct.calcsize("!I"))):
+        raise ValueError(f"{len(header)=} ≠ {expected_header_bytes=}")
 
-    (size,) = struct.unpack("!I", header)
+    (message_byte_count,) = struct.unpack("!I", header)
 
-    if not (0 < size <= maximum):
-        raise ValueError("Interpreter child message exceeds its admitted limit")
+    if not (0 < message_byte_count <= max_message_bytes):
+        raise ValueError(f"{message_byte_count=} should be positive and not exceed {max_message_bytes=}")
 
-    return size
+    return message_byte_count
 
 
 def read_request(stream, maximum_bytes):
-    size = _size(stream.read(4), maximum_bytes)
-    raw = stream.read(size)
+    request_byte_count = _size(stream.read(4), maximum_bytes)
+    request_bytes = stream.read(request_byte_count)
 
-    if (len(raw) != size) or stream.read(1):
-        raise ValueError("Interpreter child requires one complete request message")
+    if not (len(request_bytes) == request_byte_count):
+        raise ValueError(f"{len(request_bytes)=} ≠ {request_byte_count=}")
 
-    request_message = read_document(raw, maximum_bytes)
+    # Probe EOF only after the complete body; a short body must not trigger another read
+    if not (not (trailing_byte := stream.read(1))):
+        raise ValueError(f"{trailing_byte=} should be empty after the request")
+
+    request_message = read_document(request_bytes, maximum_bytes)
 
     require_type(request_message, dict)
 
-    require_type((document_version := request_message.get("version")), int)
+    require_type(request_message.get("version"), int)
 
-    if (request_message["version"] != 1) or (request_message.get("kind") != "request"):
-        raise ValueError("Interpreter child request has an unknown schema")
+    if not (request_message["version"] == _PROTOCOL_VERSION):
+        raise ValueError(f"{request_message['version']=} ≠ {_PROTOCOL_VERSION=}")
+
+    if not (request_message.get("kind") == (expected_request_kind := "request")):
+        raise ValueError(f"{reprlib.repr(request_message.get('kind'))=} ≠ {expected_request_kind=}")
 
     return request_message
 
@@ -162,23 +177,23 @@ def _headers(headers):
 def _read_headers(headers):
     require_type(headers, list)
 
-    if not (len(headers) <= 65536):
-        raise ValueError("Interpreter child headers exceed their admitted limit")
+    if not (len(headers) <= (max_header_count := 65536)):
+        raise ValueError(f"{len(headers)=} should not exceed {max_header_count=}")
 
     decoded_headers = []
-    remaining = METADATA_BYTES
+    remaining_metadata_bytes = METADATA_BYTES
 
     for pair in headers:
         require_type(pair, list)
 
-        if len(pair) != 2:
-            raise ValueError("Interpreter child header is malformed")
+        if not (len(pair) == (expected_header_parts := 2)):
+            raise ValueError(f"{len(pair)=} ≠ {expected_header_parts=}")
 
-        (header_name, header_value) = (decoded_bytes(part, remaining) for part in pair)
-        remaining -= len(header_name) + len(header_value)
+        (header_name, header_value) = (decoded_bytes(part, remaining_metadata_bytes) for part in pair)
+        remaining_metadata_bytes -= len(header_name) + len(header_value)
 
-        if not (0 <= remaining):
-            raise ValueError("Interpreter child headers exceed their admitted limit")
+        if not (0 <= remaining_metadata_bytes):
+            raise ValueError(f"{remaining_metadata_bytes=} should be nonnegative")
 
         decoded_headers.append((header_name, header_value))
 
@@ -187,7 +202,7 @@ def _read_headers(headers):
 
 def response_message(response):
     return {
-        "version": 1,
+        "version": _PROTOCOL_VERSION,
         "kind": "response",
         "status": response.status,
         "headers": _headers(response.headers),
@@ -209,7 +224,7 @@ def failure_message(failure):
             return seen[identity]
 
         if not (len(nodes) < _ERROR_NODES):
-            raise ValueError("Interpreter child failure evidence exceeds its graph limit")
+            raise ValueError(f"{len(nodes)=} should be below {_ERROR_NODES=} before adding another failure")
 
         index = seen[identity] = len(nodes)
         kind = type(error).__module__ + "." + type(error).__qualname__
@@ -257,7 +272,7 @@ def failure_message(failure):
         head = {"status": head.status, "headers": _headers(head.headers)}
 
     return {
-        "version": 1,
+        "version": _PROTOCOL_VERSION,
         "kind": "failure",
         "message": str(failure)[:_ERROR_TEXT],
         "nodes": nodes,
@@ -278,71 +293,71 @@ def _read_failure(failure_reply):
     require_type(nodes, list)
 
     if not (len(nodes) <= _ERROR_NODES):
-        raise ValueError("Interpreter child failure evidence exceeds its graph limit")
+        raise ValueError(f"{len(nodes)=} should not exceed {_ERROR_NODES=}")
 
     errors = [None] * len(nodes)
-    constructing = set()
+    constructing_error_indices = set()
 
-    def error(index):
-        if index is None:
+    def error(node_index):
+        if node_index is None:
             return None
 
-        require_type(index, int)
+        require_type(node_index, int)
 
-        if not (0 <= index < len(nodes)):
-            raise ValueError("Interpreter child failure reference is malformed")
+        if not (0 <= node_index < len(nodes)):
+            raise ValueError(f"{node_index=} should be nonnegative and below {len(nodes)=}")
 
-        if errors[index] is not None:
-            return errors[index]
+        if errors[node_index] is not None:
+            return errors[node_index]
 
-        if index in constructing:
-            raise ValueError("Interpreter child exception group is cyclic")
+        if not (node_index not in constructing_error_indices):
+            raise ValueError(f"{node_index=} is already in {constructing_error_indices=}")
 
-        constructing.add(index)
-        node = nodes[index]
-        (kind, text) = (node["type"], node["text"])
+        constructing_error_indices.add(node_index)
+        node = nodes[node_index]
+        (remote_error_type, remote_error_text) = (node["type"], node["text"])
 
-        require_type(kind, str)
+        require_type(remote_error_type, str)
 
-        require_type(text, str)
+        require_type(remote_error_text, str)
 
-        if not (len(text) <= _ERROR_TEXT):
-            raise ValueError("Interpreter child failure description is malformed")
+        if not (len(remote_error_text) <= _ERROR_TEXT):
+            raise ValueError(f"{len(remote_error_text)=} should not exceed {_ERROR_TEXT=}")
 
-        if kind == "provider_core.decoded_body.DecodedBodyRejected":
+        if remote_error_type == "provider_core.decoded_body.DecodedBodyRejected":
             reconstructed_error = DecodedBodyRejected(node["reason"])
-        elif kind in ("builtins.ExceptionGroup", "builtins.BaseExceptionGroup"):
+        elif remote_error_type in ("builtins.ExceptionGroup", "builtins.BaseExceptionGroup"):
             children = node["children"]
 
             require_type(children, list)
 
             if not (0 < len(children) <= _ERROR_NODES):
-                raise ValueError("Interpreter child exception group is malformed")
+                raise ValueError(f"{len(children)=} should be positive and not exceed {_ERROR_NODES=}")
 
-            reconstructed_error = BaseExceptionGroup(text, [error(child) for child in children])
+            reconstructed_error = BaseExceptionGroup(remote_error_text, [error(child) for child in children])
         else:
             # silent-defaults: allow-contract -- Unreviewed child error types retain protected evidence without acquiring retry authority.
-            constructor = _ERROR_TYPES.get(kind, RemoteExchangeError)
+            constructor = _ERROR_TYPES.get(remote_error_type, RemoteExchangeError)
 
-            number = node["errno"]
+            remote_errno = node["errno"]
 
-            if number is not None:
-                require_type(number, int)
+            if remote_errno is not None:
+                require_type(remote_errno, int)
 
                 # repo-check: retain-type-guard -- Errno reconstruction accepts only OS errors or the wire's dedicated remote-error type
                 if (not (
                     issubclass(constructor, OSError) or (constructor is RemoteExchangeError))):
-                    raise ValueError("Interpreter child error number is malformed")
+                    raise ValueError(f"{constructor=} cannot carry {remote_errno=}")
 
-            reconstructed_error = constructor(number, text) if (number is not None) and (issubclass(constructor, OSError)) else constructor(text)
+            reconstructed_error = constructor(remote_errno, remote_error_text) if (remote_errno is not None) and (issubclass(constructor, OSError)) else constructor(remote_error_text)
 
             if constructor is RemoteExchangeError:
-                reconstructed_error.remote_type = kind
-                reconstructed_error.remote_errno = number
+                reconstructed_error.remote_type = remote_error_type
+                reconstructed_error.remote_errno = remote_errno
 
-        errors[index] = reconstructed_error
+        errors[node_index] = reconstructed_error
 
-        constructing.remove(index)
+        constructing_error_indices.remove(node_index)
 
         return reconstructed_error
 
@@ -393,19 +408,22 @@ def _read_failure(failure_reply):
     require_type(message, str)
 
     if not (len(message) <= _ERROR_TEXT):
-        raise ValueError("Interpreter child failure message is malformed")
+        raise ValueError(f"{len(message)=} should not exceed {_ERROR_TEXT=}")
 
-    cleanup = failure_reply["cleanup"]
+    cleanup_indices = failure_reply["cleanup"]
 
-    require_type(cleanup, list)
+    require_type(cleanup_indices, list)
 
-    if (len(cleanup) > _ERROR_NODES) or any((index is None) for index in cleanup):
-        raise ValueError("Interpreter child cleanup obligations are malformed")
+    if not (len(cleanup_indices) <= _ERROR_NODES):
+        raise ValueError(f"{len(cleanup_indices)=} should not exceed {_ERROR_NODES=}")
+
+    if not all((node_index is not None) for node_index in cleanup_indices):
+        raise ValueError(f"{reprlib.repr(cleanup_indices)=} should not contain None")
 
     return ExchangeFailed(
         message,
         primary=error(failure_reply["primary"]),
-        cleanup_failures=[error(index) for index in cleanup],
+        cleanup_failures=[error(index) for index in cleanup_indices],
         interruption=error(failure_reply["interruption"]),
         response_head=head,
         proxy_connect_status=proxy_status,
@@ -415,21 +433,23 @@ def _read_failure(failure_reply):
     )
 
 
-def read_reply(document, *, maximum_bytes, error_maximum_bytes):
-    require_type(document, dict)
+def read_reply(reply_message, *, maximum_bytes, error_maximum_bytes):
+    require_type(reply_message, dict)
 
-    require_type((document_version := document.get("version")), int)
+    require_type(reply_message.get("version"), int)
 
-    if document["version"] != 1:
-        raise ValueError("Interpreter child reply has an unknown schema")
+    if not (reply_message["version"] == _PROTOCOL_VERSION):
+        raise ValueError(f"{reply_message['version']=} ≠ {_PROTOCOL_VERSION=}")
 
-    if document.get("kind") == "failure":
-        return _read_failure(document)
+    if reply_message.get("kind") == "failure":
+        return _read_failure(reply_message)
 
-    if document.get("kind") != "response":
-        raise ValueError("Interpreter child reply has an unknown outcome")
+    if not (reply_message.get("kind") == "response"):
+        expected_reply_kinds = ("response", "failure")
 
-    status = require_http_status(document["status"])
-    body = decoded_bytes(document["body"], maximum_bytes if is_completion_success(status) else error_maximum_bytes)
+        raise ValueError(f"{reprlib.repr(reply_message.get('kind'))=} ∉ {expected_reply_kinds=}")
 
-    return HttpResponse(status, _read_headers(document["headers"]), body)
+    status = require_http_status(reply_message["status"])
+    body = decoded_bytes(reply_message["body"], maximum_bytes if is_completion_success(status) else error_maximum_bytes)
+
+    return HttpResponse(status, _read_headers(reply_message["headers"]), body)
