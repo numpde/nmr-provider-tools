@@ -38,29 +38,29 @@ def unique_fields(field_pairs):
 
 def declaration(path):
     with regular_file(path) as stream:
-        document = json.load(stream, object_pairs_hook=unique_fields)
+        dependency_declaration = json.load(stream, object_pairs_hook=unique_fields)
 
-    require_instance(document, dict)
+    require_instance(dependency_declaration, dict)
 
-    if set(document) != { "platform", "packages" }:
-        raise ValueError("Cannot admit checker dependencies: expected platform and packages fields.")
+    if not ((declaration_fields := set(dependency_declaration)) == (expected_declaration_fields := {"platform", "packages"})):
+        raise ValueError(f"{reprlib.repr(declaration_fields)=} should match {expected_declaration_fields=}")
 
-    if document["platform"] != "linux/amd64":
-        raise ValueError("Cannot admit checker dependencies: expected Linux/amd64 package list.")
+    if not ((declared_platform := dependency_declaration["platform"]) == (expected_platform := "linux/amd64")):
+        raise ValueError(f"{reprlib.repr(declared_platform)=} should match {expected_platform=}")
 
-    packages = document["packages"]
+    packages = dependency_declaration["packages"]
 
     require_instance(packages, list)
 
-    if len(packages) != 1:
-        raise ValueError("Cannot admit checker dependencies: this checker requires exactly GNU Make.")
+    if not ((package_count := len(packages)) == (expected_package_count := 1)):
+        raise ValueError(f"{package_count=} should equal {expected_package_count=}")
 
     package = packages[0]
 
     require_instance(package, dict)
 
-    if set(package) != { "name", "version", "file", "url", "size", "sha256" }:
-        raise ValueError("Cannot admit checker dependency: package identity fields differ.")
+    if not ((package_fields := set(package)) == (expected_package_fields := {"name", "version", "file", "url", "size", "sha256"})):
+        raise ValueError(f"{reprlib.repr(package_fields)=} should match {expected_package_fields=}")
 
     require_instance(package["name"], str)
     require_instance(package["version"], str)
@@ -90,8 +90,14 @@ def declaration(path):
 
     require_type(package["size"], int)
 
-    if not ((0 < package["size"]) and (re.fullmatch(r"[0-9a-f]{64}", package["sha256"]) is not None)):
-        raise ValueError("Cannot admit checker dependency: expected a positive byte count and SHA-256.")
+    if not (0 < (package_byte_length := package["size"])):
+        raise ValueError(f"{package_byte_length=} should be positive")
+
+    package_sha256 = package["sha256"]
+    expected_sha256_pattern = r"[0-9a-f]{64}"
+
+    if not re.fullmatch(expected_sha256_pattern, package_sha256):
+        raise ValueError(f"{reprlib.repr(package_sha256)=} should match {expected_sha256_pattern=}")
 
     return packages
 
