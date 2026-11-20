@@ -14,6 +14,7 @@ from provider_core.container_guard import require_container
 require_container()
 
 import base64
+import hashlib
 import json
 import reprlib
 from dataclasses import dataclass, field
@@ -56,11 +57,11 @@ class ProviderCredential:
     private_key: Ed25519PrivateKey = field(repr=False, compare=False)
 
 
-def parse_provider_credential(raw, *, maximum_bytes):
+def parse_provider_credential(credential_bytes, *, maximum_bytes):
     """Verify the issued artifact within the caller's local startup byte allowance."""
 
     try:
-        credential_fields = read_document(raw, maximum_bytes)
+        credential_fields = read_document(credential_bytes, maximum_bytes)
     except ResponseRejected as cause:
         raise CredentialRejected(f"supply the original API-issued JSON file within {maximum_bytes=} bytes.", cause=cause) from None
 
@@ -82,21 +83,26 @@ def parse_provider_credential(raw, *, maximum_bytes):
         )
 
     try:
-        canonical = (
+        canonical_credential_bytes = (
             json.dumps(credential_fields, ensure_ascii=False, allow_nan=False, sort_keys=True, separators=(",", ":")).encode() + b"\n"
         )
     except UnicodeError as cause:
         raise CredentialRejected("artifact text must be valid UTF-8.", cause=cause) from None
 
-    if not (raw == canonical):
-        raise CredentialRejected("Expected canonical JSON with one trailing newline.")
+    if not (credential_bytes == canonical_credential_bytes):
+        credential_sha256 = hashlib.sha256(credential_bytes).hexdigest()
+        canonical_credential_sha256 = hashlib.sha256(canonical_credential_bytes).hexdigest()
 
-    if not (
-        (credential_fields["schema_id"] == "nmr.provider.private_signing_credential.v1") and
-        (credential_fields["algorithm"] == "ed25519") and
-        (credential_fields["profile"] in ("dev-local", "dev", "run"))
-    ):
-        raise CredentialRejected("require the provider v1 artifact, Ed25519 and profile dev-local, dev or run.")
+        raise CredentialRejected(f"{credential_sha256=} should match {canonical_credential_sha256=}")
+
+    if not (credential_fields["schema_id"] == (expected_schema_id := "nmr.provider.private_signing_credential.v1")):
+        raise CredentialRejected(f"{reprlib.repr(credential_fields['schema_id'])=} ≠ {expected_schema_id=}")
+
+    if not (credential_fields["algorithm"] == (expected_algorithm := "ed25519")):
+        raise CredentialRejected(f"{reprlib.repr(credential_fields['algorithm'])=} ≠ {expected_algorithm=}")
+
+    if not (credential_fields["profile"] in (expected_profiles := ["dev-local", "dev", "run"])):
+        raise CredentialRejected(f"{reprlib.repr(credential_fields['profile'])=} ∉ {expected_profiles=}")
 
     try:
         require_provider_ref(credential_fields["principal_ref"])
@@ -115,20 +121,34 @@ def parse_provider_credential(raw, *, maximum_bytes):
 def _signing_key(credential_fields):
     try:
         public_der = base64.b64decode(credential_fields["public_key_spki_der_b64"], validate=True)
+    except (TypeError, ValueError, UnicodeError) as cause:
+        raise CredentialRejected(f"Cannot decode {len(credential_fields['public_key_spki_der_b64'])=}", cause=cause) from None
 
-        if not (base64.b64encode(public_der).decode("ascii") == credential_fields["public_key_spki_der_b64"]):
-            raise ValueError("Public key base64 should be canonical.")
+    canonical_public_key_base64 = base64.b64encode(public_der).decode("ascii")
 
+    if not (canonical_public_key_base64 == credential_fields["public_key_spki_der_b64"]):
+        raise CredentialRejected(f"{credential_fields['public_key_spki_der_b64'][-4:]=} ≠ {canonical_public_key_base64[-4:]=}")
+
+    try:
         public_key = load_der_public_key(public_der)
+    except (TypeError, ValueError, UnicodeError, UnsupportedAlgorithm) as cause:
+        raise CredentialRejected(f"Cannot decode {len(credential_fields['public_key_spki_der_b64'])=}", cause=cause) from None
+
+    try:
         private_key = load_pem_private_key(credential_fields["private_key_pkcs8_pem"].encode("ascii"), password=None)
     except (TypeError, ValueError, UnicodeError, UnsupportedAlgorithm) as cause:
-        raise CredentialRejected("decode a base64 DER public key and an unencrypted PEM private key.", cause=cause) from None
+        raise CredentialRejected(f"Cannot decode {len(credential_fields['private_key_pkcs8_pem'])=}", cause=cause) from None
 
     require_instance(public_key, Ed25519PublicKey, error_factory=CredentialRejected)
 
     require_instance(private_key, Ed25519PrivateKey, error_factory=CredentialRejected)
 
-    if not (private_key.public_key().public_bytes(Encoding.DER, PublicFormat.SubjectPublicKeyInfo) == public_der):
-        raise CredentialRejected("public and private keys do not match.")
+    derived_public_der = private_key.public_key().public_bytes(Encoding.DER, PublicFormat.SubjectPublicKeyInfo)
+
+    if not (derived_public_der == public_der):
+        issued_public_key_sha256 = hashlib.sha256(public_der).hexdigest()
+        derived_public_key_sha256 = hashlib.sha256(derived_public_der).hexdigest()
+
+        raise CredentialRejected(f"{derived_public_key_sha256=} ≠ {issued_public_key_sha256=}")
 
     return private_key
