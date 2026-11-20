@@ -11,6 +11,7 @@ require_container()
 import json
 
 from provider_core.tools import duplicate_json_fields
+from provider_core.type_requirements import require_type
 
 
 class ResponseRejected(ValueError):
@@ -29,8 +30,7 @@ def _reject_constant(nonfinite_token):
 
 
 def read_document(response_bytes, maximum_bytes):
-    if not (type(response_bytes) is (expected_type := bytes)):
-        raise ResponseRejected(f"{type(response_bytes)=} ≠ {expected_type=}")
+    require_type(response_bytes, bytes, error_factory=ResponseRejected)
 
     response_byte_length = len(response_bytes)
 
