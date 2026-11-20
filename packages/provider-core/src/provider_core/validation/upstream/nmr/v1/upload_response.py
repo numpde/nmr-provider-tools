@@ -17,6 +17,7 @@ from dataclasses import dataclass, field
 from datetime import datetime, timedelta
 
 from provider_core.response_json import ResponseRejected, read_document
+from provider_core.type_requirements import require_type
 from provider_core.validation.upstream.nmr.v1.job_refs import require_job_ref
 from provider_core.validation.upstream.nmr.v1.timestamps import read_timestamp
 
@@ -59,16 +60,14 @@ class ReadGrant:
 
 
 def require_upload_ref(value):
-    if not (type(value) is (expected_type := str)):
-        raise ResponseRejected(f"{type(value)=} ≠ {expected_type=}")
+    require_type(value, str, error_factory=ResponseRejected)
 
     if re.fullmatch(r"upload:sha256:[0-9a-f]{64}", value) is None:
         raise ResponseRejected("Upload reference must be upload:sha256: followed by 64 lowercase hexadecimal digits")
 
 
 def _fields(upload_fields, expected_fields):
-    if not (type(upload_fields) is (expected_type := dict)):
-        raise ResponseRejected(f"{type(upload_fields)=} ≠ {expected_type=}")
+    require_type(upload_fields, dict, error_factory=ResponseRejected)
 
     if (received_fields := set(upload_fields)) != expected_fields:
         raise ResponseRejected(f"{received_fields=} should match {expected_fields=}")
@@ -78,8 +77,7 @@ def _byte_facts(upload_fields, *, pending_allowed):
     require_upload_ref(upload_fields["upload_ref"])
     upload_byte_length = upload_fields["byte_length"]
 
-    if not (type(upload_byte_length) is (expected_type := int)):
-        raise ResponseRejected(f"{type(upload_byte_length)=} ≠ {expected_type=}")
+    require_type(upload_byte_length, int, error_factory=ResponseRejected)
 
     (min_upload_bytes, max_upload_bytes) = (1, 9223372036854775807)
 
@@ -91,16 +89,14 @@ def _byte_facts(upload_fields, *, pending_allowed):
     if pending_allowed and (content_hash is None):
         return
 
-    if not (type(content_hash) is (expected_type := str)):
-        raise ResponseRejected(f"{type(content_hash)=} ≠ {expected_type=}")
+    require_type(content_hash, str, error_factory=ResponseRejected)
 
     if re.fullmatch(r"sha256:[0-9a-f]{64}", content_hash) is None:
         raise ResponseRejected(f"{reprlib.repr(content_hash)=} should be 'sha256:' followed by 64 lowercase hexadecimal digits")
 
 
 def _grant_target_and_token(download_url, token):
-    if not (type(download_url) is (expected_type := str)):
-        raise ResponseRejected(f"{type(download_url)=} ≠ {expected_type=}")
+    require_type(download_url, str, error_factory=ResponseRejected)
 
     if not download_url.startswith(expected_prefix := "https://"):
         raise ResponseRejected(f"{download_url=} should start with {expected_prefix=}")
@@ -108,8 +104,7 @@ def _grant_target_and_token(download_url, token):
     if not (len(download_url) <= (maximum_url_characters := 359)):
         raise ResponseRejected(f"{len(download_url)=} exceeds {maximum_url_characters=}")
 
-    if not (type(token) is (expected_type := str)):
-        raise ResponseRejected(f"{type(token)=} ≠ {expected_type=}")
+    require_type(token, str, error_factory=ResponseRejected)
 
     if not (1 <= len(token) <= 2048):
         raise ResponseRejected("Grant capability must contain 1 through 2048 characters")
@@ -119,8 +114,7 @@ def require_read_grant(grant, *, job_ref):
     """Admit a caller-supplied grant's facts without claiming API issuance."""
     require_job_ref(job_ref)
 
-    if not (type(grant) is (expected_type := ReadGrant)):
-        raise ResponseRejected(f"{type(grant)=} ≠ {expected_type=}")
+    require_type(grant, ReadGrant, error_factory=ResponseRejected)
 
     if grant.job_ref != job_ref:
         raise ResponseRejected("Read grant must belong to the selected Job")
@@ -136,8 +130,7 @@ def require_read_grant(grant, *, job_ref):
 
     _grant_target_and_token(grant.download_url, grant.capability)
 
-    if not (type((actual_expires_at := grant.expires_at)) is (expected_type := datetime)):
-        raise ResponseRejected(f"{type(actual_expires_at)=} ≠ {expected_type=}")
+    require_type((actual_expires_at := grant.expires_at), datetime, error_factory=ResponseRejected)
 
     if grant.expires_at.tzinfo is None:
         raise ResponseRejected("Read grant expiry must be a UTC datetime")
@@ -157,8 +150,7 @@ def read_membership(raw, *, job_ref):
 
     members = membership_response["uploads"]
 
-    if not (type(members) is (expected_type := list)):
-        raise ResponseRejected(f"{type(members)=} ≠ {expected_type=}")
+    require_type(members, list, error_factory=ResponseRejected)
 
     if len(members) > 64:
         raise ResponseRejected("Membership must contain an array of at most 64 Uploads")
@@ -170,8 +162,7 @@ def read_membership(raw, *, job_ref):
         _byte_facts(member, pending_allowed=True)
         description = member["description"]
 
-        if not (type(description) is (expected_type := str)):
-            raise ResponseRejected(f"{type(description)=} ≠ {expected_type=}")
+        require_type(description, str, error_factory=ResponseRejected)
 
         if len(description) > 4096:
             raise ResponseRejected("Upload description must contain at most 4096 Unicode scalar values without NUL")
