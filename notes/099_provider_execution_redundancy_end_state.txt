@@ -44,5 +44,152 @@ headroom, scope changes or score inflation. Fix verified findings and reiterate.
 
 Repository checks remain enabled, deferred and excluded. PRIVACY_TESTS=0 remains
 the selected campaign policy. Real-model/GPU and deployment qualification remain
-separate. Work proceeds in coherent audited commits; this note records the target,
-not completed implementation or passing qualification.
+separate. Work proceeds in coherent audited commits; the target above is assessed
+by the implementation and qualification record below.
+
+## Implementation and qualification record
+
+Qualified source candidate: 3adcd15c4e09902a1d4d54be75a12828745d60df.
+Source tree: 8753d6211f32fcd541b69305237966600ea6982b.
+Baseline remains main at 2337787f. Work is on
+refactor/provider-execution-assembly-20261120; no push or deployment.
+
+Coherent commits:
+
+- 9b7d59e6: fixed end-state and qualification scope.
+- d04768e1: shared installed scientific-session fixture, preserving worker argv,
+  minimal environment, session/supervisor cleanup ordering and local witnesses.
+- bcdb16d7: stateless aggregate capacity validation and shared scalar validation;
+  providers retain share keys/amounts, constructor signatures remain unchanged.
+- bb66935e: shared explicit settings and host construction; Dummy/Reference adopt
+  it while retaining eager/lazy thread readiness and the resource-only reader.
+- 3adcd15c: Spectrum/NMRPeak adopt the same settings vocabulary and construction;
+  stage/model topology, session inventories and scientific readiness remain local.
+
+No application workflows or scientific operations were changed. Existing public
+host constructors remain safe standalone entrypoints. Successful process-host
+construction still takes custody; refused construction leaves caller custody.
+No worker startup, context entry, scientific adoption or retirement moved into
+ExecutionSettings. The capacity check reserves no resources and schedules no work.
+
+Deliberate configuration changes: examples now require explicit execution.backend
+and execution.host. No old-name alias or implicit thread fallback is retained.
+Noninteger provider capacity shares now raise TypeError, consistently with public
+host constructors; nonpositive and overallocated shares raise ValueError.
+
+Each actual implementation slice received read-only independent audit. Review
+caught a weak override assertion: the test now checks the constructed host's
+state_values as well as the unchanged settings snapshot. A fixture docstring was
+corrected to name the native runner retained before any scientific worker exists.
+The first full integration run on f9e799d1 counted 436 tests in 266.040s:
+406 executed, one error and 30 privacy skips. Spectrum's cancellation test patched
+the old provider-local constructor, so its cleanup recorder was disconnected.
+Panel C also found Reference's equivalent stale patch, which passed vacuously.
+Both now patch the SDK constructor lookup; Reference additionally asserts its
+second-analysis cleanup witness actually ran once. Spectrum already requires
+concrete cleanup/retirement events. All three reviewers accepted that narrow
+correction. The owning unpublished migration commit was amended to 3adcd15c.
+No production behavior changed in this correction. Focused installed Spectrum
+workflow 11 and Reference workflow 3 tests then passed, without skips.
+No further actionable source defect was identified after those corrections.
+Five native tests cover aggregate arithmetic and refusal;
+four cover explicit settings, source independence, overrides and session custody.
+Existing actual-child provider witnesses remain in place.
+
+Focused installed selections all passed without skips:
+Dummy startup 2; Reference backends 4; Spectrum process 5; NMRPeak example 33.
+Capacity slice also passed its five native tests and Spectrum/NMRPeak selections.
+Setup's original four native tests passed; the strengthened override assertion is
+included in the final full native lane below.
+
+Final maintained commands use DOCKER_CONTEXT=science,
+WHEELHOUSE=/home/ra/Downloads/wheelhouse and PRIVACY_TESTS=0:
+
+    make tests/contract/provider-core DOCKER_CONTEXT=science WHEELHOUSE=/home/ra/Downloads/wheelhouse PRIVACY_TESTS=0
+    make tests/unit/provider-core DOCKER_CONTEXT=science WHEELHOUSE=/home/ra/Downloads/wheelhouse PRIVACY_TESTS=0
+    make tests/integration/provider-core DOCKER_CONTEXT=science WHEELHOUSE=/home/ra/Downloads/wheelhouse PRIVACY_TESTS=0
+
+Contract and full unit were launched independently on the same clean candidate;
+full integration began after both corrected focused workflow suites passed.
+Every lane uses its own installed environment. Source/config/test files remained unchanged
+through the final runs. The unit target also runs a separate minimal native lane.
+
+| Lane | Total | Executed | Skipped | Result | Suite seconds |
+| --- | ---: | ---: | ---: | --- | ---: |
+| Contract | 18 | 16 | 2 | OK | 3.379 |
+| Full unit | 1116 | 1024 | 92 | OK | 186.620 |
+| Separate minimal native | 194 | 194 | 0 | OK | 12.059 |
+| Full integration | 436 | 406 | 30 | OK | 280.287 |
+
+Totals include skips; skipped tests are not executed successes. All 124 skips
+explicitly say "Privacy tests disabled". Suite times exclude lane preparation.
+All final Make invocations exited zero.
+
+Engine ID: 3212a927-9058-4b2e-92bf-69971ec922c3, Docker 29.10.0.
+Admitted checker input fingerprint:
+51258286bd82af5ee47f4acf568c87402be4b51ac7376340908b7e556a795250.
+Immutable checker image:
+sha256:9a77d4d76552519319b362dab3c0f7343d136db38aa3c150008f80c2126768f1.
+Read-only inspection receipts: /tmp/nmr-assembly-engine.txt and
+/tmp/nmr-assembly-image.txt.
+
+All three final full lanes built the same SDK wheel SHA-256:
+d5d30b66d7e9f8a763baf1f4494b646c7d9dfb2d878ea0d2940ef62f8f2acf27.
+
+Installed example wheel SHA-256 from final full integration:
+
+- dummy-provider-example: c4b4f9a665a299ad99748fdd7672db25c3b32a4355698354ec2af0fed0e5f2cc.
+- nmrpeak-mock-provider-example: bf5b55dc9b76da4c1e87c755f71b2b4d8d554f2101f795a5b0d9cb05ddbb875b.
+- reference-match-provider-example: 07bac979c48ef4d62e79191053f33f63b6e397d5434185726e957bef77fef2e6.
+- spectrum-summary-provider-example: 24451d28c575faa648f922b5a75a80114b30a052da9ac5e3e2a5874845312f12.
+
+Local raw qualification receipts and SHA-256:
+
+- /tmp/nmr-assembly-qualified-contract.log: da392f99e9844f05cae1a355e091858569d40ea0bb9a24e3ff07b50b3aa61c91.
+- /tmp/nmr-assembly-qualified-unit.log: 5034b928f9db1038e5d6d835f67dee55e3e9e9589cba1238172e4919db4bf85b.
+- /tmp/nmr-assembly-qualified-integration.log: c2a324c6527ad432f6e61970c42b8e2c22be9a2b3e428a1c8f38ffc1592e137c.
+
+Superseded failing integration receipt: /tmp/nmr-assembly-final-integration.log,
+SHA-256 d8c56b95bf28968add659d9336545b4ef25b43dd3b08ea5cd2fbf31331f530a1.
+
+Raw logs remain local receipts, not permanent Git artifacts. The documentation
+commit containing this record is not the tested source candidate; it changes
+only this record. Earlier receipts remain attributed to their actual revisions.
+
+## Final independent panel
+
+Three fresh GPT-6.1-Sol medium reviewers each inspected the complete diff from
+2337787f, the corrected frozen source candidate and fresh installed receipts.
+Every reviewer graded all thirteen criteria plus a separate holistic overall.
+Peer scores were not disclosed before each final verdict. Earlier baseline
+scores were not transferred. Panel C identified the stale test instrumentation;
+all three independently reviewed the correction and final full receipts.
+
+| Criterion | Panel A | Panel B | Panel C |
+| --- | ---: | ---: | ---: |
+| A1 Single authority; mechanism versus policy | 10/10 | 10/10 | 10/10 |
+| A2 Common contract; honest backend differences | 10/10 | 10/10 | 10/10 |
+| A3 Change locality and replaceability | 10/10 | 10/10 | 10/10 |
+| A4 Names, usage and diagnostics clarity | 10/10 | 10/10 | 10/10 |
+| A5 Parsimony and explanatory comments | 10/10 | 10/10 | 10/10 |
+| B1 Continuous ownership, cancellation, handoffs and termination | 10/10 | 10/10 | 10/10 |
+| B2 Uncertainty, no replay, monotone facts and independent outcomes | 10/10 | 10/10 | 10/10 |
+| B3 Allocation, analysis, operation and state authority; expiry | 10/10 | 10/10 | 10/10 |
+| B4 Time, capacity, retention and stall control | 10/10 | 10/10 | 10/10 |
+| C1 Narrow code/data, environment and descriptor grants | 10/10 | 10/10 | 10/10 |
+| C2 Economical, discriminating behavioral tests | 10/10 | 10/10 | 10/10 |
+| C3 Reproducible installed qualification and provenance | 10/10 | 10/10 | 10/10 |
+| C4 Useful diagnostics and truthful public guidance | 10/10 | 10/10 | 10/10 |
+| Separate holistic overall | 10/10 | 10/10 | 10/10 |
+
+All reviewers found no remaining actionable gap within the fixed scope after
+correction. Their conclusions trace shared mechanism ownership, independently
+safe constructors, explicit provider topology/readiness and preserved native
+custody/cleanup witnesses. Scores are not averages, generic headroom judgments,
+or claims of exhaustive correctness.
+
+The bounded completion criteria above are met. Repository checks remain enabled,
+deferred and excluded from grading. Privacy tests were deliberately not executed.
+Real scientific models, GPU behavior, unattended operation, deployment and merge
+readiness are not established by this qualification. No unrelated repository
+failure was investigated or corrected; no check was weakened or deleted.
