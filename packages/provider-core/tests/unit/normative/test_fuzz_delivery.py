@@ -53,6 +53,7 @@ class DeliveryFaultSequenceTests(unittest.TestCase):
                 for (attempt_ref, (handoff, state)) in handoffs_by_attempt_ref.items()
                 if state == "pending"
             }
+
             selected = queue.next_pending_handoff("https://api.example", provider)
 
             if pending_handoffs:

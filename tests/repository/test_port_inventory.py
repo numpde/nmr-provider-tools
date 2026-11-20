@@ -45,6 +45,7 @@ class PortInventoryTests(unittest.TestCase):
                     for disposition in dispositions
                     if disposition["target"] == entry["target"]
                 }
+
                 expected = set(entry["test_methods"])
                 missing = {name for name in expected if name.split(".")[-1] in excluded}
 

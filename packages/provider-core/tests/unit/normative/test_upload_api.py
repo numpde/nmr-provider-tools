@@ -79,6 +79,7 @@ class UploadApiTests(unittest.IsolatedAsyncioTestCase):
             observed = await api.uploads("job:example")
 
             self.assertEqual(len(observed.members), len(members))
+
             self.assertEqual(
                 [upload_member.description for upload_member in observed.members],
                 [member_definition["description"] for member_definition in members],
