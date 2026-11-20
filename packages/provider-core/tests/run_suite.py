@@ -218,11 +218,11 @@ class _FailureSummaryResult(unittest.TextTestResult):
         )
 
 
-def _print_failure_summary(result, selection, stream):
-    if result.wasSuccessful():
+def _print_failure_summary(suite_result, selection, stream):
+    if suite_result.wasSuccessful():
         return
 
-    count = len(result.problems)
+    count = len(suite_result.problems)
     noun = "cases"
 
     if count == 1:
@@ -230,7 +230,7 @@ def _print_failure_summary(result, selection, stream):
 
     print(f"=== PROVIDER-CORE FAILURE SUMMARY ({selection}): {count} failing {noun} ===", file=stream)
 
-    for (kind, name, location, failure_type, reason) in result.problems[:25]:
+    for (kind, name, location, failure_type, reason) in suite_result.problems[:25]:
         print(f"  {kind} {name}", file=stream)
         print(f"    {location} — {failure_type}: {reason}", file=stream)
 
