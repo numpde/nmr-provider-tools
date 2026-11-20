@@ -344,7 +344,7 @@ class ReplyRun:
 
     @property
     def start_count(self):
-        return sum(request.url.path.endswith("/start") for (request, _) in self.transport.calls)
+        return sum(http_request.url.path.endswith("/start") for (http_request, _) in self.transport.calls)
 
 
 @asynccontextmanager
@@ -352,7 +352,7 @@ class ReplyRun:
 async def reply_run(claims, job, *, session_type=InterpretedSession):
     release_reply = asyncio.Event()
 
-    async def response_body(request, body):
+    async def response_body(_request_head, _body):
         await release_reply.wait()
 
         return (
@@ -834,9 +834,9 @@ class ComposedLifecycleOwnershipTests(unittest.IsolatedAsyncioTestCase):
                 healthy.session.science.release.set()
 
                 independent = asyncio.create_task(healthy.controller.run(healthy.pending))
-                result = await asyncio.wait_for(asyncio.shield(independent), 6)
+                delivery_checkpoint = await asyncio.wait_for(asyncio.shield(independent), 6)
 
-                self.assertIs(type(result), DeliveryAcceptedCheckpoint)
+                self.assertIs(type(delivery_checkpoint), DeliveryAcceptedCheckpoint)
                 self.assertTrue(healthy.controller.shutdown_ready)
 
                 self.assertEqual(
