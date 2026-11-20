@@ -271,13 +271,17 @@ class SourceUpdateTests(unittest.TestCase):
 
         command_result = subprocess.run(
             [
-                sys.executable,
-                "-I",
-                "-B",
-                str(ROOT / "packages/acquisition/acquisition_tool/source_update.py"),
-                "verify",
-                "--source-dir",
-                str(self.source),
+                sys.executable,  # Use the contained interpreter
+                "-I",  # Exclude ambient Python paths
+                "-S",  # Require only the standard library and explicit source
+                "-B",  # Keep the checkout free of bytecode
+                "-c",  # Supply the helper before executing unbundled authored source
+                "import runpy, sys; sys.path.insert(0, sys.argv.pop(1)); runpy.run_path(sys.argv.pop(1), run_name='__main__')",  # Preserve the updater's original CLI arguments
+                str(ROOT / "packages/type-requirements/src"),  # A released bundle supplies this helper at its root
+                str(ROOT / "packages/acquisition/acquisition_tool/source_update.py"),  # Exercise the authored updater
+                "verify",  # Check the selected source snapshot
+                "--source-dir",  # Name the input snapshot explicitly
+                str(self.source),  # Use the test's private snapshot
             ],
             capture_output=True,
             text=True,

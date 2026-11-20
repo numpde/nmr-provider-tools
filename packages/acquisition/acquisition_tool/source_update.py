@@ -19,9 +19,17 @@ from pathlib import PurePosixPath
 import re
 import shutil
 import stat
+import sys
 import tarfile
 import tempfile
 from typing import TypedDict
+
+if __name__ == "__main__":
+    # Issued bundles keep the helper at their root
+    # Direct isolated execution must expose that root before importing it
+    sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[1]))
+
+from type_requirements import require_type
 
 
 class PayloadFileMetadata(TypedDict):
@@ -54,8 +62,7 @@ def read_pin(release_pin_path):
     (pin_bytes, _) = _regular_bytes(pathlib.Path(release_pin_path))
     pin = json.loads(pin_bytes)
 
-    if not (type(pin) is (expected_type := dict)):
-        raise TypeError(f"{release_pin_path=}; {type(pin)=} ≠ {expected_type=}")
+    require_type(pin, dict, error_factory=lambda diagnostic: TypeError(f"{release_pin_path=}; " + diagnostic))
 
     if set(pin) != {"version", "archive_sha256"}:
         raise ValueError(f"Acquisition {release_pin_path=}: require exactly version and archive_sha256; {sorted(pin)=}")
@@ -72,8 +79,7 @@ def read_pin(release_pin_path):
 
 
 def _relative_name(acquisition_path):
-    if not (type(acquisition_path) is (expected_type := str)):
-        raise TypeError(f"{type(acquisition_path)=} ≠ {expected_type=}")
+    require_type(acquisition_path, str)
 
     if (not acquisition_path) or ("\0" in acquisition_path):
         raise ValueError(f"Acquisition path must be nonempty and contain no nulls: {acquisition_path=}")
@@ -97,8 +103,7 @@ def read_manifest(manifest_json: str | bytes | bytearray) -> AcquisitionManifest
     """Admit the recorded inventory, excluding only the manifest's own bytes."""
     manifest = json.loads(manifest_json)
 
-    if not (type(manifest) is (expected_type := dict)):
-        raise TypeError(f"{type(manifest)=} ≠ {expected_type=}")
+    require_type(manifest, dict)
 
     required_manifest_fields = {
         "release_version",
@@ -118,16 +123,14 @@ def read_manifest(manifest_json: str | bytes | bytearray) -> AcquisitionManifest
     if not _version(manifest_release_version):
         raise ValueError(f"Acquisition manifest {manifest_release_version=} must be X.Y.Z in ASCII digits without leading zeroes")
 
-    if not (type((manifest_source_revision := manifest["source_revision"])) is (expected_type := str)):
-        raise TypeError(f"{type(manifest_source_revision)=} ≠ {expected_type=}")
+    require_type((manifest_source_revision := manifest["source_revision"]), str)
 
     if not re.fullmatch(r"[0-9a-f]{40}", manifest_source_revision):
         raise ValueError(f"Acquisition manifest revision must be 40 lowercase hexadecimal characters: {manifest_source_revision=}")
 
     payload_files = manifest["payload_files"]
 
-    if not (type(payload_files) is (expected_type := dict)):
-        raise TypeError(f"{type(payload_files)=} ≠ {expected_type=}")
+    require_type(payload_files, dict)
 
     if not payload_files:
         raise ValueError("Acquisition manifest payload inventory must not be empty")
@@ -142,8 +145,7 @@ def read_manifest(manifest_json: str | bytes | bytearray) -> AcquisitionManifest
             if parent.as_posix() in payload_files:
                 raise ValueError(f"Acquisition {acquisition_rel_path=} has an inventoried {parent=}")
 
-        if not (type(entry) is (expected_type := dict)):
-            raise TypeError(f"{acquisition_rel_path=}; {type(entry)=} ≠ {expected_type=}")
+        require_type(entry, dict, error_factory=lambda diagnostic: TypeError(f"{acquisition_rel_path=}; " + diagnostic))
 
         if set(entry) != {"sha256", "size", "mode"}:
             raise ValueError(f"Acquisition {acquisition_rel_path=}: metadata must contain exactly sha256, size and mode; {sorted(entry)=}")
@@ -151,29 +153,24 @@ def read_manifest(manifest_json: str | bytes | bytearray) -> AcquisitionManifest
         if not is_checksum(entry["sha256"]):
             raise ValueError(f"Acquisition {acquisition_rel_path=}: sha256 must have 64 lowercase hexadecimal characters")
 
-        if not (type((entry_size := entry["size"])) is (expected_type := int)):
-            raise TypeError(f"{acquisition_rel_path=}; {type(entry_size)=} ≠ {expected_type=}")
+        require_type((entry_size := entry["size"]), int, error_factory=lambda diagnostic: TypeError(f"{acquisition_rel_path=}; " + diagnostic))
 
         if not (0 <= entry["size"]):
             raise ValueError(f"Acquisition {acquisition_rel_path=}: {entry_size=} must be nonnegative")
 
-        if not (type((entry_mode := entry["mode"])) is (expected_type := int)):
-            raise TypeError(f"{acquisition_rel_path=}; {type(entry_mode)=} ≠ {expected_type=}")
+        require_type((entry_mode := entry["mode"]), int, error_factory=lambda diagnostic: TypeError(f"{acquisition_rel_path=}; " + diagnostic))
 
         if not (entry["mode"] in (0o644, 0o755)):
             raise ValueError(f"Acquisition {acquisition_rel_path=}: {entry_mode=:o} (octal); JSON mode must be 420 or 493")
 
     dependencies = manifest["dependency_inputs"]
 
-    if not (type(dependencies) is (expected_type := dict)):
-        raise TypeError(f"{type(dependencies)=} ≠ {expected_type=}")
+    require_type(dependencies, dict)
 
     for (dependency_name, dependency_sha256) in dependencies.items():
-        if not (type(dependency_name) is (expected_name_type := str)):
-            raise TypeError(f"{type(dependency_name)=} ≠ {expected_name_type=}")
+        require_type(dependency_name, str)
 
-        if not (type(dependency_sha256) is (expected_checksum_type := str)):
-            raise TypeError(f"{dependency_name=}; {type(dependency_sha256)=} ≠ {expected_checksum_type=}")
+        require_type(dependency_sha256, str, error_factory=lambda diagnostic: TypeError(f"{dependency_name=}; " + diagnostic))
 
         if not dependency_name:
             raise ValueError(f"Acquisition dependency name must be nonempty: {dependency_name=}")

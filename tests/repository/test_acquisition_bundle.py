@@ -388,3 +388,19 @@ class AcquisitionBundleTests(unittest.TestCase):
 
             self.assertEqual(authored_updater.read_bytes(), (snapshot / "acquisition_tool/source_update.py").read_bytes())
             self.assertEqual("0.6.0", verify(snapshot)["release_version"])
+
+            subprocess.run(
+                [
+                    sys.executable,  # Use the contained interpreter
+                    "-I",  # Exclude ambient Python paths
+                    "-S",  # Prove the bundle needs no installed dependencies
+                    "-B",  # Preserve the authenticated snapshot
+                    str(snapshot / "acquisition_tool/source_update.py"),  # Run the newly imported updater directly
+                    "verify",  # Verify its complete installed source closure
+                    "--source-dir",  # Select the authenticated bundle root
+                    str(snapshot),  # Include the bundled type helper in verification
+                ],
+                check=True,
+                capture_output=True,
+                text=True,
+            )
