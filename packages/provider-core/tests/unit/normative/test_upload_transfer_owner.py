@@ -189,13 +189,13 @@ class UploadTransferOwnerTests(unittest.IsolatedAsyncioTestCase):
         async def grant():
             return api.grant
 
-        def held_write(descriptor, data):
+        def held_write(output_fd, body_buffer):
             loop.call_soon_threadsafe(entered.set)
 
             if not (store_write_released := release_store_write.wait(timeout=(release_timeout_seconds := 3))):
                 raise TimeoutError(f"{store_write_released=} after waiting {release_timeout_seconds=}")
 
-            return write(descriptor, data)
+            return write(output_fd, body_buffer)
 
         transfer = UploadTransfer(
             "job:example",

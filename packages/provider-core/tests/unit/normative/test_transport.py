@@ -20,10 +20,10 @@ class TransportTests(unittest.IsolatedAsyncioTestCase):
         (charged, writes) = ([], [])
         write = os.write
 
-        def partial_write(descriptor, data):
-            writes.append(len(data))
+        def partial_write(output_fd, body_buffer):
+            writes.append(len(body_buffer))
 
-            return write(descriptor, data[:997])
+            return write(output_fd, body_buffer[:997])
 
         transport = HttpTransport(trust=ssl.create_default_context(), exchange_seconds=2, retirement_seconds=1)
 
