@@ -62,10 +62,10 @@ class VerifiedUpload:
     def __post_init__(self):
         require_type((actual_data := self.data), bytes, error_factory=UploadFailed)
 
-        if len(self.data) != self.byte_length:
+        if not (len(self.data) == self.byte_length):
             raise UploadFailed("source byte length differs from its transfer receipt")
 
-        if ("sha256:" + hashlib.sha256(self.data).hexdigest()) != self.content_hash:
+        if not (("sha256:" + hashlib.sha256(self.data).hexdigest()) == self.content_hash):
             raise UploadFailed("source SHA-256 differs from its transfer receipt")
 
 
@@ -100,12 +100,12 @@ def read_upload_file(receipt, *, directory_fd, maximum_bytes):
 
     require_type(directory_fd, int, error_factory=UploadFileReadFailed)
 
-    if directory_fd < 0:
+    if not (directory_fd >= 0):
         raise UploadFileReadFailed("reading a private source requires an explicit open directory descriptor")
 
     require_type(maximum_bytes, int, error_factory=UploadFileReadFailed)
 
-    if maximum_bytes <= 0:
+    if not (maximum_bytes > 0):
         raise UploadFileReadFailed("the reader's source byte ceiling must be a positive integer")
 
     require_type((actual_byte_length := receipt.byte_length), int, error_factory=UploadFileReadFailed)
@@ -117,13 +117,13 @@ def read_upload_file(receipt, *, directory_fd, maximum_bytes):
 
     require_type(name, str, error_factory=UploadFileReadFailed)
 
-    if name in ("", ".", ".."):
+    if not (name not in ("", ".", "..")):
         raise UploadFileReadFailed("the private source locator must be one non-dot basename in the granted directory")
 
-    if "/" in name:
+    if not ("/" not in name):
         raise UploadFileReadFailed("the private source locator must be one non-dot basename in the granted directory")
 
-    if "\0" in name:
+    if not ("\0" not in name):
         raise UploadFileReadFailed("the private source locator must be one non-dot basename in the granted directory")
 
     try:
@@ -175,7 +175,7 @@ def _read_upload_snapshot(upload_source_fd, receipt):
         if not stat.S_ISREG(file_mode := details.st_mode):
             raise UploadFileReadFailed(f"{upload_source_fd=} has bad {file_mode=}")
 
-        if details.st_size != receipt.byte_length:
+        if not (details.st_size == receipt.byte_length):
             raise UploadFileReadFailed("the private source file byte length differs from its transfer receipt")
 
         chunks = []

@@ -19,7 +19,7 @@ class ResponseRejected(ValueError):
 
 
 def _unique_fields(field_pairs):
-    if duplicate_fields := duplicate_json_fields(field_pairs):
+    if not ((duplicate_fields := duplicate_json_fields(field_pairs)) == {}):
         raise ResponseRejected(f"{duplicate_fields=} should be empty")
 
     return dict(field_pairs)
