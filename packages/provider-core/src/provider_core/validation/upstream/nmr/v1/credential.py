@@ -23,6 +23,7 @@ from cryptography.hazmat.primitives.serialization import Encoding, PublicFormat,
 
 from provider_core.validation.upstream.nmr.v1.attempt_request import require_provider_ref
 from provider_core.response_json import ResponseRejected, read_document
+from provider_core.type_requirements import require_instance, require_type
 from provider_core.validation.upstream.nmr.v1.signing import require_credential_ref
 
 # The issued credential profile has a closed field set.
@@ -62,15 +63,17 @@ def parse_provider_credential(raw, *, maximum_bytes):
     except ResponseRejected as cause:
         raise CredentialRejected(f"supply the original API-issued JSON file within {maximum_bytes=} bytes.", cause=cause) from None
 
-    if not (type(credential_fields) is (expected_type := dict)):
-        raise CredentialRejected(f"{type(credential_fields)=} ≠ {expected_type=}")
+    require_type(credential_fields, dict, error_factory=CredentialRejected)
 
     if set(credential_fields) != _FIELDS:
         raise CredentialRejected("the seven API-issued fields must be present and contain text.")
 
     for (field_name, credential_value) in credential_fields.items():
-        if not (type(credential_value) is (expected_type := str)):
-            raise CredentialRejected(f"{field_name=}; {type(credential_value)=} ≠ {expected_type=}")
+        require_type(
+            credential_value,
+            str,
+            error_factory=lambda diagnostic: CredentialRejected(f"{field_name=}; " + diagnostic),
+        )
 
     try:
         canonical = (
@@ -115,11 +118,9 @@ def _signing_key(credential_fields):
     except (TypeError, ValueError, UnicodeError, UnsupportedAlgorithm) as cause:
         raise CredentialRejected("decode a base64 DER public key and an unencrypted PEM private key.", cause=cause) from None
 
-    if not isinstance(public_key, (expected_type := Ed25519PublicKey)):
-        raise CredentialRejected(f"{type(public_key)=} ≠ {expected_type=}")
+    require_instance(public_key, Ed25519PublicKey, error_factory=CredentialRejected)
 
-    if not isinstance(private_key, (expected_type := Ed25519PrivateKey)):
-        raise CredentialRejected(f"{type(private_key)=} ≠ {expected_type=}")
+    require_instance(private_key, Ed25519PrivateKey, error_factory=CredentialRejected)
 
     if private_key.public_key().public_bytes(Encoding.DER, PublicFormat.SubjectPublicKeyInfo) != public_der:
         raise CredentialRejected("public and private keys do not match.")
