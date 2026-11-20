@@ -10,6 +10,7 @@ from .science import Settings
 
 def construct(*, startup: Mapping):
     """Construct an empty contribution in the worker; initialize loads weights."""
+
     contribution_type = getattr(binding, startup["contribution_class"])
 
     return contribution_type(

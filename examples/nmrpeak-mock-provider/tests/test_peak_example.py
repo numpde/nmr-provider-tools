@@ -104,10 +104,12 @@ class PeakExampleTests(unittest.IsolatedAsyncioTestCase):
 
     def configure_process(self):
         """Supply the existing native supervisor through provider startup."""
-        document = tomllib.loads(self.configuration.read_text(encoding="utf-8"))
-        document["science"] = {"hf": document["science"]["hf"]}
-        document["execution"]["backend"] = "process"
-        self.configuration.write_text(data=tomli_w.dumps(document), encoding="utf-8")
+        deployment_config = tomllib.loads(self.configuration.read_text(encoding="utf-8"))
+        deployment_config["science"] = {"hf": deployment_config["science"]["hf"]}
+        deployment_config["execution"]["backend"] = "process"
+
+        self.configuration.write_text(data=tomli_w.dumps(deployment_config), encoding="utf-8")
+
         runner = RunningSupervisor(
             operation_seconds=None,
             role="science",
@@ -116,9 +118,10 @@ class PeakExampleTests(unittest.IsolatedAsyncioTestCase):
 
         self.addCleanup(runner.close)
         session = runner.session(startup_seconds=5, retirement_seconds=5)
+
         self.addCleanup(session.close)
 
-        return document, runner, session
+        return (deployment_config, runner, session)
 
     async def test_external_deployment_settings_change_scientific_results(self):
         package = pathlib.Path(str(resources.files(anchor="nmrpeak_mock_provider")))
@@ -179,13 +182,15 @@ class PeakExampleTests(unittest.IsolatedAsyncioTestCase):
                 self.assertEqual(first=expected_inventory, second=observed_inventory)
 
     async def test_process_backend_reuses_one_installed_child_for_two_predictions(self):
-        (document, runner, session) = self.configure_process()
+        (deployment_config, runner, session) = self.configure_process()
         self.factory.proposals = (candidate(carbon=False),)
 
         async with self.open_offerings(process_session=session) as offerings:
             (offering,) = offerings
+
             self.assertEqual("hf", offering.family)
             worker_pid = offering.execution_host.process_id
+
             self.assertNotEqual(os.getpid(), worker_pid)
             os.kill(worker_pid, 0)
 
@@ -197,11 +202,13 @@ class PeakExampleTests(unittest.IsolatedAsyncioTestCase):
                     await workflow.deliver()
 
                 (payload,) = receiver.payloads
-                result = json.loads(s=payload)
+                prediction_report = json.loads(s=payload)
+
                 self.assertEqual(
-                    document["science"]["hf"][0]["settings"]["checkpoint_sha256"],
-                    result["checkpoint_sha256"],
+                    deployment_config["science"]["hf"][0]["settings"]["checkpoint_sha256"],
+                    prediction_report["checkpoint_sha256"],
                 )
+
                 self.assertEqual(worker_pid, offering.execution_host.process_id)
                 self.assertIsNone(session.retirement)
                 os.kill(worker_pid, 0)
@@ -232,13 +239,15 @@ class PeakExampleTests(unittest.IsolatedAsyncioTestCase):
             self.assertEqual(1, len(receiver.payloads))
 
     async def test_process_backend_retires_partially_loaded_model_after_checkpoint_parse_failure(self):
-        (document, runner, session) = self.configure_process()
-        (configured,) = document["science"]["hf"]
-        checkpoint = self.configuration.parent / configured["checkpoint_path"]
-        malformed = b'{"candidates": ['
-        checkpoint.write_bytes(malformed)
-        configured["settings"]["checkpoint_sha256"] = hashlib.sha256(malformed).hexdigest()
-        self.configuration.write_text(data=tomli_w.dumps(document), encoding="utf-8")
+        (deployment_config, runner, session) = self.configure_process()
+        (configured,) = deployment_config["science"]["hf"]
+        checkpoint_path = self.configuration.parent / configured["checkpoint_path"]
+        malformed_checkpoint_bytes = b'{"candidates": ['
+
+        checkpoint_path.write_bytes(malformed_checkpoint_bytes)
+        configured["settings"]["checkpoint_sha256"] = hashlib.sha256(malformed_checkpoint_bytes).hexdigest()
+
+        self.configuration.write_text(data=tomli_w.dumps(deployment_config), encoding="utf-8")
 
         # Verification must admit these bytes. The installed Model.load creates
         # and retains its tokenizer before JSON parsing raises in the child.
@@ -265,8 +274,9 @@ class PeakExampleTests(unittest.IsolatedAsyncioTestCase):
 
             async with offering.open_prediction(receive=receiver) as workflow:
                 await workflow.interpret(source="One recorded proton spectrum")
-                result = await workflow.finish()
-                self.assertEqual(result, await workflow.finish())
+                result_ref = await workflow.finish()
+
+                self.assertEqual(result_ref, await workflow.finish())
 
                 duplicate = Submission.from_call(
                     analysis_executor=workflow.analysis_executor,
@@ -306,6 +316,7 @@ class PeakExampleTests(unittest.IsolatedAsyncioTestCase):
                     await workflow.finish()
 
                 original_operation = workflow.generation_submission.operation
+
                 self.assertIsNotNone(original_operation)
 
                 with self.assertRaises(expected_exception=RemoteScienceError):
@@ -321,6 +332,7 @@ class PeakExampleTests(unittest.IsolatedAsyncioTestCase):
 
             if isinstance(raised.exception, ExceptionGroup):
                 (scientific_failure, _) = raised.exception.split(RemoteScienceError)
+
                 self.assertIsNotNone(scientific_failure)
 
         self.assertEqual([], receiver.payloads)
@@ -329,19 +341,21 @@ class PeakExampleTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual([], list(runner.scratch.iterdir()))
 
     async def test_process_backend_requires_an_explicit_runner_session(self):
-        document = tomllib.loads(self.configuration.read_text(encoding="utf-8"))
-        document["science"] = {"hf": document["science"]["hf"]}
-        document["execution"]["backend"] = "process"
-        self.configuration.write_text(data=tomli_w.dumps(document), encoding="utf-8")
+        deployment_config = tomllib.loads(self.configuration.read_text(encoding="utf-8"))
+        deployment_config["science"] = {"hf": deployment_config["science"]["hf"]}
+        deployment_config["execution"]["backend"] = "process"
+
+        self.configuration.write_text(data=tomli_w.dumps(deployment_config), encoding="utf-8")
 
         with self.assertRaisesRegex(expected_exception=ValueError, expected_regex="requires a deployment-owned scientific runner session"):
             async with self.open_offerings():
                 self.fail(msg="Process startup must not invent a native supervisor")
 
     async def test_thread_backend_does_not_take_an_unused_runner_session(self):
-        (document, runner, session) = self.configure_process()
-        document["execution"]["backend"] = "thread"
-        self.configuration.write_text(data=tomli_w.dumps(document), encoding="utf-8")
+        (deployment_config, runner, session) = self.configure_process()
+        deployment_config["execution"]["backend"] = "thread"
+
+        self.configuration.write_text(data=tomli_w.dumps(deployment_config), encoding="utf-8")
 
         with self.assertRaisesRegex(expected_exception=ValueError, expected_regex="does not use a scientific process session"):
             async with self.open_offerings(process_session=session):

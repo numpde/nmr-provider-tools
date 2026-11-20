@@ -17,11 +17,11 @@ import pathlib
 import tomllib
 
 from provider_core.embedded_host import InProcessExecutionHost
-from provider_core.process_host import ProcessExecutionHost
 from provider_core.contribution import CallBinding
 from provider_core.failure_collection import FailureCollector
 from provider_core.hosting import OperationPolicy, settle_cleanup
 from provider_core.interpreter import EndpointFactory, Interpreter
+from provider_core.process_host import ProcessExecutionHost
 from provider_core.runner_session import RunnerSession
 from provider_core.scientific import HostedContribution, ResourceRequirement
 
@@ -127,27 +127,31 @@ async def open_offerings(
     with PROVIDER_CONFIG_PATH.open(mode="rb") as source:
         provider_config = tomllib.load(source)
 
+    # silent-defaults: allow-contract -- Existing deployment files select threads by omitting backend; process execution is explicit.
     execution_mode = provider_config["execution"].get("backend", "thread")
+
     host_options = provider_config["execution"]["in_process_execution_host"]
 
     if execution_mode == "thread":
-        if process_session is not None:
+        if not (process_session is None):
             raise ValueError("Thread execution does not use a scientific process session")
 
         execution_host = InProcessExecutionHost(**host_options)
     elif execution_mode == "process":
-        if process_session is None:
+        if not (process_session is not None):
             raise ValueError("Process execution requires a deployment-owned scientific runner session")
 
-        if sum(len(configurations) for configurations in provider_config["science"].values()) != 1:
-            raise ValueError("The first process backend supports one configured scientific offering")
+        configured_offering_count = sum(len(configurations) for configurations in provider_config["science"].values())
 
-        if create_model is not InstalledMockModel:
-            raise ValueError("Process execution requires the installed NMRPeak mock model factory")
+        if not (configured_offering_count == 1):
+            raise ValueError(f"The process backend requires one configured scientific offering; {configured_offering_count=}")
+
+        if not (create_model is InstalledMockModel):
+            raise ValueError(f"Process execution requires {create_model=} to be {InstalledMockModel=}")
 
         execution_host = ProcessExecutionHost(session=process_session, **host_options)
     else:
-        raise ValueError(f"Unknown scientific execution backend {execution_mode!r}")
+        raise ValueError(f"Unsupported scientific {execution_mode=}")
 
     async with execution_host:
         operation_policy = OperationPolicy(**provider_config["execution"]["operation_policy"])
