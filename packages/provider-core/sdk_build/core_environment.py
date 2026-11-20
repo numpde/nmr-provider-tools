@@ -32,7 +32,7 @@ from tools.adapters.pip_install import (
 
 from tools.artifacts import fsync_directory, regular_file
 from tools.installer import create_environment
-from tools.wheelhouse import digest, pool_read_lock, read_json, requirements, select_wheels, wheel_inputs_from_report
+from tools.wheelhouse import digest, pool_read_lock, read_json, required_wheel_constraints, requirements, select_wheels, wheel_inputs_from_report
 from type_requirements import require_type
 
 
@@ -94,11 +94,12 @@ def install_locked(python, lock, wheels, report, extra_pools=(), required_files=
     if lock_fd is not None:
         borrowed_descriptors = (lock_fd,)
 
-    subprocess.run(
-        install_locked_wheels_command(python, lock, wheels, report, extra_pools),
-        check=True,  # Reject an incomplete installation
-        pass_fds=borrowed_descriptors,  # Keep shared pool protection alive in pip
-    )
+    with required_wheel_constraints(required_files) as constraints:
+        subprocess.run(
+            install_locked_wheels_command(python, lock, wheels, report, extra_pools, constraints=constraints),
+            check=True,  # Reject an incomplete installation
+            pass_fds=borrowed_descriptors,  # Keep shared pool protection alive in pip
+        )
 
     return wheel_inputs_from_report(lock, wheels, report, extra_pools, required_files)
 

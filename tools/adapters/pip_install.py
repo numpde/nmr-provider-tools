@@ -90,7 +90,7 @@ def hashed_requirement(name: str, version: str, sha256: str) -> str:
     )
 
 
-def resolve_locked_wheels_command(python: str | Path, lock: Path, pools: Iterable[Path], report: Path) -> list[str]:
+def resolve_locked_wheels_command(python: str | Path, lock: Path, pools: Iterable[Path], report: Path, *, constraints: Path | None) -> list[str]:
     """Build the offline dry-run command that records pip's wheel selections."""
 
     return [
@@ -106,6 +106,7 @@ def resolve_locked_wheels_command(python: str | Path, lock: Path, pools: Iterabl
         "--require-hashes",  # Check every selected artifact against the lock
         "--only-binary=:all:",  # Accept wheels only
         *[argument for directory in pools for argument in ("--find-links", str(directory))],  # Search each admitted local pool
+        *([] if constraints is None else ["--constraint", str(constraints)]),  # Restrict required wheels to their exact artifact paths
         "--report",  # Record the exact artifact selections
         str(report),  # Keep the selection report in private scratch
         "-r",  # Read versions and hashes from the lock
@@ -119,6 +120,8 @@ def install_locked_wheels_command(
     pool: Path,
     report: Path,
     extra_pools: Iterable[Path],
+    *,
+    constraints: Path | None,
 ) -> list[str]:
     """Build the offline installation command that records installed wheels."""
 
@@ -141,6 +144,7 @@ def install_locked_wheels_command(
             for directory in (pool, *extra_pools)
             for argument in ("--find-links", str(directory))
         ],
+        *([] if constraints is None else ["--constraint", str(constraints)]),  # Keep the selected artifact paths during installation
         "-r",  # Read exact versions and hashes from the lock
         str(lock),  # Select the lock for this environment
     ]

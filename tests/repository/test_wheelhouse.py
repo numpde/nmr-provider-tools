@@ -11,6 +11,7 @@ import tempfile
 import unittest
 import zipfile
 import pathlib
+import subprocess
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from threading import Event, Thread
 from unittest.mock import patch
@@ -20,6 +21,36 @@ from tools import wheelhouse
 
 
 class WheelhouseTests(unittest.TestCase):
+    def test_required_artifact_beats_a_higher_build_in_the_shared_pool(self):
+        competing_wheel = self.pool / "pool_cached-1.0-1higher-py3-none-any.whl"
+
+        shutil.copyfile(self.cached, competing_wheel)
+
+        with zipfile.ZipFile(competing_wheel, "a") as archive:
+            archive.writestr("different-build.txt", "Another source revision")
+
+        selected = wheelhouse.select_wheels(
+            self.lock,
+            self.pool,
+            extra_pools=(self.index,),
+            required_files={self.cached.name: self.cached},
+        )
+
+        self.assertEqual(wheelhouse.digest(self.cached), selected["files"][self.cached.name])
+        self.assertNotIn(competing_wheel.name, selected["files"])
+
+    def test_required_artifact_cannot_override_the_original_lock_hash(self):
+        with zipfile.ZipFile(self.cached, "a") as archive:
+            archive.writestr("unreviewed.txt", "Bytes outside the original lock")
+
+        with self.assertRaises(subprocess.CalledProcessError):
+            wheelhouse.select_wheels(
+                self.lock,
+                self.pool,
+                extra_pools=(self.index,),
+                required_files={self.cached.name: self.cached},
+            )
+
     def setUp(self):
         temporary = tempfile.TemporaryDirectory()
 

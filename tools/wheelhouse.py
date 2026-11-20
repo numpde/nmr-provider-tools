@@ -22,6 +22,7 @@ import urllib.parse
 import urllib.request
 import pathlib
 from contextlib import contextmanager
+from collections.abc import Iterator, Mapping
 
 from tools.adapters.pip_install import resolve_locked_wheels_command
 from tools.artifacts import fsync_directory, regular_file
@@ -125,13 +126,37 @@ def select_wheels(lock, pool, extra_pools=(), required_files=None, lock_fd=None)
         if lock_fd is not None:
             borrowed_descriptors = (lock_fd,)
 
-        subprocess.run(
-            resolve_locked_wheels_command(sys.executable, frozen, pools, report),
-            check=True,  # Stop if resolution fails
-            pass_fds=borrowed_descriptors,  # Keep shared pool protection alive in pip
-        )
+        with required_wheel_constraints(required_files) as constraints:
+            subprocess.run(
+                resolve_locked_wheels_command(sys.executable, frozen, pools, report, constraints=constraints),
+                check=True,  # Stop if resolution fails
+                pass_fds=borrowed_descriptors,  # Keep shared pool protection alive in pip
+            )
 
         return wheel_inputs_from_report(frozen, pool, report, extra_pools, required_files)
+
+
+@contextmanager
+def required_wheel_constraints(required_files: Mapping[str, pathlib.Path] | None) -> Iterator[pathlib.Path | None]:
+    """Restrict artifact locations without adding versions or allowed hashes."""
+
+    if not required_files:
+        yield None
+
+        return
+
+    with tempfile.TemporaryDirectory(prefix="required-wheels-") as temporary:
+        constraints = pathlib.Path(temporary) / "constraints.txt"
+        constraints.write_text(
+            "".join(
+                f"{wheel_path.name.partition('-')[0]} @ {wheel_path.resolve().as_uri()}\n"
+                for wheel_path in required_files.values()
+            ),
+            encoding="utf-8",
+        )
+
+        # The original requirement lock remains the only content-hash authority
+        yield constraints
 
 
 # silent-defaults: allow-contract -- Optional additional wheel pools are captured as an immutable tuple; required files are independently checked.
