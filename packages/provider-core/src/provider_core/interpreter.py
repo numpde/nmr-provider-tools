@@ -13,7 +13,6 @@ require_container()
 
 import asyncio
 import json
-import math
 import random
 import time
 from collections import OrderedDict
@@ -39,7 +38,7 @@ from provider_core.conversation import (
 
 from provider_core.conversation_errors import ConversationFailed, ToolRejected
 from provider_core.transport_errors import ExchangeFailed
-from provider_core.tools import require_positive_number
+from provider_core.tools import require_finite_number, require_positive_number
 from provider_core.type_requirements import require_instance, require_type
 from provider_core.validation.upstream.http import read_retry_after, successful_connect_status
 
@@ -381,10 +380,7 @@ class Interpreter:
         deadline = _now() + self.interpretation_budget_seconds
 
         if not_after is not None:
-            require_type(not_after, (int, float))
-
-            if not math.isfinite(not_after):
-                raise ValueError("Cannot start interpretation: not_after must be a finite monotonic deadline.")
+            require_finite_number(not_after)
 
             deadline = min(deadline, not_after)
 
