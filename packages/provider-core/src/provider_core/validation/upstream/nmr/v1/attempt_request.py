@@ -115,20 +115,19 @@ def require_provider_ref(provider_ref):
         raise ValueError(f"{provider_ref=} should match {expected_pattern=}")
 
 
-def _require_outcome_text(scalar_text, field_name):
+def _require_outcome_text(outcome_text, field_name):
     """Admit the v1 result-schema and failure-message Unicode scalar profile."""
 
-    if not (type(scalar_text) is (expected_type := str)):
-        raise TypeError(f"{field_name=}; {type(scalar_text)=} ≠ {expected_type=}")
+    require_type(outcome_text, str)
 
-    scalar_character_count = len(scalar_text)
+    scalar_character_count = len(outcome_text)
     (min_scalar_characters, max_scalar_characters) = (1, 1024)
 
     if not (min_scalar_characters <= scalar_character_count <= max_scalar_characters):
         raise ValueError(f"{field_name=}; {scalar_character_count=} should be between {min_scalar_characters=} and {max_scalar_characters=}")
 
-    if not all(((character != "\x00") and (not (0xD800 <= ord(character) <= 0xDFFF))) for character in scalar_text):
-        raise ValueError(f"{field_name=}; {scalar_text=} should not contain NUL or surrogate code points")
+    if not all(((character != "\x00") and (not (0xD800 <= ord(character) <= 0xDFFF))) for character in outcome_text):
+        raise ValueError(f"{field_name=}; {outcome_text=} should not contain NUL or surrogate code points")
 
 
 def _failure_code(failure_code):
