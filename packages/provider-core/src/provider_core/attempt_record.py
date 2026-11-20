@@ -60,10 +60,10 @@ class RecoveryScope:
     generation_id: str
 
     def __post_init__(self):
-        (origin, _authority) = https_origin(self.api_origin)
+        (canonical_api_origin, _authority) = https_origin(self.api_origin)
 
-        if origin != self.api_origin:
-            raise ValueError("Cannot bind recovery scope: API origin must be canonical HTTPS")
+        if not (canonical_api_origin == self.api_origin):
+            raise ValueError(f"{reprlib.repr(self.api_origin)=} ≠ {reprlib.repr(canonical_api_origin)=}")
 
         require_provider_ref(self.provider_ref)
 
@@ -140,7 +140,7 @@ class AcknowledgedAttempt:
             require_type(actual_prepared_identity, ProtectedEvidence)
 
             if not (self.local_phase is LocalExecutionPhase.EXECUTION_ENTERED):
-                raise ValueError("Cannot retain prepared identity: protected evidence belongs to the execution-entry transition.")
+                raise ValueError(f"{self.local_phase=} should be {LocalExecutionPhase.EXECUTION_ENTERED=}")
 
         try:
             read_start(
@@ -150,10 +150,13 @@ class AcknowledgedAttempt:
                 provider_ref=self.start.scope.provider_ref,
             )
         except ResponseRejected as cause:
-            raise ValueError(f"Cannot retain acknowledgement: {cause = }") from None
+            raise ValueError("Cannot retain acknowledgement") from cause
 
-        if (self.local_phase is LocalExecutionPhase.EXECUTION_ENTERED) and (not attempt_is_in_progress(self.admission)):
-            raise ValueError("Cannot record execution entry from a terminal start acknowledgement")
+        if not (
+            (self.local_phase is not LocalExecutionPhase.EXECUTION_ENTERED) or
+            attempt_is_in_progress(self.admission)
+        ):
+            raise ValueError(f"{self.local_phase=} should not be retained with {self.admission.state=}")
 
 
 class TerminalOperation(Enum):
@@ -178,7 +181,7 @@ class ProtectedEvidence:
         require_type(self.content, bytes)
 
         if not (1 <= len(self.content) <= MAX_EVIDENCE_BYTES):
-            raise ValueError("Cannot retain required evidence: immutable content must contain 1 through 262144 bytes; evidence is never truncated")
+            raise ValueError(f"{len(self.content)=} should be positive and not exceed {MAX_EVIDENCE_BYTES=}")
 
 
 class SuppressionReason(Enum):
@@ -197,7 +200,7 @@ def mark_execution_entered(record, prepared_identity):
     require_type(record, AcknowledgedAttempt)
 
     if not (record.local_phase is LocalExecutionPhase.NOT_ENTERED):
-        raise ValueError("Cannot enter execution: an acknowledged Attempt that has not entered is required")
+        raise ValueError(f"{record.local_phase=} should be {LocalExecutionPhase.NOT_ENTERED=}")
 
     require_type(prepared_identity, ProtectedEvidence)
 
