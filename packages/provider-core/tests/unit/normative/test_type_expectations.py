@@ -75,7 +75,7 @@ class TypeExpectationTests(unittest.TestCase):
         for conversion in [payload._decode_value, payload._encode_value]:
             with self.subTest(conversion=conversion), patch.object(target=payload, attribute="type", side_effect=AssertionError("Type inspection ran before value admission"), create=True):
                 with self.assertRaises(expected_exception=(PayloadRejected, TypeError)):
-                    conversion(value=3, annotation=Literal[True, 2], path="$.selection")
+                    conversion(value=3, annotation=Literal[True, 2], value_path="$.selection")
 
     def test_float_admission_keeps_bool_separate_from_int_and_float(self):
         codec = JsonDataclassCodec(format="test.number.v1", value_type=NumericRecord)
@@ -94,26 +94,26 @@ class TypeExpectationTests(unittest.TestCase):
 
     def test_nonfinite_and_overflow_remain_value_failures(self):
         with self.assertRaises(expected_exception=PayloadRejected) as rejected:
-            payload._decode_value(value=float("inf"), annotation=float, path="$.number")
+            payload._decode_value(value=float("inf"), annotation=float, value_path="$.number")
 
         self.assertIs(PayloadRejected.Code.INVALID_TYPE, rejected.exception.code)
         self.assertNotIn(member="≠", container=str(rejected.exception))
 
         with self.assertRaises(expected_exception=TypeError) as rejected:
-            payload._encode_value(value=float("inf"), annotation=float, path="$.number")
+            payload._encode_value(value=float("inf"), annotation=float, value_path="$.number")
 
         self.assertNotIn(member="≠", container=str(rejected.exception))
 
         for conversion in [payload._decode_value, payload._encode_value]:
             with self.subTest(conversion=conversion), self.assertRaises(expected_exception=OverflowError):
-                conversion(value=10 ** 1000, annotation=float, path="$.number")
+                conversion(value=10 ** 1000, annotation=float, value_path="$.number")
 
     def test_exact_container_checks_still_reject_subclasses(self):
         class ListSubclass(list):
             pass
 
         with self.assertRaises(expected_exception=PayloadRejected):
-            payload._decode_value(value=ListSubclass(), annotation=tuple[int, ...], path="$.mapping")
+            payload._decode_value(value=ListSubclass(), annotation=tuple[int, ...], value_path="$.mapping")
 
     def test_non_dataclass_class_failure_is_not_reported_as_a_type_mismatch(self):
         with self.assertRaises(expected_exception=TypeError) as rejected:
