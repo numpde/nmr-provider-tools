@@ -108,24 +108,24 @@ class _ScientificCallShape:
 def _resolved_callable_hints(
     callable_: Callable[..., object],
     *,
-    label: str,
+    callable_role: str,
 ) -> dict[str, object]:
     try:
         return get_type_hints(callable_, include_extras=True)
     except (NameError, TypeError) as error:
-        raise TypeError(f"Cannot inspect {label = }: its annotations could not be resolved.") from error
+        raise TypeError(f"{callable_role=} should have resolvable annotations") from error
 
 
 def _positional_parameters(
     callable_: Callable[..., object],
     *,
     count: int,
-    label: str,
+    callable_role: str,
 ) -> tuple[inspect.Parameter, ...]:
     try:
         signature = inspect.signature(callable_)
     except (TypeError, ValueError) as error:
-        raise TypeError(f"Cannot inspect {label = }: it must expose an inspectable signature.") from error
+        raise TypeError(f"{callable_role=} should expose an inspectable signature") from error
 
     parameters = tuple(signature.parameters.values())
 
@@ -141,7 +141,7 @@ def _positional_parameters(
             ),
         )
     ):
-        raise TypeError(f"Cannot inspect {label = }: it must accept exactly {count = } positional parameters.")
+        raise TypeError(f"{callable_role=} should accept exactly {count=} positional parameters")
 
     return parameters
 
@@ -151,54 +151,54 @@ def _require_callable_signature(
     *,
     parameter_types: tuple[type[object], ...],
     return_type: type[object],
-    label: str,
+    callable_role: str,
 ) -> None:
     parameters = _positional_parameters(
         callable_,
         count=len(parameter_types),
-        label=label,
+        callable_role=callable_role,
     )
 
-    hints = _resolved_callable_hints(callable_, label=label)
+    hints = _resolved_callable_hints(callable_, callable_role=callable_role)
 
     for (parameter, expected_type) in zip(parameters, parameter_types, strict=True):
         parameter_annotation = hints.get(parameter.name)
 
         if not (parameter_annotation is expected_type):
-            raise TypeError(f"{label=}; {parameter.name=}; {parameter_annotation=} ≠ {expected_type=}")
+            raise TypeError(f"{callable_role=}; {parameter.name=}; {parameter_annotation=} ≠ {expected_type=}")
 
     return_annotation = hints.get("return")
 
     if not (return_annotation is (expected_type := return_type)):
-        raise TypeError(f"{label=}; {return_annotation=} ≠ {expected_type=}")
+        raise TypeError(f"{callable_role=}; {return_annotation=} ≠ {expected_type=}")
 
 
 def _constructed_type(
     callable_: Callable[..., object],
     *,
     parameter_types: tuple[type[object], ...],
-    label: str,
+    callable_role: str,
 ) -> type[object]:
     parameters = _positional_parameters(
         callable_,
         count=len(parameter_types),
-        label=label,
+        callable_role=callable_role,
     )
 
-    hints = _resolved_callable_hints(callable_, label=label)
+    hints = _resolved_callable_hints(callable_, callable_role=callable_role)
 
     for (parameter, expected_type) in zip(parameters, parameter_types, strict=True):
         parameter_annotation = hints.get(parameter.name)
 
         if not (parameter_annotation is expected_type):
-            raise TypeError(f"{label=}; {parameter.name=}; {parameter_annotation=} ≠ {expected_type=}")
+            raise TypeError(f"{callable_role=}; {parameter.name=}; {parameter_annotation=} ≠ {expected_type=}")
 
     constructed_type = hints.get("return")
 
     require_instance(constructed_type, type)
 
     if constructed_type is NoneType:
-        raise TypeError(f"Cannot inspect {label = }: it must declare one concrete return type.")
+        raise TypeError(f"{callable_role=} should declare a concrete return type")
 
     return constructed_type
 
@@ -218,8 +218,8 @@ def _scientific_call_shape(
             output=scientific_call.result_type,
         )
 
-    parameters = _positional_parameters(scientific_call, count=1, label="Scientific call")
-    resolved_annotations = _resolved_callable_hints(scientific_call, label="Scientific call")
+    parameters = _positional_parameters(scientific_call, count=1, callable_role="Scientific call")
+    resolved_annotations = _resolved_callable_hints(scientific_call, callable_role="Scientific call")
     context_type = resolved_annotations.get(parameters[0].name)
 
     if (get_origin(context_type) is not CallContext) or (len(get_args(context_type)) != 4):
@@ -915,7 +915,7 @@ class CallBinding[InputT, StateT, OutputT]:
             function,
             parameter_types=(input_type,),
             return_type=result_type,
-            label="Plain scientific function",
+            callable_role="Plain scientific function",
         )
 
         return CallBinding.from_json_dataclasses(
@@ -1105,21 +1105,21 @@ class ImplementationBinding[InstanceT, AnalysisT]:
             instance_type = _constructed_type(
                 self.instance.construct,
                 parameter_types=(),
-                label="Instance constructor",
+                callable_role="Instance constructor",
             )
 
             _require_callable_signature(
                 self.instance.initialize,
                 parameter_types=(instance_type,),
                 return_type=NoneType,
-                label="Instance initializer",
+                callable_role="Instance initializer",
             )
 
             _require_callable_signature(
                 self.instance.dispose,
                 parameter_types=(instance_type,),
                 return_type=NoneType,
-                label="Instance disposer",
+                callable_role="Instance disposer",
             )
 
         if self.analysis is None:
@@ -1128,21 +1128,21 @@ class ImplementationBinding[InstanceT, AnalysisT]:
             analysis_type = _constructed_type(
                 self.analysis.construct,
                 parameter_types=(instance_type,),
-                label="Analysis constructor",
+                callable_role="Analysis constructor",
             )
 
             _require_callable_signature(
                 self.analysis.initialize,
                 parameter_types=(analysis_type,),
                 return_type=NoneType,
-                label="Analysis initializer",
+                callable_role="Analysis initializer",
             )
 
             _require_callable_signature(
                 self.analysis.dispose,
                 parameter_types=(analysis_type,),
                 return_type=NoneType,
-                label="Analysis disposer",
+                callable_role="Analysis disposer",
             )
 
         _require_state_kinds(calls=calls)
