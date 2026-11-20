@@ -250,7 +250,7 @@ class ProcessWireTests(unittest.TestCase):
                 self.assertTrue(expr=evidence.frames_omitted)
                 self.assertIn(member="omitted", container=note)
                 self.assertLessEqual(a=len(evidence.frames), b=MAX_TRACEBACK_FRAMES)
-                self.assertLessEqual(a=len(note), b=MAX_DIAGNOSTIC_CHARACTERS + len(" [truncated]"))
+                self.assertLessEqual(a=len(note), b=MAX_DIAGNOSTIC_CHARACTERS)
                 self.assertLess(a=len(encoded), b=MAX_DIAGNOSTIC_CHARACTERS * MAX_TRACEBACK_FRAMES)
 
                 for (file, function, _) in evidence.frames:
@@ -261,7 +261,7 @@ class ProcessWireTests(unittest.TestCase):
                     self.assertEqual(first=MAX_TRACEBACK_FRAMES, second=len(evidence.frames))
                     self.assertEqual(first=filename, second=evidence.frames[-1][0])
                     self.assertEqual(first="child_recursive_calculation", second=evidence.frames[-1][1])
-                    self.assertIn(member="truncated", container=note)
+                    self.assertIn(member="Diagnostic text omitted", container=note)
                 else:
                     self.assertNotIn(member=filename, container=encoded[4:].decode("ascii"))
 
@@ -359,7 +359,7 @@ class ProcessWireTests(unittest.TestCase):
                 if cause is not None:
                     pending.append(cause)
 
-        self.assertIn(member="truncated", container=received.message)
+        self.assertIn(member="Diagnostic text omitted", container=received.message)
         self.assertGreater(a=count, b=MAX_FAILURE_NODES)
         self.assertLessEqual(a=count, b=2 * MAX_FAILURE_NODES)
         self.assertGreater(a=omissions, b=0)
@@ -373,8 +373,8 @@ class ProcessWireTests(unittest.TestCase):
             too_deep = {**leaf, "cause": too_deep}
 
         invalid_evidence = [
-            {**leaf, "message": "m" * (MAX_DIAGNOSTIC_CHARACTERS + len(" [truncated]") + 1)},
-            {**leaf, "original_type": "t" * (MAX_DIAGNOSTIC_CHARACTERS + len(" [truncated]") + 1)},
+            {**leaf, "message": "m" * (MAX_DIAGNOSTIC_CHARACTERS + 1)},
+            {**leaf, "original_type": "t" * (MAX_DIAGNOSTIC_CHARACTERS + 1)},
             {**leaf, "cause": {"mapping": {}}},
             {**leaf, "context": None},
             {**group, "causes": [leaf] * (MAX_FAILURE_NODES + 1)},
@@ -386,12 +386,48 @@ class ProcessWireTests(unittest.TestCase):
             with self.subTest(error_fields=error_fields), self.assertRaises(expected_exception=ValueError):
                 decode_frame(json.dumps(error_fields).encode("ascii"))
 
+    def test_diagnostic_scalar_limits_preserve_complete_values_or_omit_them(self):
+        for length in (MAX_DIAGNOSTIC_CHARACTERS, MAX_DIAGNOSTIC_CHARACTERS + 1):
+            with self.subTest(length=length):
+                module = "t" * (length - 2)
+                error_type = type("E", (Exception,), {"__module__": module})
+                prefix = "opaque-message-prefix: "
+                message = prefix + "m" * (length - len(prefix))
+                received = roundtrip(error_type(message))
+                evidence = decoded_error_evidence(received)
+
+                if length == MAX_DIAGNOSTIC_CHARACTERS:
+                    self.assertEqual(first=message, second=evidence.message)
+                    self.assertEqual(first=module + ".E", second=evidence.original_type)
+                else:
+                    self.assertIn(member="Diagnostic text omitted", container=evidence.message)
+                    self.assertIn(member="Diagnostic text omitted", container=evidence.original_type)
+                    self.assertNotIn(member=prefix, container=str(received))
+                    self.assertNotIn(member="tttt", container=str(received))
+
+    def test_oversized_traceback_note_keeps_its_complete_structured_locations(self):
+        wire_failure = json.loads(frame(RuntimeError("Child failure"))[4:])
+        locations = [
+            {"file": "f" * MAX_TRACEBACK_LOCATION_CHARACTERS, "function": "calculate_spectrum", "line": line}
+            for line in (11, 22, 33, 44)
+        ]
+        wire_failure["frames"] = locations
+        received = decode_frame(json.dumps(wire_failure).encode("ascii"))
+        evidence = decoded_error_evidence(received)
+
+        self.assertIn(member="Diagnostic text omitted", container="\n".join(received.__notes__))
+        self.assertEqual(
+            first=tuple((location["file"], location["function"], location["line"]) for location in locations),
+            second=evidence.frames,
+        )
+        self.assertFalse(expr=evidence.frames_omitted)
+
     def test_cyclic_and_large_failures_leave_bounded_explicit_diagnostics(self):
         failure = RuntimeError("failure " * MAX_DIAGNOSTIC_CHARACTERS)
         failure.__cause__ = failure
         received = roundtrip(failure)
 
-        self.assertIn(member="truncated", container=str(received))
+        self.assertIn(member="Diagnostic text omitted", container=str(received))
         self.assertIs(expr1=RemoteScienceError, expr2=type(received.__cause__))
         self.assertIn(member="cycle or diagnostic limit", container=str(received.__cause__))
 

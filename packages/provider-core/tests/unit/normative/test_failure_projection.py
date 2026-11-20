@@ -145,6 +145,34 @@ class CoreFailureProjectionTests(unittest.TestCase):
             self.assertLessEqual(len(location["file"]), 128 + len("[truncated]"))
             self.assertLessEqual(len(location["function"]), 128 + len("[truncated]"))
 
+    def test_wire_omission_prevents_secret_fragments_reaching_protected_evidence(self):
+        secret = "wire-private-canary-" + "z" * 2200
+        child_error_type = type("ChildSpectrumFailure", (Exception,), {"__module__": "science." + secret})
+
+        def child_opaque_calculation():
+            try:
+                raise ValueError("Spectrum calibration is missing")
+            except ValueError as cause:
+                raise child_error_type("Spectrum failed: " + "m" * 900 + secret) from cause
+
+        try:
+            child_opaque_calculation()
+        except child_error_type as child_failure:
+            received = decode_frame(frame(child_failure)[4:])
+
+        evidence = failure_evidence(received, secrets=(secret,))
+        rendered = json.dumps(evidence)
+
+        self.assertIn(member="Diagnostic text omitted", container=evidence["message"])
+        self.assertIn(member="Diagnostic text omitted", container=evidence["remote_type"])
+        self.assertNotIn(member="wire-private-canary", container=rendered)
+        self.assertNotIn(member=secret, container=rendered)
+        self.assertIn(member="child_opaque_calculation", container=rendered)
+        self.assertEqual(
+            first="Spectrum calibration is missing",
+            second=evidence["relationships"][0]["failure"]["message"],
+        )
+
     def _hostile_observation_failure(self):
         class HostileObservation:
             @property

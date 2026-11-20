@@ -153,7 +153,9 @@ def _diagnostic_text(diagnostic: str) -> str:
     if len(diagnostic) <= MAX_DIAGNOSTIC_CHARACTERS:
         return diagnostic
 
-    return diagnostic[:MAX_DIAGNOSTIC_CHARACTERS] + " [truncated]"
+    # A retained prefix can split a configured secret before the parent can
+    # redact it. Keep each admitted value intact or omit the whole scalar.
+    return "Diagnostic text omitted: exceeds the wire character limit"
 
 
 def _pack_traceback(failure: BaseException) -> dict:
@@ -390,7 +392,7 @@ def _unpack_error(error_fields: dict, *, depth: int, remaining: list[int]) -> Ba
             f"{type(error_fields['original_type'])=} should both be str"
         )
 
-    if not all(len(error_fields[field]) <= MAX_DIAGNOSTIC_CHARACTERS + len(" [truncated]") for field in ("message", "original_type")):
+    if not all(len(error_fields[field]) <= MAX_DIAGNOSTIC_CHARACTERS for field in ("message", "original_type")):
         raise ValueError("Scientific process descriptions exceed diagnostic limits")
 
     frames = error_fields["frames"]

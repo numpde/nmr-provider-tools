@@ -210,6 +210,12 @@ survive a later channel failure. Infrastructure failure does not become
 correctable scientific input rejection, and arbitrary Python exception identity
 does not survive transport. There is no automatic replay, restart or replacement.
 
+Remote failures retain bounded causes and child file/function/line locations.
+Oversized diagnostic text is omitted whole before transport so it cannot leave
+a configured secret fragment. Protected operator diagnostics redact configured
+secrets before their display limits; ordinary Python tracebacks remain raw
+protected evidence.
+
 Finish receiver/request tasks within the host lifetime. Result release and
 analysis close start retained cleanup; observe them with `observe_cleanup` or
 settle them with `settle_cleanup`. An expired wait or cancelled observer does
