@@ -139,7 +139,7 @@ class PredictionWorkflow:
         prepared_state_handle = self.preparation_tool.prepared_state_handle
 
         if prepared_state_handle is None:
-            raise RuntimeError("Accept an interpretation before generating candidates")
+            raise RuntimeError(f"{prepared_state_handle=} should be set")
 
         generation_submission = self.generation_submission
 
