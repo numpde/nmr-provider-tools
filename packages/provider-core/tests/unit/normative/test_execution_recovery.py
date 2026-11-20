@@ -21,11 +21,11 @@ class CompletedDuringOutage(PausedSession):
         self.produced = asyncio.Event()
 
     async def execute(self, prepared, *, report_condition):
-        result = await super().execute(prepared, report_condition=report_condition)
+        analysis_outcome = await super().execute(prepared, report_condition=report_condition)
 
         self.produced.set()
 
-        return result
+        return analysis_outcome
 
 
 class ObservationRecoveryTests(unittest.IsolatedAsyncioTestCase):
