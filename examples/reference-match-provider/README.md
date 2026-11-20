@@ -1,97 +1,84 @@
 # Reference match provider
 
-This standalone provider illustrates **allocation-owned scientific setup reused
-across independent analyses** in [the end-state boundary](../../notes/066_provider_execution_end_state.txt).
-It complements the dummy's prepared-state flow and the spectrum provider's
-portable result transfer.
-
-`ReferenceMatcher` inherits `Contribution` and exports its keyword-only `match`
-method. Its constructor retains the provider's settings and reference records.
-`open_provider()` reads the selected external deployment document and adopts
-the configured matcher before index initialization. Local execution submits
-`method=binding.contribution.match`. The helper is provider application code, not an SDK discovery hook.
+Reference demonstrates one allocation-owned reference index reused across
+sequential analyses on either the SDK thread host or persistent process host.
+Science, operation declarations and request sequencing are identical on both
+backends. The deployment selects `execution.backend = "thread"` or `"process"`.
 
 ```text
 config/deployments/localhost/provider.toml   science, resources and execution policy
 src/reference_provider/
-├── science.py       immutable reference data, inverted index and direct query
-├── binding.py       configured contribution and allocation-owned index lifecycle
-├── provider.py      deployment loading, scientific assembly and host lifetime
-└── __main__.py      local deployment and two sequential analyses
+├── science.py          immutable reference data, index and cosine matching
+├── binding.py          operation declaration and index initialization/cleanup
+├── provider.py         deployment selection and SDK host lifetime
+├── process_factory.py  installed construction from settings and references
+├── application.py      sequential queries and retained report delivery
+└── __main__.py         two-query demo with flushed stdout consumption
 ```
 
-`build_index(references)` normalizes the configured reference vectors and builds
-channel-to-reference weighted postings. `match(index, settings, candidate)`
-normalizes a query and accumulates cosine scores through those postings.
-These ordinary functions know no Jobs, backend, allocations or operation handles.
-Channel identity is the vector position; all vectors use the same dimension.
-Values must be finite and nonnegative. Zero queries, dimension mismatches, no
-overlap and scores below the configured threshold are explicit rejections.
-Exact score ties choose the lexicographically smallest label.
+`open_provider()` reads the external deployment document once. Thread startup
+adopts the configured matcher and builds its index lazily on first use. Process
+startup calls the installed `reference_provider.process_factory:construct`
+with explicit settings and reference records, then initializes the child before
+yielding. This readiness difference follows the two SDK startup contracts.
+`ReferenceMatcher.initialize()` builds the index once and `close()` releases it.
+The same installed constructor assembles the scientific configuration for both
+backends; scientific records remain provider-owned.
 
-`open_provider()` passes settings and reference data to the provider-owned
-constructor. It exports `ReferenceMatcher.match`. The instance
-initializer builds the actual index once; retirement disposes that retained
-index. Each query is self-contained, so there are no analysis hooks, scratch
-workspace or prepared-state handles. A completed report contains only a label
-and score and needs no live index to be read.
+Process deployment calls `open_provider(process_session=session)` with an
+existing deployment-owned `RunnerSession` for the SDK scientific worker
+(`python -I -B -m provider_core.process_worker`). Creating `ProcessExecutionHost`
+transfers session ownership to the SDK; the host joins retirement on context
+exit. Reference does not create a supervisor or infer its socket and lock
+identity. Thread startup refuses an unrelated process session; process startup
+requires one. Each provider context owns exactly one allocation and one host.
+Declared CPU requirements record the environment's obligation; they do not
+allocate hardware or prove availability.
 
-The executable reuses one adopted matcher. It closes and observes the
-first analysis before opening the second on that same initialized allocation.
-The first result stays retained and readable while the second query runs.
-Finally, SDK `ResultConsumption` owns each report's read/consumer attempt and
-releases its exact result only after consumer success. A cancelled waiter can
-join that original attempt; a failed receiver is never automatically invoked
-again. The SDK owner's shutdown join finishes each original acceptance and
-release observation before host teardown, deferring observer cancellation until
-the result or failure is known. Generic
-observation and consumption machinery belong to the SDK. The bootstrap observes
-host retirement separately. Cancelling the executable initiates its orderly
-shutdown; it does not promise restart recovery or forced interruption.
-A later analysis failure still allows an earlier successful report to reach the
-consumer. Failed consumption leaves that result retained until process exit;
-there is no persistent owner that could recover it after this demo exits.
+`run_queries(provider=..., candidates=..., receive=...)` sequences independent
+analyses through typed call bindings and the SDK `Submission`. It closes the
+first analysis before opening the second on the same allocation. Completed
+reports remain independently owned and readable while later queries run.
+A cancelled `Submission.wait()` can observe its original operation again;
+submitting that retained owner returns the acquired operation. An uncertain
+reply does not authorize a fresh request. No backend branch appears in the
+request workflow.
 
-The four reference patterns are **synthetic illustrations**. This example makes
-no claim about chemical identification, validated NMR behavior or performance.
-It implements the scientific contribution and execution boundary over the real
-`InProcessExecutionHost`; it does not implement the future common Jobs service, concurrent
-analysis sharing, durable publication or remote execution.
+A later scientific failure still allows earlier reports to reach the receiver
+before waiting for the failed analysis's cleanup. SDK `ResultConsumption` owns
+each receiver attempt and releases the exact result after success. Receiver
+failures are not retried automatically. Query and analysis-cleanup observation
+waits have 15-second caller caps; host exit joins original retirement even when
+settlement takes longer. Cancelled waits do not force science to stop. There is
+no restart recovery or durable delivery owner after this demo exits.
 
-From the repository root, qualify all independently installed examples with:
+`build_index(reference_set)` normalizes references and builds weighted channel
+postings. `match(index, settings, candidate)` computes cosine scores. Vector
+positions identify channels; values must be finite and nonnegative and
+references have equal dimensions. Zero queries, dimension mismatches, no overlap
+and scores below the threshold are scientific rejections. Exact score ties
+choose the smallest label. Scientific functions know no allocations or backend.
+The four reference patterns are synthetic illustrations, with no claim about
+chemical identification or validated NMR performance.
+
+With this example and the matching SDK installed inside a permitted container,
+run `python -I -B -m reference_provider` from a directory containing the supplied
+`config/deployments/localhost/provider.toml`. It prints JSON reports for
+`pattern-a` and `pattern-b`, each scoring approximately `1`. The document stays
+outside the wheel and `PROVIDER_CONFIG_PATH` selects it. The command uses the
+supplied thread deployment; an enclosing service supplies the native session
+when choosing process startup. Flushed stdout is local consumption, not durable
+publication.
+
+From the repository root, run the installed two-backend proof with:
 
 ```sh
-make tests/integration/provider-core DOCKER_CONTEXT=science WHEELHOUSE=/home/ra/Downloads/wheelhouse
+make tests/integration/provider-core DOCKER_CONTEXT=science WHEELHOUSE=/home/ra/Downloads/wheelhouse PRIVACY_TESTS=0 TEST_PATTERN=test_reference_backends.py
 ```
 
-With this example and the matching candidate SDK installed inside a permitted
-container, run `python -I -B -m reference_provider` from a directory containing
-`config/deployments/localhost/provider.toml`. The document stays outside the wheel;
-`PROVIDER_CONFIG_PATH` in `provider.py` selects it. It prints two JSON reports:
-`pattern-a` for `(3, 4, 0, 0)` and `pattern-b` for `(0, 0, 1, 1)`, each scoring
-approximately `1`. Flushed stdout is the local consumer; it is not a durable
-report queue or proof of central API publication.
-
-
-Provider constructor settings are ordinary object attributes. The SDK does not
-serialize or hash them. Call identity refers to the adopted allocation; scientific
-provenance remains provider-owned. Local submission uses the actual receiver
-(e.g. `method=contribution.generate`). Adoption takes `requirements=...`;
-hardware availability must be established by the environment running the provider.
-
-The SDK supplies execution identities. Use allocation handles with
-`host.open_analysis(allocations=frozenset({hosted.allocation}))`, retain returned operation
-handles, and observe those handles to resume waiting. Each new submission means
-new work. State kinds and ports derive their names from Python types and class
-attributes rather than manually assigned labels.
-
-Adoption records resource requirements and establishes scientific-object ownership.
-It does not discover or allocate CPU/GPU hardware. The returned allocation handle
-identifies an execution owner, not a hardware grant.
-
-The demo's SDK host context joins original retirement before exiting. Query and
-analysis-cleanup observation waits retain their 15-second caller caps; final host
-settlement can wait longer while the original cleanup is pending. A cap does not
-force science to stop. Earlier usable reports are consumed before waiting for
-cleanup of a later failed query. That ordering is provider policy, so analysis
-cleanup remains explicit.
+The integration fixture supplies the existing native supervisor and exercises
+the actual installed process factory, sequential queries, retained results,
+scientific rejection, cancelled observation and worker retirement. Existing
+binding and workflow tests additionally prove lazy initialization, index
+identity reuse and earlier delivery before failed-query cleanup. Real-model,
+GPU and deployment qualification remain separate gates.

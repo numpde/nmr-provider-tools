@@ -6,12 +6,15 @@ from dataclasses import dataclass
 import pathlib
 import tomllib
 
+from provider_core.contribution import CallBinding
 from provider_core.embedded_host import InProcessExecutionHost
 from provider_core.hosting import OperationPolicy
+from provider_core.process_host import ProcessExecutionHost
+from provider_core.runner_session import RunnerSession
 from provider_core.scientific import HostedContribution, ResourceRequirement
 
-from .binding import ReferenceConfig, ReferenceMatcher
-from . import science
+from .binding import ReferenceMatcher
+from .process_factory import construct
 
 
 # Select the deployment document relative to the application's working directory.
@@ -23,14 +26,20 @@ PROVIDER_CONFIG_PATH = pathlib.Path("config/deployments/localhost/provider.toml"
 class Provider:
     """Retain the selected library and policy across independent query analyses."""
 
-    execution_host: InProcessExecutionHost
+    execution_host: InProcessExecutionHost | ProcessExecutionHost
     matcher: HostedContribution
+    match_call: CallBinding
     operation_policy: OperationPolicy
 
 
 @asynccontextmanager
-async def open_provider() -> AsyncIterator[Provider]:
-    """Read configuration once; indexing remains lazy until the first query."""
+async def open_provider(*, process_session: RunnerSession | None = None) -> AsyncIterator[Provider]:
+    """Own one reusable matcher and its SDK host until retirement settles.
+
+    Threads build the index on first use; process startup initializes its child
+    before yielding. A process deployment supplies the native runner session;
+    constructing its host transfers that session to SDK ownership.
+    """
 
     with PROVIDER_CONFIG_PATH.open(mode="rb") as source:
         provider_config = tomllib.load(source)
@@ -43,22 +52,37 @@ async def open_provider() -> AsyncIterator[Provider]:
     )
 
     matching_config = provider_config["science"]["matching"]
-    reference_entries = []
+    execution_mode = provider_config["execution"]["backend"]
+    host_options = provider_config["execution"]["in_process_execution_host"]
 
-    for reference_config in matching_config["references"]:
-        reference_entries.append(science.Reference(label=reference_config["label"], values=tuple(reference_config["values"])))
+    if execution_mode == "thread":
+        if process_session is not None:
+            raise ValueError("Cannot start thread matching with a scientific process session; threads own no native worker")
+        execution_host = InProcessExecutionHost(**host_options)
+    elif execution_mode == "process":
+        if process_session is None:
+            raise ValueError("Cannot start process matching without a deployment-owned scientific runner session")
+        execution_host = ProcessExecutionHost(session=process_session, **host_options)
+    else:
+        raise ValueError(f"Cannot start reference matching with {execution_mode=}; choose 'thread' or 'process'")
 
-    reference_configuration = ReferenceConfig(
-        settings=science.MatchSettings(**matching_config["settings"]),
-        references=science.ReferenceSet(entries=tuple(reference_entries)),
-    )
+    async with execution_host:
+        if execution_mode == "process":
+            matcher = await execution_host.start(
+                contribution_type=ReferenceMatcher,
+                constructor="reference_provider.process_factory:construct",
+                startup=matching_config,
+                requirements=resource_requirements,
+            )
+        else:
+            matcher = execution_host.adopt(
+                contribution=construct(startup=matching_config),
+                requirements=resource_requirements,
+            )
 
-    async with InProcessExecutionHost(**provider_config["execution"]["in_process_execution_host"]) as execution_host:
         yield Provider(
             execution_host=execution_host,
-            matcher=execution_host.adopt(
-                contribution=ReferenceMatcher(configuration=reference_configuration),
-                requirements=resource_requirements,
-            ),
+            matcher=matcher,
+            match_call=matcher.call(method=ReferenceMatcher.match),
             operation_policy=operation_policy,
         )
