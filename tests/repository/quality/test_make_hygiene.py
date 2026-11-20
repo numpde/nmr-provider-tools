@@ -60,10 +60,10 @@ class RepositoryHygieneTest(unittest.TestCase):
     def test_secret_text_patterns_are_absent(self):
         findings = []
 
-        for path in iter_repo_text_files():
-            for (line_number, line) in enumerate(read_text(path).splitlines(), start=1):
+        for source_path in iter_repo_text_files():
+            for (line_number, line) in enumerate(read_text(source_path).splitlines(), start=1):
                 if any(pattern.search(line) for pattern in SECRET_PATTERNS):
-                    findings.append(f"{path}:{line_number}: secret pattern")
+                    findings.append(f"{source_path}:{line_number}: secret pattern")
 
         self.assertEqual([], findings, msg="\n".join(findings))
 
@@ -76,11 +76,11 @@ class RepositoryHygieneTest(unittest.TestCase):
         for root_name in FIRST_PARTY_PYTHON_ROOTS:
             root = repo_path(root_name)
 
-            for path in root.rglob("*"):
-                if path.is_dir() and (path.name == "__pycache__"):
-                    failures.append(f"{path}: Python bytecode cache must not be materialized on host")
-                elif path.is_file() and (path.suffix == ".pyc"):
-                    failures.append(f"{path}: Python bytecode must not be materialized on host")
+            for candidate_path in root.rglob("*"):
+                if candidate_path.is_dir() and (candidate_path.name == "__pycache__"):
+                    failures.append(f"{candidate_path}: Python bytecode cache must not be materialized on host")
+                elif candidate_path.is_file() and (candidate_path.suffix == ".pyc"):
+                    failures.append(f"{candidate_path}: Python bytecode must not be materialized on host")
 
         if failures:
             self.fail("\n".join(failures))
@@ -92,12 +92,12 @@ class RepositoryHygieneTest(unittest.TestCase):
         # reason about repository paths before giving any lane write authority.
         # Keep first-party paths real; dependency/install trees are separate
         # materialized outputs with their own integrity checks.
-        for path in repo_path(".").rglob("*"):
-            if is_skipped(path):
+        for candidate_path in repo_path(".").rglob("*"):
+            if is_skipped(candidate_path):
                 continue
 
-            if path.is_symlink():
-                failures.append(f"{path}: first-party repository paths must not be symlinks")
+            if candidate_path.is_symlink():
+                failures.append(f"{candidate_path}: first-party repository paths must not be symlinks")
 
         if failures:
             self.fail("\n".join(failures))

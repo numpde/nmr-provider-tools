@@ -49,9 +49,9 @@ class PythonCacheCleanupTests(unittest.TestCase):
 
             (root / "tools/external-link").symlink_to(outside, target_is_directory=True)
 
-            result = self.clean(root)
+            cleanup_process = self.clean(root)
 
-            self.assertEqual(0, result.returncode, msg=result.stderr)
+            self.assertEqual(0, cleanup_process.returncode, msg=cleanup_process.stderr)
 
             for name in ("tools", "tests", "packages", "src", "containers"):
                 source = root / name
@@ -76,10 +76,10 @@ class PythonCacheCleanupTests(unittest.TestCase):
             (target / "retained.pyc").write_bytes(b"untouched")
             (root / "tools").symlink_to(target, target_is_directory=True)
 
-            result = self.clean(root)
+            cleanup_process = self.clean(root)
 
-            self.assertNotEqual(0, result.returncode)
-            self.assertIn("symlink", result.stderr)
+            self.assertNotEqual(0, cleanup_process.returncode)
+            self.assertIn("symlink", cleanup_process.stderr)
             self.assertTrue((target / "retained.pyc").exists())
 
     def test_public_cleanup_target_does_not_require_a_docker_context(self):
