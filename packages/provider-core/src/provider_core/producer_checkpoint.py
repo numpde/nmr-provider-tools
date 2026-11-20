@@ -11,6 +11,7 @@ require_container()
 import hashlib
 import json
 import re
+import reprlib
 from dataclasses import asdict, dataclass
 
 from provider_core.adapters.nmr.v1.attempt_response import start_admission_body
@@ -51,11 +52,11 @@ def checkpoint_volume_name(scope, *, namespace="nmr-api-delivery"):
     return namespace + "-control-" + hashlib.sha256(raw).hexdigest()
 
 
-def _require_digest(value):
-    require_type(value, str)
+def _require_digest(digest):
+    require_type(digest, str)
 
-    if re.fullmatch(r"sha256:[0-9a-f]{64}", value) is None:
-        raise ValueError("A control checkpoint digest must be a canonical SHA-256 identity.")
+    if not re.fullmatch(expected_digest_pattern := r"sha256:[0-9a-f]{64}", digest):
+        raise ValueError(f"{reprlib.repr(digest)=} should match {expected_digest_pattern=}")
 
 
 @dataclass(frozen=True, slots=True)
