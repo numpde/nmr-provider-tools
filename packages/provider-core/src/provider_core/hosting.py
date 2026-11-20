@@ -35,16 +35,14 @@ from provider_core.type_requirements import require_instance, require_type
 
 
 def _identity(identity_text, identity_role):
-    if not (type(identity_text) is (expected_type := str)):
-        raise TypeError(f"{identity_role=}; {type(identity_text)=} ≠ {expected_type=}")
+    require_type(identity_text, str)
 
     if not (identity_text and all(((character.isprintable()) and (not character.isspace())) for character in identity_text)):
         raise ValueError(f"{identity_role=}; {reprlib.repr(identity_text)=} should be nonempty printable text without whitespace")
 
 
 def _digest(digest_text, digest_role):
-    if not (type(digest_text) is (expected_type := str)):
-        raise TypeError(f"{digest_role=}; {type(digest_text)=} ≠ {expected_type=}")
+    require_type(digest_text, str)
 
     expected_digest_pattern = r"(?:sha256:|configured-v[23]:sha256:)[0-9a-f]{64}\Z"
 
@@ -69,15 +67,13 @@ class BackendCapabilities:
             ("concurrency", self.concurrency, ConcurrencyRequirement),
             ("interruption", self.interruption, InterruptionSupport),
         ):
-            if not (type(supported_options) is (expected_options_type := frozenset)):
-                raise TypeError(f"{capability_name=}; {type(supported_options)=} ≠ {expected_options_type=}")
+            require_type(supported_options, frozenset)
 
             if not (supported_options):
                 raise ValueError(f"{capability_name=} should have at least one supported option")
 
             for supported_option in supported_options:
-                if not (type(supported_option) is expected_type):
-                    raise TypeError(f"{capability_name=}; {type(supported_option)=} ≠ {expected_type=}")
+                require_type(supported_option, expected_type)
 
         if any((version <= 0) for version in self.contract_versions):
             raise ValueError(f"Backend contract versions must be positive; {self.contract_versions=}")
