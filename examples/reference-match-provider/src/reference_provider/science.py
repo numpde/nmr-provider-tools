@@ -11,26 +11,20 @@ from provider_core.tools import require_nonnegative_number
 from provider_core.type_requirements import require_type
 
 
-def _finite(numeric_value: object) -> float:
-    return float(require_nonnegative_number(numeric_value))
-
-
 @dataclass(frozen=True, slots=True, kw_only=True)
 class VectorInput:
     values: tuple[float, ...]
 
     def __post_init__(self) -> None:
-        actual_values = self.values
-
-        require_type(actual_values, tuple)
+        require_type(self.values, tuple)
 
         if not (self.values):
-            raise ValueError("A matching vector requires at least one channel value")
+            raise ValueError(f"{self.values=} should be nonempty")
 
         finite_channels = []
 
         for channel in self.values:
-            finite_channels.append(_finite(channel))
+            finite_channels.append(float(require_nonnegative_number(channel)))
 
         object.__setattr__(self, "values", tuple(finite_channels))
 
@@ -41,12 +35,10 @@ class Reference:
     values: tuple[float, ...]
 
     def __post_init__(self) -> None:
-        actual_label = self.label
-
-        require_type(actual_label, str)
+        require_type(self.label, str)
 
         if not self.label.strip():
-            raise ValueError("Each matching reference requires a nonempty label")
+            raise ValueError(f"{reprlib.repr(self.label)=} should be nonblank")
 
         object.__setattr__(self, "values", VectorInput(values=self.values).values)
 
@@ -59,9 +51,7 @@ class ReferenceSet:
     entries: tuple[Reference, ...]
 
     def __post_init__(self) -> None:
-        actual_entries = self.entries
-
-        require_type(actual_entries, tuple)
+        require_type(self.entries, tuple)
 
         for entry in self.entries:
             require_type(entry, Reference)
@@ -73,11 +63,11 @@ class ReferenceSet:
         expected_channel_count = len(self.entries[0].values)
 
         for reference in self.entries:
-            if not ((reference.label not in labels) and (len(reference.values) == expected_channel_count)):
-                raise ValueError(
-                    f"{reprlib.repr(reference.label)=} should be unique; "
-                    f"{len(reference.values)=} should match {expected_channel_count=}"
-                )
+            if not (reference.label not in labels):
+                raise ValueError(f"{reprlib.repr(reference.label)=} should be unique")
+
+            if not (len(reference.values) == expected_channel_count):
+                raise ValueError(f"{len(reference.values)=} should match {expected_channel_count=}")
 
             labels.add(reference.label)
 
@@ -87,14 +77,13 @@ class MatchSettings:
     minimum_score: float
 
     def __post_init__(self) -> None:
-        score = _finite(self.minimum_score)
-        min_score = 0
+        minimum_score = float(require_nonnegative_number(self.minimum_score))
         max_score = 1
 
-        if not (min_score <= score <= max_score):
-            raise ValueError(f"Expected {min_score=} ≤ {score=} ≤ {max_score=}")
+        if not (minimum_score <= max_score):
+            raise ValueError(f"{minimum_score=} should be no greater than {max_score=}")
 
-        object.__setattr__(self, "minimum_score", score)
+        object.__setattr__(self, "minimum_score", minimum_score)
 
 
 @dataclass(frozen=True, slots=True, kw_only=True)
@@ -110,15 +99,15 @@ class MatchReport:
 
 
 def _normalize(channel_weights: tuple[float, ...]) -> tuple[float, ...]:
-    scale = max(channel_weights)
+    max_channel_weight = max(channel_weights)
 
-    if not (scale != 0):
-        raise ScientificRejection("zero_vector", f"{scale=} should be nonzero")
+    if not (max_channel_weight != 0):
+        raise ScientificRejection(code="zero_vector", message=f"{max_channel_weight=} should be nonzero")
 
     scaled = []
 
     for channel_weight in channel_weights:
-        scaled.append(channel_weight / scale)
+        scaled.append(channel_weight / max_channel_weight)
 
     length = math.hypot(*scaled)
     normalized = []
@@ -159,8 +148,8 @@ def match(index: ReferenceIndex, settings: MatchSettings, candidate: VectorInput
 
     if not (len(candidate.values) == expected_channel_count):
         raise ScientificRejection(
-            "wrong_dimensions",
-            f"{len(candidate.values)=} should match {expected_channel_count=}",
+            code="wrong_dimensions",
+            message=f"{len(candidate.values)=} should match {expected_channel_count=}",
         )
 
     scores = [0.0] * len(index.labels)
@@ -171,18 +160,18 @@ def match(index: ReferenceIndex, settings: MatchSettings, candidate: VectorInput
                 scores[reference_index] += weight * reference_weight
 
     best_index = min(range(len(scores)), key=lambda position: (-scores[position], index.labels[position]))
-    score = min(1.0, scores[best_index])
+    cosine_score = min(1.0, scores[best_index])
 
-    if not (score != 0):
+    if not (cosine_score != 0):
         raise ScientificRejection(
-            "no_overlap",
-            f"{score=} should be nonzero",
+            code="no_overlap",
+            message=f"{cosine_score=} should be nonzero",
         )
 
-    if not (score >= settings.minimum_score):
+    if not (cosine_score >= settings.minimum_score):
         raise ScientificRejection(
-            "below_threshold",
-            f"{score=} should reach {settings.minimum_score=}",
+            code="below_threshold",
+            message=f"{cosine_score=} should reach {settings.minimum_score=}",
         )
 
-    return MatchReport(label=index.labels[best_index], score=score)
+    return MatchReport(label=index.labels[best_index], score=cosine_score)
