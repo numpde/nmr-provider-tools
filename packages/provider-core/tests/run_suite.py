@@ -41,9 +41,9 @@ class _UnattributedAsyncioTest:
 
 
 class _AsyncioDiagnosticObserver(logging.Handler):
-    def __init__(self, result):
+    def __init__(self, suite_result):
         super().__init__(level=logging.ERROR)
-        self.result = result
+        self.suite_result = suite_result
 
     def emit(self, record):
         if (not _ACTIVE_ASYNCIO_OBSERVERS) or (_ACTIVE_ASYNCIO_OBSERVERS[-1] is not self):
@@ -99,16 +99,16 @@ class _AsyncioDiagnosticObserver(logging.Handler):
 
             diagnostic.add_note("Original asyncio event context:\n" + context)
 
-        case = self.result._active_test
+        case = self.suite_result._active_test
 
         if case is None:
-            case = self.result._unattributed_asyncio_test
+            case = self.suite_result._unattributed_asyncio_test
 
         try:
             raise diagnostic
         except _AsyncioDiagnosticError:
-            self.result.addError(case, sys.exc_info())
-            self.result._asyncio_errored.add(case)
+            self.suite_result.addError(case, sys.exc_info())
+            self.suite_result._asyncio_errored.add(case)
 
 
 # The complete unittest tracebacks remain above the final, bounded failure
