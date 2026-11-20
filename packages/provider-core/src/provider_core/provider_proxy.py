@@ -98,18 +98,18 @@ class ServicePolicy:
         if not (mode in ("local", "mapped", "external")):
             raise ServiceRefused("Cannot configure service proxy: select local, mapped or external routing explicitly.")
 
-        admitted = frozenset(authority_parts(value) for value in authorities)
+        admitted = frozenset(authority_parts(authority_text) for authority_text in authorities)
 
         if (not admitted) or (len(admitted) != len(authorities)):
             raise ServiceRefused("Cannot configure service proxy: authorities must be nonempty and unique.")
 
         mapped = {}
 
-        for value in addresses:
-            (host, separator, text) = value.partition("=")
+        for address_assignment in addresses:
+            (host, separator, address_text) = address_assignment.partition("=")
 
             try:
-                address = str(ipaddress.IPv4Address(text))
+                address = str(ipaddress.IPv4Address(address_text))
             except ipaddress.AddressValueError:
                 raise ServiceRefused("Cannot configure local service proxy: each peer requires a literal IPv4 address.") from None
 
