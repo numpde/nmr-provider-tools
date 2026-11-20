@@ -509,8 +509,7 @@ class ToolConversation:
         except (ValueError, OverflowError, RecursionError) as cause:
             raise ToolRejected("arguments_text should encode JSON with unique fields and finite numbers") from cause
 
-        if not (type(arguments) is (expected_type := dict)):
-            raise ToolRejected(f"{type(arguments)=} ≠ {expected_type=}")
+        require_type(arguments, dict, error_factory=ToolRejected)
 
         self._require_no_secrets(arguments)
 
