@@ -213,3 +213,46 @@ no multiple-allocation capacity expansion, other-provider migration, real-model
 or GPU qualification, cross-version protocol, platform expansion, unattended
 parent-death/descendant-containment claim, release or merge. Existing runner,
 test staging, acquisition and repository-check infrastructure are unchanged.
+
+
+## Follow-up audit and revision, 2026-11-20
+
+Reviewed the same branch at 03e70f2, the worker and wire paths, the
+AsyncRunnerSession and RunnerSession owners, the embedded operation contract,
+the native socket tests and the installed NMRPeak scenario. No independent
+subagent execution or installed test environment was available in this run;
+the four boundary lenses below are source inspection, not independent agents.
+
+- **Observation ownership:** Process operation observe ignored wait_seconds
+  while a remote reply was pending. In particular wait_seconds=0 could block
+  for the channel's separate transport budget. This breaks the common
+  observation interface and can hold callers during a worker outage. Commit
+  58cbf96 returns a conservative snapshot at zero wait, independently bounds
+  positive waits, validates revision cursors and retains original I/O and its
+  eventual success or backend failure evidence. The adversarial socket test
+  holds the first reply beyond both waits before releasing it. Authored, unrun.
+- **Transport:** Initial framing before submission and retention before sending
+  remain present. The new observation path does not dispatch another scientific
+  invocation. A lost reply after an *independently observed scientific effect*
+  still lacks an actual-child barrier proof.
+- **Cleanup:** The close/release barrier, transfer-before-forget sequence and
+  separate scientific/native receipts remain intact in source. A genuinely
+  independent initialization plus close failure in the installed child is not
+  yet demonstrated.
+- **Supervision:** Startup keeps an original AsyncRunnerSession and native
+  retirement uses its own fixed allowance. The existing installed tests kill
+  the worker between prepare and generation, not during active scientific
+  work; cancelled startup is likewise not an actual-child proof. Two requests
+  through one child PID still do not independently count model initializations.
+
+The follow-up tree has no passing-test claim. GitHub reported no combined
+statuses or pull-request workflow runs for 58cbf96. This runtime has no Docker
+binary or selected science context. No installed/native/fuzz tests were run,
+and the test changes still require their first behavioral execution. Follow
+the maintained science-context unit and focused installed integration commands
+above, stop on the first failure and repair concrete regressions before expanding
+fault machinery.
+
+The branch was 114 commits behind main at this review, based on a common
+ancestor 4c8c02d; no integration or merge readiness is inferred. Main was
+left unchanged.
