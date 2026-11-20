@@ -123,7 +123,11 @@ class NativeInstallationTests(unittest.TestCase):
         installer = json.loads(pathlib.Path("/opt/provider-tools/installer/release.json").read_text())
 
         self.assertEqual(f"pip-{importlib.metadata.version('pip')}-py3-none-any.whl", installer["name"])
-        self.assertEqual({"provider-core", "pip"}, {item.metadata["Name"] for item in importlib.metadata.distributions()})
+
+        self.assertEqual(
+            {"provider-core", "pip"},
+            {installed_distribution.metadata["Name"] for installed_distribution in importlib.metadata.distributions()},
+        )
 
     def test_core_distribution_excludes_provider_examples(self):
         distribution_files = importlib.metadata.distribution("provider-core").files
@@ -131,17 +135,17 @@ class NativeInstallationTests(unittest.TestCase):
         self.assertIsNotNone(distribution_files)
 
         packaged_python = {
-            tuple(path.parts)
-            for path in distribution_files
-            if path.suffix == ".py"
+            tuple(installed_member.parts)
+            for installed_member in distribution_files
+            if installed_member.suffix == ".py"
         }
 
         unexpected_examples = [
-            path
-            for path in packaged_python
+            member_parts
+            for member_parts in packaged_python
             if
-            (path[:2] == ("provider_core", "examples")) or
-            (path[0] == "dummy_provider")
+            (member_parts[:2] == ("provider_core", "examples")) or
+            (member_parts[0] == "dummy_provider")
         ]
 
         self.assertEqual([], unexpected_examples)
@@ -160,24 +164,31 @@ class NativeInstallationTests(unittest.TestCase):
         self.assertTrue(session.retirement.scratch_released)
 
     def test_native_reader_returns_verified_bytes_and_refuses_later_mutation(self):
-        data = b"scientific input"
+        source_bytes = b"scientific input"
 
         with tempfile.TemporaryDirectory() as directory:
-            path = pathlib.Path(directory) / "source"
+            source_path = pathlib.Path(directory) / "source"
 
-            path.write_bytes(data)
-            descriptor = os.open(directory, os.O_RDONLY | os.O_DIRECTORY)
+            source_path.write_bytes(source_bytes)
+            source_directory_fd = os.open(directory, os.O_RDONLY | os.O_DIRECTORY)
 
             try:
-                receipt = VerifiedUploadFile("job", "upload", len(data), "sha256:" + hashlib.sha256(data).hexdigest(), "source")
-                snapshot = read_upload_file(receipt, directory_fd=descriptor, maximum_bytes=64)
+                receipt = VerifiedUploadFile(
+                    "job",
+                    "upload",
+                    len(source_bytes),
+                    "sha256:" + hashlib.sha256(source_bytes).hexdigest(),
+                    "source",
+                )
 
-                self.assertEqual(data, snapshot.data)
-                path.write_bytes(b"X" * len(data))
+                snapshot = read_upload_file(receipt, directory_fd=source_directory_fd, maximum_bytes=64)
+
+                self.assertEqual(source_bytes, snapshot.data)
+                source_path.write_bytes(b"X" * len(source_bytes))
 
                 with self.assertRaises(UploadFileReadFailed):
-                    read_upload_file(receipt, directory_fd=descriptor, maximum_bytes=64)
+                    read_upload_file(receipt, directory_fd=source_directory_fd, maximum_bytes=64)
 
-                self.assertEqual(data, snapshot.data)
+                self.assertEqual(source_bytes, snapshot.data)
             finally:
-                os.close(descriptor)
+                os.close(source_directory_fd)
