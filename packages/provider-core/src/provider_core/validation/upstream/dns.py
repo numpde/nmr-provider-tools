@@ -41,8 +41,8 @@ def read_dns_labels(hostname: str) -> list[bytes]:
 
     (min_label_bytes, max_label_bytes) = (1, 63)
 
-    for label in labels:
-        label_byte_count = len(label)
+    for dns_label in labels:
+        label_byte_count = len(dns_label)
 
         if not (min_label_bytes <= label_byte_count <= max_label_bytes):
             raise ValueError(f"{label_byte_count=} should be between {min_label_bytes=} and {max_label_bytes=}")

@@ -29,14 +29,18 @@ def read_visible_ascii_header(
     The caller selects the field and decides what an absent value means.
     """
 
-    values = [value for (name, value) in headers if name.lower() == header_name.lower()]
+    matching_header_values = [
+        header_value
+        for (received_header_name, header_value) in headers
+        if received_header_name.lower() == header_name.lower()
+    ]
 
     if (
-        (len(values) == 1) and
-        (0 < len(values[0]) <= max_value_bytes) and
-        (re.fullmatch(rb"[!-~]+", values[0]) is not None)
+        (len(matching_header_values) == 1) and
+        (0 < len(matching_header_values[0]) <= max_value_bytes) and
+        (re.fullmatch(rb"[!-~]+", matching_header_values[0]) is not None)
     ):
-        return values[0].decode("ascii")
+        return matching_header_values[0].decode("ascii")
 
     return None
 
@@ -63,7 +67,7 @@ def successful_connect_status(http_status: int) -> bool:
 def has_transfer_encoding(headers: tuple[tuple[bytes, bytes], ...]) -> bool:
     """Identify the transfer framing field by its case-insensitive HTTP name."""
 
-    return any((name.lower() == b"transfer-encoding") for (name, _) in headers)
+    return any((header_name.lower() == b"transfer-encoding") for (header_name, _) in headers)
 
 
 def read_retry_after(
@@ -73,7 +77,7 @@ def read_retry_after(
 ) -> float | None:
     """Read one finite delay, sampling the supplied clock only for a parsed date."""
 
-    retry_after_values = [value for (name, value) in headers if name.lower() == b"retry-after"]
+    retry_after_values = [header_value for (header_name, header_value) in headers if header_name.lower() == b"retry-after"]
 
     if len(retry_after_values) != 1:
         return None
