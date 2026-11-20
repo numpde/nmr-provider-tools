@@ -77,7 +77,7 @@ def stream_context(pool, source, selections, output, source_allowlist=None):
     else:
         paths = ((Path(allowlist_entry["path"]), allowlist_entry["destination"]) for allowlist_entry in source_allowlist)
 
-    for (path, source_relative_path) in paths:
+    for (source_path, source_relative_path) in paths:
         destination = PurePosixPath(source_relative_path)
 
         if (
@@ -92,7 +92,7 @@ def stream_context(pool, source, selections, output, source_allowlist=None):
         if source_relative_path in source_paths:
             raise ValueError(f"Cannot stream {source_relative_path=}: source destination is duplicated.")
 
-        metadata = path.lstat()
+        metadata = source_path.lstat()
 
         if not (stat.S_ISDIR(metadata.st_mode) or stat.S_ISREG(metadata.st_mode)):
             raise ValueError(f"Cannot stream {source_relative_path=}: source must contain only directories and regular files.")
@@ -100,7 +100,7 @@ def stream_context(pool, source, selections, output, source_allowlist=None):
         if (source_allowlist is not None) and (not stat.S_ISREG(metadata.st_mode)):
             raise ValueError(f"Cannot stream {source_relative_path=}: allowlist entries must be regular files.")
 
-        source_paths[source_relative_path] = path
+        source_paths[source_relative_path] = source_path
 
     for source_relative_path in source_paths:
         if any(
@@ -198,8 +198,8 @@ def stream_context(pool, source, selections, output, source_allowlist=None):
         # Callers must check this producer's status as well as the build status.
         tar = tarfile.open(fileobj=output, mode="w|")
 
-        for (source_relative_path, path) in sorted(source_paths.items()):
-            metadata = path.lstat()
+        for (source_relative_path, source_path) in sorted(source_paths.items()):
+            metadata = source_path.lstat()
             info = tarfile.TarInfo(source_relative_path)
 
             if (source_relative_path not in source_hashes) and (stat.S_ISDIR(metadata.st_mode)):
@@ -208,14 +208,14 @@ def stream_context(pool, source, selections, output, source_allowlist=None):
 
                 tar.addfile(info)
             else:
-                descriptor = open_source(path)
+                descriptor = open_source(source_path)
 
                 if not stat.S_ISREG(os.fstat(descriptor).st_mode):
                     os.close(descriptor)
                     raise ValueError(f"Cannot stream {source_relative_path=}: expected a regular source file.")
 
-                with os.fdopen(descriptor, "rb") as file:
-                    metadata = os.fstat(file.fileno())
+                with os.fdopen(descriptor, "rb") as source_stream:
+                    metadata = os.fstat(source_stream.fileno())
 
                     if not stat.S_ISREG(metadata.st_mode):
                         raise ValueError(f"Cannot stream {source_relative_path=}: expected a regular source file.")
@@ -232,7 +232,7 @@ def stream_context(pool, source, selections, output, source_allowlist=None):
                         info.mode = 0o644
 
                     info.size = metadata.st_size
-                    reader = HashReader(file)
+                    reader = HashReader(source_stream)
 
                     tar.addfile(info, reader)
 
@@ -245,8 +245,8 @@ def stream_context(pool, source, selections, output, source_allowlist=None):
         for (archive_destination, (artifact_filename, expected_sha256)) in sorted(artifacts.items()):
             descriptor = os.open(artifact_filename, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK, dir_fd=directory_fd)
 
-            with os.fdopen(descriptor, "rb") as file:
-                metadata = os.fstat(file.fileno())
+            with os.fdopen(descriptor, "rb") as artifact_stream:
+                metadata = os.fstat(artifact_stream.fileno())
 
                 if not stat.S_ISREG(metadata.st_mode):
                     raise ValueError(f"Cannot stream {artifact_filename=}: expected a regular file.")
@@ -254,7 +254,7 @@ def stream_context(pool, source, selections, output, source_allowlist=None):
                 info = tarfile.TarInfo(archive_destination)
                 info.size = metadata.st_size
                 info.mode = 0o644
-                reader = HashReader(file)
+                reader = HashReader(artifact_stream)
 
                 tar.addfile(info, reader)
 

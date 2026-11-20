@@ -17,7 +17,13 @@ from tools.wheelhouse import requirements
 def source_modules(source: pathlib.Path) -> list[str]:
     """Discover authored Python modules for both bundle bytes and provenance."""
 
-    return sorted(path.relative_to(source).as_posix() for path in source.rglob("*.py") if path.is_file())
+    return sorted(
+        (
+            module_path.relative_to(source).as_posix()
+            for module_path in source.rglob("*.py")
+            if module_path.is_file()
+        ),
+    )
 
 def dependency_files(pool, lock):
     files = {}

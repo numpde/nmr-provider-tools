@@ -163,12 +163,12 @@ def locate(path, index=None, allowed_sources=(), required_sources=(), direct_sou
             raise ValueError(f"Cannot locate {package_name=}: the pinned lock needs an HTTPS package index.")
 
         version = Version(next(iter(requirement.specifier)).version)
-        request = simple_requests.project_request(index, package_name)
-        project_url = request.full_url
+        project_request = simple_requests.project_request(index, package_name)
+        project_url = project_request.full_url
         opener = urllib.request.build_opener(HttpsRedirects())
 
         def read_project():
-            with network_request(lambda: opener.open(request, timeout=60)) as response:
+            with network_request(lambda: opener.open(project_request, timeout=60)) as response:
                 return network_request(response.read)
 
         files = simple_metadata.project_files(retry(read_project, f"locating {package_name=}"), expected_project_name=package_name)

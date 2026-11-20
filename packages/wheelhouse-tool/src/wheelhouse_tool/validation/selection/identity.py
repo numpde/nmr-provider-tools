@@ -14,13 +14,13 @@ def selected_artifacts(entries):
             raise ValueError("Cannot identify selection: each entry must explicitly identify one artifact.")
 
         (directory, name, checksum) = (entry["directory"], entry["filename"], entry["sha256"])
-        path = PurePosixPath(directory)
+        artifact_directory_path = PurePosixPath(directory)
 
         if (
-            path.is_absolute() or  # Locate artifacts relative to the build context
-            (str(path) != directory) or  # Reject alternate spellings such as a/./b or a//b
-            (not path.parts) or  # Require a named directory below the context root
-            (".." in path.parts) or  # Prevent traversal into a parent directory
+            artifact_directory_path.is_absolute() or  # Locate artifacts relative to the build context
+            (str(artifact_directory_path) != directory) or  # Reject alternate spellings such as a/./b or a//b
+            (not artifact_directory_path.parts) or  # Require a named directory below the context root
+            (".." in artifact_directory_path.parts) or  # Prevent traversal into a parent directory
             (not name) or  # Require a filename
             (name in (".", "..")) or  # A directory reference cannot name an artifact
             ("/" in name) or  # Keep subdirectories in the directory field
