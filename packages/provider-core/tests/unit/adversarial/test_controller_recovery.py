@@ -88,13 +88,13 @@ class ControllerRecoveryFailureTests(unittest.IsolatedAsyncioTestCase):
         (session, delivery, entered) = (SingleRetirementSession(store), RecordingDelivery(), asyncio.Event())
         (recovered, bodies, submit) = (asyncio.Event(), [], delivery.submit)
 
-        async def pressured(item):
-            bodies.append(item.body)
+        async def pressured(delivery_outcome):
+            bodies.append(delivery_outcome.body)
 
             if not recovered.is_set():
                 raise DeliveryFull("Relay full")
 
-            return await submit(item)
+            return await submit(delivery_outcome)
 
         delivery.submit = pressured
 
@@ -147,15 +147,15 @@ class ControllerRecoveryFailureTests(unittest.IsolatedAsyncioTestCase):
                 (attempted, submit) = ([], delivery.submit)
                 failure = DeliveryUnavailable("Original local transport unfinished")
 
-                async def interrupted(item):
-                    attempted.append(item.body)
+                async def interrupted(delivery_outcome):
+                    attempted.append(delivery_outcome.body)
 
                     if len(attempted) == 1:
                         delivery.retirement_confirmed = False
 
                         raise failure
 
-                    return await submit(item)
+                    return await submit(delivery_outcome)
 
                 delivery.submit = interrupted
 
@@ -228,7 +228,7 @@ class ControllerRecoveryFailureTests(unittest.IsolatedAsyncioTestCase):
             task_settle_seconds=0.1
         )
 
-        for (key, value, expected_error) in (
+        for (setting_name, rejected_setting, expected_error) in (
             ("delivery_retry_initial_seconds", True, TypeError),
             ("delivery_retry_initial_seconds", 0, ValueError),
             ("delivery_retry_max_seconds", float("nan"), ValueError),
@@ -236,8 +236,8 @@ class ControllerRecoveryFailureTests(unittest.IsolatedAsyncioTestCase):
             ("delivery_retry_max_seconds", 0.5, ValueError),
             ("on_delivery_retry", None, ValueError)
         ):
-            with self.subTest(key=key, value=value), self.assertRaises(expected_exception=expected_error):
-                live_controller(api(transport, scope().api_origin), store, AttemptClaims.live(), session, **(settings | {key: value}))
+            with self.subTest(key=setting_name, value=rejected_setting), self.assertRaises(expected_exception=expected_error):
+                live_controller(api(transport, scope().api_origin), store, AttemptClaims.live(), session, **(settings | {setting_name: rejected_setting}))
 
         self.assertEqual(session.events, [])
         self.assertEqual(transport.calls, [])
