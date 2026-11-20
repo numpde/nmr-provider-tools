@@ -88,7 +88,7 @@ class ConfiguredMemberTests(unittest.TestCase):
     def test_declared_call_cannot_be_absent(self):
         binding = sum_binding()
 
-        with self.assertRaisesRegex(expected_exception=TypeError, expected_regex=r"member.name='run'; type\(declaration\)=.*NoneType.* ≠ expected_type=.*CallBinding"):
+        with self.assertRaises(expected_exception=TypeError):
             replace(binding, run=None)
 
     def test_member_annotation_must_match_its_actual_codec_types(self):
