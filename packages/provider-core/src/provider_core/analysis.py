@@ -69,8 +69,11 @@ class ObservedWorkerCrash(RuntimeError):
     def __init__(self, acknowledged, *, phase, owner, runner, evidence, cause):
         require_type(acknowledged, AcknowledgedAttempt)
 
-        if not ((phase in ("preparing", "running")) and (owner is not None)):
-            raise ValueError("Observed crash requires its actual admission, scientific owner, phase, native session and bounded evidence")
+        if not (phase in (expected_phases := ("preparing", "running"))):
+            raise ValueError(f"{phase=} ∉ {expected_phases=}")
+
+        if not (owner is not None):
+            raise ValueError(f"{owner=} should identify the scientific owner")
 
         require_type(runner, RunnerSession)
 
@@ -79,18 +82,16 @@ class ObservedWorkerCrash(RuntimeError):
         if cause is not None:
             require_instance(cause, BaseException)
 
-        original = runner.original_exit
+        original_worker_exit = runner.original_exit
 
-        if not (original is not None):
-            raise ValueError("Cannot classify a worker crash without an original exit observed before local interruption")
+        if not (original_worker_exit is not None):
+            raise ValueError(f"{original_worker_exit=} should record an exit observed before local interruption")
 
         (self.acknowledged, self.phase, self.owner) = (acknowledged, phase, owner)
-        (self.runner, self.native_exit) = (runner, original)
+        (self.runner, self.native_exit) = (runner, original_worker_exit)
         (self.evidence, self.cause) = (evidence, cause)
 
-        super().__init__(
-            f"Original worker exit observed with {original.returncode = }; declared scientific {phase = }."
-        )
+        super().__init__(f"{original_worker_exit.returncode=} during {phase=}")
 
     @classmethod
     def from_session(cls, acknowledged, *, phase, owner, runner, evidence, cause):
@@ -190,5 +191,4 @@ async def retire_session(session):
     """Confirm the protocol result for both pre-start and execution cleanup."""
     retirement_return = await session.retire()
 
-    if not (retirement_return is None):
-        raise TypeError("Session retirement must return None after confirmed cleanup, otherwise raise")
+    require_type(retirement_return, type(None))
