@@ -87,7 +87,7 @@ class TypeExpectationTests(unittest.TestCase):
             codec.decode(payload=b'{"number":true}')
 
         self.assertIs(PayloadRejected.Code.INVALID_TYPE, rejected.exception.code)
-        self.assertIn(member="type(json_value)=<class 'bool'> ≠ expected_types=(<class 'int'>, <class 'float'>)", container=str(rejected.exception))
+        self.assertIn(member="$.number", container=str(rejected.exception))
 
         with self.assertRaises(expected_exception=TypeError):
             codec.encode(value=NumericRecord(number=True))
@@ -97,12 +97,12 @@ class TypeExpectationTests(unittest.TestCase):
             payload._decode_value(json_value=float("inf"), annotation=float, value_path="$.number")
 
         self.assertIs(PayloadRejected.Code.INVALID_TYPE, rejected.exception.code)
-        self.assertNotIn(member="≠", container=str(rejected.exception))
+        self.assertIn(member="$.number", container=str(rejected.exception))
 
         with self.assertRaises(expected_exception=TypeError) as rejected:
             payload._encode_value(portable_value=float("inf"), annotation=float, value_path="$.number")
 
-        self.assertNotIn(member="≠", container=str(rejected.exception))
+        self.assertIn(member="$.number", container=str(rejected.exception))
 
         for conversion in [payload._decode_value, payload._encode_value]:
             with self.subTest(conversion=conversion), self.assertRaises(expected_exception=OverflowError):

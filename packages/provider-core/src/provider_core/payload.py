@@ -11,7 +11,6 @@ from provider_core.container_guard import require_container
 require_container()
 
 import json
-import math
 import reprlib
 from collections.abc import Mapping
 from dataclasses import MISSING, dataclass, fields, is_dataclass
@@ -31,7 +30,7 @@ from typing import (
 )
 
 from provider_core.contribution_errors import CallRejected, ErrorCode
-from provider_core.tools import duplicate_json_fields
+from provider_core.tools import duplicate_json_fields, require_finite_number
 from provider_core.type_requirements import require_instance, require_type
 
 
@@ -288,17 +287,13 @@ def _decode_value(json_value: object, annotation: object, *, value_path: str) ->
         return json_value
 
     if annotation is float:
-        if not (type(json_value) in (expected_types := (int, float))):
+        try:
+            require_finite_number(json_value)
+        except (TypeError, ValueError) as cause:
             raise PayloadRejected(
-                f"{value_path=}; {type(json_value)=} ≠ {expected_types=}",
+                f"{value_path=}; expected a finite number",
                 code=PayloadRejected.Code.INVALID_TYPE,
-            )
-
-        if not math.isfinite(json_value):
-            raise PayloadRejected(
-                f"{value_path = } must be a finite number",
-                code=PayloadRejected.Code.INVALID_TYPE,
-            )
+            ) from cause
 
         return float(json_value)
 
@@ -455,11 +450,10 @@ def _encode_value(portable_value: object, annotation: object, *, value_path: str
         return portable_value
 
     if annotation is float:
-        if not (type(portable_value) in (expected_types := (int, float))):
-            raise TypeError(f"{value_path=}; {type(portable_value)=} ≠ {expected_types=}")
-
-        if not math.isfinite(portable_value):
-            raise TypeError(f"{value_path = } must be a finite float-compatible number")
+        try:
+            require_finite_number(portable_value)
+        except (TypeError, ValueError) as cause:
+            raise TypeError(f"{value_path=}; expected a finite number") from cause
 
         return float(portable_value)
 
