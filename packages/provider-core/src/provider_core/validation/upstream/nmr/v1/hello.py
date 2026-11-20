@@ -45,15 +45,14 @@ class HelloAccepted:
     accepted_at: datetime
 
 
-def _require_text(text_value, field_name, maximum_characters):
-    if not (type(text_value) is (expected_type := str)):
-        raise TypeError(f"{field_name=}; {type(text_value)=} ≠ {expected_type=}")
+def _require_text(announcement_text, field_name, maximum_characters):
+    require_type(announcement_text, str)
 
-    if not (1 <= len(text_value) <= maximum_characters):
-        raise ValueError(f"Cannot announce provider: {field_name=} has {len(text_value)=} characters; expected 1 through {maximum_characters=} Unicode scalars")
+    if not (1 <= len(announcement_text) <= maximum_characters):
+        raise ValueError(f"Cannot announce provider: {field_name=} has {len(announcement_text)=} characters; expected 1 through {maximum_characters=} Unicode scalars")
 
     # These API fields forbid NUL; U+D800–U+DFFF are surrogates, not Unicode scalar values
-    if ("\0" in text_value) or any((0xD800 <= ord(character) <= 0xDFFF) for character in text_value):
+    if ("\0" in announcement_text) or any((0xD800 <= ord(character) <= 0xDFFF) for character in announcement_text):
         raise ValueError(f"Cannot announce provider: {field_name=} must not contain NUL or surrogate characters")
 
 
