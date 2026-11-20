@@ -37,13 +37,15 @@ class AttemptStartIntegrationTests(unittest.IsolatedAsyncioTestCase):
             self.assertEqual(peer.request_bodies, [body, body])
             signatures = []
 
-            for request in peer.requests:
-                lines = request.split(b"\r\n")
+            for request_head in peer.requests:
+                lines = request_head.split(b"\r\n")
 
                 self.assertEqual(lines[0], b"POST /provider/v1/execution-attempts/start HTTP/1.1")
 
                 headers = {
-                    name.lower(): value.strip() for line in lines[1:] if b":" in line for (name, value) in [line.split(b":", 1)]
+                    header_name.lower(): header_value.strip()
+                    for line in lines[1:] if b":" in line
+                    for (header_name, header_value) in [line.split(b":", 1)]
                 }
 
                 self.assertEqual(parse(headers[b"content-digest"], tltype="dictionary")["sha-256"][0], sha256(body).digest())
@@ -79,7 +81,7 @@ class AttemptStartIntegrationTests(unittest.IsolatedAsyncioTestCase):
                 expected_topology="dev-local",
             )
 
-            request = asyncio.create_task(
+            start_task = asyncio.create_task(
                 api.start_attempt(
                     retained_start(),
                     job_ref="job:example",
@@ -89,10 +91,10 @@ class AttemptStartIntegrationTests(unittest.IsolatedAsyncioTestCase):
             )
 
             await asyncio.wait_for(peer.received.wait(), 1)
-            request.cancel()
+            start_task.cancel()
 
             with self.assertRaises(asyncio.CancelledError):
-                await request
+                await start_task
 
             await asyncio.wait_for(peer.closed.wait(), 1)
             self.assertTrue(api.last_failure.attempt_mutation_may_have_committed)
