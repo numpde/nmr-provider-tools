@@ -22,13 +22,13 @@ class ControllerRecoveryTests(unittest.IsolatedAsyncioTestCase):
         (attempted, submit) = ([], delivery.submit)
         failure = DeliveryUnavailable("Relay unavailable", status=503)
 
-        async def interrupted(item):
-            attempted.append(item.body)
+        async def interrupted(delivery_outcome):
+            attempted.append(delivery_outcome.body)
 
             if len(attempted) == 1:
                 raise failure
 
-            return await submit(item)
+            return await submit(delivery_outcome)
 
         delivery.submit = interrupted
         delivery.can_retry = Mock(return_value=True)
@@ -71,13 +71,13 @@ class ControllerRecoveryTests(unittest.IsolatedAsyncioTestCase):
         (attempted, submit) = ([], delivery.submit)
         failures = [DeliveryUnavailable("Unconfirmed relay reply"), DeliveryUnavailable("Relay unavailable", status=503)]
 
-        async def interrupted(item):
-            attempted.append(item.body)
+        async def interrupted(delivery_outcome):
+            attempted.append(delivery_outcome.body)
 
             if failures:
                 raise failures.pop(0)
 
-            return await submit(item)
+            return await submit(delivery_outcome)
 
         delivery.submit = interrupted
         delivery.can_retry = Mock(return_value=True)
