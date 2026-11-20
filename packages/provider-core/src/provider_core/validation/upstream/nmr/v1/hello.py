@@ -13,6 +13,7 @@ from provider_core.container_guard import require_container
 
 require_container()
 
+import reprlib
 from dataclasses import dataclass, field
 from datetime import datetime
 
@@ -87,18 +88,21 @@ def require_hello_body_size(body):
 
 def read_hello(raw, *, provider_ref):
     """Bind a closed receipt to composition's expected provider, never to key spelling."""
-    document = read_document(raw, HELLO_RESPONSE_BYTES)
+    hello_receipt = read_document(raw, HELLO_RESPONSE_BYTES)
 
-    if not (type(document) is (expected_type := dict)):
-        raise ResponseRejected(f"{type(document)=} ≠ {expected_type=}")
+    if not (type(hello_receipt) is (expected_type := dict)):
+        raise ResponseRejected(f"{type(hello_receipt)=} ≠ {expected_type=}")
 
-    if set(document) != {"schema_id", "provider_ref", "accepted_at"}:
-        raise ResponseRejected("Response fields do not match the supported Hello receipt schema")
+    receipt_fields = set(hello_receipt)
+    expected_fields = {"schema_id", "provider_ref", "accepted_at"}
 
-    if document["schema_id"] != "nmr.provider.hello_response.v1":
-        raise ResponseRejected("Response schema does not match the Hello receipt contract")
+    if receipt_fields != expected_fields:
+        raise ResponseRejected(f"{receipt_fields=} should match {expected_fields=}")
 
-    if document["provider_ref"] != provider_ref:
-        raise ResponseRejected("Hello receipt provider differs from the configured provider")
+    if hello_receipt["schema_id"] != (expected_schema_id := "nmr.provider.hello_response.v1"):
+        raise ResponseRejected(f"{reprlib.repr(hello_receipt['schema_id'])=} should match {expected_schema_id=}")
 
-    return HelloAccepted(provider_ref, read_timestamp(document["accepted_at"]))
+    if hello_receipt["provider_ref"] != provider_ref:
+        raise ResponseRejected(f"{reprlib.repr(hello_receipt['provider_ref'])=} should match {provider_ref=}")
+
+    return HelloAccepted(provider_ref, read_timestamp(hello_receipt["accepted_at"]))
