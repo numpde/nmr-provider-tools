@@ -52,9 +52,10 @@ with socket.socket(fileno=args.session_fd) as channel:
 class RunningSupervisor:
     """Own one disposable supervisor and its private filesystem grant."""
 
-    # silent-defaults: allow-contract -- The ordinary disposable supervisor is bounded; explicit None selects control-owner lifetime.
-    def __init__(self, *, operation_seconds=5, role="fixture", worker_argv=None):
+    # silent-defaults: allow-contract -- The ordinary supervisor is bounded and inherits its environment; callers explicitly select owner-session lifetime or a restricted environment.
+    def __init__(self, *, operation_seconds=5, role="fixture", worker_argv=None, environment=None):
         self.role = role
+        self.environment = environment
         self._closed = False
         self.temporary = tempfile.TemporaryDirectory(prefix="runner-")
         self.root = pathlib.Path(self.temporary.name)
@@ -106,6 +107,7 @@ class RunningSupervisor:
             stdin=subprocess.DEVNULL,
             stdout=subprocess.DEVNULL,
             stderr=subprocess.PIPE,
+            env=self.environment,
         )
 
         deadline = time.monotonic() + 5

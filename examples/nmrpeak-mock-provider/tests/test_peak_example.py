@@ -12,6 +12,7 @@ require_container()
 import asyncio
 from collections import Counter
 from copy import deepcopy
+from dataclasses import replace
 from functools import partial
 import hashlib
 from importlib import metadata, resources
@@ -114,6 +115,7 @@ class PeakExampleTests(unittest.IsolatedAsyncioTestCase):
             operation_seconds=None,
             role="science",
             worker_argv=(sys.executable, "-I", "-B", "-m", "provider_core.process_worker"),
+            environment={"PROVIDER_CORE_IN_CONTAINER": os.environ["PROVIDER_CORE_IN_CONTAINER"]},
         )
 
         self.addCleanup(runner.close)
@@ -274,6 +276,20 @@ class PeakExampleTests(unittest.IsolatedAsyncioTestCase):
 
             async with offering.open_prediction(receive=receiver) as workflow:
                 await workflow.interpret(source="One recorded proton spectrum")
+                prepared = workflow.preparation_tool.prepared_state_handle
+                wrong_reference = replace(prepared.reference, allocation="another-allocation")
+                wrong_handle = replace(prepared, reference=wrong_reference)
+
+                wrong_allocation = Submission.from_call(
+                    analysis_executor=workflow.analysis_executor,
+                    call_binding=offering.generation_call,
+                    states={PeakContribution.candidate: wrong_handle},
+                    reservation_ref=workflow.reservation_ref,
+                    operation_policy=workflow.operation_policy,
+                ).submit()
+
+                self.assertIsInstance(obj=wrong_allocation, cls=NotAdmitted)
+                self.assertIs(expr1=AdmissionCode.INVALID_REFERENCE, expr2=wrong_allocation.code)
                 result_ref = await workflow.finish()
 
                 self.assertEqual(result_ref, await workflow.finish())
