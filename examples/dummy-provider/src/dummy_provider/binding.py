@@ -22,7 +22,7 @@ class WeightedAnalysis(sdk.Analysis["WeightedSum"]):
     @property
     def scientific_session(self) -> science.WeightedSumAnalysis:
         if not (self._scientific_session is not None):
-            raise RuntimeError(f"{self._scientific_session=} should be set before using the weighted analysis")
+            raise RuntimeError(f"{self._scientific_session=} should be set")
 
         return self._scientific_session
 
@@ -42,22 +42,22 @@ class WeightedSum(sdk.Contribution):
         self.configuration = configuration
 
     analysis_type = WeightedAnalysis
-    _model: science.WeightedSumModel | None = None
+    _weighted_sum_model: science.WeightedSumModel | None = None
     prepared_state_type = sdk.StateType(value_type=science.PreparedSamples)
     normalized = prepared_state_type.output(dispose=science.dispose_prepared)
     candidate = prepared_state_type.input(use=sdk.StateUse.CONSUME)
 
     @property
     def model(self) -> science.WeightedSumModel:
-        if self._model is None:
-            raise RuntimeError("Initialize the weighted contribution before using its model")
+        if self._weighted_sum_model is None:
+            raise RuntimeError(f"{self._weighted_sum_model=} should be set")
 
-        return self._model
+        return self._weighted_sum_model
 
     def initialize(self, *, assets: sdk.AssetAccess) -> None:
         # Retain the empty model before loading can acquire resources or fail.
         # close can then dispose that same partial model after a loading failure.
-        self._model = science.create_model(
+        self._weighted_sum_model = science.create_model(
             settings=self.configuration.settings,
             coefficients=self.configuration.coefficients,
         )
@@ -65,8 +65,8 @@ class WeightedSum(sdk.Contribution):
         science.load_model(model=self.model)
 
     def close(self) -> None:
-        if self._model is not None:
-            science.dispose_model(model=self._model)
+        if self._weighted_sum_model is not None:
+            science.dispose_model(model=self._weighted_sum_model)
 
     @sdk.operation(
         state_outputs=(normalized,),
