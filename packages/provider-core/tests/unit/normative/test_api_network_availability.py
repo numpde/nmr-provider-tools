@@ -158,7 +158,7 @@ class ApiNetworkAvailabilityTests(unittest.IsolatedAsyncioTestCase):
             ExceptionGroup("mixed TLS", [TimeoutError(), ssl.SSLCertVerificationError()])
         ]
 
-        for (original, expected) in [(item, True) for item in positives] + [(item, False) for item in negatives]:
+        for (original, expected) in [(error_specimen, True) for error_specimen in positives] + [(error_specimen, False) for error_specimen in negatives]:
             with self.subTest(error=type(original).__name__, expected=expected):
                 failure = wrapper(original)
                 facts = await self.capture_connect(failure)
@@ -212,14 +212,14 @@ class ApiNetworkAvailabilityTests(unittest.IsolatedAsyncioTestCase):
             ("POST", "/provider/v1/unreviewed", None, False, False),
         ]
 
-        for (method, path, selected, issuance, mutation) in cases:
-            with self.subTest(method=method, path=path):
+        for (method, request_path, selected, issuance, mutation) in cases:
+            with self.subTest(method=method, path=request_path):
                 original = wrapper(socket.gaierror(socket.EAI_NONAME, "original resolver"))
                 transport = self.transport()
                 client = api(transport, "https://api.fixture.example")
 
                 with patch("provider_core.network.httpcore.AnyIOBackend", return_value=Backend(error=original)):
-                    failure = await self.failed_exchange(client, method, path, issuance=issuance, mutation=mutation)
+                    failure = await self.failed_exchange(client, method, request_path, issuance=issuance, mutation=mutation)
 
                 checks = dict(
                     read=client.can_retry_read,
@@ -272,9 +272,9 @@ class ApiNetworkAvailabilityTests(unittest.IsolatedAsyncioTestCase):
                 def account(count):
                     raise original
 
-                async def accounted(request, **options):
+                async def accounted(http_request, **options):
                     # silent-defaults: allow-contract -- Only the local-fault specimen installs accounting that raises the original object.
-                    return await exchange(request, **options, account_bytes=account if local else None)
+                    return await exchange(http_request, **options, account_bytes=account if local else None)
 
                 with patch("provider_core.network.httpcore.AnyIOBackend", return_value=Backend(stream)), patch.object(transport, "exchange", side_effect=accounted):
                     failure = await self.failed_exchange(client, "GET", "/provider/v1/jobs/job:example/uploads")
@@ -340,7 +340,7 @@ class ApiNetworkAvailabilityTests(unittest.IsolatedAsyncioTestCase):
             (500, b"dev-local", False, True),
             (429, b"dev-local", False, True),
         ):
-            for (method, path) in (("GET", "/provider/v1/jobs/job:example/uploads"), ("POST", grant_path)):
+            for (method, request_path) in (("GET", "/provider/v1/jobs/job:example/uploads"), ("POST", grant_path)):
                 with self.subTest(status=status, topology=topology, malformed=malformed, method=method):
                     headers = response_headers(status=status, topology=topology)
 
@@ -361,7 +361,7 @@ class ApiNetworkAvailabilityTests(unittest.IsolatedAsyncioTestCase):
                     client = api(transport, "https://api.fixture.example")
 
                     with patch("provider_core.network.httpcore.AnyIOBackend", return_value=Backend(stream)):
-                        failure = await self.failed_exchange(client, method, path, issuance=method == "POST")
+                        failure = await self.failed_exchange(client, method, request_path, issuance=method == "POST")
 
                     self.assertTrue(transport.retirement_confirmed)
                     self.assertIs(type(failure.cause.primary), httpcore.RemoteProtocolError)
