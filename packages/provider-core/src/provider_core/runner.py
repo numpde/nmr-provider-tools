@@ -15,6 +15,7 @@ import argparse
 import fcntl
 import logging
 import os
+import reprlib
 import select
 import signal
 import socket
@@ -37,21 +38,26 @@ LOGGER = logging.getLogger("provider_core.runner")
 LOCK_NAME = ".owner-session.lock"
 
 
-def _private_directory(path):
-    if (not path.is_absolute()) or (path.resolve() != path):
-        raise ValueError("Runner directories require canonical absolute paths without symlink ancestors.")
+def _private_directory(directory_path):
+    if (not directory_path.is_absolute()) or (directory_path.resolve() != directory_path):
+        raise ValueError(f"{reprlib.repr(directory_path)=} should be absolute and canonical")
 
-    descriptor = os.open(path, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW | os.O_CLOEXEC)
+    directory_fd = os.open(directory_path, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW | os.O_CLOEXEC)
 
     try:
-        observed = os.fstat(descriptor)
+        directory_metadata = os.fstat(directory_fd)
 
-        if (observed.st_uid != os.geteuid()) or (stat.S_IMODE(observed.st_mode) != 0o700):
-            raise PermissionError("Runner directory must be caller-owned with mode 0700.")
+        expected_directory_mode = 0o700
 
-        return descriptor
+        if (directory_metadata.st_uid != (caller_uid := os.geteuid())) or (stat.S_IMODE(directory_metadata.st_mode) != expected_directory_mode):
+            raise PermissionError(
+                f"{reprlib.repr(directory_path)=} should be owned by {caller_uid=} with {expected_directory_mode=:#o}; "
+                f"{directory_metadata.st_uid=}, {stat.S_IMODE(directory_metadata.st_mode)=:#o}"
+            )
+
+        return directory_fd
     except BaseException:
-        os.close(descriptor)
+        os.close(directory_fd)
         raise
 
 
