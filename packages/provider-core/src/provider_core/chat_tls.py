@@ -245,16 +245,16 @@ class CapturedSSLContext(ssl.SSLContext):
 
     def set_alpn_protocols(self, protocols):
         captured = tuple(protocols)
-        result = super().set_alpn_protocols(captured)
+        setter_return = super().set_alpn_protocols(captured)
         self._chat_alpn = captured
 
-        return result
+        return setter_return
 
     def set_ecdh_curve(self, curve_name):
-        result = super().set_ecdh_curve(curve_name)
+        setter_return = super().set_ecdh_curve(curve_name)
         self._chat_ecdh_curve = curve_name
 
-        return result
+        return setter_return
 
     # Keep SSLContext's client-certificate API; refuse its authority at model capture.
     def load_cert_chain(self, certfile, keyfile=None, password=None):
