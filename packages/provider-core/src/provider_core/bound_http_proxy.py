@@ -440,7 +440,7 @@ class ConnectionAdmission:
 
     def __init__(self, limit):
         self._lock = threading.Lock()
-        self._active = 0
+        self._active_connection_count = 0
 
         self.set_limit(limit)
 
@@ -448,30 +448,30 @@ class ConnectionAdmission:
         require_type(limit, int)
 
         if not (limit > 0):
-            raise ValueError("Proxy connection capacity must be a positive integer.")
+            raise ValueError("The connection limit should be positive")
 
         with self._lock:
-            self._limit = limit
+            self._connection_limit = limit
 
     def acquire(self):
         with self._lock:
-            if self._active >= self._limit:
+            if self._active_connection_count >= self._connection_limit:
                 return False
 
-            self._active += 1
+            self._active_connection_count += 1
 
             return True
 
     def load(self):
         with self._lock:
-            return (self._active, self._limit)
+            return (self._active_connection_count, self._connection_limit)
 
     def release(self):
         with self._lock:
-            if self._active == 0:
-                raise RuntimeError("Proxy connection capacity was released without an owner.")
+            if self._active_connection_count == 0:
+                raise RuntimeError(f"{self._active_connection_count=} should be positive")
 
-            self._active -= 1
+            self._active_connection_count -= 1
 
 
 class ProxyServer(socketserver.ThreadingTCPServer):
