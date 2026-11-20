@@ -82,7 +82,7 @@ def _byte_facts(upload_fields, *, pending_allowed):
     (min_upload_bytes, max_upload_bytes) = (1, 9223372036854775807)
 
     if not (min_upload_bytes <= upload_byte_length <= max_upload_bytes):
-        raise ResponseRejected(f"upload_byte_length should be between {min_upload_bytes=} and {max_upload_bytes=}")
+        raise ResponseRejected(f"Expected {min_upload_bytes=} ≤ {upload_byte_length=} ≤ {max_upload_bytes=}")
 
     content_hash = upload_fields["content_hash"]
 
@@ -95,19 +95,22 @@ def _byte_facts(upload_fields, *, pending_allowed):
         raise ResponseRejected(f"{reprlib.repr(content_hash)=} should be 'sha256:' followed by 64 lowercase hexadecimal digits")
 
 
-def _grant_target_and_token(download_url, token):
+def _require_download_access(download_url, capability):
     require_type(download_url, str, error_factory=ResponseRejected)
 
     if not download_url.startswith(expected_prefix := "https://"):
-        raise ResponseRejected(f"{download_url=} should start with {expected_prefix=}")
+        raise ResponseRejected(f"{reprlib.repr(download_url)=} should start with {expected_prefix=}")
 
     if not (len(download_url) <= (maximum_url_characters := 359)):
         raise ResponseRejected(f"{len(download_url)=} exceeds {maximum_url_characters=}")
 
-    require_type(token, str, error_factory=ResponseRejected)
+    require_type(capability, str, error_factory=ResponseRejected)
 
-    if not (1 <= len(token) <= 2048):
-        raise ResponseRejected("Grant capability must contain 1 through 2048 characters")
+    min_capability_characters = 1
+    max_capability_characters = 2048
+
+    if not (min_capability_characters <= len(capability) <= max_capability_characters):
+        raise ResponseRejected(f"Expected {min_capability_characters=} ≤ {len(capability)=} ≤ {max_capability_characters=}")
 
 
 def require_read_grant(grant, *, job_ref):
@@ -117,7 +120,7 @@ def require_read_grant(grant, *, job_ref):
     require_type(grant, ReadGrant, error_factory=ResponseRejected)
 
     if not (grant.job_ref == job_ref):
-        raise ResponseRejected("Read grant must belong to the selected Job")
+        raise ResponseRejected(f"{reprlib.repr(grant.job_ref)=} should match {job_ref=}")
 
     _byte_facts(
         {
@@ -128,15 +131,18 @@ def require_read_grant(grant, *, job_ref):
         pending_allowed=False
     )
 
-    _grant_target_and_token(grant.download_url, grant.capability)
+    _require_download_access(grant.download_url, grant.capability)
 
     require_type((actual_expires_at := grant.expires_at), datetime, error_factory=ResponseRejected)
 
     if not (grant.expires_at.tzinfo is not None):
-        raise ResponseRejected("Read grant expiry must be a UTC datetime")
+        raise ResponseRejected(f"{grant.expires_at=} should include a timezone")
 
-    if not (grant.expires_at.utcoffset() == timedelta(0)):
-        raise ResponseRejected("Read grant expiry must be a UTC datetime")
+    utc_offset = grant.expires_at.utcoffset()
+    expected_utc_offset = timedelta(0)
+
+    if not (utc_offset == expected_utc_offset):
+        raise ResponseRejected(f"{utc_offset=} should match {expected_utc_offset=}")
 
 
 def read_membership(raw, *, job_ref):
@@ -145,17 +151,25 @@ def read_membership(raw, *, job_ref):
 
     _fields(membership_response, {"schema_id", "job_ref", "uploads"})
 
-    if not ((membership_response["schema_id"] == "nmr.provider.job_upload_set.read.response.v1") and (membership_response["job_ref"] == job_ref)):
-        raise ResponseRejected("Membership response schema or Job identity differs from the request")
+    expected_schema_id = "nmr.provider.job_upload_set.read.response.v1"
+
+    if not ((membership_response["schema_id"] == expected_schema_id) and (membership_response["job_ref"] == job_ref)):
+        raise ResponseRejected(
+            f"{reprlib.repr(membership_response['schema_id'])=} should match {expected_schema_id=}; "
+            f"{reprlib.repr(membership_response['job_ref'])=} should match {job_ref=}"
+        )
 
     members = membership_response["uploads"]
 
     require_type(members, list, error_factory=ResponseRejected)
 
-    if not (len(members) <= 64):
-        raise ResponseRejected("Membership must contain an array of at most 64 Uploads")
+    max_upload_member_count = 64
 
-    admitted = []
+    if not (len(members) <= max_upload_member_count):
+        raise ResponseRejected(f"{len(members)=} exceeds {max_upload_member_count=}")
+
+    upload_members = []
+    max_description_characters = 4096
 
     for member in members:
         _fields(member, {"upload_ref", "description", "byte_length", "content_hash"})
@@ -164,19 +178,20 @@ def read_membership(raw, *, job_ref):
 
         require_type(description, str, error_factory=ResponseRejected)
 
-        if not (len(description) <= 4096):
-            raise ResponseRejected("Upload description must contain at most 4096 Unicode scalar values without NUL")
+        if not (len(description) <= max_description_characters):
+            raise ResponseRejected(f"{len(description)=} exceeds {max_description_characters=}")
 
         # API descriptions forbid NUL and surrogate code points (U+D800–U+DFFF)
-        if not all(((c != "\x00") and (not (0xD800 <= ord(c) <= 0xDFFF))) for c in description):
-            raise ResponseRejected("Upload description must contain at most 4096 Unicode scalar values without NUL")
+        for description_character in description:
+            if not ((description_character != "\x00") and (not (0xD800 <= ord(description_character) <= 0xDFFF))):
+                raise ResponseRejected(f"{description_character=} should be a non-NUL Unicode scalar")
 
-        if not ((not (admitted)) or (member["upload_ref"] > admitted[-1].upload_ref)):
-            raise ResponseRejected("Membership must contain unique Upload references in ascending order")
+        if not ((not (upload_members)) or (member["upload_ref"] > upload_members[-1].upload_ref)):
+            raise ResponseRejected(f"{member['upload_ref']=} should be greater than {upload_members[-1].upload_ref=}")
 
-        admitted.append(UploadMember(member["upload_ref"], description, member["byte_length"], member["content_hash"]))
+        upload_members.append(UploadMember(member["upload_ref"], description, member["byte_length"], member["content_hash"]))
 
-    return UploadSet(job_ref, tuple(admitted))
+    return UploadSet(job_ref, tuple(upload_members))
 
 
 def read_grant(raw, *, job_ref, upload_ref):
@@ -188,17 +203,24 @@ def read_grant(raw, *, job_ref, upload_ref):
         {"schema_id", "upload_ref", "method", "download_url", "byte_length", "content_hash", "capability", "expires_at"}
     )
 
-    if not ((grant_response["schema_id"] == "nmr.upload.read_capability.response.v1") and (grant_response["upload_ref"] == upload_ref)):
-        raise ResponseRejected("Grant response schema or Upload identity differs from the request")
+    expected_schema_id = "nmr.upload.read_capability.response.v1"
 
-    if not (grant_response["method"] == "GET"):
-        raise ResponseRejected("Download grant must authorize GET")
+    if not ((grant_response["schema_id"] == expected_schema_id) and (grant_response["upload_ref"] == upload_ref)):
+        raise ResponseRejected(
+            f"{reprlib.repr(grant_response['schema_id'])=} should match {expected_schema_id=}; "
+            f"{reprlib.repr(grant_response['upload_ref'])=} should match {upload_ref=}"
+        )
+
+    expected_method = "GET"
+
+    if not (grant_response["method"] == expected_method):
+        raise ResponseRejected(f"{reprlib.repr(grant_response['method'])=} should match {expected_method=}")
 
     _byte_facts(grant_response, pending_allowed=False)
     download_url = grant_response["download_url"]
     capability = grant_response["capability"]
 
-    _grant_target_and_token(download_url, capability)
+    _require_download_access(download_url, capability)
 
     return ReadGrant(
         job_ref,
