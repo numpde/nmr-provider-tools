@@ -24,23 +24,23 @@ class DeliveryHandoffRejected(ValueError):
     """A handoff cannot be admitted without its exact result and publication inputs."""
 
 
-def _encoded(value):
-    return base64.b64encode(value).decode("ascii")
+def _encoded(raw_bytes):
+    return base64.b64encode(raw_bytes).decode("ascii")
 
 
-def _decoded(value):
-    if not (type(value) is (expected_type := str)):
-        raise DeliveryHandoffRejected(f"{type(value)=} ≠ {expected_type=}")
+def _decoded(encoded_text):
+    if not (type(encoded_text) is (expected_type := str)):
+        raise DeliveryHandoffRejected(f"{type(encoded_text)=} ≠ {expected_type=}")
 
     try:
-        raw = base64.b64decode(value, validate=True)
+        decoded_bytes = base64.b64decode(encoded_text, validate=True)
     except (ValueError, binascii.Error):
-        raise DeliveryHandoffRejected("Delivery handoff contains invalid base64 bytes.") from None
+        raise DeliveryHandoffRejected("Delivery handoff contains invalid base64 text.") from None
 
-    if _encoded(raw) != value:
-        raise DeliveryHandoffRejected("Delivery handoff requires canonical base64 bytes.")
+    if _encoded(decoded_bytes) != encoded_text:
+        raise DeliveryHandoffRejected("Delivery handoff requires canonical base64 text.")
 
-    return raw
+    return decoded_bytes
 
 
 def publication_bytes(material):
