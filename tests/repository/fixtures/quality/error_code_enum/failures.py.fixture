@@ -1,0 +1,17 @@
+from enum import Enum, auto
+
+class ErrorCode(Enum):
+    @staticmethod
+    def _generate_next_value_(name, _start, _count, _last_values):
+        return name.lower()
+
+class Rejected(ValueError):
+    class Code(ErrorCode):
+        INVALID_INPUT = auto()
+
+    def __init__(self, message, *, code: Code):
+        super().__init__(message)
+
+class OtherError(Rejected):
+    class Code(ErrorCode):
+        INVALID_INPUT = auto()

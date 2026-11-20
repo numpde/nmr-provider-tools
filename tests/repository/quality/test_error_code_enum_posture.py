@@ -334,36 +334,12 @@ raise SourceLimitError("Source exceeds its limit", source)
         )
 
     def test_reports_external_enums_strings_and_wire_values_from_imported_exceptions(self):
-        declarations = """from enum import Enum, auto
-
-class ErrorCode(Enum):
-    @staticmethod
-    def _generate_next_value_(name, _start, _count, _last_values):
-        return name.lower()
-
-class Rejected(ValueError):
-    class Code(ErrorCode):
-        INVALID_INPUT = auto()
-
-    def __init__(self, message, *, code: Code):
-        super().__init__(message)
-
-class OtherError(Rejected):
-    class Code(ErrorCode):
-        INVALID_INPUT = auto()
-"""
+        fixture_directory = ROOT / "tests/repository/fixtures/quality/error_code_enum"
+        declarations = (fixture_directory / "failures.py.fixture").read_text(encoding="utf-8")
 
         source_path = pathlib.Path("consumer.py")
 
-        consumer = """from failures import Rejected as Refusal, OtherError
-INVALID_INPUT = "invalid_input"
-raise Refusal("Explain the failure", code=Refusal.Code.INVALID_INPUT)
-raise Refusal("Explain the failure", code="invalid_input")
-raise Refusal("Explain the failure", code=INVALID_INPUT)
-raise Refusal("Explain the failure", code=Refusal.Code.INVALID_INPUT.value)
-raise Refusal("Explain the failure", code=OtherError.Code.INVALID_INPUT)
-raise OtherError("Explain the failure", code=OtherError.Code.INVALID_INPUT)
-"""
+        consumer = (fixture_directory / "consumer.py.fixture").read_text(encoding="utf-8")
 
         self.assertEqual(
             first=[(source_path, line, "pass a member of this exception's own Code enum") for line in (4, 5, 6, 7)],
