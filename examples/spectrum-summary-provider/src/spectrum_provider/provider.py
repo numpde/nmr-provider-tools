@@ -100,7 +100,7 @@ async def open_provider(
     baseline_settings = science.BaselineSettings(**provider_config["science"]["baseline"]["settings"])
     peak_settings = science.PeakSettings(**provider_config["science"]["peaks"]["settings"])
 
-    execution_settings.require_sessions(process_sessions=process_sessions, expected_keys={"baseline", "peaks"})
+    execution_settings.require_sessions(process_sessions=process_sessions, expected_keys=stage_options.keys())
 
     async with AsyncExitStack() as lifetime:
         hosts = {}
