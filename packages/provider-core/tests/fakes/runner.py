@@ -157,14 +157,14 @@ class RunningSupervisor:
 def worker_pid(channel, command=b"S"):
     channel.settimeout(2)
     channel.sendall(command)
-    reply = bytearray()
+    pid_reply_buffer = bytearray()
 
-    while not reply.endswith(b"\n"):
+    while not pid_reply_buffer.endswith(b"\n"):
         part = channel.recv(1)
 
         if not (part):
             raise RuntimeError("Scientific child closed before reporting its process identity")
 
-        reply.extend(part)
+        pid_reply_buffer.extend(part)
 
-    return int(reply)
+    return int(pid_reply_buffer)
