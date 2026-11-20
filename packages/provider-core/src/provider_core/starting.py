@@ -78,8 +78,7 @@ class AttemptStarter:
         return await self._start(pending)
 
     async def _start(self, pending):
-        if not (type(pending) is (expected_type := StartPending)):
-            raise StartRefused(f"{type(pending)=} ≠ {expected_type=}")
+        require_type(pending, StartPending, error_factory=StartRefused)
 
         if pending.scope != self.scope:
             raise StartRefused("Start requires a pending record matching the current API, provider, lane and generation")
