@@ -329,12 +329,12 @@ def initialize_route(uid, gid, path, *, shared_group=False):
     if os.geteuid() != 0:
         raise RouteProjectionRejected("Cannot initialize API route volume: root with CHOWN and explicit target identity is required.")
 
-    path = pathlib.Path(_require_route_path(path))
+    route_root = pathlib.Path(_require_route_path(path))
 
     # silent-defaults: allow-contract -- Directory access follows the explicitly selected shared or private grant.
     mode = 0o710 if shared_group else 0o700
 
-    observed = path.lstat()
+    observed = route_root.lstat()
 
     if not stat.S_ISDIR(observed.st_mode):
         raise RouteProjectionRejected("Cannot initialize API route volume: its root must be a real directory.")
@@ -342,7 +342,7 @@ def initialize_route(uid, gid, path, *, shared_group=False):
     if (observed.st_uid, observed.st_gid, stat.S_IMODE(observed.st_mode)) == (uid, gid, mode):
         return
 
-    descriptor = os.open(path, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW | os.O_CLOEXEC)
+    descriptor = os.open(route_root, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW | os.O_CLOEXEC)
 
     try:
         observed = os.fstat(descriptor)
