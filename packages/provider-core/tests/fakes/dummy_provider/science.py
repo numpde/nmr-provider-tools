@@ -12,24 +12,17 @@ from dataclasses import dataclass, field
 from enum import auto
 
 from provider_core.contribution_errors import ErrorCode, ScientificRejection
-from provider_core.type_requirements import require_instance
+from provider_core.tools import require_finite_number
+from provider_core.type_requirements import require_instance, require_type
 
 
-def _finite_float(value: object, *, label: str) -> float:
-    if (type(value) not in (int, float)) or (not math.isfinite(value)):
-        raise ValueError(f"{label} must be a finite number")
+def _finite_values(numeric_components: object) -> tuple[float, ...]:
+    require_type(numeric_components, tuple)
 
-    return float(value)
-
-
-def _finite_values(values: object, *, label: str) -> tuple[float, ...]:
-    if not (type(values) is (expected_type := tuple)):
-        raise TypeError(f"{label=}; {type(values)=} ≠ {expected_type=}")
-
-    # repo-check: allow-tuple-generator -- Scientific values are normalized into the immutable tuple required by the model contract.
+    # repo-check: allow-tuple-generator -- Frozen coefficient/input records must keep their numeric contents stable after model loading or preparation
     return tuple(
-        _finite_float(numeric_component, label=f"{label}[{index}]")
-        for (index, numeric_component) in enumerate(values)
+        float(require_finite_number(numeric_component))
+        for numeric_component in numeric_components
     )
 
 
@@ -56,13 +49,13 @@ class WeightedSumSettings:
         object.__setattr__(
             self,
             "scale",
-            _finite_float(self.scale, label="scale"),
+            float(require_finite_number(self.scale)),
         )
 
         object.__setattr__(
             self,
             "offset",
-            _finite_float(self.offset, label="offset"),
+            float(require_finite_number(self.offset)),
         )
 
 
@@ -71,10 +64,7 @@ class CoefficientSet:
     values: tuple[float, ...]
 
     def __post_init__(self) -> None:
-        normalized_values = _finite_values(
-            self.values,
-            label="coefficient values",
-        )
+        normalized_values = _finite_values(self.values)
 
         if not (normalized_values):
             raise ValueError("coefficient values must not be empty")
@@ -90,7 +80,7 @@ class PreparationInput:
         object.__setattr__(
             self,
             "values",
-            _finite_values(self.values, label="prepare input values"),
+            _finite_values(self.values),
         )
 
 
@@ -102,7 +92,7 @@ class SumInput:
         object.__setattr__(
             self,
             "values",
-            _finite_values(self.values, label="sum input values"),
+            _finite_values(self.values),
         )
 
 
@@ -124,7 +114,7 @@ class PredictionResult:
         object.__setattr__(
             self,
             "total",
-            _finite_float(self.total, label="prediction total"),
+            float(require_finite_number(self.total)),
         )
 
         if not ((type(self.count) is int) and (0 < self.count)):
@@ -140,7 +130,7 @@ class SumResult:
         object.__setattr__(
             self,
             "total",
-            _finite_float(self.total, label="sum total"),
+            float(require_finite_number(self.total)),
         )
 
         if not ((type(self.count) is int) and (0 < self.count)):
@@ -182,7 +172,7 @@ class PreparedValues:
         if not (self.values):
             raise ValueError("prepared values must not be empty")
 
-        self.values = _finite_values(self.values, label="prepared values")
+        self.values = _finite_values(self.values)
 
     @property
     def value_count(self) -> int:

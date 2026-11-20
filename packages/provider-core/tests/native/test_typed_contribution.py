@@ -264,10 +264,13 @@ class TypedContributionTests(unittest.TestCase):
 
         self.assertIs(science.ScientificInputRejected.Code.EMPTY_INPUT, sum_rejection.exception.code)
 
-    def test_nonfinite_values_are_rejected_during_portable_construction(self):
-        for rejected_input_component in (math.nan, math.inf, -math.inf, True):
+    def test_portable_components_reject_nonfinite_numbers_and_booleans(self):
+        for rejected_input_component in (math.nan, math.inf, -math.inf):
             with self.subTest(value=rejected_input_component), self.assertRaises(ValueError):
                 science.PreparationInput(values=(rejected_input_component,))
+
+        with self.assertRaises(TypeError):
+            science.PreparationInput(values=(True,))
 
     def test_state_binding_constructs_provider_state(self):
         model = science.create_model(
