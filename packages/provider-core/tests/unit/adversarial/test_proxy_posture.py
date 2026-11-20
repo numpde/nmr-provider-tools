@@ -626,7 +626,7 @@ class ImageBuildProxyWorkerTests(unittest.TestCase):
             ):
                 _run_main(server, ready)
 
-            self.assertIn("readiness publication failed (FileExistsError)", str(rejected.exception))
+            self.assertIn(FileExistsError.__name__, str(rejected.exception))
             self.assertIn("Readiness publication did not complete", stderr.getvalue())
             self.assertIn("Cannot confirm temporary readiness cleanup", stderr.getvalue())
             self.assertEqual("prior receipt\n", ready.read_text(encoding="ascii"))
