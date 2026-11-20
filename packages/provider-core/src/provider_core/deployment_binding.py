@@ -28,13 +28,17 @@ from provider_core.delivery_store import MAX_BINDINGS, QueueLimits
 from provider_core.deployment_errors import BindingDefinitionRejected
 from provider_core.provider_proxy import ServicePolicy, ServiceRefused
 from provider_core.startup_file import StartupFileRejected, read_startup_file
+from provider_core.type_requirements import require_type
 from provider_core.tools import require_positive_number
 from provider_core.validation.upstream.docker_ids import is_full_network_id
 
 
 def _fields(table, expected, section_name):
-    if not (type(table) is (expected_type := dict)):
-        raise BindingDefinitionRejected(f"{section_name=}; {type(table)=} ≠ {expected_type=}")
+    require_type(
+        table,
+        dict,
+        error_factory=lambda diagnostic: BindingDefinitionRejected(f"{section_name=}; " + diagnostic),
+    )
 
     if set(table) != set(expected):
         actual_field_names = sorted(table)
@@ -44,8 +48,11 @@ def _fields(table, expected, section_name):
 
 
 def _absolute_path(path_text, path_field):
-    if not (type(path_text) is (expected_type := str)):
-        raise BindingDefinitionRejected(f"{path_field=}; {type(path_text)=} ≠ {expected_type=}")
+    require_type(
+        path_text,
+        str,
+        error_factory=lambda diagnostic: BindingDefinitionRejected(f"{path_field=}; " + diagnostic),
+    )
 
     if not (path_text):
         raise BindingDefinitionRejected(f"{path_field=}: {path_text=} should be an absolute path")
