@@ -162,18 +162,18 @@ class SourceAccess:
         contents = self._upload(source.upload_ref)
 
         if (source.member is None) and (not _is_zip(contents)):
-            entries = (SourceEntry(source, len(contents)),)
+            source_entries = (SourceEntry(source, len(contents)),)
 
-            yield ScopeReader(self, source, entries, contents)
+            yield ScopeReader(self, source, source_entries, contents)
 
             return
 
         with self._archive(contents) as archive:
             infos = archive.infolist()
             members = _member_index(infos)
-            entries = self._scope_entries(source, infos, members)
+            source_entries = self._scope_entries(source, infos, members)
 
-            yield ScopeReader(self, source, entries, contents, archive, members)
+            yield ScopeReader(self, source, source_entries, contents, archive, members)
 
     def scope(self, source: SourceRef) -> tuple[SourceEntry, ...]:
         """Enumerate a root scope or admit one exact member without format policy."""
@@ -208,14 +208,19 @@ class SourceAccess:
             raise InputReadError("Cannot inspect this ZIP: it exceeds the 4096-member inspection limit")
 
         # repo-check: allow-tuple-generator -- The fixture source scope promises an immutable SourceEntry tuple after complete bounds checks.
-        entries = tuple(
+        source_entries = tuple(
             SourceEntry(SourceRef(source.upload_ref, info.filename), info.file_size) for info in infos if not info.is_dir()
         )
 
-        if sum(entry.byte_length for entry in entries) > self.max_scope_bytes:
+        if sum(entry.byte_length for entry in source_entries) > self.max_scope_bytes:
             raise InputReadError(f"Cannot inspect this ZIP: its members exceed the {self.max_scope_bytes}-byte inspection limit")
 
-        listing = {"members": [{"name": entry.source.member, "byte_length": entry.byte_length} for entry in entries]}
+        listing = {
+            "members": [
+                {"name": entry.source.member, "byte_length": entry.byte_length}
+                for entry in source_entries
+            ],
+        }
 
         if len(json.dumps(listing, ensure_ascii=False).encode("utf-8")) > (256 * 1024):
             raise InputReadError(
@@ -223,7 +228,7 @@ class SourceAccess:
                 "an exact member can still be inspected if known"
             )
 
-        return entries
+        return source_entries
 
     def read(self, source: SourceRef, *, scope_bytes: int | None = None) -> ReadSource:
         """Read one admitted object once, enforcing the decoder byte limit."""

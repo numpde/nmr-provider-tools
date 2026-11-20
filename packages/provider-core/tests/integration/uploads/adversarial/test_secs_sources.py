@@ -201,9 +201,9 @@ class SecsSourceReceivingTests(unittest.TestCase):
 
     def test_listing_ceiling_does_not_disable_an_exact_member(self):
         # repo-check: allow-tuple-generator -- The immutable archive-entry specimen exercises expanded listing byte limits.
-        entries = tuple(("x" * 200 + str(index), b"v") for index in range(1300))
+        member_contents = tuple(("x" * 200 + str(index), b"v") for index in range(1300))
 
-        body = zip_bytes(entries)
+        body = zip_bytes(member_contents)
 
         with private_source_directory() as (root, directory):
             receipt = snapshot_source(root, body)
@@ -212,7 +212,7 @@ class SecsSourceReceivingTests(unittest.TestCase):
             with self.assertRaisesRegex(InputReadError, "262144-byte inspection limit"):
                 access.scope(SourceRef(UPLOAD_REF))
 
-            self.assertEqual(access.read(SourceRef(UPLOAD_REF, entries[-1][0])).contents, b"v")
+            self.assertEqual(access.read(SourceRef(UPLOAD_REF, member_contents[-1][0])).contents, b"v")
 
     def test_duplicate_nonregular_and_missing_members_remain_input_refusals(self):
         link = ZipInfo("link")
