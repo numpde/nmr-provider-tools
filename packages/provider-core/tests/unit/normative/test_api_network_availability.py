@@ -304,7 +304,15 @@ class ApiNetworkAvailabilityTests(unittest.IsolatedAsyncioTestCase):
                 transport = self.transport(exchange_seconds=.02, retirement_seconds=.2)
                 client = api(transport, "https://api.fixture.example")
 
-                with patch("provider_core.network.httpcore.AnyIOBackend", return_value=Backend(stream)):
+                # Isolate the aggregate deadline; an inner read timeout can start
+                # cleanup first without authoring aggregate-cancellation evidence.
+                original_read = httpcore._backends.anyio.AnyIOStream.read
+
+                async def read_without_inner_deadline(owner, max_bytes, timeout=None):
+                    return await original_read(owner, max_bytes, timeout=None)
+
+                with (patch("provider_core.network.httpcore.AnyIOBackend", return_value=Backend(stream)),
+                      patch("provider_core.adapters.httpcore.AnyIOStream.read", new=read_without_inner_deadline)):
                     task = asyncio.create_task(client._exchange("read", method="GET", request_path="/provider/v1/jobs/job:example/uploads", query=b"", maximum_bytes=4096))
 
                     await asyncio.wait_for(stream.closing.wait(), 1)
