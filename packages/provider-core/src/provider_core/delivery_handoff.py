@@ -14,6 +14,7 @@ from provider_core.api_config import ApiPublicationMaterial, api_settings_from_m
 from provider_core.attempt_record import TerminalOperation
 from provider_core.delivery_store import DeliveryOutcome
 from provider_core.response_json import ResponseRejected, read_document
+from provider_core.type_requirements import require_type
 
 # A 2 MiB terminal body and bounded 1 MiB CA plus credential fit with base64 overhead.
 # repo-check: allow-module-constant
@@ -29,8 +30,7 @@ def _encoded(raw_bytes):
 
 
 def _decoded(encoded_text):
-    if not (type(encoded_text) is (expected_type := str)):
-        raise DeliveryHandoffRejected(f"{type(encoded_text)=} ≠ {expected_type=}")
+    require_type(encoded_text, str, error_factory=DeliveryHandoffRejected)
 
     try:
         decoded_bytes = base64.b64decode(encoded_text, validate=True)
@@ -70,11 +70,17 @@ class DeliveryHandoff:
     publication: ApiPublicationMaterial
 
     def __post_init__(self):
-        if not (type((actual_outcome := self.outcome)) is (expected_type := DeliveryOutcome)):
-            raise DeliveryHandoffRejected(f"{type(actual_outcome)=} ≠ {expected_type=}")
+        require_type(
+            (actual_outcome := self.outcome),
+            DeliveryOutcome,
+            error_factory=DeliveryHandoffRejected,
+        )
 
-        if not (type((actual_publication := self.publication)) is (expected_type := ApiPublicationMaterial)):
-            raise DeliveryHandoffRejected(f"{type(actual_publication)=} ≠ {expected_type=}")
+        require_type(
+            (actual_publication := self.publication),
+            ApiPublicationMaterial,
+            error_factory=DeliveryHandoffRejected,
+        )
 
         if (self.outcome.api_origin, self.outcome.provider_ref) != (self.publication.origin, self.publication.provider_ref):
             raise DeliveryHandoffRejected("Delivery outcome and publication material require the same API and provider identity.")
@@ -123,19 +129,16 @@ def read_delivery_handoff(raw):
     try:
         handoff_fields = read_document(raw, MAX_HANDOFF_BYTES)
 
-        if not (type(handoff_fields) is (expected_type := dict)):
-            raise DeliveryHandoffRejected(f"{type(handoff_fields)=} ≠ {expected_type=}")
+        require_type(handoff_fields, dict, error_factory=DeliveryHandoffRejected)
 
         if set(handoff_fields) != {"api", "credential", "ca", "outcome"}:
             raise DeliveryHandoffRejected("Delivery handoff requires its documented fields.")
 
         (api, outcome) = (handoff_fields["api"], handoff_fields["outcome"])
 
-        if not (type(api) is (expected_type := dict)):
-            raise DeliveryHandoffRejected(f"{type(api)=} ≠ {expected_type=}")
+        require_type(api, dict, error_factory=DeliveryHandoffRejected)
 
-        if not (type(outcome) is (expected_type := dict)):
-            raise DeliveryHandoffRejected(f"{type(outcome)=} ≠ {expected_type=}")
+        require_type(outcome, dict, error_factory=DeliveryHandoffRejected)
 
         if (set(outcome) != {
             "api_origin",
