@@ -8,6 +8,7 @@ explicit and provider-owned.
 from __future__ import annotations
 
 import math
+import reprlib
 from dataclasses import dataclass, field
 from enum import auto
 
@@ -67,7 +68,7 @@ class CoefficientSet:
         normalized_values = _finite_values(self.values)
 
         if not (normalized_values):
-            raise ValueError("coefficient values must not be empty")
+            raise ValueError(f"{normalized_values=} should be nonempty")
 
         object.__setattr__(self, "values", normalized_values)
 
@@ -176,26 +177,26 @@ class PreparedValues:
 
     def __post_init__(self) -> None:
         if not (self.values):
-            raise ValueError("prepared values must not be empty")
+            raise ValueError(f"{self.values=} should be nonempty")
 
         self.values = _finite_values(self.values)
 
     @property
     def value_count(self) -> int:
         if self.values is None:
-            raise RuntimeError("The prepared values have already been consumed or disposed")
+            raise RuntimeError(f"{self.values=} should be set")
 
         return len(self.values)
 
     def consume(self, *, analysis: WeightedSumAnalysis) -> tuple[float, ...]:
         if not (self.analysis is analysis):
-            raise RuntimeError("The prepared values belong to another analysis")
+            raise RuntimeError(f"{id(self.analysis)=} should match {id(analysis)=}")
 
         if not (analysis.accepted_preparation is self):
-            raise RuntimeError("The prepared values are not this analysis's accepted preparation")
+            raise RuntimeError(f"{id(analysis.accepted_preparation)=} should match {id(self)=}")
 
         if self.values is None:
-            raise RuntimeError("The prepared values have already been consumed or disposed")
+            raise RuntimeError(f"{self.values=} should be set")
 
         prepared_values = self.values
         analysis.accepted_preparation = None
@@ -228,7 +229,7 @@ def create_model(
 
 def load_model(model: WeightedSumModel) -> None:
     if not (model.loaded_coefficients is None):
-        raise RuntimeError("The model coefficients are already loaded")
+        raise RuntimeError(f"{reprlib.repr(model.loaded_coefficients)=} should be None")
 
     model.loaded_coefficients = model.coefficients.values
 
@@ -243,10 +244,10 @@ def create_analysis(model: WeightedSumModel) -> WeightedSumAnalysis:
 
 def initialize_analysis(analysis: WeightedSumAnalysis) -> None:
     if analysis.is_open:
-        raise RuntimeError("The analysis is already initialized")
+        raise RuntimeError(f"{analysis.is_open=} should be False")
 
     if analysis.model.loaded_coefficients is None:
-        raise RuntimeError("Cannot initialize an analysis before loading model coefficients")
+        raise RuntimeError(f"{analysis.model.loaded_coefficients=} should be set")
 
     analysis.is_open = True
 
@@ -258,31 +259,31 @@ def prepare(
     """Reject one candidate without discarding the analysis itself."""
 
     if not (analysis.is_open):
-        raise RuntimeError("Cannot prepare input for a closed analysis")
+        raise RuntimeError(f"{analysis.is_open=} should be True")
 
     if not (candidate.values):
         raise ScientificInputRejected(
-            "Preparation input must contain at least one value",
+            f"{candidate.values=} should be nonempty",
             code=ScientificInputRejected.Code.EMPTY_INPUT,
         )
 
     if not (analysis.accepted_preparation is None):
         raise ScientificInputRejected(
-            "Calculate or discard the accepted preparation before preparing another",
+            f"{id(analysis.accepted_preparation)=} should be consumed or disposed before another preparation",
             code=ScientificInputRejected.Code.ALREADY_PREPARED,
         )
 
     loaded_coefficients = analysis.model.loaded_coefficients
 
     if loaded_coefficients is None:
-        raise RuntimeError("Cannot prepare input because model coefficients are not loaded")
+        raise RuntimeError(f"{loaded_coefficients=} should be set")
 
     actual_value_count = len(candidate.values)
     expected_value_count = len(loaded_coefficients)
 
     if actual_value_count != expected_value_count:
         raise ScientificInputRejected(
-            f"{actual_value_count = }, {expected_value_count = }",
+            f"{actual_value_count=} should match {expected_value_count=}",
             code=ScientificInputRejected.Code.WRONG_COUNT,
         )
 
@@ -301,12 +302,12 @@ def calculate(
     state: CalculationState,
 ) -> PredictionResult:
     if not (analysis.is_open):
-        raise RuntimeError("Cannot calculate for a closed analysis")
+        raise RuntimeError(f"{analysis.is_open=} should be True")
 
     loaded_coefficients = analysis.model.loaded_coefficients
 
     if loaded_coefficients is None:
-        raise RuntimeError("Cannot calculate because model coefficients are not loaded")
+        raise RuntimeError(f"{loaded_coefficients=} should be set")
 
     prepared_values = state.prepared.consume(analysis=analysis)
 
@@ -338,7 +339,7 @@ def calculate(
 def sum_values(summation: SumInput) -> SumResult:
     if not (summation.values):
         raise ScientificInputRejected(
-            "Sum input must contain at least one value",
+            f"{summation.values=} should be nonempty",
             code=ScientificInputRejected.Code.EMPTY_INPUT,
         )
 
