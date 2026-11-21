@@ -682,8 +682,11 @@ class DataclassStateBinding[T]:
     def bind(self, values: Mapping[str, object]) -> T:
         require_instance(values, Mapping)
 
-        if set(values) != set(self.names):
-            raise ValueError("Live scientific state names differ from the declared state struct")
+        received_state_names = set(values)
+        expected_state_names = set(self.names)
+
+        if not (received_state_names == expected_state_names):
+            raise ValueError(f"{reprlib.repr(received_state_names)=} should match {reprlib.repr(expected_state_names)=}")
 
         annotations = _resolved_hints(self.value_type)
 
