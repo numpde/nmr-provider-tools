@@ -43,20 +43,20 @@ def _require_supported_binding(binding):
     """Validate execution features independently of hardware availability."""
 
     if not (binding.description.contract_version in EMBEDDED_CAPABILITIES.contract_versions):
-        raise ValueError("The embedded backend does not support this contribution contract version.")
+        raise ValueError(f"{binding.description.contract_version=} should be in {EMBEDDED_CAPABILITIES.contract_versions=}")
 
     if not (binding.description.isolation in EMBEDDED_CAPABILITIES.isolation):
-        raise ValueError("The embedded backend cannot provide this implementation's isolation boundary.")
+        raise ValueError(f"{binding.description.isolation=} should be in {EMBEDDED_CAPABILITIES.isolation=}")
 
     for call in binding.description.calls:
         if not (call.concurrency in EMBEDDED_CAPABILITIES.concurrency):
-            raise ValueError("The embedded backend cannot enforce this call's concurrency boundary.")
+            raise ValueError(f"{call.name=}: {call.concurrency=} should be in {EMBEDDED_CAPABILITIES.concurrency=}")
 
         if not (call.interruption in EMBEDDED_CAPABILITIES.interruption):
-            raise ValueError("The embedded backend cannot provide this call's interruption contract.")
+            raise ValueError(f"{call.name=}: {call.interruption=} should be in {EMBEDDED_CAPABILITIES.interruption=}")
 
         if (call.progress) and (not EMBEDDED_CAPABILITIES.progress):
-            raise ValueError("The embedded backend cannot retain this call's progress events.")
+            raise ValueError(f"{EMBEDDED_CAPABILITIES.progress=} should be True for {call.name=} to request progress")
 
 
 @dataclass(frozen=True, slots=True)
@@ -72,8 +72,10 @@ class Allocation:
 
         require_instance(self.binding, (ImplementationBinding, HostedContribution))
 
-        if not (0 < len(self.name) <= 160):
-            raise ValueError("Allocation name must contain between 1 and 160 characters.")
+        (min_name_characters, max_name_characters) = (1, 160)
+
+        if not (min_name_characters <= (allocation_name_characters := len(self.name)) <= max_name_characters):
+            raise ValueError(f"{allocation_name_characters=} should be between {min_name_characters=} and {max_name_characters=}")
 
         _require_supported_binding(self.binding)
 
@@ -92,8 +94,10 @@ class _Changes:
         self.event = asyncio.Event()
 
     def require_loop(self):
-        if not (asyncio.get_running_loop() is self.loop):
-            raise RuntimeError("Observe and control this owner on its original event loop.")
+        caller_loop = asyncio.get_running_loop()
+
+        if not (caller_loop is self.loop):
+            raise RuntimeError(f"{id(caller_loop)=} should match {id(self.loop)=}")
 
     def changed(self):
         self.revision += 1
@@ -107,8 +111,10 @@ class _Changes:
         if after is not None:
             require_type(after, int)
 
-            if not (0 <= after <= self.revision):
-                raise ValueError("Observation cursor must belong to this owner's current history.")
+            min_revision = 0
+
+            if not (min_revision <= after <= self.revision):
+                raise ValueError(f"{after=} should be between {min_revision=} and {self.revision=}")
 
         require_nonnegative_number(wait_seconds)
 
@@ -228,7 +234,7 @@ class _Resident:
 
     def dispose(self):
         if self.dispose_attempted:
-            raise RuntimeError("Instance disposal was already attempted; retain its earlier evidence.")
+            raise RuntimeError(f"{self.dispose_attempted=} should be False")
 
         self.dispose_attempted = True
 
