@@ -1,6 +1,7 @@
 """Project identities through one retired probe on the selected local engine."""
 
 import argparse
+import reprlib
 import signal
 import sys
 import pathlib
@@ -25,23 +26,28 @@ class Cancellation:
 
 
 def _inputs(args):
-    policy = (
-        args.interpreter,
-        args.user_uid,
-        args.user_gid,
-        args.memory_bytes,
-        args.pids_limit,
-        args.nano_cpus
-    )
+    policy = {
+        "interpreter": args.interpreter,
+        "user_uid": args.user_uid,
+        "user_gid": args.user_gid,
+        "memory_bytes": args.memory_bytes,
+        "pids_limit": args.pids_limit,
+        "nano_cpus": args.nano_cpus,
+    }
 
     if args.maps is None:
+        supplied_policy_fields = [policy_name for (policy_name, policy_setting) in policy.items() if policy_setting is not None]
+
         if (
             (args.host_uid is None) or
             (args.host_gid is None) or
             (args.userns is not None) or
-            any((policy_setting is not None) for policy_setting in policy)
+            supplied_policy_fields
         ):
-            raise ValueError("Supply both host-owner IDs, or use --map with explicit probe policy.")
+            raise ValueError(
+                f"{args.host_uid=} and {args.host_gid=} should be set; "
+                f"{args.userns=} should be None; {supplied_policy_fields=} should be empty"
+            )
 
         probe_request = ProbeRequest(args.endpoint, args.image, "/usr/local/bin/python3", 0, 0)
 
@@ -54,19 +60,28 @@ def _inputs(args):
         )
 
     if (args.host_uid is not None) or (args.host_gid is not None):
-        raise ValueError("Do not combine host-owner IDs with --map projections.")
+        raise ValueError(f"{args.host_uid=} and {args.host_gid=} should both be None with --map")
 
-    if any((policy_setting is None) for policy_setting in policy):
-        raise ValueError("Mapping projections require an explicit interpreter, probe UID/GID and all three resource ceilings.")
+    missing_policy_fields = [policy_name for (policy_name, policy_setting) in policy.items() if policy_setting is None]
 
-    if not (len(args.maps) <= 512):
-        raise ValueError("Request at most 512 identity projections.")
+    if missing_policy_fields:
+        raise ValueError(f"{missing_policy_fields=} should be empty with --map")
+
+    max_projections = 512
+
+    if not (len(args.maps) <= max_projections):
+        raise ValueError(f"{len(args.maps)=} should be at most {max_projections=}")
 
     projections = []
+    expected_axes = ("uid", "gid")
+    expected_directions = ("forward", "inverse")
 
     for (axis, direction, identifier) in args.maps:
-        if (axis not in ("uid", "gid")) or (direction not in ("forward", "inverse")):
-            raise ValueError("Each --map selects uid or gid, forward or inverse, and one Linux ID.")
+        if not (axis in expected_axes):
+            raise ValueError(f"{reprlib.repr(axis)=} should be one of {expected_axes=}")
+
+        if not (direction in expected_directions):
+            raise ValueError(f"{reprlib.repr(direction)=} should be one of {expected_directions=}")
 
         projections.append((axis, direction, Identifier.of(identifier)))
 
