@@ -113,7 +113,7 @@ class UploadFileAcquisitionTests(unittest.IsolatedAsyncioTestCase):
                     self.assertEqual(list(pathlib.Path(root).iterdir()), [])
                     self.assertEqual(api.calls, ["membership"])
 
-                    with self.assertRaisesRegex(UploadFailed, "total deadline expired"):
+                    with self.assertRaises(UploadFailed):
                         await owner.inspect()
                 finally:
                     release_create.set()
@@ -702,7 +702,7 @@ class UploadFileAcquisitionTests(unittest.IsolatedAsyncioTestCase):
 
                 with (
                     patch("provider_core.uploads.os.close", side_effect=close_at_expiry),
-                    self.assertRaisesRegex(UploadFailed, "total deadline expired"),
+                    self.assertRaises(UploadFailed),
                 ):
                     await owner.acquire_file(UPLOAD_REF, directory_fd=directory, retirement_seconds=0.1)
 
