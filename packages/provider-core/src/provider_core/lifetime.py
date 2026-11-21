@@ -7,6 +7,7 @@ require_container()
 import fcntl
 import os
 import pathlib
+import reprlib
 import stat
 
 from provider_core.type_requirements import require_instance
@@ -32,45 +33,61 @@ class ProviderLifetime:
         if not root.is_absolute():
             raise ValueError(f"{root=}; expected an absolute path")
 
-        (self._root, self._descriptor) = (root, None)
+        (self._root, self._lock_fd) = (root, None)
         self._close_failure = None
 
     def open(self):
+        # repo-check: allow-literal-guard-error -- The chained original close failure supplies evidence; reopening cannot establish lock release
         if not (self._close_failure is None):
             raise LifetimeRefused(
                 "Cannot reopen provider lifetime after its lock close failed; release remains unconfirmed."
             ) from self._close_failure
 
-        if not (self._descriptor is None):
-            raise LifetimeRefused("Provider lifetime already holds its lock; retain its original owner.")
+        if not (self._lock_fd is None):
+            raise LifetimeRefused(f"{self._lock_fd=} should be None before opening the provider lifetime")
 
-        facts = self._root.lstat()
+        directory_metadata = self._root.lstat()
+        canonical_root = self._root.resolve()
 
-        if (
-            (self._root.resolve() != self._root) or
-            (not stat.S_ISDIR(facts.st_mode)) or
-            (facts.st_uid != os.geteuid()) or
-            (stat.S_IMODE(facts.st_mode) != 0o700)
-        ):
-            raise LifetimeRefused("Provider lifetime directory must be canonical, caller-owned and mode 0700.")
+        if not (canonical_root == self._root):
+            raise LifetimeRefused(f"{reprlib.repr(self._root)=} should match {reprlib.repr(canonical_root)=}")
 
-        self._descriptor = os.open(
+        if not stat.S_ISDIR(directory_metadata.st_mode):
+            raise LifetimeRefused(f"{reprlib.repr(self._root)=} should reference a directory; {directory_metadata.st_mode=:#o}")
+
+        expected_uid = os.geteuid()
+
+        if not (directory_metadata.st_uid == expected_uid):
+            raise LifetimeRefused(f"{directory_metadata.st_uid=} should match {expected_uid=}")
+
+        expected_directory_mode = 0o700
+
+        if not (stat.S_IMODE(directory_metadata.st_mode) == expected_directory_mode):
+            raise LifetimeRefused(f"{stat.S_IMODE(directory_metadata.st_mode)=:#o} should match {expected_directory_mode=:#o}")
+
+        self._lock_fd = os.open(
             self._root / ".checkpoint-owner.lock",
             os.O_RDWR | os.O_CREAT | os.O_NOFOLLOW | os.O_CLOEXEC,
             0o600,
         )
 
         try:
-            facts = os.fstat(self._descriptor)
+            lock_metadata = os.fstat(self._lock_fd)
 
-            if (
-                (not stat.S_ISREG(facts.st_mode)) or
-                (facts.st_uid != os.geteuid()) or
-                (stat.S_IMODE(facts.st_mode) != 0o600)
-            ):
-                raise LifetimeRefused("Provider lifetime lock must be a caller-owned mode 0600 regular file.")
+            if not stat.S_ISREG(lock_metadata.st_mode):
+                raise LifetimeRefused(f"{self._lock_fd=} should reference a regular file; {lock_metadata.st_mode=:#o}")
 
-            fcntl.flock(self._descriptor, fcntl.LOCK_EX | fcntl.LOCK_NB)
+            expected_uid = os.geteuid()
+
+            if not (lock_metadata.st_uid == expected_uid):
+                raise LifetimeRefused(f"{lock_metadata.st_uid=} should match {expected_uid=}")
+
+            expected_lock_mode = 0o600
+
+            if not (stat.S_IMODE(lock_metadata.st_mode) == expected_lock_mode):
+                raise LifetimeRefused(f"{stat.S_IMODE(lock_metadata.st_mode)=:#o} should match {expected_lock_mode=:#o}")
+
+            fcntl.flock(self._lock_fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
         except BaseException as failure:
             try:
                 self.close()
@@ -88,11 +105,11 @@ class ProviderLifetime:
         if not (self._close_failure is None):
             raise self._close_failure
 
-        if self._descriptor is not None:
-            (descriptor, self._descriptor) = (self._descriptor, None)
+        if self._lock_fd is not None:
+            (lock_fd, self._lock_fd) = (self._lock_fd, None)
 
             try:
-                os.close(descriptor)
+                os.close(lock_fd)
             except BaseException as failure:
                 self._close_failure = failure
 
