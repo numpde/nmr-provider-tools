@@ -325,7 +325,7 @@ class CapturedModelTrustTests(unittest.TestCase):
         trust = https_trust(self.certificate, label="fixture")
         trust._msg_callback = lambda *args: None
 
-        with self.assertRaisesRegex(TLSCaptureRejected, "callbacks"):
+        with self.assertRaises(TLSCaptureRejected):
             capture_trust(trust)
 
         trust._msg_callback = None
