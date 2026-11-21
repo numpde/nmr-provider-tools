@@ -103,7 +103,7 @@ class RunnerSession:
 
     def connect(self, *, deadline=None):
         if self._connect_started:
-            raise ValueError("Runner session connect is single-use; retain its original setup operation.")
+            raise ValueError(f"{self._connect_started=} should be False before starting control setup")
 
         self._connect_started = True
 
@@ -128,7 +128,10 @@ class RunnerSession:
                 self.science.close()
                 self.science = None
 
-                raise LifecycleRejected("Runner greeting does not match the admitted role and stable lifetime lock.")
+                raise LifecycleRejected(
+                    f"{greeting['role']=} should match {self.role=} and "
+                    f"{tuple(greeting['lock'])=} should match {self.expected_lock_identity=}"
+                )
 
             (self.generation, self.operation) = (greeting["generation"], greeting["operation"])
             self.lock_identity = tuple(greeting["lock"])
@@ -139,15 +142,17 @@ class RunnerSession:
 
     def _connect_control(self, deadline):
         while True:
-            if self._stop_requested.is_set():
-                raise RunnerStartupStopped("Runner startup was stopped before connecting to its control endpoint.")
+            startup_stopped = self._stop_requested.is_set()
 
-            remaining = deadline - time.monotonic()
+            if startup_stopped:
+                raise RunnerStartupStopped(f"{startup_stopped=} should be False before connecting to the control endpoint")
 
-            if remaining <= 0:
-                raise RunnerStartupUnavailable("Runner control endpoint was not connected within its startup budget.")
+            startup_remaining_seconds = deadline - time.monotonic()
 
-            self.control.settimeout(remaining)
+            if startup_remaining_seconds <= 0:
+                raise RunnerStartupUnavailable(f"{startup_remaining_seconds=} should be positive before connecting to the control endpoint")
+
+            self.control.settimeout(startup_remaining_seconds)
 
             try:
                 self.control.connect(self.path)
@@ -195,8 +200,10 @@ class RunnerSession:
     def observe_retirement(self, *, deadline=None):
         """Receive cleanup facts without causing retirement (including cap expiry)."""
 
-        if not self._retirement_reader.acquire(blocking=False):
-            raise LifecycleRejected("Runner retirement already has an original reader; maybe join that observation.")
+        retirement_reader_acquired = self._retirement_reader.acquire(blocking=False)
+
+        if not (retirement_reader_acquired):
+            raise LifecycleRejected(f"{retirement_reader_acquired=} should be True before observing retirement")
 
         try:
             self._observe_retirement(deadline)
@@ -204,6 +211,7 @@ class RunnerSession:
             self._retirement_reader.release()
 
     def _observe_retirement(self, deadline):
+        # repo-check: allow-literal-guard-error -- The chained original failure supplies evidence; another frame read cannot recover a partial read
         if not (self._observation_failure is None):
             raise LifecycleRejected(
                 "Original runner control setup or lifecycle read failed; preserve its cause and use bounded lifecycle recovery, not a second frame read."
@@ -236,7 +244,7 @@ class RunnerSession:
 
         if not (self.retirement.scratch_released):
             raise LifecycleRejected(
-                "Runner child stopped but its scratch cleanup remains unconfirmed.",
+                f"{self.retirement.scratch_released=} should be True after the child stops",
                 returncode=self.retirement.returncode,
                 scratch_released=False
             )
