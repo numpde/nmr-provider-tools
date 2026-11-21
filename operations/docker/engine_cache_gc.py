@@ -3,6 +3,7 @@
 import hashlib
 import os
 import pathlib
+import reprlib
 import stat
 import subprocess
 import sys
@@ -27,14 +28,25 @@ from operations.docker.validation.upstream.cache_gc import (
 
 
 def native_config(daemon_config_path):
-    if (
-        (not daemon_config_path.is_absolute()) or
-        (daemon_config_path.resolve() != daemon_config_path) or
-        daemon_config_path.is_symlink() or
-        (not daemon_config_path.is_file()) or
-        (daemon_config_path.stat().st_uid != os.getuid())
-    ):
-        raise ValueError("Select the canonical caller-owned native daemon.json file.")
+    if not daemon_config_path.is_absolute():
+        raise ValueError(f"{reprlib.repr(daemon_config_path)=} should be absolute")
+
+    canonical_daemon_config_path = daemon_config_path.resolve()
+
+    if not (canonical_daemon_config_path == daemon_config_path):
+        raise ValueError(f"{reprlib.repr(daemon_config_path)=} should match {reprlib.repr(canonical_daemon_config_path)=}")
+
+    if daemon_config_path.is_symlink():
+        raise ValueError(f"{reprlib.repr(daemon_config_path)=} should not be a symlink")
+
+    if not daemon_config_path.is_file():
+        raise ValueError(f"{reprlib.repr(daemon_config_path)=} should reference a regular file")
+
+    daemon_config_uid = daemon_config_path.stat().st_uid
+    caller_uid = os.getuid()
+
+    if not (daemon_config_uid == caller_uid):
+        raise ValueError(f"{daemon_config_uid=} should match {caller_uid=} for {reprlib.repr(daemon_config_path)=}")
 
     configuration_bytes = daemon_config_path.read_bytes()
 
@@ -62,15 +74,17 @@ def limits(document):
     if not gc_enabled(gc_settings):
         return None
 
-    if gc_has_custom_policy(gc_settings):
-        raise ValueError("A custom native GC policy cannot be reproduced by this single threshold-based prune timer.")
+    has_custom_gc_policy = gc_has_custom_policy(gc_settings)
+
+    if has_custom_gc_policy:
+        raise ValueError(f"{has_custom_gc_policy=} should be False for a threshold-based prune timer")
 
     return gc_thresholds(gc_settings)
 
 
 def argument(command_argument):
     if (not command_argument) or (any(((ord(c) < 32) or (ord(c) == 127)) for c in command_argument)):
-        raise ValueError("Timer arguments cannot contain empty values or control characters.")
+        raise ValueError(f"{reprlib.repr(command_argument)=} should be nonempty and contain no control characters")
 
     # Systemd specifiers remain literal. ExecStart's ':' prefix below disables
     # environment substitution; no shell interprets these captured arguments.
@@ -78,8 +92,10 @@ def argument(command_argument):
 
 
 def unit_files(root, context, endpoint, config):
-    if not endpoint.startswith("unix:///"):
-        raise ValueError("Cache collection requires the selected local Unix engine.")
+    expected_endpoint_prefix = "unix:///"
+
+    if not endpoint.startswith(expected_endpoint_prefix):
+        raise ValueError(f"{reprlib.repr(endpoint)=} should start with {expected_endpoint_prefix=}")
 
     name = "engine-cache-gc-" + hashlib.sha256(endpoint.encode()).hexdigest()[:16]
 
@@ -153,14 +169,19 @@ def install(root, context, endpoint, daemon_config_path):
 
         if validation.returncode:
             raise ValueError(
-                "dockerd rejected the proposed native GC configuration; "
-                "the original file is unchanged."
+                f"{validation.returncode=} should be zero; {reprlib.repr(validation.stderr)=}; "
+                f"{reprlib.repr(daemon_config_path)=} is unchanged"
             )
 
-        if daemon_config_path.read_bytes() != original_bytes:
+        current_configuration_bytes = daemon_config_path.read_bytes()
+
+        if current_configuration_bytes != original_bytes:
+            configuration_sha256 = hashlib.sha256(current_configuration_bytes).hexdigest()
+            expected_configuration_sha256 = hashlib.sha256(original_bytes).hexdigest()
+
             raise ValueError(
-                "Native engine configuration changed during validation; "
-                "retry against the current file."
+                f"{configuration_sha256=} should match {expected_configuration_sha256=} "
+                f"before replacing {reprlib.repr(daemon_config_path)=}"
             )
 
         temporary_path.replace(daemon_config_path)
@@ -218,7 +239,10 @@ def main():
 
             install(pathlib.Path(root), context, endpoint, pathlib.Path(config))
         else:
-            raise ValueError("Use the maintained cache-GC installation target.")
+            raise ValueError(
+                f"{reprlib.repr(sys.argv[1:])=} should select 'policy <daemon.json>' or "
+                f"'install <root> <context> <endpoint> <daemon.json>'; use the maintained cache-GC target"
+            )
 
         return 0
     # silent-defaults: allow-exception-outcome -- Failed installation exits with failure; proof=tests/repository/test_checker_cache_gc.py::EngineCacheGCTests.test_timer_failure_reports_saved_native_policy

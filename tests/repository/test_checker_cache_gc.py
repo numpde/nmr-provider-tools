@@ -80,10 +80,13 @@ class EngineCacheGCTests(unittest.TestCase):
             config.write_text('{"data-root":"/keep"}\n')
             before = config.read_bytes()
 
-            with patch("operations.docker.engine_cache_gc.subprocess.run", return_value=SimpleNamespace(returncode=1)) as command:
-                with self.assertRaisesRegex(ValueError, "original file is unchanged"):
+            rejected_validation = subprocess.CompletedProcess(["dockerd", "--validate"], returncode=1, stderr=b"unknown GC field")
+
+            with patch("operations.docker.engine_cache_gc.subprocess.run", return_value=rejected_validation) as command:
+                with self.assertRaises(ValueError) as rejected:
                     install(root, "science", "unix:///tmp/engine.sock", config)
 
+            self.assertIn("unknown GC field", str(rejected.exception))
             self.assertEqual(config.read_bytes(), before)
             self.assertEqual(["dockerd", "--validate"], command.call_args.args[0][:2])
             self.assertEqual([config], list(root.iterdir()))
