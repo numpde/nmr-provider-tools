@@ -18,7 +18,13 @@ class UnixHTTPRefusalTests(unittest.IsolatedAsyncioTestCase):
             transport = UnixHttpTransport(socket_path=peer.socket_path, exchange_seconds=1, retirement_seconds=0.3)
 
             with patch("httpcore.AnyIOBackend.connect_tcp", new=AsyncMock(side_effect=AssertionError("TCP fallback"))):
-                for origin in ("https://delivery.invalid", "http://other.invalid", "http://delivery.invalid:81"):
+                for origin in [
+                    "https://delivery.invalid",
+                    "http://other.invalid",
+                    "http://delivery.invalid:81",
+                    "http://reader@delivery.invalid",
+                    "http://:credential@delivery.invalid",
+                ]:
                     with self.subTest(origin=origin), self.assertRaises(ValueError):
                         await transport.exchange(httpx.Request("GET", origin), maximum_bytes=2)
 
