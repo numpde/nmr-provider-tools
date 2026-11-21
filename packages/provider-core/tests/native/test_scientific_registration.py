@@ -893,6 +893,21 @@ class AdoptionTests(unittest.IsolatedAsyncioTestCase):
 
             self.assertEqual(first=0, second=instance.initializations)
 
+    async def test_operation_aliases_fail_before_host_custody(self):
+        class AliasedSum(Sum):
+            calculate_again = Sum.calculate
+
+        instance = AliasedSum(configuration=Settings(scale=2))
+
+        with self.assertRaises(expected_exception=ValueError) as rejected:
+            adopt(host=self.host, contribution=instance)
+
+        self.assertIn(member="calculate", container=str(rejected.exception))
+        self.assertIn(member="calculate_again", container=str(rejected.exception))
+        self.assertEqual(first=0, second=instance.initializations)
+        self.assertEqual(first=0, second=instance.closes)
+        self.assertEqual(first=frozenset(), second=self.host.allocations)
+
     async def test_unmarked_override_removes_export(self):
         class PrivateSum(Sum):
             def calculate(self, *, numbers: Numbers) -> Total:

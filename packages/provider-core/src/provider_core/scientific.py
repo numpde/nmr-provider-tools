@@ -15,11 +15,12 @@ import hashlib
 import inspect
 import json
 import pathlib
+from collections import Counter
 from collections.abc import Callable, Mapping
 from enum import Enum
 from dataclasses import InitVar, dataclass, field, fields, is_dataclass, replace
 from threading import Lock
-from types import NoneType
+from types import FunctionType, NoneType
 from typing import ClassVar, Protocol, get_args, get_origin, get_type_hints
 
 from provider_core.contribution import (
@@ -242,11 +243,10 @@ def operation(
     def decorate(function: Callable) -> Callable:
         # Python supplies the decorated function positionally; the method itself
         # remains unchanged, including its keyword-only scientific signature.
-        if not inspect.isfunction(object=function):
-            raise TypeError("An ordinary instance method expected")
+        require_instance(function, FunctionType)
 
         if "__scientific_operation__" in function.__dict__:
-            raise ValueError("An operation may be declared only once")
+            raise ValueError(f"{function.__qualname__=} should have one operation declaration")
 
         function.__scientific_operation__ = declaration
 
@@ -283,8 +283,8 @@ class _NamedStates:
         return {slot.name: slot.value_type for slot in self.inputs}
 
     def bind(self, values: Mapping[str, object]) -> dict[str, object]:
-        if set(values) != set(self.names):
-            raise ValueError("Scientific state arguments differ from the declared method ports")
+        if (state_argument_names := set(values)) != (declared_state_names := set(self.names)):
+            raise ValueError(f"{state_argument_names=} should match {declared_state_names=}")
 
         for slot in self.inputs:
             slot.read(values=values)
@@ -316,10 +316,14 @@ def _members(*, contribution: type[Contribution]) -> tuple[tuple[str, Callable],
             exported_methods.append((member_name, member))
 
     if not (exported_methods):
-        raise ValueError("A contribution must export at least one operation")
+        raise ValueError(f"{contribution.__qualname__=} should export at least one operation")
 
     if len({function for (_, function) in exported_methods}) != len(exported_methods):
-        raise ValueError("An exported operation cannot have multiple aliases in one contribution")
+        function_counts = Counter(function for (_, function) in exported_methods)
+        aliased_function = next(function for (function, count) in function_counts.items() if count > 1)
+        aliased_method_names = [name for (name, function) in exported_methods if function is aliased_function]
+
+        raise ValueError(f"{aliased_method_names=} should name distinct operations")
 
     return tuple(exported_methods)
 
@@ -364,8 +368,10 @@ def _codec(*, value_type: type, supplied: PayloadCodec | None) -> PayloadCodec:
     if supplied is not None:
         require_instance(supplied, PayloadCodec)
 
-        if not (supplied.value_type is value_type):
-            raise TypeError("Scientific codec type differs from the method annotation")
+        codec_value_type = supplied.value_type
+
+        if not (codec_value_type is value_type):
+            raise TypeError(f"{codec_value_type=} should be {value_type=}")
 
         return supplied
 
@@ -636,8 +642,15 @@ class HostedContribution:
         if analysis_type is not None:
             require_subclass(analysis_type, Analysis)
 
-            if (analysis_type.__init__ is not Analysis.__init__) or (analysis_type.__new__ is not object.__new__):
-                raise TypeError("Analysis construction is SDK-owned; acquire resources in initialize")
+            analysis_constructor = analysis_type.__init__
+
+            if not (analysis_constructor is Analysis.__init__):
+                raise TypeError(f"{analysis_constructor=} should be {Analysis.__init__=}")
+
+            analysis_allocator = analysis_type.__new__
+
+            if not (analysis_allocator is object.__new__):
+                raise TypeError(f"{analysis_allocator=} should be {object.__new__=}")
 
             object.__setattr__(self, "_analysis_initialize", _lifecycle(owner=analysis_type, method_name="initialize", expected_parameters={}))
             object.__setattr__(self, "_analysis_close", _lifecycle(owner=analysis_type, method_name="close", expected_parameters={}))
@@ -708,8 +721,11 @@ class HostedContribution:
         """Select an exported method of this receiver without string dispatch."""
 
         if inspect.ismethod(object=method):
-            if (self.contribution is None) or (method.__self__ is not self.contribution):
-                raise ValueError("Cannot select a method bound to another contribution instance")
+            if self.contribution is None:
+                raise ValueError(f"{method.__qualname__=} should be unbound while {self.contribution=}")
+
+            if not (method.__self__ is self.contribution):
+                raise ValueError(f"{id(method.__self__)=} should match {id(self.contribution)=}")
 
             method = method.__func__
 
