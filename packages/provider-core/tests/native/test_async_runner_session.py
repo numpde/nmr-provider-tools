@@ -228,11 +228,11 @@ class AsyncNativeProcessTests(unittest.IsolatedAsyncioTestCase):
     async def test_warm_child_outlives_setup_cap_and_keeps_its_later_retirement_allowance(self):
         self.owner.request_stop()
         await self.owner.join_retirement(wait_seconds=2)
-        native = self.runner.session(startup_seconds=2, retirement_seconds=2)
+        cap = time.monotonic() + 1
+        native = self.runner.session(startup_seconds=2, retirement_seconds=2, startup_not_after=cap)
 
         self.addCleanup(native.close)
-        cap = time.monotonic() + 1
-        owner = AsyncRunnerSession(native, setup_not_after=cap)
+        owner = AsyncRunnerSession(native)
 
         await owner.connect(wait_seconds=2)
         pid = worker_pid(native.science, b"H")

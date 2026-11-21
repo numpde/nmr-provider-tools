@@ -125,6 +125,12 @@ startup_seconds=..., retirement_seconds=...)`. The expected identity is the
 lock's `(st_dev, st_ino)` pair. `ProcessExecutionHost` uses that session; it does
 not launch or discover a supervisor.
 
+If lock admission or deferred startup has already consumed part of a connection
+allowance, pass its original absolute `time.monotonic()` deadline as
+`RunnerSession(..., startup_not_after=...)`. Native connection and greeting use
+the earliest of that retained cap, the caller's deadline and `startup_seconds`.
+Later model initialization and retirement do not inherit this setup-only cap.
+
 The deployment must grant only the environment, files and descriptors needed
 by this worker. The runner inherits its supervisor's environment and sets
 `TMPDIR`; injecting a session does not sanitize unrelated credentials or service
