@@ -22,6 +22,7 @@ import tempfile
 import tomllib
 import zipfile
 import pathlib
+from collections import Counter
 from pathlib import PurePosixPath
 
 from tools.artifacts import regular_file
@@ -31,6 +32,13 @@ from sdk_build.core_environment import behavioral_install_lock, build_candidate,
 from sdk_build.core_environment import SDK_TYPE_REQUIREMENTS, TYPE_REQUIREMENTS_SOURCE
 from tools.wheelhouse import digest, requirements
 from type_requirements import require_type
+
+
+# Preserve ordinary artifact names and digests while bounding malformed metadata
+# repo-check: allow-module-constant
+_RELEASE_EVIDENCE = reprlib.Repr()
+_RELEASE_EVIDENCE.maxstring = 256
+_RELEASE_EVIDENCE.maxother = _RELEASE_EVIDENCE.maxstring
 
 
 def artifact_names(version):
@@ -103,7 +111,7 @@ def qualify_wheelhouse_bundle(bundle, scratch):
     selected_sha256 = json.loads(selected_wheels.stdout)["artifacts"][0]["sha256"]
 
     if selected_sha256 != packaging_digest:
-        raise ValueError(f"{reprlib.repr(selected_sha256)=} ≠ {packaging_digest=}")
+        raise ValueError(f"{_RELEASE_EVIDENCE.repr(selected_sha256)=} ≠ {packaging_digest=}")
 
     subprocess.run(
         [
@@ -129,16 +137,16 @@ def qualify_wheelhouse_bundle(bundle, scratch):
     expected_path = "/wheels/" + packaging_wheel_name
 
     if projected_path != expected_path:
-        raise ValueError(f"{reprlib.repr(projected_path)=} ≠ {expected_path=}")
+        raise ValueError(f"{_RELEASE_EVIDENCE.repr(projected_path)=} ≠ {expected_path=}")
 
     if "url" in projected_artifact:
-        raise ValueError(f"{reprlib.repr(projected_artifact['url'])=} should be absent")
+        raise ValueError(f"{_RELEASE_EVIDENCE.repr(projected_artifact['url'])=} should be absent")
 
     require_type(projected_hashes, dict)
     projected_sha256 = projected_hashes.get("sha256")
 
     if projected_sha256 != packaging_digest:
-        raise ValueError(f"{reprlib.repr(projected_sha256)=} ≠ {packaging_digest=}")
+        raise ValueError(f"{_RELEASE_EVIDENCE.repr(projected_sha256)=} ≠ {packaging_digest=}")
 
     dockerfile = scratch / "Dockerfile"
 
@@ -185,7 +193,7 @@ def qualify_wheelhouse_bundle(bundle, scratch):
     converted_report = json.loads(report_conversion.stdout)
 
     if converted_report != expected_report:
-        raise ValueError(f"{reprlib.repr(converted_report)=} ≠ {expected_report=}")
+        raise ValueError(f"{_RELEASE_EVIDENCE.repr(converted_report)=} ≠ {expected_report=}")
 
     manifest.write_text(report_conversion.stdout)
 
@@ -215,7 +223,7 @@ def qualify_wheelhouse_bundle(bundle, scratch):
     expected_manifest_identity = hashlib.sha256(canonical_manifest).hexdigest()
 
     if manifest_identity != expected_manifest_identity:
-        raise ValueError(f"{reprlib.repr(manifest_identity)=} ≠ {expected_manifest_identity=}")
+        raise ValueError(f"{_RELEASE_EVIDENCE.repr(manifest_identity)=} ≠ {expected_manifest_identity=}")
 
     source_allowlist = scratch / "stream-sources.json"
 
@@ -252,7 +260,7 @@ def qualify_wheelhouse_bundle(bundle, scratch):
         expected_member_names = {"Dockerfile", "wheels/" + packaging_wheel_name}
 
         if streamed_member_names != expected_member_names:
-            raise ValueError(f"{reprlib.repr(streamed_member_names)=} ≠ {expected_member_names=}")
+            raise ValueError(f"{_RELEASE_EVIDENCE.repr(streamed_member_names)=} ≠ {expected_member_names=}")
 
         with archive.extractfile("wheels/" + packaging_wheel_name) as streamed_wheel:
             streamed_packaging_sha256 = hashlib.file_digest(streamed_wheel, "sha256").hexdigest()
@@ -407,7 +415,7 @@ def unpack_source(archive, destination, version):
             member_path = PurePosixPath(member.name)
 
             if not (member.name not in member_names):
-                raise ValueError(f"{archive=}: {reprlib.repr(member.name)=} should appear only once")
+                raise ValueError(f"{archive=}: {_RELEASE_EVIDENCE.repr(member.name)=} should appear only once")
 
             if not (
                 (member.name) and
@@ -418,18 +426,18 @@ def unpack_source(archive, destination, version):
                 (member_path.parts[0] == expected_source_root)  # Keep one issued distribution root
             ):
                 raise ValueError(
-                    f"{archive=}: {reprlib.repr(member.name)=} should be a canonical relative path "
+                    f"{archive=}: {_RELEASE_EVIDENCE.repr(member.name)=} should be a canonical relative path "
                     f"under {expected_source_root=}"
                 )
 
             if not (member.isfile() or member.isdir()):
                 raise ValueError(
-                    f"{archive=}: {reprlib.repr(member.name)=} has {member.type=}; "
+                    f"{archive=}: {_RELEASE_EVIDENCE.repr(member.name)=} has {member.type=}; "
                     f"expected a regular file or directory"
                 )
 
             if not ((shared_write_bits := member.mode & 0o022) == 0):
-                raise ValueError(f"{archive=}: {reprlib.repr(member.name)=} has {shared_write_bits=:#o}; should be zero")
+                raise ValueError(f"{archive=}: {_RELEASE_EVIDENCE.repr(member.name)=} has {shared_write_bits=:#o}; should be zero")
 
             member_names.add(member.name)
 
@@ -472,7 +480,7 @@ def source_payload(source, source_inventory):
             ))
         ):
             raise ValueError(
-                f"{reprlib.repr(source_member_name)=} should be a canonical relative path "
+                f"{_RELEASE_EVIDENCE.repr(source_member_name)=} should be a canonical relative path "
                 f"in {expected_metadata_names=} or under {expected_source_prefixes=}"
             )
 
@@ -480,7 +488,7 @@ def source_payload(source, source_inventory):
         source_member_fields = set(source_member_metadata)
 
         if source_member_fields != expected_source_member_fields:
-            raise ValueError(f"{reprlib.repr(source_member_name)=}: {reprlib.repr(source_member_fields)=} ≠ {expected_source_member_fields=}")
+            raise ValueError(f"{_RELEASE_EVIDENCE.repr(source_member_name)=}: {_RELEASE_EVIDENCE.repr(source_member_fields)=} ≠ {expected_source_member_fields=}")
 
         source_file = source / source_member_name
 
@@ -529,7 +537,7 @@ def source_payload(source, source_inventory):
         missing_source_files = sorted(expected_source_files - observed_files)
         unexpected_source_files = sorted(observed_files - expected_source_files)
 
-        raise ValueError(f"{reprlib.repr(missing_source_files)=} and {reprlib.repr(unexpected_source_files)=} should be empty")
+        raise ValueError(f"{_RELEASE_EVIDENCE.repr(missing_source_files)=} and {_RELEASE_EVIDENCE.repr(unexpected_source_files)=} should be empty")
 
     return {
         source_member_name.removeprefix("src/"): (source / source_member_name).read_bytes()
@@ -538,21 +546,32 @@ def source_payload(source, source_inventory):
     }
 
 
-def wheel_payload(wheel, expected, version):
+def wheel_payload(wheel, expected_source_payload, version):
+    """Compare runtime wheel bytes with the captured source projection."""
+
     with zipfile.ZipFile(wheel) as archive:
         archive_members = archive.namelist()
         metadata_prefix = f"provider_core-{version}.dist-info/"  # machine-string: Wheel member admission matches the versioned dist-info directory path
 
-        if (
-            (len(archive_members) != len(set(archive_members))) or
-            any(
-                (
-                    ((not name.startswith(metadata_prefix)) and (name not in expected))
-                    for name in archive_members
-                ),
-            )
-        ):
-            raise ValueError("Cannot qualify package: wheel contains duplicate or unexpected payload files.")
+        if not (len(archive_members) == len(set(archive_members))):
+            wheel_member_counts = Counter(archive_members)
+            extra_wheel_member_occurrences = wheel_member_counts - Counter(wheel_member_counts.keys())
+
+            raise ValueError(f"{wheel=}: {_RELEASE_EVIDENCE.repr(extra_wheel_member_occurrences)=} should be empty")
+
+        unexpected_wheel_member = next(
+            (
+                member_name
+                for member_name in archive_members
+                if
+                (not member_name.startswith(metadata_prefix)) and
+                (member_name not in expected_source_payload)
+            ),
+            None,
+        )
+
+        if not (unexpected_wheel_member is None):
+            raise ValueError(f"{wheel=}: {_RELEASE_EVIDENCE.repr(unexpected_wheel_member)=} should be absent")
 
         wheel_files = {
             name: archive.read(name)
@@ -560,11 +579,22 @@ def wheel_payload(wheel, expected, version):
             if not name.startswith(metadata_prefix)
         }
 
-        if wheel_files != expected:
-            raise ValueError(
-                "Cannot qualify package: installed wheel payload differs "
-                "from its captured source files."
-            )
+        missing_wheel_members = expected_source_payload.keys() - wheel_files.keys()
+
+        if not (len(missing_wheel_members) == 0):
+            raise ValueError(f"{wheel=}: {_RELEASE_EVIDENCE.repr(missing_wheel_members)=} should be empty")
+
+        for (wheel_member_name, source_member_bytes) in expected_source_payload.items():
+            wheel_member_bytes = wheel_files[wheel_member_name]
+
+            if wheel_member_bytes != source_member_bytes:
+                wheel_member_sha256 = hashlib.sha256(wheel_member_bytes).hexdigest()
+                source_member_sha256 = hashlib.sha256(source_member_bytes).hexdigest()
+
+                raise ValueError(
+                    f"{wheel=}: {_RELEASE_EVIDENCE.repr(wheel_member_name)=}; "
+                    f"{wheel_member_sha256=} ≠ {source_member_sha256=}"
+                )
 
         return {
             name.removeprefix(metadata_prefix): archive.read(name)

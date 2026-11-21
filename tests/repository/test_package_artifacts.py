@@ -353,18 +353,20 @@ class PackageArtifactTests(unittest.TestCase):
         wheel_path = self.root / "core.whl"
         expected = {"provider_core/__init__.py": b"owned\n", "provider_core/delivery_client.py": b"client\n"}
 
-        for payload in (
-            {"provider_core/__init__.py": b"owned\n"},
-            expected | {"tools/helper.py": b"leak"},
-            expected | {"provider_core/delivery_client.py": b"changed"}
+        for (payload, affected_member) in (
+            ({"provider_core/__init__.py": b"owned\n"}, "provider_core/delivery_client.py"),
+            (expected | {"tools/helper.py": b"leak"}, "tools/helper.py"),
+            (expected | {"provider_core/delivery_client.py": b"changed"}, "provider_core/delivery_client.py"),
         ):
             with self.subTest(payload=payload):
                 with zipfile.ZipFile(wheel_path, "w") as archive:
                     for (name, payload_bytes) in payload.items():
                         archive.writestr(name, payload_bytes)
 
-                with self.assertRaisesRegex(ValueError, "wheel"):
+                with self.assertRaises(ValueError) as rejected:
                     wheel_payload(wheel_path, expected, "0.2.0")
+
+                self.assertIn(affected_member, str(rejected.exception))
 
     def test_behavioral_test_closure_keeps_runtime_lock_pure(self):
         runtime = self.root / "runtime.lock"
