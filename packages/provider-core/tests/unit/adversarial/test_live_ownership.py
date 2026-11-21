@@ -1,6 +1,7 @@
 """Live capacity keeps held Jobs excluded until their actual owners can release."""
 
 import asyncio
+import hashlib
 from dataclasses import replace
 import unittest
 
@@ -20,11 +21,11 @@ class Owner:
 
     def require_claim_release_ready(self, claim):
         if not (self.release_ready):
-            raise OwnershipRefused("Original lifecycle remains unresolved")
+            raise OwnershipRefused(f"{self.release_ready=} should be True")
 
     def require_terminal_release_ready(self, claim):
         if not (self.terminal_ready):
-            raise OwnershipRefused("No matching delivery acknowledgement")
+            raise OwnershipRefused(f"{self.terminal_ready=} should be True")
 
 
 def selected(job, key):
@@ -170,6 +171,24 @@ class LiveOwnershipTests(unittest.IsolatedAsyncioTestCase):
         ):
             with self.assertRaises(OwnershipRefused):
                 claim.require_start(changed)
+
+        claim.require_start(pending)
+
+    async def test_changed_request_bytes_are_identified_without_releasing_the_claim(self):
+        pending = record()
+        changed = replace(pending, body=pending.body + b" ")
+        claim = AttemptClaims.live().claim_live(pending, lifecycle_owner=Owner())
+
+        with self.assertRaises(OwnershipRefused) as rejected:
+            claim.require_start(changed)
+
+        diagnostic = str(rejected.exception)
+
+        self.assertIn(hashlib.sha256(pending.body).hexdigest(), diagnostic)
+        self.assertIn(hashlib.sha256(changed.body).hexdigest(), diagnostic)
+        self.assertNotIn(pending.body.decode("utf-8"), diagnostic)
+        self.assertTrue(claim.active)
+        self.assertIsNone(claim.operation_owner)
 
         claim.require_start(pending)
 

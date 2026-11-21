@@ -1,10 +1,56 @@
 """Pure helpers shared by scientific code and provider-core runtime components."""
 
+import hashlib
 import math
 import pathlib
+import reprlib
 from collections import Counter
+from dataclasses import fields, is_dataclass
 
 from .type_requirements import require_instance, require_type
+
+
+# Bound scalar metadata evidence; byte fields are identified by their digests
+# repo-check: allow-module-constant
+_METADATA_EVIDENCE = reprlib.Repr()
+
+_METADATA_EVIDENCE.maxstring = 256
+
+
+def metadata_mismatch_message(actual_record: object, expected_record: object) -> str:
+    """Describe unequal dataclasses of the same type without revalidation.
+
+    Follow nested metadata fields; identify retained request bytes by digest.
+    Callers keep the original failed comparison and own exception classification.
+    """
+
+    differing_field = next(
+        (
+            record_field
+            for record_field in fields(actual_record)
+            if record_field.compare
+            if not (getattr(actual_record, record_field.name) == getattr(expected_record, record_field.name))
+        ),
+    )
+
+    actual_field_value = getattr(actual_record, differing_field.name)
+    expected_field_value = getattr(expected_record, differing_field.name)
+    field_context = f"{differing_field.name=}: "
+
+    if is_dataclass(actual_field_value):
+        return field_context + metadata_mismatch_message(actual_field_value, expected_field_value)
+
+    if isinstance(actual_field_value, bytes) and isinstance(expected_field_value, bytes):
+        actual_field_sha256 = hashlib.sha256(actual_field_value).hexdigest()
+        expected_field_sha256 = hashlib.sha256(expected_field_value).hexdigest()
+
+        return field_context + f"{actual_field_sha256=} should match {expected_field_sha256=}"
+
+    return (
+        field_context +
+        f"{_METADATA_EVIDENCE.repr(actual_field_value)=} "
+        f"should match {_METADATA_EVIDENCE.repr(expected_field_value)=}"
+    )
 
 
 def duplicate_json_fields(field_pairs: list[tuple[str, object]]) -> Counter[str]:

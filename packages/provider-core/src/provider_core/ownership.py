@@ -12,13 +12,23 @@ from provider_core.container_guard import require_container
 require_container()
 
 import asyncio
+import reprlib
 from dataclasses import dataclass
 
 from provider_core.adapters.nmr.v1.attempt_request import retained_start_key
 from provider_core.attempt_record import RecoveryScope, StartPending, _encode_pending
 from provider_core.validation.upstream.nmr.v1.attempt_response import require_attempt_ref
+from provider_core.validation.upstream.nmr.v1.attempt_request import MAX_COMPLETE_REQUEST_BYTES
 from provider_core.validation.upstream.nmr.v1.job_refs import require_job_ref
+from provider_core.tools import metadata_mismatch_message
 from provider_core.type_requirements import require_type
+
+
+# Keep ordinary routing identities complete while bounding rejected scope text
+# repo-check: allow-module-constant
+_OWNERSHIP_EVIDENCE = reprlib.Repr()
+
+_OWNERSHIP_EVIDENCE.maxstring = 256
 
 
 class OwnershipRefused(RuntimeError):
@@ -36,30 +46,20 @@ class LiveAttemptLimits:
     maximum_pending_terminal_bytes: int = 16777216
 
     def __post_init__(self):
-        (
-            maximum_attempts,
-            maximum_control_bytes,
-            maximum_pending_terminal_bytes,
-        ) = (
-            self.maximum_attempts,
-            self.maximum_control_bytes,
-            self.maximum_pending_terminal_bytes,
-        )
+        require_type(self.maximum_attempts, int)
 
-        require_type(maximum_attempts, int)
+        if not (0 < self.maximum_attempts):
+            raise ValueError(f"{self.maximum_attempts=} should be positive")
 
-        if not (0 < maximum_attempts):
-            raise ValueError("Live Attempt limits require positive integer allowances")
+        require_type(self.maximum_control_bytes, int)
 
-        require_type(maximum_control_bytes, int)
+        if not (0 < self.maximum_control_bytes):
+            raise ValueError(f"{self.maximum_control_bytes=} should be positive")
 
-        if not (0 < maximum_control_bytes):
-            raise ValueError("Live Attempt limits require positive integer allowances")
+        require_type(self.maximum_pending_terminal_bytes, int)
 
-        require_type(maximum_pending_terminal_bytes, int)
-
-        if not (0 < maximum_pending_terminal_bytes):
-            raise ValueError("Live Attempt limits require positive integer allowances")
+        if not (0 < self.maximum_pending_terminal_bytes):
+            raise ValueError(f"{self.maximum_pending_terminal_bytes=} should be positive")
 
 
 def _identity(scope, reference):
@@ -96,16 +96,18 @@ class AttemptClaims:
         return cls(limits=limits)
 
     # silent-defaults: allow-contract -- Note 010 reserves the existing 2 MiB wire ceiling unless the live owner declares a smaller sufficient allowance.
-    def claim_live(self, pending, *, lifecycle_owner, maximum_terminal_bytes=2097152):
+    def claim_live(self, pending, *, lifecycle_owner, maximum_terminal_bytes=MAX_COMPLETE_REQUEST_BYTES):
         require_type(pending, StartPending)
 
         if lifecycle_owner is None:
-            raise ValueError("Live selection requires an admitted pending START and its exact lifecycle owner")
+            raise ValueError(f"{lifecycle_owner=} should not be None")
 
         require_type(maximum_terminal_bytes, int)
 
-        if not (16384 <= maximum_terminal_bytes <= 2097152):
-            raise ValueError("Live terminal allowance must cover 16384 through 2097152 encoded request bytes")
+        min_terminal_bytes = 16384
+
+        if not (min_terminal_bytes <= maximum_terminal_bytes <= MAX_COMPLETE_REQUEST_BYTES):
+            raise ValueError(f"{maximum_terminal_bytes=} should be between {min_terminal_bytes=} and {MAX_COMPLETE_REQUEST_BYTES=}")
 
         # Reject oversized control input before publishing indexes or allowing START.
         # The owner retains the original object; do not keep another encoded copy.
@@ -124,18 +126,25 @@ class AttemptClaims:
         return claim
 
     def _require_live_capacity(self, terminal_bytes):
-        existing = set(self._claims.values())
+        existing_claims = set(self._claims.values())
         limits = self._limits
+        prospective_attempt_count = len(existing_claims) + 1
 
-        if (
-            ((len(existing) + 1) > limits.maximum_attempts) or
-            (((len(existing) + 1) * 131072) > limits.maximum_control_bytes) or
-            ((sum(claim._pending_terminal_bytes for claim in existing) + terminal_bytes) > limits.maximum_pending_terminal_bytes)
-        ):
-            raise LiveCapacityFull(
-                "Cannot select another live Attempt: its entry, 131072-byte control allowance or terminal allowance "
-                "exceeds capacity; settle existing owners before selecting more work"
-            )
+        if not (prospective_attempt_count <= limits.maximum_attempts):
+            raise LiveCapacityFull(f"{prospective_attempt_count=} should not exceed {limits.maximum_attempts=}")
+
+        # Note 010 reserves the retained START and control metadata
+        control_bytes_per_attempt = 131072
+
+        prospective_control_bytes = prospective_attempt_count * control_bytes_per_attempt
+
+        if not (prospective_control_bytes <= limits.maximum_control_bytes):
+            raise LiveCapacityFull(f"{prospective_control_bytes=} should not exceed {limits.maximum_control_bytes=}")
+
+        prospective_pending_terminal_bytes = sum(claim._pending_terminal_bytes for claim in existing_claims) + terminal_bytes
+
+        if not (prospective_pending_terminal_bytes <= limits.maximum_pending_terminal_bytes):
+            raise LiveCapacityFull(f"{prospective_pending_terminal_bytes=} should not exceed {limits.maximum_pending_terminal_bytes=}")
 
     def live_owners(self):
         """Keep held controllers reachable when composition selects unrelated work."""
@@ -155,21 +164,21 @@ class AttemptClaims:
         return (scope.api_origin, scope.provider_ref, "job", job_ref) in self._claims
 
     def _require_live_view(self):
-        if (self._loop is not None) and (asyncio.get_running_loop() is not self._loop):
-            raise OwnershipRefused("Live owner views must remain on their owning event loop")
+        if (self._loop is not None) and ((caller_loop := asyncio.get_running_loop()) is not self._loop):
+            raise OwnershipRefused(f"{id(caller_loop)=} should match {id(self._loop)=}")
 
     def _reserve(self, identities, *, live_terminal_bytes):
-        loop = asyncio.get_running_loop()
+        caller_loop = asyncio.get_running_loop()
 
-        if (self._loop is not None) and (self._loop is not loop):
-            raise OwnershipRefused("Attempt claims must remain on their owning event loop")
+        if (self._loop is not None) and (self._loop is not caller_loop):
+            raise OwnershipRefused(f"{id(caller_loop)=} should match {id(self._loop)=}")
 
         for identity in identities:
             if identity in self._claims:
-                raise OwnershipRefused("Cannot select this live Attempt: its START key or Job is already owned; no claim was acquired")
+                raise OwnershipRefused(f"{_OWNERSHIP_EVIDENCE.repr(identity)=} should be absent from the claim registry")
 
         self._require_live_capacity(live_terminal_bytes)
-        self._loop = loop
+        self._loop = caller_loop
 
         claim = _AttemptClaim(self, identities)
 
@@ -179,8 +188,13 @@ class AttemptClaims:
         return claim
 
     def _require(self, claim):
-        if (asyncio.get_running_loop() is not self._loop) or (not claim.active):
-            raise OwnershipRefused("Attempt claim is released, stale or belongs to another event loop")
+        caller_loop = asyncio.get_running_loop()
+
+        if caller_loop is not self._loop:
+            raise OwnershipRefused(f"{id(caller_loop)=} should match {id(self._loop)=}")
+
+        if not (claim.active):
+            raise OwnershipRefused(f"{claim.active=} should be True")
 
 
 class _AttemptClaim:
@@ -219,44 +233,62 @@ class _AttemptClaim:
 
     def require(self, scope, execution_attempt_ref):
         self._registry._require(self)
+        requested_attempt_identity = _identity(scope, execution_attempt_ref)
 
-        if not (_identity(scope, execution_attempt_ref) in self._identities):
-            raise OwnershipRefused("Attempt claim differs from the API, provider or Attempt being used")
+        if not (requested_attempt_identity in self._identities):
+            raise OwnershipRefused(f"{_OWNERSHIP_EVIDENCE.repr(requested_attempt_identity)=} should be one of {_OWNERSHIP_EVIDENCE.repr(self._identities)=}")
 
     def require_live(self, scope):
         self._registry._require(self)
 
-        if (self._pending is None) or (scope != self._pending.scope):
-            raise OwnershipRefused("Live operation requires the exact scope and bounded selection of a live claim")
+        if self._pending is None:
+            raise OwnershipRefused(f"{self._pending is not None=} should be True before a live operation")
+
+        if scope != self._pending.scope:
+            require_type(scope, RecoveryScope, error_factory=OwnershipRefused)
+
+            raise OwnershipRefused(metadata_mismatch_message(scope, self._pending.scope))
 
     def require_live_start(self, pending):
         self.require_live(pending.scope)
         self.require_start(pending)
 
-        if any((identity[2] == "attempt") for identity in self._identities):
-            raise OwnershipRefused("This live START already owns its received Attempt; retain that admission instead of resending")
+        for identity in self._identities:
+            if identity[2] == "attempt":
+                bound_attempt_ref = identity[3]
+
+                raise OwnershipRefused(f"START already has {bound_attempt_ref=}")
 
     def require_start(self, pending):
         self._registry._require(self)
 
         if pending != self._pending:
-            raise OwnershipRefused("Live START differs from the exact pending selection retained by this claim")
+            require_type(pending, type(self._pending), error_factory=OwnershipRefused)
+
+            raise OwnershipRefused(metadata_mismatch_message(pending, self._pending))
 
     def bind_attempt(self, scope, execution_attempt_ref, *, owner):
         """Add the received reference atomically without releasing the start key."""
         self._registry._require(self)
         identity = _identity(scope, execution_attempt_ref)
 
-        if (self._operation_owner is not owner) or (owner is None):
-            raise OwnershipRefused("Only the current operation owner can bind an Attempt reference")
+        if not (self._operation_owner is owner):
+            raise OwnershipRefused(f"{id(owner)=} should match {id(self._operation_owner)=}")
 
-        if any(((known[:2] != identity[:2]) or ((known[2] == "attempt") and (known != identity))) for known in self._identities):
-            raise OwnershipRefused("Received Attempt differs from the claim's API, provider or previously bound reference")
+        if not (owner is not None):
+            raise OwnershipRefused(f"{owner=} should not be None")
+
+        for known in self._identities:
+            if not (known[:2] == identity[:2]):
+                raise OwnershipRefused(f"{_OWNERSHIP_EVIDENCE.repr(identity[:2])=} should match {_OWNERSHIP_EVIDENCE.repr(known[:2])=}")
+
+            if not ((known[2] != "attempt") or (known == identity)):
+                raise OwnershipRefused(f"{_OWNERSHIP_EVIDENCE.repr(identity)=} should match {_OWNERSHIP_EVIDENCE.repr(known)=}")
 
         existing = self._registry._claims.get(identity)
 
         if (existing is not None) and (existing is not self):
-            raise OwnershipRefused("Received Attempt already has another local owner; preserve the acknowledgement for reconciliation")
+            raise OwnershipRefused(f"{_OWNERSHIP_EVIDENCE.repr(identity)=}: {id(existing)=} should match {id(self)=}")
 
         self._registry._claims[identity] = self
 
@@ -266,10 +298,10 @@ class _AttemptClaim:
         self._registry._require(self)
 
         if owner is None:
-            raise ValueError("Attempt operation requires an explicit owner")
+            raise ValueError(f"{owner=} should not be None")
 
         if not (self._operation_owner is None):
-            raise OwnershipRefused("Attempt claim still owns an operation; settle it before another effect")
+            raise OwnershipRefused(f"{self._operation_owner is None=} should be True before another operation")
 
         self._operation_owner = owner
 
@@ -277,7 +309,7 @@ class _AttemptClaim:
         self._registry._require(self)
 
         if not (self._operation_owner is owner):
-            raise OwnershipRefused("Only the exact operation owner can settle this Attempt claim")
+            raise OwnershipRefused(f"{id(owner)=} should match {id(self._operation_owner)=}")
 
         self._operation_owner = None
 
@@ -285,8 +317,11 @@ class _AttemptClaim:
         """Free the report allowance after the exact borrower confirms its ACK."""
         self._registry._require(self)
 
-        if (owner is None) or (self._operation_owner is not owner):
-            raise OwnershipRefused("Only the current operation owner can release its terminal allowance")
+        if not (owner is not None):
+            raise OwnershipRefused(f"{owner=} should not be None")
+
+        if not (self._operation_owner is owner):
+            raise OwnershipRefused(f"{id(owner)=} should match {id(self._operation_owner)=}")
 
         owner.require_terminal_release_ready(self)
         self._pending_terminal_bytes = 0
@@ -295,10 +330,13 @@ class _AttemptClaim:
         self._registry._require(self)
 
         if not (self._operation_owner is None):
-            raise OwnershipRefused("Cannot release Attempt claim while an operation remains unresolved")
+            raise OwnershipRefused(f"{self._operation_owner is None=} should be True before releasing the claim")
 
-        if (owner is None) or (owner is not self._lifecycle_owner):
-            raise OwnershipRefused("Only the exact lifecycle owner can release a live Attempt claim")
+        if not (owner is not None):
+            raise OwnershipRefused(f"{owner=} should not be None")
+
+        if not (owner is self._lifecycle_owner):
+            raise OwnershipRefused(f"{id(owner)=} should match {id(self._lifecycle_owner)=}")
 
         owner.require_claim_release_ready(self)
 

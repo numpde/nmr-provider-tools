@@ -23,7 +23,7 @@ import reprlib
 import time
 from builtins import BaseExceptionGroup
 from collections.abc import Callable
-from dataclasses import dataclass, field, fields
+from dataclasses import dataclass, field
 from enum import Enum
 
 from provider_core.task_boundary import contain_task_exit
@@ -45,7 +45,7 @@ from provider_core.conversation import independent_interruption_failure
 from provider_core.delivery_client import DeliveryUnavailable
 from provider_core.delivery_store import DeliveryFull, DeliveryOutcome
 from provider_core.delivery_worker import require_delivery_retry_settings
-from provider_core.validation.upstream.nmr.v1.job_input import FeedInputFacts, VerifiedJobInput
+from provider_core.validation.upstream.nmr.v1.job_input import VerifiedJobInput
 
 from provider_core.producer_checkpoint import (
     AcknowledgedCheckpoint,
@@ -57,7 +57,7 @@ from provider_core.producer_checkpoint import (
 )
 
 from provider_core.transport import ExchangeFailed
-from provider_core.tools import require_positive_number
+from provider_core.tools import metadata_mismatch_message, require_positive_number
 from provider_core.type_requirements import require_type
 
 
@@ -335,30 +335,6 @@ def require_execution_settings(*, allowed_job_states, poll_seconds, task_settle_
         require_positive_number(seconds)
 
 
-def _admission_mismatch_message(
-    actual_record: RecoveryScope | FeedInputFacts,
-    expected_record: RecoveryScope | FeedInputFacts,
-) -> str:
-    """Describe unequal admitted records of the same immutable dataclass type."""
-
-    differing_field = next(
-        (
-            record_field
-            for record_field in fields(actual_record)
-            if record_field.compare
-            if not (getattr(actual_record, record_field.name) == getattr(expected_record, record_field.name))
-        ),
-    )
-
-    actual_field_value = getattr(actual_record, differing_field.name)
-    expected_field_value = getattr(expected_record, differing_field.name)
-
-    return (
-        f"{differing_field.name=}: {_EXECUTION_EVIDENCE.repr(actual_field_value)=} "
-        f"should match {_EXECUTION_EVIDENCE.repr(expected_field_value)=}"
-    )
-
-
 class AttemptExecutor:
     """Own one run; settlement never resumes preparation or scientific execution.
 
@@ -579,14 +555,14 @@ class AttemptExecutor:
             raise ExecutionRefused(f"{acknowledged.admission.state=} does not permit scientific execution")
 
         if acknowledged.start.scope != self.scope:
-            raise ExecutionRefused(_admission_mismatch_message(acknowledged.start.scope, self.scope))
+            raise ExecutionRefused(metadata_mismatch_message(acknowledged.start.scope, self.scope))
 
         self.claim.require_start(acknowledged.start)
         self.claim.require(self.scope, acknowledged.admission.execution_attempt_ref)
         self.claim.lifecycle_owner.require_execution_ready(self.claim, self, acknowledged)
 
         if (self._preverified_input is not None) and (self._preverified_input.identity != acknowledged.start.input):
-            raise ExecutionRefused(_admission_mismatch_message(self._preverified_input.identity, acknowledged.start.input))
+            raise ExecutionRefused(metadata_mismatch_message(self._preverified_input.identity, acknowledged.start.input))
 
         self.claim.begin(self)
         self._started = self._active = self._observing = True
