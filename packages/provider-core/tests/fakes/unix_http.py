@@ -80,5 +80,6 @@ class UnixHTTPPeer:
         self.scratch.cleanup()
         failures = [failure for failure in handler_outcomes if isinstance(failure, Exception)]
 
+        # repo-check: allow-literal-guard-error -- Original handler exceptions retain their evidence; the label identifies the shared peer cleanup boundary
         if failures:
             raise ExceptionGroup("Unix HTTP peer failed", failures)
