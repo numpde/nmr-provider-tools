@@ -182,15 +182,17 @@ class AsyncRunnerSession:
         require_positive_number(wait_seconds)
 
         if self._setup is None:
-            raise RuntimeError("Cannot observe native retirement before starting the original control setup with connect.")
+            raise RuntimeError(f"{self._setup=} should be a Future before observing retirement")
 
         deadline = min(self._retirement_deadline(), time.monotonic() + wait_seconds)
 
         await self._wait(self._setup, deadline)
 
         if self._reader is None:
-            if time.monotonic() >= self._deadline:
-                raise TimeoutError("Cannot start native retirement observation: its aggregate cleanup allowance has expired.")
+            observation_started_at = time.monotonic()
+
+            if observation_started_at >= self._deadline:
+                raise TimeoutError(f"{observation_started_at=} should precede {self._deadline=}")
 
             self._reader = self._start(self.session.observe_retirement, self._release, deadline=self._deadline)
 
