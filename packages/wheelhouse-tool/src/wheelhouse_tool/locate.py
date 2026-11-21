@@ -2,7 +2,6 @@
 
 import argparse
 import hashlib
-import re
 import reprlib
 import sys
 import urllib.parse
@@ -32,7 +31,7 @@ class HttpsRedirects(urllib.request.HTTPRedirectHandler):
 
 def read_requirements(path, configured_index=None):
     """Read a flat pinned closure; this does not resolve dependencies."""
-    records = []
+    requirement_records = []
     index = configured_index
     source = path.read_bytes()
 
@@ -43,11 +42,11 @@ def read_requirements(path, configured_index=None):
 
             index = locked_index
         elif (checksum := pip_requirements.sha256_option(line)) is not None:
-            if not records:
+            if not requirement_records:
                 raise ValueError(f"{reprlib.repr(checksum)=} should follow a pinned requirement")
 
             pip_requirements.require_sha256(checksum)
-            records[-1][1].add(checksum)
+            requirement_records[-1][1].add(checksum)
         else:
             requirement = Requirement(line)
 
@@ -63,10 +62,14 @@ def read_requirements(path, configured_index=None):
                 if (len(specifiers) != 1) or (specifiers[0].operator != "==") or ("*" in specifiers[0].version):
                     raise ValueError(f"{reprlib.repr(requirement.specifier)=} should pin one exact version")
 
-            records.append((requirement, set()))
+            requirement_records.append((requirement, set()))
 
-    if (not records) or (any((not hashes) for (_, hashes) in records)):
-        raise ValueError("Cannot locate artifacts: every package needs an existing SHA-256 lock hash.")
+    if not (requirement_records):
+        raise ValueError(f"{requirement_records=} should be nonempty in {reprlib.repr(path)=}")
+
+    for (requirement, hashes) in requirement_records:
+        if not (hashes):
+            raise ValueError(f"{reprlib.repr(requirement.name)=}; {hashes=} should contain SHA-256 lock hashes")
 
     parsed_index_input = index
 
@@ -75,15 +78,27 @@ def read_requirements(path, configured_index=None):
 
     parsed_index = urllib.parse.urlsplit(parsed_index_input)
 
-    if (index is not None) and ((parsed_index.scheme != "https") or (not parsed_index.netloc) or (parsed_index.username is not None) or (parsed_index.query)):
-        raise ValueError("Cannot locate artifacts: supply the lock's HTTPS package index.")
+    if index is not None:
+        expected_index_scheme = "https"
+
+        if not (parsed_index.scheme == expected_index_scheme):
+            raise ValueError(f"{reprlib.repr(parsed_index.scheme)=} should match {expected_index_scheme=}")
+
+        if not (parsed_index.netloc):
+            raise ValueError(f"{parsed_index.netloc=} should name a package index authority")
+
+        if not (parsed_index.username is None):
+            raise ValueError(f"{parsed_index.username is None=} should be True for a package index")
+
+        if not (parsed_index.query == ""):
+            raise ValueError(f"{bool(parsed_index.query)=} should be False for a package index")
 
     index_base = None
 
     if index:
         index_base = index.rstrip("/")
 
-    return (records, index_base, hashlib.sha256(source).hexdigest())
+    return (requirement_records, index_base, hashlib.sha256(source).hexdigest())
 
 
 # silent-defaults: allow-contract -- The caller selects an optional HTTPS index and source preferences; absent preferences are immutable empty tuples, not inferred sources.
@@ -94,23 +109,36 @@ def locate(path, index=None, allowed_sources=(), required_sources=(), direct_sou
     allowed_sources = {canonicalize_name(name) for name in allowed_sources} | required_sources
     direct = {}
 
-    for source in direct_sources:
-        parsed = urllib.parse.urlsplit(source)
+    for direct_source_url in direct_sources:
+        parsed = urllib.parse.urlsplit(direct_source_url)
         filename = urllib.parse.unquote(parsed.path.rsplit("/", 1)[-1])
         (distribution, version, _, _) = parse_wheel_filename(filename)
         sha256_values = urllib.parse.parse_qs(parsed.fragment).get("sha256")
-        checksum = None
+        direct_source_sha256 = None
 
         if sha256_values:
-            checksum = sha256_values[0]
+            direct_source_sha256 = sha256_values[0]
 
-        if (parsed.scheme != "https") or (parsed.username is not None) or (parsed.query) or (checksum is None) or (not re.fullmatch(r"[0-9a-f]{64}", checksum)):
-            raise ValueError("Cannot locate artifacts: direct sources require an HTTPS URL with a SHA-256 fragment.")
+        expected_source_scheme = "https"
+
+        if not (parsed.scheme == expected_source_scheme):
+            raise ValueError(f"{reprlib.repr(parsed.scheme)=} should match {expected_source_scheme=} for {reprlib.repr(filename)=}")
+
+        if not (parsed.username is None):
+            raise ValueError(f"{parsed.username is None=} should be True for {reprlib.repr(filename)=}")
+
+        if not (parsed.query == ""):
+            raise ValueError(f"{bool(parsed.query)=} should be False for {reprlib.repr(filename)=}")
+
+        if not (direct_source_sha256 is not None):
+            raise ValueError(f"{direct_source_sha256=} should be a SHA-256 fragment for {reprlib.repr(filename)=}")
+
+        pip_requirements.require_sha256(direct_source_sha256)
 
         if distribution in direct:
             raise ValueError(f"Cannot locate {distribution=}: more than one direct source was supplied.")
 
-        direct[distribution] = (source, version, checksum)
+        direct[distribution] = (direct_source_url, version, direct_source_sha256)
 
     python_version = Version(default_environment()["python_full_version"])
 
@@ -271,10 +299,14 @@ def locate(path, index=None, allowed_sources=(), required_sources=(), direct_sou
         )
 
     if direct:
-        raise ValueError("Cannot locate artifacts: a supplied direct source is not in the lock.")
+        unmatched_direct_packages = set(direct)
 
-    if required_sources - {canonicalize_name(requirement.name) for (requirement, _) in records}:
-        raise ValueError("Cannot locate artifacts: a required source package is not in the lock.")
+        raise ValueError(f"{reprlib.repr(unmatched_direct_packages)=} should be empty after matching {reprlib.repr(path)=}")
+
+    missing_required_sources = required_sources - {canonicalize_name(requirement.name) for (requirement, _) in records}
+
+    if missing_required_sources:
+        raise ValueError(f"{reprlib.repr(missing_required_sources)=} should be empty after matching {reprlib.repr(path)=}")
 
     return render_projected_lock(
         packages,
