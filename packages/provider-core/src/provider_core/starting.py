@@ -18,6 +18,7 @@ from provider_core.api_errors import ApiFailure
 from provider_core.attempt_record import RecoveryScope, StartPending, acknowledge_start
 from provider_core.ownership import OwnershipRefused
 from provider_core.transport import ExchangeFailed
+from provider_core.tools import metadata_mismatch_message
 from provider_core.type_requirements import require_type
 
 
@@ -81,10 +82,10 @@ class AttemptStarter:
         require_type(pending, StartPending, error_factory=StartRefused)
 
         if pending.scope != self.scope:
-            raise StartRefused("Start requires a pending record matching the current API, provider, lane and generation")
+            raise StartRefused(metadata_mismatch_message(pending.scope, self.scope))
 
         if not (self._pending is None):
-            raise StartRefused("Attempt start still owns unresolved work; settle it before another request")
+            raise StartRefused(f"Start work for {self._pending.input.job_ref=} should be settled before another request")
 
         self.claim.require_live_start(pending)
         self.claim.begin(self)
@@ -141,8 +142,8 @@ class AttemptStarter:
     async def settle(self):
         """Settle original I/O without inventing a late acknowledgement."""
 
-        if (self._pending is None) or self._observing:
-            raise StartRefused("No unobserved start operation is available to settle")
+        if not ((self._pending is not None) and (not self._observing)):
+            raise StartRefused(f"{self._pending is None=} should be False and {self._observing=} should be False before settling start work")
 
         self._observing = True
 
@@ -151,7 +152,7 @@ class AttemptStarter:
                 await self.api.retire(owner=self)
 
             if not (self._unretained is None):
-                raise StartRefused("Received acknowledgement remains unresolved; retain its owner and reconcile the claim before preparation")
+                raise StartRefused(f"{self._unretained.admission.execution_attempt_ref=} should be reconciled before finishing start settlement")
 
             return None
         except asyncio.CancelledError as cause:
