@@ -43,7 +43,7 @@ from provider_core.execution import (
 from provider_core.starting import AttemptStarter, StartFailed
 from provider_core.ownership import OwnershipRefused
 from provider_core.uploads import UploadRecoveryExhausted
-from provider_core.tools import require_positive_number
+from provider_core.tools import metadata_mismatch_message, require_positive_number
 from provider_core.type_requirements import require_type
 
 
@@ -98,11 +98,16 @@ class LiveStartPolicy:
 
         require_type(self.maximum_replays, int)
 
-        if not (0 <= self.maximum_replays <= 1):
-            raise ValueError("One live START invocation permits zero or one exact replay")
+        (min_start_replays, max_start_replays) = (0, 1)
 
-        if (not callable(self.on_retry)) or (not callable(self.on_recovered)):
-            raise ValueError("Live START requires protected retry and recovery observers")
+        if not (min_start_replays <= self.maximum_replays <= max_start_replays):
+            raise ValueError(f"{self.maximum_replays=} should be between {min_start_replays=} and {max_start_replays=}")
+
+        if not callable(self.on_retry):
+            raise ValueError(f"{callable(self.on_retry)=} should be True")
+
+        if not callable(self.on_recovered):
+            raise ValueError(f"{callable(self.on_recovered)=} should be True")
 
 
 @dataclass(frozen=True, slots=True)
@@ -194,7 +199,7 @@ class AttemptController:
         require_type(scope, RecoveryScope)
 
         if api.origin != scope.api_origin:
-            raise ValueError("Cannot configure Attempt controller: signing origin differs from the selected scope")
+            raise ValueError(f"{api.origin=} should match {scope.api_origin=}")
 
         if preverified_input is not None:
             require_type(preverified_input, VerifiedJobInput)
@@ -210,8 +215,10 @@ class AttemptController:
 
         require_type(maximum_terminal_bytes, int)
 
-        if not (16384 <= maximum_terminal_bytes <= 2097152):
-            raise ValueError("Live terminal allowance must cover 16384 through 2097152 encoded request bytes")
+        (min_terminal_bytes, max_terminal_bytes) = (16384, 2097152)
+
+        if not (min_terminal_bytes <= maximum_terminal_bytes <= max_terminal_bytes):
+            raise ValueError(f"{maximum_terminal_bytes=} should be between {min_terminal_bytes=} and {max_terminal_bytes=}")
 
         require_type(allow_active_start_replay, bool)
 
@@ -223,11 +230,11 @@ class AttemptController:
 
         require_delivery_retry_settings(delivery_retry_initial_seconds, delivery_retry_max_seconds)
 
-        if (
-            ((delivery.endpoint.api_origin, delivery.endpoint.provider_ref) != (scope.api_origin, scope.provider_ref)) or
-            (not callable(on_delivery_retry))
-        ):
-            raise ValueError("Attempt controller requires its scoped delivery client and protected retry observer.")
+        if (delivery.endpoint.api_origin, delivery.endpoint.provider_ref) != (scope.api_origin, scope.provider_ref):
+            raise ValueError(f"{(delivery.endpoint.api_origin, delivery.endpoint.provider_ref)=} should match {(scope.api_origin, scope.provider_ref)=}")
+
+        if not callable(on_delivery_retry):
+            raise ValueError(f"{callable(on_delivery_retry)=} should be True")
 
         require_observation_recovery(observation_recovery)
         require_phase_progress_observer(on_unconfirmed_phase_progress)
@@ -379,10 +386,10 @@ class AttemptController:
         executor = self._operation
 
         if not (self._lifetime is _Lifetime.HELD):
-            raise ControllerRefused("Cannot confirm a held Attempt: this controller has no matching retained execution failure.") from self.last_failure
+            raise ControllerRefused(f"{self._lifetime=} should be {_Lifetime.HELD=}") from self.last_failure
 
         if not (failure is self.last_failure):
-            raise ControllerRefused("Cannot confirm a held Attempt: this controller has no matching retained execution failure.") from self.last_failure
+            raise ControllerRefused(f"{id(failure)=} should match {id(self.last_failure)=}") from self.last_failure
 
         # repo-check: retain-type-guard -- This refusal must chain the retained controller failure as its explicit cause
         if not (type(failure) is (expected_failure_type := ControllerFailed)):
@@ -397,20 +404,23 @@ class AttemptController:
             raise ControllerRefused(f"Cannot confirm a held Attempt: {type(actual_cause)=} ≠ {expected_cause_type=}") from self.last_failure
 
         if not (failure.cause is executor.last_failure):
-            raise ControllerRefused("Cannot confirm a held Attempt: this controller has no matching retained execution failure.") from self.last_failure
+            raise ControllerRefused(f"{id(failure.cause)=} should match {id(executor.last_failure)=}") from self.last_failure
 
         execution = failure.cause
         reason = execution.cause
 
         # repo-check: retain-type-guard -- This refusal chains the original held failure whose reason is being classified
-        if not (type(reason) in (expected_type := (AnalysisOutcomeUnresolved, UploadRecoveryExhausted, ObservationGapExpired))):
-            raise ControllerRefused(f"{type(reason)=} ≠ {expected_type=}") from failure
+        if not (type(reason) in (expected_types := (AnalysisOutcomeUnresolved, UploadRecoveryExhausted, ObservationGapExpired))):
+            raise ControllerRefused(f"{type(reason)=} ∉ {expected_types=}") from failure
 
         admitted_api_failure = None
 
         if type(reason) is ObservationGapExpired:
-            if (reason._executor is not executor) or ((not reason.read_started) and (reason.cause is not None)):
-                raise ControllerRefused("Cannot confirm an observation-gap hold: its original observation does not belong to this executor.") from failure
+            if not (reason._executor is executor):
+                raise ControllerRefused(f"{id(reason._executor)=} should match {id(executor)=}") from failure
+
+            if (not reason.read_started) and (reason.cause is not None):
+                raise ControllerRefused(f"{type(reason.cause)=} should be {type(None)=} while {reason.read_started=}") from failure
 
             admitted_api_failure = reason.cause
 
@@ -447,12 +457,18 @@ class AttemptController:
 
         claim = self._claim
 
-        if (claim is None) or (executor.claim is not claim):
-            raise ControllerRefused("Cannot confirm a held Attempt: its exact lifecycle claim is unavailable.") from failure
+        if claim is None:
+            raise ControllerRefused(f"{claim=} should not be None") from failure
+
+        if not (executor.claim is claim):
+            raise ControllerRefused(f"{id(executor.claim)=} should match {id(claim)=}") from failure
 
         try:
-            if (claim.lifecycle_owner is not self) or (claim.operation_owner is not None):
-                raise ControllerRefused("Cannot confirm a held Attempt: its exact lifecycle claim is unavailable.") from failure
+            if not (claim.lifecycle_owner is self):
+                raise ControllerRefused(f"{id(claim.lifecycle_owner)=} should match {id(self)=}") from failure
+
+            if not (claim.operation_owner is None):
+                raise ControllerRefused(f"{type(claim.operation_owner)=} should be {type(None)=}") from failure
 
             # This owning-loop check binds Job, START key and input to THIS
             # active claim; two separate inventory queries cannot prove that link.
@@ -467,13 +483,13 @@ class AttemptController:
                 raise ControllerRefused(f"Cannot confirm a held Attempt: {type(actual_acknowledged)=} ≠ {expected_acknowledged_type=}") from failure
 
             if not (execution.attempt is executor._record):
-                raise ControllerRefused("Cannot confirm a held Attempt: its retained admission differs from this selected Attempt.") from failure
+                raise ControllerRefused(f"{id(execution.attempt)=} should match {id(executor._record)=}") from failure
 
             if execution.attempt.start != pending:
-                raise ControllerRefused("Cannot confirm a held Attempt: its retained admission differs from this selected Attempt.") from failure
+                raise ControllerRefused(metadata_mismatch_message(execution.attempt.start, pending)) from failure
 
             if not (execution.attempt.admission is self._acknowledged.admission):
-                raise ControllerRefused("Cannot confirm a held Attempt: its retained admission differs from this selected Attempt.") from failure
+                raise ControllerRefused(f"{id(execution.attempt.admission)=} should match {id(self._acknowledged.admission)=}") from failure
 
             claim.require(self.scope, execution.attempt.admission.execution_attempt_ref)
         except OwnershipRefused as cause:
@@ -492,7 +508,7 @@ class AttemptController:
         """
 
         if not (self._lifetime is _Lifetime.NEW):
-            raise ControllerRefused("This controller accepts only one run; retain its original invocation and controller for settlement or recovery")
+            raise ControllerRefused(f"{self._lifetime=} should be {_Lifetime.NEW=}")
 
         self._lifetime = _Lifetime.RUNNING
 
@@ -524,6 +540,7 @@ class AttemptController:
             if not isinstance(cause, (expected_type := Exception)):
                 raise BaseExceptionGroup(f"{type(cause)=} ≠ {expected_type=}", (cause, self.last_failure)) from None
 
+            # repo-check: allow-literal-guard-error -- Original process-control and retained lifecycle failures provide the group's evidence
             if not (cleanup_fatal is None):
                 raise BaseExceptionGroup("Attempt admission failed during cleanup", (cleanup_fatal, self.last_failure)) from None
 
@@ -535,7 +552,7 @@ class AttemptController:
         """Observe the original driver; repeated or cancelled waits dispatch nothing."""
 
         if self._driver is None:
-            raise ControllerRefused("This controller has no original driver to join; no new work was dispatched")
+            raise ControllerRefused(f"{self._driver=} should not be None")
 
         observer = asyncio.current_task()
         cancellations = observer.cancelling()
@@ -629,6 +646,7 @@ class AttemptController:
             if not isinstance(cause, (expected_type := Exception)):
                 raise BaseExceptionGroup(f"{type(cause)=} ≠ {expected_type=}", (cause, self.last_failure)) from None
 
+            # repo-check: allow-literal-guard-error -- Original process-control and retained lifecycle failures provide the group's evidence
             if not (cleanup_fatal is None):
                 raise BaseExceptionGroup("Attempt cleanup raised a process-control exception", (cleanup_fatal, self.last_failure)) from None
 
@@ -650,10 +668,10 @@ class AttemptController:
         require_type(pending, StartPending, error_factory=ControllerRefused)
 
         if pending.scope != self.scope:
-            raise ControllerRefused("Live START requires the selected API, provider, lane and generation")
+            raise ControllerRefused(metadata_mismatch_message(pending.scope, self.scope))
 
         if (self._preverified_input is not None) and (self._preverified_input.identity != pending.input):
-            raise ControllerRefused("Verified input differs from the selected START; no request was sent")
+            raise ControllerRefused(metadata_mismatch_message(self._preverified_input.identity, pending.input))
 
         self._claim = self._claims.claim_live(
             pending,
@@ -716,57 +734,69 @@ class AttemptController:
         )
 
     def require_execution_ready(self, claim, executor, acknowledged):
-        if (
-            (self._lifetime is not _Lifetime.RUNNING) or
-            (claim is not self._claim) or
-            (claim.lifecycle_owner is not self) or
-            (executor is not self._operation) or
-            (acknowledged is not self._acknowledged)
-        ):
-            raise ControllerRefused("Cannot begin live execution without this running controller's original admission and executor")
+        if not (self._lifetime is _Lifetime.RUNNING):
+            raise ControllerRefused(f"{self._lifetime=} should be {_Lifetime.RUNNING=}")
 
-        if self._stopping_requested():
-            raise ExecutionStopRequested("Cannot continue science or select a report: the supervising owner requested stopping")
+        if not (claim is self._claim):
+            raise ControllerRefused(f"{id(claim)=} should match {id(self._claim)=}")
+
+        if not (claim.lifecycle_owner is self):
+            raise ControllerRefused(f"{id(claim.lifecycle_owner)=} should match {id(self)=}")
+
+        if not (executor is self._operation):
+            raise ControllerRefused(f"{id(executor)=} should match {id(self._operation)=}")
+
+        if not (acknowledged is self._acknowledged):
+            raise ControllerRefused(f"{id(acknowledged)=} should match {id(self._acknowledged)=}")
+
+        if stopping_requested := self._stopping_requested():
+            raise ExecutionStopRequested(f"{stopping_requested=} should be False")
 
         if (acknowledged.admission.replayed) and (not self._allow_active_start_replay):
-            raise ControllerRefused("Cannot execute an active START replay with unproved earlier execution")
+            raise ControllerRefused(f"{self._allow_active_start_replay=} should be True for {acknowledged.admission.replayed=}")
 
     def require_claim_release_ready(self, claim):
-        if (
-            (claim is not self._claim) or
-            (claim.lifecycle_owner is not self) or
-            (claim.operation_owner is not None) or
-            (not self.api.retirement_confirmed) or
-            (not self.delivery.retirement_confirmed)
-        ):
-            raise ControllerRefused("Cannot release live ownership while original I/O or borrowers remain")
+        if not (claim is self._claim):
+            raise ControllerRefused(f"{id(claim)=} should match {id(self._claim)=}")
+
+        if not (claim.lifecycle_owner is self):
+            raise ControllerRefused(f"{id(claim.lifecycle_owner)=} should match {id(self)=}")
+
+        if not (claim.operation_owner is None):
+            raise ControllerRefused(f"{type(claim.operation_owner)=} should be {type(None)=}")
+
+        if not (self.api.retirement_confirmed):
+            raise ControllerRefused(f"{self.api.retirement_confirmed=} should be True")
+
+        if not (self.delivery.retirement_confirmed):
+            raise ControllerRefused(f"{self.delivery.retirement_confirmed=} should be True")
 
         if isinstance(self._operation, AttemptExecutor):
             executor = self._operation
 
             if not (executor.claim is claim):
-                raise ControllerRefused("Cannot release live ownership before the executor settles cleanup and records a delivery, suppression or server revocation disposition")
+                raise ControllerRefused(f"{id(executor.claim)=} should match {id(claim)=}")
 
             if executor._active:
-                raise ControllerRefused("Cannot release live ownership before the executor settles cleanup and records a delivery, suppression or server revocation disposition")
+                raise ControllerRefused(f"{executor._active=} should be False")
 
             if executor._observing:
-                raise ControllerRefused("Cannot release live ownership before the executor settles cleanup and records a delivery, suppression or server revocation disposition")
+                raise ControllerRefused(f"{executor._observing=} should be False")
 
             if not (executor.retirement_confirmed):
-                raise ControllerRefused("Cannot release live ownership before the executor settles cleanup and records a delivery, suppression or server revocation disposition")
+                raise ControllerRefused(f"{executor.retirement_confirmed=} should be True")
 
             # repo-check: retain-type-guard -- Settled revocation is an alternate disposition when no terminal checkpoint exists
             if (
-                (type((actual_checkpoint := executor._checkpoint)) not in (expected_type := (DeliveryAcceptedCheckpoint, SuppressedCheckpoint))) and
+                (type((actual_checkpoint := executor._checkpoint)) not in (expected_types := (DeliveryAcceptedCheckpoint, SuppressedCheckpoint))) and
                 (executor.settled_revocation is None)
             ):
-                raise ControllerRefused(f"{type(actual_checkpoint)=} ≠ {expected_type=}")
+                raise ControllerRefused(f"{type(actual_checkpoint)=} ∉ {expected_types=}; {executor.settled_revocation=}")
 
             return
 
         if not (self._retired_by_controller):
-            raise ControllerRefused("Cannot release live ownership before this session's cleanup is confirmed")
+            raise ControllerRefused(f"{self._retired_by_controller=} should be True")
 
         if (self._start_deferred is not None) and (not self._start_deferred.may_have_committed):
             return
@@ -903,7 +933,7 @@ class AttemptController:
             return None
 
         if self._lifetime in (_Lifetime.RUNNING, _Lifetime.SETTLING):
-            raise ControllerRefused("The controller is already observing its lifetime; await that invocation before settlement")
+            raise ControllerRefused(f"{self._lifetime=} should be neither {_Lifetime.RUNNING=} nor {_Lifetime.SETTLING=}")
 
         if self._lifetime is _Lifetime.RELEASED:
             return None
