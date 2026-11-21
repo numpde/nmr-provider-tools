@@ -14,6 +14,7 @@ require_container()
 import asyncio
 import json
 import random
+import reprlib
 import time
 from collections import OrderedDict
 from collections.abc import Callable
@@ -137,14 +138,14 @@ class ProseService:
     async def _wait(self, *, deadline: float, stopped: asyncio.Event) -> int:
         while True:
             if stopped.is_set():
-                raise ConversationFailed("Prose interpretation was retired; no HTTP request may start.")
+                raise ConversationFailed(f"{stopped.is_set()=} should be False before starting an HTTP request")
 
             now = _now()
 
             if now >= deadline:
                 raise ChatFailed(
                     "service_wait_deadline",
-                    "Cannot contact the prose interpretation service: this Job's time allowance for that service expired while waiting; no request was sent.",
+                    message=f"{now=} should be before {deadline=} to start the service request",
                     cause=self.last_failure,
                 )
 
@@ -250,14 +251,14 @@ class Interpreter:
         require_instance(endpoint_factories, tuple)
 
         if not (endpoint_factories):
-            raise ValueError("Cannot configure interpretation: provide an ordered nonempty tuple of endpoint factories.")
+            raise ValueError(f"{endpoint_factories=} should be nonempty")
 
         require_positive_number(interpretation_budget_seconds)
 
         require_type(reject_combined_messages_and_tools_over_bytes, int)
 
         if not (0 < reject_combined_messages_and_tools_over_bytes):
-            raise ValueError(f"Interpreter request byte limit must be positive: {reject_combined_messages_and_tools_over_bytes=}")
+            raise ValueError(f"{reject_combined_messages_and_tools_over_bytes=} should be positive")
 
         for (setting_name, setting_value) in (
             ("end_model_visit_after_turns", end_model_visit_after_turns),
@@ -269,7 +270,7 @@ class Interpreter:
             require_type(setting_value, int)
 
             if not (0 < setting_value):
-                raise ValueError(f"Interpreter setting must be positive: {setting_name=}; {setting_value=}")
+                raise ValueError(f"{setting_name=}; {setting_value=} should be positive")
 
         require_positive_number(connection_timeout_seconds)
 
@@ -279,7 +280,9 @@ class Interpreter:
             require_instance(secret, str)
 
         if any((not secret) for secret in secrets):
-            raise ValueError("Cannot configure interpretation: provide known credentials as an explicit tuple of nonempty strings.")
+            empty_secret_indexes = [index for (index, secret) in enumerate(secrets) if not secret]
+
+            raise ValueError(f"{empty_secret_indexes=} should be empty")
 
         self._factories = endpoint_factories
         self.interpretation_budget_seconds = interpretation_budget_seconds
@@ -371,8 +374,11 @@ class Interpreter:
     ) -> InterpretationResult:
         """Use original inputs per model, with optional provider-owned dynamic constraints."""
 
-        if self._used or self._stopped.is_set():
-            raise ValueError("This interpretation already ran or retired; create a new interpretation for another Attempt.")
+        if not (self._used is False):
+            raise ValueError(f"{self._used=} should be False")
+
+        if self._stopped.is_set():
+            raise ValueError(f"{self._stopped.is_set()=} should be False")
 
         self._used = True
 
@@ -397,7 +403,7 @@ class Interpreter:
 
             for (index, factory) in enumerate(self._factories):
                 if self._stopped.is_set():
-                    raise ConversationFailed("Interpretation was retired; no successor model may start.")
+                    raise ConversationFailed(f"{self._stopped.is_set()=} should be False before starting a successor model")
 
                 now = _now()
                 remaining = deadline - now
@@ -502,6 +508,7 @@ def _encode(json_content: object) -> bytes:
 
 def _no_secrets(context_fragment: object, secrets: tuple[str, ...]) -> None:
     if isinstance(context_fragment, str):
+        # repo-check: allow-literal-guard-error -- A configured credential matched; neither its value nor the captured context may be rendered
         if any((secret in context_fragment) for secret in secrets):
             raise ConversationFailed("Cannot continue interpretation: captured context contains a configured credential.")
     elif isinstance(context_fragment, dict):
@@ -617,21 +624,27 @@ class _History:
     def read(self, arguments: Document, fits: Callable[[Document], bool]) -> Document:
         queries = arguments.get("records")
 
-        if set(arguments) != {"records"}:
-            raise ToolRejected("Provide records as a list of one to eight catalogue references with optional cursors.")
+        expected_fields = {"records"}
+
+        if not (set(arguments) == expected_fields):
+            raise ToolRejected(f"{reprlib.repr(set(arguments))=} should match {expected_fields=}")
 
         require_instance(queries, list, error_factory=ToolRejected)
 
-        if not (1 <= len(queries) <= 8):
-            raise ToolRejected("Provide records as a list of one to eight catalogue references with optional cursors.")
+        (min_history_records, max_history_records) = (1, 8)
+
+        if not (min_history_records <= (query_count := len(queries)) <= max_history_records):
+            raise ToolRejected(f"{query_count=} should be between {min_history_records=} and {max_history_records=}")
 
         record_replies: list[Document] = []
 
         for query in queries:
             require_instance(query, dict, error_factory=ToolRejected)
 
-            if set(query) - {"ref", "cursor"}:
-                raise ToolRejected("Each record request needs a ref and an optional integer cursor.")
+            expected_query_fields = {"ref", "cursor"}
+
+            if not (set(query) <= expected_query_fields):
+                raise ToolRejected(f"{reprlib.repr(set(query))=} should be a subset of {expected_query_fields=}")
 
             require_instance((query_ref := query.get("ref")), str, error_factory=ToolRejected)
 
@@ -640,8 +653,8 @@ class _History:
 
             require_type(cursor, int, error_factory=ToolRejected)
 
-            if cursor < 0:
-                raise ToolRejected("A history cursor must be a nonnegative integer offset in that record's JSON text.")
+            if not (0 <= cursor):
+                raise ToolRejected(f"{cursor=} should be nonnegative")
 
             record = self._records.get(query["ref"])
             status = "deferred"
@@ -659,7 +672,7 @@ class _History:
         # Every requested reference needs a status even when an earlier page
         # consumes the data allowance. Fill pages around those reserved entries.
         if not fits({"records": record_replies}):
-            raise ToolRejected("History reply cannot fit the remaining context; request fewer records.")
+            raise ToolRejected(f"The history reply for {len(queries)=} does not fit the remaining context")
 
         for (index, query) in enumerate(queries):
             record = self._records.get(query["ref"])
@@ -685,7 +698,7 @@ class _History:
         fits: Callable[[Document], bool],
     ) -> Document:
         if cursor > len(record.data):
-            raise ToolRejected("The history cursor is beyond the referenced record's JSON text.")
+            raise ToolRejected(f"{cursor=} should be at most {len(record.data)=}")
 
         complete = record.page(cursor, len(record.data))
 
@@ -744,19 +757,21 @@ class _DescribeInputConstraints:
     async def invoke(self, arguments: Document, *, not_after: float) -> ToolReply:
         (name, field_path) = (arguments.get("tool"), arguments.get("field"))
 
-        if set(arguments) - {"tool", "field"}:
-            raise ToolRejected("Name an available provider tool and optionally a nonempty field path.")
+        expected_fields = {"tool", "field"}
+
+        if not (set(arguments) <= expected_fields):
+            raise ToolRejected(f"{reprlib.repr(set(arguments))=} should be a subset of {expected_fields=}")
 
         require_instance(name, str, error_factory=ToolRejected)
 
         if not (name in self._schemas):
-            raise ToolRejected("Name an available provider tool and optionally a nonempty field path.")
+            raise ToolRejected(f"{reprlib.repr(name)=} should be in {reprlib.repr(list(self._schemas))=}")
 
         if field_path is not None:
             require_instance(field_path, str, error_factory=ToolRejected)
 
             if not (field_path):
-                raise ToolRejected("Name an available provider tool and optionally a nonempty field path.")
+                raise ToolRejected(f"{reprlib.repr(field_path)=} should be nonempty")
 
         if self._reader is not None:
             metadata = await self._reader(name, field_path, not_after=not_after)
@@ -785,7 +800,7 @@ class _DescribeInputConstraints:
                 properties = parent["properties"]
 
             if not (part in properties):
-                raise ToolRejected("The requested field is not declared at that property path; read the full tool schema.")
+                raise ToolRejected(f"{reprlib.repr(field_path)=} should name a declared property of {reprlib.repr(name)=}")
 
             schema = properties[part]
             required = ("required" in parent) and (part in parent["required"])
@@ -869,7 +884,7 @@ class _Tools:
             name = tool_name(definition)
 
             if (name in provider.schemas) or (name in self.information):
-                raise ValueError("Cannot compose interpreter tools: an information-tool name is already in use.")
+                raise ValueError(f"{reprlib.repr(name)=} should be unique across provider and information tools")
 
             self.information[name] = tool
 
@@ -877,7 +892,7 @@ class _Tools:
 
     async def dispatch(self, name: str, arguments: Document, *, not_after: float) -> ToolReply | ToolFinished:
         if not (name in self.provider.schemas):
-            raise ToolRejected("Choose a tool from the supplied definitions; this tool was not run.")
+            raise ToolRejected(f"{reprlib.repr(name)=} should name an available provider tool")
 
         return await self.provider.dispatch(name, arguments, not_after=not_after)
 
@@ -1038,17 +1053,17 @@ class _ModelVisit:
         await self._endpoint.retire()
 
         if not (self.retirement_confirmed):
-            raise ConversationRetirementFailed(((self.number, RuntimeError("Model HTTP cleanup remains unconfirmed.")),))
+            raise ConversationRetirementFailed(((self.number, RuntimeError(f"{self.retirement_confirmed=} should be True")),))
 
     async def complete(self, messages: list[Document], tools: list[Document]) -> Document:
         for attempt in range(self._total_http_attempts_per_turn):
             if self._stopped.is_set():
-                raise ConversationFailed("Interpretation was retired; no model HTTP retry may start.")
+                raise ConversationFailed(f"{self._stopped.is_set()=} should be False before an HTTP retry")
 
-            if _now() >= self._deadline:
+            if (now := _now()) >= self._deadline:
                 raise ChatFailed(
                     "model_deadline",
-                    "Cannot send interpreter turn: this model's time allocation expired."
+                    message=f"{now=} should be before {self._deadline=} to send an interpreter turn",
                 )
 
             try:
@@ -1094,7 +1109,7 @@ class _ModelVisit:
         if context_size > self._context_bytes:
             raise ChatFailed(
                 "request_limit",
-                "Cannot send interpreter turn: messages and tool schemas exceed the granted context byte limit.",
+                message=f"{context_size=} should be at most {self._context_bytes=}",
             )
 
         return outgoing
@@ -1126,8 +1141,8 @@ class _ModelVisit:
         return self._history.read(arguments, fits)
 
     async def _dispatch(self, name: str, arguments: Document) -> ToolReply | ToolFinished | ToolHandoff:
-        if _now() >= self._deadline:
-            raise ConversationFailed("Cannot dispatch interpreter tool: this model's time allocation expired.")
+        if (now := _now()) >= self._deadline:
+            raise ConversationFailed(f"{now=} should be before {self._deadline=} to dispatch an interpreter tool")
 
         try:
             information_tool = self._tools.information.get(name)
