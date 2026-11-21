@@ -126,8 +126,8 @@ class _Changes:
                 return
 
 
-class _Cleanup(_Changes):
-    """Run one cleanup request and report its completion, failures and overdue status."""
+class _CleanupState(_Changes):
+    """Observe cleanup settlement, failures and expiry of its original allowance."""
 
     def __init__(self, seconds):
         super().__init__()
@@ -135,16 +135,33 @@ class _Cleanup(_Changes):
         self.settled = False
         self.expired = False
         self.failures = ()
-        self.task = None
-
-    def start(self, action):
-        self.task = self.loop.create_task(self._run_bounded_action(action))
 
     def _expire(self):
         # Observers can see allowance_expired; the cleanup task keeps running.
         self.expired = True
 
         self.changed()
+
+    async def observe(self, *, after, wait_seconds):
+        await self.wait(after, wait_seconds)
+
+        return CleanupObservation(
+            revision=self.revision,
+            settled=self.settled,
+            allowance_expired=self.expired,
+            failures=self.failures,
+        )
+
+
+class _Cleanup(_CleanupState):
+    """Run one cleanup action without cancelling it when its allowance expires."""
+
+    def __init__(self, seconds):
+        super().__init__(seconds)
+        self.task = None
+
+    def start(self, action):
+        self.task = self.loop.create_task(self._run_bounded_action(action))
 
     async def _run_bounded_action(self, action):
         expiration_timer = self.loop.call_later(self.seconds, self._expire)
@@ -158,16 +175,6 @@ class _Cleanup(_Changes):
         finally:
             expiration_timer.cancel()
             self.changed()
-
-    async def observe(self, *, after, wait_seconds):
-        await self.wait(after, wait_seconds)
-
-        return CleanupObservation(
-            revision=self.revision,
-            settled=self.settled,
-            allowance_expired=self.expired,
-            failures=self.failures,
-        )
 
 
 class _Resident:

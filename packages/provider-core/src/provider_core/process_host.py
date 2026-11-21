@@ -20,7 +20,7 @@ import time
 from threading import Lock
 from uuid import uuid4
 
-from provider_core._embedded_support import EMBEDDED_CAPABILITIES, _Changes, _require_supported_binding
+from provider_core._embedded_support import EMBEDDED_CAPABILITIES, _CleanupState, _require_supported_binding
 from provider_core.async_runner_session import AsyncRunnerSession, await_original
 from provider_core.contribution import ResourceRequirement
 from provider_core.hosting import (
@@ -160,26 +160,17 @@ def _same_failure_evidence(first, second):
     return (first_evidence is not None) and (first_evidence == decoded_error_evidence(second.cause))
 
 
-class _ProcessCleanup(_Changes):
+class _ProcessCleanup(_CleanupState):
     """Start cleanup now; callers only observe this original retained action."""
 
     def __init__(self, host, action, *, seconds, before=()):
-        super().__init__()
+        super().__init__(seconds)
         self.action = action
-        self.seconds = seconds
         self.before = before
-        self.settled = False
-        self.expired = False
-        self.failures = ()
         self.task = _start_owned_task(self._run_cleanup)
 
         host.cleanups.add(self.task)
         self.task.add_done_callback(host.cleanups.discard)
-
-    def _expire(self):
-        self.expired = True
-
-        self.changed()
 
     async def _run_cleanup(self):
         timer = self.loop.call_later(self.seconds, self._expire)
@@ -205,11 +196,6 @@ class _ProcessCleanup(_Changes):
             self.changed()
         finally:
             timer.cancel()
-
-    async def observe(self, *, after, wait_seconds):
-        await self.wait(after, wait_seconds)
-
-        return CleanupObservation(self.revision, self.settled, self.expired, self.failures)
 
 
 class _ProcessOperation:
