@@ -4,7 +4,7 @@ FROM scratch AS wheel_inputs
 FROM ${BASE_IMAGE}
 ENV PROVIDER_CORE_IN_CONTAINER=1 PYTHONDONTWRITEBYTECODE=1
 WORKDIR /opt/build
-COPY tools/container_guard.py tools/artifacts.py tools/wheelhouse.py tools/installer.py ./tools/
+COPY tools/container_guard.py tools/artifacts.py tools/artifact_metadata.py tools/wheelhouse.py tools/installer.py ./tools/
 COPY tools/adapters/__init__.py tools/adapters/pip_install.py ./tools/adapters/
 COPY tools/validation/__init__.py ./tools/validation/
 COPY tools/validation/upstream/__init__.py tools/validation/upstream/pip_installation_report.py \
