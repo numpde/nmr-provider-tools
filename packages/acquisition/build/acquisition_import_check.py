@@ -3,13 +3,14 @@
 from __future__ import annotations
 
 import importlib
+import reprlib
 import sys
 from pathlib import Path
 
 
 def main(root: Path) -> None:
     if (not root.is_absolute()) or (not root.is_dir()):
-        raise ValueError("Cold import check requires an extracted absolute source directory")
+        raise ValueError(f"{reprlib.repr(root)=} should be an existing absolute source directory")
 
     sys.path.insert(0, str(root))
     importlib.import_module("linux_idmap.probe")
@@ -17,7 +18,9 @@ def main(root: Path) -> None:
 
 
 if __name__ == "__main__":
-    if len(sys.argv) != 2:
-        raise SystemExit("Supply one extracted acquisition source directory")
+    source_directory_arguments = sys.argv[1:]
 
-    main(Path(sys.argv[1]))
+    if not (len(source_directory_arguments) == 1):
+        raise SystemExit(f"{reprlib.repr(source_directory_arguments)=} should contain one extracted acquisition source directory")
+
+    main(Path(source_directory_arguments[0]))
