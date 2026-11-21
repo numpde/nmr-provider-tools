@@ -1,5 +1,6 @@
 """Pure helpers shared by scientific code and provider-core runtime components."""
 
+import asyncio
 import hashlib
 import math
 import pathlib
@@ -51,6 +52,14 @@ def metadata_mismatch_message(actual_record: object, expected_record: object) ->
         f"{_METADATA_EVIDENCE.repr(actual_field_value)=} "
         f"should match {_METADATA_EVIDENCE.repr(expected_field_value)=}"
     )
+
+
+def require_running_loop(owner_loop: asyncio.AbstractEventLoop) -> None:
+    """Require calls to stay on the event loop that owns their resources."""
+    caller_loop = asyncio.get_running_loop()
+
+    if not (caller_loop is owner_loop):
+        raise RuntimeError(f"{id(caller_loop)=} should match {id(owner_loop)=}")
 
 
 def require_identity_text(identity_text: object, identity_role: str) -> None:

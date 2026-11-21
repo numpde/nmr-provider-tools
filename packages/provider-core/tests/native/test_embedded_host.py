@@ -209,6 +209,16 @@ class EmbeddedHostTests(unittest.IsolatedAsyncioTestCase):
 
         return (observation, codec.decode(payload))
 
+    async def test_foreign_loop_cannot_start_retirement(self):
+        host = InProcessExecutionHost(**_host_options())
+
+        async def retire_on_other_loop():
+            with self.assertRaises(RuntimeError):
+                host.retire()
+
+        await asyncio.to_thread(asyncio.run, retire_on_other_loop())
+        await self.settled(host.retire())
+
     async def test_local_bound_submission_and_portable_submission_share_one_owner(self):
         binding = sum_binding()
         host = self.host({"one": binding})

@@ -49,7 +49,7 @@ from provider_core.hosting import (
 from provider_core.process_wire import MAX_PAYLOAD_BYTES, RemoteScienceError, decoded_error_evidence, frame, receive
 from provider_core.runner_session import RunnerSession, RunnerStartupStopped, RunnerStartupUnavailable
 from provider_core.scientific import Contribution, HostedContribution
-from provider_core.tools import require_nonnegative_number, require_positive_number
+from provider_core.tools import require_nonnegative_number, require_positive_number, require_running_loop
 from provider_core.type_requirements import require_instance, require_type
 
 
@@ -368,7 +368,7 @@ class _ProcessOperation:
             return observed
 
     async def observe(self, *, after, wait_seconds):
-        self.analysis.host._require_loop()
+        require_running_loop(self.analysis.host.loop)
         require_nonnegative_number(wait_seconds)
         current = self._snapshot()
 
@@ -421,7 +421,7 @@ class _ProcessOperation:
             await asyncio.sleep(min(0.1, max(0, deadline - loop.time())))
 
     def request_stop(self):
-        self.analysis.host._require_loop()
+        require_running_loop(self.analysis.host.loop)
 
         if not self.stop_requested:
             self.stop_requested = True
@@ -430,7 +430,7 @@ class _ProcessOperation:
                 self.analysis.host._exchange(self._message("stop_operation"), accept=_acknowledged)
 
     async def read_result(self, result: ResultRef) -> bytes:
-        self.analysis.host._require_loop()
+        require_running_loop(self.analysis.host.loop)
         self._require_result(result)
 
         require_type(self.release, type(None), error_factory=ValueError)
@@ -478,7 +478,7 @@ class _ProcessOperation:
             raise ValueError(f"{reprlib.repr(observed.result_state)=} should be {ResultState.AVAILABLE=}")
 
     def release_result(self, result: ResultRef):
-        self.analysis.host._require_loop()
+        require_running_loop(self.analysis.host.loop)
         require_type(result, ResultRef)
 
         if self.release is None:
@@ -543,7 +543,7 @@ class _ProcessAnalysis:
         self.cleanup = None
 
     def reservation(self, *, allocation: AllocationRef) -> ReservationRef:
-        self.host._require_loop()
+        require_running_loop(self.host.loop)
 
         if not (allocation == self.host.hosted.allocation):
             raise ValueError(f"{reprlib.repr(allocation)=} ≠ {reprlib.repr(self.host.hosted.allocation)=}")
@@ -551,7 +551,7 @@ class _ProcessAnalysis:
         return self.reservation_ref
 
     def submit(self, invocation: Invocation):
-        self.host._require_loop()
+        require_running_loop(self.host.loop)
         require_type(invocation, Invocation)
 
         if self.closed or self.host.retiring:
@@ -627,7 +627,7 @@ class _ProcessAnalysis:
         return operation
 
     def request_stop(self):
-        self.host._require_loop()
+        require_running_loop(self.host.loop)
 
         if not self.closed:
             self.closed = True
@@ -635,7 +635,7 @@ class _ProcessAnalysis:
             self.host._exchange({"action": "stop_analysis", "analysis": self.identity}, accept=_acknowledged)
 
     def close(self):
-        self.host._require_loop()
+        require_running_loop(self.host.loop)
 
         if self.cleanup is None:
             self.closed = True
@@ -753,14 +753,8 @@ class ProcessExecutionHost:
         self.exchanges = set()
         self.exchange_executor = ThreadPoolExecutor(max_workers=1, thread_name_prefix="science-channel")
 
-    def _require_loop(self):
-        current_loop = asyncio.get_running_loop()
-
-        if not (current_loop is self.loop):
-            raise RuntimeError(f"{id(current_loop)=} ≠ {id(self.loop)=}")
-
     async def __aenter__(self):
-        self._require_loop()
+        require_running_loop(self.loop)
 
         return self
 
@@ -787,7 +781,7 @@ class ProcessExecutionHost:
     ):
         """Create the real model in a persistent child and retain its ownership."""
 
-        self._require_loop()
+        require_running_loop(self.loop)
 
         require_type(self.start_task, type(None), error_factory=RuntimeError)
 
@@ -913,7 +907,7 @@ class ProcessExecutionHost:
         return self._exchange_frame(frame(message), seconds, accept=accept)
 
     async def _exchange_async(self, message, seconds=2, *, accept=None):
-        self._require_loop()
+        require_running_loop(self.loop)
 
         if not (self.draining is False):
             raise RemoteScienceError(f"{self.draining=}; no request bytes were sent")
@@ -939,7 +933,7 @@ class ProcessExecutionHost:
         return await asyncio.shield(task)
 
     def open_analysis(self, *, allocations: frozenset[AllocationRef]):
-        self._require_loop()
+        require_running_loop(self.loop)
 
         if not (not self.retiring):
             raise CapacityUnavailable(f"{self.retiring=} prevents opening another analysis")
@@ -993,7 +987,7 @@ class ProcessExecutionHost:
             self.active_analysis = None
 
     def retire_allocation(self, reference):
-        self._require_loop()
+        require_running_loop(self.loop)
 
         if not (self.hosted is not None):
             raise ValueError(f"{self.hosted=} should identify the allocation being retired")
@@ -1004,7 +998,7 @@ class ProcessExecutionHost:
         return self.retire()
 
     def retire(self):
-        self._require_loop()
+        require_running_loop(self.loop)
 
         if self.retirement is None:
             self.retiring = True

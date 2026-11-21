@@ -36,6 +36,7 @@ from provider_core.hosting import (
 )
 
 from provider_core.payload import CallRejected
+from provider_core.tools import require_running_loop
 from provider_core.type_requirements import require_type
 
 
@@ -135,7 +136,7 @@ class _Operation(_Changes):
 
     def request_stop(self):
         """Set the stop signal checked before science starts and by cooperative code."""
-        self.require_loop()
+        require_running_loop(self.loop)
 
         if not self.stop_requested:
             self.stop_requested = True
@@ -474,7 +475,7 @@ class _Operation(_Changes):
         )
 
     def _require_result(self, result_ref):
-        self.require_loop()
+        require_running_loop(self.loop)
 
         require_type(result_ref, ResultRef)
 
@@ -497,7 +498,7 @@ class _Operation(_Changes):
         return self.payload
 
     def release_result(self, result):
-        self.require_loop()
+        require_running_loop(self.loop)
 
         # The exact release remains observable after its payload is discarded.
         # Check identity before returning it; a cached owner grants no authority

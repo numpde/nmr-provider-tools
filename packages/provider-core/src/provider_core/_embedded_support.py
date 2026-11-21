@@ -25,7 +25,7 @@ from provider_core.hosting import (
 )
 
 from provider_core.scientific import AssetAccess, NoAssets, HostedContribution
-from provider_core.tools import require_nonnegative_number
+from provider_core.tools import require_nonnegative_number, require_running_loop
 from provider_core.type_requirements import require_instance, require_type
 
 # This describes the backend's implemented features, not operator-selectable settings.
@@ -93,12 +93,6 @@ class _Changes:
         self.revision = 0
         self.event = asyncio.Event()
 
-    def require_loop(self):
-        caller_loop = asyncio.get_running_loop()
-
-        if not (caller_loop is self.loop):
-            raise RuntimeError(f"{id(caller_loop)=} should match {id(self.loop)=}")
-
     def changed(self):
         self.revision += 1
 
@@ -106,7 +100,7 @@ class _Changes:
         self.event = asyncio.Event()
 
     async def wait(self, after, wait_seconds):
-        self.require_loop()
+        require_running_loop(self.loop)
 
         if after is not None:
             require_type(after, int)

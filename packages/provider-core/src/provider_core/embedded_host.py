@@ -40,7 +40,7 @@ from provider_core.hosting import (
 )
 
 from provider_core.state_slots import StateHandle, StateInputSlot, state_references
-from provider_core.tools import metadata_mismatch_message, require_positive_number
+from provider_core.tools import metadata_mismatch_message, require_positive_number, require_running_loop
 
 from provider_core._embedded_operation import _Operation
 
@@ -167,7 +167,7 @@ class InProcessExecutionHost:
         the receiver before initialization and permanently forbids re-adoption.
         Existing analyses keep their original allocations; shutdown refuses adoption.
         """
-        self._require_loop()
+        require_running_loop(self.loop)
 
         if self.retiring:
             raise CapacityUnavailable(f"{self.retiring=} should be False")
@@ -212,7 +212,7 @@ class InProcessExecutionHost:
     ) -> HostedContribution:
         """Retain a factory before construction or initialization has effects."""
 
-        self._require_loop()
+        require_running_loop(self.loop)
 
         if self.retiring:
             raise CapacityUnavailable(f"{self.retiring=} should be False")
@@ -249,12 +249,6 @@ class InProcessExecutionHost:
 
         return frozenset(resident.reference for resident in self.residents.values())
 
-    def _require_loop(self):
-        caller_loop = asyncio.get_running_loop()
-
-        if not (caller_loop is self.loop):
-            raise RuntimeError(f"{id(caller_loop)=} should match {id(self.loop)=}")
-
     async def initialize(self, *, allocation: AllocationRef) -> None:
         """Load an adopted contribution before accepting requests for it.
 
@@ -262,7 +256,7 @@ class InProcessExecutionHost:
         that load owned by the host; retirement waits for its worker before close.
         Failed or overdue initialization is not retried on the same contribution.
         """
-        self._require_loop()
+        require_running_loop(self.loop)
 
         require_type(allocation, AllocationRef)
 
@@ -335,7 +329,7 @@ class InProcessExecutionHost:
         Explicit analysis_id/allocation_names are the legacy protocol form.
         Handle-based callers retain the returned analysis instead of naming it.
         """
-        self._require_loop()
+        require_running_loop(self.loop)
 
         if allocations is not None:
             if not (analysis_id is None):
@@ -428,7 +422,7 @@ class InProcessExecutionHost:
         Successful retirement removes the allocation from the host. The retained
         control still reports its outcome; failed cleanup stays owned by the host.
         """
-        self._require_loop()
+        require_running_loop(self.loop)
 
         require_type(reference, AllocationRef)
 
@@ -502,7 +496,7 @@ class InProcessExecutionHost:
         Provider shutdown code retains and observes the returned control. Exceeding
         retirement_seconds marks cleanup overdue but does not stop its thread.
         """
-        self._require_loop()
+        require_running_loop(self.loop)
 
         if self.retirement is None:
             self.retiring = True
@@ -567,7 +561,7 @@ class InProcessAnalysisExecutor:
 
     def reservation(self, *, allocation: AllocationRef) -> ReservationRef:
         """Return this analysis's reservation for an exact allocation handle."""
-        self.host._require_loop()
+        require_running_loop(self.host.loop)
 
         require_type(allocation, AllocationRef)
 
@@ -640,7 +634,7 @@ class InProcessAnalysisExecutor:
         returned operation handle tracks this submission through completion;
         submitting the method again requests new work.
         """
-        self.host._require_loop()
+        require_running_loop(self.host.loop)
         refusal = self._reservation_refusal(reservation=reservation)
 
         if refusal is not None:
@@ -684,7 +678,7 @@ class InProcessAnalysisExecutor:
 
     def _submit(self, invocation, *, retain_identity):
         """Admit work and retain portable request identity for the open analysis."""
-        self.host._require_loop()
+        require_running_loop(self.host.loop)
 
         require_type(invocation, Invocation)
 
@@ -875,7 +869,7 @@ class InProcessAnalysisExecutor:
         using retained results. Release results and close the session separately
         when their consumers no longer need its resources.
         """
-        self.host._require_loop()
+        require_running_loop(self.host.loop)
         self.closed = True
 
         for operation in list(self.operations.values()):
@@ -890,7 +884,7 @@ class InProcessAnalysisExecutor:
         then wait for them before disposing retained science state. The cleanup
         timer only reports overdue status; it does not cancel that cleanup.
         """
-        self.host._require_loop()
+        require_running_loop(self.host.loop)
 
         if self.cleanup is None:
             self.request_stop()
