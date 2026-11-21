@@ -12,6 +12,7 @@ import asyncio
 import fcntl
 import json
 import os
+import reprlib
 import socket
 import stat
 from contextlib import ExitStack, contextmanager
@@ -33,8 +34,15 @@ MAX_HEADER_BYTES = 16384
 MAX_CONNECTIONS = 32
 
 
+# Preserve ordinary identity fields while bounding malformed IPC metadata
+# repo-check: allow-module-constant
+_IPC_EVIDENCE = reprlib.Repr()
+_IPC_EVIDENCE.maxstring = 256
+_IPC_EVIDENCE.maxother = _IPC_EVIDENCE.maxstring
+
+
 class DeliveryRequestRejected(ValueError):
-    """Code-owned IPC refusal safe to report without request bytes or headers."""
+    """Report bounded identity evidence without the body or full header dump."""
 
 
 @contextmanager
@@ -52,17 +60,17 @@ def _socket_grant(socket_path, socket_group_id):
     # silent-defaults: allow-contract -- Socket mode follows the explicit same-UID or shared-group connection grant.
     socket_mode = 0o660 if shared else 0o600
 
-    if shared and (socket_group_id != os.getegid()):
-        raise DeliveryUnavailable("Cannot open delivery IPC: the configured socket group must be the daemon's primary GID.")
+    if shared and (socket_group_id != (daemon_gid := os.getegid())):
+        raise DeliveryUnavailable(f"{socket_group_id=} should match {daemon_gid=}")
 
-    parent = socket_path.parent.lstat()
+    socket_parent_stat = socket_path.parent.lstat()
 
     if (
-        (socket_path.parent.resolve() != socket_path.parent) or
-        (not stat.S_ISDIR(parent.st_mode)) or
-        (parent.st_uid != os.geteuid()) or
-        (stat.S_IMODE(parent.st_mode) not in parent_modes) or
-        (shared and (parent.st_gid != socket_group_id))
+        ((resolved_socket_parent := socket_path.parent.resolve()) != socket_path.parent) or
+        (not stat.S_ISDIR(socket_parent_stat.st_mode)) or
+        (socket_parent_stat.st_uid != os.geteuid()) or
+        (stat.S_IMODE(socket_parent_stat.st_mode) not in parent_modes) or
+        (shared and (socket_parent_stat.st_gid != socket_group_id))
     ):
         # silent-defaults: allow-contract -- Parent permission requirements follow the explicit shared-group or same-UID socket grant.
         required_parent_mode = "mode 0710 or 02710 with the configured socket GID; " if shared else "mode 0700; "
@@ -70,33 +78,50 @@ def _socket_grant(socket_path, socket_group_id):
         raise DeliveryUnavailable(
             "Cannot open delivery IPC: require a canonical daemon-owned parent, "
             + required_parent_mode
-            + f"observed {parent.st_uid=}, {parent.st_gid=}, {stat.S_IMODE(parent.st_mode)=:04o}, caller {os.geteuid()=}."
+            + f"{socket_path.parent=}, {resolved_socket_parent=}, {socket_parent_stat.st_uid=}, "
+            + f"{socket_parent_stat.st_gid=}, {stat.S_IMODE(socket_parent_stat.st_mode)=:04o}, {os.geteuid()=}."
         )
 
-    descriptor = os.open(socket_path.parent / ".socket.lock", os.O_RDWR | os.O_CREAT | os.O_NOFOLLOW | os.O_CLOEXEC, 0o600)
+    expected_lock_permissions = 0o600
+    socket_lock_path = socket_path.parent / ".socket.lock"
+    socket_lock_fd = os.open(socket_lock_path, os.O_RDWR | os.O_CREAT | os.O_NOFOLLOW | os.O_CLOEXEC, expected_lock_permissions)
     listener = None
 
     try:
-        lock = os.fstat(descriptor)
+        socket_lock_stat = os.fstat(socket_lock_fd)
 
-        if (not stat.S_ISREG(lock.st_mode)) or (lock.st_uid != os.geteuid()) or (stat.S_IMODE(lock.st_mode) != 0o600):
-            raise DeliveryUnavailable("Cannot open delivery IPC: its lock must be a caller-owned mode 0600 regular file.")
+        if not stat.S_ISREG(socket_lock_stat.st_mode):
+            raise DeliveryUnavailable(f"{socket_lock_path=} should be a regular file; {socket_lock_stat.st_mode=:#o}")
 
-        fcntl.flock(descriptor, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        if not (socket_lock_stat.st_uid == (daemon_uid := os.geteuid())):
+            raise DeliveryUnavailable(f"{socket_lock_path=}: {socket_lock_stat.st_uid=} ≠ {daemon_uid=}")
+
+        socket_lock_permissions = stat.S_IMODE(socket_lock_stat.st_mode)
+
+        if not (socket_lock_permissions == expected_lock_permissions):
+            raise DeliveryUnavailable(f"{socket_lock_path=}: {socket_lock_permissions=:#o} ≠ {expected_lock_permissions=:#o}")
+
+        fcntl.flock(socket_lock_fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
 
         try:
-            old = socket_path.lstat()
+            previous_socket_stat = socket_path.lstat()
         except FileNotFoundError:
-            old = None
+            previous_socket_stat = None
 
-        if old is not None:
-            if (
-                (not stat.S_ISSOCK(old.st_mode)) or
-                (old.st_uid != os.geteuid()) or
-                (stat.S_IMODE(old.st_mode) != socket_mode) or
-                (shared and (old.st_gid != socket_group_id))
-            ):
-                raise DeliveryUnavailable("Cannot replace delivery IPC: the prior leaf is not its private socket. Leave it unchanged for inspection.")
+        if previous_socket_stat is not None:
+            if not stat.S_ISSOCK(previous_socket_stat.st_mode):
+                raise DeliveryUnavailable(f"{socket_path=} should be a socket; {previous_socket_stat.st_mode=:#o}")
+
+            if not (previous_socket_stat.st_uid == (daemon_uid := os.geteuid())):
+                raise DeliveryUnavailable(f"{socket_path=}: {previous_socket_stat.st_uid=} ≠ {daemon_uid=}")
+
+            previous_socket_permissions = stat.S_IMODE(previous_socket_stat.st_mode)
+
+            if not (previous_socket_permissions == socket_mode):
+                raise DeliveryUnavailable(f"{socket_path=}: {previous_socket_permissions=:#o} ≠ {socket_mode=:#o}")
+
+            if shared and (previous_socket_stat.st_gid != socket_group_id):
+                raise DeliveryUnavailable(f"{socket_path=}: {previous_socket_stat.st_gid=} ≠ {socket_group_id=}")
 
             socket_path.unlink()
 
@@ -104,29 +129,31 @@ def _socket_grant(socket_path, socket_group_id):
 
         # Grant group connect access at birth; credentials and database stay private.
         # silent-defaults: allow-contract -- Birth umask enforces the selected private or shared-group socket posture.
-        previous = os.umask(0o117 if shared else 0o177)
+        previous_umask = os.umask(0o117 if shared else 0o177)
 
         try:
             listener.bind(str(socket_path))
         finally:
-            os.umask(previous)
+            os.umask(previous_umask)
 
-        identity = socket_path.lstat()
+        owned_socket_stat = socket_path.lstat()
+        owned_socket_identity = (owned_socket_stat.st_dev, owned_socket_stat.st_ino)
 
         listener.listen(MAX_CONNECTIONS)
         listener.setblocking(False)
         yield listener
-        current = socket_path.lstat()
+        current_socket_stat = socket_path.lstat()
+        current_socket_identity = (current_socket_stat.st_dev, current_socket_stat.st_ino)
 
-        if (current.st_dev, current.st_ino) != (identity.st_dev, identity.st_ino):
-            raise DeliveryUnavailable("Delivery IPC changed while owned; its replacement was left untouched.")
+        if current_socket_identity != owned_socket_identity:
+            raise DeliveryUnavailable(f"{socket_path=}: {current_socket_identity=} ≠ {owned_socket_identity=}; replacement left untouched")
 
         socket_path.unlink()
     finally:
         if listener is not None:
             listener.close()
 
-        os.close(descriptor)
+        os.close(socket_lock_fd)
 
 
 class DeliveryInbox:
@@ -217,15 +244,17 @@ class DeliveryInbox:
                 elif isinstance(event, h11.Request):
                     ipc_request = event
                 elif isinstance(event, h11.Data):
-                    if (len(body) + len(event.data)) > self.max_request_bytes:
-                        raise DeliveryRequestRejected("Delivery request exceeds the supported body limit.")
+                    request_body_size_bytes = len(body) + len(event.data)
+
+                    if request_body_size_bytes > self.max_request_bytes:
+                        raise DeliveryRequestRejected(f"{request_body_size_bytes=} should be at most {self.max_request_bytes=}")
 
                     body.extend(event.data)
                 elif isinstance(event, h11.EndOfMessage):
                     return (ipc_request, bytes(body))
                 # repo-check: retain-type-guard -- This protocol event means the peer closed before completing its request
                 elif isinstance(event, h11.ConnectionClosed):
-                    raise ConnectionError("Delivery client disconnected before its complete request.")
+                    raise ConnectionError(f"{type(event)=} arrived before request completion; {len(body)=}")
 
     def _headers(self, ipc_request, endpoint):
         identity_headers = {}
@@ -233,15 +262,23 @@ class DeliveryInbox:
         for (header_name, header_value) in ipc_request.headers:
             if header_name in (b"nmr-api-origin", b"nmr-provider-ref", b"nmr-job-ref"):
                 if header_name in identity_headers:
-                    raise DeliveryRequestRejected("Delivery identity headers must not repeat.")
+                    raise DeliveryRequestRejected(f"{header_name=} should appear only once")
 
                 try:
                     identity_headers[header_name] = header_value.decode("ascii")
-                except UnicodeDecodeError:
-                    raise DeliveryRequestRejected("Delivery identity headers must use ASCII text.") from None
+                except UnicodeDecodeError as cause:
+                    raise DeliveryRequestRejected(f"{header_name=} should contain ASCII text") from cause
 
-        if (identity_headers.get(b"nmr-api-origin"), identity_headers.get(b"nmr-provider-ref")) != (endpoint.api_origin, endpoint.provider_ref):
-            raise DeliveryRequestRejected("This socket is bound to another API/provider; correct the deployment grant.")
+        claimed_api_origin = identity_headers.get(b"nmr-api-origin")
+        claimed_provider_ref = identity_headers.get(b"nmr-provider-ref")
+        expected_api_origin = endpoint.api_origin
+        expected_provider_ref = endpoint.provider_ref
+
+        if not (claimed_api_origin == expected_api_origin):
+            raise DeliveryRequestRejected(f"{_IPC_EVIDENCE.repr(claimed_api_origin)=} ≠ {expected_api_origin=}")
+
+        if not (claimed_provider_ref == expected_provider_ref):
+            raise DeliveryRequestRejected(f"{_IPC_EVIDENCE.repr(claimed_provider_ref)=} ≠ {expected_provider_ref=}")
 
         return identity_headers
 
@@ -249,22 +286,22 @@ class DeliveryInbox:
         identity_headers = self._headers(ipc_request, endpoint)
 
         try:
-            parts = ipc_request.target.decode("ascii").split("/")
-        except UnicodeDecodeError:
-            raise DeliveryRequestRejected("Delivery operation must use an ASCII route.") from None
+            route_segments = ipc_request.target.decode("ascii").split("/")
+        except UnicodeDecodeError as cause:
+            raise DeliveryRequestRejected(f"Cannot decode {len(ipc_request.target)=} as ASCII") from cause
 
-        if (ipc_request.method == b"POST") and (len(parts) == 4) and (parts[1] == "submit"):
+        if (ipc_request.method == b"POST") and (len(route_segments) == 4) and (route_segments[1] == "submit"):
             try:
                 delivery_outcome = DeliveryOutcome(
                     endpoint.api_origin,
                     endpoint.provider_ref,
                     identity_headers.get(b"nmr-job-ref"),
-                    parts[3],
-                    TerminalOperation(parts[2]),
+                    route_segments[3],
+                    TerminalOperation(route_segments[2]),
                     body,
                 )
-            except (TypeError, ValueError):
-                raise DeliveryRequestRejected("Delivery refused an invalid terminal operation, identity or request body; correct the producer request.") from None
+            except (TypeError, ValueError) as cause:
+                raise DeliveryRequestRejected("Cannot admit the delivery outcome") from cause
 
             accepted = await self.storage(self.queue.enqueue, delivery_outcome)
 
@@ -273,9 +310,9 @@ class DeliveryInbox:
             return accepted
 
         if (ipc_request.method != b"GET") or body:
-            raise DeliveryRequestRejected("Delivery supports only outcome submission and read-only status.")
+            raise DeliveryRequestRejected(f"{_IPC_EVIDENCE.repr(ipc_request.method)=} and {len(body)=} should describe a bodyless GET")
 
-        if parts == ["", "pending"]:
+        if route_segments == ["", "pending"]:
             rows = await self.storage(self.queue.ipc_inventory, endpoint.api_origin, endpoint.provider_ref)
 
             return {
@@ -286,15 +323,15 @@ class DeliveryInbox:
                 "publisher": self.binding_status(endpoint),
             }
 
-        if (len(parts) == 3) and (parts[1] == "status"):
+        if (len(route_segments) == 3) and (route_segments[1] == "status"):
             try:
-                require_attempt_ref(parts[2])
-            except ValueError:
-                raise DeliveryRequestRejected("Delivery status requires a valid Attempt reference.") from None
+                require_attempt_ref(route_segments[2])
+            except ValueError as cause:
+                raise DeliveryRequestRejected("Cannot read delivery status") from cause
 
-            return await self.storage(self.queue.status, endpoint.api_origin, endpoint.provider_ref, parts[2])
+            return await self.storage(self.queue.status, endpoint.api_origin, endpoint.provider_ref, route_segments[2])
 
-        raise DeliveryRequestRejected("Unsupported delivery operation.")
+        raise DeliveryRequestRejected(f"{_IPC_EVIDENCE.repr(ipc_request.target)=} should select submission, pending inventory, or status")
 
     async def _respond(self, connection, writer, status, response_payload):
         content = json.dumps(response_payload, allow_nan=False, separators=(",", ":")).encode("utf-8")
@@ -400,5 +437,6 @@ class DeliveryInbox:
 
         self._grants.close()
 
+        # repo-check: allow-literal-guard-error -- Each child retains its original failure evidence; the label names their shared retirement boundary
         if failures:
             raise BaseExceptionGroup("Delivery IPC retirement failed after all original operations settled.", failures)

@@ -227,17 +227,12 @@ class DeliveryIPCTests(unittest.IsolatedAsyncioTestCase):
         (cause, facts) = await self._wrong_binding_refusal()
 
         self.assertIs(type(cause), DeliveryRequestRejected)
-        self.assertIn("another API/provider", str(cause))
+        self.assertIn("https://private-canary.example", str(cause))
+        self.assertIn(self.endpoint.api_origin, str(cause))
         self.assertEqual(owned_details(cause)["message"], str(cause))
         self.assertEqual(facts["provider_ref"], self.endpoint.provider_ref)
         self.assertEqual(facts["event"], "delivery_request_rejected")
         self.assertEqual(self.queue.inventory(self.endpoint.api_origin, self.endpoint.provider_ref), [])
-
-    @unittest.skipIf(os.environ.get("PRIVACY_TESTS", "1") == "0", "Privacy tests disabled")
-    async def test_wrong_binding_refusal_omits_request(self):
-        (cause, _facts) = await self._wrong_binding_refusal()
-
-        self.assertNotIn("private-canary", str(cause))
 
     async def test_lost_status_response_does_not_claim_durable_enqueue(self):
         delivery_outcome = outcome()
