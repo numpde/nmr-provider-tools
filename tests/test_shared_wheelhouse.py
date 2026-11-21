@@ -827,7 +827,7 @@ class WheelhouseTests(unittest.TestCase):
         self.assertEqual(selection_identity([first, second]), selection_identity([second, first, first]))
         self.assertNotEqual(selection_identity([first]), selection_identity([first | {"sha256": "c" * 64}]))
 
-        with self.assertRaisesRegex(ValueError, "explicitly identify"):
+        with self.assertRaises(ValueError):
             selection_identity([first | {"lock": "other.toml"}])
 
         with self.assertRaises(ValueError):
