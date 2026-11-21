@@ -913,7 +913,7 @@ class AttemptExecutor:
 
         if not self._task.done():
             raise _SettlementPending(
-                "Analysis task has not stopped; retain ownership and settle the original task",
+                f"{self._task.done()=} should be True after {self._task_settle_seconds=}",
                 executor=self,
                 task=self._task,
             )
@@ -1240,7 +1240,7 @@ class AttemptExecutor:
         await asyncio.wait({self._observation_wait}, timeout=self._task_settle_seconds)
 
         if not self._observation_wait.done():
-            raise TimeoutError("Original observation has not stopped; retain its waiter and API owner before recovery")
+            raise TimeoutError(f"{self._observation_wait.done()=} should be True after {self._task_settle_seconds=}")
 
         task = self._observation_wait
         self._observation_wait = None
@@ -1300,7 +1300,7 @@ class AttemptExecutor:
             body = fail_body(reference, self._outcome.code, self._outcome.message)
             operation = TerminalOperation.FAIL
         else:
-            raise TypeError("Analysis session returned an unsupported outcome; preserve it for binding diagnosis")
+            require_type(self._outcome, (AnalysisSuccess, AnalysisFailure))
 
         return DeliveryOutcome(
             self.scope.api_origin,
@@ -1315,8 +1315,10 @@ class AttemptExecutor:
         self._require_live_permission()
         outcome = self._terminal()
 
-        if len(outcome.body) > self.claim.maximum_terminal_bytes:
-            raise ExecutionRefused("Cannot hand off this outcome: its encoded request exceeds the reserved report allowance; retain the outcome and cleanup owner")
+        terminal_byte_count = len(outcome.body)
+
+        if not (terminal_byte_count <= self.claim.maximum_terminal_bytes):
+            raise ExecutionRefused(f"{terminal_byte_count=} should not exceed {self.claim.maximum_terminal_bytes=}")
 
         self._delivery_outcome = outcome
 
@@ -1324,14 +1326,14 @@ class AttemptExecutor:
             self._checkpoint,
             self._delivery_outcome.operation,
             self._delivery_outcome.body_sha256,
-            len(self._delivery_outcome.body),
+            terminal_byte_count,
         )
 
         delay = self._delivery_retry_initial
 
         while True:
             if self._handoff_stopping.is_set():
-                raise ExecutionRefused("Delivery handoff stopped before a new submission; retain the selected outcome for reconciliation.")
+                raise ExecutionRefused(f"{self._handoff_stopping.is_set()=} should be False before submission")
 
             try:
                 self._delivery_acceptance = await self.delivery.submit(self._delivery_outcome)
@@ -1398,7 +1400,7 @@ class AttemptExecutor:
         await asyncio.wait({self._handoff_wait}, timeout=self._task_settle_seconds)
 
         if not self._handoff_wait.done():
-            raise TimeoutError("Original delivery handoff has not settled; retain its bytes and owner without another submission.")
+            raise TimeoutError(f"{self._handoff_wait.done()=} should be True after {self._task_settle_seconds=}")
 
         task = self._handoff_wait
         self._handoff_wait = None
@@ -1415,7 +1417,7 @@ class AttemptExecutor:
 
     async def _retire_delivery(self):
         if not (self._handoff_wait is None):
-            raise ExecutionRefused("Settle the original handoff task before retiring its delivery transport.")
+            raise ExecutionRefused(f"{self._handoff_wait is None=} should be True before delivery retirement")
 
         await self.delivery.retire()
 
@@ -1437,7 +1439,7 @@ class AttemptExecutor:
 
                 if not self._retirement_task.done():
                     raise _SettlementPending(
-                        "Original session retirement has not finished; retain it before worker reuse.",
+                        f"{self._retirement_task.done()=} should be True after {self._task_settle_seconds=}",
                         executor=self,
                         task=self._retirement_task,
                     )
@@ -1493,7 +1495,7 @@ class AttemptExecutor:
 
     async def _retire_api(self):
         if not (self._observation_wait is None):
-            raise ExecutionRefused("Cannot retire API while its original observation waiter is unresolved; settle that waiter first")
+            raise ExecutionRefused(f"{self._observation_wait is None=} should be True before API retirement")
 
         if self.api.pending_owner is self:
             await self.api.retire(owner=self)
@@ -1502,8 +1504,11 @@ class AttemptExecutor:
     async def settle(self):
         """Retire work and observe original I/O; never invoke a prepared handle."""
 
-        if (not self._active) or (self._observing):
-            raise ExecutionRefused("No unobserved execution lifecycle is available to settle")
+        if not self._active:
+            raise ExecutionRefused(f"{self._active=} should be True before settlement")
+
+        if self._observing:
+            raise ExecutionRefused(f"{self._observing=} should be False before settlement")
 
         self._observing = True
 
@@ -1545,18 +1550,19 @@ class AttemptExecutor:
                 self._link_interruption(cancellation)
                 raise cancellation
 
+            # repo-check: allow-literal-guard-error -- The original process-control and retained lifecycle failures provide the group's evidence
             if not (fatal is None):
                 raise BaseExceptionGroup("Analysis settlement raised a process-control exception", (fatal, self.last_failure)) from None
 
             if self._outcome_unretained():
                 failed = True
-                message = "Observed outcome requires explicit disposition; the claim remains held"
+                message = f"{type(self._outcome)=} has no confirmed disposition; {type(self._checkpoint)=}"
 
                 if (
                     (type(self._outcome) in (AnalysisSuccess, AnalysisFailure)) and
                     (_suppression_reason(self.last_failure.cause) is not None)
                 ):
-                    message = "Returned analysis was not selected for delivery; settle original work before recording its suppression disposition; scientific bytes will not survive restart"
+                    message = f"Call retain_suppressed_disposition() for {type(self._outcome)=}; {type(self.last_failure.cause)=}"
 
                 self._remember(
                     ExecutionRefused(message),
@@ -1582,13 +1588,13 @@ class AttemptExecutor:
         """
 
         if not (self._active):
-            raise ExecutionRefused("Cannot record suppression: this interrupted executor has no unselected returned analysis")
+            raise ExecutionRefused(f"{self._active=} should be True before suppression")
 
         if self._observing:
-            raise ExecutionRefused("Cannot record suppression: this interrupted executor has no unselected returned analysis")
+            raise ExecutionRefused(f"{self._observing=} should be False before suppression")
 
         if self.last_failure is None:
-            raise ExecutionRefused("Cannot record suppression: this interrupted executor has no unselected returned analysis")
+            raise ExecutionRefused(f"{self.last_failure is not None=} should be True before suppression")
 
         require_type(
             (actual_outcome := self._outcome),
@@ -1602,18 +1608,22 @@ class AttemptExecutor:
             error_factory=lambda diagnostic: ExecutionRefused("Cannot record suppression: " + diagnostic),
         )
 
-        if (
-            (self._task is not None) or
-            (self._observation_wait is not None) or
-            (self._handoff_wait is not None) or
-            (self.api.pending_owner is self)
-        ):
-            raise ExecutionRefused("Cannot record suppression while original work or I/O is unresolved; settle it first")
+        if not (self._task is None):
+            raise ExecutionRefused(f"{self._task is None=} should be True before suppression")
+
+        if not (self._observation_wait is None):
+            raise ExecutionRefused(f"{self._observation_wait is None=} should be True before suppression")
+
+        if not (self._handoff_wait is None):
+            raise ExecutionRefused(f"{self._handoff_wait is None=} should be True before suppression")
+
+        if self.api.pending_owner is self:
+            raise ExecutionRefused(f"{self.api.pending_owner is self=} should be False before suppression")
 
         reason = _suppression_reason(self.last_failure.cause)
 
         if reason is None:
-            raise ExecutionRefused("Cannot suppress this outcome: its failure was not a server stop, failed observation or caller cancellation")
+            raise ExecutionRefused(f"{type(self.last_failure.cause)=} does not permit outcome suppression")
 
         self._observing = True
 

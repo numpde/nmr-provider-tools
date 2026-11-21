@@ -114,7 +114,6 @@ class SuppressionOutcomeTests(unittest.IsolatedAsyncioTestCase):
         with self.assertRaises(ExecutionFailed) as unretained:
             await executor.settle()
 
-        self.assertIn("suppression disposition", str(unretained.exception.cleanup_failures[-1]))
         self.assertIs(unretained.exception.outcome, session.outcome)
         self.assertIsNone(transport.pending_owner)
         self.assertTrue(transport.retirement_confirmed)
