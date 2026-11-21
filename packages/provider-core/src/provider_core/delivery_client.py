@@ -8,6 +8,7 @@ import asyncio
 import errno
 import hashlib
 import re
+import reprlib
 import pathlib
 from dataclasses import dataclass
 
@@ -29,12 +30,21 @@ from provider_core.type_requirements import require_type
 MAX_IPC_RESPONSE_BYTES = 2097152
 
 
+# Keep complete ordinary references and hashes while bounding malformed replies
+# repo-check: allow-module-constant
+_DELIVERY_EVIDENCE = reprlib.Repr()
+_DELIVERY_EVIDENCE.maxstring = 256
+_DELIVERY_EVIDENCE.maxdict = 8
+
+
 # silent-defaults: allow-contract -- Production retains its existing shared volume names; a contained recipe may supply its admitted private project.
 def delivery_volume_name(api_origin, provider_ref, *, namespace="nmr-api-delivery"):
     """Name the shared socket grant for this exact authenticated binding."""
 
-    if https_origin(api_origin)[0] != api_origin:
-        raise ValueError("Delivery requires the configured canonical API origin.")
+    canonical_api_origin = https_origin(api_origin)[0]
+
+    if canonical_api_origin != api_origin:
+        raise ValueError(f"{api_origin=} should match {canonical_api_origin=}")
 
     require_provider_ref(provider_ref)
 
@@ -64,8 +74,10 @@ class DeliveryEndpoint:
     socket_group_id: int | None = None
 
     def __post_init__(self):
-        if https_origin(self.api_origin)[0] != self.api_origin:
-            raise ValueError("Delivery requires the configured canonical API origin.")
+        canonical_api_origin = https_origin(self.api_origin)[0]
+
+        if canonical_api_origin != self.api_origin:
+            raise ValueError(f"{self.api_origin=} should match {canonical_api_origin=}")
 
         require_provider_ref(self.provider_ref)
         require_unix_socket_path(str(self.socket_path))
@@ -73,8 +85,10 @@ class DeliveryEndpoint:
         if self.socket_group_id is not None:
             require_type(self.socket_group_id, int)
 
-            if not (1 <= self.socket_group_id <= 4294967294):
-                raise ValueError("Delivery socket group must be an explicit nonzero GID.")
+            min_socket_group_id, max_socket_group_id = 1, 4294967294
+
+            if not (min_socket_group_id <= self.socket_group_id <= max_socket_group_id):
+                raise ValueError(f"{self.socket_group_id=} should be between {min_socket_group_id=} and {max_socket_group_id=}")
 
 
 class DeliveryClient:
@@ -139,10 +153,10 @@ class DeliveryClient:
             raise self.last_failure from None
 
         if submitting and (response.status == 429):
-            raise DeliveryFull("Delivery capacity is full. Retain this outcome, wait for space and stop admitting computation.")
+            raise DeliveryFull(f"{response.status=} for {request_path=}; retain the outcome and wait for capacity before admitting computation")
 
         if submitting and (response.status == 409):
-            raise DeliveryConflict("The relay retains a different terminal request for this Attempt; reconcile it without replacing either choice.")
+            raise DeliveryConflict(f"{response.status=} for {request_path=}: reconcile the retained terminal request without replacing either choice")
 
         if response.status == 503:
             # silent-defaults: allow-contract -- A refused POST cannot confirm acceptance; a refused read reports unavailable metadata.
@@ -155,7 +169,7 @@ class DeliveryClient:
             raise self.last_failure
 
         if response.status != 200:
-            raise DeliveryRejected(f"The local delivery service refused this request (HTTP {response.status=}); inspect its operator diagnostics.")
+            raise DeliveryRejected(f"{response.status=} for {request_path=}; inspect the delivery service's operator diagnostics")
 
         try:
             return read_document(response.body, MAX_IPC_RESPONSE_BYTES)
@@ -169,8 +183,10 @@ class DeliveryClient:
             raise DeliveryRejected(message) from cause
 
     async def submit(self, item):
-        if item.key[:2] != (self.endpoint.api_origin, self.endpoint.provider_ref):
-            raise ValueError("The accepted outcome belongs to another configured delivery binding.")
+        expected_binding = (self.endpoint.api_origin, self.endpoint.provider_ref)
+
+        if item.key[:2] != expected_binding:
+            raise ValueError(f"{item.key[:2]=} should match {expected_binding=}")
 
         acceptance_receipt = await self._exchange_ipc_request(
             "POST",
@@ -179,40 +195,50 @@ class DeliveryClient:
             job_ref=item.job_ref
         )
 
-        if acceptance_receipt != item.acceptance():
-            raise DeliveryRejected("The durable acknowledgement does not match this exact provider, Attempt, operation and body digest.")
+        expected_acceptance = item.acceptance()
+
+        if acceptance_receipt != expected_acceptance:
+            raise DeliveryRejected(f"{_DELIVERY_EVIDENCE.repr(acceptance_receipt)=} should match {expected_acceptance=}")
 
         return acceptance_receipt
 
     def _metadata(self, delivery_metadata):
-        fields = {"job_ref", "execution_attempt_ref", "operation", "body_sha256", "body_bytes", "state"}
+        required_metadata_fields = {"job_ref", "execution_attempt_ref", "operation", "body_sha256", "body_bytes", "state"}
 
         require_type(delivery_metadata, dict, error_factory=DeliveryRejected)
 
-        if not (fields <= delivery_metadata.keys()):
-            raise DeliveryRejected("Delivery metadata is missing its Job, Attempt or retained-body identity.")
+        if not (required_metadata_fields <= delivery_metadata.keys()):
+            missing_metadata_fields = required_metadata_fields - delivery_metadata.keys()
+
+            raise DeliveryRejected(f"{missing_metadata_fields=} should be empty")
 
         try:
             require_attempt_ref(delivery_metadata["execution_attempt_ref"])
             require_job_ref(delivery_metadata["job_ref"])
         except (TypeError, ValueError) as cause:
-            raise DeliveryRejected("Delivery metadata has an invalid Job or Attempt identity.") from cause
+            raise DeliveryRejected("Cannot admit the delivery record's identity") from cause
 
-        if not (delivery_metadata["operation"] in ("complete", "fail")):
-            raise DeliveryRejected("Delivery metadata has an unsupported operation, state or body identity.")
+        expected_operations = ["complete", "fail"]
 
-        if not (delivery_metadata["state"] in ("pending", "held")):
-            raise DeliveryRejected("Delivery metadata has an unsupported operation, state or body identity.")
+        if not (delivery_metadata["operation"] in expected_operations):
+            raise DeliveryRejected(f"{_DELIVERY_EVIDENCE.repr(delivery_metadata['operation'])=} should be one of {expected_operations=}")
+
+        expected_states = ["pending", "held"]
+
+        if not (delivery_metadata["state"] in expected_states):
+            raise DeliveryRejected(f"{_DELIVERY_EVIDENCE.repr(delivery_metadata['state'])=} should be one of {expected_states=}")
 
         require_type((metadata_body_sha256 := delivery_metadata["body_sha256"]), str, error_factory=DeliveryRejected)
 
-        if re.fullmatch(r"sha256:[0-9a-f]{64}", delivery_metadata["body_sha256"]) is None:
-            raise DeliveryRejected("Delivery metadata has an unsupported operation, state or body identity.")
+        expected_sha256_pattern = r"sha256:[0-9a-f]{64}"
+
+        if re.fullmatch(expected_sha256_pattern, delivery_metadata["body_sha256"]) is None:
+            raise DeliveryRejected(f"{_DELIVERY_EVIDENCE.repr(metadata_body_sha256)=} should match {expected_sha256_pattern=}")
 
         require_type((metadata_body_bytes := delivery_metadata["body_bytes"]), int, error_factory=DeliveryRejected)
 
         if delivery_metadata["body_bytes"] <= 0:
-            raise DeliveryRejected("Delivery metadata has an unsupported operation, state or body identity.")
+            raise DeliveryRejected(f"{metadata_body_bytes=} should be positive")
 
         return delivery_metadata
 
@@ -221,11 +247,21 @@ class DeliveryClient:
 
         require_type(pending_inventory, dict, error_factory=DeliveryRejected)
 
-        if not ({"api_origin", "provider_ref", "items", "capacity", "publisher"} <= pending_inventory.keys()):
-            raise DeliveryRejected("The pending inventory does not belong to the configured delivery binding.")
+        required_inventory_fields = {"api_origin", "provider_ref", "items", "capacity", "publisher"}
 
-        if (pending_inventory["api_origin"], pending_inventory["provider_ref"]) != (self.endpoint.api_origin, self.endpoint.provider_ref):
-            raise DeliveryRejected("The pending inventory does not belong to the configured delivery binding.")
+        if not (required_inventory_fields <= pending_inventory.keys()):
+            missing_inventory_fields = required_inventory_fields - pending_inventory.keys()
+
+            raise DeliveryRejected(f"{missing_inventory_fields=} should be empty")
+
+        inventory_api_origin, inventory_provider_ref = pending_inventory["api_origin"], pending_inventory["provider_ref"]
+        expected_api_origin, expected_provider_ref = self.endpoint.api_origin, self.endpoint.provider_ref
+
+        if not (inventory_api_origin == expected_api_origin):
+            raise DeliveryRejected(f"{_DELIVERY_EVIDENCE.repr(inventory_api_origin)=} should match {expected_api_origin=}")
+
+        if not (inventory_provider_ref == expected_provider_ref):
+            raise DeliveryRejected(f"{_DELIVERY_EVIDENCE.repr(inventory_provider_ref)=} should match {expected_provider_ref=}")
 
         require_type((pending_delivery_records := pending_inventory["items"]), list, error_factory=DeliveryRejected)
 
@@ -233,8 +269,10 @@ class DeliveryClient:
 
         require_type(publisher, dict, error_factory=DeliveryRejected)
 
-        if not (publisher.get("state") in ("inbox_only", "starting", "running", "paused", "stopping", "stopped")):
-            raise DeliveryRejected("Delivery inventory has an unsupported publisher state.")
+        expected_publisher_states = ["inbox_only", "starting", "running", "paused", "stopping", "stopped"]
+
+        if not (publisher.get("state") in expected_publisher_states):
+            raise DeliveryRejected(f"{_DELIVERY_EVIDENCE.repr(publisher.get('state'))=} should be one of {expected_publisher_states=}")
 
         # Diagnostic text/counters are display facts. Their shape must not
         # prevent ownership or capacity observation; they grant no admission.
@@ -242,18 +280,22 @@ class DeliveryClient:
 
         require_type(capacity, dict, error_factory=DeliveryRejected)
 
-        if not ({"provider_items", "provider_bytes"} <= capacity.keys()):
-            raise DeliveryRejected("Delivery inventory requires positive item and byte allowances.")
+        required_capacity_fields = {"provider_items", "provider_bytes"}
+
+        if not (required_capacity_fields <= capacity.keys()):
+            missing_capacity_fields = required_capacity_fields - capacity.keys()
+
+            raise DeliveryRejected(f"{missing_capacity_fields=} should be empty")
 
         require_type((capacity_provider_items := capacity['provider_items']), int, error_factory=DeliveryRejected)
 
         if capacity['provider_items'] <= 0:
-            raise DeliveryRejected("Delivery inventory requires positive item and byte allowances.")
+            raise DeliveryRejected(f"{capacity_provider_items=} should be positive")
 
         require_type((capacity_provider_bytes := capacity['provider_bytes']), int, error_factory=DeliveryRejected)
 
         if capacity['provider_bytes'] <= 0:
-            raise DeliveryRejected("Delivery inventory requires positive item and byte allowances.")
+            raise DeliveryRejected(f"{capacity_provider_bytes=} should be positive")
 
         for delivery_metadata in pending_inventory["items"]:
             self._metadata(delivery_metadata)
@@ -274,7 +316,7 @@ class DeliveryClient:
         delivery_metadata = self._metadata(status_metadata)
 
         if delivery_metadata["execution_attempt_ref"] != execution_attempt_ref:
-            raise DeliveryRejected("The delivery status names another Attempt.")
+            raise DeliveryRejected(f"{delivery_metadata['execution_attempt_ref']=} should match {execution_attempt_ref=}")
 
         return delivery_metadata
 

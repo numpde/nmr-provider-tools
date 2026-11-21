@@ -212,6 +212,24 @@ class DeliveryIPCTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(self.queue.next_pending(delivery_outcome.api_origin, delivery_outcome.provider_ref), delivery_outcome)
         self.assertEqual(len(self.queue.inventory(delivery_outcome.api_origin, delivery_outcome.provider_ref)), 1)
 
+    async def test_mismatched_acknowledgement_shows_both_digests_and_retains_the_committed_body(self):
+        delivery_outcome = outcome()
+        respond = self.inbox._respond
+        wrong_body_sha256 = "sha256:" + "0" * 64
+
+        async def change_digest(connection, writer, status, response_fields):
+            await respond(connection, writer, status, response_fields | {"body_sha256": wrong_body_sha256})
+
+        self.inbox._respond = change_digest
+
+        with self.assertRaises(DeliveryRejected) as rejected:
+            await self.client.submit(delivery_outcome)
+
+        self.assertIn(wrong_body_sha256, str(rejected.exception))
+        self.assertIn(delivery_outcome.body_sha256, str(rejected.exception))
+        self.assertEqual(self.queue.next_pending(delivery_outcome.api_origin, delivery_outcome.provider_ref), delivery_outcome)
+        self.assertEqual(len(self.queue.inventory(delivery_outcome.api_origin, delivery_outcome.provider_ref)), 1)
+
     async def _wrong_binding_refusal(self):
         endpoint = DeliveryEndpoint("https://private-canary.example", "provider:private-canary", self.endpoint.socket_path)
         client = DeliveryClient(endpoint, exchange_seconds=1, retirement_seconds=0.2)
