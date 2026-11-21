@@ -21,8 +21,9 @@ def require_download_capability(capability: str) -> None:
     """Admit the capability's HTTP header representation immediately before use."""
 
     # Keep the bearer value in one visible-ASCII header token (33–126)
+    # repo-check: allow-literal-guard-error -- The bearer is a live download credential; report its header constraint without rendering it
     if (not capability) or not all((32 < ord(character) < 127) for character in capability):
-        raise ResponseRejected("download bearer cannot be represented as a single HTTP authorization value")
+        raise ResponseRejected("Download bearer should be nonempty visible ASCII")
 
 
 def require_store_headers(response: HttpResponse | HttpResponseHead, grant: ReadGrant) -> None:
