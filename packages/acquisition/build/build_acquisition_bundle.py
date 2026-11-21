@@ -128,13 +128,17 @@ def dependency_files(pool, pin):
 
 
 def contents(pool, source, core_wheel, pin, *, revision, wheelhouse_bundle):
-    if re.fullmatch(r"[0-9a-f]{40}", revision) is None:
-        raise ValueError("Cannot build acquisition manifest: require the captured Git source revision.")
+    expected_revision_pattern = r"[0-9a-f]{40}"
+
+    if not re.fullmatch(expected_revision_pattern, revision):
+        raise ValueError(f"{reprlib.repr(revision)=} should match {expected_revision_pattern=}")
 
     version = core_wheel.name.removeprefix("provider_core-").removesuffix("-py3-none-any.whl")
 
-    if re.fullmatch(r"(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)", version) is None:
-        raise ValueError("Cannot build acquisition manifest: the SDK wheel must identify an exact release version.")
+    expected_version_pattern = r"(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)"
+
+    if not re.fullmatch(expected_version_pattern, version):
+        raise ValueError(f"{reprlib.repr(version)=} should match {expected_version_pattern=} for {reprlib.repr(core_wheel.name)=}")
 
     (files, dependencies) = dependency_files(pool, pin)
 
@@ -167,8 +171,10 @@ def contents(pool, source, core_wheel, pin, *, revision, wheelhouse_bundle):
 
     # Select the same built tool artifact that the SDK issuer records.
     # Its version is not inferred from the owner version or an older consumer pin.
-    if re.fullmatch(r"wheelhouse-tool-[0-9]+\.[0-9]+\.[0-9]+\.pyz", wheelhouse_bundle.name) is None:
-        raise ValueError("Cannot build acquisition manifest: require one built wheelhouse tool artifact.")
+    expected_bundle_pattern = r"wheelhouse-tool-[0-9]+\.[0-9]+\.[0-9]+\.pyz"
+
+    if not re.fullmatch(expected_bundle_pattern, wheelhouse_bundle.name):
+        raise ValueError(f"{reprlib.repr(wheelhouse_bundle.name)=} should match {expected_bundle_pattern=}")
 
     with regular_file(wheelhouse_bundle) as stream:
         dependencies[wheelhouse_bundle.name] = hashlib.file_digest(stream, "sha256").hexdigest()
@@ -198,11 +204,10 @@ def contents(pool, source, core_wheel, pin, *, revision, wheelhouse_bundle):
         for leaf in proxy_files:
             member_name = "provider_core/" + leaf
 
-            if member_names.count(member_name) != 1:
-                raise ValueError(
-                    "Cannot build acquisition source bundle: SDK proxy member "
-                    "is missing or duplicated."
-                )
+            member_count = member_names.count(member_name)
+
+            if not (member_count == 1):
+                raise ValueError(f"{member_count=} should be one for {member_name=} in {reprlib.repr(core_wheel)=}")
 
             _add(files, member_name, archive.read(member_name))
 
