@@ -10,7 +10,7 @@ import unittest
 from dataclasses import replace
 from unittest.mock import patch
 
-from provider_core.execution import ExecutionFailed, ExecutionStopped
+from provider_core.execution import ExecutionFailed, ExecutionRefused, ExecutionStopped
 from provider_core.ownership import AttemptClaims, OwnershipRefused
 from provider_core.transport import ExchangeFailed
 from tests.fakes.api import Transport, reply
@@ -34,6 +34,38 @@ def normal_transport(*, last_observation=None):
 
 
 class ExecutionFailureTests(unittest.IsolatedAsyncioTestCase):
+    async def test_foreign_generation_explains_refusal_before_accepting_the_session(self):
+        (store, acknowledged, claim) = await live_attempt()
+        session = Session(store)
+        transport = Transport()
+        foreign_scope = replace(store.scope, generation_id="unrelated-generation")
+        foreign_start = replace(acknowledged.start, scope=foreign_scope)
+        foreign_acknowledgement = replace(acknowledged, start=foreign_start)
+        executor = live_executor(
+            api(transport, store.scope.api_origin),
+            store,
+            claim,
+            session,
+            delivery=RecordingDelivery(),
+            on_delivery_retry=Mock(),
+            delivery_retry_initial_seconds=0.01,
+            delivery_retry_max_seconds=0.04,
+            allowed_job_states=frozenset({"open"}),
+            poll_seconds=1,
+            task_settle_seconds=0.1,
+        )
+
+        with self.assertRaises(ExecutionRefused) as rejected:
+            await executor.run(foreign_acknowledgement)
+
+        self.assertIn("generation_id", str(rejected.exception))
+        self.assertIn(foreign_scope.generation_id, str(rejected.exception))
+        self.assertIn(store.scope.generation_id, str(rejected.exception))
+        self.assertEqual(transport.calls, [])
+        self.assertEqual(session.events, [])
+        self.assertIsNone(claim.operation_owner)
+        claim.release(owner=claim.lifecycle_owner)
+
     async def test_controller_settlement_preserves_the_same_cleanup_interruption_context(self):
         store = LiveAttemptProbe()
         session = Session(store)

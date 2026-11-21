@@ -23,7 +23,7 @@ import reprlib
 import time
 from builtins import BaseExceptionGroup
 from collections.abc import Callable
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, fields
 from enum import Enum
 
 from provider_core.task_boundary import contain_task_exit
@@ -45,7 +45,7 @@ from provider_core.conversation import independent_interruption_failure
 from provider_core.delivery_client import DeliveryUnavailable
 from provider_core.delivery_store import DeliveryFull, DeliveryOutcome
 from provider_core.delivery_worker import require_delivery_retry_settings
-from provider_core.validation.upstream.nmr.v1.job_input import VerifiedJobInput
+from provider_core.validation.upstream.nmr.v1.job_input import FeedInputFacts, VerifiedJobInput
 
 from provider_core.producer_checkpoint import (
     AcknowledgedCheckpoint,
@@ -335,6 +335,30 @@ def require_execution_settings(*, allowed_job_states, poll_seconds, task_settle_
         require_positive_number(seconds)
 
 
+def _admission_mismatch_message(
+    actual_record: RecoveryScope | FeedInputFacts,
+    expected_record: RecoveryScope | FeedInputFacts,
+) -> str:
+    """Describe unequal admitted records of the same immutable dataclass type."""
+
+    differing_field = next(
+        (
+            record_field
+            for record_field in fields(actual_record)
+            if record_field.compare
+            if not (getattr(actual_record, record_field.name) == getattr(expected_record, record_field.name))
+        ),
+    )
+
+    actual_field_value = getattr(actual_record, differing_field.name)
+    expected_field_value = getattr(expected_record, differing_field.name)
+
+    return (
+        f"{differing_field.name=}: {_EXECUTION_EVIDENCE.repr(actual_field_value)=} "
+        f"should match {_EXECUTION_EVIDENCE.repr(expected_field_value)=}"
+    )
+
+
 class AttemptExecutor:
     """Own one run; settlement never resumes preparation or scientific execution.
 
@@ -536,30 +560,33 @@ class AttemptExecutor:
         return None
 
     def require_terminal_release_ready(self, claim):
-        if (claim is not self.claim) or (not self.delivery_accepted):
-            raise ExecutionRefused("Cannot release report capacity before this executor receives its matching delivery acknowledgement")
+        if not (claim is self.claim):
+            raise ExecutionRefused(f"{id(claim)=} should match {id(self.claim)=}")
+
+        if not (self.delivery_accepted):
+            raise ExecutionRefused(f"{self.delivery_accepted=} should be True before releasing report capacity")
 
     async def run(self, acknowledged):
         if self._started:
-            raise ExecutionRefused("This executor already accepted a run; settlement cannot authorize another execution")
+            raise ExecutionRefused(f"{self._started=} should be False before accepting a run")
 
         require_type(acknowledged, AcknowledgedAttempt, error_factory=ExecutionRefused)
 
         if not (acknowledged.local_phase is LocalExecutionPhase.NOT_ENTERED):
-            raise ExecutionRefused("Execution requires a matching active acknowledgement that has never entered science")
+            raise ExecutionRefused(f"{acknowledged.local_phase=} should be {LocalExecutionPhase.NOT_ENTERED=}")
 
         if not attempt_is_in_progress(acknowledged.admission):
-            raise ExecutionRefused("Execution requires a matching active acknowledgement that has never entered science")
+            raise ExecutionRefused(f"{acknowledged.admission.state=} does not permit scientific execution")
 
         if acknowledged.start.scope != self.scope:
-            raise ExecutionRefused("Execution requires a matching active acknowledgement that has never entered science")
+            raise ExecutionRefused(_admission_mismatch_message(acknowledged.start.scope, self.scope))
 
         self.claim.require_start(acknowledged.start)
         self.claim.require(self.scope, acknowledged.admission.execution_attempt_ref)
         self.claim.lifecycle_owner.require_execution_ready(self.claim, self, acknowledged)
 
         if (self._preverified_input is not None) and (self._preverified_input.identity != acknowledged.start.input):
-            raise ExecutionRefused("Verified Job input differs from this Attempt's selected input; no science was started")
+            raise ExecutionRefused(_admission_mismatch_message(self._preverified_input.identity, acknowledged.start.input))
 
         self.claim.begin(self)
         self._started = self._active = self._observing = True
@@ -608,6 +635,7 @@ class AttemptExecutor:
             if not isinstance(cause, (expected_type := Exception)):
                 raise BaseExceptionGroup(f"{type(cause)=} ≠ {expected_type=}", (cause, self.last_failure)) from None
 
+            # repo-check: allow-literal-guard-error -- Both original process-control and retained lifecycle failures are the group's evidence
             if not (cleanup_fatal is None):
                 raise BaseExceptionGroup("Analysis cleanup raised a process-control exception", (cleanup_fatal, self.last_failure)) from None
 
@@ -747,25 +775,27 @@ class AttemptExecutor:
         native = crash.native_exit
 
         if not (crash.owner is self.session):
-            raise ExecutionRefused("Cannot report this crash: its original Attempt, active phase or native worker association does not match this owner")
+            raise ExecutionRefused(f"{id(crash.owner)=} should match {id(self.session)=}")
 
         if not (crash.acknowledged is self._acknowledged):
-            raise ExecutionRefused("Cannot report this crash: its original Attempt, active phase or native worker association does not match this owner")
+            raise ExecutionRefused(f"{id(crash.acknowledged)=} should match {id(self._acknowledged)=}")
 
         if crash.phase != reporter.phase:
-            raise ExecutionRefused("Cannot report this crash: its original Attempt, active phase or native worker association does not match this owner")
+            raise ExecutionRefused(f"{crash.phase=} should match {reporter.phase=}")
 
         if self._cancel_requested:
-            raise ExecutionRefused("Cannot report this crash: its original Attempt, active phase or native worker association does not match this owner")
+            raise ExecutionRefused(f"{self._cancel_requested=} should be False before reporting a worker crash")
 
-        if asyncio.current_task().cancelling():
-            raise ExecutionRefused("Cannot report this crash: its original Attempt, active phase or native worker association does not match this owner")
+        caller_cancellation_count = asyncio.current_task().cancelling()
+
+        if not (caller_cancellation_count == 0):
+            raise ExecutionRefused(f"{caller_cancellation_count=} should be zero before reporting a worker crash")
 
         if not (self._observed_crash is None):
-            raise ExecutionRefused("Cannot report this crash: its original Attempt, active phase or native worker association does not match this owner")
+            raise ExecutionRefused(f"{self._observed_crash is not None=} should be False before admitting another crash")
 
         if not (self._outcome is None):
-            raise ExecutionRefused("Cannot report this crash: its original Attempt, active phase or native worker association does not match this owner")
+            raise ExecutionRefused(f"{self._outcome is not None=} should be False before admitting a worker crash")
 
         require_type(
             (actual_checkpoint := self._checkpoint),
@@ -774,17 +804,20 @@ class AttemptExecutor:
         )
 
         if not (crash.runner.original_exit is native):
-            raise ExecutionRefused("Cannot report this crash: its original Attempt, active phase or native worker association does not match this owner")
+            raise ExecutionRefused(f"{id(crash.runner.original_exit)=} should match {id(native)=}")
 
-        if ((native.role, native.generation, native.operation)
-            != (crash.runner.role, crash.runner.generation, crash.runner.operation)):
-            raise ExecutionRefused("Cannot report this crash: its original Attempt, active phase or native worker association does not match this owner")
+        # The protocol identifies a runner invocation by its role, generation and operation
+        native_invocation = (native.role, native.generation, native.operation)
+        runner_invocation = (crash.runner.role, crash.runner.generation, crash.runner.operation)
+
+        if not (native_invocation == runner_invocation):
+            raise ExecutionRefused(f"{native_invocation=} should match {runner_invocation=}")
 
         if (
             (self._observation_deadline is not None) and
-            (asyncio.get_running_loop().time() >= self._observation_deadline)
+            ((observation_monotonic_now := asyncio.get_running_loop().time()) >= self._observation_deadline)
         ):
-            raise ExecutionRefused("Cannot report this crash: its original Attempt, active phase or native worker association does not match this owner")
+            raise ExecutionRefused(f"{observation_monotonic_now=} should precede {self._observation_deadline=}")
 
         outcome = crash.public_failure()
         self._observed_crash = crash
