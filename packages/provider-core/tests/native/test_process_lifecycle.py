@@ -37,6 +37,7 @@ from provider_core.hosting import (
 )
 from provider_core.process_host import ProcessExecutionHost
 from provider_core.runner import LOCK_NAME
+from provider_core.runner_session import RunnerStartupUnavailable
 from tests.fakes.runner import RunningSupervisor
 from tests.fakes.scientific_process import Number, WitnessedScience, wait_for_event, witness_events
 
@@ -51,7 +52,7 @@ class ProcessLifecycleTests(unittest.IsolatedAsyncioTestCase):
         self.enterContext(patch.dict(os.environ, {"SCIENTIFIC_PROCESS_UNRELATED": "parent-only"}))
 
     # silent-defaults: allow-contract -- Ordinary proofs use five seconds; the active-retirement proof shortens only the scientific grace.
-    def make_host(self, *, scientific_retirement_seconds=5):
+    def make_host(self, *, scientific_retirement_seconds=5, startup_not_after=None):
         worker = Path(__file__).parent.parent / "fakes/scientific_process_worker.py"
 
         runner = RunningSupervisor(
@@ -65,7 +66,7 @@ class ProcessLifecycleTests(unittest.IsolatedAsyncioTestCase):
         )
 
         self.addCleanup(runner.close)
-        session = runner.session(startup_seconds=5, retirement_seconds=5)
+        session = runner.session(startup_seconds=5, retirement_seconds=5, startup_not_after=startup_not_after)
 
         host = ProcessExecutionHost(
             session=session,
@@ -94,6 +95,27 @@ class ProcessLifecycleTests(unittest.IsolatedAsyncioTestCase):
             },
             requirements=frozenset(),
         )
+
+    async def test_deferred_start_cannot_renew_the_native_setup_cap(self):
+        host, _, session = self.make_host(startup_not_after=time.monotonic() - 1)
+        with self.assertRaises(RunnerStartupUnavailable):
+            await self.start(host, scenario="healthy")
+        self.assertFalse(session.control_connected)
+        self.assertIsNone(session.operation)
+        self.assertEqual(0, self.counts()["initialization_acquired"])
+
+    async def test_native_setup_cap_does_not_expire_scientific_initialization(self):
+        cap = time.monotonic() + 2
+        host, _, _ = self.make_host(startup_not_after=cap)
+        original = asyncio.create_task(self.start(host, scenario="cancel-start"))
+        try:
+            await asyncio.to_thread(wait_for_event, self.root, "initialization_acquired")
+            await asyncio.sleep(max(0, cap - time.monotonic()))
+            self.assertFalse(original.done())
+        finally:
+            (self.root / "release-initialization").touch()
+            await original
+        self.assertEqual(1, self.counts()["initialized"])
 
     async def cleanup_observation(self, control):
         async with asyncio.timeout(15):
