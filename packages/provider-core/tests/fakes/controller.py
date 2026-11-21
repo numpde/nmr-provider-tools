@@ -25,8 +25,8 @@ class SingleRetirementSession(Session):
     """A successful retirement is final, rather than an idempotent operation."""
 
     async def retire(self):
-        if any((event[0] == "retire") for event in self.events):
-            raise RuntimeError("Scripted session was already retired; do not release its resources twice")
+        if retirement_requested := any((event[0] == "retire") for event in self.events):
+            raise RuntimeError(f"{retirement_requested=} should be False")
 
         await super().retire()
 
@@ -38,8 +38,8 @@ async def cancel_task(task):
         task.cancel()
         await asyncio.wait((task,), timeout=2)
 
-    if not task.done():
-        raise TimeoutError("Test task did not settle after cancellation")
+    if not (task_settled := task.done()):
+        raise TimeoutError(f"{task_settled=} should be True after cancellation")
 
     if not task.cancelled():
         task.exception()
