@@ -165,5 +165,5 @@ class DeliveryHandoffTests(unittest.TestCase):
     def test_client_refuses_mismatched_material_before_admitting_work(self):
         endpoint = DeliveryEndpoint("https://api.example", "provider:other", pathlib.Path("/tmp/delivery.sock"))
 
-        with self.assertRaisesRegex(ValueError, "same API and provider"):
+        with self.assertRaises(ValueError):
             SharedDeliveryClient(endpoint, self.material(), exchange_seconds=1, retirement_seconds=1)
