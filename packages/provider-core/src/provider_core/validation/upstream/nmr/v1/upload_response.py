@@ -59,11 +59,13 @@ class ReadGrant:
     expires_at: datetime
 
 
-def require_upload_ref(value):
-    require_type(value, str, error_factory=ResponseRejected)
+def require_upload_ref(upload_ref):
+    require_type(upload_ref, str, error_factory=ResponseRejected)
 
-    if not re.fullmatch(r"upload:sha256:[0-9a-f]{64}", value):
-        raise ResponseRejected("Upload reference must be upload:sha256: followed by 64 lowercase hexadecimal digits")
+    expected_pattern = r"upload:sha256:[0-9a-f]{64}"
+
+    if not re.fullmatch(expected_pattern, upload_ref):
+        raise ResponseRejected(f"{reprlib.repr(upload_ref)=} should match {expected_pattern=}")
 
 
 def _fields(upload_fields, expected_fields):
