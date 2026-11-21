@@ -49,17 +49,28 @@ class RunnerSession:
     Once connected, the original greeting read keeps its startup deadline; join
     that setup operation before observing retirement or closing the session.
     startup_not_after optionally retains an earlier time.monotonic() deadline
-    across admission and deferred connect. It caps setup, never later retirement.
+    across lock checks and deferred connect. It caps setup, never later retirement.
     """
 
-    def __init__(self, path, *, role, expected_lock_identity, startup_seconds, retirement_seconds,
-                 startup_not_after=None):
+    def __init__(
+        self,
+        path,
+        *,
+        role,
+        expected_lock_identity,
+        startup_seconds,
+        retirement_seconds,
+        startup_not_after=None,
+    ):
         require_positive_number(startup_seconds)
         require_positive_number(retirement_seconds)
+
         if startup_not_after is not None:
             require_positive_number(startup_not_after)
+
         (self.path, self._startup, self._cleanup) = (str(path), startup_seconds, retirement_seconds)
         self._startup_not_after = startup_not_after
+
         (self.role, self.expected_lock_identity) = (role, tuple(expected_lock_identity))
         self.control = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
         self.science = None
@@ -98,6 +109,7 @@ class RunnerSession:
 
         phase_deadline = time.monotonic() + self._startup
         deadline = phase_deadline if deadline is None else min(deadline, phase_deadline)
+
         if self._startup_not_after is not None:
             deadline = min(deadline, self._startup_not_after)
 

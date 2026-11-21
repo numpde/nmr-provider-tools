@@ -21,40 +21,64 @@ from provider_core.runner_session import RunnerSession
 class RunnerStartupTests(unittest.TestCase):
     def test_retained_setup_cap_cannot_be_extended_by_a_later_caller(self):
         session = RunnerSession(
-            self.socket_path, role="fixture", expected_lock_identity=(0, 0),
-            startup_seconds=3, retirement_seconds=1, startup_not_after=time.monotonic() - 1,
+            self.socket_path,
+            role="fixture",
+            expected_lock_identity=(0, 0),
+            startup_seconds=3,
+            retirement_seconds=1,
+            startup_not_after=time.monotonic() - 1,
         )
+
         self.addCleanup(session.close)
+
         with self.assertRaises(runner_api.RunnerStartupUnavailable):
             session.connect(deadline=time.monotonic() + 3)
+
         self.assertFalse(session.control_connected)
         self.listener.setblocking(False)
+
         with self.assertRaises(BlockingIOError):
             self.listener.accept()
 
     def test_retained_setup_cap_does_not_extend_an_earlier_caller_deadline(self):
         session = RunnerSession(
-            self.socket_path, role="fixture", expected_lock_identity=(0, 0),
-            startup_seconds=3, retirement_seconds=1, startup_not_after=time.monotonic() + 3,
+            self.socket_path,
+            role="fixture",
+            expected_lock_identity=(0, 0),
+            startup_seconds=3,
+            retirement_seconds=1,
+            startup_not_after=time.monotonic() + 3,
         )
+
         self.addCleanup(session.close)
+
         with self.assertRaises(runner_api.RunnerStartupUnavailable):
             session.connect(deadline=time.monotonic() - 1)
+
         self.assertFalse(session.control_connected)
 
     def test_retained_setup_cap_bounds_a_stalled_greeting(self):
         session = RunnerSession(
-            self.socket_path, role="fixture", expected_lock_identity=(0, 0),
-            startup_seconds=3, retirement_seconds=1, startup_not_after=time.monotonic() + 0.2,
+            self.socket_path,
+            role="fixture",
+            expected_lock_identity=(0, 0),
+            startup_seconds=3,
+            retirement_seconds=1,
+            startup_not_after=time.monotonic() + 0.2,
         )
+
         self.addCleanup(session.close)
+
         with ThreadPoolExecutor(max_workers=1) as executor:
             original = executor.submit(session.connect, deadline=time.monotonic() + 3)
-            peer, _ = self.listener.accept()
+            (peer, _) = self.listener.accept()
+
             with peer, self.assertRaises(TimeoutError) as caught:
                 original.result(timeout=1)
+
             self.assertTrue(original.done())
             self.assertIs(caught.exception, original.exception(timeout=0))
+
         self.assertTrue(session.control_connected)
         self.assertIsNone(session.science)
 
@@ -62,8 +86,12 @@ class RunnerStartupTests(unittest.TestCase):
         for cap in (False, 0, -1, float("inf"), float("nan")):
             with self.subTest(cap=cap), self.assertRaises((TypeError, ValueError)):
                 RunnerSession(
-                    self.socket_path, role="fixture", expected_lock_identity=(0, 0),
-                    startup_seconds=3, retirement_seconds=1, startup_not_after=cap,
+                    self.socket_path,
+                    role="fixture",
+                    expected_lock_identity=(0, 0),
+                    startup_seconds=3,
+                    retirement_seconds=1,
+                    startup_not_after=cap,
                 )
 
     def setUp(self):

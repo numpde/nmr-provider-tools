@@ -140,6 +140,11 @@ class ReferenceBackendTests(unittest.IsolatedAsyncioTestCase):
 
     async def test_process_startup_requires_an_explicit_native_owner(self):
         configure_backend(self.configuration, "process")
-        with self.assertRaisesRegex(ValueError, "deployment-owned scientific runner session"):
-            async with provider_setup.open_provider():
-                self.fail("Process startup must require a native runner session")
+        with patch("provider_core.execution_setup.ProcessExecutionHost") as process_host, \
+                patch("provider_core.execution_setup.InProcessExecutionHost") as thread_host:
+            with self.assertRaises(ValueError) as refusal:
+                async with provider_setup.open_provider():
+                    self.fail("Process startup must require a native runner session")
+            self.assertIn("process_session=None", str(refusal.exception))
+            process_host.assert_not_called()
+            thread_host.assert_not_called()

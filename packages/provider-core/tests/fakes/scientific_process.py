@@ -15,6 +15,7 @@ import json
 import os
 from pathlib import Path
 import socket
+import subprocess
 import sys
 import time
 
@@ -125,6 +126,25 @@ class WitnessedScience(Contribution):
             raise OSError("Witnessed partial model initialization failed")
 
         record_event(self.root, "initialized")
+
+        if self.scenario == "exec-lease":
+            lease_fd = int(sys.argv[sys.argv.index("--lease-fd") + 1])
+            lease = os.fstat(lease_fd)
+
+            # This independent probe belongs to the test's release barrier,
+            # deliberately outliving scientific close to test lease inheritance
+            self.exec_probe = subprocess.Popen(
+                [
+                    sys.executable,  # Use the installed scientific interpreter
+                    "-I",  # Ignore ambient Python configuration
+                    "-B",  # Avoid writing bytecode
+                    str(Path(__file__).with_name("lease_exec_probe.py")),  # Start the independent exec witness
+                    str(self.root),  # Share the test-owned release barrier
+                    str(lease.st_dev),  # Identify the lease device
+                    str(lease.st_ino),  # Identify the lease inode
+                ],
+                close_fds=False,  # Expose any inheritable lease to the witness
+            )
 
     @operation()
     def calculate(self, *, number: Number) -> Calculation:
