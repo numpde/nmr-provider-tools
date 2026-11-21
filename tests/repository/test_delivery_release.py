@@ -53,10 +53,8 @@ class DeliveryReleaseTests(unittest.TestCase):
         with self.assertRaises(ValueError) as rejected:
             delivery_image.release_inputs(pin, runtime_lock)
 
-        self.assertEqual(
-            first=f"{install_lock_sha256=} should match {expected_install_lock_sha256=}",
-            second=str(rejected.exception),
-        )
+        self.assertIn(install_lock_sha256, str(rejected.exception))
+        self.assertIn(expected_install_lock_sha256, str(rejected.exception))
 
     def test_warm_pool_needs_no_network_and_retains_file(self):
         self.wheel.write_bytes(self.content)

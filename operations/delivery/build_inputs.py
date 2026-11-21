@@ -30,11 +30,15 @@ def release_inputs(pin, runtime_lock):
     release = read_json(pin)
     (release_version, wheel_digest) = (release["version"], release["wheel_sha256"])
 
-    if (
-        (not re.fullmatch(r"[0-9]+\.[0-9]+\.[0-9]+", release_version)) or
-        (not re.fullmatch(r"[0-9a-f]{64}", wheel_digest))
-    ):
-        raise ValueError("Cannot use delivery release: invalid pinned version or wheel hash.")
+    expected_version_pattern = r"[0-9]+\.[0-9]+\.[0-9]+"
+
+    if not re.fullmatch(expected_version_pattern, release_version):
+        raise ValueError(f"{reprlib.repr(release_version)=} should match {expected_version_pattern=}")
+
+    expected_digest_pattern = r"[0-9a-f]{64}"
+
+    if not re.fullmatch(expected_digest_pattern, wheel_digest):
+        raise ValueError(f"{reprlib.repr(wheel_digest)=} should match {expected_digest_pattern=}")
 
     with regular_file(runtime_lock) as source:
         runtime_requirements = source.read().decode("utf-8")
@@ -61,17 +65,21 @@ def release_wheels(release):
 
 
 def missing_wheels(release, pool):
-    if (not pool.is_dir()) or (pool.is_symlink()):
-        raise ValueError("Cannot use delivery release: wheelhouse must be an existing directory.")
+    if not (pool.is_dir() and (not pool.is_symlink())):
+        raise ValueError(f"{reprlib.repr(pool)=} should be an existing directory without a symlink")
 
     missing_wheel_ids = []
 
     for (wheel_name, expected_sha256) in release_wheels(release).items():
-        if (
-            (not re.fullmatch(r"[A-Za-z0-9_.+!-]+\.whl", wheel_name)) or
-            (not re.fullmatch(r"[0-9a-f]{64}", expected_sha256))
-        ):
-            raise ValueError("Cannot use delivery release: malformed pinned wheel identity.")
+        expected_wheel_pattern = r"[A-Za-z0-9_.+!-]+\.whl"
+
+        if not re.fullmatch(expected_wheel_pattern, wheel_name):
+            raise ValueError(f"{reprlib.repr(wheel_name)=} should match {expected_wheel_pattern=}")
+
+        expected_digest_pattern = r"[0-9a-f]{64}"
+
+        if not re.fullmatch(expected_digest_pattern, expected_sha256):
+            raise ValueError(f"{reprlib.repr(expected_sha256)=} should match {expected_digest_pattern=}")
 
         wheel_path = pool / wheel_name
 
@@ -172,13 +180,18 @@ def _capture_image_inputs(pin, runtime_lock, pool, destination, lock_fd):
     captured_lock.chmod(0o644)
     requirements(captured_lock)
 
-    if missing_wheels(release, pool):
-        raise ValueError("Cannot build delivery: the selected wheelhouse is missing pinned release wheels.")
+    missing_wheel_ids = missing_wheels(release, pool)
+
+    if missing_wheel_ids:
+        raise ValueError(f"{missing_wheel_ids=} should be empty before capturing delivery inputs")
 
     selected_wheels = select_wheels(captured_lock, pool, lock_fd=lock_fd)
 
-    if selected_wheels["files"] != release_wheels(release):
-        raise ValueError("Cannot build delivery: selected wheels differ from the pinned release closure.")
+    selected_wheel_files = selected_wheels["files"]
+    expected_wheel_files = release_wheels(release)
+
+    if not (selected_wheel_files == expected_wheel_files):
+        raise ValueError(f"{selected_wheel_files=} should match {expected_wheel_files=}")
 
     wheel_input_record = destination / "provider-core-wheel-inputs.json"
 
@@ -192,8 +205,10 @@ def _capture_image_inputs(pin, runtime_lock, pool, destination, lock_fd):
     marker = "# selected-wheel-inputs"
     template_contents = dockerfile_template.read_text()
 
-    if template_contents.count(marker) != 1:
-        raise ValueError("Cannot build delivery: the Dockerfile has no unique wheel input marker.")
+    marker_count = template_contents.count(marker)
+
+    if not (marker_count == 1):
+        raise ValueError(f"{marker_count=} should be one for {marker=} in {dockerfile_template=}")
 
     copy_instructions = "\n".join(
         ("COPY " + json.dumps(["wheelhouse/" + name, "/" + name]))
