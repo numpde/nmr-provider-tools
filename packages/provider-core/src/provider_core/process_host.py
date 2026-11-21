@@ -267,7 +267,7 @@ class _ProcessOperation:
                 resources=ResourceState.RELEASED if observed.resources is ResourceState.RELEASED else ResourceState.UNKNOWN,
             )
 
-        exited = host.session.retirement is not None
+        exited = host._worker_exited
 
         if exited:
             # The bytes lived only in this child. Its death proves their loss,
@@ -310,7 +310,7 @@ class _ProcessOperation:
         return observed
 
     async def _peek_remote(self):
-        if self.detached or (self.analysis.host.session.retirement is not None):
+        if self.detached or self.analysis.host._worker_exited:
             return self._snapshot()
 
         observed = await self.analysis.host._exchange_async(
@@ -384,7 +384,7 @@ class _ProcessOperation:
 
             raise self.communication_failure
 
-        if self.detached or (self.analysis.host.session.retirement is not None) or (current.finished and (wait_seconds == 0)):
+        if self.detached or self.analysis.host._worker_exited or (current.finished and (wait_seconds == 0)):
             return current
 
         loop = asyncio.get_running_loop()
@@ -573,6 +573,9 @@ class _ProcessAnalysis:
                 raise RequestConflict(f"{reprlib.repr(invocation.operation_id)=} already identifies another invocation")
 
             return existing
+
+        if self.host._worker_exited:
+            return NotAdmitted(AdmissionCode.CLOSED, f"{self.host._worker_exited=} prevents admitting {invocation.operation_id=}")
 
         largest_payload_byte_requirement = max(
             invocation.policy.reject_encoded_input_over_bytes,
@@ -953,6 +956,9 @@ class ProcessExecutionHost:
         if not (self.session.retirement is None):
             raise CapacityUnavailable(f"{reprlib.repr(self.session.retirement)=} should be None before opening an analysis")
 
+        if not (self.session.original_exit is None):
+            raise CapacityUnavailable(f"{self.session.original_exit=} prevents opening another analysis")
+
         if not (allocations == (expected_allocations := frozenset({self.hosted.allocation}))):
             raise ValueError(f"{reprlib.repr(allocations)=} ≠ {reprlib.repr(expected_allocations)=}")
 
@@ -981,6 +987,10 @@ class ProcessExecutionHost:
             raise failure from cause
 
         return analysis
+
+    @property
+    def _worker_exited(self):
+        return (self.session.original_exit is not None) or (self.session.retirement is not None)
 
     def _release_analysis(self, analysis):
         if self.active_analysis is analysis:

@@ -25,6 +25,8 @@ from unittest.mock import patch
 from provider_core.contribution import ref
 from provider_core.hosting import (
     AcceptanceState,
+    AdmissionCode,
+    CapacityUnavailable,
     DispatchState,
     Invocation,
     NotAdmitted,
@@ -351,7 +353,7 @@ class ProcessLifecycleTests(unittest.IsolatedAsyncioTestCase):
 
     async def test_idle_worker_exit_is_shared_and_retained_before_host_retirement(self):
         (host, runner, session) = self.make_host()
-        await self.start(host, scenario="healthy")
+        hosted = await self.start(host, scenario="healthy")
         observers = [asyncio.create_task(host.observe_exit(wait_seconds=2)) for _ in range(2)]
 
         os.kill(host.process_id, signal.SIGKILL)
@@ -366,6 +368,12 @@ class ProcessLifecycleTests(unittest.IsolatedAsyncioTestCase):
         self.assertIsNone(host.native.retirement_deadline)
         self.assertIsNone(session.retirement)
         self.assertFalse(host.retiring)
+
+        with self.assertRaises(CapacityUnavailable):
+            host.open_analysis(allocations=frozenset({hosted.allocation}))
+
+        self.assertIsNone(host.active_analysis)
+        self.assertIsNone(host.channel.failure)
         cleanup = await self.retire_host(host)
 
         self.assertTrue(cleanup.settled)
@@ -393,8 +401,19 @@ class ProcessLifecycleTests(unittest.IsolatedAsyncioTestCase):
         self.assertIs(original_exit, session.original_exit)
         self.assertEqual(-signal.SIGKILL, original_exit.returncode)
         self.assertIsNone(host.native.retirement_deadline)
+        before_cleanup = await original.observe(after=active.revision, wait_seconds=1)
+
+        self.assertTrue(before_cleanup.finished)
+        self.assertIsNone(before_cleanup.outcome)
+        self.assertIs(ResourceState.UNKNOWN, before_cleanup.resources)
+        self.assertIsNone(host.channel.failure)
 
         self.assertIs(expr1=original, expr2=analysis.submit(invocation))
+        refused = analysis.submit(replace(invocation, operation_id="new-work-after-worker-exit"))
+
+        self.assertIsInstance(refused, NotAdmitted)
+        self.assertIs(AdmissionCode.CLOSED, refused.code)
+        self.assertIsNone(host.channel.failure)
         cleanup = await self.retire_host(host)
 
         self.assertTrue(expr=cleanup.failures)

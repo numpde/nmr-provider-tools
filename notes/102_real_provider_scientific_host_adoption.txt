@@ -526,6 +526,7 @@ throughout. No numerical acceptance threshold was requested.
 | First ownership reviewer | 9 | 8 | 9 | 8 |
 | Revised ownership reviewer | 9 | 9 | 9 | 9 |
 | Fresh final reviewer | 9 | 9 | 9 | 9 |
+| Final integration followup | 9 | 9 | 9 | 10 |
 
 The first round reviewed base c121ebee plus patch SHA-256
 0e45ac592bab79b405b683d0036fa1f5ab3d0e4a892f461637aac40e3f37a51c.
@@ -557,3 +558,22 @@ and the new idle observer's inherited cap is source-reviewed alongside existing
 cap tests. Linux selector/pidfd support remains required. This qualifies the SDK
 checkpoint, not NMRPeak integration, Hello withdrawal latency or GPU science.
 The earlier cleanup goal remains paused. No consumer runtime pins were changed.
+
+Final integration review found that host admission and operation observation still
+used only the final retirement receipt to recognize death. The followup on
+dc247be0 rejects new analysis custody locally after notified exit and projects
+existing operation facts without another science-channel read. It leaves the
+scientific outcome unchanged and scratch/resource ownership unknown until cleanup.
+The fresh reviewer inspected this two-file patch, SHA-256
+2c2923952a66abe5a08453eb4f132b185dea9e84bd8a2fd6b230d4dd7477b9de,
+and reported no blocking findings. The 12 lifecycle and 11 host tests passed
+again; logs are /tmp/nmr-idle-exit-process-admission.log and
+/tmp/nmr-idle-exit-host-admission.log. Build the handoff candidate from this
+followup revision, superseding the intermediate dc247be0 wheel.
+
+Consumer review also identified new submission through an already-open analysis
+after exit. The guard now returns NotAdmitted(CLOSED) after exact resubmission
+lookup and before framing or operation acquisition. The original operation remains
+retrievable. The same 12 lifecycle and 11 host tests passed again, including a
+fresh-invocation refusal without channel corruption; logs end in -submission.log.
+The independent reviewer rechecked this guard and retained scores 9/9/9/10.
