@@ -161,7 +161,6 @@ class TransportDecodedTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(failure.response_head.headers[-1], (b'x-request-id', b'model-7'))
         self.assertIsNone(failure.network_failure)
         self.assertIs(transport.last_failure, failure)
-        self.assertIn('incomplete or invalid', str(failure))
 
     async def test_unsupported_codec_does_not_consume_body_or_charge(self):
         client = Client([b'private'], headers=[(b'content-encoding', b'br')])

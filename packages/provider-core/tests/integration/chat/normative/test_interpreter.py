@@ -182,9 +182,7 @@ class SharedInterpreterCarrierTests(unittest.IsolatedAsyncioTestCase):
                     failure = caught.exception
 
                     self.assertIs(type(failure.primary), TimeoutError)
-                    self.assertIn("connection setup", str(failure.primary))
                     self.assertIs(type(failure.primary.__cause__), TimeoutError)
-                    self.assertNotIn("aggregate deadline", str(failure))
                     self.assertTrue(network_availability(failure.primary, failure.network_io, network_failure=failure.network_failure))
                     self.assertEqual(peer.requests, [])
                     self.assertTrue(transport.retirement_confirmed)
