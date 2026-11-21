@@ -105,11 +105,9 @@ class UploadFileAcquisitionTests(unittest.IsolatedAsyncioTestCase):
                     self.assertFalse(task.done())
                     release_create.set()
 
-                    with self.assertRaises(UploadFailed) as caught:
+                    with self.assertRaises(UploadFailed):
                         await task
 
-                    self.assertIn("exceeded its allotted time", str(caught.exception))
-                    self.assertNotIn("remains owned", str(caught.exception))
                     self.assertEqual(len(calls.closed), 1)
                     self.assertEqual(len(calls.removed), 1)
                     self.assertEqual(list(pathlib.Path(root).iterdir()), [])
@@ -600,8 +598,8 @@ class UploadFileAcquisitionTests(unittest.IsolatedAsyncioTestCase):
             self.assertIs(caught.exception.cause, failure)
             cleanup = owner.last_failure.cleanup_failures[0].cause
 
-            self.assertIn("identity could not be confirmed", str(cleanup))
-            self.assertNotIn("replacement", str(cleanup))
+            self.assertIsInstance(cleanup, UploadFailed)
+            self.assertIsNone(owner._transfer_owner._pending_upload_file.identity)
             self.assertEqual(api.calls, ["membership"])
             self.assertEqual(len(calls.closed), 1)
             self.assertEqual(calls.removed, [])

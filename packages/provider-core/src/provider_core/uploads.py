@@ -13,6 +13,7 @@ require_container()
 
 import asyncio
 import os
+import reprlib
 import secrets
 import stat
 import time
@@ -47,6 +48,13 @@ from provider_core.upload_file import (
 from provider_core.type_requirements import require_type, require_instance
 
 
+# Keep admitted grant URLs complete while bounding rejected configuration text
+# repo-check: allow-module-constant
+_UPLOAD_EVIDENCE = reprlib.Repr()
+
+_UPLOAD_EVIDENCE.maxstring = 512
+
+
 @dataclass(frozen=True, slots=True)
 class UploadLimits:
     """Explicit policy for one source session; repeated calls do not reset it."""
@@ -57,11 +65,20 @@ class UploadLimits:
     seconds: float
 
     def __post_init__(self):
-        for acquisition_allowance in (self.per_source_bytes, self.total_bytes, self.requests):
-            require_type(acquisition_allowance, int)
+        require_type(self.per_source_bytes, int)
 
-            if not (0 < acquisition_allowance):
-                raise ValueError("Cannot configure Upload acquisition: byte and request limits must be positive integers")
+        if not (0 < self.per_source_bytes):
+            raise ValueError(f"{self.per_source_bytes=} should be positive")
+
+        require_type(self.total_bytes, int)
+
+        if not (0 < self.total_bytes):
+            raise ValueError(f"{self.total_bytes=} should be positive")
+
+        require_type(self.requests, int)
+
+        if not (0 < self.requests):
+            raise ValueError(f"{self.requests=} should be positive")
 
         require_positive_number(self.seconds)
 
@@ -90,13 +107,13 @@ class UploadRecovery:
         require_type(self.maximum_attempts, int)
 
         if not (0 < self.maximum_attempts):
-            raise ValueError("Upload recovery requires a positive integer attempt limit including the initial attempt")
+            raise ValueError(f"{self.maximum_attempts=} should be positive")
 
         for seconds in (self.initial_seconds, self.maximum_seconds):
             require_positive_number(seconds)
 
         if not (self.initial_seconds <= self.maximum_seconds):
-            raise ValueError("Upload recovery initial wait cannot exceed its maximum wait")
+            raise ValueError(f"{self.initial_seconds=} should not exceed {self.maximum_seconds=}")
 
         require_instance(self.stopping, asyncio.Event)
 
@@ -104,32 +121,51 @@ class UploadRecovery:
             raise TypeError(f"{self.on_retry=} should be callable")
 
 
-def require_store_origin(value):
+def require_store_origin(store_origin):
     """Require an explicit canonical origin before any bearer can be attached."""
 
-    require_type(value, str)
+    require_type(store_origin, str)
 
-    if any(((ord(c) <= 32) or (ord(c) >= 127)) for c in value):
-        raise ValueError("Cannot configure Upload store: origin must be visible ASCII HTTPS text")
+    # Reject characters that URL parsing could silently normalize
+    if not all((32 < (origin_codepoint := ord(character)) < 127) for character in store_origin):
+        raise ValueError(f"{origin_codepoint=} should be visible ASCII")
 
     try:
-        url = httpx.URL(value)
-    except httpx.InvalidURL:
-        raise ValueError("Cannot configure Upload store: origin is not a valid HTTPS URL") from None
+        store_url = httpx.URL(store_origin)
+    except httpx.InvalidURL as cause:
+        raise ValueError(str(cause)) from cause
 
-    if (
-        (url.scheme != "https") or
-        (not url.host) or
-        url.userinfo or
-        url.query or
-        url.fragment or
-        (url.raw_path != b"/") or
-        (str(url) != value) or
-        value.endswith("/")
-    ):
-        raise ValueError("Cannot configure Upload store: supply a canonical HTTPS origin without credentials, path, query or fragment")
+    expected_scheme = "https"
 
-    return value
+    if not (store_url.scheme == expected_scheme):
+        raise ValueError(f"{store_url.scheme=} should match {expected_scheme=}")
+
+    if not (store_url.host):
+        raise ValueError(f"{store_url.host=} should be nonempty")
+
+    if not (store_url.userinfo == b""):
+        raise ValueError(f"{bool(store_url.userinfo)=} should be False")
+
+    if not (store_url.query == b""):
+        raise ValueError(f"{len(store_url.query)=} should be zero")
+
+    if not (store_url.fragment == ""):
+        raise ValueError(f"{len(store_url.fragment)=} should be zero")
+
+    expected_path = b"/"
+
+    if not (store_url.raw_path == expected_path):
+        raise ValueError(f"{_UPLOAD_EVIDENCE.repr(store_url.raw_path)=} should match {expected_path=}")
+
+    canonical_store_origin = str(store_url)
+
+    if not (canonical_store_origin == store_origin):
+        raise ValueError(f"{_UPLOAD_EVIDENCE.repr(store_origin)=} should match {_UPLOAD_EVIDENCE.repr(canonical_store_origin)=}")
+
+    if not (not store_origin.endswith("/")):
+        raise ValueError(f"{_UPLOAD_EVIDENCE.repr(store_origin)=} should not end with '/'")
+
+    return store_origin
 
 
 @dataclass(slots=True, repr=False)
@@ -164,10 +200,21 @@ class _UploadFile:
         self._executor = ThreadPoolExecutor(max_workers=1, thread_name_prefix="provider-upload-file")
 
     def _create(self):
-        directory = os.fstat(self.directory_fd)
+        directory_stat = os.fstat(self.directory_fd)
 
-        if (not stat.S_ISDIR(directory.st_mode)) or (directory.st_uid != os.geteuid()) or (stat.S_IMODE(directory.st_mode) != 0o700):
-            raise UploadFailed("private-file destination must be an owner-controlled mode-0700 directory")
+        if not stat.S_ISDIR(directory_stat.st_mode):
+            raise UploadFailed(f"{self.directory_fd=} has bad {directory_stat.st_mode=}")
+
+        expected_directory_uid = os.geteuid()
+
+        if not (directory_stat.st_uid == expected_directory_uid):
+            raise UploadFailed(f"{directory_stat.st_uid=} should match {expected_directory_uid=} for {self.directory_fd=}")
+
+        directory_permissions = stat.S_IMODE(directory_stat.st_mode)
+        expected_directory_permissions = 0o700
+
+        if not (directory_permissions == expected_directory_permissions):
+            raise UploadFailed(f"{directory_permissions=:o} should match {expected_directory_permissions=:o} for {self.directory_fd=}")
 
         self.fd = os.open(
             self.name,
@@ -178,8 +225,8 @@ class _UploadFile:
 
         self.created = True
 
-        metadata = os.fstat(self.fd)
-        self.identity = (metadata.st_dev, metadata.st_ino)
+        file_stat = os.fstat(self.fd)
+        self.identity = (file_stat.st_dev, file_stat.st_ino)
 
         os.fchmod(self.fd, 0o600)
 
@@ -196,17 +243,19 @@ class _UploadFile:
 
     def _remove(self):
         try:
-            metadata = os.stat(self.name, dir_fd=self.directory_fd, follow_symlinks=False)
+            entry_stat = os.stat(self.name, dir_fd=self.directory_fd, follow_symlinks=False)
         except FileNotFoundError:
             self.created = False
 
             return
 
         if self.identity is None:
-            raise UploadFailed("original private-file identity could not be confirmed; preserve the entry and inspect the source directory")
+            raise UploadFailed(f"{self.identity=} should be recorded before removing {self.name=} in {self.directory_fd=}")
 
-        if (metadata.st_dev, metadata.st_ino) != self.identity:
-            raise UploadFailed("private source file entry changed; preserve the replacement and inspect the source directory")
+        entry_identity = (entry_stat.st_dev, entry_stat.st_ino)
+
+        if not (entry_identity == self.identity):
+            raise UploadFailed(f"{entry_identity=} should match {self.identity=} for {self.name=} in {self.directory_fd=}")
 
         os.unlink(self.name, dir_fd=self.directory_fd)
         self.created = False
@@ -235,8 +284,8 @@ class _UploadFile:
 
         if not (done):
             raise UploadFailed(
-                f"Private file {pending.operation=!s} exceeded its allotted time",
-                cause=TimeoutError("Private Upload file observation deadline expired"),
+                f"{pending.operation=} for {self.name=} in {self.directory_fd=} was not observed",
+                cause=TimeoutError(f"File observation exceeded {seconds=}"),
             )
 
         self.pending = None
@@ -245,7 +294,7 @@ class _UploadFile:
             pending.worker.result()
         except Exception as cause:
             raise UploadFailed(
-                f"Private source file {pending.operation=!s} could not complete; inspect the cause",
+                f"Cannot complete {pending.operation=} for {self.name=} in {self.directory_fd=}",
                 cause=cause
             ) from None
 
