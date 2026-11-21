@@ -14,7 +14,7 @@ import unittest
 import pathlib
 from dataclasses import dataclass
 
-from .sources import REPOSITORY_ROOT, python_sources
+from .sources import CHECKER_ROOT, REPOSITORY_ROOT, python_sources
 
 # This checker audits its own implementation using its loaded source path.
 # repo-check: allow-module-constant
@@ -350,13 +350,13 @@ def _findings(source_path: pathlib.Path, source: str) -> list[_Finding]:
     return findings
 
 
-def _scan(paths: list[pathlib.Path]) -> list[_Finding]:
+def _scan(paths: list[pathlib.Path], *, source_root: pathlib.Path) -> list[_Finding]:
     return sorted(
         [
             finding
             for source_path in paths
             for finding in _findings(
-                source_path.relative_to(REPOSITORY_ROOT),
+                source_path.relative_to(source_root),
                 source_path.read_text(encoding="utf-8"),
             )
         ],
@@ -519,10 +519,10 @@ class GuardPostureTests(unittest.TestCase):
         )
 
     def test_check_implementation_has_no_findings(self) -> None:
-        self.assertEqual([], _scan([_CHECK_PATH]))
+        self.assertEqual([], _scan([_CHECK_PATH], source_root=CHECKER_ROOT))
 
     def test_nmr_api_has_no_guard_posture_findings(self) -> None:
-        findings = _scan(python_sources(production_only=True))
+        findings = _scan(python_sources(production_only=True), source_root=REPOSITORY_ROOT)
 
         if findings:
             self.fail("guards needing accepted-condition review:\n" + "\n".join(finding.diagnostic() for finding in findings))

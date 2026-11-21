@@ -13,6 +13,7 @@ import unittest
 from unittest.mock import patch
 
 from tests.repository.quality import sources
+from tests.repository.quality.test_validation_guard_posture import _CHECK_PATH, _scan
 
 
 class CheckerSourceSelectionTests(unittest.TestCase):
@@ -143,3 +144,19 @@ class CheckerSourceSelectionTests(unittest.TestCase):
                         ["consumer/adapter.py", "tests/test_adapter.py"],
                         [source_path.relative_to(self.consumer_root).as_posix() for source_path in selected_paths],
                     )
+
+    def test_detector_self_audit_and_consumer_findings_use_their_own_roots(self):
+        consumer_file = self.consumer_root / "consumer/adapter.py"
+
+        consumer_file.write_text(
+            "if size > ceiling:\n"
+            "    raise ValueError('outside bounds')\n"
+        )
+
+        self.assertEqual([], _scan([_CHECK_PATH], source_root=sources.CHECKER_ROOT))
+
+        consumer_findings = _scan([consumer_file], source_root=self.consumer_root)
+
+        self.assertEqual(1, len(consumer_findings))
+        self.assertEqual(pathlib.Path("consumer/adapter.py"), consumer_findings[0].source_path)
+        self.assertEqual(1, consumer_findings[0].line)
