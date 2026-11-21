@@ -49,7 +49,7 @@ class _OperationControl:
 
     def report_progress(self, event):
         if not (self.operation.call.description.progress):
-            raise RuntimeError("This call did not declare progress reporting.")
+            raise RuntimeError(f"{self.operation.call.description.progress=} should be True before reporting progress")
 
         require_type(event, ProgressEvent)
 
@@ -155,7 +155,7 @@ class _Operation(_Changes):
 
         try:
             if self.analysis.closed or self.stop_requested:
-                raise PermissionError("This operation was stopped before its next scientific entry.")
+                raise PermissionError(f"{self.analysis.closed=} and {self.stop_requested=} should both be False before scientific entry")
 
             _require_start_deadline(
                 start_not_after=self.invocation.start_not_after,
@@ -492,7 +492,7 @@ class _Operation(_Changes):
         self._require_result(result)
 
         if not (self.release is None):
-            raise ValueError("Release of this exact result has already been authorized.")
+            raise ValueError(f"{self.release=} should be None before reading {self.result_ref=}")
 
         return self.payload
 
