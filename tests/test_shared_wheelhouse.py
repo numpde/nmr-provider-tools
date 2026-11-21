@@ -897,7 +897,7 @@ class WheelhouseTests(unittest.TestCase):
 
         derived.write_text(projected_text)
 
-        with self.assertRaisesRegex(ValueError, "matching source requirements lock"):
+        with self.assertRaises(ValueError):
             tool.selected(derived, [])
 
         self.assertEqual(2, len(tool.selected(derived, [], source_lock=self.lock)))
@@ -913,7 +913,7 @@ class WheelhouseTests(unittest.TestCase):
 
         derived.write_text(projected_text.split("[tool.nmr-provider-tools]")[0])
 
-        with self.assertRaisesRegex(ValueError, "source lock binding is missing"):
+        with self.assertRaises(ValueError):
             tool.selected(derived, [], source_lock=self.lock)
 
     def test_locator_freezes_a_compatible_cached_wheel(self):

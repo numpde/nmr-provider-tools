@@ -14,6 +14,7 @@ import sys
 import urllib.error
 import urllib.parse
 import urllib.request
+from collections import Counter
 from contextlib import contextmanager
 from pathlib import Path
 
@@ -24,6 +25,14 @@ from type_requirements import require_instance
 from wheelhouse_tool.adapters.pylock import read_lock, render_local_lock
 from wheelhouse_tool.network import RequestFailure, failure_detail, request, retry
 from wheelhouse_tool.validation.upstream.pylock import require_pylock_filename
+
+
+# Keep complete digests while bounding rejected lock metadata
+# repo-check: allow-module-constant
+_LOCK_EVIDENCE = reprlib.Repr()
+
+_LOCK_EVIDENCE.maxstring = 256
+_LOCK_EVIDENCE.maxother = 256
 
 
 @contextmanager
@@ -40,27 +49,29 @@ def pool_lock(pool, exclusive):
 @contextmanager
 def acquisition_lock(pool):
     # Keep downloads serialized without excluding readers of published files.
-    directory = os.open(pool, os.O_RDONLY | os.O_DIRECTORY)
+    pool_fd = os.open(pool, os.O_RDONLY | os.O_DIRECTORY)
 
     try:
-        descriptor = os.open(
+        acquisition_lock_fd = os.open(
             ".wheelhouse-acquire.lock",
             os.O_RDONLY | os.O_CREAT | os.O_NOFOLLOW | os.O_NONBLOCK,
             0o644,
-            dir_fd=directory,
+            dir_fd=pool_fd,
         )
 
         try:
-            if not stat.S_ISREG(os.fstat(descriptor).st_mode):
-                raise ValueError("Cannot acquire wheelhouse lock: expected a regular file.")
+            file_mode = os.fstat(acquisition_lock_fd).st_mode
 
-            fcntl.flock(descriptor, fcntl.LOCK_EX)
-            fcntl.flock(directory, fcntl.LOCK_SH)
-            yield directory
+            if not stat.S_ISREG(file_mode):
+                raise ValueError(f"{acquisition_lock_fd=} should reference a regular file; {file_mode=:#o}")
+
+            fcntl.flock(acquisition_lock_fd, fcntl.LOCK_EX)
+            fcntl.flock(pool_fd, fcntl.LOCK_SH)
+            yield pool_fd
         finally:
-            os.close(descriptor)
+            os.close(acquisition_lock_fd)
     finally:
-        os.close(directory)
+        os.close(pool_fd)
 
 
 def sha256(path, directory_fd=None):
@@ -87,27 +98,30 @@ def selected(lock, prefer_sdist, require_sdist=(), document=None, source_lock=No
     if (document.tool is not None) and ("nmr-provider-tools" in document.tool):
         projection = document.tool["nmr-provider-tools"]
 
-    source_digest = projection.get("source-lock-sha256")
+    expected_source_lock_sha256 = projection.get("source-lock-sha256")
     source_requirements = None
 
-    if (source_lock is not None) and (source_digest is None):
-        raise ValueError("Cannot use projected lock: source lock binding is missing.")
+    if (source_lock is not None) and (expected_source_lock_sha256 is None):
+        raise ValueError(f"{expected_source_lock_sha256=} should identify {_LOCK_EVIDENCE.repr(source_lock)=}")
 
-    if source_digest is not None:
+    if expected_source_lock_sha256 is not None:
         if source_lock is None:
-            raise ValueError("Cannot use projected lock: supply the matching source requirements lock.")
+            raise ValueError(f"{source_lock=} should name a requirements lock matching {_LOCK_EVIDENCE.repr(expected_source_lock_sha256)=}")
 
         from wheelhouse_tool.locate import read_requirements
 
-        (records, _, actual_digest) = read_requirements(source_lock)
+        (records, _, source_lock_sha256) = read_requirements(source_lock)
 
-        if actual_digest != source_digest:
-            raise ValueError("Cannot use projected lock: supply the matching source requirements lock.")
+        if not (source_lock_sha256 == expected_source_lock_sha256):
+            raise ValueError(f"{source_lock_sha256=} should match {_LOCK_EVIDENCE.repr(expected_source_lock_sha256)=}")
 
         source_requirements = {canonicalize_name(requirement.name): (requirement, hashes) for (requirement, hashes) in records}
 
         if len(source_requirements) != len(records):
-            raise ValueError("Cannot use projected lock: the source lock repeats a package.")
+            package_counts = Counter(canonicalize_name(requirement.name) for (requirement, _) in records)
+            extra_package_occurrences = package_counts - Counter(source_requirements.keys())
+
+            raise ValueError(f"{_LOCK_EVIDENCE.repr(extra_package_occurrences)=} should be empty in {_LOCK_EVIDENCE.repr(source_lock)=}")
 
     required = {canonicalize_name(name) for name in require_sdist}
     preferences = {canonicalize_name(name) for name in prefer_sdist} | required
@@ -194,8 +208,12 @@ def selected(lock, prefer_sdist, require_sdist=(), document=None, source_lock=No
 
         raise ValueError(f"Cannot acquire source distributions: {missing_source_packages=} are not selected by the lock.")
 
-    if (source_requirements is not None) and ({package.name for (_, _, _, package, _) in artifacts} != set(source_requirements)):
-        raise ValueError("Cannot use projected lock: its selected packages differ from the source lock.")
+    if source_requirements is not None:
+        selected_package_names = {package.name for (_, _, _, package, _) in artifacts}
+        expected_package_names = set(source_requirements)
+
+        if not (selected_package_names == expected_package_names):
+            raise ValueError(f"{_LOCK_EVIDENCE.repr(selected_package_names)=} should match {_LOCK_EVIDENCE.repr(expected_package_names)=}")
 
     return artifacts
 
@@ -415,7 +433,7 @@ def main():
 
     try:
         if (args.local_lock is not None) and ((args.local_root is None) or (not args.local_root.is_absolute())):
-            raise ValueError("Cannot write a local lock: supply an absolute --local-root.")
+            raise ValueError(f"{_LOCK_EVIDENCE.repr(args.local_root)=} should be an absolute path for {_LOCK_EVIDENCE.repr(args.local_lock)=}")
 
         if args.local_lock is not None:
             require_pylock_filename(args.local_lock.name)
@@ -432,7 +450,7 @@ def main():
             }
         else:
             if args.pool is None:
-                raise ValueError("Cannot inspect wheelhouse: supply --pool.")
+                raise ValueError(f"{args.pool=} should name a wheelhouse for {args.action=}")
 
             artifact_report = run(args.action, args.lock, args.pool, artifacts=artifacts)
 
