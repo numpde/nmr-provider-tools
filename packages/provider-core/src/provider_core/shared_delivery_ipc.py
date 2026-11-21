@@ -5,6 +5,7 @@ from provider_core.container_guard import require_container
 require_container()
 
 import pathlib
+import reprlib
 from dataclasses import dataclass
 
 from provider_core.delivery_handoff import DeliveryHandoffRejected, MAX_HANDOFF_BYTES, read_delivery_handoff
@@ -26,8 +27,10 @@ class SharedDeliverySocket:
         if self.socket_group_id is not None:
             require_type(self.socket_group_id, int)
 
-            if not (1 <= self.socket_group_id <= 4294967294):
-                raise ValueError("Delivery socket group must be an explicit nonzero GID.")
+            min_socket_group_id, max_socket_group_id = 1, 4294967294
+
+            if not (min_socket_group_id <= self.socket_group_id <= max_socket_group_id):
+                raise ValueError(f"{self.socket_group_id=} should be between {min_socket_group_id=} and {max_socket_group_id=}")
 
 
 class SharedDeliveryInbox(DeliveryInbox):
@@ -46,13 +49,18 @@ class SharedDeliveryInbox(DeliveryInbox):
         )
 
     async def _dispatch(self, endpoint, ipc_request, body):
-        if (ipc_request.method != b"POST") or (ipc_request.target != b"/submit"):
-            raise DeliveryRequestRejected("Shared delivery accepts only result submissions.")
+        expected_method, expected_target = b"POST", b"/submit"
+
+        if not (ipc_request.method == expected_method):
+            raise DeliveryRequestRejected(f"{reprlib.repr(ipc_request.method)=} should be {expected_method=}")
+
+        if not (ipc_request.target == expected_target):
+            raise DeliveryRequestRejected(f"{reprlib.repr(ipc_request.target)=} should be {expected_target=}")
 
         try:
             handoff = read_delivery_handoff(body)
-        except DeliveryHandoffRejected:
-            raise DeliveryRequestRejected("Shared delivery requires a complete publication handoff.") from None
+        except DeliveryHandoffRejected as cause:
+            raise DeliveryRequestRejected("Cannot admit the publication handoff") from cause
 
         accepted = await self.storage(self.queue.enqueue_handoff, handoff)
 
