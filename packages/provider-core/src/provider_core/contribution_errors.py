@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import re
+import reprlib
 from enum import Enum, StrEnum
 
 from provider_core.type_requirements import require_instance, require_type
@@ -28,13 +29,15 @@ class CallRejected(Exception):
 
         code_text = code.value if isinstance(code, ErrorCode) else code
 
-        if re.fullmatch(r"[a-z][a-z0-9_]{0,63}\Z", code_text) is None:
-            raise ValueError("A rejection code must match [a-z][a-z0-9_]{0,63}")
+        expected_code_pattern = r"[a-z][a-z0-9_]{0,63}\Z"
+
+        if re.fullmatch(expected_code_pattern, code_text) is None:
+            raise ValueError(f"{reprlib.repr(code_text)=} should match {expected_code_pattern=}")
 
         require_type(message, str)
 
         if not (message):
-            raise ValueError("A rejection needs a nonempty explanatory message")
+            raise ValueError(f"{message=} should be nonempty")
 
         self.code = code
         self.message = message
