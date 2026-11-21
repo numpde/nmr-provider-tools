@@ -5,6 +5,7 @@ import hashlib
 import json
 import os
 import re
+import reprlib
 import stat
 import sys
 import tarfile
@@ -56,8 +57,14 @@ def stream_context(pool, source, selections, output, source_allowlist=None):
         source_hashes = {allowlist_entry["destination"]: allowlist_entry["sha256"] for allowlist_entry in source_allowlist}
         source_modes = {allowlist_entry["destination"]: allowlist_entry["executable"] for allowlist_entry in source_allowlist}
 
-    if any(not re.fullmatch(r"[0-9a-f]{64}", digest) for digest in source_hashes.values()):
-        raise ValueError("Cannot stream build inputs: source files require SHA-256 hashes.")
+    expected_sha256_pattern = r"[0-9a-f]{64}"
+
+    for (source_relative_path, source_sha256) in source_hashes.items():
+        if not re.fullmatch(expected_sha256_pattern, source_sha256):
+            raise ValueError(
+                f"{reprlib.repr(source_relative_path)=}; "
+                f"{reprlib.repr(source_sha256)=} should match {expected_sha256_pattern=}"
+            )
 
     for executable_flag in source_modes.values():
         require_type(executable_flag, bool)
@@ -67,7 +74,7 @@ def stream_context(pool, source, selections, output, source_allowlist=None):
 
     if source_allowlist is None:
         if not source.is_dir():
-            raise ValueError("Cannot stream build inputs: the curated source context is missing.")
+            raise ValueError(f"{reprlib.repr(source)=} should be an existing curated source directory")
 
         paths = (
             (Path(root) / name, (Path(root) / name).relative_to(source).as_posix())
@@ -87,7 +94,7 @@ def stream_context(pool, source, selections, output, source_allowlist=None):
             any(((ord(character) < 32) or (ord(character) == 127)) for character in source_relative_path) or
             any((part in (".", "..")) for part in destination.parts)
         ):
-            raise ValueError("Cannot stream build inputs: source destination must be a relative path.")
+            raise ValueError(f"{reprlib.repr(source_relative_path)=} should be a canonical relative path without control characters or dot segments")
 
         if source_relative_path in source_paths:
             raise ValueError(f"Cannot stream {source_relative_path=}: source destination is duplicated.")
@@ -115,10 +122,20 @@ def stream_context(pool, source, selections, output, source_allowlist=None):
 
     for selection in selections:
         if "lock" in selection:
-            if (not {"lock", "directory"}.issubset(selection)) or (set(selection) - {"lock", "directory", "prefer_sdist", "require_sdist", "source_lock"}):
-                raise ValueError("Cannot stream build inputs: lock and explicit artifact entries cannot be mixed.")
-        elif set(selection) != {"directory", "filename", "sha256"}:
-            raise ValueError("Cannot stream build inputs: expected an explicit artifact entry.")
+            required_selection_fields = {"lock", "directory"}
+            allowed_selection_fields = {"lock", "directory", "prefer_sdist", "require_sdist", "source_lock"}
+
+            if (not required_selection_fields.issubset(selection)) or (set(selection) - allowed_selection_fields):
+                raise ValueError(
+                    f"{reprlib.repr(set(selection))=} should include {required_selection_fields=} "
+                    f"and be within {allowed_selection_fields=}"
+                )
+        else:
+            selection_fields = set(selection)
+            expected_artifact_fields = {"directory", "filename", "sha256"}
+
+            if not (selection_fields == expected_artifact_fields):
+                raise ValueError(f"{reprlib.repr(selection_fields)=} should match {expected_artifact_fields=}")
 
         directory = PurePosixPath(selection["directory"])
 
@@ -129,7 +146,7 @@ def stream_context(pool, source, selections, output, source_allowlist=None):
             any(((ord(character) < 32) or (ord(character) == 127)) for character in selection["directory"]) or
             any((part in (".", "..")) for part in directory.parts)
         ):
-            raise ValueError("Cannot stream build inputs: artifact directory must be a relative path.")
+            raise ValueError(f"{reprlib.repr(selection['directory'])=} should be a canonical relative path without control characters or dot segments")
 
         if "lock" in selection:
             lock = Path(selection["lock"])
@@ -159,16 +176,18 @@ def stream_context(pool, source, selections, output, source_allowlist=None):
         else:
             inputs = [(selection["filename"], selection["sha256"])]
 
-        for (artifact_filename, digest) in inputs:
+        for (artifact_filename, artifact_sha256) in inputs:
             if (
                 (not artifact_filename) or
                 (artifact_filename in (".", "..")) or
                 ("/" in artifact_filename) or
                 ("\\" in artifact_filename) or
-                any(((ord(character) < 32) or (ord(character) == 127)) for character in artifact_filename) or
-                (not re.fullmatch(r"[0-9a-f]{64}", digest))
+                any(((ord(character) < 32) or (ord(character) == 127)) for character in artifact_filename)
             ):
-                raise ValueError("Cannot stream build inputs: expected a filename and SHA-256 hash.")
+                raise ValueError(f"{reprlib.repr(artifact_filename)=} should be a nonempty filename without separators, dot segments or control characters")
+
+            if not re.fullmatch(expected_sha256_pattern, artifact_sha256):
+                raise ValueError(f"{reprlib.repr(artifact_filename)=}; {reprlib.repr(artifact_sha256)=} should match {expected_sha256_pattern=}")
 
             archive_destination = str(directory / artifact_filename)
 
@@ -185,10 +204,10 @@ def stream_context(pool, source, selections, output, source_allowlist=None):
             ):
                 raise ValueError(f"Cannot stream {archive_destination=}: it collides with the curated source context.")
 
-            if (archive_destination in artifacts) and (artifacts[archive_destination] != (artifact_filename, digest)):
+            if (archive_destination in artifacts) and (artifacts[archive_destination] != (artifact_filename, artifact_sha256)):
                 raise ValueError(f"Cannot stream {archive_destination=}: selections conflict.")
 
-            artifacts[archive_destination] = (artifact_filename, digest)
+            artifacts[archive_destination] = (artifact_filename, artifact_sha256)
 
     for archive_destination in artifacts:
         if any((parent.as_posix() in artifacts) for parent in PurePosixPath(archive_destination).parents):
