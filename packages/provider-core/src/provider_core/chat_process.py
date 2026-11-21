@@ -198,7 +198,7 @@ class SupervisedChatTransport:
 
     async def exchange_decoded(self, request, *, maximum_bytes, error_maximum_bytes, owner=None, not_after=None):
         if not (self._active is None):
-            raise ExchangeFailed("Cannot start model HTTP exchange: the original child retirement is unconfirmed")
+            raise ExchangeFailed(f"{self.retirement_confirmed=} should be True before starting another HTTP exchange")
 
         require_decoded_limit(maximum_bytes)
         require_decoded_limit(error_maximum_bytes)
@@ -261,7 +261,7 @@ class SupervisedChatTransport:
             raise exchange.failure
 
         if (not exchange.retired) or (exchange.response is None):
-            raise ExchangeFailed("Cannot accept model reply: original exchange retirement is unconfirmed")
+            raise ExchangeFailed(f"{exchange.retired=} should be True and {exchange.response is None=} should be False before accepting the reply")
 
         return exchange.response
 
@@ -276,13 +276,15 @@ class SupervisedChatTransport:
         exchange_outcome = read_reply(reply_message, maximum_bytes=maximum_bytes, error_maximum_bytes=error_maximum_bytes)
         exchange.child_reply = exchange_outcome
 
-        if await child_process.stdout.read(1):
-            raise ValueError("Interpreter child returned more than one reply")
+        trailing_reply_byte = await child_process.stdout.read(1)
+
+        if trailing_reply_byte:
+            raise ValueError(f"{len(trailing_reply_byte)=} should be zero after the reply")
 
         await asyncio.shield(exchange.exit)
 
         if child_process.returncode != 0:
-            raise RuntimeError("Interpreter HTTP child exited unsuccessfully")
+            raise RuntimeError(f"{child_process.returncode=} should be zero")
 
         return exchange_outcome
 
@@ -487,7 +489,7 @@ class SupervisedChatTransport:
             return
 
         if not (exchange.owner is owner):
-            raise ExchangeFailed("Cannot retire model HTTP exchange: the original child belongs to another owner")
+            raise ExchangeFailed(f"{id(owner)=} should match {id(exchange.owner)=} to retire the HTTP exchange")
 
         if exchange.stopped_at is None:
             self._stop(exchange, asyncio.CancelledError())
