@@ -151,7 +151,7 @@ class InstalledDeploymentTests(unittest.TestCase):
         ipc.chmod(0o700)
 
         with patch.object(freezer.os, "geteuid", return_value=0):
-            with self.assertRaisesRegex(freezer.DeliveryDeploymentRejected, "Refusing to change"):
+            with self.assertRaises(freezer.DeliveryDeploymentRejected):
                 freezer.initialize(self.uid, self.gid, queue, [ipc])
 
         for owned_directory in [queue, ipc]:
@@ -159,12 +159,12 @@ class InstalledDeploymentTests(unittest.TestCase):
 
     def test_runtime_refuses_changed_definition_before_materializing_sdk_input(self):
         self.write_definition(self.raw)
-        expected = hashlib.sha256(self.raw).hexdigest()
+        expected_definition_sha256 = hashlib.sha256(self.raw).hexdigest()
 
         self.write_definition(self.raw.replace(b"request_seconds = 1", b"request_seconds = 2"))
 
-        with self.assertRaisesRegex(freezer.DeliveryDeploymentRejected, "changed after rendering"):
-            freezer.runtime_configuration(self.binding_file, expected)
+        with self.assertRaises(freezer.DeliveryDeploymentRejected):
+            freezer.runtime_configuration(self.binding_file, expected_definition_sha256)
 
     def test_cli_help_and_render_keep_safe_owned_refusal(self):
         command = [sys.executable, "-I", "-B", "/opt/provider-tools/delivery_deployment.py"]

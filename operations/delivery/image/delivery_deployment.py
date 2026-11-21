@@ -66,11 +66,13 @@ def _require_mount_path(mount_path):
     except (TypeError, ValueError) as cause:
         raise DeliveryDeploymentRejected("Cannot admit a delivery input path") from cause
 
-    if not (absolute_mount_path.resolve() == absolute_mount_path):
-        raise DeliveryDeploymentRejected("The delivery mount path should be canonical with symlinks resolved")
+    canonical_mount_path = absolute_mount_path.resolve()
+
+    if not (canonical_mount_path == absolute_mount_path):
+        raise DeliveryDeploymentRejected(f"{reprlib.repr(absolute_mount_path)=} should match {reprlib.repr(canonical_mount_path)=}")
 
     if not all((character not in str(absolute_mount_path)) for character in ("\n", "\r", ",")):
-        raise DeliveryDeploymentRejected("The delivery mount path should contain no commas or line breaks")
+        raise DeliveryDeploymentRejected(f"{reprlib.repr(absolute_mount_path)=} should contain no commas or line breaks")
 
     return absolute_mount_path
 
@@ -549,27 +551,22 @@ def render_shared(path, source, image):
     return {"proxy": proxy_project, "outbox": outbox_project}
 
 
-def runtime_definition(path, expected):
-    (definition, actual_checksum) = read_definition(path)
+def runtime_definition(definition_path, expected_definition_sha256):
+    (definition, definition_sha256) = read_definition(definition_path)
 
-    if actual_checksum != expected:
-        raise DeliveryDeploymentRejected(
-            "Cannot start delivery: the operator definition changed after rendering; "
-            "stop the project and run up with the intended definition."
-        )
+    if not (definition_sha256 == expected_definition_sha256):
+        raise DeliveryDeploymentRejected(f"{definition_sha256=} should match {expected_definition_sha256=}")
 
     return definition
 
 
-def runtime_configuration(path, expected):
-    definition = runtime_definition(path, expected)
+def runtime_configuration(definition_path, expected_definition_sha256):
+    definition = runtime_definition(definition_path, expected_definition_sha256)
     encoded_configuration = tomli_w.dumps(daemon_configuration(definition)).encode()
+    max_configuration_bytes = 65536
 
-    if not (len(encoded_configuration) <= 65536):
-        raise DeliveryDeploymentRejected(
-            "Cannot start delivery: the derived SDK configuration exceeds "
-            "its 65536-byte contract."
-        )
+    if not (len(encoded_configuration) <= max_configuration_bytes):
+        raise DeliveryDeploymentRejected(f"{len(encoded_configuration)=} should be at most {max_configuration_bytes=}")
 
     configuration_path = pathlib.Path("/run/delivery.toml")
 
@@ -617,6 +614,7 @@ async def health(definition):
         intake_result for intake_result in intake_results if isinstance(intake_result, BaseException)
     ]
 
+    # repo-check: allow-literal-guard-error -- Original per-binding intake failures provide the group's evidence
     if intake_failures:
         raise BaseExceptionGroup(
             "Delivery intake is not ready for every configured binding.",
@@ -625,19 +623,17 @@ async def health(definition):
 
 
 def initialize(uid, gid, queue, ipc):
-    if (os.geteuid() != 0) or (uid <= 0) or (gid <= 0):
-        raise DeliveryDeploymentRejected(
-            "Volume initialization requires root with CHOWN and explicit "
-            "nonzero target UID/GID."
-        )
+    initializer_uid = os.geteuid()
+
+    if (initializer_uid != 0) or (uid <= 0) or (gid <= 0):
+        raise DeliveryDeploymentRejected(f"{initializer_uid=} should be zero, and {uid=} and {gid=} should be positive")
 
     for (target, mode) in [(queue, 0o700), *((ipc_root, 0o710) for ipc_root in ipc)]:
         volume_root = _require_mount_path(target)
         observed_metadata = volume_root.lstat()
 
-        # todo: use format/pattern from elsewhere
         if not stat.S_ISDIR(observed_metadata.st_mode):
-            raise DeliveryDeploymentRejected("Delivery volume root must be a real directory.")
+            raise DeliveryDeploymentRejected(f"{reprlib.repr(volume_root)=} should reference a directory; {observed_metadata.st_mode=:#o}")
 
         if (
             observed_metadata.st_uid,
@@ -646,11 +642,13 @@ def initialize(uid, gid, queue, ipc):
         ) == (uid, gid, mode):
             continue
 
-        if (observed_metadata.st_uid != 0) or any(volume_root.iterdir()):
-            raise DeliveryDeploymentRejected(
-                "Refusing to change an existing delivery volume with "
-                "unexpected ownership, mode or contents."
-            )
+        if not (observed_metadata.st_uid == 0):
+            raise DeliveryDeploymentRejected(f"{observed_metadata.st_uid=} should be zero before changing {reprlib.repr(volume_root)=}")
+
+        first_existing_entry = next(volume_root.iterdir(), None)
+
+        if not (first_existing_entry is None):
+            raise DeliveryDeploymentRejected(f"{reprlib.repr(first_existing_entry)=} should be None before changing {reprlib.repr(volume_root)=}")
 
         volume_fd = os.open(volume_root, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW | os.O_CLOEXEC)
 
