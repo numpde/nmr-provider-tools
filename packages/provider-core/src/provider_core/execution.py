@@ -19,6 +19,7 @@ require_container()
 
 import asyncio
 import random
+import reprlib
 import time
 from builtins import BaseExceptionGroup
 from collections.abc import Callable
@@ -60,6 +61,12 @@ from provider_core.tools import require_positive_number
 from provider_core.type_requirements import require_type
 
 
+# Keep ordinary identifiers complete while bounding rejected configuration text
+# repo-check: allow-module-constant
+_EXECUTION_EVIDENCE = reprlib.Repr()
+_EXECUTION_EVIDENCE.maxstring = 256
+
+
 class _Retirement(Enum):
     NOT_ATTEMPTED = "not_attempted"
     UNCONFIRMED = "unconfirmed"
@@ -99,8 +106,11 @@ class ObservationRecovery:
         require_positive_number(self.gap_seconds)
         require_positive_number(self.backoff_max_seconds)
 
-        if (not callable(self.on_retry)) or (not callable(self.on_recovered)):
-            raise ValueError("Observation recovery requires explicit protected retry and recovery observers")
+        if not callable(self.on_retry):
+            raise ValueError(f"{callable(self.on_retry)=} should be True")
+
+        if not callable(self.on_recovered):
+            raise ValueError(f"{callable(self.on_recovered)=} should be True")
 
 
 @dataclass(frozen=True, slots=True)
@@ -120,8 +130,11 @@ class ConditionRecovery:
         for recovery_seconds in (self.window_seconds, self.backoff_max_seconds):
             require_positive_number(recovery_seconds)
 
-        if (not callable(self.on_retry)) or (not callable(self.on_recovered)):
-            raise ValueError("Condition recovery requires protected retry and recovery observers")
+        if not callable(self.on_retry):
+            raise ValueError(f"{callable(self.on_retry)=} should be True")
+
+        if not callable(self.on_recovered):
+            raise ValueError(f"{callable(self.on_recovered)=} should be True")
 
 
 class ConditionRecoveryExpired(TimeoutError):
@@ -129,8 +142,7 @@ class ConditionRecoveryExpired(TimeoutError):
 
     def __init__(self, window_seconds, *, phase, condition_code, cause):
         super().__init__(
-            f"Cannot confirm the current analysis condition: the retry window expired after {window_seconds=:g}; "
-            f"retain the original API evidence and settle work before recovery."
+            f"No condition receipt was confirmed within {window_seconds=}; {phase=}, {condition_code=}"
         )
 
         (self.window_seconds, self.phase, self.condition_code) = (window_seconds, phase, condition_code)
@@ -146,14 +158,8 @@ class ObservationGapExpired(TimeoutError):
     """The observation waiter expired; original API/work ownership is unchanged."""
 
     def __init__(self, gap_seconds, *, executor):
-        # silent-defaults: allow-contract -- Diagnostic wording identifies whether the original server read had started.
-        wait_stage = (
-            "after starting a server read" if executor._observation_read_started else "while waiting for API exchange access"
-        )
-
         super().__init__(
-            f"Cannot obtain a fresh Attempt observation before {gap_seconds=:g} elapsed; {wait_stage=}; "
-            f"retain existing API owners and retire the original work before recovery."
+            f"No fresh Attempt observation within {gap_seconds=}; {executor._observation_read_started=}"
         )
 
         (self.gap_seconds, self._executor) = (gap_seconds, executor)
@@ -181,9 +187,9 @@ def require_observation_recovery(policy):
         require_type(policy, ObservationRecovery)
 
 
-def require_phase_progress_observer(observer):
-    if (observer is not None) and (not callable(observer)):
-        raise ValueError("Phase-progress continuation requires a diagnostic observer or explicit fail-stop None")
+def require_phase_progress_observer(on_unconfirmed_phase_progress):
+    if (on_unconfirmed_phase_progress is not None) and (not callable(on_unconfirmed_phase_progress)):
+        raise ValueError(f"{callable(on_unconfirmed_phase_progress)=} should be True")
 
 
 class _ConditionReporter:
@@ -198,7 +204,7 @@ class _ConditionReporter:
 
     def require_active(self):
         if not (self.active):
-            raise ExecutionRefused("Cannot continue analysis: its session phase has ended")
+            raise ExecutionRefused(f"{self.phase=}: {self.active=} should be True")
 
         if not (self.failure is None):
             raise self.failure
@@ -209,7 +215,7 @@ class _ConditionReporter:
 
         try:
             if self.reporting:
-                raise ExecutionRefused("Cannot continue analysis while its condition report is awaiting completion")
+                raise ExecutionRefused(f"{self.phase=}: {self.reporting=} should be False")
 
             self.executor._require_live_permission()
             deadline = self.executor._observation_deadline
@@ -230,7 +236,7 @@ class _ConditionReporter:
         if self.reporting:
             # Sequential calls are part of AnalysisSession's contract.
             # Poison both callers before any old condition can be retried or accepted.
-            self.failure = ExecutionRefused("Cannot report concurrent analysis conditions; await the current report first")
+            self.failure = ExecutionRefused(f"{self.phase=}: {self.reporting=} should be False before another report")
 
             self.executor._remember(self.failure)
             raise self.failure
@@ -258,7 +264,7 @@ class ExecutionStopped(RuntimeError):
         job_state = observation.job_state
 
         super().__init__(
-            f"Cannot proceed with analysis: observed {attempt_state = } and {job_state = }; preserve the current record."
+            f"Analysis cannot continue with {attempt_state=} and {job_state=}"
         )
 
         self.observation = observation
@@ -274,7 +280,7 @@ class ExecutionFailed(RuntimeError):
 
     def __init__(self, *, cause, outcome, api_failure, cleanup_failures, attempt):
         super().__init__(
-            "Analysis lifecycle did not settle; retain this owner and inspect delivery and cleanup evidence before reuse"
+            "Analysis failed; inspect the retained operation, delivery and cleanup causes"
         )
 
         self.observed_at = time.monotonic()
@@ -316,8 +322,14 @@ def require_execution_settings(*, allowed_job_states, poll_seconds, task_settle_
 
     require_type(allowed_job_states, frozenset)
 
-    if (not (allowed_job_states)) or (not (allowed_job_states <= JOB_STATES)) or ("cancelled" in allowed_job_states):
-        raise ValueError("Cannot configure execution: allowed_job_states must be a nonempty frozenset of open or closed; cancelled Jobs stop work")
+    if not (allowed_job_states):
+        raise ValueError(f"{allowed_job_states=} should be nonempty")
+
+    if not (allowed_job_states <= JOB_STATES):
+        raise ValueError(f"{_EXECUTION_EVIDENCE.repr(allowed_job_states)=} should be a subset of {JOB_STATES=}")
+
+    if not ("cancelled" not in allowed_job_states):
+        raise ValueError(f"{'cancelled' in allowed_job_states=} should be False")
 
     for seconds in (poll_seconds, task_settle_seconds):
         require_positive_number(seconds)
@@ -370,16 +382,24 @@ class AttemptExecutor:
         require_type(scope, RecoveryScope)
 
         if api.origin != scope.api_origin:
-            raise ValueError("Cannot configure execution: signing origin differs from the selected scope")
+            raise ValueError(f"{_EXECUTION_EVIDENCE.repr(api.origin)=} should match {scope.api_origin=}")
 
         if preverified_input is not None:
             require_type(preverified_input, VerifiedJobInput)
 
-        if (
-            ((delivery.endpoint.api_origin, delivery.endpoint.provider_ref) != (scope.api_origin, scope.provider_ref)) or
-            (not callable(on_delivery_retry))
-        ):
-            raise ValueError("Execution requires the scoped delivery binding and its protected retry observer.")
+        delivery_api_origin = delivery.endpoint.api_origin
+        delivery_provider_ref = delivery.endpoint.provider_ref
+        expected_api_origin = scope.api_origin
+        expected_provider_ref = scope.provider_ref
+
+        if not (delivery_api_origin == expected_api_origin):
+            raise ValueError(f"{_EXECUTION_EVIDENCE.repr(delivery_api_origin)=} should match {expected_api_origin=}")
+
+        if not (delivery_provider_ref == expected_provider_ref):
+            raise ValueError(f"{_EXECUTION_EVIDENCE.repr(delivery_provider_ref)=} should match {expected_provider_ref=}")
+
+        if not callable(on_delivery_retry):
+            raise ValueError(f"{callable(on_delivery_retry)=} should be True")
 
         require_execution_settings(
             allowed_job_states=allowed_job_states,

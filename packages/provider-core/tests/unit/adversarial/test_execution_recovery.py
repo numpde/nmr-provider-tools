@@ -261,7 +261,6 @@ class ObservationRecoveryFailureTests(unittest.IsolatedAsyncioTestCase):
             self.assertIs(type(expired), ObservationGapExpired)
             self.assertFalse(expired.read_started)
             self.assertIsNone(expired.cause)
-            self.assertIn("waiting for API exchange access", str(expired))
             self.assertEqual(len(recovered), 1)
             self.assertEqual(recovered[0].status, 503)
             self.assertIsNot(failed.exception.api_failure, recovered[0])
