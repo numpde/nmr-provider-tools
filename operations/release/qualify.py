@@ -62,6 +62,24 @@ def _metadata_mismatch(recorded_metadata, captured_metadata):
                     captured_metadata=captured_metadata[metadata_member],
                 )
 
+    if (
+        isinstance(recorded_metadata, set) and
+        isinstance(captured_metadata, set)
+    ):
+        return (
+            f"{_RELEASE_EVIDENCE.repr(recorded_metadata - captured_metadata)=} and "
+            f"{_RELEASE_EVIDENCE.repr(captured_metadata - recorded_metadata)=} should be empty"
+        )
+
+    if (
+        isinstance(recorded_metadata, bytes) and
+        isinstance(captured_metadata, bytes)
+    ):
+        recorded_metadata_sha256 = hashlib.sha256(recorded_metadata).hexdigest()
+        captured_metadata_sha256 = hashlib.sha256(captured_metadata).hexdigest()
+
+        return f"{recorded_metadata_sha256=} ≠ {captured_metadata_sha256=}"
+
     return f"{_RELEASE_EVIDENCE.repr(recorded_metadata)=} ≠ {_RELEASE_EVIDENCE.repr(captured_metadata)=}"
 
 
@@ -789,8 +807,17 @@ def check(artifacts, revision):
             type_requirements_source=TYPE_REQUIREMENTS_SOURCE,
         )
 
-        if wheelhouse_bundle.read_bytes() != rebuilt_wheelhouse_bundle.read_bytes():
-            raise ValueError("Cannot qualify package: wheelhouse bundle differs from its source rebuild.")
+        issued_wheelhouse_bytes = wheelhouse_bundle.read_bytes()
+        rebuilt_wheelhouse_bytes = rebuilt_wheelhouse_bundle.read_bytes()
+
+        if issued_wheelhouse_bytes != rebuilt_wheelhouse_bytes:
+            issued_wheelhouse_sha256 = hashlib.sha256(issued_wheelhouse_bytes).hexdigest()
+            rebuilt_wheelhouse_sha256 = hashlib.sha256(rebuilt_wheelhouse_bytes).hexdigest()
+
+            raise ValueError(f"{wheelhouse_bundle=}: {issued_wheelhouse_sha256=} ≠ {rebuilt_wheelhouse_sha256=}")
+
+        # Comparison buffers need not survive the later installed qualification
+        del issued_wheelhouse_bytes, rebuilt_wheelhouse_bytes
 
         qualify_wheelhouse_bundle(wheelhouse_bundle, scratch)
 
@@ -807,14 +834,31 @@ def check(artifacts, revision):
             wheelhouse_bundle=wheelhouse_bundle,
         )
 
-        if (
-            (acquisition_bundle.read_bytes() != rebuilt_acquisition_bundle.read_bytes()) or
-            (release_record["acquisition_source_files"] != acquisition_record["source_files"]) or
-            (release_record["acquisition_dependency_inputs"] != acquisition_record["dependency_inputs"])
-        ):
+        issued_acquisition_bytes = acquisition_bundle.read_bytes()
+        rebuilt_acquisition_bytes = rebuilt_acquisition_bundle.read_bytes()
+
+        if issued_acquisition_bytes != rebuilt_acquisition_bytes:
+            issued_acquisition_sha256 = hashlib.sha256(issued_acquisition_bytes).hexdigest()
+            rebuilt_acquisition_sha256 = hashlib.sha256(rebuilt_acquisition_bytes).hexdigest()
+
+            raise ValueError(f"{acquisition_bundle=}: {issued_acquisition_sha256=} ≠ {rebuilt_acquisition_sha256=}")
+
+        del issued_acquisition_bytes, rebuilt_acquisition_bytes
+
+        if release_record["acquisition_source_files"] != acquisition_record["source_files"]:
             raise ValueError(
-                "Cannot qualify acquisition source bundle: bytes or provenance "
-                "differ from the pinned rebuild."
+                f"{release_record_path=}: " + _metadata_mismatch(
+                    recorded_metadata=release_record["acquisition_source_files"],
+                    captured_metadata=acquisition_record["source_files"],
+                )
+            )
+
+        if release_record["acquisition_dependency_inputs"] != acquisition_record["dependency_inputs"]:
+            raise ValueError(
+                f"{release_record_path=}: " + _metadata_mismatch(
+                    recorded_metadata=release_record["acquisition_dependency_inputs"],
+                    captured_metadata=acquisition_record["dependency_inputs"],
+                )
             )
 
         qualify_acquisition_bundle(acquisition_bundle, scratch, acquisition_record["source_files"])
@@ -827,37 +871,58 @@ def check(artifacts, revision):
 
         source_project = tomllib.loads((extracted_source / "pyproject.toml").read_text())
 
-        if (
-            (source_project["project"]["name"] != "provider-core") or
-            (source_project["project"]["version"] != release_version)
-        ):
-            raise ValueError("Cannot qualify package: source project and version differ from the release artifacts.")
+        expected_project_name = "provider-core"
+
+        if source_project["project"]["name"] != expected_project_name:
+            raise ValueError(f"{_RELEASE_EVIDENCE.repr(source_project['project']['name'])=} ≠ {expected_project_name=}")
+
+        if source_project["project"]["version"] != release_version:
+            raise ValueError(f"{_RELEASE_EVIDENCE.repr(source_project['project']['version'])=} ≠ {release_version=}")
 
         source_python_files = source_payload(extracted_source, release_record["source_files"])
 
-        if (extracted_source / SDK_TYPE_REQUIREMENTS).read_bytes() != TYPE_REQUIREMENTS_SOURCE.read_bytes():
-            raise ValueError("The SDK source distribution should contain the captured type requirements module.")
+        sdist_requirements_source = extracted_source / SDK_TYPE_REQUIREMENTS
+        sdist_requirements_bytes = sdist_requirements_source.read_bytes()
+        captured_requirements_bytes = TYPE_REQUIREMENTS_SOURCE.read_bytes()
+
+        if sdist_requirements_bytes != captured_requirements_bytes:
+            sdist_requirements_sha256 = hashlib.sha256(sdist_requirements_bytes).hexdigest()
+            captured_requirements_sha256 = hashlib.sha256(captured_requirements_bytes).hexdigest()
+
+            raise ValueError(f"{sdist_requirements_source=}: {sdist_requirements_sha256=} ≠ {captured_requirements_sha256=}")
+
+        del sdist_requirements_bytes, captured_requirements_bytes
 
         original_wheel_metadata = wheel_payload(captured_wheels[0], source_python_files, release_version)
 
         runtime_install_lock = artifacts / (artifact_prefix + "-install.lock")
 
-        if requirements(runtime_install_lock) != (requirements(pathlib.Path("/core-runtime.lock")) | {
+        issued_runtime_requirements = requirements(runtime_install_lock)
+        expected_runtime_requirements = requirements(pathlib.Path("/core-runtime.lock")) | {
             ("provider-core", release_version): {digest(captured_wheels[0])}
-        }):
+        }
+
+        if issued_runtime_requirements != expected_runtime_requirements:
             raise ValueError(
-                "Cannot qualify package: issued install lock differs from "
-                "the closed runtime dependencies and wheel."
+                f"{runtime_install_lock=}: " + _metadata_mismatch(
+                    recorded_metadata=issued_runtime_requirements,
+                    captured_metadata=expected_runtime_requirements,
+                )
             )
 
         native_install_lock = artifacts / (artifact_prefix + "-native-install.lock")
 
-        if requirements(native_install_lock) != {
+        issued_native_requirements = requirements(native_install_lock)
+        expected_native_requirements = {
             ("provider-core", release_version): {digest(captured_wheels[0])}
-        }:
+        }
+
+        if issued_native_requirements != expected_native_requirements:
             raise ValueError(
-                "Cannot qualify package: native install lock differs from "
-                "the same released wheel."
+                f"{native_install_lock=}: " + _metadata_mismatch(
+                    recorded_metadata=issued_native_requirements,
+                    captured_metadata=expected_native_requirements,
+                )
             )
 
         rebuild_output = scratch / "rebuilt"
@@ -872,13 +937,22 @@ def check(artifacts, revision):
             rebuild_output,
         )
 
-        if (
-            (rebuilt_dependency_inputs != release_record["dependency_inputs"]) or
-            (wheel_payload(rebuilt_wheel, source_python_files, release_version) != original_wheel_metadata)
-        ):
+        if rebuilt_dependency_inputs != release_record["dependency_inputs"]:
             raise ValueError(
-                "Cannot qualify package: source rebuild metadata or dependency "
-                "inputs differ from the original wheel."
+                f"{release_record_path=}: " + _metadata_mismatch(
+                    recorded_metadata=release_record["dependency_inputs"],
+                    captured_metadata=rebuilt_dependency_inputs,
+                )
+            )
+
+        rebuilt_wheel_metadata = wheel_payload(rebuilt_wheel, source_python_files, release_version)
+
+        if rebuilt_wheel_metadata != original_wheel_metadata:
+            raise ValueError(
+                f"{rebuilt_wheel=}: " + _metadata_mismatch(
+                    recorded_metadata=rebuilt_wheel_metadata,
+                    captured_metadata=original_wheel_metadata,
+                )
             )
 
         runtime_root = pathlib.Path("/runtime/package-proof")
@@ -912,16 +986,24 @@ def check(artifacts, revision):
             ("native",),
         )
 
-        if (
-            (digest(checksum_manifest_path) != original_manifest_digest) or
-            ({
-                artifact.name: digest(artifact)
-                for artifact in artifacts.iterdir()
-                if not artifact.name.endswith("-sha256.json")
-             }
-             != observed_hashes)
-        ):
-            raise ValueError("Cannot qualify package: release artifacts changed during qualification.")
+        final_manifest_digest = digest(checksum_manifest_path)
+
+        if final_manifest_digest != original_manifest_digest:
+            raise ValueError(f"{checksum_manifest_path=}: {final_manifest_digest=} ≠ {original_manifest_digest=}")
+
+        final_artifact_hashes = {
+            artifact.name: digest(artifact)
+            for artifact in artifacts.iterdir()
+            if not artifact.name.endswith("-sha256.json")
+        }
+
+        if final_artifact_hashes != observed_hashes:
+            raise ValueError(
+                f"{artifacts=}: " + _metadata_mismatch(
+                    recorded_metadata=final_artifact_hashes,
+                    captured_metadata=observed_hashes,
+                )
+            )
 
         for (name, checksum) in sorted(
             (observed_hashes | {checksum_manifest_path.name: original_manifest_digest}).items()

@@ -19,6 +19,7 @@ from contextlib import redirect_stdout
 from unittest.mock import call, patch
 
 from operations.release.qualify import (
+    _metadata_mismatch,
     artifact_names,
     check,
     qualify_acquisition_bundle,
@@ -431,6 +432,29 @@ class PackageArtifactTests(unittest.TestCase):
 
                 self.assertIn(expected_evidence, str(rejected.exception))
                 self.assertEqual("", qualification_output.getvalue())
+
+    def test_metadata_evidence_reveals_changed_bytes_and_unshared_hashes(self):
+        recorded_bytes = b"prefix" * 100 + b"recorded" + b"suffix" * 100
+        captured_bytes = b"prefix" * 100 + b"captured" + b"suffix" * 100
+        common_hashes = {(str(index) * 64) for index in range(10)}
+
+        for (recorded_metadata, captured_metadata, expected_evidence) in (
+            (
+                {"METADATA": recorded_bytes},
+                {"METADATA": captured_bytes},
+                {hashlib.sha256(recorded_bytes).hexdigest(), hashlib.sha256(captured_bytes).hexdigest()},
+            ),
+            (
+                {("package", "1.0"): common_hashes | {"a" * 64}},
+                {("package", "1.0"): common_hashes | {"b" * 64}},
+                {"a" * 64, "b" * 64},
+            ),
+        ):
+            with self.subTest(expected_evidence=expected_evidence):
+                diagnostic = _metadata_mismatch(recorded_metadata, captured_metadata)
+
+                for evidence in expected_evidence:
+                    self.assertIn(evidence, diagnostic)
 
     def test_wheel_build_uses_writable_stage_not_read_only_example_mount(self):
         source = ROOT / "examples/dummy-provider"
