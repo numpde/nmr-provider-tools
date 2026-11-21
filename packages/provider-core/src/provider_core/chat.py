@@ -15,6 +15,7 @@ import asyncio
 import hashlib
 import json
 import re
+import reprlib
 import ssl
 from dataclasses import dataclass, field
 
@@ -57,20 +58,42 @@ class ChatEndpointSpec:
     def __post_init__(self):
         require_type(self.configuration_id, str)
 
-        if re.fullmatch(r"[A-Za-z0-9_.-]{1,128}", self.configuration_id) is None:
-            raise ValueError("Cannot configure interpreter endpoint: configuration_id must be a bounded ASCII identifier.")
+        expected_configuration_id_pattern = r"[A-Za-z0-9_.-]{1,128}"
+
+        if not re.fullmatch(expected_configuration_id_pattern, self.configuration_id):
+            raise ValueError(f"{reprlib.repr(self.configuration_id)=} should match {expected_configuration_id_pattern=}")
 
         require_type(self.model, str)
 
-        if not (self.model.strip() and self.model.isprintable() and (len(self.model.encode('utf-8')) <= 512)):
-            raise ValueError("Cannot configure interpreter endpoint: model must be nonblank printable UTF-8 text within 512 bytes.")
+        if not self.model.strip():
+            raise ValueError(f"{reprlib.repr(self.model)=} should contain non-whitespace characters")
+
+        if not self.model.isprintable():
+            raise ValueError(f"{reprlib.repr(self.model)=} should be printable")
+
+        model_byte_length = len(self.model.encode("utf-8"))
+        max_model_bytes = 512
+
+        if not (model_byte_length <= max_model_bytes):
+            raise ValueError(f"{model_byte_length=} should be at most {max_model_bytes=}")
 
         actual_api_key = self.api_key
 
         require_type(actual_api_key, str)
 
-        if (not (self.api_key)) or (any((not 32 < ord(char) < 127) for char in self.api_key)):
-            raise ValueError("Cannot configure interpreter endpoint: an explicit header-safe API key is required.")
+        if not (self.api_key):
+            raise ValueError(f"{len(self.api_key)=} should be positive")
+
+        min_visible_ascii_codepoint, max_visible_ascii_codepoint = 33, 126
+
+        # Capture the first code point outside visible ASCII without printing authorization text
+        if not all(
+            (
+                (min_visible_ascii_codepoint <= (api_key_character_codepoint := ord(character)) <= max_visible_ascii_codepoint)
+                for character in self.api_key
+            ),
+        ):
+            raise ValueError(f"{api_key_character_codepoint=} should be between {min_visible_ascii_codepoint=} and {max_visible_ascii_codepoint=}")
 
         if self.reasoning_effort is not None:
             actual_reasoning_effort = self.reasoning_effort
@@ -78,26 +101,50 @@ class ChatEndpointSpec:
             require_type(actual_reasoning_effort, str)
 
             if not (self.reasoning_effort):
-                raise ValueError("Cannot configure interpreter endpoint: reasoning_effort must be an explicit ASCII word or None.")
+                raise ValueError(f"{self.reasoning_effort=} should be nonempty")
 
             if not self.reasoning_effort.isascii():
-                raise ValueError("Cannot configure interpreter endpoint: reasoning_effort must be an explicit ASCII word or None.")
+                raise ValueError(f"{reprlib.repr(self.reasoning_effort)=} should be ASCII")
 
             if not self.reasoning_effort.isalnum():
-                raise ValueError("Cannot configure interpreter endpoint: reasoning_effort must be an explicit ASCII word or None.")
+                raise ValueError(f"{reprlib.repr(self.reasoning_effort)=} should be alphanumeric")
 
         require_type(self.url, str)
 
-        if any((not 32 < ord(char) < 127) for char in self.url):
-            raise ValueError("Cannot configure interpreter endpoint: URL must be canonical ASCII HTTPS text.")
+        if not all(
+            (
+                (min_visible_ascii_codepoint <= (url_character_codepoint := ord(character)) <= max_visible_ascii_codepoint)
+                for character in self.url
+            ),
+        ):
+            raise ValueError(f"{url_character_codepoint=} should be between {min_visible_ascii_codepoint=} and {max_visible_ascii_codepoint=}")
 
         try:
-            url = httpx.URL(self.url)
-        except httpx.InvalidURL:
-            raise ValueError("Cannot configure interpreter endpoint: URL is not valid HTTPS.") from None
+            endpoint_url = httpx.URL(self.url)
+        except httpx.InvalidURL as cause:
+            raise ValueError(f"Cannot parse the endpoint URL for {self.configuration_id=}") from cause
 
-        if (url.scheme != "https") or (not url.host) or (url.userinfo) or ("?" in self.url) or ("#" in self.url) or (str(url) != self.url):
-            raise ValueError("Cannot configure interpreter endpoint: use a canonical HTTPS URL without credentials, query or fragment.")
+        expected_scheme = "https"
+
+        if not (endpoint_url.scheme == expected_scheme):
+            raise ValueError(f"{endpoint_url.scheme=} should match {expected_scheme=}")
+
+        if not (endpoint_url.host):
+            raise ValueError(f"{endpoint_url.host=} should be nonempty")
+
+        if not (endpoint_url.userinfo == b""):
+            raise ValueError(f"{bool(endpoint_url.userinfo)=} should be False")
+
+        if not ("?" not in self.url):
+            raise ValueError(f"{'?' in self.url=} should be False")
+
+        if not ("#" not in self.url):
+            raise ValueError(f"{'#' in self.url=} should be False")
+
+        canonical_url = str(endpoint_url)
+
+        if not (canonical_url == self.url):
+            raise ValueError(f"{reprlib.repr(self.url)=} should match {reprlib.repr(canonical_url)=}")
 
 
 @dataclass(frozen=True, slots=True, kw_only=True)
@@ -150,12 +197,12 @@ def require_chat_limits(*, request_bytes, response_bytes):
     require_type(request_bytes, int)
 
     if not (0 < request_bytes):
-        raise ValueError("Cannot configure interpreter carrier: request and response byte limits must be positive integers.")
+        raise ValueError(f"{request_bytes=} should be positive")
 
     require_type(response_bytes, int)
 
     if not (0 < response_bytes):
-        raise ValueError("Cannot configure interpreter carrier: request and response byte limits must be positive integers.")
+        raise ValueError(f"{response_bytes=} should be positive")
 
 
 class ChatEndpoint:
@@ -230,13 +277,13 @@ class ChatEndpoint:
             reasoning_effort=self.spec.reasoning_effort,
         )
 
-        if len(content) > self._request_bytes:
-            content_bytes = len(content)
-            content_byte_limit = self._request_bytes
+        request_body_byte_length = len(content)
 
+        # repo-check: allow-literal-guard-error -- reason is the unchanged machine code; message reports the actual request size, bound and no-send state
+        if not (request_body_byte_length <= self._request_bytes):
             raise ChatFailed(
-                "request_limit",
-                f"Cannot send interpreter request: {content_bytes = } exceeds {content_byte_limit = }; this turn was not sent.",
+                reason="request_limit",
+                message=f"{request_body_byte_length=} should be at most {self._request_bytes=}; this turn was not sent",
             )
 
         wire = completion_request(url=self.spec.url, api_key=self.spec.api_key, content=content)
