@@ -27,6 +27,7 @@ from provider_core.failure_projection import owned_details as core_owned_details
 from provider_core.failure_projection import owned_relationships as core_owned_relationships
 from provider_core.diagnostic_text import redact_credential_fields
 from provider_core.process_wire import decoded_error_evidence
+from provider_core.type_requirements import require_type
 
 # Bound protected failure-graph traversal and diagnostic output.
 # repo-check: allow-module-constant
@@ -71,6 +72,18 @@ def failure_evidence(error, *, secrets, describe_owner=describe_core_failure, ow
     describe_owner(error, text, diagnostic_window) returns reviewed scalar facts;
     it is distinct from the one-argument owned_details(error) projection.
     """
+
+    return _failure_evidence(
+        error,
+        secrets=secrets,
+        describe_owner=describe_owner,
+        owner_relationships=owner_relationships,
+        diagnostic_text=str,
+    )
+
+
+def _failure_evidence(error, *, secrets, describe_owner, owner_relationships, diagnostic_text):
+    """Snapshot reviewed facts once; mark only expendable diagnostic prose."""
     redact = operator_redactor(secrets=secrets)
     (seen, remaining) = ({}, _MAX_FAILURE_NODES)
 
@@ -83,8 +96,8 @@ def failure_evidence(error, *, secrets, describe_owner=describe_core_failure, ow
         diagnostic = redact(value)
 
         return {
-            "head": diagnostic[:4096],
-            "tail": diagnostic[-4096:] if len(diagnostic) > 8192 else diagnostic[4096:],
+            "head": diagnostic_text(diagnostic[:4096]),
+            "tail": diagnostic_text(diagnostic[-4096:] if len(diagnostic) > 8192 else diagnostic[4096:]),
             "omitted_characters": max(0, len(diagnostic) - 8192),
         }
 
@@ -110,9 +123,9 @@ def failure_evidence(error, *, secrets, describe_owner=describe_core_failure, ow
         for (frame, line) in traceback.walk_tb(current.__traceback__):
             frames.append(
                 {
-                    "file": text(pathlib.Path(frame.f_code.co_filename).name, 128),
+                    "file": diagnostic_text(text(pathlib.Path(frame.f_code.co_filename).name, 128)),
                     "line": line,
-                    "function": text(frame.f_code.co_name, 128),
+                    "function": diagnostic_text(text(frame.f_code.co_name, 128)),
                 }
             )
 
@@ -123,22 +136,34 @@ def failure_evidence(error, *, secrets, describe_owner=describe_core_failure, ow
         if count > len(frames):
             evidence["omitted_frame_count"] = count - len(frames)
 
-        evidence.update(
-            {
-                owner_fact_name: (text(owner_fact, 1024) if type(owner_fact) is str else owner_fact)
-                for (owner_fact_name, owner_fact) in describe_owner(current, text, diagnostic_window).items()
-            },
-        )
+        for (owner_fact_name, owner_fact) in describe_owner(current, text, diagnostic_window).items():
+            if type(owner_fact) is str:
+                owner_fact = text(owner_fact, 1024)
+
+                if owner_fact_name == "message":
+                    owner_fact = diagnostic_text(owner_fact)
+
+            evidence[owner_fact_name] = owner_fact
 
         remote = decoded_error_evidence(current)
 
         if remote is not None:
             evidence["remote_type"] = text(remote.original_type, 128)
-            evidence["message"] = text(remote.message, 1024)
+            evidence["message"] = diagnostic_text(text(remote.message, 1024))
+            evidence["remote_kind"] = remote.kind
+
+            if remote.code is not None:
+                evidence["remote_code"] = text(remote.code, 2048)
+
             evidence["remote_frames"] = [
-                {"file": text(file, 128), "function": text(function, 128), "line": line}
+                {
+                    "file": diagnostic_text(text(file, 128)),
+                    "function": diagnostic_text(text(function, 128)),
+                    "line": line,
+                }
                 for (file, function, line) in remote.frames
             ]
+
             evidence["remote_frames_omitted"] = remote.frames_omitted
 
         if isinstance(current, OSError) and (type(current.errno) is int):
@@ -195,6 +220,113 @@ def failure_evidence(error, *, secrets, describe_owner=describe_core_failure, ow
         return evidence
 
     return describe(error)
+
+
+class _DiagnosticText(str):
+    """Mark redacted prose whose length may yield to the complete record budget."""
+
+
+# silent-defaults: allow-contract -- Use the same reviewed owner hooks as failure_evidence, without importing scientific bindings.
+def failure_evidence_json(evidence, *, secrets, maximum_bytes, describe_owner=describe_core_failure, owner_relationships=core_owned_relationships):
+    """Encode one complete evidence root, projecting exception leaves to fit.
+
+    The binding supplies already-safe JSON facts with original exceptions at
+    diagnostic leaves. Required root facts are neither redacted nor shortened.
+    Required facts, outcomes, codes, node identities and causal edges are retained.
+    Only reviewed messages and traceback locations may be shortened, after full
+    redaction, with an explicit truncation marker. Owner hooks run once per graph.
+
+    The byte budget covers the entire compact UTF-8 JSON record, including keys,
+    escaping and multiple independent failures. If required facts and graph
+    structure alone exceed it, refuse output rather than invent an outcome or
+    discard a failure. Original exceptions and resource ownership are unchanged.
+    Existing failure_evidence remains a character-bounded graph projection;
+    callers needing an aggregate byte guarantee should use this root encoder.
+    """
+    require_type(maximum_bytes, int)
+
+    if not (0 < maximum_bytes):
+        raise ValueError(f"{maximum_bytes=} should be positive")
+
+    # Materialize secret iterators once so every graph receives the same policy
+    secrets = list(secrets)
+
+    def project(fact):
+        if isinstance(fact, BaseException):
+            return _failure_evidence(
+                fact,
+                secrets=secrets,
+                describe_owner=describe_owner,
+                owner_relationships=owner_relationships,
+                diagnostic_text=_DiagnosticText,
+            )
+
+        if type(fact) is dict:
+            return {name: project(member) for (name, member) in fact.items()}
+
+        if type(fact) is list:
+            return [project(member) for member in fact]
+
+        return fact
+
+    projected = project(evidence)
+
+    def shorten(fact, characters):
+        if type(fact) is _DiagnosticText:
+            marker = "[truncated]"
+
+            if (len(fact) <= characters) or (len(fact) <= len(marker)):
+                return str(fact)
+
+            # Including the marker in the allowance makes encoded size monotone
+            return fact[:max(0, characters - len(marker))] + marker
+
+        if type(fact) is dict:
+            return {name: shorten(member, characters) for (name, member) in fact.items()}
+
+        if type(fact) is list:
+            return [shorten(member, characters) for member in fact]
+
+        return fact
+
+    def encode(characters):
+        encoded_text = json.dumps(
+            shorten(projected, characters),
+            # Wire strings with lone surrogates remain representable JSON escapes
+            ensure_ascii=True,
+            allow_nan=False,
+            separators=(",", ":"),
+            sort_keys=True,
+        )
+
+        return encoded_text.encode("utf-8")
+
+    # Prose is already locally bounded to at most the 4096-character window
+    full = encode(4096)
+
+    if len(full) <= maximum_bytes:
+        return full
+
+    minimum = encode(0)
+    minimum_bytes = len(minimum)
+
+    if not (minimum_bytes <= maximum_bytes):
+        raise DiagnosticOutputRefused(f"{minimum_bytes=} should be at most {maximum_bytes=} to retain required evidence")
+
+    # Search captured text only; never re-observe owners or rerun their hooks
+    (lower, upper, fitting_bytes) = (0, 4095, minimum)
+
+    while lower <= upper:
+        characters = (lower + upper) // 2
+        candidate = encode(characters)
+
+        if len(candidate) <= maximum_bytes:
+            fitting_bytes = candidate
+            lower = characters + 1
+        else:
+            upper = characters - 1
+
+    return fitting_bytes
 
 
 def write_stderr(content):
