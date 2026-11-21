@@ -133,10 +133,10 @@ def read_manifest(manifest_json: str | bytes | bytearray) -> AcquisitionManifest
     require_type(payload_files, dict)
 
     if not payload_files:
-        raise ValueError("Acquisition manifest payload inventory must not be empty")
+        raise ValueError(f"{payload_files=} should be nonempty")
 
     if "acquisition-manifest.json" in payload_files:
-        raise ValueError("Acquisition manifest payload inventory must not include the manifest itself")
+        raise ValueError(f"{'acquisition-manifest.json' in payload_files=} should be False")
 
     for (acquisition_rel_path, entry) in payload_files.items():
         inventory_path = _relative_name(acquisition_rel_path)
@@ -335,7 +335,7 @@ def _admit_archive(
                 raise ValueError(f"Acquisition archive: {member.name=} is not a file: {member.type=}")
 
         if member_counts["acquisition-manifest.json"] != 1:
-            raise ValueError("Acquisition archive must contain one acquisition-manifest.json.")
+            raise ValueError(f"{member_counts['acquisition-manifest.json']=} should be one")
 
         manifest_member = archive.getmember("acquisition-manifest.json")
 

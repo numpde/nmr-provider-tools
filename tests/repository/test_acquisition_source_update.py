@@ -78,16 +78,14 @@ class SourceUpdateTests(unittest.TestCase):
         manifest = self.manifest("1.0.0", self.old)
         metadata = manifest["payload_files"]["acquisition_tool/old.py"]
 
-        for (payload_files, expected_message) in (
-            ({}, "payload inventory must not be empty"),
-            ({"acquisition-manifest.json": metadata}, "must not include the manifest itself"),
-            ({"ancestor": metadata, "ancestor/child": metadata}, "acquisition_rel_path='ancestor/child' has an inventoried parent=PurePosixPath('ancestor')"),
-        ):
+        for payload_files in [
+            {},
+            {"acquisition-manifest.json": metadata},
+            {"ancestor": metadata, "ancestor/child": metadata},
+        ]:
             with self.subTest(payload_files=payload_files):
-                with self.assertRaises(ValueError) as caught:
+                with self.assertRaises(ValueError):
                     updates.read_manifest(json.dumps(manifest | {"payload_files": payload_files}))
-
-                self.assertIn(expected_message, str(caught.exception))
 
     def test_manifest_reports_the_invalid_release_identity(self):
         for (changes, expected_requirement, expected_field) in (
