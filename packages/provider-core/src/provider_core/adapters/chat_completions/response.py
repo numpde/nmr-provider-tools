@@ -7,7 +7,13 @@ require_container()
 from provider_core.chat_errors import ChatFailed
 from provider_core.adapters.chat_completions.diagnostics import endpoint_error
 from provider_core.response_json import ResponseRejected
-from provider_core.validation.upstream.chat_completions.response import is_completion_success, read_choice, require_completed_finish_reason
+
+from provider_core.validation.upstream.chat_completions.response import (
+    COMPLETION_SUCCESS_STATUS,
+    is_completion_success,
+    read_choice,
+    require_completed_finish_reason,
+)
 
 
 def read_completion(response, *, maximum_bytes: int, error_detail_maximum_bytes: int, messages, api_key: str) -> dict:
@@ -16,7 +22,7 @@ def read_completion(response, *, maximum_bytes: int, error_detail_maximum_bytes:
     if not is_completion_success(response.status):
         raise ChatFailed(
             "http_status",
-            f"Cannot complete interpreter request: the model service returned HTTP {response.status=}; no tool was accepted.",
+            message=f"{response.status=} should match {COMPLETION_SUCCESS_STATUS=}; no tool was accepted",
             response=response,
             endpoint_error=endpoint_error(response, messages, api_key, maximum_bytes=error_detail_maximum_bytes),
         )
@@ -28,7 +34,7 @@ def read_completion(response, *, maximum_bytes: int, error_detail_maximum_bytes:
         if finish_reason == "length":
             raise ChatFailed(
                 "completion_limit",
-                "Cannot interpret the model reply: generation stopped at the service's completion limit; no tool was accepted.",
+                message=f"{finish_reason=} should indicate a complete model reply; no tool was accepted",
                 response=response,
             )
 
