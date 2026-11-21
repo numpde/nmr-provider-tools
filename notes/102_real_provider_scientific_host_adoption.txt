@@ -152,10 +152,19 @@ retain uncertainty otherwise. Retirement follows resource health and cleanup nee
 independently of public classification. Reproducing exception-to-crash behavior
 would add no scientific value.
 
-Change service availability handling. Both current lane loops share a TaskGroup
-that propagates a lane error into provider-wide stopping. Withdraw/settle the failed
-lane while healthy science continues serving, with readiness/advertisement reflecting
-available offerings. API, identity and shutdown failures retain their proper scope.
+At the inspected baseline a lane error could stop both offerings. The adoption
+requirement is to withdraw the failed lane and keep the healthy sibling serving.
+API, identity and shutdown failures retain their proper scope.
+
+The SDK host must expose confirmed exit of the original worker even when its
+allocation is idle. Observation must preserve the worker's retirement allowance
+through healthy idle time and retain the original lifecycle evidence for cleanup.
+On confirmed unexpected exit of a serving worker, NMRPeak maps the allocation to
+HF or CHF, stops admitting work for that offering and updates the list supplied
+to SDK Hello publication. Any active Attempt retains its own outcome and evidence.
+Under the qualified local API response budget, measure withdrawal from worker exit
+through acknowledgement of the corrected Hello. Local readiness reflects whether
+any offering can serve.
 
 | Route | Calls and existing evidence |
 | --- | --- |
