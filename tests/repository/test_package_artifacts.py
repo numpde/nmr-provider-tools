@@ -7,6 +7,7 @@ require_container()
 import ast
 import hashlib
 import io
+import json
 import subprocess
 import sys
 import tarfile
@@ -407,12 +408,29 @@ class PackageArtifactTests(unittest.TestCase):
         for name in artifact_names("0.2.0"):
             (artifacts / name).write_text("{}\n")
 
-        output = io.StringIO()
+        checksum_manifest_path = artifacts / "provider_core-0.2.0-sha256.json"
+        captured_hashes = {
+            artifact.name: digest(artifact)
+            for artifact in artifacts.iterdir()
+            if artifact != checksum_manifest_path
+        }
 
-        with redirect_stdout(output), self.assertRaisesRegex(ValueError, "release hashes"):
-            check(artifacts, "0" * 40)
+        last_artifact_name = max(captured_hashes)
 
-        self.assertEqual("", output.getvalue())
+        for (recorded_hashes, expected_evidence) in (
+            ({}, checksum_manifest_path.name),
+            ([], checksum_manifest_path.name),
+            (captured_hashes | {last_artifact_name: "0" * 64}, last_artifact_name),
+        ):
+            with self.subTest(recorded_hashes=recorded_hashes):
+                checksum_manifest_path.write_text(json.dumps(recorded_hashes))
+                qualification_output = io.StringIO()
+
+                with redirect_stdout(qualification_output), self.assertRaises(ValueError) as rejected:
+                    check(artifacts, "0" * 40)
+
+                self.assertIn(expected_evidence, str(rejected.exception))
+                self.assertEqual("", qualification_output.getvalue())
 
     def test_wheel_build_uses_writable_stage_not_read_only_example_mount(self):
         source = ROOT / "examples/dummy-provider"

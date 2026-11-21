@@ -41,6 +41,30 @@ _RELEASE_EVIDENCE.maxstring = 256
 _RELEASE_EVIDENCE.maxother = _RELEASE_EVIDENCE.maxstring
 
 
+def _metadata_mismatch(recorded_metadata, captured_metadata):
+    """Describe a rejected metadata difference without revalidating its schema."""
+
+    # Type dispatch selects evidence after the caller's existing mismatch check
+    if (
+        isinstance(recorded_metadata, dict) and
+        isinstance(captured_metadata, dict)
+    ):
+        for metadata_member in sorted(recorded_metadata.keys() | captured_metadata.keys(), key=repr):
+            if metadata_member not in recorded_metadata:
+                return f"{_RELEASE_EVIDENCE.repr(metadata_member)=} should be present in recorded metadata"
+
+            if metadata_member not in captured_metadata:
+                return f"{_RELEASE_EVIDENCE.repr(metadata_member)=} should be absent from recorded metadata"
+
+            if recorded_metadata[metadata_member] != captured_metadata[metadata_member]:
+                return f"{_RELEASE_EVIDENCE.repr(metadata_member)=}: " + _metadata_mismatch(
+                    recorded_metadata=recorded_metadata[metadata_member],
+                    captured_metadata=captured_metadata[metadata_member],
+                )
+
+    return f"{_RELEASE_EVIDENCE.repr(recorded_metadata)=} ≠ {_RELEASE_EVIDENCE.repr(captured_metadata)=}"
+
+
 def artifact_names(version):
     prefix = f"provider_core-{version}"  # machine-string: Release artifact lookup requires the versioned distribution filename prefix
     wheelhouse_name = f"wheelhouse-tool-{version}.pyz"  # machine-string: The release inventory matches this exact acquisition-tool bundle filename
@@ -669,23 +693,34 @@ def check(artifacts, revision):
                 pass
 
         captured_wheels = list(artifacts.glob("*.whl"))
+        expected_wheel_count = 1
 
-        if len(captured_wheels) != 1:
-            raise ValueError("Cannot qualify package: expect exactly one provider-core wheel.")
+        if len(captured_wheels) != expected_wheel_count:
+            raise ValueError(f"{artifacts=}: {len(captured_wheels)=} ≠ {expected_wheel_count=}")
 
+        expected_wheel_name_pattern = r"provider_core-((?:0|[1-9][0-9]*)\.(?:0|[1-9][0-9]*)\.(?:0|[1-9][0-9]*))-py3-none-any.whl"
         wheel_filename = re.fullmatch(
-            r"provider_core-((?:0|[1-9][0-9]*)\.(?:0|[1-9][0-9]*)\.(?:0|[1-9][0-9]*))-py3-none-any.whl",
+            expected_wheel_name_pattern,
             captured_wheels[0].name,
         )
 
         if wheel_filename is None:
-            raise ValueError("Cannot qualify package: wheel name must identify a provider-core release version.")
+            raise ValueError(f"{captured_wheels[0].name=} should match {expected_wheel_name_pattern=}")
 
         release_version = wheel_filename[1]
         artifact_prefix = f"provider_core-{release_version}"  # machine-string: Release wheel and source filenames share this exact versioned distribution prefix
 
-        if {artifact.name for artifact in artifacts.iterdir()} != artifact_names(release_version):
-            raise ValueError("Cannot qualify package: expect exactly the declared release artifacts.")
+        observed_artifact_names = {artifact.name for artifact in artifacts.iterdir()}
+        expected_artifact_names = artifact_names(release_version)
+
+        if observed_artifact_names != expected_artifact_names:
+            missing_artifact_names = expected_artifact_names - observed_artifact_names
+            unexpected_artifact_names = observed_artifact_names - expected_artifact_names
+
+            raise ValueError(
+                f"{artifacts=}: {_RELEASE_EVIDENCE.repr(missing_artifact_names)=} and "
+                f"{_RELEASE_EVIDENCE.repr(unexpected_artifact_names)=} should be empty"
+            )
 
         checksum_manifest_path = artifacts / (artifact_prefix + "-sha256.json")
         original_manifest_digest = digest(checksum_manifest_path)
@@ -698,30 +733,50 @@ def check(artifacts, revision):
         }
 
         if recorded_hashes != observed_hashes:
-            raise ValueError("Cannot qualify package: captured release hashes do not match the declared artifacts.")
-
-        release_record = json.loads((artifacts / (artifact_prefix + "-release.json")).read_text())
-
-        if (
-            (release_record["source_revision"] != revision) or
-            (release_record["files"] != (
-                {
-                    name: checksum
-                    for (name, checksum) in observed_hashes.items()
-                    if not name.endswith("-release.json")
-                }
-            ))
-        ):
             raise ValueError(
-                "Cannot qualify package: source revision or recorded artifact "
-                "identities differ from this release."
+                f"{checksum_manifest_path=}: " + _metadata_mismatch(
+                    recorded_metadata=recorded_hashes,
+                    captured_metadata=observed_hashes,
+                )
             )
 
-        if release_record["tool_source_files"] != wheelhouse_source_inventory(
+        release_record_path = artifacts / (artifact_prefix + "-release.json")
+        release_record = json.loads(release_record_path.read_text())
+
+        if release_record["source_revision"] != revision:
+            raise ValueError(
+                f"{release_record_path=}: {_RELEASE_EVIDENCE.repr(release_record['source_revision'])=} "
+                f"≠ {_RELEASE_EVIDENCE.repr(revision)=}"
+            )
+
+        recorded_artifact_files = release_record["files"]
+        captured_artifact_files = {
+            name: checksum
+            for (name, checksum) in observed_hashes.items()
+            if not name.endswith("-release.json")
+        }
+
+        if recorded_artifact_files != captured_artifact_files:
+            raise ValueError(
+                f"{release_record_path=}: " + _metadata_mismatch(
+                    recorded_metadata=recorded_artifact_files,
+                    captured_metadata=captured_artifact_files,
+                )
+            )
+
+        recorded_tool_source_files = release_record["tool_source_files"]
+        captured_tool_source_files = wheelhouse_source_inventory(
             pathlib.Path("/workspace/wheelhouse_tool"),
             type_requirements_source=TYPE_REQUIREMENTS_SOURCE,
-        ):
-            raise ValueError("Cannot qualify package: wheelhouse tool source differs from the release inputs.")
+        )
+
+        if recorded_tool_source_files != captured_tool_source_files:
+            raise ValueError(
+                f"{release_record_path=}: " + _metadata_mismatch(
+                    recorded_metadata=recorded_tool_source_files,
+                    captured_metadata=captured_tool_source_files,
+                )
+            )
 
         wheelhouse_bundle = artifacts / f"wheelhouse-tool-{release_version}.pyz"  # machine-string: Release qualification opens this exact published bundle filename
         rebuilt_wheelhouse_bundle = scratch / wheelhouse_bundle.name
