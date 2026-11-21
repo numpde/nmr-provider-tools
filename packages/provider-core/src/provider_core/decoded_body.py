@@ -35,9 +35,9 @@ _MAX_CODINGS = 4
 
 
 class DecodedBodyRejected(ValueError):
-    """A closed safe reason; native codec evidence remains the protected cause."""
+    """Retain a closed reason, contextual text and the original codec cause."""
 
-    def __init__(self, reason):
+    def __init__(self, reason, *, message=None):
         require_type(reason, str)
 
         if not (reason in _MESSAGES):
@@ -47,7 +47,8 @@ class DecodedBodyRejected(ValueError):
 
         self.reason = reason
 
-        super().__init__(_MESSAGES[reason])
+        # silent-defaults: allow-contract -- Codec failures use profile text unless the caller supplies evidence from its own size boundary
+        super().__init__(_MESSAGES[reason] if message is None else message)
 
 
 class _Budget:

@@ -93,32 +93,40 @@ def temporary_io_failure(cause, remaining, *, network_failure=None):
     return temporary_io_failure(preceding, remaining - 1)
 
 
-def _require_output_file(descriptor):
+def _require_output_file(output_fd):
     try:
-        facts = os.fstat(descriptor)
-        flags = fcntl.fcntl(descriptor, fcntl.F_GETFL)
+        output_file_stat = os.fstat(output_fd)
+        output_file_flags = fcntl.fcntl(output_fd, fcntl.F_GETFL)
     except OSError as cause:
         raise ExchangeFailed(
-            "Cannot receive HTTP response in a file: output descriptor inspection failed before sending the request",
+            f"Cannot inspect {output_fd=} before sending the request",
             primary=cause,
         ) from None
 
-    access_mode = flags & os.O_ACCMODE
+    access_mode = output_file_flags & os.O_ACCMODE
 
-    if (not stat.S_ISREG(facts.st_mode)) or (access_mode not in (os.O_WRONLY, os.O_RDWR)) or (flags & os.O_APPEND):
-        raise ExchangeFailed("Cannot receive HTTP response in a file: output must be a writable regular file without append mode; request was not sent")
+    if not stat.S_ISREG(output_file_stat.st_mode):
+        raise ExchangeFailed(f"{output_fd=} should refer to a regular file; {output_file_stat.st_mode=:#o}; request was not sent")
+
+    writable_access_modes = [os.O_WRONLY, os.O_RDWR]
+
+    if not (access_mode in writable_access_modes):
+        raise ExchangeFailed(f"{output_fd=}: {access_mode=} should be one of {writable_access_modes=}; request was not sent")
+
+    if not ((output_file_flags & os.O_APPEND) == 0):
+        raise ExchangeFailed(f"{output_fd=}: {output_file_flags=:#o} should exclude {os.O_APPEND=:#o}; request was not sent")
 
 
-def _write_file_chunk(descriptor, chunk):
-    remaining = memoryview(chunk)
+def _write_file_chunk(output_fd, chunk):
+    unwritten_bytes = memoryview(chunk)
 
-    while remaining:
-        written = os.write(descriptor, remaining)
+    while unwritten_bytes:
+        written_byte_count = os.write(output_fd, unwritten_bytes)
 
-        if written <= 0:
-            raise OSError(errno.EIO, "Cannot write HTTP response: file write made no progress")
+        if written_byte_count <= 0:
+            raise OSError(errno.EIO, f"{written_byte_count=} should be positive when writing to {output_fd=}")
 
-        remaining = remaining[written:]
+        unwritten_bytes = unwritten_bytes[written_byte_count:]
 
 
 def _observe_file_write(waiter):
@@ -216,8 +224,8 @@ def require_unix_socket_path(path):
 
     try:
         path_byte_count = len(path.encode("utf-8"))
-    except UnicodeError:
-        raise ValueError(f"{path=} should be valid UTF-8") from None
+    except UnicodeError as cause:
+        raise ValueError(f"{path=} should be valid UTF-8") from cause
 
     # Linux sun_path[108] includes its terminating NUL
     if not (path_byte_count <= (maximum_path_bytes := 107)):
@@ -230,13 +238,16 @@ def require_transport_settings(*, trust, exchange_seconds, retirement_seconds, p
 
     require_instance(trust, ssl.SSLContext)
 
-    if (trust.verify_mode != ssl.CERT_REQUIRED) or (not (trust.check_hostname)):
-        raise ValueError("Cannot configure HTTPS exchange: TLS must verify the certificate and hostname")
+    if not (trust.verify_mode == ssl.CERT_REQUIRED):
+        raise ValueError(f"{trust.verify_mode=} should match {ssl.CERT_REQUIRED=}")
+
+    if not trust.check_hostname:
+        raise ValueError(f"{trust.check_hostname=} should be True")
 
     require_type(allow_http, bool)
 
     if (allow_http) and (proxy_socket is not None):
-        raise ValueError("Cannot configure HTTP exchange: plain HTTP admission requires a direct transport without a proxy")
+        raise ValueError(f"{proxy_socket=} should be None when {allow_http=}")
 
     require_positive_number(exchange_seconds)
     require_positive_number(retirement_seconds)
@@ -318,8 +329,8 @@ class HttpTransport:
             backend_wire.require_connect_host(http_request.url.raw_host)
 
     async def _perform(self, http_request, maximum_bytes, account_bytes, outcome, output_fd, before_body, decoder_factory, not_after):
-        if (not_after is not None) and (asyncio.get_running_loop().time() >= not_after):
-            outcome.primary = TimeoutError("HTTP exchange absolute deadline expired before task entry")
+        if (not_after is not None) and ((monotonic_now := asyncio.get_running_loop().time()) >= not_after):
+            outcome.primary = TimeoutError(f"{not_after=} expired before task entry at {monotonic_now=}")
 
             return outcome
 
@@ -335,8 +346,8 @@ class HttpTransport:
             if file_body is not None:
                 await file_body.validate()
 
-            if (not_after is not None) and (asyncio.get_running_loop().time() >= not_after):
-                raise TimeoutError("HTTP exchange absolute deadline expired before request dispatch")
+            if (not_after is not None) and ((monotonic_now := asyncio.get_running_loop().time()) >= not_after):
+                raise TimeoutError(f"{not_after=} expired before request dispatch at {monotonic_now=}")
 
             network = OwnedNetworkBackend(proxy_socket=self._proxy_socket)
             outcome.network_io = network.observation
@@ -388,7 +399,7 @@ class HttpTransport:
                     network.observation.deadline_cancelled = True
                     outcome.network_failure = network.observation.error
 
-                    raise TimeoutError("HTTP connection setup exceeded its configured deadline") from failure
+                    raise TimeoutError(f"Connection setup exceeded {self._connect_seconds=}") from failure
                 else:
                     outcome.network_failure = failure
 
@@ -405,7 +416,7 @@ class HttpTransport:
             # silent-defaults: allow-contract -- Only a buffered response owns an in-memory body; file mode does not buffer it.
             body = bytearray() if file_body is None else None
 
-            received_bytes = 0
+            received_body_bytes = 0
             iterator = response.aiter_stream().__aiter__()
 
             while True:
@@ -423,13 +434,13 @@ class HttpTransport:
                 if account_bytes is not None:
                     account_bytes(len(chunk))
 
-                received_bytes += len(chunk)
+                received_body_bytes += len(chunk)
 
-                if received_bytes > maximum_bytes:
+                if received_body_bytes > maximum_bytes:
                     if not (decoder is None):
-                        raise DecodedBodyRejected("size_limit")
+                        raise DecodedBodyRejected("size_limit", message=f"{received_body_bytes=} should be at most {maximum_bytes=}")
 
-                    raise ExchangeFailed(f"Cannot receive HTTP response: raw body exceeds {maximum_bytes = } bytes.")
+                    raise ExchangeFailed(f"{received_body_bytes=} should be at most {maximum_bytes=}")
 
                 if file_body is None:
                     body.extend(chunk if decoder is None else decoder.feed(chunk))
@@ -626,7 +637,7 @@ class HttpTransport:
         require_type(output_fd, int)
 
         if not (0 <= output_fd):
-            raise ValueError("Cannot receive HTTP response in a file: output_fd must be a non-negative descriptor")
+            raise ValueError(f"{output_fd=} should be nonnegative")
 
         return await self._exchange(
             request,
@@ -641,12 +652,12 @@ class HttpTransport:
 
     async def _exchange(self, http_request, *, maximum_bytes, account_bytes, owner, output_fd, before_body, decoder_factory, not_after):
         if not (self._active is None):
-            raise ExchangeFailed("Cannot start HTTP exchange: an earlier exchange is active or its retirement is unconfirmed")
+            raise ExchangeFailed(f"{self._active=} should be None before starting another HTTP exchange")
 
         require_type(maximum_bytes, int)
 
         if not (0 <= maximum_bytes):
-            raise ValueError("Cannot receive HTTP response: byte limit must be a non-negative integer")
+            raise ValueError(f"{maximum_bytes=} should be nonnegative")
 
         self._require_destination(http_request)
 
@@ -657,10 +668,10 @@ class HttpTransport:
 
         loop = asyncio.get_running_loop()
 
-        if (not_after is not None) and (loop.time() >= not_after):
+        if (not_after is not None) and ((monotonic_now := loop.time()) >= not_after):
             failure = ExchangeFailed(
-                "Cannot start HTTP exchange: the original absolute deadline expired before dispatch",
-                primary=TimeoutError("HTTP exchange absolute deadline expired before dispatch"),
+                "HTTP exchange was not dispatched",
+                primary=TimeoutError(f"{not_after=} expired at {monotonic_now=}"),
             )
 
             self.last_failure = failure
@@ -689,7 +700,7 @@ class HttpTransport:
             (done, _) = await asyncio.wait({task}, timeout=seconds)
 
             if (not done) or ((not_after is not None) and (loop.time() >= not_after)):
-                primary = TimeoutError("HTTP exchange exceeded its aggregate deadline")
+                primary = TimeoutError(f"HTTP exchange exceeded its observation window; {seconds=}, {not_after=}")
         except asyncio.CancelledError as failure:
             primary = cancellation = failure
 
@@ -764,7 +775,8 @@ class HttpTransport:
             return
 
         if not (exchange.owner is owner):
-            raise ExchangeFailed("Cannot retire HTTP exchange: the outstanding operation belongs to another caller")
+            # Owners are arbitrary identity tokens; avoid rendering their object graphs
+            raise ExchangeFailed(f"{id(owner)=} should match {id(exchange.owner)=} to retire the HTTP exchange")
 
         task = exchange.task
 

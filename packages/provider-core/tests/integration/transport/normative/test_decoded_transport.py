@@ -127,7 +127,8 @@ class TransportDecodedTests(unittest.IsolatedAsyncioTestCase):
         decoder.feed.assert_called_once_with(b'abc')
         decoder.finish.assert_not_called()
         self.assertEqual(caught.exception.primary.reason, 'size_limit')
-        self.assertIn('encoded or decoded', str(caught.exception))
+        self.assertIn('received_body_bytes=6', str(caught.exception))
+        self.assertIn('maximum_bytes=5', str(caught.exception))
         self.assertTrue(transport.retirement_confirmed)
 
     async def test_head_refusal_precedes_codec_iteration_and_accounting(self):
