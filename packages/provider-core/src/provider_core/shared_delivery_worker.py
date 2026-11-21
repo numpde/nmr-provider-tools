@@ -39,7 +39,7 @@ class SharedDeliveryWorker(DeliveryWorker):
 
     async def run(self):
         if self._running:
-            raise ValueError("A delivery provider already has its serial worker.")
+            raise ValueError(f"{self.endpoint.provider_ref=}: {self._running=} should be False")
 
         self._running = True
 

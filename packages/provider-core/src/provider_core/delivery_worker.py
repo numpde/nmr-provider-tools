@@ -292,7 +292,7 @@ class DeliveryWorker:
         """
 
         if self._running:
-            raise ValueError("A delivery binding already has its serial API worker.")
+            raise ValueError(f"{self.endpoint.provider_ref=}: {self._running=} should be False")
 
         self._running = True
 
