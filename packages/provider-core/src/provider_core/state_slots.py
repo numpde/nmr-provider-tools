@@ -22,11 +22,11 @@ from provider_core.contribution import (
     StateOutput,
     StateParameter,
     StateUse,
-    _identity,
     ref,
 )
 
 from provider_core.hosting import Operation, OperationRef, StateRef
+from provider_core.tools import require_identity_text
 from provider_core.type_requirements import require_instance, require_type
 
 
@@ -48,7 +48,7 @@ class StateType[T]:
         if self.name is None:
             object.__setattr__(self, "name", self.value_type.__module__ + "." + self.value_type.__qualname__)
 
-        _identity(self.name, "Scientific state kind")
+        require_identity_text(self.name, "Scientific state kind")
 
     def output(self, *, name: str | None = None, dispose: Callable[[T], None]) -> StateOutputSlot[T]:
         return StateOutputSlot(name=name, kind=self, dispose=dispose)

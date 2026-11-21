@@ -30,7 +30,7 @@ from provider_core.contribution import (
 )
 
 from provider_core.task_boundary import contain_task_exit
-from provider_core.tools import require_finite_number, require_positive_number
+from provider_core.tools import require_finite_number, require_identity_text, require_positive_number
 from provider_core.type_requirements import require_instance, require_type
 
 
@@ -73,13 +73,6 @@ def require_capacity_partition(*, total: Mapping, shares: Mapping) -> None:
 
         if assigned > allowance:
             raise ValueError(f"Cannot partition execution capacity with {name=}, {assigned=}, {allowance=}; shares exceed the provider allowance")
-
-
-def _identity(identity_text, identity_role):
-    require_type(identity_text, str)
-
-    if not (identity_text and all(((character.isprintable()) and (not character.isspace())) for character in identity_text)):
-        raise ValueError(f"{identity_role=}; {reprlib.repr(identity_text)=} should be nonempty printable text without whitespace")
 
 
 def _digest(digest_text, digest_role):
@@ -138,9 +131,9 @@ class AllocationRef:
     binding_revision: str
 
     def __post_init__(self):
-        _identity(self.host, "Host identity")
-        _identity(self.allocation, "Allocation identity")
-        _identity(self.binding_id, "Binding identity")
+        require_identity_text(self.host, "Host identity")
+        require_identity_text(self.allocation, "Allocation identity")
+        require_identity_text(self.binding_id, "Binding identity")
         _digest(self.binding_revision, "Binding revision")
 
 
@@ -155,10 +148,10 @@ class ReservationRef:
     binding_revision: str
 
     def __post_init__(self):
-        _identity(self.host, "Host identity")
-        _identity(self.analysis, "Analysis identity")
-        _identity(self.allocation, "Allocation identity")
-        _identity(self.binding_id, "Binding identity")
+        require_identity_text(self.host, "Host identity")
+        require_identity_text(self.analysis, "Analysis identity")
+        require_identity_text(self.allocation, "Allocation identity")
+        require_identity_text(self.binding_id, "Binding identity")
         _digest(self.binding_revision, "Binding revision")
 
 
@@ -169,8 +162,8 @@ class OperationRef:
     operation_id: str
 
     def __post_init__(self):
-        _identity(self.host, "Host identity")
-        _identity(self.analysis, "Analysis identity")
+        require_identity_text(self.host, "Host identity")
+        require_identity_text(self.analysis, "Analysis identity")
 
         require_type(self.operation_id, str)
 
@@ -192,13 +185,13 @@ class StateRef:
     producer: OperationRef
 
     def __post_init__(self):
-        _identity(self.host, "Host identity")
-        _identity(self.analysis, "Analysis identity")
-        _identity(self.allocation, "Allocation identity")
-        _identity(self.binding_id, "Binding identity")
+        require_identity_text(self.host, "Host identity")
+        require_identity_text(self.analysis, "Analysis identity")
+        require_identity_text(self.allocation, "Allocation identity")
+        require_identity_text(self.binding_id, "Binding identity")
         _digest(self.binding_revision, "Binding revision")
-        _identity(self.state_id, "State identity")
-        _identity(self.kind, "Scientific state kind")
+        require_identity_text(self.state_id, "State identity")
+        require_identity_text(self.kind, "Scientific state kind")
 
         require_type(self.producer, OperationRef)
 
@@ -214,7 +207,7 @@ class ResultRef:
     def __post_init__(self):
         require_type(self.operation, OperationRef)
 
-        _identity(self.result_id, "Result identity")
+        require_identity_text(self.result_id, "Result identity")
 
 
 @dataclass(frozen=True, slots=True)
@@ -225,7 +218,7 @@ class StateResult:
     reference: StateRef
 
     def __post_init__(self):
-        _identity(self.name, "State output name")
+        require_identity_text(self.name, "State output name")
 
         require_type(self.reference, StateRef)
 
@@ -339,7 +332,7 @@ class Invocation:
         state_arguments = dict(state_arguments)
 
         for (state_name, state_reference) in state_arguments.items():
-            _identity(state_name, "State argument name")
+            require_identity_text(state_name, "State argument name")
 
             require_type(state_reference, StateRef)
 

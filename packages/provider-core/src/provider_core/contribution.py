@@ -23,6 +23,7 @@ from types import NoneType
 from typing import Any, Protocol, get_args, get_origin, get_type_hints, runtime_checkable
 
 from provider_core.contribution_errors import ScientificRejection as ScientificRejection
+from provider_core.tools import require_identity_text
 from provider_core.type_requirements import require_instance, require_type
 
 from provider_core.payload import (
@@ -31,16 +32,6 @@ from provider_core.payload import (
     PayloadCodec,
     StateBinding,
 )
-
-
-def _identity(identity_text: object, identity_role: str) -> None:
-    require_type(identity_text, str)
-
-    if not (
-        (identity_text) and
-        all(((character.isprintable()) and (not character.isspace())) for character in identity_text)
-    ):
-        raise ValueError(f"{identity_role=}; {reprlib.repr(identity_text)=} should be nonempty printable text without whitespace")
 
 
 def _digest(digest_text: object, digest_role: str) -> None:
@@ -294,7 +285,7 @@ class ConfigurationDescription:
     digest: str
 
     def __post_init__(self) -> None:
-        _identity(self.format, "Configuration format")
+        require_identity_text(self.format, "Configuration format")
         _digest(self.digest, "Configuration digest")
 
 
@@ -306,8 +297,8 @@ class AssetDescription:
     size_bytes: int
 
     def __post_init__(self) -> None:
-        _identity(self.name, "Asset name")
-        _identity(self.media_type, "Asset media type")
+        require_identity_text(self.name, "Asset name")
+        require_identity_text(self.media_type, "Asset media type")
         _digest(self.digest, "Asset digest")
 
         require_type(self.size_bytes, int)
@@ -334,8 +325,8 @@ class ConfiguredIdentity:
     revision: str = field(init=False)
 
     def __post_init__(self) -> None:
-        _identity(self.binding_id, "Binding identity")
-        _identity(self.implementation, "Implementation identity")
+        require_identity_text(self.binding_id, "Binding identity")
+        require_identity_text(self.implementation, "Implementation identity")
 
         if not self.implementation.isascii():
             raise ValueError(f"{reprlib.repr(self.implementation)=} should be ASCII")
@@ -396,8 +387,8 @@ class ResourceRequirement:
     exclusive: bool = False
 
     def __post_init__(self) -> None:
-        _identity(self.kind, "Resource kind")
-        _identity(self.unit, "Resource unit")
+        require_identity_text(self.kind, "Resource kind")
+        require_identity_text(self.unit, "Resource unit")
 
         require_type(self.amount, int)
 
@@ -405,7 +396,7 @@ class ResourceRequirement:
             raise ValueError(f"{reprlib.repr(self.kind)=}, {reprlib.repr(self.unit)=}; {self.amount=} should be positive")
 
         if self.selector is not None:
-            _identity(self.selector, "Resource selector")
+            require_identity_text(self.selector, "Resource selector")
 
         require_type(self.exclusive, bool)
 
@@ -436,8 +427,8 @@ class StateParameter:
     use: StateUse
 
     def __post_init__(self) -> None:
-        _identity(self.name, "State parameter name")
-        _identity(self.kind, "Scientific state kind")
+        require_identity_text(self.name, "State parameter name")
+        require_identity_text(self.kind, "Scientific state kind")
 
         require_type(self.use, StateUse)
 
@@ -463,8 +454,8 @@ class StateOutput:
     kind: str
 
     def __post_init__(self) -> None:
-        _identity(self.name, "Output state name")
-        _identity(self.kind, "Output scientific state kind")
+        require_identity_text(self.name, "Output state name")
+        require_identity_text(self.kind, "Output scientific state kind")
 
 
 @dataclass(frozen=True, slots=True)
@@ -476,7 +467,7 @@ class ProgressEvent:
     total: int | None = None
 
     def __post_init__(self) -> None:
-        _identity(self.stage, "Progress stage")
+        require_identity_text(self.stage, "Progress stage")
 
         if not ((self.completed is None) == (self.total is None)):
             raise ValueError(f"{self.completed=} and {self.total=} should be supplied together")
@@ -551,9 +542,9 @@ class CallDescription:
     progress: bool
 
     def __post_init__(self) -> None:
-        _identity(self.name, "Call name")
-        _identity(self.input_format, "Input format")
-        _identity(self.result_format, "Result format")
+        require_identity_text(self.name, "Call name")
+        require_identity_text(self.input_format, "Input format")
+        require_identity_text(self.result_format, "Result format")
         _records(self.state_inputs, StateParameter)
         _unique(self.state_inputs, lambda state_parameter: state_parameter.name, "State parameters")
         _records(self.state_outputs, StateOutput)
@@ -579,7 +570,7 @@ class ImplementationDescription:
     isolation: IsolationRequirement
 
     def __post_init__(self) -> None:
-        _identity(self.binding_id, "Binding identity")
+        require_identity_text(self.binding_id, "Binding identity")
         _binding_revision(self.binding_revision)
 
         require_type(self.contract_version, int)
@@ -612,9 +603,9 @@ class CallRef:
     name: str
 
     def __post_init__(self) -> None:
-        _identity(self.binding_id, "Binding identity")
+        require_identity_text(self.binding_id, "Binding identity")
         _binding_revision(self.binding_revision)
-        _identity(self.name, "Call name")
+        require_identity_text(self.name, "Call name")
 
 
 @dataclass(frozen=True, slots=True)
@@ -653,8 +644,8 @@ class ReturnedState[StateT]:
     dispose: Callable[[StateT], None] = field(repr=False)
 
     def __post_init__(self) -> None:
-        _identity(self.name, "Returned state name")
-        _identity(self.kind, "Returned scientific state kind")
+        require_identity_text(self.name, "Returned state name")
+        require_identity_text(self.kind, "Returned scientific state kind")
         _callback(self.dispose, "Returned state disposal")
 
 

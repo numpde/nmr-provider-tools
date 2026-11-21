@@ -53,6 +53,17 @@ def metadata_mismatch_message(actual_record: object, expected_record: object) ->
     )
 
 
+def require_identity_text(identity_text: object, identity_role: str) -> None:
+    """Require nonempty printable identity text without whitespace."""
+    require_type(identity_text, str)
+
+    if not (
+        identity_text and
+        all(((character.isprintable()) and (not character.isspace())) for character in identity_text)
+    ):
+        raise ValueError(f"{identity_role=}; {reprlib.repr(identity_text)=} should be nonempty printable text without whitespace")
+
+
 def duplicate_json_fields(field_pairs: list[tuple[str, object]]) -> Counter[str]:
     """Count occurrences beyond the first for each repeated JSON field."""
     field_counts = Counter(field_name for (field_name, _) in field_pairs)
