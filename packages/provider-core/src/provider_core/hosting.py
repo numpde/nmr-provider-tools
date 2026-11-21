@@ -174,8 +174,10 @@ class OperationRef:
 
         require_type(self.operation_id, str)
 
-        if not (0 < len(self.operation_id) <= 160):
-            raise ValueError("Operation identity must contain 1 through 160 characters")
+        (min_operation_id_characters, max_operation_id_characters) = (1, 160)
+
+        if not (min_operation_id_characters <= (operation_id_characters := len(self.operation_id)) <= max_operation_id_characters):
+            raise ValueError(f"{operation_id_characters=} should be between {min_operation_id_characters=} and {max_operation_id_characters=}")
 
 
 @dataclass(frozen=True, slots=True)
@@ -201,7 +203,7 @@ class StateRef:
         require_type(self.producer, OperationRef)
 
         if (self.producer.host, self.producer.analysis) != (self.host, self.analysis):
-            raise ValueError("State producer must belong to the same host and analysis")
+            raise ValueError(f"{(self.producer.host, self.producer.analysis)=} should match {(self.host, self.analysis)=}")
 
 
 @dataclass(frozen=True, slots=True)
@@ -317,8 +319,10 @@ class Invocation:
 
         require_type(self.operation_id, str)
 
-        if not (0 < len(self.operation_id) <= 160):
-            raise ValueError("An invocation needs an operation ID of 1 through 160 characters.")
+        (min_operation_id_characters, max_operation_id_characters) = (1, 160)
+
+        if not (min_operation_id_characters <= (operation_id_characters := len(self.operation_id)) <= max_operation_id_characters):
+            raise ValueError(f"{operation_id_characters=} should be between {min_operation_id_characters=} and {max_operation_id_characters=}")
 
         target_call_ref = self.target
 
@@ -372,7 +376,7 @@ class NotAdmitted:
         require_type(self.message, str)
 
         if not (self.message):
-            raise ValueError("Non-admission requires an explanatory message")
+            raise ValueError(f"{self.message=} should be nonempty")
 
     def __str__(self) -> str:
         code = self.code.value
@@ -465,6 +469,7 @@ class Observation:
         if len(causes) == 1:
             raise causes[0]
 
+        # repo-check: allow-literal-guard-error -- Original independent failures carry the evidence; the group names their execution relationship
         if causes:
             raise BaseExceptionGroup("Scientific execution reported independent failures", causes)
 
@@ -589,6 +594,7 @@ async def observe_cleanup(
     if len(causes) == 1:
         raise causes[0]
 
+    # repo-check: allow-literal-guard-error -- Original cleanup failures carry the evidence; the group does not replace or stringify them
     if causes:
         raise BaseExceptionGroup("Execution cleanup reported multiple failures.", causes)
 
@@ -634,6 +640,7 @@ async def _join_settlement[ResultT](*, task: asyncio.Task[ResultT]) -> ResultT:
                 interruptions.append(cause)
                 continue
 
+            # repo-check: allow-literal-guard-error -- Original cancellations remain group members; the label distinguishes cleanup from observer interruption
             if interruptions:
                 raise BaseExceptionGroup(
                     "Cleanup cancellation and interrupted shutdown observation.",
@@ -642,6 +649,7 @@ async def _join_settlement[ResultT](*, task: asyncio.Task[ResultT]) -> ResultT:
 
             raise
         except BaseException as cause:
+            # repo-check: allow-literal-guard-error -- The cleanup failure and original observer cancellations retain their evidence independently
             if interruptions:
                 raise BaseExceptionGroup(
                     "Cleanup failed while shutdown observation was interrupted.",
@@ -653,6 +661,7 @@ async def _join_settlement[ResultT](*, task: asyncio.Task[ResultT]) -> ResultT:
             if len(interruptions) == 1:
                 raise interruptions[0]
 
+            # repo-check: allow-literal-guard-error -- The original observer cancellations are the evidence; completed cleanup is not reported as failed
             if interruptions:
                 raise BaseExceptionGroup("Shutdown observation was interrupted.", interruptions)
 
