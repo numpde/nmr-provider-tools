@@ -29,24 +29,39 @@ class DeliveryService:
 
     def __init__(self, directory, *, limits, bindings, request_seconds, retry_initial_seconds, retry_max_seconds, on_notice, diagnostic_status):
         bindings = tuple(bindings)
+        binding_count = len(bindings)
+        min_bindings = 1
 
-        if not (1 <= len(bindings) <= MAX_BINDINGS):
-            raise ValueError("Delivery requires between one and sixteen explicit provider bindings.")
+        if not (min_bindings <= binding_count <= MAX_BINDINGS):
+            raise ValueError(f"{binding_count=} should be between {min_bindings=} and {MAX_BINDINGS=}")
 
-        keys = {(binding.endpoint.api_origin, binding.endpoint.provider_ref) for binding in bindings}
-        sockets = {binding.endpoint.socket_path for binding in bindings}
-        directories = {binding.endpoint.socket_path.parent for binding in bindings}
+        binding_keys = {(binding.endpoint.api_origin, binding.endpoint.provider_ref) for binding in bindings}
+        socket_paths = {binding.endpoint.socket_path for binding in bindings}
+        socket_directories = {binding.endpoint.socket_path.parent for binding in bindings}
 
-        if (
-            (len(keys) != len(bindings)) or
-            (len(sockets) != len(bindings)) or
-            (len(directories) != len(bindings)) or
-            (len({id(binding.api) for binding in bindings}) != len(bindings))
-        ):
-            raise ValueError("Each delivery binding requires its own identity, socket and API exchange owner.")
+        if not (len(binding_keys) == binding_count):
+            raise ValueError(f"{len(binding_keys)=} should match {binding_count=}")
 
-        if not (((len(bindings) * limits.provider_items) <= limits.total_items) and ((len(bindings) * limits.provider_bytes) <= limits.total_bytes)):
-            raise ValueError("The host delivery budget must cover the configured provider shares; reduce their allowances or increase the host budget.")
+        if not (len(socket_paths) == binding_count):
+            raise ValueError(f"{len(socket_paths)=} should match {binding_count=}")
+
+        if not (len(socket_directories) == binding_count):
+            raise ValueError(f"{len(socket_directories)=} should match {binding_count=}")
+
+        api_owner_count = len({id(binding.api) for binding in bindings})
+
+        if not (api_owner_count == binding_count):
+            raise ValueError(f"{api_owner_count=} should match {binding_count=}")
+
+        required_total_items = binding_count * limits.provider_items
+
+        if not (required_total_items <= limits.total_items):
+            raise ValueError(f"{limits.total_items=} should cover {required_total_items=}")
+
+        required_total_bytes = binding_count * limits.provider_bytes
+
+        if not (required_total_bytes <= limits.total_bytes):
+            raise ValueError(f"{limits.total_bytes=} should cover {required_total_bytes=}")
 
         require_positive_number(request_seconds)
 
@@ -89,13 +104,13 @@ class DeliveryService:
     async def _start(self):
         self.queue = DeliveryQueue(self.directory, limits=self.limits)
 
-        configured = {(binding.endpoint.api_origin, binding.endpoint.provider_ref) for binding in self.bindings}
-        missing = set(self.queue.outstanding_bindings()) - configured
+        configured_bindings = {(binding.endpoint.api_origin, binding.endpoint.provider_ref) for binding in self.bindings}
+        missing_bindings = set(self.queue.outstanding_bindings()) - configured_bindings
 
-        if missing:
-            failure = DeliveryUnavailable("Pending delivery requires bindings missing from this configuration. Restore their original API/provider bindings before starting; retained requests were not retargeted or deleted.")
+        if missing_bindings:
+            failure = DeliveryUnavailable(f"{missing_bindings=} should be configured; retained requests remain unchanged")
 
-            for (origin, provider) in sorted(missing):
+            for (origin, provider) in sorted(missing_bindings):
                 self.on_notice(failure, {"event": "delivery_binding_missing", "api_origin": origin, "provider_ref": provider})
 
             raise failure
@@ -151,8 +166,11 @@ class DeliveryService:
             await asyncio.gather(*watchers, return_exceptions=True)
 
     async def run(self):
-        if self._started or self.stopping.is_set():
-            raise ValueError("A delivery service instance cannot restart its worker loops.")
+        if self._started:
+            raise ValueError(f"{self._started=} should be False")
+
+        if self.stopping.is_set():
+            raise ValueError(f"{self.stopping.is_set()=} should be False")
 
         self._started = True
         self._startup_task = asyncio.create_task(self._start())
@@ -214,6 +232,7 @@ class DeliveryService:
             except BaseException as cause:
                 failures.append(cause)
 
+        # repo-check: allow-literal-guard-error -- Each child retains its original resource failure; the group identifies the shared shutdown boundary
         if failures:
             raise BaseExceptionGroup("Delivery shutdown could not settle all original resources; the database owner remains held.", failures)
 

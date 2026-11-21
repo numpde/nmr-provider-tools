@@ -296,6 +296,7 @@ class SharedDeliveryService(DeliveryService):
             except BaseException as cause:
                 failures.append(cause)
 
+        # repo-check: allow-literal-guard-error -- Each child retains its original resource failure; the group identifies the shared shutdown boundary
         if failures:
             raise BaseExceptionGroup("Delivery shutdown could not settle all original resources; the database owner remains held.", failures)
 
