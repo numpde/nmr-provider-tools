@@ -10,6 +10,7 @@ selection. Only known retained build IID receipts are read from /tmp.
 
 import pathlib
 import re
+import reprlib
 import resource
 import subprocess
 import sys
@@ -47,6 +48,8 @@ _IMAGE_LABEL_PREFIX = "org.nmr-provider-tools."
 
 
 def capture_command_output(arguments):
+    max_capture_bytes = 2097152
+
     # Private receipts never become public config or daemon diagnostics.
     with tempfile.TemporaryFile() as output, tempfile.TemporaryFile() as error:
         try:
@@ -58,7 +61,7 @@ def capture_command_output(arguments):
                 timeout=30,
                 preexec_fn=lambda: resource.setrlimit(
                     resource.RLIMIT_FSIZE,
-                    (2097152, 2097152),
+                    (max_capture_bytes, max_capture_bytes),
                 ),
             )
         except (OSError, subprocess.TimeoutExpired) as cause:
@@ -76,10 +79,10 @@ def capture_command_output(arguments):
             )
 
         output.seek(0)
-        captured_output = output.read(2097152)
+        captured_output = output.read(max_capture_bytes)
 
-        if len(captured_output) >= 2097152:
-            raise RetirementRefused("Image metadata reached its capture limit; no complete inventory was established.")
+        if not (len(captured_output) < max_capture_bytes):
+            raise RetirementRefused(f"{len(captured_output)=} should be below {max_capture_bytes=} for a complete image inventory")
 
         return captured_output.decode("utf-8")
 
@@ -108,9 +111,14 @@ def current_inputs(root):
     )
 
     identities = selected_inputs.splitlines()
+    expected_identity_count = 3
 
-    if (len(identities) != 3) or any((_HASH.fullmatch(identity) is None) for identity in identities):
-        raise RetirementRefused("Current checker/delivery identities are incomplete.")
+    if not (len(identities) == expected_identity_count):
+        raise RetirementRefused(f"{len(identities)=} should match {expected_identity_count=}")
+
+    for identity in identities:
+        if not _HASH.fullmatch(identity):
+            raise RetirementRefused(f"{reprlib.repr(identity)=} should match {_HASH.pattern=}")
 
     return tuple(identities)
 
@@ -224,7 +232,7 @@ def select_images(images, protected, current):
 
 # silent-defaults: allow-contract -- Staged images are absent as an immutable tuple unless explicitly retained; the fixed /tmp root holds checker operation receipts for current image borrowers.
 def retire(root, docker, current, *, staged=(), operations=pathlib.Path("/tmp")):
-    selected_inputs = current()
+    selected_input_identities = current()
     protected_images = set(staged) | retained_image_ids(operations)
 
     container_ids = ids(docker("ps", "--all", "--quiet", "--no-trunc"), container=True)
@@ -273,12 +281,14 @@ def retire(root, docker, current, *, staged=(), operations=pathlib.Path("/tmp"))
             metadata(docker("image", "inspect", "--format", IMAGE_INSPECTION_FORMAT, *batch), batch)
         )
 
-    retirement_plan = select_images(inspected_images, protected_images, selected_inputs)
+    retirement_plan = select_images(inspected_images, protected_images, selected_input_identities)
     removed_count = 0
 
     for image_id in retirement_plan:
-        if current() != selected_inputs:
-            raise RetirementRefused("Current source selection changed; retain the remaining images and retry.")
+        current_input_identities = current()
+
+        if not (current_input_identities == selected_input_identities):
+            raise RetirementRefused(f"{current_input_identities=} should match {selected_input_identities=} before retiring {image_id=}")
 
         protected_images.update(retained_image_ids(operations))
 
@@ -302,7 +312,7 @@ def retire(root, docker, current, *, staged=(), operations=pathlib.Path("/tmp"))
             [image_id],
         )
 
-        if select_images(latest_image, protected_images, selected_inputs) != [image_id]:
+        if select_images(latest_image, protected_images, selected_input_identities) != [image_id]:
             continue
 
         # Immutable IDs only. Docker refuses late references; never force or
@@ -318,8 +328,12 @@ def main():
     try:
         (root, staged, *engine) = sys.argv[1:]
 
-        if (not engine) or (staged and (IMAGE_ID.fullmatch(staged) is None)):
-            raise RetirementRefused("No explicit engine or immutable staged image was supplied.")
+        if not (engine):
+            raise RetirementRefused(f"{engine=} should contain an explicit engine command")
+
+        if staged:
+            if not IMAGE_ID.fullmatch(staged):
+                raise RetirementRefused(f"{reprlib.repr(staged)=} should match {IMAGE_ID.pattern=}")
 
         staged_images = ()
 
