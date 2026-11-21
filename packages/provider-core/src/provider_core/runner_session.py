@@ -81,6 +81,7 @@ class RunnerSession:
         self._retirement_reader = threading.Lock()
         self._local_interruption = False
         self._original_exit = None
+        self._worker_exit = None
         self._connected = False
         self._observation_failure = None
         self._connect_started = False
@@ -200,41 +201,70 @@ class RunnerSession:
     def observe_retirement(self, *, deadline=None):
         """Receive cleanup facts without causing retirement (including cap expiry)."""
 
+        self._observe_lifecycle(deadline, until_retirement=True)
+
+    def observe_exit(self, *, deadline):
+        """Read confirmed worker exit or final retirement, without requesting stop.
+
+        The async owner waits for readability before starting this bounded frame
+        read. An exit notification does not attest scratch cleanup.
+        """
+
+        self._observe_lifecycle(deadline, until_retirement=False)
+
+        return self.original_exit
+
+    def _observe_lifecycle(self, deadline, *, until_retirement):
+
         retirement_reader_acquired = self._retirement_reader.acquire(blocking=False)
 
         if not (retirement_reader_acquired):
             raise LifecycleRejected(f"{retirement_reader_acquired=} should be True before observing retirement")
 
         try:
-            self._observe_retirement(deadline)
+            self._observe_retirement(deadline, until_retirement=until_retirement)
         finally:
             self._retirement_reader.release()
 
-    def _observe_retirement(self, deadline):
+    def _observe_retirement(self, deadline, *, until_retirement):
         # repo-check: allow-literal-guard-error -- The chained original failure supplies evidence; another frame read cannot recover a partial read
         if not (self._observation_failure is None):
             raise LifecycleRejected(
                 "Original runner control setup or lifecycle read failed; preserve its cause and use bounded lifecycle recovery, not a second frame read."
             ) from self._observation_failure
 
-        if self.retirement is None:
+        if (self.retirement is None) and (until_retirement or (self._original_exit is None)):
             self.control.settimeout(self._cleanup)
 
             try:
                 phase_deadline = time.monotonic() + self._cleanup
                 effective = phase_deadline if deadline is None else min(deadline, phase_deadline)
-                retirement = self._receive_retirement(effective)
+                while self.retirement is None:
+                    lifecycle = self._receive_lifecycle(effective)
 
-                with self._control_state:
-                    self.retirement = retirement
+                    with self._control_state:
+                        if isinstance(lifecycle, OriginalWorkerExit):
+                            if self._worker_exit is not None:
+                                raise LifecycleRejected(f"{self._worker_exit=} should be reported only once")
 
-                    if (retirement.reason == "exited") and (not self._local_interruption):
-                        self._original_exit = OriginalWorkerExit(
-                            self.role,
-                            self.generation,
-                            self.operation,
-                            retirement.returncode,
-                        )
+                            self._worker_exit = lifecycle
+
+                            if not self._local_interruption:
+                                self._original_exit = lifecycle
+                        else:
+                            if (self._worker_exit is not None) and (
+                                (lifecycle.reason != "exited") or
+                                (lifecycle.returncode != self._worker_exit.returncode)
+                            ):
+                                raise LifecycleRejected(f"{lifecycle=} should agree with {self._worker_exit=}")
+
+                            self.retirement = lifecycle
+
+                            if (lifecycle.reason == "exited") and (not self._local_interruption) and (self._original_exit is None):
+                                self._original_exit = OriginalWorkerExit(self.role, self.generation, self.operation, lifecycle.returncode)
+
+                    if (not until_retirement) and ((self._original_exit is not None) or (self.retirement is not None)):
+                        break
             except Exception as cause:
                 # A partial frame cannot restart at its remaining bytes.
                 # Retain this owner until the binding's proof session settles it.
@@ -242,23 +272,26 @@ class RunnerSession:
 
                 raise
 
-        if not (self.retirement.scratch_released):
+        if (self.retirement is not None) and (not self.retirement.scratch_released):
             raise LifecycleRejected(
                 f"{self.retirement.scratch_released=} should be True after the child stops",
                 returncode=self.retirement.returncode,
                 scratch_released=False
             )
 
-    def _receive_retirement(self, deadline):
+    def _receive_lifecycle(self, deadline):
         retirement_message = receive_document(self.control, deadline=deadline)
         retirement_fields = set(retirement_message)
-        expected_fields = {"kind", "generation", "operation", "returncode", "scratch_released", "reason"}
+        expected_fields = {"kind", "generation", "operation", "returncode"}
+
+        if retirement_message.get("kind") == "retired":
+            expected_fields |= {"scratch_released", "reason"}
 
         if retirement_fields != expected_fields:
             raise LifecycleRejected(f"{retirement_fields=} should match {expected_fields=}")
 
-        if retirement_message["kind"] != (expected_kind := "retired"):
-            raise LifecycleRejected(f"{retirement_message['kind']=} should match {expected_kind=}")
+        if not (retirement_message["kind"] in (expected_kinds := ("exited", "retired"))):
+            raise LifecycleRejected(f"{retirement_message['kind']=} should be one of {expected_kinds=}")
 
         if retirement_message["generation"] != self.generation:
             raise LifecycleRejected(f"{retirement_message['generation']=} should match {self.generation=}")
@@ -272,19 +305,18 @@ class RunnerSession:
             error_factory=LifecycleRejected,
         )
 
-        require_type(
-            (retirement_scratch_released := retirement_message["scratch_released"]),
-            bool,
-            error_factory=LifecycleRejected,
-        )
-
-        if not (retirement_message["reason"] in (expected_reasons := ("exited", "owner_lost", "deadline", "shutdown"))):
-            raise LifecycleRejected(f"{retirement_message['reason']=} should be one of {expected_reasons=}")
-
         (min_returncode, max_returncode) = (1 - signal.NSIG, 255)
 
         if not (min_returncode <= retirement_returncode <= max_returncode):
             raise LifecycleRejected(f"{retirement_returncode=} should be between {min_returncode=} and {max_returncode=}")
+
+        if retirement_message["kind"] == "exited":
+            return OriginalWorkerExit(self.role, self.generation, self.operation, retirement_returncode)
+
+        require_type(retirement_message["scratch_released"], bool, error_factory=LifecycleRejected)
+
+        if not (retirement_message["reason"] in (expected_reasons := ("exited", "owner_lost", "deadline", "shutdown"))):
+            raise LifecycleRejected(f"{retirement_message['reason']=} should be one of {expected_reasons=}")
 
         return Retirement(retirement_message["returncode"], retirement_message["scratch_released"], retirement_message["reason"])
 

@@ -234,6 +234,23 @@ not restart cleanup or cancel its original work. Analysis capacity becomes
 available again only after successful scientific close and its final handoff.
 Retained results have their own release lifetime.
 
+Use `await host.observe_exit(wait_seconds=...)` to watch the original worker while
+its allocation is idle or serving. Concurrent callers share one SDK monitor.
+Healthy residence starts neither a reader thread nor the retirement deadline;
+caller timeout or cancellation leaves that monitor owned. A confirmed exit is
+the same `OriginalWorkerExit` retained in `host.session.original_exit`, including
+role, generation, operation and return code. The supervisor reports it before
+scratch cleanup, so it is not cleanup authorization. The provider owns offering
+withdrawal and any mapping to an active Attempt's outcome.
+
+`TimeoutError` means this caller's wait expired. Lifecycle frame timeout or
+malformed/lost control is a lifecycle failure, never evidence of worker exit.
+An exit observed after local interruption cannot establish the original cause.
+`None` means final retirement without pre-interruption exit evidence; it does
+not establish an intentional exit or permit advertising that allocation again.
+Retire through the SDK to join the monitor, confirm scratch release and close
+the original resources. Already-observed exit evidence survives later stop.
+
 Host retirement gives outstanding startup, handoffs and scientific cleanup one
 grace interval, then uses the runner session's separate native retirement
 allowance. Deployment must budget for TERM, KILL, reaping and scratch cleanup.
@@ -504,8 +521,10 @@ phase can become `ObservedWorkerCrash`. Keep the exact acknowledgement received
 by `AnalysisSession.prepare` for later execution. Timeouts, EOF and our own stop
 or kill are not crash evidence. Record local interruption before any deliberate
 science/control close, including timeout or cancellation cleanup. On unexpected
-EOF/reset, use one bounded `RunnerSession.observe_retirement()` call before local
-close. Unlike `retire()`, it does not request stopping. Retain that original task
+EOF/reset, use `ProcessExecutionHost.observe_exit()` before local close when the
+SDK process host owns the worker. It shares the idle monitor and does not wait
+for scratch cleanup. Direct `RunnerSession` owners can still use one bounded
+`observe_retirement()` call before local close. Neither requests stopping. Retain that original task
 if the caller's wait expires; a failed underlying lifecycle read does not permit
 another reader. If no original exit is established before interruption, the
 cause remains unknown. Do not impose a short retirement deadline on a healthy

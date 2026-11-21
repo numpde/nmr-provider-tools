@@ -9,6 +9,7 @@ from concurrent.futures import CancelledError as FutureCancelledError, Future, T
 import time
 
 from provider_core.runner_protocol import LifecycleRejected
+from provider_core.task_boundary import contain_task_exit
 from provider_core.tools import require_positive_number
 from provider_core.type_requirements import require_instance
 
@@ -64,6 +65,11 @@ class AsyncRunnerSession:
     bounds original setup and the aggregate retirement allowance without renewal.
     setup_not_after caps only original setup, allowing a healthy warm session to
     outlive startup and retain its later retirement allowance.
+
+    observe_exit first owns an asynchronous readiness wait, then a bounded read
+    of the supervisor's exit notification. Healthy residence has no reader thread
+    or retirement deadline. Cleanup wakes that same owner and joins its read
+    before reading the final retirement receipt.
     """
 
     def __init__(self, session, *, not_after=None, setup_not_after=None):
@@ -84,6 +90,8 @@ class AsyncRunnerSession:
             self._setup_not_after = min(not_after, setup_not_after)
 
         self._setup = self._reader = None
+        self._exit_task = self._exit_reader = None
+        self._exit_wakeup = asyncio.Event()
         self._deadline = None
         self._stop_failure = None
         self._executor = ThreadPoolExecutor(max_workers=1, thread_name_prefix="runner-control")
@@ -97,12 +105,20 @@ class AsyncRunnerSession:
         return self._reader
 
     @property
+    def exit_reader(self):
+        return self._exit_reader
+
+    @property
     def setup_failure(self):
         return self._failure(self._setup)
 
     @property
     def retirement_failure(self):
         return self._failure(self._reader)
+
+    @property
+    def exit_failure(self):
+        return self._failure(self._exit_task) or self._failure(self._exit_reader)
 
     @staticmethod
     def _failure(original):
@@ -188,6 +204,17 @@ class AsyncRunnerSession:
 
         await self._wait(self._setup, deadline)
 
+        if self._exit_task is not None:
+            # Switch the passive readiness wait to the fixed cleanup deadline
+            self._exit_wakeup.set()
+            try:
+                await self._join_exit_reader(deadline)
+            except BaseException as cause:
+                if (self._exit_reader is not None) or (self._failure(self._exit_task) is not cause):
+                    raise
+
+                # Failed readiness consumed no bytes; cleanup still owns its read
+
         if self._reader is None:
             observation_started_at = time.monotonic()
 
@@ -198,9 +225,84 @@ class AsyncRunnerSession:
 
         return await self._wait(self._reader, deadline)
 
+    async def _watch_exit(self):
+        loop = asyncio.get_running_loop()
+        descriptor = self.session.control.fileno()
+
+        # Readiness consumes no bytes and owns no idle thread or cleanup budget
+        loop.add_reader(descriptor, self._exit_wakeup.set)
+
+        try:
+            await self._exit_wakeup.wait()
+        finally:
+            loop.remove_reader(descriptor)
+
+        frame_deadline = time.monotonic() + self.session.retirement_seconds
+
+        if self._deadline is not None:
+            frame_deadline = min(frame_deadline, self._deadline)
+
+        if self._not_after is not None:
+            frame_deadline = min(frame_deadline, self._not_after)
+
+        self._exit_reader = self._start(self.session.observe_exit, self._exit_completed, deadline=frame_deadline)
+
+    def _exit_completed(self, original):
+        if self._failure(original) is not None:
+            self._release(original)
+
+    async def _join_exit_reader(self, deadline):
+        seconds = None if deadline is None else max(0, deadline - time.monotonic())
+
+        async with asyncio.timeout(seconds):
+            await asyncio.shield(self._exit_task)
+
+        return await self._wait(self._exit_reader, deadline)
+
+    async def observe_exit(self, *, wait_seconds):
+        """Wait for original exit evidence without starting retirement.
+
+        Caller timeout or cancellation leaves the single passive monitor owned.
+        Once readable, a bounded frame read retains exit independently of scratch
+        cleanup. None means a final receipt without exit observed before local
+        interruption; it does not establish why the worker exited.
+        """
+        require_positive_number(wait_seconds)
+
+        if self._setup is None:
+            raise RuntimeError(f"{self._setup=} should be a Future before observing worker exit")
+
+        if self.session.original_exit is not None:
+            return self.session.original_exit
+
+        deadline = time.monotonic() + wait_seconds
+
+        await self._wait(self._setup, deadline)
+
+        try:
+            if self._reader is not None:
+                await self._wait(self._reader, deadline)
+            else:
+                if self._exit_task is None:
+                    self._exit_task = asyncio.create_task(contain_task_exit(self._watch_exit))
+
+                    self._exit_task.add_done_callback(_observe_completion)
+
+                await self._join_exit_reader(deadline)
+        except TimeoutError as cause:
+            # Caller expiry grants another wait; a consumed partial frame does not
+            for original in (self._exit_reader, self._reader):
+                if (original is not None) and original.done() and (not original.cancelled()) and (original.exception() is cause):
+                    raise LifecycleRejected(f"Cannot observe {self.session.operation=}: its lifecycle frame read expired") from cause
+
+            raise
+
+        return self.session.original_exit
+
     def request_stop(self):
         """Record native interruption before stop; retain its first failure."""
         self._retirement_deadline()
+        self._exit_wakeup.set()
 
         try:
             self.session.request_stop()

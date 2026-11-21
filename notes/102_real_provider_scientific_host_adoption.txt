@@ -490,3 +490,70 @@ Selected operating policies still require the stated scientific/resource evidenc
 These scores record the reviewers' assessment of a source-supported adaptation
 proposal. They establish neither implemented ports nor scientific, GPU or deployed
 runtime qualification. No tests or calculations were run for this review.
+
+## SDK idle-exit implementation checkpoint (2026-11-22)
+
+ProcessExecutionHost.observe_exit(wait_seconds=...) now owns passive observation
+of the original allocation. Concurrent waiters share one SDK monitor. It returns
+the same OriginalWorkerExit held by RunnerSession.original_exit, before scratch
+cleanup. Healthy residence starts neither a reader thread nor a retirement timer.
+Timeout/cancellation of a waiter leaves that monitor owned. Retirement wakes and
+joins it before reading final cleanup evidence and closing its descriptors.
+
+The native supervisor sends identity-correlated exit evidence after reaping and
+before scratch removal. A bounded notification read is separate from the cleanup
+allowance. Read failures remain sticky; partial frames never authorize a new read.
+Readiness-registration failure consumes no bytes, remains an independent failure,
+and does not prevent cleanup from acquiring its first frame reader.
+
+Deliberate host retirement marks interruption before scientific shutdown. Earlier
+observed exit evidence survives. An exit learned after interruption cannot establish
+its cause, including when the notification was already buffered. None means final
+retirement without pre-interruption exit evidence, not proof of intentional exit
+or permission to advertise the allocation. Native frame timeout is a lifecycle
+failure chained from its original cause; only caller wait expiry is TimeoutError.
+
+The critical panel used four criteria: C1 exit/provenance and failure truth;
+C2 retained reader/resource ownership; C3 idle and cleanup deadlines; C4 public
+API clarity, parsimony and meaningful behavioral proof. Mandatory C1-C3 violations
+or missing required proof block acceptance. Scores 7-8 mean a sound implementation
+with incomplete edge proof, 9 strong direct evidence, and 10 decisive evidence
+throughout. No numerical acceptance threshold was requested.
+
+| Review round | C1 | C2 | C3 | C4 |
+| --- | ---: | ---: | ---: | ---: |
+| First API reviewer | 7 | 8 | 9 | 8 |
+| First ownership reviewer | 9 | 8 | 9 | 8 |
+| Revised ownership reviewer | 9 | 9 | 9 | 9 |
+| Fresh final reviewer | 9 | 9 | 9 | 9 |
+
+The first round reviewed base c121ebee plus patch SHA-256
+0e45ac592bab79b405b683d0036fa1f5ab3d0e4a892f461637aac40e3f37a51c.
+The coordinator accepted the missing readiness-failure cleanup proof and unclear
+post-interruption semantics. The revision preserves the observation failure while
+allowing cleanup, tests buffered-before-stop uncertainty, checks actual descriptor
+and executor release, and clarifies None. The final reviewers independently checked
+base c121ebee plus patch SHA-256
+1c9d3546783e582aea99a5c13d7a993d382c4b1fcfb1d543c42938c26e12e178.
+These hashes cover the implementation/tests/docs before this record was appended.
+
+Installed focused Make lanes used DOCKER_CONTEXT=science,
+WHEELHOUSE=/home/ra/Downloads/wheelhouse and PRIVACY_TESTS=0:
+
+- tests/native/provider-core TEST_PATTERN=test_async_runner_session.py: 29 passed
+- tests/native/provider-core TEST_PATTERN=test_process_lifecycle.py: 12 passed
+- tests/native/provider-core TEST_PATTERN=test_process_host.py: 11 passed
+- tests/unit/provider-core TEST_PATTERN=test_runner.py: 27 passed
+
+Logs are /tmp/nmr-idle-exit-async-final.log, process-final.log, host-final.log
+(each with the nmr-idle-exit- prefix), and /tmp/nmr-idle-exit-runner.log.
+The initial process run failed because graceful shutdown was reported as original
+exit; marking interruption at host retirement fixed it. The retained initial log
+is /tmp/nmr-idle-exit-process.log; both subsequent process runs passed.
+
+Remaining limits: the precise readiness-callback/cleanup scheduling race is not
+forced, notification-send failure cleanup is source-reviewed rather than injected,
+and the new idle observer's inherited cap is source-reviewed alongside existing
+cap tests. Linux selector/pidfd support remains required. This qualifies the SDK
+checkpoint, not NMRPeak integration, Hello withdrawal latency or GPU science.
+The earlier cleanup goal remains paused. No consumer runtime pins were changed.

@@ -47,7 +47,7 @@ from provider_core.hosting import (
     settle_cleanup,
 )
 from provider_core.process_wire import MAX_PAYLOAD_BYTES, RemoteScienceError, decoded_error_evidence, frame, receive
-from provider_core.runner_session import RunnerSession, RunnerStartupStopped, RunnerStartupUnavailable
+from provider_core.runner_session import OriginalWorkerExit, RunnerSession, RunnerStartupStopped, RunnerStartupUnavailable
 from provider_core.scientific import Contribution, HostedContribution
 from provider_core.tools import require_nonnegative_number, require_positive_number, require_running_loop
 from provider_core.type_requirements import require_instance, require_type
@@ -1001,10 +1001,28 @@ class ProcessExecutionHost:
         require_running_loop(self.loop)
 
         if self.retirement is None:
+            # Graceful scientific shutdown can exit before native stop is needed
+            self.session.mark_interruption()
             self.retiring = True
             self.retirement = _ProcessCleanup(self, self._shutdown, seconds=self.retirement_seconds)
 
         return self.retirement
+
+    async def observe_exit(self, *, wait_seconds: float) -> OriginalWorkerExit | None:
+        """Observe loss of this original worker without retiring a healthy host.
+
+        Timeout and cancellation affect only this wait. The SDK retains the
+        original monitor and its identity-correlated evidence. None denotes a
+        final retirement receipt without exit observed before local interruption;
+        it establishes neither exit cause nor cleanup authorization. The provider
+        maps confirmed loss to its offering policy.
+        """
+        require_running_loop(self.loop)
+
+        if self.native is None:
+            raise RuntimeError(f"{self.native=} should own a started worker before observing exit")
+
+        return await self.native.observe_exit(wait_seconds=wait_seconds)
 
     async def _shutdown(self):
         failures = []
@@ -1124,7 +1142,7 @@ class ProcessExecutionHost:
 
         # Both control readers retain their own fixed I/O deadlines. Join their
         # originals, including after caller timeout, before closing their FDs.
-        for original in (self.native.setup, self.native.reader):
+        for original in (self.native.setup, self.native.exit_reader, self.native.reader):
             if original is not None:
                 try:
                     await await_original(original, deadline=None)
@@ -1139,6 +1157,9 @@ class ProcessExecutionHost:
                         continue
 
                     record("native_retirement", cause)
+
+        if self.native.exit_failure is not None:
+            record("native_exit_observation", self.native.exit_failure)
 
         await _join_originals((self.start_task, self.scientific_shutdown_task))
         await _join_originals(tuple(task for task in self.cleanups if task is not self.retirement.task))

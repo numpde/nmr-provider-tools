@@ -51,8 +51,8 @@ class ProcessLifecycleTests(unittest.IsolatedAsyncioTestCase):
 
         self.enterContext(patch.dict(os.environ, {"SCIENTIFIC_PROCESS_UNRELATED": "parent-only"}))
 
-    # silent-defaults: allow-contract -- Ordinary proofs use five seconds; the active-retirement proof shortens only the scientific grace.
-    def make_host(self, *, scientific_retirement_seconds=5, startup_not_after=None):
+    # silent-defaults: allow-contract -- Ordinary proofs use five seconds; specific lifetime witnesses shorten the scientific or native allowance
+    def make_host(self, *, scientific_retirement_seconds=5, native_retirement_seconds=5, startup_not_after=None):
         worker = Path(__file__).parent.parent / "fakes/scientific_process_worker.py"
 
         runner = RunningSupervisor(
@@ -66,7 +66,7 @@ class ProcessLifecycleTests(unittest.IsolatedAsyncioTestCase):
         )
 
         self.addCleanup(runner.close)
-        session = runner.session(startup_seconds=5, retirement_seconds=5, startup_not_after=startup_not_after)
+        session = runner.session(startup_seconds=5, retirement_seconds=native_retirement_seconds, startup_not_after=startup_not_after)
 
         host = ProcessExecutionHost(
             session=session,
@@ -312,6 +312,66 @@ class ProcessLifecycleTests(unittest.IsolatedAsyncioTestCase):
         self.assertTrue(expr=(await self.retire_host(host)).failures)
         self.assert_native_retirement(host, runner, session)
 
+    async def test_idle_observers_do_not_spend_retirement_allowance_or_prevent_science(self):
+        native_retirement_seconds = 0.5
+        (host, runner, session) = self.make_host(native_retirement_seconds=native_retirement_seconds)
+        hosted = await self.start(host, scenario="healthy")
+        observer = asyncio.create_task(host.observe_exit(wait_seconds=5))
+
+        await asyncio.sleep(0)
+        observer.cancel()
+
+        with self.assertRaises(asyncio.CancelledError):
+            await observer
+
+        with self.assertRaises(TimeoutError):
+            await host.observe_exit(wait_seconds=native_retirement_seconds + 0.1)
+
+        self.assertIsNone(host.native.retirement_deadline)
+        self.assertIsNone(session.retirement)
+        self.assertIsNone(session.original_exit)
+        self.assertFalse(host.retiring)
+
+        analysis = host.open_analysis(allocations=frozenset({hosted.allocation}))
+        operation = analysis.submit(self.invocation(hosted, analysis))
+        observed = await observe_completion(operation)
+
+        self.assertIs(Outcome.SUCCEEDED, observed.outcome)
+        self.assertEqual(host.process_id, json.loads(await operation.read_result(observed.result))["process_id"])
+        await self.successful_cleanup(operation.release_result(observed.result))
+        await self.successful_cleanup(analysis.close())
+        await self.successful_cleanup(host.retire())
+        self.assertIsNone(await host.observe_exit(wait_seconds=1))
+        self.assert_native_retirement(host, runner, session)
+        self.assertEqual(-1, session.control.fileno())
+
+        for thread in host.native._executor._threads:
+            thread.join(1)
+            self.assertFalse(thread.is_alive())
+
+    async def test_idle_worker_exit_is_shared_and_retained_before_host_retirement(self):
+        (host, runner, session) = self.make_host()
+        await self.start(host, scenario="healthy")
+        observers = [asyncio.create_task(host.observe_exit(wait_seconds=2)) for _ in range(2)]
+
+        os.kill(host.process_id, signal.SIGKILL)
+        first, second = await asyncio.gather(*observers)
+
+        self.assertIs(first, second)
+        self.assertIs(first, session.original_exit)
+        self.assertEqual(session.role, first.role)
+        self.assertEqual(session.generation, first.generation)
+        self.assertEqual(session.operation, first.operation)
+        self.assertEqual(-signal.SIGKILL, first.returncode)
+        self.assertIsNone(host.native.retirement_deadline)
+        self.assertIsNone(session.retirement)
+        self.assertFalse(host.retiring)
+        cleanup = await self.retire_host(host)
+
+        self.assertTrue(cleanup.settled)
+        self.assertIs(first, await host.observe_exit(wait_seconds=1))
+        self.assert_native_retirement(host, runner, session)
+
     async def test_worker_killed_during_active_science_retains_original_operation_and_retirement(self):
         (host, runner, session) = self.make_host()
         hosted = await self.start(host, scenario="active-kill")
@@ -327,6 +387,12 @@ class ProcessLifecycleTests(unittest.IsolatedAsyncioTestCase):
         self.assertIs(expr1=DispatchState.STARTED, expr2=active.dispatch)
         self.assertFalse(expr=active.finished)
         os.kill(host.process_id, signal.SIGKILL)
+
+        original_exit = await host.observe_exit(wait_seconds=2)
+
+        self.assertIs(original_exit, session.original_exit)
+        self.assertEqual(-signal.SIGKILL, original_exit.returncode)
+        self.assertIsNone(host.native.retirement_deadline)
 
         self.assertIs(expr1=original, expr2=analysis.submit(invocation))
         cleanup = await self.retire_host(host)

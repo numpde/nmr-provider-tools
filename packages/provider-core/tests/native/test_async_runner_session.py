@@ -15,7 +15,7 @@ import unittest
 from unittest.mock import patch
 
 from provider_core.async_runner_session import AsyncRunnerSession
-from provider_core.runner_protocol import LifecycleRejected, send_greeting
+from provider_core.runner_protocol import LifecycleRejected, send_document, send_greeting
 from provider_core.runner_session import RunnerSession, RunnerStartupUnavailable
 from tests.fakes.runner import RunningSupervisor, worker_pid
 
@@ -109,6 +109,36 @@ class AsyncNativeProcessTests(unittest.IsolatedAsyncioTestCase):
         await self.owner.join_retirement(wait_seconds=2)
         self.assertIs(original_exit, self.session.original_exit)
         self.assertIs(reader, self.owner.reader)
+        self.assert_retired(pid)
+
+    async def test_exit_notification_precedes_failed_scratch_cleanup(self):
+        worker_pid(self.session.science, b"C")
+        original_exit = await self.owner.observe_exit(wait_seconds=2)
+
+        self.assertEqual(0, original_exit.returncode)
+        self.assertIs(original_exit, self.session.original_exit)
+        self.assertIsNone(self.session.retirement)
+        self.assertIsNone(self.owner.retirement_deadline)
+
+        with self.assertRaises(LifecycleRejected):
+            await self.owner.join_retirement(wait_seconds=2)
+
+        self.assertFalse(self.session.retirement.scratch_released)
+        self.assertIs(original_exit, self.session.original_exit)
+
+    async def test_readiness_failure_does_not_prevent_original_worker_cleanup(self):
+        pid = worker_pid(self.session.science, b"H")
+        failure = OSError("Injected lifecycle readiness registration failure")
+
+        with patch.object(asyncio.get_running_loop(), "add_reader", side_effect=failure):
+            with self.assertRaises(OSError) as failed:
+                await self.owner.observe_exit(wait_seconds=1)
+
+        self.assertIs(failure, failed.exception)
+        self.assertIsNone(self.owner.exit_reader)
+        self.owner.request_stop()
+        await self.owner.join_retirement(wait_seconds=2)
+        self.assertIs(failure, self.owner.exit_failure)
         self.assert_retired(pid)
 
     async def test_stop_failure_stays_independent_of_the_original_reader(self):
@@ -295,7 +325,7 @@ class AsyncNativeWireTests(unittest.IsolatedAsyncioTestCase):
         if setup:
             (hook, observe) = ("_connect_control", self.owner.connect)
         else:
-            (hook, observe) = ("_receive_retirement", self.owner.observe_retirement)
+            (hook, observe) = ("_receive_lifecycle", self.owner.observe_retirement)
 
         with patch.object(self.session, hook, new=native_failure):
             if not setup:
@@ -585,6 +615,62 @@ class AsyncNativeWireTests(unittest.IsolatedAsyncioTestCase):
         )
 
         return struct.pack("!I", len(raw)) + raw
+
+    async def test_idle_frame_timeout_is_not_a_caller_timeout_and_cannot_restart(self):
+        await self.connect()
+        self.peer.sendall(self.retirement_frame()[:6])
+
+        with self.assertRaises(TimeoutError):
+            await self.owner.observe_exit(wait_seconds=0.01)
+
+        original = self.owner.exit_reader
+
+        self.assertIsNotNone(original)
+        self.assertFalse(original.done())
+
+        with self.assertRaises(LifecycleRejected) as failed:
+            await self.owner.observe_exit(wait_seconds=1)
+
+        self.assertIsInstance(failed.exception.__cause__, TimeoutError)
+        self.assertIs(failed.exception.__cause__, original.exception())
+        self.assertIsNone(self.session.original_exit)
+        self.assertIsNone(self.owner.retirement_deadline)
+
+        with self.assertRaises(LifecycleRejected) as repeated:
+            await self.owner.observe_exit(wait_seconds=1)
+
+        self.assertIs(failed.exception.__cause__, repeated.exception.__cause__)
+        self.assertIs(original, self.owner.exit_reader)
+
+    async def test_buffered_exit_learned_after_local_stop_does_not_establish_its_cause(self):
+        await self.connect()
+        send_document(
+            self.peer,
+            {
+                "kind": "exited",
+                "generation": self.session.generation,
+                "operation": self.session.operation,
+                "returncode": 0,
+            },
+            deadline=time.monotonic() + 1,
+        )
+        self.owner.request_stop()
+        self.peer.sendall(self.retirement_frame())
+
+        self.assertIsNone(await self.owner.observe_exit(wait_seconds=1))
+        self.assertIsNone(self.session.original_exit)
+        self.assertTrue(self.session.retirement.scratch_released)
+        await self.owner.join_retirement(wait_seconds=1)
+
+    async def test_idle_control_loss_is_not_worker_exit(self):
+        await self.connect()
+        self.peer.shutdown(socket.SHUT_WR)
+
+        with self.assertRaises(LifecycleRejected):
+            await self.owner.observe_exit(wait_seconds=1)
+
+        self.assertIsNone(self.session.original_exit)
+        self.assertIsNone(self.session.retirement)
 
     async def test_partial_frame_continues_in_same_reader_after_observer_timeout(self):
         await self.connect()

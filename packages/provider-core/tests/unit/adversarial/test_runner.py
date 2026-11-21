@@ -68,7 +68,7 @@ class RunnerRefusalTests(unittest.TestCase):
         session.connect()
         pid = worker_pid(session.science, b"H")
         (entered, release_retirement_read) = (threading.Event(), threading.Event())
-        receive = session._receive_retirement
+        receive = session._receive_lifecycle
 
         def original_read(deadline):
             entered.set()
@@ -78,7 +78,7 @@ class RunnerRefusalTests(unittest.TestCase):
 
             return receive(deadline)
 
-        with ThreadPoolExecutor(max_workers=1) as pool, patch.object(session, "_receive_retirement", side_effect=original_read):
+        with ThreadPoolExecutor(max_workers=1) as pool, patch.object(session, "_receive_lifecycle", side_effect=original_read):
             original = pool.submit(session.observe_retirement)
 
             try:

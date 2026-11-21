@@ -257,6 +257,28 @@ def _operation(control, *, generation, lock_identity, lease, scratch_fd, argv, o
         science.close()
         event = _watch(worker, control, shutdown, operation_deadline, status)
         shutdown_requested = event == "shutdown"
+        if event == "exited":
+            # Report the reaped original before scratch cleanup can fail or stall
+            try:
+                send_document(
+                    control,
+                    {
+                        "kind": "exited",
+                        "generation": generation,
+                        "operation": operation,
+                        "returncode": worker.returncode,
+                    },
+                    deadline=time.monotonic() + options.startup_seconds,
+                )
+            except OSError as delivery:
+                # A departed reader cannot prevent cleanup of the reaped child
+                LOGGER.warning(
+                    "event=exit_delivery_failed operation=%s cause_type=%s errno=%s",  # machine-string: runner events retain operation and delivery failure facts
+                    operation,
+                    type(delivery).__name__,
+                    delivery.errno,
+                )
+
         returncode = _terminate(worker, options.terminate_seconds, options.kill_seconds)
 
         try:
