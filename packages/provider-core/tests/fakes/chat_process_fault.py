@@ -124,29 +124,29 @@ def http_worker(path):
 def warm_worker():
     """One process initialization, with observable preparation/execution counts."""
     state = {"pid": os.getpid(), "model_loads": 1, "preparations": 0, "executions": 0, "retirements": 0}
-    handles = set()
+    prepared_job_refs = set()
 
     for line in sys.stdin:
         worker_command = json.loads(line)
-        (operation, job) = (worker_command["operation"], worker_command.get("job"))
+        (operation, job_ref) = (worker_command["operation"], worker_command.get("job"))
 
         if operation == "prepare":
-            if job in handles:
-                raise AssertionError("Fixture preparation was repeated")
+            if job_ref in prepared_job_refs:
+                raise AssertionError(f"{job_ref=} should not already be in {prepared_job_refs=}")
 
-            handles.add(job)
+            prepared_job_refs.add(job_ref)
             state["preparations"] += 1
         elif operation == "execute":
-            if not (job in handles):
-                raise AssertionError("Fixture execution did not own its prepared handle")
+            if not (job_ref in prepared_job_refs):
+                raise AssertionError(f"{job_ref=} should be in {prepared_job_refs=}")
 
-            handles.remove(job)
+            prepared_job_refs.remove(job_ref)
             state["executions"] += 1
         elif operation == "retire":
-            handles.discard(job)
+            prepared_job_refs.discard(job_ref)
             state["retirements"] += 1
         elif operation != "snapshot":
-            raise AssertionError("Unknown fixture worker request")
+            raise AssertionError(f"{operation=} does not select a fixture worker operation")
 
         print(json.dumps(state), flush=True)
 
@@ -174,7 +174,7 @@ class WarmWorker:
         line = await asyncio.wait_for(self.worker_process.stdout.readline(), 3)
 
         if not (line):
-            raise AssertionError("The persistent worker stopped before the recovery verdict")
+            raise AssertionError(f"{self.worker_process.pid=} closed stdout before the recovery verdict; {self.worker_process.returncode=}")
 
         return json.loads(line)
 
@@ -251,7 +251,7 @@ async def scenario(marker, report):
             if request.method == "GET":
                 return reply(observation(job_ref=self.job, execution_attempt_ref=self.reference))
 
-            raise AssertionError("Unexpected API request in the recovery fixture")
+            raise AssertionError(f"{request.method=}, {request.url.path=} do not select a recovery-fixture API response")
 
     class Session:
         def __init__(self, job, endpoint, trust, worker):
@@ -287,11 +287,11 @@ async def scenario(marker, report):
             self.prepare_calls += 1
 
             if acknowledged.start.input != instructions.identity:
-                raise AssertionError("Fixture preparation changed its original input")
+                raise AssertionError(f"{acknowledged.start.input=} should match {instructions.identity=}")
 
             async def dispatch(name, arguments, *, not_after):
-                if (name != "prepare") or arguments:
-                    raise AssertionError("Unexpected model tool")
+                if (name != (expected_tool_name := "prepare")) or arguments:
+                    raise AssertionError(f"{name=} should match {expected_tool_name=} and {arguments=} should be empty")
 
                 report_condition.require_execution()
                 self.tool_calls += 1
@@ -332,7 +332,7 @@ async def scenario(marker, report):
 
         async def execute(self, prepared, *, report_condition):
             if (prepared is not self.handle) or (self.handle is None):
-                raise AssertionError("Fixture execution changed its prepared handle")
+                raise AssertionError(f"{prepared=} should be non-None and identical to {self.handle=}")
 
             report_condition.require_execution()
             self.execute_calls += 1
@@ -351,7 +351,7 @@ async def scenario(marker, report):
             await self.interpreter.retire()
 
             if not (self.interpreter.retirement_confirmed):
-                raise AssertionError("Original interpreter has not confirmed retirement")
+                raise AssertionError(f"{self.interpreter.retirement_confirmed=} should be True")
 
             if not self.retired:
                 await self.worker.call("retire", self.job)
@@ -544,4 +544,4 @@ if __name__ == "__main__":
     elif sys.argv[1] == "scenario":
         asyncio.run(scenario(pathlib.Path(sys.argv[2]), pathlib.Path(sys.argv[3])))
     else:
-        raise SystemExit("Unknown chat recovery fixture role")
+        raise SystemExit(f"{sys.argv[1]=} should select a warm-worker, http-worker or scenario role")
