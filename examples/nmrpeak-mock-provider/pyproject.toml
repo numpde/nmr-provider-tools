@@ -7,7 +7,7 @@ name = "nmrpeak-mock-provider-example"
 version = "0.1.0"
 description = "NMRPeak-shaped scientific hosting with lightweight model and service stand-ins"
 requires-python = ">=3.12"
-dependencies = ["provider-core[api]==0.6.20"]
+dependencies = ["provider-core[api]==0.6.21"]
 
 [tool.setuptools.packages.find]
 where = ["src"]
