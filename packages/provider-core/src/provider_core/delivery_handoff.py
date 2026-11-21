@@ -8,6 +8,7 @@ import base64
 import binascii
 import hashlib
 import json
+import reprlib
 from dataclasses import dataclass
 
 from provider_core.api_config import ApiPublicationMaterial, api_settings_from_material
@@ -34,11 +35,17 @@ def _decoded(encoded_text):
 
     try:
         decoded_bytes = base64.b64decode(encoded_text, validate=True)
-    except (ValueError, binascii.Error):
-        raise DeliveryHandoffRejected("Delivery handoff contains invalid base64 text.") from None
+    except (ValueError, binascii.Error) as cause:
+        raise DeliveryHandoffRejected("Cannot decode the handoff's base64 field") from cause
 
-    if _encoded(decoded_bytes) != encoded_text:
-        raise DeliveryHandoffRejected("Delivery handoff requires canonical base64 text.")
+    canonical_base64 = _encoded(decoded_bytes)
+
+    if canonical_base64 != encoded_text:
+        # Fields can encode a signing credential or a multi-megabyte result
+        encoded_text_sha256 = hashlib.sha256(encoded_text.encode("ascii")).hexdigest()
+        canonical_base64_sha256 = hashlib.sha256(canonical_base64.encode("ascii")).hexdigest()
+
+        raise DeliveryHandoffRejected(f"{encoded_text_sha256=} should match {canonical_base64_sha256=}")
 
     return decoded_bytes
 
@@ -82,8 +89,14 @@ class DeliveryHandoff:
             error_factory=DeliveryHandoffRejected,
         )
 
-        if (self.outcome.api_origin, self.outcome.provider_ref) != (self.publication.origin, self.publication.provider_ref):
-            raise DeliveryHandoffRejected("Delivery outcome and publication material require the same API and provider identity.")
+        outcome_api_origin, outcome_provider_ref = self.outcome.api_origin, self.outcome.provider_ref
+        publication_api_origin, publication_provider_ref = self.publication.origin, self.publication.provider_ref
+
+        if not (outcome_api_origin == publication_api_origin):
+            raise DeliveryHandoffRejected(f"{outcome_api_origin=} should match {publication_api_origin=}")
+
+        if not (outcome_provider_ref == publication_provider_ref):
+            raise DeliveryHandoffRejected(f"{outcome_provider_ref=} should match {publication_provider_ref=}")
 
     def publication_document(self):
         # silent-defaults: allow-contract -- An absent CA explicitly selects the delivery image's system trust roots.
@@ -117,8 +130,10 @@ class DeliveryHandoff:
 
         encoded = json.dumps(handoff_fields, sort_keys=True, separators=(",", ":"), ensure_ascii=True, allow_nan=False).encode("ascii")
 
-        if len(encoded) > MAX_HANDOFF_BYTES:
-            raise DeliveryHandoffRejected("Delivery handoff exceeds its bounded submission size.")
+        handoff_byte_length = len(encoded)
+
+        if handoff_byte_length > MAX_HANDOFF_BYTES:
+            raise DeliveryHandoffRejected(f"{handoff_byte_length=} should be at most {MAX_HANDOFF_BYTES=}")
 
         return encoded
 
@@ -131,8 +146,14 @@ def read_delivery_handoff(raw):
 
         require_type(handoff_fields, dict, error_factory=DeliveryHandoffRejected)
 
-        if set(handoff_fields) != {"api", "credential", "ca", "outcome"}:
-            raise DeliveryHandoffRejected("Delivery handoff requires its documented fields.")
+        expected_handoff_fields = {"api", "credential", "ca", "outcome"}
+        observed_handoff_fields = set(handoff_fields)
+
+        if observed_handoff_fields != expected_handoff_fields:
+            missing_handoff_fields = expected_handoff_fields - observed_handoff_fields
+            unexpected_handoff_fields = observed_handoff_fields - expected_handoff_fields
+
+            raise DeliveryHandoffRejected(f"{missing_handoff_fields=} and {reprlib.repr(unexpected_handoff_fields)=} should be empty")
 
         (api, outcome) = (handoff_fields["api"], handoff_fields["outcome"])
 
@@ -140,15 +161,21 @@ def read_delivery_handoff(raw):
 
         require_type(outcome, dict, error_factory=DeliveryHandoffRejected)
 
-        if (set(outcome) != {
+        expected_outcome_fields = {
             "api_origin",
             "provider_ref",
             "job_ref",
             "execution_attempt_ref",
             "operation",
             "body"
-        }):
-            raise DeliveryHandoffRejected("Delivery handoff requires complete API and outcome fields.")
+        }
+        observed_outcome_fields = set(outcome)
+
+        if observed_outcome_fields != expected_outcome_fields:
+            missing_outcome_fields = expected_outcome_fields - observed_outcome_fields
+            unexpected_outcome_fields = observed_outcome_fields - expected_outcome_fields
+
+            raise DeliveryHandoffRejected(f"{missing_outcome_fields=} and {reprlib.repr(unexpected_outcome_fields)=} should be empty")
 
         credential = _decoded(handoff_fields["credential"])
 
@@ -180,5 +207,5 @@ def read_delivery_handoff(raw):
         return DeliveryHandoff(delivery_outcome, material)
     except DeliveryHandoffRejected:
         raise
-    except (ResponseRejected, KeyError, TypeError, ValueError, OverflowError):
-        raise DeliveryHandoffRejected("Delivery handoff does not satisfy the supported publication contract.") from None
+    except (ResponseRejected, KeyError, TypeError, ValueError, OverflowError) as cause:
+        raise DeliveryHandoffRejected("Cannot admit the publication handoff") from cause
