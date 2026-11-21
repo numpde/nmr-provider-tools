@@ -71,7 +71,7 @@ class TextCorrection:
         require_type(actual_user_content, str)
 
         if not (self.user_content):
-            raise ValueError("Text correction requires a nonempty user instruction.")
+            raise ValueError(f"{self.user_content=} should be nonempty")
 
 
 @dataclass(frozen=True, slots=True)
@@ -146,7 +146,7 @@ def require_turn_limit(max_turns):
     require_type(max_turns, int)
 
     if not (0 < max_turns):
-        raise ValueError("Cannot configure interpretation: the total model-turn limit must be a positive integer.")
+        raise ValueError(f"{max_turns=} should be positive")
 
 
 class ToolConversation:
@@ -172,7 +172,7 @@ class ToolConversation:
         require_type(endpoints, tuple)
 
         if not (endpoints):
-            raise ValueError("Cannot configure interpretation: provide a nonempty ordered tuple of endpoints.")
+            raise ValueError(f"{endpoints=} should be nonempty")
 
         require_turn_limit(max_turns)
 
@@ -185,7 +185,9 @@ class ToolConversation:
             require_type(secret, str)
 
         if any((not secret) for secret in secrets):
-            raise ValueError("Cannot configure interpretation: known secrets must be an explicit tuple of nonempty strings.")
+            empty_secret_indexes = [index for (index, secret) in enumerate(secrets) if not secret]
+
+            raise ValueError(f"{empty_secret_indexes=} should be empty")
 
         if text_correction is not None:
             require_type(text_correction, TextCorrection)
@@ -194,7 +196,7 @@ class ToolConversation:
             require_type(argument_bytes, int)
 
             if not (0 < argument_bytes):
-                raise ValueError("Cannot configure interpretation: argument_bytes must be a positive integer or None.")
+                raise ValueError(f"{argument_bytes=} should be positive")
 
         (self._endpoints, self._max_turns) = (endpoints, max_turns)
         self._argument_bytes = argument_bytes
@@ -258,6 +260,7 @@ class ToolConversation:
 
     def _require_no_secrets(self, context_fragment):
         if type(context_fragment) is str:
+            # repo-check: allow-literal-guard-error -- A configured credential matched; neither its value nor the outgoing context may be rendered
             if any((secret in context_fragment) for secret in self._secrets):
                 raise ConversationFailed("Cannot continue interpretation: its outgoing context contains a configured credential.")
         elif type(context_fragment) is dict:
@@ -269,8 +272,11 @@ class ToolConversation:
                 self._require_no_secrets(sequence_element)
 
     async def run(self, messages, tools, dispatch):
-        if self._used or self._retired:
-            raise ValueError("This interpreter conversation already ran or retired; create a new owned conversation.")
+        if not (self._used is False):
+            raise ValueError(f"{self._used=} should be False")
+
+        if not (self._retired is False):
+            raise ValueError(f"{self._retired=} should be False")
 
         self._used = True
 
@@ -322,7 +328,7 @@ class ToolConversation:
 
         while self._turns < self._max_turns:
             if self._retired:
-                raise ConversationFailed("Interpretation retired before a decision could be accepted.")
+                raise ConversationFailed(f"{self._retired=} should be False before accepting a decision")
 
             endpoint = self._endpoints[index]
             self._turns += 1
@@ -348,9 +354,15 @@ class ToolConversation:
 
                 await self._retire_endpoint(index, cause=failure)
 
-                if ((index + 1) == len(self._endpoints)) or (self._turns == self._max_turns):
+                if not ((index + 1) < len(self._endpoints)):
                     raise ConversationFailed(
-                        "Cannot interpret the request: no usable model reply was obtained within the configured endpoints and turn budget.",
+                        f"{index + 1=} should be below {len(self._endpoints)=} to select a successor endpoint",
+                        cause=failure,
+                    ) from None
+
+                if not (self._turns < self._max_turns):
+                    raise ConversationFailed(
+                        f"{self._turns=} should be below {self._max_turns=} for another model turn",
                         cause=failure,
                     ) from None
 
@@ -437,7 +449,7 @@ class ToolConversation:
 
     def _require_active(self):
         if self._retired:
-            raise ConversationFailed("Interpretation retired before a decision could be accepted.")
+            raise ConversationFailed(f"{self._retired=} should be False before accepting a decision")
 
     def _admit_carrier(self, message):
         require_assistant(message)
@@ -561,7 +573,7 @@ class ToolConversation:
             await endpoint.retire()
 
             if not (endpoint.retirement_confirmed):
-                raise RuntimeError("Interpreter endpoint has not confirmed resource retirement.")
+                raise RuntimeError(f"{endpoint.retirement_confirmed=} should be True")
         except (Exception, asyncio.CancelledError) as cleanup:
             failure = ConversationRetirementFailed(
                 ((index, cleanup),),
