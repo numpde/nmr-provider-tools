@@ -12,7 +12,7 @@ require_container()
 import ast
 import unittest
 
-from .sources import ROOT, python_sources
+from .sources import CHECKER_ROOT, ROOT, python_sources
 
 
 def multiline_boolean_findings(*, source: str) -> list[tuple[int, str]]:
@@ -128,7 +128,7 @@ class MultilineBooleanPostureTests(unittest.TestCase):
         )
 
     def test_directly_negated_call_in_a_multiline_filter(self) -> None:
-        fixture_path = ROOT / "tests/repository/fixtures/quality/multiline_boolean/negated_call_filter.py.fixture"
+        fixture_path = CHECKER_ROOT / "tests/repository/fixtures/quality/multiline_boolean/negated_call_filter.py.fixture"
 
         self.assertEqual(first=[], second=multiline_boolean_findings(source=fixture_path.read_text(encoding="utf-8")))
 

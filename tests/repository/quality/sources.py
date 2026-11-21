@@ -1,19 +1,27 @@
 """Inventory authored sources visible to the contained repository lane.
 
-The launcher pins /workspace; local conventions govern host, tools, tests, packages and
+The launcher pins checker code at /workspace; local conventions govern host, tools, tests, packages and
 standalone examples and library mocks. Future src, packages/*/src, examples/*/src
 and mocks/*/src sources enter these inventories automatically. Python fixture
 samples are excluded from regular source checks; dedicated scenario tests read
-their samples directly.
+their samples directly. Explicit consumer selections instead scan only the files
+mounted beneath /selected-source, regardless of their package or test directory.
 """
 
 from tools.container_guard import require_container
 
 require_container()
 
+import os
 import pathlib
 
-ROOT = pathlib.Path("/workspace")
+CHECKER_ROOT = pathlib.Path("/workspace")
+EXPLICIT_SOURCE_SELECTION = "CHECK_SOURCE_ROOT" in os.environ
+ROOT = CHECKER_ROOT
+
+if EXPLICIT_SOURCE_SELECTION:
+    ROOT = pathlib.Path(os.environ["CHECK_SOURCE_ROOT"])
+
 REPOSITORY_ROOT = ROOT
 PYTHON_ROOTS = ("host", "operations", "tools", "tests")
 OPTIONAL_PYTHON_ROOTS = ("src",)
@@ -42,6 +50,10 @@ def python_sources(*, production_only):
     package tests and example tests. The caller must choose the check's
     responsibility. Fixture samples belong to dedicated scenario tests.
     """
+
+    # Explicit files replace SDK directory ownership, including selected consumer tests
+    if EXPLICIT_SOURCE_SELECTION:
+        return source_files(root=ROOT, patterns=("**/*.py",))
 
     # silent-defaults: allow-contract -- The required production_only choice selects host/tools or all authored roots; future shared-package and example modules belong to both inventories; proof=tests/repository/quality/test_source_inventory.py::SourceInventoryUnitTests.test_python_source_selection_respects_explicit_scope
     roots = ("host", "operations", "tools") if production_only else PYTHON_ROOTS

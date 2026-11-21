@@ -15,7 +15,7 @@ import unittest
 
 from operations.checker.findings import assert_no_findings
 
-from .sources import ROOT, python_sources
+from .sources import CHECKER_ROOT, ROOT, python_sources
 
 
 def _module_name(source_path: pathlib.Path) -> str:
@@ -334,7 +334,7 @@ raise SourceLimitError("Source exceeds its limit", source)
         )
 
     def test_reports_external_enums_strings_and_wire_values_from_imported_exceptions(self):
-        fixture_directory = ROOT / "tests/repository/fixtures/quality/error_code_enum"
+        fixture_directory = CHECKER_ROOT / "tests/repository/fixtures/quality/error_code_enum"
         declarations = (fixture_directory / "failures.py.fixture").read_text(encoding="utf-8")
 
         source_path = pathlib.Path("consumer.py")

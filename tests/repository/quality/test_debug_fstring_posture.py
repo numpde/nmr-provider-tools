@@ -32,7 +32,7 @@ import unittest
 import pathlib
 from dataclasses import dataclass
 
-from .sources import REPOSITORY_ROOT, python_sources
+from .sources import CHECKER_ROOT, REPOSITORY_ROOT, python_sources
 from .fstrings import is_debug_expression as _is_debug_expression
 
 
@@ -213,7 +213,7 @@ class DebugFstringPostureTests(unittest.TestCase):
 
         for (fixture_name, expected_shapes) in cases.items():
             with self.subTest(fixture_name=fixture_name):
-                fixture_path = REPOSITORY_ROOT / "tests/repository/fixtures/quality/machine_strings" / fixture_name
+                fixture_path = CHECKER_ROOT / "tests/repository/fixtures/quality/machine_strings" / fixture_name
                 findings = _findings(source_path=fixture_path, source=fixture_path.read_text(encoding="utf-8"))
 
                 self.assertEqual(first=sorted(expected_shapes), second=sorted(finding.shape for finding in findings))

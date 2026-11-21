@@ -21,7 +21,7 @@ from operations.checker.findings import assert_no_findings
 import pathlib
 from dataclasses import dataclass
 
-from .sources import REPOSITORY_ROOT, python_sources
+from .sources import CHECKER_ROOT, REPOSITORY_ROOT, python_sources
 
 
 @dataclass(frozen=True, slots=True, kw_only=True)
@@ -135,13 +135,13 @@ class EscapedNewlinePostureTests(unittest.TestCase):
 
         for (fixture_name, expected_positions) in cases.items():
             with self.subTest(fixture_name=fixture_name):
-                source_path = REPOSITORY_ROOT / "tests/repository/fixtures/quality/escaped_newlines" / fixture_name
+                source_path = CHECKER_ROOT / "tests/repository/fixtures/quality/escaped_newlines" / fixture_name
                 findings = _findings(source_path=source_path, source=source_path.read_text(encoding="utf-8"))
 
                 self.assertEqual(first=expected_positions, second=[(finding.line, finding.column) for finding in findings])
 
     def test_diagnostic_names_the_source_escape_column(self) -> None:
-        fixture_path = REPOSITORY_ROOT / "tests/repository/fixtures/quality/escaped_newlines/positions.py.fixture"
+        fixture_path = CHECKER_ROOT / "tests/repository/fixtures/quality/escaped_newlines/positions.py.fixture"
         (finding, *remaining) = _findings(source_path=pathlib.Path("positions.py.fixture"), source=fixture_path.read_text(encoding="utf-8"))
 
         self.assertEqual(

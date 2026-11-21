@@ -45,6 +45,7 @@ if [[ -v TEST_PATTERN_INPUT_ORIGIN && $TEST_PATTERN_INPUT_ORIGIN == 'command lin
         exit 2
     fi
 fi
+source "$root/operations/checker/source_selection.sh"
 if [[ $root =~ [[:cntrl:],] ]]; then
     printf '%s\n' 'Cannot mount repository source: its physical path contains a control character or comma.' >&2
     exit 2
@@ -93,6 +94,7 @@ arguments=(--init --pull=never --network=none --read-only
     --env PYTHONPATH=/workspace:/workspace/packages/provider-core:/workspace/packages/wheelhouse-tool/src:/workspace/packages/wheelhouse-tool/build:/workspace/packages/acquisition:/workspace/packages/acquisition/build:/workspace/packages/type-requirements/src --env NMR_PROVIDER_TOOLS_IN_CONTAINER=1
     --env "NMR_PROVIDER_TOOLS_EXPECTED_UID=$uid" --env "NMR_PROVIDER_TOOLS_EXPECTED_GID=$gid"
     "${mounts[@]}"
+    "${selection_mounts[@]}" "${selection_environment[@]}"
     --mount "type=bind,src=$metadata,dst=/repository-source-inventory/root-entries,readonly"
     --entrypoint python3 "$image" -B -m)
 if [[ $1 == tests/repository/quality/report ]]; then

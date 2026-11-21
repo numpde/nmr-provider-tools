@@ -107,6 +107,27 @@ $(error TEST_PATTERN requires exactly one repository, repository-quality or unit
 endif
 endif
 
+unexport CHECK_SOURCE_ROOT CHECK_SOURCE_FILES CHECK_SOURCE_ROOT_INPUT CHECK_SOURCE_FILES_INPUT
+unexport CHECK_SOURCE_ROOT_INPUT_ORIGIN CHECK_SOURCE_FILES_INPUT_ORIGIN
+override export CHECK_SOURCE_ROOT_INPUT_ORIGIN := $(origin CHECK_SOURCE_ROOT)
+override export CHECK_SOURCE_FILES_INPUT_ORIGIN := $(origin CHECK_SOURCE_FILES)
+ifeq ($(origin CHECK_SOURCE_ROOT),command line)
+override CHECK_SOURCE_ROOT_INPUT := $(value CHECK_SOURCE_ROOT)
+export CHECK_SOURCE_ROOT_INPUT
+endif
+ifeq ($(origin CHECK_SOURCE_FILES),command line)
+override CHECK_SOURCE_FILES_INPUT := $(value CHECK_SOURCE_FILES)
+export CHECK_SOURCE_FILES_INPUT
+endif
+ifneq ($(filter command line,$(origin CHECK_SOURCE_ROOT) $(origin CHECK_SOURCE_FILES)),)
+ifneq ($(words $(MAKECMDGOALS)),1)
+$(error CHECK_SOURCE_ROOT and CHECK_SOURCE_FILES require one quality target)
+endif
+ifeq ($(filter $(MAKECMDGOALS),tests/repository/quality tests/repository/quality/report),)
+$(error CHECK_SOURCE_ROOT and CHECK_SOURCE_FILES require one quality target)
+endif
+endif
+
 unexport FUZZ_PROFILE
 unexport FUZZ_PROFILE_INPUT
 unexport FUZZ_PROFILE_INPUT_ORIGIN
@@ -336,6 +357,7 @@ help:
 	  'make tests/repository [TEST_PATTERN=test_<name>.py] Run repository conventions and detector fixtures offline.' \
 	  'make tests/repository/quality [TEST_PATTERN=test_<name>.py] Run code and operator convention checks offline.' \
 	  'make tests/repository/quality/report > report.html Run quality checks and emit a standalone HTML report.' \
+	  '  For selected consumer Python files, add TEST_PATTERN=test_<name>.py CHECK_SOURCE_ROOT=/absolute/root CHECK_SOURCE_FILES="package/file.py tests/test_file.py" to either quality target.' \
   'make tests/repository/installer  Verify the pinned installer and checker bootstrap offline.' \
 	  'make tests/repository/bytecode   Check maintained Python launches suppress source bytecode.' \
 	  'make checks/python-cache/clean    Explicitly remove generated first-party .pyc/.pyo files and empty __pycache__ directories.' \

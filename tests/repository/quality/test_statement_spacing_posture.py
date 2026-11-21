@@ -22,7 +22,7 @@ import textwrap
 import tokenize
 import unittest
 
-from .sources import ROOT, python_sources
+from .sources import CHECKER_ROOT, ROOT, python_sources
 
 
 def _multiline(*, statement: ast.stmt) -> bool:
@@ -108,7 +108,7 @@ def missing_blank_lines(*, source: str) -> list[int]:
 
 
 def _fixture_source(*, fixture_name: str) -> str:
-    return (ROOT / "tests/repository/fixtures/quality/statement_spacing" / fixture_name).read_text(encoding="utf-8")
+    return (CHECKER_ROOT / "tests/repository/fixtures/quality/statement_spacing" / fixture_name).read_text(encoding="utf-8")
 
 
 class StatementSpacingPostureTests(unittest.TestCase):

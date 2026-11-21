@@ -20,7 +20,7 @@ import unittest
 
 from operations.checker.findings import assert_no_findings
 
-from .sources import ROOT, python_sources
+from .sources import CHECKER_ROOT, ROOT, python_sources
 from .test_type_error_posture import _builtin
 from .type_checks import raising_guards, unwrap_binding
 
@@ -127,12 +127,12 @@ class FiniteNumberHelperPostureTests(unittest.TestCase):
         )
 
     def test_filters_vector_predicates_and_existing_failures_are_not_requirements(self):
-        fixture_path = ROOT / "tests/repository/fixtures/quality/finite_number/nonrequirements.py.fixture"
+        fixture_path = CHECKER_ROOT / "tests/repository/fixtures/quality/finite_number/nonrequirements.py.fixture"
 
         self.assertEqual([], guard_findings(source=fixture_path.read_text(encoding="utf-8")))
 
     def test_arithmetic_postconditions_are_distinct_from_input_validation(self):
-        fixture_path = ROOT / "tests/repository/fixtures/quality/finite_number/arithmetic_boundaries.py.fixture"
+        fixture_path = CHECKER_ROOT / "tests/repository/fixtures/quality/finite_number/arithmetic_boundaries.py.fixture"
 
         self.assertEqual(
             [(12, "received_number"), (17, "computed_total")],

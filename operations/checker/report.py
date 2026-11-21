@@ -90,6 +90,10 @@ class ReportRunner(unittest.TextTestRunner):
 
         template = pathlib.Path(__file__).with_suffix(".html").read_text()
 
+        if "CHECK_SOURCE_ROOT" in os.environ:
+            report["sourceRoot"] = os.environ["CHECK_SOURCE_HOST_ROOT"]
+            report["sourceFiles"] = os.environ["CHECK_SOURCE_FILES"].split()
+
         # A test identifier must not close the embedded JSON script element
         report_json = json.dumps(report, ensure_ascii=True).replace("<", "\\u003c")
 

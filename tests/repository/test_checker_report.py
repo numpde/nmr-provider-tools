@@ -76,6 +76,9 @@ class CheckerReportTests(unittest.TestCase):
                 "CHECK_REPORT_CONTEXT": "fixture</script>context",
                 "CHECK_REPORT_PATTERN": "test*.py",
                 "PRIVACY_TESTS": "0",
+                "CHECK_SOURCE_ROOT": "/selected-source",
+                "CHECK_SOURCE_HOST_ROOT": "/consumer</script>root",
+                "CHECK_SOURCE_FILES": "consumer/adapter.py tests/test_adapter.py",
             }
 
             completed_checks = subprocess.run(
@@ -100,6 +103,8 @@ class CheckerReportTests(unittest.TestCase):
         self.assertEqual("fixture-revision", report["revision"])
         self.assertEqual("fixture</script>context", report["context"])
         self.assertFalse(report["privacyTests"])
+        self.assertEqual("/consumer</script>root", report["sourceRoot"])
+        self.assertEqual(["consumer/adapter.py", "tests/test_adapter.py"], report["sourceFiles"])
         self.assertEqual(3, report["checks"]["test_report_fixture.Outcomes.test_inventory"]["findings"])
         self.assertEqual(2, report["checks"]["test_report_fixture.Outcomes.test_subtests"]["findings"])
         self.assertFalse(any(("test_unreachable" in check_id) for check_id in report["checks"]))

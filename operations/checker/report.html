@@ -75,7 +75,11 @@
   const findingCount = checks => checks.reduce((total, check) => total + (check.findings ?? 0), 0);
 
   const created = new Date(report.created).toLocaleString("en-GB");
-  const selection = report.pattern === "test*.py" ? "" : ` TEST_PATTERN=${report.pattern}`;
+  let selection = report.pattern === "test*.py" ? "" : ` TEST_PATTERN=${report.pattern}`;
+  if (report.sourceRoot !== undefined) {
+    const quote = text => "'" + text.replaceAll("'", "'\\''") + "'";
+    selection += ` CHECK_SOURCE_ROOT=${quote(report.sourceRoot)} CHECK_SOURCE_FILES=${quote(report.sourceFiles.join(" "))}`;
+  }
   const command = element("p", undefined, "command");
   command.append(element("code", `make tests/repository/quality/report DOCKER_CONTEXT=${report.context} PRIVACY_TESTS=${Number(report.privacyTests)}${selection} > notes/092_repo_checks_status.html`));
   main.append(command);
