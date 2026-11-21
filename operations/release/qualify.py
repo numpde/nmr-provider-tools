@@ -26,6 +26,7 @@ from collections import Counter
 from pathlib import PurePosixPath
 
 from tools.artifacts import regular_file
+from tools.artifact_metadata import metadata_mismatch
 from build_bundle import build as build_wheelhouse_bundle
 from build_acquisition_bundle import build as build_acquisition_bundle
 from sdk_build.core_environment import behavioral_install_lock, build_candidate, install_environment, wheelhouse_source_inventory
@@ -39,48 +40,6 @@ from type_requirements import require_type
 _RELEASE_EVIDENCE = reprlib.Repr()
 _RELEASE_EVIDENCE.maxstring = 256
 _RELEASE_EVIDENCE.maxother = _RELEASE_EVIDENCE.maxstring
-
-
-def _metadata_mismatch(recorded_metadata, captured_metadata):
-    """Describe a rejected metadata difference without revalidating its schema."""
-
-    # Type dispatch selects evidence after the caller's existing mismatch check
-    if (
-        isinstance(recorded_metadata, dict) and
-        isinstance(captured_metadata, dict)
-    ):
-        for metadata_member in sorted(recorded_metadata.keys() | captured_metadata.keys(), key=repr):
-            if metadata_member not in recorded_metadata:
-                return f"{_RELEASE_EVIDENCE.repr(metadata_member)=} should be present in recorded metadata"
-
-            if metadata_member not in captured_metadata:
-                return f"{_RELEASE_EVIDENCE.repr(metadata_member)=} should be absent from recorded metadata"
-
-            if recorded_metadata[metadata_member] != captured_metadata[metadata_member]:
-                return f"{_RELEASE_EVIDENCE.repr(metadata_member)=}: " + _metadata_mismatch(
-                    recorded_metadata=recorded_metadata[metadata_member],
-                    captured_metadata=captured_metadata[metadata_member],
-                )
-
-    if (
-        isinstance(recorded_metadata, set) and
-        isinstance(captured_metadata, set)
-    ):
-        return (
-            f"{_RELEASE_EVIDENCE.repr(recorded_metadata - captured_metadata)=} and "
-            f"{_RELEASE_EVIDENCE.repr(captured_metadata - recorded_metadata)=} should be empty"
-        )
-
-    if (
-        isinstance(recorded_metadata, bytes) and
-        isinstance(captured_metadata, bytes)
-    ):
-        recorded_metadata_sha256 = hashlib.sha256(recorded_metadata).hexdigest()
-        captured_metadata_sha256 = hashlib.sha256(captured_metadata).hexdigest()
-
-        return f"{recorded_metadata_sha256=} ≠ {captured_metadata_sha256=}"
-
-    return f"{_RELEASE_EVIDENCE.repr(recorded_metadata)=} ≠ {_RELEASE_EVIDENCE.repr(captured_metadata)=}"
 
 
 def artifact_names(version):
@@ -752,7 +711,7 @@ def check(artifacts, revision):
 
         if recorded_hashes != observed_hashes:
             raise ValueError(
-                f"{checksum_manifest_path=}: " + _metadata_mismatch(
+                f"{checksum_manifest_path=}: " + metadata_mismatch(
                     recorded_metadata=recorded_hashes,
                     captured_metadata=observed_hashes,
                 )
@@ -776,7 +735,7 @@ def check(artifacts, revision):
 
         if recorded_artifact_files != captured_artifact_files:
             raise ValueError(
-                f"{release_record_path=}: " + _metadata_mismatch(
+                f"{release_record_path=}: " + metadata_mismatch(
                     recorded_metadata=recorded_artifact_files,
                     captured_metadata=captured_artifact_files,
                 )
@@ -790,7 +749,7 @@ def check(artifacts, revision):
 
         if recorded_tool_source_files != captured_tool_source_files:
             raise ValueError(
-                f"{release_record_path=}: " + _metadata_mismatch(
+                f"{release_record_path=}: " + metadata_mismatch(
                     recorded_metadata=recorded_tool_source_files,
                     captured_metadata=captured_tool_source_files,
                 )
@@ -847,7 +806,7 @@ def check(artifacts, revision):
 
         if release_record["acquisition_source_files"] != acquisition_record["source_files"]:
             raise ValueError(
-                f"{release_record_path=}: " + _metadata_mismatch(
+                f"{release_record_path=}: " + metadata_mismatch(
                     recorded_metadata=release_record["acquisition_source_files"],
                     captured_metadata=acquisition_record["source_files"],
                 )
@@ -855,7 +814,7 @@ def check(artifacts, revision):
 
         if release_record["acquisition_dependency_inputs"] != acquisition_record["dependency_inputs"]:
             raise ValueError(
-                f"{release_record_path=}: " + _metadata_mismatch(
+                f"{release_record_path=}: " + metadata_mismatch(
                     recorded_metadata=release_record["acquisition_dependency_inputs"],
                     captured_metadata=acquisition_record["dependency_inputs"],
                 )
@@ -904,7 +863,7 @@ def check(artifacts, revision):
 
         if issued_runtime_requirements != expected_runtime_requirements:
             raise ValueError(
-                f"{runtime_install_lock=}: " + _metadata_mismatch(
+                f"{runtime_install_lock=}: " + metadata_mismatch(
                     recorded_metadata=issued_runtime_requirements,
                     captured_metadata=expected_runtime_requirements,
                 )
@@ -919,7 +878,7 @@ def check(artifacts, revision):
 
         if issued_native_requirements != expected_native_requirements:
             raise ValueError(
-                f"{native_install_lock=}: " + _metadata_mismatch(
+                f"{native_install_lock=}: " + metadata_mismatch(
                     recorded_metadata=issued_native_requirements,
                     captured_metadata=expected_native_requirements,
                 )
@@ -939,7 +898,7 @@ def check(artifacts, revision):
 
         if rebuilt_dependency_inputs != release_record["dependency_inputs"]:
             raise ValueError(
-                f"{release_record_path=}: " + _metadata_mismatch(
+                f"{release_record_path=}: " + metadata_mismatch(
                     recorded_metadata=release_record["dependency_inputs"],
                     captured_metadata=rebuilt_dependency_inputs,
                 )
@@ -949,7 +908,7 @@ def check(artifacts, revision):
 
         if rebuilt_wheel_metadata != original_wheel_metadata:
             raise ValueError(
-                f"{rebuilt_wheel=}: " + _metadata_mismatch(
+                f"{rebuilt_wheel=}: " + metadata_mismatch(
                     recorded_metadata=rebuilt_wheel_metadata,
                     captured_metadata=original_wheel_metadata,
                 )
@@ -999,7 +958,7 @@ def check(artifacts, revision):
 
         if final_artifact_hashes != observed_hashes:
             raise ValueError(
-                f"{artifacts=}: " + _metadata_mismatch(
+                f"{artifacts=}: " + metadata_mismatch(
                     recorded_metadata=final_artifact_hashes,
                     captured_metadata=observed_hashes,
                 )

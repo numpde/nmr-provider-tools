@@ -19,7 +19,6 @@ from contextlib import redirect_stdout
 from unittest.mock import call, patch
 
 from operations.release.qualify import (
-    _metadata_mismatch,
     artifact_names,
     check,
     qualify_acquisition_bundle,
@@ -30,6 +29,7 @@ from operations.release.qualify import (
 
 from sdk_build.core_environment import behavioral_install_lock, build_source_wheel, normalize_sdist
 from tools.wheelhouse import digest
+from tools.artifact_metadata import metadata_mismatch
 from tests.repository.quality.sources import ROOT, source_files
 
 
@@ -451,7 +451,7 @@ class PackageArtifactTests(unittest.TestCase):
             ),
         ):
             with self.subTest(expected_evidence=expected_evidence):
-                diagnostic = _metadata_mismatch(recorded_metadata, captured_metadata)
+                diagnostic = metadata_mismatch(recorded_metadata, captured_metadata)
 
                 for evidence in expected_evidence:
                     self.assertIn(evidence, diagnostic)
