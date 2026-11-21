@@ -62,35 +62,56 @@ def _private_directory(directory_path):
 
 
 def _lease(parent):
-    descriptor = os.open(LOCK_NAME, os.O_RDWR | os.O_NOFOLLOW | os.O_CLOEXEC, dir_fd=parent)
+    lease_fd = os.open(LOCK_NAME, os.O_RDWR | os.O_NOFOLLOW | os.O_CLOEXEC, dir_fd=parent)
 
     try:
-        observed = os.fstat(descriptor)
+        lease_metadata = os.fstat(lease_fd)
 
-        if (not stat.S_ISREG(observed.st_mode)) or (observed.st_uid != os.geteuid()) or (stat.S_IMODE(observed.st_mode) != 0o600):
-            raise PermissionError("Runner lifetime lock must be a caller-owned mode 0600 regular file.")
+        if not stat.S_ISREG(lease_metadata.st_mode):
+            raise PermissionError(f"{lease_fd=} should reference a regular file; {lease_metadata.st_mode=:#o}")
 
-        fcntl.flock(descriptor, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        expected_uid = os.geteuid()
 
-        return (descriptor, (observed.st_dev, observed.st_ino))
+        if not (lease_metadata.st_uid == expected_uid):
+            raise PermissionError(f"{lease_metadata.st_uid=} should match {expected_uid=}")
+
+        expected_lease_mode = 0o600
+
+        if not (stat.S_IMODE(lease_metadata.st_mode) == expected_lease_mode):
+            raise PermissionError(f"{stat.S_IMODE(lease_metadata.st_mode)=:#o} should match {expected_lease_mode=:#o}")
+
+        fcntl.flock(lease_fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+
+        return (lease_fd, (lease_metadata.st_dev, lease_metadata.st_ino))
     except BaseException:
-        os.close(descriptor)
+        os.close(lease_fd)
         raise
 
 
 def _unlink_socket(parent, name, identity=None):
     try:
-        observed = os.stat(name, dir_fd=parent, follow_symlinks=False)
+        socket_metadata = os.stat(name, dir_fd=parent, follow_symlinks=False)
     except FileNotFoundError:
         return
 
-    if (
-        (not stat.S_ISSOCK(observed.st_mode)) or
-        (observed.st_uid != os.geteuid()) or
-        (stat.S_IMODE(observed.st_mode) != 0o600) or
-        ((identity is not None) and ((observed.st_dev, observed.st_ino) != identity))
-    ):
-        raise PermissionError("Runner endpoint changed or is not a private owned socket; preserve it.")
+    if not stat.S_ISSOCK(socket_metadata.st_mode):
+        raise PermissionError(f"{reprlib.repr(name)=} should reference a socket; {socket_metadata.st_mode=:#o}")
+
+    expected_uid = os.geteuid()
+
+    if not (socket_metadata.st_uid == expected_uid):
+        raise PermissionError(f"{socket_metadata.st_uid=} should match {expected_uid=}")
+
+    expected_socket_mode = 0o600
+
+    if not (stat.S_IMODE(socket_metadata.st_mode) == expected_socket_mode):
+        raise PermissionError(f"{stat.S_IMODE(socket_metadata.st_mode)=:#o} should match {expected_socket_mode=:#o}")
+
+    if identity is not None:
+        socket_identity = (socket_metadata.st_dev, socket_metadata.st_ino)
+
+        if not (socket_identity == identity):
+            raise PermissionError(f"{socket_identity=} should match {identity=}")
 
     os.unlink(name, dir_fd=parent)
 
@@ -150,8 +171,10 @@ def _watch(worker, control, shutdown, deadline, status):
 def _remove_scratch(parent, name, deadline):
     """Delete only the reaped child's tree, checking the bound between entries."""
 
-    if time.monotonic() >= deadline:
-        raise TimeoutError("Runner scratch cleanup exceeded its declared deadline; preserve the tree.")
+    cleanup_observed_at = time.monotonic()
+
+    if cleanup_observed_at >= deadline:
+        raise TimeoutError(f"{cleanup_observed_at=} should precede {deadline=} while removing {reprlib.repr(name)=}")
 
     observed = os.stat(name, dir_fd=parent, follow_symlinks=False)
 
@@ -350,11 +373,13 @@ def serve(options, argv, shutdown):
 
         status.refresh("starting")
 
-        if os.listdir(scratch_fd):
-            raise RetirementUnconfirmed("Runner scratch root is not empty; fresh-container cleanup is not established.")
+        scratch_entries = os.listdir(scratch_fd)
+
+        if scratch_entries:
+            raise RetirementUnconfirmed(f"{reprlib.repr(scratch_entries)=} should be empty before accepting a runner operation")
 
         if options.socket.name == LOCK_NAME:
-            raise ValueError("Runner endpoint cannot replace its lifetime lock.")
+            raise ValueError(f"{options.socket.name=} should differ from {LOCK_NAME=}")
 
         _unlink_socket(parent, options.socket.name)
         generation = uuid.uuid4().hex
