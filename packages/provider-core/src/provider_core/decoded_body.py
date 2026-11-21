@@ -57,7 +57,7 @@ class _Budget:
 
     def accept(self, decoded_bytes):
         if len(decoded_bytes) > self.remaining:
-            raise DecodedBodyRejected("size_limit")
+            raise DecodedBodyRejected("size_limit", message=f"{len(decoded_bytes)=} should be at most {self.remaining=}")
 
         self.remaining -= len(decoded_bytes)
 
@@ -112,8 +112,11 @@ class _Gzip:
         return b"".join(output)
 
     def finish(self):
-        if (self._members == 0) or (self._decoder is not None):
-            raise DecodedBodyRejected("invalid_encoding")
+        if not (0 < self._members):
+            raise DecodedBodyRejected("invalid_encoding", message=f"{self._members=} should be positive at gzip completion")
+
+        if not (self._decoder is None):
+            raise DecodedBodyRejected("invalid_encoding", message=f"{self._decoder is None=} should be True at gzip completion")
 
 
 class _Deflate:
@@ -146,13 +149,16 @@ class _Deflate:
         output = self._budget.decompress(self._decoder, encoded_bytes)
 
         if self._decoder.unused_data:
-            raise DecodedBodyRejected("invalid_encoding")
+            raise DecodedBodyRejected("invalid_encoding", message=f"{len(self._decoder.unused_data)=} should be zero after deflate completion")
 
         return output
 
     def finish(self):
-        if (self._decoder is None) or (not self._decoder.eof):
-            raise DecodedBodyRejected("invalid_encoding")
+        if self._decoder is None:
+            raise DecodedBodyRejected("invalid_encoding", message=f"{self._decoder=} should be initialized at deflate completion")
+
+        if not (self._decoder.eof):
+            raise DecodedBodyRejected("invalid_encoding", message=f"{self._decoder.eof=} should be True at deflate completion")
 
 
 def require_decoded_limit(maximum_bytes):
@@ -175,7 +181,10 @@ class DecodedBody:
         codings = read_content_codings(headers, supported_codings=constructors.keys(), max_codings=_MAX_CODINGS)
 
         if not codings:
-            raise DecodedBodyRejected("unsupported_encoding")
+            raise DecodedBodyRejected(
+                "unsupported_encoding",
+                message=f"{codings=} should be a supported stack of at most {_MAX_CODINGS=} entries from {list(constructors)=}",
+            )
 
         # repo-check: allow-tuple-generator -- The admitted decoding stages stay fixed for this entity.
         self._stages = tuple(constructors[coding](maximum_bytes) for coding in codings)
