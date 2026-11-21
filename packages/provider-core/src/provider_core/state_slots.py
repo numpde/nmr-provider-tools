@@ -11,6 +11,7 @@ from provider_core.container_guard import require_container
 
 require_container()
 
+from collections import Counter
 from collections.abc import Callable, Mapping
 from dataclasses import dataclass, field
 from typing import Any, cast
@@ -64,8 +65,8 @@ class StateHandle[T]:
     reference: StateRef
 
     def __post_init__(self) -> None:
-        if self.reference.kind != self.kind.name:
-            raise ValueError("State reference kind differs from its typed handle")
+        if not (self.reference.kind == self.kind.name):
+            raise ValueError(f"{self.reference.kind=} should match {self.kind.name=}")
 
     @property
     def producer(self) -> OperationRef:
@@ -96,7 +97,7 @@ class StateOutputSlot[T]:
         """Bind an omitted port name to its unambiguous Python attribute."""
 
         if (self._inferred) and (self.name is not None) and (self.name != name):
-            raise ValueError("An inferred state port cannot have different Python attribute names")
+            raise ValueError(f"{self.name=} should match {name=} in {owner.__qualname__=}")
 
         if self.name is None:
             object.__setattr__(self, "name", name)
@@ -122,18 +123,18 @@ class StateOutputSlot[T]:
         Observation identities are correlation evidence, not authentication.
         A fabricated record cannot replace the backend's live StateRef checks.
         """
-        target = ref(call)
+        expected_call_ref = ref(call)
 
         if not any((slot is self) for slot in call._output_slots):
             raise ValueError(f"One of {call._output_slots=} should be {self=}")
 
         observation = await operation.observe(after=None, wait_seconds=0)
 
-        if observation.operation != operation.reference:
-            raise ValueError("Observation belongs to another producer operation")
+        if not (observation.operation == operation.reference):
+            raise ValueError(f"{observation.operation=} should match {operation.reference=}")
 
-        if observation.target != target:
-            raise ValueError("Observation belongs to another producer call or configured revision")
+        if not (observation.target == expected_call_ref):
+            raise ValueError(f"{observation.target=} should match {expected_call_ref=}")
 
         for failure in observation.failures:
             if failure.phase == "state_adoption":
@@ -141,21 +142,31 @@ class StateOutputSlot[T]:
 
         for output in observation.states:
             if output.name == self.name:
-                reference = output.reference
+                produced_state_ref = output.reference
 
-                if (
-                    (reference.host != observation.operation.host) or
-                    (reference.analysis != observation.operation.analysis) or
-                    (reference.binding_id != target.binding_id) or
-                    (reference.binding_revision != target.binding_revision) or
-                    (reference.kind != self.kind.name) or
-                    (reference.producer != operation.reference)
-                ):
-                    raise ValueError("State output provenance differs from its producer observation")
+                if not (produced_state_ref.host == observation.operation.host):
+                    raise ValueError(f"{produced_state_ref.host=} should match {observation.operation.host=}")
 
-                return StateHandle(kind=self.kind, reference=reference)
+                if not (produced_state_ref.analysis == observation.operation.analysis):
+                    raise ValueError(f"{produced_state_ref.analysis=} should match {observation.operation.analysis=}")
 
-        raise ValueError(f"Producer observation contains no output {self.name = }")
+                if not (produced_state_ref.binding_id == expected_call_ref.binding_id):
+                    raise ValueError(f"{produced_state_ref.binding_id=} should match {expected_call_ref.binding_id=}")
+
+                if not (produced_state_ref.binding_revision == expected_call_ref.binding_revision):
+                    raise ValueError(f"{produced_state_ref.binding_revision=} should match {expected_call_ref.binding_revision=}")
+
+                if not (produced_state_ref.kind == self.kind.name):
+                    raise ValueError(f"{produced_state_ref.kind=} should match {self.kind.name=}")
+
+                if not (produced_state_ref.producer == operation.reference):
+                    raise ValueError(f"{produced_state_ref.producer=} should match {operation.reference=}")
+
+                return StateHandle(kind=self.kind, reference=produced_state_ref)
+
+        observed_output_names = [output.name for output in observation.states]
+
+        raise ValueError(f"{self.name=} should be one of {observed_output_names=}")
 
 
 @dataclass(frozen=True, slots=True, kw_only=True)
@@ -177,7 +188,7 @@ class StateInputSlot[T]:
         """Bind an omitted port name to its unambiguous Python attribute."""
 
         if (self._inferred) and (self.name is not None) and (self.name != name):
-            raise ValueError("An inferred state port cannot have different Python attribute names")
+            raise ValueError(f"{self.name=} should match {name=} in {owner.__qualname__=}")
 
         if self.name is None:
             object.__setattr__(self, "name", name)
@@ -211,8 +222,11 @@ def state_references(*, states: Mapping[StateInputSlot, StateHandle]) -> dict[st
 
         require_type(state_handle, StateHandle)
 
-        if (state_handle.kind != state_port.kind) or (state_handle.reference.kind != state_port.kind.name):
-            raise ValueError("State handle has a different scientific kind or Python type")  # todo
+        if not (state_handle.kind == state_port.kind):
+            raise ValueError(f"{state_handle.kind=} should match {state_port.kind=}")
+
+        if not (state_handle.reference.kind == state_port.kind.name):
+            raise ValueError(f"{state_handle.reference.kind=} should match {state_port.kind.name=}")
 
         if state_port.name in references:
             raise ValueError(f"Cannot project duplicate state ports: {state_port.name = } is repeated.")
@@ -241,8 +255,13 @@ class SlotStateBinding[T]:
         for state_input_slot in self.inputs:
             require_type(state_input_slot, StateInputSlot)
 
-        if len(set(self.names)) != len(self.inputs):
-            raise ValueError("Consumer input slot names must be unique")
+        input_slot_names = self.names
+
+        if len(set(input_slot_names)) != len(self.inputs):
+            input_name_counts = Counter(input_slot_names)
+            extra_input_name_occurrences = input_name_counts - Counter(input_name_counts.keys())
+
+            raise ValueError(f"{extra_input_name_occurrences=} should be empty")
 
     @property
     def names(self) -> tuple[str, ...]:
@@ -267,8 +286,11 @@ class SlotStateBinding[T]:
         return {slot.name: slot.value_type for slot in self.inputs}
 
     def bind(self, values: Mapping[str, object]) -> T:
-        if set(values) != set(self.names):
-            raise ValueError("Live state values differ from the declared consumer inputs")
+        received_input_names = set(values)
+        expected_input_names = set(self.names)
+
+        if not (received_input_names == expected_input_names):
+            raise ValueError(f"{received_input_names=} should match {expected_input_names=}")
 
         for slot in self.inputs:
             slot.read(values)

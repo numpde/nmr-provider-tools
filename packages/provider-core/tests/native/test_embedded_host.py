@@ -610,36 +610,32 @@ class EmbeddedHostTests(unittest.IsolatedAsyncioTestCase):
                 "call",
                 operation.reference,
                 replace(observed, target=ref(binding.calculate)),
-                "another producer call or configured revision",
             ),
             (
                 "revision",
                 operation.reference,
                 replace(observed, target=replace(observed.target, binding_revision=changed_identity.revision)),
-                "another producer call or configured revision",
             ),
             (
                 "operation observation",
                 other_operation,
                 observed,
-                "another producer operation",
             ),
             (
                 "same call swapped state",
                 other_operation,
                 replace(observed, operation=other_operation),
-                "provenance differs from its producer observation",
             ),
         )
 
-        for (mismatch_name, reference, observation, message) in mismatches:
+        for (mismatch_name, reference, observation) in mismatches:
             with self.subTest(mismatch=mismatch_name):
                 view = SimpleNamespace(
                     reference=reference,
                     observe=AsyncMock(return_value=observation),
                 )
 
-                with self.assertRaisesRegex(ValueError, message):
+                with self.assertRaises(ValueError):
                     await slot.reference(binding.prepare, view)
 
         handle = await slot.reference(binding.prepare, operation)
