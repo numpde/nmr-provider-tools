@@ -53,8 +53,10 @@ def _configure_proxy_logging(level):
     This executable needs no scientific binding merely to configure its logger.
     """
 
-    if not (level in ("INFO", "DEBUG", "WARNING")):
-        raise ValueError("Cannot configure proxy logging: choose INFO, DEBUG or WARNING.")
+    expected_levels = ("INFO", "DEBUG", "WARNING")
+
+    if not (level in expected_levels):
+        raise ValueError(f"{level=} should be in {expected_levels=}")
 
     handler = logging.StreamHandler(sys.stderr)
 
@@ -72,8 +74,13 @@ def authority_parts(authority):
     """Admit the exact ASCII host:port representation emitted by configuration."""
     (host, separator, port_text) = authority.rpartition(":")
 
-    if (not separator) or (not re.fullmatch(r"[a-z0-9][a-z0-9.-]*", host)):
-        raise ServiceRefused("Cannot admit service proxy authority: require a canonical DNS name or IPv4 address and explicit port.")
+    if not (separator):
+        raise ServiceRefused(f"{reprlib.repr(authority)=} should include a port separator")
+
+    expected_host_pattern = r"[a-z0-9][a-z0-9.-]*"
+
+    if not re.fullmatch(expected_host_pattern, host):
+        raise ServiceRefused(f"{reprlib.repr(host)=} should match {expected_host_pattern=}")
 
     try:
         read_dns_labels(host)
@@ -96,13 +103,18 @@ class ServicePolicy:
 
     @classmethod
     def admit(cls, mode, authorities, addresses):
-        if not (mode in ("local", "mapped", "external")):
-            raise ServiceRefused("Cannot configure service proxy: select local, mapped or external routing explicitly.")
+        expected_modes = ("local", "mapped", "external")
+
+        if not (mode in expected_modes):
+            raise ServiceRefused(f"{mode=} should be in {expected_modes=}")
 
         admitted = frozenset(authority_parts(authority_text) for authority_text in authorities)
 
-        if (not admitted) or (len(admitted) != len(authorities)):
-            raise ServiceRefused("Cannot configure service proxy: authorities must be nonempty and unique.")
+        if not (admitted):
+            raise ServiceRefused(f"{admitted=} should be nonempty")
+
+        if (unique_authority_count := len(admitted)) != (configured_authority_count := len(authorities)):
+            raise ServiceRefused(f"{unique_authority_count=} should match {configured_authority_count=}")
 
         mapped = {}
 
@@ -114,8 +126,11 @@ class ServicePolicy:
             except ipaddress.AddressValueError:
                 raise ServiceRefused("Cannot configure local service proxy: each peer requires a literal IPv4 address.") from None
 
-            if (not separator) or (host in mapped):
-                raise ServiceRefused("Cannot configure local service proxy: peer address assignments must be unambiguous.")
+            if not (separator):
+                raise ServiceRefused(f"{reprlib.repr(address_assignment)=} should include an address separator")
+
+            if host in mapped:
+                raise ServiceRefused(f"{host=} should have one address assignment; {mapped[host]=}")
 
             try:
                 literal = ipaddress.IPv4Address(host)
@@ -123,15 +138,15 @@ class ServicePolicy:
                 literal = None
 
             if (literal is not None) and (str(literal) != address):
-                raise ServiceRefused("Cannot configure local service proxy: a literal authority must keep its own address.")
+                raise ServiceRefused(f"{address=} should match {str(literal)=}")
 
             mapped[host] = address
 
         if (mode == "external") and mapped:
-            raise ServiceRefused("Cannot configure external service proxy: local address assignments are not allowed.")
+            raise ServiceRefused(f"{reprlib.repr(mapped)=} should be empty for {mode=}")
 
-        if (mode in ("local", "mapped")) and (mapped.keys() != {host for (host, _) in admitted}):
-            raise ServiceRefused("Cannot configure mapped service proxy: require exactly one address for every admitted host.")
+        if (mode in ("local", "mapped")) and (mapped.keys() != (expected_hosts := {host for (host, _) in admitted})):
+            raise ServiceRefused(f"{reprlib.repr(set(mapped))=} should match {reprlib.repr(expected_hosts)=}")
 
         return cls(admitted, tuple(sorted(mapped.items())))
 
@@ -150,7 +165,7 @@ class ServicePolicy:
             raise ServiceRefused("Cannot admit service proxy request: the CONNECT authority is malformed.") from cause
 
         if not ((host, port) in self.authorities):
-            raise ServiceRefused("Cannot admit service proxy request: this destination is outside the configured authority grant.")
+            raise ServiceRefused(f"{(host, port)=} should be in {reprlib.repr(self.authorities)=}")
 
         return destination
 
@@ -184,10 +199,11 @@ class LiveProxyConfiguration:
             if not stat.S_ISREG(observed_stat_mode := os.fstat(descriptor).st_mode):
                 raise ServiceRefused(f"Proxy configuration must be a regular file but {observed_stat_mode=}.")
 
+            max_configuration_bytes = 65536
             raw = bytearray()
 
-            while len(raw) <= 65536:
-                part = os.read(descriptor, 65537 - len(raw))
+            while len(raw) <= max_configuration_bytes:
+                part = os.read(descriptor, max_configuration_bytes + 1 - len(raw))
 
                 if not part:
                     break
@@ -196,8 +212,8 @@ class LiveProxyConfiguration:
         finally:
             os.close(descriptor)
 
-        if len(raw) > 65536:
-            raise ServiceRefused("Proxy configuration exceeds its 65536-byte limit.")
+        if (configuration_bytes := len(raw)) > max_configuration_bytes:
+            raise ServiceRefused(f"{configuration_bytes=} should be at most {max_configuration_bytes=}")
 
         try:
             proxy_configuration = tomllib.loads(raw.decode("utf-8"))
@@ -232,11 +248,15 @@ class LiveProxyConfiguration:
         if not (max_admission_delay_seconds <= bound_http_proxy.HEADER_SECONDS):
             raise ServiceRefused(f"{max_admission_delay_seconds=} should be at most {bound_http_proxy.HEADER_SECONDS=}")
 
-        if not (admission_order in ("ready", "fifo")):
-            raise ServiceRefused("Proxy admission_order must be ready or fifo.")
+        expected_admission_orders = ("ready", "fifo")
 
-        if not (log_level in ("INFO", "DEBUG", "WARNING")):
-            raise ServiceRefused("Proxy log_level must be INFO, DEBUG or WARNING.")
+        if not (admission_order in expected_admission_orders):
+            raise ServiceRefused(f"{admission_order=} should be in {expected_admission_orders=}")
+
+        expected_log_levels = ("INFO", "DEBUG", "WARNING")
+
+        if not (log_level in expected_log_levels):
+            raise ServiceRefused(f"{log_level=} should be in {expected_log_levels=}")
 
         require_type(authorities, list, error_factory=ServiceRefused)
 
@@ -257,7 +277,7 @@ class LiveProxyConfiguration:
             require_type(route_address, str, error_factory=ServiceRefused)
 
         if (self.mode == "external") and addresses:
-            raise ServiceRefused("External service proxy does not accept local address mappings.")
+            raise ServiceRefused(f"{reprlib.repr(addresses)=} should be empty for {self.mode=}")
 
         hosts = {authority_parts(authority)[0] for authority in authorities}
 
@@ -465,15 +485,20 @@ def socket_grant(path, ready, *, socket_group_id=None):
     except (TypeError, ValueError) as cause:
         raise ServiceRefused("Cannot admit service proxy paths") from cause
 
-    if (path == ready) or (path.parent != ready.parent):
-        raise ServiceRefused("Cannot start service proxy: socket and readiness require distinct absolute paths in one private directory.")
+    if path == ready:
+        raise ServiceRefused(f"{path=} should differ from {ready=}")
+
+    if path.parent != ready.parent:
+        raise ServiceRefused(f"{path.parent=} should match {ready.parent=}")
 
     descriptor = None
 
     try:
         try:
-            if len(str(path).encode("utf-8")) > 107:
-                raise ServiceRefused("Cannot start service proxy: the Unix socket path exceeds Linux's 107-byte pathname limit.")
+            max_socket_path_bytes = 107
+
+            if (socket_path_bytes := len(str(path).encode("utf-8"))) > max_socket_path_bytes:
+                raise ServiceRefused(f"{socket_path_bytes=} should be at most {max_socket_path_bytes=}")
 
             parent = path.parent.lstat()
             shared = socket_group_id is not None
@@ -486,28 +511,40 @@ def socket_grant(path, ready, *, socket_group_id=None):
                 )
 
                 if socket_group_id <= 0:
-                    raise ServiceRefused("Cannot start service proxy: the shared socket group must be the proxy's primary GID.")
+                    raise ServiceRefused(f"{socket_group_id=} should be positive")
 
-                if socket_group_id != os.getegid():
-                    raise ServiceRefused("Cannot start service proxy: the shared socket group must be the proxy's primary GID.")
+                primary_group_id = os.getegid()
+
+                if socket_group_id != primary_group_id:
+                    raise ServiceRefused(f"{socket_group_id=} should match {primary_group_id=}")
 
             # silent-defaults: allow-contract -- Directory modes follow the selected shared or private grant.
             parent_modes = (0o710, 0o2710) if shared else (0o700,)
 
-            if (
-                (path.parent.resolve() != path.parent) or
-                (not stat.S_ISDIR(parent.st_mode)) or
-                (parent.st_uid != os.geteuid()) or
-                (stat.S_IMODE(parent.st_mode) not in parent_modes) or
-                (shared and (parent.st_gid != socket_group_id))
-            ):
-                raise ServiceRefused("Cannot start service proxy: its directory must be caller-owned with the required private or shared-group mode, and free of symlinks.")
+            if (resolved_parent := path.parent.resolve()) != path.parent:
+                raise ServiceRefused(f"{resolved_parent=} should match {path.parent=}")
+
+            if not stat.S_ISDIR(parent.st_mode):
+                raise ServiceRefused(f"{path.parent=}: {stat.S_IFMT(parent.st_mode)=:#o} should be {stat.S_IFDIR=:#o}")
+
+            if not (parent.st_uid == (owner_uid := os.geteuid())):
+                raise ServiceRefused(f"{parent.st_uid=} should match {owner_uid=}")
+
+            if not ((parent_mode := stat.S_IMODE(parent.st_mode)) in parent_modes):
+                raise ServiceRefused(f"{parent_mode=:#o} should be in {parent_modes=}")
+
+            if shared:
+                if not (parent.st_gid == socket_group_id):
+                    raise ServiceRefused(f"{parent.st_gid=} should match {socket_group_id=}")
 
             descriptor = os.open(path.parent, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW | os.O_CLOEXEC)
             held = os.fstat(descriptor)
 
             if (held.st_dev, held.st_ino, held.st_uid, held.st_mode) != (parent.st_dev, parent.st_ino, parent.st_uid, parent.st_mode):
-                raise ServiceRefused("Cannot start service proxy: its admitted directory changed before ownership was acquired.")
+                raise ServiceRefused(
+                    f"{(held.st_dev, held.st_ino, held.st_uid, held.st_mode)=} "
+                    f"should match {(parent.st_dev, parent.st_ino, parent.st_uid, parent.st_mode)=}"
+                )
 
             try:
                 fcntl.flock(descriptor, fcntl.LOCK_EX | fcntl.LOCK_NB)
@@ -525,18 +562,24 @@ def socket_grant(path, ready, *, socket_group_id=None):
                 # silent-defaults: allow-contract -- Only the explicitly shared socket is group writable; readiness remains private.
                 mode = 0o660 if shared and (leaf == path) else 0o600
 
-                if (
-                    (not required(observed.st_mode)) or
-                    (observed.st_uid != os.geteuid()) or
-                    (stat.S_IMODE(observed.st_mode) != mode) or
-                    (shared and (leaf == path) and (observed.st_gid != socket_group_id))
-                ):
-                    raise ServiceRefused("Cannot start service proxy: prior route leaves have an unexpected type, owner or mode; preserve them for inspection.")
+                if not required(observed.st_mode):
+                    raise ServiceRefused(f"{leaf=}: {observed.st_mode=:#o} should satisfy {required.__name__=}")
+
+                if not (observed.st_uid == (owner_uid := os.geteuid())):
+                    raise ServiceRefused(f"{leaf=}: {observed.st_uid=} should match {owner_uid=}")
+
+                if not ((leaf_mode := stat.S_IMODE(observed.st_mode)) == mode):
+                    raise ServiceRefused(f"{leaf=}: {leaf_mode=:#o} should be {mode=:#o}")
+
+                if shared and (leaf == path) and (observed.st_gid != socket_group_id):
+                    raise ServiceRefused(f"{leaf=}: {observed.st_gid=} should match {socket_group_id=}")
 
                 if leaf == ready:
                     with os.fdopen(os.open(leaf.name, os.O_RDONLY | os.O_NOFOLLOW | os.O_CLOEXEC, dir_fd=descriptor), "rb") as receipt:
-                        if receipt.read(7) != b"ready\n":
-                            raise ServiceRefused("Cannot start service proxy: prior readiness is not the owned complete receipt; preserve it for inspection.")
+                        expected_receipt = b"ready\n"
+
+                        if (ready_receipt := receipt.read(7)) != expected_receipt:
+                            raise ServiceRefused(f"{ready_receipt=} should match {expected_receipt=}")
 
                 retired.append(leaf.name)
 
