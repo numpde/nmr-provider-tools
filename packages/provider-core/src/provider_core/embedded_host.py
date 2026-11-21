@@ -11,6 +11,8 @@ from provider_core.container_guard import require_container
 require_container()
 
 import asyncio
+import reprlib
+from collections import Counter
 from collections.abc import Callable, Mapping
 import time
 from uuid import uuid4
@@ -38,7 +40,7 @@ from provider_core.hosting import (
 )
 
 from provider_core.state_slots import StateHandle, StateInputSlot, state_references
-from provider_core.tools import require_positive_number
+from provider_core.tools import metadata_mismatch_message, require_positive_number
 
 from provider_core._embedded_operation import _Operation
 
@@ -100,7 +102,9 @@ class InProcessExecutionHost:
             require_type(allocation, Allocation)
 
         if len({allocation.name for allocation in allocations}) != len(allocations):
-            raise ValueError("Allocation names must be unique within a host.")
+            allocation_name_counts = Counter(allocation.name for allocation in allocations)
+
+            raise ValueError(f"{allocation_name_counts=} should have one occurrence per name")
 
         for allocation in allocations:
             binding = allocation.binding
@@ -166,7 +170,7 @@ class InProcessExecutionHost:
         self._require_loop()
 
         if self.retiring:
-            raise CapacityUnavailable("Cannot adopt a contribution while the host is retiring.")
+            raise CapacityUnavailable(f"{self.retiring=} should be False")
 
         allocation_name = uuid4().hex
 
@@ -211,10 +215,10 @@ class InProcessExecutionHost:
         self._require_loop()
 
         if self.retiring:
-            raise CapacityUnavailable("Cannot adopt a contribution while the host is retiring.")
+            raise CapacityUnavailable(f"{self.retiring=} should be False")
 
         if not callable(constructor):
-            raise TypeError(f"{type(constructor)=} should provide a callable contribution factory")
+            raise TypeError(f"{callable(constructor)=} should be True")
 
         allocation_name = uuid4().hex
         hosted = HostedContribution(
@@ -246,8 +250,10 @@ class InProcessExecutionHost:
         return frozenset(resident.reference for resident in self.residents.values())
 
     def _require_loop(self):
-        if not (asyncio.get_running_loop() is self.loop):
-            raise RuntimeError("The embedded host belongs to its original event loop.")
+        caller_loop = asyncio.get_running_loop()
+
+        if not (caller_loop is self.loop):
+            raise RuntimeError(f"{id(caller_loop)=} should match {id(self.loop)=}")
 
     async def initialize(self, *, allocation: AllocationRef) -> None:
         """Load an adopted contribution before accepting requests for it.
@@ -262,14 +268,23 @@ class InProcessExecutionHost:
 
         resident = self.residents.get(allocation.allocation)
 
-        if (resident is None) or (resident.reference != allocation):
-            raise ValueError("The allocation handle does not belong to this host")
+        if resident is None:
+            raise ValueError(f"{allocation=} should identify a current allocation on {self.identity=}")
 
-        if (self.retiring) or (resident.retirement is not None) or (resident.retired):
-            raise CapacityUnavailable("Cannot initialize an allocation that is retiring")
+        if not (resident.reference == allocation):
+            raise ValueError(metadata_mismatch_message(allocation, resident.reference))
+
+        if self.retiring:
+            raise CapacityUnavailable(f"{self.retiring=} should be False")
+
+        if not (resident.retirement is None):
+            raise CapacityUnavailable(f"{resident.retirement is None=} should be True for {resident.name=}")
+
+        if not (resident.retired is False):
+            raise CapacityUnavailable(f"{resident.retired=} should be False for {resident.name=}")
 
         if resident.analysis is not None:
-            raise CapacityUnavailable("Cannot initialize an allocation while an analysis owns it")
+            raise CapacityUnavailable(f"{resident.analysis is None=} should be True for {resident.name=}")
 
         if resident.failure is not None:
             if (resident.initialization is not None) and (resident.initialization.done()):
@@ -323,8 +338,11 @@ class InProcessExecutionHost:
         self._require_loop()
 
         if allocations is not None:
-            if (analysis_id is not None) or (allocation_names is not None):
-                raise TypeError("Choose allocation handles or the legacy named analysis arguments")
+            if not (analysis_id is None):
+                raise TypeError(f"{reprlib.repr(analysis_id)=} should be None with {type(allocations)=}")
+
+            if not (allocation_names is None):
+                raise TypeError(f"{reprlib.repr(allocation_names)=} should be None with {type(allocations)=}")
 
             require_type(allocations, frozenset)
 
@@ -335,50 +353,61 @@ class InProcessExecutionHost:
                 resident = self.residents.get(reference.allocation)
 
                 if (resident is None) and (reference.host == self.identity):
-                    raise CapacityUnavailable("The reference does not identify a current allocation on this host.")
+                    raise CapacityUnavailable(f"{reference.allocation=} should identify a current allocation on {self.identity=}")
 
-                if (resident is None) or (resident.reference != reference):
-                    raise ValueError("The allocation handle does not belong to this host")
+                if resident is None:
+                    raise ValueError(f"{reference.host=} should match {self.identity=}")
+
+                if not (resident.reference == reference):
+                    raise ValueError(metadata_mismatch_message(reference, resident.reference))
 
             names = [reference.allocation for reference in allocations]
             allocation_names = tuple(names)
             analysis_id = uuid4().hex
 
         if self.retiring:
-            raise CapacityUnavailable("The host is retiring and refuses new analyses.")
+            raise CapacityUnavailable(f"{self.retiring=} should be False")
 
         require_type(analysis_id, str)
 
         require_type(allocation_names, tuple)
 
-        if not (
-            (0 < len(analysis_id) <= 160) and
-            (allocation_names) and
-            (len(set(allocation_names)) == len(allocation_names))
-        ):
-            raise ValueError("An analysis needs a name and distinct explicit allocation names.")
+        (min_analysis_id_characters, max_analysis_id_characters) = (1, 160)
+
+        if not (min_analysis_id_characters <= (analysis_id_characters := len(analysis_id)) <= max_analysis_id_characters):
+            raise ValueError(f"{analysis_id_characters=} should be between {min_analysis_id_characters=} and {max_analysis_id_characters=}")
+
+        if not (allocation_names):
+            raise ValueError(f"{allocation_names=} should be nonempty")
+
+        if not ((unique_allocation_count := len(set(allocation_names))) == (selected_allocation_count := len(allocation_names))):
+            raise ValueError(f"{unique_allocation_count=} should match {selected_allocation_count=}")
 
         if analysis_id in self.analyses:
-            raise RequestConflict("This analysis identity already has an owner.")
+            raise RequestConflict(f"{analysis_id=} already has an owner")
 
-        if any((name not in self.residents) for name in allocation_names):
-            raise CapacityUnavailable("A requested allocation does not belong to this host.")
+        for name in allocation_names:
+            if name not in self.residents:
+                raise CapacityUnavailable(f"{reprlib.repr(name)=} should identify a current allocation on {self.identity=}")
 
         selected_residents = [self.residents[name] for name in allocation_names]
 
-        if any(
-            (
-                (
-                    (resident.analysis is not None) or
-                    ((resident.initialization is not None) and (not resident.initialization.done())) or
-                    (resident.failure is not None) or
-                    (resident.retirement is not None) or
-                    resident.retired
-                )
-                for resident in selected_residents
-            ),
-        ):
-            raise CapacityUnavailable("A requested allocation is occupied, failed or retiring.")
+        for resident in selected_residents:
+            if not (resident.analysis is None):
+                raise CapacityUnavailable(f"{resident.analysis is None=} should be True for {resident.name=}")
+
+            if resident.initialization is not None:
+                if not (initialization_done := resident.initialization.done()):
+                    raise CapacityUnavailable(f"{initialization_done=} should be True for {resident.name=}")
+
+            if not (resident.failure is None):
+                raise CapacityUnavailable(f"{resident.failure is None=} should be True for {resident.name=}")
+
+            if not (resident.retirement is None):
+                raise CapacityUnavailable(f"{resident.retirement is None=} should be True for {resident.name=}")
+
+            if not (resident.retired is False):
+                raise CapacityUnavailable(f"{resident.retired=} should be False for {resident.name=}")
 
         analysis_executor = InProcessAnalysisExecutor(
             execution_host=self,
@@ -404,12 +433,15 @@ class InProcessExecutionHost:
         require_type(reference, AllocationRef)
 
         if reference.host != self.identity:
-            raise ValueError("Allocation retirement requires this host's exact AllocationRef.")
+            raise ValueError(f"{reference.host=} should match {self.identity=}")
 
         resident = self.residents.get(reference.allocation)
 
-        if (resident is None) or (resident.reference != reference):
-            raise ValueError("Allocation reference does not name this host's current instance.")
+        if resident is None:
+            raise ValueError(f"{reference.allocation=} should identify a current allocation on {self.identity=}")
+
+        if not (resident.reference == reference):
+            raise ValueError(metadata_mismatch_message(reference, resident.reference))
 
         if resident.retirement is None:
             resident.retirement = _Cleanup(self.retirement_seconds)
@@ -426,12 +458,12 @@ class InProcessExecutionHost:
 
             if analysis_cleanup.failures:
                 raise BaseExceptionGroup(
-                    "The allocation's analysis did not settle.",
+                    f"{resident.reference=} reported analysis cleanup failures",
                     [failure.cause for failure in analysis_cleanup.failures],
                 )
 
         if not (resident.analysis is None):
-            raise RuntimeError("The allocation remains attached to an unsettled analysis.")
+            raise RuntimeError(f"{resident.analysis is None=} should be True for {resident.name=}")
 
         disposal_future = resident.executor.submit(resident.dispose)
 
@@ -458,7 +490,7 @@ class InProcessExecutionHost:
             raise failures[0]
 
         if failures:
-            raise BaseExceptionGroup("Allocation initialization or cleanup failed.", failures)
+            raise BaseExceptionGroup(f"{resident.reference=} reported initialization or cleanup failures", failures)
 
         resident.retired = True
 
@@ -493,7 +525,7 @@ class InProcessExecutionHost:
             failures.extend(failure.cause for failure in retirement.failures)
 
         if failures:
-            raise BaseExceptionGroup("Some original resources remain unretired.", failures)
+            raise BaseExceptionGroup(f"{self.identity=} reported resource retirement failures", failures)
 
 
 class InProcessAnalysisExecutor:
@@ -541,14 +573,17 @@ class InProcessAnalysisExecutor:
 
         resident = self.host.residents.get(allocation.allocation)
 
-        if (resident is None) or (resident.reference != allocation):
-            raise ValueError("The allocation handle does not belong to this host")
+        if resident is None:
+            raise ValueError(f"{allocation=} should identify a current allocation on {self.host.identity=}")
+
+        if not (resident.reference == allocation):
+            raise ValueError(metadata_mismatch_message(allocation, resident.reference))
 
         for reservation in self.reservations:
             if reservation.allocation == allocation.allocation:
                 return reservation
 
-        raise ValueError("This analysis did not reserve the supplied allocation")
+        raise ValueError(f"{allocation.allocation=} should be reserved by {self.identity=}")
 
     # Omitted start deadlines leave the execution policy's clocks in force.
     def submit_call[InputT, StateT, OutputT](
@@ -615,8 +650,11 @@ class InProcessAnalysisExecutor:
 
         require_instance(hosted, HostedContribution)
 
-        if (hosted.contribution is None) or (getattr(method, "__self__", None) is not hosted.contribution):
-            raise ValueError("Submit an exported bound method of the reserved contribution")
+        if hosted.contribution is None:
+            raise ValueError(f"{hosted.contribution=} should not be None for a bound method")
+
+        if not ((method_receiver := getattr(method, "__self__", None)) is hosted.contribution):
+            raise ValueError(f"{id(method_receiver)=} should match {id(hosted.contribution)=}")
 
         call = hosted.call(method=method)
 
@@ -658,18 +696,18 @@ class InProcessAnalysisExecutor:
         existing_operation = self.operations.get(invocation.operation_id)
 
         if existing_operation is not None:
-            if (
-                (existing_operation.analysis is not self) or
-                (existing_operation.invocation != invocation)
-            ):
-                raise RequestConflict("This operation ID already identifies different work.")
+            if not (existing_operation.analysis is self):
+                raise RequestConflict(f"{id(existing_operation.analysis)=} should match {id(self)=}")
+
+            if existing_operation.invocation != invocation:
+                raise RequestConflict(metadata_mismatch_message(invocation, existing_operation.invocation))
 
             existing_operation.retain_identity |= retain_identity
 
             return existing_operation
 
         if operation_key in self.host.operations:
-            raise RequestConflict("An earlier analysis still owns this operation identity.")
+            raise RequestConflict(f"{operation_key=} already has an owner")
 
         admission_refusal = self._refusal(invocation)
 
@@ -904,7 +942,7 @@ class InProcessAnalysisExecutor:
                             operation._release_capacity()
 
         if cleanup_failures:
-            raise BaseExceptionGroup("Some scientific analyses still need cleanup.", cleanup_failures)
+            raise BaseExceptionGroup(f"{self.identity=} reported scientific analysis cleanup failures", cleanup_failures)
 
         # Portable request deduplication lasts only while this analysis is open.
         # Result handles keep their payloads; the host separately retains any
@@ -937,7 +975,7 @@ class InProcessAnalysisExecutor:
 
         if cleanup_failures:
             raise BaseExceptionGroup(
-                "Original scientific values still need cleanup.",
+                f"Scientific state cleanup failed for {self.identity=}, {allocation_name=}",
                 cleanup_failures,
             )
 
