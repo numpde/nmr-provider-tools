@@ -19,7 +19,6 @@ from provider_core.tools import require_positive_number
 
 
 class SharedDeliveryService(DeliveryService):
-    # silent-defaults: allow-contract -- A fresh queue has no legacy publication inputs to associate.
     def __init__(
         self,
         directory,
@@ -32,7 +31,6 @@ class SharedDeliveryService(DeliveryService):
         retry_max_seconds,
         on_notice,
         diagnostic_status,
-        legacy_material=(),
         live_configuration=None,
         status_directory=None,
     ):
@@ -45,7 +43,7 @@ class SharedDeliveryService(DeliveryService):
         self.request_seconds = ipc_io_timeout_seconds
 
         (self.retry_initial_seconds, self.retry_max_seconds) = (retry_initial_seconds, retry_max_seconds)
-        (self.on_notice, self.diagnostic_status, self.legacy_material) = (on_notice, diagnostic_status, tuple(legacy_material))
+        (self.on_notice, self.diagnostic_status) = (on_notice, diagnostic_status)
         (self.live_configuration, self.next_reload) = (live_configuration, 0.0)
         (self.status_directory, self.process_status) = (status_directory, None)
         (self.ready, self.stopping, self.changed) = (asyncio.Event(), asyncio.Event(), asyncio.Event())
@@ -74,9 +72,6 @@ class SharedDeliveryService(DeliveryService):
             self._apply_settings(self.live_configuration.read())
 
         self.queue = DeliveryQueue(self.directory, limits=self.limits)
-
-        for material in self.legacy_material:
-            self.queue.associate_legacy_material(material)
 
         held = self.queue.hold_legacy_rows()
 

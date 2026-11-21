@@ -439,27 +439,6 @@ class DeliveryQueue:
                 (LEGACY_HOLD_REASON,),
             ).rowcount
 
-    def associate_legacy_material(self, material):
-        """Attach the original binding inputs supplied by the old deployment owner."""
-        from provider_core.api_config import ApiPublicationMaterial, api_settings_from_material
-        from provider_core.delivery_handoff import publication_bytes
-
-        require_type(material, ApiPublicationMaterial)
-
-        (settings, provider_ref) = api_settings_from_material(
-            material.api_fields(),
-            credential_bytes=material.credential_bytes,
-            ca_bytes=material.ca_bytes
-        )
-
-        with self._transaction("associate original publication material in"):
-            return self._db.execute(
-                "UPDATE outstanding SET publication=?, state=CASE WHEN state='held' AND held_reason=? THEN 'pending' ELSE state END, "
-                "held_reason=CASE WHEN state='held' AND held_reason=? THEN NULL ELSE held_reason END "
-                "WHERE api_origin=? AND provider_ref=? AND publication IS NULL",  # machine-string: SQLite applies this exact held-state schema transition
-                (publication_bytes(material), LEGACY_HOLD_REASON, LEGACY_HOLD_REASON, settings.identity.origin, provider_ref),
-            ).rowcount
-
     def next_pending(self, api_origin, provider_ref):
         with self._access("read"):
             row = (

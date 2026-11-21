@@ -119,25 +119,6 @@ class DeliveryHandoffTests(unittest.TestCase):
             self.assertEqual(queue.inventory(delivery_outcome.api_origin, delivery_outcome.provider_ref)[0]["state"], "held")
             queue.close()
 
-    def test_old_owner_can_attach_original_material_without_overwriting_new_handoffs(self):
-        legacy = outcome(provider="provider:example")
-        (material, other) = (self.material(), self.material())
-        new = DeliveryHandoff(outcome(provider="provider:example", suffix="1"), other)
-
-        with tempfile.TemporaryDirectory() as directory:
-            queue = DeliveryQueue(pathlib.Path(directory), limits=QueueLimits(2, 4096, 4, 8192))
-
-            queue.enqueue(legacy)
-            queue.enqueue_handoff(new)
-            self.assertEqual(queue.hold_legacy_rows(), 1)
-            self.assertEqual(queue.associate_legacy_material(material), 1)
-            self.assertEqual(queue.associate_legacy_material(other), 0)
-            self.assertEqual(queue.next_pending_handoff(legacy.api_origin, legacy.provider_ref).publication, material)
-            queue.remove_published(legacy)
-            self.assertEqual(queue.next_pending_handoff(legacy.api_origin, legacy.provider_ref).publication, other)
-            self.assertEqual(queue.hold_legacy_rows(), 0)
-            queue.close()
-
     def test_invalid_input_is_refused(self):
         handoff = DeliveryHandoff(outcome(provider="provider:example"), self.material())
         handoff_fields = json.loads(handoff.encode())
