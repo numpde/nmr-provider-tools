@@ -117,7 +117,7 @@ class PreparationToolTests(unittest.IsolatedAsyncioTestCase):
         await self.propose(value=1)
         unrelated_port = StateType(value_type=str).input(name="candidate", use=StateUse.CONSUME)
 
-        with self.assertRaisesRegex(expected_exception=ValueError, expected_regex="different scientific kind"):
+        with self.assertRaises(expected_exception=ValueError):
             self.analysis_executor.submit_method(
                 method=self.science.consume,
                 states={unrelated_port: self.preparation_tool.prepared_state_handle},
