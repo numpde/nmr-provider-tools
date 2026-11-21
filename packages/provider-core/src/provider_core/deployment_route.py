@@ -53,6 +53,7 @@ class ApiRouteProjection:
 def _require_route_path(route_path):
     absolute_route_path = pathlib.Path(route_path)
 
+    # Docker bind arguments treat commas as mount separators
     if (
         (absolute_route_path.anchor != "/") or
         (".." in absolute_route_path.parts) or
@@ -60,7 +61,7 @@ def _require_route_path(route_path):
         (absolute_route_path == pathlib.Path("/")) or
         any(((ord(character) < 32) or (ord(character) == 127) or (character == ",")) for character in str(absolute_route_path))
     ):
-        raise RouteProjectionRejected("Cannot grant API route input: require a normalized absolute path below root without control characters or mount delimiters.")
+        raise RouteProjectionRejected(f"{reprlib.repr(route_path)=} should be a normalized absolute path below root without control characters or commas")
 
     return str(absolute_route_path)
 
@@ -72,8 +73,11 @@ def _identity(uid, gid):
         error_factory=lambda diagnostic: RouteProjectionRejected("Cannot grant API route identity: " + diagnostic),
     )
 
-    if not (1 <= uid <= 4294967294):
-        raise RouteProjectionRejected("Cannot grant API route identity: require explicit nonzero Linux UID and GID.")
+    # Exclude root and the all-ones UID/GID reserved by ownership syscalls
+    (min_linux_id, max_linux_id) = (1, 4294967294)
+
+    if not (min_linux_id <= uid <= max_linux_id):
+        raise RouteProjectionRejected(f"{uid=} should be between {min_linux_id=} and {max_linux_id=}")
 
     require_type(
         gid,
@@ -81,8 +85,8 @@ def _identity(uid, gid):
         error_factory=lambda diagnostic: RouteProjectionRejected("Cannot grant API route identity: " + diagnostic),
     )
 
-    if not (1 <= gid <= 4294967294):
-        raise RouteProjectionRejected("Cannot grant API route identity: require explicit nonzero Linux UID and GID.")
+    if not (min_linux_id <= gid <= max_linux_id):
+        raise RouteProjectionRejected(f"{gid=} should be between {min_linux_id=} and {max_linux_id=}")
 
 
 def _volume(name, target, *, readonly):
@@ -263,8 +267,10 @@ def render_api_route(binding, *, image, interpreter, namespace, uid, gid, storag
         error_factory=lambda diagnostic: RouteProjectionRejected("Cannot render API route: " + diagnostic),
     )
 
-    if re.fullmatch(r"[a-z0-9][a-z0-9_-]*", namespace) is None:
-        raise RouteProjectionRejected("Cannot render API route: select a lowercase Compose namespace containing letters, digits, hyphens or underscores.")
+    expected_name_pattern = r"[a-z0-9][a-z0-9_-]*"
+
+    if re.fullmatch(expected_name_pattern, namespace) is None:
+        raise RouteProjectionRejected(f"{reprlib.repr(namespace)=} should match {expected_name_pattern=}")
 
     if service_name is not None:
         require_type(
@@ -273,8 +279,8 @@ def render_api_route(binding, *, image, interpreter, namespace, uid, gid, storag
             error_factory=lambda diagnostic: RouteProjectionRejected("Cannot render API route: " + diagnostic),
         )
 
-        if re.fullmatch(r"[a-z0-9][a-z0-9_-]*", service_name) is None:
-            raise RouteProjectionRejected("Cannot render API route: an explicit service name requires lowercase letters, digits, hyphens or underscores.")
+        if re.fullmatch(expected_name_pattern, service_name) is None:
+            raise RouteProjectionRejected(f"{reprlib.repr(service_name)=} should match {expected_name_pattern=}")
 
     _identity(uid, gid)
     interpreter = _require_route_path(interpreter)
@@ -285,8 +291,11 @@ def render_api_route(binding, *, image, interpreter, namespace, uid, gid, storag
         error_factory=lambda diagnostic: RouteProjectionRejected("Cannot relocate API route inputs: " + diagnostic),
     )
 
-    if not (set(input_sources) <= set(input_paths((binding,)))):
-        raise RouteProjectionRejected("Cannot relocate API route inputs: only files granted by the selected binding may be mapped.")
+    provided_input_paths = set(input_sources)
+    allowed_input_paths = set(input_paths((binding,)))
+
+    if not (provided_input_paths <= allowed_input_paths):
+        raise RouteProjectionRejected(f"{reprlib.repr(provided_input_paths)=} should be a subset of {reprlib.repr(allowed_input_paths)=}")
 
     for target in input_sources.values():
         _require_route_path(target)
@@ -322,7 +331,7 @@ def render_api_route(binding, *, image, interpreter, namespace, uid, gid, storag
         service["volumes"] = [_bind(storage.path, "/route", readonly=False)]
         client_mount = _bind(storage.path, target, readonly=True)
     else:
-        raise RouteProjectionRejected("Cannot render API route: explicitly grant a named route volume or a caller-prepared private directory.")
+        require_type(storage, (NamedRouteVolume, RouteDirectory), error_factory=RouteProjectionRejected)
 
     networks = _proxy_route(service, binding, interpreter, input_sources, role)
 
@@ -344,8 +353,8 @@ def initialize_route(uid, gid, path, *, shared_group=False):
     """
     _identity(uid, gid)
 
-    if os.geteuid() != 0:
-        raise RouteProjectionRejected("Cannot initialize API route volume: root with CHOWN and explicit target identity is required.")
+    if not ((effective_uid := os.geteuid()) == 0):
+        raise RouteProjectionRejected(f"{effective_uid=} should be zero to initialize the route volume")
 
     route_root = pathlib.Path(_require_route_path(path))
 
@@ -355,7 +364,7 @@ def initialize_route(uid, gid, path, *, shared_group=False):
     observed = route_root.lstat()
 
     if not stat.S_ISDIR(observed.st_mode):
-        raise RouteProjectionRejected("Cannot initialize API route volume: its root must be a real directory.")
+        raise RouteProjectionRejected(f"{route_root=}: {stat.S_IFMT(observed.st_mode)=:#o} should be {stat.S_IFDIR=:#o}")
 
     if (observed.st_uid, observed.st_gid, stat.S_IMODE(observed.st_mode)) == (uid, gid, mode):
         return
@@ -366,8 +375,11 @@ def initialize_route(uid, gid, path, *, shared_group=False):
         observed = os.fstat(descriptor)
 
         if (observed.st_uid, observed.st_gid, stat.S_IMODE(observed.st_mode)) != (uid, gid, mode):
-            if (observed.st_uid != 0) or os.listdir(descriptor):
-                raise RouteProjectionRejected("Cannot initialize API route volume: unexpected ownership, permissions or retained contents require operator inspection.")
+            if not (observed.st_uid == 0):
+                raise RouteProjectionRejected(f"{route_root=}: {observed.st_uid=} should be zero before initialization")
+
+            if not (len(retained_entries := os.listdir(descriptor)) == 0):
+                raise RouteProjectionRejected(f"{route_root=}: {reprlib.repr(retained_entries)=} should be empty before initialization")
 
             os.fchmod(descriptor, mode)
             os.fchown(descriptor, uid, gid)
@@ -423,7 +435,7 @@ def main():
                 sources = dict(options.input_source)
 
                 if len(sources) != len(options.input_source):
-                    raise RouteProjectionRejected("Cannot relocate API route inputs: each original path must be mapped once.")
+                    raise RouteProjectionRejected(f"{len(sources)=} should match {len(options.input_source)=}")
 
             if options.named_volume:
                 grant = NamedRouteVolume()
