@@ -10,6 +10,7 @@ from provider_core.container_guard import require_container
 require_container()
 
 import asyncio
+import reprlib
 import signal
 import sys
 
@@ -73,49 +74,62 @@ class _Cancellation:
 
     def check(self):
         if self.requested:
-            raise asyncio.CancelledError("Interpreter HTTP owner stopped the original exchange")
+            raise asyncio.CancelledError(f"{self.requested=} should be False before continuing the HTTP exchange")
 
 
 def _decode_http_request(request_message):
     require_type(request_message, dict)
 
     if request_message.keys() != _REQUEST_FIELDS:
-        raise ValueError("Interpreter child request has an unknown schema")
+        raise ValueError(f"{request_message.keys()=} should match {_REQUEST_FIELDS=}")
 
     document_version = request_message["version"]
 
     require_type(document_version, int)
 
-    if (request_message["version"] != 1) or (request_message["kind"] != "request"):
-        raise ValueError("Interpreter child request has an unknown schema")
+    expected_version = 1
+
+    if document_version != expected_version:
+        raise ValueError(f"{document_version=} should match {expected_version=}")
+
+    expected_kind = "request"
+
+    if not (request_message["kind"] == expected_kind):
+        raise ValueError(f"{reprlib.repr(request_message['kind'])=} should match {expected_kind=}")
 
     for field in ("method", "url"):
         request_field_text = request_message[field]
 
         require_type(request_field_text, str)
 
-        if not (0 < len(request_field_text) <= METADATA_BYTES):
-            raise ValueError("Interpreter child request metadata exceeds its admitted limit")
+        min_metadata_characters = 1
 
-    pairs = request_message["headers"]
+        if not (min_metadata_characters <= len(request_field_text) <= METADATA_BYTES):
+            raise ValueError(f"{field=}; {len(request_field_text)=} should be between {min_metadata_characters=} and {METADATA_BYTES=}")
 
-    require_type(pairs, list)
+    header_pairs = request_message["headers"]
 
-    if not (len(pairs) <= 65536):
-        raise ValueError("Interpreter child headers exceed their admitted limit")
+    require_type(header_pairs, list)
+
+    max_header_pairs = 65536
+
+    if not (len(header_pairs) <= max_header_pairs):
+        raise ValueError(f"{len(header_pairs)=} should be at most {max_header_pairs=}")
 
     headers = []
     remaining = METADATA_BYTES
 
-    for pair in pairs:
-        require_type(pair, list)
+    for header_pair in header_pairs:
+        require_type(header_pair, list)
 
-        if len(pair) != 2:
-            raise ValueError("Interpreter child header is malformed")
+        expected_header_fields = 2
 
-        name = decoded_bytes(pair[0], remaining)
+        if len(header_pair) != expected_header_fields:
+            raise ValueError(f"{len(header_pair)=} should match {expected_header_fields=}")
+
+        name = decoded_bytes(header_pair[0], remaining)
         remaining -= len(name)
-        header_value = decoded_bytes(pair[1], remaining)
+        header_value = decoded_bytes(header_pair[1], remaining)
         remaining -= len(header_value)
 
         headers.append((name, header_value))
