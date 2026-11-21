@@ -222,7 +222,7 @@ class EmbeddedHostTests(unittest.IsolatedAsyncioTestCase):
     async def test_local_bound_submission_and_portable_submission_share_one_owner(self):
         binding = sum_binding()
         host = self.host({"one": binding})
-        analysis = host.open_analysis("local-call", allocation_names=("one",))
+        analysis = host.open_analysis(allocations=host.allocations)
 
         invocation = _invocation(
             analysis=analysis,
@@ -260,7 +260,7 @@ class EmbeddedHostTests(unittest.IsolatedAsyncioTestCase):
     async def test_local_submission_rejects_unbound_and_nonmember_targets(self):
         binding = sum_binding()
         host = self.host({"one": binding})
-        analysis = host.open_analysis("unbound", allocation_names=("one",))
+        analysis = host.open_analysis(allocations=host.allocations)
         (reservation,) = analysis.reservations
 
         with self.assertRaises(ValueError):
@@ -289,7 +289,7 @@ class EmbeddedHostTests(unittest.IsolatedAsyncioTestCase):
     async def test_local_submission_preserves_revision_refusal_and_execution_stop(self):
         binding = sum_binding()
         host = self.host({"one": binding})
-        analysis = host.open_analysis("local-stop", allocation_names=("one",))
+        analysis = host.open_analysis(allocations=host.allocations)
         (reservation,) = analysis.reservations
 
         wrong_revision = replace(
@@ -367,10 +367,7 @@ class EmbeddedHostTests(unittest.IsolatedAsyncioTestCase):
 
         host = self.host({"weighted": weighted, "sum": ordinary})
 
-        analysis = host.open_analysis(
-            "combined",
-            allocation_names=("weighted", "sum"),
-        )
+        analysis = host.open_analysis(allocations=host.allocations)
 
         (prepare_call, calculate_call) = (weighted.prepare, weighted.calculate)
 
@@ -451,7 +448,8 @@ class EmbeddedHostTests(unittest.IsolatedAsyncioTestCase):
 
         binding = replace(original, run=wrapped_call)
         host = self.host({"one": binding, "two": binding})
-        analysis = host.open_analysis("permission", allocation_names=("one",))
+        allocation_refs = {reference.allocation: reference for reference in host.allocations}
+        analysis = host.open_analysis(allocations=frozenset({allocation_refs["one"]}))
 
         invocation = _invocation(
             analysis,
@@ -475,10 +473,7 @@ class EmbeddedHostTests(unittest.IsolatedAsyncioTestCase):
                 replace(invocation, payload=b'{"values":[2]}'),
             )
 
-        peer_analysis = host.open_analysis(
-            "peer-identity",
-            allocation_names=("two",),
-        )
+        peer_analysis = host.open_analysis(allocations=frozenset({allocation_refs["two"]}))
 
         (_, peer_result) = await self.success(
             peer_analysis.submit(
@@ -506,8 +501,9 @@ class EmbeddedHostTests(unittest.IsolatedAsyncioTestCase):
             options=_host_options(state_values=2),
         )
 
-        first = host.open_analysis("first", allocation_names=("one",))
-        second = host.open_analysis("second", allocation_names=("two",))
+        allocation_refs = {reference.allocation: reference for reference in host.allocations}
+        first = host.open_analysis(allocations=frozenset({allocation_refs["one"]}))
+        second = host.open_analysis(allocations=frozenset({allocation_refs["two"]}))
         (prepare_call, calculate_call) = (binding.prepare, binding.calculate)
 
         rejected = await self.finished(
@@ -587,7 +583,7 @@ class EmbeddedHostTests(unittest.IsolatedAsyncioTestCase):
         )
 
         host = self.host({"weighted": binding})
-        analysis = host.open_analysis("typed-state", allocation_names=("weighted",))
+        analysis = host.open_analysis(allocations=host.allocations)
 
         operation = analysis.submit(
             _invocation(
@@ -692,7 +688,7 @@ class EmbeddedHostTests(unittest.IsolatedAsyncioTestCase):
         )
 
         host = self.host({"weighted": binding})
-        analysis = host.open_analysis("denied-consume", allocation_names=("weighted",))
+        analysis = host.open_analysis(allocations=host.allocations)
 
         producer = analysis.submit(
             _invocation(
@@ -779,7 +775,7 @@ class EmbeddedHostTests(unittest.IsolatedAsyncioTestCase):
         )
 
         host = self.host({"weighted": binding})
-        analysis = host.open_analysis("malformed-state", allocation_names=("weighted",))
+        analysis = host.open_analysis(allocations=host.allocations)
 
         operation = analysis.submit(
             _invocation(
@@ -816,7 +812,7 @@ class EmbeddedHostTests(unittest.IsolatedAsyncioTestCase):
         binding = sum_binding()
         call = binding.run
         host = self.host({"one": binding})
-        analysis = host.open_analysis("result", allocation_names=("one",))
+        analysis = host.open_analysis(allocations=host.allocations)
 
         operation = analysis.submit(
             _invocation(
@@ -885,7 +881,7 @@ class EmbeddedHostTests(unittest.IsolatedAsyncioTestCase):
 
         failing_binding = replace(original, run=failing_call)
         host = self.host({"encoding": failing_binding})
-        analysis = host.open_analysis("encoding", allocation_names=("encoding",))
+        analysis = host.open_analysis(allocations=host.allocations)
 
         invocation = _invocation(
             analysis,
@@ -927,8 +923,9 @@ class EmbeddedHostTests(unittest.IsolatedAsyncioTestCase):
         wrapped_call = replace(original_call, scientific_call=scientific_call)
         binding = replace(original, run=wrapped_call)
         host = self.host({"held": binding, "peer": binding})
-        held_analysis = host.open_analysis("held", allocation_names=("held",))
-        peer_analysis = host.open_analysis("peer", allocation_names=("peer",))
+        allocation_refs = {reference.allocation: reference for reference in host.allocations}
+        held_analysis = host.open_analysis(allocations=frozenset({allocation_refs["held"]}))
+        peer_analysis = host.open_analysis(allocations=frozenset({allocation_refs["peer"]}))
 
         held = held_analysis.submit(
             _invocation(
@@ -1062,7 +1059,7 @@ class EmbeddedHostTests(unittest.IsolatedAsyncioTestCase):
         )
 
         host = self.host({"one": instance_binding})
-        analysis = host.open_analysis("partial-instance", allocation_names=("one",))
+        analysis = host.open_analysis(allocations=host.allocations)
 
         failed = await self.finished(
             analysis.submit(
@@ -1119,7 +1116,7 @@ class EmbeddedHostTests(unittest.IsolatedAsyncioTestCase):
         )
 
         host = self.host({"two": analysis_binding})
-        analysis = host.open_analysis("partial-analysis", allocation_names=("two",))
+        analysis = host.open_analysis(allocations=host.allocations)
 
         failed = await self.finished(
             analysis.submit(
@@ -1179,7 +1176,7 @@ class EmbeddedHostTests(unittest.IsolatedAsyncioTestCase):
 
         binding = replace(original, run=cooperative_call)
         host = self.host({"one": binding})
-        analysis = host.open_analysis("cooperative", allocation_names=("one",))
+        analysis = host.open_analysis(allocations=host.allocations)
 
         operation = analysis.submit(
             _invocation(

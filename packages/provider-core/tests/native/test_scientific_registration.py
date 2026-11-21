@@ -98,7 +98,7 @@ def adopt(*, host, contribution, amount=1):
 
 
 async def run_sum(*, host, hosted, operation_id):
-    analysis = host.open_analysis(analysis_id=operation_id, allocation_names=(hosted.allocation.allocation,))
+    analysis = host.open_analysis(allocations=frozenset({hosted.allocation}))
     (reservation,) = analysis.reservations
 
     operation = analysis.submit_method(

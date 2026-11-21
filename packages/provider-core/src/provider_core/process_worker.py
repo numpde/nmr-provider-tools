@@ -154,9 +154,9 @@ class _Worker:
             if not (self.analysis is None):
                 raise CapacityUnavailable(f"Analysis {self.analysis.identity=} still occupies the scientific allocation")
 
-            self.analysis = self.host.open_analysis(
+            self.analysis = self.host._open_analysis(
                 analysis_id=message["analysis"],
-                allocation_names=(self.hosted.allocation.allocation,),
+                allocations=frozenset({self.hosted.allocation}),
             )
 
             return self.analysis.reservation(allocation=self.hosted.allocation)

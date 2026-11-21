@@ -319,72 +319,58 @@ class InProcessExecutionHost:
 
     def open_analysis(
         self,
-        analysis_id: str | None = None,
         *,
-        allocation_names: tuple[str, ...] | None = None,
-        allocations: frozenset[AllocationRef] | None = None,
+        allocations: frozenset[AllocationRef],
     ) -> InProcessAnalysisExecutor:
-        """Reserve exact allocation handles and create an analysis identity.
+        """Reserve exact allocation handles under a new analysis identity."""
 
-        Explicit analysis_id/allocation_names are the legacy protocol form.
-        Handle-based callers retain the returned analysis instead of naming it.
-        """
+        return self._open_analysis(allocations=allocations, analysis_id=uuid4().hex)
+
+    def _open_analysis(
+        self,
+        *,
+        allocations: frozenset[AllocationRef],
+        analysis_id: str,
+    ) -> InProcessAnalysisExecutor:
+        """Reserve exact handles under the caller's supplied analysis identity."""
         require_running_loop(self.loop)
 
-        if allocations is not None:
-            if not (analysis_id is None):
-                raise TypeError(f"{reprlib.repr(analysis_id)=} should be None with {type(allocations)=}")
+        require_type(allocations, frozenset)
 
-            if not (allocation_names is None):
-                raise TypeError(f"{reprlib.repr(allocation_names)=} should be None with {type(allocations)=}")
+        for reference in allocations:
+            require_type(reference, AllocationRef)
 
-            require_type(allocations, frozenset)
+        selected_residents = []
 
-            for reference in allocations:
-                require_type(reference, AllocationRef)
+        for reference in allocations:
+            resident = self.residents.get(reference.allocation)
 
-            for reference in allocations:
-                resident = self.residents.get(reference.allocation)
+            if (resident is None) and (reference.host == self.identity):
+                raise CapacityUnavailable(f"{reference.allocation=} should identify a current allocation on {self.identity=}")
 
-                if (resident is None) and (reference.host == self.identity):
-                    raise CapacityUnavailable(f"{reference.allocation=} should identify a current allocation on {self.identity=}")
+            if resident is None:
+                raise ValueError(f"{reference.host=} should match {self.identity=}")
 
-                if resident is None:
-                    raise ValueError(f"{reference.host=} should match {self.identity=}")
+            if not (resident.reference == reference):
+                raise ValueError(metadata_mismatch_message(reference, resident.reference))
 
-                if not (resident.reference == reference):
-                    raise ValueError(metadata_mismatch_message(reference, resident.reference))
-
-            names = [reference.allocation for reference in allocations]
-            allocation_names = tuple(names)
-            analysis_id = uuid4().hex
+            selected_residents.append(resident)
 
         if self.retiring:
             raise CapacityUnavailable(f"{self.retiring=} should be False")
 
         require_type(analysis_id, str)
 
-        require_type(allocation_names, tuple)
-
         (min_analysis_id_characters, max_analysis_id_characters) = (1, 160)
 
         if not (min_analysis_id_characters <= (analysis_id_characters := len(analysis_id)) <= max_analysis_id_characters):
             raise ValueError(f"{analysis_id_characters=} should be between {min_analysis_id_characters=} and {max_analysis_id_characters=}")
 
-        if not (allocation_names):
-            raise ValueError(f"{allocation_names=} should be nonempty")
-
-        if not ((unique_allocation_count := len(set(allocation_names))) == (selected_allocation_count := len(allocation_names))):
-            raise ValueError(f"{unique_allocation_count=} should match {selected_allocation_count=}")
+        if not (allocations):
+            raise ValueError(f"{allocations=} should be nonempty")
 
         if analysis_id in self.analyses:
             raise RequestConflict(f"{analysis_id=} already has an owner")
-
-        for name in allocation_names:
-            if name not in self.residents:
-                raise CapacityUnavailable(f"{reprlib.repr(name)=} should identify a current allocation on {self.identity=}")
-
-        selected_residents = [self.residents[name] for name in allocation_names]
 
         for resident in selected_residents:
             if not (resident.analysis is None):
