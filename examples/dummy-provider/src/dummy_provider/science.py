@@ -63,9 +63,10 @@ class PreparationInput:
         sample_finiteness = np.isfinite(self.samples)
 
         if not sample_finiteness.all():
-            nonfinite_sample_index = next(index for index in range(self.samples.size) if not (sample_finiteness[index]))
+            sample_index = next(index for index in range(self.samples.size) if not (sample_finiteness[index]))
+            sample = self.samples[sample_index]
 
-            raise ValueError(f"{nonfinite_sample_index=}; {self.samples[nonfinite_sample_index]=} should be finite")
+            raise ValueError(f"{sample=} at {sample_index=} should be finite")
 
 
 @dataclass(frozen=True, slots=True, kw_only=True, eq=False)
@@ -82,9 +83,10 @@ class SumInput:
         sample_finiteness = np.isfinite(self.samples)
 
         if not sample_finiteness.all():
-            nonfinite_sample_index = next(index for index in range(self.samples.size) if not (sample_finiteness[index]))
+            sample_index = next(index for index in range(self.samples.size) if not (sample_finiteness[index]))
+            sample = self.samples[sample_index]
 
-            raise ValueError(f"{nonfinite_sample_index=}; {self.samples[nonfinite_sample_index]=} should be finite")
+            raise ValueError(f"{sample=} at {sample_index=} should be finite")
 
 
 @dataclass(frozen=True, slots=True, kw_only=True)
@@ -170,9 +172,10 @@ class PreparedSamples:
         sample_finiteness = np.isfinite(self.samples)
 
         if not sample_finiteness.all():
-            nonfinite_sample_index = next(index for index in range(self.samples.size) if not (sample_finiteness[index]))
+            sample_index = next(index for index in range(self.samples.size) if not (sample_finiteness[index]))
+            sample = self.samples[sample_index]
 
-            raise ValueError(f"{nonfinite_sample_index=}; {self.samples[nonfinite_sample_index]=} should be finite")
+            raise ValueError(f"{sample=} at {sample_index=} should be finite")
 
     @property
     def sample_count(self) -> int:
@@ -235,9 +238,10 @@ def load_model(model: WeightedSumModel) -> None:
     coefficient_finiteness = np.isfinite(coefficient_weights)
 
     if not coefficient_finiteness.all():
-        nonfinite_coefficient_index = next(index for index in range(coefficient_weights.size) if not (coefficient_finiteness[index]))
+        coefficient_index = next(index for index in range(coefficient_weights.size) if not (coefficient_finiteness[index]))
+        coefficient_weight = coefficient_weights[coefficient_index]
 
-        raise ValueError(f"{nonfinite_coefficient_index=}; {coefficient_weights[nonfinite_coefficient_index]=} should be finite")
+        raise ValueError(f"{coefficient_weight=} at {coefficient_index=} should be finite")
 
     model.loaded_coefficients = coefficient_weights
 
