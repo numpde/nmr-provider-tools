@@ -15,7 +15,6 @@ from collections.abc import Awaitable, Callable, Mapping
 from dataclasses import dataclass, field
 from enum import Enum
 from functools import partial
-import re
 import reprlib
 from types import MappingProxyType
 from typing import Never, Protocol
@@ -27,6 +26,7 @@ from provider_core.contribution import (
     InterruptionSupport,
     IsolationRequirement,
     ProgressEvent,
+    require_binding_revision,
 )
 
 from provider_core.task_boundary import contain_task_exit
@@ -73,15 +73,6 @@ def require_capacity_partition(*, total: Mapping, shares: Mapping) -> None:
 
         if assigned > allowance:
             raise ValueError(f"Cannot partition execution capacity with {name=}, {assigned=}, {allowance=}; shares exceed the provider allowance")
-
-
-def _digest(digest_text, digest_role):
-    require_type(digest_text, str)
-
-    expected_digest_pattern = r"(?:sha256:|configured-v[23]:sha256:)[0-9a-f]{64}\Z"
-
-    if re.fullmatch(expected_digest_pattern, digest_text) is None:
-        raise ValueError(f"{digest_role=}; {reprlib.repr(digest_text)=} should match {expected_digest_pattern=}")
 
 
 @dataclass(frozen=True, slots=True)
@@ -134,7 +125,7 @@ class AllocationRef:
         require_identity_text(self.host, "Host identity")
         require_identity_text(self.allocation, "Allocation identity")
         require_identity_text(self.binding_id, "Binding identity")
-        _digest(self.binding_revision, "Binding revision")
+        require_binding_revision(self.binding_revision)
 
 
 @dataclass(frozen=True, slots=True)
@@ -152,7 +143,7 @@ class ReservationRef:
         require_identity_text(self.analysis, "Analysis identity")
         require_identity_text(self.allocation, "Allocation identity")
         require_identity_text(self.binding_id, "Binding identity")
-        _digest(self.binding_revision, "Binding revision")
+        require_binding_revision(self.binding_revision)
 
 
 @dataclass(frozen=True, slots=True)
@@ -189,7 +180,7 @@ class StateRef:
         require_identity_text(self.analysis, "Analysis identity")
         require_identity_text(self.allocation, "Allocation identity")
         require_identity_text(self.binding_id, "Binding identity")
-        _digest(self.binding_revision, "Binding revision")
+        require_binding_revision(self.binding_revision)
         require_identity_text(self.state_id, "State identity")
         require_identity_text(self.kind, "Scientific state kind")
 

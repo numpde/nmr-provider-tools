@@ -43,7 +43,8 @@ def _digest(digest_text: object, digest_role: str) -> None:
         raise ValueError(f"{digest_role=}; {reprlib.repr(digest_text)=} should match {expected_digest_pattern=}")
 
 
-def _binding_revision(binding_revision: object) -> None:
+def require_binding_revision(binding_revision: object) -> None:
+    """Require a plain or configuration-derived scientific binding revision."""
     require_type(binding_revision, str)
 
     expected_revision_pattern = r"(?:sha256:|configured-v[23]:sha256:)[0-9a-f]{64}\Z"
@@ -571,7 +572,7 @@ class ImplementationDescription:
 
     def __post_init__(self) -> None:
         require_identity_text(self.binding_id, "Binding identity")
-        _binding_revision(self.binding_revision)
+        require_binding_revision(self.binding_revision)
 
         require_type(self.contract_version, int)
 
@@ -604,7 +605,7 @@ class CallRef:
 
     def __post_init__(self) -> None:
         require_identity_text(self.binding_id, "Binding identity")
-        _binding_revision(self.binding_revision)
+        require_binding_revision(self.binding_revision)
         require_identity_text(self.name, "Call name")
 
 
