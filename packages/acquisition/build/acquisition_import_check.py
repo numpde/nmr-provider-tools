@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import argparse
 import importlib
 import reprlib
 import sys
@@ -18,9 +19,9 @@ def main(root: Path) -> None:
 
 
 if __name__ == "__main__":
-    source_directory_arguments = sys.argv[1:]
+    parser = argparse.ArgumentParser(description=__doc__)
 
-    if not (len(source_directory_arguments) == 1):
-        raise SystemExit(f"{reprlib.repr(source_directory_arguments)=} should contain one extracted acquisition source directory")
+    parser.add_argument("source_directory", type=Path)
+    arguments = parser.parse_args()
 
-    main(Path(source_directory_arguments[0]))
+    main(arguments.source_directory)
